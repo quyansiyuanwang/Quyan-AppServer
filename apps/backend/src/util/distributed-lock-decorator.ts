@@ -14,9 +14,9 @@ const findRequestArg = (args: unknown[]): TypedRequest | undefined => {
   return args.find((arg): arg is TypedRequest =>
     Boolean(
       arg &&
-      typeof arg === "object" &&
-      "headers" in (arg as Record<string, unknown>) &&
-      "method" in (arg as Record<string, unknown>),
+        typeof arg === "object" &&
+        "headers" in (arg as Record<string, unknown>) &&
+        "method" in (arg as Record<string, unknown>),
     ),
   );
 };
