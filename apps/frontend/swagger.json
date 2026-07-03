@@ -7822,7 +7822,6 @@
 				],
 				"parameters": [
 					{
-						"description": "IP 黑名单 ID",
 						"in": "path",
 						"name": "id",
 						"required": true,

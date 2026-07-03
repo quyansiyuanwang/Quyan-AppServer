@@ -63,7 +63,7 @@ pnpm run openapi:sync
 pnpm run openapi:generate
 pnpm run openapi:sync-generate
 pnpm run client:generate
-pnpm run validate:permissions
+pnpm run validate:permissions   # 从根目录运行，验证前后端权限一致性
 ```
 
 ### 测试

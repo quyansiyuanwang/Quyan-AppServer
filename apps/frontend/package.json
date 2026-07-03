@@ -31,8 +31,7 @@
 
     "--- e_openapi ---------------------": "",
     "openapi:generate": "openapi-ts && pnpm run client:generate",
-    "openapi:sync": "node -e \"const fs=require('fs');const src='../../backend/src/build/swagger.json';if(!fs.existsSync(src))throw new Error('Backend swagger.json not found: '+src);fs.copyFileSync(src,'./swagger.json');console.log('Synced swagger.json from backend')\"",
-    "openapi:sync-generate": "pnpm run openapi:sync && pnpm run openapi:generate",
+    "openapi:sync-generate": "pnpm run openapi:generate",
     "client:generate": "node scripts/generate-api-constants.js && node scripts/generate-api-types-map.js && node scripts/generate-replay-protected-endpoints.js",
 
     "--- f_lint_format -----------------": "",
@@ -49,9 +48,8 @@
     "test:coverage": "vitest run --coverage",
 
     "--- h_check -----------------------": "",
-    "validate:permissions": "jiti scripts/validate-permissions.js",
     "check": "pnpm run lint-format-check && pnpm run test",
-    "precommit": "pnpm run openapi:generate && pnpm run validate:permissions && pnpm run check"
+    "precommit": "pnpm run check"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
