@@ -75,7 +75,7 @@
                   class="pinned-menu-link__main"
                   @click="
                     item.route
-                      ? handleRouteNavigation(item.route, $event)
+                      ? handleRouteNavigation(item.route!, $event)
                       : handleOverviewItem(item)
                   "
                 >
