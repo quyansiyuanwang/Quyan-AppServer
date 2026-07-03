@@ -48,11 +48,11 @@ AUTH_CENTER_ISSUER=http://localhost:10001/auth-center
 
 ```js
 export async function fetchJwks(baseUrl) {
-  const response = await fetch(`${baseUrl}/auth-center/.well-known/jwks.json`);
+  const response = await fetch(`${baseUrl}/auth-center/.well-known/jwks.json`)
   if (!response.ok) {
-    throw new Error(`加载 JWKS 失败: ${response.status}`);
+    throw new Error(`加载 JWKS 失败: ${response.status}`)
   }
-  return response.json();
+  return response.json()
 }
 ```
 
@@ -61,37 +61,37 @@ export async function fetchJwks(baseUrl) {
 下面示例使用 Node 内置 `crypto` 把 JWKS 中的 RSA 公钥转换为 PEM，再用 `jsonwebtoken` 完成校验。
 
 ```js
-import crypto from "node:crypto";
-import jwt from "jsonwebtoken";
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 
 function jwkToPublicKey(jwk) {
-  const keyObject = crypto.createPublicKey({ key: jwk, format: "jwk" });
-  return keyObject.export({ type: "spki", format: "pem" });
+  const keyObject = crypto.createPublicKey({ key: jwk, format: 'jwk' })
+  return keyObject.export({ type: 'spki', format: 'pem' })
 }
 
 export async function verifyAccessToken({ token, jwks, issuer, audience }) {
-  const decoded = jwt.decode(token, { complete: true });
-  if (!decoded || typeof decoded !== "object") {
-    throw new Error("JWT 格式无效");
+  const decoded = jwt.decode(token, { complete: true })
+  if (!decoded || typeof decoded !== 'object') {
+    throw new Error('JWT 格式无效')
   }
 
-  const kid = decoded.header?.kid;
+  const kid = decoded.header?.kid
   if (!kid) {
-    throw new Error("JWT Header 缺少 kid");
+    throw new Error('JWT Header 缺少 kid')
   }
 
-  const jwk = jwks.keys.find((item) => item.kid === kid);
+  const jwk = jwks.keys.find((item) => item.kid === kid)
   if (!jwk) {
-    throw new Error(`JWKS 中找不到 kid=${kid} 对应的公钥`);
+    throw new Error(`JWKS 中找不到 kid=${kid} 对应的公钥`)
   }
 
-  const publicKey = jwkToPublicKey(jwk);
+  const publicKey = jwkToPublicKey(jwk)
 
   return jwt.verify(token, publicKey, {
-    algorithms: [jwk.alg || "RS256"],
+    algorithms: [jwk.alg || 'RS256'],
     issuer,
     audience,
-  });
+  })
 }
 ```
 
@@ -107,26 +107,26 @@ export async function exchangeAuthorizationCode({
   codeVerifier,
 }) {
   const response = await fetch(`${baseUrl}/auth-center/token`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      grant_type: "authorization_code",
+      grant_type: 'authorization_code',
       client_id: clientId,
       client_secret: clientSecret,
       code,
       redirect_uri: redirectUri,
       code_verifier: codeVerifier,
     }),
-  });
+  })
 
-  const payload = await response.json();
+  const payload = await response.json()
   if (!response.ok) {
-    throw new Error(payload?.scope || payload?.message || "授权码换取令牌失败");
+    throw new Error(payload?.scope || payload?.message || '授权码换取令牌失败')
   }
 
-  return payload;
+  return payload
 }
 ```
 
@@ -145,62 +145,52 @@ export async function exchangeAuthorizationCode({
 ## 4. 刷新短期访问令牌
 
 ```js
-export async function refreshAccessToken({
-  baseUrl,
-  clientId,
-  clientSecret,
-  refreshToken,
-}) {
+export async function refreshAccessToken({ baseUrl, clientId, clientSecret, refreshToken }) {
   const response = await fetch(`${baseUrl}/auth-center/token`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      grant_type: "refresh_token",
+      grant_type: 'refresh_token',
       client_id: clientId,
       client_secret: clientSecret,
       refresh_token: refreshToken,
     }),
-  });
+  })
 
-  const payload = await response.json();
+  const payload = await response.json()
   if (!response.ok) {
-    throw new Error(payload?.scope || payload?.message || "刷新令牌失败");
+    throw new Error(payload?.scope || payload?.message || '刷新令牌失败')
   }
 
-  return payload;
+  return payload
 }
 ```
 
 ## 5. `client_credentials` 机器间调用
 
 ```js
-export async function getMachineToken({
-  baseUrl,
-  clientId,
-  clientSecret,
-  scope,
-}) {
+export async function getMachineToken({ baseUrl, clientId, clientSecret, scope }) {
   const response = await fetch(`${baseUrl}/auth-center/token`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      grant_type: "client_credentials",
+      grant_type: 'client_credentials',
       client_id: clientId,
       client_secret: clientSecret,
       scope,
     }),
-  });
+  })
 
-  const payload = await response.json();
+  const payload = await response.json()
   if (!response.ok) {
-    throw new Error(payload?.scope || payload?.message || "获取机器令牌失败");
+    throw new Error(payload?.scope || payload?.message || '获取机器令牌失败')
   }
 
-  return payload;
+  return payload
 }
 ```
 
@@ -212,21 +202,21 @@ export async function getMachineToken({
 ## 6. 组合示例
 
 ```js
-import "dotenv/config";
+import 'dotenv/config'
 import {
   exchangeAuthorizationCode,
   fetchJwks,
   refreshAccessToken,
   verifyAccessToken,
-} from "./auth-center-client.js";
+} from './auth-center-client.js'
 
-const baseUrl = process.env.AUTH_CENTER_BASE_URL;
-const clientId = process.env.AUTH_CENTER_CLIENT_ID;
-const clientSecret = process.env.AUTH_CENTER_CLIENT_SECRET;
-const issuer = process.env.AUTH_CENTER_ISSUER;
+const baseUrl = process.env.AUTH_CENTER_BASE_URL
+const clientId = process.env.AUTH_CENTER_CLIENT_ID
+const clientSecret = process.env.AUTH_CENTER_CLIENT_SECRET
+const issuer = process.env.AUTH_CENTER_ISSUER
 
-const code = "returned_authorization_code";
-const codeVerifier = "pkce-verifier";
+const code = 'returned_authorization_code'
+const codeVerifier = 'pkce-verifier'
 
 const tokenSet = await exchangeAuthorizationCode({
   baseUrl,
@@ -235,17 +225,17 @@ const tokenSet = await exchangeAuthorizationCode({
   code,
   redirectUri: process.env.AUTH_CENTER_REDIRECT_URI,
   codeVerifier,
-});
+})
 
-const jwks = await fetchJwks(baseUrl);
+const jwks = await fetchJwks(baseUrl)
 const claims = await verifyAccessToken({
   token: tokenSet.access_token,
   jwks,
   issuer,
   audience: clientId,
-});
+})
 
-console.log("verified claims =>", claims);
+console.log('verified claims =>', claims)
 
 if (tokenSet.refresh_token) {
   const refreshed = await refreshAccessToken({
@@ -253,9 +243,9 @@ if (tokenSet.refresh_token) {
     clientId,
     clientSecret,
     refreshToken: tokenSet.refresh_token,
-  });
+  })
 
-  console.log("refreshed access token =>", refreshed.access_token);
+  console.log('refreshed access token =>', refreshed.access_token)
 }
 ```
 

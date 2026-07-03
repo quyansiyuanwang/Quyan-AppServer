@@ -104,89 +104,85 @@ SCOPE=profile email
 ### `index.js`
 
 ```js
-import "dotenv/config";
-import express from "express";
+import 'dotenv/config'
+import express from 'express'
 
-const app = express();
-const port = Number(process.env.PORT || 3000);
-const appBaseUrl = process.env.APP_BASE_URL;
-const apiBaseUrl = process.env.APPSERVER_BASE_URL;
-const clientId = process.env.CLIENT_ID;
-const clientSecret = process.env.CLIENT_SECRET;
-const redirectUri = process.env.REDIRECT_URI;
-const scope = process.env.SCOPE || "profile";
+const app = express()
+const port = Number(process.env.PORT || 3000)
+const appBaseUrl = process.env.APP_BASE_URL
+const apiBaseUrl = process.env.APPSERVER_BASE_URL
+const clientId = process.env.CLIENT_ID
+const clientSecret = process.env.CLIENT_SECRET
+const redirectUri = process.env.REDIRECT_URI
+const scope = process.env.SCOPE || 'profile'
 
-app.get("/", (_req, res) => {
-  res.type("html").send(`
+app.get('/', (_req, res) => {
+  res.type('html').send(`
     <h1>OAuth Demo</h1>
     <a href="/login">Use AppServer Login</a>
-  `);
-});
+  `)
+})
 
-app.get("/login", (_req, res) => {
-  const state = crypto.randomUUID();
-  const authorizeUrl = new URL("/oauth/authorize", apiBaseUrl);
-  authorizeUrl.searchParams.set("response_type", "code");
-  authorizeUrl.searchParams.set("client_id", clientId);
-  authorizeUrl.searchParams.set("redirect_uri", redirectUri);
-  authorizeUrl.searchParams.set("scope", scope);
-  authorizeUrl.searchParams.set("state", state);
+app.get('/login', (_req, res) => {
+  const state = crypto.randomUUID()
+  const authorizeUrl = new URL('/oauth/authorize', apiBaseUrl)
+  authorizeUrl.searchParams.set('response_type', 'code')
+  authorizeUrl.searchParams.set('client_id', clientId)
+  authorizeUrl.searchParams.set('redirect_uri', redirectUri)
+  authorizeUrl.searchParams.set('scope', scope)
+  authorizeUrl.searchParams.set('state', state)
 
-  res.redirect(authorizeUrl.toString());
-});
+  res.redirect(authorizeUrl.toString())
+})
 
-app.get("/oauth/callback", async (req, res) => {
-  const code = String(req.query.code || "");
+app.get('/oauth/callback', async (req, res) => {
+  const code = String(req.query.code || '')
 
   if (!code) {
-    res.status(400).json({ error: "missing_code", query: req.query });
-    return;
+    res.status(400).json({ error: 'missing_code', query: req.query })
+    return
   }
 
-  const tokenResponse = await fetch(new URL("/oauth/token", apiBaseUrl), {
-    method: "POST",
+  const tokenResponse = await fetch(new URL('/oauth/token', apiBaseUrl), {
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      grant_type: "authorization_code",
+      grant_type: 'authorization_code',
       code,
       client_id: clientId,
       client_secret: clientSecret,
       redirect_uri: redirectUri,
     }),
-  });
+  })
 
-  const tokenPayload = await tokenResponse.json();
-  const accessToken =
-    tokenPayload?.data?.accessToken || tokenPayload?.access_token;
+  const tokenPayload = await tokenResponse.json()
+  const accessToken = tokenPayload?.data?.accessToken || tokenPayload?.access_token
 
   if (!accessToken) {
-    res.status(502).json({ error: "token_exchange_failed", tokenPayload });
-    return;
+    res.status(502).json({ error: 'token_exchange_failed', tokenPayload })
+    return
   }
 
-  const profileResponse = await fetch(
-    new URL("/api/user/profile", apiBaseUrl),
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
+  const profileResponse = await fetch(new URL('/api/user/profile', apiBaseUrl), {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
     },
-  );
+  })
 
-  const profilePayload = await profileResponse.json();
+  const profilePayload = await profileResponse.json()
 
   res.json({
-    message: "oauth_success",
+    message: 'oauth_success',
     tokenPayload,
     profilePayload,
-  });
-});
+  })
+})
 
 app.listen(port, () => {
-  console.log(`Demo server ready at ${appBaseUrl}`);
-});
+  console.log(`Demo server ready at ${appBaseUrl}`)
+})
 ```
 
 ## Python minimal OAuth demo
@@ -324,62 +320,50 @@ Key differences:
 ### Node PKCE example
 
 ```js
-import crypto from "crypto";
+import crypto from 'crypto'
 
 function toBase64Url(buffer) {
-  return buffer
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
+  return buffer.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
 }
 
 function createPkcePair() {
-  const codeVerifier = toBase64Url(crypto.randomBytes(32));
-  const codeChallenge = toBase64Url(
-    crypto.createHash("sha256").update(codeVerifier).digest(),
-  );
+  const codeVerifier = toBase64Url(crypto.randomBytes(32))
+  const codeChallenge = toBase64Url(crypto.createHash('sha256').update(codeVerifier).digest())
 
-  return { codeVerifier, codeChallenge, codeChallengeMethod: "S256" };
+  return { codeVerifier, codeChallenge, codeChallengeMethod: 'S256' }
 }
 
-const { codeVerifier, codeChallenge, codeChallengeMethod } = createPkcePair();
-const state = crypto.randomUUID();
+const { codeVerifier, codeChallenge, codeChallengeMethod } = createPkcePair()
+const state = crypto.randomUUID()
 
-const authorizeUrl = new URL(
-  "/oauth/authorize",
-  process.env.APPSERVER_BASE_URL,
-);
-authorizeUrl.searchParams.set("response_type", "code");
-authorizeUrl.searchParams.set("client_id", process.env.CLIENT_ID);
-authorizeUrl.searchParams.set("redirect_uri", process.env.REDIRECT_URI);
-authorizeUrl.searchParams.set("scope", process.env.SCOPE || "profile email");
-authorizeUrl.searchParams.set("state", state);
-authorizeUrl.searchParams.set("code_challenge", codeChallenge);
-authorizeUrl.searchParams.set("code_challenge_method", codeChallengeMethod);
+const authorizeUrl = new URL('/oauth/authorize', process.env.APPSERVER_BASE_URL)
+authorizeUrl.searchParams.set('response_type', 'code')
+authorizeUrl.searchParams.set('client_id', process.env.CLIENT_ID)
+authorizeUrl.searchParams.set('redirect_uri', process.env.REDIRECT_URI)
+authorizeUrl.searchParams.set('scope', process.env.SCOPE || 'profile email')
+authorizeUrl.searchParams.set('state', state)
+authorizeUrl.searchParams.set('code_challenge', codeChallenge)
+authorizeUrl.searchParams.set('code_challenge_method', codeChallengeMethod)
 
-console.log("Open this URL in the browser:");
-console.log(authorizeUrl.toString());
+console.log('Open this URL in the browser:')
+console.log(authorizeUrl.toString())
 
 // After the browser redirects back, paste the callback code here.
-const code = "paste_callback_code_here";
+const code = 'paste_callback_code_here'
 
-const tokenResponse = await fetch(
-  new URL("/oauth/token", process.env.APPSERVER_BASE_URL),
-  {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      grant_type: "authorization_code",
-      code,
-      client_id: process.env.CLIENT_ID,
-      redirect_uri: process.env.REDIRECT_URI,
-      code_verifier: codeVerifier,
-    }),
-  },
-);
+const tokenResponse = await fetch(new URL('/oauth/token', process.env.APPSERVER_BASE_URL), {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    grant_type: 'authorization_code',
+    code,
+    client_id: process.env.CLIENT_ID,
+    redirect_uri: process.env.REDIRECT_URI,
+    code_verifier: codeVerifier,
+  }),
+})
 
-console.log(await tokenResponse.json());
+console.log(await tokenResponse.json())
 ```
 
 ### Python PKCE example

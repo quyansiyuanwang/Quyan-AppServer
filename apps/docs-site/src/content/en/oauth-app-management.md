@@ -304,35 +304,35 @@ curl -X GET "https://api.qysyw.cn/users/profile" \
 ## Minimal TypeScript demo
 
 ```ts
-const API_BASE_URL = "https://api.qysyw.cn";
+const API_BASE_URL = 'https://api.qysyw.cn'
 
 export function buildAuthorizeUrl() {
-  const url = new URL("/oauth/authorize", API_BASE_URL);
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("client_id", "oc_live_example123");
-  url.searchParams.set("redirect_uri", "https://example.com/oauth/callback");
-  url.searchParams.set("scope", "profile email");
-  url.searchParams.set("state", crypto.randomUUID());
-  url.searchParams.set("code_challenge", "pkce-challenge");
-  url.searchParams.set("code_challenge_method", "S256");
-  return url.toString();
+  const url = new URL('/oauth/authorize', API_BASE_URL)
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('client_id', 'oc_live_example123')
+  url.searchParams.set('redirect_uri', 'https://example.com/oauth/callback')
+  url.searchParams.set('scope', 'profile email')
+  url.searchParams.set('state', crypto.randomUUID())
+  url.searchParams.set('code_challenge', 'pkce-challenge')
+  url.searchParams.set('code_challenge_method', 'S256')
+  return url.toString()
 }
 
 export async function exchangeToken(code: string, codeVerifier: string) {
   const response = await fetch(`${API_BASE_URL}/oauth/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      grant_type: "authorization_code",
-      client_id: "oc_live_example123",
-      client_secret: "oc_secret_example456",
+      grant_type: 'authorization_code',
+      client_id: 'oc_live_example123',
+      client_secret: 'oc_secret_example456',
       code,
-      redirect_uri: "https://example.com/oauth/callback",
+      redirect_uri: 'https://example.com/oauth/callback',
       code_verifier: codeVerifier,
     }),
-  });
+  })
 
-  return response.json();
+  return response.json()
 }
 ```
 

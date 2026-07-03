@@ -76,16 +76,16 @@ OpenAPI JSON: https://api.qysyw.cn/docs/openapi.json
 
 ```ts
 export interface ApiResponse<T> {
-  code: number;
-  message: string;
-  data?: T;
+  code: number
+  message: string
+  data?: T
 }
 
 export function unwrapApi<T>(response: ApiResponse<T>): T {
   if (response.code !== 0) {
-    throw new Error(response.message || `API failed: ${response.code}`);
+    throw new Error(response.message || `API failed: ${response.code}`)
   }
-  return response.data as T;
+  return response.data as T
 }
 ```
 
@@ -135,33 +135,30 @@ curl -G "https://api.qysyw.cn/oauth-clients/review" \
 ### 1. 通用请求器
 
 ```ts
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
 interface RequestOptions {
-  method?: HttpMethod;
-  token?: string;
-  body?: unknown;
+  method?: HttpMethod
+  token?: string
+  body?: unknown
 }
 
-const API_BASE_URL = "https://api.qysyw.cn";
+const API_BASE_URL = 'https://api.qysyw.cn'
 
-export async function apiRequest<T>(
-  path: string,
-  options: RequestOptions = {},
-): Promise<T> {
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: options.method ?? "GET",
+    method: options.method ?? 'GET',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
-    credentials: "include",
-  });
+    credentials: 'include',
+  })
 
-  const json = await response.json();
-  if (json.code !== 0) throw new Error(json.message || "Request failed");
-  return json.data as T;
+  const json = await response.json()
+  if (json.code !== 0) throw new Error(json.message || 'Request failed')
+  return json.data as T
 }
 ```
 
@@ -169,27 +166,24 @@ export async function apiRequest<T>(
 
 ```ts
 export interface OAuthReviewItem {
-  id: string;
-  name: string;
-  clientId: string;
-  reviewStatus: "draft" | "pending" | "approved" | "rejected";
-  reviewComment?: string;
+  id: string
+  name: string
+  clientId: string
+  reviewStatus: 'draft' | 'pending' | 'approved' | 'rejected'
+  reviewComment?: string
 }
 
 export interface OAuthReviewListResponse {
-  items: OAuthReviewItem[];
-  total: number;
-  page: number;
-  pageSize: number;
+  items: OAuthReviewItem[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 export async function listOAuthAppsForReview(token: string) {
-  return apiRequest<OAuthReviewListResponse>(
-    "/oauth-clients/review?page=1&pageSize=20",
-    {
-      token,
-    },
-  );
+  return apiRequest<OAuthReviewListResponse>('/oauth-clients/review?page=1&pageSize=20', {
+    token,
+  })
 }
 ```
 
@@ -199,17 +193,17 @@ export async function listOAuthAppsForReview(token: string) {
 export async function reviewOAuthApp(
   token: string,
   id: string,
-  reviewStatus: "approved" | "rejected",
+  reviewStatus: 'approved' | 'rejected',
   reviewComment?: string,
 ) {
   return apiRequest(`/oauth-clients/${id}/review`, {
-    method: "POST",
+    method: 'POST',
     token,
     body: {
       reviewStatus,
       reviewComment,
     },
-  });
+  })
 }
 ```
 
@@ -282,8 +276,8 @@ curl -X POST "https://api.qysyw.cn/oauth/token" \
 推荐写法：
 
 ```ts
-const page = 1;
-const pageSize = 20; // 不要盲目传超大值
+const page = 1
+const pageSize = 20 // 不要盲目传超大值
 ```
 
 ## 错误处理建议
@@ -292,10 +286,10 @@ const pageSize = 20; // 不要盲目传超大值
 
 ```ts
 try {
-  const data = await listOAuthAppsForReview(token);
-  console.log(data.items);
+  const data = await listOAuthAppsForReview(token)
+  console.log(data.items)
 } catch (error) {
-  console.error("Load failed:", error);
+  console.error('Load failed:', error)
   // 建议这里做 toast、重试、降级提示、日志上报
 }
 ```

@@ -46,11 +46,11 @@ The examples below use native `fetch` from modern Node.js. If your runtime is ol
 
 ```js
 export async function fetchJwks(baseUrl) {
-  const response = await fetch(`${baseUrl}/auth-center/.well-known/jwks.json`);
+  const response = await fetch(`${baseUrl}/auth-center/.well-known/jwks.json`)
   if (!response.ok) {
-    throw new Error(`Failed to load JWKS: ${response.status}`);
+    throw new Error(`Failed to load JWKS: ${response.status}`)
   }
-  return response.json();
+  return response.json()
 }
 ```
 
@@ -59,44 +59,43 @@ export async function fetchJwks(baseUrl) {
 This example converts the JWKS RSA key to PEM with Node's built-in `crypto` support and then verifies the JWT.
 
 ```js
-import crypto from "node:crypto";
-import jwt from "jsonwebtoken";
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 
 function base64UrlToBuffer(input) {
-  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
-  const padding =
-    normalized.length % 4 === 0 ? "" : "=".repeat(4 - (normalized.length % 4));
-  return Buffer.from(normalized + padding, "base64");
+  const normalized = input.replace(/-/g, '+').replace(/_/g, '/')
+  const padding = normalized.length % 4 === 0 ? '' : '='.repeat(4 - (normalized.length % 4))
+  return Buffer.from(normalized + padding, 'base64')
 }
 
 function jwkToPublicKey(jwk) {
-  const keyObject = crypto.createPublicKey({ key: jwk, format: "jwk" });
-  return keyObject.export({ type: "spki", format: "pem" });
+  const keyObject = crypto.createPublicKey({ key: jwk, format: 'jwk' })
+  return keyObject.export({ type: 'spki', format: 'pem' })
 }
 
 export async function verifyAccessToken({ token, jwks, issuer, audience }) {
-  const decoded = jwt.decode(token, { complete: true });
-  if (!decoded || typeof decoded !== "object") {
-    throw new Error("Invalid JWT format");
+  const decoded = jwt.decode(token, { complete: true })
+  if (!decoded || typeof decoded !== 'object') {
+    throw new Error('Invalid JWT format')
   }
 
-  const kid = decoded.header?.kid;
+  const kid = decoded.header?.kid
   if (!kid) {
-    throw new Error("JWT header missing kid");
+    throw new Error('JWT header missing kid')
   }
 
-  const jwk = jwks.keys.find((item) => item.kid === kid);
+  const jwk = jwks.keys.find((item) => item.kid === kid)
   if (!jwk) {
-    throw new Error(`Unable to find JWKS key for kid=${kid}`);
+    throw new Error(`Unable to find JWKS key for kid=${kid}`)
   }
 
-  const publicKey = jwkToPublicKey(jwk);
+  const publicKey = jwkToPublicKey(jwk)
 
   return jwt.verify(token, publicKey, {
-    algorithms: [jwk.alg || "RS256"],
+    algorithms: [jwk.alg || 'RS256'],
     issuer,
     audience,
-  });
+  })
 }
 ```
 
@@ -112,28 +111,26 @@ export async function exchangeAuthorizationCode({
   codeVerifier,
 }) {
   const response = await fetch(`${baseUrl}/auth-center/token`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      grant_type: "authorization_code",
+      grant_type: 'authorization_code',
       client_id: clientId,
       client_secret: clientSecret,
       code,
       redirect_uri: redirectUri,
       code_verifier: codeVerifier,
     }),
-  });
+  })
 
-  const payload = await response.json();
+  const payload = await response.json()
   if (!response.ok) {
-    throw new Error(
-      payload?.scope || payload?.message || "Token exchange failed",
-    );
+    throw new Error(payload?.scope || payload?.message || 'Token exchange failed')
   }
 
-  return payload;
+  return payload
 }
 ```
 
@@ -152,64 +149,52 @@ Expected result:
 ## 4. Refresh the short-lived access token
 
 ```js
-export async function refreshAccessToken({
-  baseUrl,
-  clientId,
-  clientSecret,
-  refreshToken,
-}) {
+export async function refreshAccessToken({ baseUrl, clientId, clientSecret, refreshToken }) {
   const response = await fetch(`${baseUrl}/auth-center/token`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      grant_type: "refresh_token",
+      grant_type: 'refresh_token',
       client_id: clientId,
       client_secret: clientSecret,
       refresh_token: refreshToken,
     }),
-  });
+  })
 
-  const payload = await response.json();
+  const payload = await response.json()
   if (!response.ok) {
-    throw new Error(payload?.scope || payload?.message || "Refresh failed");
+    throw new Error(payload?.scope || payload?.message || 'Refresh failed')
   }
 
-  return payload;
+  return payload
 }
 ```
 
 ## 5. Server-to-server with `client_credentials`
 
 ```js
-export async function getMachineToken({
-  baseUrl,
-  clientId,
-  clientSecret,
-  scope,
-}) {
+export async function getMachineToken({ baseUrl, clientId, clientSecret, scope }) {
   const response = await fetch(`${baseUrl}/auth-center/token`, {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      grant_type: "client_credentials",
+      grant_type: 'client_credentials',
       client_id: clientId,
       client_secret: clientSecret,
       scope,
     }),
-  });
+  })
 
-  const payload = await response.json();
+  const payload = await response.json()
   if (!response.ok) {
-    throw new Error(
-      payload?.scope || payload?.message || "Machine token request failed",
-    );
+    throw new Error(payload?.scope || payload?.message || 'Machine token request failed')
   }
 
-  return payload;
+  return payload
 }
 ```
 
@@ -221,21 +206,21 @@ Important:
 ## 6. Combined example
 
 ```js
-import "dotenv/config";
+import 'dotenv/config'
 import {
   exchangeAuthorizationCode,
   fetchJwks,
   refreshAccessToken,
   verifyAccessToken,
-} from "./auth-center-client.js";
+} from './auth-center-client.js'
 
-const baseUrl = process.env.AUTH_CENTER_BASE_URL;
-const clientId = process.env.AUTH_CENTER_CLIENT_ID;
-const clientSecret = process.env.AUTH_CENTER_CLIENT_SECRET;
-const issuer = process.env.AUTH_CENTER_ISSUER;
+const baseUrl = process.env.AUTH_CENTER_BASE_URL
+const clientId = process.env.AUTH_CENTER_CLIENT_ID
+const clientSecret = process.env.AUTH_CENTER_CLIENT_SECRET
+const issuer = process.env.AUTH_CENTER_ISSUER
 
-const code = "returned_authorization_code";
-const codeVerifier = "pkce-verifier";
+const code = 'returned_authorization_code'
+const codeVerifier = 'pkce-verifier'
 
 const tokenSet = await exchangeAuthorizationCode({
   baseUrl,
@@ -244,17 +229,17 @@ const tokenSet = await exchangeAuthorizationCode({
   code,
   redirectUri: process.env.AUTH_CENTER_REDIRECT_URI,
   codeVerifier,
-});
+})
 
-const jwks = await fetchJwks(baseUrl);
+const jwks = await fetchJwks(baseUrl)
 const claims = await verifyAccessToken({
   token: tokenSet.access_token,
   jwks,
   issuer,
   audience: clientId,
-});
+})
 
-console.log("verified claims =>", claims);
+console.log('verified claims =>', claims)
 
 if (tokenSet.refresh_token) {
   const refreshed = await refreshAccessToken({
@@ -262,9 +247,9 @@ if (tokenSet.refresh_token) {
     clientId,
     clientSecret,
     refreshToken: tokenSet.refresh_token,
-  });
+  })
 
-  console.log("refreshed access token =>", refreshed.access_token);
+  console.log('refreshed access token =>', refreshed.access_token)
 }
 ```
 

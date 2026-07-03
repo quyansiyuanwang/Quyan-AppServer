@@ -18,18 +18,9 @@
       </div>
 
       <div class="topbar-actions">
-        <button class="command-pill" type="button" @click="focusSearch">
-          Ctrl + K
-        </button>
-        <a class="top-link" :href="appBaseUrl" target="_blank" rel="noreferrer"
-          >Main site</a
-        >
-        <a
-          class="top-link primary"
-          :href="swaggerDocsUrl"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <button class="command-pill" type="button" @click="focusSearch">Ctrl + K</button>
+        <a class="top-link" :href="appBaseUrl" target="_blank" rel="noreferrer">Main site</a>
+        <a class="top-link primary" :href="swaggerDocsUrl" target="_blank" rel="noreferrer">
           Swagger
         </a>
       </div>
@@ -41,10 +32,7 @@
           <div class="sidebar-headline">
             <div class="sidebar-eyebrow">Documentation hub</div>
             <h2>Search, skim, jump</h2>
-            <p>
-              Reference-first navigation with denser structure and clearer
-              hierarchy.
-            </p>
+            <p>Reference-first navigation with denser structure and clearer hierarchy.</p>
           </div>
 
           <div class="locale-switch">
@@ -84,16 +72,10 @@
         <div class="sidebar-section sidebar-groups">
           <div class="sidebar-groups-head">
             <div class="section-label">{{ ui.pages }}</div>
-            <div class="sidebar-groups-meta">
-              {{ groupedPages.length }} groups
-            </div>
+            <div class="sidebar-groups-meta">{{ groupedPages.length }} groups</div>
           </div>
 
-          <div
-            v-for="group in groupedPages"
-            :key="group.label"
-            class="group-block"
-          >
+          <div v-for="group in groupedPages" :key="group.label" class="group-block">
             <div class="group-title">{{ group.label }}</div>
             <button
               v-for="page in group.pages"
@@ -130,9 +112,7 @@
             <p class="doc-summary">{{ currentPage.summary[locale] }}</p>
 
             <div v-if="showEmbeddedMeta" class="doc-tags">
-              <span v-for="tag in currentPage.tags" :key="tag" class="doc-tag"
-                >#{{ tag }}</span
-              >
+              <span v-for="tag in currentPage.tags" :key="tag" class="doc-tag">#{{ tag }}</span>
             </div>
           </div>
 
@@ -144,11 +124,7 @@
             <div class="hero-side-card">
               <div class="hero-side-label">Actions</div>
               <div class="doc-actions">
-                <button
-                  class="action-button"
-                  type="button"
-                  @click="copyCurrentPageUrl"
-                >
+                <button class="action-button" type="button" @click="copyCurrentPageUrl">
                   {{ ui.copyPage }}
                 </button>
                 <a
@@ -159,12 +135,7 @@
                 >
                   Swagger
                 </a>
-                <a
-                  class="action-button ghost"
-                  :href="appBaseUrl"
-                  target="_blank"
-                  rel="noreferrer"
-                >
+                <a class="action-button ghost" :href="appBaseUrl" target="_blank" rel="noreferrer">
                   App
                 </a>
               </div>
@@ -172,22 +143,13 @@
           </div>
         </section>
 
-        <section
-          v-if="query.trim() && searchMatches.length"
-          class="result-panel"
-        >
+        <section v-if="query.trim() && searchMatches.length" class="result-panel">
           <div class="panel-header">
             <div>
               <div class="section-label">{{ ui.searchResults }}</div>
               <h3>{{ searchMatches.length }} {{ ui.matches }}</h3>
             </div>
-            <button
-              class="action-button ghost"
-              type="button"
-              @click="query = ''"
-            >
-              Clear
-            </button>
+            <button class="action-button ghost" type="button" @click="query = ''">Clear</button>
           </div>
 
           <div class="result-list">
@@ -217,21 +179,14 @@
           <aside v-if="showTocPanel" class="toc-panel">
             <div class="toc-sticky">
               <div class="section-label">{{ ui.toc }}</div>
-              <a
-                v-for="item in tocItems"
-                :key="item.id"
-                class="toc-link"
-                :href="`#${item.id}`"
-              >
+              <a v-for="item in tocItems" :key="item.id" class="toc-link" :href="`#${item.id}`">
                 <span class="toc-bullet" :class="`level-${item.level}`"></span>
                 <span>{{ item.label }}</span>
               </a>
 
               <div class="toc-card">
                 <div class="toc-card-title">{{ ui.quickLinks }}</div>
-                <a :href="appBaseUrl" target="_blank" rel="noreferrer">{{
-                  appBaseUrlLabel
-                }}</a>
+                <a :href="appBaseUrl" target="_blank" rel="noreferrer">{{ appBaseUrlLabel }}</a>
                 <a :href="swaggerDocsUrl" target="_blank" rel="noreferrer">{{
                   swaggerDocsUrlLabel
                 }}</a>
@@ -245,511 +200,473 @@
 </template>
 
 <script setup lang="ts">
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from "vue";
-import { marked } from "marked";
-import { useRoute, useRouter } from "vue-router";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { marked } from 'marked'
+import { useRoute, useRouter } from 'vue-router'
 import {
   APP_BASE_URL,
   DOCS_BASE_URL,
   SWAGGER_DOCS_URL,
   interpolateDocsContent,
-} from "@/config/site";
-import { docsRegistry, type DocsLocale, type DocsSlug } from "@/docs";
-import { glossaryRegistry, type GlossaryEntry } from "@/docs/glossary";
+} from '@/config/site'
+import { docsRegistry, type DocsLocale, type DocsSlug } from '@/docs'
+import { glossaryRegistry, type GlossaryEntry } from '@/docs/glossary'
 
 type TocItem = {
-  id: string;
-  label: string;
-  level: 2 | 3;
-};
+  id: string
+  label: string
+  level: 2 | 3
+}
 
 type GlossaryAliasMatch = {
-  alias: string;
-  entryId: string;
-};
+  alias: string
+  entryId: string
+}
 
-const route = useRoute();
-const router = useRouter();
-const query = ref("");
-const searchInputRef = ref<HTMLInputElement | null>(null);
-const articlePanelRef = ref<HTMLElement | null>(null);
-const docsPageRef = ref<HTMLElement | null>(null);
-const isEmbedded = computed(() => route.query.embed === "1");
-const embeddedViewportWidth = ref<number>(0);
-const appBaseUrl = APP_BASE_URL;
-const swaggerDocsUrl = SWAGGER_DOCS_URL;
+const route = useRoute()
+const router = useRouter()
+const query = ref('')
+const searchInputRef = ref<HTMLInputElement | null>(null)
+const articlePanelRef = ref<HTMLElement | null>(null)
+const docsPageRef = ref<HTMLElement | null>(null)
+const isEmbedded = computed(() => route.query.embed === '1')
+const embeddedViewportWidth = ref<number>(0)
+const appBaseUrl = APP_BASE_URL
+const swaggerDocsUrl = SWAGGER_DOCS_URL
 
-const EMBED_WIDE_BREAKPOINT = 1120;
-const EMBED_XL_BREAKPOINT = 1360;
+const EMBED_WIDE_BREAKPOINT = 1120
+const EMBED_XL_BREAKPOINT = 1360
 
 const isEmbeddedWide = computed(
-  () =>
-    isEmbedded.value && embeddedViewportWidth.value >= EMBED_WIDE_BREAKPOINT,
-);
+  () => isEmbedded.value && embeddedViewportWidth.value >= EMBED_WIDE_BREAKPOINT,
+)
 const isEmbeddedExtraWide = computed(
   () => isEmbedded.value && embeddedViewportWidth.value >= EMBED_XL_BREAKPOINT,
-);
-const showSidebarPanel = computed(
-  () => !isEmbedded.value || isEmbeddedWide.value,
-);
-const showEmbeddedMeta = computed(
-  () => !isEmbedded.value || isEmbeddedWide.value,
-);
-const showHeroSide = computed(() => !isEmbedded.value || isEmbeddedWide.value);
-const showTocPanel = computed(
-  () => !isEmbedded.value || isEmbeddedExtraWide.value,
-);
+)
+const showSidebarPanel = computed(() => !isEmbedded.value || isEmbeddedWide.value)
+const showEmbeddedMeta = computed(() => !isEmbedded.value || isEmbeddedWide.value)
+const showHeroSide = computed(() => !isEmbedded.value || isEmbeddedWide.value)
+const showTocPanel = computed(() => !isEmbedded.value || isEmbeddedExtraWide.value)
 
-let docsPageResizeObserver: ResizeObserver | null = null;
+let docsPageResizeObserver: ResizeObserver | null = null
 
 const updateEmbeddedViewportWidth = () => {
-  if (typeof window === "undefined") {
-    return;
+  if (typeof window === 'undefined') {
+    return
   }
 
   embeddedViewportWidth.value =
     docsPageRef.value?.clientWidth ||
     document.documentElement?.clientWidth ||
     window.visualViewport?.width ||
-    window.innerWidth;
-};
+    window.innerWidth
+}
 
-type MermaidModule = typeof import("mermaid");
+type MermaidModule = typeof import('mermaid')
 
-let mermaidModulePromise: Promise<MermaidModule["default"]> | null = null;
-let mermaidRenderSequence = 0;
+let mermaidModulePromise: Promise<MermaidModule['default']> | null = null
+let mermaidRenderSequence = 0
 
 const getMermaid = async () => {
   if (!mermaidModulePromise) {
-    mermaidModulePromise = import("mermaid").then((module) => {
+    mermaidModulePromise = import('mermaid').then((module) => {
       module.default.initialize({
         startOnLoad: false,
-        securityLevel: "loose",
-        theme: "base",
+        securityLevel: 'loose',
+        theme: 'base',
         darkMode: false,
         themeVariables: {
-          background: "#ffffff",
-          primaryColor: "#eff6ff",
-          primaryTextColor: "#0f172a",
-          primaryBorderColor: "#3b82f6",
-          secondaryColor: "#f8fafc",
-          secondaryTextColor: "#0f172a",
-          secondaryBorderColor: "#94a3b8",
-          tertiaryColor: "#eef4ff",
-          tertiaryTextColor: "#0f172a",
-          tertiaryBorderColor: "#60a5fa",
-          lineColor: "#334155",
-          textColor: "#0f172a",
-          mainBkg: "#eff6ff",
-          secondBkg: "#f8fafc",
-          tertiaryBkg: "#eef4ff",
-          actorBkg: "#eff6ff",
-          actorBorder: "#3b82f6",
-          actorTextColor: "#0f172a",
-          actorLineColor: "#64748b",
-          signalColor: "#334155",
-          signalTextColor: "#0f172a",
-          labelBoxBkgColor: "#dbeafe",
-          labelBoxBorderColor: "#60a5fa",
-          labelTextColor: "#0f172a",
-          loopTextColor: "#0f172a",
-          noteBkgColor: "#fff7d6",
-          noteBorderColor: "#f59e0b",
-          noteTextColor: "#0f172a",
-          activationBorderColor: "#64748b",
-          activationBkgColor: "#e2e8f0",
-          sequenceNumberColor: "#0f172a",
+          background: '#ffffff',
+          primaryColor: '#eff6ff',
+          primaryTextColor: '#0f172a',
+          primaryBorderColor: '#3b82f6',
+          secondaryColor: '#f8fafc',
+          secondaryTextColor: '#0f172a',
+          secondaryBorderColor: '#94a3b8',
+          tertiaryColor: '#eef4ff',
+          tertiaryTextColor: '#0f172a',
+          tertiaryBorderColor: '#60a5fa',
+          lineColor: '#334155',
+          textColor: '#0f172a',
+          mainBkg: '#eff6ff',
+          secondBkg: '#f8fafc',
+          tertiaryBkg: '#eef4ff',
+          actorBkg: '#eff6ff',
+          actorBorder: '#3b82f6',
+          actorTextColor: '#0f172a',
+          actorLineColor: '#64748b',
+          signalColor: '#334155',
+          signalTextColor: '#0f172a',
+          labelBoxBkgColor: '#dbeafe',
+          labelBoxBorderColor: '#60a5fa',
+          labelTextColor: '#0f172a',
+          loopTextColor: '#0f172a',
+          noteBkgColor: '#fff7d6',
+          noteBorderColor: '#f59e0b',
+          noteTextColor: '#0f172a',
+          activationBorderColor: '#64748b',
+          activationBkgColor: '#e2e8f0',
+          sequenceNumberColor: '#0f172a',
         },
-      });
+      })
 
-      return module.default;
-    });
+      return module.default
+    })
   }
 
-  return mermaidModulePromise;
-};
+  return mermaidModulePromise
+}
 
 const toUrlLabel = (value: string) => {
   try {
-    const url = new URL(value);
-    return `${url.host}${url.pathname === "/" ? "" : url.pathname}`;
+    const url = new URL(value)
+    return `${url.host}${url.pathname === '/' ? '' : url.pathname}`
   } catch {
-    return value;
+    return value
   }
-};
+}
 
 const locale = computed<DocsLocale>(() =>
   docsRegistry.normalizeLocale(route.params.locale as string | undefined),
-);
+)
 const currentSlug = computed<DocsSlug>(() => {
-  const slug = route.params.slug as string | undefined;
-  return (
-    docsRegistry.hasPage(slug) ? slug : docsRegistry.defaultSlug
-  ) as DocsSlug;
-});
-const currentPage = computed(() => docsRegistry.getPage(currentSlug.value));
+  const slug = route.params.slug as string | undefined
+  return (docsRegistry.hasPage(slug) ? slug : docsRegistry.defaultSlug) as DocsSlug
+})
+const currentPage = computed(() => docsRegistry.getPage(currentSlug.value))
 const docsRouteLabel = computed(
-  () =>
-    `${toUrlLabel(DOCS_BASE_URL)}/${locale.value}/${currentPage.value.slug}`,
-);
-const appBaseUrlLabel = toUrlLabel(appBaseUrl);
-const swaggerDocsUrlLabel = toUrlLabel(swaggerDocsUrl);
+  () => `${toUrlLabel(DOCS_BASE_URL)}/${locale.value}/${currentPage.value.slug}`,
+)
+const appBaseUrlLabel = toUrlLabel(appBaseUrl)
+const swaggerDocsUrlLabel = toUrlLabel(swaggerDocsUrl)
 
 const localeOptions = [
-  { value: "zh-CN" as const, label: "中文" },
-  { value: "en" as const, label: "EN" },
-];
+  { value: 'zh-CN' as const, label: '中文' },
+  { value: 'en' as const, label: 'EN' },
+]
 
 const ui = computed(() => ({
-  search: locale.value === "en" ? "Search docs" : "搜索文档",
+  search: locale.value === 'en' ? 'Search docs' : '搜索文档',
   searchPlaceholder:
-    locale.value === "en"
-      ? "Search title, tag, or content"
-      : "搜索标题、标签或正文",
-  pages: locale.value === "en" ? "Pages" : "文档目录",
-  searchResults: locale.value === "en" ? "Search results" : "搜索结果",
-  matches: locale.value === "en" ? "matches" : "条匹配",
-  toc: locale.value === "en" ? "On this page" : "本页目录",
-  quickLinks: locale.value === "en" ? "Quick links" : "快捷链接",
-  copyPage: locale.value === "en" ? "Copy page link" : "复制页面链接",
-  glossary: locale.value === "en" ? "Glossary appendix" : "术语附录",
+    locale.value === 'en' ? 'Search title, tag, or content' : '搜索标题、标签或正文',
+  pages: locale.value === 'en' ? 'Pages' : '文档目录',
+  searchResults: locale.value === 'en' ? 'Search results' : '搜索结果',
+  matches: locale.value === 'en' ? 'matches' : '条匹配',
+  toc: locale.value === 'en' ? 'On this page' : '本页目录',
+  quickLinks: locale.value === 'en' ? 'Quick links' : '快捷链接',
+  copyPage: locale.value === 'en' ? 'Copy page link' : '复制页面链接',
+  glossary: locale.value === 'en' ? 'Glossary appendix' : '术语附录',
   glossaryLead:
-    locale.value === "en"
-      ? "The terms below explain technical words that appear on this page."
-      : "以下术语用于解释本页中出现的专业词汇。",
-  jumpToGlossary:
-    locale.value === "en" ? "Jump to glossary explanation" : "跳转到术语解释",
-}));
+    locale.value === 'en'
+      ? 'The terms below explain technical words that appear on this page.'
+      : '以下术语用于解释本页中出现的专业词汇。',
+  jumpToGlossary: locale.value === 'en' ? 'Jump to glossary explanation' : '跳转到术语解释',
+}))
 
-const groupedPages = computed(() => docsRegistry.getGroupedPages(locale.value));
+const groupedPages = computed(() => docsRegistry.getGroupedPages(locale.value))
 
-const normalizedQuery = computed(() => query.value.trim().toLowerCase());
+const normalizedQuery = computed(() => query.value.trim().toLowerCase())
 
 const filteredPages = computed(() => {
-  return docsRegistry.search(normalizedQuery.value, locale.value);
-});
+  return docsRegistry.search(normalizedQuery.value, locale.value)
+})
 
-const searchMatches = computed(() => filteredPages.value);
+const searchMatches = computed(() => filteredPages.value)
 
 const slugify = (value: string) =>
   value
     .toLowerCase()
-    .replace(/[&\/\\#,+()$~%.'":*?<>{}\[\]]/g, "")
+    .replace(/[&\/\\#,+()$~%.'":*?<>{}\[\]]/g, '')
     .trim()
-    .replace(/\s+/g, "-");
+    .replace(/\s+/g, '-')
 
-const glossaryAnchorId = (entryId: string) => `glossary-${entryId}`;
-const asciiAliasPattern = /^[a-z0-9][a-z0-9 +./:-]*$/i;
+const glossaryAnchorId = (entryId: string) => `glossary-${entryId}`
+const asciiAliasPattern = /^[a-z0-9][a-z0-9 +./:-]*$/i
 
-const escapeRegExp = (value: string) =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const setHeadingAnchors = (html: string) => {
   return html.replace(/<h([23])>(.*?)<\/h\1>/g, (_match, level, rawText) => {
-    const text = String(rawText).replace(/<[^>]+>/g, "");
-    const id = slugify(text);
-    return `<h${level} id="${id}">${rawText}</h${level}>`;
-  });
-};
+    const text = String(rawText).replace(/<[^>]+>/g, '')
+    const id = slugify(text)
+    return `<h${level} id="${id}">${rawText}</h${level}>`
+  })
+}
 
 const buildGlossaryMatcher = (entries: GlossaryEntry[]) => {
   const aliases = entries
-    .flatMap((entry) =>
-      entry.aliases.map((alias) => ({ alias, entryId: entry.id })),
-    )
-    .sort((left, right) => right.alias.length - left.alias.length);
+    .flatMap((entry) => entry.aliases.map((alias) => ({ alias, entryId: entry.id })))
+    .sort((left, right) => right.alias.length - left.alias.length)
 
   const aliasMap = new Map<string, GlossaryAliasMatch>(
     aliases.map((item) => [item.alias.toLowerCase(), item]),
-  );
+  )
 
   const pattern = aliases
     .map(({ alias }) => {
-      const escapedAlias = escapeRegExp(alias);
-      return asciiAliasPattern.test(alias)
-        ? `\\b${escapedAlias}\\b`
-        : escapedAlias;
+      const escapedAlias = escapeRegExp(alias)
+      return asciiAliasPattern.test(alias) ? `\\b${escapedAlias}\\b` : escapedAlias
     })
-    .join("|");
+    .join('|')
 
   return {
     aliasMap,
-    regex: pattern ? new RegExp(pattern, "gi") : null,
-  };
-};
+    regex: pattern ? new RegExp(pattern, 'gi') : null,
+  }
+}
 
 const linkGlossaryTerms = (html: string, entries: GlossaryEntry[]) => {
-  if (typeof window === "undefined" || !entries.length) {
-    return html;
+  if (typeof window === 'undefined' || !entries.length) {
+    return html
   }
 
-  const { aliasMap, regex } = buildGlossaryMatcher(entries);
+  const { aliasMap, regex } = buildGlossaryMatcher(entries)
   if (!regex) {
-    return html;
+    return html
   }
 
-  const container = document.createElement("div");
-  container.innerHTML = html;
+  const container = document.createElement('div')
+  container.innerHTML = html
 
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
     acceptNode(node) {
-      const parentElement = node.parentElement;
+      const parentElement = node.parentElement
       if (!parentElement || !node.nodeValue?.trim()) {
-        return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_REJECT
       }
 
-      if (parentElement.closest("a, code, pre, h1, h2, h3, h4, h5, h6")) {
-        return NodeFilter.FILTER_REJECT;
+      if (parentElement.closest('a, code, pre, h1, h2, h3, h4, h5, h6')) {
+        return NodeFilter.FILTER_REJECT
       }
 
-      return NodeFilter.FILTER_ACCEPT;
+      return NodeFilter.FILTER_ACCEPT
     },
-  });
+  })
 
-  const textNodes: Text[] = [];
-  let currentNode = walker.nextNode();
+  const textNodes: Text[] = []
+  let currentNode = walker.nextNode()
   while (currentNode) {
-    textNodes.push(currentNode as Text);
-    currentNode = walker.nextNode();
+    textNodes.push(currentNode as Text)
+    currentNode = walker.nextNode()
   }
 
   for (const textNode of textNodes) {
-    const sourceText = textNode.nodeValue ?? "";
-    regex.lastIndex = 0;
+    const sourceText = textNode.nodeValue ?? ''
+    regex.lastIndex = 0
 
     if (!regex.test(sourceText)) {
-      continue;
+      continue
     }
 
-    regex.lastIndex = 0;
-    const fragment = document.createDocumentFragment();
-    let lastIndex = 0;
+    regex.lastIndex = 0
+    const fragment = document.createDocumentFragment()
+    let lastIndex = 0
 
     for (const match of sourceText.matchAll(regex)) {
-      const matchText = match[0];
-      const index = match.index ?? 0;
-      const mappedAlias = aliasMap.get(matchText.toLowerCase());
+      const matchText = match[0]
+      const index = match.index ?? 0
+      const mappedAlias = aliasMap.get(matchText.toLowerCase())
 
       if (!mappedAlias) {
-        continue;
+        continue
       }
 
       if (index > lastIndex) {
-        fragment.append(sourceText.slice(lastIndex, index));
+        fragment.append(sourceText.slice(lastIndex, index))
       }
 
-      const link = document.createElement("a");
-      link.href = `#${glossaryAnchorId(mappedAlias.entryId)}`;
-      link.className = "glossary-term-link";
-      link.title = ui.value.jumpToGlossary;
-      link.textContent = matchText;
-      fragment.append(link);
+      const link = document.createElement('a')
+      link.href = `#${glossaryAnchorId(mappedAlias.entryId)}`
+      link.className = 'glossary-term-link'
+      link.title = ui.value.jumpToGlossary
+      link.textContent = matchText
+      fragment.append(link)
 
-      lastIndex = index + matchText.length;
+      lastIndex = index + matchText.length
     }
 
     if (lastIndex < sourceText.length) {
-      fragment.append(sourceText.slice(lastIndex));
+      fragment.append(sourceText.slice(lastIndex))
     }
 
-    textNode.parentNode?.replaceChild(fragment, textNode);
+    textNode.parentNode?.replaceChild(fragment, textNode)
   }
 
-  return container.innerHTML;
-};
+  return container.innerHTML
+}
 
 const renderMarkdownWithAnchors = (
   markdown: string,
   options?: {
-    linkGlossaryTerms?: boolean;
-    glossaryEntries?: GlossaryEntry[];
+    linkGlossaryTerms?: boolean
+    glossaryEntries?: GlossaryEntry[]
   },
 ) => {
-  const html = setHeadingAnchors(String(marked.parse(markdown)));
+  const html = setHeadingAnchors(String(marked.parse(markdown)))
 
   if (!options?.linkGlossaryTerms || !options.glossaryEntries?.length) {
-    return html;
+    return html
   }
 
-  return linkGlossaryTerms(html, options.glossaryEntries);
-};
+  return linkGlossaryTerms(html, options.glossaryEntries)
+}
 
 const renderMermaidDiagrams = async () => {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return
 
-  await nextTick();
+  await nextTick()
 
-  const container = articlePanelRef.value;
-  if (!container) return;
+  const container = articlePanelRef.value
+  if (!container) return
 
-  const nodes = Array.from(
-    container.querySelectorAll<HTMLElement>("pre code.language-mermaid"),
-  );
+  const nodes = Array.from(container.querySelectorAll<HTMLElement>('pre code.language-mermaid'))
 
   if (!nodes.length) {
-    return;
+    return
   }
 
-  const mermaid = await getMermaid();
+  const mermaid = await getMermaid()
 
   for (const node of nodes) {
-    const parentPre = node.closest("pre");
-    if (!parentPre || parentPre.dataset.mermaidProcessed === "true") {
-      continue;
+    const parentPre = node.closest('pre')
+    if (!parentPre || parentPre.dataset.mermaidProcessed === 'true') {
+      continue
     }
 
-    const source = node.textContent?.trim();
-    if (!source) continue;
+    const source = node.textContent?.trim()
+    if (!source) continue
 
-    const renderId = `docs-mermaid-${mermaidRenderSequence++}`;
+    const renderId = `docs-mermaid-${mermaidRenderSequence++}`
 
     try {
-      const { svg } = await mermaid.render(renderId, source);
-      const wrapper = document.createElement("div");
-      wrapper.className = "mermaid-diagram-block";
-      wrapper.innerHTML = svg;
-      parentPre.replaceWith(wrapper);
+      const { svg } = await mermaid.render(renderId, source)
+      const wrapper = document.createElement('div')
+      wrapper.className = 'mermaid-diagram-block'
+      wrapper.innerHTML = svg
+      parentPre.replaceWith(wrapper)
     } catch (error) {
-      console.error("Failed to render mermaid diagram", error);
-      parentPre.dataset.mermaidProcessed = "true";
+      console.error('Failed to render mermaid diagram', error)
+      parentPre.dataset.mermaidProcessed = 'true'
     }
   }
-};
+}
 
 const currentGlossaryEntries = computed(() => {
   const pageText = [
     currentPage.value.title[locale.value],
     currentPage.value.summary[locale.value],
-    currentPage.value.tags.join(" "),
+    currentPage.value.tags.join(' '),
     currentPage.value.content[locale.value],
-  ].join("\n");
+  ].join('\n')
 
   return [...glossaryRegistry.getEntriesForText(pageText)].sort((left, right) =>
     left.title[locale.value].localeCompare(right.title[locale.value]),
-  );
-});
+  )
+})
 
 const glossaryMarkdown = computed(() => {
-  if (!currentGlossaryEntries.value.length) return "";
+  if (!currentGlossaryEntries.value.length) return ''
 
   const entries = currentGlossaryEntries.value
     .map(
       (entry) =>
         `<a id="${glossaryAnchorId(entry.id)}" class="glossary-anchor"></a>\n### ${entry.title[locale.value]}\n\n${entry.description[locale.value]}`,
     )
-    .join("\n\n");
+    .join('\n\n')
 
-  return `\n\n## ${ui.value.glossary}\n\n${ui.value.glossaryLead}\n\n${entries}`;
-});
+  return `\n\n## ${ui.value.glossary}\n\n${ui.value.glossaryLead}\n\n${entries}`
+})
 
 const pageMarkdown = computed(() =>
-  interpolateDocsContent(
-    `${currentPage.value.content[locale.value]}${glossaryMarkdown.value}`,
-  ),
-);
+  interpolateDocsContent(`${currentPage.value.content[locale.value]}${glossaryMarkdown.value}`),
+)
 
 const renderedContent = computed(() =>
   renderMarkdownWithAnchors(pageMarkdown.value, {
     linkGlossaryTerms: true,
     glossaryEntries: currentGlossaryEntries.value,
   }),
-);
+)
 
 const tocItems = computed<TocItem[]>(() => {
-  const content = pageMarkdown.value;
-  const items: TocItem[] = [];
+  const content = pageMarkdown.value
+  const items: TocItem[] = []
 
-  for (const line of content.split("\n")) {
-    const headingMatch = /^(#{2,3})\s+(.+)$/.exec(line.trim());
-    if (!headingMatch) continue;
+  for (const line of content.split('\n')) {
+    const headingMatch = /^(#{2,3})\s+(.+)$/.exec(line.trim())
+    if (!headingMatch) continue
 
-    const level = headingMatch[1]!.length as 2 | 3;
-    const label = headingMatch[2]!.replace(/[`*_>]/g, "").trim();
-    items.push({ id: slugify(label), label, level });
+    const level = headingMatch[1]!.length as 2 | 3
+    const label = headingMatch[2]!.replace(/[`*_>]/g, '').trim()
+    items.push({ id: slugify(label), label, level })
   }
 
-  return items;
-});
+  return items
+})
 
 const openPage = async (slug: DocsSlug) => {
-  await router.push({ name: "docs", params: { locale: locale.value, slug } });
-};
+  await router.push({ name: 'docs', params: { locale: locale.value, slug } })
+}
 
 const switchLocale = async (nextLocale: DocsLocale) => {
   await router.push({
-    name: "docs",
+    name: 'docs',
     params: { locale: nextLocale, slug: currentSlug.value },
-  });
-};
+  })
+}
 
 const focusSearch = async () => {
-  await nextTick();
-  searchInputRef.value?.focus();
-};
+  await nextTick()
+  searchInputRef.value?.focus()
+}
 
 const openFirstMatch = async () => {
-  const first = searchMatches.value[0];
-  if (first) await openPage(first.slug);
-};
+  const first = searchMatches.value[0]
+  if (first) await openPage(first.slug)
+}
 
 const copyCurrentPageUrl = async () => {
-  const url = new URL(
-    `/${locale.value}/${currentPage.value.slug}`,
-    window.location.origin,
-  );
-  await navigator.clipboard.writeText(url.toString());
-};
+  const url = new URL(`/${locale.value}/${currentPage.value.slug}`, window.location.origin)
+  await navigator.clipboard.writeText(url.toString())
+}
 
 watch(
   () => route.params.slug,
   (slug) => {
     if (slug === undefined) {
       void router.replace({
-        name: "docs",
+        name: 'docs',
         params: { locale: locale.value, slug: docsRegistry.defaultSlug },
-      });
+      })
     }
   },
   { immediate: true },
-);
+)
 
 watch([renderedContent, locale], () => {
-  void renderMermaidDiagrams();
-});
+  void renderMermaidDiagrams()
+})
 
 onMounted(() => {
-  updateEmbeddedViewportWidth();
-  if (typeof ResizeObserver !== "undefined" && docsPageRef.value) {
+  updateEmbeddedViewportWidth()
+  if (typeof ResizeObserver !== 'undefined' && docsPageRef.value) {
     docsPageResizeObserver = new ResizeObserver(() => {
-      updateEmbeddedViewportWidth();
-    });
-    docsPageResizeObserver.observe(docsPageRef.value);
+      updateEmbeddedViewportWidth()
+    })
+    docsPageResizeObserver.observe(docsPageRef.value)
   }
 
-  window.addEventListener("resize", updateEmbeddedViewportWidth);
-  window.visualViewport?.addEventListener(
-    "resize",
-    updateEmbeddedViewportWidth,
-  );
-  void renderMermaidDiagrams();
-});
+  window.addEventListener('resize', updateEmbeddedViewportWidth)
+  window.visualViewport?.addEventListener('resize', updateEmbeddedViewportWidth)
+  void renderMermaidDiagrams()
+})
 
 onBeforeUnmount(() => {
-  docsPageResizeObserver?.disconnect();
-  docsPageResizeObserver = null;
-  window.removeEventListener("resize", updateEmbeddedViewportWidth);
-  window.visualViewport?.removeEventListener(
-    "resize",
-    updateEmbeddedViewportWidth,
-  );
-});
+  docsPageResizeObserver?.disconnect()
+  docsPageResizeObserver = null
+  window.removeEventListener('resize', updateEmbeddedViewportWidth)
+  window.visualViewport?.removeEventListener('resize', updateEmbeddedViewportWidth)
+})
 </script>
 
 <style scoped>
@@ -1166,7 +1083,7 @@ onBeforeUnmount(() => {
 }
 
 .page-item.active::before {
-  content: "";
+  content: '';
   position: absolute;
   inset: 8px auto 8px 0;
   width: 2px;

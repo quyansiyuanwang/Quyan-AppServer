@@ -1,22 +1,22 @@
-import type { DocsRegistryBuilder, DocsPageModule } from "@/docs/types";
+import type { DocsRegistryBuilder, DocsPageModule } from '@/docs/types'
 
-const modules = import.meta.glob<DocsPageModule>("./*.doc.ts", {
+const modules = import.meta.glob<DocsPageModule>('./*.doc.ts', {
   eager: true,
-  import: "default",
-});
+  import: 'default',
+})
 
 const orderedModulePaths = [
-  "./login-register.doc.ts",
-  "./forgot-password.doc.ts",
-  "./auth-verification.doc.ts",
-] as const;
+  './login-register.doc.ts',
+  './forgot-password.doc.ts',
+  './auth-verification.doc.ts',
+] as const
 
 export const registerAccessDocs = (registry: DocsRegistryBuilder) => {
   orderedModulePaths.forEach((modulePath) => {
-    const page = modules[modulePath];
+    const page = modules[modulePath]
     if (!page) {
-      throw new Error(`Missing docs module: ${modulePath}`);
+      throw new Error(`Missing docs module: ${modulePath}`)
     }
-    registry.registerPage(page);
-  });
-};
+    registry.registerPage(page)
+  })
+}

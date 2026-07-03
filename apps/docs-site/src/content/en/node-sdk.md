@@ -56,19 +56,19 @@ ACCESS_TOKEN=your_access_token
 ## `index.js`
 
 ```js
-import "dotenv/config";
+import 'dotenv/config'
 
-const apiBaseUrl = process.env.APPSERVER_BASE_URL;
-const accessToken = process.env.ACCESS_TOKEN;
+const apiBaseUrl = process.env.APPSERVER_BASE_URL
+const accessToken = process.env.ACCESS_TOKEN
 
-const response = await fetch(new URL("/api/user/profile", apiBaseUrl), {
+const response = await fetch(new URL('/api/user/profile', apiBaseUrl), {
   headers: {
     Authorization: `Bearer ${accessToken}`,
   },
-});
+})
 
-const data = await response.json();
-console.log(JSON.stringify(data, null, 2));
+const data = await response.json()
+console.log(JSON.stringify(data, null, 2))
 ```
 
 ## Run it
@@ -92,18 +92,18 @@ export async function callApi(path, token, init = {}) {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...(init.headers || {}),
     },
-  });
+  })
 
-  const payload = await response.json();
+  const payload = await response.json()
 
   if (!response.ok || payload?.code !== 0) {
-    throw new Error(payload?.message || `Request failed: ${response.status}`);
+    throw new Error(payload?.message || `Request failed: ${response.status}`)
   }
 
-  return payload.data;
+  return payload.data
 }
 ```
 
@@ -116,44 +116,44 @@ If the service will call more than one endpoint, extract the client into a reusa
 ```js
 export class AppServerApiError extends Error {
   constructor(message, options = {}) {
-    super(message);
-    this.name = "AppServerApiError";
-    this.status = options.status ?? 500;
-    this.code = options.code ?? -1;
-    this.payload = options.payload;
-    this.requestId = options.requestId;
+    super(message)
+    this.name = 'AppServerApiError'
+    this.status = options.status ?? 500
+    this.code = options.code ?? -1
+    this.payload = options.payload
+    this.requestId = options.requestId
   }
 }
 
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = 15000
 
 function joinUrl(baseUrl, path) {
-  return new URL(path, baseUrl).toString();
+  return new URL(path, baseUrl).toString()
 }
 
 async function parseJsonSafe(response) {
-  const text = await response.text();
-  if (!text) return null;
+  const text = await response.text()
+  if (!text) return null
 
   try {
-    return JSON.parse(text);
+    return JSON.parse(text)
   } catch {
-    throw new AppServerApiError("Response is not valid JSON", {
+    throw new AppServerApiError('Response is not valid JSON', {
       status: response.status,
       payload: text,
-      requestId: response.headers.get("x-request-id") || undefined,
-    });
+      requestId: response.headers.get('x-request-id') || undefined,
+    })
   }
 }
 
 async function withTimeout(promise, timeoutMs) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    return await promise(controller.signal);
+    return await promise(controller.signal)
   } finally {
-    clearTimeout(timer);
+    clearTimeout(timer)
   }
 }
 
@@ -161,27 +161,27 @@ export async function callAppServer({
   baseUrl,
   path,
   token,
-  method = "GET",
+  method = 'GET',
   headers = {},
   query,
   body,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 }) {
-  const url = new URL(joinUrl(baseUrl, path));
+  const url = new URL(joinUrl(baseUrl, path))
 
-  if (query && typeof query === "object") {
+  if (query && typeof query === 'object') {
     for (const [key, value] of Object.entries(query)) {
-      if (value === undefined || value === null || value === "") continue;
-      url.searchParams.set(key, String(value));
+      if (value === undefined || value === null || value === '') continue
+      url.searchParams.set(key, String(value))
     }
   }
 
   const requestHeaders = {
-    Accept: "application/json",
-    ...(body ? { "Content-Type": "application/json" } : {}),
+    Accept: 'application/json',
+    ...(body ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...headers,
-  };
+  }
 
   const response = await withTimeout(
     (signal) =>
@@ -193,17 +193,17 @@ export async function callAppServer({
       }),
     timeoutMs,
   ).catch((error) => {
-    if (error?.name === "AbortError") {
+    if (error?.name === 'AbortError') {
       throw new AppServerApiError(`Request timeout after ${timeoutMs}ms`, {
         status: 408,
-      });
+      })
     }
 
-    throw error;
-  });
+    throw error
+  })
 
-  const payload = await parseJsonSafe(response);
-  const requestId = response.headers.get("x-request-id") || undefined;
+  const payload = await parseJsonSafe(response)
+  const requestId = response.headers.get('x-request-id') || undefined
 
   if (!response.ok) {
     throw new AppServerApiError(
@@ -214,24 +214,24 @@ export async function callAppServer({
         payload,
         requestId,
       },
-    );
+    )
   }
 
-  if (!payload || typeof payload !== "object") {
-    throw new AppServerApiError("Response payload is empty", {
+  if (!payload || typeof payload !== 'object') {
+    throw new AppServerApiError('Response payload is empty', {
       status: response.status,
       payload,
       requestId,
-    });
+    })
   }
 
   if (payload.code !== 0) {
-    throw new AppServerApiError(payload.message || "Business request failed", {
+    throw new AppServerApiError(payload.message || 'Business request failed', {
       status: response.status,
       code: payload.code,
       payload,
       requestId,
-    });
+    })
   }
 
   return {
@@ -240,44 +240,44 @@ export async function callAppServer({
     code: payload.code,
     requestId,
     raw: payload,
-  };
+  }
 }
 
 export async function getUserProfile({ baseUrl, token }) {
   const result = await callAppServer({
     baseUrl,
-    path: "/api/user/profile",
+    path: '/api/user/profile',
     token,
-  });
+  })
 
-  return result.data;
+  return result.data
 }
 ```
 
 ### `index.js`
 
 ```js
-import "dotenv/config";
-import { callAppServer, getUserProfile } from "./appserver-client.js";
+import 'dotenv/config'
+import { callAppServer, getUserProfile } from './appserver-client.js'
 
-const baseUrl = process.env.APPSERVER_BASE_URL;
-const accessToken = process.env.ACCESS_TOKEN;
+const baseUrl = process.env.APPSERVER_BASE_URL
+const accessToken = process.env.ACCESS_TOKEN
 
 const profile = await getUserProfile({
   baseUrl,
   token: accessToken,
-});
+})
 
-console.log("profile =>", profile);
+console.log('profile =>', profile)
 
 const usage = await callAppServer({
   baseUrl,
-  path: "/api/user/balance-history",
+  path: '/api/user/balance-history',
   token: accessToken,
   query: { page: 1, pageSize: 20 },
-});
+})
 
-console.log("balance history =>", usage.data);
+console.log('balance history =>', usage.data)
 ```
 
 ### What this version fixes
