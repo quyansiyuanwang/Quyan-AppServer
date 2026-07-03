@@ -4,17 +4,34 @@
   "type": "module",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
+    "--- a_dev ---------------------------": "",
     "dev": "vite",
     "prod": "vite --mode prod",
-    "type-check": "vue-tsc --build",
-    "build": "pnpm run type-check && vite build",
-    "build:prod": "pnpm run type-check && vite build --mode prod",
     "preview": "vite preview",
+
+    "--- b_build_atomic ----------------": "",
+    "compile": "vite build",
+    "compile:prod": "vite build --mode prod",
+
+    "--- c_build_meta ------------------": "",
+    "build:only": "pnpm run compile",
+    "build:only:prod": "pnpm run compile:prod",
+    "build": "pnpm run type-check && pnpm run build:only",
+    "build:prod": "pnpm run type-check && pnpm run build:only:prod",
+
+    "--- d_typecheck -------------------": "",
+    "type-check": "vue-tsc --build",
+
+    "--- e_lint_format -----------------": "",
     "lint": "eslint . --fix --cache",
     "lint:check": "eslint . --cache",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
-    "lint-format-check": "pnpm run lint && pnpm run format && pnpm run type-check"
+    "lint-format-check": "pnpm run lint:check && pnpm run format:check && pnpm run type-check",
+
+    "--- f_check -----------------------": "",
+    "check": "pnpm run lint-format-check",
+    "precommit": "pnpm run lint && pnpm run format && pnpm run type-check"
   },
   "dependencies": {
     "marked": "^5.1.1",

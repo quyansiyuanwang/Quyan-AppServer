@@ -8,34 +8,49 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
+    "--- a_dev ---------------------------": "",
     "dev": "vite",
-    "predev": "pnpm run openapi:generate && pnpm run type:generate",
     "prod": "vite --mode prod",
     "preview": "vite preview",
-    "build": "pnpm run openapi:generate && pnpm run type:generate && run-p type-check:only \"build-only {@}\" --",
-    "build-only": "vite build",
-    "build-only:prod": "vite build --mode prod",
+
+    "--- b_build_atomic ----------------": "",
+    "compile": "vite build",
+    "compile:prod": "vite build --mode prod",
+
+    "--- c_build_meta ------------------": "",
+    "build:only": "pnpm run compile",
+    "build:only:prod": "pnpm run compile:prod",
+    "build": "pnpm run type:generate && pnpm run type-check && pnpm run build:only",
+    "build:prod": "pnpm run type:generate && pnpm run type-check && pnpm run build:only:prod",
+    "build:full": "pnpm run openapi:generate && pnpm run build",
     "build:full:prod": "pnpm run openapi:generate && pnpm run build:prod",
-    "build:prod": "pnpm run openapi:generate && pnpm run type:generate && run-p type-check:only build-only:prod",
+
+    "--- d_typecheck -------------------": "",
     "type-check": "vue-tsc --build",
-    "type-check:only": "vue-tsc --build",
     "type:generate": "node scripts/generate-route-types.js",
+
+    "--- e_openapi ---------------------": "",
+    "openapi:generate": "openapi-ts && pnpm run client:generate",
+    "openapi:sync": "node -e \"const fs=require('fs');const src='../../backend/src/build/swagger.json';if(!fs.existsSync(src))throw new Error('Backend swagger.json not found: '+src);fs.copyFileSync(src,'./swagger.json');console.log('Synced swagger.json from backend')\"",
+    "openapi:sync-generate": "pnpm run openapi:sync && pnpm run openapi:generate",
+    "client:generate": "node scripts/generate-api-constants.js && node scripts/generate-api-types-map.js && node scripts/generate-replay-protected-endpoints.js",
+
+    "--- f_lint_format -----------------": "",
     "lint": "eslint . --fix --cache",
     "lint:check": "eslint . --cache",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
-    "lint-format-check": "pnpm run lint && pnpm run format && pnpm run type-check",
-    "check:all": "pnpm run lint:check && pnpm run format:check && pnpm run type-check",
-    "openapi:sync": "node -e \"const fs=require('fs');const src='../../backend/src/build/swagger.json';if(!fs.existsSync(src))throw new Error('Backend swagger.json not found: '+src);fs.copyFileSync(src,'./swagger.json');console.log('Synced swagger.json from backend')\"",
-    "openapi:sync-generate": "pnpm run openapi:sync && pnpm run openapi:generate",
-    "openapi:generate": "openapi-ts && pnpm run client:generate",
-    "client:generate": "node scripts/generate-api-constants.js && node scripts/generate-api-types-map.js && node scripts/generate-replay-protected-endpoints.js",
-    "validate:permissions": "jiti scripts/validate-permissions.js",
-    "precommit": "pnpm run openapi:generate && pnpm run validate:permissions && pnpm run lint-format-check",
-    "pretest": "pnpm run openapi:generate && pnpm run type:generate",
+    "lint-format-check": "pnpm run lint:check && pnpm run format:check && pnpm run type-check",
+
+    "--- g_test ------------------------": "",
     "test": "vitest run",
     "test:ci": "pnpm run test",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+
+    "--- h_check -----------------------": "",
+    "validate:permissions": "jiti scripts/validate-permissions.js",
+    "check": "pnpm run lint-format-check && pnpm run test",
+    "precommit": "pnpm run openapi:generate && pnpm run validate:permissions && pnpm run check"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

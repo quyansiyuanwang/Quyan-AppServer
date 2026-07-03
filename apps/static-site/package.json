@@ -8,27 +8,43 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
+    "--- a_dev ---------------------------": "",
     "dev": "vite",
     "preview": "vite preview",
-    "build": "run-p type:generate type-check build-only",
-    "build-only": "vite build",
-    "build-only:prod": "vite build --mode prod",
-    "build:prod": "run-p type:generate type-check build-only:prod",
-    "pretype-check": "pnpm run type:generate",
+
+    "--- b_build_atomic ----------------": "",
+    "compile": "vite build",
+    "compile:prod": "vite build --mode prod",
+
+    "--- c_build_meta ------------------": "",
+    "build:only": "pnpm run compile",
+    "build:only:prod": "pnpm run compile:prod",
+    "build": "pnpm run type:generate && pnpm run type-check && pnpm run build:only",
+    "build:prod": "pnpm run type:generate && pnpm run type-check && pnpm run build:only:prod",
+
+    "--- d_typecheck -------------------": "",
     "type-check": "vue-tsc --build",
     "type:generate": "node scripts/generate-route-types.js",
-    "wordbank:import": "node scripts/import-wordbank-text.js",
-    "wordbank:scrape": "node scripts/scrape-wendu-words.js",
+
+    "--- e_lint_format -----------------": "",
     "lint": "eslint . --fix --cache",
     "lint:check": "eslint . --cache",
     "format": "prettier --write src/ tests/",
     "format:check": "prettier --check src/ tests/",
-    "check:all": "pnpm run lint:check && pnpm run format:check && pnpm run type-check && pnpm run test:ci",
-    "lint-format-check": "run-p lint format type-check",
-    "precommit": "pnpm run lint && pnpm run format && pnpm run type-check",
-    "test": "pnpm run type:generate && vitest run",
+    "lint-format-check": "pnpm run lint:check && pnpm run format:check && pnpm run type-check",
+
+    "--- f_test ------------------------": "",
+    "test": "vitest run",
     "test:ci": "pnpm run test",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+
+    "--- g_check -----------------------": "",
+    "check": "pnpm run lint-format-check && pnpm run test:ci",
+    "precommit": "pnpm run lint && pnpm run format && pnpm run type-check",
+
+    "--- h_scripts ---------------------": "",
+    "wordbank:import": "node scripts/import-wordbank-text.js",
+    "wordbank:scrape": "node scripts/scrape-wendu-words.js"
   },
   "dependencies": {
     "lucide-vue-next": "^1.0.0",

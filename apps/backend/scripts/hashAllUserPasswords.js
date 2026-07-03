@@ -8,8 +8,8 @@ import md5 from "md5";
 (async () => {
   const users = await prisma.user.findMany();
   let updated = 0;
+  // 检查是否为明文（简单判断：长度小于32或不以$2开头）
   for (const user of users)
-    // 检查是否为明文（简单判断：长度小于32或不以$2开头）
     if (user.password && (!user.password.startsWith("$2") || user.password.length < 32)) {
       const hash = md5(md5(user.password));
       await prisma.user.update({
