@@ -946,8 +946,8 @@ export class TwoFactorService {
     const hasVersionPrefix = segments.length === 3;
     const version = hasVersionPrefix
       ? String(segments[0] || "")
-        .trim()
-        .toLowerCase()
+          .trim()
+          .toLowerCase()
       : TRUSTED_DEVICE_TOKEN_LEGACY_VERSION;
     const rawDeviceId = hasVersionPrefix ? segments[1] : segments[0];
     const rawSignature = hasVersionPrefix ? segments[2] : segments[1];

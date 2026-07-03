@@ -73,12 +73,12 @@ export class OAuthClientRepository implements OAuthClientStore {
       ...(filters.reviewStatus ? { reviewStatus: filters.reviewStatus } : {}),
       ...(filters.keyword
         ? {
-          OR: [
-            { name: { contains: filters.keyword } },
-            { clientId: { contains: filters.keyword } },
-            { user: { username: { contains: filters.keyword } } },
-          ],
-        }
+            OR: [
+              { name: { contains: filters.keyword } },
+              { clientId: { contains: filters.keyword } },
+              { user: { username: { contains: filters.keyword } } },
+            ],
+          }
         : {}),
     };
 

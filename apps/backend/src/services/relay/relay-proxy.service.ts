@@ -1167,22 +1167,22 @@ export class RelayProxyService {
     if (this.redis.isRedisAvailable()) {
       const slotPatterns = userId
         ? [
-          `relay:concurrency:default:${userId}:slot:*`,
-          `relay:concurrency:image:${GLOBAL_IMAGE_CONCURRENCY_RESOURCE_ID}:slot:*`,
-        ]
+            `relay:concurrency:default:${userId}:slot:*`,
+            `relay:concurrency:image:${GLOBAL_IMAGE_CONCURRENCY_RESOURCE_ID}:slot:*`,
+          ]
         : [
-          "relay:concurrency:default:*:slot:*",
-          `relay:concurrency:image:${GLOBAL_IMAGE_CONCURRENCY_RESOURCE_ID}:slot:*`,
-        ];
+            "relay:concurrency:default:*:slot:*",
+            `relay:concurrency:image:${GLOBAL_IMAGE_CONCURRENCY_RESOURCE_ID}:slot:*`,
+          ];
       const waiterPatterns = userId
         ? [
-          `relay:concurrency:default:${userId}:queue:waiter:*`,
-          `relay:concurrency:image:${GLOBAL_IMAGE_CONCURRENCY_RESOURCE_ID}:queue:waiter:*`,
-        ]
+            `relay:concurrency:default:${userId}:queue:waiter:*`,
+            `relay:concurrency:image:${GLOBAL_IMAGE_CONCURRENCY_RESOURCE_ID}:queue:waiter:*`,
+          ]
         : [
-          "relay:concurrency:default:*:queue:waiter:*",
-          `relay:concurrency:image:${GLOBAL_IMAGE_CONCURRENCY_RESOURCE_ID}:queue:waiter:*`,
-        ];
+            "relay:concurrency:default:*:queue:waiter:*",
+            `relay:concurrency:image:${GLOBAL_IMAGE_CONCURRENCY_RESOURCE_ID}:queue:waiter:*`,
+          ];
       const aggregates = new Map<
         string,
         {
@@ -1570,10 +1570,10 @@ export class RelayProxyService {
     const tokenBreakdown = isPerRequestPricing
       ? createZeroTokenBreakdown()
       : this.calculateTokens(
-        convertedBody,
-        { __relayForwardedResponseByteLength: responseBytes },
-        inputTokensIncludeCacheRead,
-      );
+          convertedBody,
+          { __relayForwardedResponseByteLength: responseBytes },
+          inputTokensIncludeCacheRead,
+        );
 
     const costResult = this.calculateCost(
       tokenBreakdown.requestTokens,

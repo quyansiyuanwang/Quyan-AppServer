@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
+import configPrettier from "eslint-config-prettier";
 
 export default [
   {
@@ -32,22 +33,39 @@ export default [
     },
     rules: {
       ...tseslint.configs.recommended.rules,
+      "no-unused-vars": "off",
       "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          varsIgnorePattern: "^_",
+          argsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
 
   {
-    name: "app/general-rules",
+    name: "app/code-quality",
     rules: {
-      // complexity: ["warn", 30],
-      quotes: ["warn", "double", { allowTemplateLiterals: true, avoidEscape: true }],
-      semi: ["warn", "always"],
-      indent: ["warn", 2, { SwitchCase: 1 }],
-      "no-trailing-spaces": "warn",
-      "no-unused-vars": "off",
-      "arrow-spacing": ["warn", { before: true, after: true }],
       "no-var": "warn",
+      curly: ["warn", "multi"],
+    },
+  },
+
+  {
+    name: "app/javascript",
+    files: ["**/*.{js,mjs,cjs}"],
+    rules: {
+      "no-unused-vars": [
+        "warn",
+        {
+          varsIgnorePattern: "^_",
+          argsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
 
@@ -110,9 +128,5 @@ export default [
     },
   },
 
-  {
-    rules: {
-      curly: ["warn", "multi"],
-    },
-  },
+  configPrettier,
 ];

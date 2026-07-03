@@ -2559,11 +2559,6 @@ const openCreateAssignmentDialog = () => {
   showAssignmentDialog.value = true
 }
 
-const openCreateBatchAssignmentDialog = () => {
-  openCreateAssignmentDialog()
-  assignmentForm.batchMode = true
-}
-
 const openEditAssignmentDialog = (row: UserMonthlyPassDto) => {
   editingAssignmentId.value = row.id
   ensureUserOption(row.userId, row.username)

@@ -202,8 +202,8 @@ export class RelayTokenService {
     const tokens = body.ids?.length
       ? await this.getOrderedTokensByIds(userId, body.ids, body.includeDisabled === true)
       : (await this.relayTokenRepo.findByUserIdWithRelations(userId)).filter(
-        (token) => body.includeDisabled === true || token.status === MANAGED_STATUS.ENABLED,
-      );
+          (token) => body.includeDisabled === true || token.status === MANAGED_STATUS.ENABLED,
+        );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_EXPORT,
@@ -903,21 +903,21 @@ export class RelayTokenService {
   ): RelayTokenDto {
     const channelConfigs = Array.isArray(token.channelConfigs)
       ? token.channelConfigs.map((config: any) => {
-        const successCount = Number(config.successCount || 0);
-        const failureCount = Number(config.failureCount || 0);
-        const total = successCount + failureCount;
-        return {
-          channelId: config.channelId,
-          channelName: config.channel?.name || undefined,
-          priority: config.priority,
-          successCount,
-          failureCount,
-          successRate: total > 0 ? successCount / total : 0,
-          lastUsedAt: config.lastUsedAt || undefined,
-          lastSuccessAt: config.lastSuccessAt || undefined,
-          lastFailureAt: config.lastFailureAt || undefined,
-        };
-      })
+          const successCount = Number(config.successCount || 0);
+          const failureCount = Number(config.failureCount || 0);
+          const total = successCount + failureCount;
+          return {
+            channelId: config.channelId,
+            channelName: config.channel?.name || undefined,
+            priority: config.priority,
+            successCount,
+            failureCount,
+            successRate: total > 0 ? successCount / total : 0,
+            lastUsedAt: config.lastUsedAt || undefined,
+            lastSuccessAt: config.lastSuccessAt || undefined,
+            lastFailureAt: config.lastFailureAt || undefined,
+          };
+        })
       : [];
 
     return {
@@ -942,13 +942,13 @@ export class RelayTokenService {
       channelConfigs,
       failoverConfig: token.failoverConfig
         ? {
-          enabled: Boolean(token.failoverConfig.enabled),
-          maxRetries: Number(token.failoverConfig.maxRetries || 0),
-          retryStatusCodes: normalizeRetryStatusRules(
-            Array.isArray(token.failoverConfig.retryStatusCodes) ? token.failoverConfig.retryStatusCodes : [],
-          ),
-          failoverThreshold: Math.max(0, Number(token.failoverConfig.failoverThreshold ?? 0)),
-        }
+            enabled: Boolean(token.failoverConfig.enabled),
+            maxRetries: Number(token.failoverConfig.maxRetries || 0),
+            retryStatusCodes: normalizeRetryStatusRules(
+              Array.isArray(token.failoverConfig.retryStatusCodes) ? token.failoverConfig.retryStatusCodes : [],
+            ),
+            failoverThreshold: Math.max(0, Number(token.failoverConfig.failoverThreshold ?? 0)),
+          }
         : undefined,
     };
   }
@@ -965,21 +965,21 @@ export class RelayTokenService {
       })),
       failoverConfig: token.failoverConfig
         ? {
-          enabled: Boolean(token.failoverConfig.enabled),
-          maxRetries: Number(token.failoverConfig.maxRetries || 0),
-          retryStatusCodes: normalizeRetryStatusRules(
-            Array.isArray(token.failoverConfig.retryStatusCodes) ? token.failoverConfig.retryStatusCodes : [],
-          ),
-          failoverThreshold: Math.max(0, Number(token.failoverConfig.failoverThreshold ?? 0)),
-        }
+            enabled: Boolean(token.failoverConfig.enabled),
+            maxRetries: Number(token.failoverConfig.maxRetries || 0),
+            retryStatusCodes: normalizeRetryStatusRules(
+              Array.isArray(token.failoverConfig.retryStatusCodes) ? token.failoverConfig.retryStatusCodes : [],
+            ),
+            failoverThreshold: Math.max(0, Number(token.failoverConfig.failoverThreshold ?? 0)),
+          }
         : undefined,
       quotaLimit: token.quotaLimit != null ? Number(token.quotaLimit) : undefined,
       quotaWindows: Array.isArray(token.quotaWindows)
         ? token.quotaWindows.map((quotaWindow) => ({
-          quotaLimit: Number(quotaWindow.quotaLimit),
-          quotaUnit: normalizeQuotaUnit(quotaWindow.quotaUnit),
-          quotaWindowHours: Number(quotaWindow.quotaWindowHours),
-        }))
+            quotaLimit: Number(quotaWindow.quotaLimit),
+            quotaUnit: normalizeQuotaUnit(quotaWindow.quotaUnit),
+            quotaWindowHours: Number(quotaWindow.quotaWindowHours),
+          }))
         : undefined,
       allowedModels: token.allowedModels || undefined,
       ipWhitelist: token.ipWhitelist || undefined,
@@ -1194,8 +1194,8 @@ export class RelayTokenService {
         tokens.flatMap((token) =>
           Array.isArray(token.quotaWindows)
             ? token.quotaWindows
-              .map((quotaWindow) => round4(Number(quotaWindow.quotaWindowHours)))
-              .filter((quotaWindowHours) => Number.isFinite(quotaWindowHours) && quotaWindowHours > 0)
+                .map((quotaWindow) => round4(Number(quotaWindow.quotaWindowHours)))
+                .filter((quotaWindowHours) => Number.isFinite(quotaWindowHours) && quotaWindowHours > 0)
             : [],
         ),
       ),
@@ -1227,8 +1227,8 @@ export class RelayTokenService {
     const normalizedConfigs =
       channelConfigs && channelConfigs.length > 0
         ? [...channelConfigs]
-          .sort((a, b) => a.priority - b.priority)
-          .map((config, index) => ({ channelId: config.channelId, priority: index }))
+            .sort((a, b) => a.priority - b.priority)
+            .map((config, index) => ({ channelId: config.channelId, priority: index }))
         : channelId
           ? [{ channelId, priority: 0 }]
           : [];

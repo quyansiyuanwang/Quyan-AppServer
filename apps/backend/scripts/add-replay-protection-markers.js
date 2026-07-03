@@ -189,15 +189,15 @@ scanDirectory(controllersPath);
 
 let markedCount = 0;
 let twoFactorMarkedCount = 0;
-for (const [pathKey, methods] of Object.entries(swagger.paths))
-  for (const [method, operation] of Object.entries(methods))
+for (const [_pathKey, methods] of Object.entries(swagger.paths))
+  for (const [_method, operation] of Object.entries(methods))
     if (replayProtectedOperations.has(operation.operationId)) {
       operation["X-Replay-Protected"] = true;
       markedCount++;
     }
 
-for (const [pathKey, methods] of Object.entries(swagger.paths))
-  for (const [method, operation] of Object.entries(methods)) {
+for (const [_pathKey, methods] of Object.entries(swagger.paths))
+  for (const [_method, operation] of Object.entries(methods)) {
     const marker = twoFactorChallengeOperations.get(operation.operationId);
     if (!marker) continue;
 

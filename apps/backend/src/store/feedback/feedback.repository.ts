@@ -44,11 +44,11 @@ export class FeedbackRepository implements FeedbackStore {
       ...(filters.assigneeUserId ? { assigneeUserId: filters.assigneeUserId } : {}),
       ...(filters.startTime || filters.endTime
         ? {
-          createTime: {
-            ...(filters.startTime ? { gte: filters.startTime } : {}),
-            ...(filters.endTime ? { lte: filters.endTime } : {}),
-          },
-        }
+            createTime: {
+              ...(filters.startTime ? { gte: filters.startTime } : {}),
+              ...(filters.endTime ? { lte: filters.endTime } : {}),
+            },
+          }
         : {}),
       ...(orConditions.length > 0 ? { OR: orConditions } : {}),
     };

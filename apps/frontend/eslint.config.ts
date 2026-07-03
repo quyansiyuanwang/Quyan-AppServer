@@ -12,7 +12,7 @@ import skipFormatting from '@vue/eslint-config-prettier/skip-formatting'
 export default defineConfigWithVueTs(
   {
     name: 'app/files-to-lint',
-    files: ['**/*.{ts,mts,tsx,vue}'],
+    files: ['src/**/*.{ts,mts,tsx,vue}'],
   },
 
   globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**', 'src/client/**', 'vite.config.d.ts', 'vite.config.js', 'openapi-ts.config.js', 'openapi-ts.config.d.ts', 'auto-imports.d.ts', 'components.d.ts', 'eslint.config.d.ts', '**/*.vue.d.ts', '**/*.vue.js']),

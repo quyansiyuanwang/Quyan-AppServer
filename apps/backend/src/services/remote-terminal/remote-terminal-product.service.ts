@@ -686,8 +686,8 @@ export class RemoteTerminalProductService {
       status: status !== undefined ? status : { gte: MANAGED_STATUS.DISABLED },
       ...(trimmedKeyword
         ? {
-          OR: [{ name: { contains: trimmedKeyword } }, { description: { contains: trimmedKeyword } }],
-        }
+            OR: [{ name: { contains: trimmedKeyword } }, { description: { contains: trimmedKeyword } }],
+          }
         : {}),
     };
     const result = await this.productRepository.listTemplates(where, pagination.page, pagination.pageSize);

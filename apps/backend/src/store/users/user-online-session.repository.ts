@@ -181,42 +181,42 @@ export class UserOnlineSessionRepository implements UserOnlineSessionStore {
       ...(filters?.userId ? { userId: filters.userId } : {}),
       ...(filters?.ipAddress
         ? {
-          lastIpAddress: {
-            contains: filters.ipAddress,
-          },
-        }
+            lastIpAddress: {
+              contains: filters.ipAddress,
+            },
+          }
         : {}),
       ...(filters?.location
         ? {
-          lastLocation: {
-            contains: filters.location,
-          },
-        }
+            lastLocation: {
+              contains: filters.location,
+            },
+          }
         : {}),
       ...(filters?.startDate || filters?.endDate
         ? {
-          ...(isOffline
-            ? {
-              endedAt: {
-                not: null,
-                ...(filters?.startDate ? { gte: filters.startDate } : {}),
-                ...(filters?.endDate ? { lte: filters.endDate } : {}),
-              },
-            }
-            : {
-              lastHeartbeatAt: {
-                ...(filters?.startDate ? { gte: filters.startDate } : {}),
-                ...(filters?.endDate ? { lte: filters.endDate } : {}),
-              },
-            }),
-        }
+            ...(isOffline
+              ? {
+                  endedAt: {
+                    not: null,
+                    ...(filters?.startDate ? { gte: filters.startDate } : {}),
+                    ...(filters?.endDate ? { lte: filters.endDate } : {}),
+                  },
+                }
+              : {
+                  lastHeartbeatAt: {
+                    ...(filters?.startDate ? { gte: filters.startDate } : {}),
+                    ...(filters?.endDate ? { lte: filters.endDate } : {}),
+                  },
+                }),
+          }
         : {}),
       ...(keyword
         ? {
-          user: {
-            OR: [{ username: { contains: keyword } }, { name: { contains: keyword } }, { id: { contains: keyword } }],
-          },
-        }
+            user: {
+              OR: [{ username: { contains: keyword } }, { name: { contains: keyword } }, { id: { contains: keyword } }],
+            },
+          }
         : {}),
     };
   }
@@ -320,11 +320,11 @@ export class UserOnlineSessionRepository implements UserOnlineSessionStore {
       ...(params.offlineOnly ? { endedAt: { not: null } } : {}),
       ...(params.startDate || params.endDate
         ? {
-          startedAt: {
-            ...(params.startDate ? { gte: params.startDate } : {}),
-            ...(params.endDate ? { lte: params.endDate } : {}),
-          },
-        }
+            startedAt: {
+              ...(params.startDate ? { gte: params.startDate } : {}),
+              ...(params.endDate ? { lte: params.endDate } : {}),
+            },
+          }
         : {}),
     };
 

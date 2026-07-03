@@ -297,15 +297,15 @@ export class ConfigService {
       const normalizedThresholds =
         parsedThresholds && typeof parsedThresholds === "object"
           ? Object.fromEntries(
-            THRESHOLD_EVENTS.map((key) => {
-              const value = (parsedThresholds as Record<string, unknown>)[key];
-              const normalizedValue =
+              THRESHOLD_EVENTS.map((key) => {
+                const value = (parsedThresholds as Record<string, unknown>)[key];
+                const normalizedValue =
                   typeof value === "number" && Number.isFinite(value) && value >= 0
                     ? value
                     : DEFAULT_NOTIFICATION_THRESHOLDS[key];
-              return [key, normalizedValue];
-            }),
-          )
+                return [key, normalizedValue];
+              }),
+            )
           : DEFAULT_NOTIFICATION_THRESHOLDS;
 
       return {

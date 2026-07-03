@@ -73,20 +73,20 @@ export class ConsumptionStatsRepository implements ConsumptionStatsStore {
 
     const relayUsageRows = usageIds.length
       ? await prisma.relayUsage.findMany({
-        where: {
-          status: RECORD_STATUS.ACTIVE,
-          id: { in: usageIds },
-        },
-        select: {
-          id: true,
-          relayTokenId: true,
-          relayToken: {
-            select: {
-              name: true,
+          where: {
+            status: RECORD_STATUS.ACTIVE,
+            id: { in: usageIds },
+          },
+          select: {
+            id: true,
+            relayTokenId: true,
+            relayToken: {
+              select: {
+                name: true,
+              },
             },
           },
-        },
-      })
+        })
       : [];
 
     const relayUsageMap = new Map(
@@ -105,15 +105,15 @@ export class ConsumptionStatsRepository implements ConsumptionStatsStore {
 
     const usernameRows = userIds.length
       ? await prisma.user.findMany({
-        where: {
-          status: RECORD_STATUS.ACTIVE,
-          id: { in: userIds },
-        },
-        select: {
-          id: true,
-          username: true,
-        },
-      })
+          where: {
+            status: RECORD_STATUS.ACTIVE,
+            id: { in: userIds },
+          },
+          select: {
+            id: true,
+            username: true,
+          },
+        })
       : [];
 
     const usernameMap = new Map(usernameRows.map((item) => [item.id, item.username]));

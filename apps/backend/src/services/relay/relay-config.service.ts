@@ -40,14 +40,14 @@ const summarizeRelayConfigChanges = (data: UpdateRelayConfigRequest) => ({
     data.modelRates === undefined
       ? undefined
       : {
-        count: data.modelRates.length,
-        models: data.modelRates.slice(0, 20).map((rate) => ({
-          model: rate.model,
-          modelId: rate.modelId,
-          pricingType: rate.pricingType,
-        })),
-        truncated: data.modelRates.length > 20,
-      },
+          count: data.modelRates.length,
+          models: data.modelRates.slice(0, 20).map((rate) => ({
+            model: rate.model,
+            modelId: rate.modelId,
+            pricingType: rate.pricingType,
+          })),
+          truncated: data.modelRates.length > 20,
+        },
 });
 
 export class RelayConfigService {

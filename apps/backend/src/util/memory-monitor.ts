@@ -141,13 +141,13 @@ class MemoryMonitor {
       heap: number;
       rss: number;
     };
-    } {
+  } {
     const current = this.getCurrentMemory();
     const growth = this.baselineMemory
       ? {
-        heap: (current.heapUsed - this.baselineMemory.heapUsed) / 1024 / 1024,
-        rss: (current.rss - this.baselineMemory.rss) / 1024 / 1024,
-      }
+          heap: (current.heapUsed - this.baselineMemory.heapUsed) / 1024 / 1024,
+          rss: (current.rss - this.baselineMemory.rss) / 1024 / 1024,
+        }
       : { heap: 0, rss: 0 };
 
     return {

@@ -504,15 +504,15 @@ export class MonthlyPassService {
         record.quotaWindows && record.quotaWindows.length > 0
           ? record.quotaWindows.map((item) => this.toQuotaWindowDto(item))
           : this.synthesizeLegacyQuotaWindows(
-            record.dailyQuota == null ? null : Number(record.dailyQuota),
-            normalizeQuotaUnit(record.quotaUnit),
-            record.quotaWindowHours == null ? null : Number(record.quotaWindowHours),
-          ).map((item, index) => ({
-            id: `legacy-template-window-${record.id}-${index}`,
-            quotaLimit: item.quotaLimit,
-            quotaUnit: item.quotaUnit,
-            quotaWindowHours: item.quotaWindowHours,
-          })),
+              record.dailyQuota == null ? null : Number(record.dailyQuota),
+              normalizeQuotaUnit(record.quotaUnit),
+              record.quotaWindowHours == null ? null : Number(record.quotaWindowHours),
+            ).map((item, index) => ({
+              id: `legacy-template-window-${record.id}-${index}`,
+              quotaLimit: item.quotaLimit,
+              quotaUnit: item.quotaUnit,
+              quotaWindowHours: item.quotaWindowHours,
+            })),
       allowedModels: parseAllowedModels(record.allowedModels) || undefined,
       allowedChannels: parseAllowedChannels(record.allowedChannels) || undefined,
       status: record.status,
@@ -627,39 +627,39 @@ export class MonthlyPassService {
     const quotaWindows =
       record.quotaWindows && record.quotaWindows.length > 0
         ? record.quotaWindows.map((item) => {
-          const quotaUnit = normalizeQuotaUnit(item.quotaUnit);
-          const usageSummary =
+            const quotaUnit = normalizeQuotaUnit(item.quotaUnit);
+            const usageSummary =
               usageSummaryByQuotaWindowKey?.[
                 getQuotaWindowUsageKey(record.id, quotaUnit, Number(item.quotaWindowHours))
               ];
 
-          return this.toQuotaWindowDto(item, usageSummary);
-        })
+            return this.toQuotaWindowDto(item, usageSummary);
+          })
         : this.synthesizeLegacyQuotaWindows(
-          record.dailyQuota == null ? null : Number(record.dailyQuota),
-          normalizeQuotaUnit(record.quotaUnit),
-          record.quotaWindowHours == null ? null : Number(record.quotaWindowHours),
-        ).map((item, index) => {
-          const usageSummary =
+            record.dailyQuota == null ? null : Number(record.dailyQuota),
+            normalizeQuotaUnit(record.quotaUnit),
+            record.quotaWindowHours == null ? null : Number(record.quotaWindowHours),
+          ).map((item, index) => {
+            const usageSummary =
               usageSummaryByQuotaWindowKey?.[getQuotaWindowUsageKey(record.id, item.quotaUnit, item.quotaWindowHours)];
-          const usedQuota = usageSummary
-            ? normalizeQuotaValue(getWindowConsumed(usageSummary, item.quotaUnit), item.quotaUnit)
-            : undefined;
+            const usedQuota = usageSummary
+              ? normalizeQuotaValue(getWindowConsumed(usageSummary, item.quotaUnit), item.quotaUnit)
+              : undefined;
 
-          return {
-            id: `legacy-user-window-${record.id}-${index}`,
-            quotaLimit: item.quotaLimit,
-            quotaUnit: item.quotaUnit,
-            quotaWindowHours: item.quotaWindowHours,
-            usedQuota,
-            remainingQuota:
+            return {
+              id: `legacy-user-window-${record.id}-${index}`,
+              quotaLimit: item.quotaLimit,
+              quotaUnit: item.quotaUnit,
+              quotaWindowHours: item.quotaWindowHours,
+              usedQuota,
+              remainingQuota:
                 usedQuota !== undefined
                   ? normalizeQuotaValue(Math.max(item.quotaLimit - usedQuota, 0), item.quotaUnit)
                   : undefined,
-            quotaUsagePercent: usedQuota !== undefined ? (usedQuota / item.quotaLimit) * 100 : undefined,
-            isQuotaExceeded: usedQuota !== undefined ? usedQuota >= item.quotaLimit : undefined,
-          };
-        });
+              quotaUsagePercent: usedQuota !== undefined ? (usedQuota / item.quotaLimit) * 100 : undefined,
+              isQuotaExceeded: usedQuota !== undefined ? usedQuota >= item.quotaLimit : undefined,
+            };
+          });
 
     return {
       id: record.id,
@@ -796,100 +796,100 @@ export class MonthlyPassService {
 
     const record = hasPricingInput
       ? await (async () => {
-        if (data.originalPrice == null || data.discountPercent == null)
-          throw new BadRequestError("originalPrice and discountPercent are required to derive monthly pass pricing");
+          if (data.originalPrice == null || data.discountPercent == null)
+            throw new BadRequestError("originalPrice and discountPercent are required to derive monthly pass pricing");
 
-        const derivedPricing = await this.deriveTemplatePricing({
-          originalPrice: data.originalPrice,
-          discountPercent: data.discountPercent,
-          dailyQuota: data.dailyQuota,
-        });
+          const derivedPricing = await this.deriveTemplatePricing({
+            originalPrice: data.originalPrice,
+            discountPercent: data.discountPercent,
+            dailyQuota: data.dailyQuota,
+          });
 
-        const resolvedQuotaWindowHours =
+          const resolvedQuotaWindowHours =
             derivedPricing.dailyQuota != null
               ? (quotaWindowHours ?? MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS)
               : quotaWindowHours;
 
-        const quotaWindows = this.resolveQuotaWindowsForPersist({
-          explicitQuotaWindows: data.quotaWindows,
-          dailyQuota: derivedPricing.dailyQuota,
-          quotaUnit: "amount",
-          quotaWindowHours: resolvedQuotaWindowHours,
-        });
-
-        return this.monthlyPassRepository.createTemplate(
-          {
-            name,
-            description: data.description || null,
-            publishStatus: "draft",
-            publishedAt: null,
-            allowBalanceRedemption: data.allowBalanceRedemption ?? true,
-            purchaseLimitPerUser: purchaseLimitConfig.purchaseLimitPerUser ?? null,
-            purchaseLimitWindowDays: purchaseLimitConfig.purchaseLimitWindowDays ?? null,
-            originalPrice: derivedPricing.originalPrice,
-            discountPercent: derivedPricing.discountPercent,
-            discountedPrice: derivedPricing.discountedPrice,
-            rechargeRatio: derivedPricing.rechargeRatio,
-            defaultQuota: derivedPricing.defaultQuota,
+          const quotaWindows = this.resolveQuotaWindowsForPersist({
+            explicitQuotaWindows: data.quotaWindows,
             dailyQuota: derivedPricing.dailyQuota,
             quotaUnit: "amount",
             quotaWindowHours: resolvedQuotaWindowHours,
-            allowedModels: serializeStringArray(data.allowedModels),
-            allowedChannels: serializeStringArray(data.allowedChannels),
-            status: MANAGED_STATUS.ENABLED,
-          },
-          quotaWindows,
-        );
-      })()
+          });
+
+          return this.monthlyPassRepository.createTemplate(
+            {
+              name,
+              description: data.description || null,
+              publishStatus: "draft",
+              publishedAt: null,
+              allowBalanceRedemption: data.allowBalanceRedemption ?? true,
+              purchaseLimitPerUser: purchaseLimitConfig.purchaseLimitPerUser ?? null,
+              purchaseLimitWindowDays: purchaseLimitConfig.purchaseLimitWindowDays ?? null,
+              originalPrice: derivedPricing.originalPrice,
+              discountPercent: derivedPricing.discountPercent,
+              discountedPrice: derivedPricing.discountedPrice,
+              rechargeRatio: derivedPricing.rechargeRatio,
+              defaultQuota: derivedPricing.defaultQuota,
+              dailyQuota: derivedPricing.dailyQuota,
+              quotaUnit: "amount",
+              quotaWindowHours: resolvedQuotaWindowHours,
+              allowedModels: serializeStringArray(data.allowedModels),
+              allowedChannels: serializeStringArray(data.allowedChannels),
+              status: MANAGED_STATUS.ENABLED,
+            },
+            quotaWindows,
+          );
+        })()
       : await (async () => {
-        if (data.defaultQuota == null)
-          throw new BadRequestError("defaultQuota is required when not using price-first monthly pass templates");
+          if (data.defaultQuota == null)
+            throw new BadRequestError("defaultQuota is required when not using price-first monthly pass templates");
 
-        const quotaUnit = normalizeQuotaUnit(data.quotaUnit);
-        validateQuotaValue("defaultQuota", data.defaultQuota, quotaUnit);
+          const quotaUnit = normalizeQuotaUnit(data.quotaUnit);
+          validateQuotaValue("defaultQuota", data.defaultQuota, quotaUnit);
 
-        const defaultQuota = normalizeQuotaValue(data.defaultQuota, quotaUnit);
-        const dailyQuota = data.dailyQuota == null ? null : normalizeQuotaValue(data.dailyQuota, quotaUnit);
+          const defaultQuota = normalizeQuotaValue(data.defaultQuota, quotaUnit);
+          const dailyQuota = data.dailyQuota == null ? null : normalizeQuotaValue(data.dailyQuota, quotaUnit);
 
-        if (dailyQuota != null) {
-          validateQuotaValue("dailyQuota", dailyQuota, quotaUnit);
-          if (dailyQuota > defaultQuota) throw new BadRequestError("dailyQuota cannot exceed defaultQuota");
-        }
+          if (dailyQuota != null) {
+            validateQuotaValue("dailyQuota", dailyQuota, quotaUnit);
+            if (dailyQuota > defaultQuota) throw new BadRequestError("dailyQuota cannot exceed defaultQuota");
+          }
 
-        const resolvedQuotaWindowHours =
+          const resolvedQuotaWindowHours =
             dailyQuota != null ? (quotaWindowHours ?? MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS) : quotaWindowHours;
 
-        const quotaWindows = this.resolveQuotaWindowsForPersist({
-          explicitQuotaWindows: data.quotaWindows,
-          dailyQuota,
-          quotaUnit,
-          quotaWindowHours: resolvedQuotaWindowHours,
-        });
-
-        return this.monthlyPassRepository.createTemplate(
-          {
-            name,
-            description: data.description || null,
-            publishStatus: "draft",
-            publishedAt: null,
-            allowBalanceRedemption: data.allowBalanceRedemption ?? true,
-            purchaseLimitPerUser: purchaseLimitConfig.purchaseLimitPerUser ?? null,
-            purchaseLimitWindowDays: purchaseLimitConfig.purchaseLimitWindowDays ?? null,
-            originalPrice: null,
-            discountPercent: null,
-            discountedPrice: null,
-            rechargeRatio: null,
-            defaultQuota,
+          const quotaWindows = this.resolveQuotaWindowsForPersist({
+            explicitQuotaWindows: data.quotaWindows,
             dailyQuota,
             quotaUnit,
             quotaWindowHours: resolvedQuotaWindowHours,
-            allowedModels: serializeStringArray(data.allowedModels),
-            allowedChannels: serializeStringArray(data.allowedChannels),
-            status: MANAGED_STATUS.ENABLED,
-          },
-          quotaWindows,
-        );
-      })();
+          });
+
+          return this.monthlyPassRepository.createTemplate(
+            {
+              name,
+              description: data.description || null,
+              publishStatus: "draft",
+              publishedAt: null,
+              allowBalanceRedemption: data.allowBalanceRedemption ?? true,
+              purchaseLimitPerUser: purchaseLimitConfig.purchaseLimitPerUser ?? null,
+              purchaseLimitWindowDays: purchaseLimitConfig.purchaseLimitWindowDays ?? null,
+              originalPrice: null,
+              discountPercent: null,
+              discountedPrice: null,
+              rechargeRatio: null,
+              defaultQuota,
+              dailyQuota,
+              quotaUnit,
+              quotaWindowHours: resolvedQuotaWindowHours,
+              allowedModels: serializeStringArray(data.allowedModels),
+              allowedChannels: serializeStringArray(data.allowedChannels),
+              status: MANAGED_STATUS.ENABLED,
+            },
+            quotaWindows,
+          );
+        })();
 
     await this.businessLogService.logOperation({
       operationType: OperationType.MONTHLY_PASS_TEMPLATE_CREATE,
@@ -1461,11 +1461,11 @@ export class MonthlyPassService {
     const quotaWindowsForUpdate =
       data.quotaWindows !== undefined || data.dailyQuota !== undefined || data.quotaWindowHours !== undefined
         ? this.resolveQuotaWindowsForPersist({
-          explicitQuotaWindows: data.quotaWindows,
-          dailyQuota: finalDailyQuota,
-          quotaUnit: finalQuotaUnit,
-          quotaWindowHours: finalQuotaWindowHours,
-        })
+            explicitQuotaWindows: data.quotaWindows,
+            dailyQuota: finalDailyQuota,
+            quotaUnit: finalQuotaUnit,
+            quotaWindowHours: finalQuotaWindowHours,
+          })
         : undefined;
 
     const remainingQuota = isIntegerQuotaUnit(finalQuotaUnit)

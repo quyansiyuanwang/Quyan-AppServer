@@ -131,11 +131,11 @@ function toCamelCase(value) {
   return value.charAt(0).toLowerCase() + value.slice(1)
 }
 
-function toControllerServiceName(endpointName) {
-  const match = endpointName.match(/^(.+?Controller)(.+)$/)
-  if (!match) return `${toCamelCase(endpointName)}Api`
-  return `${toCamelCase(match[1])}Api`
-}
+// function toControllerServiceName(endpointName) {
+//   const match = endpointName.match(/^(.+?Controller)(.+)$/)
+//   if (!match) return `${toCamelCase(endpointName)}Api`
+//   return `${toCamelCase(match[1])}Api`
+// }
 
 function getControllerName(endpointName) {
   const match = endpointName.match(/^(.+?Controller)(.+)$/)
@@ -148,9 +148,9 @@ function toEndpointMethodName(endpointName) {
   return toCamelCase(match[1])
 }
 
-function toEndpointFunctionName(endpointName) {
-  return toCamelCase(endpointName)
-}
+// function toEndpointFunctionName(endpointName) {
+//   return toCamelCase(endpointName)
+// }
 
 function toKebabCase(value) {
   return String(value)

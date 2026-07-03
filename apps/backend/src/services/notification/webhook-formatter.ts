@@ -47,10 +47,10 @@ export class WebhookFormatter {
           timestamp: payload.timestamp,
           fields: payload.data
             ? Object.entries(payload.data).map(([name, value]) => ({
-              name,
-              value: String(value),
-              inline: true,
-            }))
+                name,
+                value: String(value),
+                inline: true,
+              }))
             : [],
         },
       ],
@@ -80,9 +80,9 @@ export class WebhookFormatter {
   private static formatFeishu(payload: WebhookPayload): Record<string, unknown> {
     const fields = payload.data
       ? Object.entries(payload.data).map(([key, value]) => ({
-        is_short: true,
-        text: { tag: "lark_md", content: `**${key}**: ${value}` },
-      }))
+          is_short: true,
+          text: { tag: "lark_md", content: `**${key}**: ${value}` },
+        }))
       : [];
 
     return {
@@ -110,8 +110,8 @@ export class WebhookFormatter {
   private static formatWechatWork(payload: WebhookPayload): Record<string, unknown> {
     const extraLines = payload.data
       ? Object.entries(payload.data)
-        .map(([k, v]) => `> **${k}**: ${v}`)
-        .join("\n")
+          .map(([k, v]) => `> **${k}**: ${v}`)
+          .join("\n")
       : "";
 
     const content = extraLines

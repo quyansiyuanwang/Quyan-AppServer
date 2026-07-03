@@ -53,11 +53,11 @@ export class BusinessLogRepository implements BusinessLogStore {
       }),
       ...(startDate || endDate
         ? {
-          createTime: {
-            ...(startDate && { gte: startDate }),
-            ...(endDate && { lte: endDate }),
-          },
-        }
+            createTime: {
+              ...(startDate && { gte: startDate }),
+              ...(endDate && { lte: endDate }),
+            },
+          }
         : {}),
     };
 

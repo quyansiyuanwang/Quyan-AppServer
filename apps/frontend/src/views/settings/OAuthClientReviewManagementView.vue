@@ -270,6 +270,7 @@ const submitReviewDecision = async () => {
     await loadReviewItems()
   } catch (error) {
     ElMessage.error(t('oauthClient.reviewFailed'))
+    console.error(error)
   } finally {
     submitting.value = false
   }

@@ -100,9 +100,9 @@ export class RamRoleRepository implements RamRoleStore {
       }),
       groupId
         ? prisma.ramGroupRoleBinding.findMany({
-          where: { groupId, role: ACTIVE_WHERE },
-          include: { role: true },
-        })
+            where: { groupId, role: ACTIVE_WHERE },
+            include: { role: true },
+          })
         : Promise.resolve([]),
     ]);
 

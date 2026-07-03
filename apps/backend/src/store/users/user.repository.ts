@@ -47,48 +47,48 @@ export class UserRepository implements UserStore {
       },
       ...(minGroupLevel !== undefined
         ? {
-          group: {
-            level: {
-              gte: minGroupLevel,
+            group: {
+              level: {
+                gte: minGroupLevel,
+              },
             },
-          },
-        }
+          }
         : {}),
       ...(excludeUserType && !userType
         ? {
-          userType: {
-            not: excludeUserType,
-          },
-        }
+            userType: {
+              not: excludeUserType,
+            },
+          }
         : {}),
       ...(userType
         ? {
-          userType,
-        }
+            userType,
+          }
         : {}),
       ...(filters.excludeUserId
         ? {
-          id: {
-            not: filters.excludeUserId,
-          },
-        }
+            id: {
+              not: filters.excludeUserId,
+            },
+          }
         : {}),
       ...(userId
         ? {
-          id: {
-            contains: userId,
-          },
-        }
+            id: {
+              contains: userId,
+            },
+          }
         : {}),
       ...(groupId
         ? {
-          groupId,
-        }
+            groupId,
+          }
         : {}),
       ...(andConditions.length > 0
         ? {
-          AND: andConditions,
-        }
+            AND: andConditions,
+          }
         : {}),
     };
   }

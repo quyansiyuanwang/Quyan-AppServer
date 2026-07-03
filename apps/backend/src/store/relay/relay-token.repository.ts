@@ -118,24 +118,24 @@ export class RelayTokenRepository implements RelayTokenStore {
         modelMapping: data.modelMapping ?? undefined,
         failoverConfig: failoverConfigCreateData
           ? {
-            create: failoverConfigCreateData,
-          }
+              create: failoverConfigCreateData,
+            }
           : undefined,
         channelConfigs:
           data.channelConfigs && data.channelConfigs.length > 0
             ? {
-              createMany: {
-                data: buildChannelConfigCreateManyData(data.channelConfigs),
-              },
-            }
+                createMany: {
+                  data: buildChannelConfigCreateManyData(data.channelConfigs),
+                },
+              }
             : undefined,
         quotaWindows:
           data.quotaWindows && data.quotaWindows.length > 0
             ? {
-              createMany: {
-                data: buildQuotaWindowCreateManyData(data.quotaWindows),
-              },
-            }
+                createMany: {
+                  data: buildQuotaWindowCreateManyData(data.quotaWindows),
+                },
+              }
             : undefined,
       },
       include: relayTokenInclude,
@@ -368,13 +368,13 @@ export class RelayTokenRepository implements RelayTokenStore {
         lastUsedAt: usedAt,
         ...(data.success
           ? {
-            successCount: { increment: 1 },
-            lastSuccessAt: usedAt,
-          }
+              successCount: { increment: 1 },
+              lastSuccessAt: usedAt,
+            }
           : {
-            failureCount: { increment: 1 },
-            lastFailureAt: usedAt,
-          }),
+              failureCount: { increment: 1 },
+              lastFailureAt: usedAt,
+            }),
       },
     });
   }

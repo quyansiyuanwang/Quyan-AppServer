@@ -162,11 +162,11 @@ export class NotificationService {
     const eventLabel = NOTIFICATION_EVENT_LABELS[event] ?? event;
     const extraRows = payload.data
       ? Object.entries(payload.data)
-        .map(
-          ([k, v]) =>
-            `<tr><td style="padding:4px 8px;color:#666;font-size:13px;">${k}</td><td style="padding:4px 8px;font-size:13px;">${v}</td></tr>`,
-        )
-        .join("")
+          .map(
+            ([k, v]) =>
+              `<tr><td style="padding:4px 8px;color:#666;font-size:13px;">${k}</td><td style="padding:4px 8px;font-size:13px;">${v}</td></tr>`,
+          )
+          .join("")
       : "";
 
     const html = `
