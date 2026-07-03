@@ -174,15 +174,6 @@ export class RemoteTerminalProductService {
     return Number(value.toFixed(4));
   }
 
-  private validateDailyPrice(fieldName: string, value?: number | null): number | null | undefined {
-    if (value === undefined) return undefined;
-    if (value === null) return null;
-    if (!Number.isFinite(value) || value < 0)
-      throw new BadRequestError(`${fieldName} must be greater than or equal to 0`);
-    if (!hasDecimalPrecision(value, 4)) throw new BadRequestError(`${fieldName} must have at most 4 decimal places`);
-    return Number(value.toFixed(4));
-  }
-
   private validateBillingUnit(value?: string | null): RemoteTerminalBillingUnit {
     if (!value) return "day";
     if (value === "day" || value === "week" || value === "month") return value;
@@ -231,7 +222,7 @@ export class RemoteTerminalProductService {
   ): number | null | undefined {
     if (unitPrice === undefined) return undefined;
     if (unitPrice === null) return null;
-    return this.validateDailyPrice("dailyPrice", unitPrice / this.getBillingUnitDays(billingUnit)) ?? null;
+    return Number((unitPrice / this.getBillingUnitDays(billingUnit)).toFixed(4));
   }
 
   private restoreUnitPriceFromStoredValues(
