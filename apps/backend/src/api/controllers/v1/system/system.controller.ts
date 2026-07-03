@@ -66,7 +66,7 @@ export class SystemController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @RequirePermission(Permission.SYSTEM_STATS_READ)
   @LogRoute({ message: "获取系统统计信息", logResponse: true })
-  public async getSystemStats(@Request() _request: TypedRequest): Promise<SystemStatsDTO> {
+  public async getSystemStats(@Request() request: TypedRequest): Promise<SystemStatsDTO> {
     const stats = await this.systemService.getSystemStats();
     return stats;
   }

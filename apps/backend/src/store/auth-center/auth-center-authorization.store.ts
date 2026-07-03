@@ -1,5 +1,5 @@
 import type {
-  AuthCenterAccessToken as _AuthCenterAccessToken,
+  AuthCenterAccessToken,
   AuthCenterAuthorizationCode,
   AuthCenterClient,
   AuthCenterConsent,

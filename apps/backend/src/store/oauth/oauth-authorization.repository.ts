@@ -1,9 +1,9 @@
 import type {
-  OAuthAccessToken as _OAuthAccessToken,
+  OAuthAccessToken,
   OAuthAuthorizationCode,
   OAuthClient,
   OAuthConsent,
-  OAuthRefreshToken as _OAuthRefreshToken,
+  OAuthRefreshToken,
 } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { MANAGED_STATUS } from "@/constant/status";

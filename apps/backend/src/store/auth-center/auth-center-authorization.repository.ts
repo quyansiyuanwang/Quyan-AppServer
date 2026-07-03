@@ -1,9 +1,9 @@
 import type {
-  AuthCenterAccessToken as _AuthCenterAccessToken,
+  AuthCenterAccessToken,
   AuthCenterAuthorizationCode,
   AuthCenterClient,
   AuthCenterConsent,
-  AuthCenterRefreshToken as _AuthCenterRefreshToken,
+  AuthCenterRefreshToken,
 } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { MANAGED_STATUS } from "@/constant/status";

@@ -15,8 +15,8 @@ import type { RelayUsageStore } from "@/store/relay/relay-usage.store";
 import type { ModelPricingStore } from "@/store/relay/model-pricing.store";
 import type { RelayConfigStore } from "@/store/relay/relay-config.store";
 import {
-  DEFAULT_CACHE_CREATION_MULTIPLIER as _DEFAULT_CACHE_CREATION_MULTIPLIER,
-  DEFAULT_CACHE_READ_MULTIPLIER as _DEFAULT_CACHE_READ_MULTIPLIER,
+  DEFAULT_CACHE_CREATION_MULTIPLIER,
+  DEFAULT_CACHE_READ_MULTIPLIER,
   TOKEN_PRICE_DIVISOR,
 } from "@/constant/pricing";
 import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";

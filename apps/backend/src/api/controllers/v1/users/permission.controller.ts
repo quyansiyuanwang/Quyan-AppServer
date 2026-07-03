@@ -46,7 +46,7 @@ import { validateBody, validateParams } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 
-const _logger = getLogger("PermissionController", LogCategory.BUSINESS);
+const logger = getLogger("PermissionController", LogCategory.BUSINESS);
 
 /**
  * 权限管理相关接口

@@ -126,7 +126,7 @@ export class IPBlacklistController extends Controller {
   @RequirePermission(Permission.IP_BLACKLIST_READ)
   @Middlewares(validateParams(ipBlacklistIdParamsSchema))
   public async getIPBlacklistById(
-    @Path() _id: string,
+    @Path("id") _id: string,
     @Request() _request: TypedRequest,
   ): Promise<GetIPBlacklistByIdResponse> {
     // Note: This would require adding a findById method to the repository
@@ -280,7 +280,7 @@ export class IPBlacklistController extends Controller {
   @Middlewares(validateParams(ipParamsSchema))
   public async checkIPBlacklist(
     @Path() ip: string,
-    @Request() _request: TypedRequest,
+    @Request() request: TypedRequest,
   ): Promise<CheckIPBlacklistResponse> {
     const isBlacklisted = await this.ipBlacklistService.isIpBlacklisted(ip);
     const blacklistInfo = isBlacklisted ? await this.ipBlacklistService.getBlacklistInfo(ip) : null;
@@ -304,7 +304,7 @@ export class IPBlacklistController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @RequirePermission(Permission.IP_BLACKLIST_READ)
   @Middlewares(validateParams(ipParamsSchema))
-  public async getIpErrorStatus(@Path() ip: string, @Request() _request: TypedRequest): Promise<IPErrorStatusResponse> {
+  public async getIpErrorStatus(@Path() ip: string, @Request() request: TypedRequest): Promise<IPErrorStatusResponse> {
     return await this.ipBlacklistService.getIpErrorStatus(ip);
   }
 
@@ -374,7 +374,7 @@ export class IPBlacklistController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @RequirePermission(Permission.IP_BLACKLIST_READ)
-  public async getMonitoringDashboard(@Request() _request: TypedRequest): Promise<MonitoringDashboardResponse> {
+  public async getMonitoringDashboard(@Request() request: TypedRequest): Promise<MonitoringDashboardResponse> {
     return await this.ipBlacklistService.getMonitoringDashboard();
   }
 }

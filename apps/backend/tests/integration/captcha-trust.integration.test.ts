@@ -10,7 +10,7 @@ import * as captchaServiceModule from "../../src/services/auth/captcha.service";
 
 describe("captcha trust integration", () => {
   let app: Express;
-  let _testUser: any;
+  let testUser: any;
   let testGroup: any;
 
   const postWithReplay = (path: string, body: Record<string, unknown>) =>
@@ -28,7 +28,7 @@ describe("captcha trust integration", () => {
       },
     });
 
-    _testUser = await prisma.user.create({
+    testUser = await prisma.user.create({
       data: {
         username: "t_captcha_trust_user",
         password: hashPassword("test_password_123"),

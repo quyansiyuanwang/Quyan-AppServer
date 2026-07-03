@@ -11,7 +11,7 @@ describe("用户管理 API 集成测试", () => {
   let app: Express;
   let adminGroup: any;
   let userGroup: any;
-  let _adminUser: any;
+  let adminUser: any;
   let normalUser: any;
   let targetUser: any;
   let adminToken: string;
@@ -52,7 +52,7 @@ describe("用户管理 API 集成测试", () => {
     });
 
     // 创建管理员用户
-    _adminUser = await prisma.user.create({
+    adminUser = await prisma.user.create({
       data: {
         username: "test_user_admin",
         password: hashPassword("admin_password"),
