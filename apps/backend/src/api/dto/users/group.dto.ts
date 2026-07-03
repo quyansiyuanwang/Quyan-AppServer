@@ -1,4 +1,4 @@
-import type { ApiResponse as _ApiResponse } from "@/api/dto/common/common.dto";
+import type { ApiResponse } from "@/api/dto/common/common.dto";
 
 /**
  * 用户组基本信息

@@ -113,14 +113,20 @@ jobs:
 
             const isOpened = context.payload.action === 'opened';
             let aiTitle = '';
-            if (isOpened && process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL) {
+            const hasAiConfig = process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL;
+
+            if (hasAiConfig) {
               try {
+                const systemPrompt = isOpened
+                  ? 'You are a PR title generator. Given commit messages, generate a PR title following Conventional Commits format: "type(scope): description".\n\nTypes: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert\nScope: optional, e.g., frontend, backend, api, auth, ui\n\nReturn ONLY the title text, no quotes or explanation.'
+                  : `You are a PR title evaluator. Given commit messages and the current PR title, decide if the current title is still appropriate. If it is, return it unchanged. If new commits warrant a better title, suggest an updated one following Conventional Commits format: "type(scope): description".\n\nCurrent PR title: "${pr.title}"\n\nReturn ONLY the title text, no quotes or explanation.`;
+
                 const requestPayload = {
                   model: process.env.OPENAI_MODEL,
                   messages: [
                     {
                       role: 'system',
-                      content: 'You are a PR title generator. Given commit messages, generate a PR title following Conventional Commits format: "type(scope): description".\n\nTypes: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert\nScope: optional, e.g., frontend, backend, api, auth, ui\n\nReturn ONLY the title text, no quotes or explanation.',
+                      content: systemPrompt,
                     },
                     {
                       role: 'user',
@@ -164,13 +170,12 @@ jobs:
               } catch (error) {
                 console.log('Failed to generate AI title:', error.message);
               }
-            } else if (!isOpened) {
-              console.log(`Skipping AI title generation (action=${context.payload.action}), keeping existing title.`);
             } else {
               console.log('Skipping AI title generation because OPENAI_API_KEY or OPENAI_MODEL is missing.');
             }
 
-            const title = isOpened ? (aiTitle || pr.title) : pr.title;
+            // Only update title if AI generated something meaningfully different from current
+            const title = aiTitle && aiTitle.toLowerCase() !== pr.title.toLowerCase() ? aiTitle : pr.title;
 
             const body = commitList || '_No new commits._';
 
@@ -190,6 +195,10 @@ jobs:
   call-auto-label:
     needs: create-pr
     if: ${{ needs.create-pr.outputs.needs_label == 'true' }}
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: read
     uses: ./.github/workflows/auto-label.yml
     with:
       pr_number: ${{ needs.create-pr.outputs.pr_number }}

@@ -11,7 +11,7 @@ on:
       - 'package.json'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/test-backend.yml'
-      - '.github/workflows/deploy-backend.yml'
+      - '.github/workflows/deploy.yml'
 
 jobs:
   backend-tests:
@@ -87,7 +87,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Inject Empty Build Info
-        run: pnpm --filter @appserver/backend run build-info:stub
+        run: pnpm --filter @appserver/backend run build:info:stub
 
       - name: Generate Prisma Client
         run: pnpm --filter @appserver/backend run db:generate

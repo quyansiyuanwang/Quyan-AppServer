@@ -58,7 +58,7 @@ jobs:
           bun-version: 1.3.13
 
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-backend
         with:
           path: node_modules
@@ -69,7 +69,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Inject Empty Build Info
-        run: pnpm --filter @appserver/backend run build-info:stub
+        run: pnpm --filter @appserver/backend run build:info:stub
 
       - name: Check explicit dependencies
         run: pnpm --filter @appserver/backend run check:explicit-deps
@@ -144,7 +144,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-frontend
         with:
           path: node_modules
@@ -239,7 +239,7 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Cache node_modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: cache-docs
         with:
           path: node_modules

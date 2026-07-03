@@ -25,7 +25,7 @@
     "_4_openapi": "",
     "openapi:gen": "pnpm --filter @appserver/backend openapi:generate",
     "openapi:gen:frontend": "pnpm --filter @appserver/frontend openapi:generate",
-    "openapi:sync": "pnpm --filter @appserver/frontend openapi:sync-generate",
+    "openapi:sync": "node scripts/sync-swagger-to-frontend.mjs && pnpm run openapi:gen:frontend",
     "openapi:gen:all": "pnpm run openapi:gen && pnpm run openapi:sync",
     "_5_db": "",
     "db:generate": "pnpm --filter @appserver/backend db:generate",
@@ -69,7 +69,8 @@
     "_12_meta": "",
     "lint:all": "pnpm run lint && pnpm run format && pnpm run type-check",
     "check:all": "pnpm run lint:check && pnpm run format:check && pnpm run type-check",
-    "precommit": "pnpm run openapi:gen:all && pnpm run check:all",
+    "validate:permissions": "node scripts/validate-frontend-permissions.mjs",
+    "precommit": "pnpm run openapi:gen:all && pnpm run validate:permissions && pnpm run check:all",
     "commit": "pnpm run precommit && git commit --no-verify",
     "_13_lifecycle": "",
     "prepare": "husky"

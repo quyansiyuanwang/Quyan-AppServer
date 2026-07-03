@@ -32,7 +32,7 @@ import {
   oauthTokenBodySchema,
 } from "@/api/schema/oauth/oauth.schema";
 import type { ErrorResponse } from "@/api/response";
-import { validateBody, validateQuery as _validateQuery } from "@/middleware/validation";
+import { validateBody, validateQuery } from "@/middleware/validation";
 import { OAuthAuthorizationService, OAuthProtocolError } from "@/services/oauth/oauth-authorization.service";
 import type { TypedRequest } from "@/types/express";
 import { skipResponseWrapper } from "@/util/response-wrapper";

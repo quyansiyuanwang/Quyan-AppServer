@@ -1,7 +1,7 @@
 import {
   Body,
   Get,
-  Post as _Post,
+  Post,
   Route,
   Security,
   SuccessResponse,
@@ -70,7 +70,7 @@ export class ConfigController extends Controller {
   @Security("jwt")
   @RequirePermission(Permission.SYSTEM_CONFIG)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  public async getAllConfigs(@Request() _request: TypedRequest): Promise<GetConfigResponse> {
+  public async getAllConfigs(@Request() request: TypedRequest): Promise<GetConfigResponse> {
     const configs = await this.configService.getAllConfigs();
     return { configs };
   }
@@ -115,65 +115,63 @@ export class ConfigController extends Controller {
   @Get("registration")
   @Security("jwt")
   @RequirePermission(Permission.SYSTEM_CONFIG)
-  public async getRegistrationConfig(@Request() _request: TypedRequest) {
+  public async getRegistrationConfig(@Request() request: TypedRequest) {
     return await this.configService.getRegistrationConfig();
   }
 
   @Get("relay")
   @Security("jwt")
   @RequirePermission(Permission.SYSTEM_CONFIG)
-  public async getRelayConfig(@Request() _request: TypedRequest) {
+  public async getRelayConfig(@Request() request: TypedRequest) {
     return await this.configService.getRelayConfig();
   }
 
   @Get("smtp")
   @Security("jwt")
   @RequirePermission(Permission.SYSTEM_CONFIG)
-  public async getSmtpConfig(@Request() _request: TypedRequest) {
+  public async getSmtpConfig(@Request() request: TypedRequest) {
     return await this.configService.getSmtpConfig();
   }
 
   @Get("notification")
   @Security("jwt")
   @RequirePermission(Permission.SYSTEM_CONFIG)
-  public async getNotificationConfig(@Request() _request: TypedRequest): Promise<NotificationConfigDto> {
+  public async getNotificationConfig(@Request() request: TypedRequest): Promise<NotificationConfigDto> {
     return await this.configService.getNotificationConfig();
   }
 
   @Get("ipban")
   @Security("jwt")
   @RequirePermission(Permission.SYSTEM_CONFIG)
-  public async getIpBanConfig(@Request() _request: TypedRequest) {
+  public async getIpBanConfig(@Request() request: TypedRequest) {
     return await this.configService.getIpBanConfig();
   }
 
   @Get("billing")
   @Security("jwt")
   @RequirePermission(Permission.SYSTEM_CONFIG)
-  public async getBillingConfig(@Request() _request: TypedRequest): Promise<BillingConfigDto> {
+  public async getBillingConfig(@Request() request: TypedRequest): Promise<BillingConfigDto> {
     return await this.configService.getBillingConfig();
   }
 
   @Get("heartbeat")
   @Security("jwt")
   @RequirePermission(Permission.SYSTEM_CONFIG)
-  public async getHeartbeatConfig(@Request() _request: TypedRequest): Promise<HeartbeatConfigDto> {
+  public async getHeartbeatConfig(@Request() request: TypedRequest): Promise<HeartbeatConfigDto> {
     return await this.configService.getHeartbeatConfig();
   }
 
   @Get("remote-terminal/unbind")
   @Security("jwt")
   @RequirePermission(Permission.SYSTEM_CONFIG)
-  public async getRemoteTerminalUnbindConfig(
-    @Request() _request: TypedRequest,
-  ): Promise<RemoteTerminalUnbindConfigDto> {
+  public async getRemoteTerminalUnbindConfig(@Request() request: TypedRequest): Promise<RemoteTerminalUnbindConfigDto> {
     return await this.configService.getRemoteTerminalUnbindConfig();
   }
 
   @Get("captcha")
   @Security("jwt")
   @RequirePermission(Permission.SYSTEM_CONFIG)
-  public async getCaptchaConfig(@Request() _request: TypedRequest): Promise<CaptchaConfigDto> {
+  public async getCaptchaConfig(@Request() request: TypedRequest): Promise<CaptchaConfigDto> {
     return await this.configService.getCaptchaConfig();
   }
 

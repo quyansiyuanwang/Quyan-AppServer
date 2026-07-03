@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { SuccessResponse, ErrorResponse } from "../api/response";
-import { RequestWrapper as _RequestWrapper, ResponseWrapper } from "../util/express-enhancer";
+import { RequestWrapper, ResponseWrapper } from "../util/express-enhancer";
 import type { PermissionCheckResult } from "@/services/users/permission.service";
 import type { AccessKeyDto } from "@prisma/client";
 import type { RelayTokenWithChannel } from "@/store/relay/relay-token.repository";

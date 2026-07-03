@@ -23,7 +23,7 @@ import type {
 } from "@/store/auth-center/auth-center-authorization.store";
 import { UserRepository } from "@/store/users/user.repository";
 import { validateAccountStatus } from "@/util/auth/account-status";
-import { BadRequestError, NotFoundError, UnauthorizedError as _UnauthorizedError } from "@/util/errors";
+import { BadRequestError, NotFoundError, UnauthorizedError } from "@/util/errors";
 
 const AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
 const REFRESH_TOKEN_PREFIX = "acrt_";
