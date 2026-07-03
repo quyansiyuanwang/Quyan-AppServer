@@ -69,7 +69,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Inject Empty Build Info
-        run: pnpm --filter @appserver/backend run build-info:stub
+        run: pnpm --filter @appserver/backend run build:info:stub
 
       - name: Check explicit dependencies
         run: pnpm --filter @appserver/backend run check:explicit-deps
