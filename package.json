@@ -1,0 +1,54 @@
+{
+  "name": "appserver-monorepo",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter @appserver/backend dev\" \"pnpm --filter @appserver/frontend dev\"",
+    "dev:backend": "pnpm --filter @appserver/backend dev",
+    "dev:frontend": "pnpm --filter @appserver/frontend dev",
+    "dev:static": "pnpm --filter @appserver/static-site dev",
+    "dev:docs": "pnpm --filter @appserver/docs-site dev",
+    "build": "pnpm -r --filter @appserver/* build",
+    "build:backend": "pnpm --filter @appserver/backend build",
+    "build:frontend": "pnpm --filter @appserver/frontend build",
+    "build:static": "pnpm --filter @appserver/static-site build",
+    "build:docs": "pnpm --filter @appserver/docs-site build",
+    "openapi:generate": "pnpm --filter @appserver/backend openapi:generate && pnpm --filter @appserver/frontend openapi:generate",
+    "openapi:sync-generate": "pnpm --filter @appserver/backend openapi:generate && pnpm --filter @appserver/frontend openapi:sync-generate",
+    "test": "pnpm -r --filter @appserver/* test",
+    "test:backend": "pnpm --filter @appserver/backend test",
+    "test:frontend": "pnpm --filter @appserver/frontend test",
+    "lint": "pnpm -r --filter @appserver/* lint",
+    "format": "pnpm -r --filter @appserver/* format",
+    "clean": "pnpm -r --filter @appserver/* exec rimraf dist",
+    "type-check": "pnpm -r --filter @appserver/* type-check",
+    "backend:precommit": "pnpm --filter @appserver/backend precommit",
+    "frontend:precommit": "pnpm --filter @appserver/frontend precommit",
+    "precommit": "pnpm openapi:sync-generate && concurrently \"pnpm --filter @appserver/backend precommit:rest\" \"pnpm --filter @appserver/frontend precommit\" \"pnpm --filter @appserver/frontend test\"",
+    "lint-format-check": "concurrently \"pnpm --filter @appserver/backend lint-format-check\" \"pnpm --filter @appserver/frontend lint-format-check\"",
+    "docs:dev": "pnpm --filter @appserver/docs-site dev",
+    "docs:build": "pnpm --filter @appserver/docs-site build",
+    "prepare": "husky"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "@prisma/client",
+      "@prisma/engines",
+      "@swc/core",
+      "bcrypt",
+      "esbuild",
+      "prisma",
+      "sharp",
+      "vue-demi",
+      "husky"
+    ]
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "husky": "^9.1.7"
+  }
+}

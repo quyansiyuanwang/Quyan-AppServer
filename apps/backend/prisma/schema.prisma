@@ -1,0 +1,1665 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                       String   @id @default(cuid())
+  status                   Int      @default(1)
+  createTime               DateTime @default(now())
+  updateTime               DateTime @updatedAt
+  username                 String   @unique
+  name                     String?
+  password                 String
+  email                    String?
+  twoFactorEnabled         Boolean  @default(false)
+  twoFactorPasskeyRequired Boolean  @default(false)
+  groupId                  String
+  permissionAdds           Json
+  permissionRemoves        Json
+  accountOwnerId           String?
+  parentUserId             String?
+  userType                 String   @default("root") @db.VarChar(20)
+  ramUsername              String?
+  displayName              String?
+  forcePasswordChange      Boolean  @default(false)
+
+  group                        Group                           @relation(fields: [groupId], references: [id])
+  accountOwner                 User?                           @relation("RamAccountUsers", fields: [accountOwnerId], references: [id], onDelete: SetNull)
+  accountUsers                 User[]                          @relation("RamAccountUsers")
+  ownedRamGroups               Group[]                         @relation("RamGroupOwner")
+  parentUser                   User?                           @relation("RamUserChildren", fields: [parentUserId], references: [id], onDelete: SetNull)
+  childUsers                   User[]                          @relation("RamUserChildren")
+  ownedRamRoles                RamRole[]                       @relation("RamRoleOwner")
+  ramRoleBindings              RamUserRoleBinding[]
+  assumedRoleSessions          RamRoleSession[]                @relation("RamRoleSessionSubject")
+  relayTokens                  RelayToken[]
+  accessKeys                   AccessKey[]
+  oauthClients                 OAuthClient[]
+  authCenterClients            AuthCenterClient[]
+  oauthAuthorizationCodes      OAuthAuthorizationCode[]
+  authCenterAuthorizationCodes AuthCenterAuthorizationCode[]
+  oauthAccessTokens            OAuthAccessToken[]
+  authCenterAccessTokens       AuthCenterAccessToken[]
+  oauthRefreshTokens           OAuthRefreshToken[]
+  authCenterRefreshTokens      AuthCenterRefreshToken[]
+  oauthConsents                OAuthConsent[]
+  authCenterConsents           AuthCenterConsent[]
+  balanceAccount               BalanceAccount?
+  monthlyPasses                UserMonthlyPass[]
+  remoteTerminalEntitlements   RemoteTerminalUserEntitlement[]
+  remoteTerminalDevices        RemoteTerminalDeviceBinding[]
+  passkeys                     PasskeyCredential[]
+  twoFactorCredential          TwoFactorCredential?
+  jsonEndpoints                JsonEndpoint[]
+  articles                     Article[]
+  onlineSessions               UserOnlineSession[]
+  legalPoliciesCreated         LegalPolicyVersion[]            @relation("LegalPolicyCreatedBy")
+  legalPoliciesUpdated         LegalPolicyVersion[]            @relation("LegalPolicyUpdatedBy")
+  policyAcceptances            UserPolicyAcceptance[]
+  feedbacks                    Feedback[]
+  feedbackComments             FeedbackComment[]
+  feedbackAssignments          Feedback[]                      @relation("FeedbackAssignee")
+  userScripts                  UserScript[]
+  scriptExecutions             UserScriptExecution[]
+  redemptionCodesUsed          RedemptionCode[]                @relation("RedemptionCodeUsedBy")
+  redemptionCodesCreated       RedemptionCode[]                @relation("RedemptionCodeCreatedBy")
+  conversations                Conversation[]
+  notificationPreference       NotificationPreference?
+  oauthClientsReviewed         OAuthClient[]                   @relation("OAuthClientReviewedBy")
+  authCenterClientsReviewed    AuthCenterClient[]              @relation("AuthCenterClientReviewedBy")
+  ownedRamPolicies             RamPolicy[]                     @relation("RamPolicyOwner")
+  ramPolicyAttachmentOwners    RamPolicyAttachment[]           @relation("RamPolicyAttachmentOwner")
+
+  @@unique([accountOwnerId, ramUsername])
+  @@index([username])
+  @@index([groupId])
+  @@index([accountOwnerId])
+  @@index([parentUserId])
+  @@index([accountOwnerId, userType])
+  @@map("users")
+}
+
+model Group {
+  id             String   @id @default(cuid())
+  status         Int      @default(1)
+  createTime     DateTime @default(now())
+  updateTime     DateTime @updatedAt
+  username       String   @unique
+  name           String?
+  permissions    Json
+  level          Int      @default(1)
+  description    String?
+  accountOwnerId String?
+
+  users           User[]
+  accountOwner    User?                 @relation("RamGroupOwner", fields: [accountOwnerId], references: [id], onDelete: SetNull)
+  ramRoleBindings RamGroupRoleBinding[]
+
+  @@index([accountOwnerId])
+  @@map("groups")
+}
+
+model RamRole {
+  id                 String   @id @default(cuid())
+  status             Int      @default(1)
+  createTime         DateTime @default(now())
+  updateTime         DateTime @updatedAt
+  accountOwnerId     String
+  name               String
+  description        String?  @db.Text
+  permissions        Json
+  trustPolicy        Json?
+  maxSessionDuration Int      @default(3600)
+
+  accountOwner  User                  @relation("RamRoleOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
+  userBindings  RamUserRoleBinding[]
+  groupBindings RamGroupRoleBinding[]
+  sessions      RamRoleSession[]
+
+  @@unique([accountOwnerId, name])
+  @@index([accountOwnerId])
+  @@index([status])
+  @@map("ram_roles")
+}
+
+model RamUserRoleBinding {
+  id             String   @id @default(cuid())
+  status         Int      @default(1)
+  createTime     DateTime @default(now())
+  updateTime     DateTime @updatedAt
+  accountOwnerId String
+  userId         String
+  roleId         String
+
+  user User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role RamRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([accountOwnerId, userId, roleId])
+  @@index([accountOwnerId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("ram_user_role_bindings")
+}
+
+model RamGroupRoleBinding {
+  id             String   @id @default(cuid())
+  status         Int      @default(1)
+  createTime     DateTime @default(now())
+  updateTime     DateTime @updatedAt
+  accountOwnerId String
+  groupId        String
+  roleId         String
+
+  group Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  role  RamRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([accountOwnerId, groupId, roleId])
+  @@index([accountOwnerId])
+  @@index([groupId])
+  @@index([roleId])
+  @@map("ram_group_role_bindings")
+}
+
+model RamRoleSession {
+  id             String    @id @default(cuid())
+  status         Int       @default(1)
+  createTime     DateTime  @default(now())
+  updateTime     DateTime  @updatedAt
+  accountOwnerId String
+  roleId         String
+  subjectUserId  String
+  sessionName    String
+  tokenJtiHash   String?   @unique
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  ipAddress      String?
+  userAgent      String?   @db.Text
+
+  role        RamRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  subjectUser User    @relation("RamRoleSessionSubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
+
+  @@index([accountOwnerId])
+  @@index([roleId])
+  @@index([subjectUserId])
+  @@index([status, expiresAt])
+  @@map("ram_role_sessions")
+}
+
+model RamPolicy {
+  id             String   @id @default(cuid())
+  status         Int      @default(1)
+  createTime     DateTime @default(now())
+  updateTime     DateTime @updatedAt
+  accountOwnerId String
+  name           String   @db.VarChar(128)
+  description    String?  @db.Text
+  permissions    Json
+  type           String   @default("custom") @db.VarChar(20)
+
+  accountOwner      User                   @relation("RamPolicyOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
+  policyAttachments RamPolicyAttachment[]
+
+  @@unique([accountOwnerId, name])
+  @@index([accountOwnerId])
+  @@map("ram_policies")
+}
+
+model RamPolicyAttachment {
+  id             String   @id @default(cuid())
+  status         Int      @default(1)
+  createTime     DateTime @default(now())
+  updateTime     DateTime @updatedAt
+  accountOwnerId String
+  policyId       String
+  targetType     String   @db.VarChar(20)
+  targetId       String
+
+  accountOwner User     @relation("RamPolicyAttachmentOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
+  policy       RamPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([accountOwnerId, policyId, targetType, targetId])
+  @@index([accountOwnerId])
+  @@index([policyId])
+  @@index([targetType, targetId])
+  @@map("ram_policy_attachments")
+}
+
+model APILog {
+  id              String   @id @default(cuid())
+  status          Int      @default(1)
+  createTime      DateTime @default(now())
+  updateTime      DateTime @updatedAt
+  requestID       String   @unique
+  userID          String?
+  path            String
+  method          String
+  requestHeaders  Json?
+  queryParams     Json?
+  bodyParams      Json?
+  ipAddress       String
+  response        Json?
+  responseHeaders Json?
+  statusCode      Int
+
+  @@index([userID])
+  @@index([path])
+  @@index([createTime])
+  @@index([status, createTime])
+  @@map("api_logs")
+}
+
+model BusinessLog {
+  id                 String   @id @default(cuid())
+  status             Int      @default(1)
+  createTime         DateTime @default(now())
+  updateTime         DateTime @updatedAt
+  operationType      String
+  operationCategory  String
+  actorUserId        String?
+  targetUserId       String?
+  targetResourceId   String?
+  targetResourceType String?
+  description        String   @db.Text
+  changes            Json?
+  metadata           Json?
+  success            Boolean  @default(true)
+  errorMessage       String?  @db.Text
+  requestId          String?
+  ipAddress          String
+  userAgent          String?  @db.Text
+
+  @@index([actorUserId])
+  @@index([targetUserId])
+  @@index([operationType])
+  @@index([operationCategory])
+  @@index([createTime])
+  @@index([requestId])
+  @@map("business_logs")
+}
+
+model UserOnlineSession {
+  id              String    @id @default(cuid())
+  status          Int       @default(1)
+  createTime      DateTime  @default(now())
+  updateTime      DateTime  @updatedAt
+  userId          String
+  authSessionId   String
+  startedAt       DateTime  @default(now())
+  lastHeartbeatAt DateTime
+  endedAt         DateTime?
+  durationSeconds Int?
+  lastIpAddress   String
+  lastLocation    String?
+  userAgent       String?   @db.Text
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([authSessionId])
+  @@index([startedAt])
+  @@index([lastHeartbeatAt])
+  @@index([status])
+  @@index([userId, authSessionId, status])
+  @@index([userId, startedAt])
+  @@map("user_online_sessions")
+}
+
+model ServerConfig {
+  id         String   @id @default(cuid())
+  status     Int      @default(1)
+  createTime DateTime @default(now())
+  updateTime DateTime @updatedAt
+  key        String   @unique
+  value      String   @db.Text
+
+  @@index([key])
+  @@map("server_configs")
+}
+
+model EmailVerification {
+  id         String   @id @default(cuid())
+  status     Int      @default(1)
+  createTime DateTime @default(now())
+  updateTime DateTime @updatedAt
+  email      String
+  code       String
+  expiresAt  DateTime
+  used       Boolean  @default(false)
+
+  @@index([email, code])
+  @@index([expiresAt])
+  @@map("email_verifications")
+}
+
+model EmailRateLimitLog {
+  id          String   @id @default(cuid())
+  status      Int      @default(1)
+  createTime  DateTime @default(now())
+  updateTime  DateTime @updatedAt
+  ipAddress   String
+  email       String
+  action      String   @default("verification_code")
+  requestTime DateTime
+
+  @@index([ipAddress, action, requestTime])
+  @@index([email, action, requestTime])
+  @@index([ipAddress, email, action, requestTime])
+  @@index([requestTime])
+  @@map("email_rate_limit_logs")
+}
+
+model IPBlackList {
+  id            String    @id @default(cuid())
+  status        Int       @default(1)
+  createTime    DateTime  @default(now())
+  updateTime    DateTime  @updatedAt
+  ipAddress     String    @unique
+  ExpireTime    DateTime?
+  triedAccounts Int       @default(0)
+  reason        String?   @db.Text
+  bannedBy      String?
+  banType       String    @default("auto")
+  banLevel      Int       @default(0)
+
+  @@index([ipAddress])
+  @@index([status, ExpireTime])
+  @@map("ip_black_lists")
+}
+
+model IPWhiteList {
+  id         String    @id @default(cuid())
+  status     Int       @default(1)
+  createTime DateTime  @default(now())
+  updateTime DateTime  @updatedAt
+  ipAddress  String    @unique
+  reason     String?   @db.Text
+  addedBy    String?
+  expiresAt  DateTime?
+
+  @@index([ipAddress])
+  @@index([status, expiresAt])
+  @@map("ip_white_lists")
+}
+
+model PasskeyCredential {
+  id           String   @id @default(cuid())
+  userId       String
+  credentialId String   @unique
+  publicKey    Bytes
+  counter      BigInt   @default(0)
+  deviceType   String?
+  backedUp     Boolean  @default(false)
+  transports   String?
+  name         String?
+  createTime   DateTime @default(now())
+  updateTime   DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("passkey_credentials")
+}
+
+model TwoFactorCredential {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  secret             String    @db.Text
+  recoveryCodeHashes Json
+  lastUsedAt         DateTime?
+  createTime         DateTime  @default(now())
+  updateTime         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("two_factor_credentials")
+}
+
+model RelayChannel {
+  id                          String   @id @default(cuid())
+  status                      Int      @default(1)
+  createTime                  DateTime @default(now())
+  updateTime                  DateTime @updatedAt
+  name                        String
+  openaiUpstreamUrl           String?  @db.Text
+  openaiUpstreamApiKey        String?  @db.Text
+  anthropicUpstreamUrl        String?  @db.Text
+  anthropicUpstreamApiKey     String?  @db.Text
+  geminiUpstreamUrl           String?  @db.Text
+  geminiUpstreamApiKey        String?  @db.Text
+  multiplier                  Decimal  @default(1.0) @db.Decimal(10, 6)
+  allowedFormats              String   @default("all") @db.VarChar(50)
+  allowedModels               String?  @db.Text
+  addUserIdentifier           Boolean  @default(true)
+  inputTokensIncludeCacheRead Boolean  @default(false)
+  modelMapping                Json?
+  timePeriodMultipliers       Json?    @default("[]")
+
+  relayTokens    RelayToken[]
+  tokenConfigs   RelayTokenChannelConfig[]
+  fromSwitchLogs RelayChannelSwitchLog[]   @relation("RelaySwitchLogFromChannel")
+  toSwitchLogs   RelayChannelSwitchLog[]   @relation("RelaySwitchLogToChannel")
+  ojApiKeys      OJAPIKey[]
+
+  @@index([status])
+  @@map("relay_channels")
+}
+
+model RelayToken {
+  id             String    @id @default(cuid())
+  status         Int       @default(1)
+  createTime     DateTime  @default(now())
+  updateTime     DateTime  @updatedAt
+  userId         String
+  name           String?
+  token          String    @unique
+  upstreamUrl    String?   @db.Text
+  upstreamApiKey String?   @db.Text
+  channelId      String?
+  totalTokens    Int       @default(0)
+  requestCount   Int       @default(0)
+  usedQuota      Decimal   @default(0) @db.Decimal(10, 4)
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  quotaLimit     Decimal?  @db.Decimal(10, 2)
+  allowedModels  String?   @db.Text
+  ipWhitelist    String?   @db.Text
+  modelMapping   Json?
+
+  user           User                      @relation(fields: [userId], references: [id])
+  channel        RelayChannel?             @relation(fields: [channelId], references: [id])
+  failoverConfig RelayTokenFailoverConfig?
+  channelConfigs RelayTokenChannelConfig[]
+  quotaWindows   RelayTokenQuotaWindow[]
+  switchLogs     RelayChannelSwitchLog[]
+  relayUsages    RelayUsage[]
+  conversations  Conversation[]
+
+  @@index([userId])
+  @@index([token])
+  @@index([channelId])
+  @@index([status, expiresAt])
+  @@map("relay_tokens")
+}
+
+model RelayTokenQuotaWindow {
+  id               String   @id @default(cuid())
+  relayTokenId     String
+  quotaLimit       Decimal  @db.Decimal(10, 4)
+  quotaUnit        String   @db.VarChar(20)
+  quotaWindowHours Decimal  @db.Decimal(10, 4)
+  createTime       DateTime @default(now())
+  updateTime       DateTime @updatedAt
+
+  relayToken RelayToken @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
+
+  @@unique([relayTokenId, quotaUnit, quotaWindowHours])
+  @@index([relayTokenId, quotaWindowHours])
+  @@map("relay_token_quota_windows")
+}
+
+model RelayTokenFailoverConfig {
+  id                String   @id @default(cuid())
+  relayTokenId      String   @unique
+  enabled           Boolean  @default(false)
+  maxRetries        Int      @default(0)
+  retryStatusCodes  Json?
+  failoverThreshold Int      @default(0)
+  createTime        DateTime @default(now())
+  updateTime        DateTime @updatedAt
+
+  relayToken RelayToken @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
+
+  @@index([relayTokenId])
+  @@map("relay_token_failover_configs")
+}
+
+model RelayTokenChannelConfig {
+  id            String    @id @default(cuid())
+  relayTokenId  String
+  channelId     String
+  priority      Int
+  successCount  Int       @default(0)
+  failureCount  Int       @default(0)
+  lastUsedAt    DateTime?
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  createTime    DateTime  @default(now())
+  updateTime    DateTime  @updatedAt
+
+  relayToken RelayToken   @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
+  channel    RelayChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([relayTokenId, channelId])
+  @@unique([relayTokenId, priority])
+  @@index([relayTokenId, priority])
+  @@index([channelId])
+  @@map("relay_token_channel_configs")
+}
+
+model RelayChannelSwitchLog {
+  id                String   @id @default(cuid())
+  relayTokenId      String
+  fromChannelId     String
+  toChannelId       String
+  triggerStatusCode Int?
+  triggerError      String?  @db.Text
+  attemptNumber     Int
+  requestPath       String
+  method            String
+  modelName         String?
+  createTime        DateTime @default(now())
+  updateTime        DateTime @updatedAt
+
+  relayToken  RelayToken   @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
+  fromChannel RelayChannel @relation("RelaySwitchLogFromChannel", fields: [fromChannelId], references: [id], onDelete: Cascade)
+  toChannel   RelayChannel @relation("RelaySwitchLogToChannel", fields: [toChannelId], references: [id], onDelete: Cascade)
+
+  @@index([relayTokenId, createTime])
+  @@index([fromChannelId])
+  @@index([toChannelId])
+  @@map("relay_channel_switch_logs")
+}
+
+model RelayUsage {
+  id                  String   @id @default(cuid())
+  status              Int      @default(1)
+  createTime          DateTime @default(now())
+  updateTime          DateTime @updatedAt
+  relayTokenId        String
+  requestTokens       Int      @default(0)
+  responseTokens      Int      @default(0)
+  totalTokens         Int      @default(0)
+  cacheCreationTokens Int      @default(0)
+  cacheReadTokens     Int      @default(0)
+  path                String
+  method              String
+  statusCode          Int
+  ipAddress           String
+  totalOutputTime     Int?
+  timeToFirstByte     Int?
+  isStreaming         Boolean  @default(false)
+
+  relayToken RelayToken @relation(fields: [relayTokenId], references: [id])
+
+  @@index([relayTokenId])
+  @@index([createTime])
+  @@index([relayTokenId, createTime])
+  @@map("relay_usages")
+}
+
+model AccessKey {
+  id           String    @id @default(cuid())
+  status       Int       @default(1)
+  createTime   DateTime  @default(now())
+  updateTime   DateTime  @updatedAt
+  userId       String
+  name         String?
+  key          String    @unique
+  expiresAt    DateTime?
+  lastUsedAt   DateTime?
+  requestCount Int       @default(0)
+  user         User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([key])
+  @@map("access_keys")
+}
+
+model OAuthClient {
+  id                   String    @id @default(cuid())
+  status               Int       @default(1)
+  createTime           DateTime  @default(now())
+  updateTime           DateTime  @updatedAt
+  userId               String
+  reviewedByUserId     String?
+  name                 String
+  description          String?   @db.Text
+  clientId             String    @unique
+  clientSecretHash     String?   @db.Text
+  clientSecretPreview  String?
+  clientType           String    @default("confidential") @db.VarChar(20)
+  reviewStatus         String    @default("draft") @db.VarChar(20)
+  reviewComment        String?   @db.Text
+  submittedAt          DateTime?
+  reviewedAt           DateTime?
+  grantTypes           Json
+  redirectUris         Json
+  scopes               Json
+  homepageUrl          String?   @db.Text
+  logoUrl              String?   @db.Text
+  policyUrl            String?   @db.Text
+  tosUrl               String?   @db.Text
+  isPkceRequired       Boolean   @default(true)
+  accessTokenLifetime  Int       @default(3600)
+  refreshTokenLifetime Int       @default(2592000)
+  lastUsedAt           DateTime?
+
+  user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy         User?                    @relation("OAuthClientReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  authorizationCodes OAuthAuthorizationCode[]
+  accessTokens       OAuthAccessToken[]
+  refreshTokens      OAuthRefreshToken[]
+  consents           OAuthConsent[]
+
+  @@index([userId])
+  @@index([reviewedByUserId])
+  @@index([reviewStatus])
+  @@index([reviewStatus, submittedAt])
+  @@index([status])
+  @@index([userId, status, createTime])
+  @@map("oauth_clients")
+}
+
+model OAuthAuthorizationCode {
+  id                  String    @id @default(cuid())
+  status              Int       @default(1)
+  createTime          DateTime  @default(now())
+  updateTime          DateTime  @updatedAt
+  oauthClientId       String
+  userId              String
+  codeHash            String    @unique
+  redirectUri         String    @db.Text
+  scopes              Json
+  codeChallenge       String?
+  codeChallengeMethod String?   @db.VarChar(20)
+  expiresAt           DateTime
+  usedAt              DateTime?
+  nonce               String?
+  state               String?
+
+  oauthClient OAuthClient @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([oauthClientId, expiresAt])
+  @@index([userId, expiresAt])
+  @@index([status, expiresAt])
+  @@map("oauth_authorization_codes")
+}
+
+model OAuthAccessToken {
+  id            String    @id @default(cuid())
+  status        Int       @default(1)
+  createTime    DateTime  @default(now())
+  updateTime    DateTime  @updatedAt
+  oauthClientId String
+  userId        String
+  tokenHash     String    @unique
+  tokenJti      String?   @unique
+  scopes        Json
+  expiresAt     DateTime
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+
+  oauthClient OAuthClient @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([oauthClientId, expiresAt])
+  @@index([userId, expiresAt])
+  @@index([status, expiresAt])
+  @@map("oauth_access_tokens")
+}
+
+model OAuthRefreshToken {
+  id            String    @id @default(cuid())
+  status        Int       @default(1)
+  createTime    DateTime  @default(now())
+  updateTime    DateTime  @updatedAt
+  oauthClientId String
+  userId        String
+  tokenHash     String    @unique
+  expiresAt     DateTime
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+
+  oauthClient OAuthClient @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([oauthClientId, expiresAt])
+  @@index([userId, expiresAt])
+  @@index([status, expiresAt])
+  @@map("oauth_refresh_tokens")
+}
+
+model OAuthConsent {
+  id            String    @id @default(cuid())
+  status        Int       @default(1)
+  createTime    DateTime  @default(now())
+  updateTime    DateTime  @updatedAt
+  oauthClientId String
+  userId        String
+  scopes        Json
+  grantedAt     DateTime  @default(now())
+  revokedAt     DateTime?
+  lastUsedAt    DateTime?
+
+  oauthClient OAuthClient @relation(fields: [oauthClientId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([oauthClientId, userId])
+  @@index([userId, grantedAt])
+  @@index([status, grantedAt])
+  @@map("oauth_consents")
+}
+
+model AuthCenterClient {
+  id                   String    @id @default(cuid())
+  status               Int       @default(1)
+  createTime           DateTime  @default(now())
+  updateTime           DateTime  @updatedAt
+  userId               String
+  reviewedByUserId     String?
+  name                 String
+  description          String?   @db.Text
+  clientId             String    @unique
+  clientSecretHash     String?   @db.Text
+  clientSecretPreview  String?
+  clientType           String    @default("confidential") @db.VarChar(20)
+  reviewStatus         String    @default("draft") @db.VarChar(20)
+  reviewComment        String?   @db.Text
+  submittedAt          DateTime?
+  reviewedAt           DateTime?
+  grantTypes           Json
+  redirectUris         Json
+  scopes               Json
+  homepageUrl          String?   @db.Text
+  logoUrl              String?   @db.Text
+  policyUrl            String?   @db.Text
+  tosUrl               String?   @db.Text
+  isPkceRequired       Boolean   @default(true)
+  accessTokenLifetime  Int       @default(3600)
+  refreshTokenLifetime Int       @default(2592000)
+  lastUsedAt           DateTime?
+
+  user               User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy         User?                         @relation("AuthCenterClientReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  authorizationCodes AuthCenterAuthorizationCode[]
+  accessTokens       AuthCenterAccessToken[]
+  refreshTokens      AuthCenterRefreshToken[]
+  consents           AuthCenterConsent[]
+
+  @@index([userId])
+  @@index([reviewedByUserId])
+  @@index([reviewStatus])
+  @@index([reviewStatus, submittedAt])
+  @@index([status])
+  @@index([userId, status, createTime])
+  @@map("auth_center_clients")
+}
+
+model AuthCenterAuthorizationCode {
+  id                  String    @id @default(cuid())
+  status              Int       @default(1)
+  createTime          DateTime  @default(now())
+  updateTime          DateTime  @updatedAt
+  authCenterClientId  String
+  userId              String
+  codeHash            String    @unique
+  redirectUri         String    @db.Text
+  scopes              Json
+  codeChallenge       String?
+  codeChallengeMethod String?   @db.VarChar(20)
+  expiresAt           DateTime
+  usedAt              DateTime?
+  nonce               String?
+  state               String?
+
+  authCenterClient AuthCenterClient @relation(fields: [authCenterClientId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([authCenterClientId, expiresAt])
+  @@index([userId, expiresAt])
+  @@index([status, expiresAt])
+  @@map("auth_center_authorization_codes")
+}
+
+model AuthCenterAccessToken {
+  id                 String    @id @default(cuid())
+  status             Int       @default(1)
+  createTime         DateTime  @default(now())
+  updateTime         DateTime  @updatedAt
+  authCenterClientId String
+  userId             String?
+  tokenHash          String    @unique
+  tokenJti           String    @unique
+  subject            String
+  scopes             Json
+  expiresAt          DateTime
+  lastUsedAt         DateTime?
+  revokedAt          DateTime?
+
+  authCenterClient AuthCenterClient @relation(fields: [authCenterClientId], references: [id], onDelete: Cascade)
+  user             User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([authCenterClientId, expiresAt])
+  @@index([userId, expiresAt])
+  @@index([status, expiresAt])
+  @@index([tokenJti])
+  @@map("auth_center_access_tokens")
+}
+
+model AuthCenterRefreshToken {
+  id                 String    @id @default(cuid())
+  status             Int       @default(1)
+  createTime         DateTime  @default(now())
+  updateTime         DateTime  @updatedAt
+  authCenterClientId String
+  userId             String
+  tokenHash          String    @unique
+  expiresAt          DateTime
+  lastUsedAt         DateTime?
+  revokedAt          DateTime?
+
+  authCenterClient AuthCenterClient @relation(fields: [authCenterClientId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([authCenterClientId, expiresAt])
+  @@index([userId, expiresAt])
+  @@index([status, expiresAt])
+  @@map("auth_center_refresh_tokens")
+}
+
+model AuthCenterConsent {
+  id                 String    @id @default(cuid())
+  status             Int       @default(1)
+  createTime         DateTime  @default(now())
+  updateTime         DateTime  @updatedAt
+  authCenterClientId String
+  userId             String
+  scopes             Json
+  grantedAt          DateTime  @default(now())
+  revokedAt          DateTime?
+  lastUsedAt         DateTime?
+
+  authCenterClient AuthCenterClient @relation(fields: [authCenterClientId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([authCenterClientId, userId])
+  @@index([userId, grantedAt])
+  @@index([status, grantedAt])
+  @@map("auth_center_consents")
+}
+
+model RedemptionCode {
+  id         String    @id @default(cuid())
+  status     Int       @default(1)
+  createTime DateTime  @default(now())
+  updateTime DateTime  @updatedAt
+  code       String    @unique
+  amount     Decimal   @db.Decimal(15, 4)
+  usedBy     String?
+  usedAt     DateTime?
+  createdBy  String
+  expiresAt  DateTime?
+
+  usedByUser    User? @relation("RedemptionCodeUsedBy", fields: [usedBy], references: [id], onDelete: SetNull)
+  createdByUser User  @relation("RedemptionCodeCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@index([usedBy])
+  @@index([createdBy])
+  @@map("redemption_codes")
+}
+
+model BalanceAccount {
+  id             String   @id @default(cuid())
+  status         Int      @default(1)
+  createTime     DateTime @default(now())
+  updateTime     DateTime @updatedAt
+  userId         String   @unique
+  balance        Decimal  @default(0) @db.Decimal(10, 4)
+  totalRecharged Decimal  @default(0) @db.Decimal(10, 4)
+  totalUsed      Decimal  @default(0) @db.Decimal(10, 4)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("balance_accounts")
+}
+
+model BalanceTransaction {
+  id                      String   @id @default(cuid())
+  status                  Int      @default(1)
+  createTime              DateTime @default(now())
+  updateTime              DateTime @updatedAt
+  userId                  String
+  type                    String
+  amount                  Decimal  @db.Decimal(10, 4)
+  balanceBefore           Decimal  @db.Decimal(10, 4)
+  balanceAfter            Decimal  @db.Decimal(10, 4)
+  relatedId               String?
+  description             String?  @db.Text
+  model                   String?
+  tokens                  Int?
+  inputTokens             Int?
+  outputTokens            Int?
+  cacheCreationTokens     Int?
+  cacheReadTokens         Int?
+  inputRate               Decimal? @db.Decimal(10, 6)
+  outputRate              Decimal? @db.Decimal(10, 6)
+  multiplier              Decimal? @db.Decimal(10, 2)
+  cacheCreationMultiplier Decimal? @db.Decimal(10, 2)
+  cacheReadMultiplier     Decimal? @db.Decimal(10, 2)
+  channelName             String?  @db.Text
+  channelMultiplier       Decimal? @db.Decimal(10, 6)
+  globalMultiplier        Decimal? @db.Decimal(10, 6)
+  timeMultiplier          Decimal? @db.Decimal(10, 6)
+  pricingType             String?  @db.VarChar(20)
+  fixedPrice              Decimal? @db.Decimal(10, 4)
+
+  @@index([userId])
+  @@index([type])
+  @@index([createTime])
+  @@index([userId, createTime])
+  @@index([userId, type, createTime])
+  @@index([model])
+  @@index([userId, model, createTime])
+  @@map("balance_transactions")
+}
+
+model MonthlyPassTemplate {
+  id                      String    @id @default(cuid())
+  status                  Int       @default(1)
+  createTime              DateTime  @default(now())
+  updateTime              DateTime  @updatedAt
+  name                    String    @unique
+  description             String?   @db.Text
+  publishStatus           String    @default("draft")
+  publishedAt             DateTime?
+  originalPrice           Decimal?  @db.Decimal(10, 4)
+  discountPercent         Decimal?  @db.Decimal(5, 2)
+  discountedPrice         Decimal?  @db.Decimal(10, 4)
+  rechargeRatio           Decimal?  @db.Decimal(10, 4)
+  defaultQuota            Decimal   @db.Decimal(10, 4)
+  dailyQuota              Decimal?  @db.Decimal(10, 4)
+  quotaUnit               String    @default("amount") @db.VarChar(20)
+  quotaWindowHours        Int?
+  purchaseLimitPerUser    Int?
+  purchaseLimitWindowDays Int?
+  allowBalanceRedemption  Boolean   @default(true)
+  allowedModels           String?   @db.Text
+  allowedChannels         String?   @db.Text
+
+  userPasses   UserMonthlyPass[]
+  quotaWindows MonthlyPassTemplateQuotaWindow[]
+
+  @@index([status])
+  @@index([publishStatus])
+  @@index([name])
+  @@map("monthly_pass_templates")
+}
+
+model RemoteTerminalProductTemplate {
+  id                      String    @id @default(cuid())
+  status                  Int       @default(1)
+  createTime              DateTime  @default(now())
+  updateTime              DateTime  @updatedAt
+  name                    String    @unique
+  description             String?   @db.Text
+  publishStatus           String    @default("draft")
+  publishedAt             DateTime?
+  billingUnit             String    @default("day") @db.VarChar(16)
+  minimumPurchaseUnits    Int       @default(1)
+  maximumPurchaseUnits    Int?
+  devicePrice             Decimal?  @db.Decimal(10, 4)
+  terminalPrice           Decimal?  @db.Decimal(10, 4)
+  deviceDailyPrice        Decimal?  @db.Decimal(10, 4)
+  terminalDailyPrice      Decimal?  @db.Decimal(10, 4)
+  currency                String    @default("曲") @db.VarChar(16)
+  purchaseLimitPerUser    Int?
+  purchaseLimitWindowDays Int?
+  minimumDeviceCount      Int?
+  minimumTerminalCount    Int?
+  maxDeviceCount          Int?
+  maxTerminalCount        Int?
+
+  entitlements RemoteTerminalUserEntitlement[]
+
+  @@index([status])
+  @@index([publishStatus])
+  @@index([name])
+  @@index([purchaseLimitWindowDays])
+  @@map("remote_terminal_product_templates")
+}
+
+model RemoteTerminalUserEntitlement {
+  id                     String    @id @default(cuid())
+  status                 Int       @default(1)
+  createTime             DateTime  @default(now())
+  updateTime             DateTime  @updatedAt
+  userId                 String
+  templateId             String?
+  name                   String
+  description            String?   @db.Text
+  startAt                DateTime
+  endAt                  DateTime
+  billingUnit            String    @default("day") @db.VarChar(16)
+  purchaseUnits          Int       @default(1)
+  deviceLimit            Int
+  terminalLimit          Int
+  durationDays           Int       @default(0)
+  purchasedDeviceCount   Int       @default(0)
+  purchasedTerminalCount Int       @default(0)
+  devicePrice            Decimal?  @db.Decimal(10, 4)
+  terminalPrice          Decimal?  @db.Decimal(10, 4)
+  deviceDailyPrice       Decimal?  @db.Decimal(10, 4)
+  terminalDailyPrice     Decimal?  @db.Decimal(10, 4)
+  purchaseAmount         Decimal?  @db.Decimal(10, 4)
+  currency               String    @default("曲") @db.VarChar(16)
+  assignedBy             String?
+  note                   String?   @db.Text
+  maxDeviceCount         Int?
+  maxTerminalCount       Int?
+  unbindResetAt          DateTime?
+
+  user              User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template          RemoteTerminalProductTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  registrationToken RemoteTerminalEntitlementToken?
+  devices           RemoteTerminalDeviceBinding[]
+
+  @@index([userId])
+  @@index([templateId])
+  @@index([status, startAt, endAt])
+  @@index([userId, status, endAt])
+  @@map("remote_terminal_user_entitlements")
+}
+
+model RemoteTerminalEntitlementToken {
+  id            String    @id @default(cuid())
+  status        Int       @default(1)
+  createTime    DateTime  @default(now())
+  updateTime    DateTime  @updatedAt
+  entitlementId String    @unique
+  token         String    @unique
+  label         String?
+  expiresAt     DateTime?
+  lastUsedAt    DateTime?
+
+  entitlement    RemoteTerminalUserEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+  deviceBindings RemoteTerminalDeviceBinding[]
+
+  @@index([token])
+  @@index([status, expiresAt])
+  @@map("remote_terminal_entitlement_tokens")
+}
+
+model RemoteTerminalDeviceBinding {
+  id                  String    @id @default(cuid())
+  status              Int       @default(1)
+  createTime          DateTime  @default(now())
+  updateTime          DateTime  @updatedAt
+  entitlementId       String
+  userId              String
+  registrationTokenId String?
+  deviceId            String    @unique
+  fingerprint         String
+  fingerprintVersion  String    @default("v1") @db.VarChar(32)
+  hostname            String
+  platform            String    @db.VarChar(32)
+  arch                String    @db.VarChar(64)
+  snapshot            Json
+  heartbeatToken      String
+  registeredAt        DateTime
+  lastSeenAt          DateTime
+  lastOnlineAt        DateTime?
+  online              Boolean   @default(false)
+
+  entitlement       RemoteTerminalUserEntitlement   @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+  user              User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registrationToken RemoteTerminalEntitlementToken? @relation(fields: [registrationTokenId], references: [id], onDelete: SetNull)
+
+  @@unique([entitlementId, fingerprint])
+  @@index([userId])
+  @@index([entitlementId])
+  @@index([registrationTokenId])
+  @@index([status, lastSeenAt])
+  @@index([userId, status, lastSeenAt])
+  @@map("remote_terminal_device_bindings")
+}
+
+model MonthlyPassTemplateQuotaWindow {
+  id                    String   @id @default(cuid())
+  monthlyPassTemplateId String
+  quotaLimit            Decimal  @db.Decimal(10, 4)
+  quotaUnit             String   @db.VarChar(20)
+  quotaWindowHours      Decimal  @db.Decimal(10, 4)
+  createTime            DateTime @default(now())
+  updateTime            DateTime @updatedAt
+
+  template MonthlyPassTemplate @relation(fields: [monthlyPassTemplateId], references: [id], onDelete: Cascade)
+
+  @@unique([monthlyPassTemplateId, quotaUnit, quotaWindowHours])
+  @@index([monthlyPassTemplateId, quotaWindowHours])
+  @@map("monthly_pass_template_quota_windows")
+}
+
+model UserMonthlyPass {
+  id               String   @id @default(cuid())
+  status           Int      @default(1)
+  createTime       DateTime @default(now())
+  updateTime       DateTime @updatedAt
+  userId           String
+  templateId       String
+  startAt          DateTime
+  endAt            DateTime
+  totalQuota       Decimal  @db.Decimal(10, 4)
+  dailyQuota       Decimal? @db.Decimal(10, 4)
+  quotaUnit        String   @default("amount") @db.VarChar(20)
+  quotaWindowHours Int?
+  usedQuota        Decimal  @default(0) @db.Decimal(10, 4)
+  remainingQuota   Decimal  @db.Decimal(10, 4)
+  assignedBy       String?
+  note             String?  @db.Text
+
+  user         User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template     MonthlyPassTemplate          @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  usages       MonthlyPassUsage[]
+  quotaWindows UserMonthlyPassQuotaWindow[]
+
+  @@index([userId])
+  @@index([templateId])
+  @@index([status, startAt, endAt])
+  @@index([userId, status, endAt])
+  @@index([userId, status, remainingQuota, startAt, endAt])
+  @@map("user_monthly_passes")
+}
+
+model UserMonthlyPassQuotaWindow {
+  id                String   @id @default(cuid())
+  userMonthlyPassId String
+  quotaLimit        Decimal  @db.Decimal(10, 4)
+  quotaUnit         String   @db.VarChar(20)
+  quotaWindowHours  Decimal  @db.Decimal(10, 4)
+  createTime        DateTime @default(now())
+  updateTime        DateTime @updatedAt
+
+  userMonthlyPass UserMonthlyPass @relation(fields: [userMonthlyPassId], references: [id], onDelete: Cascade)
+
+  @@unique([userMonthlyPassId, quotaUnit, quotaWindowHours])
+  @@index([userMonthlyPassId, quotaWindowHours])
+  @@map("user_monthly_pass_quota_windows")
+}
+
+model MonthlyPassUsage {
+  id                   String   @id @default(cuid())
+  status               Int      @default(1)
+  createTime           DateTime @default(now())
+  updateTime           DateTime @updatedAt
+  userMonthlyPassId    String
+  userId               String
+  relayUsageId         String?
+  model                String?
+  channelId            String?
+  channelName          String?  @db.Text
+  coveredAmount        Decimal  @db.Decimal(10, 4)
+  coveredRequests      Int      @default(0)
+  coveredTokens        Int      @default(0)
+  totalRequestCost     Decimal  @db.Decimal(10, 4)
+  remainingRequestCost Decimal  @db.Decimal(10, 4)
+  description          String?  @db.Text
+
+  userMonthlyPass UserMonthlyPass @relation(fields: [userMonthlyPassId], references: [id], onDelete: Cascade)
+
+  @@index([userMonthlyPassId])
+  @@index([userId, createTime])
+  @@index([relayUsageId])
+  @@index([model])
+  @@index([userMonthlyPassId, status, createTime])
+  @@map("monthly_pass_usages")
+}
+
+model ModelPricing {
+  id                      String   @id @default(cuid())
+  status                  Int      @default(1)
+  createTime              DateTime @default(now())
+  updateTime              DateTime @updatedAt
+  model                   String   @unique
+  pricingType             String   @default("token-based") @db.VarChar(20)
+  inputPrice              Decimal  @db.Decimal(10, 2)
+  outputPrice             Decimal  @db.Decimal(10, 2)
+  fixedPrice              Decimal? @db.Decimal(10, 4)
+  provider                String?
+  cacheCreationMultiplier Decimal  @default(1.25) @db.Decimal(10, 2)
+  cacheReadMultiplier     Decimal  @default(0.10) @db.Decimal(10, 2)
+  supportedFormats        String   @default("all") @db.VarChar(20)
+
+  @@index([model])
+  @@map("model_pricing")
+}
+
+model RelayConfig {
+  id                    String   @id @default(cuid())
+  status                Int      @default(1)
+  createTime            DateTime @default(now())
+  updateTime            DateTime @updatedAt
+  globalMultiplier      Decimal  @default(1.0) @db.Decimal(10, 6)
+  maxConcurrency        Int      @default(5)
+  queueTimeout          Int      @default(30000)
+  upstreamStreamTimeout Int      @default(120000)
+  enableQueue           Boolean  @default(true)
+  uptimeStatusUrl       String?  @db.Text
+  monitorNameMapping    Json? // 简化的监控项名称映射 { "2": "中国主线路", "3": "国际线路" }
+  showOnlyConfigured    Boolean? // 是否仅展示已配置的监控项
+  uptimeTransformRules  Json? // 保留用于向后兼容
+  uptimeStaticData      Json?
+
+  @@map("relay_configs")
+}
+
+model OJAPIKey {
+  id           String        @id @default(cuid())
+  status       Int           @default(1)
+  createTime   DateTime      @default(now())
+  updateTime   DateTime      @updatedAt
+  userId       String
+  name         String?
+  key          String        @unique
+  expiresAt    DateTime?
+  lastUsedAt   DateTime?
+  requestCount Int           @default(0)
+  totalTokens  Int           @default(0)
+  channelId    String?
+  channel      RelayChannel? @relation(fields: [channelId], references: [id])
+
+  ojUsages OJUsageRecord[]
+
+  @@index([userId])
+  @@index([key])
+  @@index([status, expiresAt])
+  @@index([channelId])
+  @@map("oj_api_keys")
+}
+
+model OJModelPricing {
+  id                      String   @id @default(cuid())
+  status                  Int      @default(1)
+  createTime              DateTime @default(now())
+  updateTime              DateTime @updatedAt
+  model                   String   @unique
+  inputPrice              Decimal  @db.Decimal(10, 2)
+  outputPrice             Decimal  @db.Decimal(10, 2)
+  multiplier              Decimal  @default(1.0) @db.Decimal(10, 2)
+  cacheCreationMultiplier Decimal  @default(1.25) @db.Decimal(10, 2)
+  cacheReadMultiplier     Decimal  @default(0.10) @db.Decimal(10, 2)
+  provider                String?
+
+  @@index([model])
+  @@map("oj_model_pricing")
+}
+
+model OJUsageRecord {
+  id                  String   @id @default(cuid())
+  status              Int      @default(1)
+  createTime          DateTime @default(now())
+  updateTime          DateTime @updatedAt
+  ojApiKeyId          String
+  userId              String
+  model               String
+  question            String   @db.Text
+  answer              String   @db.LongText
+  inputTokens         Int      @default(0)
+  outputTokens        Int      @default(0)
+  totalTokens         Int      @default(0)
+  cacheCreationTokens Int      @default(0)
+  cacheReadTokens     Int      @default(0)
+  cost                Decimal  @db.Decimal(10, 4)
+  ipAddress           String
+  responseTime        Int?
+
+  ojApiKey OJAPIKey @relation(fields: [ojApiKeyId], references: [id])
+
+  @@index([ojApiKeyId])
+  @@index([userId])
+  @@index([createTime])
+  @@index([userId, createTime])
+  @@index([model])
+  @@map("oj_usage_records")
+}
+
+model JsonEndpoint {
+  id           String    @id @default(cuid())
+  status       Int       @default(1)
+  createTime   DateTime  @default(now())
+  updateTime   DateTime  @updatedAt
+  userId       String
+  name         String
+  slug         String    @unique
+  description  String?   @db.Text
+  jsonContent  Json
+  apiKey       String?   @unique
+  isPublic     Boolean   @default(true)
+  accessCount  Int       @default(0)
+  lastAccessAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([slug])
+  @@index([apiKey])
+  @@map("json_endpoints")
+}
+
+model Article {
+  id                String    @id @default(cuid())
+  status            Int       @default(1)
+  createTime        DateTime  @default(now())
+  updateTime        DateTime  @updatedAt
+  title             String
+  slug              String    @unique
+  category          String?
+  summary           String?   @db.Text
+  content           String    @db.Text
+  publishStatus     String    @default("draft")
+  publishedAt       DateTime?
+  authorId          String
+  author            User      @relation(fields: [authorId], references: [id])
+  isPublic          Boolean   @default(false)
+  requirePermission String?
+  viewCount         Int       @default(0)
+  isDefault         Boolean   @default(false)
+  sortOrder         Int       @default(0)
+
+  @@index([authorId])
+  @@index([slug])
+  @@index([category])
+  @@index([publishStatus])
+  @@index([isPublic])
+  @@index([sortOrder])
+  @@map("articles")
+}
+
+model LegalPolicyVersion {
+  id            String    @id @default(cuid())
+  status        Int       @default(1)
+  createTime    DateTime  @default(now())
+  updateTime    DateTime  @updatedAt
+  policyType    String    @db.VarChar(30)
+  version       Int
+  title         String
+  summary       String?   @db.Text
+  content       String    @db.LongText
+  contentFormat String    @default("markdown") @db.VarChar(20)
+  publishStatus String    @default("draft") @db.VarChar(20)
+  isCurrent     Boolean   @default(false)
+  publishedAt   DateTime?
+  createdBy     String
+  updatedBy     String?
+
+  creator     User                   @relation("LegalPolicyCreatedBy", fields: [createdBy], references: [id])
+  updater     User?                  @relation("LegalPolicyUpdatedBy", fields: [updatedBy], references: [id])
+  acceptances UserPolicyAcceptance[]
+
+  @@unique([policyType, version])
+  @@index([policyType, publishStatus])
+  @@index([policyType, isCurrent])
+  @@index([createdBy])
+  @@index([updatedBy])
+  @@map("legal_policy_versions")
+}
+
+model UserPolicyAcceptance {
+  id              String   @id @default(cuid())
+  status          Int      @default(1)
+  createTime      DateTime @default(now())
+  updateTime      DateTime @updatedAt
+  userId          String
+  policyVersionId String
+  policyType      String   @db.VarChar(30)
+  source          String   @default("auth") @db.VarChar(30)
+  ipAddress       String?
+  userAgent       String?  @db.Text
+  acceptedAt      DateTime @default(now())
+
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  policyVersion LegalPolicyVersion @relation(fields: [policyVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, policyVersionId])
+  @@index([userId, policyType, acceptedAt])
+  @@index([policyVersionId])
+  @@index([policyType, acceptedAt])
+  @@map("user_policy_acceptances")
+}
+
+model Feedback {
+  id             String    @id @default(cuid())
+  status         Int       @default(1)
+  createTime     DateTime  @default(now())
+  updateTime     DateTime  @updatedAt
+  userId         String
+  type           String    @db.VarChar(20)
+  title          String    @db.VarChar(200)
+  description    String    @db.Text
+  sourcePage     String?   @db.VarChar(500)
+  reproduceSteps String?   @db.Text
+  contactInfo    String?   @db.VarChar(200)
+  workflowStatus String    @default("pending") @db.VarChar(30)
+  priority       String    @default("medium") @db.VarChar(20)
+  assigneeUserId String?
+  lastReplyAt    DateTime?
+
+  user     User              @relation(fields: [userId], references: [id])
+  assignee User?             @relation("FeedbackAssignee", fields: [assigneeUserId], references: [id])
+  comments FeedbackComment[]
+
+  @@index([userId])
+  @@index([userId, workflowStatus])
+  @@index([workflowStatus, createTime])
+  @@index([assigneeUserId])
+  @@index([priority])
+  @@index([type])
+  @@map("feedbacks")
+}
+
+model FeedbackComment {
+  id           String   @id @default(cuid())
+  status       Int      @default(1)
+  createTime   DateTime @default(now())
+  updateTime   DateTime @updatedAt
+  feedbackId   String
+  authorUserId String
+  visibility   String   @default("public") @db.VarChar(20)
+  content      String   @db.Text
+
+  feedback Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  author   User     @relation(fields: [authorUserId], references: [id])
+
+  @@index([feedbackId, createTime])
+  @@index([authorUserId])
+  @@index([visibility])
+  @@map("feedback_comments")
+}
+
+model UserScript {
+  id          String   @id @default(cuid())
+  status      Int      @default(1)
+  createTime  DateTime @default(now())
+  updateTime  DateTime @updatedAt
+  userId      String
+  name        String
+  description String?
+  content     String   @db.Text
+
+  user User @relation(fields: [userId], references: [id])
+
+  executions UserScriptExecution[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("user_scripts")
+}
+
+model UserScriptExecution {
+  id              String   @id @default(cuid())
+  createTime      DateTime @default(now())
+  userId          String
+  scriptId        String?
+  scriptName      String
+  contentSnapshot String   @db.Text
+  output          String   @db.Text
+  durationMs      Int
+
+  user   User        @relation(fields: [userId], references: [id])
+  script UserScript? @relation(fields: [scriptId], references: [id])
+
+  @@index([userId])
+  @@index([scriptId])
+  @@map("user_script_executions")
+}
+
+model Conversation {
+  id           String   @id @default(cuid())
+  status       Int      @default(1)
+  createTime   DateTime @default(now())
+  updateTime   DateTime @updatedAt
+  userId       String
+  title        String?  @db.VarChar(200)
+  relayTokenId String?
+
+  user       User        @relation(fields: [userId], references: [id])
+  relayToken RelayToken? @relation(fields: [relayTokenId], references: [id])
+  messages   Message[]
+
+  @@index([userId])
+  @@index([relayTokenId])
+  @@index([userId, createTime])
+  @@map("conversations")
+}
+
+// ─── Notification / Event Center ─────────────────────────────────────────────
+
+model NotificationPreference {
+  id                String   @id @default(cuid())
+  status            Int      @default(1)
+  createTime        DateTime @default(now())
+  updateTime        DateTime @updatedAt
+  userId            String   @unique
+  notificationEmail String?  @db.VarChar(200)
+  subscribedEvents  Json     @default("[]")
+  thresholds        Json     @default("{}")
+  cooldownMinutes   Int      @default(60)
+
+  user     User                  @relation(fields: [userId], references: [id])
+  webhooks NotificationWebhook[]
+
+  @@map("notification_preferences")
+}
+
+model NotificationWebhook {
+  id           String   @id @default(cuid())
+  status       Int      @default(1)
+  createTime   DateTime @default(now())
+  updateTime   DateTime @updatedAt
+  userId       String
+  preferenceId String
+  name         String   @db.VarChar(100)
+  url          String   @db.VarChar(2048)
+  format       String   @default("generic") @db.VarChar(30)
+  secret       String?  @db.VarChar(200)
+  enabled      Boolean  @default(true)
+
+  preference NotificationPreference @relation(fields: [preferenceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([preferenceId])
+  @@map("notification_webhooks")
+}
+
+model NotificationLog {
+  id             String   @id @default(cuid())
+  createTime     DateTime @default(now())
+  userId         String
+  eventType      String   @db.VarChar(60)
+  title          String   @db.VarChar(200)
+  content        String   @db.Text
+  channel        String   @db.VarChar(20)
+  webhookId      String?
+  deliveryStatus String   @default("pending") @db.VarChar(20)
+  errorMessage   String?  @db.VarChar(500)
+  metadata       Json?
+
+  @@index([userId])
+  @@index([userId, createTime])
+  @@index([eventType])
+  @@map("notification_logs")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  status         Int      @default(1)
+  createTime     DateTime @default(now())
+  updateTime     DateTime @updatedAt
+  conversationId String
+  role           String   @db.VarChar(20)
+  content        String   @db.Text
+  model          String?  @db.VarChar(100)
+  inputTokens    Int?
+  outputTokens   Int?
+  totalTokens    Int?
+  cost           Decimal? @db.Decimal(10, 4)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createTime])
+  @@map("messages")
+}
+
+model TrackEvent {
+  id         String   @id @default(cuid())
+  status     Int      @default(1)
+  createTime DateTime @default(now())
+  updateTime DateTime @updatedAt
+
+  eventType  String
+  name       String
+  page       String
+  element    String?
+  label      String?
+  properties Json?
+
+  sessionId  String
+  userId     String?
+  clientTime BigInt
+  serverTime BigInt
+  ua         String?  @db.Text
+  screenW    Int?
+  screenH    Int?
+  language   String?
+  ip         String?
+
+  @@index([sessionId])
+  @@index([userId])
+  @@index([name])
+  @@index([page])
+  @@index([serverTime])
+  @@index([status, serverTime])
+  @@index([name, status, serverTime])
+  @@map("track_events")
+}
+
+model HeatmapPoint {
+  id          String   @id @default(cuid())
+  status      Int      @default(1)
+  createTime  DateTime @default(now())
+  updateTime  DateTime @updatedAt
+
+  pointType   String
+  page        String
+  xRatio      Decimal  @db.Decimal(8, 6)
+  yRatio      Decimal  @db.Decimal(8, 6)
+  scrollDepth Int      @default(0)
+  viewportW   Int?
+  viewportH   Int?
+  sessionId   String?
+  serverTime  BigInt
+
+  @@index([page, pointType])
+  @@index([serverTime])
+  @@index([page, pointType, status, serverTime])
+  @@map("heatmap_points")
+}

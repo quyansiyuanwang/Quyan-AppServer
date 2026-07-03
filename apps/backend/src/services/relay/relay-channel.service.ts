@@ -1,0 +1,683 @@
+import type {
+  BatchDeleteRelayChannelsRequest,
+  BatchRelayChannelsResultDto,
+  BatchSetRelayChannelStatusRequest,
+  CreateRelayChannelRequest,
+  DuplicateRelayChannelRequest,
+  ExportRelayChannelsRequest,
+  ImportRelayChannelsRequest,
+  ImportRelayChannelsResponse,
+  RelayChannelDto,
+  RelayChannelExportItemDto,
+  RelayChannelExportResponse,
+  RelayChannelImportItemDto,
+  TimePeriodMultiplierRule,
+  UpdateRelayChannelRequest,
+} from "@/api/dto/relay/relay-channel.dto";
+import BusinessLogService from "@/services/system/businesslog.service";
+import { OperationCategory, OperationType } from "@/constant/operation-type";
+import {
+  RELAY_CHANNEL_STATUS,
+  VISIBLE_RELAY_CHANNEL_STATUSES,
+  type RelayChannelStatus,
+} from "@/constant/relay-channel";
+import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
+import type { RelayChannelStore } from "@/store/relay/relay-channel.store";
+import { buildBusinessLogRequestContext } from "@/util/business-log-context";
+import { BadRequestError, ConflictError, NotFoundError } from "@/util/errors";
+import { maskSensitiveData } from "@/util/mask-sensitive-data";
+import type { Prisma, RelayChannel } from "@prisma/client";
+import type { Request } from "express";
+
+const COPY_SUFFIX = "（副本）";
+const MAX_CHANNEL_NAME_LENGTH = 100;
+
+interface ValidatedRelayChannelData {
+  name: string;
+  openaiUpstreamUrl?: string;
+  openaiUpstreamApiKey?: string;
+  anthropicUpstreamUrl?: string;
+  anthropicUpstreamApiKey?: string;
+  geminiUpstreamUrl?: string;
+  geminiUpstreamApiKey?: string;
+  multiplier: number;
+  allowedFormats: string;
+  allowedModels?: string | null;
+  addUserIdentifier: boolean;
+  inputTokensIncludeCacheRead: boolean;
+  modelMapping?: Record<string, string> | null;
+  timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
+}
+
+export class RelayChannelService {
+  private static instance: RelayChannelService;
+
+  private constructor(
+    private readonly relayChannelRepository: RelayChannelStore = RelayChannelRepository.getInstance(),
+    private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+  ) {}
+
+  static getInstance() {
+    if (!this.instance) this.instance = new RelayChannelService();
+    return this.instance;
+  }
+
+  async listChannels(includeDisabled = false): Promise<RelayChannelDto[]> {
+    const channels = includeDisabled
+      ? await this.relayChannelRepository.listVisible()
+      : await this.relayChannelRepository.listActive();
+    return channels.map((channel) => this.toDto(channel));
+  }
+
+  async getChannel(id: string): Promise<RelayChannelDto> {
+    const channel = await this.relayChannelRepository.findVisibleById(id);
+    if (!channel) throw new NotFoundError("Relay channel not found");
+    return this.toDto(channel);
+  }
+
+  async exportChannels(
+    body: ExportRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelExportResponse> {
+    const channels = body.ids?.length
+      ? await this.getOrderedChannelsByIds(body.ids, body.includeDisabled === true)
+      : body.includeDisabled === true
+        ? await this.relayChannelRepository.listVisible()
+        : await this.relayChannelRepository.listActive();
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_EXPORT,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `导出了 ${channels.length} 个中转渠道`,
+      metadata: {
+        ids: body.ids,
+        includeDisabled: body.includeDisabled === true,
+        total: channels.length,
+      },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+
+    return {
+      channels: channels.map((channel) => this.toExportItemDto(channel)),
+    };
+  }
+
+  /**
+   * Validate that allowedModels array doesn't contain multiple models with the same model ID
+   */
+  private async validateNoDuplicateModelIds(modelNames: string[]): Promise<void> {
+    if (!modelNames || modelNames.length === 0) return;
+
+    // Import here to avoid circular dependency
+    const { ModelPricingService } = await import("./model-pricing.service");
+    const modelPricingService = ModelPricingService.getInstance();
+    const { resolveModelId } = await import("@/util/model-resolution.util");
+
+    const allModels = await modelPricingService.getModelPricing();
+
+    // Build a map of model name -> model ID
+    const modelNameToId = new Map<string, string>();
+    for (const model of allModels) {
+      const modelName = (model.model || "").trim();
+      const modelId = resolveModelId(model).trim();
+      if (modelName && modelId) modelNameToId.set(modelName, modelId);
+    }
+
+    // Check for duplicate model IDs
+    const seenModelIds = new Set<string>();
+    const duplicates: Array<{ modelName: string; modelId: string }> = [];
+
+    for (const modelName of modelNames) {
+      const normalizedName = String(modelName || "").trim();
+      if (!normalizedName) continue;
+
+      const modelId = modelNameToId.get(normalizedName);
+      if (!modelId) continue; // Unknown model, skip validation
+
+      if (seenModelIds.has(modelId)) duplicates.push({ modelName: normalizedName, modelId });
+      else seenModelIds.add(modelId);
+    }
+
+    if (duplicates.length > 0) {
+      const duplicateInfo = duplicates.map((d) => `"${d.modelName}" (ID: ${d.modelId})`).join(", ");
+      throw new BadRequestError(
+        `allowedModels contains models with duplicate model IDs: ${duplicateInfo}. Each model ID should only appear once.`,
+      );
+    }
+  }
+
+  private async assertVisibleNameAvailable(name: string, excludeId?: string): Promise<void> {
+    const existing = await this.relayChannelRepository.findVisibleByName(name);
+    if (existing && existing.id !== excludeId) throw new ConflictError(`Relay channel name '${name}' already exists`);
+  }
+
+  private buildCopyName(baseName: string, reservedNames: Set<string>): string {
+    for (let index = 1; index < 10000; index += 1) {
+      const suffix = index === 1 ? COPY_SUFFIX : `（副本${index}）`;
+      const trimmedBaseName = baseName.slice(0, Math.max(1, MAX_CHANNEL_NAME_LENGTH - suffix.length)).trim();
+      const candidate = `${trimmedBaseName}${suffix}`;
+
+      if (!reservedNames.has(candidate)) {
+        reservedNames.add(candidate);
+        return candidate;
+      }
+    }
+
+    throw new BadRequestError("Unable to generate a unique relay channel name");
+  }
+
+  private async getVisibleNameSet(): Promise<Set<string>> {
+    const channels = await this.relayChannelRepository.listVisible();
+    return new Set(channels.map((channel) => channel.name));
+  }
+
+  private async getOrderedChannelsByIds(ids: string[], includeDisabled: boolean): Promise<RelayChannel[]> {
+    const uniqueIds = [...new Set(ids)];
+    const channels = includeDisabled
+      ? await this.relayChannelRepository.listVisibleByIds(uniqueIds)
+      : await this.relayChannelRepository.listActiveByIds(uniqueIds);
+
+    if (channels.length !== uniqueIds.length) throw new NotFoundError("One or more relay channels were not found");
+
+    const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
+    return uniqueIds.map((id) => channelMap.get(id)!).filter(Boolean);
+  }
+
+  private normalizeAllowedFormats(value: string): { normalized: string; formats: string[] } {
+    if (value === "both") throw new BadRequestError("allowedFormats 'both' is deprecated, use 'all' instead");
+    if (value === "all") return { normalized: "all", formats: ["openai", "anthropic", "gemini"] };
+
+    const formats = value
+      .split(",")
+      .map((format) => format.trim())
+      .filter(Boolean);
+
+    if (formats.length === 0) throw new BadRequestError("allowedFormats cannot be empty");
+
+    const validFormats = new Set(["openai", "anthropic", "gemini"]);
+    for (const format of formats)
+      if (!validFormats.has(format))
+        throw new BadRequestError(
+          `Invalid format '${format}' in allowedFormats. Must be 'openai', 'anthropic', 'gemini', or 'all'`,
+        );
+
+    return { normalized: [...new Set(formats)].join(","), formats: [...new Set(formats)] };
+  }
+
+  private async buildValidatedChannelData(
+    data: CreateRelayChannelRequest | UpdateRelayChannelRequest,
+    existing?: RelayChannel,
+  ): Promise<ValidatedRelayChannelData> {
+    const name = (data.name !== undefined ? data.name : existing?.name)?.trim();
+    if (!name) throw new BadRequestError(existing ? "Channel name cannot be empty" : "Channel name is required");
+
+    const multiplier = data.multiplier !== undefined ? data.multiplier : Number(existing?.multiplier ?? 1);
+    if (multiplier < 0) throw new BadRequestError("multiplier must be >= 0");
+
+    const openaiUpstreamUrl =
+      data.openaiUpstreamUrl !== undefined ? data.openaiUpstreamUrl : existing?.openaiUpstreamUrl || undefined;
+    const openaiUpstreamApiKey =
+      data.openaiUpstreamApiKey !== undefined ? data.openaiUpstreamApiKey : existing?.openaiUpstreamApiKey || undefined;
+    const anthropicUpstreamUrl =
+      data.anthropicUpstreamUrl !== undefined ? data.anthropicUpstreamUrl : existing?.anthropicUpstreamUrl || undefined;
+    const anthropicUpstreamApiKey =
+      data.anthropicUpstreamApiKey !== undefined
+        ? data.anthropicUpstreamApiKey
+        : existing?.anthropicUpstreamApiKey || undefined;
+    const geminiUpstreamUrl =
+      data.geminiUpstreamUrl !== undefined ? data.geminiUpstreamUrl : existing?.geminiUpstreamUrl || undefined;
+    const geminiUpstreamApiKey =
+      data.geminiUpstreamApiKey !== undefined ? data.geminiUpstreamApiKey : existing?.geminiUpstreamApiKey || undefined;
+    const allowedFormatsInput =
+      data.allowedFormats !== undefined ? data.allowedFormats : existing?.allowedFormats || "all";
+    const { normalized: allowedFormats, formats } = this.normalizeAllowedFormats(allowedFormatsInput);
+    const allowedModels = data.allowedModels !== undefined ? data.allowedModels : existing?.allowedModels;
+    const addUserIdentifier =
+      data.addUserIdentifier !== undefined ? data.addUserIdentifier : existing?.addUserIdentifier !== false;
+    const inputTokensIncludeCacheRead =
+      data.inputTokensIncludeCacheRead !== undefined
+        ? data.inputTokensIncludeCacheRead
+        : existing?.inputTokensIncludeCacheRead === true;
+
+    const modelMapping =
+      data.modelMapping !== undefined
+        ? data.modelMapping
+        : (existing?.modelMapping as Record<string, string> | null | undefined);
+
+    const timePeriodMultipliers =
+      data.timePeriodMultipliers !== undefined
+        ? data.timePeriodMultipliers
+        : (existing?.timePeriodMultipliers as TimePeriodMultiplierRule[] | undefined);
+
+    if (allowedModels !== undefined && allowedModels !== null)
+      try {
+        const parsed = JSON.parse(allowedModels);
+        if (!Array.isArray(parsed)) throw new Error("allowedModels must be a JSON array");
+        await this.validateNoDuplicateModelIds(parsed);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("duplicate model ID")) throw error;
+        throw new BadRequestError("allowedModels must be a valid JSON array");
+      }
+
+    if (!openaiUpstreamUrl && !anthropicUpstreamUrl && !geminiUpstreamUrl)
+      throw new BadRequestError("At least one upstream URL (OpenAI, Anthropic, or Gemini) must be configured");
+
+    if (formats.includes("openai")) {
+      if (!openaiUpstreamUrl)
+        throw new BadRequestError("OpenAI upstream URL is required when allowedFormats includes 'openai'");
+      if (!openaiUpstreamApiKey)
+        throw new BadRequestError("OpenAI API key is required when allowedFormats includes 'openai'");
+    }
+    if (formats.includes("anthropic")) {
+      if (!anthropicUpstreamUrl)
+        throw new BadRequestError("Anthropic upstream URL is required when allowedFormats includes 'anthropic'");
+      if (!anthropicUpstreamApiKey)
+        throw new BadRequestError("Anthropic API key is required when allowedFormats includes 'anthropic'");
+    }
+    if (formats.includes("gemini")) {
+      if (!geminiUpstreamUrl)
+        throw new BadRequestError("Gemini upstream URL is required when allowedFormats includes 'gemini'");
+      if (!geminiUpstreamApiKey)
+        throw new BadRequestError("Gemini API key is required when allowedFormats includes 'gemini'");
+    }
+
+    if (allowedFormats === "all") {
+      if (openaiUpstreamUrl && !openaiUpstreamApiKey)
+        throw new BadRequestError("OpenAI API key is required when OpenAI upstream URL is configured");
+      if (anthropicUpstreamUrl && !anthropicUpstreamApiKey)
+        throw new BadRequestError("Anthropic API key is required when Anthropic upstream URL is configured");
+      if (geminiUpstreamUrl && !geminiUpstreamApiKey)
+        throw new BadRequestError("Gemini API key is required when Gemini upstream URL is configured");
+    }
+
+    return {
+      name,
+      openaiUpstreamUrl,
+      openaiUpstreamApiKey,
+      anthropicUpstreamUrl,
+      anthropicUpstreamApiKey,
+      geminiUpstreamUrl,
+      geminiUpstreamApiKey,
+      multiplier,
+      allowedFormats,
+      allowedModels,
+      addUserIdentifier,
+      inputTokensIncludeCacheRead,
+      modelMapping,
+      timePeriodMultipliers,
+    };
+  }
+
+  private toPersistenceInput(data: ValidatedRelayChannelData): Prisma.RelayChannelUncheckedCreateInput {
+    return {
+      name: data.name,
+      openaiUpstreamUrl: data.openaiUpstreamUrl,
+      openaiUpstreamApiKey: data.openaiUpstreamApiKey,
+      anthropicUpstreamUrl: data.anthropicUpstreamUrl,
+      anthropicUpstreamApiKey: data.anthropicUpstreamApiKey,
+      geminiUpstreamUrl: data.geminiUpstreamUrl,
+      geminiUpstreamApiKey: data.geminiUpstreamApiKey,
+      multiplier: data.multiplier,
+      allowedFormats: data.allowedFormats,
+      allowedModels: data.allowedModels,
+      addUserIdentifier: data.addUserIdentifier,
+      inputTokensIncludeCacheRead: data.inputTokensIncludeCacheRead,
+      modelMapping: data.modelMapping as Prisma.InputJsonValue | undefined,
+      timePeriodMultipliers: data.timePeriodMultipliers as Prisma.InputJsonValue | undefined,
+    };
+  }
+
+  private toCreateRequest(channel: RelayChannel): RelayChannelImportItemDto {
+    return {
+      name: channel.name,
+      openaiUpstreamUrl: channel.openaiUpstreamUrl || undefined,
+      openaiUpstreamApiKey: channel.openaiUpstreamApiKey || undefined,
+      anthropicUpstreamUrl: channel.anthropicUpstreamUrl || undefined,
+      anthropicUpstreamApiKey: channel.anthropicUpstreamApiKey || undefined,
+      geminiUpstreamUrl: channel.geminiUpstreamUrl || undefined,
+      geminiUpstreamApiKey: channel.geminiUpstreamApiKey || undefined,
+      multiplier: Number(channel.multiplier),
+      allowedFormats: channel.allowedFormats || "all",
+      allowedModels: channel.allowedModels,
+      addUserIdentifier: channel.addUserIdentifier !== false,
+      inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true,
+      modelMapping: channel.modelMapping as Record<string, string> | undefined,
+      timePeriodMultipliers: channel.timePeriodMultipliers as unknown as TimePeriodMultiplierRule[] | undefined,
+      enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+    };
+  }
+
+  private toExportItemDto(channel: RelayChannel): RelayChannelExportItemDto {
+    return {
+      ...this.toCreateRequest(channel),
+      id: channel.id,
+      enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+      createTime: channel.createTime,
+      updateTime: channel.updateTime,
+    };
+  }
+
+  async createChannel(
+    data: CreateRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    const validated = await this.buildValidatedChannelData(data);
+    await this.assertVisibleNameAvailable(validated.name);
+
+    const channel = await this.relayChannelRepository.create({
+      ...this.toPersistenceInput(validated),
+      status: RELAY_CHANNEL_STATUS.ENABLED,
+    });
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_CREATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: channel.id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `创建了中转渠道 '${channel.name}'`,
+      changes: maskSensitiveData(data),
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+
+    return this.toDto(channel);
+  }
+
+  async updateChannel(
+    id: string,
+    data: UpdateRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    const existing = await this.relayChannelRepository.findVisibleById(id);
+    if (!existing) throw new NotFoundError("Relay channel not found");
+    const validated = await this.buildValidatedChannelData(data, existing);
+    await this.assertVisibleNameAvailable(validated.name, existing.id);
+
+    const channel = await this.relayChannelRepository.updateById(id, this.toPersistenceInput(validated));
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: channel.id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `更新了中转渠道 '${channel.name}'`,
+      changes: maskSensitiveData(data),
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+
+    return this.toDto(channel);
+  }
+
+  async duplicateChannel(
+    id: string,
+    data: DuplicateRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    const existing = await this.relayChannelRepository.findVisibleById(id);
+    if (!existing) throw new NotFoundError("Relay channel not found");
+
+    const reservedNames = await this.getVisibleNameSet();
+    const duplicatedName = data.name?.trim() || this.buildCopyName(existing.name, reservedNames);
+    const validated = await this.buildValidatedChannelData({ ...this.toCreateRequest(existing), name: duplicatedName });
+    await this.assertVisibleNameAvailable(validated.name);
+
+    const channel = await this.relayChannelRepository.create({
+      ...this.toPersistenceInput(validated),
+      status: RELAY_CHANNEL_STATUS.ENABLED,
+    });
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_DUPLICATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: channel.id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `复制了中转渠道 '${existing.name}'`,
+      metadata: {
+        sourceChannelId: existing.id,
+        sourceChannelName: existing.name,
+      },
+      changes: maskSensitiveData({ name: validated.name }),
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+
+    return this.toDto(channel);
+  }
+
+  async batchDuplicateChannels(ids: string[], actorUserId: string, request?: Request): Promise<RelayChannelDto[]> {
+    const sourceChannels = await this.getOrderedChannelsByIds(ids, true);
+    const duplicatedChannels = await this.relayChannelRepository.withTransaction(async (tx) => {
+      const reservedNames = await this.getVisibleNameSet();
+      const items: RelayChannelDto[] = [];
+
+      for (const sourceChannel of sourceChannels) {
+        const duplicatedName = this.buildCopyName(sourceChannel.name, reservedNames);
+        const validated = await this.buildValidatedChannelData({
+          ...this.toCreateRequest(sourceChannel),
+          name: duplicatedName,
+        });
+        const created = await this.relayChannelRepository.create(
+          {
+            ...this.toPersistenceInput(validated),
+            status: RELAY_CHANNEL_STATUS.ENABLED,
+          },
+          tx,
+        );
+        items.push(this.toDto(created));
+      }
+
+      return items;
+    });
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_BATCH_DUPLICATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `批量复制了 ${duplicatedChannels.length} 个中转渠道`,
+      metadata: {
+        ids,
+        total: duplicatedChannels.length,
+      },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+
+    return duplicatedChannels;
+  }
+
+  async batchSetChannelStatus(
+    body: BatchSetRelayChannelStatusRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchRelayChannelsResultDto> {
+    await this.getOrderedChannelsByIds(body.ids, true);
+    const status = body.enabled ? RELAY_CHANNEL_STATUS.ENABLED : RELAY_CHANNEL_STATUS.DISABLED;
+    const affected = await this.relayChannelRepository.updateStatusByIds(body.ids, status);
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_BATCH_STATUS_CHANGE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `批量${body.enabled ? "启用" : "禁用"}了 ${affected} 个中转渠道`,
+      metadata: {
+        ids: body.ids,
+        enabled: body.enabled,
+      },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+
+    return {
+      total: body.ids.length,
+      affected,
+    };
+  }
+
+  async batchDeleteChannels(
+    body: BatchDeleteRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchRelayChannelsResultDto> {
+    await this.getOrderedChannelsByIds(body.ids, true);
+    const affected = await this.relayChannelRepository.softDeleteAndUnassignTokensByIds(body.ids);
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_BATCH_DELETE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `批量删除了 ${affected} 个中转渠道`,
+      metadata: {
+        ids: body.ids,
+      },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+
+    return {
+      total: body.ids.length,
+      affected,
+    };
+  }
+
+  async importChannels(
+    body: ImportRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<ImportRelayChannelsResponse> {
+    const createdChannels = await this.relayChannelRepository.withTransaction(async (tx) => {
+      const reservedNames = await this.getVisibleNameSet();
+      const items: RelayChannelDto[] = [];
+
+      for (const item of body.channels) {
+        const preferredName = item.name.trim();
+        const finalName = reservedNames.has(preferredName)
+          ? this.buildCopyName(preferredName, reservedNames)
+          : preferredName;
+        reservedNames.add(finalName);
+
+        const validated = await this.buildValidatedChannelData({
+          ...item,
+          name: finalName,
+        });
+        const created = await this.relayChannelRepository.create(
+          {
+            ...this.toPersistenceInput(validated),
+            status: item.enabled === false ? RELAY_CHANNEL_STATUS.DISABLED : RELAY_CHANNEL_STATUS.ENABLED,
+          },
+          tx,
+        );
+        items.push(this.toDto(created));
+      }
+
+      return items;
+    });
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_IMPORT,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `导入了 ${createdChannels.length} 个中转渠道`,
+      metadata: {
+        total: body.channels.length,
+        created: createdChannels.length,
+      },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+
+    return {
+      code: 0,
+      message: "success",
+      created: createdChannels.length,
+      total: body.channels.length,
+      data: createdChannels,
+    };
+  }
+
+  async toggleChannelStatus(id: string, actorUserId: string, request?: Request): Promise<RelayChannelDto> {
+    const existing = await this.relayChannelRepository.findVisibleById(id);
+    if (!existing) throw new NotFoundError("Relay channel not found");
+    const currentStatus = existing.status as RelayChannelStatus;
+    if (!VISIBLE_RELAY_CHANNEL_STATUSES.includes(currentStatus)) throw new NotFoundError("Relay channel not found");
+
+    const nextStatus =
+      currentStatus === RELAY_CHANNEL_STATUS.ENABLED ? RELAY_CHANNEL_STATUS.DISABLED : RELAY_CHANNEL_STATUS.ENABLED;
+    const channel = await this.relayChannelRepository.updateById(id, {
+      status: nextStatus,
+    });
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_STATUS_CHANGE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: channel.id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `将中转渠道 '${existing.name}' ${nextStatus === RELAY_CHANNEL_STATUS.ENABLED ? "启用" : "禁用"}`,
+      changes: {
+        fromStatus: currentStatus,
+        toStatus: nextStatus,
+        enabled: nextStatus === RELAY_CHANNEL_STATUS.ENABLED,
+      },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+
+    return this.toDto(channel);
+  }
+
+  async deleteChannel(id: string, actorUserId: string, request?: Request): Promise<void> {
+    const existing = await this.relayChannelRepository.findVisibleById(id);
+    if (!existing) throw new NotFoundError("Relay channel not found");
+
+    await this.relayChannelRepository.softDeleteAndUnassignTokens(id);
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_DELETE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: existing.id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `删除了中转渠道 '${existing.name}'`,
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+  }
+
+  private toDto(channel: RelayChannel): RelayChannelDto {
+    return {
+      id: channel.id,
+      name: channel.name,
+      enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+      openaiUpstreamUrl: channel.openaiUpstreamUrl || undefined,
+      openaiUpstreamApiKey: channel.openaiUpstreamApiKey || undefined,
+      anthropicUpstreamUrl: channel.anthropicUpstreamUrl || undefined,
+      anthropicUpstreamApiKey: channel.anthropicUpstreamApiKey || undefined,
+      geminiUpstreamUrl: channel.geminiUpstreamUrl || undefined,
+      geminiUpstreamApiKey: channel.geminiUpstreamApiKey || undefined,
+      multiplier: Number(channel.multiplier),
+      allowedFormats: channel.allowedFormats || "all",
+      allowedModels: channel.allowedModels || undefined,
+      addUserIdentifier: channel.addUserIdentifier !== false, // Default to true
+      inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true, // Default to false
+      modelMapping: channel.modelMapping as Record<string, string> | undefined,
+      timePeriodMultipliers: channel.timePeriodMultipliers as unknown as TimePeriodMultiplierRule[] | undefined,
+      createTime: channel.createTime,
+      updateTime: channel.updateTime,
+    };
+  }
+}

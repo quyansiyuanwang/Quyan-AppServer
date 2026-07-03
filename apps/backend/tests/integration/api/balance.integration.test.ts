@@ -1,0 +1,194 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import request from "supertest";
+import type { Express } from "express";
+import { createApp } from "../../../src/app";
+import { prisma } from "../../../src/config/database";
+import { hashPassword } from "../../../src/util/crypto";
+import { Permission } from "../../../src/constant/permission";
+import { withReplayProtection } from "../../util/replay-protection-test-helper";
+
+describe("Balance API Integration", () => {
+  let app: Express;
+  let accessToken = "";
+  let adminUserId = "";
+  let targetUserId = "";
+  let testGroupId = "";
+
+  const shortSuffix = `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 100)}`;
+  const adminUsername = `bau_${shortSuffix}`;
+  const targetUsername = `btu_${shortSuffix}`;
+  const groupUsername = `bag_${shortSuffix}`;
+
+  const postWithReplay = (path: string, body: Record<string, unknown>) =>
+    withReplayProtection(request(app).post(path), body, path).set("Authorization", `Bearer ${accessToken}`).send(body);
+
+  beforeAll(async () => {
+    app = createApp();
+
+    const group = await prisma.group.create({
+      data: {
+        username: groupUsername,
+        name: "Balance API Test Group",
+        level: 1,
+        permissions: JSON.stringify([Permission.BALANCE_READ, Permission.BALANCE_RECHARGE]),
+      },
+    });
+    testGroupId = group.id;
+
+    const adminUser = await prisma.user.create({
+      data: {
+        username: adminUsername,
+        password: hashPassword("test_password"),
+        groupId: testGroupId,
+        permissionAdds: [],
+        permissionRemoves: [],
+      },
+    });
+    adminUserId = adminUser.id;
+
+    const targetUser = await prisma.user.create({
+      data: {
+        username: targetUsername,
+        password: hashPassword("test_password"),
+        groupId: testGroupId,
+        permissionAdds: [],
+        permissionRemoves: [],
+      },
+    });
+    targetUserId = targetUser.id;
+
+    const loginBody = {
+      username: adminUsername,
+      password: "test_password",
+      agreedToLegalPolicies: true,
+    };
+    const loginRes = await withReplayProtection(request(app).post("/v1/auth/login"), loginBody, "/v1/auth/login").send(
+      loginBody,
+    );
+    accessToken = loginRes.body.data.access_token;
+  });
+
+  afterAll(async () => {
+    await prisma.balanceTransaction.deleteMany({ where: { userId: { in: [adminUserId, targetUserId] } } });
+    await prisma.balanceAccount.deleteMany({ where: { userId: { in: [adminUserId, targetUserId] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [adminUserId, targetUserId] } } });
+    await prisma.group.deleteMany({ where: { id: testGroupId } });
+  });
+
+  it("supports recharge and account/transaction queries", async () => {
+    const myAccountRes = await request(app).get("/v1/balance/account").set("Authorization", `Bearer ${accessToken}`);
+    expect(myAccountRes.status).toBe(200);
+    expect(myAccountRes.body.data).toHaveProperty("userId", adminUserId);
+
+    const usageRes = await request(app).get("/v1/balance/usage").set("Authorization", `Bearer ${accessToken}`);
+    expect(usageRes.status).toBe(200);
+    expect(usageRes.body.data).toHaveProperty("remaining");
+
+    const rechargeRes = await postWithReplay("/v1/balance/recharge", {
+      userId: targetUserId,
+      amount: 88.88,
+      description: "integration test recharge",
+      countAsStatistics: true,
+    });
+    expect(rechargeRes.status).toBe(200);
+
+    const targetAccountRes = await request(app)
+      .get(`/v1/balance/account/${targetUserId}`)
+      .set("Authorization", `Bearer ${accessToken}`);
+    expect(targetAccountRes.status).toBe(200);
+    expect(targetAccountRes.body.data.balance).toBe(88.88);
+
+    const batchRes = await postWithReplay("/v1/balance/accounts/batch", {
+      userIds: [adminUserId, targetUserId],
+    });
+    expect(batchRes.status).toBe(200);
+    expect(Array.isArray(batchRes.body.data)).toBe(true);
+    expect(batchRes.body.data.some((item: { userId: string }) => item.userId === targetUserId)).toBe(true);
+
+    const allTxRes = await request(app)
+      .get(`/v1/balance/transactions/all?userId=${targetUserId}&limit=20&offset=0`)
+      .set("Authorization", `Bearer ${accessToken}`);
+    expect(allTxRes.status).toBe(200);
+    expect(Array.isArray(allTxRes.body.data.records)).toBe(true);
+    expect(allTxRes.body.data.records.length).toBeGreaterThan(0);
+  });
+
+  it("classifies monthly pass coverage descriptions consistently", async () => {
+    const monthlyPassCn = await prisma.balanceTransaction.create({
+      data: {
+        userId: targetUserId,
+        type: "recharge",
+        amount: -0.1234,
+        balanceBefore: 88.88,
+        balanceAfter: 88.7566,
+        description: "月卡抵扣: 覆盖本次请求 ¥0.1234",
+      },
+    });
+
+    const monthlyPassEn = await prisma.balanceTransaction.create({
+      data: {
+        userId: targetUserId,
+        type: "recharge",
+        amount: -0.2234,
+        balanceBefore: 88.7566,
+        balanceAfter: 88.5332,
+        description: "Monthly pass coverage: covered request ¥0.2234",
+      },
+    });
+
+    const chatUsage = await prisma.balanceTransaction.create({
+      data: {
+        userId: targetUserId,
+        type: "recharge",
+        amount: -0.3234,
+        balanceBefore: 88.5332,
+        balanceAfter: 88.2098,
+        description: "API调用: /chat/conversations/test-id/messages",
+        model: "gpt-5.4",
+      },
+    });
+
+    const allTxRes = await request(app)
+      .get(`/v1/balance/transactions/all?userId=${targetUserId}&limit=100&offset=0`)
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(allTxRes.status).toBe(200);
+    const records = allTxRes.body.data.records as Array<{ id: string; category: string }>;
+    const categoryById = new Map(records.map((record) => [record.id, record.category]));
+
+    expect(categoryById.get(monthlyPassCn.id)).toBe("monthly_pass_coverage");
+    expect(categoryById.get(monthlyPassEn.id)).toBe("monthly_pass_coverage");
+    expect(categoryById.get(chatUsage.id)).toBe("chat_usage");
+  });
+
+  it("rejects balance transaction queries larger than 30 days", async () => {
+    const tooEarlyStartTime = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
+    const endTime = new Date().toISOString();
+    const validStartTime = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString();
+
+    const myTransactionsResponse = await request(app)
+      .get(
+        `/v1/balance/transactions?startTime=${encodeURIComponent(tooEarlyStartTime)}&endTime=${encodeURIComponent(endTime)}`,
+      )
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(myTransactionsResponse.status).toBe(422);
+    expect(JSON.stringify(myTransactionsResponse.body)).toContain("query time range must not exceed 30 days");
+
+    const allTransactionsResponse = await request(app)
+      .get(
+        `/v1/balance/transactions/all?userId=${targetUserId}&startTime=${encodeURIComponent(tooEarlyStartTime)}&endTime=${encodeURIComponent(endTime)}`,
+      )
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(allTransactionsResponse.status).toBe(422);
+
+    const validRangeResponse = await request(app)
+      .get(
+        `/v1/balance/transactions?startTime=${encodeURIComponent(validStartTime)}&endTime=${encodeURIComponent(endTime)}`,
+      )
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(validRangeResponse.status).toBe(200);
+  });
+});

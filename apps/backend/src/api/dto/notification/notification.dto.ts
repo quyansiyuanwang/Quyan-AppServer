@@ -1,0 +1,88 @@
+// ─── Request DTOs ─────────────────────────────────────────────────────────────
+
+export interface UpdateNotificationPreferenceDto {
+  /** Notification email address (null to clear) */
+  notificationEmail?: string | null;
+  /** List of subscribed event types */
+  subscribedEvents?: string[];
+  /** Per-event threshold values (e.g. { balance_low: 10, monthly_pass_quota_low: 20 }) */
+  thresholds?: Record<string, number>;
+  /** Cooldown period in minutes between same-event notifications */
+  cooldownMinutes?: number;
+}
+
+export interface CreateNotificationWebhookDto {
+  /** Display name */
+  name: string;
+  /** Webhook URL */
+  url: string;
+  /** Payload format: generic | discord | slack | feishu | wechat_work */
+  format: string;
+  /** Optional HMAC-SHA256 signing secret */
+  secret?: string | null;
+  /** Whether this webhook is active */
+  enabled?: boolean;
+}
+
+export interface UpdateNotificationWebhookDto {
+  name?: string;
+  url?: string;
+  format?: string;
+  secret?: string | null;
+  enabled?: boolean;
+}
+
+export interface GetNotificationLogsQueryDto {
+  page?: number;
+  pageSize?: number;
+}
+
+// ─── Response DTOs ────────────────────────────────────────────────────────────
+
+export interface NotificationPreferenceDto {
+  id: string;
+  notificationEmail: string | null;
+  subscribedEvents: string[];
+  thresholds: Record<string, number>;
+  cooldownMinutes: number;
+  createTime: string;
+  updateTime: string;
+}
+
+export interface NotificationWebhookDto {
+  id: string;
+  name: string;
+  url: string;
+  format: string;
+  /** Secret is masked in responses */
+  hasSecret: boolean;
+  enabled: boolean;
+  createTime: string;
+  updateTime: string;
+}
+
+export interface NotificationLogDto {
+  id: string;
+  eventType: string;
+  title: string;
+  content: string;
+  channel: string;
+  webhookId: string | null;
+  deliveryStatus: string;
+  errorMessage: string | null;
+  createTime: string;
+}
+
+export interface NotificationLogListDto {
+  logs: NotificationLogDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface NotificationEventInfoDto {
+  value: string;
+  label: string;
+  hasThreshold: boolean;
+  thresholdUnit?: string;
+}

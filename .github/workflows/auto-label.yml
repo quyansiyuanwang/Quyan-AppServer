@@ -1,0 +1,332 @@
+name: Auto Label
+
+on:
+  pull_request:
+    types: [opened]
+  issues:
+    types: [opened, edited]
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+      pr_title:
+        required: true
+        type: string
+      pr_body:
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]') &&
+      !contains(github.event.head_commit.message, '[skip cd]') &&
+      !contains(github.event.head_commit.message, '[skip cicd]') &&
+      !contains(format('{0}{1}{2}', inputs.pr_title, github.event.pull_request.title, github.event.issue.title), '[skip ci]') &&
+      !contains(format('{0}{1}{2}', inputs.pr_title, github.event.pull_request.title, github.event.issue.title), '[skip cd]') &&
+      !contains(format('{0}{1}{2}', inputs.pr_title, github.event.pull_request.title, github.event.issue.title), '[skip cicd]')
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: read
+    env:
+      AI_LABEL_TIMEOUT_MS: '120000'
+
+    steps:
+      - name: Auto Label with AI
+        timeout-minutes: 10
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const isWorkflowCall = '${{ inputs.pr_number }}' !== '';
+            const isPR = isWorkflowCall || !!context.payload.pull_request;
+            const isIssue = !isWorkflowCall && !!context.payload.issue;
+
+            let number, textContext = '';
+            let currentLabels = [];
+
+            if (isWorkflowCall) {
+              number = parseInt('${{ inputs.pr_number }}', 10);
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: number,
+              });
+              const { data: commits } = await github.rest.pulls.listCommits({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: number,
+                per_page: 20,
+              });
+              const commitMessages = commits.map(c => c.commit.message.split('\n')[0]).join('\n');
+              textContext = `PR Title: ${process.env.INPUT_PR_TITLE}\nPR Body: ${process.env.INPUT_PR_BODY}\nCommits:\n${commitMessages}`;
+              currentLabels = pr.labels || [];
+            } else if (isPR) {
+              const pr = context.payload.pull_request;
+              number = pr.number;
+              const { data: commits } = await github.rest.pulls.listCommits({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: number,
+                per_page: 20,
+              });
+              const commitMessages = commits.map(c => c.commit.message.split('\n')[0]).join('\n');
+              textContext = `PR Title: ${pr.title}\nPR Body: ${pr.body || ''}\nCommits:\n${commitMessages}`;
+              currentLabels = pr.labels || [];
+            } else if (isIssue) {
+              const issue = context.payload.issue;
+              number = issue.number;
+              textContext = `Issue Title: ${issue.title}\nIssue Body: ${issue.body || ''}`;
+              currentLabels = issue.labels || [];
+            } else {
+              return;
+            }
+
+            // Call OpenAI
+            let response;
+            try {
+              const labelTimeoutMs = Number(process.env.AI_LABEL_TIMEOUT_MS || 120000);
+              const baseUrl = (process.env.OPENAI_BASE_URL || 'https://api.openai.com').replace(/\/$/, '');
+              if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_MODEL) {
+                console.log('Skipping auto-labeling because OPENAI_API_KEY or OPENAI_MODEL is missing.');
+                return;
+              }
+
+              response = await fetch(`${baseUrl}/v1/chat/completions`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                },
+                body: JSON.stringify({
+                  model: process.env.OPENAI_MODEL,
+                  messages: [
+                    {
+                      role: 'system',
+                      content: 'You are a GitHub label classifier. Given the content of a PR or issue, return a JSON array of label names that best describe it.\n' +
+                        'Choose from these labels (use only what fits, can pick multiple):\n' +
+                        '- bug: Something is broken or not working correctly\n' +
+                        '- feature: New functionality or enhancement\n' +
+                        '- refactor: Code restructuring without behavior change\n' +
+                        '- docs: Documentation changes\n' +
+                        '- chore: Maintenance, dependencies, config changes\n' +
+                        '- test: Test additions or fixes\n' +
+                        '- style: UI/UX or code style changes\n' +
+                        '- performance: Performance improvements\n' +
+                        '- security: Security-related changes\n' +
+                        '- breaking-change: Introduces breaking changes\n' +
+                        '- frontend: Frontend-related\n' +
+                        '- backend: Backend-related\n' +
+                        '- auth: Authentication or authorization\n' +
+                        '- api: API changes\n' +
+                        '- database: Database schema or query changes\n' +
+                        '- i18n: Internationalization or localization\n' +
+                        '- ci: CI/CD pipeline changes\n' +
+                        '- hotfix: Urgent fix for production issue\n' +
+                        '- wontfix: This will not be worked on\n' +
+                        '- duplicate: This issue or PR already exists\n' +
+                        '- question: Further information is requested\n' +
+                        '- help wanted: Extra attention is needed\n' +
+                        '- good first issue: Good for newcomers\n' +
+                        '\n' +
+                        'Return ONLY a JSON array of strings, no explanation. Example: ["bug", "frontend"]',
+                    },
+                    {
+                      role: 'user',
+                      content: textContext,
+                    },
+                  ],
+                  temperature: 0,
+                }),
+                signal: AbortSignal.timeout(labelTimeoutMs),
+              });
+            } catch (error) {
+              console.log('Failed to call OpenAI API:', error.message);
+              console.log('Skipping auto-labeling due to API error');
+              return;
+            }
+
+            const raw = await response.text();
+            if (!response.ok) {
+              console.log(`OpenAI API returned ${response.status} ${response.statusText}: ${raw.slice(0, 500)}`);
+              return;
+            }
+
+            let json;
+            try {
+              json = JSON.parse(raw);
+            } catch (error) {
+              console.log(`Failed to parse OpenAI response JSON: ${error.message}`);
+              console.log(raw.slice(0, 500));
+              return;
+            }
+
+            const content = json.choices?.[0]?.message?.content?.trim();
+            if (!content) {
+              console.log('No response from OpenAI');
+              return;
+            }
+
+            let labels;
+            try {
+              labels = JSON.parse(content);
+            } catch {
+              console.log('Failed to parse OpenAI response:', content);
+              return;
+            }
+
+            if (!Array.isArray(labels) || labels.length === 0) {
+              console.log('No labels returned');
+              return;
+            }
+
+            // Ensure labels exist, create if not
+            const labelColors = {
+              'bug': 'd73a4a',
+              'feature': '0075ca',
+              'refactor': 'e4e669',
+              'docs': '0075ca',
+              'chore': 'fef2c0',
+              'test': '0e8a16',
+              'style': 'f9d0c4',
+              'performance': 'c2e0c6',
+              'security': 'b60205',
+              'breaking-change': 'b60205',
+              'frontend': '1d76db',
+              'backend': '0052cc',
+              'auth': 'e11d48',
+              'api': '5319e7',
+              'database': 'fbca04',
+              'i18n': 'bfd4f2',
+              'ci': 'f1f8ff',
+              'hotfix': 'd93f0b',
+              'wontfix': 'ffffff',
+              'duplicate': 'cfd3d7',
+              'question': 'd876e3',
+              'help wanted': '008672',
+              'good first issue': '7057ff',
+            };
+
+            const normalizeLabel = (value) =>
+              String(value || '')
+                .trim()
+                .toLowerCase()
+                .replace(/\s+/g, ' ')
+                .slice(0, 50);
+
+            const allowedLabelSet = new Set(Object.keys(labelColors));
+            const normalizedLabels = Array.from(
+              new Set(
+                labels
+                  .filter(label => typeof label === 'string')
+                  .map(label => normalizeLabel(label))
+                  .filter(Boolean)
+                  .filter(label => allowedLabelSet.has(label))
+              )
+            );
+
+            if (normalizedLabels.length === 0) {
+              console.log('No valid labels after normalization/filtering');
+              return;
+            }
+
+            const existingLabels = await github.paginate(github.rest.issues.listLabelsForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+
+            const existingNameMap = new Map(
+              existingLabels.map(label => [label.name.toLowerCase(), label.name])
+            );
+
+            const currentManagedLabels = Array.from(
+              new Set(
+                currentLabels
+                  .map(label => typeof label === 'string' ? label : label?.name)
+                  .map(label => normalizeLabel(label))
+                  .filter(label => allowedLabelSet.has(label))
+              )
+            );
+
+            for (const normalizedLabel of normalizedLabels) {
+              if (!existingNameMap.has(normalizedLabel)) {
+                const color = labelColors[normalizedLabel] || 'ededed';
+                try {
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: normalizedLabel,
+                    color,
+                  });
+                  console.log(`Created label: ${normalizedLabel}`);
+                  existingNameMap.set(normalizedLabel, normalizedLabel);
+                } catch (error) {
+                  if (error.status === 422) {
+                    console.log(`Create label skipped for "${normalizedLabel}" due to 422: ${error.message}`);
+                    existingNameMap.set(normalizedLabel, normalizedLabel);
+                  } else {
+                    throw error;
+                  }
+                }
+              }
+            }
+
+            for (const normalizedLabel of currentManagedLabels) {
+              if (normalizedLabels.includes(normalizedLabel)) {
+                continue;
+              }
+
+              const labelName = existingNameMap.get(normalizedLabel) || normalizedLabel;
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: number,
+                  name: labelName,
+                });
+                console.log(`Removed stale label: ${labelName}`);
+              } catch (error) {
+                if (error.status === 404) {
+                  console.log(`Label already absent: ${labelName}`);
+                } else {
+                  throw error;
+                }
+              }
+            }
+
+            const appliedLabels = [];
+            for (const normalizedLabel of normalizedLabels) {
+              const labelName = existingNameMap.get(normalizedLabel) || normalizedLabel;
+              try {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: number,
+                  labels: [labelName],
+                });
+                appliedLabels.push(labelName);
+              } catch (error) {
+                if (error.status === 422) {
+                  console.log(`Skip invalid label "${labelName}": ${error.message}`);
+                } else {
+                  throw error;
+                }
+              }
+            }
+
+            if (appliedLabels.length === 0) {
+              console.log('No labels applied after validation');
+            }
+
+            console.log(`Applied labels: ${appliedLabels.join(', ')}`);
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+          INPUT_PR_TITLE: ${{ inputs.pr_title }}
+          INPUT_PR_BODY: ${{ inputs.pr_body }}

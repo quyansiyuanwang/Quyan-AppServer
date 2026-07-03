@@ -1,0 +1,216 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+}
+
+@layer components {
+  .app-shell {
+    @apply min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100;
+  }
+
+  .desktop-page {
+    @apply px-5 py-4 lg:px-7 lg:py-5;
+  }
+
+  .mobile-page {
+    @apply px-2.5 py-2 pb-20;
+  }
+
+  .page-card {
+    @apply rounded-xl border border-slate-200 bg-white/95 shadow-sm dark:border-slate-800 dark:bg-slate-900/90;
+  }
+
+  .mobile-card {
+    @apply rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900;
+  }
+
+  .toolbar-row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  /* Dual-end visual system */
+  .desktop-page :where(.el-card) {
+    @apply rounded-xl border border-slate-200 bg-white/95 shadow-sm dark:border-slate-800 dark:bg-slate-900/90;
+  }
+
+  .mobile-page :where(.el-card) {
+    @apply rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900;
+  }
+
+  .desktop-page :where(.el-card__header) {
+    @apply border-b border-slate-200/70 px-5 py-3.5 dark:border-slate-800/70;
+  }
+
+  .desktop-page :where(.el-card__body) {
+    @apply px-5 py-4;
+  }
+
+  .mobile-page :where(.el-card__header) {
+    @apply px-3.5 py-3;
+  }
+
+  .mobile-page :where(.el-card__body) {
+    @apply px-3.5 py-3;
+  }
+
+  .mobile-page :where(.el-form--inline) {
+    @apply grid grid-cols-1 gap-2;
+  }
+
+  .mobile-page :where(.el-form--inline .el-form-item) {
+    @apply mb-0 mr-0;
+  }
+
+  .mobile-page :where(.el-button) {
+    @apply min-h-9;
+  }
+
+  .mobile-page :where(.el-dialog) {
+    @apply !w-[96%] !max-w-[96%];
+  }
+
+  .desktop-page :where(.card-header) {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .desktop-page :where(.header-actions, .button-group, .toolbar-actions) {
+    @apply flex items-center gap-2;
+  }
+
+  .desktop-page :where(.filters-container, .tab-header) {
+    @apply mb-3;
+  }
+
+  .desktop-page :where(.el-pagination) {
+    @apply mt-4;
+  }
+
+  .desktop-page :where(.el-form-item__label) {
+    @apply font-medium text-slate-600 dark:text-slate-300;
+  }
+
+  .desktop-page :where(.el-table) {
+    @apply rounded-lg border border-slate-200/90 dark:border-slate-800/90;
+  }
+
+  .desktop-page :where(.el-table th.el-table__cell) {
+    @apply bg-slate-50/85 dark:bg-slate-900/80;
+  }
+
+  .desktop-page :where(.el-table td.el-table__cell) {
+    @apply align-top;
+  }
+
+  /* Light theme: remove the extra top/left edge lines on all tables. */
+  html:not(.dark):not([data-theme='dark']) :where(.el-table) {
+    border-top-width: 0;
+    border-left-width: 0;
+  }
+
+  html:not(.dark):not([data-theme='dark']) :where(.el-table--border)::before,
+  html:not(.dark):not([data-theme='dark'])
+    :where(.el-table--border)
+    .el-table__inner-wrapper::after {
+    background-color: transparent;
+  }
+
+  .mobile-page :where(.card-header) {
+    @apply flex flex-col items-start gap-2.5;
+  }
+
+  .mobile-page :where(.header-actions, .button-group, .toolbar-actions) {
+    @apply flex w-full gap-2;
+  }
+
+  .mobile-page
+    :where(.header-actions .el-button, .button-group .el-button, .toolbar-actions .el-button) {
+    @apply flex-1;
+  }
+
+  .mobile-page :where(.filters, .toolbar, .search-form, .form-row) {
+    @apply grid grid-cols-1 gap-2;
+  }
+
+  .mobile-page :where(.filters-container, .tab-header) {
+    @apply mb-2;
+  }
+
+  .mobile-page :where(.meta) {
+    @apply text-xs leading-5 text-slate-500 dark:text-slate-400;
+  }
+
+  .mobile-page :where(.actions) {
+    @apply mt-2 grid grid-cols-2 gap-2;
+  }
+
+  .mobile-page :where(.actions .el-button) {
+    @apply w-full;
+  }
+
+  .mobile-page :where(.el-pagination) {
+    @apply mt-3 justify-center;
+  }
+
+  .mobile-page :where(.el-form-item__label) {
+    @apply pb-1 text-sm font-medium text-slate-600 dark:text-slate-300;
+  }
+
+  .mobile-page :where(.el-input__wrapper, .el-select__wrapper, .el-textarea__inner) {
+    @apply rounded-md;
+  }
+
+  .mobile-page :where(.el-table .el-button.is-link) {
+    @apply min-h-9 min-w-9;
+  }
+
+  .mobile-page :where(.el-tag) {
+    @apply max-w-full;
+  }
+
+  .desktop-page
+    :where(
+      .api-doc-container,
+      .relay-token-management,
+      .upstream-status-page,
+      .business-logs-container,
+      .system-logs-container,
+      .ip-management,
+      .server-config,
+      .home-container,
+      .debug-view
+    ) {
+    @apply space-y-4;
+  }
+
+  .mobile-page
+    :where(
+      .mobile-adapter,
+      .api-doc-container,
+      .relay-token-management,
+      .upstream-status-page,
+      .business-logs-container,
+      .system-logs-container,
+      .ip-management,
+      .server-config,
+      .home-container,
+      .debug-view,
+      .balance-mobile,
+      .balance-history-mobile
+    ) {
+    @apply space-y-3;
+  }
+
+  .mobile-page
+    :where(.user-item, .group-item, .endpoint-item, .token-item, .code-item, .stat-card) {
+    @apply rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900;
+  }
+
+  .mobile-page :where(.name, .username, .model, .title) {
+    @apply font-semibold text-slate-800 dark:text-slate-100;
+  }
+}

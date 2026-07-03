@@ -1,0 +1,107 @@
+name: Backend Test Pipeline
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'apps/backend/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/test-backend.yml'
+      - '.github/workflows/deploy-backend.yml'
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: 123456
+          MYSQL_DATABASE: QysywDB_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -p123456"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+
+    env:
+      NODE_ENV: test
+      PORT: 10002
+      DATABASE_URL: mysql://root:123456@127.0.0.1:3306/QysywDB_test
+      JWT_ACCESS_SECRET: test_access_secret_key
+      JWT_REFRESH_SECRET: test_refresh_secret_key
+      JWT_ACCESS_EXPIRES_IN: 5
+      JWT_REFRESH_EXPIRES_IN: 28800
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      REDIS_PASSWORD: ""
+      PROTECTED_GROUP_NAME: __test_protected_group__
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Inject Empty Build Info
+        run: pnpm --filter @appserver/backend run build-info:stub
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @appserver/backend run db:generate
+
+      - name: Check explicit dependencies
+        run: pnpm --filter @appserver/backend run check:explicit-deps
+
+      - name: Run backend CI tests
+        run: pnpm --filter @appserver/backend run test:ci
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-vitest-coverage
+          path: coverage
+          if-no-files-found: ignore

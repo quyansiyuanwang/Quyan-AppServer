@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "category": "cet4",
+  "total": 3135,
+  "shards": [
+    {
+      "id": "a",
+      "path": "wordbank/cet4/memory.a.txt",
+      "count": 132
+    },
+    {
+      "id": "b",
+      "path": "wordbank/cet4/memory.b.txt",
+      "count": 189
+    },
+    {
+      "id": "c",
+      "path": "wordbank/cet4/memory.c.txt",
+      "count": 385
+    },
+    {
+      "id": "e",
+      "path": "wordbank/cet4/memory.e.txt",
+      "count": 195
+    },
+    {
+      "id": "f",
+      "path": "wordbank/cet4/memory.f.txt",
+      "count": 205
+    },
+    {
+      "id": "g",
+      "path": "wordbank/cet4/memory.g.txt",
+      "count": 109
+    },
+    {
+      "id": "h",
+      "path": "wordbank/cet4/memory.h.txt",
+      "count": 127
+    },
+    {
+      "id": "i",
+      "path": "wordbank/cet4/memory.i.txt",
+      "count": 164
+    },
+    {
+      "id": "j",
+      "path": "wordbank/cet4/memory.j.txt",
+      "count": 29
+    },
+    {
+      "id": "k",
+      "path": "wordbank/cet4/memory.k.txt",
+      "count": 24
+    },
+    {
+      "id": "l",
+      "path": "wordbank/cet4/memory.l.txt",
+      "count": 150
+    },
+    {
+      "id": "m",
+      "path": "wordbank/cet4/memory.m.txt",
+      "count": 190
+    },
+    {
+      "id": "n",
+      "path": "wordbank/cet4/memory.n.txt",
+      "count": 86
+    },
+    {
+      "id": "o",
+      "path": "wordbank/cet4/memory.o.txt",
+      "count": 111
+    },
+    {
+      "id": "p",
+      "path": "wordbank/cet4/memory.p.txt",
+      "count": 326
+    },
+    {
+      "id": "q",
+      "path": "wordbank/cet4/memory.q.txt",
+      "count": 14
+    },
+    {
+      "id": "r",
+      "path": "wordbank/cet4/memory.r.txt",
+      "count": 198
+    },
+    {
+      "id": "s",
+      "path": "wordbank/cet4/memory.s.txt",
+      "count": 242
+    },
+    {
+      "id": "t",
+      "path": "wordbank/cet4/memory.t.txt",
+      "count": 116
+    },
+    {
+      "id": "u",
+      "path": "wordbank/cet4/memory.u.txt",
+      "count": 37
+    },
+    {
+      "id": "v",
+      "path": "wordbank/cet4/memory.v.txt",
+      "count": 45
+    },
+    {
+      "id": "w",
+      "path": "wordbank/cet4/memory.w.txt",
+      "count": 53
+    },
+    {
+      "id": "x",
+      "path": "wordbank/cet4/memory.x.txt",
+      "count": 1
+    },
+    {
+      "id": "y",
+      "path": "wordbank/cet4/memory.y.txt",
+      "count": 6
+    },
+    {
+      "id": "z",
+      "path": "wordbank/cet4/memory.z.txt",
+      "count": 1
+    }
+  ]
+}

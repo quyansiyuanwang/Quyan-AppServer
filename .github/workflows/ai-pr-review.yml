@@ -1,0 +1,270 @@
+name: AI PR Review
+
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  review:
+    if: github.event.label.name == 'request-ai-review'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    env:
+      AI_REVIEW_TIMEOUT_MS: '900000'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR info
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request ||
+                       (await github.rest.pulls.get({
+                         owner: context.repo.owner,
+                         repo: context.repo.repo,
+                         pull_number: context.issue.number
+                       })).data;
+
+            core.setOutput('number', pr.number);
+            core.setOutput('base', pr.base.sha);
+            core.setOutput('head', pr.head.sha);
+
+      - name: Check for new commits
+        id: check-commits
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.pr.outputs.number }}
+            });
+
+            const botComments = comments.data.filter(c =>
+              c.user.type === 'Bot' && c.body.includes('<!-- ai-review-marker -->')
+            );
+
+            if (botComments.length > 0) {
+              const lastReview = botComments[botComments.length - 1];
+              const match = lastReview.body.match(/Reviewed commit: `([a-f0-9]+)`/);
+
+              if (match && match[1] === '${{ steps.pr.outputs.head }}') {
+                core.setOutput('skip', 'true');
+                return;
+              }
+            }
+
+            core.setOutput('skip', 'false');
+
+      - name: Skip if no new commits
+        if: steps.check-commits.outputs.skip == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.pr.outputs.number }},
+              body: '🤖 No new commits since last review. Skipping AI review.'
+            });
+
+      - name: Get diff
+        if: steps.check-commits.outputs.skip == 'false'
+        id: diff
+        run: |
+          git diff ${{ steps.pr.outputs.base }}..${{ steps.pr.outputs.head }} > pr.diff
+
+      - name: AI Review
+        if: steps.check-commits.outputs.skip == 'false'
+        timeout-minutes: 30
+        uses: actions/github-script@v7
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+        with:
+          script: |
+            const fs = require('fs');
+
+            function extractReviewContent(raw) {
+              const trimmed = String(raw || '').trim();
+
+              if (!trimmed) {
+                throw new Error('Empty response returned from AI');
+              }
+
+              const tryParseJson = (value) => {
+                try {
+                  return JSON.parse(value);
+                } catch {
+                  return null;
+                }
+              };
+
+              const readContentFromJson = (data) => {
+                const messageContent = data?.choices?.[0]?.message?.content;
+                if (typeof messageContent === 'string' && messageContent.trim()) {
+                  return messageContent.trim();
+                }
+
+                if (Array.isArray(messageContent)) {
+                  const text = messageContent
+                    .map(item => item?.text || item?.content || '')
+                    .filter(Boolean)
+                    .join('\n')
+                    .trim();
+                  if (text) {
+                    return text;
+                  }
+                }
+
+                const outputText = data?.output_text;
+                if (typeof outputText === 'string' && outputText.trim()) {
+                  return outputText.trim();
+                }
+
+                return null;
+              };
+
+              const directJson = tryParseJson(trimmed);
+              if (directJson) {
+                const content = readContentFromJson(directJson);
+                if (content) {
+                  return content;
+                }
+              }
+
+              const sseLines = trimmed
+                .split(/\r?\n/)
+                .map(line => line.trim())
+                .filter(line => line.startsWith('data: '));
+
+              for (const line of sseLines) {
+                const payload = line.slice(6).trim();
+                if (!payload || payload === '[DONE]') {
+                  continue;
+                }
+
+                const parsed = tryParseJson(payload);
+                if (!parsed) {
+                  continue;
+                }
+
+                const content = readContentFromJson(parsed)
+                  || parsed?.choices?.[0]?.delta?.content
+                  || parsed?.delta?.content
+                  || parsed?.text;
+
+                if (typeof content === 'string' && content.trim()) {
+                  return content.trim();
+                }
+              }
+
+              throw new Error(`Unsupported AI response format: ${trimmed.slice(0, 200)}`);
+            }
+
+            if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_BASE_URL || !process.env.OPENAI_MODEL) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ steps.pr.outputs.number }},
+                body: '⚠️ AI Review failed: Missing required secrets (OPENAI_API_KEY, OPENAI_BASE_URL, or OPENAI_MODEL)'
+              });
+              return;
+            }
+
+            const rawDiff = fs.readFileSync('pr.diff', 'utf8');
+            const timeoutMs = Number(process.env.AI_REVIEW_TIMEOUT_MS || 600000);
+            const diff = rawDiff;
+
+            const reviewPrompt = [
+              'You are a senior code reviewer.',
+              '',
+              'You MUST output in BOTH English and Simplified Chinese using EXACTLY this Markdown structure. Do not add extra sections.',
+              '',
+              '### Review Summary | 审查摘要',
+              '- EN: <one concise summary paragraph>',
+              '- 中文: <一段简洁总结>',
+              '',
+              '### Findings | 问题清单',
+              '1. Severity: <High|Medium|Low>',
+              '   - EN: <issue and impact>',
+              '   - 中文: <问题与影响>',
+              '   - File: <path or N/A>',
+              '   - Recommendation EN: <actionable fix>',
+              '   - 建议中文: <可执行修复建议>',
+              '',
+              '### Test Suggestions | 测试建议',
+              '- EN: <suggested verification/tests>',
+              '- 中文: <建议的验证/测试>',
+              '',
+              'If no significant issue is found, still keep the same structure and use:',
+              '- EN: No blocking issues found.',
+              '- 中文: 未发现阻塞问题。',
+              '',
+              'Rules:',
+              '- Keep it concise and actionable.',
+              '- Only report issues that are likely real based on the provided diff.',
+              '- Do not include any prose outside this structure.',
+            ].join('\n');
+
+            try {
+              const response = await fetch(`${process.env.OPENAI_BASE_URL}/v1/chat/completions`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                },
+                body: JSON.stringify({
+                  model: process.env.OPENAI_MODEL,
+                  messages: [{
+                    role: 'system',
+                    content: reviewPrompt
+                  }, {
+                    role: 'user',
+                    content: `Review this PR diff:\n\n${diff}`
+                  }],
+                  temperature: 0,
+                }),
+                signal: AbortSignal.timeout(timeoutMs),
+              });
+
+              if (!response.ok) {
+                throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+              }
+
+              const raw = await response.text();
+              const review = extractReviewContent(raw);
+
+              if (!review) {
+                throw new Error('No review content returned from AI');
+              }
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ steps.pr.outputs.number }},
+                body: `<!-- ai-review-marker -->\n## 🤖 AI Review\n\nReviewed commit: \`${{ steps.pr.outputs.head }}\`\n\n<details>\n<summary>AI Review Details | AI 审查详情（默认收起）</summary>\n\n${review}\n\n</details>`
+              });
+
+              // Remove label after successful review
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ steps.pr.outputs.number }},
+                name: 'request-ai-review'
+              });
+            } catch (error) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ steps.pr.outputs.number }},
+                body: `⚠️ AI Review failed: ${error.message}`
+              });
+            }

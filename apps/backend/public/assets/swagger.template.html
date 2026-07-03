@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>__SWAGGER_TITLE__</title>
+  <link rel="stylesheet" type="text/css" href="/public-assets/swagger-ui/style" />
+  <link rel="icon" href="/favicon.ico" />
+  <style>
+    html {
+      box-sizing: border-box;
+      overflow: -moz-scrollbars-vertical;
+      overflow-y: scroll;
+    }
+
+    *, *:before, *:after {
+      box-sizing: inherit;
+    }
+
+    body {
+      margin: 0;
+      background: #fafafa;
+    }
+
+    .swagger-ui .topbar .download-url-wrapper {
+      display: none;
+    }
+
+    __SWAGGER_CUSTOM_CSS__
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="/public-assets/swagger-ui/bundle"></script>
+  <script src="/public-assets/swagger-ui/standalone-preset"></script>
+  <script>
+    window.onload = function () {
+      window.ui = SwaggerUIBundle({
+        spec: __SWAGGER_SPEC_JSON__,
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        persistAuthorization: true,
+        displayRequestDuration: true,
+        filter: true,
+        tryItOutEnabled: true,
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        plugins: [SwaggerUIBundle.plugins.DownloadUrl],
+        layout: 'StandaloneLayout',
+      });
+
+      __SWAGGER_CUSTOM_JS__
+    };
+  </script>
+</body>
+</html>

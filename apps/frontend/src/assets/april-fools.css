@@ -1,0 +1,240 @@
+body.april-rotate #app {
+  transform: rotate(180deg);
+  transform-origin: center center;
+  transition: transform 0.42s ease;
+}
+
+body.april-mirror #app {
+  transform: scaleX(-1);
+  transition: transform 0.35s ease;
+}
+
+body.april-cursor-fish,
+body.april-cursor-fish * {
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24'%3E%3Ctext y='18' font-size='18'%3E%F0%9F%90%9F%3C/text%3E%3C/svg%3E")
+      8 8,
+    auto !important;
+}
+
+body.april-gravity .main > * {
+  animation: april-gravity-drop 1.2s ease;
+}
+
+@keyframes april-gravity-drop {
+  0% {
+    transform: translateY(-8px);
+  }
+  50% {
+    transform: translateY(12px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+body.april-price-jitter [class*='price'],
+body.april-price-jitter [class*='amount'],
+body.april-price-jitter .el-statistic__content,
+body.april-price-jitter .el-table {
+  animation: april-jitter 0.12s linear infinite;
+}
+
+@keyframes april-jitter {
+  0% {
+    transform: translateX(-1px);
+  }
+  50% {
+    transform: translateX(1px);
+  }
+  100% {
+    transform: translateX(-1px);
+  }
+}
+
+body.april-floating .surface-card,
+body.april-floating .el-card,
+body.april-floating .el-table,
+body.april-floating .el-button {
+  animation: april-floating 3.6s ease-in-out infinite;
+}
+
+body.april-floating .surface-card:nth-child(2n),
+body.april-floating .el-card:nth-child(2n) {
+  animation-delay: 0.4s;
+}
+
+@keyframes april-floating {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+body.april-shake #app {
+  animation: april-shake 0.52s ease;
+}
+
+@keyframes april-shake {
+  0% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+body.april-retro {
+  filter: saturate(0.8) contrast(1.05);
+}
+
+body.april-retro,
+body.april-retro * {
+  border-radius: 0 !important;
+  font-family: 'Courier New', Consolas, monospace !important;
+  letter-spacing: 0.02em;
+}
+
+body.april-retro #app {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.04),
+    rgba(0, 0, 0, 0.04) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+body.april-report-mode {
+  --color-background: #f5f7fb;
+  --color-text: #0f172a;
+  filter: grayscale(0.15);
+}
+
+body.april-report-mode .surface-card,
+body.april-report-mode .el-card {
+  border-radius: 6px !important;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.08) !important;
+}
+
+body.april-light-flash::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 7800;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.92);
+  animation: april-flash 0.9s ease forwards;
+}
+
+@keyframes april-flash {
+  0% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+body.april-swap-icon-title .el-page-header__content,
+body.april-swap-icon-title .el-menu-item,
+body.april-swap-icon-title .el-sub-menu__title {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+body.april-stickers::before,
+body.april-stickers::after {
+  content: 'APR 1';
+  position: fixed;
+  z-index: 7600;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: #fde68a;
+  color: #111827;
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.18);
+  pointer-events: none;
+}
+
+body.april-stickers::before {
+  top: 8px;
+  left: 8px;
+  transform: rotate(-8deg);
+}
+
+body.april-stickers::after {
+  right: 8px;
+  bottom: 8px;
+  transform: rotate(10deg);
+}
+
+body.april-matrix {
+  filter: contrast(1.08) saturate(0.6) hue-rotate(80deg);
+}
+
+body.april-matrix #app {
+  background-image: linear-gradient(to bottom, rgba(16, 185, 129, 0.08), rgba(0, 0, 0, 0));
+}
+
+body.april-blur #app {
+  filter: blur(1.6px);
+}
+
+body.april-text-tilt :is(h1, h2, h3, p, span, .el-button span) {
+  transform: skewX(-6deg);
+}
+
+body.april-slow-motion * {
+  transition-duration: 1.2s !important;
+  animation-duration: 2.2s !important;
+}
+
+body.april-bouncy .el-button,
+body.april-bouncy button {
+  animation: april-bouncy 0.9s ease-in-out infinite;
+}
+
+@keyframes april-bouncy {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+body.april-rainbow #app {
+  animation: april-rainbow 1.4s linear infinite;
+}
+
+@keyframes april-rainbow {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}

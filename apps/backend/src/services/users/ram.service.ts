@@ -1,0 +1,592 @@
+import { randomBytes } from "crypto";
+import type { RamRole, RamRoleSession, User, AccessKey } from "@prisma/client";
+import { AccountStatus } from "@/util/auth/account-status";
+import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
+import { hashPassword } from "@/util/crypto";
+import { JWTAccessIns } from "@/util/auth";
+import { UserRepository } from "@/store/users/user.repository";
+import { GroupRepository } from "@/store/users/group.repository";
+import { RamRoleRepository } from "@/store/users/ram-role.repository";
+import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
+import { AccessKeyRepository } from "@/store/users/accesskey.repository";
+import type { UserStore } from "@/store/users/user.store";
+import type { GroupStore } from "@/store/users/group.store";
+import type { AccessKeyStore } from "@/store/users/accesskey.store";
+import type { RamRoleStore, RamRoleBindingRecord, ActiveRamRoleSession } from "@/store/users/ram-role.store";
+import type { RamPolicyStore, PolicyBindingInfo } from "@/store/users/ram-policy.store";
+import type {
+  AssumeRamRoleDto,
+  AssumeRamRoleResponseDto,
+  AttachPolicyBodyDto,
+  CreateRamPolicyDto,
+  CreateRamRoleDto,
+  CreateRamUserDto,
+  EffectivePermissionDto,
+  RamPolicyAttachmentDto,
+  RamPolicyDto,
+  RamRoleBindingDto,
+  RamRoleDto,
+  RamRoleSessionDto,
+  RamUserDto,
+  UpdateRamPolicyDto,
+  UpdateRamRoleDto,
+  UpdateRamUserDto,
+} from "@/api/dto/users/ram.dto";
+
+const DEFAULT_ROLE_SESSION_DURATION_SECONDS = 3600;
+
+type AccountScopedUser = User & {
+  accountOwnerId?: string | null;
+  userType?: string | null;
+};
+
+function normalizeJsonStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+export class RamService {
+  constructor(
+    private readonly userRepository: UserStore = UserRepository.getInstance(),
+    private readonly groupRepository: GroupStore = GroupRepository.getInstance(),
+    private readonly ramRoleRepository: RamRoleStore = RamRoleRepository.getInstance(),
+    private readonly ramPolicyRepository: RamPolicyStore = RamPolicyRepository.getInstance(),
+    private readonly accessKeyRepository: AccessKeyStore = AccessKeyRepository.getInstance(),
+  ) {}
+
+  private static instance: RamService;
+
+  static getInstance(): RamService {
+    if (!RamService.instance) RamService.instance = new RamService();
+    return RamService.instance;
+  }
+
+  private resolveAccountOwnerId(user: AccountScopedUser): string {
+    return user.accountOwnerId || user.id;
+  }
+
+  private async getActor(actorUserId: string): Promise<AccountScopedUser> {
+    const actor = await this.userRepository.findById(actorUserId);
+    if (!actor) throw new NotFoundError("操作者用户不存在");
+    if (actor.status !== AccountStatus.ACTIVE) throw new ForbiddenError("操作者账户不可用");
+    return actor as AccountScopedUser;
+  }
+
+  private async getAccountOwnerId(actorUserId: string): Promise<string> {
+    const actor = await this.getActor(actorUserId);
+    return this.resolveAccountOwnerId(actor);
+  }
+
+  private assertSameAccount(accountOwnerId: string, resourceAccountOwnerId?: string | null): void {
+    const normalized = resourceAccountOwnerId || undefined;
+    if (normalized && normalized !== accountOwnerId) throw new ForbiddenError("无权访问其他主账号下的资源");
+  }
+
+  private mapUserToDto(
+    user: AccountScopedUser,
+    accessKeyId?: string | null,
+    accessKeySecret?: string | null,
+  ): RamUserDto {
+    return {
+      id: user.id,
+      username: user.username,
+      ramUsername: user.ramUsername ?? null,
+      displayName: user.displayName ?? null,
+      email: user.email,
+      name: user.name,
+      status: user.status,
+      groupId: user.groupId,
+      accountOwnerId: user.accountOwnerId ?? null,
+      parentUserId: user.parentUserId ?? null,
+      userType: user.userType ?? null,
+      createdAt: user.createTime.toISOString(),
+      updatedAt: user.updateTime.toISOString(),
+      accessKeyId: accessKeyId ?? null,
+      accessKeySecret: accessKeySecret ?? null,
+      forcePasswordChange: ((user as Record<string, unknown>).forcePasswordChange as boolean | null) ?? null,
+    };
+  }
+
+  private mapRoleToDto(role: RamRole): RamRoleDto {
+    return {
+      id: role.id,
+      accountOwnerId: role.accountOwnerId,
+      name: role.name,
+      description: role.description,
+      permissions: normalizeJsonStringArray(role.permissions),
+      trustPolicy: (role.trustPolicy as Record<string, unknown> | null) ?? null,
+      maxSessionDuration: role.maxSessionDuration,
+      status: role.status,
+      createdAt: role.createTime.toISOString(),
+      updatedAt: role.updateTime.toISOString(),
+    };
+  }
+
+  private mapBindingToDto(binding: RamRoleBindingRecord): RamRoleBindingDto {
+    return {
+      id: binding.id,
+      roleId: binding.roleId,
+      roleName: binding.roleName,
+      permissions: binding.permissions,
+      source: binding.source,
+      principalId: binding.principalId,
+    };
+  }
+
+  private mapSessionToDto(session: ActiveRamRoleSession): RamRoleSessionDto {
+    return {
+      id: session.id,
+      accountOwnerId: session.accountOwnerId,
+      subjectUserId: session.subjectUserId,
+      roleId: session.roleId,
+      roleName: session.role.name,
+      sessionName: session.sessionName,
+      expiresAt: session.expiresAt.toISOString(),
+      status: session.status,
+      createdAt: session.createTime.toISOString(),
+    };
+  }
+
+  async listRamUsers(actorUserId: string): Promise<RamUserDto[]> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const users = await this.userRepository.listNonDeleted();
+    return users
+      .filter(
+        (user) =>
+          user.userType === "ram_user" &&
+          (user.accountOwnerId === accountOwnerId || user.parentUserId === accountOwnerId),
+      )
+      .map((user) => this.mapUserToDto(user as AccountScopedUser));
+  }
+
+  async createRamUser(actorUserId: string, data: CreateRamUserDto): Promise<RamUserDto> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const enableConsole = data.enableConsole !== false; // 默认 true
+    const enableAccessKey = data.enableAccessKey === true; // 默认 false
+
+    if (!enableConsole && !enableAccessKey) throw new BadRequestError("至少需要启用一种访问方式（控制台或 AccessKey）");
+
+    const existing = await this.userRepository.findByUsername(data.username);
+    if (existing) throw new BadRequestError("用户名已存在");
+
+    if (data.groupId) {
+      const group = await this.groupRepository.findById(data.groupId);
+      if (!group) throw new NotFoundError("用户组不存在");
+      this.assertSameAccount(accountOwnerId, group.accountOwnerId);
+    }
+
+    // 仅 AccessKey 或无密码时生成随机密码
+    const rawPassword = data.password ?? randomBytes(12).toString("hex");
+    const password = await hashPassword(rawPassword);
+    const defaultGroup = data.groupId ? null : await this.groupRepository.findDefaultUserGroup();
+    if (!data.groupId && !defaultGroup) throw new BadRequestError("默认用户组不存在");
+
+    const user = await this.userRepository.create({
+      username: data.username,
+      password,
+      email: data.email ?? null,
+      name: data.name ?? null,
+      groupId: data.groupId ?? defaultGroup!.id,
+      permissionAdds: [],
+      permissionRemoves: [],
+      accountOwnerId,
+      parentUserId: accountOwnerId,
+      userType: "ram_user",
+      ramUsername: data.ramUsername ?? data.username,
+      displayName: data.displayName ?? data.name ?? data.username,
+      forcePasswordChange: data.passwordResetRequired ?? false,
+    });
+
+    // AccessKey 为该用户创建 AccessKey
+    if (enableAccessKey) {
+      const key = "ak_" + randomBytes(32).toString("hex");
+      const accessKey = await this.accessKeyRepository.create({
+        userId: user.id,
+        key,
+        name: `RAM-${data.ramUsername ?? data.username}`,
+      });
+      return this.mapUserToDto(user as AccountScopedUser, accessKey.id, key);
+    }
+
+    return this.mapUserToDto(user as AccountScopedUser);
+  }
+
+  async updateRamUser(actorUserId: string, userId: string, data: UpdateRamUserDto): Promise<RamUserDto> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new NotFoundError("RAM用户不存在");
+    this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId);
+
+    if (data.groupId) {
+      const group = await this.groupRepository.findById(data.groupId);
+      if (!group) throw new NotFoundError("用户组不存在");
+      this.assertSameAccount(accountOwnerId, group.accountOwnerId);
+    }
+
+    const updateData: Record<string, unknown> = {};
+    if (data.displayName !== undefined) updateData.displayName = data.displayName;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.groupId !== undefined) updateData.groupId = data.groupId;
+
+    const updated = await this.userRepository.updateById(userId, updateData);
+    return this.mapUserToDto(updated as AccountScopedUser);
+  }
+
+  async deleteRamUser(actorUserId: string, userId: string): Promise<void> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const user = await this.userRepository.findById(userId);
+    if (!user) throw new NotFoundError("RAM用户不存在");
+    if (user.id === accountOwnerId) throw new BadRequestError("不能删除主账号");
+    this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId);
+    await this.userRepository.softDelete(userId);
+  }
+
+  async listRoles(actorUserId: string): Promise<RamRoleDto[]> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const roles = await this.ramRoleRepository.listRoles(accountOwnerId);
+    return roles.map((role) => this.mapRoleToDto(role));
+  }
+
+  async createRole(actorUserId: string, data: CreateRamRoleDto): Promise<RamRoleDto> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const existing = await this.ramRoleRepository.findRoleByName(accountOwnerId, data.name);
+    if (existing) throw new BadRequestError("角色名称已存在");
+
+    const role = await this.ramRoleRepository.createRole({
+      accountOwnerId,
+      name: data.name,
+      description: data.description ?? null,
+      permissions: data.permissions,
+      trustPolicy: data.trustPolicy ?? null,
+      maxSessionDuration: data.maxSessionDuration ?? DEFAULT_ROLE_SESSION_DURATION_SECONDS,
+    });
+    return this.mapRoleToDto(role);
+  }
+
+  async updateRole(actorUserId: string, roleId: string, data: UpdateRamRoleDto): Promise<RamRoleDto> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const role = await this.ramRoleRepository.findRoleById(roleId);
+    if (!role) throw new NotFoundError("角色不存在");
+    this.assertSameAccount(accountOwnerId, role.accountOwnerId);
+
+    const updated = await this.ramRoleRepository.updateRole(roleId, data);
+    return this.mapRoleToDto(updated);
+  }
+
+  async deleteRole(actorUserId: string, roleId: string): Promise<void> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const role = await this.ramRoleRepository.findRoleById(roleId);
+    if (!role) throw new NotFoundError("角色不存在");
+    this.assertSameAccount(accountOwnerId, role.accountOwnerId);
+    await this.ramRoleRepository.softDeleteRole(roleId);
+  }
+
+  async bindRoleToUser(actorUserId: string, roleId: string, userId: string): Promise<void> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const [role, user] = await Promise.all([
+      this.ramRoleRepository.findRoleById(roleId),
+      this.userRepository.findById(userId),
+    ]);
+    if (!role) throw new NotFoundError("角色不存在");
+    if (!user) throw new NotFoundError("用户不存在");
+    this.assertSameAccount(accountOwnerId, role.accountOwnerId);
+    this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId);
+    await this.ramRoleRepository.bindRoleToUser(accountOwnerId, roleId, userId);
+  }
+
+  async unbindRoleFromUser(actorUserId: string, roleId: string, userId: string): Promise<void> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const role = await this.ramRoleRepository.findRoleById(roleId);
+    if (!role) throw new NotFoundError("角色不存在");
+    this.assertSameAccount(accountOwnerId, role.accountOwnerId);
+    await this.ramRoleRepository.unbindRoleFromUser(roleId, userId);
+  }
+
+  async bindRoleToGroup(actorUserId: string, roleId: string, groupId: string): Promise<void> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const [role, group] = await Promise.all([
+      this.ramRoleRepository.findRoleById(roleId),
+      this.groupRepository.findById(groupId),
+    ]);
+    if (!role) throw new NotFoundError("角色不存在");
+    if (!group) throw new NotFoundError("用户组不存在");
+    this.assertSameAccount(accountOwnerId, role.accountOwnerId);
+    this.assertSameAccount(accountOwnerId, group.accountOwnerId);
+    await this.ramRoleRepository.bindRoleToGroup(accountOwnerId, roleId, groupId);
+  }
+
+  async unbindRoleFromGroup(actorUserId: string, roleId: string, groupId: string): Promise<void> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const role = await this.ramRoleRepository.findRoleById(roleId);
+    if (!role) throw new NotFoundError("角色不存在");
+    this.assertSameAccount(accountOwnerId, role.accountOwnerId);
+    await this.ramRoleRepository.unbindRoleFromGroup(roleId, groupId);
+  }
+
+  async listRoleBindings(actorUserId: string, roleId: string, userId?: string): Promise<RamRoleBindingDto[]> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const role = await this.ramRoleRepository.findRoleById(roleId);
+    if (!role) throw new NotFoundError("角色不存在");
+    this.assertSameAccount(accountOwnerId, role.accountOwnerId);
+
+    if (!userId) {
+      const roleWithBindings = await this.ramRoleRepository.listRoleBindingsByRole(roleId);
+      if (!roleWithBindings) return [];
+      const permissions = normalizeJsonStringArray(roleWithBindings.permissions);
+      return [
+        ...roleWithBindings.userBindings.map((binding) =>
+          this.mapBindingToDto({
+            id: binding.id,
+            roleId,
+            roleName: roleWithBindings.name,
+            permissions,
+            source: "user",
+            principalId: binding.userId,
+          }),
+        ),
+        ...roleWithBindings.groupBindings.map((binding) =>
+          this.mapBindingToDto({
+            id: binding.id,
+            roleId,
+            roleName: roleWithBindings.name,
+            permissions,
+            source: "group",
+            principalId: binding.groupId,
+          }),
+        ),
+      ];
+    }
+
+    const targetUser = userId
+      ? await this.userRepository.findById(userId)
+      : await this.userRepository.findById(actorUserId);
+    if (!targetUser) throw new NotFoundError("用户不存在");
+    this.assertSameAccount(accountOwnerId, targetUser.accountOwnerId || targetUser.parentUserId || targetUser.id);
+    const bindings = await this.ramRoleRepository.listRoleBindingsForUser(targetUser.id, targetUser.groupId);
+    return bindings.filter((binding) => binding.roleId === roleId).map((binding) => this.mapBindingToDto(binding));
+  }
+
+  async assumeRole(actorUserId: string, data: AssumeRamRoleDto): Promise<AssumeRamRoleResponseDto> {
+    const actor = await this.getActor(actorUserId);
+    const accountOwnerId = this.resolveAccountOwnerId(actor);
+    const role = await this.ramRoleRepository.findRoleById(data.roleId);
+    if (!role) throw new NotFoundError("角色不存在");
+    this.assertSameAccount(accountOwnerId, role.accountOwnerId);
+
+    const bindings = await this.ramRoleRepository.listRoleBindingsForUser(actor.id, actor.groupId);
+    const canAssume = bindings.some((binding) => binding.roleId === role.id) || actor.id === accountOwnerId;
+    if (!canAssume) throw new ForbiddenError("当前用户未绑定该角色，无法扮演");
+
+    const durationSeconds = Math.min(
+      data.durationSeconds ?? DEFAULT_ROLE_SESSION_DURATION_SECONDS,
+      role.maxSessionDuration,
+    );
+    const expiresAt = new Date(Date.now() + durationSeconds * 1000);
+    const session = await this.ramRoleRepository.createRoleSession({
+      accountOwnerId,
+      subjectUserId: actor.id,
+      roleId: role.id,
+      sessionName: data.sessionName ?? `${role.name}-${Date.now()}`,
+      expiresAt,
+    });
+
+    const accessToken = JWTAccessIns.generateToken(
+      {
+        userId: actor.id,
+        updatedAt: actor.updateTime.toISOString(),
+        status: actor.status,
+        principalUserId: actor.id,
+        accountOwnerId,
+        subjectType: actor.id === accountOwnerId ? "root" : "sub_user",
+        assumedRoleId: role.id,
+        roleSessionId: session.id,
+      },
+      durationSeconds,
+    );
+
+    return {
+      accessToken,
+      expiresAt: expiresAt.toISOString(),
+      session: this.mapSessionToDto(session),
+    };
+  }
+
+  async listRoleSessions(actorUserId: string, principalUserId?: string): Promise<RamRoleSessionDto[]> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const sessions = await this.ramRoleRepository.listActiveRoleSessions(accountOwnerId, principalUserId);
+    return sessions.map((session) => this.mapSessionToDto(session));
+  }
+
+  async revokeRoleSession(actorUserId: string, sessionId: string): Promise<void> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const session = await this.ramRoleRepository.findActiveRoleSession(sessionId);
+    if (!session) throw new NotFoundError("角色会话不存在或已过期");
+    this.assertSameAccount(accountOwnerId, session.accountOwnerId);
+    await this.ramRoleRepository.revokeRoleSession(sessionId);
+  }
+
+  async getAssumedRoleSession(sessionId: string): Promise<ActiveRamRoleSession | null> {
+    return this.ramRoleRepository.findActiveRoleSession(sessionId);
+  }
+
+  // ── 权限策略 ──
+
+  private mapPolicyToDto(policy: {
+    id: string;
+    accountOwnerId: string;
+    name: string;
+    description: string | null;
+    permissions: unknown;
+    type: string;
+    status: number;
+    createTime: Date;
+    updateTime: Date;
+  }): RamPolicyDto {
+    return {
+      id: policy.id,
+      accountOwnerId: policy.accountOwnerId,
+      name: policy.name,
+      description: policy.description ?? undefined,
+      permissions: normalizeJsonStringArray(policy.permissions),
+      type: policy.type,
+      status: policy.status,
+      createTime: policy.createTime.toISOString(),
+      updateTime: policy.updateTime.toISOString(),
+    };
+  }
+
+  async listPolicies(actorUserId: string): Promise<RamPolicyDto[]> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const policies = await this.ramPolicyRepository.listPolicies(accountOwnerId);
+    return policies.map((p) => this.mapPolicyToDto(p));
+  }
+
+  async createPolicy(actorUserId: string, data: CreateRamPolicyDto): Promise<RamPolicyDto> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const existing = await this.ramPolicyRepository.findPolicyByName(accountOwnerId, data.name);
+    if (existing) throw new BadRequestError("权限策略名称已存在");
+
+    const policy = await this.ramPolicyRepository.createPolicy({
+      accountOwnerId,
+      name: data.name,
+      description: data.description ?? null,
+      permissions: data.permissions,
+    });
+    return this.mapPolicyToDto(policy);
+  }
+
+  async updatePolicy(actorUserId: string, policyId: string, data: UpdateRamPolicyDto): Promise<RamPolicyDto> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const policy = await this.ramPolicyRepository.findPolicyById(policyId);
+    if (!policy) throw new NotFoundError("权限策略不存在");
+    this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
+
+    const updateData: Record<string, unknown> = {};
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.permissions !== undefined) updateData.permissions = data.permissions;
+    if (data.status !== undefined) updateData.status = data.status;
+
+    const updated = await this.ramPolicyRepository.updatePolicy(policyId, updateData);
+    return this.mapPolicyToDto(updated);
+  }
+
+  async deletePolicy(actorUserId: string, policyId: string): Promise<void> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const policy = await this.ramPolicyRepository.findPolicyById(policyId);
+    if (!policy) throw new NotFoundError("权限策略不存在");
+    this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
+    await this.ramPolicyRepository.softDeletePolicy(policyId);
+  }
+
+  async attachPolicy(actorUserId: string, data: AttachPolicyBodyDto): Promise<void> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const policy = await this.ramPolicyRepository.findPolicyById(data.policyId);
+    if (!policy) throw new NotFoundError("权限策略不存在");
+    this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
+
+    await this.ramPolicyRepository.attachPolicy(accountOwnerId, data.policyId, data.targetType, data.targetId);
+  }
+
+  async detachPolicy(actorUserId: string, data: AttachPolicyBodyDto): Promise<void> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const policy = await this.ramPolicyRepository.findPolicyById(data.policyId);
+    if (!policy) throw new NotFoundError("权限策略不存在");
+    this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
+
+    await this.ramPolicyRepository.detachPolicy(data.policyId, data.targetType, data.targetId);
+  }
+
+  async listPolicyAttachments(actorUserId: string, policyId: string): Promise<RamPolicyAttachmentDto[]> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const policy = await this.ramPolicyRepository.findPolicyById(policyId);
+    if (!policy) throw new NotFoundError("权限策略不存在");
+    this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
+
+    const attachments = await this.ramPolicyRepository.listAttachmentsByPolicy(policyId);
+    return attachments.map((a) => ({
+      id: a.id,
+      accountOwnerId,
+      policyId: a.policyId,
+      policyName: a.policyName,
+      targetType: a.targetType,
+      targetId: a.targetId,
+      targetName: a.targetName ?? undefined,
+      createTime: a.createTime.toISOString(),
+    }));
+  }
+
+  // ── 授权概览 ──
+
+  async getUserEffectivePermissions(actorUserId: string, targetUserId: string): Promise<EffectivePermissionDto> {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const user = await this.userRepository.findById(targetUserId);
+    if (!user) throw new NotFoundError("用户不存在");
+    this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId || user.id);
+
+    // 1. 用户直接权限
+    const directPermissions = normalizeJsonStringArray(user.permissionAdds);
+
+    // 2. 用户所属组的权限
+    let groupPermissions: string[] = [];
+    if (user.groupId) {
+      const group = await this.groupRepository.findById(user.groupId);
+      if (group && group.status === AccountStatus.ACTIVE)
+        groupPermissions = normalizeJsonStringArray(group.permissions);
+    }
+
+    // 3. 通过角色绑定的权限
+    const roleBindings = await this.ramRoleRepository.listRoleBindingsForUser(user.id, user.groupId);
+    const rolePermissions = [...new Set(roleBindings.flatMap((b) => b.permissions))];
+
+    // 4. 通过权限策略绑定的权限
+    const policyBindings = await this.ramPolicyRepository.listPoliciesForTarget("user", user.id);
+    let policyPermissions: string[] = [...new Set(policyBindings.flatMap((b) => b.permissions))];
+
+    // 如果用户有所属组，追加组上绑定的策略权限
+    if (user.groupId) {
+      const groupPolicyBindings = await this.ramPolicyRepository.listPoliciesForTarget("group", user.groupId);
+      policyPermissions = [...new Set([...policyPermissions, ...groupPolicyBindings.flatMap((b) => b.permissions)])];
+    }
+
+    // 5. 用户的排除权限
+    const permissionRemoves = normalizeJsonStringArray(user.permissionRemoves);
+
+    // 合并去重
+    const allPerms = new Set([...directPermissions, ...groupPermissions, ...rolePermissions, ...policyPermissions]);
+    const removeSet = new Set(permissionRemoves);
+    const effectivePermissions = [...allPerms].filter((p) => !removeSet.has(p));
+
+    return {
+      userId: user.id,
+      username: user.username,
+      ramUsername: user.ramUsername ?? user.username,
+      directPermissions,
+      groupPermissions,
+      rolePermissions,
+      policyPermissions,
+      permissionRemoves,
+      effectivePermissions,
+    };
+  }
+}

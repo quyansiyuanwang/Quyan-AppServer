@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "category": "cet6",
+  "total": 4,
+  "shards": [
+    {
+      "id": "e",
+      "path": "wordbank/cet6/memory.e.txt",
+      "count": 1
+    },
+    {
+      "id": "i",
+      "path": "wordbank/cet6/memory.i.txt",
+      "count": 1
+    },
+    {
+      "id": "m",
+      "path": "wordbank/cet6/memory.m.txt",
+      "count": 1
+    },
+    {
+      "id": "r",
+      "path": "wordbank/cet6/memory.r.txt",
+      "count": 1
+    }
+  ]
+}

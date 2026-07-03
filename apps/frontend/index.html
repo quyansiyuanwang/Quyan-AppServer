@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/wbico.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>App System</title>
+
+    <!-- Critical CSS inline for instant render -->
+    <style>
+      html,body{margin:0;padding:0;height:100%}
+      body{background:#fff;font-family:system-ui,-apple-system,sans-serif}
+      html.dark body{background:#0d1117}
+      #app{min-height:100vh}
+    </style>
+
+    <!-- Theme preflight: apply dark class before app mounts -->
+    <script>
+      ;(() => {
+        try {
+          const storageKey = 'ThemeToggle-isDark'
+          const saved = localStorage.getItem(storageKey)
+          const prefersDark =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+          let isDark
+          if (saved === 'true' || saved === 'dark') isDark = true
+          else if (saved === 'false' || saved === 'light') isDark = false
+          else if (saved === 'auto' || saved == null) isDark = prefersDark
+          else isDark = prefersDark
+          document.documentElement.classList.toggle('dark', !!isDark)
+          document.documentElement.style.colorScheme = isDark ? 'dark' : 'light'
+        } catch (e) {
+          /* no-op */
+        }
+      })()
+    </script>
+  </head>
+
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

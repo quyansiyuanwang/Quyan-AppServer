@@ -1,0 +1,25 @@
+.vscode/
+node_modules/
+dist/
+.claude/
+logs/
+
+.eslintcache
+CLAUDE.md
+
+*.bak
+.env
+.env.local
+.env.*.local
+
+# Documentation files (except README.md)
+/*.md
+!README.md
+
+# auto-generated files
+src/build/
+src/generated/
+
+# test artifacts
+coverage/
+.vitest-report.json

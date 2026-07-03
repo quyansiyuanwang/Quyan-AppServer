@@ -1,0 +1,400 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MonthlyPassService } from "../../../src/services/billing/monthly-pass.service";
+import { MANAGED_STATUS } from "../../../src/constant/status";
+import { OperationCategory, OperationType } from "../../../src/constant/operation-type";
+import { BadRequestError, NotFoundError } from "../../../src/util/errors";
+
+describe("MonthlyPassService publish flow", () => {
+  const monthlyPassRepository = {
+    findTemplateById: vi.fn(),
+    findTemplateByName: vi.fn(),
+    createTemplate: vi.fn(),
+    updateTemplate: vi.fn(),
+    listPublishedTemplates: vi.fn(),
+    countUserPassesByUserAndTemplateSince: vi.fn(),
+    purchaseUserPass: vi.fn(),
+  };
+  const userRepository = {
+    findById: vi.fn(),
+  };
+  const relayChannelRepository = {
+    findNamesByIds: vi.fn(),
+  };
+  const groupRepository = {};
+  const modelPricingRepository = {};
+  const businessLogService = {
+    logOperation: vi.fn(),
+  };
+  const configService = {};
+
+  const MonthlyPassServiceCtor = MonthlyPassService as unknown as new (...args: any[]) => MonthlyPassService;
+
+  const service = new MonthlyPassServiceCtor(
+    monthlyPassRepository,
+    userRepository,
+    relayChannelRepository,
+    groupRepository,
+    modelPricingRepository,
+    businessLogService,
+    configService,
+  );
+
+  const now = new Date("2026-05-07T12:00:00.000Z");
+  const draftTemplateRecord = {
+    id: "template-1",
+    name: "Starter Pack",
+    description: "starter",
+    publishStatus: "draft",
+    publishedAt: null,
+    defaultQuota: 10,
+    dailyQuota: null,
+    quotaUnit: "amount",
+    quotaWindowHours: null,
+    allowBalanceRedemption: true,
+    allowedModels: null,
+    allowedChannels: null,
+    status: MANAGED_STATUS.ENABLED,
+    createTime: now,
+    updateTime: now,
+  };
+
+  const publishedTemplateRecord = {
+    ...draftTemplateRecord,
+    publishStatus: "published",
+    publishedAt: now,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    monthlyPassRepository.findTemplateByName.mockResolvedValue(null);
+    monthlyPassRepository.countUserPassesByUserAndTemplateSince.mockResolvedValue(0);
+    Object.assign(configService, {
+      getRechargeRatio: vi.fn().mockResolvedValue(2),
+    });
+  });
+
+  it("derives default quota from original price times recharge ratio", async () => {
+    monthlyPassRepository.createTemplate.mockImplementation(async (data: Record<string, unknown>) => ({
+      id: "template-derived",
+      name: data.name,
+      description: data.description ?? null,
+      publishStatus: "draft",
+      publishedAt: null,
+      defaultQuota: data.defaultQuota,
+      dailyQuota: data.dailyQuota ?? null,
+      quotaUnit: data.quotaUnit ?? "amount",
+      quotaWindowHours: null,
+      allowBalanceRedemption: data.allowBalanceRedemption ?? true,
+      allowedModels: null,
+      allowedChannels: null,
+      status: MANAGED_STATUS.ENABLED,
+      createTime: now,
+      updateTime: now,
+      originalPrice: data.originalPrice,
+      discountPercent: data.discountPercent,
+      discountedPrice: data.discountedPrice,
+      rechargeRatio: data.rechargeRatio,
+      quotaWindows: [],
+    }));
+
+    await service.createTemplate(
+      {
+        name: "Discounted Pack",
+        originalPrice: 100,
+        discountPercent: 50,
+      },
+      "actor-1",
+    );
+
+    expect(monthlyPassRepository.createTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        discountedPrice: 50,
+        rechargeRatio: 2,
+        defaultQuota: 200,
+      }),
+      expect.any(Array),
+    );
+  });
+
+  it("publishes a draft template and writes audit log", async () => {
+    monthlyPassRepository.findTemplateById.mockResolvedValue(draftTemplateRecord);
+    monthlyPassRepository.updateTemplate.mockImplementation(async (_id: string, data: Record<string, unknown>) => ({
+      ...draftTemplateRecord,
+      ...data,
+      publishedAt: data.publishedAt as Date,
+    }));
+
+    const result = await service.publishTemplate("template-1", "actor-1");
+
+    expect(monthlyPassRepository.findTemplateById).toHaveBeenCalledWith("template-1");
+    expect(monthlyPassRepository.updateTemplate).toHaveBeenCalledWith(
+      "template-1",
+      expect.objectContaining({
+        publishStatus: "published",
+        publishedAt: expect.any(Date),
+      }),
+    );
+    expect(result.publishStatus).toBe("published");
+    expect(result.publishedAt).toBeInstanceOf(Date);
+    expect(businessLogService.logOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationType: OperationType.MONTHLY_PASS_TEMPLATE_PUBLISH,
+        operationCategory: OperationCategory.BILLING,
+        actorUserId: "actor-1",
+        targetResourceId: "template-1",
+        changes: { publishStatus: "published" },
+        success: true,
+      }),
+    );
+  });
+
+  it("rejects publishing a missing template", async () => {
+    monthlyPassRepository.findTemplateById.mockResolvedValue(null);
+
+    await expect(service.publishTemplate("missing", "actor-1")).rejects.toThrow(NotFoundError);
+    expect(monthlyPassRepository.updateTemplate).not.toHaveBeenCalled();
+  });
+
+  it("rejects publishing an already published template", async () => {
+    monthlyPassRepository.findTemplateById.mockResolvedValue(publishedTemplateRecord);
+
+    await expect(service.publishTemplate("template-1", "actor-1")).rejects.toThrow(BadRequestError);
+    expect(monthlyPassRepository.updateTemplate).not.toHaveBeenCalled();
+  });
+
+  it("unpublishes a published template and clears publishedAt", async () => {
+    monthlyPassRepository.findTemplateById.mockResolvedValue(publishedTemplateRecord);
+    monthlyPassRepository.updateTemplate.mockImplementation(async (_id: string, data: Record<string, unknown>) => ({
+      ...publishedTemplateRecord,
+      ...data,
+    }));
+
+    const result = await service.unpublishTemplate("template-1", "actor-1");
+
+    expect(monthlyPassRepository.updateTemplate).toHaveBeenCalledWith(
+      "template-1",
+      expect.objectContaining({
+        publishStatus: "draft",
+        publishedAt: null,
+      }),
+    );
+    expect(result.publishStatus).toBe("draft");
+    expect(result.publishedAt).toBeUndefined();
+    expect(businessLogService.logOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationType: OperationType.MONTHLY_PASS_TEMPLATE_UNPUBLISH,
+        operationCategory: OperationCategory.BILLING,
+        actorUserId: "actor-1",
+        targetResourceId: "template-1",
+        changes: { publishStatus: "draft" },
+        success: true,
+      }),
+    );
+  });
+
+  it("rejects unpublishing an already draft template", async () => {
+    monthlyPassRepository.findTemplateById.mockResolvedValue(draftTemplateRecord);
+
+    await expect(service.unpublishTemplate("template-1", "actor-1")).rejects.toThrow(BadRequestError);
+    expect(monthlyPassRepository.updateTemplate).not.toHaveBeenCalled();
+  });
+
+  it("lists published templates as dto records", async () => {
+    monthlyPassRepository.listPublishedTemplates.mockResolvedValue([
+      publishedTemplateRecord,
+      {
+        ...publishedTemplateRecord,
+        id: "template-2",
+        name: "Advanced Pack",
+        allowedModels: JSON.stringify(["gpt-4o", "claude-3.7"]),
+        allowedChannels: JSON.stringify(["channel-1"]),
+      },
+    ]);
+
+    const result = await service.listPublishedTemplates();
+
+    expect(monthlyPassRepository.listPublishedTemplates).toHaveBeenCalledTimes(1);
+    expect(result).toHaveLength(2);
+    expect(result[0].publishStatus).toBe("published");
+    expect(result[0].publishedAt).toBeInstanceOf(Date);
+    expect(result[0].allowBalanceRedemption).toBe(true);
+    expect(result[1].allowedModels).toEqual(["gpt-4o", "claude-3.7"]);
+    expect(result[1].allowedChannels).toEqual(["channel-1"]);
+  });
+
+  it("claims published template with balance purchase", async () => {
+    monthlyPassRepository.findTemplateById.mockResolvedValue({
+      ...publishedTemplateRecord,
+      discountedPrice: 18.5,
+      rechargeRatio: 2,
+      defaultQuota: 10,
+      quotaWindows: [],
+      allowBalanceRedemption: true,
+    });
+    monthlyPassRepository.purchaseUserPass.mockResolvedValue({
+      id: "pass-1",
+      userId: "user-1",
+      templateId: "template-1",
+      startAt: now,
+      endAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      totalQuota: 10,
+      dailyQuota: null,
+      quotaUnit: "amount",
+      quotaWindowHours: null,
+      quotaWindows: [],
+      usedQuota: 0,
+      remainingQuota: 10,
+      assignedBy: "user-1",
+      note: "self-claimed",
+      status: MANAGED_STATUS.ENABLED,
+      createTime: now,
+      updateTime: now,
+      template: { name: "Starter Pack", description: null, allowedModels: null, allowedChannels: null },
+      user: { username: "alice" },
+    });
+
+    const result = await service.claimPublishedTemplate({ templateId: "template-1" }, "user-1");
+
+    expect(monthlyPassRepository.purchaseUserPass).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Array),
+      expect.objectContaining({ purchaseAmount: 37 }),
+    );
+    expect(result.purchaseAmount).toBe(37);
+    expect(result.userPass.templateName).toBe("Starter Pack");
+    expect(businessLogService.logOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationType: OperationType.MONTHLY_PASS_SELF_CLAIM,
+        changes: expect.objectContaining({ purchaseAmount: 37 }),
+      }),
+    );
+  });
+
+  it("rejects claim when template purchase limit is reached", async () => {
+    monthlyPassRepository.findTemplateById.mockResolvedValue({
+      ...publishedTemplateRecord,
+      discountedPrice: 18.5,
+      rechargeRatio: 2,
+      defaultQuota: 10,
+      quotaWindows: [],
+      allowBalanceRedemption: true,
+      purchaseLimitPerUser: 2,
+      purchaseLimitWindowDays: 30,
+    });
+    monthlyPassRepository.countUserPassesByUserAndTemplateSince.mockResolvedValue(2);
+
+    await expect(service.claimPublishedTemplate({ templateId: "template-1" }, "user-1")).rejects.toThrow(
+      BadRequestError,
+    );
+
+    expect(monthlyPassRepository.purchaseUserPass).not.toHaveBeenCalled();
+  });
+});
+
+describe("MonthlyPassService quota window usage summaries", () => {
+  const monthlyPassRepository = {
+    listUserPasses: vi.fn(),
+    getUsageSummaryByQuotaWindowRules: vi.fn(),
+  };
+  const userRepository = {};
+  const relayChannelRepository = {
+    listActiveByIds: vi.fn(),
+  };
+  const groupRepository = {};
+  const modelPricingRepository = {};
+  const businessLogService = {
+    logOperation: vi.fn(),
+  };
+  const configService = {};
+
+  const MonthlyPassServiceCtor = MonthlyPassService as unknown as new (...args: any[]) => MonthlyPassService;
+
+  const service = new MonthlyPassServiceCtor(
+    monthlyPassRepository,
+    userRepository,
+    relayChannelRepository,
+    groupRepository,
+    modelPricingRepository,
+    businessLogService,
+    configService,
+  );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("uses quotaUnit-specific usage summary keys for same-hour windows", async () => {
+    const now = new Date("2026-05-07T12:00:00.000Z");
+    monthlyPassRepository.listUserPasses.mockResolvedValue({
+      total: 1,
+      records: [
+        {
+          id: "pass-1",
+          userId: "user-1",
+          templateId: "template-1",
+          startAt: now,
+          endAt: now,
+          totalQuota: 100,
+          dailyQuota: 10,
+          quotaUnit: "amount",
+          quotaWindowHours: 24,
+          quotaWindows: [
+            { id: "window-amount", quotaLimit: 10, quotaUnit: "amount", quotaWindowHours: 24 },
+            { id: "window-request", quotaLimit: 5, quotaUnit: "request", quotaWindowHours: 24 },
+          ],
+          usedQuota: 0,
+          remainingQuota: 100,
+          assignedBy: null,
+          note: null,
+          status: MANAGED_STATUS.ENABLED,
+          createTime: now,
+          updateTime: now,
+          template: {
+            name: "Starter Pack",
+            description: null,
+            allowedModels: null,
+            allowedChannels: null,
+          },
+          user: { username: "alice" },
+        },
+      ],
+    });
+    relayChannelRepository.listActiveByIds.mockResolvedValue([]);
+    monthlyPassRepository.getUsageSummaryByQuotaWindowRules.mockResolvedValue({
+      "pass-1:24:amount": {
+        coveredAmount: 2,
+        coveredRequests: 99,
+        coveredTokens: 0,
+      },
+      "pass-1:24:request": {
+        coveredAmount: 999,
+        coveredRequests: 3,
+        coveredTokens: 0,
+      },
+    });
+
+    const result = await service.listUserPasses(1, 20);
+
+    expect(monthlyPassRepository.getUsageSummaryByQuotaWindowRules).toHaveBeenCalledWith(
+      [
+        { passId: "pass-1", quotaUnit: "amount", quotaWindowHours: 24 },
+        { passId: "pass-1", quotaUnit: "request", quotaWindowHours: 24 },
+      ],
+      expect.any(Date),
+    );
+    expect(result.records[0].quotaWindows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "window-amount",
+          usedQuota: 2,
+          remainingQuota: 8,
+        }),
+        expect.objectContaining({
+          id: "window-request",
+          usedQuota: 3,
+          remainingQuota: 2,
+        }),
+      ]),
+    );
+  });
+});

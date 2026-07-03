@@ -1,0 +1,57 @@
+{
+  "entryFile": "src/app.ts",
+  "noImplicitAdditionalProperties": "throw-on-extras",
+  "controllerPathGlobs": ["src/api/controllers/**/*.ts"],
+  "spec": {
+    "outputDirectory": "src/build",
+    "specVersion": 3,
+    "specMerging": "recursive",
+    "operationIdTemplate": "{{controllerName}}{{titleCase method.name}}",
+    "spec": {
+      "info": {
+        "title": "Backend API",
+        "version": "1.0.23",
+        "description": "Node.js Backend API Documentation",
+        "contact": {
+          "name": "API Support"
+        }
+      },
+      "components": {
+        "securitySchemes": {
+          "jwt": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "JWT 认证令牌 (Bearer token)"
+          },
+          "relay-token": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "Relay Token 认证令牌 (Bearer rlt_...)"
+          },
+          "local-or-jwt": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "本地请求或 JWT 认证 (Local request or Bearer token)"
+          }
+        }
+      }
+    }
+  },
+  "routes": {
+    "routesDir": "src/build",
+    "basePath": "/",
+    "middleware": "express",
+    "authenticationModule": "./src/middleware/auth/auth_guard.ts"
+  },
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  }
+}

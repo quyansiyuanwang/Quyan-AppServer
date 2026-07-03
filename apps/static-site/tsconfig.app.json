@@ -1,0 +1,13 @@
+{
+  "extends": "./node_modules/@vue/tsconfig/tsconfig.dom.json",
+  "include": ["env.d.ts", "src/**/*", "src/**/*.vue", "tests/**/*.ts"],
+  "exclude": ["src/**/__tests__/*"],
+  "compilerOptions": {
+    "ignoreDeprecations": "5.0",
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["vitest/globals"]
+  }
+}

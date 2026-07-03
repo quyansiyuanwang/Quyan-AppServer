@@ -1,0 +1,61 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+.DS_Store
+dist
+dist-ssr
+coverage
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.env
+*.bak
+
+*.tsbuildinfo
+
+.eslintcache
+
+# Auto-generated files
+**/*.vue.js
+**/*.vue.d.ts
+auto-imports.d.ts
+components.d.ts
+src/client/
+src/types/route-types.gen.d.ts
+
+# Cypress
+/cypress/videos/
+/cypress/screenshots/
+
+# Vitest
+__screenshots__/
+
+# analysis tool files
+stats.html
+CLAUDE.md
+
+.claude/
+
+# Test files
+*-test-tool.html
+test-*.html
+*-explanation.md
+
+# Documentation files (except README.md)
+/*.md
+!README.md

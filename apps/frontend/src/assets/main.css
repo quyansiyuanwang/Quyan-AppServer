@@ -1,0 +1,61 @@
+@import './base.css';
+
+a,
+.green {
+  text-decoration: none;
+  color: hsla(160, 100%, 37%, 1);
+  transition: 0.4s;
+  padding: 3px;
+}
+
+@media (hover: hover) {
+  a:hover {
+    background-color: hsla(160, 100%, 37%, 0.2);
+  }
+}
+
+@media (min-width: 1024px) {
+  body {
+    display: flex;
+    place-items: center;
+  }
+}
+
+/* reCAPTCHA badge styling - hide badge completely */
+.grecaptcha-badge {
+  visibility: hidden !important;
+}
+
+/* 移动端全局补丁 */
+@media (max-width: 768px) {
+  /* 表格横向滚动容器 */
+  .mobile-scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Pagination 简化 */
+  .el-pagination .el-pagination__sizes,
+  .el-pagination .el-pagination__jump {
+    display: none !important;
+  }
+  /* Dialog 全宽 */
+  .el-dialog {
+    width: 95% !important;
+    margin: 0 auto;
+  }
+  /* Drawer 高度 */
+  .el-drawer.btt {
+    height: 85vh !important;
+  }
+}
+@media (max-width: 480px) {
+  /* Form label 顶置 */
+  .el-form--label-top .el-form-item__label {
+    line-height: 1.4;
+    margin-bottom: 4px;
+  }
+  /* 按钮全宽 */
+  .mobile-btn-full {
+    width: 100%;
+  }
+}

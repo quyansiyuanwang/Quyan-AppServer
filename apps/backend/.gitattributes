@@ -1,0 +1,76 @@
+# ============================================================================
+# 1. 换行符规范化 (Line Endings)
+# ============================================================================
+# 强制所有文本文件使用 LF 换行符
+* text=auto eol=lf
+
+# 明确指定文本文件类型
+*.css text eol=lf
+*.html text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.vue text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.xml text eol=lf
+*.txt text eol=lf
+
+# 明确指定二进制文件类型 (Binary files)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.mp3 binary
+*.mp4 binary
+*.zip binary
+*.tar.gz binary
+
+# ============================================================================
+# 2. GitHub 语言统计排除 (Linguist)
+# ============================================================================
+# 排除打包产物和依赖, 不参与语言统计
+dist/** linguist-vendored
+build/** linguist-vendored
+out/** linguist-vendored
+publicStatic/** linguist-vendored
+
+# 排除依赖文件夹
+node_modules/** linguist-vendored
+
+# 排除常见的配置文件或锁文件
+*.lock linguist-vendored
+*.log linguist-vendored
+*.md linguist-vendored
+
+# 强制指定 .vue 文件为 Vue 语言
+*.vue linguist-language=Vue
+
+# ============================================================================
+# 3. 合并策略 (Merge Strategies)
+# ============================================================================
+# 锁文件通常由包管理器生成, 冲突时直接使用本地版本
+yarn.lock merge=ours
+pnpm-lock.yaml merge=ours
+
+# .env 文件冲突时, 优先使用本地版本
+.env merge=ours
+.env.* merge=ours
+
+# ============================================================================
+# 4. 导出配置 (Export Configuration)
+# ============================================================================
+# 当使用 `git archive` 打包时, 不要包含这些文件
+.gitattributes export-ignore
+.gitignore export-ignore
+.github/** export-ignore
+# .vscode/** export-ignore

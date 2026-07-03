@@ -1,0 +1,320 @@
+/* color palette from <https://github.com/vuejs/theme> */
+:root {
+  --vt-c-white: #ffffff;
+  --vt-c-white-soft: #f8f8f8;
+  --vt-c-white-mute: #f2f2f2;
+
+  --vt-c-black: #0d1117;
+  --vt-c-black-soft: #222222;
+  --vt-c-black-mute: #282828;
+
+  --vt-c-indigo: #2c3e50;
+
+  --vt-c-divider-light-1: rgba(60, 60, 60, 0.29);
+  --vt-c-divider-light-2: rgba(60, 60, 60, 0.12);
+  --vt-c-divider-dark-1: rgba(84, 84, 84, 0.65);
+  --vt-c-divider-dark-2: rgba(84, 84, 84, 0.48);
+
+  --vt-c-text-light-1: var(--vt-c-indigo);
+  --vt-c-text-light-2: rgba(60, 60, 60, 0.66);
+  --vt-c-text-dark-1: var(--vt-c-white);
+  --vt-c-text-dark-2: rgba(235, 235, 235, 0.64);
+}
+
+/* semantic color variables for this project */
+:root {
+  --color-background: var(--vt-c-white);
+  --color-background-soft: var(--vt-c-white-soft);
+  --color-background-mute: var(--vt-c-white-mute);
+
+  --color-border: var(--vt-c-divider-light-2);
+  --color-border-hover: var(--vt-c-divider-light-1);
+
+  --color-heading: var(--vt-c-text-light-1);
+  --color-text: var(--vt-c-text-light-1);
+
+  --surface-card-bg: rgba(255, 255, 255, 0.96);
+  --surface-card-border: rgba(15, 23, 42, 0.12);
+  --surface-card-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
+  --surface-card-blur: 12px;
+  --surface-control-border: rgba(15, 23, 42, 0.12);
+  --surface-control-border-active: rgba(62, 92, 214, 0.45);
+  --surface-control-bg: rgba(255, 255, 255, 0.98);
+  --surface-control-label: rgba(31, 41, 55, 0.85);
+  --surface-control-focus-ring: rgba(62, 92, 214, 0.28);
+
+  --section-gap: 160px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: var(--vt-c-black);
+    --color-background-soft: var(--vt-c-black-soft);
+    --color-background-mute: var(--vt-c-black-mute);
+
+    --color-border: var(--vt-c-divider-dark-2);
+    --color-border-hover: var(--vt-c-divider-dark-1);
+
+    --color-heading: var(--vt-c-text-dark-1);
+    --color-text: var(--vt-c-text-dark-2);
+
+    --surface-card-bg: rgba(26, 26, 28, 0.88);
+    --surface-card-border: rgba(255, 255, 255, 0.1);
+    --surface-card-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+    --surface-card-blur: 10px;
+    --surface-control-border: rgba(255, 255, 255, 0.14);
+    --surface-control-border-active: rgba(103, 146, 247, 0.65);
+    --surface-control-bg: rgba(39, 40, 44, 0.95);
+    --surface-control-label: rgba(229, 231, 235, 0.9);
+    --surface-control-focus-ring: rgba(103, 146, 247, 0.32);
+  }
+}
+
+html[data-theme='light'] {
+  --color-background: var(--vt-c-white);
+  --color-background-soft: var(--vt-c-white-soft);
+  --color-background-mute: var(--vt-c-white-mute);
+
+  --color-border: var(--vt-c-divider-light-2);
+  --color-border-hover: var(--vt-c-divider-light-1);
+
+  --color-heading: var(--vt-c-text-light-1);
+  --color-text: var(--vt-c-text-light-1);
+
+  --surface-card-bg: rgba(255, 255, 255, 0.96);
+  --surface-card-border: rgba(15, 23, 42, 0.12);
+  --surface-card-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
+  --surface-card-blur: 12px;
+  --surface-control-border: rgba(15, 23, 42, 0.12);
+  --surface-control-border-active: rgba(62, 92, 214, 0.45);
+  --surface-control-bg: rgba(255, 255, 255, 0.98);
+  --surface-control-label: rgba(31, 41, 55, 0.85);
+  --surface-control-focus-ring: rgba(62, 92, 214, 0.28);
+}
+
+html.dark,
+html[data-theme='dark'] {
+  --color-background: var(--vt-c-black);
+  --color-background-soft: var(--vt-c-black-soft);
+  --color-background-mute: var(--vt-c-black-mute);
+
+  --color-border: var(--vt-c-divider-dark-2);
+  --color-border-hover: var(--vt-c-divider-dark-1);
+
+  --color-heading: var(--vt-c-text-dark-1);
+  --color-text: var(--vt-c-text-dark-2);
+
+  --surface-card-bg: rgba(26, 26, 28, 0.88);
+  --surface-card-border: rgba(255, 255, 255, 0.1);
+  --surface-card-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+  --surface-card-blur: 10px;
+  --surface-control-border: rgba(255, 255, 255, 0.14);
+  --surface-control-border-active: rgba(103, 146, 247, 0.65);
+  --surface-control-bg: rgba(39, 40, 44, 0.95);
+  --surface-control-label: rgba(229, 231, 235, 0.9);
+  --surface-control-focus-ring: rgba(103, 146, 247, 0.32);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  font-weight: normal;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--color-text);
+  background: var(--color-background);
+  transition:
+    color 0.5s,
+    background-color 0.5s;
+  line-height: 1.6;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    'Fira Sans',
+    'Droid Sans',
+    'Helvetica Neue',
+    sans-serif;
+  font-size: 15px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* 移动端基础优化 */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+
+  #app {
+    overflow: hidden;
+  }
+
+  .el-dialog {
+    width: 90% !important;
+  }
+
+  /* Mobile-friendly range picker: avoid two-month panel overflow */
+  .el-date-range-picker {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 16px) !important;
+  }
+
+  .el-picker__popper.el-popper {
+    max-width: calc(100vw - 8px) !important;
+  }
+
+  .el-date-picker {
+    width: min(320px, calc(100vw - 16px)) !important;
+  }
+
+  .el-date-picker .el-picker-panel__content,
+  .el-date-picker .el-date-picker__time-header {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .el-date-range-picker .el-picker-panel__body-wrapper {
+    overflow-x: hidden !important;
+  }
+
+  .el-date-range-picker .el-picker-panel__content {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .el-date-range-picker .el-picker-panel__content.is-right {
+    display: none !important;
+  }
+
+  .el-date-range-picker .el-picker-panel__footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 13px;
+  }
+
+  /* Ultra-narrow phones: tighten popup footprint and controls */
+  .el-dialog {
+    width: 96% !important;
+    max-width: 96% !important;
+    margin-top: 2vh !important;
+  }
+
+  .el-dialog__body {
+    max-height: 70vh;
+    padding: 10px 12px !important;
+    overflow: auto;
+  }
+
+  .el-dialog__footer .el-button {
+    width: 100%;
+    margin-left: 0 !important;
+  }
+
+  .el-dialog__footer .el-button + .el-button {
+    margin-top: 8px;
+  }
+
+  .el-date-range-picker {
+    max-width: calc(100vw - 8px) !important;
+  }
+
+  .el-date-picker {
+    width: calc(100vw - 8px) !important;
+  }
+
+  .el-date-picker .el-picker-panel__content {
+    padding: 8px !important;
+  }
+
+  .el-date-picker .el-date-table th,
+  .el-date-picker .el-date-table td {
+    padding: 2px 0;
+  }
+
+  .el-date-range-picker .el-picker-panel__footer {
+    flex-direction: column;
+  }
+}
+
+.surface-card {
+  border: 1px solid var(--surface-card-border);
+  background-color: var(--surface-card-bg);
+  box-shadow: var(--surface-card-shadow);
+  backdrop-filter: blur(var(--surface-card-blur));
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.surface-card :is(.el-input__wrapper, .el-select__wrapper, .el-date-editor, .el-cascader__wrapper) {
+  box-shadow: 0 0 0 1px var(--surface-control-border);
+  background-color: var(--surface-control-bg);
+  transition:
+    box-shadow 0.24s ease,
+    background-color 0.24s ease;
+}
+
+.surface-card
+  :is(
+    .el-input__wrapper:hover,
+    .el-input__wrapper.is-focus,
+    .el-input__wrapper:focus-within,
+    .el-select__wrapper:hover,
+    .el-select__wrapper.is-focus,
+    .el-select__wrapper:focus-within,
+    .el-date-editor.is-active,
+    .el-date-editor.is-focus,
+    .el-cascader__wrapper.is-focus
+  ) {
+  box-shadow: 0 0 0 1px var(--surface-control-border-active);
+}
+
+.surface-card :is(.el-textarea__inner) {
+  border: 1px solid var(--surface-control-border);
+  background-color: var(--surface-control-bg);
+  transition:
+    border-color 0.24s ease,
+    background-color 0.24s ease;
+}
+
+.surface-card :is(.el-textarea__inner:hover, .el-textarea__inner:focus) {
+  border-color: var(--surface-control-border-active);
+}
+
+.surface-card :is(.el-form-item__label) {
+  color: var(--surface-control-label);
+}
+
+.surface-card :is(.el-button, .el-button span, .el-link, .el-switch, button, a) {
+  transition: box-shadow 0.2s ease;
+}
+
+.surface-card :is(.el-button, .el-link, button, a):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--surface-control-focus-ring);
+}

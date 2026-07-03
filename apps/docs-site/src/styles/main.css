@@ -1,0 +1,140 @@
+:root {
+  color-scheme: light dark;
+  --docs-bg: #f3f4f6;
+  --docs-bg-grid: transparent;
+  --docs-bg-glow-1: transparent;
+  --docs-bg-glow-2: transparent;
+  --docs-surface: #ffffff;
+  --docs-surface-strong: #ffffff;
+  --docs-surface-soft: #ffffff;
+  --docs-surface-muted: #f3f4f6;
+  --docs-border: rgba(148, 163, 184, 0.16);
+  --docs-border-strong: rgba(100, 116, 139, 0.22);
+  --docs-text: #0f172a;
+  --docs-text-strong: #020617;
+  --docs-muted: #5b6472;
+  --docs-muted-soft: #7a8493;
+  --docs-primary: #1677ff;
+  --docs-primary-strong: #0958d9;
+  --docs-primary-soft: rgba(22, 119, 255, 0.06);
+  --docs-accent: #22a2ff;
+  --docs-accent-soft: rgba(34, 162, 255, 0.03);
+  --docs-success: #16a34a;
+  --docs-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  --docs-shadow-soft: 0 1px 3px rgba(15, 23, 42, 0.04);
+  --docs-max-width: 100%;
+  --docs-topbar-start: #ffffff;
+  --docs-topbar-end: #ffffff;
+  --docs-topbar-border: rgba(148, 163, 184, 0.14);
+  --docs-topbar-text: #0f172a;
+  --docs-topbar-muted: #64748b;
+  --docs-topbar-pill: #ffffff;
+  --docs-topbar-pill-border: rgba(148, 163, 184, 0.18);
+  --docs-hero-start: #ffffff;
+  --docs-hero-end: #ffffff;
+  --docs-hero-border: rgba(148, 163, 184, 0.16);
+  --docs-hero-text: #0f172a;
+  --docs-hero-muted: #526072;
+  --docs-code-bg: #0b1220;
+  --docs-code-text: #e2e8f0;
+  --docs-table-bg: #ffffff;
+  --docs-diagram-bg: #ffffff;
+  --docs-diagram-bg-soft: #f8fbff;
+  --docs-diagram-border: rgba(59, 130, 246, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --docs-bg: #111827;
+    --docs-bg-grid: transparent;
+    --docs-bg-glow-1: transparent;
+    --docs-bg-glow-2: transparent;
+    --docs-surface: #1f2937;
+    --docs-surface-strong: #1f2937;
+    --docs-surface-soft: #1f2937;
+    --docs-surface-muted: #111827;
+    --docs-border: rgba(148, 163, 184, 0.16);
+    --docs-border-strong: rgba(148, 163, 184, 0.28);
+    --docs-text: #e2e8f0;
+    --docs-text-strong: #f8fafc;
+    --docs-muted: #c7d2e1;
+    --docs-muted-soft: #91a0b5;
+    --docs-primary: #5aa8ff;
+    --docs-primary-strong: #89c8ff;
+    --docs-primary-soft: rgba(90, 168, 255, 0.16);
+    --docs-accent: #36b4ff;
+    --docs-accent-soft: rgba(54, 180, 255, 0.12);
+    --docs-success: #4ade80;
+    --docs-shadow: 0 2px 10px rgba(2, 6, 23, 0.18);
+    --docs-shadow-soft: 0 1px 4px rgba(2, 6, 23, 0.16);
+    --docs-topbar-start: #1f2937;
+    --docs-topbar-end: #1f2937;
+    --docs-topbar-border: rgba(148, 163, 184, 0.14);
+    --docs-topbar-text: #f8fafc;
+    --docs-topbar-muted: #91a0b5;
+    --docs-topbar-pill: #111827;
+    --docs-topbar-pill-border: rgba(148, 163, 184, 0.14);
+    --docs-hero-start: #1f2937;
+    --docs-hero-end: #1f2937;
+    --docs-hero-border: rgba(148, 163, 184, 0.14);
+    --docs-hero-text: #f8fafc;
+    --docs-hero-muted: #c7d2e1;
+    --docs-code-bg: #020617;
+    --docs-code-text: #e2e8f0;
+    --docs-table-bg: rgba(15, 23, 42, 0.84);
+    --docs-diagram-bg: #f8fafc;
+    --docs-diagram-bg-soft: #eef4ff;
+    --docs-diagram-border: rgba(125, 176, 255, 0.34);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    "Segoe UI",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  background-color: var(--docs-bg);
+  background-image: none;
+  color: var(--docs-text);
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  appearance: none;
+}
+
+input:focus,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.3);
+  outline-offset: 2px;
+}
+
+#app {
+  width: 100%;
+}

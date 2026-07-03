@@ -1,0 +1,66 @@
+name: Build and Deploy Frontend
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'apps/frontend/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/deploy-frontend.yml'
+      - '.github/workflows/test-frontend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: |
+      !contains(github.event.head_commit.message, '[skip cd]') &&
+      !contains(github.event.head_commit.message, '[skip cicd]')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        id: cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate API client
+        run: pnpm --filter @appserver/frontend run openapi:generate
+
+      - name: Build
+        run: pnpm --filter @appserver/frontend run build:prod
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p ${{ secrets.SSH_PORT || '22' }} -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: |
+          rsync -az --delete \
+            --exclude='.user.ini' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
+            apps/frontend/dist/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.REMOTE_FRONTEND_PATH }}/

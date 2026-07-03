@@ -1,0 +1,151 @@
+export interface ServerConfigDto {
+  key: string;
+  value: string;
+}
+
+export interface SetConfigDto {
+  configs: Record<string, string>;
+}
+
+export interface GetConfigResponse {
+  configs: Record<string, string>;
+}
+
+export interface RegistrationStatusResponse {
+  enabled: boolean;
+}
+
+export interface HeartbeatConfigDto {
+  intervalSeconds: number;
+  timeoutSeconds: number;
+}
+
+export interface RemoteTerminalUnbindConfigDto {
+  maxCount: number;
+  windowHours: number;
+  rebindCooldownMinutes: number;
+}
+
+export interface BillingConfigDto {
+  /**
+   * 充值比例：1 元可兑换的额度数量
+   */
+  rechargeRatio: number;
+}
+
+export type CaptchaProviderDto = "none" | "recaptcha" | "turnstile";
+
+export interface CaptchaConfigDto {
+  provider: CaptchaProviderDto;
+  fallbackProvider: CaptchaProviderDto;
+  /**
+   * reCAPTCHA v3 最低分数阈值；非评分型验证码场景可忽略
+   */
+  minScore: number;
+  trustWindowMinutes: number;
+}
+
+export interface PublicCaptchaConfigDto {
+  enabled: boolean;
+  provider: CaptchaProviderDto;
+  fallbackProvider: CaptchaProviderDto;
+}
+
+export interface SetBillingConfigDto {
+  /**
+   * 充值比例：1 元可兑换的额度数量
+   */
+  rechargeRatio: number;
+}
+
+export interface SetHeartbeatConfigDto {
+  intervalSeconds: number;
+  timeoutSeconds: number;
+}
+
+export interface SetRemoteTerminalUnbindConfigDto {
+  maxCount: number;
+  windowHours: number;
+  rebindCooldownMinutes: number;
+}
+
+export interface SetCaptchaConfigDto {
+  provider: CaptchaProviderDto;
+  fallbackProvider: CaptchaProviderDto;
+  /**
+   * reCAPTCHA v3 最低分数阈值；非评分型验证码场景可忽略
+   */
+  minScore: number;
+  trustWindowMinutes: number;
+}
+
+export interface SetRegistrationConfigDto {
+  enabled: boolean;
+  /**
+   * 每个邮箱最多注册账号数
+   */
+  maxAccountsPerEmail: number;
+  /**
+   * 默认用户组标识
+   */
+  defaultGroupUsername: string;
+  /**
+   * 验证码有效期（秒）
+   */
+  verificationCodeExpiry: number;
+}
+
+export interface SetRelayConfigDto {
+  upstreamUrl: string;
+  upstreamApiKey: string;
+  allowedModels: string;
+}
+
+export interface SetSmtpConfigDto {
+  /**
+   * SMTP 服务器地址
+   */
+  host: string;
+  /**
+   * 端口号
+   */
+  port: number;
+  secure: boolean;
+  user: string;
+  password: string;
+  /**
+   * 发件人显示名称
+   */
+  senderName: string;
+  /**
+   * 发件人邮箱
+   */
+  senderEmail: string;
+}
+
+export interface NotificationConfigDto {
+  defaultSubscribedEvents: string[];
+  defaultThresholds: Record<string, number>;
+}
+
+export interface SetNotificationConfigDto {
+  defaultSubscribedEvents: string[];
+  defaultThresholds: Record<string, number>;
+}
+
+export interface SetIpBanConfigDto {
+  enabled: boolean;
+  level1Threshold: number;
+  /**
+   * 封禁时长（秒），-1 永久
+   */
+  level1Duration: number;
+  level2Threshold: number;
+  level2Duration: number;
+  level3Threshold: number;
+  level3Duration: number;
+}
+
+export interface SetModelConfigDto {
+  allowedModels: string;
+}

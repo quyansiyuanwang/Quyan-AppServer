@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /$
+Allow: /assets/
+Allow: /wbico.png
+Disallow: /
+Sitemap: https://www.qysyw.cn/sitemap.xml

@@ -1,0 +1,64 @@
+name: Quality Check
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    if: |
+      !contains(github.event.pull_request.title, '[skip ci]') &&
+      !contains(github.event.pull_request.title, '[skip cicd]')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        id: cache
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Check explicit dependencies (backend)
+        run: pnpm --filter @appserver/backend run check:explicit-deps
+
+      - name: Inject Empty Build Info (backend)
+        run: pnpm --filter @appserver/backend run build-info:stub
+
+      - name: Generate TSOA Routes (backend)
+        run: pnpm --filter @appserver/backend run openapi:generate
+
+      - name: Generate Prisma Client (backend)
+        run: pnpm --filter @appserver/backend run db:generate
+
+      - name: Lint
+        run: pnpm -r --filter @appserver/* run lint:check
+
+      - name: Format check
+        run: pnpm -r --filter @appserver/* run format:check
+
+      - name: Type check
+        run: pnpm -r --filter @appserver/* run type-check

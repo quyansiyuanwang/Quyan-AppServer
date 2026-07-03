@@ -1,0 +1,54 @@
+name: Frontend Test Pipeline
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'apps/frontend/**'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/test-frontend.yml'
+      - '.github/workflows/deploy-frontend.yml'
+
+jobs:
+  frontend-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate types
+        run: pnpm --filter @appserver/frontend run type:generate
+
+      - name: Generate API client
+        run: pnpm --filter @appserver/frontend run openapi:generate
+
+      - name: Run frontend tests
+        run: pnpm --filter @appserver/frontend run test

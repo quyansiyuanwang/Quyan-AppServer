@@ -1,0 +1,304 @@
+<style>
+.swagger-ui #relay-token-quota-helper {
+  margin: 16px auto 0;
+  max-width: 1460px;
+  padding: 16px 20px;
+  border: 1px solid #dbe4ff;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  font-family: sans-serif;
+}
+
+.swagger-ui #relay-token-quota-helper .relay-token-quota-helper__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.swagger-ui #relay-token-quota-helper .relay-token-quota-helper__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.swagger-ui #relay-token-quota-helper .relay-token-quota-helper__desc {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.swagger-ui #relay-token-quota-helper .relay-token-quota-helper__button {
+  border: 0;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.swagger-ui #relay-token-quota-helper .relay-token-quota-helper__button[disabled] {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.swagger-ui #relay-token-quota-helper .relay-token-quota-helper__status {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.swagger-ui #relay-token-quota-helper .relay-token-quota-helper__status--info {
+  color: #1d4ed8;
+}
+
+.swagger-ui #relay-token-quota-helper .relay-token-quota-helper__status--error {
+  color: #b91c1c;
+}
+
+.swagger-ui #relay-token-quota-helper .relay-token-quota-helper__status--success {
+  color: #047857;
+}
+
+.swagger-ui #relay-token-quota-helper .relay-token-quota-helper__result {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.swagger-ui #docs-site-banner {
+  margin: 16px auto 0;
+  max-width: 1460px;
+  padding: 16px 20px;
+  border: 1px solid #dbe4ff;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  font-family: sans-serif;
+}
+
+.swagger-ui #docs-site-banner .docs-site-banner__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.swagger-ui #docs-site-banner .docs-site-banner__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.swagger-ui #docs-site-banner .docs-site-banner__desc {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.swagger-ui #docs-site-banner .docs-site-banner__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+}
+</style>
+
+<script>
+window.addEventListener('load', function () {
+  var docsPanelId = 'docs-site-banner';
+  var quotaPanelId = 'relay-token-quota-helper';
+  var endpointPath = '/relay/tokens/current/quota-summary';
+
+  function createDocsPanel() {
+    var panel = document.createElement('div');
+    panel.id = docsPanelId;
+    panel.innerHTML = [
+      '<div class="docs-site-banner__inner">',
+      '  <div>',
+      '    <div class="docs-site-banner__title">Public documentation is available</div>',
+      '    <div class="docs-site-banner__desc">Open the bilingual docs site for product explanations, guides, and architecture notes.</div>',
+      '  </div>',
+      '  <a class="docs-site-banner__link" href="https://docs.qysyw.cn" target="_blank" rel="noreferrer">Open docs.qysyw.cn</a>',
+      '</div>',
+    ].join('');
+    return panel;
+  }
+
+  function findTokenCandidate(value) {
+    if (!value) return null;
+    if (typeof value === 'string') return value.trim();
+    if (Array.isArray(value)) {
+      for (var i = 0; i < value.length; i += 1) {
+        var arrayCandidate = findTokenCandidate(value[i]);
+        if (arrayCandidate) return arrayCandidate;
+      }
+      return null;
+    }
+    if (typeof value === 'object') {
+      for (var key in value) {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+        var objectCandidate = findTokenCandidate(value[key]);
+        if (objectCandidate) return objectCandidate;
+      }
+    }
+    return null;
+  }
+
+  function normalizeBearerToken(value) {
+    if (!value) return null;
+    var normalized = String(value).trim();
+    if (!normalized) return null;
+    if (/^Bearer\s+/i.test(normalized)) return normalized.replace(/^Bearer\s+/i, '').trim();
+    return normalized;
+  }
+
+  function getAuthorizedToken() {
+    try {
+      if (!window.ui || !window.ui.authSelectors || !window.ui.authSelectors.authorized) return null;
+      var authorized = window.ui.authSelectors.authorized();
+      var authState = authorized && typeof authorized.toJS === 'function' ? authorized.toJS() : authorized;
+      if (!authState || typeof authState !== 'object') return null;
+
+      for (var schemeName in authState) {
+        if (!Object.prototype.hasOwnProperty.call(authState, schemeName)) continue;
+        var candidate = normalizeBearerToken(findTokenCandidate(authState[schemeName]));
+        if (candidate) return candidate;
+      }
+    } catch (error) {
+      console.warn('Failed to read Swagger authorization state', error);
+    }
+
+    return null;
+  }
+
+  function setStatus(panel, message, type) {
+    var statusNode = panel.querySelector('.relay-token-quota-helper__status');
+    if (!statusNode) return;
+    statusNode.className = 'relay-token-quota-helper__status relay-token-quota-helper__status--' + type;
+    statusNode.textContent = message;
+  }
+
+  function setResult(panel, data) {
+    var resultNode = panel.querySelector('.relay-token-quota-helper__result');
+    if (!resultNode) return;
+    resultNode.textContent = data ? JSON.stringify(data, null, 2) : '';
+    resultNode.style.display = data ? 'block' : 'none';
+  }
+
+  async function fetchQuota(panel, button) {
+    var relayToken = getAuthorizedToken();
+    if (!relayToken) {
+      setStatus(panel, '请先点击右上角 Authorize 并填入 rlt_ 开头的 Relay Token。', 'error');
+      setResult(panel, null);
+      return;
+    }
+
+    if (!relayToken.startsWith('rlt_')) {
+      setStatus(panel, '当前授权不是 rlt_ Relay Token，无法查询当前令牌额度信息。', 'error');
+      setResult(panel, null);
+      return;
+    }
+
+    button.disabled = true;
+    button.textContent = '查询中...';
+    setStatus(panel, '正在读取当前 Relay Token 的额度与余额信息...', 'info');
+
+    try {
+      var response = await fetch(endpointPath, {
+        method: 'GET',
+        headers: {
+          Authorization: 'Bearer ' + relayToken,
+        },
+      });
+
+      var payload = null;
+      try {
+        payload = await response.json();
+      } catch (_error) {
+        payload = null;
+      }
+
+      if (!response.ok || !payload || payload.code !== 0) {
+        var errorMessage = payload && payload.message ? payload.message : '获取 Relay Token 额度信息失败';
+        setStatus(panel, errorMessage, 'error');
+        setResult(panel, payload);
+        return;
+      }
+
+      setStatus(panel, '获取成功，可在下方查看当前 Relay Token 的额度快照。', 'success');
+      setResult(panel, payload.data);
+    } catch (error) {
+      setStatus(panel, error instanceof Error ? error.message : '请求失败', 'error');
+      setResult(panel, null);
+    } finally {
+      button.disabled = false;
+      button.textContent = '获取当前 Relay Token 额度';
+    }
+  }
+
+  function createQuotaPanel() {
+    var panel = document.createElement('div');
+    panel.id = quotaPanelId;
+    panel.innerHTML = [
+      '<div class="relay-token-quota-helper__header">',
+      '  <div>',
+      '    <div class="relay-token-quota-helper__title">Relay Token 额度助手</div>',
+      '    <div class="relay-token-quota-helper__desc">使用右上角 Authorize 中当前填写的 rlt_ 令牌，直接查询该令牌的余额、已用额度与 token 用量。</div>',
+      '  </div>',
+      '  <button type="button" class="relay-token-quota-helper__button">获取当前 Relay Token 额度</button>',
+      '</div>',
+      '<div class="relay-token-quota-helper__status relay-token-quota-helper__status--info">请先在 Authorize 中填写 rlt_ 开头的 Relay Token。</div>',
+      '<pre class="relay-token-quota-helper__result" style="display:none"></pre>',
+    ].join('');
+
+    var button = panel.querySelector('.relay-token-quota-helper__button');
+    if (button) {
+      button.addEventListener('click', function () {
+        fetchQuota(panel, button);
+      });
+    }
+
+    return panel;
+  }
+
+  function mountPanels() {
+    var swaggerUiRoot = document.querySelector('.swagger-ui');
+    var topbar = document.querySelector('.swagger-ui .topbar');
+    if (!swaggerUiRoot || !topbar || !topbar.parentNode) return false;
+
+    if (!document.getElementById(docsPanelId)) {
+      topbar.parentNode.insertBefore(createDocsPanel(), topbar.nextSibling);
+    }
+
+    if (!document.getElementById(quotaPanelId)) {
+      var docsPanel = document.getElementById(docsPanelId);
+      topbar.parentNode.insertBefore(createQuotaPanel(), docsPanel ? docsPanel.nextSibling : topbar.nextSibling);
+    }
+
+    return true;
+  }
+
+  var mountTimer = window.setInterval(function () {
+    if (mountPanels()) window.clearInterval(mountTimer);
+  }, 300);
+});
+</script>
