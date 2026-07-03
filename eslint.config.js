@@ -1,3 +1,4 @@
+import { URL, fileURLToPath } from 'node:url'
 import js from '@eslint/js'
 
 export default [
@@ -14,6 +15,7 @@ export default [
       '**/coverage/**',
       '**/*.local',
       'pnpm-lock.yaml',
+      'apps/**',
     ],
   },
   js.configs.recommended,
