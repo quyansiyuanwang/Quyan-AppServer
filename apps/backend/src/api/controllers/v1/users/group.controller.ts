@@ -22,7 +22,6 @@ import type {
   CreateGroupDto,
   UpdateGroupDto,
   SetGroupPermissionsDto,
-  GetAllGroupsData,
   GetAllGroupsResponse,
   GetGroupByIdResponse,
   CreateGroupResponse,
@@ -47,7 +46,7 @@ import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
 
-const logger = getLogger("GroupController", LogCategory.BUSINESS);
+const _logger = getLogger("GroupController", LogCategory.BUSINESS);
 
 @Route("v1/groups")
 @Tags("Group Management")
@@ -96,7 +95,7 @@ export class GroupController extends Controller {
   @RequirePermission(Permission.GROUP_READ)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(validateParams(groupIdParamsSchema))
-  public async getGroupById(@Path() groupId: string, @Request() request: TypedRequest): Promise<GetGroupByIdResponse> {
+  public async getGroupById(@Path() groupId: string, @Request() _request: TypedRequest): Promise<GetGroupByIdResponse> {
     const group = await this.groupService.getGroupById(groupId);
     if (!group) throw new ForbiddenError("用户组不存在", undefined, { messageKey: "group.notFound" });
     return group;
@@ -196,7 +195,7 @@ export class GroupController extends Controller {
   @RequirePermission(Permission.GROUP_READ)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(validateParams(groupIdParamsSchema))
-  public async getGroupPermissions(@Path() groupId: string, @Request() request: TypedRequest): Promise<string[]> {
+  public async getGroupPermissions(@Path() groupId: string, @Request() _request: TypedRequest): Promise<string[]> {
     return this.groupService.getGroupPermissions(groupId);
   }
 

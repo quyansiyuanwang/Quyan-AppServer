@@ -1,6 +1,6 @@
 import { prisma } from "@/config/database";
 import { Decimal } from "@prisma/client/runtime/library";
-import type { OJUsageRecord, Prisma } from "@prisma/client";
+import type { OJUsageRecord as _OJUsageRecord, Prisma } from "@prisma/client";
 import type { OJChargeAndRecordUsageParams, OJUsageStatsResult, OJUsageStore } from "./oj-usage.store";
 import { RECORD_STATUS } from "@/constant/status";
 

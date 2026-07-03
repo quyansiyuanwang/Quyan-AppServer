@@ -66,7 +66,7 @@ export function exceptionMiddleware(err: Error, req: Request, res: Response, nex
 
     try {
       logger.error(chalk.red("Exception:") + "\n" + JSON.stringify(errorLog, createCircularReplacer(), 2));
-    } catch (stringifyError) {
+    } catch (_stringifyError) {
       // 如果 JSON.stringify 仍然失败，使用最简化的日志格式
       logger.error(
         chalk.red("Exception:") +

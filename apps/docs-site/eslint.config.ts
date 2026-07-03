@@ -7,7 +7,7 @@ import skipFormatting from '@vue/eslint-config-prettier/skip-formatting'
 export default defineConfigWithVueTs(
   {
     name: 'app/files-to-lint',
-    files: ['src/**/*.{ts,mts,tsx,vue}'],
+    files: ['**/*.{ts,mts,tsx,vue}'],
   },
 
   globalIgnores([
@@ -41,6 +41,7 @@ export default defineConfigWithVueTs(
   {
     languageOptions: {
       parserOptions: {
+        tsconfigRootDir: import.meta.dirname,
         projectService: {
           allowDefaultProject: ['eslint.config.ts'],
           defaultProject: './tsconfig.node.json',

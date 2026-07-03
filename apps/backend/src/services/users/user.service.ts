@@ -397,7 +397,7 @@ export class UserService {
   /**
    * 发送邮箱变更验证码
    */
-  async sendEmailChangeCode(userId: string, newEmail: string, request?: Request): Promise<void> {
+  async sendEmailChangeCode(userId: string, newEmail: string, _request?: Request): Promise<void> {
     const user = await this.userRepository.findById(userId);
     if (!user) throw new NotFoundError("用户不存在");
 

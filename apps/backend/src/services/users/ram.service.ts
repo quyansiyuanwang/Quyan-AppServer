@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import type { RamRole, RamRoleSession, User, AccessKey } from "@prisma/client";
+import type { RamRole, RamRoleSession as _RamRoleSession, User, AccessKey as _AccessKey } from "@prisma/client";
 import { AccountStatus } from "@/util/auth/account-status";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { hashPassword } from "@/util/crypto";
@@ -13,7 +13,7 @@ import type { UserStore } from "@/store/users/user.store";
 import type { GroupStore } from "@/store/users/group.store";
 import type { AccessKeyStore } from "@/store/users/accesskey.store";
 import type { RamRoleStore, RamRoleBindingRecord, ActiveRamRoleSession } from "@/store/users/ram-role.store";
-import type { RamPolicyStore, PolicyBindingInfo } from "@/store/users/ram-policy.store";
+import type { RamPolicyStore, PolicyBindingInfo as _PolicyBindingInfo } from "@/store/users/ram-policy.store";
 import type {
   AssumeRamRoleDto,
   AssumeRamRoleResponseDto,

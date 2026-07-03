@@ -45,9 +45,9 @@ import { getLogger, LogCategory } from "@/util/logger";
 import type { Request as ExpressRequest } from "express";
 import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
 import { extractClientIp } from "@/util/ip-extractor";
-import { TooManyRequestsError, BadRequestError } from "@/util/errors";
+import { TooManyRequestsError, BadRequestError as _BadRequestError } from "@/util/errors";
 import type { ErrorResponse } from "@/api/response";
-import { CustomCode } from "@/constant/custom-code";
+import { CustomCode as _CustomCode } from "@/constant/custom-code";
 import {
   loginBodySchema,
   refreshBodySchema,

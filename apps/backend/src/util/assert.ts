@@ -1,4 +1,4 @@
-import { ApiError } from "./errors";
+import { ApiError as _ApiError } from "./errors";
 
 /**
  * 断言条件为真，否则抛出错误

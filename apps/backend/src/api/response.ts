@@ -42,7 +42,7 @@ export interface SuccessResponse<T = any> {
   data?: T;
 }
 
-type Request = express.Request;
-type Response = express.Response;
-type NextFunction = express.NextFunction;
-type RequestHandler = express.RequestHandler;
+type _Request = express.Request;
+type _Response = express.Response;
+type _NextFunction = express.NextFunction;
+type _RequestHandler = express.RequestHandler;

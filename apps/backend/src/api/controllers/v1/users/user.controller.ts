@@ -92,11 +92,11 @@ import { TWO_FACTOR_TRUSTED_DEVICE_PAGE_SIZE_DEFAULT } from "@/constant/two-fact
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
-import { CaptchaService } from "@/services/auth/captcha.service";
+import { CaptchaService as _CaptchaService } from "@/services/auth/captcha.service";
 import { CaptchaProtected, captchaMiddleware } from "@/util/captcha-protected-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
 
-const logger = getLogger("UserController", LogCategory.BUSINESS);
+const _logger = getLogger("UserController", LogCategory.BUSINESS);
 
 /**
  * 用户管理相关接口

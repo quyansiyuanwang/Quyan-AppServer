@@ -23,7 +23,7 @@ import type { UserOnlineMonitorOverviewResponse } from "@/api/dto/users/user-onl
 import type {
   UserOnlineMonitorDetailDto,
   UserOnlineMonitorTimelineGroupedResponse,
-  UserOnlineMonitorTimelineResponse,
+  UserOnlineMonitorTimelineResponse as _UserOnlineMonitorTimelineResponse,
   ForceOfflineSessionResponse,
   ForceOfflineUserResponse,
 } from "@/api/dto/users/user-online-monitor.dto";
