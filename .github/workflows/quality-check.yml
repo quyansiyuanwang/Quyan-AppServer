@@ -31,6 +31,8 @@ jobs:
   quality:
     needs: changes
     if: |
+      ( needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' ||
+        needs.changes.outputs.static-site == 'true' || needs.changes.outputs.docs-site == 'true' ) &&
       !contains(github.event.pull_request.title, '[skip ci]') &&
       !contains(github.event.pull_request.title, '[skip cicd]')
     runs-on: ubuntu-latest
