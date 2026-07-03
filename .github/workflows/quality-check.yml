@@ -46,7 +46,7 @@ jobs:
         run: pnpm --filter @appserver/backend run check:explicit-deps
 
       - name: Inject Empty Build Info (backend)
-        run: pnpm --filter @appserver/backend run build-info:stub
+        run: pnpm --filter @appserver/backend run build:info:stub
 
       - name: Generate TSOA Routes (backend)
         run: pnpm --filter @appserver/backend run openapi:generate
