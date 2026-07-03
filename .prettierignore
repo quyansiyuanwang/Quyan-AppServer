@@ -1,9 +1,7 @@
 node_modules/
 dist/
 coverage/
-.env
 *.local
 .DS_Store
 *.generated.*
 pnpm-lock.yaml
-*.tsbuildinfo
