@@ -7,3 +7,4 @@ coverage/
 *.generated.*
 pnpm-lock.yaml
 *.tsbuildinfo
+.eslintcache
