@@ -190,6 +190,10 @@ jobs:
   call-auto-label:
     needs: create-pr
     if: ${{ needs.create-pr.outputs.needs_label == 'true' }}
+    permissions:
+      pull-requests: write
+      issues: write
+      contents: read
     uses: ./.github/workflows/auto-label.yml
     with:
       pr_number: ${{ needs.create-pr.outputs.pr_number }}
