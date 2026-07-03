@@ -8,6 +8,23 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
+    inputs:
+      deploy-backend:
+        description: 'Deploy backend'
+        type: boolean
+        default: true
+      deploy-frontend:
+        description: 'Deploy frontend'
+        type: boolean
+        default: false
+      deploy-static-site:
+        description: 'Deploy static site'
+        type: boolean
+        default: true
+      deploy-docs-site:
+        description: 'Deploy docs site'
+        type: boolean
+        default: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -39,7 +56,7 @@ jobs:
   # ─── Backend ────────────────────────────────────────────────────
   deploy-backend:
     needs: changes
-    if: ${{ needs.changes.outputs.backend == 'true' }}
+    if: ${{ needs.changes.outputs.backend == 'true' || github.event.inputs.deploy-backend == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -127,10 +144,10 @@ jobs:
             "cd ${{ secrets.REMOTE_BACKEND_PATH }} && if [ ! -f ecosystem.config.cjs ]; then echo '[deploy] ecosystem.config.cjs not found in REMOTE_BACKEND_PATH'; exit 1; fi && if [ ! -f dist/index.cjs ]; then echo '[deploy] dist/index.cjs not found'; exit 1; fi && pm2 startOrReload ./ecosystem.config.cjs --env production"
 
   # ─── Frontend ───────────────────────────────────────────────────
-  # 关闭自动部署，如需恢复将 if 改为：${{ needs.changes.outputs.frontend == 'true' }}
+  # 关闭自动部署，手动触发时勾选 deploy-frontend 可部署
   deploy-frontend:
     needs: changes
-    if: false
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.deploy-frontend == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -179,7 +196,7 @@ jobs:
   # ─── Static Site ────────────────────────────────────────────────
   deploy-static-site:
     needs: changes
-    if: ${{ needs.changes.outputs.static-site == 'true' }}
+    if: ${{ needs.changes.outputs.static-site == 'true' || github.event.inputs.deploy-static-site == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -225,7 +242,7 @@ jobs:
   # ─── Docs Site ──────────────────────────────────────────────────
   deploy-docs-site:
     needs: changes
-    if: ${{ needs.changes.outputs.docs-site == 'true' }}
+    if: ${{ needs.changes.outputs.docs-site == 'true' || github.event.inputs.deploy-docs-site == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
