@@ -490,7 +490,7 @@ export const routes = [
     ],
   },
   {
-    path: '/:cachAlll(.*)',
+    path: '/:catchAll(.*)',
     component: () => import('@/views/common/404View.vue'),
   },
 ] as const satisfies RouteRecordRaw[]

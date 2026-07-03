@@ -12,25 +12,21 @@
     "dev:frontend": "pnpm --filter @appserver/frontend dev",
     "dev:static": "pnpm --filter @appserver/static-site dev",
     "dev:docs": "pnpm --filter @appserver/docs-site dev",
-
     "_2_build": "",
     "build:backend": "pnpm --filter @appserver/backend run build:only",
     "build:frontend": "pnpm --filter @appserver/frontend run build:only",
     "build:static": "pnpm --filter @appserver/static-site run build:only",
     "build:docs": "pnpm --filter @appserver/docs-site run build:only",
     "build": "pnpm -r --filter @appserver/* build",
-
     "_3_build_full": "",
     "build:full:backend": "pnpm run openapi:gen && pnpm run build:backend",
     "build:full:frontend": "pnpm run openapi:sync && pnpm run build:frontend",
     "build:full": "pnpm run openapi:gen:all && pnpm run build",
-
     "_4_openapi": "",
     "openapi:gen": "pnpm --filter @appserver/backend openapi:generate",
     "openapi:gen:frontend": "pnpm --filter @appserver/frontend openapi:generate",
     "openapi:sync": "pnpm --filter @appserver/frontend openapi:sync-generate",
     "openapi:gen:all": "pnpm run openapi:gen && pnpm run openapi:sync",
-
     "_5_db": "",
     "db:generate": "pnpm --filter @appserver/backend db:generate",
     "db:push": "pnpm --filter @appserver/backend db:push",
@@ -38,7 +34,6 @@
     "db:migrate": "pnpm --filter @appserver/backend db:migrate:deploy",
     "db:seed": "pnpm --filter @appserver/backend db:seed",
     "db:seed:prod": "pnpm --filter @appserver/backend db:seed:prod",
-
     "_6_lint": "",
     "lint": "pnpm -r --filter @appserver/* lint",
     "lint:check": "pnpm -r --filter @appserver/* run lint:check",
@@ -46,7 +41,6 @@
     "lint:frontend": "pnpm --filter @appserver/frontend lint",
     "lint:static": "pnpm --filter @appserver/static-site lint",
     "lint:docs": "pnpm --filter @appserver/docs-site lint",
-
     "_7_format": "",
     "format": "pnpm -r --filter @appserver/* format",
     "format:check": "pnpm -r --filter @appserver/* run format:check",
@@ -54,28 +48,33 @@
     "format:frontend": "pnpm --filter @appserver/frontend format",
     "format:static": "pnpm --filter @appserver/static-site format",
     "format:docs": "pnpm --filter @appserver/docs-site format",
-
     "_8_type_check": "",
     "type-check": "pnpm -r --filter @appserver/* run type-check",
     "type-check:backend": "pnpm --filter @appserver/backend run type-check",
     "type-check:frontend": "pnpm --filter @appserver/frontend run type-check",
     "type-check:static": "pnpm --filter @appserver/static-site run type-check",
     "type-check:docs": "pnpm --filter @appserver/docs-site run type-check",
-
     "_9_test": "",
     "test": "pnpm -r --filter @appserver/* test",
     "test:backend": "pnpm --filter @appserver/backend test",
     "test:frontend": "pnpm --filter @appserver/frontend test",
-
     "_10_util": "",
     "clean": "pnpm -r --filter @appserver/* exec rimraf dist",
 
-    "_11_meta": "",
+    "_11_spell": "",
+    "spell:check": "pnpm -r --filter @appserver/* run spell:check",
+    "spell:check:backend": "pnpm --filter @appserver/backend run spell:check",
+    "spell:check:frontend": "pnpm --filter @appserver/frontend run spell:check",
+    "spell:check:static": "pnpm --filter @appserver/static-site run spell:check",
+    "spell:check:docs": "pnpm --filter @appserver/docs-site run spell:check",
+
+    "_12_meta": "",
     "lint:all": "concurrently \"pnpm run lint\" \"pnpm run format\" \"pnpm run type-check\"",
     "check:all": "concurrently \"pnpm run lint:check\" \"pnpm run format:check\" \"pnpm run type-check\"",
-    "precommit": "pnpm run openapi:gen:all && pnpm run check",
+    "precommit": "pnpm run openapi:gen:all && pnpm run check:all",
+    "commit": "pnpm run precommit && git commit --no-verify",
 
-    "_12_lifecycle": "",
+    "_13_lifecycle": "",
     "prepare": "husky"
   },
   "pnpm": {
@@ -93,7 +92,9 @@
     ]
   },
   "devDependencies": {
+    "@cspell/dict-lorem-ipsum": "^4.0.5",
     "concurrently": "^9.2.1",
+    "cspell": "^10.0.1",
     "husky": "^9.1.7"
   }
 }

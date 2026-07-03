@@ -32,6 +32,7 @@
     "format": "prettier --write src/ tests/",
     "format:check": "prettier --check src/ tests/",
     "lint-format-check": "pnpm run lint:check && pnpm run format:check && pnpm run type-check",
+    "spell:check": "cspell lint \"src/**/*.{ts,js,vue}\"",
 
     "--- f_test ------------------------": "",
     "test": "vitest run",
