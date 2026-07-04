@@ -1,6 +1,7 @@
 import { useRequestStore } from '@/stores/request'
 import { CustomCode } from '@/constant/custom-code'
 import type { Permission } from '@/constant/permission'
+import type { Permission as ClientPermission } from '@/client/types.gen'
 import { toServiceError } from '@/utils/error-utils'
 import { cacheObject } from '@/utils/common'
 import { createGroupControllerApi } from '@/client/services/group-controller.gen'
@@ -104,7 +105,7 @@ export class GroupService {
   async setGroupPermissions(groupId: string, permissions: Permission[]) {
     const result = await permissionApi.setGroupPermissions({
       path: { groupId },
-      body: { permissions },
+      body: { permissions: permissions as ClientPermission[] },
     })
     if (result && result.code === CustomCode.OK) {
       return true

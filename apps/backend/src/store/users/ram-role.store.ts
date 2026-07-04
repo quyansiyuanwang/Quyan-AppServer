@@ -13,14 +13,12 @@ export interface CreateRamRoleInput {
   accountOwnerId: string;
   name: string;
   description?: string | null;
-  permissions: string[];
   trustPolicy?: Record<string, unknown> | null;
   maxSessionDuration?: number;
 }
 
 export interface UpdateRamRoleInput {
   description?: string | null;
-  permissions?: string[];
   trustPolicy?: Record<string, unknown> | null;
   maxSessionDuration?: number;
   status?: number;

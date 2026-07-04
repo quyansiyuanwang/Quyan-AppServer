@@ -44,14 +44,12 @@ export const updateRamUserBodySchema = z.object({
 export const createRamRoleBodySchema = z.object({
   name: z.string().trim().min(2).max(64).regex(roleNameRegex),
   description: z.string().trim().max(500).optional(),
-  permissions: z.array(z.string().trim().min(1)).max(500),
   trustPolicy: z.record(z.string(), z.unknown()).optional(),
   maxSessionDuration: z.coerce.number().int().min(900).max(43200).optional(),
 });
 
 export const updateRamRoleBodySchema = z.object({
   description: z.string().trim().max(500).optional(),
-  permissions: z.array(z.string().trim().min(1)).max(500).optional(),
   trustPolicy: z.record(z.string(), z.unknown()).nullable().optional(),
   maxSessionDuration: z.coerce.number().int().min(900).max(43200).optional(),
   status: z.coerce.number().int().min(AccountStatus.DISABLED).max(AccountStatus.ACTIVE).optional(),
@@ -95,6 +93,12 @@ export const detachPolicyBodySchema = z.object({
   policyId: z.string().trim().min(1),
   targetType: z.enum(["user", "role", "group"]),
   targetId: z.string().trim().min(1),
+});
+
+export const ramGroupListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  keyword: z.string().trim().optional(),
 });
 
 export const authorizationQuerySchema = z.object({

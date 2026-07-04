@@ -30,6 +30,10 @@ export interface PolicyBindingInfo {
   permissions: string[];
 }
 
+export interface PolicyBindingInfoWithTarget extends PolicyBindingInfo {
+  targetId: string;
+}
+
 export interface RamPolicyStore {
   createPolicy(data: CreateRamPolicyInput): Promise<RamPolicy>;
   findPolicyById(policyId: string): Promise<RamPolicy | null>;
@@ -42,4 +46,5 @@ export interface RamPolicyStore {
   listAttachmentsByPolicy(policyId: string): Promise<PolicyAttachmentRecord[]>;
   listAttachmentsByTarget(targetType: string, targetId: string): Promise<PolicyAttachmentRecord[]>;
   listPoliciesForTarget(targetType: string, targetId: string): Promise<PolicyBindingInfo[]>;
+  listPoliciesForTargets(targetType: string, targetIds: string[]): Promise<PolicyBindingInfoWithTarget[]>;
 }

@@ -620,31 +620,13 @@
         <el-form-item :label="i18ns.t('RamManagement.maxSessionDuration')" prop="maxSessionDuration"
           ><el-input-number v-model="roleForm.maxSessionDuration" :min="900" :max="43200"
         /></el-form-item>
-        <el-form-item :label="i18ns.t('RamManagement.permissions')" prop="permissions">
-          <div class="permission-tree-container">
-            <el-tree
-              ref="permTreeRef"
-              :data="permissionTree"
-              show-checkbox
-              node-key="value"
-              :default-checked-keys="roleForm.permissions"
-              @check="onTreeCheck"
-            >
-              <template #default="{ data }">
-                <el-tooltip
-                  v-if="data.tooltip"
-                  :content="data.tooltip"
-                  placement="right"
-                  :show-after="300"
-                >
-                  <span>{{ data.label }}</span>
-                  <code class="perm-source">{{ data.value }}</code>
-                </el-tooltip>
-                <span v-else>{{ data.label }}</span>
-              </template>
-            </el-tree>
-          </div>
-        </el-form-item>
+        <el-alert
+          :title="i18ns.t('RamManagement.rolePermissionsViaPolicies')"
+          type="info"
+          show-icon
+          :closable="false"
+          style="margin-top: 8px"
+        />
       </el-form>
       <template #footer>
         <div style="display: flex; gap: 12px; justify-content: flex-start">
@@ -859,7 +841,6 @@ import type {
   RamUserDto,
   EffectivePermissionDto,
 } from '@/client/types.gen'
-import { groupService } from '@/service/groupService'
 import { ramService } from '@/service/ramService'
 import { i18ns } from '@/locales'
 import { usePermissionStore } from '@/stores/permissionStore'
@@ -937,7 +918,6 @@ const userForm = reactive({
 const roleForm = reactive({
   name: '',
   description: '',
-  permissions: [] as string[],
   maxSessionDuration: 3600,
 })
 const policyForm = reactive({ name: '', description: '', permissions: [] as string[] })
@@ -1090,9 +1070,6 @@ const userRules: FormRules = {
 
 const roleRules: FormRules = {
   name: [{ required: true, message: i18ns.t('required'), trigger: 'blur' }],
-  permissions: [
-    { required: true, type: 'array', min: 1, message: i18ns.t('required'), trigger: 'change' },
-  ],
 }
 
 const policyRules: FormRules = {
@@ -1149,12 +1126,12 @@ const loadRoles = async () => {
 }
 
 const loadGroups = async () => {
-  if (!canCreateBindings.value && !canReadBindings.value) {
+  if (!canReadUsers.value && !canReadBindings.value && !canReadPolicies.value) {
     groups.value = []
     return
   }
-  const data = await groupService.getAllGroups()
-  groups.value = Array.isArray(data) ? data : data.groups
+  const data = await ramService.listGroups()
+  groups.value = Array.isArray(data) ? data : ((data as any).groups ?? [])
 }
 
 const loadBindings = async () => {
@@ -1359,10 +1336,6 @@ const batchDeleteUsers = async () => {
   }
 }
 
-const onTreeCheck = () => {
-  roleForm.permissions = permTreeRef.value?.getCheckedKeys() ?? []
-}
-
 const openRoleDialog = (role?: RamRoleDto) => {
   if ((role && !canUpdateRoles.value) || (!role && !canCreateRoles.value)) return
   editingRole.value = role ?? null
@@ -1370,7 +1343,6 @@ const openRoleDialog = (role?: RamRoleDto) => {
     Object.assign(roleForm, {
       name: role.name,
       description: role.description ?? '',
-      permissions: [...(role.permissions ?? [])],
       maxSessionDuration: role.maxSessionDuration,
     })
   }
@@ -1379,7 +1351,7 @@ const openRoleDialog = (role?: RamRoleDto) => {
 
 const resetRoleForm = () => {
   editingRole.value = null
-  Object.assign(roleForm, { name: '', description: '', permissions: [], maxSessionDuration: 3600 })
+  Object.assign(roleForm, { name: '', description: '', maxSessionDuration: 3600 })
   roleFormRef.value?.clearValidate()
 }
 
@@ -1389,7 +1361,6 @@ const submitRole = async () => {
   try {
     const payload = {
       description: roleForm.description,
-      permissions: roleForm.permissions,
       maxSessionDuration: roleForm.maxSessionDuration,
     }
     if (editingRole.value) {
@@ -1450,7 +1421,6 @@ const cloneRole = (role: RamRoleDto) => {
   Object.assign(roleForm, {
     name: `${role.name} (${i18ns.t('RamManagement.clone')})`,
     description: role.description ?? '',
-    permissions: [...(role.permissions ?? [])],
     maxSessionDuration: role.maxSessionDuration,
   })
   roleDialogVisible.value = true

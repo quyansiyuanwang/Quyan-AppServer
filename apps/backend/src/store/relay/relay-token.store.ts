@@ -72,6 +72,7 @@ export interface RelayTokenCreateInput {
   status?: number;
   name?: string | null;
   token: string;
+  isCustomKey?: boolean;
   expiresAt?: Date | null;
   channelId?: string;
   quotaLimit?: number | null;
@@ -86,6 +87,7 @@ export interface RelayTokenCreateInput {
 export type RelayTokenUpdateInput = Partial<{
   name: string | null;
   token: string;
+  isCustomKey: boolean;
   balance: number;
   totalTokens: number;
   requestCount: number;
@@ -144,6 +146,7 @@ export interface RelayTokenStore {
   findByUserIdWithChannel(userId: string): Promise<RelayTokenWithChannel[]>;
   findUsageSummaryTargetsByUserId(userId: string): Promise<RelayTokenUsageSummaryTarget[]>;
   findUsageSummaryTargetsByIds(userId: string, tokenIds: string[]): Promise<RelayTokenUsageSummaryTarget[]>;
+  countCustomKeyTokensByUserId(userId: string): Promise<number>;
   incrementUsageStats(id: string, totalTokens: number): Promise<RelayToken>;
   touchRequest(id: string): Promise<RelayToken>;
   update(id: string, data: RelayTokenUpdateInput): Promise<RelayToken>;

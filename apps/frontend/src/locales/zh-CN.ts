@@ -495,6 +495,8 @@ const zhCN: DeepStringify<typeof en> = {
     permissionCount: '权限数',
     maxSessionDuration: '最大会话秒数',
     permissions: '权限',
+    rolePermissionsViaPolicies:
+      '角色权限通过附加策略授予，请在"权限策略"页面创建策略并附加到此角色。',
     bindUser: '绑定用户',
     bindGroup: '绑定用户组',
     selectRole: '选择角色',
@@ -2255,6 +2257,12 @@ const zhCN: DeepStringify<typeof en> = {
     allWeek: '每天',
     weekday: '工作日',
     weekend: '周末',
+
+    // 自定义 Key
+    customKey: '自定义令牌',
+    customKeyPlaceholder: '留空则自动生成，填写需 rlt_ 开头至少 12 位字母数字',
+    customKeyHint:
+      '拥有自定义令牌权限的用户可自行指定令牌值。必须以 rlt_ 开头，仅含字母和数字，长度 12-200。每个用户最多创建 10 个自定义令牌。',
   },
   redemption: {
     code: '兑换码',

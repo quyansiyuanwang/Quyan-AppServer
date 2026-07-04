@@ -110,6 +110,7 @@ export class RelayTokenRepository implements RelayTokenStore {
         status: data.status,
         name: data.name,
         token: data.token,
+        isCustomKey: data.isCustomKey ?? false,
         expiresAt: data.expiresAt,
         channelId: data.channelId,
         quotaLimit: data.quotaLimit,
@@ -250,6 +251,16 @@ export class RelayTokenRepository implements RelayTokenStore {
         status: { in: [...visibleRelayTokenStatuses] },
       },
       select: relayTokenUsageSummarySelect,
+    });
+  }
+
+  async countCustomKeyTokensByUserId(userId: string): Promise<number> {
+    return prisma.relayToken.count({
+      where: {
+        userId,
+        isCustomKey: true,
+        status: { in: [...visibleRelayTokenStatuses] },
+      },
     });
   }
 

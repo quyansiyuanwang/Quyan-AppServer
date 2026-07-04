@@ -2566,6 +2566,59 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/ram/groups": {
+			"get": {
+				"operationId": "RamControllerListVisibleGroups",
+				"responses": {
+					"200": {
+						"description": "获取RAM可见用户组列表成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/GetRamGroupsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/ram/users/{userId}": {
 			"put": {
 				"operationId": "RamControllerUpdateUser",
@@ -20735,6 +20788,60 @@
 				},
 				"type": "array"
 			},
+			"RamGroupDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string",
+						"nullable": true
+					},
+					"permissions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"level": {
+						"type": "number",
+						"format": "double"
+					},
+					"description": {
+						"type": "string",
+						"nullable": true
+					},
+					"userCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"createdAt": {
+						"type": "string"
+					},
+					"updatedAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"username",
+					"permissions",
+					"level",
+					"createdAt",
+					"updatedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"GetRamGroupsResponse": {
+				"items": {
+					"$ref": "#/components/schemas/RamGroupDto"
+				},
+				"type": "array"
+			},
 			"CreateRamUserDto": {
 				"properties": {
 					"username": {
@@ -20873,12 +20980,6 @@
 					"description": {
 						"type": "string"
 					},
-					"permissions": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array"
-					},
 					"trustPolicy": {
 						"$ref": "#/components/schemas/Record_string.unknown_"
 					},
@@ -20888,8 +20989,7 @@
 					}
 				},
 				"required": [
-					"name",
-					"permissions"
+					"name"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -20898,12 +20998,6 @@
 				"properties": {
 					"description": {
 						"type": "string"
-					},
-					"permissions": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array"
 					},
 					"trustPolicy": {
 						"allOf": [
@@ -21347,7 +21441,7 @@
 				"additionalProperties": false
 			},
 			"Permission": {
-				"description": "系统权限枚举\n定义了系统中所有可用的权限",
+				"description": "系统权限枚举\n定义了系统中所有可用的权限\n\n这是唯一的规范数据源。前后端都从这里 re-export。",
 				"enum": [
 					"user:create",
 					"user:read",
@@ -21408,6 +21502,7 @@
 					"relay:token:read",
 					"relay:token:update",
 					"relay:token:delete",
+					"relay:token:custom_key",
 					"relay:channel:create",
 					"relay:channel:read",
 					"relay:channel:update",
@@ -28265,6 +28360,10 @@
 						"nullable": true,
 						"description": "Token 名称"
 					},
+					"token": {
+						"type": "string",
+						"description": "自定义令牌值（需 relay:token:custom_key 权限），不传则自动生成"
+					},
 					"expiresAt": {
 						"type": "string",
 						"nullable": true
@@ -28322,6 +28421,10 @@
 						"nullable": true,
 						"description": "Token 名称"
 					},
+					"token": {
+						"type": "string",
+						"description": "导入后要使用的固定令牌值，不传或冲突时自动生成"
+					},
 					"expiresAt": {
 						"type": "string",
 						"nullable": true
@@ -28367,10 +28470,6 @@
 					"modelMapping": {
 						"$ref": "#/components/schemas/Record_string.string_",
 						"description": "模型映射：请求模型 → 扣费模型"
-					},
-					"token": {
-						"type": "string",
-						"description": "导入后要使用的固定令牌值，不传或冲突时自动生成"
 					},
 					"enabled": {
 						"type": "boolean",
@@ -28469,6 +28568,10 @@
 						"nullable": true,
 						"description": "Token 名称"
 					},
+					"token": {
+						"type": "string",
+						"description": "导入后要使用的固定令牌值，不传或冲突时自动生成"
+					},
 					"expiresAt": {
 						"type": "string",
 						"nullable": true
@@ -28514,10 +28617,6 @@
 					"modelMapping": {
 						"$ref": "#/components/schemas/Record_string.string_",
 						"description": "模型映射：请求模型 → 扣费模型"
-					},
-					"token": {
-						"type": "string",
-						"description": "导入后要使用的固定令牌值，不传或冲突时自动生成"
 					},
 					"enabled": {
 						"type": "boolean",
@@ -28606,6 +28705,10 @@
 						"type": "string",
 						"nullable": true,
 						"description": "Token 名称"
+					},
+					"token": {
+						"type": "string",
+						"description": "自定义令牌值（需 relay:token:custom_key 权限），不传则不修改"
 					},
 					"expiresAt": {
 						"type": "string",

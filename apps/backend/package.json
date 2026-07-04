@@ -98,6 +98,7 @@
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@appserver/shared": "workspace:*",
     "@simplewebauthn/server": "^13.2.3",
     "@types/ioredis": "^4.28.10",
     "@types/node-cron": "^3.0.11",

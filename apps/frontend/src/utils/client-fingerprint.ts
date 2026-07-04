@@ -1,13 +1,5 @@
 import StorageKey from '@/constant/storagekey'
-
-const FINGERPRINT_PATTERN = /^[A-Za-z0-9._:-]{16,256}$/
-
-const normalizeFingerprint = (value: unknown): string | undefined => {
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim()
-  if (!FINGERPRINT_PATTERN.test(normalized)) return undefined
-  return normalized
-}
+import { normalizeFingerprint } from '@appserver/shared'
 
 const randomHex = (bytes: number): string => {
   const arr = new Uint8Array(bytes)

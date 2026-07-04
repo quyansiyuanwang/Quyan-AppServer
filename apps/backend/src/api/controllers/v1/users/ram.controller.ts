@@ -28,6 +28,7 @@ import type {
   CreateRamRoleDto,
   CreateRamUserDto,
   EffectivePermissionDto,
+  GetRamGroupsResponse,
   GetRamPoliciesResponse,
   GetRamPolicyAttachmentsResponse,
   GetRamRoleBindingsResponse,
@@ -53,6 +54,7 @@ import {
   createRamRoleBodySchema,
   createRamUserBodySchema,
   detachPolicyBodySchema,
+  ramGroupListQuerySchema,
   ramPolicyIdParamsSchema,
   ramRoleIdParamsSchema,
   ramSessionIdParamsSchema,
@@ -77,6 +79,20 @@ export class RamController extends Controller {
   @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt")
   public async listUsers(@Request() request: TypedRequest): Promise<GetRamUsersResponse> {
     return this.ramService.listRamUsers(request.user!.userId);
+  }
+
+  @Get("groups")
+  @Security("jwt")
+  @SuccessResponse(HttpStatusCode.Ok, "获取RAM可见用户组列表成功")
+  @Middlewares(validateQuery(ramGroupListQuerySchema))
+  @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt")
+  public async listVisibleGroups(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+    @Query() keyword?: string,
+  ): Promise<GetRamGroupsResponse> {
+    return this.ramService.listVisibleGroups(request.user!.userId, { page, pageSize, keyword });
   }
 
   @Post("users")

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const usernameRegex = /^[a-zA-Z0-9_]+$/;
+const usernameRegex = /^[a-zA-Z0-9_-]+$/;
 
 export const groupIdParamsSchema = z.object({
   groupId: z.string().trim().min(1),
