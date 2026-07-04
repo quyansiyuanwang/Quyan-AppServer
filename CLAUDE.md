@@ -9,7 +9,6 @@ AppServerMonorepo/
 ├── apps/
 │   ├── backend/           # @appserver/backend    Express + Prisma + TSOA (port 10001)
 │   ├── frontend/          # @appserver/frontend   Vue 3 + Element Plus + Vite (port 5173)
-│   ├── static-site/       # @appserver/static-site Vue 3 公开静态站点
 │   └── docs-site/         # @appserver/docs-site   Vue 3 文档站点
 ├── packages/
 │   ├── config-typescript/ # 共享 TypeScript 配置 (tsconfig.base.json)
@@ -29,12 +28,10 @@ AppServerMonorepo/
 pnpm run dev                     # 并行启动 backend + frontend
 pnpm run dev:frontend            # 只启动前端
 pnpm run dev:backend             # 只启动后端
-pnpm run dev:static              # 启动静态站点
 pnpm run dev:docs                # 启动文档站点
 pnpm run build                   # 构建所有项目
 pnpm run build:backend           # 只构建后端
 pnpm run build:frontend          # 只构建前端
-pnpm run build:static            # 只构建静态站点
 pnpm run build:docs              # 只构建文档站点
 pnpm run openapi:generate        # 生成 OpenAPI spec + 前端客户端
 pnpm run test                    # 运行所有测试
@@ -53,7 +50,6 @@ pnpm --filter @appserver/backend test       # 后端测试
 pnpm --filter @appserver/backend build      # 后端构建
 pnpm --filter @appserver/frontend dev       # 前端 dev
 pnpm --filter @appserver/frontend build     # 前端构建
-pnpm --filter @appserver/static-site dev    # 静态站点 dev
 pnpm --filter @appserver/docs-site dev      # 文档站点 dev
 ```
 

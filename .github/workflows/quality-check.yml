@@ -14,10 +14,6 @@ on:
         description: 'Check frontend'
         type: boolean
         default: true
-      check-static-site:
-        description: 'Check static site'
-        type: boolean
-        default: true
       check-docs-site:
         description: 'Check docs site'
         type: boolean
@@ -32,7 +28,6 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
-      static-site: ${{ steps.filter.outputs.static-site }}
       docs-site: ${{ steps.filter.outputs.docs-site }}
     steps:
       - uses: actions/checkout@v4
@@ -46,8 +41,6 @@ jobs:
             frontend:
               - 'apps/frontend/**'
               - 'packages/**'
-            static-site:
-              - 'apps/static-site/**'
             docs-site:
               - 'apps/docs-site/**'
 
@@ -56,7 +49,7 @@ jobs:
     if: |
       ( github.event_name == 'workflow_dispatch' ||
         github.event.inputs.check-backend == 'true' || needs.changes.outputs.backend == 'true' || github.event.inputs.check-frontend == 'true' || needs.changes.outputs.frontend == 'true' ||
-        github.event.inputs.check-static-site == 'true' || needs.changes.outputs.static-site == 'true' || github.event.inputs.check-docs-site == 'true' || needs.changes.outputs.docs-site == 'true' ) &&
+        github.event.inputs.check-docs-site == 'true' || needs.changes.outputs.docs-site == 'true' ) &&
       !contains(github.event.pull_request.title, '[skip ci]') &&
       !contains(github.event.pull_request.title, '[skip cicd]')
     runs-on: ubuntu-latest
@@ -140,19 +133,6 @@ jobs:
       - name: Type check (frontend)
         if: github.event.inputs.check-frontend == 'true' || needs.changes.outputs.frontend == 'true'
         run: pnpm --filter @appserver/frontend run type-check
-
-      # ── Static Site ────────────────────────────────────────────
-      - name: Lint (static-site)
-        if: github.event.inputs.check-static-site == 'true' || needs.changes.outputs.static-site == 'true'
-        run: pnpm --filter @appserver/static-site run lint:check
-
-      - name: Format check (static-site)
-        if: github.event.inputs.check-static-site == 'true' || needs.changes.outputs.static-site == 'true'
-        run: pnpm --filter @appserver/static-site run format:check
-
-      - name: Type check (static-site)
-        if: github.event.inputs.check-static-site == 'true' || needs.changes.outputs.static-site == 'true'
-        run: pnpm --filter @appserver/static-site run type-check
 
       # ── Docs Site ──────────────────────────────────────────────
       - name: Lint (docs-site)
