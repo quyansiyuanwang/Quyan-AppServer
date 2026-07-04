@@ -85,6 +85,8 @@ const zhCNMessages = {
   "ipBlacklist.notFoundByIp": "IP {{ip}} 不在黑名单中",
   "relay.channelDeleted": "渠道删除成功",
   "relay.tokenDeleted": "Token删除成功",
+  "relay.customKeyPermissionDenied": "你没有权限设置自定义令牌",
+  "relay.customKeyLimitReached": "自定义令牌数量已达上限 ({{limit}})，请先删除不用的自定义令牌",
   "billing.redemptionCodeDeleted": "删除成功",
 } as const;
 
@@ -172,6 +174,8 @@ const enMessages: Record<MessageKey, string> = {
   "ipBlacklist.notFoundByIp": "IP {{ip}} is not blacklisted",
   "relay.channelDeleted": "Channel deleted successfully",
   "relay.tokenDeleted": "Token deleted successfully",
+  "relay.customKeyPermissionDenied": "You do not have permission to set custom token keys",
+  "relay.customKeyLimitReached": "Custom token limit reached ({{limit}}). Please delete unused custom tokens first.",
   "billing.redemptionCodeDeleted": "Deleted successfully",
 };
 

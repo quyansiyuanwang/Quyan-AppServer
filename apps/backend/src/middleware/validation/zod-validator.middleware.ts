@@ -1,11 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
 import { ZodError, ZodSchema } from "zod";
 import { ValidationError } from "@/util/errors";
-import { translateMessage } from "@/locales";
+import { translateMessage, DEFAULT_BACKEND_LOCALE, type BackendLocale } from "@/locales";
 
 type RequestPart = "body" | "query" | "params";
 
-function mapZodError(part: RequestPart, error: ZodError): ValidationError {
+function mapZodError(part: RequestPart, error: ZodError, locale: BackendLocale): ValidationError {
   const fields: Record<string, string[]> = {};
 
   for (const issue of error.issues) {
@@ -14,11 +14,11 @@ function mapZodError(part: RequestPart, error: ZodError): ValidationError {
     fields[path].push(issue.message);
   }
 
-  return new ValidationError(translateMessage("errors.validationFailed", "zh-CN"), fields);
+  return new ValidationError(translateMessage("errors.validationFailed", locale), fields);
 }
 
 function createValidator<T>(part: RequestPart, schema: ZodSchema<T>) {
-  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const parsed = await schema.parseAsync(req[part]);
 
@@ -30,7 +30,7 @@ function createValidator<T>(part: RequestPart, schema: ZodSchema<T>) {
 
       next();
     } catch (error) {
-      if (error instanceof ZodError) return next(mapZodError(part, error));
+      if (error instanceof ZodError) return next(mapZodError(part, error, res.locals?.locale ?? DEFAULT_BACKEND_LOCALE));
       next(error);
     }
   };

@@ -129,7 +129,7 @@
             <template #default="{ row }">
               <div class="token-cell">
                 <el-link type="primary" class="token-link" @click="copyToken(row.token)">
-                  {{ row.token.substring(0, 24) }}...
+                  {{ row.token.substring(0, 12) }}...{{ row.token.slice(-4) }}
                 </el-link>
               </div>
             </template>

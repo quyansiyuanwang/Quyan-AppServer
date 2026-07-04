@@ -166,7 +166,7 @@ export class RelayTokenService {
 
   private async checkCustomKeyPermission(userId: string): Promise<void> {
     const hasPermission = await this.permissionService.hasPermission(userId, Permission.RELAY_TOKEN_CUSTOM_KEY);
-    if (!hasPermission) throw new ForbiddenError("You do not have permission to set custom token keys");
+    if (!hasPermission) throw new ForbiddenError("You do not have permission to set custom token keys", undefined, { messageKey: "relay.customKeyPermissionDenied" });
   }
 
   private async assertCustomKeyLimit(userId: string): Promise<void> {
@@ -174,6 +174,8 @@ export class RelayTokenService {
     if (count >= MAX_CUSTOM_KEY_TOKENS_PER_USER)
       throw new BadRequestError(
         `Custom token limit reached (${MAX_CUSTOM_KEY_TOKENS_PER_USER}). Please delete unused custom tokens first.`,
+        undefined,
+        { messageKey: "relay.customKeyLimitReached", messageParams: { limit: MAX_CUSTOM_KEY_TOKENS_PER_USER } },
       );
   }
 
