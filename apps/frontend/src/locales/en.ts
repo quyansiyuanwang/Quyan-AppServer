@@ -515,6 +515,7 @@ export default {
     permissionCount: 'Permissions',
     maxSessionDuration: 'Max session seconds',
     permissions: 'Permissions',
+    rolePermissionsViaPolicies: 'Role permissions are granted via attached policies. Create policies and attach them to this role.',
     bindUser: 'Bind user',
     bindGroup: 'Bind group',
     selectRole: 'Select role',

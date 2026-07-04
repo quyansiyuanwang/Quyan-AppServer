@@ -54,14 +54,12 @@ export interface RamRoleDto {
 export interface CreateRamRoleDto {
   name: string;
   description?: string;
-  permissions: string[];
   trustPolicy?: Record<string, unknown>;
   maxSessionDuration?: number;
 }
 
 export interface UpdateRamRoleDto {
   description?: string;
-  permissions?: string[];
   trustPolicy?: Record<string, unknown> | null;
   maxSessionDuration?: number;
   status?: number;

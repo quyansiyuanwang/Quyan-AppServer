@@ -107,13 +107,13 @@ export class RamService {
     };
   }
 
-  private mapRoleToDto(role: RamRole): RamRoleDto {
+  private mapRoleToDto(role: RamRole, permissions: string[]): RamRoleDto {
     return {
       id: role.id,
       accountOwnerId: role.accountOwnerId,
       name: role.name,
       description: role.description,
-      permissions: normalizeJsonStringArray(role.permissions),
+      permissions,
       trustPolicy: (role.trustPolicy as Record<string, unknown> | null) ?? null,
       maxSessionDuration: role.maxSessionDuration,
       status: role.status,
@@ -284,7 +284,24 @@ export class RamService {
   async listRoles(actorUserId: string): Promise<RamRoleDto[]> {
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const roles = await this.ramRoleRepository.listRoles(accountOwnerId);
-    return roles.map((role) => this.mapRoleToDto(role));
+    const roleIds = roles.map((r) => r.id);
+    const permissionsMap = await this.aggregateRolePermissionsFromPolicies(roleIds);
+    return roles.map((role) => this.mapRoleToDto(role, permissionsMap.get(role.id) || []));
+  }
+
+  private async aggregateRolePermissionsFromPolicies(roleIds: string[]): Promise<Map<string, string[]>> {
+    if (roleIds.length === 0) return new Map();
+    const attachments = await this.ramPolicyRepository.listPoliciesForTargets("role", roleIds);
+    const map = new Map<string, string[]>();
+    for (const a of attachments) {
+      const existing = map.get(a.targetId) || [];
+      map.set(a.targetId, [...existing, ...a.permissions]);
+    }
+    // Deduplicate
+    for (const [roleId, perms] of map) {
+      map.set(roleId, [...new Set(perms)]);
+    }
+    return map;
   }
 
   async createRole(actorUserId: string, data: CreateRamRoleDto): Promise<RamRoleDto> {
@@ -296,11 +313,10 @@ export class RamService {
       accountOwnerId,
       name: data.name,
       description: data.description ?? null,
-      permissions: data.permissions,
       trustPolicy: data.trustPolicy ?? null,
       maxSessionDuration: data.maxSessionDuration ?? DEFAULT_ROLE_SESSION_DURATION_SECONDS,
     });
-    return this.mapRoleToDto(role);
+    return this.mapRoleToDto(role, []);
   }
 
   async updateRole(actorUserId: string, roleId: string, data: UpdateRamRoleDto): Promise<RamRoleDto> {
@@ -310,7 +326,8 @@ export class RamService {
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
 
     const updated = await this.ramRoleRepository.updateRole(roleId, data);
-    return this.mapRoleToDto(updated);
+    const permissions = await this.ramPolicyRepository.listPoliciesForTarget("role", roleId);
+    return this.mapRoleToDto(updated, permissions.flatMap((p) => p.permissions));
   }
 
   async deleteRole(actorUserId: string, roleId: string): Promise<void> {
@@ -372,7 +389,8 @@ export class RamService {
     if (!userId) {
       const roleWithBindings = await this.ramRoleRepository.listRoleBindingsByRole(roleId);
       if (!roleWithBindings) return [];
-      const permissions = normalizeJsonStringArray(roleWithBindings.permissions);
+      const policyBindings = await this.ramPolicyRepository.listPoliciesForTarget("role", roleId);
+      const permissions = [...new Set(policyBindings.flatMap((b) => b.permissions))];
       return [
         ...roleWithBindings.userBindings.map((binding) =>
           this.mapBindingToDto({

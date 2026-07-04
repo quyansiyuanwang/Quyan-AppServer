@@ -12,10 +12,6 @@ import { Prisma, type RamRole, type RamRoleSession } from "@prisma/client";
 
 const ACTIVE_WHERE = { status: AccountStatus.ACTIVE } as const;
 
-function normalizePermissions(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-}
-
 export class RamRoleRepository implements RamRoleStore {
   private static instance: RamRoleRepository;
 
@@ -30,7 +26,6 @@ export class RamRoleRepository implements RamRoleStore {
         accountOwnerId: data.accountOwnerId,
         name: data.name,
         description: data.description ?? null,
-        permissions: data.permissions,
         trustPolicy:
           data.trustPolicy === null ? Prisma.JsonNull : (data.trustPolicy as Prisma.InputJsonValue | undefined),
         maxSessionDuration: data.maxSessionDuration ?? 3600,
@@ -54,7 +49,6 @@ export class RamRoleRepository implements RamRoleStore {
   async updateRole(roleId: string, data: UpdateRamRoleInput): Promise<RamRole> {
     const updateData: Prisma.RamRoleUncheckedUpdateInput = {};
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.permissions !== undefined) updateData.permissions = data.permissions;
     if (data.trustPolicy !== undefined)
       updateData.trustPolicy =
         data.trustPolicy === null ? Prisma.JsonNull : (data.trustPolicy as Prisma.InputJsonValue);
@@ -106,24 +100,35 @@ export class RamRoleRepository implements RamRoleStore {
         : Promise.resolve([]),
     ]);
 
-    return [
-      ...userBindings.map((binding) => ({
-        id: binding.id,
-        roleId: binding.roleId,
-        roleName: binding.role.name,
-        permissions: normalizePermissions(binding.role.permissions),
-        source: "user" as const,
-        principalId: binding.userId,
-      })),
-      ...groupBindings.map((binding) => ({
-        id: binding.id,
-        roleId: binding.roleId,
-        roleName: binding.role.name,
-        permissions: normalizePermissions(binding.role.permissions),
-        source: "group" as const,
-        principalId: binding.groupId,
-      })),
+    const allBindings = [
+      ...userBindings.map((b) => ({ ...b, source: "user" as const, principalId: b.userId })),
+      ...groupBindings.map((b) => ({ ...b, source: "group" as const, principalId: b.groupId })),
     ];
+
+    // Fetch role permissions from attached policies
+    const roleIds = [...new Set(allBindings.map((b) => b.roleId))];
+    const policyAttachments = await prisma.ramPolicyAttachment.findMany({
+      where: { targetType: "role", targetId: { in: roleIds }, ...ACTIVE_WHERE },
+      include: { policy: { select: { permissions: true } } },
+    });
+
+    const rolePermissionsMap = new Map<string, string[]>();
+    for (const attachment of policyAttachments) {
+      const perms = rolePermissionsMap.get(attachment.targetId) || [];
+      const policyPerms = Array.isArray(attachment.policy.permissions)
+        ? attachment.policy.permissions.filter((p): p is string => typeof p === "string")
+        : [];
+      rolePermissionsMap.set(attachment.targetId, [...perms, ...policyPerms]);
+    }
+
+    return allBindings.map((binding) => ({
+      id: binding.id,
+      roleId: binding.roleId,
+      roleName: binding.role.name,
+      permissions: [...new Set(rolePermissionsMap.get(binding.roleId) || [])],
+      source: binding.source,
+      principalId: binding.principalId,
+    }));
   }
 
   async listRoleBindingsByRole(roleId: string): Promise<RamRoleWithBindings | null> {

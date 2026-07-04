@@ -113,7 +113,6 @@ model RamRole {
   accountOwnerId     String
   name               String
   description        String?  @db.Text
-  permissions        Json
   trustPolicy        Json?
   maxSessionDuration Int      @default(3600)
 

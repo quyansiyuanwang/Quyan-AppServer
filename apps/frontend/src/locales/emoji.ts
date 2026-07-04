@@ -483,6 +483,7 @@ const emoji: DeepStringify<typeof en> = {
     permissionCount: '🛂 #',
     maxSessionDuration: '🕒 ⏱️',
     permissions: '🛂',
+    rolePermissionsViaPolicies: '📋 🔗 🎭',
     bindUser: '🔗 👤',
     bindGroup: '🔗 👥',
     selectRole: '🎭 👇',

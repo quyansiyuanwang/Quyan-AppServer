@@ -44,14 +44,12 @@ export const updateRamUserBodySchema = z.object({
 export const createRamRoleBodySchema = z.object({
   name: z.string().trim().min(2).max(64).regex(roleNameRegex),
   description: z.string().trim().max(500).optional(),
-  permissions: z.array(z.string().trim().min(1)).max(500),
   trustPolicy: z.record(z.string(), z.unknown()).optional(),
   maxSessionDuration: z.coerce.number().int().min(900).max(43200).optional(),
 });
 
 export const updateRamRoleBodySchema = z.object({
   description: z.string().trim().max(500).optional(),
-  permissions: z.array(z.string().trim().min(1)).max(500).optional(),
   trustPolicy: z.record(z.string(), z.unknown()).nullable().optional(),
   maxSessionDuration: z.coerce.number().int().min(900).max(43200).optional(),
   status: z.coerce.number().int().min(AccountStatus.DISABLED).max(AccountStatus.ACTIVE).optional(),

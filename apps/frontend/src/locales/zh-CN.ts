@@ -495,6 +495,7 @@ const zhCN: DeepStringify<typeof en> = {
     permissionCount: '权限数',
     maxSessionDuration: '最大会话秒数',
     permissions: '权限',
+    rolePermissionsViaPolicies: '角色权限通过附加策略授予，请在"权限策略"页面创建策略并附加到此角色。',
     bindUser: '绑定用户',
     bindGroup: '绑定用户组',
     selectRole: '选择角色',

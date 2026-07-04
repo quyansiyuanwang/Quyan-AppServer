@@ -155,7 +155,10 @@ export class PermissionService {
     if (options.assumedRoleSessionId) {
       const session = await this.ramRoleRepository.findActiveRoleSession(options.assumedRoleSessionId);
       if (session && session.subjectUserId === user.id) {
-        assumedRolePermissions = this.parsePermissionJson(session.role.permissions);
+        const rolePolicies = await this.ramPolicyRepository.listPoliciesForTarget("role", session.roleId);
+        assumedRolePermissions = rolePolicies.flatMap((b) =>
+          b.permissions.filter((permission): permission is Permission => isValidPermission(permission)),
+        );
         assumedRole = { id: session.roleId, name: session.role.name, sessionId: session.id };
       }
     }

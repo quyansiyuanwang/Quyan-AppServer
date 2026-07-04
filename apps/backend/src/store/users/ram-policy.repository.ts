@@ -4,6 +4,7 @@ import type {
   CreateRamPolicyInput,
   PolicyAttachmentRecord,
   PolicyBindingInfo,
+  PolicyBindingInfoWithTarget,
   RamPolicyStore,
   UpdateRamPolicyInput,
 } from "./ram-policy.store";
@@ -107,6 +108,22 @@ export class RamPolicyRepository implements RamPolicyStore {
       permissions: Array.isArray(row.policy.permissions)
         ? row.policy.permissions.filter((p): p is string => typeof p === "string")
         : [],
+    }));
+  }
+
+  async listPoliciesForTargets(targetType: string, targetIds: string[]): Promise<PolicyBindingInfoWithTarget[]> {
+    if (targetIds.length === 0) return [];
+    const rows = await prisma.ramPolicyAttachment.findMany({
+      where: { targetType, targetId: { in: targetIds }, ...ACTIVE_WHERE },
+      include: { policy: { select: { name: true, permissions: true } } },
+    });
+    return rows.map((row) => ({
+      policyId: row.policyId,
+      policyName: row.policy.name,
+      permissions: Array.isArray(row.policy.permissions)
+        ? row.policy.permissions.filter((p): p is string => typeof p === "string")
+        : [],
+      targetId: row.targetId,
     }));
   }
 }
