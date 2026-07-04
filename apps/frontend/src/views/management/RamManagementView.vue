@@ -859,7 +859,6 @@ import type {
   RamUserDto,
   EffectivePermissionDto,
 } from '@/client/types.gen'
-import { groupService } from '@/service/groupService'
 import { ramService } from '@/service/ramService'
 import { i18ns } from '@/locales'
 import { usePermissionStore } from '@/stores/permissionStore'
@@ -1149,12 +1148,12 @@ const loadRoles = async () => {
 }
 
 const loadGroups = async () => {
-  if (!canCreateBindings.value && !canReadBindings.value) {
+  if (!canReadUsers.value && !canReadBindings.value && !canReadPolicies.value) {
     groups.value = []
     return
   }
-  const data = await groupService.getAllGroups()
-  groups.value = Array.isArray(data) ? data : data.groups
+  const data = await ramService.listGroups()
+  groups.value = Array.isArray(data) ? data : (data as any).groups ?? []
 }
 
 const loadBindings = async () => {

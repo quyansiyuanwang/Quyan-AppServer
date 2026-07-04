@@ -97,6 +97,12 @@ export const detachPolicyBodySchema = z.object({
   targetId: z.string().trim().min(1),
 });
 
+export const ramGroupListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  keyword: z.string().trim().optional(),
+});
+
 export const authorizationQuerySchema = z.object({
   userId: z.string().trim().min(1),
 });

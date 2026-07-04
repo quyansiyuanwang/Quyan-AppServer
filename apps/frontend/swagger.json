@@ -2566,6 +2566,59 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/ram/groups": {
+			"get": {
+				"operationId": "RamControllerListVisibleGroups",
+				"responses": {
+					"200": {
+						"description": "获取RAM可见用户组列表成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/GetRamGroupsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/ram/users/{userId}": {
 			"put": {
 				"operationId": "RamControllerUpdateUser",
@@ -20732,6 +20785,60 @@
 			"GetRamUsersResponse": {
 				"items": {
 					"$ref": "#/components/schemas/RamUserDto"
+				},
+				"type": "array"
+			},
+			"RamGroupDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string",
+						"nullable": true
+					},
+					"permissions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"level": {
+						"type": "number",
+						"format": "double"
+					},
+					"description": {
+						"type": "string",
+						"nullable": true
+					},
+					"userCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"createdAt": {
+						"type": "string"
+					},
+					"updatedAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"username",
+					"permissions",
+					"level",
+					"createdAt",
+					"updatedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"GetRamGroupsResponse": {
+				"items": {
+					"$ref": "#/components/schemas/RamGroupDto"
 				},
 				"type": "array"
 			},

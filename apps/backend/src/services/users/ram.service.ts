@@ -22,6 +22,7 @@ import type {
   CreateRamRoleDto,
   CreateRamUserDto,
   EffectivePermissionDto,
+  RamGroupDto,
   RamPolicyAttachmentDto,
   RamPolicyDto,
   RamRoleBindingDto,
@@ -148,7 +149,14 @@ export class RamService {
 
   async listRamUsers(actorUserId: string): Promise<RamUserDto[]> {
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
-    const users = await this.userRepository.listNonDeleted();
+    const actor = await this.getActor(actorUserId);
+    const actorGroup = await this.groupRepository.findById(actor.groupId);
+    const isAdmin = actorGroup?.username === "admin";
+
+    const users = isAdmin
+      ? await this.userRepository.listNonDeleted()
+      : await this.userRepository.listNonDeletedByGroupLevelGte(actorGroup?.level ?? 0);
+
     return users
       .filter(
         (user) =>
@@ -156,6 +164,39 @@ export class RamService {
           (user.accountOwnerId === accountOwnerId || user.parentUserId === accountOwnerId),
       )
       .map((user) => this.mapUserToDto(user as AccountScopedUser));
+  }
+
+  async listVisibleGroups(
+    actorUserId: string,
+    options?: { page?: number; pageSize?: number; keyword?: string },
+  ): Promise<RamGroupDto[]> {
+    const actor = await this.getActor(actorUserId);
+    const actorGroup = await this.groupRepository.findById(actor.groupId);
+    const isAdmin = actorGroup?.username === "admin";
+
+    const groups = isAdmin
+      ? await this.groupRepository.listActiveWithUserCount()
+      : await this.groupRepository.listVisibleWithUserCount(actorGroup?.level ?? 0);
+
+    const filtered = options?.keyword
+      ? groups.filter(
+          (g) =>
+            (g.name && g.name.includes(options.keyword!)) ||
+            (g.username && g.username.includes(options.keyword!)),
+        )
+      : groups;
+
+    return filtered.map((g) => ({
+      id: g.id,
+      username: g.username,
+      name: g.name,
+      permissions: normalizeJsonStringArray(g.permissions),
+      level: g.level,
+      description: g.description,
+      userCount: g._count?.users,
+      createdAt: g.createTime.toISOString(),
+      updatedAt: g.updateTime.toISOString(),
+    }));
   }
 
   async createRamUser(actorUserId: string, data: CreateRamUserDto): Promise<RamUserDto> {

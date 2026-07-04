@@ -189,6 +189,12 @@ export class RamService {
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
   }
+
+  async listGroups(params?: { keyword?: string; page?: number; pageSize?: number }) {
+    const result = await ramApi.listVisibleGroups({ params: params || {} })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
 }
 
 export const ramService = RamService.getInstance()
