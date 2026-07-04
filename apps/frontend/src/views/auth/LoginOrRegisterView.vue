@@ -264,13 +264,13 @@
                   v-if="!isLogin"
                   prop="verificationCode"
                 >
-                  <div style="display: flex; gap: 8px; width: 100%">
+                  <div style="display: flex; flex-direction: column; gap: 8px; width: 100%">
                     <el-input
                       v-model="(currentForm as RegisterForm).verificationCode"
                       :placeholder="i18ns.t('loginOrRegisterPage.enterVerificationCode')"
                       maxlength="6"
                       :disabled="captchaWarmupRunning"
-                      style="flex: 1"
+                      style="width: 100%"
                     />
                     <el-button
                       :disabled="

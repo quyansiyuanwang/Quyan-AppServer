@@ -510,6 +510,21 @@
               <el-input v-model="userForm.accessKeyName" />
             </el-form-item>
           </template>
+
+          <!-- 用户组选择 -->
+          <el-form-item :label="i18ns.t('RamManagement.userGroup')" prop="groupId">
+            <el-select v-model="userForm.groupId" filterable clearable style="width: 100%">
+              <el-option
+                v-for="g in groups"
+                :key="g.id"
+                :label="g.name || g.username"
+                :value="g.id"
+              />
+            </el-select>
+            <div class="text-secondary" style="font-size: 12px; margin-top: 4px">
+              {{ i18ns.t('RamManagement.userGroupHint') }}
+            </div>
+          </el-form-item>
         </template>
       </el-form>
       <template #footer>
@@ -913,6 +928,7 @@ const userForm = reactive({
   displayName: '',
   email: '',
   status: 1,
+  groupId: '',
   accessTypes: ['console'],
   passwordMode: 'auto',
   passwordResetRequired: false,
@@ -1214,6 +1230,7 @@ const resetUserForm = () => {
     displayName: '',
     email: '',
     status: 1,
+    groupId: '',
     accessTypes: ['console'],
     passwordMode: 'auto',
     passwordResetRequired: false,
@@ -1247,6 +1264,7 @@ const submitUser = async () => {
         ramUsername: userForm.ramUsername || undefined,
         displayName: userForm.displayName || undefined,
         email: userForm.email || undefined,
+        groupId: userForm.groupId || undefined,
         enableConsole: types.includes('console'),
         enableAccessKey: types.includes('accesskey'),
       }

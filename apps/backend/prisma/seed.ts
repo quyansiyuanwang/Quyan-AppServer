@@ -170,6 +170,19 @@ async function main() {
     },
   });
 
+  // 7. RAM 默认用户组 - 无特殊权限
+  const ramDefaultGroup = await prisma.group.upsert({
+    where: { username: "ram-default" },
+    update: {},
+    create: {
+      username: "ram-default",
+      name: "RAM 默认用户组",
+      permissions: JSON.stringify([]),
+      level: 10,
+      description: "RAM 子账户默认用户组，无特殊权限",
+    },
+  });
+
   console.log("✓ 用户组创建完成\n");
 
   // ==================== 创建用户账号 ====================

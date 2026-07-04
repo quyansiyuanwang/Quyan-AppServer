@@ -177,7 +177,7 @@ export class RamService {
     // 仅 AccessKey 或无密码时生成随机密码
     const rawPassword = data.password ?? randomBytes(12).toString("hex");
     const password = await hashPassword(rawPassword);
-    const defaultGroup = data.groupId ? null : await this.groupRepository.findDefaultUserGroup();
+    const defaultGroup = data.groupId ? null : await this.groupRepository.findRamDefaultGroup();
     if (!data.groupId && !defaultGroup) throw new BadRequestError("默认用户组不存在");
 
     const user = await this.userRepository.create({

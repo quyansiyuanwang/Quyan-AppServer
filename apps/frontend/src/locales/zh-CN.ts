@@ -554,6 +554,8 @@ const zhCN: DeepStringify<typeof en> = {
     accessKeyDescription:
       '将创建 AccessKey ID 和 AccessKey Secret，用于 API 或其他开发工具访问。创建后请妥善保管 Secret，关闭后将无法再次查看。',
     accessKeyName: 'AccessKey 名称',
+    userGroup: '用户组',
+    userGroupHint: '选择用户组以赋予初始权限。留空则子用户从零权限开始，后续通过策略授权。',
     accessKeyCreated: 'AccessKey 创建成功',
     accessKeySecret: 'AccessKey Secret',
     copySecret: '复制密钥',

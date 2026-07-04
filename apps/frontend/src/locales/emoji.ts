@@ -539,6 +539,8 @@ const emoji: DeepStringify<typeof en> = {
     noResetRequired: '🚫 🔄',
     accessKeyDescription: '🔑 🆔 🔑 🤫 ⚠️',
     accessKeyName: '🔑 📛',
+    userGroup: '👥 📂',
+    userGroupHint: 'ℹ️ 留空=0️⃣ 👑 , 📎 📋 🗂️ 📜',
     accessKeyCreated: '✅ 🔑',
     accessKeySecret: '🤫 🔑',
     copySecret: '📋 🤫',
