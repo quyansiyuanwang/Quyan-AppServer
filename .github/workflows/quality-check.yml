@@ -42,8 +42,10 @@ jobs:
           filters: |
             backend:
               - 'apps/backend/**'
+              - 'packages/**'
             frontend:
               - 'apps/frontend/**'
+              - 'packages/**'
             static-site:
               - 'apps/static-site/**'
             docs-site:
