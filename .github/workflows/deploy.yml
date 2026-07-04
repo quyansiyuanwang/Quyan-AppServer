@@ -79,7 +79,7 @@ jobs:
         run: pnpm --filter @appserver/backend run build:full:prod
 
       - name: Prepare standalone deploy package
-        run: pnpm --filter @appserver/backend deploy apps/backend/deploy/
+        run: pnpm --filter @appserver/backend deploy --legacy apps/backend/deploy/
 
       - name: Copy build output into deploy package
         run: cp -r apps/backend/dist apps/backend/deploy/dist
