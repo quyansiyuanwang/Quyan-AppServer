@@ -59,28 +59,28 @@ RAM 是授权与访问控制中心，用于创建子用户、定义角色、编�
 
 ## 所需权限
 
-| 操作 | 所需权限 |
-|------|---------|
-| 查看 RAM 用户列表 | `RAM_USER_READ` |
-| 创建 RAM 用户 | `RAM_USER_CREATE` |
-| 更新 RAM 用户 | `RAM_USER_UPDATE` |
-| 删除 RAM 用户 | `RAM_USER_DELETE` |
-| 查看 RAM 角色列表 | `RAM_ROLE_READ` |
-| 创建 RAM 角色 | `RAM_ROLE_CREATE` |
-| 更新 RAM 角色 | `RAM_ROLE_UPDATE` |
-| 删除 RAM 角色 | `RAM_ROLE_DELETE` |
-| 查看角色绑定 | `RAM_BINDING_READ` |
-| 创建角色绑定 | `RAM_BINDING_CREATE` |
-| 删除角色绑定 | `RAM_BINDING_DELETE` |
-| 查看权限策略 | `RAM_POLICY_READ` |
-| 创建权限策略 | `RAM_POLICY_CREATE` |
-| 更新权限策略 | `RAM_POLICY_UPDATE` |
-| 删除权限策略 | `RAM_POLICY_DELETE` |
-| 绑定策略 | `RAM_POLICY_ATTACH` |
-| 解绑策略 | `RAM_POLICY_DETACH` |
-| 扮演角色 | `RAM_ASSUME_ROLE` |
-| 查看会话 | `RAM_SESSION_READ` |
-| 撤销会话 | `RAM_SESSION_REVOKE` |
+| 操作              | 所需权限             |
+| ----------------- | -------------------- |
+| 查看 RAM 用户列表 | `RAM_USER_READ`      |
+| 创建 RAM 用户     | `RAM_USER_CREATE`    |
+| 更新 RAM 用户     | `RAM_USER_UPDATE`    |
+| 删除 RAM 用户     | `RAM_USER_DELETE`    |
+| 查看 RAM 角色列表 | `RAM_ROLE_READ`      |
+| 创建 RAM 角色     | `RAM_ROLE_CREATE`    |
+| 更新 RAM 角色     | `RAM_ROLE_UPDATE`    |
+| 删除 RAM 角色     | `RAM_ROLE_DELETE`    |
+| 查看角色绑定      | `RAM_BINDING_READ`   |
+| 创建角色绑定      | `RAM_BINDING_CREATE` |
+| 删除角色绑定      | `RAM_BINDING_DELETE` |
+| 查看权限策略      | `RAM_POLICY_READ`    |
+| 创建权限策略      | `RAM_POLICY_CREATE`  |
+| 更新权限策略      | `RAM_POLICY_UPDATE`  |
+| 删除权限策略      | `RAM_POLICY_DELETE`  |
+| 绑定策略          | `RAM_POLICY_ATTACH`  |
+| 解绑策略          | `RAM_POLICY_DETACH`  |
+| 扮演角色          | `RAM_ASSUME_ROLE`    |
+| 查看会话          | `RAM_SESSION_READ`   |
+| 撤销会话          | `RAM_SESSION_REVOKE` |
 
 ## 安全说明
 

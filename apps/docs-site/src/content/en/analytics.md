@@ -64,12 +64,12 @@ Heatmap data is only collected when the heatmap endpoint is configured and the t
 
 ## Permission requirements
 
-| Action | Required permission |
-|--------|-------------------|
-| View analytics overview | `ANALYTICS_OVERVIEW` |
-| View analytics funnel | `ANALYTICS_FUNNEL` |
-| View analytics heatmap | `ANALYTICS_HEATMAP` |
-| Configure heatmap endpoint | `SYSTEM_CONFIG` |
+| Action                     | Required permission  |
+| -------------------------- | -------------------- |
+| View analytics overview    | `ANALYTICS_OVERVIEW` |
+| View analytics funnel      | `ANALYTICS_FUNNEL`   |
+| View analytics heatmap     | `ANALYTICS_HEATMAP`  |
+| Configure heatmap endpoint | `SYSTEM_CONFIG`      |
 
 ## Notes
 

@@ -64,12 +64,12 @@
 
 ## 所需权限
 
-| 操作 | 所需权限 |
-|------|---------|
-| 查看分析概览 | `ANALYTICS_OVERVIEW` |
-| 查看分析漏斗 | `ANALYTICS_FUNNEL` |
-| 查看分析热力图 | `ANALYTICS_HEATMAP` |
-| 配置热力图端点 | `SYSTEM_CONFIG` |
+| 操作           | 所需权限             |
+| -------------- | -------------------- |
+| 查看分析概览   | `ANALYTICS_OVERVIEW` |
+| 查看分析漏斗   | `ANALYTICS_FUNNEL`   |
+| 查看分析热力图 | `ANALYTICS_HEATMAP`  |
+| 配置热力图端点 | `SYSTEM_CONFIG`      |
 
 ## 注意事项
 

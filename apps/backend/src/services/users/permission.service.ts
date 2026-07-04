@@ -289,7 +289,8 @@ export class PermissionService {
     if (!target) throw new BadRequestError("目标用户不存在");
 
     // 检查组等级：level越高权限越低，不能修改level小于或等于自己的用户（权限大于或等于自己）
-    if ((target.group?.level ?? Infinity) <= (operator.group?.level ?? -1)) throw new ForbiddenError("无权修改等级大于或等于自己的用户的权限");
+    if ((target.group?.level ?? Infinity) <= (operator.group?.level ?? -1))
+      throw new ForbiddenError("无权修改等级大于或等于自己的用户的权限");
   }
 
   /**

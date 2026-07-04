@@ -59,28 +59,28 @@ Select a user to view their complete effective permissions.
 
 ## Permission requirements
 
-| Action | Required permission |
-|--------|-------------------|
-| View RAM users | `RAM_USER_READ` |
-| Create RAM user | `RAM_USER_CREATE` |
-| Update RAM user | `RAM_USER_UPDATE` |
-| Delete RAM user | `RAM_USER_DELETE` |
-| View RAM roles | `RAM_ROLE_READ` |
-| Create RAM role | `RAM_ROLE_CREATE` |
-| Update RAM role | `RAM_ROLE_UPDATE` |
-| Delete RAM role | `RAM_ROLE_DELETE` |
-| View role bindings | `RAM_BINDING_READ` |
+| Action              | Required permission  |
+| ------------------- | -------------------- |
+| View RAM users      | `RAM_USER_READ`      |
+| Create RAM user     | `RAM_USER_CREATE`    |
+| Update RAM user     | `RAM_USER_UPDATE`    |
+| Delete RAM user     | `RAM_USER_DELETE`    |
+| View RAM roles      | `RAM_ROLE_READ`      |
+| Create RAM role     | `RAM_ROLE_CREATE`    |
+| Update RAM role     | `RAM_ROLE_UPDATE`    |
+| Delete RAM role     | `RAM_ROLE_DELETE`    |
+| View role bindings  | `RAM_BINDING_READ`   |
 | Create role binding | `RAM_BINDING_CREATE` |
 | Delete role binding | `RAM_BINDING_DELETE` |
-| View policies | `RAM_POLICY_READ` |
-| Create policy | `RAM_POLICY_CREATE` |
-| Update policy | `RAM_POLICY_UPDATE` |
-| Delete policy | `RAM_POLICY_DELETE` |
-| Attach policy | `RAM_POLICY_ATTACH` |
-| Detach policy | `RAM_POLICY_DETACH` |
-| Assume role | `RAM_ASSUME_ROLE` |
-| View sessions | `RAM_SESSION_READ` |
-| Revoke session | `RAM_SESSION_REVOKE` |
+| View policies       | `RAM_POLICY_READ`    |
+| Create policy       | `RAM_POLICY_CREATE`  |
+| Update policy       | `RAM_POLICY_UPDATE`  |
+| Delete policy       | `RAM_POLICY_DELETE`  |
+| Attach policy       | `RAM_POLICY_ATTACH`  |
+| Detach policy       | `RAM_POLICY_DETACH`  |
+| Assume role         | `RAM_ASSUME_ROLE`    |
+| View sessions       | `RAM_SESSION_READ`   |
+| Revoke session      | `RAM_SESSION_REVOKE` |
 
 ## Security notes
 

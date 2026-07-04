@@ -50,12 +50,12 @@ After a successful login with 2FA, you can mark the current browser as trusted. 
 
 ### Trusted device behavior
 
-| Operation type | Trusted device honored? |
-|---------------|------------------------|
-| Normal login | Yes |
-| Standard step-up challenges (email change, profile edits) | Yes |
-| High-risk operations (delete access keys, delete RAM users, detach policies) | **No** — always requires fresh 2FA |
-| Disable 2FA | No — requires code or recovery code |
+| Operation type                                                               | Trusted device honored?             |
+| ---------------------------------------------------------------------------- | ----------------------------------- |
+| Normal login                                                                 | Yes                                 |
+| Standard step-up challenges (email change, profile edits)                    | Yes                                 |
+| High-risk operations (delete access keys, delete RAM users, detach policies) | **No** — always requires fresh 2FA  |
+| Disable 2FA                                                                  | No — requires code or recovery code |
 
 ### Managing trusted devices
 
@@ -73,11 +73,11 @@ After a successful login with 2FA, you can mark the current browser as trusted. 
 
 ## Permission requirements
 
-| Action | Required permission |
-|--------|-------------------|
-| Manage own 2FA | None (all users) |
-| Manage own passkeys | None (all users) |
-| Manage trusted devices | None (all users) |
+| Action                 | Required permission |
+| ---------------------- | ------------------- |
+| Manage own 2FA         | None (all users)    |
+| Manage own passkeys    | None (all users)    |
+| Manage trusted devices | None (all users)    |
 
 ## Related pages
 

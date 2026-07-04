@@ -74,7 +74,8 @@ export class GroupService {
     hasRamPermission?: boolean;
   }): Promise<GetAllGroupsData> {
     const actorUser = await this.userRepository.findById(options.actorUserId);
-    if (!actorUser || !actorUser.groupId) return { groups: [], total: 0, page: options.page, pageSize: options.pageSize, hasMore: false };
+    if (!actorUser || !actorUser.groupId)
+      return { groups: [], total: 0, page: options.page, pageSize: options.pageSize, hasMore: false };
 
     const actorGroup = await this.groupRepository.findById(actorUser.groupId);
     if (!actorGroup) return { groups: [], total: 0, page: options.page, pageSize: options.pageSize, hasMore: false };
