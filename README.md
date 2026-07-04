@@ -9,7 +9,6 @@ AppServerMonorepo/
 ├── apps/
 │   ├── backend/           # @appserver/backend    Express + Prisma + TSOA API 服务
 │   ├── frontend/          # @appserver/frontend   Vue 3 + Element Plus 管理面板
-│   ├── static-site/       # @appserver/static-site Vue 3 公开静态站点
 │   └── docs-site/         # @appserver/docs-site   Vue 3 文档站点
 ├── packages/              # 共享包（配置、工具等）
 ├── .cspell/               # 拼写检查词表
@@ -26,7 +25,6 @@ AppServerMonorepo/
 |------|------|------|--------|---------|
 | **backend** | Express 5 + TypeScript | esbuild + Bun | MySQL (Prisma) | TSOA, JWT, Redis, WebSocket |
 | **frontend** | Vue 3 + TypeScript | Rolldown Vite | - | Element Plus, Pinia, Axios, ECharts |
-| **static-site** | Vue 3 + TypeScript | Rolldown Vite | - | Tailwind CSS, Pinia, vue-i18n |
 | **docs-site** | Vue 3 + TypeScript | Rolldown Vite | - | marked, mermaid |
 
 ## 前置要求
@@ -64,7 +62,6 @@ pnpm run dev
 pnpm run dev              # 并行启动 backend + frontend
 pnpm run dev:backend      # 只启动后端
 pnpm run dev:frontend     # 只启动前端
-pnpm run dev:static       # 启动静态站点
 pnpm run dev:docs         # 启动文档站点
 ```
 
@@ -74,7 +71,6 @@ pnpm run dev:docs         # 启动文档站点
 pnpm run build            # 构建所有项目（含类型检查）
 pnpm run build:backend    # 只构建后端
 pnpm run build:frontend   # 只构建前端
-pnpm run build:static     # 只构建静态站点
 pnpm run build:docs       # 只构建文档站点
 pnpm run build:full       # 完整构建（OpenAPI 生成 + 构建）
 ```
