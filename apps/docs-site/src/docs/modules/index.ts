@@ -10,6 +10,7 @@ import { registerReferenceDocs } from './reference'
 import { registerToolsDocs } from './tools'
 import { registerSystemDocs } from './system'
 import { registerOjDocs } from './oj'
+import { registerAnalyticsDocs } from './analytics'
 import { registerOtherDocs } from './other'
 
 export const registerAllDocs = (registry: DocsRegistryBuilder) => {
@@ -24,5 +25,6 @@ export const registerAllDocs = (registry: DocsRegistryBuilder) => {
   registerToolsDocs(registry)
   registerSystemDocs(registry)
   registerOjDocs(registry)
+  registerAnalyticsDocs(registry)
   registerOtherDocs(registry)
 }

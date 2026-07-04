@@ -12,6 +12,7 @@ const orderedModulePaths = [
   './user-management.doc.ts',
   './group-management.doc.ts',
   './permission-management.doc.ts',
+  './ram-management.doc.ts',
   './balance-management.doc.ts',
   './monthly-pass-management.doc.ts',
   './redemption-code-management.doc.ts',
