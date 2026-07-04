@@ -327,7 +327,10 @@ export class RamService {
 
     const updated = await this.ramRoleRepository.updateRole(roleId, data);
     const permissions = await this.ramPolicyRepository.listPoliciesForTarget("role", roleId);
-    return this.mapRoleToDto(updated, permissions.flatMap((p) => p.permissions));
+    return this.mapRoleToDto(
+      updated,
+      permissions.flatMap((p) => p.permissions),
+    );
   }
 
   async deleteRole(actorUserId: string, roleId: string): Promise<void> {
