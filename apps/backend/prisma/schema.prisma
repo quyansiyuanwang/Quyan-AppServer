@@ -19,7 +19,7 @@ model User {
   email                    String?
   twoFactorEnabled         Boolean  @default(false)
   twoFactorPasskeyRequired Boolean  @default(false)
-  groupId                  String
+  groupId                  String?
   permissionAdds           Json
   permissionRemoves        Json
   accountOwnerId           String?
@@ -29,7 +29,7 @@ model User {
   displayName              String?
   forcePasswordChange      Boolean  @default(false)
 
-  group                        Group                           @relation(fields: [groupId], references: [id])
+  group                        Group?                           @relation(fields: [groupId], references: [id])
   accountOwner                 User?                           @relation("RamAccountUsers", fields: [accountOwnerId], references: [id], onDelete: SetNull)
   accountUsers                 User[]                          @relation("RamAccountUsers")
   ownedRamGroups               Group[]                         @relation("RamGroupOwner")

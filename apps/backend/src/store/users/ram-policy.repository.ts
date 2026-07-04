@@ -70,15 +70,20 @@ export class RamPolicyRepository implements RamPolicyStore {
       where: { policyId, ...ACTIVE_WHERE },
       include: { policy: { select: { name: true } } },
     });
-    return rows.map((row) => ({
+    const mapped = rows.map((row) => ({
       id: row.id,
       policyId: row.policyId,
       policyName: row.policy.name,
       targetType: row.targetType,
       targetId: row.targetId,
-      targetName: null,
+      targetName: null as string | null,
       createTime: row.createTime,
     }));
+    const nameMap = await this.resolveTargetNames(mapped);
+    for (const record of mapped) {
+      record.targetName = nameMap.get(`${record.targetType}:${record.targetId}`) ?? null;
+    }
+    return mapped;
   }
 
   async listAttachmentsByTarget(targetType: string, targetId: string): Promise<PolicyAttachmentRecord[]> {
@@ -86,15 +91,20 @@ export class RamPolicyRepository implements RamPolicyStore {
       where: { targetType, targetId, ...ACTIVE_WHERE },
       include: { policy: { select: { name: true } } },
     });
-    return rows.map((row) => ({
+    const mapped = rows.map((row) => ({
       id: row.id,
       policyId: row.policyId,
       policyName: row.policy.name,
       targetType: row.targetType,
       targetId: row.targetId,
-      targetName: null,
+      targetName: null as string | null,
       createTime: row.createTime,
     }));
+    const nameMap = await this.resolveTargetNames(mapped);
+    for (const record of mapped) {
+      record.targetName = nameMap.get(`${record.targetType}:${record.targetId}`) ?? null;
+    }
+    return mapped;
   }
 
   async listPoliciesForTarget(targetType: string, targetId: string): Promise<PolicyBindingInfo[]> {
@@ -125,5 +135,52 @@ export class RamPolicyRepository implements RamPolicyStore {
         : [],
       targetId: row.targetId,
     }));
+  }
+
+  private async resolveTargetNames(
+    attachments: { targetType: string; targetId: string }[],
+  ): Promise<Map<string, string>> {
+    const userTargets: string[] = [];
+    const roleTargets: string[] = [];
+    const groupTargets: string[] = [];
+    for (const a of attachments) {
+      if (a.targetType === "user") userTargets.push(a.targetId);
+      else if (a.targetType === "role") roleTargets.push(a.targetId);
+      else if (a.targetType === "group") groupTargets.push(a.targetId);
+    }
+
+    const nameMap = new Map<string, string>();
+
+    if (userTargets.length > 0) {
+      const users = await prisma.user.findMany({
+        where: { id: { in: [...new Set(userTargets)] } },
+        select: { id: true, ramUsername: true, displayName: true },
+      });
+      for (const u of users) {
+        nameMap.set(`user:${u.id}`, u.displayName || u.ramUsername || u.id);
+      }
+    }
+
+    if (roleTargets.length > 0) {
+      const roles = await prisma.ramRole.findMany({
+        where: { id: { in: [...new Set(roleTargets)] } },
+        select: { id: true, name: true },
+      });
+      for (const r of roles) {
+        nameMap.set(`role:${r.id}`, r.name);
+      }
+    }
+
+    if (groupTargets.length > 0) {
+      const groups = await prisma.group.findMany({
+        where: { id: { in: [...new Set(groupTargets)] } },
+        select: { id: true, name: true },
+      });
+      for (const g of groups) {
+        nameMap.set(`group:${g.id}`, g.name || g.id);
+      }
+    }
+
+    return nameMap;
   }
 }

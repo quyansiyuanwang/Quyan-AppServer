@@ -433,7 +433,7 @@
       v-model="userDialogVisible"
       :title="editingUser ? i18ns.t('RamManagement.editUser') : i18ns.t('RamManagement.createUser')"
       direction="rtl"
-      size="520px"
+      size="720px"
       @closed="resetUserForm"
     >
       <el-form ref="userFormRef" :model="userForm" :rules="userRules" label-width="120px">
@@ -607,7 +607,7 @@
       v-model="roleDialogVisible"
       :title="editingRole ? i18ns.t('RamManagement.editRole') : i18ns.t('RamManagement.createRole')"
       direction="rtl"
-      size="50%"
+      size="65%"
       @closed="resetRoleForm"
     >
       <el-form ref="roleFormRef" :model="roleForm" :rules="roleRules" label-width="150px">
@@ -678,7 +678,7 @@
         editingPolicy ? i18ns.t('RamManagement.editPolicy') : i18ns.t('RamManagement.createPolicy')
       "
       direction="rtl"
-      size="50%"
+      size="65%"
       @closed="resetPolicyForm"
     >
       <el-form ref="policyFormRef" :model="policyForm" :rules="policyRules" label-width="140px">
@@ -728,7 +728,7 @@
       v-model="attachDrawerVisible"
       :title="i18ns.t('RamManagement.policyAttachments')"
       direction="rtl"
-      size="420px"
+      size="650px"
     >
       <div class="section-toolbar">
         <el-button
@@ -789,11 +789,11 @@
         <el-table-column :label="i18ns.t('RamManagement.targetType')" width="100">
           <template #default="{ row }">{{ row.targetType }}</template>
         </el-table-column>
-        <el-table-column
-          :label="i18ns.t('RamManagement.targetName')"
-          min-width="180"
-          prop="targetId"
-        />
+        <el-table-column :label="i18ns.t('RamManagement.targetName')" min-width="180">
+          <template #default="{ row }">
+            {{ getAttachmentTargetName(row) }}
+          </template>
+        </el-table-column>
         <el-table-column :label="i18ns.t('actions')" width="100">
           <template #default="{ row }">
             <el-button
@@ -1050,6 +1050,24 @@ const getBindingTargetName = (binding: RamRoleBindingDto) => {
 
   const group = groups.value.find((item) => item.id === binding.principalId)
   return group?.name || group?.username || binding.principalId
+}
+
+const getAttachmentTargetName = (attachment: RamPolicyAttachmentDto) => {
+  if (attachment.targetName) return attachment.targetName
+
+  if (attachment.targetType === 'user') {
+    const user = users.value.find((item) => item.id === attachment.targetId)
+    return user?.displayName || user?.ramUsername || user?.username || attachment.targetId
+  }
+  if (attachment.targetType === 'role') {
+    const role = roles.value.find((item) => item.id === attachment.targetId)
+    return role?.name || attachment.targetId
+  }
+  if (attachment.targetType === 'group') {
+    const group = groups.value.find((item) => item.id === attachment.targetId)
+    return group?.name || group?.username || attachment.targetId
+  }
+  return attachment.targetId
 }
 
 const userRules: FormRules = {

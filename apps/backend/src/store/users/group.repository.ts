@@ -60,7 +60,12 @@ export class GroupRepository implements GroupStore {
   }
 
   async findByUsername(username: string): Promise<Group | null> {
-    return prisma.group.findUnique({ where: { username } });
+    return prisma.group.findFirst({
+      where: {
+        username,
+        status: RECORD_STATUS.ACTIVE,
+      },
+    });
   }
 
   async findActiveByUsername(username: string): Promise<Group | null> {
@@ -152,6 +157,9 @@ export class GroupRepository implements GroupStore {
   }
 
   async softDelete(id: string): Promise<Group> {
-    return this.updateById(id, { status: RECORD_STATUS.DELETED });
+    const group = await this.findById(id);
+    if (!group) throw new Error("Group not found");
+    const deletedUsername = `${group.username}_del_${Date.now()}`;
+    return this.updateById(id, { username: deletedUsername, status: RECORD_STATUS.DELETED });
   }
 }

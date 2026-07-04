@@ -74,7 +74,7 @@ export class UserService {
       email: user.email,
       name: user.name,
       status: user.status,
-      groupId: user.groupId,
+      groupId: user.groupId ?? undefined,
       groupName: group?.name || group?.username || null,
       balance: balanceAccount ? Number(balanceAccount.balance) : 0,
       createdAt: user.createTime.toISOString(),
@@ -108,7 +108,7 @@ export class UserService {
         email: user.email,
         name: user.name,
         status: user.status,
-        groupId: user.groupId,
+        groupId: user.groupId ?? undefined,
         groupName: group?.name || group?.username || null,
         balance: balanceAccount ? Number(balanceAccount.balance) : 0,
         createdAt: user.createTime.toISOString(),
@@ -119,7 +119,7 @@ export class UserService {
 
   private async getVisibleUserLevel(userId: string): Promise<number | null> {
     const requestingUser = await this.userRepository.findById(userId);
-    if (!requestingUser) return null;
+    if (!requestingUser || !requestingUser.groupId) return null;
 
     const requestingUserGroup = await this.groupRepository.findById(requestingUser.groupId);
     return requestingUserGroup?.level ?? null;
@@ -310,7 +310,7 @@ export class UserService {
 
   async getUserGroupLevel(userId: string): Promise<number | null> {
     const user = await this.userRepository.findById(userId);
-    if (!user) return null;
+    if (!user || !user.groupId) return null;
     const group = await this.groupRepository.findById(user.groupId);
     return group?.level ?? null;
   }
@@ -321,7 +321,7 @@ export class UserService {
    */
   async isAdmin(userId: string): Promise<boolean> {
     const user = await this.userRepository.findById(userId);
-    if (!user) return false;
+    if (!user || !user.groupId) return false;
     const group = await this.groupRepository.findById(user.groupId);
     return group?.username === "admin";
   }

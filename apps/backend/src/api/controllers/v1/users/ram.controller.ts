@@ -65,6 +65,7 @@ import { validateBody, validateParams, validateQuery } from "@/middleware/valida
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
+import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 
 @Route("v1/ram")
 @Tags("RAM")
@@ -97,7 +98,12 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "创建RAM用户成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateBody(createRamUserBodySchema))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(createRamUserBodySchema),
+  )
   @CheckPermission(Permission.RAM_USER_CREATE, PermissionCheckMode.ALL, "jwt")
   public async createUser(@Body() body: CreateRamUserDto, @Request() request: TypedRequest): Promise<RamUserDto> {
     return this.ramService.createRamUser(request.user!.userId, body);
@@ -107,7 +113,13 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "更新RAM用户成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateParams(ramUserIdParamsSchema), validateBody(updateRamUserBodySchema))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(ramUserIdParamsSchema),
+    validateBody(updateRamUserBodySchema),
+  )
   @CheckPermission(Permission.RAM_USER_UPDATE, PermissionCheckMode.ALL, "jwt")
   public async updateUser(
     @Path() userId: string,
@@ -121,7 +133,12 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "删除RAM用户成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateParams(ramUserIdParamsSchema))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code", alwaysRequire: true })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code", alwaysRequire: true }),
+    replayProtectionMiddleware,
+    validateParams(ramUserIdParamsSchema),
+  )
   @CheckPermission(Permission.RAM_USER_DELETE, PermissionCheckMode.ALL, "jwt")
   public async deleteUser(
     @Path() userId: string,
@@ -143,7 +160,12 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "创建RAM角色成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateBody(createRamRoleBodySchema))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(createRamRoleBodySchema),
+  )
   @CheckPermission(Permission.RAM_ROLE_CREATE, PermissionCheckMode.ALL, "jwt")
   public async createRole(@Body() body: CreateRamRoleDto, @Request() request: TypedRequest): Promise<RamRoleDto> {
     return this.ramService.createRole(request.user!.userId, body);
@@ -153,7 +175,13 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "更新RAM角色成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateParams(ramRoleIdParamsSchema), validateBody(updateRamRoleBodySchema))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(ramRoleIdParamsSchema),
+    validateBody(updateRamRoleBodySchema),
+  )
   @CheckPermission(Permission.RAM_ROLE_UPDATE, PermissionCheckMode.ALL, "jwt")
   public async updateRole(
     @Path() roleId: string,
@@ -167,7 +195,12 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "删除RAM角色成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateParams(ramRoleIdParamsSchema))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code", alwaysRequire: true })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code", alwaysRequire: true }),
+    replayProtectionMiddleware,
+    validateParams(ramRoleIdParamsSchema),
+  )
   @CheckPermission(Permission.RAM_ROLE_DELETE, PermissionCheckMode.ALL, "jwt")
   public async deleteRole(
     @Path() roleId: string,
@@ -194,7 +227,9 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "绑定RAM角色到用户成功")
   @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateParams(ramRoleIdParamsSchema),
     validateBody(bindRamRoleToUserBodySchema),
@@ -213,7 +248,12 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "解除用户RAM角色绑定成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateParams(ramRoleIdParamsSchema.merge(ramUserIdParamsSchema)))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(ramRoleIdParamsSchema.merge(ramUserIdParamsSchema)),
+  )
   @CheckPermission(Permission.RAM_BINDING_DELETE, PermissionCheckMode.ALL, "jwt")
   public async unbindRoleFromUser(
     @Path() roleId: string,
@@ -228,7 +268,9 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "绑定RAM角色到用户组成功")
   @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateParams(ramRoleIdParamsSchema),
     validateBody(bindRamRoleToGroupBodySchema),
@@ -247,7 +289,9 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "解除用户组RAM角色绑定成功")
   @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateParams(ramRoleIdParamsSchema.extend({ groupId: bindRamRoleToGroupBodySchema.shape.groupId })),
   )
@@ -289,7 +333,12 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "撤销RAM角色会话成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateParams(ramSessionIdParamsSchema))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(ramSessionIdParamsSchema),
+  )
   @CheckPermission(Permission.RAM_SESSION_REVOKE, PermissionCheckMode.ALL, "jwt")
   public async revokeSession(
     @Path() sessionId: string,
@@ -313,7 +362,12 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "创建权限策略成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateBody(createRamPolicyBodySchema))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(createRamPolicyBodySchema),
+  )
   @CheckPermission(Permission.RAM_POLICY_CREATE, PermissionCheckMode.ALL, "jwt")
   public async createPolicy(@Body() body: CreateRamPolicyDto, @Request() request: TypedRequest): Promise<RamPolicyDto> {
     return this.ramService.createPolicy(request.user!.userId, body);
@@ -323,7 +377,9 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "更新权限策略成功")
   @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateParams(ramPolicyIdParamsSchema),
     validateBody(updateRamPolicyBodySchema),
@@ -341,7 +397,12 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "删除权限策略成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateParams(ramPolicyIdParamsSchema))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code", alwaysRequire: true })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code", alwaysRequire: true }),
+    replayProtectionMiddleware,
+    validateParams(ramPolicyIdParamsSchema),
+  )
   @CheckPermission(Permission.RAM_POLICY_DELETE, PermissionCheckMode.ALL, "jwt")
   public async deletePolicy(
     @Path() policyId: string,
@@ -367,7 +428,12 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "绑定权限策略成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateBody(attachPolicyBodySchema))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(attachPolicyBodySchema),
+  )
   @CheckPermission(Permission.RAM_POLICY_ATTACH, PermissionCheckMode.ALL, "jwt")
   public async attachPolicy(
     @Body() body: AttachPolicyBodyDto,
@@ -381,7 +447,12 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "解绑权限策略成功")
   @ReplayProtected()
-  @Middlewares(replayProtectionMiddleware, validateBody(detachPolicyBodySchema))
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code", alwaysRequire: true })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code", alwaysRequire: true }),
+    replayProtectionMiddleware,
+    validateBody(detachPolicyBodySchema),
+  )
   @CheckPermission(Permission.RAM_POLICY_DETACH, PermissionCheckMode.ALL, "jwt")
   public async detachPolicy(
     @Body() body: AttachPolicyBodyDto,
