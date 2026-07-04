@@ -116,7 +116,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
             -p ${{ secrets.SSH_PORT || '22' }} \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && pnpm install"
+            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.dependencies['@appserver/shared'];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')\" && pnpm install"
 
       - name: Generate Prisma Client on server
         run: |

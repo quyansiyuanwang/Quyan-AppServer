@@ -22,6 +22,7 @@ jobs:
           filters: |
             backend:
               - 'apps/backend/**'
+              - 'packages/**'
               - 'pnpm-lock.yaml'
               - 'package.json'
               - 'pnpm-workspace.yaml'
