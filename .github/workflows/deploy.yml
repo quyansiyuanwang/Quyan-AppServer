@@ -84,8 +84,15 @@ jobs:
       - name: Copy build output into deploy package
         run: cp -r apps/backend/dist apps/backend/deploy/dist
 
-      - name: Copy generated Prisma Client into deploy package
-        run: cp -r node_modules/.prisma apps/backend/deploy/node_modules/
+      - name: Copy Generated Prisma Client into deploy package
+        run: |
+          PRISMA_CLIENT_DIR=$(find node_modules/.pnpm -maxdepth 4 -path "*/@prisma+client*/node_modules/.prisma" -type d -print -quit)
+          if [ -n "$PRISMA_CLIENT_DIR" ]; then
+            mkdir -p apps/backend/deploy/dist/node_modules/.prisma
+            cp -r "$PRISMA_CLIENT_DIR" apps/backend/deploy/dist/node_modules/.prisma/
+          else
+            echo "[deploy] WARNING: Could not find generated Prisma Client directory"
+          fi
 
       - name: Setup SSH
         run: |
