@@ -5,11 +5,6 @@ import { windowEventBus } from '@/stores/globalInstance'
 
 export const useIsDesktopStore = defineStore('isDesktop', () => {
   const getViewportWidth = () => {
-    const visualViewportWidth = window.visualViewport?.width
-    if (typeof visualViewportWidth === 'number' && Number.isFinite(visualViewportWidth)) {
-      return visualViewportWidth
-    }
-
     const documentWidth = document.documentElement?.clientWidth
     if (typeof documentWidth === 'number' && Number.isFinite(documentWidth) && documentWidth > 0) {
       return documentWidth
@@ -29,7 +24,6 @@ export const useIsDesktopStore = defineStore('isDesktop', () => {
 
   window.addEventListener('resize', updateIsDesktop)
   window.addEventListener('orientationchange', updateIsDesktop)
-  window.visualViewport?.addEventListener('resize', updateIsDesktop)
 
   const desktopMediaQuery = window.matchMedia('(min-width: 769px)')
   desktopMediaQuery.addEventListener?.('change', updateIsDesktop)
