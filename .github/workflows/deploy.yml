@@ -94,7 +94,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
             -p ${{ secrets.SSH_PORT || '22' }} \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "mkdir -p ${{ secrets.REMOTE_BACKEND_PATH }}/dist"
+            "mkdir -p ${{ secrets.REMOTE_BACKEND_PATH }}/dist && rm -rf ${{ secrets.REMOTE_BACKEND_PATH }}/node_modules ${{ secrets.REMOTE_BACKEND_PATH }}/package.json ${{ secrets.REMOTE_BACKEND_PATH }}/pnpm-lock.yaml"
 
       - name: Validate remote path
         run: |
