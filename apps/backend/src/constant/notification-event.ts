@@ -17,6 +17,15 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   [NotificationEvent.PASSWORD_CHANGED]: "密码已修改",
   [NotificationEvent.TWO_FACTOR_STATUS_CHANGE]: "2FA 状态变更",
   [NotificationEvent.ACCOUNT_STATUS_CHANGED]: "账户状态变更",
+  [NotificationEvent.RAM_POLICY_ATTACHED]: "权限策略已绑定",
+  [NotificationEvent.RAM_POLICY_DETACHED]: "权限策略已解绑",
+  [NotificationEvent.RAM_ROLE_BINDING_UPDATED]: "RAM角色绑定关系变更",
+  [NotificationEvent.RAM_USER_CREATED]: "RAM用户已创建",
+  [NotificationEvent.RAM_USER_DELETED]: "RAM用户已删除",
+  [NotificationEvent.RAM_ROLE_CREATED]: "RAM角色已创建",
+  [NotificationEvent.RAM_ROLE_DELETED]: "RAM角色已删除",
+  [NotificationEvent.RAM_POLICY_CREATED]: "权限策略已创建",
+  [NotificationEvent.RAM_POLICY_DELETED]: "权限策略已删除",
 };
 
 export const THRESHOLD_EVENTS = [

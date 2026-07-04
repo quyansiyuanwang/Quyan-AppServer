@@ -9,6 +9,9 @@ import { GroupRepository } from "@/store/users/group.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
 import { AccessKeyRepository } from "@/store/users/accesskey.repository";
+import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
+import { NotificationService } from "@/services/notification/notification.service";
+import { NotificationEvent } from "@/constant/notification-event";
 import type { UserStore } from "@/store/users/user.store";
 import type { GroupStore } from "@/store/users/group.store";
 import type { AccessKeyStore } from "@/store/users/accesskey.store";
@@ -80,6 +83,25 @@ export class RamService {
   private assertSameAccount(accountOwnerId: string, resourceAccountOwnerId?: string | null): void {
     const normalized = resourceAccountOwnerId || undefined;
     if (normalized && normalized !== accountOwnerId) throw new ForbiddenError("无权访问其他主账号下的资源");
+  }
+
+  private async dispatchNotification(
+    actorUserId: string,
+    event: NotificationEvent,
+    payload: { title: string; content: string; data?: Record<string, unknown> },
+  ): Promise<void> {
+    try {
+      const prefRepo = NotificationPreferenceRepository.getInstance();
+      const pref = await prefRepo.findByUserId(actorUserId);
+      if (!pref) return;
+
+      const subscribedEvents = (pref.subscribedEvents as string[]) ?? [];
+      if (!subscribedEvents.includes(event)) return;
+
+      NotificationService.getInstance().dispatch(actorUserId, event, payload);
+    } catch {
+      // non-fatal
+    }
   }
 
   private mapUserToDto(
@@ -243,9 +265,19 @@ export class RamService {
         key,
         name: `RAM-${data.ramUsername ?? data.username}`,
       });
+      void this.dispatchNotification(actorUserId, NotificationEvent.RAM_USER_CREATED, {
+        title: "RAM用户已创建",
+        content: `RAM用户 "${data.ramUsername || data.username}" 已成功创建（含 AccessKey）。`,
+        data: { userId: user.id, ramUsername: data.ramUsername || data.username },
+      });
       return this.mapUserToDto(user as AccountScopedUser, accessKey.id, key);
     }
 
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_USER_CREATED, {
+      title: "RAM用户已创建",
+      content: `RAM用户 "${data.ramUsername || data.username}" 已成功创建。`,
+      data: { userId: user.id, ramUsername: data.ramUsername || data.username },
+    });
     return this.mapUserToDto(user as AccountScopedUser);
   }
 
@@ -279,6 +311,12 @@ export class RamService {
     if (user.id === accountOwnerId) throw new BadRequestError("不能删除主账号");
     this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId);
     await this.userRepository.softDelete(userId);
+
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_USER_DELETED, {
+      title: "RAM用户已删除",
+      content: `RAM用户 "${user.ramUsername || user.username}" 已被删除。`,
+      data: { userId, ramUsername: user.ramUsername },
+    });
   }
 
   async listRoles(actorUserId: string): Promise<RamRoleDto[]> {
@@ -316,6 +354,11 @@ export class RamService {
       trustPolicy: data.trustPolicy ?? null,
       maxSessionDuration: data.maxSessionDuration ?? DEFAULT_ROLE_SESSION_DURATION_SECONDS,
     });
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_CREATED, {
+      title: "RAM角色已创建",
+      content: `角色 "${data.name}" 已成功创建。`,
+      data: { roleId: role.id, roleName: data.name },
+    });
     return this.mapRoleToDto(role, []);
   }
 
@@ -339,6 +382,11 @@ export class RamService {
     if (!role) throw new NotFoundError("角色不存在");
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
     await this.ramRoleRepository.softDeleteRole(roleId);
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_DELETED, {
+      title: "RAM角色已删除",
+      content: `角色 "${role.name}" 已被删除。`,
+      data: { roleId, roleName: role.name },
+    });
   }
 
   async bindRoleToUser(actorUserId: string, roleId: string, userId: string): Promise<void> {
@@ -352,6 +400,11 @@ export class RamService {
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
     this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId);
     await this.ramRoleRepository.bindRoleToUser(accountOwnerId, roleId, userId);
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_BINDING_UPDATED, {
+      title: "角色已绑定到用户",
+      content: `角色 "${role.name}" 已成功绑定到用户。`,
+      data: { roleId, userId },
+    });
   }
 
   async unbindRoleFromUser(actorUserId: string, roleId: string, userId: string): Promise<void> {
@@ -360,6 +413,11 @@ export class RamService {
     if (!role) throw new NotFoundError("角色不存在");
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
     await this.ramRoleRepository.unbindRoleFromUser(roleId, userId);
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_BINDING_UPDATED, {
+      title: "角色已从用户解绑",
+      content: `角色 "${role.name}" 已从用户解绑。`,
+      data: { roleId, userId },
+    });
   }
 
   async bindRoleToGroup(actorUserId: string, roleId: string, groupId: string): Promise<void> {
@@ -373,6 +431,11 @@ export class RamService {
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
     this.assertSameAccount(accountOwnerId, group.accountOwnerId);
     await this.ramRoleRepository.bindRoleToGroup(accountOwnerId, roleId, groupId);
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_BINDING_UPDATED, {
+      title: "角色已绑定到用户组",
+      content: `角色 "${role.name}" 已成功绑定到用户组。`,
+      data: { roleId, groupId },
+    });
   }
 
   async unbindRoleFromGroup(actorUserId: string, roleId: string, groupId: string): Promise<void> {
@@ -381,6 +444,11 @@ export class RamService {
     if (!role) throw new NotFoundError("角色不存在");
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
     await this.ramRoleRepository.unbindRoleFromGroup(roleId, groupId);
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_BINDING_UPDATED, {
+      title: "角色已从用户组解绑",
+      content: `角色 "${role.name}" 已从用户组解绑。`,
+      data: { roleId, groupId },
+    });
   }
 
   async listRoleBindings(actorUserId: string, roleId: string, userId?: string): Promise<RamRoleBindingDto[]> {
@@ -484,6 +552,11 @@ export class RamService {
     if (!session) throw new NotFoundError("角色会话不存在或已过期");
     this.assertSameAccount(accountOwnerId, session.accountOwnerId);
     await this.ramRoleRepository.revokeRoleSession(sessionId);
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_BINDING_UPDATED, {
+      title: "角色会话已撤销",
+      content: `角色 "${session.role.name}" 的会话已被撤销。`,
+      data: { sessionId, roleId: session.roleId },
+    });
   }
 
   async getAssumedRoleSession(sessionId: string): Promise<ActiveRamRoleSession | null> {
@@ -533,6 +606,11 @@ export class RamService {
       description: data.description ?? null,
       permissions: data.permissions,
     });
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_CREATED, {
+      title: "权限策略已创建",
+      content: `策略 "${data.name}" 已成功创建。`,
+      data: { policyId: policy.id, policyName: data.name },
+    });
     return this.mapPolicyToDto(policy);
   }
 
@@ -557,6 +635,11 @@ export class RamService {
     if (!policy) throw new NotFoundError("权限策略不存在");
     this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
     await this.ramPolicyRepository.softDeletePolicy(policyId);
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_DELETED, {
+      title: "权限策略已删除",
+      content: `策略 "${policy.name}" 已被删除。`,
+      data: { policyId, policyName: policy.name },
+    });
   }
 
   async attachPolicy(actorUserId: string, data: AttachPolicyBodyDto): Promise<void> {
@@ -566,6 +649,11 @@ export class RamService {
     this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
 
     await this.ramPolicyRepository.attachPolicy(accountOwnerId, data.policyId, data.targetType, data.targetId);
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_ATTACHED, {
+      title: "权限策略已绑定",
+      content: `权限策略 "${policy.name}" 已成功绑定。`,
+      data: { policyId: data.policyId, targetType: data.targetType, targetId: data.targetId },
+    });
   }
 
   async detachPolicy(actorUserId: string, data: AttachPolicyBodyDto): Promise<void> {
@@ -575,6 +663,11 @@ export class RamService {
     this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
 
     await this.ramPolicyRepository.detachPolicy(data.policyId, data.targetType, data.targetId);
+    void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_DETACHED, {
+      title: "权限策略已解绑",
+      content: `权限策略 "${policy.name}" 已成功解绑。`,
+      data: { policyId: data.policyId, targetType: data.targetType, targetId: data.targetId },
+    });
   }
 
   async listPolicyAttachments(actorUserId: string, policyId: string): Promise<RamPolicyAttachmentDto[]> {
