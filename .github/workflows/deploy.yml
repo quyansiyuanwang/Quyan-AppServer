@@ -78,11 +78,9 @@ jobs:
       - name: Build
         run: pnpm --filter @appserver/backend run build:full:prod
 
-      - name: Prepare standalone deploy package
-        run: pnpm --filter @appserver/backend deploy --legacy apps/backend/deploy/
-
-      - name: Copy build output into deploy package
-        run: cp -r apps/backend/dist apps/backend/deploy/dist
+      - name: Copy package files to dist
+        run: |
+          cp apps/backend/package.json apps/backend/dist/
 
       - name: Setup SSH
         run: |
@@ -96,7 +94,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
             -p ${{ secrets.SSH_PORT || '22' }} \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "mkdir -p ${{ secrets.REMOTE_BACKEND_PATH }}"
+            "mkdir -p ${{ secrets.REMOTE_BACKEND_PATH }}/dist"
 
       - name: Validate remote path
         run: |
@@ -111,13 +109,21 @@ jobs:
           rsync -az --delete \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
             --exclude '.env' \
+            --exclude 'node_modules' \
             --exclude 'docs' \
-            apps/backend/deploy/ \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.REMOTE_BACKEND_PATH }}/
+            apps/backend/dist/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.REMOTE_BACKEND_PATH }}/dist/
           rsync -az \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
             apps/backend/ecosystem.config.cjs \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.REMOTE_BACKEND_PATH }}/ecosystem.config.cjs
+
+      - name: Install dependencies on server
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -p ${{ secrets.SSH_PORT || '22' }} \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "cd ${{ secrets.REMOTE_BACKEND_PATH }}/dist && pnpm install --prod"
 
       - name: Reload PM2
         run: |
