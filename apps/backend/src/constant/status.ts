@@ -1,5 +1,5 @@
-export { MANAGED_STATUS, HEARTBEAT_STATUS } from '@appserver/shared';
-export type { ManagedStatus, HeartbeatStatus } from '@appserver/shared';
+export { MANAGED_STATUS, HEARTBEAT_STATUS } from "@appserver/shared";
+export type { ManagedStatus, HeartbeatStatus } from "@appserver/shared";
 
 export const RECORD_STATUS = {
   DELETED: 0,

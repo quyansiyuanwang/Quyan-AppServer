@@ -1,5 +1,5 @@
-import { Permission, ALL_PERMISSIONS } from '@appserver/shared';
-export { Permission, ALL_PERMISSIONS };
+import { Permission, ALL_PERMISSIONS } from '@appserver/shared'
+export { Permission, ALL_PERMISSIONS }
 
 /**
  * 权限元数据接口

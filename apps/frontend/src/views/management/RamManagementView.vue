@@ -1153,7 +1153,7 @@ const loadGroups = async () => {
     return
   }
   const data = await ramService.listGroups()
-  groups.value = Array.isArray(data) ? data : (data as any).groups ?? []
+  groups.value = Array.isArray(data) ? data : ((data as any).groups ?? [])
 }
 
 const loadBindings = async () => {

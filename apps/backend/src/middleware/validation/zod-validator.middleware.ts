@@ -30,7 +30,8 @@ function createValidator<T>(part: RequestPart, schema: ZodSchema<T>) {
 
       next();
     } catch (error) {
-      if (error instanceof ZodError) return next(mapZodError(part, error, res.locals?.locale ?? DEFAULT_BACKEND_LOCALE));
+      if (error instanceof ZodError)
+        return next(mapZodError(part, error, res.locals?.locale ?? DEFAULT_BACKEND_LOCALE));
       next(error);
     }
   };

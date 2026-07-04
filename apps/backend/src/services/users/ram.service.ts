@@ -180,9 +180,7 @@ export class RamService {
 
     const filtered = options?.keyword
       ? groups.filter(
-          (g) =>
-            (g.name && g.name.includes(options.keyword!)) ||
-            (g.username && g.username.includes(options.keyword!)),
+          (g) => (g.name && g.name.includes(options.keyword!)) || (g.username && g.username.includes(options.keyword!)),
         )
       : groups;
 

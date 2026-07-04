@@ -2336,8 +2336,10 @@ export default {
 
     // Custom Key
     customKey: 'Custom Token',
-    customKeyPlaceholder: 'Leave empty to auto-generate. Must start with rlt_, at least 12 alphanumeric chars.',
-    customKeyHint: 'Users with custom token permission can specify their own token value. Must start with rlt_, alphanumeric only, 12-200 chars. Max 10 custom tokens per user.',
+    customKeyPlaceholder:
+      'Leave empty to auto-generate. Must start with rlt_, at least 12 alphanumeric chars.',
+    customKeyHint:
+      'Users with custom token permission can specify their own token value. Must start with rlt_, alphanumeric only, 12-200 chars. Max 10 custom tokens per user.',
   },
   redemption: {
     code: 'Redemption Code',
