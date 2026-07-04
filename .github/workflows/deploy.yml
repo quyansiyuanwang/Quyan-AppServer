@@ -108,12 +108,20 @@ jobs:
 
       - name: Deploy
         run: |
-          rsync -az --delete \
+          # Clean old deployment files first (avoids rsync --delete issues with pnpm hardlinks)
+          ssh -i ~/.ssh/deploy_key \
+            -p ${{ secrets.SSH_PORT || '22' }} \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && rm -rf dist node_modules package.json pnpm-lock.yaml"
+
+          # Sync new deploy package
+          rsync -az \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
             --exclude '.env' \
-            --exclude 'docs' \
             apps/backend/deploy/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.REMOTE_BACKEND_PATH }}/
+
+          # Sync PM2 config
           rsync -az \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
             apps/backend/ecosystem.config.cjs \
