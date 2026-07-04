@@ -125,7 +125,10 @@ export class RamController extends Controller {
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateParams(ramUserIdParamsSchema))
   @CheckPermission(Permission.RAM_USER_DELETE, PermissionCheckMode.ALL, "jwt")
-  public async deleteUser(@Path() userId: string, @Request() request: TypedRequest): Promise<{ code: number; message: string }> {
+  public async deleteUser(
+    @Path() userId: string,
+    @Request() request: TypedRequest,
+  ): Promise<{ code: number; message: string }> {
     await this.ramService.deleteRamUser(request.user!.userId, userId);
     return { code: CustomCode.OK, message: "删除RAM用户成功" };
   }
@@ -168,7 +171,10 @@ export class RamController extends Controller {
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateParams(ramRoleIdParamsSchema))
   @CheckPermission(Permission.RAM_ROLE_DELETE, PermissionCheckMode.ALL, "jwt")
-  public async deleteRole(@Path() roleId: string, @Request() request: TypedRequest): Promise<{ code: number; message: string }> {
+  public async deleteRole(
+    @Path() roleId: string,
+    @Request() request: TypedRequest,
+  ): Promise<{ code: number; message: string }> {
     await this.ramService.deleteRole(request.user!.userId, roleId);
     return { code: CustomCode.OK, message: "删除RAM角色成功" };
   }
@@ -287,7 +293,10 @@ export class RamController extends Controller {
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateParams(ramSessionIdParamsSchema))
   @CheckPermission(Permission.RAM_SESSION_REVOKE, PermissionCheckMode.ALL, "jwt")
-  public async revokeSession(@Path() sessionId: string, @Request() request: TypedRequest): Promise<{ code: number; message: string }> {
+  public async revokeSession(
+    @Path() sessionId: string,
+    @Request() request: TypedRequest,
+  ): Promise<{ code: number; message: string }> {
     await this.ramService.revokeRoleSession(request.user!.userId, sessionId);
     return { code: CustomCode.OK, message: "撤销RAM角色会话成功" };
   }
@@ -336,7 +345,10 @@ export class RamController extends Controller {
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateParams(ramPolicyIdParamsSchema))
   @CheckPermission(Permission.RAM_POLICY_DELETE, PermissionCheckMode.ALL, "jwt")
-  public async deletePolicy(@Path() policyId: string, @Request() request: TypedRequest): Promise<{ code: number; message: string }> {
+  public async deletePolicy(
+    @Path() policyId: string,
+    @Request() request: TypedRequest,
+  ): Promise<{ code: number; message: string }> {
     await this.ramService.deletePolicy(request.user!.userId, policyId);
     return { code: CustomCode.OK, message: "删除权限策略成功" };
   }
@@ -359,7 +371,10 @@ export class RamController extends Controller {
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(attachPolicyBodySchema))
   @CheckPermission(Permission.RAM_POLICY_ATTACH, PermissionCheckMode.ALL, "jwt")
-  public async attachPolicy(@Body() body: AttachPolicyBodyDto, @Request() request: TypedRequest): Promise<{ code: number; message: string }> {
+  public async attachPolicy(
+    @Body() body: AttachPolicyBodyDto,
+    @Request() request: TypedRequest,
+  ): Promise<{ code: number; message: string }> {
     await this.ramService.attachPolicy(request.user!.userId, body);
     return { code: CustomCode.OK, message: "绑定权限策略成功" };
   }
@@ -370,7 +385,10 @@ export class RamController extends Controller {
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(detachPolicyBodySchema))
   @CheckPermission(Permission.RAM_POLICY_DETACH, PermissionCheckMode.ALL, "jwt")
-  public async detachPolicy(@Body() body: AttachPolicyBodyDto, @Request() request: TypedRequest): Promise<{ code: number; message: string }> {
+  public async detachPolicy(
+    @Body() body: AttachPolicyBodyDto,
+    @Request() request: TypedRequest,
+  ): Promise<{ code: number; message: string }> {
     await this.ramService.detachPolicy(request.user!.userId, body);
     return { code: CustomCode.OK, message: "解绑权限策略成功" };
   }
