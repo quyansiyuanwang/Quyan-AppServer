@@ -78,10 +78,6 @@ jobs:
       - name: Build
         run: pnpm --filter @appserver/backend run build:full:prod
 
-      - name: Copy package files to dist
-        run: |
-          cp apps/backend/package.json apps/backend/dist/
-
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -109,7 +105,6 @@ jobs:
           rsync -az --delete \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
             --exclude '.env' \
-            --exclude 'node_modules' \
             --exclude 'docs' \
             apps/backend/dist/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.REMOTE_BACKEND_PATH }}/dist/
@@ -117,13 +112,6 @@ jobs:
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
             apps/backend/ecosystem.config.cjs \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.REMOTE_BACKEND_PATH }}/ecosystem.config.cjs
-
-      - name: Install dependencies on server
-        run: |
-          ssh -i ~/.ssh/deploy_key \
-            -p ${{ secrets.SSH_PORT || '22' }} \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "cd ${{ secrets.REMOTE_BACKEND_PATH }}/dist && pnpm install --prod"
 
       - name: Reload PM2
         run: |
