@@ -35,7 +35,7 @@
     "precommit": "pnpm run lint && pnpm run format && pnpm run type-check"
   },
   "dependencies": {
-    "marked": "^5.1.1",
+    "marked": "^17.0.0",
     "mermaid": "^11.15.0",
     "vue": "^3.5.22",
     "vue-router": "^4.6.3"

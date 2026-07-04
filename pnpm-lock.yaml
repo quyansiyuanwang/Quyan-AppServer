@@ -334,8 +334,8 @@ importers:
   apps/docs-site:
     dependencies:
       marked:
-        specifier: ^5.1.1
-        version: 5.1.2
+        specifier: ^17.0.0
+        version: 17.0.6
       mermaid:
         specifier: ^11.15.0
         version: 11.16.0
@@ -5865,11 +5865,6 @@ packages:
   marked@17.0.6:
     resolution: {integrity: sha512-gB0gkNafnonOw0obSTEGZTT86IuhILt2Wfx0mWH/1Au83kybTayroZ/V6nS25mN7u8ASy+5fMhgB3XPNrOZdmA==}
     engines: {node: '>= 20'}
-    hasBin: true
-
-  marked@5.1.2:
-    resolution: {integrity: sha512-ahRPGXJpjMjwSOlBoTMZAK7ATXkli5qCPxZ21TG44rx1KEo44bii4ekgTDQPNRQ4Kh7JMb9Ub1PVk1NxRSsorg==}
-    engines: {node: '>= 16'}
     hasBin: true
 
   math-intrinsics@1.1.0:
@@ -13582,8 +13577,6 @@ snapshots:
   marked@16.4.2: {}
 
   marked@17.0.6: {}
-
-  marked@5.1.2: {}
 
   math-intrinsics@1.1.0: {}
 
