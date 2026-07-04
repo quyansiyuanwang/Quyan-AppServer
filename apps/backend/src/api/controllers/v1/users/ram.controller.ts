@@ -42,8 +42,6 @@ import type {
   UpdateRamRoleDto,
   UpdateRamUserDto,
 } from "@/api/dto/users/ram.dto";
-import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
-import type { ErrorResponse } from "@/api/response";
 import {
   assumeRamRoleBodySchema,
   attachPolicyBodySchema,
