@@ -81,6 +81,15 @@ export class GroupRepository implements GroupStore {
     });
   }
 
+  async findRamDefaultGroup(): Promise<Group | null> {
+    return prisma.group.findFirst({
+      where: {
+        username: "ram-default",
+        status: RECORD_STATUS.ACTIVE,
+      },
+    });
+  }
+
   async listActiveWithUserCount(): Promise<GroupWithUserCount[]> {
     return prisma.group.findMany({
       where: { status: RECORD_STATUS.ACTIVE },

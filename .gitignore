@@ -8,3 +8,5 @@ coverage/
 pnpm-lock.yaml
 *.tsbuildinfo
 .eslintcache
+
+.claude/

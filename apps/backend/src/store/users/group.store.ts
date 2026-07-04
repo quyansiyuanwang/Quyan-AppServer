@@ -22,6 +22,7 @@ export interface GroupQueryStore {
   findByUsername(username: string): Promise<Group | null>;
   findActiveByUsername(username: string): Promise<Group | null>;
   findDefaultUserGroup(): Promise<Group | null>;
+  findRamDefaultGroup(): Promise<Group | null>;
   listActiveWithUserCount(): Promise<GroupWithUserCount[]>;
   listVisibleWithUserCount(minLevel: number): Promise<GroupWithUserCount[]>;
   listActiveWithUserCountPaginated(params: PaginatedGroupListFilters): Promise<GroupWithUserCount[]>;

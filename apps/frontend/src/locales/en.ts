@@ -574,6 +574,9 @@ export default {
     accessKeyDescription:
       'An AccessKey ID and AccessKey Secret will be created for API or development tool access. Save the Secret securely — it will not be shown again.',
     accessKeyName: 'AccessKey Name',
+    userGroup: 'User group',
+    userGroupHint:
+      'Select a group to grant initial permissions. If empty, the sub-user will start with zero permissions — grant access via policies.',
     accessKeyCreated: 'AccessKey Created',
     accessKeySecret: 'AccessKey Secret',
     copySecret: 'Copy Secret',

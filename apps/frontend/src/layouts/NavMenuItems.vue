@@ -509,7 +509,15 @@
 
   <!-- Users & Access -->
   <PermissionWrapper
-    :any-require="[Permission.USER_READ, Permission.PERMISSION_VIEW, Permission.GROUP_READ]"
+    :any-require="[
+      Permission.USER_READ,
+      Permission.PERMISSION_VIEW,
+      Permission.GROUP_READ,
+      Permission.RAM_USER_READ,
+      Permission.RAM_ROLE_READ,
+      Permission.RAM_BINDING_READ,
+      Permission.RAM_SESSION_READ,
+    ]"
   >
     <el-sub-menu index="userManagement">
       <template #title>
