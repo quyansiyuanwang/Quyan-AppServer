@@ -1,15 +1,12 @@
 #!/usr/bin/env node
 /**
- * Root-level coordinator: validates that frontend and backend Permission
- * enums are synchronized.
+ * Validates that frontend and backend both re-export the canonical Permission
+ * enum from @appserver/shared, and that frontend PERMISSION_META covers every
+ * enum member.
  *
- * Parses TypeScript source text directly via regex -- no jiti/tsx
- * dependency needed at root level.
- *
- * Caveat: Assumes enum values are simple string literals (KEY = 'value').
- * If the enum ever uses computed expressions, this script will need
- * a TypeScript-aware parser (e.g. jiti).
+ * Parses TypeScript source text directly via regex -- no jiti/tsx dependency.
  */
+
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -17,8 +14,9 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, '..')
 
+const sharedFile = path.resolve(rootDir, 'packages/shared/src/permission.ts')
 const frontendFile = path.resolve(rootDir, 'apps/frontend/src/constant/permission.ts')
-const backendFile  = path.resolve(rootDir, 'apps/backend/src/constant/permission.ts')
+const backendFile = path.resolve(rootDir, 'apps/backend/src/constant/permission.ts')
 
 function parseEnum(filePath) {
   const text = fs.readFileSync(filePath, 'utf-8')
@@ -35,42 +33,78 @@ function parseEnum(filePath) {
   return entries
 }
 
-const fe = parseEnum(frontendFile)
-const be = parseEnum(backendFile)
+function parseMetaKeys(filePath) {
+  const text = fs.readFileSync(filePath, 'utf-8')
+  const keys = new Set()
+  const regex = /\[Permission\.(\w+)\]/g
+  let m
+  while ((m = regex.exec(text)) !== null) {
+    keys.add(m[1])
+  }
+  return keys
+}
 
-const feKeys = Object.keys(fe)
-const beKeys = Object.keys(be)
+function hasLocalEnum(filePath) {
+  const text = fs.readFileSync(filePath, 'utf-8')
+  return /export\s+enum\s+Permission\s*\{/.test(text)
+}
+
+function hasSharedReExport(filePath) {
+  const text = fs.readFileSync(filePath, 'utf-8')
+  return /@appserver\/shared/.test(text)
+}
+
+// Parse canonical enum from shared package
+const canonical = parseEnum(sharedFile)
+const canonicalKeys = Object.keys(canonical)
+
+console.log(`Canonical Permission enum: ${canonicalKeys.length} members (packages/shared/src/permission.ts)`)
 
 let failed = false
 
-if (feKeys.length !== beKeys.length) {
-  console.error(
-    `❌ Permission count mismatch: Frontend(${feKeys.length}) vs Backend(${beKeys.length})`,
-  )
+// Verify frontend re-exports from shared (no local enum)
+if (hasLocalEnum(frontendFile)) {
+  console.error('❌ Frontend permission.ts should not define a local Permission enum - it must re-export from @appserver/shared')
   failed = true
 }
-
-const extraInFe = feKeys.filter(k => !beKeys.includes(k))
-const missingInFe = beKeys.filter(k => !feKeys.includes(k))
-
-if (extraInFe.length) {
-  console.error('❌ Permissions in frontend but missing in backend: ' + extraInFe.join(', '))
+if (!hasSharedReExport(frontendFile)) {
+  console.error('❌ Frontend permission.ts must re-export from @appserver/shared')
   failed = true
-}
-if (missingInFe.length) {
-  console.error('❌ Permissions in backend but missing in frontend: ' + missingInFe.join(', '))
-  failed = true
+} else {
+  console.log('✅ Frontend re-exports from @appserver/shared')
 }
 
-for (const key of feKeys) {
-  if (be[key] !== undefined && fe[key] !== be[key]) {
-    console.error(`❌ Value mismatch for ${key}: Frontend(${fe[key]}) vs Backend(${be[key]})`)
-    failed = true
-  }
+// Verify backend re-exports from shared (no local enum)
+if (hasLocalEnum(backendFile)) {
+  console.error('❌ Backend permission.ts should not define a local Permission enum - it must re-export from @appserver/shared')
+  failed = true
+}
+if (!hasSharedReExport(backendFile)) {
+  console.error('❌ Backend permission.ts must re-export from @appserver/shared')
+  failed = true
+} else {
+  console.log('✅ Backend re-exports from @appserver/shared')
+}
+
+// Verify frontend PERMISSION_META covers all canonical enum members
+const metaKeys = parseMetaKeys(frontendFile)
+const missingMeta = canonicalKeys.filter(k => !metaKeys.has(k))
+const extraMeta = [...metaKeys].filter(k => !canonicalKeys.includes(k))
+
+if (missingMeta.length) {
+  console.error('❌ PERMISSION_META missing entries for: ' + missingMeta.join(', '))
+  failed = true
+}
+if (extraMeta.length) {
+  console.error('❌ PERMISSION_META has extra entries not in canonical enum: ' + extraMeta.join(', '))
+  failed = true
+}
+if (missingMeta.length === 0 && extraMeta.length === 0) {
+  console.log(`✅ PERMISSION_META covers all ${canonicalKeys.length} canonical permissions`)
 }
 
 if (failed) {
   process.exit(1)
 } else {
-  console.log('✅ Permission enums are synchronized between frontend and backend')
+  console.log('✅ All permission validation checks passed')
 }

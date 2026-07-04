@@ -38,6 +38,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.78.0
         version: 0.78.0(zod@3.25.76)
+      '@appserver/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@simplewebauthn/server':
         specifier: ^13.2.3
         version: 13.3.2
@@ -385,6 +388,9 @@ importers:
 
   apps/frontend:
     dependencies:
+      '@appserver/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@element-plus/icons-vue':
         specifier: ^2.3.1
         version: 2.3.2(vue@3.5.39(typescript@5.9.3))
@@ -651,6 +657,8 @@ importers:
       vue-tsc:
         specifier: ^3.1.1
         version: 3.3.6(typescript@5.9.3)
+
+  packages/shared: {}
 
 packages:
 
@@ -10836,7 +10844,7 @@ snapshots:
       obug: 2.1.3
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.9(@types/node@22.20.0)(@vitest/coverage-v8@4.1.9)(@vitest/ui@4.1.9)(jsdom@29.1.1(@noble/hashes@1.8.0))(rolldown-vite@7.3.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@22.20.0)(jiti@2.7.0)(sass@1.101.0)(terser@5.48.0)(tsx@4.22.5)(yaml@2.9.0))
+      vitest: 4.1.9(@types/node@22.20.0)(@vitest/coverage-v8@4.1.9)(@vitest/ui@4.1.9)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.101.0)(terser@5.48.0)(tsx@4.22.5)(yaml@2.9.0))
 
   '@vitest/expect@4.1.9':
     dependencies:
@@ -10890,7 +10898,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.0
-      vitest: 4.1.9(@types/node@22.20.0)(@vitest/coverage-v8@4.1.9)(@vitest/ui@4.1.9)(jsdom@29.1.1(@noble/hashes@1.8.0))(rolldown-vite@7.3.1(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@22.20.0)(jiti@2.7.0)(sass@1.101.0)(terser@5.48.0)(tsx@4.22.5)(yaml@2.9.0))
+      vitest: 4.1.9(@types/node@22.20.0)(@vitest/coverage-v8@4.1.9)(@vitest/ui@4.1.9)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.101.0)(terser@5.48.0)(tsx@4.22.5)(yaml@2.9.0))
 
   '@vitest/utils@4.1.9':
     dependencies:
