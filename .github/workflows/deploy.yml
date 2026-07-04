@@ -78,22 +78,6 @@ jobs:
       - name: Build
         run: pnpm --filter @appserver/backend run build:full:prod
 
-      - name: Prepare standalone deploy package
-        run: pnpm --filter @appserver/backend deploy --legacy apps/backend/deploy/
-
-      - name: Copy build output into deploy package
-        run: cp -r apps/backend/dist apps/backend/deploy/dist
-
-      - name: Copy Generated Prisma Client into deploy package
-        run: |
-          PRISMA_CLIENT_DIR=$(find node_modules/.pnpm -maxdepth 4 -path "*/@prisma+client*/node_modules/.prisma" -type d -print -quit)
-          if [ -n "$PRISMA_CLIENT_DIR" ]; then
-            mkdir -p apps/backend/deploy/dist/node_modules/.prisma
-            cp -r "$PRISMA_CLIENT_DIR" apps/backend/deploy/dist/node_modules/.prisma/
-          else
-            echo "[deploy] WARNING: Could not find generated Prisma Client directory"
-          fi
-
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -106,7 +90,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
             -p ${{ secrets.SSH_PORT || '22' }} \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "mkdir -p ${{ secrets.REMOTE_BACKEND_PATH }}"
+            "mkdir -p ${{ secrets.REMOTE_BACKEND_PATH }}/dist"
 
       - name: Validate remote path
         run: |
@@ -118,20 +102,12 @@ jobs:
 
       - name: Deploy
         run: |
-          # Clean old deployment files first (avoids rsync --delete issues with pnpm hardlinks)
-          ssh -i ~/.ssh/deploy_key \
-            -p ${{ secrets.SSH_PORT || '22' }} \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && rm -rf dist node_modules package.json pnpm-lock.yaml"
-
-          # Sync new deploy package
-          rsync -az \
+          rsync -az --delete \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
             --exclude '.env' \
-            apps/backend/deploy/ \
-            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.REMOTE_BACKEND_PATH }}/
-
-          # Sync PM2 config
+            --exclude 'docs' \
+            apps/backend/dist/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.REMOTE_BACKEND_PATH }}/dist/
           rsync -az \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
             apps/backend/ecosystem.config.cjs \
