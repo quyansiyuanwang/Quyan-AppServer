@@ -45,7 +45,7 @@ export class ImpersonationService {
 
     // 特权层级检查：group.level 数值越小权限越高
     // 若目标 level <= 操作者 level，说明目标权限不低于操作者，禁止模拟
-    if (target.group.level <= impersonator.group.level)
+    if ((target.group?.level ?? Infinity) <= (impersonator.group?.level ?? -1))
       throw new ForbiddenError("无法模拟权限等级不低于自身的用户", CustomCode.IMPERSONATION_NOT_ALLOWED);
 
     // 确定模拟模式：优先授予 act，其次 view

@@ -15,7 +15,7 @@ import type { RamPolicyStore } from "@/store/users/ram-policy.store";
 import type { Request } from "express";
 
 type UserPermissionEntity = Pick<UserWithGroup, "id" | "permissionAdds" | "permissionRemoves">;
-type GroupPermissionEntity = Pick<UserWithGroup["group"], "permissions">;
+type GroupPermissionEntity = { permissions: unknown };
 
 interface PermissionCalculationOptions {
   assumedRoleSessionId?: string;
@@ -92,10 +92,10 @@ export class PermissionService {
    */
   calculateUserPermissions(
     user: UserPermissionEntity & { groupId?: string | null; accountOwnerId?: string | null },
-    group: GroupPermissionEntity,
+    group: GroupPermissionEntity | null,
   ): UserFullPermissions {
     // 解析用户组权限
-    const groupPermissions = this.parsePermissionJson(group.permissions);
+    const groupPermissions = group ? this.parsePermissionJson(group.permissions) : [];
 
     // 解析用户额外添加的权限
     const additionalPermissions = this.parsePermissionJson(user.permissionAdds);
@@ -123,11 +123,11 @@ export class PermissionService {
 
   async calculateUserPermissionsWithRoles(
     user: UserPermissionEntity & { groupId?: string | null; accountOwnerId?: string | null },
-    group: GroupPermissionEntity,
+    group: GroupPermissionEntity | null,
     options: PermissionCalculationOptions = {},
   ): Promise<UserFullPermissions> {
     const basePermissions = this.calculateUserPermissions(user, group);
-    const roleBindings = await this.ramRoleRepository.listRoleBindingsForUser(user.id, user.groupId);
+    const roleBindings = await this.ramRoleRepository.listRoleBindingsForUser(user.id, user.groupId ?? null);
     const rolePermissions = roleBindings.flatMap((binding) =>
       binding.permissions.filter((permission): permission is Permission => isValidPermission(permission)),
     );
@@ -289,7 +289,7 @@ export class PermissionService {
     if (!target) throw new BadRequestError("目标用户不存在");
 
     // 检查组等级：level越高权限越低，不能修改level小于或等于自己的用户（权限大于或等于自己）
-    if (target.group.level <= operator.group.level) throw new ForbiddenError("无权修改等级大于或等于自己的用户的权限");
+    if ((target.group?.level ?? Infinity) <= (operator.group?.level ?? -1)) throw new ForbiddenError("无权修改等级大于或等于自己的用户的权限");
   }
 
   /**

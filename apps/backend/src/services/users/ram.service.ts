@@ -172,7 +172,7 @@ export class RamService {
   async listRamUsers(actorUserId: string): Promise<RamUserDto[]> {
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const actor = await this.getActor(actorUserId);
-    const actorGroup = await this.groupRepository.findById(actor.groupId);
+    const actorGroup = actor.groupId ? await this.groupRepository.findById(actor.groupId) : null;
     const isAdmin = actorGroup?.username === "admin";
 
     const users = isAdmin
@@ -193,7 +193,7 @@ export class RamService {
     options?: { page?: number; pageSize?: number; keyword?: string },
   ): Promise<RamGroupDto[]> {
     const actor = await this.getActor(actorUserId);
-    const actorGroup = await this.groupRepository.findById(actor.groupId);
+    const actorGroup = actor.groupId ? await this.groupRepository.findById(actor.groupId) : null;
     const isAdmin = actorGroup?.username === "admin";
 
     const groups = isAdmin
@@ -238,15 +238,13 @@ export class RamService {
     // 仅 AccessKey 或无密码时生成随机密码
     const rawPassword = data.password ?? randomBytes(12).toString("hex");
     const password = await hashPassword(rawPassword);
-    const defaultGroup = data.groupId ? null : await this.groupRepository.findRamDefaultGroup();
-    if (!data.groupId && !defaultGroup) throw new BadRequestError("默认用户组不存在");
 
     const user = await this.userRepository.create({
       username: data.username,
       password,
       email: data.email ?? null,
       name: data.name ?? null,
-      groupId: data.groupId ?? defaultGroup!.id,
+      groupId: data.groupId ?? null,
       permissionAdds: [],
       permissionRemoves: [],
       accountOwnerId,

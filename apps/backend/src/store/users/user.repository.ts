@@ -124,7 +124,12 @@ export class UserRepository implements UserStore {
   }
 
   async findByUsername(username: string): Promise<User | null> {
-    return prisma.user.findUnique({ where: { username } });
+    return prisma.user.findFirst({
+      where: {
+        username,
+        status: AccountStatus.ACTIVE,
+      },
+    });
   }
 
   async countActiveByEmail(email: string): Promise<number> {
@@ -223,7 +228,10 @@ export class UserRepository implements UserStore {
   }
 
   async softDelete(id: string): Promise<User> {
-    return this.updateById(id, { status: AccountStatus.DELETED });
+    const user = await this.findById(id);
+    if (!user) throw new Error("User not found");
+    const deletedUsername = `${user.username}_del_${Date.now()}`;
+    return this.updateById(id, { username: deletedUsername, status: AccountStatus.DELETED });
   }
 
   async findBalanceAccountByUserId(userId: string): Promise<BalanceAccount | null> {
