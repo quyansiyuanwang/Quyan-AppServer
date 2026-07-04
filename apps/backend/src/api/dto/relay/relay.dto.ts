@@ -81,6 +81,10 @@ export interface CreateRelayTokenDto {
    * Token 名称
    */
   name?: string | null;
+  /**
+   * 自定义令牌值（需 relay:token:custom_key 权限），不传则自动生成
+   */
+  token?: string;
   expiresAt?: string | null;
   /**
    * 渠道 ID
@@ -117,6 +121,8 @@ export interface CreateRelayTokenDto {
 export interface UpdateRelayTokenDto {
   /** Token 名称 */
   name?: string | null;
+  /** 自定义令牌值（需 relay:token:custom_key 权限），不传则不修改 */
+  token?: string;
   expiresAt?: string | null;
   /** 默认渠道 ID（兼容旧字段） */
   channelId?: string;

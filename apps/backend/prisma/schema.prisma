@@ -470,6 +470,7 @@ model RelayToken {
   allowedModels  String?   @db.Text
   ipWhitelist    String?   @db.Text
   modelMapping   Json?
+  isCustomKey    Boolean   @default(false)
 
   user           User                      @relation(fields: [userId], references: [id])
   channel        RelayChannel?             @relation(fields: [channelId], references: [id])

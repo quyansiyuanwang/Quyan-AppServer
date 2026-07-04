@@ -68,6 +68,8 @@ import {
   normalizeIpWhitelistEntries,
   splitIpWhitelistEntries,
 } from "@/util/ip-whitelist.util";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@/constant/permission";
 
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 const trimTrailingZeros = (value: number): string => String(value).replace(/\.0+$|(\.\d*?[1-9])0+$/, "$1");
@@ -75,6 +77,7 @@ const RELAY_TOKEN_QUOTA_COMPARE_EPSILON = 1e-8;
 const COPY_SUFFIX = "（副本）";
 const MAX_TOKEN_NAME_LENGTH = 100;
 const DEFAULT_DAILY_RESET_TIMEZONE_OFFSET_MINUTES = 0;
+const MAX_CUSTOM_KEY_TOKENS_PER_USER = 10;
 
 type UsageRangeMode = "lifetime" | "window" | "custom" | "daily-reset";
 
@@ -144,6 +147,7 @@ export class RelayTokenService {
     private readonly relayChannelRepo: RelayChannelStore = RelayChannelRepository.getInstance(),
     private readonly relayProxyService: RelayProxyService = RelayProxyService.getInstance(),
     private readonly balanceRepo: BalanceStore = BalanceRepository.getInstance(),
+    private readonly permissionService: PermissionService = PermissionService.getInstance(),
   ) {}
 
   private normalizeOptionalExpiresAt(value?: string | Date | null): Date | null | undefined {
@@ -160,13 +164,39 @@ export class RelayTokenService {
     return parsed;
   }
 
+  private async checkCustomKeyPermission(userId: string): Promise<void> {
+    const hasPermission = await this.permissionService.hasPermission(userId, Permission.RELAY_TOKEN_CUSTOM_KEY);
+    if (!hasPermission) throw new ForbiddenError("You do not have permission to set custom token keys");
+  }
+
+  private async assertCustomKeyLimit(userId: string): Promise<void> {
+    const count = await this.relayTokenRepo.countCustomKeyTokensByUserId(userId);
+    if (count >= MAX_CUSTOM_KEY_TOKENS_PER_USER)
+      throw new BadRequestError(
+        `Custom token limit reached (${MAX_CUSTOM_KEY_TOKENS_PER_USER}). Please delete unused custom tokens first.`,
+      );
+  }
+
   async generateToken(userId: string, data: CreateRelayTokenDto, request?: Request): Promise<RelayTokenDto> {
     const normalizedConfig = await this.normalizeChannelConfiguration(data.channelId, data.channelConfigs);
-    const token = this.generateRelayTokenValue();
+
+    let tokenValue: string;
+    let isCustomKey = false;
+
+    if (data.token) {
+      await this.checkCustomKeyPermission(userId);
+      await this.assertCustomKeyLimit(userId);
+      tokenValue = await this.resolveImportedTokenValue(data.token);
+      isCustomKey = true;
+    } else {
+      tokenValue = this.generateRelayTokenValue();
+    }
+
     const relayToken = await this.relayTokenRepo.create({
       userId,
       name: data.name?.trim() || undefined,
-      token,
+      token: tokenValue,
+      isCustomKey,
       expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
       channelId: normalizedConfig.defaultChannelId,
       channelConfigs: normalizedConfig.channelConfigs,
@@ -444,9 +474,21 @@ export class RelayTokenService {
     const hasQuotaLimit = Object.prototype.hasOwnProperty.call(data, "quotaLimit");
     const hasAllowedModels = Object.prototype.hasOwnProperty.call(data, "allowedModels");
     const hasModelMapping = Object.prototype.hasOwnProperty.call(data, "modelMapping");
+    const hasToken = Object.prototype.hasOwnProperty.call(data, "token");
+
+    let tokenValue: string | undefined;
+    let isCustomKey: boolean | undefined;
+
+    if (hasToken && data.token) {
+      await this.checkCustomKeyPermission(userId);
+      if (!token.isCustomKey) await this.assertCustomKeyLimit(userId);
+      tokenValue = await this.resolveImportedTokenValue(data.token);
+      isCustomKey = true;
+    }
 
     await this.relayTokenRepo.update(tokenId, {
       name: hasName ? data.name?.trim() || null : undefined,
+      ...(hasToken ? { token: tokenValue, isCustomKey } : {}),
       expiresAt: hasExpiresAt ? (this.normalizeOptionalExpiresAt(data.expiresAt) ?? null) : undefined,
       quotaLimit: hasQuotaLimit ? (data.quotaLimit ?? null) : undefined,
       quotaWindows: hasQuotaWindows ? this.normalizeQuotaWindows(data.quotaWindows) : undefined,
@@ -1316,7 +1358,15 @@ export class RelayTokenService {
     tx?: RelayTokenTransactionClient,
   ): Promise<RelayTokenWithRelations> {
     const normalizedConfig = await this.normalizeChannelConfiguration(data.channelId, data.channelConfigs);
+
+    const hasCustomToken = Boolean(data.token?.trim());
+    if (hasCustomToken) {
+      await this.checkCustomKeyPermission(userId);
+      await this.assertCustomKeyLimit(userId);
+    }
+
     const tokenValue = await this.resolveImportedTokenValue(data.token, reservedTokens);
+    const isCustomKey = hasCustomToken && tokenValue === data.token!.trim();
 
     return this.relayTokenRepo.create(
       {
@@ -1324,6 +1374,7 @@ export class RelayTokenService {
         status: data.enabled === false ? MANAGED_STATUS.DISABLED : MANAGED_STATUS.ENABLED,
         name: data.name?.trim() || undefined,
         token: tokenValue,
+        isCustomKey,
         expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
         channelId: normalizedConfig.defaultChannelId,
         channelConfigs: normalizedConfig.channelConfigs,

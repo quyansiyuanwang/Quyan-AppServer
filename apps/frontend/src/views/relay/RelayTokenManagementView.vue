@@ -472,6 +472,27 @@
                       :placeholder="i18ns.t('relay.tokenNamePlaceholder')"
                     />
                   </el-form-item>
+                  <PermissionWrapper :require="[Permission.RELAY_TOKEN_CUSTOM_KEY]">
+                    <el-form-item>
+                      <template #label>
+                        <span class="form-label-with-help">
+                          <span>{{ i18ns.t('relay.customKey') }}</span>
+                          <el-tooltip placement="top">
+                            <template #content>
+                              <div class="help-tooltip-content">
+                                {{ i18ns.t('relay.customKeyHint') }}
+                              </div>
+                            </template>
+                            <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
+                          </el-tooltip>
+                        </span>
+                      </template>
+                      <el-input
+                        v-model="editForm.token"
+                        :placeholder="i18ns.t('relay.customKeyPlaceholder')"
+                      />
+                    </el-form-item>
+                  </PermissionWrapper>
                   <el-form-item>
                     <template #label>
                       <span class="form-label-with-help">
@@ -1481,6 +1502,27 @@
                       :placeholder="i18ns.t('relay.tokenNamePlaceholder')"
                     />
                   </el-form-item>
+                  <PermissionWrapper :require="[Permission.RELAY_TOKEN_CUSTOM_KEY]">
+                    <el-form-item>
+                      <template #label>
+                        <span class="form-label-with-help">
+                          <span>{{ i18ns.t('relay.customKey') }}</span>
+                          <el-tooltip placement="top">
+                            <template #content>
+                              <div class="help-tooltip-content">
+                                {{ i18ns.t('relay.customKeyHint') }}
+                              </div>
+                            </template>
+                            <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
+                          </el-tooltip>
+                        </span>
+                      </template>
+                      <el-input
+                        v-model="editForm.token"
+                        :placeholder="i18ns.t('relay.customKeyPlaceholder')"
+                      />
+                    </el-form-item>
+                  </PermissionWrapper>
                   <el-form-item>
                     <template #label>
                       <span class="form-label-with-help">
@@ -2697,6 +2739,7 @@ let mobileSortable: Sortable | null = null
 
 const createEmptyEditForm = () => ({
   name: '',
+  token: '',
   channelId: '' as string,
   expiresAt: null as Date | null,
   quotaLimit: null as number | null,
@@ -3683,6 +3726,7 @@ const openEditDialog = (row: RelayTokenDto) => {
 
   editForm.value = {
     name: row.name || '',
+    token: '',
     channelId: channelConfigs[0]?.channelId || '',
     expiresAt: row.expiresAt ? new Date(row.expiresAt) : null,
     quotaLimit: row.quotaLimit ?? null,
@@ -3990,6 +4034,7 @@ const handleSave = async () => {
 
       const data = {
         name: normalizedName || undefined,
+        token: editForm.value.token.trim() || undefined,
         channelId: channelConfigs[0]?.channelId,
         channelConfigs,
         failoverConfig,
@@ -4012,6 +4057,7 @@ const handleSave = async () => {
 
       const data = {
         name: normalizedName || null,
+        token: editForm.value.token.trim() || undefined,
         channelId: channelConfigs[0]?.channelId,
         channelConfigs,
         failoverConfig,

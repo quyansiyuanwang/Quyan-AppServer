@@ -81,6 +81,7 @@ export enum Permission {
   RELAY_TOKEN_READ = 'relay:token:read',
   RELAY_TOKEN_UPDATE = 'relay:token:update',
   RELAY_TOKEN_DELETE = 'relay:token:delete',
+  RELAY_TOKEN_CUSTOM_KEY = 'relay:token:custom_key',
 
   // 中转渠道权限
   RELAY_CHANNEL_CREATE = 'relay:channel:create',
@@ -645,6 +646,14 @@ export const PERMISSION_META: PermissionMetaMap = {
     labelEn: 'Delete Relay Token',
     tooltip: '允许删除中转令牌',
     tooltipEn: 'Allows deleting relay tokens',
+    category: 'relay',
+  },
+
+  [Permission.RELAY_TOKEN_CUSTOM_KEY]: {
+    label: '自定义中转令牌',
+    labelEn: 'Custom Relay Token Key',
+    tooltip: '允许创建和更新时自定义令牌值',
+    tooltipEn: 'Allows setting custom token values when creating or updating',
     category: 'relay',
   },
 

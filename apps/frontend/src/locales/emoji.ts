@@ -2400,6 +2400,10 @@ const emoji: DeepStringify<typeof en> = {
     allWeek: '📅',
     weekday: '💼 📅',
     weekend: '🎉 📅',
+
+    customKey: '🔑 ✏️',
+    customKeyPlaceholder: '🔑 💬',
+    customKeyHint: '🔑 ❓',
   },
   redemption: {
     code: '⏺️ 💻',

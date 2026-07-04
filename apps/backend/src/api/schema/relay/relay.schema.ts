@@ -95,9 +95,17 @@ const relayTokenIpWhitelistSchema = z
     "ipWhitelist must contain valid IP addresses",
   );
 
+const customTokenSchema = z
+  .string()
+  .trim()
+  .min(12)
+  .max(200)
+  .regex(/^rlt_[a-zA-Z0-9]+$/, "custom token must start with rlt_ and contain only alphanumeric characters");
+
 export const createRelayTokenBodySchema = z
   .object({
     name: z.string().max(100).nullish(),
+    token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
     channelId: z.string().trim().min(1).max(50).optional(),
     channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
@@ -158,6 +166,7 @@ export const createRelayTokenBodySchema = z
 export const updateRelayTokenBodySchema = z
   .object({
     name: z.string().max(100).nullish(),
+    token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
     channelId: z.string().trim().min(1).max(50).optional(),
     channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
@@ -224,7 +233,7 @@ export const exportRelayTokensBodySchema = z.object({
 const relayTokenImportItemSchema = z
   .object({
     name: z.string().max(100).nullish(),
-    token: z.string().trim().min(1).max(200).optional(),
+    token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
     channelId: z.string().trim().min(1).max(50).optional(),
     channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
