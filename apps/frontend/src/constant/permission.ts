@@ -455,6 +455,22 @@ export const PERMISSION_META: PermissionMetaMap = {
     category: 'relay',
   },
 
+  [Permission.RELAY_TOKEN_MANAGE_OTHERS_READ]: {
+    label: '查看他人令牌',
+    labelEn: "View Others' Relay Tokens",
+    tooltip: '允许查看其他用户的中转令牌（只读操作）',
+    tooltipEn: 'Allows viewing relay tokens belonging to other users (read-only)',
+    category: 'relay',
+  },
+
+  [Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE]: {
+    label: '管理他人令牌',
+    labelEn: "Manage Others' Relay Tokens",
+    tooltip: '允许修改、删除、复制、刷新其他用户的中转令牌（写入操作）',
+    tooltipEn: 'Allows modifying, deleting, duplicating, and refreshing relay tokens of other users (write operations)',
+    category: 'relay',
+  },
+
   [Permission.RELAY_CHANNEL_CREATE]: {
     label: '创建中转渠道',
     labelEn: 'Create Relay Channel',

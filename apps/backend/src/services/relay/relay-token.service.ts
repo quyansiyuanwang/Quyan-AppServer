@@ -153,11 +153,15 @@ export class RelayTokenService {
     private readonly rateLimiterService: RateLimiterService = RateLimiterService.getInstance(),
   ) {}
 
-  private async resolveManagedUserId(actorUserId: string, targetUserId?: string): Promise<string> {
+  private async resolveManagedUserId(
+    actorUserId: string,
+    targetUserId?: string,
+    permission: Permission = Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
+  ): Promise<string> {
     const normalizedTargetUserId = String(targetUserId || "").trim();
     if (!normalizedTargetUserId || normalizedTargetUserId === actorUserId) return actorUserId;
 
-    const canManageOthers = await this.permissionService.hasPermission(actorUserId, Permission.USER_READ);
+    const canManageOthers = await this.permissionService.hasPermission(actorUserId, permission);
     if (!canManageOthers) throw new ForbiddenError("You do not have permission to manage other users' relay tokens");
 
     return normalizedTargetUserId;
@@ -176,11 +180,16 @@ export class RelayTokenService {
       });
   }
 
-  private async getAccessibleToken(tokenId: string, actorUserId: string, targetUserId?: string) {
+  private async getAccessibleToken(
+    tokenId: string,
+    actorUserId: string,
+    targetUserId?: string,
+    permission: Permission = Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
+  ) {
     const token = await this.relayTokenRepo.findByIdWithRelations(tokenId);
     if (!token) throw new NotFoundError("Relay token not found");
 
-    const managedUserId = await this.resolveManagedUserId(actorUserId, targetUserId ?? token.userId);
+    const managedUserId = await this.resolveManagedUserId(actorUserId, targetUserId ?? token.userId, permission);
     if (token.userId !== managedUserId) throw new NotFoundError("Relay token not found");
 
     return token;
@@ -241,7 +250,7 @@ export class RelayTokenService {
   }
 
   async generateToken(actorUserId: string, data: CreateRelayTokenDto, request?: Request): Promise<RelayTokenDto> {
-    const userId = await this.resolveManagedUserId(actorUserId, data.targetUserId);
+    const userId = await this.resolveManagedUserId(actorUserId, data.targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
     const normalizedConfig = await this.normalizeChannelConfiguration(data.channelId, data.channelConfigs);
 
     let tokenValue: string;
@@ -328,7 +337,7 @@ export class RelayTokenService {
     actorUserId: string,
     request?: Request,
   ): Promise<ImportRelayTokensResponse> {
-    const userId = await this.resolveManagedUserId(actorUserId, body.targetUserId);
+    const userId = await this.resolveManagedUserId(actorUserId, body.targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
     const createdTokens = await this.relayTokenRepo.withTransaction(async (tx) => {
       const reservedNames = await this.getVisibleNameSet(userId);
       const reservedTokens = new Set<string>();
@@ -390,7 +399,7 @@ export class RelayTokenService {
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
+    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
 
     const refreshedTokenValue = this.generateRelayTokenValue();
     await this.relayTokenRepo.update(tokenId, {
@@ -464,7 +473,7 @@ export class RelayTokenService {
   }
 
   async revokeToken(tokenId: string, actorUserId: string, request?: Request, targetUserId?: string): Promise<void> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
+    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
 
     await this.relayTokenRepo.delete(tokenId);
 
@@ -488,7 +497,7 @@ export class RelayTokenService {
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
+    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
 
     const channelIds = token.channelConfigs.map((config) => config.channelId);
     if (!channelIds.includes(data.channelId)) {
@@ -539,7 +548,7 @@ export class RelayTokenService {
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
+    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
 
     const normalizedConfig = await this.normalizeChannelConfiguration(
       data.channelId ?? token.channelId ?? undefined,
@@ -603,8 +612,8 @@ export class RelayTokenService {
     actorUserId: string,
     request?: Request,
   ): Promise<RelayTokenDto> {
-    const sourceToken = await this.getAccessibleToken(tokenId, actorUserId, data.targetUserId);
-    const managedUserId = await this.resolveManagedUserId(actorUserId, data.targetUserId ?? sourceToken.userId);
+    const sourceToken = await this.getAccessibleToken(tokenId, actorUserId, data.targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const managedUserId = await this.resolveManagedUserId(actorUserId, data.targetUserId ?? sourceToken.userId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
 
     const reservedNames = await this.getVisibleNameSet(managedUserId);
     const duplicatedName = data.name?.trim() || this.buildDuplicatedTokenName(sourceToken.name, reservedNames);
@@ -649,8 +658,8 @@ export class RelayTokenService {
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto[]> {
-    const managedUserId = await this.resolveManagedUserId(actorUserId, targetUserId);
-    const sourceTokens = await this.getOrderedTokensByIds(actorUserId, ids, true, managedUserId);
+    const managedUserId = await this.resolveManagedUserId(actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const sourceTokens = await this.getOrderedTokensByIds(actorUserId, ids, true, managedUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
     const duplicatedTokens = await this.relayTokenRepo.withTransaction(async (tx) => {
       const reservedNames = await this.getVisibleNameSet(managedUserId);
       const reservedTokens = new Set<string>();
@@ -700,7 +709,7 @@ export class RelayTokenService {
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
+    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
 
     const newStatus = token.status === MANAGED_STATUS.ENABLED ? MANAGED_STATUS.DISABLED : MANAGED_STATUS.ENABLED;
     await this.relayTokenRepo.updateStatus(tokenId, newStatus);
@@ -730,8 +739,8 @@ export class RelayTokenService {
     actorUserId: string,
     request?: Request,
   ): Promise<BatchRelayTokensResultDto> {
-    const userId = await this.resolveManagedUserId(actorUserId, body.targetUserId);
-    await this.getOrderedTokensByIds(actorUserId, body.ids, true, userId);
+    const userId = await this.resolveManagedUserId(actorUserId, body.targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    await this.getOrderedTokensByIds(actorUserId, body.ids, true, userId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
     const status = body.enabled ? MANAGED_STATUS.ENABLED : MANAGED_STATUS.DISABLED;
     const affected = await this.relayTokenRepo.updateStatusByIdsForScope(body.ids, status, userId);
 
@@ -761,8 +770,8 @@ export class RelayTokenService {
     actorUserId: string,
     request?: Request,
   ): Promise<BatchRelayTokensResultDto> {
-    const userId = await this.resolveManagedUserId(actorUserId, body.targetUserId);
-    await this.getOrderedTokensByIds(actorUserId, body.ids, true, userId);
+    const userId = await this.resolveManagedUserId(actorUserId, body.targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    await this.getOrderedTokensByIds(actorUserId, body.ids, true, userId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
     const affected = await this.relayTokenRepo.deleteByIdsForScope(body.ids, userId);
 
     await this.businessLogService.logOperation({
@@ -1287,8 +1296,9 @@ export class RelayTokenService {
     actorUserId: string,
     tokenIds: string[],
     targetUserId?: string,
+    permission: Permission = Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
   ): Promise<RelayTokenUsageSummaryTarget[]> {
-    const userId = await this.resolveManagedUserId(actorUserId, targetUserId);
+    const userId = await this.resolveManagedUserId(actorUserId, targetUserId, permission);
     const tokens = await this.relayTokenRepo.findUsageSummaryTargetsByIds(userId, tokenIds);
     const tokenMap = new Map(tokens.map((token) => [token.id, token]));
 
@@ -1427,8 +1437,9 @@ export class RelayTokenService {
     ids: string[],
     includeDisabled: boolean,
     targetUserId?: string,
+    permission: Permission = Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
   ): Promise<RelayTokenWithRelations[]> {
-    const userId = await this.resolveManagedUserId(actorUserId, targetUserId);
+    const userId = await this.resolveManagedUserId(actorUserId, targetUserId, permission);
     const uniqueIds = [...new Set(ids)];
     const tokens = await this.relayTokenRepo.findWithRelationsByIds(
       uniqueIds,

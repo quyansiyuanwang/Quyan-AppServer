@@ -2722,7 +2722,7 @@ const selectedTokenIds = ref<string[]>([])
 const showTokenImportDialog = ref(false)
 const tokenImportText = ref('')
 
-const canManageAllTokens = computed(() => permissionStore.hasPermission(Permission.USER_READ))
+const canManageAllTokens = computed(() => permissionStore.hasPermission(Permission.RELAY_TOKEN_MANAGE_OTHERS_READ))
 
 const currentTargetUserId = computed(() => {
   const normalized = selectedTargetUserId.value.trim()
@@ -2734,16 +2734,6 @@ const currentTargetUserIdForRequest = computed(() => {
   return currentTargetUserId.value && currentTargetUserId.value !== currentUserId
     ? currentTargetUserId.value
     : undefined
-})
-
-const targetUserDisplayName = computed(() => {
-  const currentUserId = userInfoStore.userInfo.id || ''
-  if (!currentTargetUserId.value || currentTargetUserId.value === currentUserId) {
-    return userInfoStore.userInfo.name || userInfoStore.userInfo.username || currentUserId
-  }
-
-  const matchedUser = userOptions.value.find((item) => item.id === currentTargetUserId.value)
-  return matchedUser?.name || matchedUser?.username || currentTargetUserId.value
 })
 
 const normalizeSearchText = (value?: string | null) =>
