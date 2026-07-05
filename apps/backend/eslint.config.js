@@ -10,11 +10,28 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 function loadBackendMessageKeys() {
-  const localesSource = readFileSync(path.join(__dirname, "src/locales/index.ts"), "utf8");
-  const zhCNMessagesMatch = localesSource.match(/const zhCNMessages = \{([\s\S]*?)\n\} as const;/);
-  if (!zhCNMessagesMatch) return new Set();
+  const localesSource = readFileSync(path.join(__dirname, "src/locales/en.ts"), "utf8");
+  const enMessagesMatch = localesSource.match(/const en = \{([\s\S]*?)\n\} as const;/);
+  if (!enMessagesMatch) return new Set();
 
-  return new Set([...zhCNMessagesMatch[1].matchAll(/^[ \t]*"([^"]+)":/gm)].map((match) => match[1]));
+  const keys = new Set();
+  const stack = [];
+
+  for (const line of enMessagesMatch[1].split("\n")) {
+    const indent = line.match(/^ */)?.[0].length ?? 0;
+    const level = indent / 2 - 1;
+    const propertyMatch = line.match(/^\s*([A-Za-z_$][\w$]*|"(?:\\.|[^"])+"):\s*(.*)$/);
+    if (!propertyMatch) continue;
+
+    const rawKey = propertyMatch[1];
+    const key = rawKey.startsWith('"') ? JSON.parse(rawKey) : rawKey;
+    stack[level] = key;
+    stack.length = level + 1;
+
+    if (!propertyMatch[2].trim().startsWith("{")) keys.add(stack.join("."));
+  }
+
+  return keys;
 }
 
 const backendMessageKeys = loadBackendMessageKeys();
@@ -55,7 +72,7 @@ const backendI18nPlugin = {
         },
         schema: [],
         messages: {
-          unknownKey: "Backend i18n key '{{key}}' does not exist in apps/backend/src/locales/index.ts.",
+          unknownKey: "Backend i18n key '{{key}}' does not exist in apps/backend/src/locales/en.ts.",
         },
       },
       create(context) {

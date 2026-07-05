@@ -1,4 +1,9 @@
 import { CustomCode } from "@/constant/custom-code";
+import en from "./en";
+import zhCN from "./zh-CN";
+import type { Assert, DeepStringify, Equal, NestedKeys, ParamsForKey, TranslationParams } from "./types";
+
+export type { TranslationParams } from "./types";
 
 export const SUPPORTED_BACKEND_LOCALES = ["zh-CN", "en"] as const;
 export type BackendLocale = (typeof SUPPORTED_BACKEND_LOCALES)[number];
@@ -6,189 +11,21 @@ export type BackendLocale = (typeof SUPPORTED_BACKEND_LOCALES)[number];
 export const DEFAULT_BACKEND_LOCALE: BackendLocale = "en";
 export const LOCALE_HEADER_NAME = "x-locale";
 
-const zhCNMessages = {
-  "common.success": "操作成功",
-  "errors.badRequest": "请求参数错误",
-  "errors.unauthorized": "未授权",
-  "errors.forbidden": "权限不足",
-  "errors.notFound": "资源不存在",
-  "errors.conflict": "资源冲突",
-  "errors.payloadTooLarge": "请求体过大",
-  "errors.validationFailed": "参数校验失败",
-  "errors.requestValidationFailed": "请求校验失败",
-  "errors.internalServerError": "服务器内部错误",
-  "errors.gatewayTimeout": "网关超时",
-  "errors.invalidToken": "Token 无效",
-  "errors.tokenExpired": "Token 已过期",
-  "errors.tokenExpiredDueToUpdate": "由于用户信息变更，Token 已失效",
-  "errors.accountDisabled": "账号已被禁用",
-  "errors.registrationDisabled": "当前未开放注册",
-  "errors.emailLimitReached": "邮箱注册数量已达上限",
-  "errors.verificationCodeInvalid": "验证码无效或已过期",
-  "errors.smtpNotConfigured": "SMTP 未配置",
-  "errors.ipBlacklisted": "IP 已被封禁",
-  "errors.loginAuthFailed": "用户名或密码错误",
-  "errors.tooManyRequests": "请求过于频繁",
-  "errors.requireReplayProtection": "当前请求需要启用重放保护",
-  "errors.replayProtectionFailed": "重放保护校验失败",
-  "errors.twoFactorRequired": "当前操作需要二次验证",
-  "errors.twoFactorChallengeExpired": "二次验证会话已过期",
-  "errors.twoFactorCodeInvalid": "二次验证码错误",
-  "errors.twoFactorSetupSessionExpired": "二次验证配置会话已过期",
-  "errors.twoFactorNotEnabled": "二次验证未开启",
-  "errors.twoFactorAlreadyEnabled": "二次验证已开启",
-  "errors.lockConflict": "资源当前被占用，请稍后重试",
-  "errors.lockBackendUnavailable": "分布式锁后端不可用",
-  "errors.impersonationReadonlyViolation": "只读模拟模式下不允许写操作",
-  "errors.impersonationNotAllowed": "不允许模拟该用户",
-  "errors.policyConsentRequired": "需要同意最新服务协议和隐私政策",
-  "errors.legalPolicyVersionConflict": "法律协议版本冲突",
-  "errors.resourceAlreadyExists": "资源已存在，请勿重复创建或提交",
-  "errors.captchaTrustRequired": "请先完成人机验证",
-  "errors.databaseOperationFailed": "数据库操作失败",
-  "user.userInfoNotFound": "用户信息不存在",
-  "user.notFound": "用户不存在",
-  "user.clearTrustedWindowSuccess": "2FA trusted window 已清理",
-  "user.trustedDeviceDeleted": "可信设备已删除",
-  "user.trustedDeviceMissing": "可信设备不存在或已过期",
-  "user.trustedDeviceRateLimitIp": "可信设备操作过于频繁，请稍后再试",
-  "user.trustedDeviceRateLimitUser": "当前账号可信设备操作过于频繁，请稍后再试",
-  "user.emailChangeCodeSent": "验证码已发送",
-  "user.emailChanged": "邮箱修改成功",
-  "user.cannotModifyPeer": "不能修改同级或更高级别的用户",
-  "user.cannotDeleteSelf": "不能删除自己",
-  "user.cannotDeletePeer": "不能删除同级或更高级别的用户",
-  "user.deleted": "删除成功",
-  "user.passwordChanged": "密码修改成功",
-  "group.notFound": "用户组不存在",
-  "group.cannotCreatePeer": "不能创建同级或更高级别的组",
-  "group.cannotModifyPeer": "不能修改同级或更高级别的组",
-  "group.cannotRaiseToPeer": "不能将组级别设置为同级或更高",
-  "group.cannotDeletePeer": "不能删除同级或更高级别的组",
-  "group.cannotModifyPermissionsForPeer": "不能修改同级或更高级别组的权限",
-  "group.permissionsUpdated": "权限更新成功",
-  "group.deleted": "删除成功",
-  "auth.replaySigningSessionIssued": "获取签名会话成功",
-  "auth.verificationCodeSent": "验证码已发送",
-  "auth.passwordResetCodeSent": "密码重置验证码已发送",
-  "auth.passwordResetSuccess": "密码重置成功",
-  "auth.logoutSuccess": "登出成功",
-  "auth.rateLimit.ip": "您的 IP 地址请求过于频繁，请稍后再试",
-  "auth.rateLimit.email": "该邮箱地址请求过于频繁，请稍后再试",
-  "auth.twoFactorRateLimit.ip": "您的验证请求过于频繁，请稍后再试",
-  "auth.twoFactorRateLimit.challenge": "当前验证会话尝试次数过多，请重新登录后再试",
-  "auth.twoFactorEmailRateLimit.ip": "您的验证码发送请求过于频繁，请稍后再试",
-  "auth.twoFactorEmailRateLimit.challenge": "当前验证会话发送次数过多，请稍后再试",
-  "system.configUpdated": "配置更新成功",
-  "ipBlacklist.useCheckEndpoint": "请使用 /check/:ip 端点检查特定 IP",
-  "ipBlacklist.userMissing": "无法获取用户信息",
-  "ipBlacklist.notFoundByIp": "IP {{ip}} 不在黑名单中",
-  "relay.channelDeleted": "渠道删除成功",
-  "relay.tokenDeleted": "Token删除成功",
-  "relay.customKeyPermissionDenied": "你没有权限设置自定义令牌",
-  "relay.manageOthersPermissionDenied": "你没有权限管理其他用户的中转令牌",
-  "relay.customKeyDisabled": "自定义中转令牌当前已关闭",
-  "relay.customKeyLimitReached": "自定义令牌数量已达上限 ({{limit}})，请先删除不用的自定义令牌",
-  "relay.customKeyCreateRateLimitReached": "自定义令牌创建过于频繁（{{windowMinutes}} 分钟内最多 {{limit}} 个），请稍后再试",
-  "billing.redemptionCodeDeleted": "删除成功",
-} as const;
+type BackendMessages = typeof en;
+type LocaleMessages = DeepStringify<BackendMessages>;
+export type MessageKey = NestedKeys<BackendMessages>;
+type EnKeys = NestedKeys<typeof en>;
+type ZhCNKeys = NestedKeys<typeof zhCN>;
+type _AssertLocaleKeys = Assert<Equal<EnKeys, ZhCNKeys>>;
+type MessageParams<TKey extends MessageKey> = MessageKey extends TKey
+  ? TranslationParams
+  : ParamsForKey<BackendMessages, TKey>;
+void (0 as unknown as _AssertLocaleKeys);
 
-type ZhCNMessages = typeof zhCNMessages;
-export type MessageKey = keyof ZhCNMessages;
-
-const enMessages: Record<MessageKey, string> = {
-  "common.success": "Success",
-  "errors.badRequest": "Bad request",
-  "errors.unauthorized": "Unauthorized",
-  "errors.forbidden": "Forbidden",
-  "errors.notFound": "Resource not found",
-  "errors.conflict": "Conflict",
-  "errors.payloadTooLarge": "Payload too large",
-  "errors.validationFailed": "Validation failed",
-  "errors.requestValidationFailed": "Request validation failed",
-  "errors.internalServerError": "Internal server error",
-  "errors.gatewayTimeout": "Gateway timeout",
-  "errors.invalidToken": "Invalid token",
-  "errors.tokenExpired": "Token expired",
-  "errors.tokenExpiredDueToUpdate": "Token expired because user data changed",
-  "errors.accountDisabled": "Account is disabled",
-  "errors.registrationDisabled": "Registration is disabled",
-  "errors.emailLimitReached": "Email registration limit reached",
-  "errors.verificationCodeInvalid": "Verification code is invalid or expired",
-  "errors.smtpNotConfigured": "SMTP is not configured",
-  "errors.ipBlacklisted": "IP address is blacklisted",
-  "errors.loginAuthFailed": "Invalid username or password",
-  "errors.tooManyRequests": "Too many requests",
-  "errors.requireReplayProtection": "Replay protection is required for this request",
-  "errors.replayProtectionFailed": "Replay protection validation failed",
-  "errors.twoFactorRequired": "This action requires two-factor verification",
-  "errors.twoFactorChallengeExpired": "Two-factor challenge has expired",
-  "errors.twoFactorCodeInvalid": "Invalid two-factor verification code",
-  "errors.twoFactorSetupSessionExpired": "Two-factor setup session has expired",
-  "errors.twoFactorNotEnabled": "Two-factor verification is not enabled",
-  "errors.twoFactorAlreadyEnabled": "Two-factor verification is already enabled",
-  "errors.lockConflict": "Resource is locked, please retry later",
-  "errors.lockBackendUnavailable": "Distributed lock backend is unavailable",
-  "errors.impersonationReadonlyViolation": "Write operations are not allowed in read-only impersonation mode",
-  "errors.impersonationNotAllowed": "Impersonation is not allowed for this user",
-  "errors.policyConsentRequired": "You must accept the latest terms of service and privacy policy",
-  "errors.legalPolicyVersionConflict": "Legal policy version conflict",
-  "errors.resourceAlreadyExists": "Resource already exists; please avoid creating or submitting duplicates",
-  "errors.captchaTrustRequired": "Please complete CAPTCHA verification first",
-  "errors.databaseOperationFailed": "Database operation failed",
-  "user.userInfoNotFound": "User information does not exist",
-  "user.notFound": "User does not exist",
-  "user.clearTrustedWindowSuccess": "2FA trusted window cleared",
-  "user.trustedDeviceDeleted": "Trusted device deleted",
-  "user.trustedDeviceMissing": "Trusted device does not exist or has expired",
-  "user.trustedDeviceRateLimitIp": "Trusted-device operations are too frequent, please try again later",
-  "user.trustedDeviceRateLimitUser":
-    "Trusted-device operations for this account are too frequent, please try again later",
-  "user.emailChangeCodeSent": "Verification code sent",
-  "user.emailChanged": "Email changed successfully",
-  "user.cannotModifyPeer": "Cannot modify a user at the same or higher level",
-  "user.cannotDeleteSelf": "Cannot delete yourself",
-  "user.cannotDeletePeer": "Cannot delete a user at the same or higher level",
-  "user.deleted": "Deleted successfully",
-  "user.passwordChanged": "Password changed successfully",
-  "group.notFound": "User group does not exist",
-  "group.cannotCreatePeer": "Cannot create a group at the same or higher level",
-  "group.cannotModifyPeer": "Cannot modify a group at the same or higher level",
-  "group.cannotRaiseToPeer": "Cannot set the group level to the same or higher level",
-  "group.cannotDeletePeer": "Cannot delete a group at the same or higher level",
-  "group.cannotModifyPermissionsForPeer": "Cannot modify permissions of a group at the same or higher level",
-  "group.permissionsUpdated": "Permissions updated successfully",
-  "group.deleted": "Deleted successfully",
-  "auth.replaySigningSessionIssued": "Replay signing session issued successfully",
-  "auth.verificationCodeSent": "Verification code sent",
-  "auth.passwordResetCodeSent": "Password reset verification code sent",
-  "auth.passwordResetSuccess": "Password reset successfully",
-  "auth.logoutSuccess": "Logged out successfully",
-  "auth.rateLimit.ip": "Your IP address is making requests too frequently, please try again later",
-  "auth.rateLimit.email": "This email address is being requested too frequently, please try again later",
-  "auth.twoFactorRateLimit.ip": "Your verification requests are too frequent, please try again later",
-  "auth.twoFactorRateLimit.challenge": "Too many attempts for this verification session, please log in again and retry",
-  "auth.twoFactorEmailRateLimit.ip": "Your email code send requests are too frequent, please try again later",
-  "auth.twoFactorEmailRateLimit.challenge":
-    "Too many email sends for this verification session, please try again later",
-  "system.configUpdated": "Configuration updated successfully",
-  "ipBlacklist.useCheckEndpoint": "Please use the /check/:ip endpoint to inspect a specific IP",
-  "ipBlacklist.userMissing": "Unable to retrieve user information",
-  "ipBlacklist.notFoundByIp": "IP {{ip}} is not blacklisted",
-  "relay.channelDeleted": "Channel deleted successfully",
-  "relay.tokenDeleted": "Token deleted successfully",
-  "relay.customKeyPermissionDenied": "You do not have permission to set custom token keys",
-  "relay.manageOthersPermissionDenied": "You do not have permission to manage other users' relay tokens",
-  "relay.customKeyDisabled": "Custom relay keys are currently disabled",
-  "relay.customKeyLimitReached": "Custom token limit reached ({{limit}}). Please delete unused custom tokens first.",
-  "relay.customKeyCreateRateLimitReached": "Custom token creation is too frequent (max {{limit}} within {{windowMinutes}} minutes). Please try again later.",
-  "billing.redemptionCodeDeleted": "Deleted successfully",
-};
-
-const catalogs: Record<BackendLocale, Record<MessageKey, string>> = {
-  "zh-CN": zhCNMessages,
-  en: enMessages,
-};
+const catalogs = {
+  en,
+  "zh-CN": zhCN,
+} satisfies Record<BackendLocale, LocaleMessages>;
 
 const zhCNKnownMessages = {
   用户名已存在: "用户名已存在",
@@ -526,10 +363,6 @@ const codeMessageKeyMap: Partial<Record<CustomCode, MessageKey>> = {
   [CustomCode.CAPTCHA_TRUST_REQUIRED]: "errors.captchaTrustRequired",
 };
 
-export interface TranslationParams {
-  [key: string]: string | number | boolean | null | undefined;
-}
-
 export interface MessageDescriptor {
   key: MessageKey;
   params?: TranslationParams;
@@ -541,16 +374,28 @@ export interface MessageErrorOptions {
   messageParams?: TranslationParams;
 }
 
-export function createMessageDescriptor(
-  key: MessageKey,
-  params?: TranslationParams,
-  fallback?: string,
-): MessageDescriptor {
-  return { key, params, fallback };
+function getNestedMessage(catalog: LocaleMessages, key: MessageKey): string | undefined {
+  const value = key.split(".").reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== "object") return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, catalog);
+
+  return typeof value === "string" ? value : undefined;
 }
 
-export function createMessageOptions(key: MessageKey, params?: TranslationParams): MessageErrorOptions {
-  return { messageKey: key, messageParams: params };
+export function createMessageDescriptor<TKey extends MessageKey>(
+  key: TKey,
+  params?: MessageParams<TKey>,
+  fallback?: string,
+): MessageDescriptor {
+  return { key, params, fallback } as MessageDescriptor;
+}
+
+export function createMessageOptions<TKey extends MessageKey>(
+  key: TKey,
+  params?: MessageParams<TKey>,
+): MessageErrorOptions {
+  return { messageKey: key, messageParams: params } as MessageErrorOptions;
 }
 
 export function normalizeBackendLocale(locale?: string | null): BackendLocale {
@@ -564,13 +409,14 @@ export function normalizeBackendLocale(locale?: string | null): BackendLocale {
   return DEFAULT_BACKEND_LOCALE;
 }
 
-export function translateMessage(
-  key: MessageKey,
+export function translateMessage<TKey extends MessageKey>(
+  key: TKey,
   locale: BackendLocale,
-  params?: TranslationParams,
+  params?: MessageParams<TKey>,
   fallback?: string,
 ): string {
-  const template = catalogs[locale][key] ?? catalogs[DEFAULT_BACKEND_LOCALE][key] ?? fallback ?? key;
+  const template =
+    getNestedMessage(catalogs[locale], key) ?? getNestedMessage(catalogs[DEFAULT_BACKEND_LOCALE], key) ?? fallback ?? key;
   if (!params) return template;
 
   return template.replace(/\{\{\s*([^{}\s]+)\s*\}\}/g, (_match, token: string) => {
