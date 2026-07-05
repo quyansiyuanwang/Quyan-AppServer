@@ -20,6 +20,8 @@ export interface RelayTokenQuotaWindowDto extends RelayTokenQuotaWindowInputDto 
 export interface DuplicateRelayTokenRequest {
   /** 新令牌名称，不传则自动生成 */
   name?: string | null;
+  /** 目标用户 ID，不传则为当前用户 */
+  targetUserId?: string;
 }
 
 export interface RelayTokenImportItemDto extends CreateRelayTokenDto {
@@ -44,10 +46,12 @@ export interface RelayTokenExportResponse {
 export interface ExportRelayTokensRequest {
   ids?: string[];
   includeDisabled?: boolean;
+  targetUserId?: string;
 }
 
 export interface ImportRelayTokensRequest {
   tokens: RelayTokenImportItemDto[];
+  targetUserId?: string;
 }
 
 export interface ImportRelayTokensResponse {
@@ -61,14 +65,17 @@ export interface ImportRelayTokensResponse {
 export interface BatchSetRelayTokenStatusRequest {
   ids: string[];
   enabled: boolean;
+  targetUserId?: string;
 }
 
 export interface BatchDeleteRelayTokensRequest {
   ids: string[];
+  targetUserId?: string;
 }
 
 export interface BatchDuplicateRelayTokensRequest {
   ids: string[];
+  targetUserId?: string;
 }
 
 export interface BatchRelayTokensResultDto {
@@ -77,6 +84,8 @@ export interface BatchRelayTokensResultDto {
 }
 
 export interface CreateRelayTokenDto {
+  /** 目标用户 ID，不传则为当前用户 */
+  targetUserId?: string;
   /**
    * Token 名称
    */
@@ -119,6 +128,7 @@ export interface CreateRelayTokenDto {
 }
 
 export interface UpdateRelayTokenDto {
+  targetUserId?: string;
   /** Token 名称 */
   name?: string | null;
   /** 自定义令牌值（需 relay:token:custom_key 权限），不传则不修改 */
@@ -143,6 +153,7 @@ export interface UpdateRelayTokenDto {
 }
 
 export interface UpdateRelayTokenChannelDto {
+  targetUserId?: string;
   /** 渠道 ID */
   channelId: string;
 }
@@ -200,6 +211,9 @@ export interface RelayChannelSwitchLogDto {
 
 export interface RelayTokenDto {
   id: string;
+  userId: string;
+  username?: string;
+  ownerName?: string;
   name?: string;
   token: string;
   balance: number;

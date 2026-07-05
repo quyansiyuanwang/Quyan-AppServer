@@ -2563,7 +2563,12 @@
 						}
 					}
 				},
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/groups": {
@@ -2662,13 +2667,38 @@
 						}
 					}
 				},
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			},
 			"delete": {
 				"operationId": "RamControllerDeleteUser",
 				"responses": {
 					"200": {
-						"description": "删除RAM用户成功"
+						"description": "删除RAM用户成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"code": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"message",
+										"code"
+									],
+									"type": "object"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -2689,7 +2719,12 @@
 						}
 					}
 				],
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/roles": {
@@ -2750,7 +2785,12 @@
 						}
 					}
 				},
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/roles/{roleId}": {
@@ -2796,13 +2836,38 @@
 						}
 					}
 				},
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			},
 			"delete": {
 				"operationId": "RamControllerDeleteRole",
 				"responses": {
 					"200": {
-						"description": "删除RAM角色成功"
+						"description": "删除RAM角色成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"code": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"message",
+										"code"
+									],
+									"type": "object"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -2823,7 +2888,12 @@
 						}
 					}
 				],
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/roles/{roleId}/bindings": {
@@ -2925,7 +2995,12 @@
 						}
 					}
 				},
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/roles/{roleId}/users/{userId}": {
@@ -2982,7 +3057,12 @@
 						}
 					}
 				],
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/roles/{roleId}/groups": {
@@ -3041,7 +3121,12 @@
 						}
 					}
 				},
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/roles/{roleId}/groups/{groupId}": {
@@ -3098,7 +3183,12 @@
 						}
 					}
 				],
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/assume-role": {
@@ -3178,7 +3268,27 @@
 				"operationId": "RamControllerRevokeSession",
 				"responses": {
 					"200": {
-						"description": "撤销RAM角色会话成功"
+						"description": "撤销RAM角色会话成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"code": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"message",
+										"code"
+									],
+									"type": "object"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -3199,7 +3309,12 @@
 						}
 					}
 				],
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/policies": {
@@ -3260,7 +3375,12 @@
 						}
 					}
 				},
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/policies/{policyId}": {
@@ -3306,13 +3426,38 @@
 						}
 					}
 				},
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			},
 			"delete": {
 				"operationId": "RamControllerDeletePolicy",
 				"responses": {
 					"200": {
-						"description": "删除权限策略成功"
+						"description": "删除权限策略成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"code": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"message",
+										"code"
+									],
+									"type": "object"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -3333,7 +3478,12 @@
 						}
 					}
 				],
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/policies/{policyId}/attachments": {
@@ -3376,7 +3526,27 @@
 				"operationId": "RamControllerAttachPolicy",
 				"responses": {
 					"200": {
-						"description": "绑定权限策略成功"
+						"description": "绑定权限策略成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"code": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"message",
+										"code"
+									],
+									"type": "object"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -3398,7 +3568,12 @@
 						}
 					}
 				},
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/detach-policy": {
@@ -3406,7 +3581,27 @@
 				"operationId": "RamControllerDetachPolicy",
 				"responses": {
 					"200": {
-						"description": "解绑权限策略成功"
+						"description": "解绑权限策略成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"code": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"message",
+										"code"
+									],
+									"type": "object"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -3428,7 +3623,12 @@
 						}
 					}
 				},
-				"X-Replay-Protected": true
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/ram/authorization/effective-permissions": {
@@ -8684,23 +8884,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"properties": {
-										"allowedModels": {
-											"type": "string"
-										},
-										"upstreamApiKey": {
-											"type": "string"
-										},
-										"upstreamUrl": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"allowedModels",
-										"upstreamApiKey",
-										"upstreamUrl"
-									],
-									"type": "object"
+									"$ref": "#/components/schemas/RelayConfig"
 								}
 							}
 						}
@@ -11458,6 +11642,14 @@
 							"format": "double",
 							"type": "number"
 						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
 					}
 				]
 			}
@@ -11587,6 +11779,14 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
 					}
 				]
 			}
@@ -11691,6 +11891,14 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
 					}
 				]
 			},
@@ -11729,6 +11937,14 @@
 						"in": "path",
 						"name": "id",
 						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
 						"schema": {
 							"type": "string"
 						}
@@ -12010,6 +12226,14 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
 					}
 				],
 				"X-Replay-Protected": true,
@@ -12151,6 +12375,14 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
 					}
 				]
 			}
@@ -12219,6 +12451,14 @@
 						"schema": {
 							"format": "double",
 							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
 						}
 					}
 				]
@@ -12290,6 +12530,14 @@
 							"format": "double",
 							"type": "number"
 						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
 					}
 				]
 			}
@@ -12322,6 +12570,14 @@
 						"in": "path",
 						"name": "id",
 						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
 						"schema": {
 							"type": "string"
 						}
@@ -25598,6 +25854,45 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayConfig": {
+				"properties": {
+					"upstreamUrl": {
+						"type": "string"
+					},
+					"upstreamApiKey": {
+						"type": "string"
+					},
+					"allowedModels": {
+						"type": "string"
+					},
+					"customKeyEnabled": {
+						"type": "boolean"
+					},
+					"customKeyMaxTokensPerUser": {
+						"type": "number",
+						"format": "double"
+					},
+					"customKeyCreateLimitWindowMinutes": {
+						"type": "number",
+						"format": "double"
+					},
+					"customKeyCreateLimitMaxCount": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"upstreamUrl",
+					"upstreamApiKey",
+					"allowedModels",
+					"customKeyEnabled",
+					"customKeyMaxTokensPerUser",
+					"customKeyCreateLimitWindowMinutes",
+					"customKeyCreateLimitMaxCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"SmtpConfig": {
 				"properties": {
 					"host": {
@@ -25826,12 +26121,31 @@
 					},
 					"allowedModels": {
 						"type": "string"
+					},
+					"customKeyEnabled": {
+						"type": "boolean"
+					},
+					"customKeyMaxTokensPerUser": {
+						"type": "number",
+						"format": "double"
+					},
+					"customKeyCreateLimitWindowMinutes": {
+						"type": "number",
+						"format": "double"
+					},
+					"customKeyCreateLimitMaxCount": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
 					"upstreamUrl",
 					"upstreamApiKey",
-					"allowedModels"
+					"allowedModels",
+					"customKeyEnabled",
+					"customKeyMaxTokensPerUser",
+					"customKeyCreateLimitWindowMinutes",
+					"customKeyCreateLimitMaxCount"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -28221,6 +28535,15 @@
 					"id": {
 						"type": "string"
 					},
+					"userId": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"ownerName": {
+						"type": "string"
+					},
 					"name": {
 						"type": "string"
 					},
@@ -28296,6 +28619,7 @@
 				},
 				"required": [
 					"id",
+					"userId",
 					"token",
 					"balance",
 					"totalTokens",
@@ -28355,6 +28679,10 @@
 			},
 			"CreateRelayTokenDto": {
 				"properties": {
+					"targetUserId": {
+						"type": "string",
+						"description": "目标用户 ID，不传则为当前用户"
+					},
 					"name": {
 						"type": "string",
 						"nullable": true,
@@ -28416,6 +28744,10 @@
 			},
 			"RelayTokenExportItemDto": {
 				"properties": {
+					"targetUserId": {
+						"type": "string",
+						"description": "目标用户 ID，不传则为当前用户"
+					},
 					"name": {
 						"type": "string",
 						"nullable": true,
@@ -28522,6 +28854,9 @@
 					},
 					"includeDisabled": {
 						"type": "boolean"
+					},
+					"targetUserId": {
+						"type": "string"
 					}
 				},
 				"type": "object",
@@ -28563,6 +28898,10 @@
 			},
 			"RelayTokenImportItemDto": {
 				"properties": {
+					"targetUserId": {
+						"type": "string",
+						"description": "目标用户 ID，不传则为当前用户"
+					},
 					"name": {
 						"type": "string",
 						"nullable": true,
@@ -28633,6 +28972,9 @@
 							"$ref": "#/components/schemas/RelayTokenImportItemDto"
 						},
 						"type": "array"
+					},
+					"targetUserId": {
+						"type": "string"
 					}
 				},
 				"required": [
@@ -28688,6 +29030,9 @@
 			},
 			"UpdateRelayTokenChannelDto": {
 				"properties": {
+					"targetUserId": {
+						"type": "string"
+					},
 					"channelId": {
 						"type": "string",
 						"description": "渠道 ID"
@@ -28701,6 +29046,9 @@
 			},
 			"UpdateRelayTokenDto": {
 				"properties": {
+					"targetUserId": {
+						"type": "string"
+					},
 					"name": {
 						"type": "string",
 						"nullable": true,
@@ -28772,6 +29120,9 @@
 							"type": "string"
 						},
 						"type": "array"
+					},
+					"targetUserId": {
+						"type": "string"
 					}
 				},
 				"required": [
@@ -28786,6 +29137,10 @@
 						"type": "string",
 						"nullable": true,
 						"description": "新令牌名称，不传则自动生成"
+					},
+					"targetUserId": {
+						"type": "string",
+						"description": "目标用户 ID，不传则为当前用户"
 					}
 				},
 				"type": "object",
@@ -28819,6 +29174,9 @@
 					},
 					"enabled": {
 						"type": "boolean"
+					},
+					"targetUserId": {
+						"type": "string"
 					}
 				},
 				"required": [
@@ -28835,6 +29193,9 @@
 							"type": "string"
 						},
 						"type": "array"
+					},
+					"targetUserId": {
+						"type": "string"
 					}
 				},
 				"required": [

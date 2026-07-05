@@ -1149,6 +1149,7 @@ const zhCN: DeepStringify<typeof en> = {
     upstreamStreamTimeout: '上游流式超时（秒）',
     upstreamStreamTimeoutHelp:
       '流式中转请求等待上游响应或后续数据的最长时间，超时后返回 504，设为 0 则禁用该超时',
+    requestQueueTitle: '请求队列',
     enableQueue: '启用请求队列',
     enableQueueHelp: '开启后超出并发限制的请求将排队等待，关闭则直接返回 429',
     imageScopeNotice:
@@ -1217,6 +1218,15 @@ const zhCN: DeepStringify<typeof en> = {
     heartbeatIntervalHelp: '控制用户登录后前端发送心跳包的时间间隔。',
     heartbeatTimeoutSeconds: '心跳超时阈值（秒）',
     heartbeatTimeoutHelp: '超过该时间未收到心跳时，系统将判定该会话离线。',
+    relayCustomKeyTitle: 'Relay 自定义 Key 限制',
+    relayCustomKeyEnabled: '启用自定义 Relay Key',
+    relayCustomKeyEnabledHelp: '关闭后普通用户将不能创建自定义 relay token key。',
+    relayCustomKeyMaxTokensPerUser: '每用户最大自定义 Key 数量',
+    relayCustomKeyMaxTokensPerUserHelp: '限制单个用户当前可保留的自定义 relay token key 数量。设为 0 表示禁止创建。',
+    relayCustomKeyCreateLimitWindowMinutes: '创建频率统计窗口（分钟）',
+    relayCustomKeyCreateLimitWindowMinutesHelp: '系统会统计该时间窗口内的自定义 relay key 创建次数。',
+    relayCustomKeyCreateLimitMaxCount: '窗口内最大创建次数',
+    relayCustomKeyCreateLimitMaxCountHelp: '限制单个用户在统计窗口内最多可创建多少个自定义 relay key。设为 0 表示完全禁止创建。',
     remoteTerminalUnbindTitle: '远程终端设备解绑限制',
     remoteTerminalUnbindMaxCount: '窗口期内最大解绑次数',
     remoteTerminalUnbindMaxCountHelp:

@@ -86,7 +86,9 @@ const zhCNMessages = {
   "relay.channelDeleted": "渠道删除成功",
   "relay.tokenDeleted": "Token删除成功",
   "relay.customKeyPermissionDenied": "你没有权限设置自定义令牌",
+  "relay.customKeyDisabled": "自定义中转令牌当前已关闭",
   "relay.customKeyLimitReached": "自定义令牌数量已达上限 ({{limit}})，请先删除不用的自定义令牌",
+  "relay.customKeyCreateRateLimitReached": "自定义令牌创建过于频繁（{{windowMinutes}} 分钟内最多 {{limit}} 个），请稍后再试",
   "billing.redemptionCodeDeleted": "删除成功",
 } as const;
 
@@ -175,7 +177,9 @@ const enMessages: Record<MessageKey, string> = {
   "relay.channelDeleted": "Channel deleted successfully",
   "relay.tokenDeleted": "Token deleted successfully",
   "relay.customKeyPermissionDenied": "You do not have permission to set custom token keys",
+  "relay.customKeyDisabled": "Custom relay keys are currently disabled",
   "relay.customKeyLimitReached": "Custom token limit reached ({{limit}}). Please delete unused custom tokens first.",
+  "relay.customKeyCreateRateLimitReached": "Custom token creation is too frequent (max {{limit}} within {{windowMinutes}} minutes). Please try again later.",
   "billing.redemptionCodeDeleted": "Deleted successfully",
 };
 

@@ -22,6 +22,7 @@ export type RelayTokenWithChannel = RelayTokenWithRelations;
 const visibleRelayTokenStatuses = [MANAGED_STATUS.DISABLED, MANAGED_STATUS.ENABLED] as const;
 
 const relayTokenInclude = {
+  user: true,
   channel: true,
   failoverConfig: true,
   channelConfigs: {
@@ -35,6 +36,14 @@ const relayTokenInclude = {
 
 const relayTokenUsageSummarySelect = {
   id: true,
+  userId: true,
+  user: {
+    select: {
+      id: true,
+      username: true,
+      name: true,
+    },
+  },
   name: true,
   quotaLimit: true,
   usedQuota: true,
@@ -202,10 +211,18 @@ export class RelayTokenRepository implements RelayTokenStore {
     page: number,
     pageSize: number,
   ): Promise<RelayTokenPageResult<RelayTokenWithRelations>> {
+    return this.findPageWithRelations(page, pageSize, userId);
+  }
+
+  async findPageWithRelations(
+    page: number,
+    pageSize: number,
+    userId?: string,
+  ): Promise<RelayTokenPageResult<RelayTokenWithRelations>> {
     const normalizedPage = Math.max(1, Math.trunc(page));
     const normalizedPageSize = Math.min(100, Math.max(1, Math.trunc(pageSize)));
     const where = {
-      userId,
+      ...(userId ? { userId } : {}),
       status: { in: [...visibleRelayTokenStatuses] },
     } satisfies Prisma.RelayTokenWhereInput;
 
@@ -234,23 +251,39 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async findUsageSummaryTargetsByUserId(userId: string): Promise<RelayTokenUsageSummaryTarget[]> {
+    return this.findUsageSummaryTargets(undefined, userId);
+  }
+
+  async findUsageSummaryTargets(tokenIds?: string[], userId?: string): Promise<RelayTokenUsageSummaryTarget[]> {
     return prisma.relayToken.findMany({
-      where: { userId, status: { in: [...visibleRelayTokenStatuses] } },
+      where: {
+        ...(userId ? { userId } : {}),
+        ...(tokenIds?.length ? { id: { in: tokenIds } } : {}),
+        status: { in: [...visibleRelayTokenStatuses] },
+      },
       select: relayTokenUsageSummarySelect,
       orderBy: { createTime: "desc" },
     });
   }
 
   async findUsageSummaryTargetsByIds(userId: string, tokenIds: string[]): Promise<RelayTokenUsageSummaryTarget[]> {
+    return this.findUsageSummaryTargets(tokenIds, userId);
+  }
+
+  async findWithRelationsByIds(
+    tokenIds: string[],
+    statuses: number[] = [...visibleRelayTokenStatuses],
+    userId?: string,
+  ): Promise<RelayTokenWithRelations[]> {
     if (tokenIds.length === 0) return [];
 
     return prisma.relayToken.findMany({
       where: {
-        userId,
+        ...(userId ? { userId } : {}),
         id: { in: tokenIds },
-        status: { in: [...visibleRelayTokenStatuses] },
+        status: { in: statuses },
       },
-      select: relayTokenUsageSummarySelect,
+      include: relayTokenInclude,
     });
   }
 
@@ -260,6 +293,16 @@ export class RelayTokenRepository implements RelayTokenStore {
         userId,
         isCustomKey: true,
         status: { in: [...visibleRelayTokenStatuses] },
+      },
+    });
+  }
+
+  async countCustomKeyTokensCreatedSince(userId: string, since: Date): Promise<number> {
+    return prisma.relayToken.count({
+      where: {
+        userId,
+        isCustomKey: true,
+        createTime: { gte: since },
       },
     });
   }
@@ -319,9 +362,13 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async updateStatusByIds(userId: string, ids: string[], status: number): Promise<number> {
+    return this.updateStatusByIdsForScope(ids, status, userId);
+  }
+
+  async updateStatusByIdsForScope(ids: string[], status: number, userId?: string): Promise<number> {
     const result = await prisma.relayToken.updateMany({
       where: {
-        userId,
+        ...(userId ? { userId } : {}),
         id: { in: ids },
         status: { in: [...visibleRelayTokenStatuses] },
       },
@@ -422,9 +469,13 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async deleteByIds(userId: string, ids: string[]): Promise<number> {
+    return this.deleteByIdsForScope(ids, userId);
+  }
+
+  async deleteByIdsForScope(ids: string[], userId?: string): Promise<number> {
     const result = await prisma.relayToken.updateMany({
       where: {
-        userId,
+        ...(userId ? { userId } : {}),
         id: { in: ids },
         status: { in: [...visibleRelayTokenStatuses] },
       },

@@ -25,6 +25,16 @@ export interface BillingConfigDto {
   rechargeRatio: number
 }
 
+export interface RelayConfigDto {
+  upstreamUrl: string
+  upstreamApiKey: string
+  allowedModels: string
+  customKeyEnabled: boolean
+  customKeyMaxTokensPerUser: number
+  customKeyCreateLimitWindowMinutes: number
+  customKeyCreateLimitMaxCount: number
+}
+
 export interface SetBillingConfigDto {
   rechargeRatio: number
 }
@@ -84,10 +94,10 @@ export class ConfigService {
     throw toServiceError(result)
   }
 
-  async getRelayConfig() {
+  async getRelayConfig(): Promise<RelayConfigDto> {
     const result = await configApi.getRelayConfig({})
     if (result && result.code === CustomCode.OK && result.data) {
-      return result.data
+      return result.data as RelayConfigDto
     }
     throw toServiceError(result)
   }

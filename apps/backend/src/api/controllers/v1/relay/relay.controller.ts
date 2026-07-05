@@ -118,8 +118,9 @@ export class RelayController extends Controller {
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
+    @Query() targetUserId?: string,
   ): Promise<RelayTokenPageDto> {
-    return this.relayTokenService.listTokens(request.user!.userId, page, pageSize);
+    return this.relayTokenService.listTokens(request.user!.userId, page, pageSize, targetUserId);
   }
 
   @Get("tokens/usage-summaries")
@@ -131,6 +132,7 @@ export class RelayController extends Controller {
     @Query() tokenIds?: string,
     @Query() startDate?: string,
     @Query() endDate?: string,
+    @Query() targetUserId?: string,
   ): Promise<RelayTokenUsageSummaryBatchDto> {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
@@ -139,7 +141,7 @@ export class RelayController extends Controller {
       .map((item) => item.trim())
       .filter(Boolean);
 
-    return this.relayTokenService.getUsageSummaries(request.user!.userId, parsedTokenIds, start, end);
+    return this.relayTokenService.getUsageSummaries(request.user!.userId, parsedTokenIds, start, end, targetUserId);
   }
 
   @Get("tokens/current/quota-summary")
@@ -170,8 +172,12 @@ export class RelayController extends Controller {
   @Security("jwt")
   @RequirePermission(Permission.RELAY_TOKEN_READ)
   @Middlewares(validateParams(relayTokenIdParamsSchema))
-  async getToken(@Path() id: string, @Request() request: TypedRequest): Promise<RelayTokenDto> {
-    return this.relayTokenService.getToken(id, request.user!.userId);
+  async getToken(
+    @Path() id: string,
+    @Request() request: TypedRequest,
+    @Query() targetUserId?: string,
+  ): Promise<RelayTokenDto> {
+    return this.relayTokenService.getToken(id, request.user!.userId, targetUserId);
   }
 
   @Delete("tokens/{id}")
@@ -183,8 +189,8 @@ export class RelayController extends Controller {
     replayProtectionMiddleware,
     validateParams(relayTokenIdParamsSchema),
   )
-  async deleteToken(@Path() id: string, @Request() request: TypedRequest) {
-    await this.relayTokenService.revokeToken(id, request.user!.userId, request);
+  async deleteToken(@Path() id: string, @Request() request: TypedRequest, @Query() targetUserId?: string) {
+    await this.relayTokenService.revokeToken(id, request.user!.userId, request, targetUserId);
     setResponseMessageKey(request, "relay.tokenDeleted");
     return { message: "Token删除成功" };
   }
@@ -204,7 +210,7 @@ export class RelayController extends Controller {
     @Body() body: UpdateRelayTokenChannelDto,
     @Request() request: TypedRequest,
   ): Promise<RelayTokenDto> {
-    return this.relayTokenService.updateTokenChannel(id, request.user!.userId, body, request);
+    return this.relayTokenService.updateTokenChannel(id, request.user!.userId, body, request, body.targetUserId);
   }
 
   @Put("tokens/{id}")
@@ -222,7 +228,7 @@ export class RelayController extends Controller {
     @Body() body: UpdateRelayTokenDto,
     @Request() request: TypedRequest,
   ): Promise<RelayTokenDto> {
-    return this.relayTokenService.updateToken(id, request.user!.userId, body, request);
+    return this.relayTokenService.updateToken(id, request.user!.userId, body, request, body.targetUserId);
   }
 
   @Post("tokens/batch/duplicate")
@@ -238,7 +244,7 @@ export class RelayController extends Controller {
     @Body() body: BatchDuplicateRelayTokensRequest,
     @Request() request: TypedRequest,
   ): Promise<RelayTokenDto[]> {
-    return this.relayTokenService.batchDuplicateTokens(body.ids, request.user!.userId, request);
+    return this.relayTokenService.batchDuplicateTokens(body.ids, request.user!.userId, request, body.targetUserId);
   }
 
   @Post("tokens/{id}/duplicate")
@@ -281,8 +287,12 @@ export class RelayController extends Controller {
     replayProtectionMiddleware,
     validateParams(relayTokenIdParamsSchema),
   )
-  async toggleTokenStatus(@Path() id: string, @Request() request: TypedRequest): Promise<RelayTokenDto> {
-    return this.relayTokenService.toggleTokenStatus(id, request.user!.userId, request);
+  async toggleTokenStatus(
+    @Path() id: string,
+    @Request() request: TypedRequest,
+    @Query() targetUserId?: string,
+  ): Promise<RelayTokenDto> {
+    return this.relayTokenService.toggleTokenStatus(id, request.user!.userId, request, targetUserId);
   }
 
   @Patch("tokens/batch/status")
@@ -326,10 +336,11 @@ export class RelayController extends Controller {
     @Request() request: TypedRequest,
     @Query() startDate?: string,
     @Query() endDate?: string,
+    @Query() targetUserId?: string,
   ): Promise<RelayUsageStatsDto> {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
-    return this.relayTokenService.getUsageStats(id, request.user!.userId, start, end);
+    return this.relayTokenService.getUsageStats(id, request.user!.userId, start, end, targetUserId);
   }
 
   @Get("tokens/{id}/usage-summary")
@@ -343,10 +354,11 @@ export class RelayController extends Controller {
     @Query() endDate?: string,
     @Query() limit?: number,
     @Query() offset?: number,
+    @Query() targetUserId?: string,
   ): Promise<RelayTokenUsageDetailDto> {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
-    return this.relayTokenService.getUsageSummary(id, request.user!.userId, start, end, limit, offset);
+    return this.relayTokenService.getUsageSummary(id, request.user!.userId, start, end, limit, offset, targetUserId);
   }
 
   @Get("available-models")
@@ -364,8 +376,9 @@ export class RelayController extends Controller {
     @Path() id: string,
     @Request() request: TypedRequest,
     @Query() limit?: number,
+    @Query() targetUserId?: string,
   ): Promise<RelayTokenSwitchLogsDto> {
-    return this.relayTokenService.getSwitchLogs(id, request.user!.userId, limit);
+    return this.relayTokenService.getSwitchLogs(id, request.user!.userId, limit, targetUserId);
   }
 
   @Get("tokens/{id}/available-models")
@@ -375,7 +388,8 @@ export class RelayController extends Controller {
   async getTokenAvailableModels(
     @Path() id: string,
     @Request() request: TypedRequest,
+    @Query() targetUserId?: string,
   ): Promise<RelayTokenAvailableModelsDto> {
-    return this.relayTokenService.getTokenAvailableModels(id, request.user!.userId);
+    return this.relayTokenService.getTokenAvailableModels(id, request.user!.userId, targetUserId);
   }
 }

@@ -104,6 +104,7 @@ const customTokenSchema = z
 
 export const createRelayTokenBodySchema = z
   .object({
+    targetUserId: z.string().trim().min(1).max(50).optional(),
     name: z.string().max(100).nullish(),
     token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
@@ -165,6 +166,7 @@ export const createRelayTokenBodySchema = z
 
 export const updateRelayTokenBodySchema = z
   .object({
+    targetUserId: z.string().trim().min(1).max(50).optional(),
     name: z.string().max(100).nullish(),
     token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
@@ -218,16 +220,19 @@ export const updateRelayTokenBodySchema = z
   });
 
 export const updateRelayTokenChannelBodySchema = z.object({
+  targetUserId: z.string().trim().min(1).max(50).optional(),
   channelId: z.string().trim().min(1).max(50),
 });
 
 export const duplicateRelayTokenBodySchema = z.object({
   name: z.string().trim().min(1).max(100).nullish(),
+  targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 
 export const exportRelayTokensBodySchema = z.object({
   ids: relayTokenIdsSchema.optional(),
   includeDisabled: z.coerce.boolean().optional(),
+  targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 
 const relayTokenImportItemSchema = z
@@ -293,24 +298,29 @@ const relayTokenImportItemSchema = z
 
 export const importRelayTokensBodySchema = z.object({
   tokens: z.array(relayTokenImportItemSchema).min(1).max(200),
+  targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 
 export const batchSetRelayTokenStatusBodySchema = z.object({
   ids: relayTokenIdsSchema,
   enabled: z.coerce.boolean(),
+  targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 
 export const batchDeleteRelayTokensBodySchema = z.object({
   ids: relayTokenIdsSchema,
+  targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 
 export const batchDuplicateRelayTokensBodySchema = z.object({
   ids: relayTokenIdsSchema,
+  targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 
 export const relayTokenListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(100000).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 
 const relayTokenUsageQueryBaseSchema = z.object({
@@ -347,6 +357,7 @@ export const relayTokenUsageQuerySchema = relayTokenUsageQueryBaseSchema.superRe
 
 export const relayTokenUsageSummaryQuerySchema = relayTokenUsageQueryBaseSchema
   .extend({
+    targetUserId: z.string().trim().min(1).max(50).optional(),
     tokenIds: z
       .string()
       .max(4000)
@@ -376,6 +387,7 @@ export const relayTokenUsageSummaryQuerySchema = relayTokenUsageQueryBaseSchema
 
 export const relayTokenUsageDetailQuerySchema = relayTokenUsageQueryBaseSchema
   .extend({
+    targetUserId: z.string().trim().min(1).max(50).optional(),
     limit: z.coerce.number().int().min(1).max(100).optional(),
     offset: z.coerce.number().int().min(0).max(10000).optional(),
   })
@@ -394,4 +406,5 @@ export const relayTokenUsageDetailQuerySchema = relayTokenUsageQueryBaseSchema
 
 export const relayTokenSwitchLogsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
+  targetUserId: z.string().trim().min(1).max(50).optional(),
 });

@@ -62,6 +62,10 @@ export const setRelayConfigBodySchema = z.object({
   upstreamUrl: z.string().max(500),
   upstreamApiKey: z.string().max(500),
   allowedModels: z.string().max(2000),
+  customKeyEnabled: z.coerce.boolean(),
+  customKeyMaxTokensPerUser: z.coerce.number().int().min(0).max(1000),
+  customKeyCreateLimitWindowMinutes: z.coerce.number().int().min(1).max(525600),
+  customKeyCreateLimitMaxCount: z.coerce.number().int().min(0).max(100000),
 });
 
 export const setSmtpConfigBodySchema = z.object({

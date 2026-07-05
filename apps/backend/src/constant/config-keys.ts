@@ -64,5 +64,9 @@ export const CONFIG_KEYS = {
     ALLOWED_MODELS: "relay.allowedModels",
     MODEL_RATES: "relay.modelRates",
     GLOBAL_MULTIPLIER: "relay.globalMultiplier",
+    CUSTOM_KEY_ENABLED: "relay.customKey.enabled",
+    CUSTOM_KEY_MAX_TOKENS_PER_USER: "relay.customKey.maxTokensPerUser",
+    CUSTOM_KEY_CREATE_LIMIT_WINDOW_MINUTES: "relay.customKey.createLimitWindowMinutes",
+    CUSTOM_KEY_CREATE_LIMIT_MAX_COUNT: "relay.customKey.createLimitMaxCount",
   },
 } as const;

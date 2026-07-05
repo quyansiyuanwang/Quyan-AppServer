@@ -1192,6 +1192,7 @@ export default {
     upstreamStreamTimeout: 'Upstream Stream Timeout (seconds)',
     upstreamStreamTimeoutHelp:
       'Maximum time a streaming relay request waits for upstream response or subsequent chunks before returning 504. Set to 0 to disable this timeout.',
+    requestQueueTitle: 'Request Queue',
     enableQueue: 'Enable Request Queue',
     enableQueueHelp:
       'When enabled, excess requests queue until a slot is free. When disabled, they are rejected immediately with 429.',
@@ -1263,6 +1264,19 @@ export default {
     heartbeatTimeoutSeconds: 'Heartbeat Timeout (seconds)',
     heartbeatTimeoutHelp:
       'If no heartbeat is received within this period, the session is marked offline.',
+    relayCustomKeyTitle: 'Relay Custom Key Limits',
+    relayCustomKeyEnabled: 'Enable custom relay keys',
+    relayCustomKeyEnabledHelp:
+      'When disabled, regular users cannot create custom relay token keys.',
+    relayCustomKeyMaxTokensPerUser: 'Max custom keys per user',
+    relayCustomKeyMaxTokensPerUserHelp:
+      'Limits how many custom relay token keys a single user can keep at the same time. Set to 0 to block creation.',
+    relayCustomKeyCreateLimitWindowMinutes: 'Creation window (minutes)',
+    relayCustomKeyCreateLimitWindowMinutesHelp:
+      'The server counts custom relay key creations within this time window.',
+    relayCustomKeyCreateLimitMaxCount: 'Max creations per window',
+    relayCustomKeyCreateLimitMaxCountHelp:
+      'Limits how many custom relay keys a single user can create within the configured window. Set to 0 to block creation entirely.',
     remoteTerminalUnbindTitle: 'Remote Terminal Unbind Limits',
     remoteTerminalUnbindMaxCount: 'Max unbinds within window',
     remoteTerminalUnbindMaxCountHelp:

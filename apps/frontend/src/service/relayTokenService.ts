@@ -28,6 +28,10 @@ const relayApi = cacheObject(() => createRelayControllerApi(useRequestStore().ge
 class RelayTokenService {
   private static instance: RelayTokenService
 
+  private normalizeTargetUserId(targetUserId?: string) {
+    return targetUserId?.trim() || undefined
+  }
+
   private unwrapResponse<T>(result: { code?: number; message?: string; data?: T } | T): T {
     if (!result) {
       throw new Error('Request failed')
@@ -82,29 +86,30 @@ class RelayTokenService {
     return this.unwrapResponse(result)
   }
 
-  async getRelayTokens(options?: { page?: number; pageSize?: number }): Promise<RelayTokenPageDto> {
+  async getRelayTokens(options?: { page?: number; pageSize?: number; targetUserId?: string }): Promise<RelayTokenPageDto> {
     const result = await relayApi.listTokens({
       params: {
         page: options?.page,
         pageSize: options?.pageSize,
+        targetUserId: this.normalizeTargetUserId(options?.targetUserId),
       },
     })
     return this.unwrapResponse(result)
   }
 
-  async getRelayTokenById(id: string): Promise<RelayTokenDto> {
-    const result = await relayApi.getToken({ path: { id } })
+  async getRelayTokenById(id: string, targetUserId?: string): Promise<RelayTokenDto> {
+    const result = await relayApi.getToken({ path: { id }, params: { targetUserId } })
     return this.unwrapResponse(result)
   }
 
-  async deleteRelayToken(id: string) {
-    await relayApi.deleteToken({ path: { id } })
+  async deleteRelayToken(id: string, targetUserId?: string) {
+    await relayApi.deleteToken({ path: { id }, params: { targetUserId } })
   }
 
-  async updateTokenChannel(id: string, channelId: string): Promise<RelayTokenDto> {
+  async updateTokenChannel(id: string, channelId: string, targetUserId?: string): Promise<RelayTokenDto> {
     const result = await relayApi.updateTokenChannel({
       path: { id },
-      body: { channelId },
+      body: { channelId, targetUserId: this.normalizeTargetUserId(targetUserId) },
     })
     return this.unwrapResponse(result)
   }
@@ -130,14 +135,16 @@ class RelayTokenService {
     return this.unwrapResponse(result)
   }
 
-  async refreshRelayToken(id: string): Promise<RelayTokenDto> {
+  async refreshRelayToken(id: string, targetUserId?: string): Promise<RelayTokenDto> {
+    void targetUserId
     const result = await relayApi.refreshToken({
       path: { id },
     })
     return this.unwrapResponse(result)
   }
 
-  async toggleTokenStatus(id: string): Promise<RelayTokenDto> {
+  async toggleTokenStatus(id: string, targetUserId?: string): Promise<RelayTokenDto> {
+    void targetUserId
     const result = await relayApi.toggleTokenStatus({
       path: { id },
     })
@@ -156,10 +163,10 @@ class RelayTokenService {
     return this.unwrapResponse(result)
   }
 
-  async getRelayTokenUsage(id: string, startDate?: string, endDate?: string) {
+  async getRelayTokenUsage(id: string, startDate?: string, endDate?: string, targetUserId?: string) {
     const result = await relayApi.getUsage({
       path: { id },
-      params: { startDate, endDate },
+      params: { startDate, endDate, targetUserId: this.normalizeTargetUserId(targetUserId) },
     })
     return result.data
   }
@@ -168,12 +175,14 @@ class RelayTokenService {
     tokenIds?: string[],
     startDate?: string,
     endDate?: string,
+    targetUserId?: string,
   ): Promise<RelayTokenUsageSummaryBatchDto> {
     const result = await relayApi.getUsageSummaries({
       params: {
         tokenIds: tokenIds?.length ? tokenIds.join(',') : undefined,
         startDate,
         endDate,
+        targetUserId: this.normalizeTargetUserId(targetUserId),
       },
     })
     return this.unwrapResponse(result)
@@ -186,6 +195,7 @@ class RelayTokenService {
       endDate?: string
       limit?: number
       offset?: number
+      targetUserId?: string
     },
   ): Promise<RelayTokenUsageDetailDto> {
     const result = await relayApi.getUsageSummary({
@@ -195,6 +205,7 @@ class RelayTokenService {
         endDate: options?.endDate,
         limit: options?.limit,
         offset: options?.offset,
+        targetUserId: this.normalizeTargetUserId(options?.targetUserId),
       },
     })
     return this.unwrapResponse(result)
@@ -246,10 +257,10 @@ class RelayTokenService {
     }
   }
 
-  async getTokenSwitchLogs(id: string, limit: number = 50): Promise<RelayTokenSwitchLogsDto> {
+  async getTokenSwitchLogs(id: string, limit: number = 50, targetUserId?: string): Promise<RelayTokenSwitchLogsDto> {
     const result = await relayApi.getTokenSwitchLogs({
       path: { id },
-      params: { limit },
+      params: { limit, targetUserId: this.normalizeTargetUserId(targetUserId) },
     })
     return this.unwrapResponse(result)
   }
