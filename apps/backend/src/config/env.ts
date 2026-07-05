@@ -226,6 +226,16 @@ function getProtectedGroupName(): string | undefined {
 
 function rateLimitConfig() {
   return {
+    login: {
+      perIp: {
+        maxRequests: parseInt(process.env.RATE_LIMIT_LOGIN_IP_MAX || "10"),
+        windowMinutes: parseInt(process.env.RATE_LIMIT_LOGIN_IP_WINDOW || "1"),
+      },
+      perUser: {
+        maxRequests: parseInt(process.env.RATE_LIMIT_LOGIN_USER_MAX || "5"),
+        windowMinutes: parseInt(process.env.RATE_LIMIT_LOGIN_USER_WINDOW || "1"),
+      },
+    },
     emailVerification: {
       perIp: {
         maxRequests: parseInt(process.env.RATE_LIMIT_IP_MAX || "5"),

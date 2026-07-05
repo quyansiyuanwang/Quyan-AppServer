@@ -39,7 +39,10 @@ describe("RateLimiterService Redis fallback", () => {
   it("fails open when Redis is unavailable", async () => {
     const { service, mocks } = createService(false);
 
-    const result = await service.checkTwoFactorVerificationRateLimit("127.0.0.1", "challenge-token");
+    const result = await service.checkNamedRedisWindowRateLimit("twoFactorVerification", {
+      ipAddress: "127.0.0.1",
+      challengeToken: "challenge-token",
+    });
 
     expect(result.allowed).toBe(true);
     expect(result.reason).toBe("RATE_LIMIT_BACKEND_UNAVAILABLE");
@@ -49,7 +52,10 @@ describe("RateLimiterService Redis fallback", () => {
   it("skips write operations when Redis is unavailable", async () => {
     const { service, mocks } = createService(false);
 
-    await service.logTwoFactorEmailSendAttempt("127.0.0.1", "challenge-token");
+    await service.consumeNamedRedisWindowRateLimit("twoFactorEmailSend", {
+      ipAddress: "127.0.0.1",
+      challengeToken: "challenge-token",
+    });
 
     expect(mocks.redisMock.increment).not.toHaveBeenCalled();
   });
@@ -60,7 +66,10 @@ describe("RateLimiterService Redis fallback", () => {
     mocks.redisMock.get.mockResolvedValueOnce("20").mockResolvedValueOnce("0");
     mocks.redisMock.ttl.mockResolvedValueOnce(35);
 
-    const result = await service.checkTwoFactorVerificationRateLimit("127.0.0.1", "challenge-token");
+    const result = await service.checkNamedRedisWindowRateLimit("twoFactorVerification", {
+      ipAddress: "127.0.0.1",
+      challengeToken: "challenge-token",
+    });
 
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe("TWO_FACTOR_IP_RATE_LIMIT_EXCEEDED");
@@ -70,7 +79,10 @@ describe("RateLimiterService Redis fallback", () => {
   it("fails open for trusted-device operation checks when Redis is unavailable", async () => {
     const { service, mocks } = createService(false);
 
-    const result = await service.checkTwoFactorTrustedDeviceOperationRateLimit("127.0.0.1", "user-1");
+    const result = await service.checkNamedRedisWindowRateLimit("twoFactorTrustedDevice", {
+      ipAddress: "127.0.0.1",
+      userId: "user-1",
+    });
 
     expect(result.allowed).toBe(true);
     expect(result.reason).toBe("RATE_LIMIT_BACKEND_UNAVAILABLE");
@@ -83,7 +95,10 @@ describe("RateLimiterService Redis fallback", () => {
     mocks.redisMock.get.mockResolvedValueOnce("0").mockResolvedValueOnce("30");
     mocks.redisMock.ttl.mockResolvedValueOnce(42);
 
-    const result = await service.checkTwoFactorTrustedDeviceOperationRateLimit("127.0.0.1", "user-1");
+    const result = await service.checkNamedRedisWindowRateLimit("twoFactorTrustedDevice", {
+      ipAddress: "127.0.0.1",
+      userId: "user-1",
+    });
 
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe("TWO_FACTOR_TRUSTED_DEVICE_USER_RATE_LIMIT_EXCEEDED");
@@ -93,7 +108,10 @@ describe("RateLimiterService Redis fallback", () => {
   it("records trusted-device operation attempts into both ip and user buckets", async () => {
     const { service, mocks } = createService(true);
 
-    await service.logTwoFactorTrustedDeviceOperationAttempt("127.0.0.1", "user-1");
+    await service.consumeNamedRedisWindowRateLimit("twoFactorTrustedDevice", {
+      ipAddress: "127.0.0.1",
+      userId: "user-1",
+    });
 
     expect(mocks.redisMock.increment).toHaveBeenCalledTimes(2);
     expect(mocks.redisMock.increment).toHaveBeenCalledWith(expect.stringContaining("2fa_trusted_device:ip"), 600);

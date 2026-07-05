@@ -19,6 +19,7 @@ import { getLogger, LogCategory } from "@/util/logger";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { NotificationEvent } from "@/constant/notification-event";
+import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
 
 interface TwoFactorSetupSession {
   userId: string;
@@ -176,6 +177,7 @@ export class TwoFactorService {
     private readonly twoFactorCredentialRepository: TwoFactorCredentialStore = TwoFactorCredentialRepository.getInstance(),
     private readonly redisService: RedisService = RedisService.getInstance(),
     private readonly emailService: EmailService = EmailService.getInstance(),
+    private readonly rateLimiterService: RateLimiterService = RateLimiterService.getInstance(),
   ) {}
 
   public static getInstance(): TwoFactorService {
@@ -1195,103 +1197,19 @@ export class TwoFactorService {
   }
 
   private async checkRateLimit(identifier: string): Promise<void> {
-    const key = this.rateLimitStateKey(identifier);
-    const now = Date.now();
-    const recordRaw = await this.redisService.get(key);
-    if (!recordRaw) return;
-
-    let record: { count: number; lastAttempt: number; lockoutUntil: number } | null = null;
-    try {
-      const parsed = JSON.parse(recordRaw) as Partial<{ count: number; lastAttempt: number; lockoutUntil: number }>;
-      if (
-        typeof parsed.count === "number" &&
-        typeof parsed.lastAttempt === "number" &&
-        typeof parsed.lockoutUntil === "number"
-      )
-        record = {
-          count: parsed.count,
-          lastAttempt: parsed.lastAttempt,
-          lockoutUntil: parsed.lockoutUntil,
-        };
-    } catch {
-      record = null;
-    }
-
-    if (!record) {
-      await this.redisService.delete(key);
-      return;
-    }
-
-    if (now - record.lastAttempt > TwoFactorService.LOCKOUT_MS) {
-      await this.redisService.delete(key);
-      return;
-    }
-
-    if (record.lockoutUntil > now) {
-      const retryAfter = Math.max(1, Math.ceil((record.lockoutUntil - now) / 1000));
-      throw new TooManyRequestsError("请求过于频繁，请稍后再试", retryAfter);
-    }
+    await this.rateLimiterService.assertNamedBackoffRateLimit("twoFactorAttempt", {
+      identifier,
+    });
   }
 
   private async markRateLimitFailure(identifier: string): Promise<void> {
-    const now = Date.now();
-    const key = this.rateLimitStateKey(identifier);
-    const existingRaw = await this.redisService.get(key);
-
-    let existing: { count: number; lastAttempt: number; lockoutUntil: number } | null = null;
-    if (existingRaw)
-      try {
-        const parsed = JSON.parse(existingRaw) as Partial<{ count: number; lastAttempt: number; lockoutUntil: number }>;
-        if (
-          typeof parsed.count === "number" &&
-          typeof parsed.lastAttempt === "number" &&
-          typeof parsed.lockoutUntil === "number"
-        )
-          existing = {
-            count: parsed.count,
-            lastAttempt: parsed.lastAttempt,
-            lockoutUntil: parsed.lockoutUntil,
-          };
-      } catch {
-        existing = null;
-      }
-
-    const stale = !existing || now - existing.lastAttempt > TwoFactorService.LOCKOUT_MS;
-    if (stale) {
-      await this.redisService.set(
-        key,
-        JSON.stringify({
-          count: 1,
-          lastAttempt: now,
-          lockoutUntil: 0,
-        }),
-        Math.ceil(TwoFactorService.LOCKOUT_MS / 1000),
-      );
-      return;
-    }
-
-    if (!existing) return;
-
-    const count = existing.count + 1;
-    const overLimitCount = Math.max(0, count - TwoFactorService.MAX_ATTEMPTS + 1);
-    const backoff =
-      overLimitCount <= 0
-        ? 0
-        : Math.min(TwoFactorService.BASE_BACKOFF_MS * 2 ** (overLimitCount - 1), TwoFactorService.LOCKOUT_MS);
-
-    await this.redisService.set(
-      key,
-      JSON.stringify({
-        count,
-        lastAttempt: now,
-        lockoutUntil: backoff > 0 ? now + backoff : 0,
-      }),
-      Math.ceil(TwoFactorService.LOCKOUT_MS / 1000),
-    );
+    await this.rateLimiterService.markNamedBackoffRateLimitFailure("twoFactorAttempt", {
+      identifier,
+    });
   }
 
   private async clearRateLimit(identifier: string): Promise<void> {
-    await this.redisService.delete(this.rateLimitStateKey(identifier));
+    await this.rateLimiterService.clearNamedBackoffRateLimit("twoFactorAttempt", { identifier });
   }
 
   private async dispatchTwoFactorStatusNotification(userId: string, enabled: boolean): Promise<void> {

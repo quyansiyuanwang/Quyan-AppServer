@@ -20,6 +20,10 @@ const DEFAULT_NOTIFICATION_THRESHOLDS: Record<string, number> = {
   [NotificationEvent.RELAY_TOKEN_QUOTA_LOW]: 80,
 };
 const DEFAULT_SUBSCRIBED_NOTIFICATION_EVENTS = [...ALL_NOTIFICATION_EVENTS];
+const DEFAULT_RELAY_CUSTOM_KEY_ENABLED = true;
+const DEFAULT_RELAY_CUSTOM_KEY_MAX_TOKENS_PER_USER = 3;
+const DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_WINDOW_MINUTES = 10;
+const DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_MAX_COUNT = 5;
 
 export interface RegistrationConfig {
   enabled: boolean;
@@ -62,6 +66,23 @@ export interface ErrorWeights {
 
 export interface ModelConfig {
   allowedModels: string;
+}
+
+export interface RelayCustomKeyConfig {
+  enabled: boolean;
+  maxTokensPerUser: number;
+  createLimitWindowMinutes: number;
+  createLimitMaxCount: number;
+}
+
+export interface RelayConfig {
+  upstreamUrl: string;
+  upstreamApiKey: string;
+  allowedModels: string;
+  customKeyEnabled: boolean;
+  customKeyMaxTokensPerUser: number;
+  customKeyCreateLimitWindowMinutes: number;
+  customKeyCreateLimitMaxCount: number;
 }
 
 export interface BillingConfig {
@@ -374,12 +395,42 @@ export class ConfigService {
     }
   }
 
-  async getRelayConfig(): Promise<{ upstreamUrl: string; upstreamApiKey: string; allowedModels: string }> {
+  async getRelayConfig(): Promise<RelayConfig> {
     const configs = await this.getMultiple(Object.values(CONFIG_KEYS.RELAY));
     return {
       upstreamUrl: configs[CONFIG_KEYS.RELAY.UPSTREAM_URL] || "",
       upstreamApiKey: configs[CONFIG_KEYS.RELAY.UPSTREAM_API_KEY] || "",
       allowedModels: configs[CONFIG_KEYS.RELAY.ALLOWED_MODELS] || "",
+      customKeyEnabled:
+        (configs[CONFIG_KEYS.RELAY.CUSTOM_KEY_ENABLED] || String(DEFAULT_RELAY_CUSTOM_KEY_ENABLED)) === "true",
+      customKeyMaxTokensPerUser: sanitizeInt(
+        configs[CONFIG_KEYS.RELAY.CUSTOM_KEY_MAX_TOKENS_PER_USER],
+        DEFAULT_RELAY_CUSTOM_KEY_MAX_TOKENS_PER_USER,
+        0,
+        1000,
+      ),
+      customKeyCreateLimitWindowMinutes: sanitizeInt(
+        configs[CONFIG_KEYS.RELAY.CUSTOM_KEY_CREATE_LIMIT_WINDOW_MINUTES],
+        DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_WINDOW_MINUTES,
+        1,
+        525600,
+      ),
+      customKeyCreateLimitMaxCount: sanitizeInt(
+        configs[CONFIG_KEYS.RELAY.CUSTOM_KEY_CREATE_LIMIT_MAX_COUNT],
+        DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_MAX_COUNT,
+        0,
+        100000,
+      ),
+    };
+  }
+
+  async getRelayCustomKeyConfig(): Promise<RelayCustomKeyConfig> {
+    const relayConfig = await this.getRelayConfig();
+    return {
+      enabled: relayConfig.customKeyEnabled,
+      maxTokensPerUser: relayConfig.customKeyMaxTokensPerUser,
+      createLimitWindowMinutes: relayConfig.customKeyCreateLimitWindowMinutes,
+      createLimitMaxCount: relayConfig.customKeyCreateLimitMaxCount,
     };
   }
 

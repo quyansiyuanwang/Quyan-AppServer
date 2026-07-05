@@ -11,6 +11,7 @@ export type RelayTokenQuotaUnit = "amount" | "request" | "token";
 
 export type RelayTokenWithRelations = Prisma.RelayTokenGetPayload<{
   include: {
+    user: true;
     channel: true;
     failoverConfig: true;
     channelConfigs: {
@@ -35,7 +36,14 @@ export type RelayTokenTransactionClient = Omit<
 export type RelayTokenUsageSummaryTarget = Pick<
   RelayToken,
   "id" | "name" | "quotaLimit" | "usedQuota" | "requestCount" | "totalTokens" | "lastUsedAt"
->;
+> & {
+  userId: string;
+  user?: {
+    id: string;
+    username: string;
+    name: string | null;
+  } | null;
+};
 
 export type RelayTokenQuotaWindowSnapshot = Pick<
   RelayTokenQuotaWindow,
@@ -143,10 +151,18 @@ export interface RelayTokenStore {
     page: number,
     pageSize: number,
   ): Promise<RelayTokenPageResult<RelayTokenWithRelations>>;
+  findPageWithRelations(
+    page: number,
+    pageSize: number,
+    userId?: string,
+  ): Promise<RelayTokenPageResult<RelayTokenWithRelations>>;
   findByUserIdWithChannel(userId: string): Promise<RelayTokenWithChannel[]>;
   findUsageSummaryTargetsByUserId(userId: string): Promise<RelayTokenUsageSummaryTarget[]>;
   findUsageSummaryTargetsByIds(userId: string, tokenIds: string[]): Promise<RelayTokenUsageSummaryTarget[]>;
+  findWithRelationsByIds(tokenIds: string[], statuses?: number[], userId?: string): Promise<RelayTokenWithRelations[]>;
+  findUsageSummaryTargets(tokenIds?: string[], userId?: string): Promise<RelayTokenUsageSummaryTarget[]>;
   countCustomKeyTokensByUserId(userId: string): Promise<number>;
+  countCustomKeyTokensCreatedSince(userId: string, since: Date): Promise<number>;
   incrementUsageStats(id: string, totalTokens: number): Promise<RelayToken>;
   touchRequest(id: string): Promise<RelayToken>;
   update(id: string, data: RelayTokenUpdateInput): Promise<RelayToken>;
@@ -167,4 +183,6 @@ export interface RelayTokenStore {
   listSwitchLogs(relayTokenId: string, limit?: number): Promise<RelayChannelSwitchLog[]>;
   delete(id: string): Promise<RelayToken>;
   deleteByIds(userId: string, ids: string[]): Promise<number>;
+  deleteByIdsForScope(ids: string[], userId?: string): Promise<number>;
+  updateStatusByIdsForScope(ids: string[], status: number, userId?: string): Promise<number>;
 }

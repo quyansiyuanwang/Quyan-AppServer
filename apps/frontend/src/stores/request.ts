@@ -13,7 +13,7 @@ import { ReplayProtection } from '@/utils/replay-protection'
 import { getOrCreateClientFingerprint } from '@/utils/client-fingerprint'
 import { useImpersonationStore } from '@/stores/impersonationStore'
 import { ReplaySigningService } from '@/service/replaySigningService'
-import { getLocale } from '@/locales'
+import { getBackendLocale } from '@/locales'
 
 type AnyEndpointDescriptor = ApiEndpointDescriptor<ApiMethod, any, any, any, any, any>
 type EndpointWithMethod<METHOD extends ApiMethod> = ApiEndpointDescriptor<
@@ -198,6 +198,11 @@ const getAccessToken = (): string | null => authMemoryState.accessToken
 const clearAccessToken = (): void => {
   authMemoryState.accessToken = null
   clearTokenExpiration()
+}
+
+const getLocaleHeaders = (): Record<string, string> => {
+  const locale = getBackendLocale()
+  return locale ? { 'X-Locale': locale } : {}
 }
 
 export {
@@ -764,7 +769,7 @@ class MyAxios {
 
     return {
       [OPTION_KEYS.SKIP_RETRY]: ifElseDefault(options?.retry, 'false', 'true', 'false'),
-      'X-Locale': getLocale(),
+      ...getLocaleHeaders(),
       ...(clientFingerprint ? { 'X-Client-Fingerprint': clientFingerprint } : {}),
       ...(options?.customHeaders || {}),
       ...replayProtectionHeader,
@@ -842,7 +847,7 @@ class MyAxios {
         credentials: options.directCredentials,
         signal: options.signal,
         headers: {
-          'X-Locale': getLocale(),
+          ...getLocaleHeaders(),
           ...(options?.customHeaders || {}),
         },
       })

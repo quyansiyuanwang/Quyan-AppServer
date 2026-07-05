@@ -160,6 +160,26 @@ interface SelectedRateConfig {
 
 type RelayConcurrencyScope = "default" | "image";
 
+type RelayCapacityPolicyName = "relayUpstreamConcurrency";
+
+interface RelayCapacityPolicyContextMap {
+  relayUpstreamConcurrency: {
+    userId: string;
+    isImageRequest: boolean;
+    isStreamRequest: boolean;
+    relayConfig: Awaited<ReturnType<RelayConfigService["getRelayConfig"]>>;
+  };
+}
+
+interface RelayCapacityPolicy {
+  userId: string;
+  scope: RelayConcurrencyScope;
+  maxConcurrency: number;
+  queueTimeout: number;
+  enableQueue: boolean;
+  slotTtlSeconds: number;
+}
+
 interface RelayConcurrencyLease {
   key: string;
   baseKey: string;
@@ -982,6 +1002,59 @@ export class RelayProxyService {
     return Math.max(1, Math.ceil(timeoutMs / 1000) + 5);
   }
 
+  private getCapacityPolicy<TPolicyName extends RelayCapacityPolicyName>(
+    policyName: TPolicyName,
+    context: RelayCapacityPolicyContextMap[TPolicyName],
+  ): RelayCapacityPolicy {
+    switch (policyName) {
+      case "relayUpstreamConcurrency": {
+        const { userId, isImageRequest, isStreamRequest, relayConfig } =
+          context as RelayCapacityPolicyContextMap["relayUpstreamConcurrency"];
+        const resourceGuard = EnvSpace.relayResourceGuardConfig;
+        return {
+          userId,
+          scope: this.getConcurrencyScope(isImageRequest),
+          maxConcurrency: isImageRequest
+            ? Math.min(relayConfig.maxConcurrency, resourceGuard.imageMaxConcurrency)
+            : relayConfig.maxConcurrency,
+          queueTimeout: isImageRequest
+            ? Math.min(relayConfig.queueTimeout, resourceGuard.imageQueueTimeoutMs)
+            : relayConfig.queueTimeout,
+          enableQueue: relayConfig.enableQueue,
+          slotTtlSeconds: this.getConcurrencySlotTtlSeconds(
+            isStreamRequest,
+            relayConfig.upstreamStreamTimeout,
+            resourceGuard.nonStreamUpstreamTimeoutMs,
+          ),
+        };
+      }
+    }
+  }
+
+  private async acquireNamedCapacityLease<TPolicyName extends RelayCapacityPolicyName>(
+    policyName: TPolicyName,
+    context: RelayCapacityPolicyContextMap[TPolicyName],
+  ): Promise<RelayConcurrencyLease> {
+    const policy = this.getCapacityPolicy(policyName, context);
+    return this.acquireConcurrencySlot(policy);
+  }
+
+  private getRelayConcurrencyStatusLimits(relayConfig: Awaited<ReturnType<RelayConfigService["getRelayConfig"]>>) {
+    const resourceGuard = EnvSpace.relayResourceGuardConfig;
+
+    return {
+      maxConcurrency: relayConfig.maxConcurrency,
+      effectiveImageMaxConcurrency: Math.min(relayConfig.maxConcurrency, resourceGuard.imageMaxConcurrency),
+      imageMaxConcurrencyCap: resourceGuard.imageMaxConcurrency,
+      enableQueue: relayConfig.enableQueue,
+      queueTimeoutMs: relayConfig.queueTimeout,
+      effectiveImageQueueTimeoutMs: Math.min(relayConfig.queueTimeout, resourceGuard.imageQueueTimeoutMs),
+      imageQueueTimeoutMs: resourceGuard.imageQueueTimeoutMs,
+      upstreamStreamTimeoutMs: relayConfig.upstreamStreamTimeout,
+      nonStreamUpstreamTimeoutMs: resourceGuard.nonStreamUpstreamTimeoutMs,
+    };
+  }
+
   private async acquireConcurrencySlot(params: {
     userId: string;
     scope: RelayConcurrencyScope;
@@ -1154,7 +1227,6 @@ export class RelayProxyService {
 
   public async getConcurrencyStatus(userId?: string) {
     const relayConfig = await this.relayConfigService.getRelayConfig();
-    const resourceGuard = EnvSpace.relayResourceGuardConfig;
     const redisItems: Array<{
       key: string;
       userId: string;
@@ -1272,17 +1344,7 @@ export class RelayProxyService {
     return {
       redisAvailable: this.redis.isRedisAvailable(),
       userId,
-      limits: {
-        maxConcurrency: relayConfig.maxConcurrency,
-        effectiveImageMaxConcurrency: Math.min(relayConfig.maxConcurrency, resourceGuard.imageMaxConcurrency),
-        imageMaxConcurrencyCap: resourceGuard.imageMaxConcurrency,
-        enableQueue: relayConfig.enableQueue,
-        queueTimeoutMs: relayConfig.queueTimeout,
-        effectiveImageQueueTimeoutMs: Math.min(relayConfig.queueTimeout, resourceGuard.imageQueueTimeoutMs),
-        imageQueueTimeoutMs: resourceGuard.imageQueueTimeoutMs,
-        upstreamStreamTimeoutMs: relayConfig.upstreamStreamTimeout,
-        nonStreamUpstreamTimeoutMs: resourceGuard.nonStreamUpstreamTimeoutMs,
-      },
+      limits: this.getRelayConcurrencyStatusLimits(relayConfig),
       totals: {
         activeCount: totals.activeCount,
         defaultScopeActiveCount: totals.defaultScopeActiveCount,
@@ -1934,33 +1996,27 @@ export class RelayProxyService {
 
     // Remove global model config variables - they will be determined per-channel
 
-    const maxConcurrency = isImageRequest
-      ? Math.min(relayConfig.maxConcurrency, resourceGuard.imageMaxConcurrency)
-      : relayConfig.maxConcurrency;
-    const queueTimeout = isImageRequest
-      ? Math.min(relayConfig.queueTimeout, resourceGuard.imageQueueTimeoutMs)
-      : relayConfig.queueTimeout;
+    const concurrencyPolicy = this.getCapacityPolicy("relayUpstreamConcurrency", {
+      userId: relayToken.userId,
+      isImageRequest,
+      isStreamRequest: isStreamRequested,
+      relayConfig,
+    });
 
     if (isImageRequest)
       logger.info("Image request concurrency guard", {
         userId: relayToken.userId,
         model: normalizedRequestedModel,
         requestSizeMB: `${requestSizeMB}MB`,
-        maxConcurrency,
-        queueTimeout,
+        maxConcurrency: concurrencyPolicy.maxConcurrency,
+        queueTimeout: concurrencyPolicy.queueTimeout,
       });
 
-    const concurrencyLease = await this.acquireConcurrencySlot({
+    const concurrencyLease = await this.acquireNamedCapacityLease("relayUpstreamConcurrency", {
       userId: relayToken.userId,
-      scope: this.getConcurrencyScope(isImageRequest),
-      maxConcurrency,
-      queueTimeout,
-      enableQueue: relayConfig.enableQueue,
-      slotTtlSeconds: this.getConcurrencySlotTtlSeconds(
-        isStreamRequested,
-        relayConfig.upstreamStreamTimeout,
-        resourceGuard.nonStreamUpstreamTimeoutMs,
-      ),
+      isImageRequest,
+      isStreamRequest: isStreamRequested,
+      relayConfig,
     });
     const stopConcurrencyLeaseHeartbeat = isStreamRequested
       ? this.startConcurrencyLeaseHeartbeat(concurrencyLease)

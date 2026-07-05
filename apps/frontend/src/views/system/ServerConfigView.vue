@@ -1058,7 +1058,6 @@ type Tags =
   | 'remoteTerminalUnbind'
   | 'notification'
   | 'captcha'
-  | 'relay'
   | 'modelRate'
   | 'smtp'
   | 'errorDecay'

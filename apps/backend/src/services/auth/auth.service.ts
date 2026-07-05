@@ -61,6 +61,7 @@ import { EnvSpace } from "@/config/env";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationEvent } from "@/constant/notification-event";
 import { IpGeolocationService } from "@/services/infrastructure/ip-geolocation.service";
+import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
 
 const getForceOfflineUserKey = (userId: string) => `user:force_offline:${userId}`;
 
@@ -93,6 +94,7 @@ export class AuthService {
     private readonly legalPolicyService: LegalPolicyService = LegalPolicyService.getInstance(),
     private readonly legalPolicyRepository: LegalPolicyStore = LegalPolicyRepository.getInstance(),
     private readonly businessLogRepository: BusinessLogStore = BusinessLogRepository.getInstance(),
+    private readonly rateLimiterService: RateLimiterService = RateLimiterService.getInstance(),
   ) {}
 
   private async issueAuthData(userId: string, status: number): Promise<AuthData> {
@@ -448,21 +450,22 @@ export class AuthService {
     const trustedDeviceToken = request ? extractTrustedDeviceToken(request) : undefined;
     const requestId = request?.headers["x-request-id"] as string | undefined;
 
-    // 登录频率限制：per-IP (10/min) + per-account (5/min)
+    // 登录频率限制：per-IP + per-account
     // 测试环境下跳过频率限制
     if (this.redisService.isRedisAvailable() && process.env.NODE_ENV !== "test") {
-      const ipKey = `rate:login:ip:${ipAddress}`;
-      const userKey = `rate:login:user:${username}`;
-      const [ipCount, userCount] = await Promise.all([
-        this.redisService.get(ipKey).then((v) => Number(v ?? 0)),
-        this.redisService.get(userKey).then((v) => Number(v ?? 0)),
-      ]);
-      if (ipCount >= 10) throw new TooManyRequestsError("登录尝试过于频繁，请稍后再试", 60);
-      if (userCount >= 5) throw new TooManyRequestsError("该账号登录尝试过于频繁，请稍后再试", 60);
-      await Promise.all([
-        this.redisService.set(ipKey, ipCount + 1, 60),
-        this.redisService.set(userKey, userCount + 1, 60),
-      ]);
+      const rateLimitCheck = await this.rateLimiterService.checkNamedRedisWindowRateLimit("login", {
+        ipAddress,
+        username,
+      });
+      if (!rateLimitCheck.allowed) {
+        const isUserScoped = rateLimitCheck.reason === "LOGIN_USER_RATE_LIMIT_EXCEEDED";
+        throw new TooManyRequestsError(
+          isUserScoped ? "该账号登录尝试过于频繁，请稍后再试" : "登录尝试过于频繁，请稍后再试",
+          rateLimitCheck.retryAfter || 60,
+        );
+      }
+
+      await this.rateLimiterService.consumeNamedRedisWindowRateLimit("login", { ipAddress, username });
     }
 
     try {

@@ -12,14 +12,6 @@
               <el-input-number v-model="globalMultiplier" :step="0.000001" :precision="6" />
               <span class="form-help">{{ i18ns.t('ServerConfigView.globalMultiplierHelp') }}</span>
             </el-form-item>
-            <el-form-item :label="i18ns.t('relay.uptimeStatusUrl')">
-              <el-input
-                v-model="uptimeStatusUrl"
-                placeholder="https://example.com/api/uptime/status"
-                clearable
-              />
-              <span class="form-help">{{ i18ns.t('relay.uptimeStatusUrlHelp') }}</span>
-            </el-form-item>
           </el-form>
         </el-collapse-item>
 
@@ -29,6 +21,14 @@
             <span class="collapse-title">{{ i18ns.t('relay.monitorConfig') }}</span>
           </template>
           <el-form label-width="200px" label-position="right">
+            <el-form-item :label="i18ns.t('relay.uptimeStatusUrl')">
+              <el-input
+                v-model="uptimeStatusUrl"
+                placeholder="https://example.com/api/uptime/status"
+                clearable
+              />
+              <span class="form-help">{{ i18ns.t('relay.uptimeStatusUrlHelp') }}</span>
+            </el-form-item>
             <el-form-item :label="i18ns.t('relay.monitorConfig')">
               <div style="width: 100%">
                 <el-switch v-model="monitorConfigEnabled" />
@@ -99,7 +99,7 @@
         <!-- Queue Settings -->
         <el-collapse-item name="queue">
           <template #title>
-            <span class="collapse-title">{{ i18ns.t('ServerConfigView.enableQueue') }}</span>
+            <span class="collapse-title">{{ i18ns.t('ServerConfigView.requestQueueTitle') }}</span>
           </template>
           <el-alert type="info" :closable="false" style="margin-bottom: 16px">
             {{ i18ns.t('ServerConfigView.imageScopeNotice') }}
@@ -132,6 +132,57 @@
               />
               <span class="form-help">{{
                 i18ns.t('ServerConfigView.upstreamStreamTimeoutHelp')
+              }}</span>
+            </el-form-item>
+          </el-form>
+        </el-collapse-item>
+
+        <el-collapse-item name="customKey">
+          <template #title>
+            <span class="collapse-title">{{
+              i18ns.t('ServerConfigView.relayCustomKeyTitle')
+            }}</span>
+          </template>
+          <el-form label-width="200px" label-position="right">
+            <el-form-item :label="i18ns.t('ServerConfigView.relayCustomKeyEnabled')">
+              <el-switch v-model="relayCustomKeyEnabled" />
+              <span class="form-help">{{
+                i18ns.t('ServerConfigView.relayCustomKeyEnabledHelp')
+              }}</span>
+            </el-form-item>
+            <el-form-item :label="i18ns.t('ServerConfigView.relayCustomKeyMaxTokensPerUser')">
+              <el-input-number
+                v-model="relayCustomKeyMaxTokensPerUser"
+                :min="0"
+                :max="1000"
+                :disabled="!relayCustomKeyEnabled"
+              />
+              <span class="form-help">{{
+                i18ns.t('ServerConfigView.relayCustomKeyMaxTokensPerUserHelp')
+              }}</span>
+            </el-form-item>
+            <el-form-item
+              :label="i18ns.t('ServerConfigView.relayCustomKeyCreateLimitWindowMinutes')"
+            >
+              <el-input-number
+                v-model="relayCustomKeyCreateLimitWindowMinutes"
+                :min="1"
+                :max="525600"
+                :disabled="!relayCustomKeyEnabled"
+              />
+              <span class="form-help">{{
+                i18ns.t('ServerConfigView.relayCustomKeyCreateLimitWindowMinutesHelp')
+              }}</span>
+            </el-form-item>
+            <el-form-item :label="i18ns.t('ServerConfigView.relayCustomKeyCreateLimitMaxCount')">
+              <el-input-number
+                v-model="relayCustomKeyCreateLimitMaxCount"
+                :min="0"
+                :max="100000"
+                :disabled="!relayCustomKeyEnabled"
+              />
+              <span class="form-help">{{
+                i18ns.t('ServerConfigView.relayCustomKeyCreateLimitMaxCountHelp')
               }}</span>
             </el-form-item>
           </el-form>
@@ -969,6 +1020,16 @@
                 class="section-body px-4 pb-4"
               >
                 <el-form label-position="top" class="relay-settings-form">
+                  <el-form-item :label="i18ns.t('relay.uptimeStatusUrl')" class="setting-block">
+                    <el-input
+                      v-model="uptimeStatusUrl"
+                      placeholder="https://example.com/api/uptime/status"
+                      clearable
+                    />
+                    <span class="ml-3 text-[#909399] text-xs">{{
+                      i18ns.t('relay.uptimeStatusUrlHelp')
+                    }}</span>
+                  </el-form-item>
                   <el-form-item :label="i18ns.t('relay.monitorConfig')" class="setting-block">
                     <div
                       class="w-full border border-[var(--el-border-color-lighter)] rounded-xl p-3 bg-[var(--el-fill-color-blank)]"
@@ -1064,7 +1125,7 @@
               class="w-full flex items-center justify-between gap-3 px-4 py-3 border-none bg-transparent text-[var(--el-text-color-primary)] text-[15px] font-semibold cursor-pointer"
               @click="toggleMobileSection('queue')"
             >
-              <span>{{ i18ns.t('ServerConfigView.enableQueue') }}</span>
+              <span>{{ i18ns.t('ServerConfigView.requestQueueTitle') }}</span>
               <span
                 :class="[
                   'section-toggle-icon',
@@ -1140,6 +1201,101 @@
                     />
                     <span class="ml-3 text-[#909399] text-xs">{{
                       i18ns.t('ServerConfigView.upstreamStreamTimeoutHelp')
+                    }}</span>
+                  </el-form-item>
+                </el-form>
+              </div>
+            </transition>
+          </section>
+
+          <section
+            class="border border-[var(--el-border-color-lighter)] rounded-xl bg-[var(--el-fill-color-blank)] overflow-hidden"
+          >
+            <button
+              type="button"
+              class="w-full flex items-center justify-between gap-3 px-4 py-3 border-none bg-transparent text-[var(--el-text-color-primary)] text-[15px] font-semibold cursor-pointer"
+              @click="toggleMobileSection('customKey')"
+            >
+              <span>{{ i18ns.t('ServerConfigView.relayCustomKeyTitle') }}</span>
+              <span
+                :class="[
+                  'section-toggle-icon',
+                  { 'is-expanded': isMobileSectionExpanded('customKey') },
+                ]"
+                >▾</span
+              >
+            </button>
+            <transition
+              name="section-collapse"
+              @enter="onCollapseEnter"
+              @after-enter="onCollapseAfterEnter"
+              @leave="onCollapseLeave"
+              @after-leave="onCollapseAfterLeave"
+            >
+              <div
+                v-if="isMobileSectionLoaded('customKey')"
+                v-show="isMobileSectionExpanded('customKey')"
+                class="section-body px-4 pb-4"
+              >
+                <el-form label-position="top" class="relay-settings-form">
+                  <el-form-item
+                    :label="i18ns.t('ServerConfigView.relayCustomKeyEnabled')"
+                    class="setting-block"
+                  >
+                    <div
+                      class="w-full border border-[var(--el-border-color-lighter)] rounded-xl p-3 bg-[var(--el-fill-color-blank)]"
+                    >
+                      <div class="flex items-center justify-between gap-2.5">
+                        <span class="font-semibold text-[var(--el-text-color-primary)]">{{
+                          i18ns.t('ServerConfigView.relayCustomKeyEnabled')
+                        }}</span>
+                        <el-switch v-model="relayCustomKeyEnabled" />
+                      </div>
+                    </div>
+                    <span class="ml-3 text-[#909399] text-xs">{{
+                      i18ns.t('ServerConfigView.relayCustomKeyEnabledHelp')
+                    }}</span>
+                  </el-form-item>
+                  <el-form-item
+                    :label="i18ns.t('ServerConfigView.relayCustomKeyMaxTokensPerUser')"
+                    class="setting-block"
+                  >
+                    <el-input-number
+                      v-model="relayCustomKeyMaxTokensPerUser"
+                      :min="0"
+                      :max="1000"
+                      :disabled="!relayCustomKeyEnabled"
+                    />
+                    <span class="ml-3 text-[#909399] text-xs">{{
+                      i18ns.t('ServerConfigView.relayCustomKeyMaxTokensPerUserHelp')
+                    }}</span>
+                  </el-form-item>
+                  <el-form-item
+                    :label="i18ns.t('ServerConfigView.relayCustomKeyCreateLimitWindowMinutes')"
+                    class="setting-block"
+                  >
+                    <el-input-number
+                      v-model="relayCustomKeyCreateLimitWindowMinutes"
+                      :min="1"
+                      :max="525600"
+                      :disabled="!relayCustomKeyEnabled"
+                    />
+                    <span class="ml-3 text-[#909399] text-xs">{{
+                      i18ns.t('ServerConfigView.relayCustomKeyCreateLimitWindowMinutesHelp')
+                    }}</span>
+                  </el-form-item>
+                  <el-form-item
+                    :label="i18ns.t('ServerConfigView.relayCustomKeyCreateLimitMaxCount')"
+                    class="setting-block"
+                  >
+                    <el-input-number
+                      v-model="relayCustomKeyCreateLimitMaxCount"
+                      :min="0"
+                      :max="100000"
+                      :disabled="!relayCustomKeyEnabled"
+                    />
+                    <span class="ml-3 text-[#909399] text-xs">{{
+                      i18ns.t('ServerConfigView.relayCustomKeyCreateLimitMaxCountHelp')
                     }}</span>
                   </el-form-item>
                 </el-form>
@@ -2067,6 +2223,7 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { i18ns } from '@/locales'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import { configService } from '@/service/configService'
 import { relayConfigService } from '@/service/relayConfigService'
 import { relayChannelService } from '@/service/relayChannelService'
 import { copyTextWithFallback } from '@/utils/clipboard'
@@ -2184,6 +2341,13 @@ const enableQueue = ref(true)
 const maxConcurrency = ref(5)
 const queueTimeoutSec = ref(30)
 const upstreamStreamTimeoutSec = ref(120)
+const relayCustomKeyEnabled = ref(true)
+const relayCustomKeyMaxTokensPerUser = ref(3)
+const relayCustomKeyCreateLimitWindowMinutes = ref(10)
+const relayCustomKeyCreateLimitMaxCount = ref(5)
+const relayUpstreamUrl = ref('')
+const relayUpstreamApiKey = ref('')
+const relayAllowedModels = ref('')
 
 // Monitor configuration
 const monitorConfigEnabled = ref(false)
@@ -2198,7 +2362,10 @@ const monitorConfigs = ref<
 const loadConfig = async () => {
   loading.value = true
   try {
-    const relayConfig = await relayConfigService.getRelayConfig()
+    const [relayConfig, relaySystemConfig] = await Promise.all([
+      relayConfigService.getRelayConfig(),
+      configService.getRelayConfig(),
+    ])
     globalMultiplier.value = relayConfig.globalMultiplier
     uptimeStatusUrl.value = relayConfig.uptimeStatusUrl || ''
     enableQueue.value = relayConfig.enableQueue ?? true
@@ -2207,6 +2374,14 @@ const loadConfig = async () => {
     upstreamStreamTimeoutSec.value = Math.round(
       (relayConfig.upstreamStreamTimeout ?? 120000) / 1000,
     )
+    relayUpstreamUrl.value = relaySystemConfig.upstreamUrl || ''
+    relayUpstreamApiKey.value = relaySystemConfig.upstreamApiKey || ''
+    relayAllowedModels.value = relaySystemConfig.allowedModels || ''
+    relayCustomKeyEnabled.value = relaySystemConfig.customKeyEnabled
+    relayCustomKeyMaxTokensPerUser.value = relaySystemConfig.customKeyMaxTokensPerUser
+    relayCustomKeyCreateLimitWindowMinutes.value =
+      relaySystemConfig.customKeyCreateLimitWindowMinutes
+    relayCustomKeyCreateLimitMaxCount.value = relaySystemConfig.customKeyCreateLimitMaxCount
 
     // Parse monitor name mapping
     if (relayConfig.monitorNameMapping) {
@@ -2248,6 +2423,16 @@ const loadConfig = async () => {
 const save = async () => {
   saving.value = true
   try {
+    const normalizedCustomKeyMaxTokensPerUser = Math.max(0, relayCustomKeyMaxTokensPerUser.value)
+    const normalizedCustomKeyCreateLimitWindowMinutes = Math.max(
+      1,
+      relayCustomKeyCreateLimitWindowMinutes.value,
+    )
+    const normalizedCustomKeyCreateLimitMaxCount = Math.max(
+      0,
+      relayCustomKeyCreateLimitMaxCount.value,
+    )
+
     const validRates = modelRates.value.filter((r) => {
       const model = r.model.trim()
       const pricingType = r.pricingType || 'token-based'
@@ -2317,7 +2502,18 @@ const save = async () => {
       })),
     }
 
-    await relayConfigService.updateRelayConfig(payload)
+    await Promise.all([
+      relayConfigService.updateRelayConfig(payload),
+      configService.setRelayConfig({
+        upstreamUrl: relayUpstreamUrl.value,
+        upstreamApiKey: relayUpstreamApiKey.value,
+        allowedModels: relayAllowedModels.value,
+        customKeyEnabled: relayCustomKeyEnabled.value,
+        customKeyMaxTokensPerUser: normalizedCustomKeyMaxTokensPerUser,
+        customKeyCreateLimitWindowMinutes: normalizedCustomKeyCreateLimitWindowMinutes,
+        customKeyCreateLimitMaxCount: normalizedCustomKeyCreateLimitMaxCount,
+      }),
+    ])
 
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
     // 重新加载可用模型列表以更新下拉选项

@@ -8,6 +8,7 @@ const SUPPORTED_LOCALES = ['en', 'zh-CN', 'emoji'] as const
 const I18N_INIT_TIMEOUT_MS = 5000
 
 export type Locale = (typeof SUPPORTED_LOCALES)[number]
+export type BackendLocale = Exclude<Locale, 'emoji'>
 
 type LocaleMessages = typeof zhCN
 type EnMessages = typeof import('./en').default
@@ -104,6 +105,11 @@ export const getLocale = (): Locale => {
   return localeRef.value
 }
 
+export const getBackendLocale = (): BackendLocale | undefined => {
+  const locale = getLocale()
+  return locale === 'emoji' ? undefined : locale
+}
+
 type TFunc = typeof i18n.global.t
 
 export type I18nENAvailableKeys = NestedKeys<EnMessages>
@@ -146,7 +152,9 @@ const i18ns = {
     return i18n.global.t(key, params)
   },
 
-  locale: getLocale() as Locale,
+  get locale(): Locale {
+    return getLocale()
+  },
 }
 
 export { i18ns, i18n }

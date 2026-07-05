@@ -84,6 +84,9 @@ export enum Permission {
   RELAY_TOKEN_UPDATE = 'relay:token:update',
   RELAY_TOKEN_DELETE = 'relay:token:delete',
   RELAY_TOKEN_CUSTOM_KEY = 'relay:token:custom_key',
+  RELAY_TOKEN_CUSTOM_KEY_FREE = 'relay:token:custom_key:free',
+  RELAY_TOKEN_MANAGE_OTHERS_READ = 'relay:token:manage_others:read',
+  RELAY_TOKEN_MANAGE_OTHERS_UPDATE = 'relay:token:manage_others:update',
 
   // 中转渠道权限
   RELAY_CHANNEL_CREATE = 'relay:channel:create',

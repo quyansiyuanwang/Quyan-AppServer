@@ -77,6 +77,27 @@
         </template>
 
         <div class="token-filter-bar">
+          <el-select
+            v-if="canManageAllTokens"
+            v-model="selectedTargetUserId"
+            filterable
+            remote
+            clearable
+            reserve-keyword
+            class="token-filter-input"
+            :loading="userOptionsLoading"
+            :placeholder="i18ns.t('username')"
+            :remote-method="handleTargetUserSearch"
+            @change="handleTargetUserChange"
+            @clear="handleTargetUserChange"
+          >
+            <el-option
+              v-for="user in userOptions"
+              :key="user.id"
+              :label="user.name ? `${user.name} (${user.username})` : user.username"
+              :value="user.id"
+            />
+          </el-select>
           <el-input
             v-model="searchKeyword"
             clearable
@@ -472,7 +493,12 @@
                       :placeholder="i18ns.t('relay.tokenNamePlaceholder')"
                     />
                   </el-form-item>
-                  <PermissionWrapper :require="[Permission.RELAY_TOKEN_CUSTOM_KEY]">
+                  <PermissionWrapper
+                    :any-require="[
+                      Permission.RELAY_TOKEN_CUSTOM_KEY,
+                      Permission.RELAY_TOKEN_CUSTOM_KEY_FREE,
+                    ]"
+                  >
                     <el-form-item>
                       <template #label>
                         <span class="form-label-with-help">
@@ -1142,6 +1168,27 @@
           </template>
 
           <div class="token-filter-bar token-filter-bar--mobile">
+            <el-select
+              v-if="canManageAllTokens"
+              v-model="selectedTargetUserId"
+              filterable
+              remote
+              clearable
+              reserve-keyword
+              class="token-filter-input"
+              :loading="userOptionsLoading"
+              :placeholder="i18ns.t('username')"
+              :remote-method="handleTargetUserSearch"
+              @change="handleTargetUserChange"
+              @clear="handleTargetUserChange"
+            >
+              <el-option
+                v-for="user in userOptions"
+                :key="user.id"
+                :label="user.name ? `${user.name} (${user.username})` : user.username"
+                :value="user.id"
+              />
+            </el-select>
             <el-input
               v-model="searchKeyword"
               clearable
@@ -1502,7 +1549,12 @@
                       :placeholder="i18ns.t('relay.tokenNamePlaceholder')"
                     />
                   </el-form-item>
-                  <PermissionWrapper :require="[Permission.RELAY_TOKEN_CUSTOM_KEY]">
+                  <PermissionWrapper
+                    :any-require="[
+                      Permission.RELAY_TOKEN_CUSTOM_KEY,
+                      Permission.RELAY_TOKEN_CUSTOM_KEY_FREE,
+                    ]"
+                  >
                     <el-form-item>
                       <template #label>
                         <span class="form-label-with-help">
@@ -2360,6 +2412,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { TableInstance } from 'element-plus'
 import { relayTokenService } from '@/service/relayTokenService'
 import { relayChannelService } from '@/service/relayChannelService'
+import { userService } from '@/service/userService'
+import { usePermissionStore } from '@/stores/permissionStore'
+import { useUserInfoStore } from '@/stores/userInfoStore'
 import { useFloatingOverlayVisibility } from '@/composables/useFloatingOverlayVisibility'
 import Sortable from 'sortablejs'
 import { resolveRelayAiBaseUrl } from '@/constant/strings'
@@ -2373,6 +2428,7 @@ import type {
   RelayTokenChannelConfigDto,
   RelayTokenDto,
   RelayTokenQuotaWindowDto,
+  UserDto,
 } from '@/client/types.gen'
 
 type EditableChannelConfig = {
@@ -2628,9 +2684,14 @@ const createEditableQuotaWindow = (
 const { isDesktop } = usePageDevice()
 const { setHidden: setFloatingOverlayHidden, reset: resetFloatingOverlayHidden } =
   useFloatingOverlayVisibility()
+const permissionStore = usePermissionStore()
+const userInfoStore = useUserInfoStore()
 
 const serverTokens = ref<RelayTokenDto[]>([])
 const allTokensCache = ref<RelayTokenDto[] | null>(null)
+const userOptions = ref<Array<Pick<UserDto, 'id' | 'username' | 'name'>>>([])
+const userOptionsLoading = ref(false)
+const selectedTargetUserId = ref('')
 const tokenTableRef = ref<TableInstance>()
 const channels = ref<RelayChannelDto[]>([])
 const availableModels = ref<string[]>([])
@@ -2670,6 +2731,22 @@ const showAllMode = ref(false)
 const selectedTokenIds = ref<string[]>([])
 const showTokenImportDialog = ref(false)
 const tokenImportText = ref('')
+
+const canManageAllTokens = computed(() =>
+  permissionStore.hasPermission(Permission.RELAY_TOKEN_MANAGE_OTHERS_READ),
+)
+
+const currentTargetUserId = computed(() => {
+  const normalized = selectedTargetUserId.value.trim()
+  return normalized || userInfoStore.userInfo.id || ''
+})
+
+const currentTargetUserIdForRequest = computed(() => {
+  const currentUserId = userInfoStore.userInfo.id || ''
+  return currentTargetUserId.value && currentTargetUserId.value !== currentUserId
+    ? currentTargetUserId.value
+    : undefined
+})
 
 const normalizeSearchText = (value?: string | null) =>
   String(value || '')
@@ -3290,6 +3367,62 @@ const invalidateAllTokensCache = () => {
   allTokensCache.value = null
 }
 
+const ensureUserOption = (userId?: string, username?: string | null, name?: string | null) => {
+  if (!userId) return
+  if (userOptions.value.some((item) => item.id === userId)) return
+
+  userOptions.value = [
+    {
+      id: userId,
+      username: username || userId,
+      name: name || null,
+    },
+    ...userOptions.value,
+  ]
+}
+
+const loadUserOptions = async (keyword?: string) => {
+  if (!canManageAllTokens.value) return
+
+  userOptionsLoading.value = true
+  try {
+    const result = await userService.getAllUsers({
+      page: 1,
+      pageSize: 100,
+      keyword: keyword?.trim() || undefined,
+    })
+    const users = Array.isArray(result?.users) ? result.users : []
+    userOptions.value = users
+      .map((item: UserDto) => ({
+        id: item.id,
+        username: item.username || item.id,
+        name: item.name || null,
+      }))
+      .sort((a, b) => (a.name || a.username).localeCompare(b.name || b.username))
+
+    ensureUserOption(
+      userInfoStore.userInfo.id,
+      userInfoStore.userInfo.username,
+      userInfoStore.userInfo.name,
+    )
+  } catch (_error) {
+    userOptions.value = []
+  } finally {
+    userOptionsLoading.value = false
+  }
+}
+
+const handleTargetUserSearch = (query: string) => {
+  void loadUserOptions(query)
+}
+
+const handleTargetUserChange = () => {
+  currentPage.value = 1
+  clearTokenSelection()
+  invalidateAllTokensCache()
+  void loadTokens({ forceAllReload: true })
+}
+
 const syncSelectedTokenIds = () => {
   const availableIds = new Set<string>()
   for (const token of serverTokens.value) availableIds.add(token.id)
@@ -3311,6 +3444,7 @@ const loadAllTokens = async (force = false) => {
     const result = await relayTokenService.getRelayTokens({
       page: nextPage,
       pageSize: batchSize,
+      targetUserId: currentTargetUserIdForRequest.value,
     })
 
     const items = result.items || []
@@ -3347,6 +3481,7 @@ const loadTokens = async (options?: { forceAllReload?: boolean }) => {
     const result = await relayTokenService.getRelayTokens({
       page: currentPage.value,
       pageSize: pageSize.value,
+      targetUserId: currentTargetUserIdForRequest.value,
     })
     const relayTokens = result.items || []
 
@@ -3448,7 +3583,10 @@ const copyRelayTokenExportItems = async (items: RelayTokenImportItemDto[]) => {
 
 const handleCopySingleTokenJson = async (row: RelayTokenDto) => {
   try {
-    const result = await relayTokenService.exportTokens({ ids: [row.id] })
+    const result = await relayTokenService.exportTokens({
+      ids: [row.id],
+      targetUserId: currentTargetUserIdForRequest.value,
+    })
     await copyRelayTokenExportItems(result.tokens || buildRelayTokenExportItems([row]))
   } catch (error: any) {
     ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
@@ -3462,7 +3600,10 @@ const openTokenImportDialog = () => {
 
 const handleExportSingleToken = async (row: RelayTokenDto) => {
   try {
-    const result = await relayTokenService.exportTokens({ ids: [row.id] })
+    const result = await relayTokenService.exportTokens({
+      ids: [row.id],
+      targetUserId: currentTargetUserIdForRequest.value,
+    })
     downloadRelayTokenExport(result.tokens || buildRelayTokenExportItems([row]), row.id)
     ElMessage.success(i18ns.t('relay.tokenExportSuccess'))
   } catch (error: any) {
@@ -3475,7 +3616,10 @@ const handleBatchExportTokens = async () => {
   if (!ids) return
 
   try {
-    const result = await relayTokenService.exportTokens({ ids })
+    const result = await relayTokenService.exportTokens({
+      ids,
+      targetUserId: currentTargetUserIdForRequest.value,
+    })
     downloadRelayTokenExport(result.tokens || buildRelayTokenExportItems(selectedTokens.value))
     ElMessage.success(i18ns.t('relay.tokenExportSuccess'))
   } catch (error: any) {
@@ -3501,7 +3645,10 @@ const handleBatchCopyTokenJson = async () => {
   if (!ids) return
 
   try {
-    const result = await relayTokenService.exportTokens({ ids })
+    const result = await relayTokenService.exportTokens({
+      ids,
+      targetUserId: currentTargetUserIdForRequest.value,
+    })
     await copyRelayTokenExportItems(
       result.tokens || buildRelayTokenExportItems(selectedTokens.value),
     )
@@ -3512,7 +3659,9 @@ const handleBatchCopyTokenJson = async () => {
 
 const handleDuplicateSingleToken = async (row: RelayTokenDto) => {
   try {
-    await relayTokenService.duplicateToken(row.id)
+    await relayTokenService.duplicateToken(row.id, {
+      targetUserId: currentTargetUserIdForRequest.value,
+    })
     invalidateAllTokensCache()
     ElMessage.success(i18ns.t('relay.tokenDuplicateSuccess'))
     await loadTokens({ forceAllReload: true })
@@ -3527,7 +3676,10 @@ const handleBatchDuplicateTokens = async () => {
   const count = ids.length
 
   try {
-    await relayTokenService.batchDuplicateTokens({ ids })
+    await relayTokenService.batchDuplicateTokens({
+      ids,
+      targetUserId: currentTargetUserIdForRequest.value,
+    })
     invalidateAllTokensCache()
     clearTokenSelection()
     ElMessage.success(i18ns.t('relay.tokenBatchDuplicateSuccess', { count }))
@@ -3543,7 +3695,11 @@ const handleBatchSetTokenStatus = async (enabled: boolean) => {
   const count = ids.length
 
   try {
-    await relayTokenService.batchSetTokenStatus({ ids, enabled })
+    await relayTokenService.batchSetTokenStatus({
+      ids,
+      enabled,
+      targetUserId: currentTargetUserIdForRequest.value,
+    })
     invalidateAllTokensCache()
     clearTokenSelection()
     ElMessage.success(
@@ -3567,7 +3723,10 @@ const handleBatchDeleteTokens = async () => {
     await ElMessageBox.confirm(i18ns.t('relay.confirmBatchDeleteTokens'), i18ns.t('warning'), {
       type: 'warning',
     })
-    await relayTokenService.batchDeleteTokens({ ids })
+    await relayTokenService.batchDeleteTokens({
+      ids,
+      targetUserId: currentTargetUserIdForRequest.value,
+    })
     invalidateAllTokensCache()
     clearTokenSelection()
     ElMessage.success(i18ns.t('relay.tokenBatchDeleteSuccess', { count }))
@@ -3633,6 +3792,7 @@ const handleImportTokens = async () => {
     const importItems = parseImportedTokens(tokenImportText.value)
     const result: ImportRelayTokensResponse = await relayTokenService.importTokens({
       tokens: importItems,
+      targetUserId: currentTargetUserIdForRequest.value,
     })
     tokenImportText.value = ''
     showTokenImportDialog.value = false
@@ -4044,6 +4204,7 @@ const handleSave = async () => {
         allowedModels: allowedModelsStr || undefined,
         ipWhitelist,
         modelMapping,
+        targetUserId: currentTargetUserIdForRequest.value,
       }
       await relayTokenService.createRelayToken(data)
       currentPage.value = 1
@@ -4067,6 +4228,7 @@ const handleSave = async () => {
         allowedModels: allowedModelsStr || null,
         ipWhitelist: ipWhitelist || null,
         modelMapping,
+        targetUserId: currentTargetUserIdForRequest.value,
       }
       await relayTokenService.updateToken(currentEditId.value, data)
       invalidateAllTokensCache()
@@ -4096,7 +4258,7 @@ const handleToggleStatus = async (row: RelayTokenDto) => {
         type: 'warning',
       },
     )
-    await relayTokenService.toggleTokenStatus(row.id)
+    await relayTokenService.toggleTokenStatus(row.id, currentTargetUserIdForRequest.value)
     invalidateAllTokensCache()
     ElMessage.success(i18ns.t('success'))
     loadTokens()
@@ -4127,7 +4289,10 @@ const handleRefreshToken = async (row: RelayTokenDto) => {
       type: 'warning',
     })
 
-    const refreshedToken = await relayTokenService.refreshRelayToken(row.id)
+    const refreshedToken = await relayTokenService.refreshRelayToken(
+      row.id,
+      currentTargetUserIdForRequest.value,
+    )
     invalidateAllTokensCache()
 
     try {
@@ -4440,7 +4605,11 @@ const loadSwitchLogs = async (tokenId: string = currentSwitchLogTokenId.value) =
   if (!tokenId) return
   loadingSwitchLogs.value = true
   try {
-    const result = await relayTokenService.getTokenSwitchLogs(tokenId)
+    const result = await relayTokenService.getTokenSwitchLogs(
+      tokenId,
+      50,
+      currentTargetUserIdForRequest.value,
+    )
     switchLogs.value = result.logs || []
   } catch (error: any) {
     ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
@@ -4630,7 +4799,7 @@ const handleDelete = async (row: RelayTokenDto) => {
     await ElMessageBox.confirm(i18ns.t('relay.confirmDelete'), i18ns.t('warning'), {
       type: 'warning',
     })
-    await relayTokenService.deleteRelayToken(row.id)
+    await relayTokenService.deleteRelayToken(row.id, currentTargetUserIdForRequest.value)
     invalidateAllTokensCache()
     ElMessage.success(i18ns.t('relay.deleteSuccess'))
     loadTokens()
@@ -4642,10 +4811,24 @@ const handleDelete = async (row: RelayTokenDto) => {
 }
 
 onMounted(() => {
+  selectedTargetUserId.value = userInfoStore.userInfo.id || ''
   loadTokens()
   loadChannels()
   loadAvailableModels()
+  void loadUserOptions()
 })
+
+watch(
+  () => userInfoStore.userInfo.id,
+  (userId) => {
+    if (!userId) return
+    if (!selectedTargetUserId.value) {
+      selectedTargetUserId.value = userId
+    }
+    ensureUserOption(userId, userInfoStore.userInfo.username, userInfoStore.userInfo.name)
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped lang="scss">

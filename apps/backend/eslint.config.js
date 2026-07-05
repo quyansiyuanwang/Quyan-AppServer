@@ -3,6 +3,110 @@ import globals from "globals";
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 import configPrettier from "eslint-config-prettier";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function loadBackendMessageKeys() {
+  const localesSource = readFileSync(path.join(__dirname, "src/locales/en.ts"), "utf8");
+  const enMessagesMatch = localesSource.match(/const en = \{([\s\S]*?)\n\} as const;/);
+  if (!enMessagesMatch) return new Set();
+
+  const keys = new Set();
+  const stack = [];
+
+  for (const line of enMessagesMatch[1].split("\n")) {
+    const indent = line.match(/^ */)?.[0].length ?? 0;
+    const level = indent / 2 - 1;
+    const propertyMatch = line.match(/^\s*([A-Za-z_$][\w$]*|"(?:\\.|[^"])+"):\s*(.*)$/);
+    if (!propertyMatch) continue;
+
+    const rawKey = propertyMatch[1];
+    const key = rawKey.startsWith('"') ? JSON.parse(rawKey) : rawKey;
+    stack[level] = key;
+    stack.length = level + 1;
+
+    if (!propertyMatch[2].trim().startsWith("{")) keys.add(stack.join("."));
+  }
+
+  return keys;
+}
+
+const backendMessageKeys = loadBackendMessageKeys();
+
+function getStaticPropertyName(node) {
+  if (!node) return undefined;
+  if (node.type === "Identifier") return node.name;
+  if (node.type === "Literal" && typeof node.value === "string") return node.value;
+  return undefined;
+}
+
+function getStaticString(node) {
+  return node?.type === "Literal" && typeof node.value === "string" ? node.value : undefined;
+}
+
+function isBackendI18nMember(node, methodNames) {
+  if (!node || node.type !== "MemberExpression") return false;
+  if (node.object.type !== "Identifier" || node.object.name !== "backendI18n") return false;
+  return methodNames.has(getStaticPropertyName(node.property));
+}
+
+function getObjectPropertyStringValue(node, propertyName) {
+  if (!node || node.type !== "ObjectExpression") return undefined;
+
+  const property = node.properties.find(
+    (item) => item.type === "Property" && getStaticPropertyName(item.key) === propertyName,
+  );
+  return property?.type === "Property" ? getStaticString(property.value) : undefined;
+}
+
+const backendI18nPlugin = {
+  rules: {
+    "known-message-key": {
+      meta: {
+        type: "problem",
+        docs: {
+          description: "Require backend i18n keys to exist in the locale catalog.",
+        },
+        schema: [],
+        messages: {
+          unknownKey: "Backend i18n key '{{key}}' does not exist in apps/backend/src/locales/en.ts.",
+        },
+      },
+      create(context) {
+        function reportIfUnknown(node, key) {
+          if (!key || backendMessageKeys.has(key)) return;
+          context.report({ node, messageId: "unknownKey", data: { key } });
+        }
+
+        return {
+          Property(node) {
+            const propertyName = getStaticPropertyName(node.key);
+            if (propertyName !== "messageKey") return;
+
+            reportIfUnknown(node.value, getStaticString(node.value));
+          },
+          CallExpression(node) {
+            if (node.callee.type === "Identifier") {
+              if (["translateMessage", "setResponseMessageKey"].includes(node.callee.name))
+                reportIfUnknown(node.arguments[0], getStaticString(node.arguments[0]));
+              if (node.callee.name === "translateDescriptor")
+                reportIfUnknown(node.arguments[0], getObjectPropertyStringValue(node.arguments[0], "key"));
+              if (["createMessageDescriptor", "createMessageOptions"].includes(node.callee.name))
+                reportIfUnknown(node.arguments[0], getStaticString(node.arguments[0]));
+              return;
+            }
+
+            if (isBackendI18nMember(node.callee, new Set(["t", "descriptor", "errorOptions"])))
+              reportIfUnknown(node.arguments[0], getStaticString(node.arguments[0]));
+          },
+        };
+      },
+    },
+  },
+};
 
 export default [
   {
@@ -30,9 +134,11 @@ export default [
     },
     plugins: {
       "@typescript-eslint": tseslint,
+      "backend-i18n": backendI18nPlugin,
     },
     rules: {
       ...tseslint.configs.recommended.rules,
+      "backend-i18n/known-message-key": "error",
       "no-unused-vars": "off",
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": [

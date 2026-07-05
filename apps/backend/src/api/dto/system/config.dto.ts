@@ -99,6 +99,10 @@ export interface SetRelayConfigDto {
   upstreamUrl: string;
   upstreamApiKey: string;
   allowedModels: string;
+  customKeyEnabled: boolean;
+  customKeyMaxTokensPerUser: number;
+  customKeyCreateLimitWindowMinutes: number;
+  customKeyCreateLimitMaxCount: number;
 }
 
 export interface SetSmtpConfigDto {

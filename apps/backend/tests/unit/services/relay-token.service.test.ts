@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RelayTokenService } from "../../../src/services/relay/relay-token.service";
 import { MANAGED_STATUS } from "../../../src/constant/status";
-import { NotFoundError } from "../../../src/util/errors";
+import { ForbiddenError, NotFoundError } from "../../../src/util/errors";
+import { translateMessage } from "../../../src/locales";
 
 describe("RelayTokenService", () => {
   const relayTokenRepository = {
     findByUserIdWithRelations: vi.fn(),
-    findPageByUserIdWithRelations: vi.fn(),
-    findUsageSummaryTargetsByUserId: vi.fn(),
+    findPageWithRelations: vi.fn(),
+    findUsageSummaryTargets: vi.fn(),
     findUsageSummaryTargetsByIds: vi.fn(),
     findByIdWithRelations: vi.fn(),
     findById: vi.fn(),
@@ -39,6 +40,20 @@ describe("RelayTokenService", () => {
     getAvailableModelsForToken: vi.fn(),
   };
 
+  const configService = {
+    getConfig: vi.fn(),
+  };
+
+  const permissionService = {
+    hasPermission: vi.fn().mockResolvedValue(false),
+  };
+
+  const rateLimiterService = {
+    assertNamedBackoffRateLimit: vi.fn(),
+    markNamedBackoffRateLimitFailure: vi.fn(),
+    clearNamedBackoffRateLimit: vi.fn(),
+  };
+
   const RelayTokenServiceCtor = RelayTokenService as unknown as new (...args: any[]) => RelayTokenService;
 
   const service = new RelayTokenServiceCtor(
@@ -49,6 +64,9 @@ describe("RelayTokenService", () => {
     relayChannelRepository,
     relayProxyService,
     balanceRepository,
+    configService,
+    permissionService,
+    rateLimiterService,
   );
 
   const now = new Date("2026-01-01T00:00:00.000Z");
@@ -93,7 +111,7 @@ describe("RelayTokenService", () => {
     });
     const unlimitedToken = createToken({ id: "token-2", name: "Unlimited Token", quotaLimit: null });
 
-    relayTokenRepository.findUsageSummaryTargetsByUserId.mockResolvedValue([limitedToken, unlimitedToken]);
+    relayTokenRepository.findUsageSummaryTargets.mockResolvedValue([limitedToken, unlimitedToken]);
 
     const result = await service.getUsageSummaries("user-1");
 
@@ -149,7 +167,7 @@ describe("RelayTokenService", () => {
   });
 
   it("lists tokens without losing service context during DTO mapping", async () => {
-    relayTokenRepository.findPageByUserIdWithRelations.mockResolvedValue({
+    relayTokenRepository.findPageWithRelations.mockResolvedValue({
       items: [
         createToken({
           quotaWindows: [
@@ -189,7 +207,7 @@ describe("RelayTokenService", () => {
 
     const result = await service.listTokens("user-1");
 
-    expect(relayTokenRepository.findPageByUserIdWithRelations).toHaveBeenCalledWith("user-1", 1, 20);
+    expect(relayTokenRepository.findPageWithRelations).toHaveBeenCalledWith(1, 20, "user-1");
     expect(relayUsageRepository.aggregateByRelayTokenIds).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
       items: [
@@ -225,11 +243,24 @@ describe("RelayTokenService", () => {
     });
   });
 
+  it("uses backend i18n key when denying relay token management for another user", async () => {
+    permissionService.hasPermission.mockResolvedValue(false);
+
+    await expect(service.listTokens("user-1", 1, 20, "other-user")).rejects.toMatchObject({
+      messageKey: "relay.manageOthersPermissionDenied",
+    });
+    expect(translateMessage("relay.manageOthersPermissionDenied", "zh-CN")).toBe("你没有权限管理其他用户的中转令牌");
+    expect(translateMessage("relay.manageOthersPermissionDenied", "en")).toBe(
+      "You do not have permission to manage other users' relay tokens",
+    );
+    expect(relayTokenRepository.findPageWithRelations).not.toHaveBeenCalled();
+  });
+
   it("reuses window aggregates across tokens and zero-fills missing usage rows", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
 
-    relayTokenRepository.findPageByUserIdWithRelations.mockResolvedValue({
+    relayTokenRepository.findPageWithRelations.mockResolvedValue({
       items: [
         createToken({
           id: "token-1",
@@ -424,7 +455,7 @@ describe("RelayTokenService", () => {
       lastUsedAt: now,
     });
 
-    relayTokenRepository.findUsageSummaryTargetsByUserId.mockResolvedValue([token]);
+    relayTokenRepository.findUsageSummaryTargets.mockResolvedValue([token]);
 
     const result = await service.getUsageSummaries("user-1");
 
@@ -447,7 +478,7 @@ describe("RelayTokenService", () => {
     const endDate = new Date("2026-01-31T23:59:59.999Z");
     const token = createToken({ id: "token-1", name: "Filtered Token", quotaLimit: 100, usedQuota: 99 });
 
-    relayTokenRepository.findUsageSummaryTargetsByUserId.mockResolvedValue([token]);
+    relayTokenRepository.findUsageSummaryTargets.mockResolvedValue([token]);
     relayUsageRepository.aggregateByRelayTokenIds.mockResolvedValue([
       {
         relayTokenId: "token-1",
@@ -687,14 +718,14 @@ describe("RelayTokenService", () => {
     expect(relayUsageRepository.findUsageDetailPageByRelayTokenId).not.toHaveBeenCalled();
   });
 
-  it("throws NotFoundError when requesting usage detail for another user's token", async () => {
+  it("throws ForbiddenError when requesting usage detail for another user's token", async () => {
     relayTokenRepository.findByIdWithRelations.mockResolvedValue(createToken({ userId: "other-user" }));
 
-    await expect(service.getUsageSummary("token-1", "user-1")).rejects.toThrow(NotFoundError);
+    await expect(service.getUsageSummary("token-1", "user-1")).rejects.toThrow(ForbiddenError);
   });
 
   it("includes cache token fields in usage stats", async () => {
-    relayTokenRepository.findById.mockResolvedValue({ id: "token-1", userId: "user-1" });
+    relayTokenRepository.findByIdWithRelations.mockResolvedValue(createToken({ id: "token-1", userId: "user-1" }));
     relayUsageRepository.findByRelayTokenId.mockResolvedValue([
       {
         id: "usage-1",
