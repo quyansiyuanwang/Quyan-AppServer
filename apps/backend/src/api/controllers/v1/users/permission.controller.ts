@@ -273,7 +273,8 @@ export class PermissionController extends Controller {
     const currentUserId = request.user!.userId;
     if (body.userId !== currentUserId) {
       const hasView = await permissionService.hasPermission(currentUserId, Permission.PERMISSION_VIEW);
-      if (!hasView) throw new ForbiddenError("权限不足", undefined, { messageKey: "permission.insufficientPermission" });
+      if (!hasView)
+        throw new ForbiddenError("权限不足", undefined, { messageKey: "permission.insufficientPermission" });
     }
     return await permissionService.checkUserPermissions(body.userId, body.permissions);
   }

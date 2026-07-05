@@ -312,8 +312,10 @@ export class PermissionService {
       this.userRepository.findByIdWithGroup(targetUserId),
     ]);
 
-    if (!operator) throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
-    if (!target) throw new BadRequestError("目标用户不存在", undefined, { messageKey: "permission.targetUserNotFound" });
+    if (!operator)
+      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    if (!target)
+      throw new BadRequestError("目标用户不存在", undefined, { messageKey: "permission.targetUserNotFound" });
 
     // 检查组等级：level越高权限越低，不能修改level小于或等于自己的用户（权限大于或等于自己）
     if ((target.group?.level ?? Infinity) <= (operator.group?.level ?? -1))
@@ -347,7 +349,8 @@ export class PermissionService {
     ]);
 
     if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator) throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    if (!operator)
+      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
 
     const currentAdds = this.parsePermissionJson(user.permissionAdds);
     const updatedAdds = Array.from(new Set([...currentAdds, ...permissions]));
@@ -399,7 +402,8 @@ export class PermissionService {
     ]);
 
     if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator) throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    if (!operator)
+      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
 
     const currentRemoves = this.parsePermissionJson(user.permissionRemoves);
     const updatedRemoves = Array.from(new Set([...currentRemoves, ...permissions]));
@@ -449,7 +453,8 @@ export class PermissionService {
     ]);
 
     if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator) throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    if (!operator)
+      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
 
     const beforeAdds = this.parsePermissionJson(user.permissionAdds);
     const beforeRemoves = this.parsePermissionJson(user.permissionRemoves);
@@ -515,7 +520,8 @@ export class PermissionService {
     ]);
 
     if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator) throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    if (!operator)
+      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
 
     const beforeAdds = this.parsePermissionJson(user.permissionAdds);
     const beforeRemoves = this.parsePermissionJson(user.permissionRemoves);

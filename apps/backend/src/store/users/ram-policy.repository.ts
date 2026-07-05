@@ -55,7 +55,10 @@ export class RamPolicyRepository implements RamPolicyStore {
   }
 
   async softDeletePolicy(policyId: string): Promise<RamPolicy> {
-    return prisma.ramPolicy.update({ where: { id: policyId }, data: { status: AccountStatus.DISABLED, activeName: null } });
+    return prisma.ramPolicy.update({
+      where: { id: policyId },
+      data: { status: AccountStatus.DISABLED, activeName: null },
+    });
   }
 
   async attachPolicy(accountOwnerId: string, policyId: string, targetType: string, targetId: string): Promise<void> {

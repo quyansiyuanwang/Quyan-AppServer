@@ -615,7 +615,8 @@ export class RamService {
   async revokeRoleSession(actorUserId: string, sessionId: string): Promise<void> {
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const session = await this.ramRoleRepository.findActiveRoleSession(sessionId);
-    if (!session) throw new NotFoundError("角色会话不存在或已过期", undefined, { messageKey: "ram.roleSessionNotFound" });
+    if (!session)
+      throw new NotFoundError("角色会话不存在或已过期", undefined, { messageKey: "ram.roleSessionNotFound" });
     this.assertSameAccount(accountOwnerId, session.accountOwnerId);
     await this.ramRoleRepository.revokeRoleSession(sessionId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_BINDING_UPDATED, {

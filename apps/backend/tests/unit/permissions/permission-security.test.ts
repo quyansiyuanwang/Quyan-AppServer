@@ -192,7 +192,7 @@ describe("权限修改安全检查", () => {
     await prisma.ramPolicy.deleteMany({
       where: {
         name: {
-            in: testPolicyNames,
+          in: testPolicyNames,
         },
       },
     });
@@ -324,7 +324,10 @@ describe("权限修改安全检查", () => {
 
     it("应该阻止用户权限添加混合权限且不部分写入", async () => {
       await expect(
-        permissionService.addUserPermissions(adminUser.id, targetUser.id, [Permission.USER_READ, Permission.USER_DELETE]),
+        permissionService.addUserPermissions(adminUser.id, targetUser.id, [
+          Permission.USER_READ,
+          Permission.USER_DELETE,
+        ]),
       ).rejects.toThrow(ForbiddenError);
 
       const target = await prisma.user.findUniqueOrThrow({ where: { id: targetUser.id } });
@@ -363,7 +366,11 @@ describe("权限修改安全检查", () => {
 
     it("应该阻止设置用户组最终权限包含操作者未拥有权限", async () => {
       await expect(
-        permissionService.setGroupPermissions(normalGroup.id, [Permission.USER_READ, Permission.USER_DELETE], adminUser.id),
+        permissionService.setGroupPermissions(
+          normalGroup.id,
+          [Permission.USER_READ, Permission.USER_DELETE],
+          adminUser.id,
+        ),
       ).rejects.toThrow(ForbiddenError);
 
       const group = await prisma.group.findUniqueOrThrow({ where: { id: normalGroup.id } });
@@ -372,7 +379,11 @@ describe("权限修改安全检查", () => {
 
     it("应该允许设置用户组最终权限为操作者自有权限子集", async () => {
       await expect(
-        permissionService.setGroupPermissions(normalGroup.id, [Permission.USER_READ, Permission.PERMISSION_ADD], adminUser.id),
+        permissionService.setGroupPermissions(
+          normalGroup.id,
+          [Permission.USER_READ, Permission.PERMISSION_ADD],
+          adminUser.id,
+        ),
       ).resolves.not.toThrow();
 
       const group = await prisma.group.findUniqueOrThrow({ where: { id: normalGroup.id } });
@@ -380,7 +391,9 @@ describe("权限修改安全检查", () => {
     });
 
     it("应该允许内部路径在未传操作者时只校验权限枚举合法性", async () => {
-      await expect(permissionService.setGroupPermissions(normalGroup.id, [Permission.USER_DELETE])).resolves.not.toThrow();
+      await expect(
+        permissionService.setGroupPermissions(normalGroup.id, [Permission.USER_DELETE]),
+      ).resolves.not.toThrow();
 
       const group = await prisma.group.findUniqueOrThrow({ where: { id: normalGroup.id } });
       expect(group.permissions).toEqual([Permission.USER_DELETE]);

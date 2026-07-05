@@ -825,11 +825,7 @@ import {
   type FormRules,
 } from 'element-plus'
 import { Plus, Refresh, Delete, Search } from '@element-plus/icons-vue'
-import {
-  ALL_PERMISSIONS,
-  getPermissionLabel,
-  getPermissionTooltip,
-} from '@/constant/permission'
+import { ALL_PERMISSIONS, getPermissionLabel, getPermissionTooltip } from '@/constant/permission'
 import { Permission } from '@/constant/permission'
 import type {
   GroupDto,
@@ -1527,11 +1523,17 @@ const resetPolicyForm = () => {
 }
 
 const onPolicyTreeCheck = () => {
-  policyForm.permissions = filterGrantablePermissions(policyPermTreeRef.value?.getCheckedKeys() ?? [], grantablePermissions.value)
+  policyForm.permissions = filterGrantablePermissions(
+    policyPermTreeRef.value?.getCheckedKeys() ?? [],
+    grantablePermissions.value,
+  )
 }
 
 const getGrantablePolicyPermissions = () =>
-  filterGrantablePermissions(policyForm.permissions, grantablePermissions.value) as ClientPermission[]
+  filterGrantablePermissions(
+    policyForm.permissions,
+    grantablePermissions.value,
+  ) as ClientPermission[]
 
 const submitPolicy = async () => {
   await policyFormRef.value?.validate()
