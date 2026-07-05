@@ -551,6 +551,7 @@ export default {
     targetType: 'Target type',
     targetName: 'Target name',
     customPolicy: 'Custom',
+    noGrantablePermissions: 'No grantable permissions available',
 
     // Authorization
     authorization: 'Authorization',

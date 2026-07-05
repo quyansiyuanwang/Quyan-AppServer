@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { permissionService } from "../../../src/services/users/permission.service";
+import { RamService } from "../../../src/services/users/ram.service";
 import { prisma } from "../../../src/config/database";
 import { Permission } from "../../../src/constant/permission";
 import { ForbiddenError } from "../../../src/util/errors";
+
+const ramService = RamService.getInstance();
 
 describe("权限修改安全检查", () => {
   let adminUser: any;
@@ -18,7 +21,14 @@ describe("权限修改安全检查", () => {
         username: "test_admin_group",
         name: "管理员组",
         level: 1, // 低level = 高权限
-        permissions: JSON.stringify([Permission.PERMISSION_ADD, Permission.PERMISSION_REMOVE]),
+        permissions: JSON.stringify([
+          Permission.PERMISSION_ADD,
+          Permission.PERMISSION_REMOVE,
+          Permission.USER_READ,
+          Permission.RAM_POLICY_CREATE,
+          Permission.RAM_POLICY_UPDATE,
+          Permission.RAM_POLICY_ATTACH,
+        ]),
       },
     });
 
@@ -65,6 +75,24 @@ describe("权限修改安全检查", () => {
 
   afterAll(async () => {
     // 清理测试数据
+    await prisma.ramPolicyAttachment.deleteMany({
+      where: {
+        policy: {
+          name: {
+            in: ["test_allowed_policy", "test_forbidden_dirty_policy"],
+          },
+        },
+      },
+    });
+
+    await prisma.ramPolicy.deleteMany({
+      where: {
+        name: {
+          in: ["test_allowed_policy", "test_forbidden_dirty_policy"],
+        },
+      },
+    });
+
     await prisma.user.deleteMany({
       where: {
         username: {
@@ -158,6 +186,67 @@ describe("权限修改安全检查", () => {
       const userPerms = await permissionService.getUserFullPermissions(targetUser.id);
       expect(userPerms?.additionalPermissions).toHaveLength(0);
       expect(userPerms?.removedPermissions).toHaveLength(0);
+    });
+  });
+
+  describe("操作者不能授予自己未拥有的权限", () => {
+    it("应该阻止用户权限添加越权权限", async () => {
+      await expect(
+        permissionService.addUserPermissions(adminUser.id, targetUser.id, [Permission.USER_DELETE]),
+      ).rejects.toThrow(ForbiddenError);
+    });
+
+    it("应该阻止用户权限配置越权权限且允许显式清空", async () => {
+      await expect(
+        permissionService.setUserPermissionConfig(adminUser.id, targetUser.id, {
+          permissionAdds: [Permission.USER_DELETE],
+        }),
+      ).rejects.toThrow(ForbiddenError);
+
+      await expect(
+        permissionService.setUserPermissionConfig(adminUser.id, targetUser.id, {
+          permissionAdds: [],
+          permissionRemoves: [],
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("应该阻止 RAM 策略创建越权权限", async () => {
+      await expect(
+        ramService.createPolicy(adminUser.id, {
+          name: "test_forbidden_policy",
+          permissions: [Permission.USER_DELETE],
+        }),
+      ).rejects.toThrow(ForbiddenError);
+    });
+
+    it("应该允许 RAM 策略创建自有权限", async () => {
+      await expect(
+        ramService.createPolicy(adminUser.id, {
+          name: "test_allowed_policy",
+          permissions: [Permission.USER_READ],
+        }),
+      ).resolves.toMatchObject({ name: "test_allowed_policy", permissions: [Permission.USER_READ] });
+    });
+
+    it("应该阻止绑定包含历史脏权限的 RAM 策略", async () => {
+      const dirtyPolicy = await prisma.ramPolicy.create({
+        data: {
+          accountOwnerId: adminUser.id,
+          name: "test_forbidden_dirty_policy",
+          permissions: [Permission.USER_DELETE],
+          type: "custom",
+          status: 1,
+        },
+      });
+
+      await expect(
+        ramService.attachPolicy(adminUser.id, {
+          policyId: dirtyPolicy.id,
+          targetType: "user",
+          targetId: targetUser.id,
+        }),
+      ).rejects.toThrow(ForbiddenError);
     });
   });
 });

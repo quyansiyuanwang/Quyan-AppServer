@@ -691,6 +691,7 @@
         <el-form-item :label="i18ns.t('RamManagement.permissions')" prop="permissions">
           <div class="permission-tree-container">
             <el-tree
+              v-if="grantablePermissions.size > 0"
               ref="policyPermTreeRef"
               :data="permissionTree"
               show-checkbox
@@ -711,6 +712,7 @@
                 <span v-else>{{ data.label }}</span>
               </template>
             </el-tree>
+            <el-empty v-else :description="i18ns.t('RamManagement.noGrantablePermissions')" />
           </div>
         </el-form-item>
       </el-form>
@@ -833,6 +835,7 @@ import {
 import { Permission } from '@/constant/permission'
 import type {
   GroupDto,
+  Permission as ClientPermission,
   RamPolicyAttachmentDto,
   RamPolicyDto,
   RamRoleBindingDto,
@@ -921,11 +924,12 @@ const roleForm = reactive({
   maxSessionDuration: 3600,
 })
 const policyForm = reactive({ name: '', description: '', permissions: [] as string[] })
+const grantablePermissions = computed(() => new Set<string>(permissionStore.effectivePermissions))
 
 const permissionTree = computed(() => {
   const locale = i18ns.refer.value as string
   const categories = new Map<string, { label: string; value: string; tooltip: string }[]>()
-  for (const perm of ALL_PERMISSIONS) {
+  for (const perm of ALL_PERMISSIONS.filter((permission) => grantablePermissions.value.has(permission))) {
     const cat = getPermissionCategory(perm)
     if (!categories.has(cat)) categories.set(cat, [])
     categories.get(cat)!.push({
@@ -1521,7 +1525,7 @@ const openPolicyDialog = (policy?: RamPolicyDto) => {
     Object.assign(policyForm, {
       name: policy.name,
       description: policy.description ?? '',
-      permissions: [...(policy.permissions ?? [])],
+      permissions: (policy.permissions ?? []).filter((permission) => grantablePermissions.value.has(permission)),
     })
   }
   policyDialogVisible.value = true
@@ -1534,24 +1538,30 @@ const resetPolicyForm = () => {
 }
 
 const onPolicyTreeCheck = () => {
-  policyForm.permissions = policyPermTreeRef.value?.getCheckedKeys() ?? []
+  policyForm.permissions = (policyPermTreeRef.value?.getCheckedKeys() ?? []).filter((permission: string) =>
+    grantablePermissions.value.has(permission),
+  )
 }
+
+const getGrantablePolicyPermissions = () =>
+  policyForm.permissions.filter((permission) => grantablePermissions.value.has(permission)) as ClientPermission[]
 
 const submitPolicy = async () => {
   await policyFormRef.value?.validate()
+  const permissions = getGrantablePolicyPermissions()
   submitting.value = true
   try {
     if (editingPolicy.value) {
       await ramService.updatePolicy(editingPolicy.value.id, {
         description: policyForm.description,
-        permissions: policyForm.permissions,
+        permissions,
       })
       ElMessage.success(i18ns.t('updateSuccess'))
     } else {
       await ramService.createPolicy({
         name: policyForm.name,
         description: policyForm.description,
-        permissions: policyForm.permissions,
+        permissions,
       })
       ElMessage.success(i18ns.t('createSuccess'))
     }

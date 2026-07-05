@@ -62,6 +62,24 @@ export class PermissionService {
   }
 
   /**
+   * 验证操作者只能授予自己已拥有的权限
+   * @param operatorUserId 操作者用户ID
+   * @param permissions 计划授予/保留的权限列表
+   * @throws ForbiddenError 如果包含操作者没有的权限
+   */
+  async assertCanGrantPermissions(operatorUserId: string, permissions: Permission[]): Promise<void> {
+    this.validatePermissions(permissions);
+
+    const operatorPermissions = await this.getUserFullPermissions(operatorUserId);
+    if (!operatorPermissions) throw new BadRequestError("操作者用户不存在");
+
+    const grantablePermissions = new Set(operatorPermissions.effectivePermissions);
+    const forbiddenPermissions = permissions.filter((permission) => !grantablePermissions.has(permission));
+    if (forbiddenPermissions.length > 0)
+      throw new ForbiddenError(`不能授予自己未拥有的权限: ${forbiddenPermissions.join(", ")}`);
+  }
+
+  /**
    * 解析JSON权限数据
    * @param jsonData JSON数据（可能是字符串或已解析的对象）
    * @returns 权限列表
@@ -307,6 +325,7 @@ export class PermissionService {
     request?: Request,
   ): Promise<void> {
     this.validatePermissions(permissions);
+    await this.assertCanGrantPermissions(operatorUserId, permissions);
 
     // 安全检查：检查是否可以修改目标用户的权限
     await this.canModifyUserPermissions(operatorUserId, userId);
@@ -425,26 +444,31 @@ export class PermissionService {
     const beforeRemoves = this.parsePermissionJson(user.permissionRemoves);
 
     const updateData: any = {};
+    const hasPermissionAdds = Object.prototype.hasOwnProperty.call(config, "permissionAdds");
+    const hasPermissionRemoves = Object.prototype.hasOwnProperty.call(config, "permissionRemoves");
 
-    if (config.permissionAdds) {
-      this.validatePermissions(config.permissionAdds);
-      updateData.permissionAdds = Array.from(new Set(config.permissionAdds));
+    if (hasPermissionAdds) {
+      const permissionAdds = config.permissionAdds ?? [];
+      this.validatePermissions(permissionAdds);
+      await this.assertCanGrantPermissions(operatorUserId, permissionAdds);
+      updateData.permissionAdds = Array.from(new Set(permissionAdds));
     }
 
-    if (config.permissionRemoves) {
-      this.validatePermissions(config.permissionRemoves);
-      updateData.permissionRemoves = Array.from(new Set(config.permissionRemoves));
+    if (hasPermissionRemoves) {
+      const permissionRemoves = config.permissionRemoves ?? [];
+      this.validatePermissions(permissionRemoves);
+      updateData.permissionRemoves = Array.from(new Set(permissionRemoves));
     }
 
     await this.userRepository.updateById(userId, updateData);
 
     // 记录业务日志
     const changes: any = { before: {}, after: {} };
-    if (config.permissionAdds) {
+    if (hasPermissionAdds) {
       changes.before.permissionAdds = beforeAdds;
       changes.after.permissionAdds = updateData.permissionAdds;
     }
-    if (config.permissionRemoves) {
+    if (hasPermissionRemoves) {
       changes.before.permissionRemoves = beforeRemoves;
       changes.after.permissionRemoves = updateData.permissionRemoves;
     }
@@ -536,6 +560,7 @@ export class PermissionService {
     request?: Request,
   ): Promise<void> {
     this.validatePermissions(permissions);
+    if (operatorUserId) await this.assertCanGrantPermissions(operatorUserId, permissions);
 
     const group = await this.groupRepository.findById(groupId);
     if (!group) throw new BadRequestError("用户组不存在");

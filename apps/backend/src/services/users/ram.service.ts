@@ -1,9 +1,12 @@
 import { randomBytes } from "crypto";
 import type { RamRole, RamRoleSession, User, AccessKey } from "@prisma/client";
+import { Permission } from "@/constant/permission";
 import { AccountStatus } from "@/util/auth/account-status";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { hashPassword } from "@/util/crypto";
 import { JWTAccessIns } from "@/util/auth";
+import { isValidPermission } from "@/util/permission/validation";
+import { PermissionService } from "@/services/users/permission.service";
 import { UserRepository } from "@/store/users/user.repository";
 import { GroupRepository } from "@/store/users/group.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
@@ -55,6 +58,7 @@ export class RamService {
     private readonly ramRoleRepository: RamRoleStore = RamRoleRepository.getInstance(),
     private readonly ramPolicyRepository: RamPolicyStore = RamPolicyRepository.getInstance(),
     private readonly accessKeyRepository: AccessKeyStore = AccessKeyRepository.getInstance(),
+    private readonly permissionService: PermissionService = PermissionService.getInstance(),
   ) {}
 
   private static instance: RamService;
@@ -83,6 +87,18 @@ export class RamService {
   private assertSameAccount(accountOwnerId: string, resourceAccountOwnerId?: string | null): void {
     const normalized = resourceAccountOwnerId || undefined;
     if (normalized && normalized !== accountOwnerId) throw new ForbiddenError("无权访问其他主账号下的资源");
+  }
+
+  private normalizePolicyPermissions(permissions: string[]): Permission[] {
+    const invalidPermissions = permissions.filter((permission) => !isValidPermission(permission));
+    if (invalidPermissions.length > 0) throw new BadRequestError(`无效的权限: ${invalidPermissions.join(", ")}`);
+    return [...new Set(permissions as Permission[])];
+  }
+
+  private async assertCanUsePolicyPermissions(actorUserId: string, permissions: string[]): Promise<Permission[]> {
+    const normalizedPermissions = this.normalizePolicyPermissions(permissions);
+    await this.permissionService.assertCanGrantPermissions(actorUserId, normalizedPermissions);
+    return normalizedPermissions;
   }
 
   private async dispatchNotification(
@@ -579,7 +595,9 @@ export class RamService {
       accountOwnerId: policy.accountOwnerId,
       name: policy.name,
       description: policy.description ?? undefined,
-      permissions: normalizeJsonStringArray(policy.permissions),
+      permissions: normalizeJsonStringArray(policy.permissions).filter((permission): permission is Permission =>
+        isValidPermission(permission),
+      ),
       type: policy.type,
       status: policy.status,
       createTime: policy.createTime.toISOString(),
@@ -597,12 +615,13 @@ export class RamService {
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const existing = await this.ramPolicyRepository.findPolicyByName(accountOwnerId, data.name);
     if (existing) throw new BadRequestError("权限策略名称已存在");
+    const permissions = await this.assertCanUsePolicyPermissions(actorUserId, data.permissions);
 
     const policy = await this.ramPolicyRepository.createPolicy({
       accountOwnerId,
       name: data.name,
       description: data.description ?? null,
-      permissions: data.permissions,
+      permissions,
     });
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_CREATED, {
       title: "权限策略已创建",
@@ -620,7 +639,8 @@ export class RamService {
 
     const updateData: Record<string, unknown> = {};
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.permissions !== undefined) updateData.permissions = data.permissions;
+    if (data.permissions !== undefined)
+      updateData.permissions = await this.assertCanUsePolicyPermissions(actorUserId, data.permissions);
     if (data.status !== undefined) updateData.status = data.status;
 
     const updated = await this.ramPolicyRepository.updatePolicy(policyId, updateData);
@@ -645,6 +665,7 @@ export class RamService {
     const policy = await this.ramPolicyRepository.findPolicyById(data.policyId);
     if (!policy) throw new NotFoundError("权限策略不存在");
     this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
+    await this.assertCanUsePolicyPermissions(actorUserId, normalizeJsonStringArray(policy.permissions));
 
     await this.ramPolicyRepository.attachPolicy(accountOwnerId, data.policyId, data.targetType, data.targetId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_ATTACHED, {

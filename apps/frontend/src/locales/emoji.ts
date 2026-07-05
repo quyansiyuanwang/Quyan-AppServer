@@ -517,6 +517,7 @@ const emoji: DeepStringify<typeof en> = {
     targetType: '🎯 🧩',
     targetName: '🎯 🏷️',
     customPolicy: '✏️ 📜',
+    noGrantablePermissions: '🚫 🛂',
 
     authorization: '🛂 👁️',
     effectivePermissions: '✅ 🛂',

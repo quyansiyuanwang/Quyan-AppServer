@@ -531,6 +531,7 @@ const zhCN: DeepStringify<typeof en> = {
     targetType: '目标类型',
     targetName: '目标名称',
     customPolicy: '自定义',
+    noGrantablePermissions: '暂无可授予的权限',
 
     // Authorization
     authorization: '授权概览',
