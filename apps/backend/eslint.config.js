@@ -3,14 +3,18 @@ import globals from "globals";
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsparser from "@typescript-eslint/parser";
 import configPrettier from "eslint-config-prettier";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const backendLocalePath = path.join(__dirname, "src/locales/en.ts");
+let backendMessageKeysCache = new Set();
+let backendMessageKeysMtimeMs = -1;
+
 function loadBackendMessageKeys() {
-  const localesSource = readFileSync(path.join(__dirname, "src/locales/en.ts"), "utf8");
+  const localesSource = readFileSync(backendLocalePath, "utf8");
   const enMessagesMatch = localesSource.match(/const en = \{([\s\S]*?)\n\} as const;/);
   if (!enMessagesMatch) return new Set();
 
@@ -34,7 +38,15 @@ function loadBackendMessageKeys() {
   return keys;
 }
 
-const backendMessageKeys = loadBackendMessageKeys();
+function getBackendMessageKeys() {
+  const mtimeMs = statSync(backendLocalePath).mtimeMs;
+  if (mtimeMs !== backendMessageKeysMtimeMs) {
+    backendMessageKeysCache = loadBackendMessageKeys();
+    backendMessageKeysMtimeMs = mtimeMs;
+  }
+
+  return backendMessageKeysCache;
+}
 
 function getStaticPropertyName(node) {
   if (!node) return undefined;
@@ -77,7 +89,7 @@ const backendI18nPlugin = {
       },
       create(context) {
         function reportIfUnknown(node, key) {
-          if (!key || backendMessageKeys.has(key)) return;
+          if (!key || getBackendMessageKeys().has(key)) return;
           context.report({ node, messageId: "unknownKey", data: { key } });
         }
 
