@@ -88,6 +88,7 @@ describe('relayTokenService', () => {
     expect(requestMock.delete).toHaveBeenCalledWith(
       expectOperation('RelayControllerDeleteToken'),
       {
+        params: { targetUserId: undefined },
         path: { id: 'tk-2' },
       },
       undefined,
@@ -129,6 +130,7 @@ describe('relayTokenService', () => {
     expect(requestMock.get).toHaveBeenCalledWith(
       expectOperation('RelayControllerGetToken'),
       {
+        params: { targetUserId: undefined },
         path: { id: 'tk-5' },
       },
       undefined,

@@ -91,10 +91,10 @@ import { EnvSpace } from "@/config/env";
 import { TWO_FACTOR_TRUSTED_DEVICE_PAGE_SIZE_DEFAULT } from "@/constant/two-factor";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
-import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
 import { CaptchaService } from "@/services/auth/captcha.service";
 import { CaptchaProtected, captchaMiddleware } from "@/util/captcha-protected-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
+import { trustedDeviceRateLimitMiddleware } from "@/middleware/rate-limit-policies";
 
 const logger = getLogger("UserController", LogCategory.BUSINESS);
 
@@ -109,7 +109,6 @@ export class UserController extends Controller {
   private permissionService = permissionService;
   private twoFactorService = TwoFactorService.getInstance();
   private businessLogService = BusinessLogService.getInstance();
-  private rateLimiterService = RateLimiterService.getInstance();
 
   private getUserAgent(userAgent: string | string[] | undefined): string {
     if (Array.isArray(userAgent)) return userAgent[0] || "";
@@ -121,23 +120,6 @@ export class UserController extends Controller {
     if (Array.isArray(requestId)) return requestId[0];
     if (typeof requestId === "string") return requestId;
     return undefined;
-  }
-
-  private getTrustedDeviceRateLimitMessage(reason?: string): {
-    key: "user.trustedDeviceRateLimitIp" | "user.trustedDeviceRateLimitUser" | "errors.tooManyRequests";
-    message: string;
-  } {
-    switch (reason) {
-      case "TWO_FACTOR_TRUSTED_DEVICE_IP_RATE_LIMIT_EXCEEDED":
-        return { key: "user.trustedDeviceRateLimitIp", message: "可信设备操作过于频繁，请稍后再试" };
-      case "TWO_FACTOR_TRUSTED_DEVICE_USER_RATE_LIMIT_EXCEEDED":
-        return {
-          key: "user.trustedDeviceRateLimitUser",
-          message: "当前账号可信设备操作过于频繁，请稍后再试",
-        };
-      default:
-        return { key: "errors.tooManyRequests", message: "请求过于频繁，请稍后再试" };
-    }
   }
 
   /**
@@ -174,7 +156,7 @@ export class UserController extends Controller {
   @Get("me/2fa/trusted-devices")
   @Security("jwt", ["two_factor"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(validateQuery(twoFactorTrustedDevicesQuerySchema))
+  @Middlewares(validateQuery(twoFactorTrustedDevicesQuerySchema), trustedDeviceRateLimitMiddleware)
   public async getTwoFactorTrustedDevices(
     @Request() request: TypedRequest,
     @Query() page: number = 1,
@@ -182,20 +164,6 @@ export class UserController extends Controller {
   ): Promise<TwoFactorTrustedDevicesResponse> {
     const userId = request.user?.userId;
     if (!userId) throw new NotFoundError("用户信息不存在", undefined, { messageKey: "user.userInfoNotFound" });
-
-    const clientIp = extractClientIp(request);
-    const rateLimitCheck = await this.rateLimiterService.checkTwoFactorTrustedDeviceOperationRateLimit(
-      clientIp,
-      userId,
-    );
-    if (!rateLimitCheck.allowed) {
-      const message = this.getTrustedDeviceRateLimitMessage(rateLimitCheck.reason);
-      throw new TooManyRequestsError(message.message, rateLimitCheck.retryAfter, undefined, {
-        messageKey: message.key,
-      });
-    }
-
-    await this.rateLimiterService.logTwoFactorTrustedDeviceOperationAttempt(clientIp, userId);
 
     const devices = await this.twoFactorService.listTrustedDevicesWithinWindow(userId);
     const total = devices.length;
@@ -218,7 +186,11 @@ export class UserController extends Controller {
   @Delete("me/2fa/trusted-devices/{deviceId}")
   @Security("jwt", ["two_factor"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(replayProtectionMiddleware, validateParams(twoFactorTrustedDeviceParamsSchema))
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateParams(twoFactorTrustedDeviceParamsSchema),
+    trustedDeviceRateLimitMiddleware,
+  )
   public async deleteTwoFactorTrustedDevice(
     @Path() deviceId: string,
     @Request() request: TypedRequest,
@@ -227,18 +199,6 @@ export class UserController extends Controller {
     if (!userId) throw new NotFoundError("用户信息不存在", undefined, { messageKey: "user.userInfoNotFound" });
 
     const clientIp = extractClientIp(request);
-    const rateLimitCheck = await this.rateLimiterService.checkTwoFactorTrustedDeviceOperationRateLimit(
-      clientIp,
-      userId,
-    );
-    if (!rateLimitCheck.allowed) {
-      const message = this.getTrustedDeviceRateLimitMessage(rateLimitCheck.reason);
-      throw new TooManyRequestsError(message.message, rateLimitCheck.retryAfter, undefined, {
-        messageKey: message.key,
-      });
-    }
-
-    await this.rateLimiterService.logTwoFactorTrustedDeviceOperationAttempt(clientIp, userId);
 
     const normalizedDeviceId = deviceId.toLowerCase();
     const removed = await this.twoFactorService.removeTrustedDeviceWithinWindow(userId, deviceId);

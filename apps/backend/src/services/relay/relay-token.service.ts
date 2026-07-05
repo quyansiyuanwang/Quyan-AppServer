@@ -71,6 +71,7 @@ import {
 import { ConfigService } from "@/services/system/config.service";
 import { PermissionService } from "@/services/users/permission.service";
 import { Permission } from "@/constant/permission";
+import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
 
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 const trimTrailingZeros = (value: number): string => String(value).replace(/\.0+$|(\.\d*?[1-9])0+$/, "$1");
@@ -149,6 +150,7 @@ export class RelayTokenService {
     private readonly balanceRepo: BalanceStore = BalanceRepository.getInstance(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
     private readonly permissionService: PermissionService = PermissionService.getInstance(),
+    private readonly rateLimiterService: RateLimiterService = RateLimiterService.getInstance(),
   ) {}
 
   private async resolveManagedUserId(actorUserId: string, targetUserId?: string): Promise<string> {
@@ -164,6 +166,14 @@ export class RelayTokenService {
   private async canBypassCustomKeyLimits(actorUserId: string, ownerUserId: string): Promise<boolean> {
     if (actorUserId !== ownerUserId) return true;
     return this.permissionService.hasPermission(actorUserId, Permission.RELAY_TOKEN_CUSTOM_KEY);
+  }
+
+  private async checkCustomKeyPermission(actorUserId: string): Promise<void> {
+    const hasPermission = await this.permissionService.hasPermission(actorUserId, Permission.RELAY_TOKEN_CUSTOM_KEY);
+    if (!hasPermission)
+      throw new ForbiddenError("You do not have permission to use custom relay keys", undefined, {
+        messageKey: "relay.customKeyPermissionDenied",
+      });
   }
 
   private async getAccessibleToken(tokenId: string, actorUserId: string, targetUserId?: string) {
@@ -210,8 +220,13 @@ export class RelayTokenService {
     const config = await this.configService.getRelayCustomKeyConfig();
     const since = new Date(Date.now() - config.createLimitWindowMinutes * 60 * 1000);
     const createdCount = await this.relayTokenRepo.countCustomKeyTokensCreatedSince(userId, since);
+    const rateLimitCheck = this.rateLimiterService.checkNamedCountWindowRateLimit("relayCustomKeyCreate", {
+      currentCount: createdCount,
+      maxRequests: config.createLimitMaxCount,
+      windowMinutes: config.createLimitWindowMinutes,
+    });
 
-    if (createdCount >= config.createLimitMaxCount)
+    if (!rateLimitCheck.allowed)
       throw new BadRequestError(
         `Custom token creation limit reached (${config.createLimitMaxCount}/${config.createLimitWindowMinutes}m). Please try again later.`,
         undefined,
@@ -777,7 +792,7 @@ export class RelayTokenService {
     endDate?: Date,
     targetUserId?: string,
   ): Promise<RelayUsageStatsDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
+    await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
 
     const usages = await this.relayUsageRepo.findByRelayTokenId(tokenId, startDate, endDate);
     const totalTokens = usages.reduce((sum, u) => sum + u.totalTokens, 0);
@@ -998,7 +1013,7 @@ export class RelayTokenService {
     limit: number = 50,
     targetUserId?: string,
   ): Promise<RelayTokenSwitchLogsDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
+    await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
 
     const logs = await this.relayTokenRepo.listSwitchLogs(tokenId, limit);
     const channelIds = [...new Set(logs.flatMap((log) => [log.fromChannelId, log.toChannelId]))];

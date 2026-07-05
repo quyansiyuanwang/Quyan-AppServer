@@ -3,6 +3,7 @@ import { TwoFactorService } from "../../../src/services/auth/two-factor.service"
 import { UserRepository } from "../../../src/store/users/user.repository";
 import { TwoFactorCredentialRepository } from "../../../src/store/auth/two-factor.repository";
 import { RedisService } from "../../../src/services/infrastructure/redis.service";
+import { RateLimiterService } from "../../../src/services/infrastructure/rate-limiter.service";
 import { EmailService } from "../../../src/services/auth/email.service";
 import { UnauthorizedError } from "../../../src/util/errors";
 import { EnvSpace } from "../../../src/config/env";
@@ -21,6 +22,7 @@ describe("TwoFactorService security hardening", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     (TwoFactorService as any).instance = undefined;
+    (RateLimiterService as any).instance = undefined;
     process.env.TWO_FACTOR_TRUSTED_DEVICE_SECRET = trustedDeviceSecret;
   });
 
@@ -63,10 +65,50 @@ describe("TwoFactorService security hardening", () => {
       sendLoginVerificationCode: vi.fn(),
     };
 
+    const rateLimiter = {
+      assertNamedBackoffRateLimit: vi.fn(async (_policyName: string, context: { identifier: string }) => {
+        const key = `two_factor:rate_limit:${context.identifier}`;
+        const recordRaw = await redis.get(key);
+        if (!recordRaw) return;
+        const record = JSON.parse(recordRaw as string);
+        const now = Date.now();
+        if (record.lockoutUntil > now) {
+          const retryAfter = Math.max(1, Math.ceil((record.lockoutUntil - now) / 1000));
+          const err = new Error("请求过于频繁，请稍后再试") as any;
+          err.statusCode = 429;
+          throw err;
+        }
+      }),
+      markNamedBackoffRateLimitFailure: vi.fn(async (_policyName: string, context: { identifier: string }) => {
+        const key = `two_factor:rate_limit:${context.identifier}`;
+        const now = Date.now();
+        const recordRaw = await redis.get(key);
+        const existing = recordRaw ? JSON.parse(recordRaw as string) : null;
+        const stale = !existing || now - existing.lastAttempt > 15 * 60 * 1000;
+        if (stale) {
+          await redis.set(key, JSON.stringify({ count: 1, lastAttempt: now, lockoutUntil: 0 }), 900);
+          return;
+        }
+        const count = existing.count + 1;
+        const overLimitCount = Math.max(0, count - 5 + 1);
+        const backoff = overLimitCount <= 0 ? 0 : Math.min(1000 * 2 ** (overLimitCount - 1), 15 * 60 * 1000);
+        await redis.set(
+          key,
+          JSON.stringify({ count, lastAttempt: now, lockoutUntil: backoff > 0 ? now + backoff : 0 }),
+          900,
+        );
+      }),
+      clearNamedBackoffRateLimit: vi.fn(async (_policyName: string, context: { identifier: string }) => {
+        const key = `two_factor:rate_limit:${context.identifier}`;
+        await redis.delete(key);
+      }),
+    };
+
     vi.spyOn(UserRepository, "getInstance").mockReturnValue(userRepo as any);
     vi.spyOn(TwoFactorCredentialRepository, "getInstance").mockReturnValue(credentialRepo as any);
     vi.spyOn(RedisService, "getInstance").mockReturnValue(redis as any);
     vi.spyOn(EmailService, "getInstance").mockReturnValue(email as any);
+    vi.spyOn(RateLimiterService, "getInstance").mockReturnValue(rateLimiter as any);
 
     const service = TwoFactorService.getInstance() as any;
     return {

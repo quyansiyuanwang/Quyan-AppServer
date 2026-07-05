@@ -82,6 +82,18 @@ vi.mock('@element-plus/icons-vue', () => ({
   Rank: defineComponent({ name: 'RankIcon', template: '<span />' }),
 }))
 
+vi.mock('@/stores/permissionStore', () => ({
+  usePermissionStore: () => ({
+    hasPermission: vi.fn(() => true),
+  }),
+}))
+
+vi.mock('@/stores/userInfoStore', () => ({
+  useUserInfoStore: () => ({
+    userInfo: { id: 'admin-user', username: 'admin', name: 'Admin User' },
+  }),
+}))
+
 import RelayTokenManagementView from '@/views/relay/RelayTokenManagementView.vue'
 
 const ElCardStub = defineComponent({
@@ -758,7 +770,7 @@ describe('RelayTokenManagementView', () => {
     await vm.openSwitchLogsDialog(relayToken)
     await flushPromises()
 
-    expect(getTokenSwitchLogsMock).toHaveBeenCalledWith(relayToken.id)
+    expect(getTokenSwitchLogsMock).toHaveBeenCalledWith(relayToken.id, 50, undefined)
   })
 
   it('refreshes token after confirmation and copies the new token', async () => {
@@ -770,7 +782,7 @@ describe('RelayTokenManagementView', () => {
     await flushPromises()
 
     expect(confirmMock).toHaveBeenCalledTimes(1)
-    expect(refreshRelayTokenMock).toHaveBeenCalledWith(relayToken.id)
+    expect(refreshRelayTokenMock).toHaveBeenCalledWith(relayToken.id, undefined)
     expect(clipboardWriteTextMock).toHaveBeenCalledWith('rlt_refreshed_token_value')
     expect(messageSuccessMock).toHaveBeenCalledWith('令牌刷新成功，已复制到剪贴板')
     expect(getRelayTokensMock).toHaveBeenCalledTimes(2)

@@ -16,6 +16,10 @@ export interface RateLimitRule {
 }
 
 export interface RateLimiterConfig {
+  login: {
+    perIp: RateLimitRule;
+    perUser: RateLimitRule;
+  };
   emailVerification: {
     perIp: RateLimitRule;
     perIpEmail: RateLimitRule;
@@ -40,6 +44,16 @@ export interface RateLimiterConfig {
  * 可通过环境变量覆盖
  */
 export const RATE_LIMITER_CONFIG: RateLimiterConfig = {
+  login: {
+    perIp: {
+      maxRequests: toSafePositiveInt(EnvSpace.rateLimitConfig.login.perIp.maxRequests, 10),
+      windowMinutes: toSafePositiveInt(EnvSpace.rateLimitConfig.login.perIp.windowMinutes, 1),
+    },
+    perUser: {
+      maxRequests: toSafePositiveInt(EnvSpace.rateLimitConfig.login.perUser.maxRequests, 5),
+      windowMinutes: toSafePositiveInt(EnvSpace.rateLimitConfig.login.perUser.windowMinutes, 1),
+    },
+  },
   emailVerification: {
     // 同一 IP 每小时最多 5 次请求（从 10 降低到 5）
     perIp: {

@@ -43,11 +43,8 @@ import type {
 } from "@/api/dto/auth/auth.dto";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { Request as ExpressRequest } from "express";
-import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
 import { extractClientIp } from "@/util/ip-extractor";
-import { TooManyRequestsError, BadRequestError } from "@/util/errors";
 import type { ErrorResponse } from "@/api/response";
-import { CustomCode } from "@/constant/custom-code";
 import {
   loginBodySchema,
   refreshBodySchema,
@@ -69,6 +66,12 @@ import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { CaptchaProtected, captchaMiddleware } from "@/util/captcha-protected-decorator";
 import { ConfigService } from "@/services/system/config.service";
 import { setResponseMessageKey } from "@/util/response-wrapper";
+import {
+  emailVerificationRateLimitMiddleware,
+  passwordResetCodeRateLimitMiddleware,
+  twoFactorEmailSendRateLimitMiddleware,
+  verifyTwoFactorRateLimitMiddleware,
+} from "@/middleware/rate-limit-policies";
 
 const logger = getLogger("AuthController", LogCategory.AUTH);
 
@@ -80,7 +83,6 @@ const logger = getLogger("AuthController", LogCategory.AUTH);
 @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "参数验证失败")
 export class AuthController extends Controller {
   private authService = new AuthService();
-  private rateLimiterService = RateLimiterService.getInstance();
   private businessLogService = BusinessLogService.getInstance();
   private captchaService = CaptchaService.getInstance();
   private configService = ConfigService.getInstance();
@@ -185,27 +187,15 @@ export class AuthController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "二次验证码错误或会话无效")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "需要重新同意最新协议")
   @Response<ErrorResponse>(429, "请求过于频繁")
-  @Middlewares(replayProtectionMiddleware, validateBody(verifyTwoFactorLoginBodySchema))
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateBody(verifyTwoFactorLoginBodySchema),
+    verifyTwoFactorRateLimitMiddleware,
+  )
   public async verifyTwoFactorLogin(
     @Body() requestBody: VerifyTwoFactorLoginDto,
     @Request() request: ExpressRequest,
   ): Promise<VerifyTwoFactorLoginResponse> {
-    const clientIp = extractClientIp(request);
-
-    const rateLimitCheck = await this.rateLimiterService.checkTwoFactorVerificationRateLimit(
-      clientIp,
-      requestBody.challengeToken,
-    );
-
-    if (!rateLimitCheck.allowed) {
-      const message = this.getTwoFactorRateLimitMessage(rateLimitCheck.reason);
-      throw new TooManyRequestsError(message.message, rateLimitCheck.retryAfter, undefined, {
-        messageKey: message.key,
-      });
-    }
-
-    await this.rateLimiterService.logTwoFactorVerificationAttempt(clientIp, requestBody.challengeToken);
-
     return this.authService.verifyTwoFactorLogin(
       requestBody.challengeToken,
       requestBody.code,
@@ -229,26 +219,13 @@ export class AuthController extends Controller {
     replayProtectionMiddleware,
     validateBody(sendTwoFactorEmailCodeBodySchema),
     captchaMiddleware({ action: "send_2fa_email_code", trustOnly: true }),
+    twoFactorEmailSendRateLimitMiddleware,
   )
   public async sendTwoFactorEmailCode(
     @Body() requestBody: SendTwoFactorEmailCodeDto,
     @Request() request: ExpressRequest,
   ): Promise<SendTwoFactorEmailCodeResponse> {
     const clientIp = extractClientIp(request);
-
-    const rateLimitCheck = await this.rateLimiterService.checkTwoFactorEmailSendRateLimit(
-      clientIp,
-      requestBody.challengeToken,
-    );
-
-    if (!rateLimitCheck.allowed) {
-      const message = this.getTwoFactorEmailSendRateLimitMessage(rateLimitCheck.reason);
-      throw new TooManyRequestsError(message.message, rateLimitCheck.retryAfter, undefined, {
-        messageKey: message.key,
-      });
-    }
-
-    await this.rateLimiterService.logTwoFactorEmailSendAttempt(clientIp, requestBody.challengeToken);
 
     const response = await this.authService.sendTwoFactorEmailCode(requestBody.challengeToken);
 
@@ -296,29 +273,13 @@ export class AuthController extends Controller {
     replayProtectionMiddleware,
     validateBody(sendRegisterVerificationCodeBodySchema),
     captchaMiddleware({ action: "send_verification_code", trustOnly: true }),
+    emailVerificationRateLimitMiddleware,
   )
   public async sendRegisterVerificationCode(
     @Body() requestBody: SendRegisterVerificationCodeDto,
     @Request() request: ExpressRequest,
   ): Promise<SendRegisterVerificationCodeResponse> {
-    const clientIp = extractClientIp(request);
-    const email = requestBody.email;
-
-    // 第二层：检查频率限制
-    const rateLimitCheck = await this.rateLimiterService.checkEmailVerificationRateLimit(clientIp, email);
-
-    if (!rateLimitCheck.allowed) {
-      const message = this.getRateLimitMessage(rateLimitCheck.reason);
-      throw new TooManyRequestsError(message.message, rateLimitCheck.retryAfter, undefined, {
-        messageKey: message.key,
-      });
-    }
-
-    // 发送验证码
-    await this.authService.sendVerificationCode(email);
-
-    // 记录请求
-    await this.rateLimiterService.logEmailVerificationRequest(clientIp, email);
+    await this.authService.sendVerificationCode(requestBody.email);
 
     setResponseMessageKey(request as never, "auth.verificationCodeSent");
     return { message: "验证码已发送" };
@@ -338,25 +299,13 @@ export class AuthController extends Controller {
     replayProtectionMiddleware,
     validateBody(sendPasswordResetCodeBodySchema),
     captchaMiddleware({ action: "send_password_reset_code", trustOnly: true }),
+    passwordResetCodeRateLimitMiddleware,
   )
   public async sendPasswordResetCode(
     @Body() requestBody: SendPasswordResetCodeDto,
     @Request() request: ExpressRequest,
   ): Promise<SendPasswordResetCodeResponse> {
-    const clientIp = extractClientIp(request);
-    const email = requestBody.email;
-
-    const rateLimitCheck = await this.rateLimiterService.checkPasswordResetCodeRateLimit(clientIp, email);
-
-    if (!rateLimitCheck.allowed) {
-      const message = this.getRateLimitMessage(rateLimitCheck.reason);
-      throw new TooManyRequestsError(message.message, rateLimitCheck.retryAfter, undefined, {
-        messageKey: message.key,
-      });
-    }
-
-    await this.authService.sendPasswordResetCode(requestBody.username, email);
-    await this.rateLimiterService.logPasswordResetCodeRequest(clientIp, email);
+    await this.authService.sendPasswordResetCode(requestBody.username, requestBody.email);
 
     setResponseMessageKey(request as never, "auth.passwordResetCodeSent");
     return { message: "密码重置验证码已发送" };
@@ -387,66 +336,6 @@ export class AuthController extends Controller {
       email: requestBody.email,
     });
     return result;
-  }
-
-  /**
-   * 获取频率限制错误消息
-   */
-  private getRateLimitMessage(reason?: string): {
-    key: "auth.rateLimit.ip" | "auth.rateLimit.email" | "errors.tooManyRequests";
-    message: string;
-  } {
-    switch (reason) {
-      case "IP_RATE_LIMIT_EXCEEDED":
-        return { key: "auth.rateLimit.ip", message: "您的 IP 地址请求过于频繁，请稍后再试" };
-      case "IP_EMAIL_RATE_LIMIT_EXCEEDED":
-        return { key: "auth.rateLimit.email", message: "该邮箱地址请求过于频繁，请稍后再试" };
-      default:
-        return { key: "errors.tooManyRequests", message: "请求过于频繁，请稍后再试" };
-    }
-  }
-
-  /**
-   * 获取 2FA 频率限制错误消息
-   */
-  private getTwoFactorRateLimitMessage(reason?: string): {
-    key: "auth.twoFactorRateLimit.ip" | "auth.twoFactorRateLimit.challenge" | "errors.tooManyRequests";
-    message: string;
-  } {
-    switch (reason) {
-      case "TWO_FACTOR_IP_RATE_LIMIT_EXCEEDED":
-        return { key: "auth.twoFactorRateLimit.ip", message: "您的验证请求过于频繁，请稍后再试" };
-      case "TWO_FACTOR_CHALLENGE_RATE_LIMIT_EXCEEDED":
-        return {
-          key: "auth.twoFactorRateLimit.challenge",
-          message: "当前验证会话尝试次数过多，请重新登录后再试",
-        };
-      default:
-        return { key: "errors.tooManyRequests", message: "请求过于频繁，请稍后再试" };
-    }
-  }
-
-  /**
-   * 获取 2FA 邮箱验证码发送频率限制错误消息
-   */
-  private getTwoFactorEmailSendRateLimitMessage(reason?: string): {
-    key: "auth.twoFactorEmailRateLimit.ip" | "auth.twoFactorEmailRateLimit.challenge" | "errors.tooManyRequests";
-    message: string;
-  } {
-    switch (reason) {
-      case "TWO_FACTOR_EMAIL_SEND_IP_RATE_LIMIT_EXCEEDED":
-        return {
-          key: "auth.twoFactorEmailRateLimit.ip",
-          message: "您的验证码发送请求过于频繁，请稍后再试",
-        };
-      case "TWO_FACTOR_EMAIL_SEND_CHALLENGE_RATE_LIMIT_EXCEEDED":
-        return {
-          key: "auth.twoFactorEmailRateLimit.challenge",
-          message: "当前验证会话发送次数过多，请稍后再试",
-        };
-      default:
-        return { key: "errors.tooManyRequests", message: "请求过于频繁，请稍后再试" };
-    }
   }
 
   /**
