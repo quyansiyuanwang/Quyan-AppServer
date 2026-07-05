@@ -828,7 +828,6 @@ import {
 import { Plus, Refresh, Delete, Search } from '@element-plus/icons-vue'
 import {
   ALL_PERMISSIONS,
-  getPermissionCategory,
   getPermissionLabel,
   getPermissionTooltip,
 } from '@/constant/permission'
@@ -847,6 +846,7 @@ import type {
 import { ramService } from '@/service/ramService'
 import { i18ns } from '@/locales'
 import { usePermissionStore } from '@/stores/permissionStore'
+import { buildGrantablePermissionTree, filterGrantablePermissions } from './ram-permission-tree'
 
 const activeTab = ref('users')
 const permissionStore = usePermissionStore()
@@ -927,28 +927,11 @@ const policyForm = reactive({ name: '', description: '', permissions: [] as stri
 const grantablePermissions = computed(() => new Set<string>(permissionStore.effectivePermissions))
 
 const permissionTree = computed(() => {
-  const locale = i18ns.refer.value as string
-  const categories = new Map<string, { label: string; value: string; tooltip: string }[]>()
-  for (const perm of ALL_PERMISSIONS.filter((permission) => grantablePermissions.value.has(permission))) {
-    const cat = getPermissionCategory(perm)
-    if (!categories.has(cat)) categories.set(cat, [])
-    categories.get(cat)!.push({
-      label: getPermissionLabel(perm, locale),
-      value: perm,
-      tooltip: getPermissionTooltip(perm, locale),
-    })
-  }
-  return Array.from(categories.entries())
-    .map(([cat, children]) => {
-      const prefix = cat.charAt(0).toLowerCase() + cat.slice(1)
-      return {
-        label: i18ns.t(`RamManagement.permissionCategoryLabels.${prefix}` as any),
-        value: cat,
-        tooltip: i18ns.t(`RamManagement.permissionCategoryTooltips.${prefix}` as any),
-        children,
-      }
-    })
-    .sort((a, b) => a.label.localeCompare(b.label))
+  return buildGrantablePermissionTree({
+    effectivePermissions: grantablePermissions.value,
+    locale: i18ns.refer.value as string,
+    translateCategory: (key) => i18ns.t(key as any),
+  })
 })
 
 const filteredUsers = computed(() => {
@@ -1525,7 +1508,7 @@ const openPolicyDialog = (policy?: RamPolicyDto) => {
     Object.assign(policyForm, {
       name: policy.name,
       description: policy.description ?? '',
-      permissions: (policy.permissions ?? []).filter((permission) => grantablePermissions.value.has(permission)),
+      permissions: filterGrantablePermissions(policy.permissions ?? [], grantablePermissions.value),
     })
   }
   policyDialogVisible.value = true
@@ -1538,13 +1521,11 @@ const resetPolicyForm = () => {
 }
 
 const onPolicyTreeCheck = () => {
-  policyForm.permissions = (policyPermTreeRef.value?.getCheckedKeys() ?? []).filter((permission: string) =>
-    grantablePermissions.value.has(permission),
-  )
+  policyForm.permissions = filterGrantablePermissions(policyPermTreeRef.value?.getCheckedKeys() ?? [], grantablePermissions.value)
 }
 
 const getGrantablePolicyPermissions = () =>
-  policyForm.permissions.filter((permission) => grantablePermissions.value.has(permission)) as ClientPermission[]
+  filterGrantablePermissions(policyForm.permissions, grantablePermissions.value) as ClientPermission[]
 
 const submitPolicy = async () => {
   await policyFormRef.value?.validate()
