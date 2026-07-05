@@ -18,7 +18,12 @@ const testPolicyNames = [
   "test_dirty_role_policy",
   "test_dirty_group_policy",
   "test_recreate_policy",
+  "test_cross_account_policy",
 ];
+
+const crossAccountUsernames = ["test_other_owner", "test_other_ram_user"];
+const crossAccountGroupUsernames = ["test_other_group"];
+const crossAccountRoleNames = ["test_other_role"];
 
 describe("权限修改安全检查", () => {
   let adminUser: any;
@@ -80,6 +85,10 @@ describe("权限修改安全检查", () => {
         username: "test_target",
         password: "test_password",
         groupId: normalGroup.id,
+        accountOwnerId: adminUser.id,
+        parentUserId: adminUser.id,
+        userType: "ram_user",
+        ramUsername: "test_target",
         permissionAdds: [],
         permissionRemoves: [],
       },
@@ -87,15 +96,39 @@ describe("权限修改安全检查", () => {
   });
 
   beforeEach(async () => {
+    const crossAccountUsers = await prisma.user.findMany({
+      where: { username: { in: crossAccountUsernames } },
+      select: { id: true },
+    });
+    const crossAccountGroups = await prisma.group.findMany({
+      where: { username: { in: crossAccountGroupUsernames } },
+      select: { id: true },
+    });
+    const crossAccountRoles = await prisma.ramRole.findMany({
+      where: { name: { in: crossAccountRoleNames } },
+      select: { id: true },
+    });
+
     await prisma.ramPolicyAttachment.deleteMany({
       where: {
-        policy: {
-          name: {
-            in: testPolicyNames,
+        OR: [
+          { policy: { name: { in: testPolicyNames } } },
+          {
+            targetId: {
+              in: [
+                ...crossAccountUsers.map((user) => user.id),
+                ...crossAccountGroups.map((group) => group.id),
+                ...crossAccountRoles.map((role) => role.id),
+              ],
+            },
           },
-        },
+        ],
       },
     });
+
+    await prisma.ramRole.deleteMany({ where: { name: { in: crossAccountRoleNames } } });
+    await prisma.user.deleteMany({ where: { username: { in: crossAccountUsernames } } });
+    await prisma.group.deleteMany({ where: { username: { in: crossAccountGroupUsernames } } });
 
     await prisma.ramPolicy.deleteMany({
       where: {
@@ -127,10 +160,31 @@ describe("权限修改安全检查", () => {
     // 清理测试数据
     await prisma.ramPolicyAttachment.deleteMany({
       where: {
-        policy: {
-          name: {
-              in: testPolicyNames,
-          },
+        policy: { name: { in: testPolicyNames } },
+      },
+    });
+
+    const crossAccountUsers = await prisma.user.findMany({
+      where: { username: { in: crossAccountUsernames } },
+      select: { id: true },
+    });
+    const crossAccountGroups = await prisma.group.findMany({
+      where: { username: { in: crossAccountGroupUsernames } },
+      select: { id: true },
+    });
+    const crossAccountRoles = await prisma.ramRole.findMany({
+      where: { name: { in: crossAccountRoleNames } },
+      select: { id: true },
+    });
+
+    await prisma.ramPolicyAttachment.deleteMany({
+      where: {
+        targetId: {
+          in: [
+            ...crossAccountUsers.map((user) => user.id),
+            ...crossAccountGroups.map((group) => group.id),
+            ...crossAccountRoles.map((role) => role.id),
+          ],
         },
       },
     });
@@ -146,7 +200,7 @@ describe("权限修改安全检查", () => {
     await prisma.user.deleteMany({
       where: {
         username: {
-          in: ["test_admin", "test_normal", "test_target"],
+          in: ["test_admin", "test_normal", "test_target", ...crossAccountUsernames],
         },
       },
     });
@@ -154,10 +208,12 @@ describe("权限修改安全检查", () => {
     await prisma.group.deleteMany({
       where: {
         username: {
-          in: ["test_admin_group", "test_normal_group"],
+          in: ["test_admin_group", "test_normal_group", ...crossAccountGroupUsernames],
         },
       },
     });
+
+    await prisma.ramRole.deleteMany({ where: { name: { in: crossAccountRoleNames } } });
   });
 
   describe("用户不能修改自己的权限", () => {
@@ -492,6 +548,66 @@ describe("权限修改安全检查", () => {
           targetId: targetUser.id,
         }),
       ).resolves.not.toThrow();
+    });
+
+    it("应该阻止 RAM 策略跨主账号绑定到用户、用户组和角色", async () => {
+      const otherGroup = await prisma.group.create({
+        data: {
+          username: "test_other_group",
+          name: "其他主账号用户组",
+          level: 10,
+          permissions: [],
+        },
+      });
+      const otherOwner = await prisma.user.create({
+        data: {
+          username: "test_other_owner",
+          password: "test_password",
+          groupId: otherGroup.id,
+          permissionAdds: [],
+          permissionRemoves: [],
+        },
+      });
+      const otherRamUser = await prisma.user.create({
+        data: {
+          username: "test_other_ram_user",
+          password: "test_password",
+          groupId: otherGroup.id,
+          accountOwnerId: otherOwner.id,
+          parentUserId: otherOwner.id,
+          userType: "ram_user",
+          ramUsername: "test_other_ram_user",
+          permissionAdds: [],
+          permissionRemoves: [],
+        },
+      });
+      const otherRole = await prisma.ramRole.create({
+        data: {
+          accountOwnerId: otherOwner.id,
+          name: "test_other_role",
+          maxSessionDuration: 3600,
+        },
+      });
+      await prisma.group.update({ where: { id: otherGroup.id }, data: { accountOwnerId: otherOwner.id } });
+      const policy = await ramService.createPolicy(adminUser.id, {
+        name: "test_cross_account_policy",
+        permissions: [Permission.USER_READ],
+      });
+
+      for (const target of [
+        { targetType: "user" as const, targetId: otherRamUser.id },
+        { targetType: "group" as const, targetId: otherGroup.id },
+        { targetType: "role" as const, targetId: otherRole.id },
+      ]) {
+        await expect(ramService.attachPolicy(adminUser.id, { policyId: policy.id, ...target })).rejects.toThrow(
+          ForbiddenError,
+        );
+        await expect(ramService.detachPolicy(adminUser.id, { policyId: policy.id, ...target })).rejects.toThrow(
+          ForbiddenError,
+        );
+      }
+
+      await expect(prisma.ramPolicyAttachment.findMany({ where: { policyId: policy.id } })).resolves.toHaveLength(0);
     });
 
     it("应该允许软删除后重新创建同名 RAM 策略", async () => {

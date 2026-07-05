@@ -101,6 +101,41 @@ export class RamService {
     return normalizedPermissions;
   }
 
+  private async assertPolicyTargetInAccount(
+    accountOwnerId: string,
+    targetType: AttachPolicyBodyDto["targetType"],
+    targetId: string,
+  ): Promise<void> {
+    if (targetType === "user") {
+      const user = await this.userRepository.findById(targetId);
+      if (!user) throw new NotFoundError("用户不存在");
+      if (user.status !== AccountStatus.ACTIVE) throw new NotFoundError("用户不存在");
+      this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId || user.id);
+      return;
+    }
+
+    if (targetType === "group") {
+      const group = await this.groupRepository.findById(targetId);
+      if (!group) throw new NotFoundError("用户组不存在");
+      if (group.status !== AccountStatus.ACTIVE) throw new NotFoundError("用户组不存在");
+      this.assertSameAccount(accountOwnerId, group.accountOwnerId);
+      return;
+    }
+
+    const role = await this.ramRoleRepository.findRoleById(targetId);
+    if (!role) throw new NotFoundError("角色不存在");
+    this.assertSameAccount(accountOwnerId, role.accountOwnerId);
+  }
+
+  private async assertPolicyAttachmentScope(actorUserId: string, data: AttachPolicyBodyDto) {
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const policy = await this.ramPolicyRepository.findPolicyById(data.policyId);
+    if (!policy) throw new NotFoundError("权限策略不存在");
+    this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
+    await this.assertPolicyTargetInAccount(accountOwnerId, data.targetType, data.targetId);
+    return { accountOwnerId, policy };
+  }
+
   private async dispatchNotification(
     actorUserId: string,
     event: NotificationEvent,
@@ -661,10 +696,7 @@ export class RamService {
   }
 
   async attachPolicy(actorUserId: string, data: AttachPolicyBodyDto): Promise<void> {
-    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
-    const policy = await this.ramPolicyRepository.findPolicyById(data.policyId);
-    if (!policy) throw new NotFoundError("权限策略不存在");
-    this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
+    const { accountOwnerId, policy } = await this.assertPolicyAttachmentScope(actorUserId, data);
     await this.assertCanUsePolicyPermissions(actorUserId, normalizeJsonStringArray(policy.permissions));
 
     await this.ramPolicyRepository.attachPolicy(accountOwnerId, data.policyId, data.targetType, data.targetId);
@@ -676,10 +708,7 @@ export class RamService {
   }
 
   async detachPolicy(actorUserId: string, data: AttachPolicyBodyDto): Promise<void> {
-    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
-    const policy = await this.ramPolicyRepository.findPolicyById(data.policyId);
-    if (!policy) throw new NotFoundError("权限策略不存在");
-    this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
+    const { policy } = await this.assertPolicyAttachmentScope(actorUserId, data);
 
     await this.ramPolicyRepository.detachPolicy(data.policyId, data.targetType, data.targetId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_DETACHED, {
