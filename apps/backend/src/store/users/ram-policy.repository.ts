@@ -25,6 +25,7 @@ export class RamPolicyRepository implements RamPolicyStore {
       data: {
         accountOwnerId: data.accountOwnerId,
         name: data.name,
+        activeName: data.name,
         description: data.description ?? null,
         permissions: data.permissions,
         type: data.type ?? "custom",
@@ -38,7 +39,7 @@ export class RamPolicyRepository implements RamPolicyStore {
   }
 
   async findPolicyByName(accountOwnerId: string, name: string): Promise<RamPolicy | null> {
-    return prisma.ramPolicy.findFirst({ where: { accountOwnerId, name, ...ACTIVE_WHERE } });
+    return prisma.ramPolicy.findFirst({ where: { accountOwnerId, activeName: name, ...ACTIVE_WHERE } });
   }
 
   async listPolicies(accountOwnerId: string): Promise<RamPolicy[]> {
@@ -46,11 +47,15 @@ export class RamPolicyRepository implements RamPolicyStore {
   }
 
   async updatePolicy(policyId: string, data: UpdateRamPolicyInput): Promise<RamPolicy> {
-    return prisma.ramPolicy.update({ where: { id: policyId }, data });
+    const updateData = { ...data } as UpdateRamPolicyInput & { activeName?: string | null };
+    if (data.status !== undefined && data.status !== AccountStatus.ACTIVE) {
+      updateData.activeName = null;
+    }
+    return prisma.ramPolicy.update({ where: { id: policyId }, data: updateData });
   }
 
   async softDeletePolicy(policyId: string): Promise<RamPolicy> {
-    return prisma.ramPolicy.update({ where: { id: policyId }, data: { status: AccountStatus.DISABLED } });
+    return prisma.ramPolicy.update({ where: { id: policyId }, data: { status: AccountStatus.DISABLED, activeName: null } });
   }
 
   async attachPolicy(accountOwnerId: string, policyId: string, targetType: string, targetId: string): Promise<void> {

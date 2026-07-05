@@ -4,6 +4,7 @@ import { RamService } from "../../../src/services/users/ram.service";
 import { prisma } from "../../../src/config/database";
 import { Permission } from "../../../src/constant/permission";
 import { BadRequestError, ForbiddenError } from "../../../src/util/errors";
+import { AccountStatus } from "../../../src/util/auth/account-status";
 
 const ramService = RamService.getInstance();
 const testPolicyNames = [
@@ -16,6 +17,7 @@ const testPolicyNames = [
   "test_dirty_user_policy",
   "test_dirty_role_policy",
   "test_dirty_group_policy",
+  "test_recreate_policy",
 ];
 
 describe("权限修改安全检查", () => {
@@ -490,6 +492,34 @@ describe("权限修改安全检查", () => {
           targetId: targetUser.id,
         }),
       ).resolves.not.toThrow();
+    });
+
+    it("应该允许软删除后重新创建同名 RAM 策略", async () => {
+      const policy = await ramService.createPolicy(adminUser.id, {
+        name: "test_recreate_policy",
+        permissions: [Permission.USER_READ],
+      });
+
+      await expect(ramService.deletePolicy(adminUser.id, policy.id)).resolves.not.toThrow();
+
+      await expect(
+        ramService.createPolicy(adminUser.id, {
+          name: "test_recreate_policy",
+          permissions: [Permission.USER_READ],
+        }),
+      ).resolves.toMatchObject({ name: "test_recreate_policy", permissions: [Permission.USER_READ] });
+
+      const recreated = await prisma.ramPolicy.findFirstOrThrow({
+        where: { name: "test_recreate_policy", status: AccountStatus.ACTIVE },
+        orderBy: { createTime: "desc" },
+      });
+
+      await expect(ramService.deletePolicy(adminUser.id, recreated.id)).resolves.not.toThrow();
+
+      const deleted = await prisma.ramPolicy.findUniqueOrThrow({ where: { id: policy.id } });
+      expect(deleted.name).toBe("test_recreate_policy");
+      expect(deleted.status).toBe(AccountStatus.DISABLED);
+      expect(deleted.activeName).toBeNull();
     });
   });
 });

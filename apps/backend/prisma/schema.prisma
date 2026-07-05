@@ -197,6 +197,7 @@ model RamPolicy {
   updateTime     DateTime @updatedAt
   accountOwnerId String
   name           String   @db.VarChar(128)
+  activeName     String?  @db.VarChar(128)
   description    String?  @db.Text
   permissions    Json
   type           String   @default("custom") @db.VarChar(20)
@@ -204,7 +205,7 @@ model RamPolicy {
   accountOwner      User                   @relation("RamPolicyOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
   policyAttachments RamPolicyAttachment[]
 
-  @@unique([accountOwnerId, name])
+  @@unique([accountOwnerId, activeName])
   @@index([accountOwnerId])
   @@map("ram_policies")
 }

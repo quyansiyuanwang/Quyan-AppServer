@@ -696,7 +696,6 @@
               :data="permissionTree"
               show-checkbox
               node-key="value"
-              :default-checked-keys="policyForm.permissions"
               @check="onPolicyTreeCheck"
             >
               <template #default="{ data }">
@@ -815,7 +814,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import {
   ElMessage,
   ElMessageBox,
@@ -1503,20 +1502,27 @@ const loadPolicies = async () => {
 
 const openPolicyDialog = (policy?: RamPolicyDto) => {
   if ((policy && !canUpdatePolicies.value) || (!policy && !canCreatePolicies.value)) return
-  editingPolicy.value = policy ?? null
   if (policy) {
+    editingPolicy.value = policy
     Object.assign(policyForm, {
       name: policy.name,
       description: policy.description ?? '',
-      permissions: filterGrantablePermissions(policy.permissions ?? [], grantablePermissions.value),
+      permissions: [...(policy.permissions ?? [])],
     })
+  } else {
+    resetPolicyForm()
   }
   policyDialogVisible.value = true
+  nextTick(() => {
+    policyPermTreeRef.value?.setCheckedKeys(policyForm.permissions)
+    policyFormRef.value?.clearValidate()
+  })
 }
 
 const resetPolicyForm = () => {
   editingPolicy.value = null
   Object.assign(policyForm, { name: '', description: '', permissions: [] })
+  policyPermTreeRef.value?.setCheckedKeys([])
   policyFormRef.value?.clearValidate()
 }
 
