@@ -86,6 +86,7 @@ const zhCNMessages = {
   "relay.channelDeleted": "渠道删除成功",
   "relay.tokenDeleted": "Token删除成功",
   "relay.customKeyPermissionDenied": "你没有权限设置自定义令牌",
+  "relay.manageOthersPermissionDenied": "你没有权限管理其他用户的中转令牌",
   "relay.customKeyDisabled": "自定义中转令牌当前已关闭",
   "relay.customKeyLimitReached": "自定义令牌数量已达上限 ({{limit}})，请先删除不用的自定义令牌",
   "relay.customKeyCreateRateLimitReached": "自定义令牌创建过于频繁（{{windowMinutes}} 分钟内最多 {{limit}} 个），请稍后再试",
@@ -177,6 +178,7 @@ const enMessages: Record<MessageKey, string> = {
   "relay.channelDeleted": "Channel deleted successfully",
   "relay.tokenDeleted": "Token deleted successfully",
   "relay.customKeyPermissionDenied": "You do not have permission to set custom token keys",
+  "relay.manageOthersPermissionDenied": "You do not have permission to manage other users' relay tokens",
   "relay.customKeyDisabled": "Custom relay keys are currently disabled",
   "relay.customKeyLimitReached": "Custom token limit reached ({{limit}}). Please delete unused custom tokens first.",
   "relay.customKeyCreateRateLimitReached": "Custom token creation is too frequent (max {{limit}} within {{windowMinutes}} minutes). Please try again later.",
@@ -534,6 +536,23 @@ export interface MessageDescriptor {
   fallback?: string;
 }
 
+export interface MessageErrorOptions {
+  messageKey: MessageKey;
+  messageParams?: TranslationParams;
+}
+
+export function createMessageDescriptor(
+  key: MessageKey,
+  params?: TranslationParams,
+  fallback?: string,
+): MessageDescriptor {
+  return { key, params, fallback };
+}
+
+export function createMessageOptions(key: MessageKey, params?: TranslationParams): MessageErrorOptions {
+  return { messageKey: key, messageParams: params };
+}
+
 export function normalizeBackendLocale(locale?: string | null): BackendLocale {
   if (!locale) return DEFAULT_BACKEND_LOCALE;
 
@@ -568,6 +587,12 @@ export function getMessageKeyForCustomCode(code?: number): MessageKey | undefine
 export function translateDescriptor(descriptor: MessageDescriptor, locale: BackendLocale): string {
   return translateMessage(descriptor.key, locale, descriptor.params, descriptor.fallback);
 }
+
+export const backendI18n = {
+  t: translateMessage,
+  descriptor: createMessageDescriptor,
+  errorOptions: createMessageOptions,
+} as const;
 
 export function translateKnownMessage(message: string, locale: BackendLocale): string {
   const exact = knownMessageCatalogs[locale][message as keyof typeof zhCNKnownMessages];

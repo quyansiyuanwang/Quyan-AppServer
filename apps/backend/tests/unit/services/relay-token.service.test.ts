@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RelayTokenService } from "../../../src/services/relay/relay-token.service";
 import { MANAGED_STATUS } from "../../../src/constant/status";
 import { ForbiddenError, NotFoundError } from "../../../src/util/errors";
+import { translateMessage } from "../../../src/locales";
 
 describe("RelayTokenService", () => {
   const relayTokenRepository = {
@@ -240,6 +241,21 @@ describe("RelayTokenService", () => {
       page: 1,
       pageSize: 20,
     });
+  });
+
+  it("uses backend i18n key when denying relay token management for another user", async () => {
+    permissionService.hasPermission.mockResolvedValue(false);
+
+    await expect(service.listTokens("user-1", 1, 20, "other-user")).rejects.toMatchObject({
+      messageKey: "relay.manageOthersPermissionDenied",
+    });
+    expect(translateMessage("relay.manageOthersPermissionDenied", "zh-CN")).toBe(
+      "你没有权限管理其他用户的中转令牌",
+    );
+    expect(translateMessage("relay.manageOthersPermissionDenied", "en")).toBe(
+      "You do not have permission to manage other users' relay tokens",
+    );
+    expect(relayTokenRepository.findPageWithRelations).not.toHaveBeenCalled();
   });
 
   it("reuses window aggregates across tokens and zero-fills missing usage rows", async () => {

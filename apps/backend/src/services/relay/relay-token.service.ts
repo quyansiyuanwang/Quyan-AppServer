@@ -72,6 +72,7 @@ import { ConfigService } from "@/services/system/config.service";
 import { PermissionService } from "@/services/users/permission.service";
 import { Permission } from "@/constant/permission";
 import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
+import { backendI18n } from "@/locales";
 
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 const trimTrailingZeros = (value: number): string => String(value).replace(/\.0+$|(\.\d*?[1-9])0+$/, "$1");
@@ -162,7 +163,12 @@ export class RelayTokenService {
     if (!normalizedTargetUserId || normalizedTargetUserId === actorUserId) return actorUserId;
 
     const canManageOthers = await this.permissionService.hasPermission(actorUserId, permission);
-    if (!canManageOthers) throw new ForbiddenError("You do not have permission to manage other users' relay tokens");
+    if (!canManageOthers)
+      throw new ForbiddenError(
+        "You do not have permission to manage other users' relay tokens",
+        undefined,
+        backendI18n.errorOptions("relay.manageOthersPermissionDenied"),
+      );
 
     return normalizedTargetUserId;
   }
@@ -173,8 +179,9 @@ export class RelayTokenService {
   }
 
   private async checkCustomKeyPermission(actorUserId: string): Promise<void> {
-    const hasPermission = (await this.permissionService.hasPermission(actorUserId, Permission.RELAY_TOKEN_CUSTOM_KEY))
-      || (await this.permissionService.hasPermission(actorUserId, Permission.RELAY_TOKEN_CUSTOM_KEY_FREE));
+    const hasPermission =
+      (await this.permissionService.hasPermission(actorUserId, Permission.RELAY_TOKEN_CUSTOM_KEY)) ||
+      (await this.permissionService.hasPermission(actorUserId, Permission.RELAY_TOKEN_CUSTOM_KEY_FREE));
     if (!hasPermission)
       throw new ForbiddenError("You do not have permission to use custom relay keys", undefined, {
         messageKey: "relay.customKeyPermissionDenied",
@@ -226,32 +233,29 @@ export class RelayTokenService {
       );
   }
 
-  private async assertCustomKeyCreateRateLimit(userId: string): Promise<void> {
+  private async assertCustomKeySetRateLimit(userId: string): Promise<void> {
     const config = await this.configService.getRelayCustomKeyConfig();
-    const since = new Date(Date.now() - config.createLimitWindowMinutes * 60 * 1000);
-    const createdCount = await this.relayTokenRepo.countCustomKeyTokensCreatedSince(userId, since);
-    const rateLimitCheck = this.rateLimiterService.checkNamedCountWindowRateLimit("relayCustomKeyCreate", {
-      currentCount: createdCount,
-      maxRequests: config.createLimitMaxCount,
-      windowMinutes: config.createLimitWindowMinutes,
+    const key = `relay:custom_key:set_rate_limit:${userId}`;
+    const windowMs = config.createLimitWindowMinutes * 60 * 1000;
+
+    await this.rateLimiterService.assertBackoffRateLimit(key, {
+      windowMs,
+      errorMessage: `自定义Key操作过于频繁，请${config.createLimitWindowMinutes}分钟后再试`,
     });
 
-    if (!rateLimitCheck.allowed)
-      throw new BadRequestError(
-        `Custom token creation limit reached (${config.createLimitMaxCount}/${config.createLimitWindowMinutes}m). Please try again later.`,
-        undefined,
-        {
-          messageKey: "relay.customKeyCreateRateLimitReached",
-          messageParams: {
-            limit: config.createLimitMaxCount,
-            windowMinutes: config.createLimitWindowMinutes,
-          },
-        },
-      );
+    await this.rateLimiterService.markBackoffRateLimitFailure(key, {
+      windowMs,
+      maxAttempts: config.createLimitMaxCount,
+      baseBackoffMs: windowMs,
+    });
   }
 
   async generateToken(actorUserId: string, data: CreateRelayTokenDto, request?: Request): Promise<RelayTokenDto> {
-    const userId = await this.resolveManagedUserId(actorUserId, data.targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const userId = await this.resolveManagedUserId(
+      actorUserId,
+      data.targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
     const normalizedConfig = await this.normalizeChannelConfiguration(data.channelId, data.channelConfigs);
 
     let tokenValue: string;
@@ -261,7 +265,7 @@ export class RelayTokenService {
       await this.checkCustomKeyPermission(actorUserId);
       if (!(await this.canBypassCustomKeyLimits(actorUserId, userId))) {
         await this.assertCustomKeyLimit(userId);
-        await this.assertCustomKeyCreateRateLimit(userId);
+        await this.assertCustomKeySetRateLimit(userId);
       }
       tokenValue = await this.resolveImportedTokenValue(data.token);
       isCustomKey = true;
@@ -339,7 +343,11 @@ export class RelayTokenService {
     actorUserId: string,
     request?: Request,
   ): Promise<ImportRelayTokensResponse> {
-    const userId = await this.resolveManagedUserId(actorUserId, body.targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const userId = await this.resolveManagedUserId(
+      actorUserId,
+      body.targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
     const createdTokens = await this.relayTokenRepo.withTransaction(async (tx) => {
       const reservedNames = await this.getVisibleNameSet(userId);
       const reservedTokens = new Set<string>();
@@ -401,7 +409,12 @@ export class RelayTokenService {
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const token = await this.getAccessibleToken(
+      tokenId,
+      actorUserId,
+      targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
 
     const refreshedTokenValue = this.generateRelayTokenValue();
     await this.relayTokenRepo.update(tokenId, {
@@ -475,7 +488,12 @@ export class RelayTokenService {
   }
 
   async revokeToken(tokenId: string, actorUserId: string, request?: Request, targetUserId?: string): Promise<void> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const token = await this.getAccessibleToken(
+      tokenId,
+      actorUserId,
+      targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
 
     await this.relayTokenRepo.delete(tokenId);
 
@@ -499,7 +517,12 @@ export class RelayTokenService {
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const token = await this.getAccessibleToken(
+      tokenId,
+      actorUserId,
+      targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
 
     const channelIds = token.channelConfigs.map((config) => config.channelId);
     if (!channelIds.includes(data.channelId)) {
@@ -550,7 +573,12 @@ export class RelayTokenService {
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const token = await this.getAccessibleToken(
+      tokenId,
+      actorUserId,
+      targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
 
     const normalizedConfig = await this.normalizeChannelConfiguration(
       data.channelId ?? token.channelId ?? undefined,
@@ -569,8 +597,10 @@ export class RelayTokenService {
 
     if (hasToken && data.token) {
       await this.checkCustomKeyPermission(actorUserId);
-      if (!token.isCustomKey && !(await this.canBypassCustomKeyLimits(actorUserId, token.userId)))
-        await this.assertCustomKeyLimit(token.userId);
+      if (!(await this.canBypassCustomKeyLimits(actorUserId, token.userId))) {
+        if (!token.isCustomKey) await this.assertCustomKeyLimit(token.userId);
+        await this.assertCustomKeySetRateLimit(token.userId);
+      }
       tokenValue = await this.resolveImportedTokenValue(data.token);
       isCustomKey = true;
     }
@@ -614,8 +644,17 @@ export class RelayTokenService {
     actorUserId: string,
     request?: Request,
   ): Promise<RelayTokenDto> {
-    const sourceToken = await this.getAccessibleToken(tokenId, actorUserId, data.targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
-    const managedUserId = await this.resolveManagedUserId(actorUserId, data.targetUserId ?? sourceToken.userId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const sourceToken = await this.getAccessibleToken(
+      tokenId,
+      actorUserId,
+      data.targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
+    const managedUserId = await this.resolveManagedUserId(
+      actorUserId,
+      data.targetUserId ?? sourceToken.userId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
 
     const reservedNames = await this.getVisibleNameSet(managedUserId);
     const duplicatedName = data.name?.trim() || this.buildDuplicatedTokenName(sourceToken.name, reservedNames);
@@ -660,8 +699,18 @@ export class RelayTokenService {
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto[]> {
-    const managedUserId = await this.resolveManagedUserId(actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
-    const sourceTokens = await this.getOrderedTokensByIds(actorUserId, ids, true, managedUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const managedUserId = await this.resolveManagedUserId(
+      actorUserId,
+      targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
+    const sourceTokens = await this.getOrderedTokensByIds(
+      actorUserId,
+      ids,
+      true,
+      managedUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
     const duplicatedTokens = await this.relayTokenRepo.withTransaction(async (tx) => {
       const reservedNames = await this.getVisibleNameSet(managedUserId);
       const reservedTokens = new Set<string>();
@@ -711,7 +760,12 @@ export class RelayTokenService {
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const token = await this.getAccessibleToken(
+      tokenId,
+      actorUserId,
+      targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
 
     const newStatus = token.status === MANAGED_STATUS.ENABLED ? MANAGED_STATUS.DISABLED : MANAGED_STATUS.ENABLED;
     await this.relayTokenRepo.updateStatus(tokenId, newStatus);
@@ -741,7 +795,11 @@ export class RelayTokenService {
     actorUserId: string,
     request?: Request,
   ): Promise<BatchRelayTokensResultDto> {
-    const userId = await this.resolveManagedUserId(actorUserId, body.targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const userId = await this.resolveManagedUserId(
+      actorUserId,
+      body.targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
     await this.getOrderedTokensByIds(actorUserId, body.ids, true, userId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
     const status = body.enabled ? MANAGED_STATUS.ENABLED : MANAGED_STATUS.DISABLED;
     const affected = await this.relayTokenRepo.updateStatusByIdsForScope(body.ids, status, userId);
@@ -772,7 +830,11 @@ export class RelayTokenService {
     actorUserId: string,
     request?: Request,
   ): Promise<BatchRelayTokensResultDto> {
-    const userId = await this.resolveManagedUserId(actorUserId, body.targetUserId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const userId = await this.resolveManagedUserId(
+      actorUserId,
+      body.targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
     await this.getOrderedTokensByIds(actorUserId, body.ids, true, userId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
     const affected = await this.relayTokenRepo.deleteByIdsForScope(body.ids, userId);
 
@@ -1489,7 +1551,10 @@ export class RelayTokenService {
     const hasCustomToken = Boolean(data.token?.trim());
     if (hasCustomToken) {
       await this.checkCustomKeyPermission(actorUserId);
-      if (!(await this.canBypassCustomKeyLimits(actorUserId, userId))) await this.assertCustomKeyLimit(userId);
+      if (!(await this.canBypassCustomKeyLimits(actorUserId, userId))) {
+        await this.assertCustomKeyLimit(userId);
+        await this.assertCustomKeySetRateLimit(userId);
+      }
     }
 
     const tokenValue = await this.resolveImportedTokenValue(data.token, reservedTokens);

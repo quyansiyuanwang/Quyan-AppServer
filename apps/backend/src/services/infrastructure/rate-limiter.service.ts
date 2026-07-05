@@ -42,7 +42,7 @@ export type RedisWindowRateLimitPolicyName =
 
 export type CountWindowRateLimitPolicyName = "relayCustomKeyCreate";
 
-export type BackoffRateLimitPolicyName = "twoFactorAttempt";
+export type BackoffRateLimitPolicyName = "twoFactorAttempt" | "relayCustomKeySet";
 
 export type EmailActionRateLimitPolicyName = "emailVerification" | "passwordResetCode";
 
@@ -59,6 +59,7 @@ type CountWindowRateLimitPolicyContextMap = {
 
 type BackoffRateLimitPolicyContextMap = {
   twoFactorAttempt: { identifier: string };
+  relayCustomKeySet: { userId: string };
 };
 
 type EmailActionRateLimitPolicyContextMap = {
@@ -612,6 +613,16 @@ export class RateLimiterService {
           maxAttempts: 5,
           baseBackoffMs: 1000,
           errorMessage: "请求过于频繁，请稍后再试",
+        };
+      }
+      case "relayCustomKeySet": {
+        const { userId } = context as BackoffRateLimitPolicyContextMap["relayCustomKeySet"];
+        return {
+          key: `relay:custom_key:set_rate_limit:${userId}`,
+          windowMs: 10 * 60 * 1000,
+          maxAttempts: 5,
+          baseBackoffMs: 1000,
+          errorMessage: "自定义Key操作过于频繁，请稍后再试",
         };
       }
     }
