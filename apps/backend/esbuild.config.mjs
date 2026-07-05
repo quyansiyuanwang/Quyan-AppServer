@@ -1,8 +1,15 @@
 import esbuild from "esbuild";
 import { copy } from "esbuild-plugin-copy";
+import { createRequire } from "module";
+import path from "path";
+
+const require = createRequire(import.meta.url);
 
 // 是否为生产环境构建
 const isProduction = process.env.NODE_ENV === "production";
+
+// 使用 Node 模块解析找到 swagger-ui-dist（兼容 pnpm hoisting）
+const swaggerUiDistDir = path.dirname(require.resolve("swagger-ui-dist"));
 
 await esbuild.build({
   entryPoints: ["./src/main.ts"],
@@ -48,7 +55,7 @@ await esbuild.build({
         // docs 目录
         { from: ["./docs/**/**"], to: ["./dist/docs"] },
         { from: ["./src/build/swagger.json"], to: ["./dist/build"] },
-        { from: ["./node_modules/swagger-ui-dist/**/*"], to: ["./dist/public/vendor/swagger-ui"] },
+        { from: [path.join(swaggerUiDistDir, "**/*")], to: ["./dist/public/vendor/swagger-ui"] },
         { from: ["./public/**/*"], to: ["./dist/public"] },
       ],
       verbose: false, // 禁用复制文件的详细输出
