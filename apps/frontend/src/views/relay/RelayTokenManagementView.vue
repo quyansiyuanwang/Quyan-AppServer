@@ -493,7 +493,7 @@
                       :placeholder="i18ns.t('relay.tokenNamePlaceholder')"
                     />
                   </el-form-item>
-                  <PermissionWrapper :require="[Permission.RELAY_TOKEN_CUSTOM_KEY]">
+                  <PermissionWrapper :any-require="[Permission.RELAY_TOKEN_CUSTOM_KEY, Permission.RELAY_TOKEN_CUSTOM_KEY_FREE]">
                     <el-form-item>
                       <template #label>
                         <span class="form-label-with-help">
@@ -1544,7 +1544,7 @@
                       :placeholder="i18ns.t('relay.tokenNamePlaceholder')"
                     />
                   </el-form-item>
-                  <PermissionWrapper :require="[Permission.RELAY_TOKEN_CUSTOM_KEY]">
+                  <PermissionWrapper :any-require="[Permission.RELAY_TOKEN_CUSTOM_KEY, Permission.RELAY_TOKEN_CUSTOM_KEY_FREE]">
                     <el-form-item>
                       <template #label>
                         <span class="form-label-with-help">

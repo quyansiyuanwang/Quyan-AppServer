@@ -450,8 +450,16 @@ export const PERMISSION_META: PermissionMetaMap = {
   [Permission.RELAY_TOKEN_CUSTOM_KEY]: {
     label: '自定义中转令牌',
     labelEn: 'Custom Relay Token Key',
-    tooltip: '允许创建和更新时自定义令牌值',
-    tooltipEn: 'Allows setting custom token values when creating or updating',
+    tooltip: '允许创建和更新时自定义令牌值（受速率限制）',
+    tooltipEn: 'Allows setting custom token values when creating or updating (subject to rate limits)',
+    category: 'relay',
+  },
+
+  [Permission.RELAY_TOKEN_CUSTOM_KEY_FREE]: {
+    label: '不受限自定义中转令牌',
+    labelEn: 'Unlimited Custom Relay Token Key',
+    tooltip: '允许不受限制地自定义令牌值（不受速率限制）',
+    tooltipEn: 'Allows setting custom token values without any rate limits',
     category: 'relay',
   },
 

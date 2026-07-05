@@ -169,11 +169,12 @@ export class RelayTokenService {
 
   private async canBypassCustomKeyLimits(actorUserId: string, ownerUserId: string): Promise<boolean> {
     if (actorUserId !== ownerUserId) return true;
-    return this.permissionService.hasPermission(actorUserId, Permission.RELAY_TOKEN_CUSTOM_KEY);
+    return this.permissionService.hasPermission(actorUserId, Permission.RELAY_TOKEN_CUSTOM_KEY_FREE);
   }
 
   private async checkCustomKeyPermission(actorUserId: string): Promise<void> {
-    const hasPermission = await this.permissionService.hasPermission(actorUserId, Permission.RELAY_TOKEN_CUSTOM_KEY);
+    const hasPermission = (await this.permissionService.hasPermission(actorUserId, Permission.RELAY_TOKEN_CUSTOM_KEY))
+      || (await this.permissionService.hasPermission(actorUserId, Permission.RELAY_TOKEN_CUSTOM_KEY_FREE));
     if (!hasPermission)
       throw new ForbiddenError("You do not have permission to use custom relay keys", undefined, {
         messageKey: "relay.customKeyPermissionDenied",
@@ -257,6 +258,7 @@ export class RelayTokenService {
     let isCustomKey = false;
 
     if (data.token) {
+      await this.checkCustomKeyPermission(actorUserId);
       if (!(await this.canBypassCustomKeyLimits(actorUserId, userId))) {
         await this.assertCustomKeyLimit(userId);
         await this.assertCustomKeyCreateRateLimit(userId);
