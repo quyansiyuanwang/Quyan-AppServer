@@ -1,8 +1,6 @@
-# CLAUDE.md — AppServerMonorepo
+# AGENTS.md — AppServerMonorepo
 
-此文件为 Claude Code 提供在 monorepo 中工作的指引。
-
-> **AI 代理通用指引**：另见 [AGENTS.md](./AGENTS.md)，适用于 Codex 等其他 AI 编码代理。
+此文件为 AI 编程代理（Codex、Claude Code 等）提供在 monorepo 中工作的指引。
 
 ## Monorepo 结构
 
@@ -11,19 +9,19 @@ AppServerMonorepo/
 ├── apps/
 │   ├── backend/           # @appserver/backend    Express + Prisma + TSOA (port 10001)
 │   ├── frontend/          # @appserver/frontend   Vue 3 + Element Plus + Vite (port 5173)
-│   └── docs-site/         # @appserver/docs-site  Vue 3 文档站点 (VitePress 风格)
+│   └── docs-site/         # @appserver/docs-site  Vue 3 文档站点
 ├── packages/
 │   ├── shared/            # @appserver/shared     前后端共享类型与常量（权限、错误码等）
-│   ├── config-typescript/ # 共享 TypeScript 配置 (tsconfig.base.json)
-│   ├── config-prettier/   # 共享 Prettier 配置 (.prettierrc.json)
-│   └── utils/             # 共享工具函数 (src/index.ts)
-├── scripts/               # 仓库级脚本
+│   ├── config-typescript/ # 共享 TypeScript 配置
+│   ├── config-prettier/   # 共享 Prettier 配置
+│   └── utils/             # 共享工具函数
+├── scripts/               # 仓库级编排脚本
+├── docs/development/      # 详细开发文档
 ├── package.json           # 根编排脚本
 ├── pnpm-workspace.yaml    # Workspace 配置
-└── CLAUDE.md
+├── CLAUDE.md
+└── AGENTS.md
 ```
-
-所有工作都在 `apps/*` 子目录中完成。
 
 ## 常用命令
 
@@ -50,9 +48,9 @@ pnpm run type-check              # 所有项目类型检查
 ```bash
 pnpm --filter @appserver/backend dev        # 后端 dev
 pnpm --filter @appserver/backend test       # 后端测试
-pnpm --filter @appserver/backend build      # 后端构建
 pnpm --filter @appserver/backend test:unit  # 后端单元测试
 pnpm --filter @appserver/backend test:api   # 后端集成+契约测试
+pnpm --filter @appserver/backend build      # 后端构建
 pnpm --filter @appserver/frontend dev       # 前端 dev
 pnpm --filter @appserver/frontend build     # 前端构建
 pnpm --filter @appserver/docs-site dev      # 文档站点 dev
@@ -60,24 +58,22 @@ pnpm --filter @appserver/docs-site dev      # 文档站点 dev
 
 ## 共享包 `@appserver/shared`
 
-前后端共享的类型与常量，是权限、错误码等定义的**唯一规范数据源**（single source of truth）。位于 `packages/shared/src/`：
+前后端共享的类型与常量，是权限、错误码等定义的**唯一规范数据源**。位于 `packages/shared/src/`：
 
 | 模块 | 用途 |
 |------|------|
-| `permission.ts` | `Permission` 枚举（`resource:action` 格式）+ `ALL_PERMISSIONS` + `getPermissionCategory()` |
-| `custom-code.ts` | `CustomCode` 业务错误码枚举 |
-| `status.ts` | `ManagedStatus`、`HeartbeatStatus` 类型 |
-| `feedback.ts` | 反馈类型/状态/优先级/评论可见性常量 |
+| `permission.ts` | `Permission` 枚举（130+ 个，`resource:action` 格式） |
+| `custom-code.ts` | `CustomCode` 业务错误码枚举（30+ 个） |
+| `status.ts` | `ManagedStatus`、`HeartbeatStatus` |
+| `feedback.ts` | 反馈类型/状态/优先级常量 |
 | `legal-policy.ts` | 法律协议类型与发布状态 |
 | `relay-channel.ts` | 中转渠道状态 |
-| `client-fingerprint.ts` | 客户端指纹规范化函数 |
-| `notification-event.ts` | 通知事件枚举 |
+| `client-fingerprint.ts` | 客户端指纹规范化 |
+| `notification-event.ts` | 通知事件枚举（25 个） |
 
-前后端通过 `"@appserver/shared": "workspace:*"` 依赖引用。修改共享包后前后端自动生效（无需重新构建包）。
+前后端通过 `"@appserver/shared": "workspace:*"` 依赖引用。**修改共享包后前后端自动生效。**
 
 ## OpenAPI 生成流水线
-
-完整流水线由三个步骤组成：
 
 ```
 1. backend: tsoa spec-and-routes → swagger.json + routes.ts
@@ -86,45 +82,52 @@ pnpm --filter @appserver/docs-site dev      # 文档站点 dev
    └─ generate-api-constants.js + generate-api-types-map.js + generate-replay-protected-endpoints.js
 ```
 
-对应命令：
 ```bash
-pnpm run openapi:gen              # 仅后端生成 swagger.json + routes.ts
-pnpm run openapi:sync             # 同步 swagger.json 到前端 + 生成前端客户端
-pnpm run openapi:gen:all          # 完整流水线（上述两步）
+pnpm run openapi:gen              # 仅后端生成
+pnpm run openapi:sync             # 同步 + 前端客户端生成
+pnpm run openapi:gen:all          # 完整流水线
 ```
 
-**注意**：修改后端 controllers 或 DTOs 后，必须运行 `pnpm run openapi:gen:all` 才能让前端获取到最新的 API 类型。
+**修改后端 Controller/DTO 后必须运行 `pnpm run openapi:gen:all`。**
 
-## 仓库级脚本
+## 关键架构规则
 
-| 脚本 | 用途 |
-|------|------|
-| `scripts/sync-swagger-to-frontend.mjs` | 将后端 `swagger.json` 复制到前端 `src/client/` |
-| `scripts/validate-frontend-permissions.mjs` | 校验前端权限常量与后端 `@appserver/shared` 一致 |
+### 后端
+- **TSOA code-first**: 所有路由由 Controller 装饰器自动生成，无手动路由文件
+- **3-Layer**: Controller (HTTP) → Service (业务逻辑) → Repository (Prisma)
+- **单例模式**: 所有 Service 和 Repository 使用 `getInstance()`
+- **中间件链顺序**: `app.ts` 中严格有序，`responseWrapperMiddleware` 必须在 `RegisterRoutes` 之前
+- **响应格式**: `{ code: number, message: string, data?: T }`
+- **路径别名**: `@src/*` → `src/*`
 
-## 共享配置包
+### 前端
+- **`src/client/` 禁止手动编辑**（自动生成，被 ESLint 忽略）
+- **Service 层**: 单例模式，封装 generated client 调用
+- **Store 层**: Pinia stores 管理状态（request, permission, userInfo, chat 等）
+- **事件总线**: 6 个 EventBus 实例（auth, web, customCode, i18n, window, global）
+- **路径别名**: `@` → `./src`
 
-### TypeScript 配置
-各项目在 `tsconfig.json` 中引用：
-```json
-{
-  "extends": "@appserver/config-typescript/tsconfig.base.json"
-}
-```
+### 数据库
+- MySQL + Prisma ORM
+- 68 个模型，CUID 主键
+- 所有模型有 `status` 字段（1=正常, 0=禁用, -1=删除）
+- 所有模型有 `createTime`、`updateTime` 时间戳
 
-### ESLint 配置
-```ts
-import appserverConfig from '@appserver/config-eslint';
-export default [...appserverConfig, { /* 项目特有规则 */ }];
-```
+### 认证
+- JWT (access + refresh token)，token 载荷含 `userId` + `updatedAt`
+- RBAC: `最终权限 = 组权限 + 附加权限 - 移除权限`
+- 支持 OAuth 2.0、RAM 子账户、2FA (TOTP + Passkey)、重放保护
 
-## 架构
+## 重要注意事项
 
-详见各项目内的 CLAUDE.md：
-- `apps/backend/CLAUDE.md` — 后端架构 (TSOA 3层模式、权限系统、认证、中间件链、测试)
-- `apps/frontend/CLAUDE.md` — 前端架构 (Vue 3、Pinia、API 客户端、事件总线、i18n)
+- 测试顺序执行（不并行），避免数据库冲突
+- JWT access token 开发环境有效期极短（5 秒），生产环境建议 900 秒
+- 安全密钥（`REPLAY_SIGNING_MASTER_SECRET`、`TWO_FACTOR_TRUSTED_DEVICE_SECRET`）需 ≥64 字符且与 JWT 密钥不同
+- 后端 dev 模式自动运行 `openapi:generate`（nodemon 触发）
+- esbuild 编译后端到 `dist/index.cjs` (CommonJS)，Prisma/Sharp 标记为 external
+- PM2 cluster 模式运行，`ecosystem.config.cjs` 配置
 
-## 详细开发文档
+## 详细文档
 
 完整开发文档位于 `docs/development/`：
 
@@ -141,14 +144,11 @@ export default [...appserverConfig, { /* 项目特有规则 */ }];
 | [08-openapi-pipeline.md](./docs/development/08-openapi-pipeline.md) | OpenAPI：TSOA→swagger.json→前端 typed SDK |
 | [09-deployment.md](./docs/development/09-deployment.md) | 部署：esbuild/Rolldown 构建、PM2、环境变量 |
 
+各项目的 CLAUDE.md/AGENTS.md 位于：
+- `apps/backend/CLAUDE.md` — 后端详细架构
+- `apps/frontend/CLAUDE.md` / `apps/frontend/AGENTS.md` — 前端详细架构
+
 ## 环境要求
 
 - **Node.js**: `^20.19.0 || >=22.12.0`
 - **包管理器**: `pnpm@10.33.0`
-
-## 原项目目录
-
-原始项目保留在 `D:\Developments\AppServer\` 根目录作为回退：
-- `NodeBackend/`、`Frontend/`、`DocsSite/`
-
-新开发请使用 `AppServerMonorepo/` 目录。
