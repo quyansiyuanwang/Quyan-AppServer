@@ -14,6 +14,8 @@ const orderedModulePaths = [
   './notification-settings.doc.ts',
   './balance-history.doc.ts',
   './my-monthly-passes.doc.ts',
+  './my-feedback.doc.ts',
+  './my-remote-terminal-products.doc.ts',
 ] as const
 
 export const registerAccountDocs = (registry: DocsRegistryBuilder) => {
