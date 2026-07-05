@@ -11,6 +11,14 @@ function resolveRuntimePath(...candidatePaths: string[]): string {
   return path.join(EnvSpace.cwd, candidatePaths[0] || "");
 }
 
+function resolveSwaggerUiDistPath(): string {
+  try {
+    return path.dirname(require.resolve("swagger-ui-dist"));
+  } catch {
+    return "";
+  }
+}
+
 export const SWAGGER_PATH = resolveRuntimePath("dist/build/swagger.json", "src/build/swagger.json");
 export const SWAGGER_CUSTOM_HTML_PATH = resolveRuntimePath(
   "dist/public/assets/swagger.html",
@@ -24,4 +32,5 @@ export const SWAGGER_UI_DIST_PATH = resolveRuntimePath(
   "dist/public/vendor/swagger-ui",
   "public/vendor/swagger-ui",
   "node_modules/swagger-ui-dist",
+  resolveSwaggerUiDistPath(),
 );
