@@ -1,3 +1,5 @@
+import type { Permission } from "@/constant/permission";
+
 export interface RamUserDto {
   id: string;
   username: string;
@@ -122,7 +124,7 @@ export interface RamPolicyDto {
   accountOwnerId: string;
   name: string;
   description?: string;
-  permissions: string[];
+  permissions: Permission[];
   type: string;
   status: number;
   createTime: string;
@@ -132,12 +134,12 @@ export interface RamPolicyDto {
 export interface CreateRamPolicyDto {
   name: string;
   description?: string;
-  permissions: string[];
+  permissions: Permission[];
 }
 
 export interface UpdateRamPolicyDto {
   description?: string;
-  permissions?: string[];
+  permissions?: Permission[];
   status?: number;
 }
 

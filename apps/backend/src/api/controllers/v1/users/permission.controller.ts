@@ -29,7 +29,6 @@ import { UserService } from "@/services/users/user.service";
 import { GroupRepository } from "@/store/users/group.repository";
 import type { ValidationErrorResponse, BaseResponse } from "@/api/dto/common/common.dto";
 import { ForbiddenError, NotFoundError } from "@/util/errors";
-import { getLogger, LogCategory } from "@/util/logger";
 import { RequirePermission, RequireAllPermissions } from "@/util/permission/permission-decorator";
 import { CustomCode } from "@/constant/custom-code";
 import type { TypedRequest } from "@/types/express";
@@ -45,8 +44,7 @@ import {
 import { validateBody, validateParams } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
-
-const logger = getLogger("PermissionController", LogCategory.BUSINESS);
+import { setResponseMessageKey } from "@/util/response-wrapper";
 
 /**
  * 权限管理相关接口
@@ -111,10 +109,10 @@ export class PermissionController extends Controller {
     const isSelf = currentUserId === tarUserId;
 
     if (!isSelf && !(await permissionService.hasPermission(currentUserId!, Permission.PERMISSION_VIEW)))
-      throw new NotFoundError("用户不存在");
+      throw new NotFoundError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
 
     const permissions = await permissionService.getUserFullPermissions(tarUserId);
-    if (!permissions) throw new NotFoundError("用户不存在");
+    if (!permissions) throw new NotFoundError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
 
     return permissions;
   }
@@ -147,6 +145,7 @@ export class PermissionController extends Controller {
   ): Promise<BaseResponse> {
     const currentUserId = request.user!.userId;
     await permissionService.setUserPermissionConfig(currentUserId, userId, body, request);
+    setResponseMessageKey(request, "permission.userConfigUpdated");
 
     return {
       code: CustomCode.OK,
@@ -182,6 +181,7 @@ export class PermissionController extends Controller {
   ): Promise<BaseResponse> {
     const currentUserId = request.user!.userId;
     await permissionService.addUserPermissions(currentUserId, userId, body.permissions, request);
+    setResponseMessageKey(request, "permission.userPermissionsAdded");
 
     return {
       code: CustomCode.OK,
@@ -217,6 +217,7 @@ export class PermissionController extends Controller {
   ): Promise<BaseResponse> {
     const currentUserId = request.user!.userId;
     await permissionService.removeUserPermissions(currentUserId, userId, body.permissions, request);
+    setResponseMessageKey(request, "permission.userPermissionsRemoved");
 
     return {
       code: CustomCode.OK,
@@ -245,6 +246,7 @@ export class PermissionController extends Controller {
   public async clearUserPermissions(@Request() request: TypedRequest, @Path() userId: string): Promise<BaseResponse> {
     const currentUserId = request.user!.userId;
     await permissionService.clearUserPermissionConfig(currentUserId, userId, request);
+    setResponseMessageKey(request, "permission.userConfigCleared");
 
     return {
       code: CustomCode.OK,
@@ -271,7 +273,8 @@ export class PermissionController extends Controller {
     const currentUserId = request.user!.userId;
     if (body.userId !== currentUserId) {
       const hasView = await permissionService.hasPermission(currentUserId, Permission.PERMISSION_VIEW);
-      if (!hasView) throw new ForbiddenError("权限不足");
+      if (!hasView)
+        throw new ForbiddenError("权限不足", undefined, { messageKey: "permission.insufficientPermission" });
     }
     return await permissionService.checkUserPermissions(body.userId, body.permissions);
   }
@@ -332,23 +335,30 @@ export class PermissionController extends Controller {
     const diffs = diff(currentPerm, body.permissions);
 
     if (diffs.added.length !== 0 && !hasAddPerm)
-      throw new ForbiddenError("权限不足，无法添加权限", CustomCode.PERMISSION_DENIED);
+      throw new ForbiddenError("权限不足，无法添加权限", CustomCode.PERMISSION_DENIED, {
+        messageKey: "permission.insufficientAddPermission",
+      });
     if (diffs.removed.length !== 0 && !hasRemovePerm)
-      throw new ForbiddenError("权限不足，无法移除权限", CustomCode.PERMISSION_DENIED);
+      throw new ForbiddenError("权限不足，无法移除权限", CustomCode.PERMISSION_DENIED, {
+        messageKey: "permission.insufficientRemovePermission",
+      });
 
     // 层级检查：非管理员不能修改同级或更高级别组的权限
     const userService = new UserService();
     const groupRepo = GroupRepository.getInstance();
     const targetGroup = await groupRepo.findById(groupId);
-    if (!targetGroup) throw new NotFoundError("用户组不存在");
+    if (!targetGroup) throw new NotFoundError("用户组不存在", undefined, { messageKey: "permission.groupNotFound" });
     const isAdmin = await userService.isAdmin(currentUserId);
     if (!isAdmin) {
       const actorLevel = await userService.getUserGroupLevel(currentUserId);
       if (actorLevel != null && targetGroup.level <= actorLevel)
-        throw new ForbiddenError("不能修改同级或更高级别组的权限");
+        throw new ForbiddenError("不能修改同级或更高级别组的权限", undefined, {
+          messageKey: "permission.cannotModifyPeerGroup",
+        });
     }
 
     await permissionService.setGroupPermissions(groupId, body.permissions, currentUserId, request);
+    setResponseMessageKey(request, "permission.groupPermissionsUpdated");
 
     return {
       code: CustomCode.OK,

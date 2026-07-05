@@ -58,7 +58,33 @@ export class PermissionService {
    */
   validatePermissions(permissions: string[]): void {
     const invalidPermissions = permissions.filter((p) => !isValidPermission(p));
-    if (invalidPermissions.length > 0) throw new BadRequestError(`无效的权限: ${invalidPermissions.join(", ")}`);
+    if (invalidPermissions.length > 0)
+      throw new BadRequestError(`无效的权限: ${invalidPermissions.join(", ")}`, undefined, {
+        messageKey: "permission.invalidPermissions",
+        messageParams: { permissions: invalidPermissions.join(", ") },
+      });
+  }
+
+  /**
+   * 验证操作者只能授予自己已拥有的权限
+   * @param operatorUserId 操作者用户ID
+   * @param permissions 计划授予/保留的权限列表
+   * @throws ForbiddenError 如果包含操作者没有的权限
+   */
+  async assertCanGrantPermissions(operatorUserId: string, permissions: Permission[]): Promise<void> {
+    this.validatePermissions(permissions);
+
+    const operatorPermissions = await this.getUserFullPermissions(operatorUserId);
+    if (!operatorPermissions)
+      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+
+    const grantablePermissions = new Set(operatorPermissions.effectivePermissions);
+    const forbiddenPermissions = permissions.filter((permission) => !grantablePermissions.has(permission));
+    if (forbiddenPermissions.length > 0)
+      throw new ForbiddenError(`不能授予自己未拥有的权限: ${forbiddenPermissions.join(", ")}`, undefined, {
+        messageKey: "permission.cannotGrantUnownedPermissions",
+        messageParams: { permissions: forbiddenPermissions.join(", ") },
+      });
   }
 
   /**
@@ -277,7 +303,8 @@ export class PermissionService {
    */
   async canModifyUserPermissions(operatorUserId: string, targetUserId: string): Promise<void> {
     // 检查是否修改自己的权限
-    if (operatorUserId === targetUserId) throw new ForbiddenError("不允许修改自己的权限");
+    if (operatorUserId === targetUserId)
+      throw new ForbiddenError("不允许修改自己的权限", undefined, { messageKey: "permission.cannotModifySelf" });
 
     // 获取操作者和目标用户的信息
     const [operator, target] = await Promise.all([
@@ -285,12 +312,16 @@ export class PermissionService {
       this.userRepository.findByIdWithGroup(targetUserId),
     ]);
 
-    if (!operator) throw new BadRequestError("操作者用户不存在");
-    if (!target) throw new BadRequestError("目标用户不存在");
+    if (!operator)
+      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    if (!target)
+      throw new BadRequestError("目标用户不存在", undefined, { messageKey: "permission.targetUserNotFound" });
 
     // 检查组等级：level越高权限越低，不能修改level小于或等于自己的用户（权限大于或等于自己）
     if ((target.group?.level ?? Infinity) <= (operator.group?.level ?? -1))
-      throw new ForbiddenError("无权修改等级大于或等于自己的用户的权限");
+      throw new ForbiddenError("无权修改等级大于或等于自己的用户的权限", undefined, {
+        messageKey: "permission.cannotModifyPeer",
+      });
   }
 
   /**
@@ -307,6 +338,7 @@ export class PermissionService {
     request?: Request,
   ): Promise<void> {
     this.validatePermissions(permissions);
+    await this.assertCanGrantPermissions(operatorUserId, permissions);
 
     // 安全检查：检查是否可以修改目标用户的权限
     await this.canModifyUserPermissions(operatorUserId, userId);
@@ -316,8 +348,9 @@ export class PermissionService {
       this.userRepository.findById(operatorUserId),
     ]);
 
-    if (!user) throw new BadRequestError("用户不存在");
-    if (!operator) throw new BadRequestError("操作者用户不存在");
+    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
+    if (!operator)
+      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
 
     const currentAdds = this.parsePermissionJson(user.permissionAdds);
     const updatedAdds = Array.from(new Set([...currentAdds, ...permissions]));
@@ -368,8 +401,9 @@ export class PermissionService {
       this.userRepository.findById(operatorUserId),
     ]);
 
-    if (!user) throw new BadRequestError("用户不存在");
-    if (!operator) throw new BadRequestError("操作者用户不存在");
+    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
+    if (!operator)
+      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
 
     const currentRemoves = this.parsePermissionJson(user.permissionRemoves);
     const updatedRemoves = Array.from(new Set([...currentRemoves, ...permissions]));
@@ -418,33 +452,39 @@ export class PermissionService {
       this.userRepository.findById(operatorUserId),
     ]);
 
-    if (!user) throw new BadRequestError("用户不存在");
-    if (!operator) throw new BadRequestError("操作者用户不存在");
+    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
+    if (!operator)
+      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
 
     const beforeAdds = this.parsePermissionJson(user.permissionAdds);
     const beforeRemoves = this.parsePermissionJson(user.permissionRemoves);
 
     const updateData: any = {};
+    const hasPermissionAdds = Object.prototype.hasOwnProperty.call(config, "permissionAdds");
+    const hasPermissionRemoves = Object.prototype.hasOwnProperty.call(config, "permissionRemoves");
 
-    if (config.permissionAdds) {
-      this.validatePermissions(config.permissionAdds);
-      updateData.permissionAdds = Array.from(new Set(config.permissionAdds));
+    if (hasPermissionAdds) {
+      const permissionAdds = config.permissionAdds ?? [];
+      this.validatePermissions(permissionAdds);
+      await this.assertCanGrantPermissions(operatorUserId, permissionAdds);
+      updateData.permissionAdds = Array.from(new Set(permissionAdds));
     }
 
-    if (config.permissionRemoves) {
-      this.validatePermissions(config.permissionRemoves);
-      updateData.permissionRemoves = Array.from(new Set(config.permissionRemoves));
+    if (hasPermissionRemoves) {
+      const permissionRemoves = config.permissionRemoves ?? [];
+      this.validatePermissions(permissionRemoves);
+      updateData.permissionRemoves = Array.from(new Set(permissionRemoves));
     }
 
     await this.userRepository.updateById(userId, updateData);
 
     // 记录业务日志
     const changes: any = { before: {}, after: {} };
-    if (config.permissionAdds) {
+    if (hasPermissionAdds) {
       changes.before.permissionAdds = beforeAdds;
       changes.after.permissionAdds = updateData.permissionAdds;
     }
-    if (config.permissionRemoves) {
+    if (hasPermissionRemoves) {
       changes.before.permissionRemoves = beforeRemoves;
       changes.after.permissionRemoves = updateData.permissionRemoves;
     }
@@ -479,8 +519,9 @@ export class PermissionService {
       this.userRepository.findById(operatorUserId),
     ]);
 
-    if (!user) throw new BadRequestError("用户不存在");
-    if (!operator) throw new BadRequestError("操作者用户不存在");
+    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
+    if (!operator)
+      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
 
     const beforeAdds = this.parsePermissionJson(user.permissionAdds);
     const beforeRemoves = this.parsePermissionJson(user.permissionRemoves);
@@ -536,9 +577,10 @@ export class PermissionService {
     request?: Request,
   ): Promise<void> {
     this.validatePermissions(permissions);
+    if (operatorUserId) await this.assertCanGrantPermissions(operatorUserId, permissions);
 
     const group = await this.groupRepository.findById(groupId);
-    if (!group) throw new BadRequestError("用户组不存在");
+    if (!group) throw new BadRequestError("用户组不存在", undefined, { messageKey: "permission.groupNotFound" });
 
     const beforePermissions = this.parsePermissionJson(group.permissions);
     const afterPermissions = Array.from(new Set(permissions));

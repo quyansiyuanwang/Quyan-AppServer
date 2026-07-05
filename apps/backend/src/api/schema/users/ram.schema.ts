@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { ALL_PERMISSIONS } from "@/constant/permission";
 import { AccountStatus } from "@/util/auth/account-status";
 
 const usernameRegex = /^[a-zA-Z0-9_]+$/;
 const roleNameRegex = /^[a-zA-Z0-9+=,.@_-]+$/;
+const permissionSchema = z.enum(ALL_PERMISSIONS as [string, ...string[]]);
 
 export const ramUserIdParamsSchema = z.object({
   userId: z.string().trim().min(1),
@@ -74,12 +76,12 @@ export const assumeRamRoleBodySchema = z.object({
 export const createRamPolicyBodySchema = z.object({
   name: z.string().trim().min(2).max(128),
   description: z.string().trim().max(500).optional(),
-  permissions: z.array(z.string().trim().min(1)).max(500),
+  permissions: z.array(permissionSchema).max(500),
 });
 
 export const updateRamPolicyBodySchema = z.object({
   description: z.string().trim().max(500).optional(),
-  permissions: z.array(z.string().trim().min(1)).max(500).optional(),
+  permissions: z.array(permissionSchema).max(500).optional(),
   status: z.coerce.number().int().min(0).max(1).optional(),
 });
 

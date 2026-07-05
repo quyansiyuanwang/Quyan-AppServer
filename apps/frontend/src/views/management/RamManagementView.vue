@@ -691,11 +691,11 @@
         <el-form-item :label="i18ns.t('RamManagement.permissions')" prop="permissions">
           <div class="permission-tree-container">
             <el-tree
+              v-if="grantablePermissions.size > 0"
               ref="policyPermTreeRef"
               :data="permissionTree"
               show-checkbox
               node-key="value"
-              :default-checked-keys="policyForm.permissions"
               @check="onPolicyTreeCheck"
             >
               <template #default="{ data }">
@@ -711,6 +711,7 @@
                 <span v-else>{{ data.label }}</span>
               </template>
             </el-tree>
+            <el-empty v-else :description="i18ns.t('RamManagement.noGrantablePermissions')" />
           </div>
         </el-form-item>
       </el-form>
@@ -813,7 +814,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import {
   ElMessage,
   ElMessageBox,
@@ -824,15 +825,11 @@ import {
   type FormRules,
 } from 'element-plus'
 import { Plus, Refresh, Delete, Search } from '@element-plus/icons-vue'
-import {
-  ALL_PERMISSIONS,
-  getPermissionCategory,
-  getPermissionLabel,
-  getPermissionTooltip,
-} from '@/constant/permission'
+import { ALL_PERMISSIONS, getPermissionLabel, getPermissionTooltip } from '@/constant/permission'
 import { Permission } from '@/constant/permission'
 import type {
   GroupDto,
+  Permission as ClientPermission,
   RamPolicyAttachmentDto,
   RamPolicyDto,
   RamRoleBindingDto,
@@ -844,6 +841,7 @@ import type {
 import { ramService } from '@/service/ramService'
 import { i18ns } from '@/locales'
 import { usePermissionStore } from '@/stores/permissionStore'
+import { buildGrantablePermissionTree, filterGrantablePermissions } from './ram-permission-tree'
 
 const activeTab = ref('users')
 const permissionStore = usePermissionStore()
@@ -921,30 +919,14 @@ const roleForm = reactive({
   maxSessionDuration: 3600,
 })
 const policyForm = reactive({ name: '', description: '', permissions: [] as string[] })
+const grantablePermissions = computed(() => new Set<string>(permissionStore.effectivePermissions))
 
 const permissionTree = computed(() => {
-  const locale = i18ns.refer.value as string
-  const categories = new Map<string, { label: string; value: string; tooltip: string }[]>()
-  for (const perm of ALL_PERMISSIONS) {
-    const cat = getPermissionCategory(perm)
-    if (!categories.has(cat)) categories.set(cat, [])
-    categories.get(cat)!.push({
-      label: getPermissionLabel(perm, locale),
-      value: perm,
-      tooltip: getPermissionTooltip(perm, locale),
-    })
-  }
-  return Array.from(categories.entries())
-    .map(([cat, children]) => {
-      const prefix = cat.charAt(0).toLowerCase() + cat.slice(1)
-      return {
-        label: i18ns.t(`RamManagement.permissionCategoryLabels.${prefix}` as any),
-        value: cat,
-        tooltip: i18ns.t(`RamManagement.permissionCategoryTooltips.${prefix}` as any),
-        children,
-      }
-    })
-    .sort((a, b) => a.label.localeCompare(b.label))
+  return buildGrantablePermissionTree({
+    effectivePermissions: grantablePermissions.value,
+    locale: i18ns.refer.value as string,
+    translateCategory: (key) => i18ns.t(key as any),
+  })
 })
 
 const filteredUsers = computed(() => {
@@ -1516,42 +1498,59 @@ const loadPolicies = async () => {
 
 const openPolicyDialog = (policy?: RamPolicyDto) => {
   if ((policy && !canUpdatePolicies.value) || (!policy && !canCreatePolicies.value)) return
-  editingPolicy.value = policy ?? null
   if (policy) {
+    editingPolicy.value = policy
     Object.assign(policyForm, {
       name: policy.name,
       description: policy.description ?? '',
       permissions: [...(policy.permissions ?? [])],
     })
+  } else {
+    resetPolicyForm()
   }
   policyDialogVisible.value = true
+  nextTick(() => {
+    policyPermTreeRef.value?.setCheckedKeys(policyForm.permissions)
+    policyFormRef.value?.clearValidate()
+  })
 }
 
 const resetPolicyForm = () => {
   editingPolicy.value = null
   Object.assign(policyForm, { name: '', description: '', permissions: [] })
+  policyPermTreeRef.value?.setCheckedKeys([])
   policyFormRef.value?.clearValidate()
 }
 
 const onPolicyTreeCheck = () => {
-  policyForm.permissions = policyPermTreeRef.value?.getCheckedKeys() ?? []
+  policyForm.permissions = filterGrantablePermissions(
+    policyPermTreeRef.value?.getCheckedKeys() ?? [],
+    grantablePermissions.value,
+  )
 }
+
+const getGrantablePolicyPermissions = () =>
+  filterGrantablePermissions(
+    policyForm.permissions,
+    grantablePermissions.value,
+  ) as ClientPermission[]
 
 const submitPolicy = async () => {
   await policyFormRef.value?.validate()
+  const permissions = getGrantablePolicyPermissions()
   submitting.value = true
   try {
     if (editingPolicy.value) {
       await ramService.updatePolicy(editingPolicy.value.id, {
         description: policyForm.description,
-        permissions: policyForm.permissions,
+        permissions,
       })
       ElMessage.success(i18ns.t('updateSuccess'))
     } else {
       await ramService.createPolicy({
         name: policyForm.name,
         description: policyForm.description,
-        permissions: policyForm.permissions,
+        permissions,
       })
       ElMessage.success(i18ns.t('createSuccess'))
     }
