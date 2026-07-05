@@ -66,7 +66,11 @@
     "validate:permissions": "node scripts/validate-frontend-permissions.mjs",
     "precommit": "pnpm run openapi:gen:all && pnpm run validate:permissions && pnpm run check:all",
     "commit": "pnpm run precommit && git commit --no-verify",
-    "_13_lifecycle": "",
+    "_13_cd": "",
+    "CD:check:frontend": "node scripts/check-cd-changes.mjs frontend",
+    "CD:check:docs": "node scripts/check-cd-changes.mjs docs",
+    "CD:check:backend": "node scripts/check-cd-changes.mjs backend",
+    "_14_lifecycle": "",
     "prepare": "husky"
   },
   "pnpm": {
