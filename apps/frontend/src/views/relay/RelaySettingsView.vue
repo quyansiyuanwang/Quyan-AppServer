@@ -139,7 +139,9 @@
 
         <el-collapse-item name="customKey">
           <template #title>
-            <span class="collapse-title">{{ i18ns.t('ServerConfigView.relayCustomKeyTitle') }}</span>
+            <span class="collapse-title">{{
+              i18ns.t('ServerConfigView.relayCustomKeyTitle')
+            }}</span>
           </template>
           <el-form label-width="200px" label-position="right">
             <el-form-item :label="i18ns.t('ServerConfigView.relayCustomKeyEnabled')">

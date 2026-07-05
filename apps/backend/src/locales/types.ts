@@ -2,11 +2,12 @@ export type DeepStringify<T> = {
   [K in keyof T]: T[K] extends Record<string, unknown> ? DeepStringify<T[K]> : string;
 };
 
-export type NestedKeys<T, C extends string = "."> = T extends Record<string, unknown>
-  ? {
-      [K in Extract<keyof T, string>]: T[K] extends Record<string, unknown> ? `${K}${C}${NestedKeys<T[K], C>}` : K;
-    }[Extract<keyof T, string>]
-  : never;
+export type NestedKeys<T, C extends string = "."> =
+  T extends Record<string, unknown>
+    ? {
+        [K in Extract<keyof T, string>]: T[K] extends Record<string, unknown> ? `${K}${C}${NestedKeys<T[K], C>}` : K;
+      }[Extract<keyof T, string>]
+    : never;
 
 export type Assert<T extends true> = T;
 
@@ -40,6 +41,7 @@ export type StrictParamsForTemplate<S extends string> = [ExtractDoubleBraceKeys<
   ? TranslationParams | undefined
   : Record<ExtractDoubleBraceKeys<S>, ParamPrimitive> & TranslationParams;
 
-export type ParamsForKey<TMessages, K extends NestedKeys<TMessages>> = PathValue<TMessages, K> extends string
-  ? StrictParamsForTemplate<PathValue<TMessages, K>>
-  : TranslationParams | undefined;
+export type ParamsForKey<TMessages, K extends NestedKeys<TMessages>> =
+  PathValue<TMessages, K> extends string
+    ? StrictParamsForTemplate<PathValue<TMessages, K>>
+    : TranslationParams | undefined;

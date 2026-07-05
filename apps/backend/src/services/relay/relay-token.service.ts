@@ -240,7 +240,12 @@ export class RelayTokenService {
 
     await this.rateLimiterService.assertBackoffRateLimit(key, {
       windowMs,
-      errorMessage: `自定义Key操作过于频繁，请${config.createLimitWindowMinutes}分钟后再试`,
+      errorMessage: `Custom token creation is too frequent (max ${config.createLimitMaxCount} within ${config.createLimitWindowMinutes} minutes). Please try again later.`,
+      messageKey: "relay.customKeyCreateRateLimitReached",
+      messageParams: {
+        limit: config.createLimitMaxCount,
+        windowMinutes: config.createLimitWindowMinutes,
+      },
     });
 
     await this.rateLimiterService.markBackoffRateLimitFailure(key, {

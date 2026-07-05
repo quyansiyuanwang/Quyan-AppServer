@@ -56,10 +56,7 @@ describe("RelayProxyService distributed concurrency", () => {
       maxConcurrency: Math.min(relayConfig.maxConcurrency, EnvSpace.relayResourceGuardConfig.imageMaxConcurrency),
       queueTimeout: Math.min(relayConfig.queueTimeout, EnvSpace.relayResourceGuardConfig.imageQueueTimeoutMs),
       enableQueue: true,
-      slotTtlSeconds: Math.max(
-        1,
-        Math.ceil(EnvSpace.relayResourceGuardConfig.nonStreamUpstreamTimeoutMs / 1000) + 5,
-      ),
+      slotTtlSeconds: Math.max(1, Math.ceil(EnvSpace.relayResourceGuardConfig.nonStreamUpstreamTimeoutMs / 1000) + 5),
     });
   });
 

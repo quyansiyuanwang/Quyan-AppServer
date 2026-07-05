@@ -493,7 +493,12 @@
                       :placeholder="i18ns.t('relay.tokenNamePlaceholder')"
                     />
                   </el-form-item>
-                  <PermissionWrapper :any-require="[Permission.RELAY_TOKEN_CUSTOM_KEY, Permission.RELAY_TOKEN_CUSTOM_KEY_FREE]">
+                  <PermissionWrapper
+                    :any-require="[
+                      Permission.RELAY_TOKEN_CUSTOM_KEY,
+                      Permission.RELAY_TOKEN_CUSTOM_KEY_FREE,
+                    ]"
+                  >
                     <el-form-item>
                       <template #label>
                         <span class="form-label-with-help">
@@ -1544,7 +1549,12 @@
                       :placeholder="i18ns.t('relay.tokenNamePlaceholder')"
                     />
                   </el-form-item>
-                  <PermissionWrapper :any-require="[Permission.RELAY_TOKEN_CUSTOM_KEY, Permission.RELAY_TOKEN_CUSTOM_KEY_FREE]">
+                  <PermissionWrapper
+                    :any-require="[
+                      Permission.RELAY_TOKEN_CUSTOM_KEY,
+                      Permission.RELAY_TOKEN_CUSTOM_KEY_FREE,
+                    ]"
+                  >
                     <el-form-item>
                       <template #label>
                         <span class="form-label-with-help">
@@ -2722,7 +2732,9 @@ const selectedTokenIds = ref<string[]>([])
 const showTokenImportDialog = ref(false)
 const tokenImportText = ref('')
 
-const canManageAllTokens = computed(() => permissionStore.hasPermission(Permission.RELAY_TOKEN_MANAGE_OTHERS_READ))
+const canManageAllTokens = computed(() =>
+  permissionStore.hasPermission(Permission.RELAY_TOKEN_MANAGE_OTHERS_READ),
+)
 
 const currentTargetUserId = computed(() => {
   const normalized = selectedTargetUserId.value.trim()

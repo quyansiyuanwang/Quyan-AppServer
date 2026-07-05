@@ -401,7 +401,8 @@ export class ConfigService {
       upstreamUrl: configs[CONFIG_KEYS.RELAY.UPSTREAM_URL] || "",
       upstreamApiKey: configs[CONFIG_KEYS.RELAY.UPSTREAM_API_KEY] || "",
       allowedModels: configs[CONFIG_KEYS.RELAY.ALLOWED_MODELS] || "",
-      customKeyEnabled: (configs[CONFIG_KEYS.RELAY.CUSTOM_KEY_ENABLED] || String(DEFAULT_RELAY_CUSTOM_KEY_ENABLED)) === "true",
+      customKeyEnabled:
+        (configs[CONFIG_KEYS.RELAY.CUSTOM_KEY_ENABLED] || String(DEFAULT_RELAY_CUSTOM_KEY_ENABLED)) === "true",
       customKeyMaxTokensPerUser: sanitizeInt(
         configs[CONFIG_KEYS.RELAY.CUSTOM_KEY_MAX_TOKENS_PER_USER],
         DEFAULT_RELAY_CUSTOM_KEY_MAX_TOKENS_PER_USER,

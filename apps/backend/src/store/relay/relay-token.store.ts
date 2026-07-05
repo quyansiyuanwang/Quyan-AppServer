@@ -159,11 +159,7 @@ export interface RelayTokenStore {
   findByUserIdWithChannel(userId: string): Promise<RelayTokenWithChannel[]>;
   findUsageSummaryTargetsByUserId(userId: string): Promise<RelayTokenUsageSummaryTarget[]>;
   findUsageSummaryTargetsByIds(userId: string, tokenIds: string[]): Promise<RelayTokenUsageSummaryTarget[]>;
-  findWithRelationsByIds(
-    tokenIds: string[],
-    statuses?: number[],
-    userId?: string,
-  ): Promise<RelayTokenWithRelations[]>;
+  findWithRelationsByIds(tokenIds: string[], statuses?: number[], userId?: string): Promise<RelayTokenWithRelations[]>;
   findUsageSummaryTargets(tokenIds?: string[], userId?: string): Promise<RelayTokenUsageSummaryTarget[]>;
   countCustomKeyTokensByUserId(userId: string): Promise<number>;
   countCustomKeyTokensCreatedSince(userId: string, since: Date): Promise<number>;

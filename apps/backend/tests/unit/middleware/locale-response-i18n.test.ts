@@ -8,10 +8,24 @@ import { responseWrapperMiddleware } from "@/middleware/response-wrapper";
 import { exceptionMiddleware } from "@/middleware/exception";
 import { CustomCode } from "@/constant/custom-code";
 import { TooManyRequestsError } from "@/util/errors";
+import { DEFAULT_BACKEND_LOCALE, translateMessage } from "@/locales";
 
 function createApp() {
   const app = express();
   app.use(localeMiddleware);
+
+  app.use((req, res, next) => {
+    if (req.path !== "/timeout-like") {
+      next();
+      return;
+    }
+
+    res.status(HttpStatusCode.GatewayTimeout).json({
+      code: HttpStatusCode.GatewayTimeout,
+      message: translateMessage("errors.gatewayTimeout", req.locale ?? DEFAULT_BACKEND_LOCALE),
+    });
+  });
+
   app.use(responseWrapperMiddleware);
 
   app.get("/success", (_req, res) => {
@@ -66,6 +80,28 @@ describe("backend locale-aware response messages", () => {
       .expect(({ body, headers }) => {
         expect(headers["x-locale"]).toBe("en");
         expect(body.message).toBe("Success");
+      });
+
+    await request(app)
+      .get("/success")
+      .set("X-Locale", "emoji")
+      .expect(200)
+      .expect(({ body, headers }) => {
+        expect(headers["x-locale"]).toBe("en");
+        expect(body.message).toBe("Success");
+      });
+  });
+
+  it("resolves locale before timeout-like handlers", async () => {
+    const app = createApp();
+
+    await request(app)
+      .get("/timeout-like")
+      .set("X-Locale", "zh-CN")
+      .expect(HttpStatusCode.GatewayTimeout)
+      .expect(({ body, headers }) => {
+        expect(headers["x-locale"]).toBe("zh-CN");
+        expect(body.message).toBe("网关超时");
       });
   });
 

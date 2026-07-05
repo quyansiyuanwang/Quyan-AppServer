@@ -1391,7 +1391,8 @@ const emoji: DeepStringify<typeof en> = {
     relayCustomKeyCreateLimitWindowMinutes: '🪟 ⏱️(分钟)',
     relayCustomKeyCreateLimitWindowMinutesHelp: '🖥️ 统计该时间窗口内的自定义 relay key 创建次数',
     relayCustomKeyCreateLimitMaxCount: '🪟内 🆕 ⬆️',
-    relayCustomKeyCreateLimitMaxCountHelp: '👤 在窗口内最多可创建多少个自定义 relay key；0️⃣ = 🚫 全部创建',
+    relayCustomKeyCreateLimitMaxCountHelp:
+      '👤 在窗口内最多可创建多少个自定义 relay key；0️⃣ = 🚫 全部创建',
     remoteTerminalUnbindTitle: '🖥️🔓 🚫🧰',
     remoteTerminalUnbindMaxCount: '🔓 #️⃣ 🪟',
     remoteTerminalUnbindMaxCountHelp: '🎟️ 🪟 🕒 内最多 🔓 几次；0️⃣ = 🚫🔓',

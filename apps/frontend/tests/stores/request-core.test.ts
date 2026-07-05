@@ -42,7 +42,7 @@ const createAccessToken = (expiration: number) => {
 describe('MyAxios core behaviors', () => {
   const defaultOptionsSnapshot = { ...MyAxios._defaultOptions }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear()
     clearAccessToken()
     ;(MyAxios as any).refreshTokenPromise = null
@@ -62,6 +62,7 @@ describe('MyAxios core behaviors', () => {
       expiresAt: '2099-01-01T00:00:00.000Z',
     })
     setActivePinia(createPinia())
+    await setLocale('zh-CN')
   })
 
   afterEach(() => {
@@ -185,6 +186,22 @@ describe('MyAxios core behaviors', () => {
     expect(headers['X-Client-Fingerprint']).toBe('test-client-fingerprint-0001')
   })
 
+  it('omits X-Locale for frontend-only emoji locale', async () => {
+    const client = new MyAxios('https://api.example.com', 1000)
+    await setLocale('emoji')
+
+    const headers = await client._generateHeaderOptions(
+      {
+        endpoint: undefined,
+        body: null,
+        finalUrl: '/any',
+      },
+      undefined,
+    )
+
+    expect(headers).not.toHaveProperty('X-Locale')
+  })
+
   it('treats ip blacklist unblock endpoint as replay-protected', async () => {
     const client = new MyAxios('https://api.example.com', 1000)
     const generateHeadersSpy = vi.spyOn(ReplayProtection, 'generateHeaders').mockReturnValue({
@@ -273,6 +290,25 @@ describe('MyAxios core behaviors', () => {
     expect((init as RequestInit).headers).toMatchObject({
       'X-Locale': 'en',
     })
+  })
+
+  it('omits X-Locale for direct requests when locale is emoji', async () => {
+    const client = new MyAxios('https://api.example.com', 1000)
+    await setLocale('emoji')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ code: 0, data: ['ok'] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await client.get(ApiTypesMap.PermissionControllerGetAllPermissions as any, undefined, {
+      directRequest: true,
+    })
+
+    const firstCall = fetchMock.mock.calls[0]
+    expect(firstCall).toBeDefined()
+    const [, init] = firstCall!
+    expect((init as RequestInit).headers).not.toHaveProperty('X-Locale')
   })
 
   it('uses wrapper and axios instance for typed post requests', async () => {

@@ -451,7 +451,8 @@ export const PERMISSION_META: PermissionMetaMap = {
     label: '自定义中转令牌',
     labelEn: 'Custom Relay Token Key',
     tooltip: '允许创建和更新时自定义令牌值（受速率限制）',
-    tooltipEn: 'Allows setting custom token values when creating or updating (subject to rate limits)',
+    tooltipEn:
+      'Allows setting custom token values when creating or updating (subject to rate limits)',
     category: 'relay',
   },
 
@@ -475,7 +476,8 @@ export const PERMISSION_META: PermissionMetaMap = {
     label: '管理他人令牌',
     labelEn: "Manage Others' Relay Tokens",
     tooltip: '允许修改、删除、复制、刷新其他用户的中转令牌（写入操作）',
-    tooltipEn: 'Allows modifying, deleting, duplicating, and refreshing relay tokens of other users (write operations)',
+    tooltipEn:
+      'Allows modifying, deleting, duplicating, and refreshing relay tokens of other users (write operations)',
     category: 'relay',
   },
 

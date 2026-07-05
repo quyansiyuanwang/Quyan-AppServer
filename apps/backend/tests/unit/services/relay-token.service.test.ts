@@ -249,9 +249,7 @@ describe("RelayTokenService", () => {
     await expect(service.listTokens("user-1", 1, 20, "other-user")).rejects.toMatchObject({
       messageKey: "relay.manageOthersPermissionDenied",
     });
-    expect(translateMessage("relay.manageOthersPermissionDenied", "zh-CN")).toBe(
-      "你没有权限管理其他用户的中转令牌",
-    );
+    expect(translateMessage("relay.manageOthersPermissionDenied", "zh-CN")).toBe("你没有权限管理其他用户的中转令牌");
     expect(translateMessage("relay.manageOthersPermissionDenied", "en")).toBe(
       "You do not have permission to manage other users' relay tokens",
     );

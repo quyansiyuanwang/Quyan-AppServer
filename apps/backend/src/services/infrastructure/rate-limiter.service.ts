@@ -85,6 +85,13 @@ export interface RateLimitErrorDescriptor {
   message: string;
 }
 
+interface BackoffRateLimitErrorOptions {
+  windowMs: number;
+  errorMessage?: string;
+  messageKey?: MessageDescriptor["key"];
+  messageParams?: MessageDescriptor["params"];
+}
+
 export class RateLimiterService {
   private static instance: RateLimiterService;
 
@@ -145,7 +152,7 @@ export class RateLimiterService {
     };
   }
 
-  async assertBackoffRateLimit(key: string, options: { windowMs: number; errorMessage?: string }): Promise<void> {
+  async assertBackoffRateLimit(key: string, options: BackoffRateLimitErrorOptions): Promise<void> {
     const record = await this.getBackoffRateLimitState(key);
     if (!record) return;
 
@@ -157,7 +164,10 @@ export class RateLimiterService {
 
     if (record.lockoutUntil > now) {
       const retryAfter = Math.max(1, Math.ceil((record.lockoutUntil - now) / 1000));
-      throw new TooManyRequestsError(options.errorMessage || "请求过于频繁，请稍后再试", retryAfter);
+      throw new TooManyRequestsError(options.errorMessage || "请求过于频繁，请稍后再试", retryAfter, undefined, {
+        messageKey: options.messageKey,
+        messageParams: options.messageParams,
+      });
     }
   }
 

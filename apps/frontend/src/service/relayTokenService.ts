@@ -86,7 +86,11 @@ class RelayTokenService {
     return this.unwrapResponse(result)
   }
 
-  async getRelayTokens(options?: { page?: number; pageSize?: number; targetUserId?: string }): Promise<RelayTokenPageDto> {
+  async getRelayTokens(options?: {
+    page?: number
+    pageSize?: number
+    targetUserId?: string
+  }): Promise<RelayTokenPageDto> {
     const result = await relayApi.listTokens({
       params: {
         page: options?.page,
@@ -106,7 +110,11 @@ class RelayTokenService {
     await relayApi.deleteToken({ path: { id }, params: { targetUserId } })
   }
 
-  async updateTokenChannel(id: string, channelId: string, targetUserId?: string): Promise<RelayTokenDto> {
+  async updateTokenChannel(
+    id: string,
+    channelId: string,
+    targetUserId?: string,
+  ): Promise<RelayTokenDto> {
     const result = await relayApi.updateTokenChannel({
       path: { id },
       body: { channelId, targetUserId: this.normalizeTargetUserId(targetUserId) },
@@ -163,7 +171,12 @@ class RelayTokenService {
     return this.unwrapResponse(result)
   }
 
-  async getRelayTokenUsage(id: string, startDate?: string, endDate?: string, targetUserId?: string) {
+  async getRelayTokenUsage(
+    id: string,
+    startDate?: string,
+    endDate?: string,
+    targetUserId?: string,
+  ) {
     const result = await relayApi.getUsage({
       path: { id },
       params: { startDate, endDate, targetUserId: this.normalizeTargetUserId(targetUserId) },
@@ -257,7 +270,11 @@ class RelayTokenService {
     }
   }
 
-  async getTokenSwitchLogs(id: string, limit: number = 50, targetUserId?: string): Promise<RelayTokenSwitchLogsDto> {
+  async getTokenSwitchLogs(
+    id: string,
+    limit: number = 50,
+    targetUserId?: string,
+  ): Promise<RelayTokenSwitchLogsDto> {
     const result = await relayApi.getTokenSwitchLogs({
       path: { id },
       params: { limit, targetUserId: this.normalizeTargetUserId(targetUserId) },

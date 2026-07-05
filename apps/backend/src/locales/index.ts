@@ -416,7 +416,10 @@ export function translateMessage<TKey extends MessageKey>(
   fallback?: string,
 ): string {
   const template =
-    getNestedMessage(catalogs[locale], key) ?? getNestedMessage(catalogs[DEFAULT_BACKEND_LOCALE], key) ?? fallback ?? key;
+    getNestedMessage(catalogs[locale], key) ??
+    getNestedMessage(catalogs[DEFAULT_BACKEND_LOCALE], key) ??
+    fallback ??
+    key;
   if (!params) return template;
 
   return template.replace(/\{\{\s*([^{}\s]+)\s*\}\}/g, (_match, token: string) => {

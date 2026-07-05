@@ -119,6 +119,8 @@ export function createApp() {
   // 2v2g 服务器实际可用约 500MB，堆内存超过 1.2GB 时告警
   startMemoryMonitor({ intervalMs: 60000, warningThresholdMb: 1200 });
 
+  app.use(localeMiddleware);
+
   // Configure server timeouts to prevent hanging connections
   app.use((req, res, next) => {
     // Set response timeout to 10 minutes (600 seconds)
@@ -135,7 +137,6 @@ export function createApp() {
 
   // URL token 提取中间件 - 将 URL 参数中的 token 转换为 Authorization header
   app.use(urlTokenExtractor);
-  app.use(localeMiddleware);
 
   app.use(requestIdMiddleware);
   app.use(loggingMiddleware);
