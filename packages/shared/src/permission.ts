@@ -131,7 +131,7 @@ export enum Permission {
   MONTHLY_PASS_ASSIGNMENT_WRITE = 'monthly_pass:assignment:write',
   MONTHLY_PASS_USAGE_READ = 'monthly_pass:usage:read',
 
-  // 反馈管理权限
+  // 工单管理权限
   FEEDBACK_SUBMIT = 'feedback:submit',
   FEEDBACK_SELF_READ = 'feedback:self:read',
   FEEDBACK_SELF_UPDATE = 'feedback:self:update',
