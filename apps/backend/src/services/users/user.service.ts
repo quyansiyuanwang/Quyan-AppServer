@@ -317,7 +317,7 @@ export class UserService {
   }
 
   /**
-  * 检查用户是否属于超级管理员组
+   * 检查用户是否属于超级管理员组
    * 管理员组可以修改所有用户组权限，包括同等级的组
    */
   async isAdmin(userId: string): Promise<boolean> {
