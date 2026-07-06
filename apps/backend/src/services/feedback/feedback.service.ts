@@ -88,10 +88,13 @@ export class FeedbackService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    if (autoAssigneeUserId && autoAssigneeUserId !== userId)
+    if (autoAssigneeUserId)
       await this.notificationService.dispatch(autoAssigneeUserId, NotificationEvent.FEEDBACK_ASSIGNED, {
         title: "你有新的工单待处理",
-        content: `工单《${created.title}》已自动分配给你`,
+        content:
+          autoAssigneeUserId === userId
+            ? `你创建的工单《${created.title}》已自动分配给你`
+            : `工单《${created.title}》已自动分配给你`,
         data: { feedbackId: created.id, priority: created.priority, autoAssigned: true },
       });
     else await this.notifyPendingReviewUsers(created.id, created.title, created.priority, userId);
@@ -309,10 +312,13 @@ export class FeedbackService {
         ...buildBusinessLogRequestContext(request),
       });
 
-      if (updated.assigneeUserId && updated.assigneeUserId !== reviewerUserId)
+      if (updated.assigneeUserId)
         await this.notificationService.dispatch(updated.assigneeUserId, NotificationEvent.FEEDBACK_ASSIGNED, {
           title: "你有新的反馈工单待处理",
-          content: `反馈《${updated.title}》已分配给你`,
+          content:
+            updated.assigneeUserId === reviewerUserId
+              ? `你已将反馈《${updated.title}》分配给自己`
+              : `反馈《${updated.title}》已分配给你`,
           data: { feedbackId: updated.id, priority: updated.priority },
         });
     }
