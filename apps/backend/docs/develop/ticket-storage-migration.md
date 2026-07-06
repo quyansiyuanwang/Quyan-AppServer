@@ -2,6 +2,17 @@
 
 This migration renames the legacy physical feedback tables to match the new ticket domain naming.
 
+## Prisma baseline prerequisite
+
+Production environments must first align on the Prisma baseline migration in `prisma/migrations/20260706000000_baseline/`.
+
+- If the database is empty: run `pnpm run db:migrate:deploy`
+- If the database already exists and was created via `db push`: run `pnpm run db:migrate:resolve:baseline`
+
+Check current status with `pnpm run db:migrate:status`.
+
+Only after the baseline is aligned should you execute any physical ticket rename SQL required by your live database state.
+
 ## Scope
 
 - `feedbacks` -> `tickets`
@@ -16,13 +27,7 @@ This migration renames the legacy physical feedback tables to match the new tick
 
 ## Execute
 
-From `apps/backend/` run:
-
-`pnpm run db:rename-feedback-to-ticket`
-
-## SQL
-
-The exact SQL lives in `prisma/sql/rename-feedback-to-ticket.sql`.
+Execute the physical rename manually during a maintenance window if your production database still has legacy `feedbacks` / `feedback_comments` table names.
 
 ## Verify
 
