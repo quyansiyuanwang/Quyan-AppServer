@@ -129,6 +129,11 @@ export default {
     assignmentAddRule: 'Add assignment rule',
     assignmentRulesLoadFailed: 'Failed to load assignment rules',
     assignmentRulesSaveFailed: 'Failed to save assignment rules',
+    assignmentRulesSummary: '{valid} of {total} rules are valid, {invalid} need attention.',
+    assignmentRulesInvalidWarning:
+      '{count} rules are missing match conditions or assignees and will be ignored on save.',
+    assignmentRulesInvalidConfirm:
+      '{count} invalid rules will not be saved. Do you want to continue?',
     saveReview: 'Save review changes',
     type: 'Type',
     title: 'Title',

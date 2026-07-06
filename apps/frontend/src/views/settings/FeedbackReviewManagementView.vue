@@ -347,6 +347,16 @@
           show-icon
           :closable="false"
         />
+        <el-alert
+          v-if="assignmentRuleStats.invalid > 0"
+          :title="i18ns.t('feedback.assignmentRulesInvalidWarning', { count: assignmentRuleStats.invalid })"
+          type="warning"
+          show-icon
+          :closable="false"
+        />
+        <div class="assignment-rule-summary">
+          {{ i18ns.t('feedback.assignmentRulesSummary', assignmentRuleStats) }}
+        </div>
 
         <div
           v-for="(rule, index) in assignmentRules"
@@ -504,6 +514,22 @@ const canReviewUpdate = computed(() =>
 const detailTitle = computed(() => detail.value?.title || i18ns.t('feedback.detailSectionTitle'))
 const drawerSize = computed(() => (isDesktop.value ? '62%' : '96%'))
 const assignmentDrawerSize = computed(() => (isDesktop.value ? '52%' : '96%'))
+const normalizedAssignmentRules = computed(() =>
+  assignmentRules.value
+    .map((rule) => ({
+      type: rule.type || undefined,
+      priority: rule.priority || undefined,
+      assigneeUserIds: Array.from(
+        new Set(rule.assigneeUserIds.map((item) => item.trim()).filter((item) => item.length > 0)),
+      ),
+    }))
+    .filter((rule) => rule.assigneeUserIds.length > 0 && (rule.type || rule.priority)),
+)
+const assignmentRuleStats = computed(() => ({
+  total: assignmentRules.value.length,
+  valid: normalizedAssignmentRules.value.length,
+  invalid: assignmentRules.value.length - normalizedAssignmentRules.value.length,
+}))
 
 const createEmptyAssignmentRule = (): FeedbackReviewAssignmentRuleDto => ({
   type: undefined,
@@ -678,15 +704,15 @@ async function openAssignmentDrawer() {
 async function saveAssignmentRules() {
   assignmentRulesSaving.value = true
   try {
-    const rules = assignmentRules.value
-      .map((rule) => ({
-        type: rule.type || undefined,
-        priority: rule.priority || undefined,
-        assigneeUserIds: Array.from(
-          new Set(rule.assigneeUserIds.map((item) => item.trim()).filter((item) => item.length > 0)),
-        ),
-      }))
-      .filter((rule) => rule.assigneeUserIds.length > 0 && (rule.type || rule.priority))
+    const rules = normalizedAssignmentRules.value
+
+    if (assignmentRuleStats.value.invalid > 0) {
+      await ElMessageBox.confirm(
+        i18ns.t('feedback.assignmentRulesInvalidConfirm', { count: assignmentRuleStats.value.invalid }),
+        i18ns.t('warning'),
+        { type: 'warning' },
+      )
+    }
 
     const result = await feedbackService.setReviewAssignmentRules({ rules })
     assignmentRules.value = result.rules.map((rule: FeedbackReviewAssignmentRuleDto) => ({
@@ -906,6 +932,11 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.assignment-rule-summary {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 
 .form-actions--space-between {
