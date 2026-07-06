@@ -18,6 +18,7 @@ const repoMock = {
   findByUserId: vi.fn(),
   findWebhooksByUserId: vi.fn(),
   createLog: vi.fn(),
+  createInboxItem: vi.fn(),
 };
 
 const configMock = {
@@ -78,6 +79,7 @@ describe("NotificationService", () => {
 
     repoMock.createLog.mockResolvedValue({});
     redisMock.setIfNotExists.mockResolvedValue(true);
+    repoMock.createInboxItem.mockResolvedValue({});
   });
 
   describe("dispatch() — fire-and-forget 安全性", () => {
