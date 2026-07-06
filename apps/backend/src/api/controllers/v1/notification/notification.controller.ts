@@ -23,6 +23,8 @@ import type {
   NotificationWebhookDto,
   NotificationLogListDto,
   NotificationEventInfoDto,
+  NotificationInboxListDto,
+  MarkNotificationInboxReadDto,
 } from "@/api/dto/notification/notification.dto";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation/index";
 import {
@@ -31,6 +33,8 @@ import {
   updateNotificationWebhookBodySchema,
   webhookIdParamsSchema,
   notificationLogsQuerySchema,
+  notificationInboxQuerySchema,
+  markNotificationInboxReadBodySchema,
 } from "@/api/schema/notification/notification.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { RequirePermission } from "@/util/permission/permission-decorator";
@@ -144,6 +148,31 @@ export class NotificationController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<NotificationLogListDto> {
     return this.service.getLogs(request.user!.userId, page, pageSize);
+  }
+
+  /** Get in-app inbox notifications */
+  @Get("inbox")
+  @Security("jwt")
+  @Middlewares(validateQuery(notificationInboxQuerySchema))
+  public async getInbox(
+    @Query() page: number = 1,
+    @Query() pageSize: number = 20,
+    @Query() unreadOnly: boolean = false,
+    @Request() request: TypedRequest,
+  ): Promise<NotificationInboxListDto> {
+    return this.service.getInbox(request.user!.userId, page, pageSize, unreadOnly);
+  }
+
+  /** Mark inbox notifications as read */
+  @Post("inbox/read")
+  @Security("jwt")
+  @ReplayProtected()
+  @Middlewares(replayProtectionMiddleware, validateBody(markNotificationInboxReadBodySchema))
+  public async markInboxRead(
+    @Body() body: MarkNotificationInboxReadDto,
+    @Request() request: TypedRequest,
+  ): Promise<{ success: boolean; count: number }> {
+    return this.service.markInboxRead(request.user!.userId, body);
   }
 
   /** Get the list of subscribable event types */

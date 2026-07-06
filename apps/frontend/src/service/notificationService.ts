@@ -2,6 +2,7 @@ import type {
   UpdateNotificationPreferenceDto,
   CreateNotificationWebhookDto,
   UpdateNotificationWebhookDto,
+  MarkNotificationInboxReadDto,
 } from '@/client/types.gen'
 import { useRequestStore } from '@/stores/request'
 import { checkApiResult } from '@/utils/service-utils'
@@ -69,6 +70,18 @@ export class NotificationService {
     const result = await notificationApi.getLogs({
       params: { page, pageSize },
     })
+    return checkApiResult(result, true)
+  }
+
+  async getInbox(page = 1, pageSize = 20, unreadOnly = false) {
+    const result = await notificationApi.getInbox({
+      params: { page, pageSize, unreadOnly },
+    })
+    return checkApiResult(result, true)
+  }
+
+  async markInboxRead(data: MarkNotificationInboxReadDto) {
+    const result = await notificationApi.markInboxRead({ body: data })
     return checkApiResult(result, true)
   }
 

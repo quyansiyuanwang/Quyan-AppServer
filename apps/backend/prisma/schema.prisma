@@ -71,6 +71,7 @@ model User {
   redemptionCodesCreated       RedemptionCode[]                @relation("RedemptionCodeCreatedBy")
   conversations                Conversation[]
   notificationPreference       NotificationPreference?
+  notificationInboxItems       NotificationInboxItem[]
   oauthClientsReviewed         OAuthClient[]                   @relation("OAuthClientReviewedBy")
   authCenterClientsReviewed    AuthCenterClient[]              @relation("AuthCenterClientReviewedBy")
   ownedRamPolicies             RamPolicy[]                     @relation("RamPolicyOwner")
@@ -1587,6 +1588,27 @@ model NotificationLog {
   @@index([userId, createTime])
   @@index([eventType])
   @@map("notification_logs")
+}
+
+model NotificationInboxItem {
+  id          String   @id @default(cuid())
+  status      Int      @default(1)
+  createTime  DateTime @default(now())
+  updateTime  DateTime @updatedAt
+  userId      String
+  eventType   String   @db.VarChar(60)
+  title       String   @db.VarChar(200)
+  content     String   @db.Text
+  isRead      Boolean  @default(false)
+  readTime    DateTime?
+  metadata    Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createTime])
+  @@index([userId, isRead, createTime])
+  @@index([eventType])
+  @@map("notification_inbox_items")
 }
 
 model Message {

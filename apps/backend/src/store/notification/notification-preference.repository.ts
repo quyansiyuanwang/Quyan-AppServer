@@ -1,4 +1,9 @@
-import type { NotificationPreference, NotificationWebhook, NotificationLog } from "@prisma/client";
+import type {
+  NotificationPreference,
+  NotificationWebhook,
+  NotificationLog,
+  NotificationInboxItem,
+} from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
 
@@ -34,6 +39,14 @@ export interface NotificationLogCreateInput {
   webhookId?: string | null;
   deliveryStatus: string;
   errorMessage?: string | null;
+  metadata?: Record<string, unknown> | undefined;
+}
+
+export interface NotificationInboxCreateInput {
+  userId: string;
+  eventType: string;
+  title: string;
+  content: string;
   metadata?: Record<string, unknown> | undefined;
 }
 
@@ -170,5 +183,60 @@ export class NotificationPreferenceRepository {
       prisma.notificationLog.count({ where: { userId } }),
     ]);
     return { logs, total };
+  }
+
+  async createInboxItem(data: NotificationInboxCreateInput): Promise<NotificationInboxItem> {
+    return prisma.notificationInboxItem.create({
+      data: {
+        userId: data.userId,
+        eventType: data.eventType,
+        title: data.title,
+        content: data.content,
+        metadata: data.metadata ? (data.metadata as Prisma.InputJsonValue) : Prisma.JsonNull,
+      },
+    });
+  }
+
+  async findInboxByUserId(
+    userId: string,
+    page: number,
+    pageSize: number,
+    unreadOnly: boolean,
+  ): Promise<{ items: NotificationInboxItem[]; total: number; unreadCount: number }> {
+    const skip = (page - 1) * pageSize;
+    const where = { userId, status: 1, ...(unreadOnly ? { isRead: false } : {}) };
+
+    const [items, total, unreadCount] = await Promise.all([
+      prisma.notificationInboxItem.findMany({
+        where,
+        orderBy: [{ isRead: "asc" }, { createTime: "desc" }],
+        skip,
+        take: pageSize,
+      }),
+      prisma.notificationInboxItem.count({ where }),
+      prisma.notificationInboxItem.count({ where: { userId, status: 1, isRead: false } }),
+    ]);
+
+    return { items, total, unreadCount };
+  }
+
+  async markInboxItemsRead(userId: string, ids: string[]): Promise<number> {
+    if (ids.length === 0) return 0;
+
+    const result = await prisma.notificationInboxItem.updateMany({
+      where: { userId, id: { in: ids }, status: 1, isRead: false },
+      data: { isRead: true, readTime: new Date() },
+    });
+
+    return result.count;
+  }
+
+  async markAllInboxItemsRead(userId: string): Promise<number> {
+    const result = await prisma.notificationInboxItem.updateMany({
+      where: { userId, status: 1, isRead: false },
+      data: { isRead: true, readTime: new Date() },
+    });
+
+    return result.count;
   }
 }

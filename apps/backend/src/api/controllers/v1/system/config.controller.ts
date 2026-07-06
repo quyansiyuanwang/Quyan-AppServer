@@ -271,6 +271,7 @@ export class ConfigController extends Controller {
       {
         [CONFIG_KEYS.NOTIFICATION.DEFAULT_SUBSCRIBED_EVENTS]: JSON.stringify(body.defaultSubscribedEvents),
         [CONFIG_KEYS.NOTIFICATION.DEFAULT_THRESHOLDS]: JSON.stringify(body.defaultThresholds),
+        [CONFIG_KEYS.NOTIFICATION.FEEDBACK_ASSIGNMENT_RULES]: JSON.stringify(body.feedbackAssignmentRules),
       },
       currentUserId,
       request,

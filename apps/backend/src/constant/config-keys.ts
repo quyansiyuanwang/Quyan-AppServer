@@ -39,6 +39,7 @@ export const CONFIG_KEYS = {
   NOTIFICATION: {
     DEFAULT_SUBSCRIBED_EVENTS: "notification.defaultSubscribedEvents",
     DEFAULT_THRESHOLDS: "notification.defaultThresholds",
+    FEEDBACK_ASSIGNMENT_RULES: "notification.feedbackAssignmentRules",
   },
   IP_BAN: {
     ENABLED: "ipBan.enabled",

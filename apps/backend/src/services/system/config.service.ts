@@ -113,6 +113,17 @@ export interface CaptchaConfig {
 export interface NotificationConfig {
   defaultSubscribedEvents: string[];
   defaultThresholds: Record<string, number>;
+  feedbackAssignmentRules: FeedbackAssignmentRule[];
+}
+
+export interface FeedbackAssignmentRule {
+  type?: string;
+  priority?: string;
+  assigneeUserIds: string[];
+}
+
+export interface FeedbackAssignmentConfig {
+  rules: FeedbackAssignmentRule[];
 }
 
 function sanitizeInt(value: string | undefined, fallback: number, min: number, max: number): number {
@@ -334,12 +345,41 @@ export class ConfigService {
           ? parsedEvents.filter((item): item is string => typeof item === "string")
           : DEFAULT_SUBSCRIBED_NOTIFICATION_EVENTS,
         defaultThresholds: normalizedThresholds,
+        feedbackAssignmentRules: (await this.getFeedbackAssignmentConfig()).rules,
       };
     } catch {
       return {
         defaultSubscribedEvents: DEFAULT_SUBSCRIBED_NOTIFICATION_EVENTS,
         defaultThresholds: DEFAULT_NOTIFICATION_THRESHOLDS,
+        feedbackAssignmentRules: (await this.getFeedbackAssignmentConfig()).rules,
       };
+    }
+  }
+
+  async getFeedbackAssignmentConfig(): Promise<FeedbackAssignmentConfig> {
+    const raw = await this.get(CONFIG_KEYS.NOTIFICATION.FEEDBACK_ASSIGNMENT_RULES);
+    if (!raw) return { rules: [] };
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return { rules: [] };
+
+      const rules = parsed
+        .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+        .map((item) => ({
+          type: typeof item.type === "string" && item.type.trim() ? item.type.trim() : undefined,
+          priority: typeof item.priority === "string" && item.priority.trim() ? item.priority.trim() : undefined,
+          assigneeUserIds: Array.isArray(item.assigneeUserIds)
+            ? item.assigneeUserIds.filter(
+                (value): value is string => typeof value === "string" && value.trim().length > 0,
+              )
+            : [],
+        }))
+        .filter((item) => item.assigneeUserIds.length > 0);
+
+      return { rules };
+    } catch {
+      return { rules: [] };
     }
   }
 

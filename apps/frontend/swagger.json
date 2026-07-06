@@ -14633,6 +14633,114 @@
 				]
 			}
 		},
+		"/v1/notification/inbox": {
+			"get": {
+				"operationId": "NotificationControllerGetInbox",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/NotificationInboxListDto"
+								}
+							}
+						}
+					}
+				},
+				"description": "Get in-app inbox notifications",
+				"tags": [
+					"Notification / Event Center"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "unreadOnly",
+						"required": false,
+						"schema": {
+							"default": false,
+							"type": "boolean"
+						}
+					}
+				]
+			}
+		},
+		"/v1/notification/inbox/read": {
+			"post": {
+				"operationId": "NotificationControllerMarkInboxRead",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"count": {
+											"type": "number",
+											"format": "double"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"count",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Mark inbox notifications as read",
+				"tags": [
+					"Notification / Event Center"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MarkNotificationInboxReadDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/notification/events": {
 			"get": {
 				"operationId": "NotificationControllerGetEventList",
@@ -25942,6 +26050,27 @@
 				"type": "object",
 				"description": "Construct a type with a set of properties K of type T"
 			},
+			"FeedbackAssignmentRuleDto": {
+				"properties": {
+					"type": {
+						"type": "string"
+					},
+					"priority": {
+						"type": "string"
+					},
+					"assigneeUserIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"assigneeUserIds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"NotificationConfigDto": {
 				"properties": {
 					"defaultSubscribedEvents": {
@@ -25952,11 +26081,18 @@
 					},
 					"defaultThresholds": {
 						"$ref": "#/components/schemas/Record_string.number_"
+					},
+					"feedbackAssignmentRules": {
+						"items": {
+							"$ref": "#/components/schemas/FeedbackAssignmentRuleDto"
+						},
+						"type": "array"
 					}
 				},
 				"required": [
 					"defaultSubscribedEvents",
-					"defaultThresholds"
+					"defaultThresholds",
+					"feedbackAssignmentRules"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -26204,11 +26340,18 @@
 					},
 					"defaultThresholds": {
 						"$ref": "#/components/schemas/Record_string.number_"
+					},
+					"feedbackAssignmentRules": {
+						"items": {
+							"$ref": "#/components/schemas/FeedbackAssignmentRuleDto"
+						},
+						"type": "array"
 					}
 				},
 				"required": [
 					"defaultSubscribedEvents",
-					"defaultThresholds"
+					"defaultThresholds",
+					"feedbackAssignmentRules"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -31772,6 +31915,105 @@
 					"page",
 					"pageSize"
 				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"NotificationInboxItemDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"eventType": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"content": {
+						"type": "string"
+					},
+					"isRead": {
+						"type": "boolean"
+					},
+					"readTime": {
+						"type": "string",
+						"nullable": true
+					},
+					"metadata": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Record_string.unknown_"
+							}
+						],
+						"nullable": true
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"eventType",
+					"title",
+					"content",
+					"isRead",
+					"readTime",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"NotificationInboxListDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/NotificationInboxItemDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"unreadCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"unreadCount",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"MarkNotificationInboxReadDto": {
+				"properties": {
+					"ids": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"markAll": {
+						"type": "boolean"
+					}
+				},
 				"type": "object",
 				"additionalProperties": false
 			},

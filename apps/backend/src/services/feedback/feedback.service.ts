@@ -20,11 +20,15 @@ import {
 } from "@/constant/feedback";
 import { NotificationEvent } from "@/constant/notification-event";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
+import { Permission } from "@/constant/permission";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { NotificationService } from "@/services/notification/notification.service";
+import { ConfigService, type FeedbackAssignmentRule } from "@/services/system/config.service";
+import { PermissionService } from "@/services/users/permission.service";
 import { FeedbackRepository } from "@/store/feedback/feedback.repository";
 import type { FeedbackCommentWithAuthor, FeedbackStore, FeedbackWithRelations } from "@/store/feedback/feedback.store";
 import { UserRepository } from "@/store/users/user.repository";
+import { AccountStatus } from "@/util/auth/account-status";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 
@@ -39,6 +43,8 @@ export class FeedbackService {
     private readonly userRepository: UserRepository = UserRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly notificationService: NotificationService = NotificationService.getInstance(),
+    private readonly configService: ConfigService = ConfigService.getInstance(),
+    private readonly permissionService: PermissionService = PermissionService.getInstance(),
   ) {}
 
   static getInstance(): FeedbackService {
@@ -47,6 +53,8 @@ export class FeedbackService {
   }
 
   async createFeedback(userId: string, body: CreateFeedbackDto, request?: Request): Promise<FeedbackDetailDto> {
+    const autoAssigneeUserId = await this.resolveAutoAssigneeUserId(body.type, DEFAULT_FEEDBACK_PRIORITY);
+
     const created = await this.repository.create({
       userId,
       type: body.type,
@@ -57,6 +65,7 @@ export class FeedbackService {
       contactInfo: this.normalizeNullableText(body.contactInfo),
       workflowStatus: DEFAULT_FEEDBACK_WORKFLOW_STATUS,
       priority: DEFAULT_FEEDBACK_PRIORITY,
+      assigneeUserId: autoAssigneeUserId ?? undefined,
     });
 
     await this.businessLogService.logOperation({
@@ -71,6 +80,14 @@ export class FeedbackService {
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
+
+    if (autoAssigneeUserId && autoAssigneeUserId !== userId)
+      await this.notificationService.dispatch(autoAssigneeUserId, NotificationEvent.FEEDBACK_ASSIGNED, {
+        title: "你有新的工单待处理",
+        content: `工单《${created.title}》已自动分配给你`,
+        data: { feedbackId: created.id, priority: created.priority, autoAssigned: true },
+      });
+    else await this.notifyPendingReviewUsers(created.id, created.title, created.priority, userId);
 
     return this.getMyFeedbackDetail(created.id, userId);
   }
@@ -455,5 +472,85 @@ export class FeedbackService {
       reproduceSteps: feedback.reproduceSteps,
       contactInfo: feedback.contactInfo,
     };
+  }
+
+  private async resolveAutoAssigneeUserId(type: string, priority: string): Promise<string | null> {
+    const config = await this.configService.getFeedbackAssignmentConfig();
+    const matchedRule = this.selectAssignmentRule(config.rules, type, priority);
+    if (!matchedRule) return null;
+
+    const availableCandidates = await this.filterAssignableCandidates(matchedRule.assigneeUserIds);
+    if (availableCandidates.length === 0) return null;
+
+    return availableCandidates[0] ?? null;
+  }
+
+  private selectAssignmentRule(
+    rules: FeedbackAssignmentRule[],
+    type: string,
+    priority: string,
+  ): FeedbackAssignmentRule | null {
+    const exactMatch = rules.find((rule) => rule.type === type && rule.priority === priority);
+    if (exactMatch) return exactMatch;
+
+    const typeOnlyMatch = rules.find((rule) => rule.type === type && !rule.priority);
+    if (typeOnlyMatch) return typeOnlyMatch;
+
+    const priorityOnlyMatch = rules.find((rule) => !rule.type && rule.priority === priority);
+    if (priorityOnlyMatch) return priorityOnlyMatch;
+
+    return rules.find((rule) => !rule.type && !rule.priority) ?? null;
+  }
+
+  private async filterAssignableCandidates(userIds: string[]): Promise<string[]> {
+    const uniqueUserIds = Array.from(new Set(userIds.map((item) => item.trim()).filter(Boolean)));
+
+    const results = await Promise.all(
+      uniqueUserIds.map(async (candidateUserId) => {
+        const [user, hasPermission] = await Promise.all([
+          this.userRepository.findActiveById(candidateUserId),
+          this.permissionService.hasPermission(candidateUserId, Permission.FEEDBACK_REVIEW_UPDATE),
+        ]);
+
+        return { candidateUserId, user, hasPermission };
+      }),
+    );
+
+    return results.filter((item) => item.user && item.hasPermission).map((item) => item.candidateUserId);
+  }
+
+  private async notifyPendingReviewUsers(
+    feedbackId: string,
+    title: string,
+    priority: string,
+    submitterUserId: string,
+  ): Promise<void> {
+    const recipients = await this.listFeedbackReviewRecipients(submitterUserId);
+    if (recipients.length === 0) return;
+
+    await Promise.allSettled(
+      recipients.map((userId) =>
+        this.notificationService.dispatch(userId, NotificationEvent.FEEDBACK_PENDING_REVIEW, {
+          title: "有新工单等待分诊",
+          content: `新工单《${title}》等待具备处理权限的人员跟进`,
+          data: { feedbackId, priority },
+        }),
+      ),
+    );
+  }
+
+  private async listFeedbackReviewRecipients(excludeUserId?: string): Promise<string[]> {
+    const activeUsers = (await this.userRepository.listNonDeleted()).filter(
+      (user) => user.status === AccountStatus.ACTIVE && user.id !== excludeUserId,
+    );
+
+    const permissionResults = await Promise.all(
+      activeUsers.map(async (user) => ({
+        userId: user.id,
+        hasPermission: await this.permissionService.hasPermission(user.id, Permission.FEEDBACK_REVIEW_UPDATE),
+      })),
+    );
+
+    return permissionResults.filter((item) => item.hasPermission).map((item) => item.userId);
   }
 }

@@ -7,6 +7,7 @@ export enum NotificationEvent {
   MONTHLY_PASS_DAILY_LIMIT = 'monthly_pass_daily_limit',
   RELAY_TOKEN_QUOTA_LOW = 'relay_token_quota_low',
   RELAY_TOKEN_EXHAUSTED = 'relay_token_exhausted',
+  FEEDBACK_PENDING_REVIEW = 'feedback_pending_review',
   FEEDBACK_STATUS_UPDATED = 'feedback_status_updated',
   FEEDBACK_PUBLIC_REPLY = 'feedback_public_reply',
   FEEDBACK_ASSIGNED = 'feedback_assigned',

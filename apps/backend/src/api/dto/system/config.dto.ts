@@ -130,11 +130,19 @@ export interface SetSmtpConfigDto {
 export interface NotificationConfigDto {
   defaultSubscribedEvents: string[];
   defaultThresholds: Record<string, number>;
+  feedbackAssignmentRules: FeedbackAssignmentRuleDto[];
+}
+
+export interface FeedbackAssignmentRuleDto {
+  type?: string;
+  priority?: string;
+  assigneeUserIds: string[];
 }
 
 export interface SetNotificationConfigDto {
   defaultSubscribedEvents: string[];
   defaultThresholds: Record<string, number>;
+  feedbackAssignmentRules: FeedbackAssignmentRuleDto[];
 }
 
 export interface SetIpBanConfigDto {

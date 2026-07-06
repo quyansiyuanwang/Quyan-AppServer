@@ -54,6 +54,14 @@ export class NotificationService {
   private async _dispatch(userId: string, event: NotificationEvent, payload: NotificationPayload): Promise<void> {
     const preference = await this.preferenceInitializer.getOrInitialize(userId);
 
+    await this.repository.createInboxItem({
+      userId,
+      eventType: event,
+      title: payload.title,
+      content: payload.content,
+      metadata: payload.data,
+    });
+
     const subscribedEvents = preference.subscribedEvents as string[];
     if (!subscribedEvents.includes(event)) return;
 

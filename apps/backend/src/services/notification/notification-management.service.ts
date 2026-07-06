@@ -10,11 +10,14 @@ import {
   NotificationWebhookDto,
   NotificationLogListDto,
   NotificationEventInfoDto,
+  NotificationInboxListDto,
+  NotificationInboxItemDto,
 } from "@/api/dto/notification/notification.dto";
 import type {
   UpdateNotificationPreferenceDto,
   CreateNotificationWebhookDto,
   UpdateNotificationWebhookDto,
+  MarkNotificationInboxReadDto,
 } from "@/api/dto/notification/notification.dto";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationPreferenceInitializerService } from "@/services/notification/notification-preference-initializer.service";
@@ -231,6 +234,30 @@ export class NotificationManagementService {
     };
   }
 
+  async getInbox(
+    userId: string,
+    page: number,
+    pageSize: number,
+    unreadOnly: boolean,
+  ): Promise<NotificationInboxListDto> {
+    const { items, total, unreadCount } = await this.repository.findInboxByUserId(userId, page, pageSize, unreadOnly);
+    return {
+      items: items.map((item) => this.toInboxItemDto(item)),
+      total,
+      unreadCount,
+      page,
+      pageSize,
+    };
+  }
+
+  async markInboxRead(userId: string, dto: MarkNotificationInboxReadDto): Promise<{ success: boolean; count: number }> {
+    const count = dto.markAll
+      ? await this.repository.markAllInboxItemsRead(userId)
+      : await this.repository.markInboxItemsRead(userId, dto.ids ?? []);
+
+    return { success: true, count };
+  }
+
   // ─── Event List ────────────────────────────────────────────────────────────
 
   getEventList(): NotificationEventInfoDto[] {
@@ -273,6 +300,33 @@ export class NotificationManagementService {
       enabled: webhook.enabled,
       createTime: webhook.createTime.toISOString(),
       updateTime: webhook.updateTime.toISOString(),
+    };
+  }
+
+  private toInboxItemDto(item: {
+    id: string;
+    eventType: string;
+    title: string;
+    content: string;
+    isRead: boolean;
+    readTime: Date | null;
+    metadata: unknown;
+    createTime: Date;
+    updateTime: Date;
+  }): NotificationInboxItemDto {
+    return {
+      id: item.id,
+      eventType: item.eventType,
+      title: item.title,
+      content: item.content,
+      isRead: item.isRead,
+      readTime: item.readTime?.toISOString() ?? null,
+      metadata:
+        item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
+          ? (item.metadata as Record<string, unknown>)
+          : null,
+      createTime: item.createTime.toISOString(),
+      updateTime: item.updateTime.toISOString(),
     };
   }
 

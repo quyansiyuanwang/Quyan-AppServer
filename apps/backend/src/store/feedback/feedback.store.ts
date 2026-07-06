@@ -23,6 +23,7 @@ export interface FeedbackCreateInput {
   contactInfo?: string | null;
   workflowStatus: string;
   priority: string;
+  assigneeUserId?: string | null;
 }
 
 export interface FeedbackUpdateInput {
