@@ -27,7 +27,7 @@ Use this page for diagnostics, testing, and support-side troubleshooting actions
 
 ### Seasonal or preview tools
 
-- April preview simulate/open/close controls when enabled.
+- **April preview** — controls for the April Fools' Day easter egg system (a seasonal, non-serious feature). "Simulate" previews the egg sequence outside of April without waiting for the date, "open" shows its panel, and "close" dismisses it. These controls only appear when the easter-egg system is enabled and have no effect on billing, security, or core functionality.
 
 ## Common actions
 

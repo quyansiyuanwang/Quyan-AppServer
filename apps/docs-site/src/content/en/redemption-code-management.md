@@ -30,6 +30,14 @@ Use this page to create, copy, and track redemption codes.
 3. Check the status first when a user reports that a code cannot be redeemed.
 4. Remove incorrectly created or obsolete codes.
 
+## Permission requirements
+
+| Action                | Required permission      |
+| --------------------- | ------------------------ |
+| View redemption codes | `REDEMPTION_CODE_READ`   |
+| Create codes (batch)  | `REDEMPTION_CODE_CREATE` |
+| Delete codes          | `REDEMPTION_CODE_DELETE` |
+
 ## Notes
 
 - Redemption codes usually affect balance or user benefits.

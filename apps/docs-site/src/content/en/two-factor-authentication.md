@@ -44,6 +44,8 @@ Passkeys let you sign in without a password using your device's biometric sensor
 4. Remove passkeys you no longer use.
 5. Optionally toggle "require 2FA even for passkey login" for stricter security.
 
+See `passkey-management` for the full field reference and notes on backed-up passkeys.
+
 ## Trusted devices
 
 After a successful login with 2FA, you can mark the current browser as trusted. For the configured trust window (default 24 hours), 2FA challenges will be skipped on that device for regular operations.
@@ -64,6 +66,8 @@ After a successful login with 2FA, you can mark the current browser as trusted. 
 3. Remove any device you do not recognize.
 4. Clear all trusted devices if you suspect account compromise.
 
+See `trusted-device-management` for the full device list fields and how the trust window interacts with high-risk operations.
+
 ## Security notes
 
 - 2FA codes are TOTP-based and time-synchronized. Ensure your device clock is accurate.
@@ -82,5 +86,7 @@ After a successful login with 2FA, you can mark the current browser as trusted. 
 ## Related pages
 
 - `auth-verification`
+- `passkey-management`
+- `trusted-device-management`
 - `notification-settings`
 - `account-settings`

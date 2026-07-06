@@ -47,6 +47,16 @@ Publishing a new version triggers a **forced re-consent** check:
 4. Publish the new version when it is ready — it immediately becomes the active text.
 5. Delete old versions that no longer need to be retained.
 
+## Permission requirements
+
+| Action                      | Required permission    |
+| --------------------------- | ---------------------- |
+| View policy versions        | `LEGAL_POLICY_READ`    |
+| Create version              | `LEGAL_POLICY_CREATE`  |
+| Edit version                | `LEGAL_POLICY_UPDATE`  |
+| Delete version              | `LEGAL_POLICY_DELETE`  |
+| Publish / unpublish version | `LEGAL_POLICY_PUBLISH` |
+
 ## Notes
 
 - Only one version per type can be published at a time; publishing a new version automatically archives the previous one.

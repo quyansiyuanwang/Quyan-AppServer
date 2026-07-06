@@ -123,6 +123,37 @@ export async function exchangeCodeWithBackend(payload: {
 - 把刷新令牌保存在服务端或 HTTP-only Cookie 体系里
 - 只返回浏览器真正需要的短期会话信息
 
+### 一个具体的后端存储示例
+
+上面提到的后端存储步骤，常见且安全的两种做法：
+
+**方案 A —— 用自己生成的会话 ID 做键的服务端存储。** 浏览器始终只持有你应用自己的会话标识，从不接触刷新令牌本身：
+
+```ts
+// 后端（Node/Express），完成授权码交换之后：
+const tokenSet = await exchangeCodeWithAuthCenter(code, codeVerifier)
+
+// 把刷新令牌保存到自己的数据库或 Redis 中，键使用你自己生成的会话 ID——
+// 绝不要使用任何从浏览器侧推导出的值作为键。
+const sessionId = crypto.randomUUID()
+await sessionStore.set(sessionId, {
+  refreshToken: tokenSet.refresh_token,
+  userId: tokenSet.sub,
+  expiresAt: Date.now() + tokenSet.expires_in * 1000,
+})
+
+// 浏览器只会收到这个不透明的会话 ID，通过 HTTP-only、Secure、
+// SameSite=Lax 的 Cookie 传递——绝不通过 localStorage 或可被 JS 读取的 Cookie。
+res.cookie('app_session', sessionId, {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+})
+```
+
+**方案 B —— 加密后的 HTTP-only Cookie。** 如果不想维护服务端会话存储，可以在把刷新令牌放入 Cookie 之前先对其加密，Cookie 同样使用 `httpOnly`/`secure`/`sameSite` 标志，并在每次需要刷新访问令牌的请求中于服务端解密。两种方案都能确保原始刷新令牌不会出现在浏览器可读取的任何代码里——应避免的失败模式是把 `tokenSet.refresh_token` 直接写入 `localStorage` 或非 `httpOnly` 的 Cookie。
+
 ## 浏览器本地 JWT 校验
 
 如果浏览器场景必须本地读取 JWT，也可以读取 JWKS。但这更适合作为前端会话辅助，而不是取代后端授权边界。

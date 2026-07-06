@@ -292,6 +292,32 @@ try {
 }
 ```
 
+### Common `code` values
+
+`code` is the business-level status returned inside the response body (see "Unified response format" above) — it is separate from the HTTP status code. A `200 OK` HTTP response can still carry a non-zero `code` describing a business failure.
+
+| `code` | Meaning                            | Typical response                                      |
+| ------ | ---------------------------------- | ----------------------------------------------------- |
+| `0`    | Success                            | Use `data` as-is                                      |
+| `1001` | Authentication failed              | Prompt re-login                                       |
+| `1002` | Request validation failed          | Fix the request body/params, do not retry             |
+| `1003` | Resource not found                 | Do not retry; surface a not-found state               |
+| `1004` | Permission denied                  | Do not retry; the token lacks the required permission |
+| `1006` | Token expired due to a data update | Refresh the token, then retry once                    |
+| `1013` | Token expired                      | Refresh the token, then retry once                    |
+| `1014` | Token invalid or forged            | Do not retry; force re-login                          |
+| `1017` | Replay protection failed           | Fetch a fresh signing session and retry once          |
+| `1018` | Two-factor verification required   | Complete the 2FA challenge, then retry                |
+| `1429` | Rate limited (too many requests)   | Back off using the suggested retry delay              |
+
+The full list lives in `CustomCode` (`packages/shared/src/custom-code.ts`) and grows over time — treat unrecognized codes as generic business failures rather than assuming a specific meaning.
+
+### Retry guidance
+
+- Only retry on codes that represent a transient state (token refresh, replay-protection session renewal, rate limiting). Retrying `1002`/`1003`/`1004`/`1014` will fail identically every time since the request itself is the problem.
+- For `1429` (rate limited), respect any suggested retry-after delay in the response rather than retrying immediately.
+- Cap automatic retries at 1-2 attempts; surface the error to the user or calling system after that instead of looping.
+
 ## Minimum demo checklist for the docs site
 
 Recommended follow-up additions:

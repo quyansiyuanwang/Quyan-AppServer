@@ -44,6 +44,8 @@
 4. 移除不再使用的通行密钥。
 5. 可选择开启"即使使用通行密钥登陆仍需要 2FA"以增强安全性。
 
+完整字段说明与已备份通行密钥的说明参见 `passkey-management`。
+
 ## 受信任设备
 
 使用 2FA 成功登录后，可将当前浏览器标记为受信任。在配置的信任窗口内（默认 24 小时），该设备上的常规操作将跳过 2FA 验证。
@@ -64,6 +66,8 @@
 3. 移除任何不认识的设备。
 4. 如怀疑账户被盗用，清除所有受信任设备。
 
+完整设备列表字段及信任窗口与高危操作的交互说明参见 `trusted-device-management`。
+
 ## 安全说明
 
 - 2FA 验证码基于 TOTP 且依赖时间同步，请确保设备时钟准确。
@@ -82,5 +86,7 @@
 ## 相关页面
 
 - `auth-verification`
+- `passkey-management`
+- `trusted-device-management`
 - `notification-settings`
 - `account-settings`

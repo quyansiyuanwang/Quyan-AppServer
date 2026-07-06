@@ -33,6 +33,15 @@ Use this page to publish accessible JSON content endpoints.
 4. Save and copy the URL for the intended consumers.
 5. Re-open the viewer when you need to confirm the published output.
 
+## Permission requirements
+
+| Action          | Required permission    |
+| --------------- | ---------------------- |
+| View endpoints  | `JSON_ENDPOINT_READ`   |
+| Create endpoint | `JSON_ENDPOINT_CREATE` |
+| Edit endpoint   | `JSON_ENDPOINT_UPDATE` |
+| Delete endpoint | `JSON_ENDPOINT_DELETE` |
+
 ## Notes
 
 - Password protection is useful when content is shareable but not fully public.

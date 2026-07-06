@@ -280,6 +280,32 @@ print("balance history =>", history.data)
 - 你以为返回是纯 JSON 数据，但实际是 `{ code, message, data }`
 - 应优先读取 `data`
 
+## 重试与幂等性建议
+
+上面的封装函数不会自动重试——生产环境脚本建议在外层加一层轻量重试逻辑，而不是在 `call_appserver` 内部循环：
+
+```python
+import time
+
+def call_with_retry(*, max_attempts: int = 2, backoff_seconds: float = 1.0, **kwargs) -> "AppServerResult":
+    last_error: AppServerApiError | None = None
+    for attempt in range(max_attempts):
+        try:
+            return call_appserver(**kwargs)
+        except AppServerApiError as exc:
+            last_error = exc
+            # 仅对临时性状况重试：网络/HTTP 5xx，或 token 刚好过期（code 1006/1013）。
+            # 不要对参数校验失败（1002）、资源不存在（1003）、权限不足（1004）重试——
+            # 这类请求本身就是问题所在，每次结果都会一样。
+            if exc.code not in (1006, 1013) and exc.status < 500:
+                raise
+            time.sleep(backoff_seconds * (attempt + 1))
+    raise last_error  # type: ignore[misc]
+```
+
+- GET 请求天然适合重试。对于会创建或修改数据的 POST/PUT 请求，只有在确认服务端该操作是幂等的情况下才重试（例如刷新 token 后重新提交、且原始请求确认未到达服务端）——否则网络超时后的重试可能导致重复提交。
+- 重试次数应控制在较少范围内（额外 1-2 次），且每次重试前都应有等待间隔，而不是立即重试。
+
 ## 推荐联动阅读
 
 - `API Documentation`

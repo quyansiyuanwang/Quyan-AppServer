@@ -8,6 +8,8 @@ const modules = import.meta.glob<DocsPageModule>('./*.doc.ts', {
 const orderedModulePaths = [
   './account-settings.doc.ts',
   './two-factor-authentication.doc.ts',
+  './passkey-management.doc.ts',
+  './trusted-device-management.doc.ts',
   './access-key-management.doc.ts',
   './oauth-app-management.doc.ts',
   './auth-center-app-management.doc.ts',

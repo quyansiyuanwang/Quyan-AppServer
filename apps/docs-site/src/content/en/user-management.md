@@ -49,6 +49,19 @@ When a user is deleted, the system cleans up related data automatically, includi
 
 All deletions are recorded in the **business log** and can be queried on the business-logs page.
 
+## Permission requirements
+
+| Action                         | Required permission                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| View users                     | `USER_READ`                                                                     |
+| Create user                    | `USER_CREATE`                                                                   |
+| Edit user (profile, status)    | `USER_UPDATE`                                                                   |
+| Delete user                    | `USER_DELETE`                                                                   |
+| Change another user's password | `USER_CHANGE_OTHERS_PASSWORD`                                                   |
+| Impersonate a user             | `USER_IMPERSONATE_VIEW` or `USER_IMPERSONATE_ACT` (either grants impersonation) |
+
+Changing another user's password additionally requires a fresh 2FA step-up challenge.
+
 ## Notes
 
 - Before deleting or disabling a user, confirm related balances, permissions, and owned resources.
