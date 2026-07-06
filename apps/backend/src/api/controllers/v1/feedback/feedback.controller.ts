@@ -23,7 +23,9 @@ import type {
   CreateFeedbackReviewCommentDto,
   FeedbackDetailDto,
   FeedbackListResponseDto,
+  FeedbackReviewAssignmentConfigDto,
   ReviewFeedbackDto,
+  SetFeedbackReviewAssignmentConfigDto,
   UpdateMyFeedbackDto,
 } from "@/api/dto/feedback/feedback.dto";
 import type { ErrorResponse } from "@/api/response";
@@ -40,6 +42,7 @@ import {
   feedbackIdParamsSchema,
   feedbackListQuerySchema,
   feedbackReviewListQuerySchema,
+  setFeedbackAssignmentConfigBodySchema,
   reviewFeedbackBodySchema,
   updateMyFeedbackBodySchema,
 } from "@/api/schema/feedback/feedback.schema";
@@ -211,5 +214,25 @@ export class FeedbackController extends Controller {
   public async deleteFeedback(@Path() id: string, @Request() request: TypedRequest): Promise<boolean> {
     await this.service.deleteFeedback(id, request.user!.userId, request);
     return true;
+  }
+
+  @Get("review/assignment-rules")
+  @Security("jwt")
+  @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
+  public async getReviewAssignmentRules(): Promise<FeedbackReviewAssignmentConfigDto> {
+    return this.service.getAssignmentConfig();
+  }
+
+  @Put("review/assignment-rules")
+  @Security("jwt")
+  @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
+  @Middlewares(replayProtectionMiddleware, validateBody(setFeedbackAssignmentConfigBodySchema))
+  public async setReviewAssignmentRules(
+    @Body() body: SetFeedbackReviewAssignmentConfigDto,
+    @Request() request: TypedRequest,
+  ): Promise<FeedbackReviewAssignmentConfigDto> {
+    return this.service.updateAssignmentConfig(body, request.user!.userId, request);
   }
 }

@@ -95,3 +95,17 @@ export interface FeedbackListResponseDto {
   pageSize: number;
   hasMore: boolean;
 }
+
+export interface FeedbackReviewAssignmentRuleDto {
+  type?: FeedbackType;
+  priority?: FeedbackPriority;
+  assigneeUserIds: string[];
+}
+
+export interface FeedbackReviewAssignmentConfigDto {
+  rules: FeedbackReviewAssignmentRuleDto[];
+}
+
+export interface SetFeedbackReviewAssignmentConfigDto {
+  rules: FeedbackReviewAssignmentRuleDto[];
+}

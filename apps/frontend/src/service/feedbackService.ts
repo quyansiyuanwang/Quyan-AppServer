@@ -7,7 +7,9 @@ import type {
   CreateFeedbackReviewCommentDto,
   FeedbackControllerListMyFeedbackData,
   FeedbackControllerListReviewFeedbackData,
+  FeedbackReviewAssignmentConfigDto,
   ReviewFeedbackDto,
+  SetFeedbackReviewAssignmentConfigDto,
   UpdateMyFeedbackDto,
 } from '@/client/types.gen'
 import { createFeedbackControllerApi } from '@/client/services/feedback-controller.gen'
@@ -75,6 +77,18 @@ export class FeedbackService {
     const result = await getFeedbackControllerApi().deleteFeedback({ path: { id } })
     checkApiResult(result, false)
     return true
+  }
+
+  async getReviewAssignmentRules(): Promise<FeedbackReviewAssignmentConfigDto> {
+    const result = await getFeedbackControllerApi().getReviewAssignmentRules({})
+    return checkApiResult(result, true).data
+  }
+
+  async setReviewAssignmentRules(
+    data: SetFeedbackReviewAssignmentConfigDto,
+  ): Promise<FeedbackReviewAssignmentConfigDto> {
+    const result = await getFeedbackControllerApi().setReviewAssignmentRules({ body: data })
+    return checkApiResult(result, true).data
   }
 }
 

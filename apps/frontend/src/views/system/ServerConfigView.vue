@@ -186,76 +186,6 @@
                 }}</span>
               </div>
             </el-form-item>
-            <el-form-item :label="i18ns.t('ServerConfigView.notificationAssignmentRules')">
-              <div class="notification-assignment-field">
-                <div
-                  v-for="(rule, index) in feedbackAssignmentRules"
-                  :key="`desktop-rule-${index}`"
-                  class="assignment-rule-card"
-                >
-                  <div class="assignment-rule-card__header">
-                    <span>{{ i18ns.t('ServerConfigView.notificationAssignmentRuleTitle', { index: index + 1 }) }}</span>
-                    <el-button link type="danger" @click="removeFeedbackAssignmentRule(index)">
-                      {{ i18ns.t('delete') }}
-                    </el-button>
-                  </div>
-                  <div class="assignment-rule-grid">
-                    <el-form-item :label="i18ns.t('ServerConfigView.notificationAssignmentType')">
-                      <el-select v-model="rule.type" clearable>
-                        <el-option
-                          v-for="type in feedbackTypeOptions"
-                          :key="type"
-                          :label="getFeedbackTypeLabel(type)"
-                          :value="type"
-                        />
-                      </el-select>
-                    </el-form-item>
-                    <el-form-item :label="i18ns.t('ServerConfigView.notificationAssignmentPriority')">
-                      <el-select v-model="rule.priority" clearable>
-                        <el-option
-                          v-for="priority in feedbackPriorityOptions"
-                          :key="priority"
-                          :label="getFeedbackPriorityLabel(priority)"
-                          :value="priority"
-                        />
-                      </el-select>
-                    </el-form-item>
-                    <el-form-item
-                      class="assignment-rule-grid__full"
-                      :label="i18ns.t('ServerConfigView.notificationAssignmentUsers')"
-                    >
-                      <el-select
-                        v-model="rule.assigneeUserIds"
-                        multiple
-                        filterable
-                        remote
-                        clearable
-                        reserve-keyword
-                        :remote-method="handleAssignmentUserSearch"
-                        :loading="assignmentUserOptionsLoading"
-                        @visible-change="handleAssignmentUserSelectVisible"
-                      >
-                        <el-option
-                          v-for="user in assignmentUserOptions"
-                          :key="user.id"
-                          :label="user.username"
-                          :value="user.id"
-                        />
-                      </el-select>
-                      <span class="form-help">{{
-                        i18ns.t('ServerConfigView.notificationAssignmentUsersHelp')
-                      }}</span>
-                    </el-form-item>
-                  </div>
-                </div>
-                <el-button size="small" @click="addFeedbackAssignmentRule">
-                  + {{ i18ns.t('ServerConfigView.notificationAddAssignmentRule') }}
-                </el-button>
-                <span class="form-help">{{
-                  i18ns.t('ServerConfigView.notificationAssignmentRulesHelp')
-                }}</span>
-              </div>
-            </el-form-item>
             <el-form-item>
               <el-button type="primary" :loading="savingNotification" @click="saveNotification">
                 {{ i18ns.t('save') }}
@@ -776,71 +706,6 @@
                 }}</span>
               </div>
             </el-form-item>
-            <el-form-item :label="i18ns.t('ServerConfigView.notificationAssignmentRules')">
-              <div class="notification-assignment-field notification-assignment-field--mobile">
-                <div
-                  v-for="(rule, index) in feedbackAssignmentRules"
-                  :key="`mobile-rule-${index}`"
-                  class="assignment-rule-card"
-                >
-                  <div class="assignment-rule-card__header">
-                    <span>{{ i18ns.t('ServerConfigView.notificationAssignmentRuleTitle', { index: index + 1 }) }}</span>
-                    <el-button link type="danger" @click="removeFeedbackAssignmentRule(index)">
-                      {{ i18ns.t('delete') }}
-                    </el-button>
-                  </div>
-                  <el-form-item :label="i18ns.t('ServerConfigView.notificationAssignmentType')">
-                    <el-select v-model="rule.type" clearable>
-                      <el-option
-                        v-for="type in feedbackTypeOptions"
-                        :key="type"
-                        :label="getFeedbackTypeLabel(type)"
-                        :value="type"
-                      />
-                    </el-select>
-                  </el-form-item>
-                  <el-form-item :label="i18ns.t('ServerConfigView.notificationAssignmentPriority')">
-                    <el-select v-model="rule.priority" clearable>
-                      <el-option
-                        v-for="priority in feedbackPriorityOptions"
-                        :key="priority"
-                        :label="getFeedbackPriorityLabel(priority)"
-                        :value="priority"
-                      />
-                    </el-select>
-                  </el-form-item>
-                  <el-form-item :label="i18ns.t('ServerConfigView.notificationAssignmentUsers')">
-                    <el-select
-                      v-model="rule.assigneeUserIds"
-                      multiple
-                      filterable
-                      remote
-                      clearable
-                      reserve-keyword
-                      :remote-method="handleAssignmentUserSearch"
-                      :loading="assignmentUserOptionsLoading"
-                      @visible-change="handleAssignmentUserSelectVisible"
-                    >
-                      <el-option
-                        v-for="user in assignmentUserOptions"
-                        :key="user.id"
-                        :label="user.username"
-                        :value="user.id"
-                      />
-                    </el-select>
-                    <span class="form-help">{{
-                      i18ns.t('ServerConfigView.notificationAssignmentUsersHelp')
-                    }}</span>
-                  </el-form-item>
-                </div>
-                <el-button size="small" @click="addFeedbackAssignmentRule">
-                  + {{ i18ns.t('ServerConfigView.notificationAddAssignmentRule') }}
-                </el-button>
-                <span class="form-help">{{
-                  i18ns.t('ServerConfigView.notificationAssignmentRulesHelp')
-                }}</span>
-              </div>
-            </el-form-item>
             <el-form-item>
               <el-button type="primary" :loading="savingNotification" @click="saveNotification">
                 {{ i18ns.t('save') }}
@@ -1184,12 +1049,9 @@ import { ElMessage } from 'element-plus'
 import { configService } from '@/service/configService'
 import { groupService } from '@/service/groupService'
 import { NotificationService } from '@/service/notificationService'
-import { userService } from '@/service/userService'
 import type {
   CaptchaProviderDto,
   FeedbackAssignmentRuleDto,
-  FeedbackPriority,
-  FeedbackType,
   NotificationEventInfoDto,
 } from '@/client/types.gen'
 
@@ -1237,9 +1099,7 @@ const savingNotification = ref(false)
 const notificationDefaultSubscribedEvents = ref<string[]>([])
 const notificationDefaultThresholds = ref<Record<string, number>>({})
 const notificationEventOptions = ref<NotificationEventInfoDto[]>([])
-const feedbackAssignmentRules = ref<FeedbackAssignmentRuleDto[]>([])
-const assignmentUserOptions = ref<{ id: string; username: string }[]>([])
-const assignmentUserOptionsLoading = ref(false)
+const notificationFeedbackAssignmentRules = ref<FeedbackAssignmentRuleDto[]>([])
 
 // Captcha
 const savingCaptcha = ref(false)
@@ -1328,8 +1188,6 @@ const captchaFallbackOptions = computed(() =>
 )
 
 const notificationService = NotificationService.getInstance()
-const feedbackTypeOptions: FeedbackType[] = ['suggestion', 'bug', 'other']
-const feedbackPriorityOptions: FeedbackPriority[] = ['low', 'medium', 'high', 'urgent']
 
 const notificationThresholdEventOptions = computed(() =>
   notificationEventOptions.value.filter((event) => event.hasThreshold),
@@ -1360,61 +1218,6 @@ const selectAllNotificationDefaultEvents = () => {
 const clearAllNotificationDefaultEvents = () => {
   notificationDefaultSubscribedEvents.value = []
 }
-
-const createEmptyFeedbackAssignmentRule = (): FeedbackAssignmentRuleDto => ({
-  type: undefined,
-  priority: undefined,
-  assigneeUserIds: [],
-})
-
-const addFeedbackAssignmentRule = () => {
-  feedbackAssignmentRules.value = [...feedbackAssignmentRules.value, createEmptyFeedbackAssignmentRule()]
-}
-
-const removeFeedbackAssignmentRule = (index: number) => {
-  feedbackAssignmentRules.value = feedbackAssignmentRules.value.filter((_, itemIndex) => itemIndex !== index)
-}
-
-const ensureAssignmentUserOption = (userId?: string, username?: string | null) => {
-  if (!userId) return
-  if (assignmentUserOptions.value.some((item) => item.id === userId)) return
-  assignmentUserOptions.value = [{ id: userId, username: username || userId }, ...assignmentUserOptions.value]
-}
-
-const loadAssignmentUserOptions = async (keyword?: string) => {
-  assignmentUserOptionsLoading.value = true
-  try {
-    const result = await userService.getAllUsers({
-      page: 1,
-      pageSize: 50,
-      keyword: keyword?.trim() || undefined,
-    })
-    const users = Array.isArray(result?.users) ? result.users : []
-    assignmentUserOptions.value = users.map((item) => ({
-      id: item.id,
-      username: item.username || item.id,
-    }))
-  } catch {
-    assignmentUserOptions.value = []
-  } finally {
-    assignmentUserOptionsLoading.value = false
-  }
-}
-
-const handleAssignmentUserSearch = (query: string) => {
-  void loadAssignmentUserOptions(query)
-}
-
-const handleAssignmentUserSelectVisible = (visible: boolean) => {
-  if (visible && !assignmentUserOptions.value.length) {
-    void loadAssignmentUserOptions()
-  }
-}
-
-const getFeedbackTypeLabel = (type: FeedbackType) => i18ns.t(`feedback.types.${type}`)
-
-const getFeedbackPriorityLabel = (priority: FeedbackPriority) =>
-  i18ns.t(`feedback.priorities.${priority}`)
 
 const loadRegistrationConfig = async () => {
   if (registrationLoaded.value) return
@@ -1488,16 +1291,9 @@ const loadNotificationConfig = async () => {
       notificationConfig.defaultThresholds,
       events,
     )
-    feedbackAssignmentRules.value = Array.isArray(notificationConfig.feedbackAssignmentRules)
-      ? notificationConfig.feedbackAssignmentRules.map((rule) => ({
-          type: rule.type || undefined,
-          priority: rule.priority || undefined,
-          assigneeUserIds: Array.isArray(rule.assigneeUserIds) ? [...rule.assigneeUserIds] : [],
-        }))
+    notificationFeedbackAssignmentRules.value = Array.isArray(notificationConfig.feedbackAssignmentRules)
+      ? notificationConfig.feedbackAssignmentRules
       : []
-    feedbackAssignmentRules.value.forEach((rule) => {
-      rule.assigneeUserIds.forEach((userId) => ensureAssignmentUserOption(userId))
-    })
     notificationLoaded.value = true
   } catch (error: any) {
     ElMessage.error(error.message || i18ns.t('ServerConfigView.loadFailed'))
@@ -1662,18 +1458,10 @@ const saveRemoteTerminalUnbind = async () => {
 const saveNotification = async () => {
   savingNotification.value = true
   try {
-    const normalizedRules = feedbackAssignmentRules.value
-      .map((rule) => ({
-        type: rule.type || undefined,
-        priority: rule.priority || undefined,
-        assigneeUserIds: rule.assigneeUserIds.filter((item) => item && item.trim().length > 0),
-      }))
-      .filter((rule) => rule.assigneeUserIds.length > 0 && (rule.type || rule.priority))
-
     await configService.setNotificationConfig({
       defaultSubscribedEvents: notificationDefaultSubscribedEvents.value,
       defaultThresholds: notificationDefaultThresholds.value,
-      feedbackAssignmentRules: normalizedRules,
+      feedbackAssignmentRules: notificationFeedbackAssignmentRules.value,
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {

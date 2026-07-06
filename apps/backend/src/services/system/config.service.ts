@@ -383,6 +383,19 @@ export class ConfigService {
     }
   }
 
+  async setFeedbackAssignmentConfig(
+    config: FeedbackAssignmentConfig,
+    actorUserId?: string,
+    request?: Request,
+  ): Promise<void> {
+    await this.set(
+      CONFIG_KEYS.NOTIFICATION.FEEDBACK_ASSIGNMENT_RULES,
+      JSON.stringify(config.rules),
+      actorUserId,
+      request,
+    );
+  }
+
   async getIpBanConfig(): Promise<IpBanConfig> {
     const keys = Object.values(CONFIG_KEYS.IP_BAN);
     const configs = await this.getMultiple(keys);

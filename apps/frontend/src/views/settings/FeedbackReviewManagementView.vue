@@ -7,9 +7,14 @@
             <div class="card-title">{{ i18ns.t('feedback.reviewTitle') }}</div>
             <div class="card-description">{{ i18ns.t('feedback.reviewDescription') }}</div>
           </div>
-          <el-button :loading="listLoading" @click="loadReviewList">{{
-            i18ns.t('refresh')
-          }}</el-button>
+          <div class="header-actions">
+            <el-button v-if="canReviewUpdate" @click="openAssignmentDrawer">
+              {{ i18ns.t('feedback.assignmentRulesAction') }}
+            </el-button>
+            <el-button :loading="listLoading" @click="loadReviewList">{{
+              i18ns.t('refresh')
+            }}</el-button>
+          </div>
         </div>
       </template>
 
@@ -329,6 +334,88 @@
         </template>
       </div>
     </el-drawer>
+
+    <el-drawer
+      v-model="assignmentDrawerVisible"
+      :title="i18ns.t('feedback.assignmentRulesTitle')"
+      :size="assignmentDrawerSize"
+    >
+      <div v-loading="assignmentRulesLoading" class="detail-drawer">
+        <el-alert
+          :title="i18ns.t('feedback.assignmentRulesHelp')"
+          type="info"
+          show-icon
+          :closable="false"
+        />
+
+        <div
+          v-for="(rule, index) in assignmentRules"
+          :key="`review-rule-${index}`"
+          class="assignment-rule-card"
+        >
+          <div class="assignment-rule-card__header">
+            <span>{{ i18ns.t('feedback.assignmentRuleTitle', { index: index + 1 }) }}</span>
+            <el-button link type="danger" @click="removeAssignmentRule(index)">
+              {{ i18ns.t('delete') }}
+            </el-button>
+          </div>
+          <div class="form-grid">
+            <el-form-item :label="i18ns.t('feedback.assignmentType')">
+              <el-select v-model="rule.type" clearable>
+                <el-option
+                  v-for="type in feedbackTypeOptions"
+                  :key="type"
+                  :label="getTypeLabel(type)"
+                  :value="type"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="i18ns.t('feedback.assignmentPriority')">
+              <el-select v-model="rule.priority" clearable>
+                <el-option
+                  v-for="priority in priorityOptions"
+                  :key="priority"
+                  :label="getPriorityLabel(priority)"
+                  :value="priority"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item class="form-grid__full" :label="i18ns.t('feedback.assignmentUsers')">
+              <el-select
+                v-model="rule.assigneeUserIds"
+                multiple
+                filterable
+                remote
+                clearable
+                reserve-keyword
+                :remote-method="handleUserSearch"
+                :loading="userOptionsLoading"
+                @visible-change="handleUserSelectVisible"
+              >
+                <el-option
+                  v-for="user in userOptions"
+                  :key="user.id"
+                  :label="user.username"
+                  :value="user.id"
+                />
+              </el-select>
+            </el-form-item>
+          </div>
+        </div>
+
+        <div class="form-actions form-actions--space-between">
+          <el-button @click="addAssignmentRule">
+            + {{ i18ns.t('feedback.assignmentAddRule') }}
+          </el-button>
+          <div class="form-actions">
+            <el-button @click="loadAssignmentRules">{{ i18ns.t('reset') }}</el-button>
+            <el-button type="primary" :loading="assignmentRulesSaving" @click="saveAssignmentRules">
+              {{ i18ns.t('save') }}
+            </el-button>
+          </div>
+        </div>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -348,6 +435,7 @@ import type {
   FeedbackDetailDto,
   FeedbackListItemDto,
   FeedbackPriority,
+  FeedbackReviewAssignmentRuleDto,
   FeedbackType,
   FeedbackWorkflowStatus,
   ReviewFeedbackDto,
@@ -376,10 +464,14 @@ const detailLoading = ref(false)
 const reviewSubmitting = ref(false)
 const commentSubmitting = ref(false)
 const detailVisible = ref(false)
+const assignmentDrawerVisible = ref(false)
+const assignmentRulesLoading = ref(false)
+const assignmentRulesSaving = ref(false)
 const items = ref<FeedbackListItemDto[]>([])
 const detail = ref<FeedbackDetailDto | null>(null)
 const userOptions = ref<UserOption[]>([])
 const userOptionsLoading = ref(false)
+const assignmentRules = ref<FeedbackReviewAssignmentRuleDto[]>([])
 
 const filters = reactive({
   keyword: '',
@@ -411,6 +503,13 @@ const canReviewUpdate = computed(() =>
 )
 const detailTitle = computed(() => detail.value?.title || i18ns.t('feedback.detailSectionTitle'))
 const drawerSize = computed(() => (isDesktop.value ? '62%' : '96%'))
+const assignmentDrawerSize = computed(() => (isDesktop.value ? '52%' : '96%'))
+
+const createEmptyAssignmentRule = (): FeedbackReviewAssignmentRuleDto => ({
+  type: undefined,
+  priority: undefined,
+  assigneeUserIds: [],
+})
 
 function getTypeLabel(type: FeedbackType) {
   return i18ns.t(`feedback.types.${type}`)
@@ -469,6 +568,14 @@ function ensureUserOption(userId?: string, username?: string | null) {
   if (!userId) return
   if (userOptions.value.some((item) => item.id === userId)) return
   userOptions.value = [{ id: userId, username: username || userId }, ...userOptions.value]
+}
+
+function addAssignmentRule() {
+  assignmentRules.value = [...assignmentRules.value, createEmptyAssignmentRule()]
+}
+
+function removeAssignmentRule(index: number) {
+  assignmentRules.value = assignmentRules.value.filter((_, itemIndex) => itemIndex !== index)
 }
 
 async function loadUserOptions(keyword?: string) {
@@ -540,6 +647,59 @@ async function loadDetail(id: string) {
 async function openDetail(id: string) {
   detailVisible.value = true
   await loadDetail(id)
+}
+
+async function loadAssignmentRules() {
+  assignmentRulesLoading.value = true
+  try {
+    const result = await feedbackService.getReviewAssignmentRules()
+    assignmentRules.value = Array.isArray(result.rules)
+      ? result.rules.map((rule: FeedbackReviewAssignmentRuleDto) => ({
+          type: rule.type || undefined,
+          priority: rule.priority || undefined,
+          assigneeUserIds: Array.isArray(rule.assigneeUserIds) ? [...rule.assigneeUserIds] : [],
+        }))
+      : []
+    assignmentRules.value.forEach((rule) => {
+      rule.assigneeUserIds.forEach((userId) => ensureUserOption(userId))
+    })
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('feedback.assignmentRulesLoadFailed')))
+  } finally {
+    assignmentRulesLoading.value = false
+  }
+}
+
+async function openAssignmentDrawer() {
+  assignmentDrawerVisible.value = true
+  await loadAssignmentRules()
+}
+
+async function saveAssignmentRules() {
+  assignmentRulesSaving.value = true
+  try {
+    const rules = assignmentRules.value
+      .map((rule) => ({
+        type: rule.type || undefined,
+        priority: rule.priority || undefined,
+        assigneeUserIds: Array.from(
+          new Set(rule.assigneeUserIds.map((item) => item.trim()).filter((item) => item.length > 0)),
+        ),
+      }))
+      .filter((rule) => rule.assigneeUserIds.length > 0 && (rule.type || rule.priority))
+
+    const result = await feedbackService.setReviewAssignmentRules({ rules })
+    assignmentRules.value = result.rules.map((rule: FeedbackReviewAssignmentRuleDto) => ({
+      type: rule.type || undefined,
+      priority: rule.priority || undefined,
+      assigneeUserIds: [...rule.assigneeUserIds],
+    }))
+    ElMessage.success(i18ns.t('message.information.saveSuccess'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('feedback.assignmentRulesSaveFailed')))
+  } finally {
+    assignmentRulesSaving.value = false
+  }
 }
 
 function syncReviewFormFromDetail() {
@@ -659,6 +819,12 @@ onMounted(() => {
   gap: 16px;
 }
 
+.header-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .card-header-block {
   display: grid;
   gap: 4px;
@@ -725,6 +891,25 @@ onMounted(() => {
 
 .review-panel {
   border-radius: 16px;
+}
+
+.assignment-rule-card {
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.assignment-rule-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.form-actions--space-between {
+  justify-content: space-between;
 }
 
 .wrap-text,

@@ -9,12 +9,16 @@ import type {
   FeedbackListItemDto,
   FeedbackListQueryDto,
   FeedbackListResponseDto,
+  FeedbackReviewAssignmentConfigDto,
   FeedbackReviewListQueryDto,
   ReviewFeedbackDto,
+  SetFeedbackReviewAssignmentConfigDto,
   UpdateMyFeedbackDto,
 } from "@/api/dto/feedback/feedback.dto";
 import {
   DEFAULT_FEEDBACK_PRIORITY,
+  FEEDBACK_PRIORITIES,
+  FEEDBACK_TYPES,
   DEFAULT_FEEDBACK_WORKFLOW_STATUS,
   isFeedbackTerminalStatus,
 } from "@/constant/feedback";
@@ -22,6 +26,7 @@ import { NotificationEvent } from "@/constant/notification-event";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { Permission } from "@/constant/permission";
 import BusinessLogService from "@/services/system/businesslog.service";
+import { RedisService } from "@/services/infrastructure/redis.service";
 import { NotificationService } from "@/services/notification/notification.service";
 import { ConfigService, type FeedbackAssignmentRule } from "@/services/system/config.service";
 import { PermissionService } from "@/services/users/permission.service";
@@ -34,6 +39,7 @@ import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 
 const INTERNAL_VISIBILITY = "internal";
 const PUBLIC_VISIBILITY = "public";
+const FEEDBACK_ASSIGNMENT_CURSOR_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 export class FeedbackService {
   private static instance: FeedbackService | null = null;
@@ -45,6 +51,7 @@ export class FeedbackService {
     private readonly notificationService: NotificationService = NotificationService.getInstance(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
     private readonly permissionService: PermissionService = PermissionService.getInstance(),
+    private readonly redisService: RedisService = RedisService.getInstance(),
   ) {}
 
   static getInstance(): FeedbackService {
@@ -378,6 +385,40 @@ export class FeedbackService {
     });
   }
 
+  async getAssignmentConfig(): Promise<FeedbackReviewAssignmentConfigDto> {
+    const config = await this.configService.getFeedbackAssignmentConfig();
+    return {
+      rules: config.rules.map((rule) => ({
+        type: FEEDBACK_TYPES.includes(rule.type as (typeof FEEDBACK_TYPES)[number])
+          ? (rule.type as (typeof FEEDBACK_TYPES)[number])
+          : undefined,
+        priority: FEEDBACK_PRIORITIES.includes(rule.priority as (typeof FEEDBACK_PRIORITIES)[number])
+          ? (rule.priority as (typeof FEEDBACK_PRIORITIES)[number])
+          : undefined,
+        assigneeUserIds: [...rule.assigneeUserIds],
+      })),
+    };
+  }
+
+  async updateAssignmentConfig(
+    body: SetFeedbackReviewAssignmentConfigDto,
+    reviewerUserId: string,
+    request?: Request,
+  ): Promise<FeedbackReviewAssignmentConfigDto> {
+    const normalizedRules = body.rules
+      .map((rule) => ({
+        type: rule.type || undefined,
+        priority: rule.priority || undefined,
+        assigneeUserIds: Array.from(
+          new Set(rule.assigneeUserIds.map((item) => item.trim()).filter((item) => item.length > 0)),
+        ),
+      }))
+      .filter((rule) => rule.assigneeUserIds.length > 0 && (rule.type || rule.priority));
+
+    await this.configService.setFeedbackAssignmentConfig({ rules: normalizedRules }, reviewerUserId, request);
+    return { rules: normalizedRules };
+  }
+
   private async requireOwnedFeedback(id: string, userId: string): Promise<FeedbackWithRelations> {
     const feedback = await this.repository.findByIdWithRelations(id);
     if (!feedback) throw new NotFoundError("反馈不存在");
@@ -482,7 +523,7 @@ export class FeedbackService {
     const availableCandidates = await this.filterAssignableCandidates(matchedRule.assigneeUserIds);
     if (availableCandidates.length === 0) return null;
 
-    return availableCandidates[0] ?? null;
+    return this.selectRoundRobinCandidate(type, priority, availableCandidates);
   }
 
   private selectAssignmentRule(
@@ -517,6 +558,27 @@ export class FeedbackService {
     );
 
     return results.filter((item) => item.user && item.hasPermission).map((item) => item.candidateUserId);
+  }
+
+  private async selectRoundRobinCandidate(type: string, priority: string, candidateUserIds: string[]): Promise<string> {
+    if (candidateUserIds.length === 1) return candidateUserIds[0];
+
+    const cursorKey = this.getAssignmentCursorKey(type, priority, candidateUserIds);
+    const cursorValue = await this.redisService.get(cursorKey);
+    const parsedCursor = Number.parseInt(String(cursorValue ?? "0"), 10);
+    const currentIndex = Number.isFinite(parsedCursor) && parsedCursor >= 0 ? parsedCursor : 0;
+    const selectedIndex = currentIndex % candidateUserIds.length;
+    const nextIndex = (selectedIndex + 1) % candidateUserIds.length;
+
+    await this.redisService.set(cursorKey, nextIndex, FEEDBACK_ASSIGNMENT_CURSOR_TTL_SECONDS);
+    return candidateUserIds[selectedIndex];
+  }
+
+  private getAssignmentCursorKey(type: string, priority: string, candidateUserIds: string[]): string {
+    const normalizedType = String(type || "*").trim() || "*";
+    const normalizedPriority = String(priority || "*").trim() || "*";
+    const normalizedCandidates = candidateUserIds.join(",");
+    return `feedback:assignment:cursor:${normalizedType}:${normalizedPriority}:${normalizedCandidates}`;
   }
 
   private async notifyPendingReviewUsers(

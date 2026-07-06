@@ -71,3 +71,17 @@ export const reviewFeedbackBodySchema = z
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field is required",
   });
+
+export const feedbackAssignmentRuleSchema = z
+  .object({
+    type: feedbackTypeSchema.optional(),
+    priority: feedbackPrioritySchema.optional(),
+    assigneeUserIds: z.array(z.string().trim().min(1).max(100)).min(1).max(50),
+  })
+  .refine((value) => Boolean(value.type || value.priority), {
+    message: "At least one matching condition is required",
+  });
+
+export const setFeedbackAssignmentConfigBodySchema = z.object({
+  rules: z.array(feedbackAssignmentRuleSchema).max(100),
+});
