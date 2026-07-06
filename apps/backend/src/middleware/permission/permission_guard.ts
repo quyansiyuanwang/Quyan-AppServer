@@ -1,11 +1,8 @@
-import type { Request, Response, NextFunction } from "express";
+import type { NextFunction } from "express";
 import { Permission } from "@/constant/permission";
 import { permissionService } from "@/services/users/permission.service";
 import { ForbiddenError } from "@/util/errors";
-import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
-
-const logger = getLogger("PermissionGuard", LogCategory.SECURITY);
 
 /**
  * 权限守卫中间件

@@ -44,7 +44,6 @@ import {
   MONTHLY_PASS_MAX_INTEGER_QUOTA,
   MONTHLY_PASS_MAX_PAGE_SIZE,
   MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS,
-  MONTHLY_PASS_QUOTA_WINDOW_MS,
 } from "@/constant/monthly-pass";
 import { MANAGED_STATUS } from "@/constant/status";
 import { AccountStatus } from "@/util/auth/account-status";

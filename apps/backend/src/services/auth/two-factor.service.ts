@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { UserRepository } from "@/store/users/user.repository";
 import type { UserStore } from "@/store/users/user.store";
 import { RedisService } from "@/services/infrastructure/redis.service";
-import { BadRequestError, TooManyRequestsError, UnauthorizedError } from "@/util/errors";
+import { BadRequestError, UnauthorizedError } from "@/util/errors";
 import { CustomCode } from "@/constant/custom-code";
 import {
   TWO_FACTOR_TRUSTED_DEVICE_PAGE_SIZE_DEFAULT,

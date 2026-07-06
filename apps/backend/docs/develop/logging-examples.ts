@@ -182,7 +182,7 @@ export class UserBusinessController extends Controller {
     logResponse: false, // 不记录响应（包含 token）
     level: "info",
   })
-  public async login(@Body() credentials: { username: string; password: string }) {
+  public async login(@Body() _credentials: { username: string; password: string }) {
     // 登录逻辑
     return { token: "xxx" };
   }

@@ -6,7 +6,6 @@ import type {
   UserOnlineSessionRecord,
   UserOnlineSessionStore,
 } from "./user-online-session.store";
-import type { Prisma } from "@prisma/client";
 
 export class UserOnlineSessionRepository implements UserOnlineSessionStore {
   private static instance: UserOnlineSessionRepository;

@@ -50,10 +50,9 @@ import type {
   DeleteTwoFactorTrustedDeviceResponse,
 } from "@/api/dto/users/two-factor.dto";
 import { Permission } from "@/constant/permission";
-import { NotFoundError, ForbiddenError, BadRequestError, TooManyRequestsError } from "@/util/errors";
+import { NotFoundError, ForbiddenError, BadRequestError } from "@/util/errors";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { TypedRequest } from "@/types/express";
-import { getLogger, LogCategory } from "@/util/logger";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { permissionService } from "@/services/users/permission.service";
 import { hashPassword } from "@/util/crypto";
@@ -91,12 +90,9 @@ import { EnvSpace } from "@/config/env";
 import { TWO_FACTOR_TRUSTED_DEVICE_PAGE_SIZE_DEFAULT } from "@/constant/two-factor";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
-import { CaptchaService } from "@/services/auth/captcha.service";
 import { CaptchaProtected, captchaMiddleware } from "@/util/captcha-protected-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
 import { trustedDeviceRateLimitMiddleware } from "@/middleware/rate-limit-policies";
-
-const logger = getLogger("UserController", LogCategory.BUSINESS);
 
 /**
  * 用户管理相关接口

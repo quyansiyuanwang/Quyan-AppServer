@@ -1,5 +1,3 @@
-import { ApiError } from "./errors";
-
 /**
  * 断言条件为真，否则抛出错误
  * @param condition 要检查的条件

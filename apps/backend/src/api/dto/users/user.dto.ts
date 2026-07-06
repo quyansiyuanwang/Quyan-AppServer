@@ -1,5 +1,3 @@
-import type { ApiResponse } from "@/api/dto/common/common.dto";
-
 /**
  * 用户基本信息
  */

@@ -1,10 +1,4 @@
-import type {
-  OAuthAccessToken,
-  OAuthAuthorizationCode,
-  OAuthClient,
-  OAuthConsent,
-  OAuthRefreshToken,
-} from "@prisma/client";
+import type { OAuthAuthorizationCode, OAuthClient, OAuthConsent } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { MANAGED_STATUS } from "@/constant/status";
 import { getLogger, LogCategory } from "@/util/logger";

@@ -117,7 +117,7 @@ class JWTUtil {
         const ttl = exp - Math.floor(Date.now() / 1000);
         if (ttl > 0) await RedisService.getInstance().blacklistJti(decoded.jti, ttl);
       }
-    } catch (error) {
+    } catch (_error) {
       // Token invalid or expired, no need to blacklist
     }
   }

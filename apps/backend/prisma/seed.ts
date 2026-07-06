@@ -171,7 +171,7 @@ async function main() {
   });
 
   // 7. RAM 默认用户组 - 无特殊权限
-  const ramDefaultGroup = await prisma.group.upsert({
+  const _ramDefaultGroup = await prisma.group.upsert({
     where: { username: "ram-default" },
     update: {},
     create: {
