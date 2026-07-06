@@ -131,13 +131,13 @@ export enum Permission {
   MONTHLY_PASS_ASSIGNMENT_WRITE = 'monthly_pass:assignment:write',
   MONTHLY_PASS_USAGE_READ = 'monthly_pass:usage:read',
 
-  // 反馈管理权限
-  FEEDBACK_SUBMIT = 'feedback:submit',
-  FEEDBACK_SELF_READ = 'feedback:self:read',
-  FEEDBACK_SELF_UPDATE = 'feedback:self:update',
-  FEEDBACK_COMMENT = 'feedback:comment',
-  FEEDBACK_REVIEW_READ = 'feedback:review:read',
-  FEEDBACK_REVIEW_UPDATE = 'feedback:review:update',
+  // 工单管理权限
+  TICKET_SUBMIT = 'ticket:submit',
+  TICKET_SELF_READ = 'ticket:self:read',
+  TICKET_SELF_UPDATE = 'ticket:self:update',
+  TICKET_COMMENT = 'ticket:comment',
+  TICKET_REVIEW_READ = 'ticket:review:read',
+  TICKET_REVIEW_UPDATE = 'ticket:review:update',
 
   // 模型价格权限
   MODEL_PRICING_READ = 'model:pricing:read',

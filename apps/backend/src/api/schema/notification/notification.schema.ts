@@ -37,3 +37,18 @@ export const notificationLogsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional().default(1),
   pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
 });
+
+export const notificationInboxQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
+  unreadOnly: z.coerce.boolean().optional().default(false),
+});
+
+export const markNotificationInboxReadBodySchema = z
+  .object({
+    ids: z.array(z.string().trim().min(1)).max(200).optional(),
+    markAll: z.boolean().optional(),
+  })
+  .refine((value) => Boolean(value.markAll) || (Array.isArray(value.ids) && value.ids.length > 0), {
+    message: "ids 或 markAll 至少提供一个",
+  });

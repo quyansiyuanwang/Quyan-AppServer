@@ -10,17 +10,21 @@ import {
   NotificationWebhookDto,
   NotificationLogListDto,
   NotificationEventInfoDto,
+  NotificationInboxListDto,
+  NotificationInboxItemDto,
 } from "@/api/dto/notification/notification.dto";
 import type {
   UpdateNotificationPreferenceDto,
   CreateNotificationWebhookDto,
   UpdateNotificationWebhookDto,
+  MarkNotificationInboxReadDto,
 } from "@/api/dto/notification/notification.dto";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationPreferenceInitializerService } from "@/services/notification/notification-preference-initializer.service";
 import {
   NotificationEvent,
-  NOTIFICATION_EVENT_LABELS,
+  NOTIFICATION_EVENT_I18N_KEYS,
+  NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS,
   THRESHOLD_EVENTS,
   ALL_NOTIFICATION_EVENTS,
 } from "@/constant/notification-event";
@@ -231,21 +235,38 @@ export class NotificationManagementService {
     };
   }
 
+  async getInbox(
+    userId: string,
+    page: number,
+    pageSize: number,
+    unreadOnly: boolean,
+  ): Promise<NotificationInboxListDto> {
+    const { items, total, unreadCount } = await this.repository.findInboxByUserId(userId, page, pageSize, unreadOnly);
+    return {
+      items: items.map((item) => this.toInboxItemDto(item)),
+      total,
+      unreadCount,
+      page,
+      pageSize,
+    };
+  }
+
+  async markInboxRead(userId: string, dto: MarkNotificationInboxReadDto): Promise<{ success: boolean; count: number }> {
+    const count = dto.markAll
+      ? await this.repository.markAllInboxItemsRead(userId)
+      : await this.repository.markInboxItemsRead(userId, dto.ids ?? []);
+
+    return { success: true, count };
+  }
+
   // ─── Event List ────────────────────────────────────────────────────────────
 
   getEventList(): NotificationEventInfoDto[] {
-    const thresholdUnits: Partial<Record<NotificationEvent, string>> = {
-      [NotificationEvent.BALANCE_LOW]: "曲",
-      [NotificationEvent.MONTHLY_PASS_QUOTA_LOW]: "%",
-      [NotificationEvent.MONTHLY_PASS_DAILY_LIMIT]: "%",
-      [NotificationEvent.RELAY_TOKEN_QUOTA_LOW]: "%",
-    };
-
     return ALL_NOTIFICATION_EVENTS.map((event) => ({
       value: event,
-      label: NOTIFICATION_EVENT_LABELS[event as NotificationEvent] ?? event,
+      labelI18nKey: NOTIFICATION_EVENT_I18N_KEYS[event as NotificationEvent] ?? event,
       hasThreshold: (THRESHOLD_EVENTS as readonly string[]).includes(event),
-      thresholdUnit: thresholdUnits[event as NotificationEvent],
+      thresholdUnitI18nKey: NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS[event as NotificationEvent],
     }));
   }
 
@@ -273,6 +294,33 @@ export class NotificationManagementService {
       enabled: webhook.enabled,
       createTime: webhook.createTime.toISOString(),
       updateTime: webhook.updateTime.toISOString(),
+    };
+  }
+
+  private toInboxItemDto(item: {
+    id: string;
+    eventType: string;
+    title: string;
+    content: string;
+    isRead: boolean;
+    readTime: Date | null;
+    metadata: unknown;
+    createTime: Date;
+    updateTime: Date;
+  }): NotificationInboxItemDto {
+    return {
+      id: item.id,
+      eventType: item.eventType,
+      title: item.title,
+      content: item.content,
+      isRead: item.isRead,
+      readTime: item.readTime?.toISOString() ?? null,
+      metadata:
+        item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
+          ? (item.metadata as Record<string, unknown>)
+          : null,
+      createTime: item.createTime.toISOString(),
+      updateTime: item.updateTime.toISOString(),
     };
   }
 

@@ -1,35 +1,31 @@
 <template>
-  <div class="workspace-feedback-view page-shell">
+  <div class="workspace-ticket-view page-shell">
     <el-card v-if="!isLoggedIn" class="page-card login-card" shadow="never">
       <template #header>
         <div class="card-header-block">
-          <div class="card-title">{{ i18ns.t('feedback.loginRequiredTitle') }}</div>
-          <div class="card-description">{{ i18ns.t('feedback.loginRequiredDescription') }}</div>
+          <div class="card-title">{{ i18ns.t('ticket.loginRequiredTitle') }}</div>
+          <div class="card-description">{{ i18ns.t('ticket.loginRequiredDescription') }}</div>
         </div>
       </template>
-      <el-button type="primary" @click="goToLogin">{{ i18ns.t('feedback.loginAction') }}</el-button>
+      <el-button type="primary" @click="goToLogin">{{ i18ns.t('ticket.loginAction') }}</el-button>
     </el-card>
 
-    <div v-else-if="permissionReady" class="feedback-layout">
-      <el-card
-        v-if="canShowForm"
-        class="page-card feedback-card feedback-card--form"
-        shadow="never"
-      >
+    <div v-else-if="permissionReady" class="ticket-layout">
+      <el-card v-if="canShowForm" class="page-card ticket-card ticket-card--form" shadow="never">
         <template #header>
           <div class="card-header-block">
             <div class="card-title">
               {{
                 isEditing
-                  ? i18ns.t('feedback.updateSectionTitle')
-                  : i18ns.t('feedback.submitSectionTitle')
+                  ? i18ns.t('ticket.updateSectionTitle')
+                  : i18ns.t('ticket.submitSectionTitle')
               }}
             </div>
             <div class="card-description">
               {{
                 isEditing
-                  ? i18ns.t('feedback.updateSectionDescription')
-                  : i18ns.t('feedback.submitSectionDescription')
+                  ? i18ns.t('ticket.updateSectionDescription')
+                  : i18ns.t('ticket.submitSectionDescription')
               }}
             </div>
           </div>
@@ -37,7 +33,7 @@
 
         <el-alert
           v-if="isEditing && editingLocked"
-          :title="i18ns.t('feedback.terminalLocked')"
+          :title="i18ns.t('ticket.terminalLocked')"
           type="warning"
           show-icon
           :closable="false"
@@ -45,16 +41,16 @@
         />
 
         <el-form
-          ref="feedbackFormRef"
-          :model="feedbackForm"
-          :rules="feedbackFormRules"
+          ref="ticketFormRef"
+          :model="ticketForm"
+          :rules="ticketFormRules"
           label-position="top"
         >
           <div class="form-grid">
-            <el-form-item :label="i18ns.t('feedback.type')" prop="type">
-              <el-select v-model="feedbackForm.type">
+            <el-form-item :label="i18ns.t('ticket.type')" prop="type">
+              <el-select v-model="ticketForm.type">
                 <el-option
-                  v-for="type in feedbackTypeOptions"
+                  v-for="type in ticketTypeOptions"
                   :key="type"
                   :label="getTypeLabel(type)"
                   :value="type"
@@ -62,93 +58,89 @@
               </el-select>
             </el-form-item>
 
-            <el-form-item :label="i18ns.t('feedback.contactInfo')" prop="contactInfo">
+            <el-form-item :label="i18ns.t('ticket.contactInfo')" prop="contactInfo">
               <el-input
-                v-model="feedbackForm.contactInfo"
+                v-model="ticketForm.contactInfo"
                 :maxlength="200"
-                :placeholder="i18ns.t('feedback.contactInfoPlaceholder')"
+                :placeholder="i18ns.t('ticket.contactInfoPlaceholder')"
                 clearable
               />
             </el-form-item>
 
-            <el-form-item class="form-grid__full" :label="i18ns.t('feedback.title')" prop="title">
+            <el-form-item class="form-grid__full" :label="i18ns.t('ticket.title')" prop="title">
               <el-input
-                v-model="feedbackForm.title"
+                v-model="ticketForm.title"
                 :maxlength="200"
-                :placeholder="i18ns.t('feedback.titlePlaceholder')"
+                :placeholder="i18ns.t('ticket.titlePlaceholder')"
                 clearable
               />
             </el-form-item>
 
             <el-form-item
               class="form-grid__full"
-              :label="i18ns.t('feedback.description')"
+              :label="i18ns.t('ticket.description')"
               prop="description"
             >
               <el-input
-                v-model="feedbackForm.description"
+                v-model="ticketForm.description"
                 type="textarea"
                 :rows="5"
                 :maxlength="5000"
                 show-word-limit
-                :placeholder="i18ns.t('feedback.descriptionPlaceholder')"
+                :placeholder="i18ns.t('ticket.descriptionPlaceholder')"
               />
             </el-form-item>
 
-            <el-form-item :label="i18ns.t('feedback.sourcePage')" prop="sourcePage">
+            <el-form-item :label="i18ns.t('ticket.sourcePage')" prop="sourcePage">
               <el-input
-                v-model="feedbackForm.sourcePage"
+                v-model="ticketForm.sourcePage"
                 :maxlength="500"
-                :placeholder="i18ns.t('feedback.sourcePagePlaceholder')"
+                :placeholder="i18ns.t('ticket.sourcePagePlaceholder')"
                 clearable
               />
             </el-form-item>
 
             <el-form-item
               class="form-grid__full"
-              :label="i18ns.t('feedback.reproduceSteps')"
+              :label="i18ns.t('ticket.reproduceSteps')"
               prop="reproduceSteps"
             >
               <el-input
-                v-model="feedbackForm.reproduceSteps"
+                v-model="ticketForm.reproduceSteps"
                 type="textarea"
                 :rows="4"
                 :maxlength="5000"
                 show-word-limit
-                :placeholder="i18ns.t('feedback.reproduceStepsPlaceholder')"
+                :placeholder="i18ns.t('ticket.reproduceStepsPlaceholder')"
               />
             </el-form-item>
           </div>
 
           <div class="form-actions">
-            <el-button @click="resetFeedbackForm">{{ i18ns.t('reset') }}</el-button>
+            <el-button @click="resetTicketForm">{{ i18ns.t('reset') }}</el-button>
             <el-button v-if="isEditing" @click="cancelEditing">{{
-              i18ns.t('feedback.cancelEdit')
+              i18ns.t('ticket.cancelEdit')
             }}</el-button>
             <el-button
               type="primary"
-              :loading="feedbackSubmitting"
+              :loading="ticketSubmitting"
               :disabled="isEditing && editingLocked"
-              @click="submitFeedbackForm"
+              @click="submitTicketForm"
             >
-              {{ isEditing ? i18ns.t('feedback.saveUpdate') : i18ns.t('feedback.submitAction') }}
+              {{ isEditing ? i18ns.t('ticket.saveUpdate') : i18ns.t('ticket.submitAction') }}
             </el-button>
           </div>
         </el-form>
       </el-card>
 
-      <el-card
-        v-if="canReadFeedback"
-        class="page-card feedback-card feedback-card--list"
-        shadow="never"
-      >
+      <el-card v-if="canReadTickets" class="page-card ticket-card ticket-card--list" shadow="never">
         <template #header>
           <div class="card-header-row">
             <div class="card-header-block">
-              <div class="card-title">{{ i18ns.t('feedback.listSectionTitle') }}</div>
-              <div class="card-description">{{ i18ns.t('feedback.listSectionDescription') }}</div>
+              <div class="card-title">{{ i18ns.t('ticket.listSectionTitle') }}</div>
+              <div class="card-description">{{ i18ns.t('ticket.listSectionDescription') }}</div>
             </div>
-            <el-button :loading="listLoading" @click="loadMyFeedbackList">{{
+            <el-button :loading="listLoading" @click="loadMyTickets">{{
               i18ns.t('refresh')
             }}</el-button>
           </div>
@@ -158,13 +150,13 @@
           <div class="filter-row">
             <el-input
               v-model="filters.keyword"
-              :placeholder="i18ns.t('feedback.keywordPlaceholder')"
+              :placeholder="i18ns.t('ticket.keywordPlaceholder')"
               clearable
               @keyup.enter="handleSearch"
               @clear="handleSearch"
             />
             <el-select v-model="filters.workflowStatus" clearable @change="handleSearch">
-              <el-option :label="i18ns.t('feedback.allStatuses')" value="" />
+              <el-option :label="i18ns.t('ticket.allStatuses')" value="" />
               <el-option
                 v-for="status in workflowStatusOptions"
                 :key="status"
@@ -173,9 +165,9 @@
               />
             </el-select>
             <el-select v-model="filters.type" clearable @change="handleSearch">
-              <el-option :label="i18ns.t('feedback.allTypes')" value="" />
+              <el-option :label="i18ns.t('ticket.allTypes')" value="" />
               <el-option
-                v-for="type in feedbackTypeOptions"
+                v-for="type in ticketTypeOptions"
                 :key="type"
                 :label="getTypeLabel(type)"
                 :value="type"
@@ -191,54 +183,51 @@
             <el-table
               v-if="isDesktop"
               v-loading="listLoading"
-              :data="feedbackList"
-              class="feedback-table"
+              :data="ticketList"
+              class="ticket-table"
             >
-              <el-table-column prop="title" :label="i18ns.t('feedback.title')" min-width="220">
+              <el-table-column prop="title" :label="i18ns.t('ticket.title')" min-width="220">
                 <template #default="{ row }">
                   <div class="table-title">{{ row.title }}</div>
                   <div class="table-subtitle">{{ formatDateTime(row.createTime) }}</div>
                 </template>
               </el-table-column>
-              <el-table-column :label="i18ns.t('feedback.type')" width="120">
+              <el-table-column :label="i18ns.t('ticket.type')" width="120">
                 <template #default="{ row }">
                   <el-tag :type="getTypeTagType(row.type)" effect="light">{{
                     getTypeLabel(row.type)
                   }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column :label="i18ns.t('feedback.workflowStatus')" width="140">
+              <el-table-column :label="i18ns.t('ticket.workflowStatus')" width="140">
                 <template #default="{ row }">
-                  <el-tag :type="getStatusTagType(row.workflowStatus)" effect="light">
-                    {{ getStatusLabel(row.workflowStatus) }}
-                  </el-tag>
+                  <el-tag :type="getStatusTagType(row.workflowStatus)" effect="light">{{
+                    getStatusLabel(row.workflowStatus)
+                  }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column :label="i18ns.t('feedback.priority')" width="120">
+              <el-table-column :label="i18ns.t('ticket.priority')" width="120">
                 <template #default="{ row }">
-                  <el-tag :type="getPriorityTagType(row.priority)" effect="light">
-                    {{ getPriorityLabel(row.priority) }}
-                  </el-tag>
+                  <el-tag :type="getPriorityTagType(row.priority)" effect="light">{{
+                    getPriorityLabel(row.priority)
+                  }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column :label="i18ns.t('feedback.lastReplyAt')" width="180">
-                <template #default="{ row }">
-                  {{ formatDateTime(row.lastReplyAt) }}
-                </template>
+              <el-table-column :label="i18ns.t('ticket.lastReplyAt')" width="180">
+                <template #default="{ row }">{{ formatDateTime(row.lastReplyAt) }}</template>
               </el-table-column>
               <el-table-column :label="i18ns.t('actions')" width="190" fixed="right">
                 <template #default="{ row }">
                   <div class="row-actions">
-                    <el-button link type="primary" @click="openFeedbackDetail(row.id)">
-                      {{ i18ns.t('feedback.viewDetail') }}
-                    </el-button>
+                    <el-button link type="primary" @click="openTicketDetail(row.id)">{{
+                      i18ns.t('ticket.viewDetail')
+                    }}</el-button>
                     <el-button
-                      v-if="canUpdateFeedback && !isTerminalStatus(row.workflowStatus)"
+                      v-if="canUpdateTickets && !isTerminalStatus(row.workflowStatus)"
                       link
                       @click="startEditingByRow(row.id)"
+                      >{{ i18ns.t('edit') }}</el-button
                     >
-                      {{ i18ns.t('edit') }}
-                    </el-button>
                   </div>
                 </template>
               </el-table-column>
@@ -246,49 +235,48 @@
 
             <div v-else class="mobile-card-list" v-loading="listLoading">
               <el-empty
-                v-if="!feedbackList.length && !listLoading"
-                :description="i18ns.t('feedback.emptyState')"
+                v-if="!ticketList.length && !listLoading"
+                :description="i18ns.t('ticket.emptyState')"
               />
               <el-card
-                v-for="item in feedbackList"
+                v-for="item in ticketList"
                 :key="item.id"
-                class="mobile-feedback-card"
+                class="mobile-ticket-card"
                 shadow="never"
               >
-                <div class="mobile-feedback-card__header">
+                <div class="mobile-ticket-card__header">
                   <div>
-                    <div class="mobile-feedback-card__title">{{ item.title }}</div>
+                    <div class="mobile-ticket-card__title">{{ item.title }}</div>
                     <div class="table-subtitle">{{ formatDateTime(item.createTime) }}</div>
                   </div>
-                  <el-tag :type="getStatusTagType(item.workflowStatus)" effect="light">
-                    {{ getStatusLabel(item.workflowStatus) }}
-                  </el-tag>
+                  <el-tag :type="getStatusTagType(item.workflowStatus)" effect="light">{{
+                    getStatusLabel(item.workflowStatus)
+                  }}</el-tag>
                 </div>
-                <div class="mobile-feedback-card__meta">
+                <div class="mobile-ticket-card__meta">
                   <el-tag :type="getTypeTagType(item.type)" effect="light">{{
                     getTypeLabel(item.type)
                   }}</el-tag>
-                  <el-tag :type="getPriorityTagType(item.priority)" effect="light">
-                    {{ getPriorityLabel(item.priority) }}
-                  </el-tag>
+                  <el-tag :type="getPriorityTagType(item.priority)" effect="light">{{
+                    getPriorityLabel(item.priority)
+                  }}</el-tag>
                 </div>
-                <div class="mobile-feedback-card__actions">
-                  <el-button type="primary" plain @click="openFeedbackDetail(item.id)">
-                    {{ i18ns.t('feedback.viewDetail') }}
-                  </el-button>
+                <div class="mobile-ticket-card__actions">
+                  <el-button type="primary" plain @click="openTicketDetail(item.id)">{{
+                    i18ns.t('ticket.viewDetail')
+                  }}</el-button>
                   <el-button
-                    v-if="canUpdateFeedback && !isTerminalStatus(item.workflowStatus)"
+                    v-if="canUpdateTickets && !isTerminalStatus(item.workflowStatus)"
                     @click="startEditingByRow(item.id)"
+                    >{{ i18ns.t('edit') }}</el-button
                   >
-                    {{ i18ns.t('edit') }}
-                  </el-button>
                 </div>
               </el-card>
             </div>
 
             <el-empty
-              v-if="isDesktop && !listLoading && !feedbackList.length"
-              :description="i18ns.t('feedback.emptyState')"
+              v-if="isDesktop && !listLoading && !ticketList.length"
+              :description="i18ns.t('ticket.emptyState')"
             />
           </div>
 
@@ -299,19 +287,19 @@
               :page-sizes="[10, 20, 50, 100]"
               :total="pagination.total"
               layout="total, sizes, prev, pager, next"
-              @current-change="loadMyFeedbackList"
+              @current-change="loadMyTickets"
               @size-change="handlePageSizeChange"
             />
           </div>
         </div>
       </el-card>
 
-      <el-card v-if="!canShowForm && !canReadFeedback" class="page-card" shadow="never">
+      <el-card v-if="!canShowForm && !canReadTickets" class="page-card" shadow="never">
         <el-empty :description="i18ns.t('permissionText.noPermissions')" />
       </el-card>
     </div>
 
-    <el-skeleton v-else animated :rows="8" class="feedback-skeleton" />
+    <el-skeleton v-else animated :rows="8" class="ticket-skeleton" />
 
     <el-drawer v-model="detailVisible" :title="drawerTitle" :size="drawerSize">
       <div v-loading="detailLoading" class="detail-drawer">
@@ -320,67 +308,70 @@
             <el-tag :type="getTypeTagType(selectedDetail.type)" effect="light">{{
               getTypeLabel(selectedDetail.type)
             }}</el-tag>
-            <el-tag :type="getStatusTagType(selectedDetail.workflowStatus)" effect="light">
-              {{ getStatusLabel(selectedDetail.workflowStatus) }}
-            </el-tag>
-            <el-tag :type="getPriorityTagType(selectedDetail.priority)" effect="light">
-              {{ getPriorityLabel(selectedDetail.priority) }}
-            </el-tag>
+            <el-tag :type="getStatusTagType(selectedDetail.workflowStatus)" effect="light">{{
+              getStatusLabel(selectedDetail.workflowStatus)
+            }}</el-tag>
+            <el-tag :type="getPriorityTagType(selectedDetail.priority)" effect="light">{{
+              getPriorityLabel(selectedDetail.priority)
+            }}</el-tag>
           </div>
 
           <el-descriptions :column="isDesktop ? 2 : 1" border class="detail-descriptions">
-            <el-descriptions-item :label="i18ns.t('feedback.submitter')">
-              {{ selectedDetail.username || selectedDetail.userId }}
-            </el-descriptions-item>
-            <el-descriptions-item :label="i18ns.t('feedback.assignee')">
-              {{ selectedDetail.assigneeUsername || i18ns.t('feedback.unassigned') }}
-            </el-descriptions-item>
-            <el-descriptions-item :label="i18ns.t('feedback.createTime')">
-              {{ formatDateTime(selectedDetail.createTime) }}
-            </el-descriptions-item>
-            <el-descriptions-item :label="i18ns.t('feedback.updateTime')">
-              {{ formatDateTime(selectedDetail.updateTime) }}
-            </el-descriptions-item>
-            <el-descriptions-item :label="i18ns.t('feedback.lastReplyAt')">
-              {{ formatDateTime(selectedDetail.lastReplyAt) }}
-            </el-descriptions-item>
-            <el-descriptions-item :label="i18ns.t('feedback.sourcePage')">
-              <span class="wrap-text">{{ selectedDetail.sourcePage || '-' }}</span>
-            </el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.submitter')">{{
+              selectedDetail.username || selectedDetail.userId
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.assignee')">{{
+              selectedDetail.assigneeUsername || i18ns.t('ticket.unassigned')
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.createTime')">{{
+              formatDateTime(selectedDetail.createTime)
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.updateTime')">{{
+              formatDateTime(selectedDetail.updateTime)
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.lastReplyAt')">{{
+              formatDateTime(selectedDetail.lastReplyAt)
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.sourcePage')"
+              ><span class="wrap-text">{{
+                selectedDetail.sourcePage || '-'
+              }}</span></el-descriptions-item
+            >
             <el-descriptions-item
               class-name="description-cell"
-              :label="i18ns.t('feedback.description')"
+              :label="i18ns.t('ticket.description')"
+              ><div class="wrap-text">{{ selectedDetail.description }}</div></el-descriptions-item
             >
-              <div class="wrap-text">{{ selectedDetail.description }}</div>
-            </el-descriptions-item>
             <el-descriptions-item
               class-name="description-cell"
-              :label="i18ns.t('feedback.reproduceSteps')"
+              :label="i18ns.t('ticket.reproduceSteps')"
+              ><div class="wrap-text">
+                {{ selectedDetail.reproduceSteps || '-' }}
+              </div></el-descriptions-item
             >
-              <div class="wrap-text">{{ selectedDetail.reproduceSteps || '-' }}</div>
-            </el-descriptions-item>
             <el-descriptions-item
               class-name="description-cell"
-              :label="i18ns.t('feedback.contactInfo')"
+              :label="i18ns.t('ticket.contactInfo')"
+              ><div class="wrap-text">
+                {{ selectedDetail.contactInfo || '-' }}
+              </div></el-descriptions-item
             >
-              <div class="wrap-text">{{ selectedDetail.contactInfo || '-' }}</div>
-            </el-descriptions-item>
           </el-descriptions>
 
           <div class="detail-toolbar">
             <el-button @click="reloadCurrentDetail">{{ i18ns.t('refresh') }}</el-button>
             <el-button
-              v-if="canUpdateFeedback && !isTerminalStatus(selectedDetail.workflowStatus)"
+              v-if="canUpdateTickets && !isTerminalStatus(selectedDetail.workflowStatus)"
               type="primary"
               plain
               @click="startEditingFromDetail"
             >
-              {{ i18ns.t('feedback.fillCurrentDetail') }}
+              {{ i18ns.t('ticket.fillCurrentDetail') }}
             </el-button>
           </div>
 
           <el-alert
-            :title="i18ns.t('feedback.publicRepliesOnly')"
+            :title="i18ns.t('ticket.publicRepliesOnly')"
             type="info"
             show-icon
             :closable="false"
@@ -390,8 +381,8 @@
           <el-card v-if="canCommentOnDetail" shadow="never" class="comment-editor-card">
             <template #header>
               <div class="card-header-block">
-                <div class="card-title">{{ i18ns.t('feedback.replyTitle') }}</div>
-                <div class="card-description">{{ i18ns.t('feedback.replyDescription') }}</div>
+                <div class="card-title">{{ i18ns.t('ticket.replyTitle') }}</div>
+                <div class="card-description">{{ i18ns.t('ticket.replyDescription') }}</div>
               </div>
             </template>
             <el-input
@@ -400,21 +391,21 @@
               :rows="4"
               :maxlength="5000"
               show-word-limit
-              :placeholder="i18ns.t('feedback.commentPlaceholder')"
+              :placeholder="i18ns.t('ticket.commentPlaceholder')"
             />
             <div class="form-actions">
               <el-button @click="commentDraft = ''">{{ i18ns.t('reset') }}</el-button>
-              <el-button type="primary" :loading="commentSubmitting" @click="submitComment">
-                {{ i18ns.t('feedback.postReply') }}
-              </el-button>
+              <el-button type="primary" :loading="commentSubmitting" @click="submitComment">{{
+                i18ns.t('ticket.postReply')
+              }}</el-button>
             </div>
           </el-card>
 
           <div class="timeline-section">
-            <div class="timeline-section__title">{{ i18ns.t('feedback.comments') }}</div>
+            <div class="timeline-section__title">{{ i18ns.t('ticket.comments') }}</div>
             <el-empty
               v-if="!selectedDetail.comments.length"
-              :description="i18ns.t('feedback.emptyComments')"
+              :description="i18ns.t('ticket.emptyComments')"
             />
             <el-timeline v-else>
               <el-timeline-item
@@ -442,7 +433,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { i18ns } from '@/locales'
-import { feedbackService } from '@/service/feedbackService'
+import { ticketService } from '@/service/ticketService'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { useUserInfoStore } from '@/stores/userInfoStore'
@@ -452,17 +443,17 @@ import { usePageDevice } from '@/composables/usePageDevice'
 import { useFloatingWorkspaceStore } from '@/stores/floatingWorkspaceStore'
 import router from '@/router'
 import type {
-  CreateFeedbackDto,
-  FeedbackDetailDto,
-  FeedbackListItemDto,
-  FeedbackPriority,
-  FeedbackType,
-  FeedbackWorkflowStatus,
-  UpdateMyFeedbackDto,
+  CreateTicketDto,
+  TicketDetailDto,
+  TicketListItemDto,
+  TicketPriority,
+  TicketType,
+  TicketWorkflowStatus,
+  UpdateMyTicketDto,
 } from '@/client/types.gen'
 
-type FeedbackFormModel = {
-  type: FeedbackType
+type TicketFormModel = {
+  type: TicketType
   title: string
   description: string
   sourcePage: string
@@ -470,7 +461,7 @@ type FeedbackFormModel = {
   contactInfo: string
 }
 
-const createDefaultFeedbackForm = (): FeedbackFormModel => ({
+const createDefaultTicketForm = (): TicketFormModel => ({
   type: 'suggestion',
   title: '',
   description: '',
@@ -485,8 +476,8 @@ const userInfoStore = useUserInfoStore()
 const floatingWorkspaceStore = useFloatingWorkspaceStore()
 const { isDesktop } = usePageDevice()
 
-const feedbackTypeOptions: FeedbackType[] = ['suggestion', 'bug', 'other']
-const workflowStatusOptions: FeedbackWorkflowStatus[] = [
+const ticketTypeOptions: TicketType[] = ['suggestion', 'bug', 'other']
+const workflowStatusOptions: TicketWorkflowStatus[] = [
   'pending',
   'processing',
   'accepted',
@@ -494,42 +485,36 @@ const workflowStatusOptions: FeedbackWorkflowStatus[] = [
   'completed',
 ]
 
-const feedbackFormRef = ref<FormInstance>()
+const ticketFormRef = ref<FormInstance>()
 const permissionReady = ref(false)
-const feedbackSubmitting = ref(false)
+const ticketSubmitting = ref(false)
 const listLoading = ref(false)
 const detailLoading = ref(false)
 const commentSubmitting = ref(false)
-const feedbackList = ref<FeedbackListItemDto[]>([])
-const selectedDetail = ref<FeedbackDetailDto | null>(null)
+const ticketList = ref<TicketListItemDto[]>([])
+const selectedDetail = ref<TicketDetailDto | null>(null)
 const detailVisible = ref(false)
 const editingId = ref<string | null>(null)
 const commentDraft = ref('')
 
-const feedbackForm = reactive<FeedbackFormModel>(createDefaultFeedbackForm())
+const ticketForm = reactive<TicketFormModel>(createDefaultTicketForm())
 const filters = reactive({
   keyword: '',
-  workflowStatus: '' as '' | FeedbackWorkflowStatus,
-  type: '' as '' | FeedbackType,
+  workflowStatus: '' as '' | TicketWorkflowStatus,
+  type: '' as '' | TicketType,
 })
-const pagination = reactive({
-  page: 1,
-  pageSize: 10,
-  total: 0,
-})
+const pagination = reactive({ page: 1, pageSize: 10, total: 0 })
 
 const isLoggedIn = computed(() => userInfoStore.isLoggedIn())
 const isEmbeddedPage = computed(() => String(route.query.embed ?? '') === '1')
-const canSubmitFeedback = computed(() => permissionStore.hasPermission(Permission.FEEDBACK_SUBMIT))
-const canReadFeedback = computed(() => permissionStore.hasPermission(Permission.FEEDBACK_SELF_READ))
-const canUpdateFeedback = computed(() =>
-  permissionStore.hasPermission(Permission.FEEDBACK_SELF_UPDATE),
+const canSubmitTickets = computed(() => permissionStore.hasPermission(Permission.TICKET_SUBMIT))
+const canReadTickets = computed(() => permissionStore.hasPermission(Permission.TICKET_SELF_READ))
+const canUpdateTickets = computed(() =>
+  permissionStore.hasPermission(Permission.TICKET_SELF_UPDATE),
 )
-const canCommentFeedback = computed(() =>
-  permissionStore.hasPermission(Permission.FEEDBACK_COMMENT),
-)
+const canCommentTickets = computed(() => permissionStore.hasPermission(Permission.TICKET_COMMENT))
 const canShowForm = computed(
-  () => canSubmitFeedback.value || (isEditing.value && canUpdateFeedback.value),
+  () => canSubmitTickets.value || (isEditing.value && canUpdateTickets.value),
 )
 const isEditing = computed(() => Boolean(editingId.value))
 const editingLocked = computed(
@@ -538,37 +523,37 @@ const editingLocked = computed(
 const canCommentOnDetail = computed(
   () =>
     Boolean(selectedDetail.value) &&
-    canCommentFeedback.value &&
+    canCommentTickets.value &&
     !isTerminalStatus(selectedDetail.value!.workflowStatus),
 )
 const drawerTitle = computed(
-  () => selectedDetail.value?.title || i18ns.t('feedback.detailSectionTitle'),
+  () => selectedDetail.value?.title || i18ns.t('ticket.detailSectionTitle'),
 )
 const drawerSize = computed(() => (isDesktop.value ? '56%' : '92%'))
 
-const feedbackFormRules: FormRules<FeedbackFormModel> = {
+const ticketFormRules: FormRules<TicketFormModel> = {
   type: [{ required: true, message: i18ns.t('required'), trigger: 'change' }],
   title: [{ required: true, message: i18ns.t('required'), trigger: 'blur' }],
   description: [{ required: true, message: i18ns.t('required'), trigger: 'blur' }],
 }
 
-function isTerminalStatus(status?: FeedbackWorkflowStatus) {
+function isTerminalStatus(status?: TicketWorkflowStatus) {
   return status === 'rejected' || status === 'completed'
 }
 
-function getTypeLabel(type: FeedbackType) {
-  return i18ns.t(`feedback.types.${type}`)
+function getTypeLabel(type: TicketType) {
+  return i18ns.t(`ticket.types.${type}`)
 }
 
-function getStatusLabel(status: FeedbackWorkflowStatus) {
-  return i18ns.t(`feedback.statuses.${status}`)
+function getStatusLabel(status: TicketWorkflowStatus) {
+  return i18ns.t(`ticket.statuses.${status}`)
 }
 
-function getPriorityLabel(priority: FeedbackPriority) {
-  return i18ns.t(`feedback.priorities.${priority}`)
+function getPriorityLabel(priority: TicketPriority) {
+  return i18ns.t(`ticket.priorities.${priority}`)
 }
 
-function getTypeTagType(type: FeedbackType) {
+function getTypeTagType(type: TicketType) {
   switch (type) {
     case 'suggestion':
       return 'primary'
@@ -579,7 +564,7 @@ function getTypeTagType(type: FeedbackType) {
   }
 }
 
-function getStatusTagType(status: FeedbackWorkflowStatus) {
+function getStatusTagType(status: TicketWorkflowStatus) {
   switch (status) {
     case 'processing':
       return 'warning'
@@ -593,7 +578,7 @@ function getStatusTagType(status: FeedbackWorkflowStatus) {
   }
 }
 
-function getPriorityTagType(priority: FeedbackPriority) {
+function getPriorityTagType(priority: TicketPriority) {
   switch (priority) {
     case 'urgent':
     case 'high':
@@ -619,109 +604,109 @@ function normalizeOptionalUpdateField(value: string) {
   return trimmed || null
 }
 
-function resetFeedbackForm() {
-  Object.assign(feedbackForm, createDefaultFeedbackForm())
-  void nextTick(() => feedbackFormRef.value?.clearValidate())
+function resetTicketForm() {
+  Object.assign(ticketForm, createDefaultTicketForm())
+  void nextTick(() => ticketFormRef.value?.clearValidate())
 }
 
-function applyDetailToForm(detail: FeedbackDetailDto) {
-  feedbackForm.type = detail.type
-  feedbackForm.title = detail.title
-  feedbackForm.description = detail.description
-  feedbackForm.sourcePage = detail.sourcePage || ''
-  feedbackForm.reproduceSteps = detail.reproduceSteps || ''
-  feedbackForm.contactInfo = detail.contactInfo || ''
+function applyDetailToForm(detail: TicketDetailDto) {
+  ticketForm.type = detail.type
+  ticketForm.title = detail.title
+  ticketForm.description = detail.description
+  ticketForm.sourcePage = detail.sourcePage || ''
+  ticketForm.reproduceSteps = detail.reproduceSteps || ''
+  ticketForm.contactInfo = detail.contactInfo || ''
 }
 
-function buildCreatePayload(): CreateFeedbackDto {
+function buildCreatePayload(): CreateTicketDto {
   return {
-    type: feedbackForm.type,
-    title: feedbackForm.title.trim(),
-    description: feedbackForm.description.trim(),
-    sourcePage: normalizeOptionalCreateField(feedbackForm.sourcePage),
-    reproduceSteps: normalizeOptionalCreateField(feedbackForm.reproduceSteps),
-    contactInfo: normalizeOptionalCreateField(feedbackForm.contactInfo),
+    type: ticketForm.type,
+    title: ticketForm.title.trim(),
+    description: ticketForm.description.trim(),
+    sourcePage: normalizeOptionalCreateField(ticketForm.sourcePage),
+    reproduceSteps: normalizeOptionalCreateField(ticketForm.reproduceSteps),
+    contactInfo: normalizeOptionalCreateField(ticketForm.contactInfo),
   }
 }
 
-function buildUpdatePayload(): UpdateMyFeedbackDto {
+function buildUpdatePayload(): UpdateMyTicketDto {
   return {
-    type: feedbackForm.type,
-    title: feedbackForm.title.trim(),
-    description: feedbackForm.description.trim(),
-    sourcePage: normalizeOptionalUpdateField(feedbackForm.sourcePage),
-    reproduceSteps: normalizeOptionalUpdateField(feedbackForm.reproduceSteps),
-    contactInfo: normalizeOptionalUpdateField(feedbackForm.contactInfo),
+    type: ticketForm.type,
+    title: ticketForm.title.trim(),
+    description: ticketForm.description.trim(),
+    sourcePage: normalizeOptionalUpdateField(ticketForm.sourcePage),
+    reproduceSteps: normalizeOptionalUpdateField(ticketForm.reproduceSteps),
+    contactInfo: normalizeOptionalUpdateField(ticketForm.contactInfo),
   }
 }
 
-async function loadMyFeedbackList() {
-  if (!canReadFeedback.value) return
+async function loadMyTickets() {
+  if (!canReadTickets.value) return
 
   listLoading.value = true
   try {
-    const result = await feedbackService.listMyFeedback({
+    const result = await ticketService.listMyTickets({
       page: pagination.page,
       pageSize: pagination.pageSize,
       keyword: filters.keyword.trim() || undefined,
       workflowStatus: filters.workflowStatus || undefined,
       type: filters.type || undefined,
     })
-    feedbackList.value = result.data.items
+    ticketList.value = result.data.items
     pagination.total = result.data.total
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('feedback.loadListFailed')))
+    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.loadListFailed')))
   } finally {
     listLoading.value = false
   }
 }
 
-async function loadFeedbackDetail(id: string) {
+async function loadTicketDetail(id: string) {
   detailLoading.value = true
   try {
-    const result = await feedbackService.getMyFeedbackDetail(id)
+    const result = await ticketService.getMyTicketDetail(id)
     selectedDetail.value = result.data
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('feedback.loadDetailFailed')))
+    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.loadDetailFailed')))
   } finally {
     detailLoading.value = false
   }
 }
 
-async function openFeedbackDetail(id: string) {
+async function openTicketDetail(id: string) {
   detailVisible.value = true
-  await loadFeedbackDetail(id)
+  await loadTicketDetail(id)
 }
 
 async function reloadCurrentDetail() {
   if (!selectedDetail.value) return
-  await loadFeedbackDetail(selectedDetail.value.id)
-  await loadMyFeedbackList()
+  await loadTicketDetail(selectedDetail.value.id)
+  await loadMyTickets()
 }
 
-async function submitFeedbackForm() {
-  if (!feedbackFormRef.value) return
+async function submitTicketForm() {
+  if (!ticketFormRef.value) return
 
   try {
-    await feedbackFormRef.value.validate()
-    feedbackSubmitting.value = true
+    await ticketFormRef.value.validate()
+    ticketSubmitting.value = true
 
     if (editingId.value) {
-      const result = await feedbackService.updateMyFeedback(editingId.value, buildUpdatePayload())
+      const result = await ticketService.updateMyTicket(editingId.value, buildUpdatePayload())
       selectedDetail.value = result.data
       ElMessage.success(i18ns.t('message.information.saveSuccess'))
-      await loadMyFeedbackList()
+      await loadMyTickets()
       if (detailVisible.value) {
-        await loadFeedbackDetail(editingId.value)
+        await loadTicketDetail(editingId.value)
       }
     } else {
-      const result = await feedbackService.createFeedback(buildCreatePayload())
+      const result = await ticketService.createTicket(buildCreatePayload())
       ElMessage.success(i18ns.t('message.information.createSuccess'))
-      resetFeedbackForm()
+      resetTicketForm()
       pagination.page = 1
-      await loadMyFeedbackList()
+      await loadMyTickets()
       if (result.data?.id) {
-        await openFeedbackDetail(result.data.id)
+        await openTicketDetail(result.data.id)
       }
     }
 
@@ -730,29 +715,29 @@ async function submitFeedbackForm() {
     ElMessage.error(
       getErrorMessage(
         error,
-        i18ns.t(isEditing.value ? 'feedback.updateFailed' : 'feedback.submitFailed'),
+        i18ns.t(isEditing.value ? 'ticket.updateFailed' : 'ticket.submitFailed'),
       ),
     )
   } finally {
-    feedbackSubmitting.value = false
+    ticketSubmitting.value = false
   }
 }
 
 function cancelEditing() {
   editingId.value = null
-  resetFeedbackForm()
+  resetTicketForm()
 }
 
 async function startEditingByRow(id: string) {
   try {
-    const result = await feedbackService.getMyFeedbackDetail(id)
+    const result = await ticketService.getMyTicketDetail(id)
     editingId.value = id
     selectedDetail.value = result.data
     applyDetailToForm(result.data)
     await nextTick()
-    feedbackFormRef.value?.clearValidate()
+    ticketFormRef.value?.clearValidate()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('feedback.loadDetailFailed')))
+    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.loadDetailFailed')))
   }
 }
 
@@ -760,7 +745,7 @@ function startEditingFromDetail() {
   if (!selectedDetail.value) return
   editingId.value = selectedDetail.value.id
   applyDetailToForm(selectedDetail.value)
-  void nextTick(() => feedbackFormRef.value?.clearValidate())
+  void nextTick(() => ticketFormRef.value?.clearValidate())
 }
 
 async function submitComment() {
@@ -774,13 +759,13 @@ async function submitComment() {
 
   commentSubmitting.value = true
   try {
-    await feedbackService.addMyComment(selectedDetail.value.id, { content })
+    await ticketService.addMyComment(selectedDetail.value.id, { content })
     commentDraft.value = ''
     ElMessage.success(i18ns.t('message.information.saveSuccess'))
-    await loadFeedbackDetail(selectedDetail.value.id)
-    await loadMyFeedbackList()
+    await loadTicketDetail(selectedDetail.value.id)
+    await loadMyTickets()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('feedback.commentFailed')))
+    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.commentFailed')))
   } finally {
     commentSubmitting.value = false
   }
@@ -788,7 +773,7 @@ async function submitComment() {
 
 async function handleSearch() {
   pagination.page = 1
-  await loadMyFeedbackList()
+  await loadMyTickets()
 }
 
 function resetFilters() {
@@ -800,7 +785,7 @@ function resetFilters() {
 
 async function handlePageSizeChange() {
   pagination.page = 1
-  await loadMyFeedbackList()
+  await loadMyTickets()
 }
 
 function goToLogin() {
@@ -827,8 +812,8 @@ async function initPage() {
     permissionReady.value = true
   }
 
-  if (canReadFeedback.value) {
-    await loadMyFeedbackList()
+  if (canReadTickets.value) {
+    await loadMyTickets()
   }
 }
 
@@ -838,7 +823,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.workspace-feedback-view {
+.workspace-ticket-view {
   display: grid;
   gap: 18px;
 }
@@ -897,7 +882,7 @@ onMounted(() => {
   gap: 8px;
 }
 
-.feedback-layout {
+.ticket-layout {
   display: grid;
   gap: 18px;
   grid-template-columns: minmax(360px, 0.92fr) minmax(0, 1.48fr);
@@ -906,31 +891,31 @@ onMounted(() => {
   min-height: 0;
 }
 
-.feedback-card {
+.ticket-card {
   overflow: hidden;
 }
 
-.feedback-card--form {
+.ticket-card--form {
   position: sticky;
   top: 0;
 }
 
-.feedback-card--form :deep(.el-card__body),
-.feedback-card--list :deep(.el-card__body) {
+.ticket-card--form :deep(.el-card__body),
+.ticket-card--list :deep(.el-card__body) {
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
-.feedback-card--form :deep(.el-card__body) {
+.ticket-card--form :deep(.el-card__body) {
   gap: 16px;
 }
 
-.feedback-card--list {
+.ticket-card--list {
   height: 100%;
 }
 
-.feedback-card--list :deep(.el-card__body) {
+.ticket-card--list :deep(.el-card__body) {
   height: 100%;
 }
 
@@ -982,60 +967,45 @@ onMounted(() => {
 
 .form-actions,
 .filter-actions,
-.detail-toolbar,
-.mobile-feedback-card__actions,
-.row-actions {
+.row-actions,
+.detail-header-tags,
+.detail-toolbar {
   display: flex;
-  flex-wrap: wrap;
   gap: 10px;
-}
-
-.form-actions {
-  margin-top: 8px;
-  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .filter-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(140px, 180px)) auto;
+  grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(130px, 170px)) auto;
   gap: 12px;
-  margin-bottom: 16px;
 }
 
-.table-title {
+.table-title,
+.timeline-item-title,
+.mobile-ticket-card__title {
   font-weight: 600;
 }
 
-.mobile-card-list {
+.mobile-card-list,
+.detail-drawer,
+.timeline-section {
   display: grid;
-  gap: 12px;
+  gap: 18px;
 }
 
-.mobile-feedback-card {
+.mobile-ticket-card,
+.comment-editor-card {
   border-radius: 16px;
 }
 
-.mobile-feedback-card__header,
-.mobile-feedback-card__meta {
+.mobile-ticket-card__header,
+.mobile-ticket-card__meta,
+.mobile-ticket-card__actions {
   display: flex;
-  align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.mobile-feedback-card__header {
-  margin-bottom: 10px;
-}
-
-.mobile-feedback-card__title {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.mobile-feedback-card__meta {
-  justify-content: flex-start;
   flex-wrap: wrap;
-  margin-bottom: 12px;
 }
 
 .pagination-wrapper {
@@ -1044,89 +1014,37 @@ onMounted(() => {
   margin-top: 18px;
 }
 
-.detail-drawer {
-  display: grid;
-  gap: 18px;
-}
-
-.detail-header-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.detail-toolbar {
-  justify-content: flex-end;
-}
-
-.wrap-text {
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.7;
-}
-
-.comment-editor-card,
-.detail-descriptions {
-  border-radius: 16px;
-}
-
-.timeline-section {
-  display: grid;
-  gap: 12px;
-}
-
-.timeline-section__title,
-.timeline-item-title {
-  font-weight: 600;
-}
-
+.wrap-text,
 .timeline-item-content {
-  margin-top: 6px;
-  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
+  line-height: 1.7;
 }
 
-.feedback-skeleton {
-  padding: 24px;
-  border-radius: 18px;
-  background: var(--el-bg-color);
-}
-
-@media (max-width: 1100px) {
-  .feedback-layout {
+@media (max-width: 1200px) {
+  .ticket-layout {
     grid-template-columns: 1fr;
     height: auto;
   }
 
-  .feedback-card--form {
+  .filter-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ticket-card--form {
     position: static;
-  }
-
-  .feedback-card--list {
-    height: auto;
-  }
-
-  .list-card-content {
-    overflow: visible;
-    padding-right: 0;
   }
 }
 
 @media (max-width: 768px) {
-  .hero-card,
-  .page-card {
-    border-radius: 16px;
+  .card-header-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .filter-row,
   .form-grid {
     grid-template-columns: 1fr;
-  }
-
-  .card-header-row {
-    flex-direction: column;
-    align-items: stretch;
   }
 
   .pagination-wrapper {

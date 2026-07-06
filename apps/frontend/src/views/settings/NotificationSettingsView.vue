@@ -84,7 +84,7 @@
                 <el-table-column :label="i18ns.t('NotificationSettingsView.eventName')">
                   <template #default="{ row }">
                     <span :class="{ 'text-muted': !subscribedSet[row.value] }">{{
-                      row.label
+                      getEventDisplayLabel(row.value)
                     }}</span>
                   </template>
                 </el-table-column>
@@ -102,7 +102,7 @@
                         size="small"
                         style="width: 130px"
                       />
-                      <span class="threshold-unit">{{ row.thresholdUnit }}</span>
+                      <span class="threshold-unit">{{ getThresholdUnitLabel(row.value) }}</span>
                     </template>
                     <span v-else class="text-muted">—</span>
                   </template>
@@ -164,6 +164,100 @@
       </el-card>
 
       <!-- Notification Logs Card -->
+      <el-card class="page-card section-card">
+        <template #header>
+          <div class="card-header inbox-card-header">
+            <div class="section-header-with-meta">
+              <span>{{ i18ns.t('NotificationSettingsView.inboxSection') }}</span>
+              <el-tag v-if="inboxUnreadCount > 0" type="danger" size="small">
+                {{ i18ns.t('NotificationSettingsView.unreadCount', { count: inboxUnreadCount }) }}
+              </el-tag>
+            </div>
+            <div class="section-actions">
+              <el-switch
+                v-model="inboxUnreadOnly"
+                :active-text="i18ns.t('NotificationSettingsView.unreadOnly')"
+                @change="onInboxFilterChange"
+              />
+              <el-button
+                :disabled="inboxUnreadCount === 0"
+                :loading="markingInboxRead"
+                @click="markAllInboxRead"
+              >
+                {{ i18ns.t('NotificationSettingsView.markAllRead') }}
+              </el-button>
+              <el-button :icon="Refresh" :loading="loadingInbox" @click="loadInbox">
+                {{ i18ns.t('refresh') }}
+              </el-button>
+            </div>
+          </div>
+        </template>
+
+        <el-table v-loading="loadingInbox" :data="inboxItems">
+          <el-table-column width="80">
+            <template #default="{ row }">
+              <el-tag :type="row.isRead ? 'info' : 'danger'" size="small">
+                {{
+                  row.isRead
+                    ? i18ns.t('NotificationSettingsView.readStatusRead')
+                    : i18ns.t('NotificationSettingsView.readStatusUnread')
+                }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('NotificationSettingsView.logEvent')" width="180">
+            <template #default="{ row }">
+              {{ eventLabel(row.eventType) }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="title"
+            :label="i18ns.t('NotificationSettingsView.inboxTitle')"
+            min-width="220"
+            show-overflow-tooltip
+          />
+          <el-table-column
+            prop="content"
+            :label="i18ns.t('NotificationSettingsView.inboxContent')"
+            min-width="320"
+            show-overflow-tooltip
+          />
+          <el-table-column :label="i18ns.t('NotificationSettingsView.logTime')" width="180">
+            <template #default="{ row }">
+              {{ new Date(row.createTime).toLocaleString() }}
+            </template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('actions')" width="120">
+            <template #default="{ row }">
+              <el-button
+                link
+                type="primary"
+                :disabled="row.isRead"
+                :loading="markingInboxReadSingleId === row.id"
+                @click="markInboxItemRead(row.id)"
+              >
+                {{ i18ns.t('NotificationSettingsView.markRead') }}
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div v-if="inboxTotal === 0 && !loadingInbox" class="empty-hint">
+          {{ i18ns.t('NotificationSettingsView.noInbox') }}
+        </div>
+
+        <el-pagination
+          v-if="inboxTotal > 0"
+          class="pagination"
+          background
+          layout="prev, pager, next"
+          :total="inboxTotal"
+          :page-size="inboxPageSize"
+          :current-page="inboxPage"
+          @current-change="onInboxPageChange"
+        />
+      </el-card>
+
       <el-card class="page-card section-card">
         <template #header>
           <div class="card-header">
@@ -311,7 +405,7 @@
                     <div class="mobile-event-head">
                       <el-checkbox v-model="subscribedSet[row.value]" />
                       <div class="mobile-event-copy">
-                        <div class="mobile-event-name">{{ row.label }}</div>
+                        <div class="mobile-event-name">{{ getEventDisplayLabel(row.value) }}</div>
                         <div class="mobile-event-key">{{ row.value }}</div>
                       </div>
                     </div>
@@ -328,7 +422,7 @@
                           :disabled="!subscribedSet[row.value]"
                           size="small"
                         />
-                        <span class="threshold-unit">{{ row.thresholdUnit }}</span>
+                        <span class="threshold-unit">{{ getThresholdUnitLabel(row.value) }}</span>
                       </div>
                     </div>
                   </div>
@@ -378,6 +472,86 @@
             </template>
             <el-empty v-else :description="i18ns.t('NotificationSettingsView.noWebhooks')" />
           </div>
+        </el-card>
+
+        <el-card class="section-card mobile-card">
+          <template #header>
+            <div class="card-header mobile-card-header mobile-card-header-stack">
+              <div class="section-header-with-meta">
+                <span>{{ i18ns.t('NotificationSettingsView.inboxSection') }}</span>
+                <el-tag v-if="inboxUnreadCount > 0" type="danger" size="small">
+                  {{ i18ns.t('NotificationSettingsView.unreadCount', { count: inboxUnreadCount }) }}
+                </el-tag>
+              </div>
+              <div class="mobile-card-actions-wrap">
+                <el-switch
+                  v-model="inboxUnreadOnly"
+                  :active-text="i18ns.t('NotificationSettingsView.unreadOnly')"
+                  @change="onInboxFilterChange"
+                />
+                <div class="mobile-inline-actions">
+                  <el-button
+                    :disabled="inboxUnreadCount === 0"
+                    :loading="markingInboxRead"
+                    @click="markAllInboxRead"
+                  >
+                    {{ i18ns.t('NotificationSettingsView.markAllRead') }}
+                  </el-button>
+                  <el-button :icon="Refresh" :loading="loadingInbox" @click="loadInbox">
+                    {{ i18ns.t('refresh') }}
+                  </el-button>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <div v-loading="loadingInbox" class="mobile-inbox-list">
+            <template v-if="inboxItems.length > 0">
+              <div
+                v-for="row in inboxItems"
+                :key="row.id"
+                class="mobile-inbox-item"
+                :class="{ unread: !row.isRead }"
+              >
+                <div class="mobile-inbox-top">
+                  <div class="mobile-inbox-event">{{ eventLabel(row.eventType) }}</div>
+                  <el-tag :type="row.isRead ? 'info' : 'danger'" size="small">
+                    {{
+                      row.isRead
+                        ? i18ns.t('NotificationSettingsView.readStatusRead')
+                        : i18ns.t('NotificationSettingsView.readStatusUnread')
+                    }}
+                  </el-tag>
+                </div>
+                <div class="mobile-inbox-title">{{ row.title }}</div>
+                <div class="mobile-inbox-content">{{ row.content }}</div>
+                <div class="mobile-inbox-meta">
+                  <span>{{ new Date(row.createTime).toLocaleString() }}</span>
+                  <el-button
+                    text
+                    type="primary"
+                    :disabled="row.isRead"
+                    :loading="markingInboxReadSingleId === row.id"
+                    @click="markInboxItemRead(row.id)"
+                  >
+                    {{ i18ns.t('NotificationSettingsView.markRead') }}
+                  </el-button>
+                </div>
+              </div>
+            </template>
+            <el-empty v-else :description="i18ns.t('NotificationSettingsView.noInbox')" />
+          </div>
+
+          <el-pagination
+            v-if="inboxTotal > 0"
+            class="mobile-pagination"
+            background
+            layout="prev, pager, next"
+            :total="inboxTotal"
+            :page-size="inboxPageSize"
+            :current-page="inboxPage"
+            @current-change="onInboxPageChange"
+          />
         </el-card>
 
         <el-card class="section-card mobile-card">
@@ -516,10 +690,15 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { i18ns } from '@/locales'
 import { NotificationService } from '@/service/notificationService'
 import { usePageDevice } from '@/composables/usePageDevice'
+import {
+  getNotificationEventLabel,
+  getNotificationThresholdUnit,
+} from '@/utils/notification-event-i18n'
 import type {
   NotificationWebhookDto,
   NotificationEventInfoDto,
   NotificationLogDto,
+  NotificationInboxItemDto,
 } from '@/client/types.gen'
 
 const service = NotificationService.getInstance()
@@ -804,6 +983,66 @@ const logTotal = ref(0)
 const logPage = ref(1)
 const logPageSize = ref(20)
 
+// ─── Inbox ───────────────────────────────────────────────────────────────────
+
+const loadingInbox = ref(false)
+const markingInboxRead = ref(false)
+const markingInboxReadSingleId = ref<string>('')
+const inboxItems = ref<NotificationInboxItemDto[]>([])
+const inboxTotal = ref(0)
+const inboxUnreadCount = ref(0)
+const inboxPage = ref(1)
+const inboxPageSize = ref(20)
+const inboxUnreadOnly = ref(false)
+
+async function loadInbox() {
+  loadingInbox.value = true
+  try {
+    const res = await service.getInbox(inboxPage.value, inboxPageSize.value, inboxUnreadOnly.value)
+    inboxItems.value = (res.data?.items ?? []) as NotificationInboxItemDto[]
+    inboxTotal.value = (res.data?.total ?? 0) as number
+    inboxUnreadCount.value = (res.data?.unreadCount ?? 0) as number
+  } catch {
+    // ignore
+  } finally {
+    loadingInbox.value = false
+  }
+}
+
+async function markInboxItemRead(id: string) {
+  markingInboxReadSingleId.value = id
+  try {
+    await service.markInboxRead({ ids: [id] })
+    await loadInbox()
+  } catch {
+    // error handled by request interceptor
+  } finally {
+    markingInboxReadSingleId.value = ''
+  }
+}
+
+async function markAllInboxRead() {
+  markingInboxRead.value = true
+  try {
+    await service.markInboxRead({ markAll: true })
+    await loadInbox()
+  } catch {
+    // error handled by request interceptor
+  } finally {
+    markingInboxRead.value = false
+  }
+}
+
+function onInboxPageChange(page: number) {
+  inboxPage.value = page
+  loadInbox()
+}
+
+function onInboxFilterChange() {
+  inboxPage.value = 1
+  loadInbox()
+}
+
 async function loadLogs() {
   loadingLogs.value = true
   try {
@@ -825,8 +1064,15 @@ function onLogPageChange(page: number) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function eventLabel(eventType: string): string {
-  const ev = eventList.value.find((e) => e.value === eventType)
-  return ev?.label ?? eventType
+  return getNotificationEventLabel(eventType)
+}
+
+function getEventDisplayLabel(eventType: string): string {
+  return getNotificationEventLabel(eventType)
+}
+
+function getThresholdUnitLabel(eventType: string): string {
+  return getNotificationThresholdUnit(eventType)
 }
 
 function statusLabel(status: string): string {
@@ -845,7 +1091,7 @@ function statusTagType(status: string): 'success' | 'danger' | 'warning' {
 
 onMounted(async () => {
   await loadEventList()
-  await Promise.all([loadPreferences(), loadWebhooks(), loadLogs()])
+  await Promise.all([loadPreferences(), loadWebhooks(), loadInbox(), loadLogs()])
 })
 </script>
 
@@ -867,6 +1113,21 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.section-header-with-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .pref-form {
@@ -936,6 +1197,88 @@ onMounted(async () => {
   color: var(--el-text-color-secondary);
   padding: 24px 0;
   font-size: 14px;
+}
+
+.mobile-card-header-stack {
+  align-items: flex-start;
+}
+
+.mobile-card-actions-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.mobile-inline-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mobile-inbox-list,
+.mobile-log-list,
+.mobile-webhook-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-inbox-item,
+.mobile-log-item,
+.mobile-webhook-item {
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.mobile-inbox-item.unread {
+  border-color: var(--el-color-danger-light-5);
+  background: var(--el-color-danger-light-9);
+}
+
+.mobile-inbox-top,
+.mobile-log-top,
+.mobile-webhook-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mobile-inbox-event,
+.mobile-log-event,
+.mobile-webhook-name {
+  font-weight: 600;
+}
+
+.mobile-inbox-title,
+.mobile-log-title {
+  margin-top: 8px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.mobile-inbox-content,
+.mobile-log-error,
+.mobile-webhook-url {
+  margin-top: 8px;
+  color: var(--el-text-color-regular);
+  word-break: break-word;
+}
+
+.mobile-inbox-meta,
+.mobile-log-meta,
+.mobile-webhook-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
 }
 
 .dialog-footer {

@@ -1,5 +1,17 @@
-import { NotificationEvent, ALL_NOTIFICATION_EVENTS } from "@appserver/shared";
-export { NotificationEvent, ALL_NOTIFICATION_EVENTS };
+import {
+  NotificationEvent,
+  ALL_NOTIFICATION_EVENTS,
+  THRESHOLD_NOTIFICATION_EVENTS,
+  NOTIFICATION_EVENT_I18N_KEYS,
+  NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS,
+} from "@appserver/shared";
+export {
+  NotificationEvent,
+  ALL_NOTIFICATION_EVENTS,
+  THRESHOLD_NOTIFICATION_EVENTS,
+  NOTIFICATION_EVENT_I18N_KEYS,
+  NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS,
+};
 
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   [NotificationEvent.BALANCE_LOW]: "余额不足",
@@ -9,9 +21,10 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   [NotificationEvent.MONTHLY_PASS_DAILY_LIMIT]: "月卡即将达到日限额",
   [NotificationEvent.RELAY_TOKEN_QUOTA_LOW]: "中转令牌即将限额",
   [NotificationEvent.RELAY_TOKEN_EXHAUSTED]: "中转令牌额度耗尽",
-  [NotificationEvent.FEEDBACK_STATUS_UPDATED]: "反馈状态更新",
-  [NotificationEvent.FEEDBACK_PUBLIC_REPLY]: "反馈收到回复",
-  [NotificationEvent.FEEDBACK_ASSIGNED]: "反馈工单已分配",
+  [NotificationEvent.TICKET_PENDING_REVIEW]: "新工单待分诊",
+  [NotificationEvent.TICKET_STATUS_UPDATED]: "工单状态更新",
+  [NotificationEvent.TICKET_PUBLIC_REPLY]: "工单收到回复",
+  [NotificationEvent.TICKET_ASSIGNED]: "工单已分配",
   [NotificationEvent.ABNORMAL_LOGIN]: "账户异常登录",
   [NotificationEvent.LOGIN_FAILED_MULTIPLE]: "多次登录失败",
   [NotificationEvent.PASSWORD_CHANGED]: "密码已修改",
@@ -28,9 +41,4 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   [NotificationEvent.RAM_POLICY_DELETED]: "权限策略已删除",
 };
 
-export const THRESHOLD_EVENTS = [
-  NotificationEvent.BALANCE_LOW,
-  NotificationEvent.MONTHLY_PASS_QUOTA_LOW,
-  NotificationEvent.MONTHLY_PASS_DAILY_LIMIT,
-  NotificationEvent.RELAY_TOKEN_QUOTA_LOW,
-] as const;
+export const THRESHOLD_EVENTS = THRESHOLD_NOTIFICATION_EVENTS;

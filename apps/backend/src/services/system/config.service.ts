@@ -113,6 +113,17 @@ export interface CaptchaConfig {
 export interface NotificationConfig {
   defaultSubscribedEvents: string[];
   defaultThresholds: Record<string, number>;
+  ticketAssignmentRules: TicketAssignmentRule[];
+}
+
+export interface TicketAssignmentRule {
+  type?: string;
+  priority?: string;
+  assigneeUserIds: string[];
+}
+
+export interface TicketAssignmentConfig {
+  rules: TicketAssignmentRule[];
 }
 
 function sanitizeInt(value: string | undefined, fallback: number, min: number, max: number): number {
@@ -334,13 +345,55 @@ export class ConfigService {
           ? parsedEvents.filter((item): item is string => typeof item === "string")
           : DEFAULT_SUBSCRIBED_NOTIFICATION_EVENTS,
         defaultThresholds: normalizedThresholds,
+        ticketAssignmentRules: (await this.getTicketAssignmentConfig()).rules,
       };
     } catch {
       return {
         defaultSubscribedEvents: DEFAULT_SUBSCRIBED_NOTIFICATION_EVENTS,
         defaultThresholds: DEFAULT_NOTIFICATION_THRESHOLDS,
+        ticketAssignmentRules: (await this.getTicketAssignmentConfig()).rules,
       };
     }
+  }
+
+  async getTicketAssignmentConfig(): Promise<TicketAssignmentConfig> {
+    const raw = await this.get(CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES);
+    if (!raw) return { rules: [] };
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return { rules: [] };
+
+      const rules = parsed
+        .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+        .map((item) => ({
+          type: typeof item.type === "string" && item.type.trim() ? item.type.trim() : undefined,
+          priority: typeof item.priority === "string" && item.priority.trim() ? item.priority.trim() : undefined,
+          assigneeUserIds: Array.isArray(item.assigneeUserIds)
+            ? item.assigneeUserIds.filter(
+                (value): value is string => typeof value === "string" && value.trim().length > 0,
+              )
+            : [],
+        }))
+        .filter((item) => item.assigneeUserIds.length > 0);
+
+      return { rules };
+    } catch {
+      return { rules: [] };
+    }
+  }
+
+  async setTicketAssignmentConfig(
+    config: TicketAssignmentConfig,
+    actorUserId?: string,
+    request?: Request,
+  ): Promise<void> {
+    await this.set(
+      CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES,
+      JSON.stringify(config.rules),
+      actorUserId,
+      request,
+    );
   }
 
   async getIpBanConfig(): Promise<IpBanConfig> {

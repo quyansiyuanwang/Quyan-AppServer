@@ -62,15 +62,16 @@ model User {
   legalPoliciesCreated         LegalPolicyVersion[]            @relation("LegalPolicyCreatedBy")
   legalPoliciesUpdated         LegalPolicyVersion[]            @relation("LegalPolicyUpdatedBy")
   policyAcceptances            UserPolicyAcceptance[]
-  feedbacks                    Feedback[]
-  feedbackComments             FeedbackComment[]
-  feedbackAssignments          Feedback[]                      @relation("FeedbackAssignee")
+  tickets                      Ticket[]
+  ticketComments               TicketComment[]
+  ticketAssignments            Ticket[]                        @relation("TicketAssignee")
   userScripts                  UserScript[]
   scriptExecutions             UserScriptExecution[]
   redemptionCodesUsed          RedemptionCode[]                @relation("RedemptionCodeUsedBy")
   redemptionCodesCreated       RedemptionCode[]                @relation("RedemptionCodeCreatedBy")
   conversations                Conversation[]
   notificationPreference       NotificationPreference?
+  notificationInboxItems       NotificationInboxItem[]
   oauthClientsReviewed         OAuthClient[]                   @relation("OAuthClientReviewedBy")
   authCenterClientsReviewed    AuthCenterClient[]              @relation("AuthCenterClientReviewedBy")
   ownedRamPolicies             RamPolicy[]                     @relation("RamPolicyOwner")
@@ -1426,7 +1427,7 @@ model UserPolicyAcceptance {
   @@map("user_policy_acceptances")
 }
 
-model Feedback {
+model Ticket {
   id             String    @id @default(cuid())
   status         Int       @default(1)
   createTime     DateTime  @default(now())
@@ -1443,9 +1444,9 @@ model Feedback {
   assigneeUserId String?
   lastReplyAt    DateTime?
 
-  user     User              @relation(fields: [userId], references: [id])
-  assignee User?             @relation("FeedbackAssignee", fields: [assigneeUserId], references: [id])
-  comments FeedbackComment[]
+  user     User            @relation(fields: [userId], references: [id])
+  assignee User?           @relation("TicketAssignee", fields: [assigneeUserId], references: [id])
+  comments TicketComment[]
 
   @@index([userId])
   @@index([userId, workflowStatus])
@@ -1453,26 +1454,26 @@ model Feedback {
   @@index([assigneeUserId])
   @@index([priority])
   @@index([type])
-  @@map("feedbacks")
+  @@map("tickets")
 }
 
-model FeedbackComment {
+model TicketComment {
   id           String   @id @default(cuid())
   status       Int      @default(1)
   createTime   DateTime @default(now())
   updateTime   DateTime @updatedAt
-  feedbackId   String
+  ticketId     String
   authorUserId String
   visibility   String   @default("public") @db.VarChar(20)
   content      String   @db.Text
 
-  feedback Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
-  author   User     @relation(fields: [authorUserId], references: [id])
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorUserId], references: [id])
 
-  @@index([feedbackId, createTime])
+  @@index([ticketId, createTime])
   @@index([authorUserId])
   @@index([visibility])
-  @@map("feedback_comments")
+  @@map("ticket_comments")
 }
 
 model UserScript {
@@ -1587,6 +1588,27 @@ model NotificationLog {
   @@index([userId, createTime])
   @@index([eventType])
   @@map("notification_logs")
+}
+
+model NotificationInboxItem {
+  id          String   @id @default(cuid())
+  status      Int      @default(1)
+  createTime  DateTime @default(now())
+  updateTime  DateTime @updatedAt
+  userId      String
+  eventType   String   @db.VarChar(60)
+  title       String   @db.VarChar(200)
+  content     String   @db.Text
+  isRead      Boolean  @default(false)
+  readTime    DateTime?
+  metadata    Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createTime])
+  @@index([userId, isRead, createTime])
+  @@index([eventType])
+  @@map("notification_inbox_items")
 }
 
 model Message {

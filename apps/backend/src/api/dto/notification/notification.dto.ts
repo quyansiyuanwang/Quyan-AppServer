@@ -73,6 +73,26 @@ export interface NotificationLogDto {
   createTime: string;
 }
 
+export interface NotificationInboxItemDto {
+  id: string;
+  eventType: string;
+  title: string;
+  content: string;
+  isRead: boolean;
+  readTime: string | null;
+  metadata?: Record<string, unknown> | null;
+  createTime: string;
+  updateTime: string;
+}
+
+export interface NotificationInboxListDto {
+  items: NotificationInboxItemDto[];
+  total: number;
+  unreadCount: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface NotificationLogListDto {
   logs: NotificationLogDto[];
   total: number;
@@ -82,7 +102,12 @@ export interface NotificationLogListDto {
 
 export interface NotificationEventInfoDto {
   value: string;
-  label: string;
+  labelI18nKey: string;
   hasThreshold: boolean;
-  thresholdUnit?: string;
+  thresholdUnitI18nKey?: string;
+}
+
+export interface MarkNotificationInboxReadDto {
+  ids?: string[];
+  markAll?: boolean;
 }

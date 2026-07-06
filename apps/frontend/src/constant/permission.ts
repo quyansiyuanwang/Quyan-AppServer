@@ -691,47 +691,47 @@ export const PERMISSION_META: PermissionMetaMap = {
     category: 'monthly_pass',
   },
 
-  [Permission.FEEDBACK_SUBMIT]: {
-    label: '提交反馈',
-    labelEn: 'Submit Feedback',
-    tooltip: '允许提交新的反馈',
-    tooltipEn: 'Allows submitting new feedback',
-    category: 'feedback',
+  [Permission.TICKET_SUBMIT]: {
+    label: '提交工单',
+    labelEn: 'Submit Ticket',
+    tooltip: '允许提交新的工单',
+    tooltipEn: 'Allows submitting new tickets',
+    category: 'ticket',
   },
-  [Permission.FEEDBACK_SELF_READ]: {
-    label: '查看自己的反馈',
-    labelEn: 'View Own Feedback',
-    tooltip: '允许查看自己提交的反馈',
-    tooltipEn: 'Allows viewing own submitted feedback',
-    category: 'feedback',
+  [Permission.TICKET_SELF_READ]: {
+    label: '查看自己的工单',
+    labelEn: 'View Own Tickets',
+    tooltip: '允许查看自己提交的工单',
+    tooltipEn: 'Allows viewing own submitted tickets',
+    category: 'ticket',
   },
-  [Permission.FEEDBACK_SELF_UPDATE]: {
-    label: '更新自己的反馈',
-    labelEn: 'Update Own Feedback',
-    tooltip: '允许更新自己提交的反馈',
-    tooltipEn: 'Allows updating own submitted feedback',
-    category: 'feedback',
+  [Permission.TICKET_SELF_UPDATE]: {
+    label: '更新自己的工单',
+    labelEn: 'Update Own Ticket',
+    tooltip: '允许更新自己提交的工单',
+    tooltipEn: 'Allows updating own submitted tickets',
+    category: 'ticket',
   },
-  [Permission.FEEDBACK_COMMENT]: {
-    label: '评论反馈',
-    labelEn: 'Comment on Feedback',
-    tooltip: '允许对反馈条目进行评论',
-    tooltipEn: 'Allows commenting on feedback entries',
-    category: 'feedback',
+  [Permission.TICKET_COMMENT]: {
+    label: '评论工单',
+    labelEn: 'Comment on Tickets',
+    tooltip: '允许对工单条目进行评论',
+    tooltipEn: 'Allows commenting on ticket entries',
+    category: 'ticket',
   },
-  [Permission.FEEDBACK_REVIEW_READ]: {
-    label: '审核反馈',
-    labelEn: 'Review Feedback',
-    tooltip: '允许查看所有反馈条目进行审核',
-    tooltipEn: 'Allows viewing all feedback entries for review',
-    category: 'feedback',
+  [Permission.TICKET_REVIEW_READ]: {
+    label: '审核工单',
+    labelEn: 'Review Tickets',
+    tooltip: '允许查看所有工单条目进行审核',
+    tooltipEn: 'Allows viewing all ticket entries for review',
+    category: 'ticket',
   },
-  [Permission.FEEDBACK_REVIEW_UPDATE]: {
-    label: '回复反馈',
-    labelEn: 'Respond to Feedback',
-    tooltip: '允许更新反馈审核状态',
-    tooltipEn: 'Allows updating feedback review status',
-    category: 'feedback',
+  [Permission.TICKET_REVIEW_UPDATE]: {
+    label: '处理工单',
+    labelEn: 'Process Tickets',
+    tooltip: '允许更新工单审核状态',
+    tooltipEn: 'Allows updating ticket review status',
+    category: 'ticket',
   },
 
   [Permission.MODEL_PRICING_READ]: {

@@ -107,7 +107,7 @@ describe("NotificationManagementService", () => {
       initializerMock.getOrInitialize.mockResolvedValue(
         makePreferenceRecord({
           notificationEmail: "seed@example.com",
-          subscribedEvents: [NotificationEvent.FEEDBACK_STATUS_UPDATED],
+          subscribedEvents: [NotificationEvent.TICKET_STATUS_UPDATED],
         }),
       );
 
@@ -115,7 +115,7 @@ describe("NotificationManagementService", () => {
 
       expect(initializerMock.getOrInitialize).toHaveBeenCalledWith("user-1");
       expect(result.notificationEmail).toBe("seed@example.com");
-      expect(result.subscribedEvents).toEqual([NotificationEvent.FEEDBACK_STATUS_UPDATED]);
+      expect(result.subscribedEvents).toEqual([NotificationEvent.TICKET_STATUS_UPDATED]);
       expect(result.cooldownMinutes).toBe(60);
     });
   });
@@ -417,29 +417,29 @@ describe("NotificationManagementService", () => {
       for (const item of nonThreshold) expect(item.hasThreshold).toBe(false);
     });
 
-    it("BALANCE_LOW 的 thresholdUnit 应为 '曲'", () => {
+    it("BALANCE_LOW 的 thresholdUnitI18nKey 应存在", () => {
       const list = service.getEventList();
       const item = list.find((e) => e.value === NotificationEvent.BALANCE_LOW);
-      expect(item?.thresholdUnit).toBe("曲");
+      expect(item?.thresholdUnitI18nKey).toBe("notificationEventThresholdUnit.balance_low");
     });
 
-    it("MONTHLY_PASS_QUOTA_LOW 的 thresholdUnit 应为 '%'", () => {
+    it("MONTHLY_PASS_QUOTA_LOW 的 thresholdUnitI18nKey 应存在", () => {
       const list = service.getEventList();
       const item = list.find((e) => e.value === NotificationEvent.MONTHLY_PASS_QUOTA_LOW);
-      expect(item?.thresholdUnit).toBe("%");
+      expect(item?.thresholdUnitI18nKey).toBe("notificationEventThresholdUnit.monthly_pass_quota_low");
     });
 
-    it("非阈值事件 thresholdUnit 应为 undefined", () => {
+    it("非阈值事件 thresholdUnitI18nKey 应为 undefined", () => {
       const list = service.getEventList();
       const item = list.find((e) => e.value === NotificationEvent.ABNORMAL_LOGIN);
-      expect(item?.thresholdUnit).toBeUndefined();
+      expect(item?.thresholdUnitI18nKey).toBeUndefined();
     });
 
-    it("每个事件应有 label 字符串", () => {
+    it("每个事件应有 labelI18nKey 字符串", () => {
       const list = service.getEventList();
       for (const item of list) {
-        expect(typeof item.label).toBe("string");
-        expect(item.label.length).toBeGreaterThan(0);
+        expect(typeof item.labelI18nKey).toBe("string");
+        expect(item.labelI18nKey.length).toBeGreaterThan(0);
       }
     });
   });

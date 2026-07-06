@@ -152,7 +152,9 @@
                       :key="event.value"
                       class="notification-event-option"
                     >
-                      <el-checkbox :value="event.value">{{ event.label }}</el-checkbox>
+                      <el-checkbox :value="event.value">{{
+                        getEventDisplayLabel(event.value)
+                      }}</el-checkbox>
                       <span class="form-help form-help--inline">{{ event.value }}</span>
                     </label>
                   </div>
@@ -169,15 +171,20 @@
                   :key="event.value"
                   class="notification-threshold-item"
                 >
-                  <span class="notification-threshold-item__label">{{ event.label }}</span>
+                  <span class="notification-threshold-item__label">{{
+                    getEventDisplayLabel(event.value)
+                  }}</span>
                   <div class="notification-threshold-item__control">
                     <el-input-number
                       v-model="notificationDefaultThresholds[event.value]"
                       :min="0"
                       :precision="2"
                     />
-                    <span v-if="event.thresholdUnit" class="form-help form-help--inline">
-                      {{ event.thresholdUnit }}
+                    <span
+                      v-if="getThresholdUnitLabel(event.value)"
+                      class="form-help form-help--inline"
+                    >
+                      {{ getThresholdUnitLabel(event.value) }}
                     </span>
                   </div>
                 </div>
@@ -672,7 +679,9 @@
                       :key="event.value"
                       class="notification-event-option"
                     >
-                      <el-checkbox :value="event.value">{{ event.label }}</el-checkbox>
+                      <el-checkbox :value="event.value">{{
+                        getEventDisplayLabel(event.value)
+                      }}</el-checkbox>
                       <span class="form-help form-help--inline">{{ event.value }}</span>
                     </label>
                   </div>
@@ -689,15 +698,20 @@
                   :key="event.value"
                   class="notification-threshold-item"
                 >
-                  <span class="notification-threshold-item__label">{{ event.label }}</span>
+                  <span class="notification-threshold-item__label">{{
+                    getEventDisplayLabel(event.value)
+                  }}</span>
                   <div class="notification-threshold-item__control">
                     <el-input-number
                       v-model="notificationDefaultThresholds[event.value]"
                       :min="0"
                       :precision="2"
                     />
-                    <span v-if="event.thresholdUnit" class="form-help form-help--inline">
-                      {{ event.thresholdUnit }}
+                    <span
+                      v-if="getThresholdUnitLabel(event.value)"
+                      class="form-help form-help--inline"
+                    >
+                      {{ getThresholdUnitLabel(event.value) }}
                     </span>
                   </div>
                 </div>
@@ -1049,7 +1063,15 @@ import { ElMessage } from 'element-plus'
 import { configService } from '@/service/configService'
 import { groupService } from '@/service/groupService'
 import { NotificationService } from '@/service/notificationService'
-import type { CaptchaProviderDto, NotificationEventInfoDto } from '@/client/types.gen'
+import {
+  getNotificationEventLabel,
+  getNotificationThresholdUnit,
+} from '@/utils/notification-event-i18n'
+import type {
+  CaptchaProviderDto,
+  NotificationEventInfoDto,
+  TicketAssignmentRuleDto,
+} from '@/client/types.gen'
 
 type Tags =
   | 'registration'
@@ -1095,6 +1117,7 @@ const savingNotification = ref(false)
 const notificationDefaultSubscribedEvents = ref<string[]>([])
 const notificationDefaultThresholds = ref<Record<string, number>>({})
 const notificationEventOptions = ref<NotificationEventInfoDto[]>([])
+const notificationTicketAssignmentRules = ref<TicketAssignmentRuleDto[]>([])
 
 // Captcha
 const savingCaptcha = ref(false)
@@ -1187,6 +1210,10 @@ const notificationService = NotificationService.getInstance()
 const notificationThresholdEventOptions = computed(() =>
   notificationEventOptions.value.filter((event) => event.hasThreshold),
 )
+
+const getEventDisplayLabel = (eventType: string) => getNotificationEventLabel(eventType)
+
+const getThresholdUnitLabel = (eventType: string) => getNotificationThresholdUnit(eventType)
 
 const normalizeNotificationThresholds = (
   thresholds: Record<string, number>,
@@ -1286,6 +1313,11 @@ const loadNotificationConfig = async () => {
       notificationConfig.defaultThresholds,
       events,
     )
+    notificationTicketAssignmentRules.value = Array.isArray(
+      notificationConfig.ticketAssignmentRules,
+    )
+      ? notificationConfig.ticketAssignmentRules
+      : []
     notificationLoaded.value = true
   } catch (error: any) {
     ElMessage.error(error.message || i18ns.t('ServerConfigView.loadFailed'))
@@ -1453,6 +1485,7 @@ const saveNotification = async () => {
     await configService.setNotificationConfig({
       defaultSubscribedEvents: notificationDefaultSubscribedEvents.value,
       defaultThresholds: notificationDefaultThresholds.value,
+      ticketAssignmentRules: notificationTicketAssignmentRules.value,
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
@@ -1713,6 +1746,46 @@ const { isDesktop } = usePageDevice()
   max-width: 100%;
 }
 
+.notification-assignment-field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 760px;
+}
+
+.notification-assignment-field--mobile {
+  max-width: 100%;
+}
+
+.assignment-rule-card {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-blank);
+  padding: 12px;
+}
+
+.assignment-rule-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.assignment-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.assignment-rule-grid__full {
+  grid-column: 1 / -1;
+}
+
 .notification-threshold-item {
   display: flex;
   flex-wrap: wrap;
@@ -1868,6 +1941,10 @@ const { isDesktop } = usePageDevice()
 
   .notification-threshold-item__control {
     width: 100%;
+  }
+
+  .assignment-rule-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
