@@ -710,7 +710,7 @@
                     <el-button
                       type="primary"
                       size="small"
-                      @click="router.push({ name: 'settings' })"
+                      @click="router.push({ name: 'settingsSecurity' })"
                     >
                       {{ i18ns.t('apiDoc.goToAccessKeys') }}
                     </el-button>

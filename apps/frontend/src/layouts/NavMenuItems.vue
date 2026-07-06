@@ -16,6 +16,74 @@
     <li class="menu-divider" />
   </template>
 
+  <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
+    <el-menu-item
+      index="balanceHistory"
+      @click="nav('balanceHistory', $event)"
+      @contextmenu.prevent="openRouteMenu('balanceHistory', $event)"
+    >
+      <el-icon><Wallet /></el-icon>
+      <template #title>{{ i18ns.t('relay.accountBalance') }}</template>
+    </el-menu-item>
+  </PermissionWrapper>
+  <PermissionWrapper
+    :any-require="[
+      Permission.TICKET_SUBMIT,
+      Permission.TICKET_SELF_READ,
+      Permission.TICKET_SELF_UPDATE,
+      Permission.TICKET_COMMENT,
+    ]"
+  >
+    <el-menu-item
+      index="myTickets"
+      @click="nav('myTickets', $event)"
+      @contextmenu.prevent="openRouteMenu('myTickets', $event)"
+    >
+      <el-icon><ChatDotRound /></el-icon>
+      <template #title>{{ i18ns.t('nav.myTickets') }}</template>
+    </el-menu-item>
+  </PermissionWrapper>
+
+  <!-- Settings -->
+  <el-sub-menu index="settings">
+    <template #title>
+      <el-icon><Setting /></el-icon>
+      <span>{{ i18ns.t('nav.settings') }}</span>
+    </template>
+    <el-menu-item
+      index="settingsProfile"
+      @click="nav('settingsProfile', $event)"
+      @contextmenu.prevent="openRouteMenu('settingsProfile', $event)"
+    >
+      <el-icon><User /></el-icon>
+      <template #title>{{ i18ns.t('nav.settingsProfile') }}</template>
+    </el-menu-item>
+    <el-menu-item
+      index="settingsSecurity"
+      @click="nav('settingsSecurity', $event)"
+      @contextmenu.prevent="openRouteMenu('settingsSecurity', $event)"
+    >
+      <el-icon><Lock /></el-icon>
+      <template #title>{{ i18ns.t('nav.settingsSecurity') }}</template>
+    </el-menu-item>
+    <el-menu-item
+      index="notificationSettings"
+      @click="nav('notificationSettings', $event)"
+      @contextmenu.prevent="openRouteMenu('notificationSettings', $event)"
+    >
+      <el-icon><Bell /></el-icon>
+      <template #title>{{ i18ns.t('nav.notificationSettings') }}</template>
+    </el-menu-item>
+    <el-menu-item
+      index="settingsPreferences"
+      @click="nav('settingsPreferences', $event)"
+      @contextmenu.prevent="openRouteMenu('settingsPreferences', $event)"
+    >
+      <el-icon><Tools /></el-icon>
+      <template #title>{{ i18ns.t('nav.preferences') }}</template>
+    </el-menu-item>
+  </el-sub-menu>
+
   <el-sub-menu index="productSubscriptions">
     <template #title>
       <el-icon><Box /></el-icon>
@@ -38,57 +106,6 @@
     >
       <el-icon><Monitor /></el-icon>
       <template #title>{{ i18ns.t('nav.myRemoteTerminalProducts') }}</template>
-    </el-menu-item>
-  </el-sub-menu>
-
-  <!-- Personal Center -->
-  <el-sub-menu index="myAccount">
-    <template #title>
-      <el-icon><Wallet /></el-icon>
-      <span>{{ i18ns.t('nav.myAccount') }}</span>
-    </template>
-    <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-      <el-menu-item
-        index="balanceHistory"
-        @click="nav('balanceHistory', $event)"
-        @contextmenu.prevent="openRouteMenu('balanceHistory', $event)"
-      >
-        <el-icon><Wallet /></el-icon>
-        <template #title>{{ i18ns.t('relay.accountBalance') }}</template>
-      </el-menu-item>
-    </PermissionWrapper>
-    <PermissionWrapper
-      :any-require="[
-        Permission.TICKET_SUBMIT,
-        Permission.TICKET_SELF_READ,
-        Permission.TICKET_SELF_UPDATE,
-        Permission.TICKET_COMMENT,
-      ]"
-    >
-      <el-menu-item
-        index="myTickets"
-        @click="nav('myTickets', $event)"
-        @contextmenu.prevent="openRouteMenu('myTickets', $event)"
-      >
-        <el-icon><ChatDotRound /></el-icon>
-        <template #title>{{ i18ns.t('nav.myTickets') }}</template>
-      </el-menu-item>
-    </PermissionWrapper>
-    <el-menu-item
-      index="notificationSettings"
-      @click="nav('notificationSettings', $event)"
-      @contextmenu.prevent="openRouteMenu('notificationSettings', $event)"
-    >
-      <el-icon><Bell /></el-icon>
-      <template #title>{{ i18ns.t('nav.notificationSettings') }}</template>
-    </el-menu-item>
-    <el-menu-item
-      index="settings"
-      @click="nav('settings', $event)"
-      @contextmenu.prevent="openRouteMenu('settings', $event)"
-    >
-      <el-icon><Setting /></el-icon>
-      <template #title>{{ i18ns.t('nav.settings') }}</template>
     </el-menu-item>
   </el-sub-menu>
 
@@ -760,6 +777,7 @@ import {
   Bell,
   Link,
   Box,
+  Lock,
 } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { authorizationService } from '@/service/authorizationService'
