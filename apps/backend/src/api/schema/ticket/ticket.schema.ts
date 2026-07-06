@@ -1,26 +1,26 @@
 import { z } from "zod";
 import {
-  FEEDBACK_COMMENT_VISIBILITIES,
-  FEEDBACK_PRIORITIES,
-  FEEDBACK_TYPES,
-  FEEDBACK_WORKFLOW_STATUSES,
-} from "@/constant/feedback";
+  TICKET_COMMENT_VISIBILITIES,
+  TICKET_PRIORITIES,
+  TICKET_TYPES,
+  TICKET_WORKFLOW_STATUSES,
+} from "@/constant/ticket";
 
-const feedbackTypeSchema = z.enum(FEEDBACK_TYPES);
-const feedbackWorkflowStatusSchema = z.enum(FEEDBACK_WORKFLOW_STATUSES);
-const feedbackPrioritySchema = z.enum(FEEDBACK_PRIORITIES);
-const feedbackCommentVisibilitySchema = z.enum(FEEDBACK_COMMENT_VISIBILITIES);
+const ticketTypeSchema = z.enum(TICKET_TYPES);
+const ticketWorkflowStatusSchema = z.enum(TICKET_WORKFLOW_STATUSES);
+const ticketPrioritySchema = z.enum(TICKET_PRIORITIES);
+const ticketCommentVisibilitySchema = z.enum(TICKET_COMMENT_VISIBILITIES);
 
 const optionalShortTextSchema = z.union([z.string().trim().max(500), z.literal(""), z.null()]).optional();
 const optionalContactSchema = z.union([z.string().trim().max(200), z.literal(""), z.null()]).optional();
 const optionalLongTextSchema = z.union([z.string().trim().max(5000), z.literal(""), z.null()]).optional();
 
-export const feedbackIdParamsSchema = z.object({
+export const ticketIdParamsSchema = z.object({
   id: z.string().trim().min(1),
 });
 
-export const createFeedbackBodySchema = z.object({
-  type: feedbackTypeSchema,
+export const createTicketBodySchema = z.object({
+  type: ticketTypeSchema,
   title: z.string().trim().min(1).max(200),
   description: z.string().trim().min(1).max(5000),
   sourcePage: optionalShortTextSchema,
@@ -28,8 +28,8 @@ export const createFeedbackBodySchema = z.object({
   contactInfo: optionalContactSchema,
 });
 
-export const updateMyFeedbackBodySchema = z.object({
-  type: feedbackTypeSchema.optional(),
+export const updateMyTicketBodySchema = z.object({
+  type: ticketTypeSchema.optional(),
   title: z.string().trim().min(1).max(200).optional(),
   description: z.string().trim().min(1).max(5000).optional(),
   sourcePage: optionalShortTextSchema,
@@ -37,51 +37,51 @@ export const updateMyFeedbackBodySchema = z.object({
   contactInfo: optionalContactSchema,
 });
 
-export const createFeedbackCommentBodySchema = z.object({
+export const createTicketCommentBodySchema = z.object({
   content: z.string().trim().min(1).max(5000),
 });
 
-export const createFeedbackReviewCommentBodySchema = z.object({
+export const createTicketReviewCommentBodySchema = z.object({
   content: z.string().trim().min(1).max(5000),
-  visibility: feedbackCommentVisibilitySchema,
+  visibility: ticketCommentVisibilitySchema,
 });
 
-export const feedbackListQuerySchema = z.object({
+export const ticketListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
   keyword: z.string().trim().max(200).optional(),
-  workflowStatus: feedbackWorkflowStatusSchema.optional(),
-  type: feedbackTypeSchema.optional(),
+  workflowStatus: ticketWorkflowStatusSchema.optional(),
+  type: ticketTypeSchema.optional(),
 });
 
-export const feedbackReviewListQuerySchema = feedbackListQuerySchema.extend({
-  priority: feedbackPrioritySchema.optional(),
+export const ticketReviewListQuerySchema = ticketListQuerySchema.extend({
+  priority: ticketPrioritySchema.optional(),
   assigneeUserId: z.string().trim().max(100).optional(),
   userId: z.string().trim().max(100).optional(),
   startTime: z.string().datetime().optional(),
   endTime: z.string().datetime().optional(),
 });
 
-export const reviewFeedbackBodySchema = z
+export const reviewTicketBodySchema = z
   .object({
-    workflowStatus: feedbackWorkflowStatusSchema.optional(),
-    priority: feedbackPrioritySchema.optional(),
+    workflowStatus: ticketWorkflowStatusSchema.optional(),
+    priority: ticketPrioritySchema.optional(),
     assigneeUserId: z.union([z.string().trim().min(1).max(100), z.literal(""), z.null()]).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field is required",
   });
 
-export const feedbackAssignmentRuleSchema = z
+export const ticketAssignmentRuleSchema = z
   .object({
-    type: feedbackTypeSchema.optional(),
-    priority: feedbackPrioritySchema.optional(),
+    type: ticketTypeSchema.optional(),
+    priority: ticketPrioritySchema.optional(),
     assigneeUserIds: z.array(z.string().trim().min(1).max(100)).min(1).max(50),
   })
   .refine((value) => Boolean(value.type || value.priority), {
     message: "At least one matching condition is required",
   });
 
-export const setFeedbackAssignmentConfigBodySchema = z.object({
-  rules: z.array(feedbackAssignmentRuleSchema).max(100),
+export const setTicketAssignmentConfigBodySchema = z.object({
+  rules: z.array(ticketAssignmentRuleSchema).max(100),
 });

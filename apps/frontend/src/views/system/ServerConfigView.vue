@@ -1061,8 +1061,8 @@ import {
 } from '@/utils/notification-event-i18n'
 import type {
   CaptchaProviderDto,
-  FeedbackAssignmentRuleDto,
   NotificationEventInfoDto,
+  TicketAssignmentRuleDto,
 } from '@/client/types.gen'
 
 type Tags =
@@ -1109,7 +1109,7 @@ const savingNotification = ref(false)
 const notificationDefaultSubscribedEvents = ref<string[]>([])
 const notificationDefaultThresholds = ref<Record<string, number>>({})
 const notificationEventOptions = ref<NotificationEventInfoDto[]>([])
-const notificationFeedbackAssignmentRules = ref<FeedbackAssignmentRuleDto[]>([])
+const notificationTicketAssignmentRules = ref<TicketAssignmentRuleDto[]>([])
 
 // Captcha
 const savingCaptcha = ref(false)
@@ -1305,8 +1305,8 @@ const loadNotificationConfig = async () => {
       notificationConfig.defaultThresholds,
       events,
     )
-    notificationFeedbackAssignmentRules.value = Array.isArray(notificationConfig.feedbackAssignmentRules)
-      ? notificationConfig.feedbackAssignmentRules
+    notificationTicketAssignmentRules.value = Array.isArray(notificationConfig.ticketAssignmentRules)
+      ? notificationConfig.ticketAssignmentRules
       : []
     notificationLoaded.value = true
   } catch (error: any) {
@@ -1475,7 +1475,7 @@ const saveNotification = async () => {
     await configService.setNotificationConfig({
       defaultSubscribedEvents: notificationDefaultSubscribedEvents.value,
       defaultThresholds: notificationDefaultThresholds.value,
-      feedbackAssignmentRules: notificationFeedbackAssignmentRules.value,
+      ticketAssignmentRules: notificationTicketAssignmentRules.value,
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {

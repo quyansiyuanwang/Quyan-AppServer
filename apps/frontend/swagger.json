@@ -6842,6 +6842,800 @@
 				]
 			}
 		},
+		"/v1/tickets": {
+			"post": {
+				"operationId": "TicketControllerCreateTicket",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TicketDetailDto"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "提交失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateTicketDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/tickets/my": {
+			"get": {
+				"operationId": "TicketControllerListMyTickets",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TicketListResponseDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 10,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "workflowStatus",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"pending",
+								"processing",
+								"accepted",
+								"rejected",
+								"completed"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "type",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"suggestion",
+								"bug",
+								"other"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/v1/tickets/my/{id}": {
+			"get": {
+				"operationId": "TicketControllerGetMyTicketDetail",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TicketDetailDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "工单不存在",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"put": {
+				"operationId": "TicketControllerUpdateMyTicket",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TicketDetailDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "工单不存在",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateMyTicketDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/tickets/my/{id}/comments": {
+			"post": {
+				"operationId": "TicketControllerAddMyComment",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TicketCommentDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "工单不存在",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateTicketCommentDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/tickets/review": {
+			"get": {
+				"operationId": "TicketControllerListReviewTickets",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TicketListResponseDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "workflowStatus",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"pending",
+								"processing",
+								"accepted",
+								"rejected",
+								"completed"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "type",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"suggestion",
+								"bug",
+								"other"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "priority",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"low",
+								"medium",
+								"high",
+								"urgent"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "assigneeUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "userId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startTime",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endTime",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/tickets/review/assignment-rules": {
+			"get": {
+				"operationId": "TicketControllerGetReviewAssignmentRules",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TicketReviewAssignmentConfigDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "TicketControllerSetReviewAssignmentRules",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TicketReviewAssignmentConfigDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetTicketReviewAssignmentConfigDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/tickets/review/{id}": {
+			"get": {
+				"operationId": "TicketControllerGetReviewTicketDetail",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TicketDetailDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "工单不存在",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"put": {
+				"operationId": "TicketControllerReviewTicket",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TicketDetailDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "工单不存在",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ReviewTicketDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "TicketControllerDeleteTicket",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "boolean"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "工单不存在",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/tickets/review/{id}/comments": {
+			"post": {
+				"operationId": "TicketControllerAddReviewComment",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/TicketCommentDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "工单不存在",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Ticket"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateTicketReviewCommentDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/system/build-info": {
 			"get": {
 				"operationId": "SystemControllerGetBuildInfo",
@@ -15447,800 +16241,6 @@
 				"X-Replay-Protected": true
 			}
 		},
-		"/v1/feedback": {
-			"post": {
-				"operationId": "FeedbackControllerCreateFeedback",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackDetailDto"
-								}
-							}
-						}
-					},
-					"400": {
-						"description": "提交失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorResponse"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/CreateFeedbackDto"
-							}
-						}
-					}
-				},
-				"X-Replay-Protected": true
-			}
-		},
-		"/v1/feedback/my": {
-			"get": {
-				"operationId": "FeedbackControllerListMyFeedback",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackListResponseDto"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "query",
-						"name": "page",
-						"required": false,
-						"schema": {
-							"default": 1,
-							"format": "double",
-							"type": "number"
-						}
-					},
-					{
-						"in": "query",
-						"name": "pageSize",
-						"required": false,
-						"schema": {
-							"default": 10,
-							"format": "double",
-							"type": "number"
-						}
-					},
-					{
-						"in": "query",
-						"name": "keyword",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "query",
-						"name": "workflowStatus",
-						"required": false,
-						"schema": {
-							"type": "string",
-							"enum": [
-								"pending",
-								"processing",
-								"accepted",
-								"rejected",
-								"completed"
-							]
-						}
-					},
-					{
-						"in": "query",
-						"name": "type",
-						"required": false,
-						"schema": {
-							"type": "string",
-							"enum": [
-								"suggestion",
-								"bug",
-								"other"
-							]
-						}
-					}
-				]
-			}
-		},
-		"/v1/feedback/my/{id}": {
-			"get": {
-				"operationId": "FeedbackControllerGetMyFeedbackDetail",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackDetailDto"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "工单不存在",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorResponse"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			},
-			"put": {
-				"operationId": "FeedbackControllerUpdateMyFeedback",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackDetailDto"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "工单不存在",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorResponse"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/UpdateMyFeedbackDto"
-							}
-						}
-					}
-				},
-				"X-Replay-Protected": true
-			}
-		},
-		"/v1/feedback/my/{id}/comments": {
-			"post": {
-				"operationId": "FeedbackControllerAddMyComment",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackCommentDto"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "工单不存在",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorResponse"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/CreateFeedbackCommentDto"
-							}
-						}
-					}
-				},
-				"X-Replay-Protected": true
-			}
-		},
-		"/v1/feedback/review": {
-			"get": {
-				"operationId": "FeedbackControllerListReviewFeedback",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackListResponseDto"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "query",
-						"name": "page",
-						"required": false,
-						"schema": {
-							"default": 1,
-							"format": "double",
-							"type": "number"
-						}
-					},
-					{
-						"in": "query",
-						"name": "pageSize",
-						"required": false,
-						"schema": {
-							"default": 20,
-							"format": "double",
-							"type": "number"
-						}
-					},
-					{
-						"in": "query",
-						"name": "keyword",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "query",
-						"name": "workflowStatus",
-						"required": false,
-						"schema": {
-							"type": "string",
-							"enum": [
-								"pending",
-								"processing",
-								"accepted",
-								"rejected",
-								"completed"
-							]
-						}
-					},
-					{
-						"in": "query",
-						"name": "type",
-						"required": false,
-						"schema": {
-							"type": "string",
-							"enum": [
-								"suggestion",
-								"bug",
-								"other"
-							]
-						}
-					},
-					{
-						"in": "query",
-						"name": "priority",
-						"required": false,
-						"schema": {
-							"type": "string",
-							"enum": [
-								"low",
-								"medium",
-								"high",
-								"urgent"
-							]
-						}
-					},
-					{
-						"in": "query",
-						"name": "assigneeUserId",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "query",
-						"name": "userId",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "query",
-						"name": "startTime",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "query",
-						"name": "endTime",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/v1/feedback/review/assignment-rules": {
-			"get": {
-				"operationId": "FeedbackControllerGetReviewAssignmentRules",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackReviewAssignmentConfigDto"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": []
-			},
-			"put": {
-				"operationId": "FeedbackControllerSetReviewAssignmentRules",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackReviewAssignmentConfigDto"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/SetFeedbackReviewAssignmentConfigDto"
-							}
-						}
-					}
-				},
-				"X-Replay-Protected": true
-			}
-		},
-		"/v1/feedback/review/{id}": {
-			"get": {
-				"operationId": "FeedbackControllerGetReviewFeedbackDetail",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackDetailDto"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "工单不存在",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorResponse"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			},
-			"put": {
-				"operationId": "FeedbackControllerReviewFeedback",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackDetailDto"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "工单不存在",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorResponse"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/ReviewFeedbackDto"
-							}
-						}
-					}
-				},
-				"X-Replay-Protected": true
-			},
-			"delete": {
-				"operationId": "FeedbackControllerDeleteFeedback",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "boolean"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "工单不存在",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorResponse"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"X-Replay-Protected": true
-			}
-		},
-		"/v1/feedback/review/{id}/comments": {
-			"post": {
-				"operationId": "FeedbackControllerAddReviewComment",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackCommentDto"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "工单不存在",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ErrorResponse"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/CreateFeedbackReviewCommentDto"
-							}
-						}
-					}
-				},
-				"X-Replay-Protected": true
-			}
-		},
 		"/v1/chat/conversations": {
 			"post": {
 				"operationId": "ChatControllerCreateConversation",
@@ -21718,12 +21718,12 @@
 					"monthly_pass:assignment:read",
 					"monthly_pass:assignment:write",
 					"monthly_pass:usage:read",
-					"feedback:submit",
-					"feedback:self:read",
-					"feedback:self:update",
-					"feedback:comment",
-					"feedback:review:read",
-					"feedback:review:update",
+					"ticket:submit",
+					"ticket:self:read",
+					"ticket:self:update",
+					"ticket:comment",
+					"ticket:review:read",
+					"ticket:review:update",
 					"model:pricing:read",
 					"model:pricing:update",
 					"upstream:status:read",
@@ -23981,6 +23981,388 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"TicketCommentVisibility": {
+				"type": "string",
+				"enum": [
+					"public",
+					"internal"
+				]
+			},
+			"TicketCommentDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"ticketId": {
+						"type": "string"
+					},
+					"authorUserId": {
+						"type": "string"
+					},
+					"authorUsername": {
+						"type": "string"
+					},
+					"visibility": {
+						"$ref": "#/components/schemas/TicketCommentVisibility"
+					},
+					"content": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"ticketId",
+					"authorUserId",
+					"visibility",
+					"content",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"TicketType": {
+				"type": "string",
+				"enum": [
+					"suggestion",
+					"bug",
+					"other"
+				]
+			},
+			"TicketWorkflowStatus": {
+				"type": "string",
+				"enum": [
+					"pending",
+					"rejected",
+					"processing",
+					"accepted",
+					"completed"
+				]
+			},
+			"TicketPriority": {
+				"type": "string",
+				"enum": [
+					"low",
+					"medium",
+					"high",
+					"urgent"
+				]
+			},
+			"TicketDetailDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"type": {
+						"$ref": "#/components/schemas/TicketType"
+					},
+					"title": {
+						"type": "string"
+					},
+					"workflowStatus": {
+						"$ref": "#/components/schemas/TicketWorkflowStatus"
+					},
+					"priority": {
+						"$ref": "#/components/schemas/TicketPriority"
+					},
+					"assigneeUserId": {
+						"type": "string"
+					},
+					"assigneeUsername": {
+						"type": "string"
+					},
+					"lastReplyAt": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"sourcePage": {
+						"type": "string"
+					},
+					"reproduceSteps": {
+						"type": "string"
+					},
+					"contactInfo": {
+						"type": "string"
+					},
+					"comments": {
+						"items": {
+							"$ref": "#/components/schemas/TicketCommentDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"type",
+					"title",
+					"workflowStatus",
+					"priority",
+					"createTime",
+					"updateTime",
+					"description",
+					"comments"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateTicketDto": {
+				"properties": {
+					"type": {
+						"$ref": "#/components/schemas/TicketType"
+					},
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"sourcePage": {
+						"type": "string"
+					},
+					"reproduceSteps": {
+						"type": "string"
+					},
+					"contactInfo": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"type",
+					"title",
+					"description"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"TicketListItemDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"type": {
+						"$ref": "#/components/schemas/TicketType"
+					},
+					"title": {
+						"type": "string"
+					},
+					"workflowStatus": {
+						"$ref": "#/components/schemas/TicketWorkflowStatus"
+					},
+					"priority": {
+						"$ref": "#/components/schemas/TicketPriority"
+					},
+					"assigneeUserId": {
+						"type": "string"
+					},
+					"assigneeUsername": {
+						"type": "string"
+					},
+					"lastReplyAt": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"type",
+					"title",
+					"workflowStatus",
+					"priority",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"TicketListResponseDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/TicketListItemDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasMore": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize",
+					"hasMore"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateMyTicketDto": {
+				"properties": {
+					"type": {
+						"$ref": "#/components/schemas/TicketType"
+					},
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"sourcePage": {
+						"type": "string",
+						"nullable": true
+					},
+					"reproduceSteps": {
+						"type": "string",
+						"nullable": true
+					},
+					"contactInfo": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateTicketCommentDto": {
+				"properties": {
+					"content": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"content"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"TicketReviewAssignmentRuleDto": {
+				"properties": {
+					"type": {
+						"$ref": "#/components/schemas/TicketType"
+					},
+					"priority": {
+						"$ref": "#/components/schemas/TicketPriority"
+					},
+					"assigneeUserIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"assigneeUserIds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"TicketReviewAssignmentConfigDto": {
+				"properties": {
+					"rules": {
+						"items": {
+							"$ref": "#/components/schemas/TicketReviewAssignmentRuleDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"rules"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetTicketReviewAssignmentConfigDto": {
+				"properties": {
+					"rules": {
+						"items": {
+							"$ref": "#/components/schemas/TicketReviewAssignmentRuleDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"rules"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ReviewTicketDto": {
+				"properties": {
+					"workflowStatus": {
+						"$ref": "#/components/schemas/TicketWorkflowStatus"
+					},
+					"priority": {
+						"$ref": "#/components/schemas/TicketPriority"
+					},
+					"assigneeUserId": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateTicketReviewCommentDto": {
+				"properties": {
+					"content": {
+						"type": "string"
+					},
+					"visibility": {
+						"$ref": "#/components/schemas/TicketCommentVisibility"
+					}
+				},
+				"required": [
+					"content",
+					"visibility"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"BuildInfoDTO": {
 				"properties": {
 					"version": {
@@ -26131,7 +26513,7 @@
 				"type": "object",
 				"description": "Construct a type with a set of properties K of type T"
 			},
-			"FeedbackAssignmentRuleDto": {
+			"TicketAssignmentRuleDto": {
 				"properties": {
 					"type": {
 						"type": "string"
@@ -26163,9 +26545,9 @@
 					"defaultThresholds": {
 						"$ref": "#/components/schemas/Record_string.number_"
 					},
-					"feedbackAssignmentRules": {
+					"ticketAssignmentRules": {
 						"items": {
-							"$ref": "#/components/schemas/FeedbackAssignmentRuleDto"
+							"$ref": "#/components/schemas/TicketAssignmentRuleDto"
 						},
 						"type": "array"
 					}
@@ -26173,7 +26555,7 @@
 				"required": [
 					"defaultSubscribedEvents",
 					"defaultThresholds",
-					"feedbackAssignmentRules"
+					"ticketAssignmentRules"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -26422,9 +26804,9 @@
 					"defaultThresholds": {
 						"$ref": "#/components/schemas/Record_string.number_"
 					},
-					"feedbackAssignmentRules": {
+					"ticketAssignmentRules": {
 						"items": {
-							"$ref": "#/components/schemas/FeedbackAssignmentRuleDto"
+							"$ref": "#/components/schemas/TicketAssignmentRuleDto"
 						},
 						"type": "array"
 					}
@@ -26432,7 +26814,7 @@
 				"required": [
 					"defaultSubscribedEvents",
 					"defaultThresholds",
-					"feedbackAssignmentRules"
+					"ticketAssignmentRules"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -26666,13 +27048,13 @@
 					"REMOTE_TERMINAL_ASSIGNMENT_SELF_CLAIM",
 					"REMOTE_TERMINAL_REGISTRATION_TOKEN_ROTATE",
 					"REMOTE_TERMINAL_DEVICE_REVOKE",
-					"FEEDBACK_CREATE",
-					"FEEDBACK_UPDATE",
-					"FEEDBACK_COMMENT_CREATE",
-					"FEEDBACK_ASSIGN",
-					"FEEDBACK_STATUS_CHANGE",
-					"FEEDBACK_PRIORITY_CHANGE",
-					"FEEDBACK_DELETE",
+					"TICKET_CREATE",
+					"TICKET_UPDATE",
+					"TICKET_COMMENT_CREATE",
+					"TICKET_ASSIGN",
+					"TICKET_STATUS_CHANGE",
+					"TICKET_PRIORITY_CHANGE",
+					"TICKET_DELETE",
 					"REDEMPTION_CODE_CREATE",
 					"REDEMPTION_CODE_DELETE",
 					"REDEMPTION_CODE_REDEEM",
@@ -32543,388 +32925,6 @@
 						"description": "更新访问密码 (可选)"
 					}
 				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"FeedbackCommentVisibility": {
-				"type": "string",
-				"enum": [
-					"public",
-					"internal"
-				]
-			},
-			"FeedbackCommentDto": {
-				"properties": {
-					"id": {
-						"type": "string"
-					},
-					"feedbackId": {
-						"type": "string"
-					},
-					"authorUserId": {
-						"type": "string"
-					},
-					"authorUsername": {
-						"type": "string"
-					},
-					"visibility": {
-						"$ref": "#/components/schemas/FeedbackCommentVisibility"
-					},
-					"content": {
-						"type": "string"
-					},
-					"createTime": {
-						"type": "string"
-					},
-					"updateTime": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"id",
-					"feedbackId",
-					"authorUserId",
-					"visibility",
-					"content",
-					"createTime",
-					"updateTime"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"FeedbackType": {
-				"type": "string",
-				"enum": [
-					"suggestion",
-					"bug",
-					"other"
-				]
-			},
-			"FeedbackWorkflowStatus": {
-				"type": "string",
-				"enum": [
-					"pending",
-					"rejected",
-					"processing",
-					"accepted",
-					"completed"
-				]
-			},
-			"FeedbackPriority": {
-				"type": "string",
-				"enum": [
-					"low",
-					"medium",
-					"high",
-					"urgent"
-				]
-			},
-			"FeedbackDetailDto": {
-				"properties": {
-					"id": {
-						"type": "string"
-					},
-					"userId": {
-						"type": "string"
-					},
-					"username": {
-						"type": "string"
-					},
-					"type": {
-						"$ref": "#/components/schemas/FeedbackType"
-					},
-					"title": {
-						"type": "string"
-					},
-					"workflowStatus": {
-						"$ref": "#/components/schemas/FeedbackWorkflowStatus"
-					},
-					"priority": {
-						"$ref": "#/components/schemas/FeedbackPriority"
-					},
-					"assigneeUserId": {
-						"type": "string"
-					},
-					"assigneeUsername": {
-						"type": "string"
-					},
-					"lastReplyAt": {
-						"type": "string"
-					},
-					"createTime": {
-						"type": "string"
-					},
-					"updateTime": {
-						"type": "string"
-					},
-					"description": {
-						"type": "string"
-					},
-					"sourcePage": {
-						"type": "string"
-					},
-					"reproduceSteps": {
-						"type": "string"
-					},
-					"contactInfo": {
-						"type": "string"
-					},
-					"comments": {
-						"items": {
-							"$ref": "#/components/schemas/FeedbackCommentDto"
-						},
-						"type": "array"
-					}
-				},
-				"required": [
-					"id",
-					"userId",
-					"type",
-					"title",
-					"workflowStatus",
-					"priority",
-					"createTime",
-					"updateTime",
-					"description",
-					"comments"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"CreateFeedbackDto": {
-				"properties": {
-					"type": {
-						"$ref": "#/components/schemas/FeedbackType"
-					},
-					"title": {
-						"type": "string"
-					},
-					"description": {
-						"type": "string"
-					},
-					"sourcePage": {
-						"type": "string"
-					},
-					"reproduceSteps": {
-						"type": "string"
-					},
-					"contactInfo": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"type",
-					"title",
-					"description"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"FeedbackListItemDto": {
-				"properties": {
-					"id": {
-						"type": "string"
-					},
-					"userId": {
-						"type": "string"
-					},
-					"username": {
-						"type": "string"
-					},
-					"type": {
-						"$ref": "#/components/schemas/FeedbackType"
-					},
-					"title": {
-						"type": "string"
-					},
-					"workflowStatus": {
-						"$ref": "#/components/schemas/FeedbackWorkflowStatus"
-					},
-					"priority": {
-						"$ref": "#/components/schemas/FeedbackPriority"
-					},
-					"assigneeUserId": {
-						"type": "string"
-					},
-					"assigneeUsername": {
-						"type": "string"
-					},
-					"lastReplyAt": {
-						"type": "string"
-					},
-					"createTime": {
-						"type": "string"
-					},
-					"updateTime": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"id",
-					"userId",
-					"type",
-					"title",
-					"workflowStatus",
-					"priority",
-					"createTime",
-					"updateTime"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"FeedbackListResponseDto": {
-				"properties": {
-					"items": {
-						"items": {
-							"$ref": "#/components/schemas/FeedbackListItemDto"
-						},
-						"type": "array"
-					},
-					"total": {
-						"type": "number",
-						"format": "double"
-					},
-					"page": {
-						"type": "number",
-						"format": "double"
-					},
-					"pageSize": {
-						"type": "number",
-						"format": "double"
-					},
-					"hasMore": {
-						"type": "boolean"
-					}
-				},
-				"required": [
-					"items",
-					"total",
-					"page",
-					"pageSize",
-					"hasMore"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"UpdateMyFeedbackDto": {
-				"properties": {
-					"type": {
-						"$ref": "#/components/schemas/FeedbackType"
-					},
-					"title": {
-						"type": "string"
-					},
-					"description": {
-						"type": "string"
-					},
-					"sourcePage": {
-						"type": "string",
-						"nullable": true
-					},
-					"reproduceSteps": {
-						"type": "string",
-						"nullable": true
-					},
-					"contactInfo": {
-						"type": "string",
-						"nullable": true
-					}
-				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"CreateFeedbackCommentDto": {
-				"properties": {
-					"content": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"content"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"FeedbackReviewAssignmentRuleDto": {
-				"properties": {
-					"type": {
-						"$ref": "#/components/schemas/FeedbackType"
-					},
-					"priority": {
-						"$ref": "#/components/schemas/FeedbackPriority"
-					},
-					"assigneeUserIds": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array"
-					}
-				},
-				"required": [
-					"assigneeUserIds"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"FeedbackReviewAssignmentConfigDto": {
-				"properties": {
-					"rules": {
-						"items": {
-							"$ref": "#/components/schemas/FeedbackReviewAssignmentRuleDto"
-						},
-						"type": "array"
-					}
-				},
-				"required": [
-					"rules"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"SetFeedbackReviewAssignmentConfigDto": {
-				"properties": {
-					"rules": {
-						"items": {
-							"$ref": "#/components/schemas/FeedbackReviewAssignmentRuleDto"
-						},
-						"type": "array"
-					}
-				},
-				"required": [
-					"rules"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"ReviewFeedbackDto": {
-				"properties": {
-					"workflowStatus": {
-						"$ref": "#/components/schemas/FeedbackWorkflowStatus"
-					},
-					"priority": {
-						"$ref": "#/components/schemas/FeedbackPriority"
-					},
-					"assigneeUserId": {
-						"type": "string",
-						"nullable": true
-					}
-				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"CreateFeedbackReviewCommentDto": {
-				"properties": {
-					"content": {
-						"type": "string"
-					},
-					"visibility": {
-						"$ref": "#/components/schemas/FeedbackCommentVisibility"
-					}
-				},
-				"required": [
-					"content",
-					"visibility"
-				],
 				"type": "object",
 				"additionalProperties": false
 			},

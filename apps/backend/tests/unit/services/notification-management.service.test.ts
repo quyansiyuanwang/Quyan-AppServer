@@ -107,7 +107,7 @@ describe("NotificationManagementService", () => {
       initializerMock.getOrInitialize.mockResolvedValue(
         makePreferenceRecord({
           notificationEmail: "seed@example.com",
-          subscribedEvents: [NotificationEvent.FEEDBACK_STATUS_UPDATED],
+          subscribedEvents: [NotificationEvent.TICKET_STATUS_UPDATED],
         }),
       );
 
@@ -115,7 +115,7 @@ describe("NotificationManagementService", () => {
 
       expect(initializerMock.getOrInitialize).toHaveBeenCalledWith("user-1");
       expect(result.notificationEmail).toBe("seed@example.com");
-      expect(result.subscribedEvents).toEqual([NotificationEvent.FEEDBACK_STATUS_UPDATED]);
+      expect(result.subscribedEvents).toEqual([NotificationEvent.TICKET_STATUS_UPDATED]);
       expect(result.cooldownMinutes).toBe(60);
     });
   });

@@ -59,19 +59,19 @@
     </PermissionWrapper>
     <PermissionWrapper
       :any-require="[
-        Permission.FEEDBACK_SUBMIT,
-        Permission.FEEDBACK_SELF_READ,
-        Permission.FEEDBACK_SELF_UPDATE,
-        Permission.FEEDBACK_COMMENT,
+        Permission.TICKET_SUBMIT,
+        Permission.TICKET_SELF_READ,
+        Permission.TICKET_SELF_UPDATE,
+        Permission.TICKET_COMMENT,
       ]"
     >
       <el-menu-item
-        index="myFeedback"
-        @click="nav('myFeedback', $event)"
-        @contextmenu.prevent="openRouteMenu('myFeedback', $event)"
+        index="myTickets"
+        @click="nav('myTickets', $event)"
+        @contextmenu.prevent="openRouteMenu('myTickets', $event)"
       >
         <el-icon><ChatDotRound /></el-icon>
-        <template #title>{{ i18ns.t('nav.myFeedback') }}</template>
+        <template #title>{{ i18ns.t('nav.myTickets') }}</template>
       </el-menu-item>
     </PermissionWrapper>
     <el-menu-item
@@ -165,7 +165,7 @@
     :any-require="[
       Permission.OAUTH_CLIENT_REVIEW_READ,
       Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
-      Permission.FEEDBACK_REVIEW_READ,
+      Permission.TICKET_REVIEW_READ,
     ]"
   >
     <el-sub-menu index="openPlatform">
@@ -193,14 +193,14 @@
           <template #title>{{ i18ns.t('nav.authCenterClientReviewManagement') }}</template>
         </el-menu-item>
       </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.FEEDBACK_REVIEW_READ]">
+      <PermissionWrapper :require="[Permission.TICKET_REVIEW_READ]">
         <el-menu-item
-          index="feedbackReviewManagement"
-          @click="nav('feedbackReviewManagement', $event)"
-          @contextmenu.prevent="openRouteMenu('feedbackReviewManagement', $event)"
+          index="ticketReviewManagement"
+          @click="nav('ticketReviewManagement', $event)"
+          @contextmenu.prevent="openRouteMenu('ticketReviewManagement', $event)"
         >
           <el-icon><ChatDotRound /></el-icon>
-          <template #title>{{ i18ns.t('nav.feedbackReviewManagement') }}</template>
+          <template #title>{{ i18ns.t('nav.ticketReviewManagement') }}</template>
         </el-menu-item>
       </PermissionWrapper>
     </el-sub-menu>

@@ -55,7 +55,7 @@ export const routes = [
       {
         path: '/workspace/suggestions',
         name: 'workspaceSuggestions',
-        component: () => import('@/views/workspace/WorkspaceFeedbackView.vue'),
+        component: () => import('@/views/workspace/WorkspaceTicketView.vue'),
         meta: {
           allowGuestWhenEmbedded: true,
         },
@@ -128,11 +128,11 @@ export const routes = [
             },
           },
           {
-            path: 'open-platform/feedback-reviews',
-            name: 'feedbackReviewManagement',
-            component: () => import('@/views/settings/FeedbackReviewManagementView.vue'),
+            path: 'open-platform/ticket-reviews',
+            name: 'ticketReviewManagement',
+            component: () => import('@/views/settings/TicketReviewManagementView.vue'),
             meta: {
-              permission: Permission.FEEDBACK_REVIEW_READ,
+              permission: Permission.TICKET_REVIEW_READ,
             },
           },
           {
@@ -269,15 +269,15 @@ export const routes = [
             component: () => import('@/views/relay/BalanceHistoryView.vue'),
           },
           {
-            path: 'account/feedback',
-            name: 'myFeedback',
-            component: () => import('@/views/workspace/WorkspaceFeedbackView.vue'),
+            path: 'account/tickets',
+            name: 'myTickets',
+            component: () => import('@/views/workspace/WorkspaceTicketView.vue'),
             meta: {
               anyPermissions: [
-                Permission.FEEDBACK_SUBMIT,
-                Permission.FEEDBACK_SELF_READ,
-                Permission.FEEDBACK_SELF_UPDATE,
-                Permission.FEEDBACK_COMMENT,
+                Permission.TICKET_SUBMIT,
+                Permission.TICKET_SELF_READ,
+                Permission.TICKET_SELF_UPDATE,
+                Permission.TICKET_COMMENT,
               ],
             },
           },

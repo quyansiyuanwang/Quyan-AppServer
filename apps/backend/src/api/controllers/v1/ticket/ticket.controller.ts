@@ -18,111 +18,111 @@ import {
 import { HttpStatusCode } from "axios";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type {
-  CreateFeedbackCommentDto,
-  CreateFeedbackDto,
-  CreateFeedbackReviewCommentDto,
-  FeedbackDetailDto,
-  FeedbackListResponseDto,
-  FeedbackReviewAssignmentConfigDto,
-  ReviewFeedbackDto,
-  SetFeedbackReviewAssignmentConfigDto,
-  UpdateMyFeedbackDto,
-} from "@/api/dto/feedback/feedback.dto";
+  CreateTicketCommentDto,
+  CreateTicketDto,
+  CreateTicketReviewCommentDto,
+  TicketDetailDto,
+  TicketListResponseDto,
+  TicketReviewAssignmentConfigDto,
+  ReviewTicketDto,
+  SetTicketReviewAssignmentConfigDto,
+  UpdateMyTicketDto,
+} from "@/api/dto/ticket/ticket.dto";
 import type { ErrorResponse } from "@/api/response";
 import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
-import { FeedbackService } from "@/services/feedback/feedback.service";
+import { TicketService } from "@/services/ticket/ticket.service";
 import type { TypedRequest } from "@/types/express";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import {
-  createFeedbackBodySchema,
-  createFeedbackCommentBodySchema,
-  createFeedbackReviewCommentBodySchema,
-  feedbackIdParamsSchema,
-  feedbackListQuerySchema,
-  feedbackReviewListQuerySchema,
-  setFeedbackAssignmentConfigBodySchema,
-  reviewFeedbackBodySchema,
-  updateMyFeedbackBodySchema,
-} from "@/api/schema/feedback/feedback.schema";
+  createTicketBodySchema,
+  createTicketCommentBodySchema,
+  createTicketReviewCommentBodySchema,
+  ticketIdParamsSchema,
+  ticketListQuerySchema,
+  ticketReviewListQuerySchema,
+  setTicketAssignmentConfigBodySchema,
+  reviewTicketBodySchema,
+  updateMyTicketBodySchema,
+} from "@/api/schema/ticket/ticket.schema";
 
-@Route("v1/feedback")
-@Tags("Feedback")
+@Route("v1/tickets")
+@Tags("Ticket")
 @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "参数验证失败")
-export class FeedbackController extends Controller {
-  private readonly service = FeedbackService.getInstance();
+export class TicketController extends Controller {
+  private readonly service = TicketService.getInstance();
 
   @Post("")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_SUBMIT)
+  @RequirePermission(Permission.TICKET_SUBMIT)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "提交失败")
-  @Middlewares(replayProtectionMiddleware, validateBody(createFeedbackBodySchema))
-  public async createFeedback(
-    @Body() body: CreateFeedbackDto,
+  @Middlewares(replayProtectionMiddleware, validateBody(createTicketBodySchema))
+  public async createTicket(
+    @Body() body: CreateTicketDto,
     @Request() request: TypedRequest,
-  ): Promise<FeedbackDetailDto> {
-    return this.service.createFeedback(request.user!.userId, body, request);
+  ): Promise<TicketDetailDto> {
+    return this.service.createTicket(request.user!.userId, body, request);
   }
 
   @Get("my")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_SELF_READ)
+  @RequirePermission(Permission.TICKET_SELF_READ)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(validateQuery(feedbackListQuerySchema))
-  public async listMyFeedback(
+  @Middlewares(validateQuery(ticketListQuerySchema))
+  public async listMyTickets(
     @Query() page: number = 1,
     @Query() pageSize: number = 10,
     @Query() keyword?: string,
     @Query() workflowStatus?: "pending" | "processing" | "accepted" | "rejected" | "completed",
     @Query() type?: "suggestion" | "bug" | "other",
     @Request() request?: TypedRequest,
-  ): Promise<FeedbackListResponseDto> {
-    return this.service.listMyFeedback(request!.user!.userId, { page, pageSize, keyword, workflowStatus, type });
+  ): Promise<TicketListResponseDto> {
+    return this.service.listMyTickets(request!.user!.userId, { page, pageSize, keyword, workflowStatus, type });
   }
 
   @Get("my/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_SELF_READ)
+  @RequirePermission(Permission.TICKET_SELF_READ)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
-  @Middlewares(validateParams(feedbackIdParamsSchema))
-  public async getMyFeedbackDetail(@Path() id: string, @Request() request: TypedRequest): Promise<FeedbackDetailDto> {
-    return this.service.getMyFeedbackDetail(id, request.user!.userId);
+  @Middlewares(validateParams(ticketIdParamsSchema))
+  public async getMyTicketDetail(@Path() id: string, @Request() request: TypedRequest): Promise<TicketDetailDto> {
+    return this.service.getMyTicketDetail(id, request.user!.userId);
   }
 
   @Put("my/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_SELF_UPDATE)
+  @RequirePermission(Permission.TICKET_SELF_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(
     replayProtectionMiddleware,
-    validateParams(feedbackIdParamsSchema),
-    validateBody(updateMyFeedbackBodySchema),
+    validateParams(ticketIdParamsSchema),
+    validateBody(updateMyTicketBodySchema),
   )
-  public async updateMyFeedback(
+  public async updateMyTicket(
     @Path() id: string,
-    @Body() body: UpdateMyFeedbackDto,
+    @Body() body: UpdateMyTicketDto,
     @Request() request: TypedRequest,
-  ): Promise<FeedbackDetailDto> {
-    return this.service.updateMyFeedback(id, request.user!.userId, body, request);
+  ): Promise<TicketDetailDto> {
+    return this.service.updateMyTicket(id, request.user!.userId, body, request);
   }
 
   @Post("my/{id}/comments")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_COMMENT)
+  @RequirePermission(Permission.TICKET_COMMENT)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(
     replayProtectionMiddleware,
-    validateParams(feedbackIdParamsSchema),
-    validateBody(createFeedbackCommentBodySchema),
+    validateParams(ticketIdParamsSchema),
+    validateBody(createTicketCommentBodySchema),
   )
   public async addMyComment(
     @Path() id: string,
-    @Body() body: CreateFeedbackCommentDto,
+    @Body() body: CreateTicketCommentDto,
     @Request() request: TypedRequest,
   ) {
     return this.service.addMyComment(id, request.user!.userId, body, request);
@@ -130,10 +130,10 @@ export class FeedbackController extends Controller {
 
   @Get("review")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_REVIEW_READ)
+  @RequirePermission(Permission.TICKET_REVIEW_READ)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(validateQuery(feedbackReviewListQuerySchema))
-  public async listReviewFeedback(
+  @Middlewares(validateQuery(ticketReviewListQuerySchema))
+  public async listReviewTickets(
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
     @Query() keyword?: string,
@@ -144,8 +144,8 @@ export class FeedbackController extends Controller {
     @Query() userId?: string,
     @Query() startTime?: string,
     @Query() endTime?: string,
-  ): Promise<FeedbackListResponseDto> {
-    return this.service.listReviewFeedback({
+  ): Promise<TicketListResponseDto> {
+    return this.service.listReviewTickets({
       page,
       pageSize,
       keyword,
@@ -161,65 +161,65 @@ export class FeedbackController extends Controller {
 
   @Get("review/assignment-rules")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
+  @RequirePermission(Permission.TICKET_REVIEW_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  public async getReviewAssignmentRules(): Promise<FeedbackReviewAssignmentConfigDto> {
+  public async getReviewAssignmentRules(): Promise<TicketReviewAssignmentConfigDto> {
     return this.service.getAssignmentConfig();
   }
 
   @Put("review/assignment-rules")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
+  @RequirePermission(Permission.TICKET_REVIEW_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(replayProtectionMiddleware, validateBody(setFeedbackAssignmentConfigBodySchema))
+  @Middlewares(replayProtectionMiddleware, validateBody(setTicketAssignmentConfigBodySchema))
   public async setReviewAssignmentRules(
-    @Body() body: SetFeedbackReviewAssignmentConfigDto,
+    @Body() body: SetTicketReviewAssignmentConfigDto,
     @Request() request: TypedRequest,
-  ): Promise<FeedbackReviewAssignmentConfigDto> {
+  ): Promise<TicketReviewAssignmentConfigDto> {
     return this.service.updateAssignmentConfig(body, request.user!.userId, request);
   }
 
   @Get("review/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_REVIEW_READ)
+  @RequirePermission(Permission.TICKET_REVIEW_READ)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
-  @Middlewares(validateParams(feedbackIdParamsSchema))
-  public async getReviewFeedbackDetail(@Path() id: string): Promise<FeedbackDetailDto> {
-    return this.service.getReviewFeedbackDetail(id);
+  @Middlewares(validateParams(ticketIdParamsSchema))
+  public async getReviewTicketDetail(@Path() id: string): Promise<TicketDetailDto> {
+    return this.service.getReviewTicketDetail(id);
   }
 
   @Put("review/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
+  @RequirePermission(Permission.TICKET_REVIEW_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(
     replayProtectionMiddleware,
-    validateParams(feedbackIdParamsSchema),
-    validateBody(reviewFeedbackBodySchema),
+    validateParams(ticketIdParamsSchema),
+    validateBody(reviewTicketBodySchema),
   )
-  public async reviewFeedback(
+  public async reviewTicket(
     @Path() id: string,
-    @Body() body: ReviewFeedbackDto,
+    @Body() body: ReviewTicketDto,
     @Request() request: TypedRequest,
-  ): Promise<FeedbackDetailDto> {
-    return this.service.reviewFeedback(id, request.user!.userId, body, request);
+  ): Promise<TicketDetailDto> {
+    return this.service.reviewTicket(id, request.user!.userId, body, request);
   }
 
   @Post("review/{id}/comments")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
+  @RequirePermission(Permission.TICKET_REVIEW_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(
     replayProtectionMiddleware,
-    validateParams(feedbackIdParamsSchema),
-    validateBody(createFeedbackReviewCommentBodySchema),
+    validateParams(ticketIdParamsSchema),
+    validateBody(createTicketReviewCommentBodySchema),
   )
   public async addReviewComment(
     @Path() id: string,
-    @Body() body: CreateFeedbackReviewCommentDto,
+    @Body() body: CreateTicketReviewCommentDto,
     @Request() request: TypedRequest,
   ) {
     return this.service.addReviewComment(id, request.user!.userId, body, request);
@@ -227,12 +227,12 @@ export class FeedbackController extends Controller {
 
   @Delete("review/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
+  @RequirePermission(Permission.TICKET_REVIEW_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
-  @Middlewares(replayProtectionMiddleware, validateParams(feedbackIdParamsSchema))
-  public async deleteFeedback(@Path() id: string, @Request() request: TypedRequest): Promise<boolean> {
-    await this.service.deleteFeedback(id, request.user!.userId, request);
+  @Middlewares(replayProtectionMiddleware, validateParams(ticketIdParamsSchema))
+  public async deleteTicket(@Path() id: string, @Request() request: TypedRequest): Promise<boolean> {
+    await this.service.deleteTicket(id, request.user!.userId, request);
     return true;
   }
 }

@@ -10,13 +10,13 @@ export {
   NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS,
 } from './notification-event';
 export {
-  FEEDBACK_TYPES,
-  FEEDBACK_WORKFLOW_STATUSES,
-  FEEDBACK_PRIORITIES,
-  FEEDBACK_COMMENT_VISIBILITIES,
-  isFeedbackTerminalStatus,
-} from './feedback';
-export type { FeedbackType, FeedbackWorkflowStatus, FeedbackPriority, FeedbackCommentVisibility } from './feedback';
+  TICKET_TYPES,
+  TICKET_WORKFLOW_STATUSES,
+  TICKET_PRIORITIES,
+  TICKET_COMMENT_VISIBILITIES,
+  isTicketTerminalStatus,
+} from './ticket';
+export type { TicketType, TicketWorkflowStatus, TicketPriority, TicketCommentVisibility } from './ticket';
 export { LegalPolicyType, LEGAL_POLICY_TYPES, LegalPolicyPublishStatus, LEGAL_POLICY_PUBLISH_STATUSES } from './legal-policy';
 export { RELAY_CHANNEL_STATUS } from './relay-channel';
 export type { RelayChannelStatus } from './relay-channel';

@@ -130,10 +130,10 @@ export interface SetSmtpConfigDto {
 export interface NotificationConfigDto {
   defaultSubscribedEvents: string[];
   defaultThresholds: Record<string, number>;
-  feedbackAssignmentRules: FeedbackAssignmentRuleDto[];
+  ticketAssignmentRules: TicketAssignmentRuleDto[];
 }
 
-export interface FeedbackAssignmentRuleDto {
+export interface TicketAssignmentRuleDto {
   type?: string;
   priority?: string;
   assigneeUserIds: string[];
@@ -142,7 +142,7 @@ export interface FeedbackAssignmentRuleDto {
 export interface SetNotificationConfigDto {
   defaultSubscribedEvents: string[];
   defaultThresholds: Record<string, number>;
-  feedbackAssignmentRules: FeedbackAssignmentRuleDto[];
+  ticketAssignmentRules: TicketAssignmentRuleDto[];
 }
 
 export interface SetIpBanConfigDto {

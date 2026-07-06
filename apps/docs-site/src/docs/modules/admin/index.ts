@@ -19,7 +19,7 @@ const orderedModulePaths = [
   './json-endpoint-management.doc.ts',
   './article-management.doc.ts',
   './legal-policy-management.doc.ts',
-  './feedback-management.doc.ts',
+  './ticket-management.doc.ts',
 ] as const
 
 export const registerAdminDocs = (registry: DocsRegistryBuilder) => {

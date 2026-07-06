@@ -691,47 +691,47 @@ export const PERMISSION_META: PermissionMetaMap = {
     category: 'monthly_pass',
   },
 
-  [Permission.FEEDBACK_SUBMIT]: {
+  [Permission.TICKET_SUBMIT]: {
     label: '提交工单',
     labelEn: 'Submit Ticket',
     tooltip: '允许提交新的工单',
     tooltipEn: 'Allows submitting new tickets',
-    category: 'feedback',
+    category: 'ticket',
   },
-  [Permission.FEEDBACK_SELF_READ]: {
+  [Permission.TICKET_SELF_READ]: {
     label: '查看自己的工单',
     labelEn: 'View Own Tickets',
     tooltip: '允许查看自己提交的工单',
     tooltipEn: 'Allows viewing own submitted tickets',
-    category: 'feedback',
+    category: 'ticket',
   },
-  [Permission.FEEDBACK_SELF_UPDATE]: {
+  [Permission.TICKET_SELF_UPDATE]: {
     label: '更新自己的工单',
     labelEn: 'Update Own Ticket',
     tooltip: '允许更新自己提交的工单',
     tooltipEn: 'Allows updating own submitted tickets',
-    category: 'feedback',
+    category: 'ticket',
   },
-  [Permission.FEEDBACK_COMMENT]: {
+  [Permission.TICKET_COMMENT]: {
     label: '评论工单',
     labelEn: 'Comment on Tickets',
     tooltip: '允许对工单条目进行评论',
     tooltipEn: 'Allows commenting on ticket entries',
-    category: 'feedback',
+    category: 'ticket',
   },
-  [Permission.FEEDBACK_REVIEW_READ]: {
+  [Permission.TICKET_REVIEW_READ]: {
     label: '审核工单',
     labelEn: 'Review Tickets',
     tooltip: '允许查看所有工单条目进行审核',
     tooltipEn: 'Allows viewing all ticket entries for review',
-    category: 'feedback',
+    category: 'ticket',
   },
-  [Permission.FEEDBACK_REVIEW_UPDATE]: {
+  [Permission.TICKET_REVIEW_UPDATE]: {
     label: '处理工单',
     labelEn: 'Process Tickets',
     tooltip: '允许更新工单审核状态',
     tooltipEn: 'Allows updating ticket review status',
-    category: 'feedback',
+    category: 'ticket',
   },
 
   [Permission.MODEL_PRICING_READ]: {

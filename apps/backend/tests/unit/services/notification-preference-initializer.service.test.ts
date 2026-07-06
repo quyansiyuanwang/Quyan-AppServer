@@ -103,13 +103,13 @@ describe("NotificationPreferenceInitializerService", () => {
       }),
     );
     expect((repositoryMock.upsertPreference as any).mock.calls[0][1].subscribedEvents).toContain(
-      NotificationEvent.FEEDBACK_STATUS_UPDATED,
+      NotificationEvent.TICKET_STATUS_UPDATED,
     );
     expect((repositoryMock.upsertPreference as any).mock.calls[0][1].subscribedEvents).toContain(
-      NotificationEvent.FEEDBACK_PUBLIC_REPLY,
+      NotificationEvent.TICKET_PUBLIC_REPLY,
     );
     expect((repositoryMock.upsertPreference as any).mock.calls[0][1].subscribedEvents).toContain(
-      NotificationEvent.FEEDBACK_ASSIGNED,
+      NotificationEvent.TICKET_ASSIGNED,
     );
   });
 });

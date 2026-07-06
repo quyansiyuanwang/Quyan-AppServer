@@ -113,17 +113,17 @@ export interface CaptchaConfig {
 export interface NotificationConfig {
   defaultSubscribedEvents: string[];
   defaultThresholds: Record<string, number>;
-  feedbackAssignmentRules: FeedbackAssignmentRule[];
+  ticketAssignmentRules: TicketAssignmentRule[];
 }
 
-export interface FeedbackAssignmentRule {
+export interface TicketAssignmentRule {
   type?: string;
   priority?: string;
   assigneeUserIds: string[];
 }
 
-export interface FeedbackAssignmentConfig {
-  rules: FeedbackAssignmentRule[];
+export interface TicketAssignmentConfig {
+  rules: TicketAssignmentRule[];
 }
 
 function sanitizeInt(value: string | undefined, fallback: number, min: number, max: number): number {
@@ -345,19 +345,19 @@ export class ConfigService {
           ? parsedEvents.filter((item): item is string => typeof item === "string")
           : DEFAULT_SUBSCRIBED_NOTIFICATION_EVENTS,
         defaultThresholds: normalizedThresholds,
-        feedbackAssignmentRules: (await this.getFeedbackAssignmentConfig()).rules,
+        ticketAssignmentRules: (await this.getTicketAssignmentConfig()).rules,
       };
     } catch {
       return {
         defaultSubscribedEvents: DEFAULT_SUBSCRIBED_NOTIFICATION_EVENTS,
         defaultThresholds: DEFAULT_NOTIFICATION_THRESHOLDS,
-        feedbackAssignmentRules: (await this.getFeedbackAssignmentConfig()).rules,
+        ticketAssignmentRules: (await this.getTicketAssignmentConfig()).rules,
       };
     }
   }
 
-  async getFeedbackAssignmentConfig(): Promise<FeedbackAssignmentConfig> {
-    const raw = await this.get(CONFIG_KEYS.NOTIFICATION.FEEDBACK_ASSIGNMENT_RULES);
+  async getTicketAssignmentConfig(): Promise<TicketAssignmentConfig> {
+    const raw = await this.get(CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES);
     if (!raw) return { rules: [] };
 
     try {
@@ -383,13 +383,13 @@ export class ConfigService {
     }
   }
 
-  async setFeedbackAssignmentConfig(
-    config: FeedbackAssignmentConfig,
+  async setTicketAssignmentConfig(
+    config: TicketAssignmentConfig,
     actorUserId?: string,
     request?: Request,
   ): Promise<void> {
     await this.set(
-      CONFIG_KEYS.NOTIFICATION.FEEDBACK_ASSIGNMENT_RULES,
+      CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES,
       JSON.stringify(config.rules),
       actorUserId,
       request,

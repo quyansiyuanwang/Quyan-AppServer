@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ALL_NOTIFICATION_EVENTS, THRESHOLD_EVENTS } from "@/constant/notification-event";
-import { FEEDBACK_PRIORITIES, FEEDBACK_TYPES } from "@/constant/feedback";
+import { TICKET_PRIORITIES, TICKET_TYPES } from "@/constant/ticket";
 
 const validHostnameRegex = /^[a-zA-Z0-9.-]+$/;
 const maxFourDecimalPlaces = (value: number) => Number.isInteger(value * 10000);
@@ -84,11 +84,11 @@ export const setNotificationConfigBodySchema = z.object({
     .array(z.enum(ALL_NOTIFICATION_EVENTS as [string, ...string[]]))
     .max(ALL_NOTIFICATION_EVENTS.length),
   defaultThresholds: z.record(z.enum(THRESHOLD_EVENTS as unknown as [string, ...string[]]), z.coerce.number().min(0)),
-  feedbackAssignmentRules: z.array(
+  ticketAssignmentRules: z.array(
     z
       .object({
-        type: z.enum(FEEDBACK_TYPES).optional(),
-        priority: z.enum(FEEDBACK_PRIORITIES).optional(),
+        type: z.enum(TICKET_TYPES).optional(),
+        priority: z.enum(TICKET_PRIORITIES).optional(),
         assigneeUserIds: z.array(z.string().trim().min(1)).min(1).max(50),
       })
       .refine((data) => !!data.type || !!data.priority, {

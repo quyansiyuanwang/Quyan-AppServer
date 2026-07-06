@@ -1,37 +1,37 @@
-import type { Feedback, FeedbackComment } from "@prisma/client";
+import type { Ticket, TicketComment } from "@prisma/client";
 import type { Request } from "express";
 import type {
-  CreateFeedbackCommentDto,
-  CreateFeedbackDto,
-  CreateFeedbackReviewCommentDto,
-  FeedbackCommentDto,
-  FeedbackDetailDto,
-  FeedbackListItemDto,
-  FeedbackListQueryDto,
-  FeedbackListResponseDto,
-  FeedbackReviewAssignmentConfigDto,
-  FeedbackReviewListQueryDto,
-  ReviewFeedbackDto,
-  SetFeedbackReviewAssignmentConfigDto,
-  UpdateMyFeedbackDto,
-} from "@/api/dto/feedback/feedback.dto";
+  CreateTicketCommentDto,
+  CreateTicketDto,
+  CreateTicketReviewCommentDto,
+  TicketCommentDto,
+  TicketDetailDto,
+  TicketListItemDto,
+  TicketListQueryDto,
+  TicketListResponseDto,
+  TicketReviewAssignmentConfigDto,
+  TicketReviewListQueryDto,
+  ReviewTicketDto,
+  SetTicketReviewAssignmentConfigDto,
+  UpdateMyTicketDto,
+} from "@/api/dto/ticket/ticket.dto";
 import {
-  DEFAULT_FEEDBACK_PRIORITY,
-  FEEDBACK_PRIORITIES,
-  FEEDBACK_TYPES,
-  DEFAULT_FEEDBACK_WORKFLOW_STATUS,
-  isFeedbackTerminalStatus,
-} from "@/constant/feedback";
+  DEFAULT_TICKET_PRIORITY,
+  TICKET_PRIORITIES,
+  TICKET_TYPES,
+  DEFAULT_TICKET_WORKFLOW_STATUS,
+  isTicketTerminalStatus,
+} from "@/constant/ticket";
 import { NotificationEvent } from "@/constant/notification-event";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { Permission } from "@/constant/permission";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { NotificationService } from "@/services/notification/notification.service";
-import { ConfigService, type FeedbackAssignmentRule } from "@/services/system/config.service";
+import { ConfigService, type TicketAssignmentRule } from "@/services/system/config.service";
 import { PermissionService } from "@/services/users/permission.service";
-import { FeedbackRepository } from "@/store/feedback/feedback.repository";
-import type { FeedbackCommentWithAuthor, FeedbackStore, FeedbackWithRelations } from "@/store/feedback/feedback.store";
+import { TicketRepository } from "@/store/ticket/ticket.repository";
+import type { TicketCommentWithAuthor, TicketStore, TicketWithRelations } from "@/store/ticket/ticket.store";
 import { UserRepository } from "@/store/users/user.repository";
 import { AccountStatus } from "@/util/auth/account-status";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
@@ -39,13 +39,13 @@ import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 
 const INTERNAL_VISIBILITY = "internal";
 const PUBLIC_VISIBILITY = "public";
-const FEEDBACK_ASSIGNMENT_CURSOR_TTL_SECONDS = 60 * 60 * 24 * 30;
+const TICKET_ASSIGNMENT_CURSOR_TTL_SECONDS = 60 * 60 * 24 * 30;
 
-export class FeedbackService {
-  private static instance: FeedbackService | null = null;
+export class TicketService {
+  private static instance: TicketService | null = null;
 
   private constructor(
-    private readonly repository: FeedbackStore = FeedbackRepository.getInstance(),
+    private readonly repository: TicketStore = TicketRepository.getInstance(),
     private readonly userRepository: UserRepository = UserRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly notificationService: NotificationService = NotificationService.getInstance(),
@@ -54,13 +54,13 @@ export class FeedbackService {
     private readonly redisService: RedisService = RedisService.getInstance(),
   ) {}
 
-  static getInstance(): FeedbackService {
-    if (!this.instance) this.instance = new FeedbackService();
+  static getInstance(): TicketService {
+    if (!this.instance) this.instance = new TicketService();
     return this.instance;
   }
 
-  async createFeedback(userId: string, body: CreateFeedbackDto, request?: Request): Promise<FeedbackDetailDto> {
-    const autoAssigneeUserId = await this.resolveAutoAssigneeUserId(body.type, DEFAULT_FEEDBACK_PRIORITY);
+  async createTicket(userId: string, body: CreateTicketDto, request?: Request): Promise<TicketDetailDto> {
+    const autoAssigneeUserId = await this.resolveAutoAssigneeUserId(body.type, DEFAULT_TICKET_PRIORITY);
 
     const created = await this.repository.create({
       userId,
@@ -70,18 +70,18 @@ export class FeedbackService {
       sourcePage: this.normalizeNullableText(body.sourcePage),
       reproduceSteps: this.normalizeNullableText(body.reproduceSteps),
       contactInfo: this.normalizeNullableText(body.contactInfo),
-      workflowStatus: DEFAULT_FEEDBACK_WORKFLOW_STATUS,
-      priority: DEFAULT_FEEDBACK_PRIORITY,
+      workflowStatus: DEFAULT_TICKET_WORKFLOW_STATUS,
+      priority: DEFAULT_TICKET_PRIORITY,
       assigneeUserId: autoAssigneeUserId ?? undefined,
     });
 
     await this.businessLogService.logOperation({
-      operationType: OperationType.FEEDBACK_CREATE,
+      operationType: OperationType.TICKET_CREATE,
       operationCategory: OperationCategory.SYSTEM,
       actorUserId: userId,
       targetUserId: userId,
       targetResourceId: created.id,
-      targetResourceType: "FEEDBACK",
+      targetResourceType: "TICKET",
       description: `提交工单 '${created.title}'`,
       changes: { type: created.type, priority: created.priority },
       success: true,
@@ -89,20 +89,20 @@ export class FeedbackService {
     });
 
     if (autoAssigneeUserId)
-      await this.notificationService.dispatch(autoAssigneeUserId, NotificationEvent.FEEDBACK_ASSIGNED, {
+      await this.notificationService.dispatch(autoAssigneeUserId, NotificationEvent.TICKET_ASSIGNED, {
         title: "你有新的工单待处理",
         content:
           autoAssigneeUserId === userId
             ? `你创建的工单《${created.title}》已自动分配给你`
             : `工单《${created.title}》已自动分配给你`,
-        data: { feedbackId: created.id, priority: created.priority, autoAssigned: true },
+        data: { ticketId: created.id, priority: created.priority, autoAssigned: true },
       });
     else await this.notifyPendingReviewUsers(created.id, created.title, created.priority, userId);
 
-    return this.getMyFeedbackDetail(created.id, userId);
+    return this.getMyTicketDetail(created.id, userId);
   }
 
-  async listMyFeedback(userId: string, query: FeedbackListQueryDto): Promise<FeedbackListResponseDto> {
+  async listMyTickets(userId: string, query: TicketListQueryDto): Promise<TicketListResponseDto> {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
     const { items, total } = await this.repository.findMyList(userId, {
@@ -122,56 +122,56 @@ export class FeedbackService {
     };
   }
 
-  async getMyFeedbackDetail(id: string, userId: string): Promise<FeedbackDetailDto> {
-    const feedback = await this.requireOwnedFeedback(id, userId);
-    const comments = await this.repository.findCommentsByFeedbackId(id);
+  async getMyTicketDetail(id: string, userId: string): Promise<TicketDetailDto> {
+    const ticket = await this.requireOwnedTicket(id, userId);
+    const comments = await this.repository.findCommentsByTicketId(id);
     return this.toDetailDto(
-      feedback,
+      ticket,
       comments.filter((item) => item.visibility !== INTERNAL_VISIBILITY),
     );
   }
 
-  async updateMyFeedback(
+  async updateMyTicket(
     id: string,
     userId: string,
-    body: UpdateMyFeedbackDto,
+    body: UpdateMyTicketDto,
     request?: Request,
-  ): Promise<FeedbackDetailDto> {
-    const existing = await this.requireOwnedFeedback(id, userId);
-    if (isFeedbackTerminalStatus(existing.workflowStatus)) throw new BadRequestError("当前工单已结束，不能再修改");
+  ): Promise<TicketDetailDto> {
+    const existing = await this.requireOwnedTicket(id, userId);
+    if (isTicketTerminalStatus(existing.workflowStatus)) throw new BadRequestError("当前工单已结束，不能再修改");
 
     const updateData = this.buildSelfUpdateInput(body);
-    if (Object.keys(updateData).length === 0) return this.getMyFeedbackDetail(id, userId);
+    if (Object.keys(updateData).length === 0) return this.getMyTicketDetail(id, userId);
 
     const updated = await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
-      operationType: OperationType.FEEDBACK_UPDATE,
+      operationType: OperationType.TICKET_UPDATE,
       operationCategory: OperationCategory.SYSTEM,
       actorUserId: userId,
       targetUserId: userId,
       targetResourceId: updated.id,
-      targetResourceType: "FEEDBACK",
+      targetResourceType: "TICKET",
       description: `更新工单 '${updated.title}'`,
       changes: { before: this.pickMutableFields(existing), after: this.pickMutableFields(updated) },
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
 
-    return this.getMyFeedbackDetail(id, userId);
+    return this.getMyTicketDetail(id, userId);
   }
 
   async addMyComment(
     id: string,
     userId: string,
-    body: CreateFeedbackCommentDto,
+    body: CreateTicketCommentDto,
     request?: Request,
-  ): Promise<FeedbackCommentDto> {
-    const feedback = await this.requireOwnedFeedback(id, userId);
-    if (isFeedbackTerminalStatus(feedback.workflowStatus)) throw new BadRequestError("当前工单已结束，不能再追加评论");
+  ): Promise<TicketCommentDto> {
+    const ticket = await this.requireOwnedTicket(id, userId);
+    if (isTicketTerminalStatus(ticket.workflowStatus)) throw new BadRequestError("当前工单已结束，不能再追加评论");
 
     const created = await this.repository.createComment({
-      feedbackId: id,
+      ticketId: id,
       authorUserId: userId,
       visibility: PUBLIC_VISIBILITY,
       content: body.content.trim(),
@@ -180,13 +180,13 @@ export class FeedbackService {
     await this.repository.update(id, { lastReplyAt: created.createTime });
 
     await this.businessLogService.logOperation({
-      operationType: OperationType.FEEDBACK_COMMENT_CREATE,
+      operationType: OperationType.TICKET_COMMENT_CREATE,
       operationCategory: OperationCategory.SYSTEM,
       actorUserId: userId,
       targetUserId: userId,
-      targetResourceId: feedback.id,
-      targetResourceType: "FEEDBACK",
-      description: `为工单 '${feedback.title}' 添加评论`,
+      targetResourceId: ticket.id,
+      targetResourceType: "TICKET",
+      description: `为工单 '${ticket.title}' 添加评论`,
       changes: { visibility: PUBLIC_VISIBILITY },
       success: true,
       ...buildBusinessLogRequestContext(request),
@@ -201,7 +201,7 @@ export class FeedbackService {
     });
   }
 
-  async listReviewFeedback(query: FeedbackReviewListQueryDto): Promise<FeedbackListResponseDto> {
+  async listReviewTickets(query: TicketReviewListQueryDto): Promise<TicketListResponseDto> {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const { items, total } = await this.repository.findReviewList({
@@ -226,19 +226,19 @@ export class FeedbackService {
     };
   }
 
-  async getReviewFeedbackDetail(id: string): Promise<FeedbackDetailDto> {
-    const feedback = await this.repository.findByIdWithRelations(id);
-    if (!feedback) throw new NotFoundError("工单不存在");
-    const comments = await this.repository.findCommentsByFeedbackId(id);
-    return this.toDetailDto(feedback, comments);
+  async getReviewTicketDetail(id: string): Promise<TicketDetailDto> {
+    const ticket = await this.repository.findByIdWithRelations(id);
+    if (!ticket) throw new NotFoundError("工单不存在");
+    const comments = await this.repository.findCommentsByTicketId(id);
+    return this.toDetailDto(ticket, comments);
   }
 
-  async reviewFeedback(
+  async reviewTicket(
     id: string,
     reviewerUserId: string,
-    body: ReviewFeedbackDto,
+    body: ReviewTicketDto,
     request?: Request,
-  ): Promise<FeedbackDetailDto> {
+  ): Promise<TicketDetailDto> {
     const existing = await this.repository.findByIdWithRelations(id);
     if (!existing) throw new NotFoundError("工单不存在");
 
@@ -258,18 +258,18 @@ export class FeedbackService {
       updateData.assigneeUserId = normalizedAssignee;
     }
 
-    if (Object.keys(updateData).length === 0) return this.getReviewFeedbackDetail(id);
+    if (Object.keys(updateData).length === 0) return this.getReviewTicketDetail(id);
 
     const updated = await this.repository.update(id, updateData);
 
     if (existing.workflowStatus !== updated.workflowStatus) {
       await this.businessLogService.logOperation({
-        operationType: OperationType.FEEDBACK_STATUS_CHANGE,
+        operationType: OperationType.TICKET_STATUS_CHANGE,
         operationCategory: OperationCategory.SYSTEM,
         actorUserId: reviewerUserId,
         targetUserId: existing.userId,
         targetResourceId: updated.id,
-        targetResourceType: "FEEDBACK",
+        targetResourceType: "TICKET",
         description: `更新工单 '${updated.title}' 状态`,
         changes: { beforeStatus: existing.workflowStatus, afterStatus: updated.workflowStatus },
         success: true,
@@ -277,21 +277,21 @@ export class FeedbackService {
       });
 
       if (existing.userId !== reviewerUserId)
-        await this.notificationService.dispatch(existing.userId, NotificationEvent.FEEDBACK_STATUS_UPDATED, {
+        await this.notificationService.dispatch(existing.userId, NotificationEvent.TICKET_STATUS_UPDATED, {
           title: "工单状态已更新",
           content: `你的工单《${updated.title}》状态已变更为 ${updated.workflowStatus}`,
-          data: { feedbackId: updated.id, workflowStatus: updated.workflowStatus },
+          data: { ticketId: updated.id, workflowStatus: updated.workflowStatus },
         });
     }
 
     if (existing.priority !== updated.priority)
       await this.businessLogService.logOperation({
-        operationType: OperationType.FEEDBACK_PRIORITY_CHANGE,
+        operationType: OperationType.TICKET_PRIORITY_CHANGE,
         operationCategory: OperationCategory.SYSTEM,
         actorUserId: reviewerUserId,
         targetUserId: existing.userId,
         targetResourceId: updated.id,
-        targetResourceType: "FEEDBACK",
+        targetResourceType: "TICKET",
         description: `更新工单 '${updated.title}' 优先级`,
         changes: { beforePriority: existing.priority, afterPriority: updated.priority },
         success: true,
@@ -300,12 +300,12 @@ export class FeedbackService {
 
     if (existing.assigneeUserId !== updated.assigneeUserId) {
       await this.businessLogService.logOperation({
-        operationType: OperationType.FEEDBACK_ASSIGN,
+        operationType: OperationType.TICKET_ASSIGN,
         operationCategory: OperationCategory.SYSTEM,
         actorUserId: reviewerUserId,
         targetUserId: existing.userId,
         targetResourceId: updated.id,
-        targetResourceType: "FEEDBACK",
+        targetResourceType: "TICKET",
         description: `调整工单 '${updated.title}' 处理人`,
         changes: { beforeAssigneeUserId: existing.assigneeUserId, afterAssigneeUserId: updated.assigneeUserId },
         success: true,
@@ -313,30 +313,30 @@ export class FeedbackService {
       });
 
       if (updated.assigneeUserId)
-        await this.notificationService.dispatch(updated.assigneeUserId, NotificationEvent.FEEDBACK_ASSIGNED, {
+        await this.notificationService.dispatch(updated.assigneeUserId, NotificationEvent.TICKET_ASSIGNED, {
           title: "你有新的工单待处理",
           content:
             updated.assigneeUserId === reviewerUserId
               ? `你已将工单《${updated.title}》分配给自己`
               : `工单《${updated.title}》已分配给你`,
-          data: { feedbackId: updated.id, priority: updated.priority },
+          data: { ticketId: updated.id, priority: updated.priority },
         });
     }
 
-    return this.getReviewFeedbackDetail(id);
+    return this.getReviewTicketDetail(id);
   }
 
   async addReviewComment(
     id: string,
     reviewerUserId: string,
-    body: CreateFeedbackReviewCommentDto,
+    body: CreateTicketReviewCommentDto,
     request?: Request,
-  ): Promise<FeedbackCommentDto> {
-    const feedback = await this.repository.findByIdWithRelations(id);
-    if (!feedback) throw new NotFoundError("工单不存在");
+  ): Promise<TicketCommentDto> {
+    const ticket = await this.repository.findByIdWithRelations(id);
+    if (!ticket) throw new NotFoundError("工单不存在");
 
     const created = await this.repository.createComment({
-      feedbackId: id,
+      ticketId: id,
       authorUserId: reviewerUserId,
       visibility: body.visibility,
       content: body.content.trim(),
@@ -345,23 +345,23 @@ export class FeedbackService {
     await this.repository.update(id, { lastReplyAt: created.createTime });
 
     await this.businessLogService.logOperation({
-      operationType: OperationType.FEEDBACK_COMMENT_CREATE,
+      operationType: OperationType.TICKET_COMMENT_CREATE,
       operationCategory: OperationCategory.SYSTEM,
       actorUserId: reviewerUserId,
-      targetUserId: feedback.userId,
-      targetResourceId: feedback.id,
-      targetResourceType: "FEEDBACK",
-      description: `为工单 '${feedback.title}' 添加${body.visibility === INTERNAL_VISIBILITY ? "内部" : "公开"}评论`,
+      targetUserId: ticket.userId,
+      targetResourceId: ticket.id,
+      targetResourceType: "TICKET",
+      description: `为工单 '${ticket.title}' 添加${body.visibility === INTERNAL_VISIBILITY ? "内部" : "公开"}评论`,
       changes: { visibility: body.visibility },
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
 
-    if (body.visibility === PUBLIC_VISIBILITY && feedback.userId !== reviewerUserId)
-      await this.notificationService.dispatch(feedback.userId, NotificationEvent.FEEDBACK_PUBLIC_REPLY, {
+    if (body.visibility === PUBLIC_VISIBILITY && ticket.userId !== reviewerUserId)
+      await this.notificationService.dispatch(ticket.userId, NotificationEvent.TICKET_PUBLIC_REPLY, {
         title: "你的工单收到了新回复",
-        content: `工单《${feedback.title}》有新的处理回复`,
-        data: { feedbackId: feedback.id },
+        content: `工单《${ticket.title}》有新的处理回复`,
+        data: { ticketId: ticket.id },
       });
 
     return this.toCommentDto({
@@ -373,33 +373,33 @@ export class FeedbackService {
     });
   }
 
-  async deleteFeedback(id: string, reviewerUserId: string, request?: Request): Promise<void> {
-    const feedback = await this.repository.findById(id);
-    if (!feedback) throw new NotFoundError("工单不存在");
+  async deleteTicket(id: string, reviewerUserId: string, request?: Request): Promise<void> {
+    const ticket = await this.repository.findById(id);
+    if (!ticket) throw new NotFoundError("工单不存在");
     await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
-      operationType: OperationType.FEEDBACK_DELETE,
+      operationType: OperationType.TICKET_DELETE,
       operationCategory: OperationCategory.SYSTEM,
       actorUserId: reviewerUserId,
-      targetUserId: feedback.userId,
-      targetResourceId: feedback.id,
-      targetResourceType: "FEEDBACK",
-      description: `删除工单 '${feedback.title}'`,
+      targetUserId: ticket.userId,
+      targetResourceId: ticket.id,
+      targetResourceType: "TICKET",
+      description: `删除工单 '${ticket.title}'`,
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
   }
 
-  async getAssignmentConfig(): Promise<FeedbackReviewAssignmentConfigDto> {
-    const config = await this.configService.getFeedbackAssignmentConfig();
+  async getAssignmentConfig(): Promise<TicketReviewAssignmentConfigDto> {
+    const config = await this.configService.getTicketAssignmentConfig();
     return {
       rules: config.rules.map((rule) => ({
-        type: FEEDBACK_TYPES.includes(rule.type as (typeof FEEDBACK_TYPES)[number])
-          ? (rule.type as (typeof FEEDBACK_TYPES)[number])
+        type: TICKET_TYPES.includes(rule.type as (typeof TICKET_TYPES)[number])
+          ? (rule.type as (typeof TICKET_TYPES)[number])
           : undefined,
-        priority: FEEDBACK_PRIORITIES.includes(rule.priority as (typeof FEEDBACK_PRIORITIES)[number])
-          ? (rule.priority as (typeof FEEDBACK_PRIORITIES)[number])
+        priority: TICKET_PRIORITIES.includes(rule.priority as (typeof TICKET_PRIORITIES)[number])
+          ? (rule.priority as (typeof TICKET_PRIORITIES)[number])
           : undefined,
         assigneeUserIds: [...rule.assigneeUserIds],
       })),
@@ -407,10 +407,10 @@ export class FeedbackService {
   }
 
   async updateAssignmentConfig(
-    body: SetFeedbackReviewAssignmentConfigDto,
+    body: SetTicketReviewAssignmentConfigDto,
     reviewerUserId: string,
     request?: Request,
-  ): Promise<FeedbackReviewAssignmentConfigDto> {
+  ): Promise<TicketReviewAssignmentConfigDto> {
     const normalizedRules = body.rules
       .map((rule) => ({
         type: rule.type || undefined,
@@ -421,26 +421,26 @@ export class FeedbackService {
       }))
       .filter((rule) => rule.assigneeUserIds.length > 0 && (rule.type || rule.priority));
 
-    await this.configService.setFeedbackAssignmentConfig({ rules: normalizedRules }, reviewerUserId, request);
+    await this.configService.setTicketAssignmentConfig({ rules: normalizedRules }, reviewerUserId, request);
     return { rules: normalizedRules };
   }
 
-  private async requireOwnedFeedback(id: string, userId: string): Promise<FeedbackWithRelations> {
-    const feedback = await this.repository.findByIdWithRelations(id);
-    if (!feedback) throw new NotFoundError("工单不存在");
-    if (feedback.userId !== userId) throw new ForbiddenError("无权访问该工单");
-    return feedback;
+  private async requireOwnedTicket(id: string, userId: string): Promise<TicketWithRelations> {
+    const ticket = await this.repository.findByIdWithRelations(id);
+    if (!ticket) throw new NotFoundError("工单不存在");
+    if (ticket.userId !== userId) throw new ForbiddenError("无权访问该工单");
+    return ticket;
   }
 
-  private toListItemDto(item: FeedbackWithRelations): FeedbackListItemDto {
+  private toListItemDto(item: TicketWithRelations): TicketListItemDto {
     return {
       id: item.id,
       userId: item.userId,
       username: item.user.username,
-      type: item.type as FeedbackListItemDto["type"],
+      type: item.type as TicketListItemDto["type"],
       title: item.title,
-      workflowStatus: item.workflowStatus as FeedbackListItemDto["workflowStatus"],
-      priority: item.priority as FeedbackListItemDto["priority"],
+      workflowStatus: item.workflowStatus as TicketListItemDto["workflowStatus"],
+      priority: item.priority as TicketListItemDto["priority"],
       assigneeUserId: item.assigneeUserId ?? undefined,
       assigneeUsername: item.assignee?.username ?? undefined,
       lastReplyAt: item.lastReplyAt?.toISOString(),
@@ -449,7 +449,7 @@ export class FeedbackService {
     };
   }
 
-  private toDetailDto(item: FeedbackWithRelations, comments: FeedbackCommentWithAuthor[]): FeedbackDetailDto {
+  private toDetailDto(item: TicketWithRelations, comments: TicketCommentWithAuthor[]): TicketDetailDto {
     return {
       ...this.toListItemDto(item),
       description: item.description,
@@ -461,14 +461,14 @@ export class FeedbackService {
   }
 
   private toCommentDto(
-    comment: FeedbackCommentWithAuthor | (FeedbackComment & { author: { id: string; username: string } }),
-  ): FeedbackCommentDto {
+    comment: TicketCommentWithAuthor | (TicketComment & { author: { id: string; username: string } }),
+  ): TicketCommentDto {
     return {
       id: comment.id,
-      feedbackId: comment.feedbackId,
+      ticketId: comment.ticketId,
       authorUserId: comment.authorUserId,
       authorUsername: comment.author.username,
-      visibility: comment.visibility as FeedbackCommentDto["visibility"],
+      visibility: comment.visibility as TicketCommentDto["visibility"],
       content: comment.content,
       createTime: comment.createTime.toISOString(),
       updateTime: comment.updateTime.toISOString(),
@@ -495,7 +495,7 @@ export class FeedbackService {
     return Number.isNaN(parsed.getTime()) ? undefined : parsed;
   }
 
-  private buildSelfUpdateInput(body: UpdateMyFeedbackDto): Record<string, unknown> {
+  private buildSelfUpdateInput(body: UpdateMyTicketDto): Record<string, unknown> {
     const data: Record<string, unknown> = {};
     if (Object.prototype.hasOwnProperty.call(body, "type") && body.type !== undefined) data.type = body.type;
     if (Object.prototype.hasOwnProperty.call(body, "title") && body.title !== undefined) data.title = body.title.trim();
@@ -510,19 +510,19 @@ export class FeedbackService {
     return data;
   }
 
-  private pickMutableFields(feedback: Feedback | FeedbackWithRelations): Record<string, unknown> {
+  private pickMutableFields(ticket: Ticket | TicketWithRelations): Record<string, unknown> {
     return {
-      type: feedback.type,
-      title: feedback.title,
-      description: feedback.description,
-      sourcePage: feedback.sourcePage,
-      reproduceSteps: feedback.reproduceSteps,
-      contactInfo: feedback.contactInfo,
+      type: ticket.type,
+      title: ticket.title,
+      description: ticket.description,
+      sourcePage: ticket.sourcePage,
+      reproduceSteps: ticket.reproduceSteps,
+      contactInfo: ticket.contactInfo,
     };
   }
 
   private async resolveAutoAssigneeUserId(type: string, priority: string): Promise<string | null> {
-    const config = await this.configService.getFeedbackAssignmentConfig();
+    const config = await this.configService.getTicketAssignmentConfig();
     const matchedRule = this.selectAssignmentRule(config.rules, type, priority);
     if (!matchedRule) return null;
 
@@ -533,10 +533,10 @@ export class FeedbackService {
   }
 
   private selectAssignmentRule(
-    rules: FeedbackAssignmentRule[],
+    rules: TicketAssignmentRule[],
     type: string,
     priority: string,
-  ): FeedbackAssignmentRule | null {
+  ): TicketAssignmentRule | null {
     const exactMatch = rules.find((rule) => rule.type === type && rule.priority === priority);
     if (exactMatch) return exactMatch;
 
@@ -556,7 +556,7 @@ export class FeedbackService {
       uniqueUserIds.map(async (candidateUserId) => {
         const [user, hasPermission] = await Promise.all([
           this.userRepository.findActiveById(candidateUserId),
-          this.permissionService.hasPermission(candidateUserId, Permission.FEEDBACK_REVIEW_UPDATE),
+          this.permissionService.hasPermission(candidateUserId, Permission.TICKET_REVIEW_UPDATE),
         ]);
 
         return { candidateUserId, user, hasPermission };
@@ -576,7 +576,7 @@ export class FeedbackService {
     const selectedIndex = currentIndex % candidateUserIds.length;
     const nextIndex = (selectedIndex + 1) % candidateUserIds.length;
 
-    await this.redisService.set(cursorKey, nextIndex, FEEDBACK_ASSIGNMENT_CURSOR_TTL_SECONDS);
+    await this.redisService.set(cursorKey, nextIndex, TICKET_ASSIGNMENT_CURSOR_TTL_SECONDS);
     return candidateUserIds[selectedIndex];
   }
 
@@ -584,30 +584,30 @@ export class FeedbackService {
     const normalizedType = String(type || "*").trim() || "*";
     const normalizedPriority = String(priority || "*").trim() || "*";
     const normalizedCandidates = candidateUserIds.join(",");
-    return `feedback:assignment:cursor:${normalizedType}:${normalizedPriority}:${normalizedCandidates}`;
+    return `ticket:assignment:cursor:${normalizedType}:${normalizedPriority}:${normalizedCandidates}`;
   }
 
   private async notifyPendingReviewUsers(
-    feedbackId: string,
+    ticketId: string,
     title: string,
     priority: string,
     submitterUserId: string,
   ): Promise<void> {
-    const recipients = await this.listFeedbackReviewRecipients(submitterUserId);
+    const recipients = await this.listTicketReviewRecipients(submitterUserId);
     if (recipients.length === 0) return;
 
     await Promise.allSettled(
       recipients.map((userId) =>
-        this.notificationService.dispatch(userId, NotificationEvent.FEEDBACK_PENDING_REVIEW, {
+        this.notificationService.dispatch(userId, NotificationEvent.TICKET_PENDING_REVIEW, {
           title: "有新工单等待分诊",
           content: `新工单《${title}》等待具备处理权限的人员跟进`,
-          data: { feedbackId, priority },
+          data: { ticketId, priority },
         }),
       ),
     );
   }
 
-  private async listFeedbackReviewRecipients(excludeUserId?: string): Promise<string[]> {
+  private async listTicketReviewRecipients(excludeUserId?: string): Promise<string[]> {
     const activeUsers = (await this.userRepository.listNonDeleted()).filter(
       (user) => user.status === AccountStatus.ACTIVE && user.id !== excludeUserId,
     );
@@ -615,7 +615,7 @@ export class FeedbackService {
     const permissionResults = await Promise.all(
       activeUsers.map(async (user) => ({
         userId: user.id,
-        hasPermission: await this.permissionService.hasPermission(user.id, Permission.FEEDBACK_REVIEW_UPDATE),
+        hasPermission: await this.permissionService.hasPermission(user.id, Permission.TICKET_REVIEW_UPDATE),
       })),
     );
 
