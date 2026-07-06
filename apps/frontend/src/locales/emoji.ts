@@ -1253,7 +1253,7 @@ const emoji: DeepStringify<typeof en> = {
     notificationAssignmentType: '🏷️ 🎫',
     notificationAssignmentPriority: '⚡',
     notificationAssignmentUsers: '👥 🏊',
-    notificationAssignmentUsersHelp: '✅ 选择有反馈审核权限的用户',
+    notificationAssignmentUsersHelp: '✅ 选择有工单审核权限的用户',
     notificationAddAssignmentRule: '➕ 🧩',
     notificationSelectAll: '✅ 🌐',
     notificationClearAll: '🧹 🌐',

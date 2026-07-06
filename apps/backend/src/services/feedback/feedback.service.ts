@@ -82,7 +82,7 @@ export class FeedbackService {
       targetUserId: userId,
       targetResourceId: created.id,
       targetResourceType: "FEEDBACK",
-      description: `提交反馈 '${created.title}'`,
+      description: `提交工单 '${created.title}'`,
       changes: { type: created.type, priority: created.priority },
       success: true,
       ...buildBusinessLogRequestContext(request),
@@ -138,7 +138,7 @@ export class FeedbackService {
     request?: Request,
   ): Promise<FeedbackDetailDto> {
     const existing = await this.requireOwnedFeedback(id, userId);
-    if (isFeedbackTerminalStatus(existing.workflowStatus)) throw new BadRequestError("当前反馈已结束，不能再修改");
+    if (isFeedbackTerminalStatus(existing.workflowStatus)) throw new BadRequestError("当前工单已结束，不能再修改");
 
     const updateData = this.buildSelfUpdateInput(body);
     if (Object.keys(updateData).length === 0) return this.getMyFeedbackDetail(id, userId);
@@ -152,7 +152,7 @@ export class FeedbackService {
       targetUserId: userId,
       targetResourceId: updated.id,
       targetResourceType: "FEEDBACK",
-      description: `更新反馈 '${updated.title}'`,
+      description: `更新工单 '${updated.title}'`,
       changes: { before: this.pickMutableFields(existing), after: this.pickMutableFields(updated) },
       success: true,
       ...buildBusinessLogRequestContext(request),
@@ -168,7 +168,7 @@ export class FeedbackService {
     request?: Request,
   ): Promise<FeedbackCommentDto> {
     const feedback = await this.requireOwnedFeedback(id, userId);
-    if (isFeedbackTerminalStatus(feedback.workflowStatus)) throw new BadRequestError("当前反馈已结束，不能再追加评论");
+    if (isFeedbackTerminalStatus(feedback.workflowStatus)) throw new BadRequestError("当前工单已结束，不能再追加评论");
 
     const created = await this.repository.createComment({
       feedbackId: id,
@@ -186,7 +186,7 @@ export class FeedbackService {
       targetUserId: userId,
       targetResourceId: feedback.id,
       targetResourceType: "FEEDBACK",
-      description: `为反馈 '${feedback.title}' 添加评论`,
+      description: `为工单 '${feedback.title}' 添加评论`,
       changes: { visibility: PUBLIC_VISIBILITY },
       success: true,
       ...buildBusinessLogRequestContext(request),
@@ -228,7 +228,7 @@ export class FeedbackService {
 
   async getReviewFeedbackDetail(id: string): Promise<FeedbackDetailDto> {
     const feedback = await this.repository.findByIdWithRelations(id);
-    if (!feedback) throw new NotFoundError("反馈不存在");
+    if (!feedback) throw new NotFoundError("工单不存在");
     const comments = await this.repository.findCommentsByFeedbackId(id);
     return this.toDetailDto(feedback, comments);
   }
@@ -240,7 +240,7 @@ export class FeedbackService {
     request?: Request,
   ): Promise<FeedbackDetailDto> {
     const existing = await this.repository.findByIdWithRelations(id);
-    if (!existing) throw new NotFoundError("反馈不存在");
+    if (!existing) throw new NotFoundError("工单不存在");
 
     const updateData: Record<string, unknown> = {};
     if (Object.prototype.hasOwnProperty.call(body, "workflowStatus") && body.workflowStatus !== undefined)
@@ -270,7 +270,7 @@ export class FeedbackService {
         targetUserId: existing.userId,
         targetResourceId: updated.id,
         targetResourceType: "FEEDBACK",
-        description: `更新反馈 '${updated.title}' 状态`,
+        description: `更新工单 '${updated.title}' 状态`,
         changes: { beforeStatus: existing.workflowStatus, afterStatus: updated.workflowStatus },
         success: true,
         ...buildBusinessLogRequestContext(request),
@@ -278,8 +278,8 @@ export class FeedbackService {
 
       if (existing.userId !== reviewerUserId)
         await this.notificationService.dispatch(existing.userId, NotificationEvent.FEEDBACK_STATUS_UPDATED, {
-          title: "反馈状态已更新",
-          content: `你的反馈《${updated.title}》状态已变更为 ${updated.workflowStatus}`,
+          title: "工单状态已更新",
+          content: `你的工单《${updated.title}》状态已变更为 ${updated.workflowStatus}`,
           data: { feedbackId: updated.id, workflowStatus: updated.workflowStatus },
         });
     }
@@ -292,7 +292,7 @@ export class FeedbackService {
         targetUserId: existing.userId,
         targetResourceId: updated.id,
         targetResourceType: "FEEDBACK",
-        description: `更新反馈 '${updated.title}' 优先级`,
+        description: `更新工单 '${updated.title}' 优先级`,
         changes: { beforePriority: existing.priority, afterPriority: updated.priority },
         success: true,
         ...buildBusinessLogRequestContext(request),
@@ -306,7 +306,7 @@ export class FeedbackService {
         targetUserId: existing.userId,
         targetResourceId: updated.id,
         targetResourceType: "FEEDBACK",
-        description: `调整反馈 '${updated.title}' 处理人`,
+        description: `调整工单 '${updated.title}' 处理人`,
         changes: { beforeAssigneeUserId: existing.assigneeUserId, afterAssigneeUserId: updated.assigneeUserId },
         success: true,
         ...buildBusinessLogRequestContext(request),
@@ -314,11 +314,11 @@ export class FeedbackService {
 
       if (updated.assigneeUserId)
         await this.notificationService.dispatch(updated.assigneeUserId, NotificationEvent.FEEDBACK_ASSIGNED, {
-          title: "你有新的反馈工单待处理",
+          title: "你有新的工单待处理",
           content:
             updated.assigneeUserId === reviewerUserId
-              ? `你已将反馈《${updated.title}》分配给自己`
-              : `反馈《${updated.title}》已分配给你`,
+              ? `你已将工单《${updated.title}》分配给自己`
+              : `工单《${updated.title}》已分配给你`,
           data: { feedbackId: updated.id, priority: updated.priority },
         });
     }
@@ -333,7 +333,7 @@ export class FeedbackService {
     request?: Request,
   ): Promise<FeedbackCommentDto> {
     const feedback = await this.repository.findByIdWithRelations(id);
-    if (!feedback) throw new NotFoundError("反馈不存在");
+    if (!feedback) throw new NotFoundError("工单不存在");
 
     const created = await this.repository.createComment({
       feedbackId: id,
@@ -351,7 +351,7 @@ export class FeedbackService {
       targetUserId: feedback.userId,
       targetResourceId: feedback.id,
       targetResourceType: "FEEDBACK",
-      description: `为反馈 '${feedback.title}' 添加${body.visibility === INTERNAL_VISIBILITY ? "内部" : "公开"}评论`,
+      description: `为工单 '${feedback.title}' 添加${body.visibility === INTERNAL_VISIBILITY ? "内部" : "公开"}评论`,
       changes: { visibility: body.visibility },
       success: true,
       ...buildBusinessLogRequestContext(request),
@@ -359,8 +359,8 @@ export class FeedbackService {
 
     if (body.visibility === PUBLIC_VISIBILITY && feedback.userId !== reviewerUserId)
       await this.notificationService.dispatch(feedback.userId, NotificationEvent.FEEDBACK_PUBLIC_REPLY, {
-        title: "你的反馈收到了新回复",
-        content: `反馈《${feedback.title}》有新的处理回复`,
+        title: "你的工单收到了新回复",
+        content: `工单《${feedback.title}》有新的处理回复`,
         data: { feedbackId: feedback.id },
       });
 
@@ -375,7 +375,7 @@ export class FeedbackService {
 
   async deleteFeedback(id: string, reviewerUserId: string, request?: Request): Promise<void> {
     const feedback = await this.repository.findById(id);
-    if (!feedback) throw new NotFoundError("反馈不存在");
+    if (!feedback) throw new NotFoundError("工单不存在");
     await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
@@ -385,7 +385,7 @@ export class FeedbackService {
       targetUserId: feedback.userId,
       targetResourceId: feedback.id,
       targetResourceType: "FEEDBACK",
-      description: `删除反馈 '${feedback.title}'`,
+      description: `删除工单 '${feedback.title}'`,
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
@@ -427,8 +427,8 @@ export class FeedbackService {
 
   private async requireOwnedFeedback(id: string, userId: string): Promise<FeedbackWithRelations> {
     const feedback = await this.repository.findByIdWithRelations(id);
-    if (!feedback) throw new NotFoundError("反馈不存在");
-    if (feedback.userId !== userId) throw new ForbiddenError("无权访问该反馈");
+    if (!feedback) throw new NotFoundError("工单不存在");
+    if (feedback.userId !== userId) throw new ForbiddenError("无权访问该工单");
     return feedback;
   }
 

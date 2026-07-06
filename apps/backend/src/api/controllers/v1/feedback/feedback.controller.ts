@@ -86,7 +86,7 @@ export class FeedbackController extends Controller {
   @Security("jwt")
   @RequirePermission(Permission.FEEDBACK_SELF_READ)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Response<ErrorResponse>(HttpStatusCode.NotFound, "反馈不存在")
+  @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(validateParams(feedbackIdParamsSchema))
   public async getMyFeedbackDetail(@Path() id: string, @Request() request: TypedRequest): Promise<FeedbackDetailDto> {
     return this.service.getMyFeedbackDetail(id, request.user!.userId);
@@ -96,7 +96,7 @@ export class FeedbackController extends Controller {
   @Security("jwt")
   @RequirePermission(Permission.FEEDBACK_SELF_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Response<ErrorResponse>(HttpStatusCode.NotFound, "反馈不存在")
+  @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(feedbackIdParamsSchema),
@@ -114,7 +114,7 @@ export class FeedbackController extends Controller {
   @Security("jwt")
   @RequirePermission(Permission.FEEDBACK_COMMENT)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Response<ErrorResponse>(HttpStatusCode.NotFound, "反馈不存在")
+  @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(feedbackIdParamsSchema),
@@ -183,7 +183,7 @@ export class FeedbackController extends Controller {
   @Security("jwt")
   @RequirePermission(Permission.FEEDBACK_REVIEW_READ)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Response<ErrorResponse>(HttpStatusCode.NotFound, "反馈不存在")
+  @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(validateParams(feedbackIdParamsSchema))
   public async getReviewFeedbackDetail(@Path() id: string): Promise<FeedbackDetailDto> {
     return this.service.getReviewFeedbackDetail(id);
@@ -193,7 +193,7 @@ export class FeedbackController extends Controller {
   @Security("jwt")
   @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Response<ErrorResponse>(HttpStatusCode.NotFound, "反馈不存在")
+  @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(feedbackIdParamsSchema),
@@ -211,7 +211,7 @@ export class FeedbackController extends Controller {
   @Security("jwt")
   @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Response<ErrorResponse>(HttpStatusCode.NotFound, "反馈不存在")
+  @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(feedbackIdParamsSchema),
@@ -229,7 +229,7 @@ export class FeedbackController extends Controller {
   @Security("jwt")
   @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Response<ErrorResponse>(HttpStatusCode.NotFound, "反馈不存在")
+  @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(replayProtectionMiddleware, validateParams(feedbackIdParamsSchema))
   public async deleteFeedback(@Path() id: string, @Request() request: TypedRequest): Promise<boolean> {
     await this.service.deleteFeedback(id, request.user!.userId, request);
