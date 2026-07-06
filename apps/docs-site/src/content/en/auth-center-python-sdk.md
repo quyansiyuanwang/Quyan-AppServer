@@ -230,6 +230,10 @@ if token_set.get("refresh_token"):
 - rotate secrets when compromise is suspected
 - do not build logic that expects refresh tokens from `client_credentials`
 
+## Retry guidance
+
+Token exchange, refresh, and machine-token requests (`/auth-center/token`) are all safe to retry on network failures or `5xx` responses, since they don't mutate resources — but limit retries to 1-2 attempts with a short backoff. Do **not** retry on a `4xx` response (invalid code, expired refresh token, wrong client secret): the same request will fail again, and repeatedly submitting an authorization `code` after a `4xx` will fail anyway since codes are single-use.
+
 ## Recommended follow-up reading
 
 - `Auth Center App Management`

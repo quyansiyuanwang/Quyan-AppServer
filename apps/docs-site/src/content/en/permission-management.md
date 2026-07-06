@@ -36,6 +36,17 @@ Use this page to inspect effective user permissions and adjust user-level overri
 3. Add user-level permissions for special access.
 4. Remove user-level permissions to restrict a specific capability.
 
+## Permission requirements
+
+| Action                              | Required permission                                      |
+| ----------------------------------- | -------------------------------------------------------- |
+| View a group's permissions          | `PERMISSION_VIEW`                                        |
+| Add permissions to a user or group  | `PERMISSION_ADD`                                         |
+| Remove permissions from a user      | `PERMISSION_REMOVE`                                      |
+| Clear a user's permission overrides | `PERMISSION_REMOVE` and `PERMISSION_ADD` (both required) |
+
+Changing a group's permission set additionally requires a fresh 2FA step-up challenge, regardless of trusted-device status.
+
 ## Notes
 
 - Final permissions are typically the combination of group rules plus user-level overrides.

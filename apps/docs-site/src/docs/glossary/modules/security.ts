@@ -178,6 +178,32 @@ const securityGlossaryModule: GlossaryModule = {
           '访问密钥或 API Key 是供脚本、工具或外部服务调用平台时使用的长期凭证，不需要人工交互登录。',
       },
     },
+    {
+      id: 'trust-policy',
+      aliases: ['trust policy', 'trust policies', '信任策略'],
+      title: {
+        en: 'Trust policy',
+        'zh-CN': '信任策略',
+      },
+      description: {
+        en: 'A trust policy is attached to a RAM role and defines which users or groups are allowed to assume that role. It answers "who can use this role", separate from the permissions the role itself grants.',
+        'zh-CN':
+          '信任策略附加在 RAM 角色上，用于定义哪些用户或群组可以担任（assume）该角色。它回答的是"谁能使用这个角色"，与角色本身授予的权限是两个独立的概念。',
+      },
+    },
+    {
+      id: 'assume-role',
+      aliases: ['assume role', 'assuming a role', 'role session', '担任角色', '扮演角色'],
+      title: {
+        en: 'Assume role',
+        'zh-CN': '担任角色',
+      },
+      description: {
+        en: "Assuming a role means a user temporarily takes on a RAM role's permissions for a limited session, instead of having those permissions permanently. The result is a role session that expires after a configured duration and can be revoked early.",
+        'zh-CN':
+          '担任角色是指用户在一段有限的会话期间内临时获得某个 RAM 角色的权限，而不是永久持有这些权限。这会创建一个角色会话，会话在配置的时长后自动过期，也可以被提前撤销。',
+      },
+    },
   ],
 }
 

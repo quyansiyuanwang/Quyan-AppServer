@@ -62,7 +62,7 @@ Each token can have one or more rolling time-window rate limits (e.g. per-minute
 ## Notes
 
 - Refreshing a token value immediately invalidates the old string; callers must update their configuration.
-- Quota windows and the overall `quotaLimit` cap are independent mechanisms and can both be active.
+- **Quota windows vs. the overall cap**: a token has one overall lifetime `quotaLimit` that never resets (tracked against total usage since creation), separate from the rolling quota windows described above, which each reset on their own cycle (per-minute, per-hour, per-day). Both can be active on the same token at once — the overall cap stops the token permanently once reached, while a quota window only throttles until its next reset.
 - Bulk import appends new entries and does not overwrite existing tokens.
 - Show-all mode is useful for audits but can be heavier to scan.
 

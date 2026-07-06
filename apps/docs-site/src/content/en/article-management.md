@@ -33,6 +33,16 @@ Use this page to maintain site articles and knowledge content.
 4. Set the default article when it should appear first on the reading page.
 5. Adjust order when navigation priority changes.
 
+## Permission requirements
+
+| Action                             | Required permission |
+| ---------------------------------- | ------------------- |
+| View articles                      | `ARTICLE_READ`      |
+| Create article                     | `ARTICLE_CREATE`    |
+| Update, reorder, set/clear default | `ARTICLE_UPDATE`    |
+| Delete article                     | `ARTICLE_DELETE`    |
+| Publish / unpublish                | `ARTICLE_PUBLISH`   |
+
 ## Notes
 
 - The reading-side page is usually `home-articles`.

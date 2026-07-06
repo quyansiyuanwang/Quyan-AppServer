@@ -1,6 +1,6 @@
 # Verification
 
-This page handles extra verification steps used during login, security changes, or high-risk actions.
+This page handles extra verification steps used during login, security changes, or high-risk actions. It covers two related routes: the 2FA/recovery-code verification screen (`/auth/verify`) and the standalone captcha challenge screen (`/auth/captcha`), which share the same purpose of clearing a pending verification requirement before the original action continues.
 
 ## Page purpose
 

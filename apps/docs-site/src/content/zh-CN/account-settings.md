@@ -40,10 +40,12 @@
 
 - 某些变更需要验证码或二次验证。
 - 清理缓存可能会清除临时界面状态。
-- 访问密钥、passkey 和可信设备通常通过相关抽屉或子页面进入。
+- 访问密钥、通行密钥和受信任设备通过相关抽屉或子页面进入，详见 `access-key-management`、`passkey-management`、`trusted-device-management`。
 
 ## 相关页面
 
 - `access-key-management`
+- `passkey-management`
+- `trusted-device-management`
 - `notification-settings`
 - `auth-verification`

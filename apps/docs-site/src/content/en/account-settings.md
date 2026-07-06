@@ -40,10 +40,12 @@ Use this page to manage your personal profile, security options, appearance, and
 
 - Some changes can require a verification code or secondary authentication.
 - Clearing cached data can sign you out of temporary UI state.
-- Access keys, passkeys, and trusted devices are often managed from linked drawers or subviews.
+- Access keys, passkeys, and trusted devices are managed from linked drawers or subviews — see `access-key-management`, `passkey-management`, and `trusted-device-management` for details on each.
 
 ## Related pages
 
 - `access-key-management`
+- `passkey-management`
+- `trusted-device-management`
 - `notification-settings`
 - `auth-verification`

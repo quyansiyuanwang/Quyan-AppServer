@@ -35,6 +35,13 @@ Use this page to review and adjust user balances from an administrator perspecti
 3. Open the adjustment dialog and enter the amount and reason.
 4. Verify the result in transaction history.
 
+## Permission requirements
+
+| Action                       | Required permission |
+| ---------------------------- | ------------------- |
+| View balances / transactions | `BALANCE_READ`      |
+| Adjust balance (recharge)    | `BALANCE_RECHARGE`  |
+
 ## Notes
 
 - Balance adjustments should always include a clear reason for auditability.

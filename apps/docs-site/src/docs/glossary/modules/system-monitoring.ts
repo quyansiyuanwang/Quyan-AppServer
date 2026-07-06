@@ -28,6 +28,27 @@ const systemMonitoringGlossaryModule: GlossaryModule = {
       },
     },
     {
+      id: 'session-id',
+      aliases: [
+        'sessionId',
+        'session id',
+        'authSessionId',
+        'auth session id',
+        'session ID',
+        '会话 ID',
+        '会话ID',
+      ],
+      title: {
+        en: 'Session ID',
+        'zh-CN': '会话 ID',
+      },
+      description: {
+        en: 'A session ID is a unique identifier generated for each login event. Every time a user signs in, a new session ID is created. It is used to track that specific login instance for audit and monitoring purposes.',
+        'zh-CN':
+          '会话 ID 是每次登录时生成的唯一标识符。每次用户登录都会产生一个新的会话 ID，用于在审计和监控中追踪该次登录实例。',
+      },
+    },
+    {
       id: 'cache',
       aliases: ['cache', 'caching', '缓存', '缓存读取', '缓存创建'],
       title: {

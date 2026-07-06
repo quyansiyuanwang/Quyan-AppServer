@@ -123,6 +123,37 @@ A typical backend handler would:
 - store the refresh token server-side or in an HTTP-only cookie strategy
 - return only the short-lived app session or minimum token information to the browser
 
+### A concrete backend storage example
+
+Two common, safe patterns for the backend step above:
+
+**Option A — server-side store keyed by your own session ID.** The browser only ever holds your app's own session identifier, not the refresh token itself:
+
+```ts
+// Backend (Node/Express), after exchanging the code:
+const tokenSet = await exchangeCodeWithAuthCenter(code, codeVerifier)
+
+// Persist the refresh token in your own database or Redis, keyed by a
+// session ID you generate — never by anything derived from the browser.
+const sessionId = crypto.randomUUID()
+await sessionStore.set(sessionId, {
+  refreshToken: tokenSet.refresh_token,
+  userId: tokenSet.sub,
+  expiresAt: Date.now() + tokenSet.expires_in * 1000,
+})
+
+// The browser only receives this opaque session ID, via an HTTP-only,
+// Secure, SameSite=Lax cookie — never via localStorage or a JS-readable cookie.
+res.cookie('app_session', sessionId, {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+})
+```
+
+**Option B — encrypted HTTP-only cookie.** If you prefer not to maintain a server-side session store, encrypt the refresh token itself before placing it in a cookie with the same `httpOnly`/`secure`/`sameSite` flags, and decrypt it server-side on each request that needs to refresh the access token. Either option keeps the raw refresh token out of any code the browser can read — the failure mode to avoid is writing `tokenSet.refresh_token` directly into `localStorage` or a non-`httpOnly` cookie.
+
 ## Local JWT validation in browser-only scenarios
 
 If a browser-only integration must validate the JWT locally, it can use the JWKS document. But this should be treated as a UI/session optimization, not a substitute for backend authorization.
