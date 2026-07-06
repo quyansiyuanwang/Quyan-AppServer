@@ -21,7 +21,8 @@ const ticket = {
   reviewReplyDescription: '可向提交人发送公开回复，或留下仅审核人员可见的内部备注。',
   assignmentRulesAction: '分配规则',
   assignmentRulesTitle: '工单分配规则',
-  assignmentRulesHelp: '按条件匹配新工单，命中后会从处理人池中自动轮转分配。至少设置工单类型或优先级。',
+  assignmentRulesHelp:
+    '按条件匹配新工单，命中后会从处理人池中自动轮转分配。至少设置工单类型或优先级。',
   assignmentRuleTitle: '规则 #{index}',
   assignmentType: '工单类型',
   assignmentPriority: '优先级',

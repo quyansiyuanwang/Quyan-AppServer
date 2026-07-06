@@ -152,7 +152,9 @@
                       :key="event.value"
                       class="notification-event-option"
                     >
-                      <el-checkbox :value="event.value">{{ getEventDisplayLabel(event.value) }}</el-checkbox>
+                      <el-checkbox :value="event.value">{{
+                        getEventDisplayLabel(event.value)
+                      }}</el-checkbox>
                       <span class="form-help form-help--inline">{{ event.value }}</span>
                     </label>
                   </div>
@@ -169,7 +171,9 @@
                   :key="event.value"
                   class="notification-threshold-item"
                 >
-                  <span class="notification-threshold-item__label">{{ getEventDisplayLabel(event.value) }}</span>
+                  <span class="notification-threshold-item__label">{{
+                    getEventDisplayLabel(event.value)
+                  }}</span>
                   <div class="notification-threshold-item__control">
                     <el-input-number
                       v-model="notificationDefaultThresholds[event.value]"
@@ -675,7 +679,9 @@
                       :key="event.value"
                       class="notification-event-option"
                     >
-                      <el-checkbox :value="event.value">{{ getEventDisplayLabel(event.value) }}</el-checkbox>
+                      <el-checkbox :value="event.value">{{
+                        getEventDisplayLabel(event.value)
+                      }}</el-checkbox>
                       <span class="form-help form-help--inline">{{ event.value }}</span>
                     </label>
                   </div>
@@ -692,7 +698,9 @@
                   :key="event.value"
                   class="notification-threshold-item"
                 >
-                  <span class="notification-threshold-item__label">{{ getEventDisplayLabel(event.value) }}</span>
+                  <span class="notification-threshold-item__label">{{
+                    getEventDisplayLabel(event.value)
+                  }}</span>
                   <div class="notification-threshold-item__control">
                     <el-input-number
                       v-model="notificationDefaultThresholds[event.value]"
@@ -1305,7 +1313,9 @@ const loadNotificationConfig = async () => {
       notificationConfig.defaultThresholds,
       events,
     )
-    notificationTicketAssignmentRules.value = Array.isArray(notificationConfig.ticketAssignmentRules)
+    notificationTicketAssignmentRules.value = Array.isArray(
+      notificationConfig.ticketAssignmentRules,
+    )
       ? notificationConfig.ticketAssignmentRules
       : []
     notificationLoaded.value = true

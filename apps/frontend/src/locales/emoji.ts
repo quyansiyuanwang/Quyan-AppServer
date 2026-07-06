@@ -1250,7 +1250,8 @@ const emoji: DeepStringify<typeof en> = {
     notificationDefaultThresholds: '默认阈值 🎚️',
     notificationDefaultThresholdsHelp: '🎚️ 📨 ✅，且仅在 🆕 👤 1️⃣ 初始化时写入',
     notificationAssignmentRules: '🧩 🎫 🤖 👤',
-    notificationAssignmentRulesHelp: '📏 ⏭️ 匹配；命中后从 👥 池中选择可用处理人；至少设置 🏷️ 或 ⚡',
+    notificationAssignmentRulesHelp:
+      '📏 ⏭️ 匹配；命中后从 👥 池中选择可用处理人；至少设置 🏷️ 或 ⚡',
     notificationAssignmentRuleTitle: '🧩 #{index}',
     notificationAssignmentType: '🏷️ 🎫',
     notificationAssignmentPriority: '⚡',

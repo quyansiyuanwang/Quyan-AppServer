@@ -13,12 +13,7 @@ export {
   TICKET_COMMENT_VISIBILITIES,
   isTicketTerminalStatus,
 };
-export type {
-  TicketType,
-  TicketWorkflowStatus,
-  TicketPriority,
-  TicketCommentVisibility,
-} from "@appserver/shared";
+export type { TicketType, TicketWorkflowStatus, TicketPriority, TicketCommentVisibility } from "@appserver/shared";
 
 export const DEFAULT_TICKET_WORKFLOW_STATUS: TicketWorkflowStatus = "pending";
 export const DEFAULT_TICKET_PRIORITY: TicketPriority = "medium";

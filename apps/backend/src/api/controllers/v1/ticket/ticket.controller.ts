@@ -59,10 +59,7 @@ export class TicketController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "提交失败")
   @Middlewares(replayProtectionMiddleware, validateBody(createTicketBodySchema))
-  public async createTicket(
-    @Body() body: CreateTicketDto,
-    @Request() request: TypedRequest,
-  ): Promise<TicketDetailDto> {
+  public async createTicket(@Body() body: CreateTicketDto, @Request() request: TypedRequest): Promise<TicketDetailDto> {
     return this.service.createTicket(request.user!.userId, body, request);
   }
 
@@ -97,11 +94,7 @@ export class TicketController extends Controller {
   @RequirePermission(Permission.TICKET_SELF_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
-  @Middlewares(
-    replayProtectionMiddleware,
-    validateParams(ticketIdParamsSchema),
-    validateBody(updateMyTicketBodySchema),
-  )
+  @Middlewares(replayProtectionMiddleware, validateParams(ticketIdParamsSchema), validateBody(updateMyTicketBodySchema))
   public async updateMyTicket(
     @Path() id: string,
     @Body() body: UpdateMyTicketDto,
@@ -194,11 +187,7 @@ export class TicketController extends Controller {
   @RequirePermission(Permission.TICKET_REVIEW_UPDATE)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
-  @Middlewares(
-    replayProtectionMiddleware,
-    validateParams(ticketIdParamsSchema),
-    validateBody(reviewTicketBodySchema),
-  )
+  @Middlewares(replayProtectionMiddleware, validateParams(ticketIdParamsSchema), validateBody(reviewTicketBodySchema))
   public async reviewTicket(
     @Path() id: string,
     @Body() body: ReviewTicketDto,

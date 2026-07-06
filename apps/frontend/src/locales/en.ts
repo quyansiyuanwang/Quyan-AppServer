@@ -11,8 +11,7 @@ const ticket = {
   submitSectionDescription:
     'Share ideas, report defects, and include enough context for quick follow-up.',
   updateSectionTitle: 'Update ticket',
-  updateSectionDescription:
-    'Revise your submission before the workflow reaches a terminal status.',
+  updateSectionDescription: 'Revise your submission before the workflow reaches a terminal status.',
   terminalLocked: 'This ticket is already closed and can no longer be edited.',
   reviewTitle: 'Ticket review queue',
   reviewDescription:
@@ -202,8 +201,7 @@ export default {
     ticketDescription:
       'This placeholder page will later host suggestion submission and ticket tracking.',
     ticketIdeasTitle: 'Ideas',
-    ticketIdeasDescription:
-      'Collect product ideas, improvement requests, and workflow proposals.',
+    ticketIdeasDescription: 'Collect product ideas, improvement requests, and workflow proposals.',
     ticketBugsTitle: 'Issues',
     ticketBugsDescription: 'Summarize bugs, reproduction notes, and affected pages in one place.',
     ticketRoadmapTitle: 'Follow-up',

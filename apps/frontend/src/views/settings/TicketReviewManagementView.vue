@@ -11,24 +11,47 @@
             <el-button v-if="canReviewUpdate" @click="openAssignmentDrawer">
               {{ i18ns.t('ticket.assignmentRulesAction') }}
             </el-button>
-            <el-button :loading="listLoading" @click="loadReviewList">{{ i18ns.t('refresh') }}</el-button>
+            <el-button :loading="listLoading" @click="loadReviewList">{{
+              i18ns.t('refresh')
+            }}</el-button>
           </div>
         </div>
       </template>
 
       <div class="filter-row">
-        <el-input v-model="filters.keyword" :placeholder="i18ns.t('ticket.keywordPlaceholder')" clearable @keyup.enter="handleSearch" @clear="handleSearch" />
+        <el-input
+          v-model="filters.keyword"
+          :placeholder="i18ns.t('ticket.keywordPlaceholder')"
+          clearable
+          @keyup.enter="handleSearch"
+          @clear="handleSearch"
+        />
         <el-select v-model="filters.workflowStatus" clearable @change="handleSearch">
           <el-option :label="i18ns.t('ticket.allStatuses')" value="" />
-          <el-option v-for="status in workflowStatusOptions" :key="status" :label="getStatusLabel(status)" :value="status" />
+          <el-option
+            v-for="status in workflowStatusOptions"
+            :key="status"
+            :label="getStatusLabel(status)"
+            :value="status"
+          />
         </el-select>
         <el-select v-model="filters.type" clearable @change="handleSearch">
           <el-option :label="i18ns.t('ticket.allTypes')" value="" />
-          <el-option v-for="type in ticketTypeOptions" :key="type" :label="getTypeLabel(type)" :value="type" />
+          <el-option
+            v-for="type in ticketTypeOptions"
+            :key="type"
+            :label="getTypeLabel(type)"
+            :value="type"
+          />
         </el-select>
         <el-select v-model="filters.priority" clearable @change="handleSearch">
           <el-option :label="i18ns.t('ticket.allPriorities')" value="" />
-          <el-option v-for="priority in priorityOptions" :key="priority" :label="getPriorityLabel(priority)" :value="priority" />
+          <el-option
+            v-for="priority in priorityOptions"
+            :key="priority"
+            :label="getPriorityLabel(priority)"
+            :value="priority"
+          />
         </el-select>
         <el-select
           v-model="filters.assigneeUserId"
@@ -42,7 +65,12 @@
           @change="handleSearch"
         >
           <el-option :label="i18ns.t('ticket.anyAssignee')" value="" />
-          <el-option v-for="user in userOptions" :key="user.id" :label="user.username" :value="user.id" />
+          <el-option
+            v-for="user in userOptions"
+            :key="user.id"
+            :label="user.username"
+            :value="user.id"
+          />
         </el-select>
         <div class="filter-actions">
           <el-button type="primary" @click="handleSearch">{{ i18ns.t('search') }}</el-button>
@@ -54,26 +82,36 @@
         <el-table-column prop="title" :label="i18ns.t('ticket.title')" min-width="220">
           <template #default="{ row }">
             <div class="table-title">{{ row.title }}</div>
-            <div class="table-subtitle">{{ row.username || row.userId }} · {{ formatDateTime(row.createTime) }}</div>
+            <div class="table-subtitle">
+              {{ row.username || row.userId }} · {{ formatDateTime(row.createTime) }}
+            </div>
           </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('ticket.type')" width="120">
           <template #default="{ row }">
-            <el-tag :type="getTypeTagType(row.type)" effect="light">{{ getTypeLabel(row.type) }}</el-tag>
+            <el-tag :type="getTypeTagType(row.type)" effect="light">{{
+              getTypeLabel(row.type)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('ticket.workflowStatus')" width="130">
           <template #default="{ row }">
-            <el-tag :type="getStatusTagType(row.workflowStatus)" effect="light">{{ getStatusLabel(row.workflowStatus) }}</el-tag>
+            <el-tag :type="getStatusTagType(row.workflowStatus)" effect="light">{{
+              getStatusLabel(row.workflowStatus)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('ticket.priority')" width="120">
           <template #default="{ row }">
-            <el-tag :type="getPriorityTagType(row.priority)" effect="light">{{ getPriorityLabel(row.priority) }}</el-tag>
+            <el-tag :type="getPriorityTagType(row.priority)" effect="light">{{
+              getPriorityLabel(row.priority)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('ticket.assignee')" width="150">
-          <template #default="{ row }">{{ row.assigneeUsername || i18ns.t('ticket.unassigned') }}</template>
+          <template #default="{ row }">{{
+            row.assigneeUsername || i18ns.t('ticket.unassigned')
+          }}</template>
         </el-table-column>
         <el-table-column :label="i18ns.t('ticket.lastReplyAt')" width="180">
           <template #default="{ row }">{{ formatDateTime(row.lastReplyAt) }}</template>
@@ -81,8 +119,12 @@
         <el-table-column :label="i18ns.t('actions')" width="200" fixed="right">
           <template #default="{ row }">
             <div class="row-actions">
-              <el-button link type="primary" @click="openDetail(row.id)">{{ i18ns.t('ticket.viewDetail') }}</el-button>
-              <el-button v-if="canReviewUpdate" link type="danger" @click="handleDelete(row.id)">{{ i18ns.t('delete') }}</el-button>
+              <el-button link type="primary" @click="openDetail(row.id)">{{
+                i18ns.t('ticket.viewDetail')
+              }}</el-button>
+              <el-button v-if="canReviewUpdate" link type="danger" @click="handleDelete(row.id)">{{
+                i18ns.t('delete')
+              }}</el-button>
             </div>
           </template>
         </el-table-column>
@@ -107,21 +149,51 @@
       <div v-loading="detailLoading" class="detail-drawer">
         <template v-if="detail">
           <div class="detail-header-tags">
-            <el-tag :type="getTypeTagType(detail.type)" effect="light">{{ getTypeLabel(detail.type) }}</el-tag>
-            <el-tag :type="getStatusTagType(detail.workflowStatus)" effect="light">{{ getStatusLabel(detail.workflowStatus) }}</el-tag>
-            <el-tag :type="getPriorityTagType(detail.priority)" effect="light">{{ getPriorityLabel(detail.priority) }}</el-tag>
+            <el-tag :type="getTypeTagType(detail.type)" effect="light">{{
+              getTypeLabel(detail.type)
+            }}</el-tag>
+            <el-tag :type="getStatusTagType(detail.workflowStatus)" effect="light">{{
+              getStatusLabel(detail.workflowStatus)
+            }}</el-tag>
+            <el-tag :type="getPriorityTagType(detail.priority)" effect="light">{{
+              getPriorityLabel(detail.priority)
+            }}</el-tag>
           </div>
 
           <el-descriptions :column="isDesktop ? 2 : 1" border>
-            <el-descriptions-item :label="i18ns.t('ticket.submitter')">{{ detail.username || detail.userId }}</el-descriptions-item>
-            <el-descriptions-item :label="i18ns.t('ticket.assignee')">{{ detail.assigneeUsername || i18ns.t('ticket.unassigned') }}</el-descriptions-item>
-            <el-descriptions-item :label="i18ns.t('ticket.createTime')">{{ formatDateTime(detail.createTime) }}</el-descriptions-item>
-            <el-descriptions-item :label="i18ns.t('ticket.updateTime')">{{ formatDateTime(detail.updateTime) }}</el-descriptions-item>
-            <el-descriptions-item :label="i18ns.t('ticket.lastReplyAt')">{{ formatDateTime(detail.lastReplyAt) }}</el-descriptions-item>
-            <el-descriptions-item :label="i18ns.t('ticket.contactInfo')"><span class="wrap-text">{{ detail.contactInfo || '-' }}</span></el-descriptions-item>
-            <el-descriptions-item class-name="description-cell" :label="i18ns.t('ticket.sourcePage')"><div class="wrap-text">{{ detail.sourcePage || '-' }}</div></el-descriptions-item>
-            <el-descriptions-item class-name="description-cell" :label="i18ns.t('ticket.description')"><div class="wrap-text">{{ detail.description }}</div></el-descriptions-item>
-            <el-descriptions-item class-name="description-cell" :label="i18ns.t('ticket.reproduceSteps')"><div class="wrap-text">{{ detail.reproduceSteps || '-' }}</div></el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.submitter')">{{
+              detail.username || detail.userId
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.assignee')">{{
+              detail.assigneeUsername || i18ns.t('ticket.unassigned')
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.createTime')">{{
+              formatDateTime(detail.createTime)
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.updateTime')">{{
+              formatDateTime(detail.updateTime)
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.lastReplyAt')">{{
+              formatDateTime(detail.lastReplyAt)
+            }}</el-descriptions-item>
+            <el-descriptions-item :label="i18ns.t('ticket.contactInfo')"
+              ><span class="wrap-text">{{ detail.contactInfo || '-' }}</span></el-descriptions-item
+            >
+            <el-descriptions-item
+              class-name="description-cell"
+              :label="i18ns.t('ticket.sourcePage')"
+              ><div class="wrap-text">{{ detail.sourcePage || '-' }}</div></el-descriptions-item
+            >
+            <el-descriptions-item
+              class-name="description-cell"
+              :label="i18ns.t('ticket.description')"
+              ><div class="wrap-text">{{ detail.description }}</div></el-descriptions-item
+            >
+            <el-descriptions-item
+              class-name="description-cell"
+              :label="i18ns.t('ticket.reproduceSteps')"
+              ><div class="wrap-text">{{ detail.reproduceSteps || '-' }}</div></el-descriptions-item
+            >
           </el-descriptions>
 
           <el-card v-if="canReviewUpdate" shadow="never" class="page-card review-panel">
@@ -136,12 +208,22 @@
               <div class="form-grid">
                 <el-form-item :label="i18ns.t('ticket.workflowStatus')">
                   <el-select v-model="reviewForm.workflowStatus" clearable>
-                    <el-option v-for="status in workflowStatusOptions" :key="status" :label="getStatusLabel(status)" :value="status" />
+                    <el-option
+                      v-for="status in workflowStatusOptions"
+                      :key="status"
+                      :label="getStatusLabel(status)"
+                      :value="status"
+                    />
                   </el-select>
                 </el-form-item>
                 <el-form-item :label="i18ns.t('ticket.priority')">
                   <el-select v-model="reviewForm.priority" clearable>
-                    <el-option v-for="priority in priorityOptions" :key="priority" :label="getPriorityLabel(priority)" :value="priority" />
+                    <el-option
+                      v-for="priority in priorityOptions"
+                      :key="priority"
+                      :label="getPriorityLabel(priority)"
+                      :value="priority"
+                    />
                   </el-select>
                 </el-form-item>
                 <el-form-item class="form-grid__full" :label="i18ns.t('ticket.assignee')">
@@ -156,13 +238,20 @@
                     @visible-change="handleUserSelectVisible"
                   >
                     <el-option :label="i18ns.t('ticket.unassigned')" value="" />
-                    <el-option v-for="user in userOptions" :key="user.id" :label="user.username" :value="user.id" />
+                    <el-option
+                      v-for="user in userOptions"
+                      :key="user.id"
+                      :label="user.username"
+                      :value="user.id"
+                    />
                   </el-select>
                 </el-form-item>
               </div>
               <div class="form-actions">
                 <el-button @click="syncReviewFormFromDetail">{{ i18ns.t('reset') }}</el-button>
-                <el-button type="primary" :loading="reviewSubmitting" @click="submitReviewUpdate">{{ i18ns.t('ticket.saveReview') }}</el-button>
+                <el-button type="primary" :loading="reviewSubmitting" @click="submitReviewUpdate">{{
+                  i18ns.t('ticket.saveReview')
+                }}</el-button>
               </div>
             </el-form>
           </el-card>
@@ -178,28 +267,58 @@
             <el-form label-position="top">
               <el-form-item :label="i18ns.t('ticket.commentVisibility')">
                 <el-radio-group v-model="commentForm.visibility">
-                  <el-radio-button label="public">{{ i18ns.t('ticket.commentVisibilities.public') }}</el-radio-button>
-                  <el-radio-button label="internal">{{ i18ns.t('ticket.commentVisibilities.internal') }}</el-radio-button>
+                  <el-radio-button label="public">{{
+                    i18ns.t('ticket.commentVisibilities.public')
+                  }}</el-radio-button>
+                  <el-radio-button label="internal">{{
+                    i18ns.t('ticket.commentVisibilities.internal')
+                  }}</el-radio-button>
                 </el-radio-group>
               </el-form-item>
               <el-form-item :label="i18ns.t('ticket.commentContent')">
-                <el-input v-model="commentForm.content" type="textarea" :rows="4" :maxlength="5000" show-word-limit :placeholder="i18ns.t('ticket.commentPlaceholder')" />
+                <el-input
+                  v-model="commentForm.content"
+                  type="textarea"
+                  :rows="4"
+                  :maxlength="5000"
+                  show-word-limit
+                  :placeholder="i18ns.t('ticket.commentPlaceholder')"
+                />
               </el-form-item>
               <div class="form-actions">
                 <el-button @click="resetCommentForm">{{ i18ns.t('reset') }}</el-button>
-                <el-button type="primary" :loading="commentSubmitting" @click="submitReviewComment">{{ i18ns.t('ticket.postReply') }}</el-button>
+                <el-button
+                  type="primary"
+                  :loading="commentSubmitting"
+                  @click="submitReviewComment"
+                  >{{ i18ns.t('ticket.postReply') }}</el-button
+                >
               </div>
             </el-form>
           </el-card>
 
           <div class="timeline-section">
             <div class="timeline-section__title">{{ i18ns.t('ticket.comments') }}</div>
-            <el-empty v-if="!detail.comments.length" :description="i18ns.t('ticket.emptyComments')" />
+            <el-empty
+              v-if="!detail.comments.length"
+              :description="i18ns.t('ticket.emptyComments')"
+            />
             <el-timeline v-else>
-              <el-timeline-item v-for="comment in detail.comments" :key="comment.id" :timestamp="formatDateTime(comment.createTime)" :type="comment.visibility === 'internal' ? 'warning' : 'primary'">
+              <el-timeline-item
+                v-for="comment in detail.comments"
+                :key="comment.id"
+                :timestamp="formatDateTime(comment.createTime)"
+                :type="comment.visibility === 'internal' ? 'warning' : 'primary'"
+              >
                 <div class="timeline-item-head">
-                  <div class="timeline-item-title">{{ comment.authorUsername || comment.authorUserId }}</div>
-                  <el-tag size="small" effect="light" :type="comment.visibility === 'internal' ? 'warning' : 'success'">
+                  <div class="timeline-item-title">
+                    {{ comment.authorUsername || comment.authorUserId }}
+                  </div>
+                  <el-tag
+                    size="small"
+                    effect="light"
+                    :type="comment.visibility === 'internal' ? 'warning' : 'success'"
+                  >
                     {{ i18ns.t(`ticket.commentVisibilities.${comment.visibility}`) }}
                   </el-tag>
                 </div>
@@ -211,32 +330,61 @@
       </div>
     </el-drawer>
 
-    <el-drawer v-model="assignmentDrawerVisible" :title="i18ns.t('ticket.assignmentRulesTitle')" :size="assignmentDrawerSize">
+    <el-drawer
+      v-model="assignmentDrawerVisible"
+      :title="i18ns.t('ticket.assignmentRulesTitle')"
+      :size="assignmentDrawerSize"
+    >
       <div v-loading="assignmentRulesLoading" class="detail-drawer">
-        <el-alert :title="i18ns.t('ticket.assignmentRulesHelp')" type="info" show-icon :closable="false" />
+        <el-alert
+          :title="i18ns.t('ticket.assignmentRulesHelp')"
+          type="info"
+          show-icon
+          :closable="false"
+        />
         <el-alert
           v-if="assignmentRuleStats.invalid > 0"
-          :title="i18ns.t('ticket.assignmentRulesInvalidWarning', { count: assignmentRuleStats.invalid })"
+          :title="
+            i18ns.t('ticket.assignmentRulesInvalidWarning', { count: assignmentRuleStats.invalid })
+          "
           type="warning"
           show-icon
           :closable="false"
         />
-        <div class="assignment-rule-summary">{{ i18ns.t('ticket.assignmentRulesSummary', assignmentRuleStats) }}</div>
+        <div class="assignment-rule-summary">
+          {{ i18ns.t('ticket.assignmentRulesSummary', assignmentRuleStats) }}
+        </div>
 
-        <div v-for="(rule, index) in assignmentRules" :key="`review-rule-${index}`" class="assignment-rule-card">
+        <div
+          v-for="(rule, index) in assignmentRules"
+          :key="`review-rule-${index}`"
+          class="assignment-rule-card"
+        >
           <div class="assignment-rule-card__header">
             <span>{{ i18ns.t('ticket.assignmentRuleTitle', { index: index + 1 }) }}</span>
-            <el-button link type="danger" @click="removeAssignmentRule(index)">{{ i18ns.t('delete') }}</el-button>
+            <el-button link type="danger" @click="removeAssignmentRule(index)">{{
+              i18ns.t('delete')
+            }}</el-button>
           </div>
           <div class="form-grid">
             <el-form-item :label="i18ns.t('ticket.assignmentType')">
               <el-select v-model="rule.type" clearable>
-                <el-option v-for="type in ticketTypeOptions" :key="type" :label="getTypeLabel(type)" :value="type" />
+                <el-option
+                  v-for="type in ticketTypeOptions"
+                  :key="type"
+                  :label="getTypeLabel(type)"
+                  :value="type"
+                />
               </el-select>
             </el-form-item>
             <el-form-item :label="i18ns.t('ticket.assignmentPriority')">
               <el-select v-model="rule.priority" clearable>
-                <el-option v-for="priority in priorityOptions" :key="priority" :label="getPriorityLabel(priority)" :value="priority" />
+                <el-option
+                  v-for="priority in priorityOptions"
+                  :key="priority"
+                  :label="getPriorityLabel(priority)"
+                  :value="priority"
+                />
               </el-select>
             </el-form-item>
             <el-form-item class="form-grid__full" :label="i18ns.t('ticket.assignmentUsers')">
@@ -251,17 +399,29 @@
                 :loading="userOptionsLoading"
                 @visible-change="handleUserSelectVisible"
               >
-                <el-option v-for="user in userOptions" :key="user.id" :label="user.username" :value="user.id" />
+                <el-option
+                  v-for="user in userOptions"
+                  :key="user.id"
+                  :label="user.username"
+                  :value="user.id"
+                />
               </el-select>
             </el-form-item>
           </div>
         </div>
 
         <div class="form-actions form-actions--space-between">
-          <el-button @click="addAssignmentRule">+ {{ i18ns.t('ticket.assignmentAddRule') }}</el-button>
+          <el-button @click="addAssignmentRule"
+            >+ {{ i18ns.t('ticket.assignmentAddRule') }}</el-button
+          >
           <div class="form-actions">
             <el-button @click="loadAssignmentRules">{{ i18ns.t('reset') }}</el-button>
-            <el-button type="primary" :loading="assignmentRulesSaving" @click="saveAssignmentRules">{{ i18ns.t('save') }}</el-button>
+            <el-button
+              type="primary"
+              :loading="assignmentRulesSaving"
+              @click="saveAssignmentRules"
+              >{{ i18ns.t('save') }}</el-button
+            >
           </div>
         </div>
       </div>
@@ -300,7 +460,13 @@ const permissionStore = usePermissionStore()
 const { isDesktop } = usePageDevice()
 
 const ticketTypeOptions: TicketType[] = ['suggestion', 'bug', 'other']
-const workflowStatusOptions: TicketWorkflowStatus[] = ['pending', 'processing', 'accepted', 'rejected', 'completed']
+const workflowStatusOptions: TicketWorkflowStatus[] = [
+  'pending',
+  'processing',
+  'accepted',
+  'rejected',
+  'completed',
+]
 const priorityOptions: TicketPriority[] = ['low', 'medium', 'high', 'urgent']
 
 const listLoading = ref(false)
@@ -335,7 +501,9 @@ const reviewForm = reactive({
 
 const commentForm = reactive<CreateTicketReviewCommentDto>({ visibility: 'public', content: '' })
 
-const canReviewUpdate = computed(() => permissionStore.hasPermission(Permission.TICKET_REVIEW_UPDATE))
+const canReviewUpdate = computed(() =>
+  permissionStore.hasPermission(Permission.TICKET_REVIEW_UPDATE),
+)
 const detailTitle = computed(() => detail.value?.title || i18ns.t('ticket.detailSectionTitle'))
 const drawerSize = computed(() => (isDesktop.value ? '62%' : '96%'))
 const assignmentDrawerSize = computed(() => (isDesktop.value ? '52%' : '96%'))
@@ -344,7 +512,9 @@ const normalizedAssignmentRules = computed(() =>
     .map((rule) => ({
       type: rule.type || undefined,
       priority: rule.priority || undefined,
-      assigneeUserIds: Array.from(new Set(rule.assigneeUserIds.map((item) => item.trim()).filter((item) => item.length > 0))),
+      assigneeUserIds: Array.from(
+        new Set(rule.assigneeUserIds.map((item) => item.trim()).filter((item) => item.length > 0)),
+      ),
     }))
     .filter((rule) => rule.assigneeUserIds.length > 0 && (rule.type || rule.priority)),
 )
@@ -528,7 +698,9 @@ async function saveAssignmentRules() {
 
     if (assignmentRuleStats.value.invalid > 0) {
       await ElMessageBox.confirm(
-        i18ns.t('ticket.assignmentRulesInvalidConfirm', { count: assignmentRuleStats.value.invalid }),
+        i18ns.t('ticket.assignmentRulesInvalidConfirm', {
+          count: assignmentRuleStats.value.invalid,
+        }),
         i18ns.t('warning'),
         { type: 'warning' },
       )

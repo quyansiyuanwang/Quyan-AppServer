@@ -1,9 +1,4 @@
-import type {
-  TicketCommentVisibility,
-  TicketPriority,
-  TicketType,
-  TicketWorkflowStatus,
-} from "@/constant/ticket";
+import type { TicketCommentVisibility, TicketPriority, TicketType, TicketWorkflowStatus } from "@/constant/ticket";
 
 export interface CreateTicketDto {
   type: TicketType;
