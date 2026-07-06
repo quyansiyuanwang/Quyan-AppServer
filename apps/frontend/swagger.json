@@ -15921,6 +15921,87 @@
 				]
 			}
 		},
+		"/v1/feedback/review/assignment-rules": {
+			"get": {
+				"operationId": "FeedbackControllerGetReviewAssignmentRules",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/FeedbackReviewAssignmentConfigDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Feedback"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "FeedbackControllerSetReviewAssignmentRules",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/FeedbackReviewAssignmentConfigDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Feedback"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetFeedbackReviewAssignmentConfigDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/feedback/review/{id}": {
 			"get": {
 				"operationId": "FeedbackControllerGetReviewFeedbackDetail",
@@ -16153,87 +16234,6 @@
 						"application/json": {
 							"schema": {
 								"$ref": "#/components/schemas/CreateFeedbackReviewCommentDto"
-							}
-						}
-					}
-				},
-				"X-Replay-Protected": true
-			}
-		},
-		"/v1/feedback/review/assignment-rules": {
-			"get": {
-				"operationId": "FeedbackControllerGetReviewAssignmentRules",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackReviewAssignmentConfigDto"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": []
-			},
-			"put": {
-				"operationId": "FeedbackControllerSetReviewAssignmentRules",
-				"responses": {
-					"200": {
-						"description": "Success",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/FeedbackReviewAssignmentConfigDto"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "参数验证失败",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/ValidationErrorResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Feedback"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/SetFeedbackReviewAssignmentConfigDto"
 							}
 						}
 					}
@@ -32845,38 +32845,6 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"ReviewFeedbackDto": {
-				"properties": {
-					"workflowStatus": {
-						"$ref": "#/components/schemas/FeedbackWorkflowStatus"
-					},
-					"priority": {
-						"$ref": "#/components/schemas/FeedbackPriority"
-					},
-					"assigneeUserId": {
-						"type": "string",
-						"nullable": true
-					}
-				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"CreateFeedbackReviewCommentDto": {
-				"properties": {
-					"content": {
-						"type": "string"
-					},
-					"visibility": {
-						"$ref": "#/components/schemas/FeedbackCommentVisibility"
-					}
-				},
-				"required": [
-					"content",
-					"visibility"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
 			"FeedbackReviewAssignmentRuleDto": {
 				"properties": {
 					"type": {
@@ -32924,6 +32892,38 @@
 				},
 				"required": [
 					"rules"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ReviewFeedbackDto": {
+				"properties": {
+					"workflowStatus": {
+						"$ref": "#/components/schemas/FeedbackWorkflowStatus"
+					},
+					"priority": {
+						"$ref": "#/components/schemas/FeedbackPriority"
+					},
+					"assigneeUserId": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateFeedbackReviewCommentDto": {
+				"properties": {
+					"content": {
+						"type": "string"
+					},
+					"visibility": {
+						"$ref": "#/components/schemas/FeedbackCommentVisibility"
+					}
+				},
+				"required": [
+					"content",
+					"visibility"
 				],
 				"type": "object",
 				"additionalProperties": false

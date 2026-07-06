@@ -159,6 +159,26 @@ export class FeedbackController extends Controller {
     });
   }
 
+  @Get("review/assignment-rules")
+  @Security("jwt")
+  @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
+  public async getReviewAssignmentRules(): Promise<FeedbackReviewAssignmentConfigDto> {
+    return this.service.getAssignmentConfig();
+  }
+
+  @Put("review/assignment-rules")
+  @Security("jwt")
+  @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
+  @Middlewares(replayProtectionMiddleware, validateBody(setFeedbackAssignmentConfigBodySchema))
+  public async setReviewAssignmentRules(
+    @Body() body: SetFeedbackReviewAssignmentConfigDto,
+    @Request() request: TypedRequest,
+  ): Promise<FeedbackReviewAssignmentConfigDto> {
+    return this.service.updateAssignmentConfig(body, request.user!.userId, request);
+  }
+
   @Get("review/{id}")
   @Security("jwt")
   @RequirePermission(Permission.FEEDBACK_REVIEW_READ)
@@ -214,25 +234,5 @@ export class FeedbackController extends Controller {
   public async deleteFeedback(@Path() id: string, @Request() request: TypedRequest): Promise<boolean> {
     await this.service.deleteFeedback(id, request.user!.userId, request);
     return true;
-  }
-
-  @Get("review/assignment-rules")
-  @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
-  @SuccessResponse(HttpStatusCode.Ok, "Success")
-  public async getReviewAssignmentRules(): Promise<FeedbackReviewAssignmentConfigDto> {
-    return this.service.getAssignmentConfig();
-  }
-
-  @Put("review/assignment-rules")
-  @Security("jwt")
-  @RequirePermission(Permission.FEEDBACK_REVIEW_UPDATE)
-  @SuccessResponse(HttpStatusCode.Ok, "Success")
-  @Middlewares(replayProtectionMiddleware, validateBody(setFeedbackAssignmentConfigBodySchema))
-  public async setReviewAssignmentRules(
-    @Body() body: SetFeedbackReviewAssignmentConfigDto,
-    @Request() request: TypedRequest,
-  ): Promise<FeedbackReviewAssignmentConfigDto> {
-    return this.service.updateAssignmentConfig(body, request.user!.userId, request);
   }
 }
