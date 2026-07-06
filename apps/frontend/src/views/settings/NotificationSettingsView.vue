@@ -84,7 +84,7 @@
                 <el-table-column :label="i18ns.t('NotificationSettingsView.eventName')">
                   <template #default="{ row }">
                     <span :class="{ 'text-muted': !subscribedSet[row.value] }">{{
-                      row.label
+                      getEventDisplayLabel(row.value)
                     }}</span>
                   </template>
                 </el-table-column>
@@ -102,7 +102,7 @@
                         size="small"
                         style="width: 130px"
                       />
-                      <span class="threshold-unit">{{ row.thresholdUnit }}</span>
+                      <span class="threshold-unit">{{ getThresholdUnitLabel(row.value) }}</span>
                     </template>
                     <span v-else class="text-muted">—</span>
                   </template>
@@ -405,7 +405,7 @@
                     <div class="mobile-event-head">
                       <el-checkbox v-model="subscribedSet[row.value]" />
                       <div class="mobile-event-copy">
-                        <div class="mobile-event-name">{{ row.label }}</div>
+                        <div class="mobile-event-name">{{ getEventDisplayLabel(row.value) }}</div>
                         <div class="mobile-event-key">{{ row.value }}</div>
                       </div>
                     </div>
@@ -422,7 +422,7 @@
                           :disabled="!subscribedSet[row.value]"
                           size="small"
                         />
-                        <span class="threshold-unit">{{ row.thresholdUnit }}</span>
+                        <span class="threshold-unit">{{ getThresholdUnitLabel(row.value) }}</span>
                       </div>
                     </div>
                   </div>
@@ -690,6 +690,10 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { i18ns } from '@/locales'
 import { NotificationService } from '@/service/notificationService'
 import { usePageDevice } from '@/composables/usePageDevice'
+import {
+  getNotificationEventLabel,
+  getNotificationThresholdUnit,
+} from '@/utils/notification-event-i18n'
 import type {
   NotificationWebhookDto,
   NotificationEventInfoDto,
@@ -1060,8 +1064,15 @@ function onLogPageChange(page: number) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function eventLabel(eventType: string): string {
-  const ev = eventList.value.find((e) => e.value === eventType)
-  return ev?.label ?? eventType
+  return getNotificationEventLabel(eventType)
+}
+
+function getEventDisplayLabel(eventType: string): string {
+  return getNotificationEventLabel(eventType)
+}
+
+function getThresholdUnitLabel(eventType: string): string {
+  return getNotificationThresholdUnit(eventType)
 }
 
 function statusLabel(status: string): string {

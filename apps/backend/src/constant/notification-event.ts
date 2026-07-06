@@ -1,5 +1,17 @@
-import { NotificationEvent, ALL_NOTIFICATION_EVENTS } from "@appserver/shared";
-export { NotificationEvent, ALL_NOTIFICATION_EVENTS };
+import {
+  NotificationEvent,
+  ALL_NOTIFICATION_EVENTS,
+  THRESHOLD_NOTIFICATION_EVENTS,
+  NOTIFICATION_EVENT_I18N_KEYS,
+  NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS,
+} from "@appserver/shared";
+export {
+  NotificationEvent,
+  ALL_NOTIFICATION_EVENTS,
+  THRESHOLD_NOTIFICATION_EVENTS,
+  NOTIFICATION_EVENT_I18N_KEYS,
+  NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS,
+};
 
 export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   [NotificationEvent.BALANCE_LOW]: "余额不足",
@@ -29,9 +41,4 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   [NotificationEvent.RAM_POLICY_DELETED]: "权限策略已删除",
 };
 
-export const THRESHOLD_EVENTS = [
-  NotificationEvent.BALANCE_LOW,
-  NotificationEvent.MONTHLY_PASS_QUOTA_LOW,
-  NotificationEvent.MONTHLY_PASS_DAILY_LIMIT,
-  NotificationEvent.RELAY_TOKEN_QUOTA_LOW,
-] as const;
+export const THRESHOLD_EVENTS = THRESHOLD_NOTIFICATION_EVENTS;

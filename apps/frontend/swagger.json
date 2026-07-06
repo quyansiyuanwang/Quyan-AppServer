@@ -32103,19 +32103,19 @@
 					"value": {
 						"type": "string"
 					},
-					"label": {
+					"labelI18nKey": {
 						"type": "string"
 					},
 					"hasThreshold": {
 						"type": "boolean"
 					},
-					"thresholdUnit": {
+					"thresholdUnitI18nKey": {
 						"type": "string"
 					}
 				},
 				"required": [
 					"value",
-					"label",
+					"labelI18nKey",
 					"hasThreshold"
 				],
 				"type": "object",

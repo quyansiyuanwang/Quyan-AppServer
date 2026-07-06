@@ -2,7 +2,13 @@ export { Permission, ALL_PERMISSIONS, getPermissionCategory } from './permission
 export { CustomCode } from './custom-code';
 export { MANAGED_STATUS, HEARTBEAT_STATUS } from './status';
 export type { ManagedStatus, HeartbeatStatus } from './status';
-export { NotificationEvent, ALL_NOTIFICATION_EVENTS } from './notification-event';
+export {
+  NotificationEvent,
+  ALL_NOTIFICATION_EVENTS,
+  THRESHOLD_NOTIFICATION_EVENTS,
+  NOTIFICATION_EVENT_I18N_KEYS,
+  NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS,
+} from './notification-event';
 export {
   FEEDBACK_TYPES,
   FEEDBACK_WORKFLOW_STATUSES,

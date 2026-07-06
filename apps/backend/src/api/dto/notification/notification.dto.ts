@@ -102,9 +102,9 @@ export interface NotificationLogListDto {
 
 export interface NotificationEventInfoDto {
   value: string;
-  label: string;
+  labelI18nKey: string;
   hasThreshold: boolean;
-  thresholdUnit?: string;
+  thresholdUnitI18nKey?: string;
 }
 
 export interface MarkNotificationInboxReadDto {

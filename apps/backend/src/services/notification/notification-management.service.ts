@@ -23,7 +23,8 @@ import { NotificationService } from "@/services/notification/notification.servic
 import { NotificationPreferenceInitializerService } from "@/services/notification/notification-preference-initializer.service";
 import {
   NotificationEvent,
-  NOTIFICATION_EVENT_LABELS,
+  NOTIFICATION_EVENT_I18N_KEYS,
+  NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS,
   THRESHOLD_EVENTS,
   ALL_NOTIFICATION_EVENTS,
 } from "@/constant/notification-event";
@@ -261,18 +262,11 @@ export class NotificationManagementService {
   // ─── Event List ────────────────────────────────────────────────────────────
 
   getEventList(): NotificationEventInfoDto[] {
-    const thresholdUnits: Partial<Record<NotificationEvent, string>> = {
-      [NotificationEvent.BALANCE_LOW]: "曲",
-      [NotificationEvent.MONTHLY_PASS_QUOTA_LOW]: "%",
-      [NotificationEvent.MONTHLY_PASS_DAILY_LIMIT]: "%",
-      [NotificationEvent.RELAY_TOKEN_QUOTA_LOW]: "%",
-    };
-
     return ALL_NOTIFICATION_EVENTS.map((event) => ({
       value: event,
-      label: NOTIFICATION_EVENT_LABELS[event as NotificationEvent] ?? event,
+      labelI18nKey: NOTIFICATION_EVENT_I18N_KEYS[event as NotificationEvent] ?? event,
       hasThreshold: (THRESHOLD_EVENTS as readonly string[]).includes(event),
-      thresholdUnit: thresholdUnits[event as NotificationEvent],
+      thresholdUnitI18nKey: NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS[event as NotificationEvent],
     }));
   }
 

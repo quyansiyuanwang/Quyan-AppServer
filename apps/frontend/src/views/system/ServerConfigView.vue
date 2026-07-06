@@ -152,7 +152,7 @@
                       :key="event.value"
                       class="notification-event-option"
                     >
-                      <el-checkbox :value="event.value">{{ event.label }}</el-checkbox>
+                      <el-checkbox :value="event.value">{{ getEventDisplayLabel(event.value) }}</el-checkbox>
                       <span class="form-help form-help--inline">{{ event.value }}</span>
                     </label>
                   </div>
@@ -169,15 +169,18 @@
                   :key="event.value"
                   class="notification-threshold-item"
                 >
-                  <span class="notification-threshold-item__label">{{ event.label }}</span>
+                  <span class="notification-threshold-item__label">{{ getEventDisplayLabel(event.value) }}</span>
                   <div class="notification-threshold-item__control">
                     <el-input-number
                       v-model="notificationDefaultThresholds[event.value]"
                       :min="0"
                       :precision="2"
                     />
-                    <span v-if="event.thresholdUnit" class="form-help form-help--inline">
-                      {{ event.thresholdUnit }}
+                    <span
+                      v-if="getThresholdUnitLabel(event.value)"
+                      class="form-help form-help--inline"
+                    >
+                      {{ getThresholdUnitLabel(event.value) }}
                     </span>
                   </div>
                 </div>
@@ -672,7 +675,7 @@
                       :key="event.value"
                       class="notification-event-option"
                     >
-                      <el-checkbox :value="event.value">{{ event.label }}</el-checkbox>
+                      <el-checkbox :value="event.value">{{ getEventDisplayLabel(event.value) }}</el-checkbox>
                       <span class="form-help form-help--inline">{{ event.value }}</span>
                     </label>
                   </div>
@@ -689,15 +692,18 @@
                   :key="event.value"
                   class="notification-threshold-item"
                 >
-                  <span class="notification-threshold-item__label">{{ event.label }}</span>
+                  <span class="notification-threshold-item__label">{{ getEventDisplayLabel(event.value) }}</span>
                   <div class="notification-threshold-item__control">
                     <el-input-number
                       v-model="notificationDefaultThresholds[event.value]"
                       :min="0"
                       :precision="2"
                     />
-                    <span v-if="event.thresholdUnit" class="form-help form-help--inline">
-                      {{ event.thresholdUnit }}
+                    <span
+                      v-if="getThresholdUnitLabel(event.value)"
+                      class="form-help form-help--inline"
+                    >
+                      {{ getThresholdUnitLabel(event.value) }}
                     </span>
                   </div>
                 </div>
@@ -1049,6 +1055,10 @@ import { ElMessage } from 'element-plus'
 import { configService } from '@/service/configService'
 import { groupService } from '@/service/groupService'
 import { NotificationService } from '@/service/notificationService'
+import {
+  getNotificationEventLabel,
+  getNotificationThresholdUnit,
+} from '@/utils/notification-event-i18n'
 import type {
   CaptchaProviderDto,
   FeedbackAssignmentRuleDto,
@@ -1192,6 +1202,10 @@ const notificationService = NotificationService.getInstance()
 const notificationThresholdEventOptions = computed(() =>
   notificationEventOptions.value.filter((event) => event.hasThreshold),
 )
+
+const getEventDisplayLabel = (eventType: string) => getNotificationEventLabel(eventType)
+
+const getThresholdUnitLabel = (eventType: string) => getNotificationThresholdUnit(eventType)
 
 const normalizeNotificationThresholds = (
   thresholds: Record<string, number>,
