@@ -224,6 +224,10 @@ function getProtectedGroupName(): string | undefined {
   return process.env.PROTECTED_GROUP_NAME;
 }
 
+function getSuperAdminGroupUsername(): string {
+  return String(process.env.SUPER_ADMIN_GROUP_USERNAME || "admin").trim() || "admin";
+}
+
 function rateLimitConfig() {
   return {
     login: {
@@ -468,6 +472,7 @@ export const EnvSpace = {
   hiddenDatabase: noUndefined(getHiddenDatabase),
   databaseParams: noUndefined(getDatabaseParams),
   protectedGroupName: noUndefined(getProtectedGroupName),
+  superAdminGroupUsername: noUndefined(getSuperAdminGroupUsername),
   rateLimitConfig: noUndefined(rateLimitConfig),
   redisConfig: noUndefined(redisConfig),
   webAuthnConfig: noUndefined(webAuthnConfig),

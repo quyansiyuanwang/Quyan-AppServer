@@ -20,6 +20,7 @@ import type { Request } from "express";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { NotificationEvent } from "@/constant/notification-event";
+import { EnvSpace } from "@/config/env";
 
 type UserEntity = NonNullable<Awaited<ReturnType<UserStore["findById"]>>>;
 
@@ -316,14 +317,14 @@ export class UserService {
   }
 
   /**
-   * 检查用户是否属于管理员组（admin 组）
+  * 检查用户是否属于超级管理员组
    * 管理员组可以修改所有用户组权限，包括同等级的组
    */
   async isAdmin(userId: string): Promise<boolean> {
     const user = await this.userRepository.findById(userId);
     if (!user || !user.groupId) return false;
     const group = await this.groupRepository.findById(user.groupId);
-    return group?.username === "admin";
+    return group?.username === EnvSpace.superAdminGroupUsername;
   }
 
   async changeUserPassword(

@@ -15,6 +15,7 @@ import { AccessKeyRepository } from "@/store/users/accesskey.repository";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationEvent } from "@/constant/notification-event";
+import { EnvSpace } from "@/config/env";
 import type { UserStore } from "@/store/users/user.store";
 import type { GroupStore } from "@/store/users/group.store";
 import type { AccessKeyStore } from "@/store/users/accesskey.store";
@@ -234,7 +235,7 @@ export class RamService {
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const actor = await this.getActor(actorUserId);
     const actorGroup = actor.groupId ? await this.groupRepository.findById(actor.groupId) : null;
-    const isAdmin = actorGroup?.username === "admin";
+    const isAdmin = actorGroup?.username === EnvSpace.superAdminGroupUsername;
 
     const users = isAdmin
       ? await this.userRepository.listNonDeleted()
@@ -255,7 +256,7 @@ export class RamService {
   ): Promise<RamGroupDto[]> {
     const actor = await this.getActor(actorUserId);
     const actorGroup = actor.groupId ? await this.groupRepository.findById(actor.groupId) : null;
-    const isAdmin = actorGroup?.username === "admin";
+    const isAdmin = actorGroup?.username === EnvSpace.superAdminGroupUsername;
 
     const groups = isAdmin
       ? await this.groupRepository.listActiveWithUserCount()

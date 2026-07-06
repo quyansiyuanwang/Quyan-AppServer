@@ -55,8 +55,8 @@ export class GroupService {
     const actorGroup = await this.groupRepository.findById(actorUser.groupId);
     if (!actorGroup) return [];
 
-    // 如果是 admin 组，返回所有组
-    if (actorGroup.username === "admin") return this.getAllGroups();
+    // 如果是超级管理员组，返回所有组
+    if (actorGroup.username === EnvSpace.superAdminGroupUsername) return this.getAllGroups();
 
     // 否则只返回 level >= actorGroup.level 的组
     const groups = await this.groupRepository.listVisibleWithUserCount(actorGroup.level);
@@ -86,7 +86,7 @@ export class GroupService {
     };
 
     // 非管理员只能看到 level >= 自己 level 的组
-    if (actorGroup.username !== "admin") filters.minLevel = actorGroup.level;
+    if (actorGroup.username !== EnvSpace.superAdminGroupUsername) filters.minLevel = actorGroup.level;
 
     const skip = (options.page - 1) * options.pageSize;
     const [total, groups] = await Promise.all([
