@@ -825,7 +825,7 @@ import {
   type FormRules,
 } from 'element-plus'
 import { Plus, Refresh, Delete, Search } from '@element-plus/icons-vue'
-import { ALL_PERMISSIONS, getPermissionLabel, getPermissionTooltip } from '@/constant/permission'
+import { getPermissionLabel, getPermissionTooltip } from '@/constant/permission'
 import { Permission } from '@/constant/permission'
 import type {
   GroupDto,
@@ -890,7 +890,7 @@ const roleSearch = ref('')
 const policySearch = ref('')
 const selectedUsers = ref<any[]>([])
 const selectedRoles = ref<any[]>([])
-const permTreeRef = ref()
+const _permTreeRef = ref()
 const policyPermTreeRef = ref()
 
 // Policy & Attachment state

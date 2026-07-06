@@ -87,8 +87,33 @@ export const routes = [
           },
           {
             path: 'settings',
-            name: 'settings',
-            component: () => import('@/views/settings/SettingsView.vue'),
+            children: [
+              {
+                path: '',
+                name: 'settings',
+                redirect: { name: 'settingsProfile' },
+              },
+              {
+                path: 'profile',
+                name: 'settingsProfile',
+                component: () => import('@/views/settings/ProfileSettingsView.vue'),
+              },
+              {
+                path: 'preferences',
+                name: 'settingsPreferences',
+                component: () => import('@/views/settings/PreferencesSettingsView.vue'),
+              },
+              {
+                path: 'security',
+                name: 'settingsSecurity',
+                component: () => import('@/views/settings/AccountSecuritySettingsView.vue'),
+              },
+              {
+                path: 'notifications',
+                name: 'notificationSettings',
+                component: () => import('@/views/settings/NotificationSettingsView.vue'),
+              },
+            ],
           },
           {
             path: 'account/access-keys',
@@ -134,11 +159,6 @@ export const routes = [
             meta: {
               permission: Permission.TICKET_REVIEW_READ,
             },
-          },
-          {
-            path: 'settings/notifications',
-            name: 'notificationSettings',
-            component: () => import('@/views/settings/NotificationSettingsView.vue'),
           },
           {
             path: 'debug',

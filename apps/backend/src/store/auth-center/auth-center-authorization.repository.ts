@@ -1,10 +1,4 @@
-import type {
-  AuthCenterAccessToken,
-  AuthCenterAuthorizationCode,
-  AuthCenterClient,
-  AuthCenterConsent,
-  AuthCenterRefreshToken,
-} from "@prisma/client";
+import type { AuthCenterAuthorizationCode, AuthCenterClient, AuthCenterConsent } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { MANAGED_STATUS } from "@/constant/status";
 import { getLogger, LogCategory } from "@/util/logger";

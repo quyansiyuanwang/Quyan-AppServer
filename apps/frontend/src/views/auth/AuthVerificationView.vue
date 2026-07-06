@@ -288,8 +288,8 @@ const startEmailCodeCooldown = () => {
 
 const getSafeDisableRedirect = (): string => {
   const target = redirectPath.value
-  if (!target || !target.startsWith('/')) return '/settings'
-  if (target === '/login' || target.startsWith('/auth/verify')) return '/settings'
+  if (!target || !target.startsWith('/')) return '/settings/security'
+  if (target === '/login' || target.startsWith('/auth/verify')) return '/settings/security'
   return target
 }
 

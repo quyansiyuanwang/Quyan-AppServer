@@ -71,12 +71,12 @@ export function LogRoute(options: LoggerDecoratorOptions = {}) {
 
       // 尝试从参数中提取 Request 和 Response 对象
       let req: Request | undefined;
-      let res: Response | undefined;
+      let _res: Response | undefined;
 
       for (const arg of args)
         if (arg && typeof arg === "object") {
           if ("method" in arg && "url" in arg && "headers" in arg) req = arg;
-          if ("status" in arg && "json" in arg && "send" in arg) res = arg;
+          if ("status" in arg && "json" in arg && "send" in arg) _res = arg;
         }
 
       // 记录请求信息

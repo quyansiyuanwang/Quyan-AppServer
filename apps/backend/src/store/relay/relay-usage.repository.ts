@@ -1,4 +1,4 @@
-import { Prisma, RelayUsage } from "@prisma/client";
+import { RelayUsage } from "@prisma/client";
 import { prisma } from "@/config/database";
 import type {
   RelayTokenUsageAggregate,

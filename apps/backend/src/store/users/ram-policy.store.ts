@@ -1,4 +1,4 @@
-import type { RamPolicy, RamPolicyAttachment } from "@prisma/client";
+import type { RamPolicy } from "@prisma/client";
 
 export interface CreateRamPolicyInput {
   accountOwnerId: string;

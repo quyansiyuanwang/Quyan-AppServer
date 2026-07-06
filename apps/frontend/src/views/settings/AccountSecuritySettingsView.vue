@@ -3,94 +3,8 @@
     <div v-if="isDesktop" class="desktop-page">
       <div class="settings-container">
         <div class="page-header">
-          <h1 class="page-title">{{ i18ns.t('SettingsView.title') }}</h1>
+          <h1 class="page-title">{{ i18ns.t('nav.settingsSecurity') }}</h1>
         </div>
-
-        <el-card class="section-card page-card">
-          <h3>{{ i18ns.t('SettingsView.profileTitle') }}</h3>
-          <el-form :model="profileForm" label-width="18%">
-            <el-form-item :label="i18ns.t('username')">
-              <el-input :value="userInfoStore.userInfo.username" disabled />
-            </el-form-item>
-
-            <el-form-item :label="i18ns.t('SettingsView.nameLabel')">
-              <div class="inline-row w-full">
-                <el-input
-                  v-model="profileForm.name"
-                  :placeholder="i18ns.t('SettingsView.namePlaceholder')"
-                  :disabled="!canUpdateProfile"
-                  clearable
-                />
-                <el-button
-                  class="action-btn"
-                  type="primary"
-                  :disabled="!canUpdateProfile"
-                  :loading="profileSaving"
-                  @click="handleUpdateProfile"
-                >
-                  {{ i18ns.t('save') }}
-                </el-button>
-              </div>
-            </el-form-item>
-
-            <el-form-item :label="i18ns.t('SettingsView.emailLabel')">
-              <div class="w-full">
-                <div class="email-current">
-                  {{ i18ns.t('SettingsView.currentEmail') }}:
-                  <el-tag v-if="userInfoStore.userInfo.email" type="info">
-                    {{ userInfoStore.userInfo.email }}
-                  </el-tag>
-                  <el-tag v-else type="warning">{{ i18ns.t('SettingsView.noEmail') }}</el-tag>
-                </div>
-
-                <div class="stack">
-                  <div class="email-row">
-                    <el-input
-                      v-model="emailForm.newEmail"
-                      :placeholder="i18ns.t('SettingsView.emailPlaceholder')"
-                      :disabled="!canUpdateEmail"
-                      type="email"
-                      class="email-input"
-                    />
-                    <el-button
-                      class="action-btn email-btn"
-                      :disabled="!canUpdateEmail || !emailForm.newEmail || codeCooldown > 0"
-                      :loading="sendingCode"
-                      @click="handleSendEmailCode"
-                    >
-                      {{
-                        codeCooldown > 0
-                          ? i18ns.t('SettingsView.resendAfter', { seconds: codeCooldown })
-                          : i18ns.t('SettingsView.sendCode')
-                      }}
-                    </el-button>
-                  </div>
-
-                  <div class="email-row">
-                    <el-input
-                      v-model="emailForm.verificationCode"
-                      :placeholder="i18ns.t('SettingsView.verificationCode')"
-                      :disabled="!canUpdateEmail"
-                      maxlength="6"
-                      class="email-input"
-                    />
-                    <el-button
-                      class="action-btn email-btn"
-                      type="primary"
-                      :disabled="
-                        !canUpdateEmail || !emailForm.newEmail || !emailForm.verificationCode
-                      "
-                      :loading="emailChanging"
-                      @click="handleChangeEmail"
-                    >
-                      {{ i18ns.t('SettingsView.changeEmail') }}
-                    </el-button>
-                  </div>
-                </div>
-              </div>
-            </el-form-item>
-          </el-form>
-        </el-card>
 
         <el-card class="section-card page-card">
           <h3>{{ i18ns.t('SettingsView.passwordTitle') }}</h3>
@@ -109,33 +23,6 @@
               </el-form-item>
             </el-form>
           </PermissionWrapper>
-        </el-card>
-
-        <el-card class="section-card page-card">
-          <h3>{{ i18ns.t('SettingsView.themeLanguageTitle') }}</h3>
-          <div class="prefs-actions">
-            <el-button @click="toggleDark">
-              <el-icon><component :is="iconRef" /></el-icon>
-              <span>{{ i18ns.t('SettingsView.themeLabel') }}</span>
-            </el-button>
-            <LanguageSwitcher />
-          </div>
-        </el-card>
-
-        <el-card class="section-card page-card">
-          <h3>{{ i18ns.t('SettingsView.clearCacheTitle') }}</h3>
-          <p class="section-desc">{{ i18ns.t('SettingsView.clearCacheDesc') }}</p>
-          <div class="prefs-actions">
-            <el-button type="warning" @click="handleClearLocalStorage">
-              {{ i18ns.t('SettingsView.clearLocalStorageButton') }}
-            </el-button>
-            <el-button type="warning" @click="handleClearSessionDB">
-              {{ i18ns.t('SettingsView.clearSessionDBButton') }}
-            </el-button>
-            <el-button type="danger" @click="handleClearAllCache">
-              {{ i18ns.t('SettingsView.clearAllButton') }}
-            </el-button>
-          </div>
         </el-card>
 
         <el-card class="section-card page-card">
@@ -213,83 +100,7 @@
     </div>
     <div v-else class="mobile-page">
       <div class="settings-mobile">
-        <h1 class="page-title">{{ i18ns.t('SettingsView.title') }}</h1>
-
-        <el-card class="section-card mobile-card">
-          <h3>{{ i18ns.t('SettingsView.profileTitle') }}</h3>
-          <el-form :model="profileForm" label-position="top">
-            <el-form-item :label="i18ns.t('username')">
-              <el-input :value="userInfoStore.userInfo.username" disabled />
-            </el-form-item>
-
-            <el-form-item :label="i18ns.t('SettingsView.nameLabel')">
-              <el-input
-                v-model="profileForm.name"
-                :placeholder="i18ns.t('SettingsView.namePlaceholder')"
-                :disabled="!canUpdateProfile"
-                clearable
-              />
-              <el-button
-                class="mt-12"
-                type="primary"
-                :disabled="!canUpdateProfile"
-                :loading="profileSaving"
-                @click="handleUpdateProfile"
-              >
-                {{ i18ns.t('save') }}
-              </el-button>
-            </el-form-item>
-
-            <el-form-item :label="i18ns.t('SettingsView.emailLabel')">
-              <div class="email-current">
-                {{ i18ns.t('SettingsView.currentEmail') }}:
-                <el-tag v-if="userInfoStore.userInfo.email" type="info">
-                  {{ userInfoStore.userInfo.email }}
-                </el-tag>
-                <el-tag v-else type="warning">{{ i18ns.t('SettingsView.noEmail') }}</el-tag>
-              </div>
-
-              <div class="stack email-stack">
-                <el-input
-                  v-model="emailForm.newEmail"
-                  :placeholder="i18ns.t('SettingsView.emailPlaceholder')"
-                  :disabled="!canUpdateEmail"
-                  type="email"
-                  class="w-full"
-                />
-                <el-button
-                  class="w-full"
-                  :disabled="!canUpdateEmail || !emailForm.newEmail || codeCooldown > 0"
-                  :loading="sendingCode"
-                  @click="handleSendEmailCode"
-                >
-                  {{
-                    codeCooldown > 0
-                      ? i18ns.t('SettingsView.resendAfter', { seconds: codeCooldown })
-                      : i18ns.t('SettingsView.sendCode')
-                  }}
-                </el-button>
-
-                <el-input
-                  v-model="emailForm.verificationCode"
-                  :placeholder="i18ns.t('SettingsView.verificationCode')"
-                  :disabled="!canUpdateEmail"
-                  maxlength="6"
-                  class="w-full"
-                />
-                <el-button
-                  class="w-full"
-                  type="primary"
-                  :disabled="!canUpdateEmail || !emailForm.newEmail || !emailForm.verificationCode"
-                  :loading="emailChanging"
-                  @click="handleChangeEmail"
-                >
-                  {{ i18ns.t('SettingsView.changeEmail') }}
-                </el-button>
-              </div>
-            </el-form-item>
-          </el-form>
-        </el-card>
+        <h1 class="page-title">{{ i18ns.t('nav.settingsSecurity') }}</h1>
 
         <el-card class="section-card mobile-card">
           <h3>{{ i18ns.t('SettingsView.passwordTitle') }}</h3>
@@ -308,35 +119,6 @@
               </el-form-item>
             </el-form>
           </PermissionWrapper>
-        </el-card>
-
-        <el-card class="section-card mobile-card">
-          <h3>{{ i18ns.t('SettingsView.themeLanguageTitle') }}</h3>
-          <div class="stack">
-            <el-button class="w-full" @click="toggleDark">
-              <el-icon><component :is="iconRef" /></el-icon>
-              <span>{{ i18ns.t('SettingsView.themeLabel') }}</span>
-            </el-button>
-            <div class="w-full lang-wrap">
-              <LanguageSwitcher />
-            </div>
-          </div>
-        </el-card>
-
-        <el-card class="section-card mobile-card">
-          <h3>{{ i18ns.t('SettingsView.clearCacheTitle') }}</h3>
-          <p class="section-desc">{{ i18ns.t('SettingsView.clearCacheDesc') }}</p>
-          <div class="stack">
-            <el-button class="w-full" type="warning" @click="handleClearLocalStorage">
-              {{ i18ns.t('SettingsView.clearLocalStorageButton') }}
-            </el-button>
-            <el-button class="w-full" type="warning" @click="handleClearSessionDB">
-              {{ i18ns.t('SettingsView.clearSessionDBButton') }}
-            </el-button>
-            <el-button class="w-full" type="danger" @click="handleClearAllCache">
-              {{ i18ns.t('SettingsView.clearAllButton') }}
-            </el-button>
-          </div>
         </el-card>
 
         <el-card class="section-card mobile-card">
@@ -501,7 +283,7 @@
 
 <script setup lang="ts">
 import { usePageDevice } from '@/composables/usePageDevice'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
 import AccessKeyManagementView from './AccessKeyManagementView.vue'
@@ -509,16 +291,11 @@ import PasskeyManagement from './PasskeyManagementView.vue'
 import TrustedDeviceManagement from './TrustedDeviceManagementView.vue'
 import TrustedDeviceEntryView from './TrustedDeviceEntryView.vue'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
-import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
-import { Sunny, Moon } from '@element-plus/icons-vue'
-import { useThemeToggleStore } from '@/stores/themeToggleStore'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { authorizationService } from '@/service/authorizationService'
 import { Notification } from '@/utils/notification'
 import { userService } from '@/service/userService'
 import { useUserInfoStore } from '@/stores/userInfoStore'
-import { sessionDB, STORE_NAMES } from '@/utils/sessionDB'
-import { usePermissionStore } from '@/stores/permissionStore'
 
 const router = useRouter()
 import { Permission } from '@/constant/permission'
@@ -526,31 +303,12 @@ import { twoFactorManagementService } from '@/service/twoFactor/twoFactorManagem
 import { CustomCode } from '@/constant/custom-code'
 import { validateTwoFactorCode } from '@/utils/validation'
 
-const themeToggleStore = useThemeToggleStore()
-const isDark = themeToggleStore.useIsDark()
-const toggleDark = () => themeToggleStore.toggleTheme()
-const iconRef = computed(() => (isDark.value ? Sunny : Moon))
-
 const passwordForm = ref({ new_password: '', confirm_password: '' })
-const profileForm = ref({ name: '' })
-const emailForm = ref({ newEmail: '', verificationCode: '' })
-const permissionStore = usePermissionStore()
 const userInfoStore = useUserInfoStore()
-
-const canUpdateProfile = computed(() =>
-  permissionStore.hasPermission(Permission.USER_UPDATE_SELF_PROFILE),
-)
-const canUpdateEmail = computed(() =>
-  permissionStore.hasPermission(Permission.USER_UPDATE_SELF_EMAIL),
-)
 
 const showAccessKeyDrawer = ref(false)
 const showPasskeyDrawer = ref(false)
 const showTrustedDevicesDrawer = ref(false)
-const profileSaving = ref(false)
-const sendingCode = ref(false)
-const emailChanging = ref(false)
-const codeCooldown = ref(0)
 const twoFactorLoading = ref(false)
 const twoFactorSetupLoading = ref(false)
 const twoFactorConfirming = ref(false)
@@ -576,79 +334,9 @@ const twoFactorSetupData = ref<null | {
 const twoFactorSetupCode = ref('')
 const twoFactorRecoveryCodes = ref<string[]>([])
 
-let cooldownTimer: ReturnType<typeof setInterval> | null = null
-
 onMounted(async () => {
-  if (Object.values(userInfoStore.userInfo).some((value) => value === '')) {
-    await userInfoStore.fetchUserInfo()
-  }
-  profileForm.value.name = userInfoStore.userInfo.name || ''
   await loadTwoFactorStatus()
 })
-
-onUnmounted(() => {
-  if (cooldownTimer) {
-    clearInterval(cooldownTimer)
-    cooldownTimer = null
-  }
-})
-
-const handleUpdateProfile = async () => {
-  try {
-    profileSaving.value = true
-    const result = await userService.updateProfile({ name: profileForm.value.name || undefined })
-    userInfoStore.setName(result.name ?? null)
-    ElMessage.success(i18ns.t('SettingsView.profileUpdateSuccess'))
-  } catch (err: any) {
-    ElMessage.error(err?.message || i18ns.t('message.error.modifyFailed'))
-  } finally {
-    profileSaving.value = false
-  }
-}
-
-const startCooldown = () => {
-  codeCooldown.value = 60
-  if (cooldownTimer) clearInterval(cooldownTimer)
-
-  cooldownTimer = setInterval(() => {
-    codeCooldown.value--
-    if (codeCooldown.value <= 0) {
-      if (cooldownTimer) clearInterval(cooldownTimer)
-      cooldownTimer = null
-    }
-  }, 1000)
-}
-
-const handleSendEmailCode = async () => {
-  if (!emailForm.value.newEmail) return
-
-  try {
-    sendingCode.value = true
-    await userService.sendEmailChangeCode(emailForm.value.newEmail)
-    ElMessage.success(i18ns.t('SettingsView.codeSent'))
-    startCooldown()
-  } catch (err: any) {
-    ElMessage.error(err?.message || i18ns.t('message.error.modifyFailed'))
-  } finally {
-    sendingCode.value = false
-  }
-}
-
-const handleChangeEmail = async () => {
-  if (!emailForm.value.newEmail || !emailForm.value.verificationCode) return
-
-  try {
-    emailChanging.value = true
-    await userService.changeEmail(emailForm.value.newEmail, emailForm.value.verificationCode)
-    ElMessage.success(i18ns.t('SettingsView.emailChangeSuccess'))
-    userInfoStore.setEmail(emailForm.value.newEmail)
-    emailForm.value = { newEmail: '', verificationCode: '' }
-  } catch (err: any) {
-    ElMessage.error(err?.message || i18ns.t('message.error.modifyFailed'))
-  } finally {
-    emailChanging.value = false
-  }
-}
 
 const changePassword = async () => {
   if (
@@ -677,106 +365,6 @@ const changePassword = async () => {
     if ((err as any)?.code === CustomCode.TWO_FACTOR_REQUIRED) return
     console.error(err)
     ElMessage.error(i18ns.t('message.error.modifyFailed'))
-  }
-}
-
-const formatStorageSize = (size: number) => {
-  const sizeInKB = (size / 1024).toFixed(2)
-  const sizeInMB = (size / 1024 / 1024).toFixed(2)
-  return size > 1024 * 1024 ? `${sizeInMB} MB` : `${sizeInKB} KB`
-}
-
-const getLocalStorageSize = () => {
-  let localStorageSize = 0
-
-  for (let index = 0; index < localStorage.length; index++) {
-    const key = localStorage.key(index)
-    if (!key) continue
-
-    const value = localStorage.getItem(key) ?? ''
-    localStorageSize += key.length + value.length
-  }
-
-  return localStorageSize * 2
-}
-
-const getSessionDBSize = async () => {
-  try {
-    let dbSize = 0
-
-    for (const storeName of Object.values(STORE_NAMES)) {
-      const records = await sessionDB.getAll<unknown>(storeName)
-      dbSize += new Blob([JSON.stringify(records)]).size
-    }
-
-    return dbSize
-  } catch {
-    return 0
-  }
-}
-
-const reloadAfterCacheClear = () => {
-  setTimeout(() => {
-    window.location.reload()
-  }, 1500)
-}
-
-const handleClearLocalStorage = async () => {
-  try {
-    const localStorageSize = getLocalStorageSize()
-    const displaySize = formatStorageSize(localStorageSize)
-
-    await ElMessageBox.confirm(
-      `${i18ns.t('SettingsView.clearLocalStorageWarning')} (${displaySize})`,
-      i18ns.t('SettingsView.clearLocalStorageTitle'),
-      { type: 'warning', confirmButtonClass: 'el-button--danger' },
-    )
-
-    localStorage.clear()
-    ElMessage.success(`${i18ns.t('SettingsView.clearLocalStorageSuccess')} (${displaySize})`)
-    reloadAfterCacheClear()
-  } catch {
-    // user cancelled
-  }
-}
-
-const handleClearSessionDB = async () => {
-  try {
-    const dbSize = await getSessionDBSize()
-    const displaySize = formatStorageSize(dbSize)
-
-    await ElMessageBox.confirm(
-      `${i18ns.t('SettingsView.clearSessionDBWarning')} (${displaySize})`,
-      i18ns.t('SettingsView.clearSessionDBTitle'),
-      { type: 'warning' },
-    )
-
-    await sessionDB.deleteDB()
-    ElMessage.success(`${i18ns.t('SettingsView.clearSessionDBSuccess')} (${displaySize})`)
-  } catch {
-    // user cancelled
-  }
-}
-
-const handleClearAllCache = async () => {
-  try {
-    const localStorageSize = getLocalStorageSize()
-    const dbSize = await getSessionDBSize()
-    const totalSize = localStorageSize + dbSize
-    const displaySize = formatStorageSize(totalSize)
-
-    await ElMessageBox.confirm(
-      `${i18ns.t('SettingsView.clearAllWarning')} (${displaySize})`,
-      i18ns.t('SettingsView.clearAllTitle'),
-      { type: 'warning', confirmButtonClass: 'el-button--danger' },
-    )
-
-    localStorage.clear()
-    await sessionDB.deleteDB()
-    ElMessage.success(`${i18ns.t('SettingsView.clearAllSuccess')} (${displaySize})`)
-    reloadAfterCacheClear()
-  } catch {
-    // user cancelled
   }
 }
 
@@ -888,7 +476,7 @@ const handleGoDisableTwoFactor = () => {
     query: {
       purpose: 'disable2fa',
       method: 'code',
-      redirect: '/settings',
+      redirect: '/settings/security',
     },
   })
 }
@@ -961,10 +549,6 @@ h3 {
   width: 100%;
 }
 
-.grow {
-  flex: 1;
-}
-
 .stack {
   display: flex;
   flex-direction: column;
@@ -977,44 +561,6 @@ h3 {
   align-items: stretch;
   gap: 12px;
   width: 100%;
-}
-
-.action-btn {
-  width: 148px;
-  flex-shrink: 0;
-}
-
-.email-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 148px;
-  gap: 12px;
-  width: 100%;
-}
-
-.email-input {
-  min-width: 0;
-  width: 100%;
-}
-
-.email-btn {
-  justify-self: stretch;
-}
-
-.email-current {
-  margin-bottom: 8px;
-  color: #606266;
-  font-size: 14px;
-}
-
-.prefs-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.prefs-actions .el-button,
-.prefs-actions :deep(.el-dropdown) {
-  min-width: 140px;
 }
 
 .twofa-card {
@@ -1108,32 +654,7 @@ h3 {
   width: 100%;
 }
 
-.email-current {
-  margin-bottom: 8px;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-}
-
 .w-full {
-  width: 100%;
-}
-
-.mt-12 {
-  margin-top: 12px;
-}
-
-.lang-wrap :deep(.el-dropdown),
-.lang-wrap :deep(.el-dropdown .el-button) {
-  width: 100%;
-}
-
-.email-stack :deep(.el-input),
-.email-stack :deep(.el-input__wrapper),
-.email-stack :deep(.el-button) {
-  width: 100%;
-}
-
-.email-stack > * {
   width: 100%;
 }
 

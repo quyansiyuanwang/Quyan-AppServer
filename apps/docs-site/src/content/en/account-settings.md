@@ -1,46 +1,52 @@
 # Settings
 
-Use this page to manage your personal profile, security options, appearance, and local data.
+**Settings** is a top-level nav item containing four sub-pages. Click the arrow next to Settings in the sidebar to expand the sub-menu, then navigate to the page you need.
 
-## Page purpose
+## Sub-pages
 
-- Update profile information.
-- Change email or password.
-- Switch theme and language.
-- Manage two-factor authentication and related security entries.
+### Profile
 
-## What you will see
+Path: **Settings → Profile**
 
-### Profile and account
+Manage your display name, email address, and username.
 
-- Personal profile fields.
-- Email-change flow with verification.
-- Password-change form.
+- Edit display name.
+- Change email with a verification code sent to the new address.
+- View your current username (read-only).
 
 ### Preferences
 
-- Theme switch.
-- Language switch.
-- Cache-clearing actions for local, session, or all cached data.
+Path: **Settings → Preferences**
 
-### Security
+Adjust appearance and clear locally cached data.
 
-- Two-factor status and setup controls.
-- Disable-2FA actions.
-- Entries to related security management tools such as access keys, passkeys, and trusted devices.
+- Toggle light or dark theme.
+- Switch display language.
+- Clear LocalStorage, SessionDB, or all cached data.
 
-## Common actions
+### Account Security
 
-1. Update the personal fields you want to change.
-2. Save email or password changes only after passing verification.
-3. Choose the preferred theme and language.
-4. Enable 2FA before using sensitive account features.
+Path: **Settings → Account Security**
+
+Manage credentials and authentication methods.
+
+- Change password (requires `user:change_self_password` permission).
+- Create, copy, and remove access keys.
+- Register and remove passkeys for passwordless sign-in.
+- Enable or disable two-factor authentication (TOTP).
+- Manage trusted devices that bypass repeated 2FA prompts.
+
+### Event Center
+
+Path: **Settings → Event Center**
+
+Configure notification preferences, email delivery, and webhooks. See `notification-settings` for full details.
 
 ## Notes
 
-- Some changes can require a verification code or secondary authentication.
-- Clearing cached data can sign you out of temporary UI state.
-- Access keys, passkeys, and trusted devices are managed from linked drawers or subviews — see `access-key-management`, `passkey-management`, and `trusted-device-management` for details on each.
+- Email and password changes may require a verification step or an active 2FA challenge.
+- Clearing cached data can reset temporary UI state such as theme and language preferences, and may sign you out.
+- Access keys, passkeys, and trusted devices open in drawers within the Account Security page. See `access-key-management`, `passkey-management`, and `trusted-device-management` for details.
 
 ## Related pages
 

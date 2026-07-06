@@ -28,7 +28,7 @@ import {
   THRESHOLD_EVENTS,
   ALL_NOTIFICATION_EVENTS,
 } from "@/constant/notification-event";
-import { NotFoundError, BadRequestError } from "@/util/errors";
+import { NotFoundError } from "@/util/errors";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import type { NotificationPreference, NotificationWebhook } from "@prisma/client";

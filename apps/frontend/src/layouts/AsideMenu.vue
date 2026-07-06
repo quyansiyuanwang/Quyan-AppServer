@@ -419,6 +419,7 @@ import {
   Cpu,
   Bell,
   Link,
+  Lock,
 } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import { ElMessageBox } from 'element-plus'
@@ -595,34 +596,6 @@ const overviewSections = computed<OverviewSection[]>(() => {
         { key: 'home', label: i18ns.t('nav.home'), icon: HomeFilled, route: 'home', visible: true },
         { key: 'docs', label: i18ns.t('nav.docs'), icon: Link, action: openDocs, visible: true },
         {
-          key: 'debug',
-          label: i18ns.t('nav.debug'),
-          icon: Operation,
-          route: 'debug',
-          visible: can(Permission.DEBUG_ACCESS),
-        },
-      ],
-    },
-    {
-      key: 'myAccount',
-      title: i18ns.t('nav.myAccount'),
-      icon: Wallet,
-      items: [
-        {
-          key: 'settings',
-          label: i18ns.t('nav.settings'),
-          icon: Setting,
-          route: 'settings',
-          visible: true,
-        },
-        {
-          key: 'notificationSettings',
-          label: i18ns.t('nav.notificationSettings'),
-          icon: Bell,
-          route: 'notificationSettings',
-          visible: true,
-        },
-        {
           key: 'balanceHistory',
           label: i18ns.t('relay.accountBalance'),
           icon: Wallet,
@@ -640,6 +613,48 @@ const overviewSections = computed<OverviewSection[]>(() => {
             Permission.TICKET_SELF_UPDATE,
             Permission.TICKET_COMMENT,
           ),
+        },
+        {
+          key: 'debug',
+          label: i18ns.t('nav.debug'),
+          icon: Operation,
+          route: 'debug',
+          visible: can(Permission.DEBUG_ACCESS),
+        },
+      ],
+    },
+    {
+      key: 'settings',
+      title: i18ns.t('nav.settings'),
+      icon: Setting,
+      items: [
+        {
+          key: 'settingsProfile',
+          label: i18ns.t('nav.settingsProfile'),
+          icon: User,
+          route: 'settingsProfile',
+          visible: true,
+        },
+        {
+          key: 'settingsPreferences',
+          label: i18ns.t('nav.preferences'),
+          icon: Tools,
+          route: 'settingsPreferences',
+          visible: true,
+        },
+        {
+          key: 'settingsSecurity',
+          label: i18ns.t('nav.settingsSecurity'),
+          icon: Lock,
+          route: 'settingsSecurity',
+          visible: true,
+        },
+        {
+          key: 'notificationSettings',
+          label: i18ns.t('nav.notificationSettings'),
+          icon: Bell,
+          route: 'notificationSettings',
+          visible: true,
         },
       ],
     },

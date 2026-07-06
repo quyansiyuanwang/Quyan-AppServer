@@ -84,7 +84,7 @@ export const requireRelayChannelForFormat = (
 
 export const parseRelayChannelAllowedModelNames = (
   channel: RelayChannelAccessLike,
-  modelCatalog: Array<Pick<RelayModelFormatLike, "model" | "provider">>,
+  _modelCatalog: Array<Pick<RelayModelFormatLike, "model" | "provider">>,
 ): string[] | null => {
   if (!channel.allowedModels) return null;
 

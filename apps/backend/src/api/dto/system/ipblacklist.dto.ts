@@ -1,5 +1,3 @@
-import type { ApiResponse } from "@/api/dto/common/common.dto";
-
 /**
  * IP 黑名单基本信息
  */

@@ -3,7 +3,6 @@ import { JWTAccessIns, JWTRefreshIns } from "@/util/auth";
 import { hashPassword } from "@/util/crypto";
 import {
   BadRequestError,
-  ForbiddenError,
   InternalServerError,
   NotFoundError,
   PolicyConsentRequiredError,
@@ -576,9 +575,9 @@ export class AuthService {
   ) {
     const ipAddress = request ? this.getClientIP(request) : "unknown";
     const userAgent = request?.headers["user-agent"];
-    const normalizedUserAgent = this.getUserAgent(userAgent);
-    const fingerprint = request ? extractClientFingerprint(request) : undefined;
-    const trustedDeviceToken = request ? extractTrustedDeviceToken(request) : undefined;
+    const _normalizedUserAgent = this.getUserAgent(userAgent);
+    const _fingerprint = request ? extractClientFingerprint(request) : undefined;
+    const _trustedDeviceToken = request ? extractTrustedDeviceToken(request) : undefined;
     const requestId = request?.headers["x-request-id"] as string | undefined;
 
     try {
@@ -625,7 +624,7 @@ export class AuthService {
     let payload;
     try {
       payload = await JWTRefreshIns.verifyToken(refreshToken);
-    } catch (error) {
+    } catch (_error) {
       throw new UnauthorizedError("无效的刷新令牌");
     }
     if (!payload || !payload.userId) throw new UnauthorizedError("无效的刷新令牌");
@@ -670,7 +669,7 @@ export class AuthService {
     let payload;
     try {
       payload = await JWTAccessIns.verifyToken(accessToken);
-    } catch (error) {
+    } catch (_error) {
       throw new UnauthorizedError("无效的访问令牌");
     }
     if (!payload || !payload.userId) throw new UnauthorizedError("无效的访问令牌");

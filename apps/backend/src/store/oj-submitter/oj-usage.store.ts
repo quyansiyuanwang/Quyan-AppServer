@@ -1,4 +1,4 @@
-import type { OJUsageRecord, Prisma } from "@prisma/client";
+import type { OJUsageRecord } from "@prisma/client";
 import type { Decimal } from "@prisma/client/runtime/library";
 
 export interface OJChargeAndRecordUsageParams {

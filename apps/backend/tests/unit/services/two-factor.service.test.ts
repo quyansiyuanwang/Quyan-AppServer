@@ -73,7 +73,7 @@ describe("TwoFactorService security hardening", () => {
         const record = JSON.parse(recordRaw as string);
         const now = Date.now();
         if (record.lockoutUntil > now) {
-          const retryAfter = Math.max(1, Math.ceil((record.lockoutUntil - now) / 1000));
+          const _retryAfter = Math.max(1, Math.ceil((record.lockoutUntil - now) / 1000));
           const err = new Error("请求过于频繁，请稍后再试") as any;
           err.statusCode = 429;
           throw err;

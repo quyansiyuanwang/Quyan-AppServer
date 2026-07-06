@@ -1,4 +1,3 @@
-import type { ApiResponse } from "@/api/dto/common/common.dto";
 import type { UserDto } from "@/api/dto/users/user.dto";
 import type { CaptchaProviderDto } from "@/api/dto/system/config.dto";
 

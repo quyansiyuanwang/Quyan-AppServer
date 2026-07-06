@@ -1,4 +1,3 @@
-import express from "express";
 import { CustomCode } from "@/constant/custom-code";
 import { HttpStatusCode } from "axios";
 
@@ -41,8 +40,3 @@ export interface SuccessResponse<T = any> {
   message: string;
   data?: T;
 }
-
-type Request = express.Request;
-type Response = express.Response;
-type NextFunction = express.NextFunction;
-type RequestHandler = express.RequestHandler;
