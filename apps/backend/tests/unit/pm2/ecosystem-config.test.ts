@@ -23,12 +23,12 @@ describe("PM2 ecosystem config", () => {
     expect(app.instances).toBe(1);
     expect(app.exec_mode).toBe("cluster");
     expect(app.wait_ready).toBe(true);
-    expect(app.listen_timeout).toBe(8000);
+    expect(app.listen_timeout).toBe(60000);
 
     expect(app.env).toEqual({ NODE_ENV: "development" });
     expect(app.env_production).toEqual({
       NODE_ENV: "production",
-      ENV_FILE_PATH: "/home/service/Quyan-Backend/.env",
+      ENV_FILE_PATH: "/home/appserver/Quyan-Backend/.env",
     });
   });
 });
