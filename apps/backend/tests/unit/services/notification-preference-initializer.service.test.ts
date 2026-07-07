@@ -41,7 +41,7 @@ describe("NotificationPreferenceInitializerService", () => {
   });
 
   it("returns existing preference without reinitializing", async () => {
-    const existing = { id: "pref-1", userId: "user-1" };
+    const existing = { id: "pref-1", userId: "user-1", subscribedEvents: [...ALL_NOTIFICATION_EVENTS] };
     repositoryMock.findByUserId.mockResolvedValue(existing);
 
     const result = await service.getOrInitialize("user-1");

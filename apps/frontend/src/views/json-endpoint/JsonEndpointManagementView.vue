@@ -357,7 +357,7 @@ const formRules: FormRules = {
   jsonContent: [{ required: true, message: i18ns.t('required'), trigger: 'blur' }],
 }
 
-const getEndpointUrl = (slug: string) => `${import.meta.env.VITE_BACKEND_URL}/json/${slug}`
+const getEndpointUrl = (slug: string) => `${import.meta.env.VITE_BACKEND_URL}/v1/json/${slug}`
 
 const copyUrl = async (url: string) => {
   try {
