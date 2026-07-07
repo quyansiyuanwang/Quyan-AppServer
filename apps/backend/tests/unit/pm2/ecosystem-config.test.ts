@@ -28,7 +28,7 @@ describe("PM2 ecosystem config", () => {
     expect(app.env).toEqual({ NODE_ENV: "development" });
     expect(app.env_production).toEqual({
       NODE_ENV: "production",
-      ENV_FILE_PATH: "/home/appserver/Quyan-Backend/.env",
+      ENV_FILE_PATH: "/home/service/Quyan-Backend/.env",
     });
   });
 });
