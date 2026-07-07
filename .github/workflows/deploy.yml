@@ -125,6 +125,13 @@ jobs:
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "cd ${{ secrets.REMOTE_BACKEND_PATH }} && npx prisma generate"
 
+      - name: Run database migrations
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -p ${{ secrets.SSH_PORT || '22' }} \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && pnpm run db:migrate:deploy"
+
       - name: Reload PM2
         run: |
           ssh -i ~/.ssh/deploy_key \
