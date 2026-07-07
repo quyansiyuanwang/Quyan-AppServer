@@ -41,7 +41,7 @@ export class NotificationPreferenceInitializerService {
     const missingEvents = ALL_NOTIFICATION_EVENTS.filter((e) => !existingEvents.has(e));
 
     if (missingEvents.length > 0) {
-      existing.subscribedEvents = [...existing.subscribedEvents, ...missingEvents];
+      existing.subscribedEvents = [...(existing.subscribedEvents as string[]), ...missingEvents];
       await this.repository.upsertPreference(userId, {
         subscribedEvents: existing.subscribedEvents as string[],
       });
