@@ -1,4 +1,4 @@
-const productionEnvFilePath = "/home/service/Quyan-Backend/.env";
+const productionEnvFilePath = "/home/appserver/Quyan-Backend/.env";
 
 module.exports = {
   apps: [
@@ -13,7 +13,7 @@ module.exports = {
       instances: 1,
       exec_mode: "cluster",
       wait_ready: true,
-      listen_timeout: 8000,
+      listen_timeout: 60000,
       // Plan.2
       // instances: 1,
       // exec_mode: "fork",
