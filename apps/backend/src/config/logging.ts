@@ -65,7 +65,7 @@ export const ALWAYS_SKIP_LOGGING_PATHS = [
   ApiRoutePath.V1SystemLogs, // 系统日志查询
   ApiRoutePath.V1UsersMeHeartbeat, // 心跳接口（高频在线状态上报，始终不记录）
   ApiRoutePath.V1TrackBatch, // 批量埋点接口（高频请求，始终不记录）
-  ApiRoutePath.V1HeatmapCollect
+  ApiRoutePath.V1HeatmapCollect,
 ] as const satisfies readonly ApiLoggingPath[];
 
 /**
