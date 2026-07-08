@@ -172,6 +172,13 @@
               <el-tag v-if="inboxUnreadCount > 0" type="danger" size="small">
                 {{ i18ns.t('NotificationSettingsView.unreadCount', { count: inboxUnreadCount }) }}
               </el-tag>
+              <el-tag v-if="inboxPixelOpenedUnreadCount > 0" type="warning" size="small">
+                {{
+                  i18ns.t('NotificationSettingsView.pixelOpenedCount', {
+                    count: inboxPixelOpenedUnreadCount,
+                  })
+                }}
+              </el-tag>
             </div>
             <div class="section-actions">
               <el-switch
@@ -179,6 +186,13 @@
                 :active-text="i18ns.t('NotificationSettingsView.unreadOnly')"
                 @change="onInboxFilterChange"
               />
+              <el-button
+                :disabled="inboxPixelOpenedUnreadCount === 0"
+                :loading="confirmingPixelRead"
+                @click="confirmPixelOpenedRead"
+              >
+                {{ i18ns.t('NotificationSettingsView.confirmPixelRead') }}
+              </el-button>
               <el-button
                 :disabled="inboxUnreadCount === 0"
                 :loading="markingInboxRead"
@@ -194,15 +208,24 @@
         </template>
 
         <el-table v-loading="loadingInbox" :data="inboxItems">
-          <el-table-column width="80">
+          <el-table-column width="110">
             <template #default="{ row }">
-              <el-tag :type="row.isRead ? 'info' : 'danger'" size="small">
+              <el-tag :type="row.isRead ? 'info' : row.pixelOpened ? 'warning' : 'danger'" size="small">
                 {{
                   row.isRead
                     ? i18ns.t('NotificationSettingsView.readStatusRead')
-                    : i18ns.t('NotificationSettingsView.readStatusUnread')
+                    : row.pixelOpened
+                      ? i18ns.t('NotificationSettingsView.readStatusPixelOpened')
+                      : i18ns.t('NotificationSettingsView.readStatusUnread')
                 }}
               </el-tag>
+              <div v-if="row.isRead && row.readSource" class="read-source-hint">
+                {{
+                  row.readSource === 'pixel'
+                    ? i18ns.t('NotificationSettingsView.readSourcePixel')
+                    : i18ns.t('NotificationSettingsView.readSourceManual')
+                }}
+              </div>
             </template>
           </el-table-column>
           <el-table-column :label="i18ns.t('NotificationSettingsView.logEvent')" width="180">
@@ -482,6 +505,13 @@
                 <el-tag v-if="inboxUnreadCount > 0" type="danger" size="small">
                   {{ i18ns.t('NotificationSettingsView.unreadCount', { count: inboxUnreadCount }) }}
                 </el-tag>
+                <el-tag v-if="inboxPixelOpenedUnreadCount > 0" type="warning" size="small">
+                  {{
+                    i18ns.t('NotificationSettingsView.pixelOpenedCount', {
+                      count: inboxPixelOpenedUnreadCount,
+                    })
+                  }}
+                </el-tag>
               </div>
               <div class="mobile-card-actions-wrap">
                 <el-switch
@@ -490,6 +520,13 @@
                   @change="onInboxFilterChange"
                 />
                 <div class="mobile-inline-actions">
+                  <el-button
+                    :disabled="inboxPixelOpenedUnreadCount === 0"
+                    :loading="confirmingPixelRead"
+                    @click="confirmPixelOpenedRead"
+                  >
+                    {{ i18ns.t('NotificationSettingsView.confirmPixelRead') }}
+                  </el-button>
                   <el-button
                     :disabled="inboxUnreadCount === 0"
                     :loading="markingInboxRead"
@@ -515,16 +552,25 @@
               >
                 <div class="mobile-inbox-top">
                   <div class="mobile-inbox-event">{{ eventLabel(row.eventType) }}</div>
-                  <el-tag :type="row.isRead ? 'info' : 'danger'" size="small">
+                  <el-tag :type="row.isRead ? 'info' : row.pixelOpened ? 'warning' : 'danger'" size="small">
                     {{
                       row.isRead
                         ? i18ns.t('NotificationSettingsView.readStatusRead')
-                        : i18ns.t('NotificationSettingsView.readStatusUnread')
+                        : row.pixelOpened
+                          ? i18ns.t('NotificationSettingsView.readStatusPixelOpened')
+                          : i18ns.t('NotificationSettingsView.readStatusUnread')
                     }}
                   </el-tag>
                 </div>
                 <div class="mobile-inbox-title">{{ row.title }}</div>
                 <div class="mobile-inbox-content">{{ row.content }}</div>
+                <div v-if="row.isRead && row.readSource" class="read-source-hint">
+                  {{
+                    row.readSource === 'pixel'
+                      ? i18ns.t('NotificationSettingsView.readSourcePixel')
+                      : i18ns.t('NotificationSettingsView.readSourceManual')
+                  }}
+                </div>
                 <div class="mobile-inbox-meta">
                   <span>{{ new Date(row.createTime).toLocaleString() }}</span>
                   <el-button
@@ -988,9 +1034,11 @@ const logPageSize = ref(20)
 const loadingInbox = ref(false)
 const markingInboxRead = ref(false)
 const markingInboxReadSingleId = ref<string>('')
+const confirmingPixelRead = ref(false)
 const inboxItems = ref<NotificationInboxItemDto[]>([])
 const inboxTotal = ref(0)
 const inboxUnreadCount = ref(0)
+const inboxPixelOpenedUnreadCount = ref(0)
 const inboxPage = ref(1)
 const inboxPageSize = ref(20)
 const inboxUnreadOnly = ref(false)
@@ -1002,10 +1050,26 @@ async function loadInbox() {
     inboxItems.value = (res.data?.items ?? []) as NotificationInboxItemDto[]
     inboxTotal.value = (res.data?.total ?? 0) as number
     inboxUnreadCount.value = (res.data?.unreadCount ?? 0) as number
+    inboxPixelOpenedUnreadCount.value = (res.data?.pixelOpenedUnreadCount ?? 0) as number
   } catch {
     // ignore
   } finally {
     loadingInbox.value = false
+  }
+}
+
+async function confirmPixelOpenedRead() {
+  confirmingPixelRead.value = true
+  try {
+    const res = await service.confirmPixelOpenedRead()
+    ElMessage.success(
+      i18ns.t('NotificationSettingsView.confirmPixelReadSuccess', { count: res.data?.count ?? 0 }),
+    )
+    await loadInbox()
+  } catch {
+    // error handled by request interceptor
+  } finally {
+    confirmingPixelRead.value = false
   }
 }
 
@@ -1179,6 +1243,12 @@ onMounted(async () => {
 
 .text-muted {
   color: var(--el-text-color-placeholder);
+}
+
+.read-source-hint {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .threshold-unit {

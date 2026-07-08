@@ -175,6 +175,15 @@ export class NotificationController extends Controller {
     return this.service.markInboxRead(request.user!.userId, body);
   }
 
+  /** Confirm as read all unread inbox items whose email tracking pixel has been opened */
+  @Post("inbox/confirm-pixel-read")
+  @Security("jwt")
+  @ReplayProtected()
+  @Middlewares(replayProtectionMiddleware)
+  public async confirmPixelOpenedRead(@Request() request: TypedRequest): Promise<{ success: boolean; count: number }> {
+    return this.service.confirmPixelOpenedRead(request.user!.userId);
+  }
+
   /** Get the list of subscribable event types */
   @Get("events")
   @Security("jwt")

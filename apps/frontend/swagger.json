@@ -15629,6 +15629,47 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/notification/inbox/confirm-pixel-read": {
+			"post": {
+				"operationId": "NotificationControllerConfirmPixelOpenedRead",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"count": {
+											"type": "number",
+											"format": "double"
+										},
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"count",
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"description": "Confirm as read all unread inbox items whose email tracking pixel has been opened",
+				"tags": [
+					"Notification / Event Center"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/notification/events": {
 			"get": {
 				"operationId": "NotificationControllerGetEventList",
@@ -32547,6 +32588,19 @@
 						"type": "string",
 						"nullable": true
 					},
+					"readSource": {
+						"type": "string",
+						"nullable": true,
+						"description": "How this item was marked read: \"manual\" (user clicked) or \"pixel\" (confirmed from an email open)"
+					},
+					"pixelOpened": {
+						"type": "boolean",
+						"description": "Whether the email tracking pixel for this item has been fetched at least once"
+					},
+					"pixelOpenedTime": {
+						"type": "string",
+						"nullable": true
+					},
 					"metadata": {
 						"allOf": [
 							{
@@ -32569,6 +32623,9 @@
 					"content",
 					"isRead",
 					"readTime",
+					"readSource",
+					"pixelOpened",
+					"pixelOpenedTime",
 					"createTime",
 					"updateTime"
 				],
@@ -32591,6 +32648,11 @@
 						"type": "number",
 						"format": "double"
 					},
+					"pixelOpenedUnreadCount": {
+						"type": "number",
+						"format": "double",
+						"description": "Count of unread items whose email tracking pixel has been opened but not yet confirmed as read"
+					},
 					"page": {
 						"type": "number",
 						"format": "double"
@@ -32604,6 +32666,7 @@
 					"items",
 					"total",
 					"unreadCount",
+					"pixelOpenedUnreadCount",
 					"page",
 					"pageSize"
 				],
