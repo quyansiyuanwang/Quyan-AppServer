@@ -191,7 +191,7 @@ export class MonthlyPassRepository implements MonthlyPassStore {
       prisma.monthlyPassTemplate.findMany({
         where,
         include: monthlyPassTemplateInclude,
-        orderBy: [{ updateTime: "desc" }],
+        orderBy: [{ name: "asc" }, { updateTime: "desc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
