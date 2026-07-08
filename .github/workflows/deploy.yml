@@ -134,6 +134,13 @@ jobs:
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "cd ${{ secrets.REMOTE_BACKEND_PATH }} && node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.dependencies['@appserver/shared'];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')\" && pnpm install --config.confirmModulesPurge=false"
 
+      - name: Ensure remote logs directory is writable
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -p ${{ secrets.SSH_PORT || '22' }} \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && mkdir -p logs && chmod u+rwx logs && echo '[deploy] remote logs dir' && ls -ld logs && echo '[deploy] remote logs dir probe' && touch logs/.write-test && rm -f logs/.write-test"
+
       - name: Log remote build info before reload
         run: |
           ssh -i ~/.ssh/deploy_key \
