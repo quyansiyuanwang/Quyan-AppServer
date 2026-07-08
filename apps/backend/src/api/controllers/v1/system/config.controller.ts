@@ -32,7 +32,9 @@ import type {
   SetRegistrationConfigDto,
   SetRelayConfigDto,
   SetSmtpConfigDto,
+  SetSiteConfigDto,
   SetIpBanConfigDto,
+  SiteConfigDto,
 } from "@/api/dto/system/config.dto";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
@@ -51,6 +53,7 @@ import {
   setRegistrationConfigBodySchema,
   setRelayConfigBodySchema,
   setSmtpConfigBodySchema,
+  setSiteConfigBodySchema,
 } from "@/api/schema/system/config.schema";
 import { validateBody } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
@@ -130,6 +133,13 @@ export class ConfigController extends Controller {
   @RequirePermission(Permission.SYSTEM_CONFIG)
   public async getSmtpConfig(@Request() _request: TypedRequest) {
     return await this.configService.getSmtpConfig();
+  }
+
+  @Get("site")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_CONFIG)
+  public async getSiteConfig(@Request() _request: TypedRequest): Promise<SiteConfigDto> {
+    return await this.configService.getSiteConfig();
   }
 
   @Get("notification")
@@ -249,6 +259,28 @@ export class ConfigController extends Controller {
         [CONFIG_KEYS.SMTP.PASSWORD]: body.password,
         [CONFIG_KEYS.SMTP.SENDER_NAME]: body.senderName,
         [CONFIG_KEYS.SMTP.SENDER_EMAIL]: body.senderEmail,
+      },
+      currentUserId,
+      request,
+    );
+    setResponseMessageKey(request, "system.configUpdated");
+    return { message: "配置更新成功" };
+  }
+
+  @Put("site")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(setSiteConfigBodySchema),
+  )
+  public async setSiteConfig(@Body() body: SetSiteConfigDto, @Request() request: TypedRequest) {
+    const currentUserId = request.user!.userId;
+    await this.configService.setMultiple(
+      {
+        [CONFIG_KEYS.SITE.BACKEND_PUBLIC_URL]: body.backendPublicUrl,
       },
       currentUserId,
       request,

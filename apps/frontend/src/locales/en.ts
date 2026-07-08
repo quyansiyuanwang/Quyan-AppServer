@@ -1171,6 +1171,10 @@ export default {
     smtpPassword: 'Password',
     smtpSenderName: 'Sender Name',
     smtpSenderEmail: 'Sender Email',
+    siteTitle: 'Site Settings',
+    backendPublicUrl: 'Backend Public URL',
+    backendPublicUrlHelp:
+      'Used for scenarios like email tracking pixels. Must be a publicly accessible URL, e.g. https://api.example.com',
     maxAccountsPerEmail: 'Max Accounts Per Email',
     maxAccountsPerEmailHelp:
       'Maximum number of accounts that can be registered with the same email',

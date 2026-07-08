@@ -220,6 +220,15 @@ export class NotificationPreferenceRepository {
     return { items, total, unreadCount };
   }
 
+  async markInboxItemReadById(id: string): Promise<boolean> {
+    const result = await prisma.notificationInboxItem.updateMany({
+      where: { id, status: 1, isRead: false },
+      data: { isRead: true, readTime: new Date() },
+    });
+
+    return result.count > 0;
+  }
+
   async markInboxItemsRead(userId: string, ids: string[]): Promise<number> {
     if (ids.length === 0) return 0;
 

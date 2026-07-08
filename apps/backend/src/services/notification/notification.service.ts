@@ -54,7 +54,7 @@ export class NotificationService {
   private async _dispatch(userId: string, event: NotificationEvent, payload: NotificationPayload): Promise<void> {
     const preference = await this.preferenceInitializer.getOrInitialize(userId);
 
-    await this.repository.createInboxItem({
+    const inboxItem = await this.repository.createInboxItem({
       userId,
       eventType: event,
       title: payload.title,
@@ -86,7 +86,7 @@ export class NotificationService {
 
     // Email delivery
     if (preference.notificationEmail)
-      deliveries.push(this.deliverEmail(userId, preference.notificationEmail, event, payload));
+      deliveries.push(this.deliverEmail(userId, preference.notificationEmail, event, payload, inboxItem.id));
 
     // Webhook deliveries
     for (const webhook of enabledWebhooks) deliveries.push(this.deliverWebhook(userId, webhook, event, payload));
@@ -94,11 +94,33 @@ export class NotificationService {
     await Promise.allSettled(deliveries);
   }
 
+  /**
+   * Creates an inbox item and sends the email synchronously, rethrowing delivery errors.
+   * Used by the "test email" flow so failures can be reported back to the caller,
+   * unlike fire-and-forget `dispatch()`.
+   */
+  async dispatchAndAwaitEmail(userId: string, event: NotificationEvent, payload: NotificationPayload): Promise<void> {
+    const preference = await this.preferenceInitializer.getOrInitialize(userId);
+
+    const inboxItem = await this.repository.createInboxItem({
+      userId,
+      eventType: event,
+      title: payload.title,
+      content: payload.content,
+      metadata: payload.data,
+    });
+
+    if (!preference.notificationEmail) throw new Error("未配置通知邮箱");
+
+    await this.sendEmail(preference.notificationEmail, event, payload, inboxItem.id);
+  }
+
   private async deliverEmail(
     userId: string,
     email: string,
     event: NotificationEvent,
     payload: NotificationPayload,
+    inboxItemId: string,
   ): Promise<void> {
     const logData = {
       userId,
@@ -113,7 +135,7 @@ export class NotificationService {
     };
 
     try {
-      await this.sendEmail(email, event, payload);
+      await this.sendEmail(email, event, payload, inboxItemId);
       logData.deliveryStatus = "success";
     } catch (err) {
       logData.deliveryStatus = "failed";
@@ -156,7 +178,12 @@ export class NotificationService {
     }
   }
 
-  private async sendEmail(email: string, event: NotificationEvent, payload: NotificationPayload): Promise<void> {
+  private async sendEmail(
+    email: string,
+    event: NotificationEvent,
+    payload: NotificationPayload,
+    inboxItemId: string,
+  ): Promise<void> {
     const smtpConfig = await this.configService.getSmtpConfig();
     if (!smtpConfig.host) throw new Error("SMTP 未配置");
 
@@ -177,6 +204,11 @@ export class NotificationService {
           .join("")
       : "";
 
+    const siteConfig = await this.configService.getSiteConfig();
+    const pixelTag = siteConfig.backendPublicUrl
+      ? `<img src="${siteConfig.backendPublicUrl}/v1/notification/pixel/${inboxItemId}" width="1" height="1" style="display:none;border:0;" alt="" />`
+      : "";
+
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
         <h2 style="color:#e53e3e;margin-bottom:4px;">${payload.title}</h2>
@@ -184,6 +216,7 @@ export class NotificationService {
         <p style="color:#333;font-size:15px;">${payload.content}</p>
         ${extraRows ? `<table style="border-collapse:collapse;margin-top:12px;width:100%;">${extraRows}</table>` : ""}
         <p style="color:#999;font-size:12px;margin-top:20px;">此邮件由系统自动发送，请勿回复。</p>
+        ${pixelTag}
       </div>`;
 
     await transporter.sendMail({

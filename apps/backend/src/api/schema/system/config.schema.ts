@@ -69,6 +69,10 @@ export const setRelayConfigBodySchema = z.object({
   customKeyCreateLimitMaxCount: z.coerce.number().int().min(0).max(100000),
 });
 
+export const setSiteConfigBodySchema = z.object({
+  backendPublicUrl: z.string().max(500).url().or(z.literal("")),
+});
+
 export const setSmtpConfigBodySchema = z.object({
   host: z.string().min(1).max(253).regex(validHostnameRegex),
   port: z.coerce.number().int().min(1).max(65535),

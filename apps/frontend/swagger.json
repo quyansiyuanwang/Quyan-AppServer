@@ -9857,6 +9857,100 @@
 				}
 			}
 		},
+		"/v1/config/site": {
+			"get": {
+				"operationId": "ConfigControllerGetSiteConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SiteConfigDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "ConfigControllerSetSiteConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetSiteConfigDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/config/notification": {
 			"get": {
 				"operationId": "ConfigControllerGetNotificationConfig",
@@ -15563,6 +15657,31 @@
 					}
 				],
 				"parameters": []
+			}
+		},
+		"/v1/notification/pixel/{inboxItemId}": {
+			"get": {
+				"operationId": "NotificationPixelControllerTrackPixel",
+				"responses": {
+					"200": {
+						"description": "Success"
+					}
+				},
+				"description": "Email open-tracking pixel: marks the corresponding inbox item as read as a side effect",
+				"tags": [
+					"Notification / Event Center"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "inboxItemId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/reurl/generate": {
@@ -26504,6 +26623,19 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"SiteConfigDto": {
+				"properties": {
+					"backendPublicUrl": {
+						"type": "string",
+						"description": "后端公开访问地址，用于邮件中的追踪像素等场景"
+					}
+				},
+				"required": [
+					"backendPublicUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"Record_string.number_": {
 				"properties": {},
 				"additionalProperties": {
@@ -26789,6 +26921,19 @@
 					"password",
 					"senderName",
 					"senderEmail"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetSiteConfigDto": {
+				"properties": {
+					"backendPublicUrl": {
+						"type": "string",
+						"description": "后端公开访问地址，用于邮件中的追踪像素等场景"
+					}
+				},
+				"required": [
+					"backendPublicUrl"
 				],
 				"type": "object",
 				"additionalProperties": false

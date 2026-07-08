@@ -23,6 +23,7 @@ const repoMock = {
 
 const configMock = {
   getSmtpConfig: vi.fn(),
+  getSiteConfig: vi.fn(),
 };
 
 const redisMock = {
@@ -80,6 +81,7 @@ describe("NotificationService", () => {
     repoMock.createLog.mockResolvedValue({});
     redisMock.setIfNotExists.mockResolvedValue(true);
     repoMock.createInboxItem.mockResolvedValue({});
+    configMock.getSiteConfig.mockResolvedValue({ backendPublicUrl: "" });
   });
 
   describe("dispatch() — fire-and-forget 安全性", () => {

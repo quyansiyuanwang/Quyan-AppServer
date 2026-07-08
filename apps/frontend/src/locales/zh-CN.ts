@@ -1130,6 +1130,10 @@ const zhCN: DeepStringify<typeof en> = {
     smtpPassword: '密码',
     smtpSenderName: '发件人名称',
     smtpSenderEmail: '发件人邮箱',
+    siteTitle: '站点设置',
+    backendPublicUrl: '后端公开访问地址',
+    backendPublicUrlHelp:
+      '用于邮件中的追踪像素等场景，需为公网可访问的地址，例如 https://api.example.com',
     maxAccountsPerEmail: '每邮箱最大账号数',
     maxAccountsPerEmailHelp: '同一邮箱最多可注册的账号数量',
     defaultGroup: '默认用户组',
