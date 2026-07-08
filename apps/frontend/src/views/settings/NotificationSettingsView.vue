@@ -210,7 +210,10 @@
         <el-table v-loading="loadingInbox" :data="inboxItems">
           <el-table-column width="110">
             <template #default="{ row }">
-              <el-tag :type="row.isRead ? 'info' : row.pixelOpened ? 'warning' : 'danger'" size="small">
+              <el-tag
+                :type="row.isRead ? 'info' : row.pixelOpened ? 'warning' : 'danger'"
+                size="small"
+              >
                 {{
                   row.isRead
                     ? i18ns.t('NotificationSettingsView.readStatusRead')
@@ -552,7 +555,10 @@
               >
                 <div class="mobile-inbox-top">
                   <div class="mobile-inbox-event">{{ eventLabel(row.eventType) }}</div>
-                  <el-tag :type="row.isRead ? 'info' : row.pixelOpened ? 'warning' : 'danger'" size="small">
+                  <el-tag
+                    :type="row.isRead ? 'info' : row.pixelOpened ? 'warning' : 'danger'"
+                    size="small"
+                  >
                     {{
                       row.isRead
                         ? i18ns.t('NotificationSettingsView.readStatusRead')
