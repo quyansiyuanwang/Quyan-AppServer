@@ -58,6 +58,20 @@ export interface SetBillingConfigDto {
   rechargeRatio: number;
 }
 
+export interface SiteConfigDto {
+  /**
+   * 后端公开访问地址，用于邮件中的追踪像素等场景
+   */
+  backendPublicUrl: string;
+}
+
+export interface SetSiteConfigDto {
+  /**
+   * 后端公开访问地址，用于邮件中的追踪像素等场景
+   */
+  backendPublicUrl: string;
+}
+
 export interface SetHeartbeatConfigDto {
   intervalSeconds: number;
   timeoutSeconds: number;

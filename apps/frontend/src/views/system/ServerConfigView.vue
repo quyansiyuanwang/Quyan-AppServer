@@ -325,6 +325,24 @@
           </el-form>
         </el-collapse-item>
 
+        <!-- Site Settings -->
+        <el-collapse-item name="site">
+          <template #title>
+            <span class="collapse-title">{{ i18ns.t('ServerConfigView.siteTitle') }}</span>
+          </template>
+          <el-form label-width="200px" label-position="right">
+            <el-form-item :label="i18ns.t('ServerConfigView.backendPublicUrl')">
+              <el-input v-model="siteBackendPublicUrl" style="width: 100%; max-width: 300px" />
+              <span class="form-help">{{ i18ns.t('ServerConfigView.backendPublicUrlHelp') }}</span>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :loading="savingSite" @click="saveSite">
+                {{ i18ns.t('save') }}
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </el-collapse-item>
+
         <!-- Error Decay Settings -->
         <el-collapse-item name="errorDecay">
           <template #title>
@@ -852,6 +870,24 @@
           </el-form>
         </el-collapse-item>
 
+        <!-- Site Settings -->
+        <el-collapse-item name="site">
+          <template #title>
+            <span class="collapse-title">{{ i18ns.t('ServerConfigView.siteTitle') }}</span>
+          </template>
+          <el-form label-position="top">
+            <el-form-item :label="i18ns.t('ServerConfigView.backendPublicUrl')">
+              <el-input v-model="siteBackendPublicUrl" style="width: 100%; max-width: 300px" />
+              <span class="form-help">{{ i18ns.t('ServerConfigView.backendPublicUrlHelp') }}</span>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :loading="savingSite" @click="saveSite">
+                {{ i18ns.t('save') }}
+              </el-button>
+            </el-form-item>
+          </el-form>
+        </el-collapse-item>
+
         <!-- Error Decay Settings -->
         <el-collapse-item name="errorDecay">
           <template #title>
@@ -1082,6 +1118,7 @@ type Tags =
   | 'captcha'
   | 'modelRate'
   | 'smtp'
+  | 'site'
   | 'errorDecay'
   | 'errorWeights'
   | 'ipBan'
@@ -1136,6 +1173,10 @@ const smtpPassword = ref('')
 const smtpSenderName = ref('AppSystem')
 const smtpSenderEmail = ref('')
 
+// Site
+const savingSite = ref(false)
+const siteBackendPublicUrl = ref('')
+
 // Error Decay
 const savingErrorDecay = ref(false)
 const errorDecayEnabled = ref(false)
@@ -1172,6 +1213,7 @@ const remoteTerminalUnbindLoaded = ref(false)
 const notificationLoaded = ref(false)
 const captchaLoaded = ref(false)
 const smtpLoaded = ref(false)
+const siteLoaded = ref(false)
 const errorDecayLoaded = ref(false)
 const errorWeightsLoaded = ref(false)
 const ipBanLoaded = ref(false)
@@ -1350,6 +1392,17 @@ const loadSmtpConfig = async () => {
     smtpSenderName.value = smtpConfig.senderName
     smtpSenderEmail.value = smtpConfig.senderEmail
     smtpLoaded.value = true
+  } catch (error: any) {
+    ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+  }
+}
+
+const loadSiteConfig = async () => {
+  if (siteLoaded.value) return
+  try {
+    const siteConfig = await configService.getSiteConfig()
+    siteBackendPublicUrl.value = siteConfig.backendPublicUrl
+    siteLoaded.value = true
   } catch (error: any) {
     ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
   }
@@ -1553,6 +1606,20 @@ const saveSmtp = async () => {
   }
 }
 
+const saveSite = async () => {
+  savingSite.value = true
+  try {
+    await configService.setSiteConfig({
+      backendPublicUrl: siteBackendPublicUrl.value,
+    })
+    ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
+  } catch (error: any) {
+    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+  } finally {
+    savingSite.value = false
+  }
+}
+
 const saveErrorDecay = async () => {
   savingErrorDecay.value = true
   try {
@@ -1620,6 +1687,7 @@ watch(activeNames, (newNames) => {
   if (newNames.includes('notification')) loadNotificationConfig()
   if (newNames.includes('captcha')) loadCaptchaConfig()
   if (newNames.includes('smtp')) loadSmtpConfig()
+  if (newNames.includes('site')) loadSiteConfig()
   if (newNames.includes('errorDecay')) loadErrorDecayConfig()
   if (newNames.includes('errorWeights')) loadErrorWeightsConfig()
   if (newNames.includes('ipBan')) loadIpBanConfig()

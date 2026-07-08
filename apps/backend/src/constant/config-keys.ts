@@ -55,6 +55,9 @@ export const CONFIG_KEYS = {
     ERROR_DECAY_MIN_THRESHOLD: "ipBan.errorDecayMinThreshold",
     ERROR_DECAY_INTERVAL: "ipBan.errorDecayInterval",
   },
+  SITE: {
+    BACKEND_PUBLIC_URL: "site.backendPublicUrl",
+  },
   RELAY: {
     UPSTREAM_URL: "relay.upstreamUrl",
     UPSTREAM_API_KEY: "relay.upstreamApiKey",

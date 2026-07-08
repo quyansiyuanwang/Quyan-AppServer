@@ -89,6 +89,10 @@ export interface BillingConfig {
   rechargeRatio: number;
 }
 
+export interface SiteConfig {
+  backendPublicUrl: string;
+}
+
 export interface HeartbeatConfig {
   intervalSeconds: number;
   timeoutSeconds: number;
@@ -302,6 +306,11 @@ export class ConfigService {
   async getRechargeRatio(): Promise<number> {
     const config = await this.getBillingConfig();
     return config.rechargeRatio;
+  }
+
+  async getSiteConfig(): Promise<SiteConfig> {
+    const url = await this.get(CONFIG_KEYS.SITE.BACKEND_PUBLIC_URL);
+    return { backendPublicUrl: url || "" };
   }
 
   async getSmtpConfig(): Promise<SmtpConfig> {

@@ -13,8 +13,10 @@ import type {
   SetNotificationConfigDto,
   SetRegistrationConfigDto,
   SetRelayConfigDto,
+  SetSiteConfigDto,
   SetSmtpConfigDto,
   SetRemoteTerminalUnbindConfigDto,
+  SiteConfigDto,
 } from '@/client/types.gen'
 import { cacheObject } from '@/utils/common'
 import { createConfigControllerApi } from '@/client/services/config-controller.gen'
@@ -110,6 +112,14 @@ export class ConfigService {
     throw toServiceError(result)
   }
 
+  async getSiteConfig(): Promise<SiteConfigDto> {
+    const result = await configApi.getSiteConfig({})
+    if (result && result.code === CustomCode.OK && result.data) {
+      return result.data as SiteConfigDto
+    }
+    throw toServiceError(result)
+  }
+
   async getIpBanConfig() {
     const result = await configApi.getIpBanConfig({})
     if (result && result.code === CustomCode.OK && result.data) {
@@ -178,6 +188,14 @@ export class ConfigService {
 
   async setSmtpConfig(config: SetSmtpConfigDto) {
     const result = await configApi.setSmtpConfig({ body: config })
+    if (result && result.code === CustomCode.OK) {
+      return true
+    }
+    throw toServiceError(result)
+  }
+
+  async setSiteConfig(config: SetSiteConfigDto) {
+    const result = await configApi.setSiteConfig({ body: config })
     if (result && result.code === CustomCode.OK) {
       return true
     }

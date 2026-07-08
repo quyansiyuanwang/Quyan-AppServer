@@ -186,7 +186,7 @@ export class NotificationManagementService {
     if (!email) return { success: false, error: "未配置通知邮箱" };
 
     try {
-      await this.notificationService["sendEmail"](email, NotificationEvent.BALANCE_LOW, {
+      await this.notificationService.dispatchAndAwaitEmail(userId, NotificationEvent.BALANCE_LOW, {
         title: "邮件测试通知",
         content: "这是一条测试通知，用于验证邮件配置是否正确。",
         data: { source: "test", timestamp: new Date().toISOString() },
