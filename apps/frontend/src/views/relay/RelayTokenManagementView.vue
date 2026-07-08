@@ -544,27 +544,6 @@
                       style="width: 100%"
                     />
                   </el-form-item>
-                  <el-form-item>
-                    <template #label>
-                      <span class="form-label-with-help">
-                        <span>{{ i18ns.t('relay.expiresAt') }}</span>
-                        <el-tooltip placement="top">
-                          <template #content>
-                            <div class="help-tooltip-content">
-                              {{ i18ns.t('relay.expiresAtHelp') }}
-                            </div>
-                          </template>
-                          <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
-                        </el-tooltip>
-                      </span>
-                    </template>
-                    <el-date-picker
-                      v-model="editForm.expiresAt"
-                      type="datetime"
-                      :placeholder="i18ns.t('accesskey.neverExpires')"
-                      style="width: 100%"
-                    />
-                  </el-form-item>
                 </div>
               </el-collapse-item>
 
