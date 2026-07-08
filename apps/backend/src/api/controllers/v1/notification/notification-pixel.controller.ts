@@ -1,4 +1,5 @@
-import { Get, Path, Route, Tags, Controller, Request } from "@tsoa/runtime";
+import { Get, Path, Route, Tags, Controller, Request, SuccessResponse } from "@tsoa/runtime";
+import { HttpStatusCode } from "axios";
 import type { TypedRequest } from "@/types/express";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { skipResponseWrapper } from "@/util/response-wrapper";
@@ -12,6 +13,7 @@ export class NotificationPixelController extends Controller {
 
   /** Email open-tracking pixel: marks the corresponding inbox item as read as a side effect */
   @Get("pixel/{inboxItemId}")
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async trackPixel(@Path() inboxItemId: string, @Request() request: TypedRequest): Promise<void> {
     skipResponseWrapper(request);
     const res = request.res;

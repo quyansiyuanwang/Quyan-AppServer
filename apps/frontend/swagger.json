@@ -15663,8 +15663,8 @@
 			"get": {
 				"operationId": "NotificationPixelControllerTrackPixel",
 				"responses": {
-					"204": {
-						"description": "No content"
+					"200": {
+						"description": "Success"
 					}
 				},
 				"description": "Email open-tracking pixel: marks the corresponding inbox item as read as a side effect",
