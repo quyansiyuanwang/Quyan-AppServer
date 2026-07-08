@@ -85,6 +85,7 @@ const relayTokenFailoverConfigSchema = z.object({
     .default([])
     .transform((rules) => normalizeRetryStatusRules(rules)),
   failoverThreshold: z.coerce.number().int().min(0).max(32).default(0),
+  failbackCooldownMinutes: z.coerce.number().int().min(0).max(10080).default(0),
 });
 
 const relayTokenIpWhitelistSchema = z

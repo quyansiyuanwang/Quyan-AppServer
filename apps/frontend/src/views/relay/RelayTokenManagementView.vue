@@ -198,6 +198,10 @@
                         {{ row.failoverConfig?.failoverThreshold ?? 0 }}
                       </div>
                       <div>
+                        {{ i18ns.t('relay.failbackCooldownMinutes') }}:
+                        {{ row.failoverConfig?.failbackCooldownMinutes ?? 0 }}
+                      </div>
+                      <div>
                         {{ i18ns.t('relay.retryStatusCodes') }}:
                         {{ formatRetryStatusCodes(row.failoverConfig?.retryStatusCodes || []) }}
                       </div>
@@ -751,6 +755,28 @@
                             v-model="editForm.failoverConfig.maxRetries"
                             :min="0"
                             :max="10"
+                            class="failover-input"
+                          />
+                        </div>
+
+                        <div class="failover-metric-card">
+                          <div class="failover-metric-card__header">
+                            <span class="failover-metric-card__title form-label-with-help">
+                              <span>{{ i18ns.t('relay.failbackCooldownMinutes') }}</span>
+                              <el-tooltip placement="top">
+                                <template #content>
+                                  <div class="help-tooltip-content">
+                                    {{ i18ns.t('relay.failbackCooldownMinutesHelp') }}
+                                  </div>
+                                </template>
+                                <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
+                              </el-tooltip>
+                            </span>
+                          </div>
+                          <el-input-number
+                            v-model="editForm.failoverConfig.failbackCooldownMinutes"
+                            :min="0"
+                            :max="10080"
                             class="failover-input"
                           />
                         </div>
@@ -1833,6 +1859,28 @@
                             class="failover-input"
                           />
                         </div>
+
+                        <div class="failover-metric-card">
+                          <div class="failover-metric-card__header">
+                            <span class="failover-metric-card__title form-label-with-help">
+                              <span>{{ i18ns.t('relay.failbackCooldownMinutes') }}</span>
+                              <el-tooltip placement="top">
+                                <template #content>
+                                  <div class="help-tooltip-content">
+                                    {{ i18ns.t('relay.failbackCooldownMinutesHelp') }}
+                                  </div>
+                                </template>
+                                <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
+                              </el-tooltip>
+                            </span>
+                          </div>
+                          <el-input-number
+                            v-model="editForm.failoverConfig.failbackCooldownMinutes"
+                            :min="0"
+                            :max="10080"
+                            class="failover-input"
+                          />
+                        </div>
                       </div>
 
                       <div class="failover-rule-block">
@@ -2442,6 +2490,7 @@ type EditableFailoverConfig = {
   maxRetries: number
   retryStatusCodes: string[]
   failoverThreshold: number
+  failbackCooldownMinutes: number
 }
 
 type ChannelOption = {
@@ -2550,6 +2599,7 @@ const createDefaultFailoverConfig = (): EditableFailoverConfig => ({
   maxRetries: 1,
   retryStatusCodes: [...DEFAULT_RETRY_STATUS_CODES],
   failoverThreshold: 0,
+  failbackCooldownMinutes: 0,
 })
 
 let channelConfigKeySeed = 0
@@ -3559,6 +3609,7 @@ const buildRelayTokenExportItems = (tokensToExport: RelayTokenDto[]): RelayToken
           maxRetries: token.failoverConfig.maxRetries ?? 0,
           retryStatusCodes: token.failoverConfig.retryStatusCodes || [],
           failoverThreshold: token.failoverConfig.failoverThreshold ?? 0,
+          failbackCooldownMinutes: token.failoverConfig.failbackCooldownMinutes ?? 0,
         }
       : undefined,
   }))
@@ -3904,6 +3955,7 @@ const openEditDialog = (row: RelayTokenDto) => {
         ? [...row.failoverConfig.retryStatusCodes]
         : [...DEFAULT_RETRY_STATUS_CODES],
       failoverThreshold: row.failoverConfig?.failoverThreshold ?? 0,
+      failbackCooldownMinutes: row.failoverConfig?.failbackCooldownMinutes ?? 0,
     },
     modelMapping: (row.modelMapping as Record<string, string>) || {},
   }
@@ -4179,6 +4231,7 @@ const handleSave = async () => {
       maxRetries: editForm.value.failoverConfig.maxRetries,
       retryStatusCodes: normalizeRetryStatusCodes(editForm.value.failoverConfig.retryStatusCodes),
       failoverThreshold: editForm.value.failoverConfig.failoverThreshold,
+      failbackCooldownMinutes: editForm.value.failoverConfig.failbackCooldownMinutes,
     }
 
     const shouldIncludeQuotaWindowsForUpdate =
@@ -4591,7 +4644,11 @@ const formatCompactFailoverSummary = (row: RelayTokenDto) => {
   if (!row.failoverConfig?.enabled) return `${i18ns.t('relay.maxRetries')}: 0`
   const retryCodes = normalizeRetryStatusCodes(row.failoverConfig.retryStatusCodes || [])
   const threshold = row.failoverConfig.failoverThreshold ?? 0
-  return `${i18ns.t('relay.maxRetries')}: ${row.failoverConfig.maxRetries} · ${i18ns.t('relay.failoverThreshold')}: ${threshold} · ${retryCodes.length}${i18ns.t('relay.statusCode')}`
+  const failbackCooldownMinutes = Math.max(0, row.failoverConfig.failbackCooldownMinutes ?? 0)
+  const cooldownText = failbackCooldownMinutes
+    ? ` · ${i18ns.t('relay.failbackCooldownCompact', { minutes: failbackCooldownMinutes })}`
+    : ''
+  return `${i18ns.t('relay.maxRetries')}: ${row.failoverConfig.maxRetries} · ${i18ns.t('relay.failoverThreshold')}: ${threshold} · ${retryCodes.length}${i18ns.t('relay.statusCode')}${cooldownText}`
 }
 
 const formatMobileChannelMeta = (row: RelayTokenDto) => {

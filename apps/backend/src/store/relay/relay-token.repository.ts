@@ -58,6 +58,7 @@ const buildNestedFailoverConfigCreateData = (failoverConfig: RelayFailoverConfig
     maxRetries: failoverConfig.maxRetries ?? 0,
     retryStatusCodes: failoverConfig.retryStatusCodes ?? [],
     failoverThreshold: failoverConfig.failoverThreshold ?? 0,
+    failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes ?? 0,
   } satisfies Prisma.RelayTokenFailoverConfigCreateWithoutRelayTokenInput;
 };
 
@@ -68,6 +69,7 @@ const buildFailoverConfigCreateData = (relayTokenId: string, failoverConfig: Rel
     maxRetries: failoverConfig.maxRetries ?? 0,
     retryStatusCodes: failoverConfig.retryStatusCodes ?? [],
     failoverThreshold: failoverConfig.failoverThreshold ?? 0,
+    failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes ?? 0,
   } satisfies Prisma.RelayTokenFailoverConfigUncheckedCreateInput;
 };
 
@@ -77,6 +79,7 @@ const buildFailoverConfigUpdateData = (failoverConfig: RelayFailoverConfigInput)
     maxRetries: failoverConfig.maxRetries,
     retryStatusCodes: failoverConfig.retryStatusCodes,
     failoverThreshold: failoverConfig.failoverThreshold,
+    failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
   } satisfies Prisma.RelayTokenFailoverConfigUncheckedUpdateInput;
 };
 

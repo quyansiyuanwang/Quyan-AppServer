@@ -512,6 +512,7 @@ model RelayTokenFailoverConfig {
   maxRetries        Int      @default(0)
   retryStatusCodes  Json?
   failoverThreshold Int      @default(0)
+  failbackCooldownMinutes Int @default(0)
   createTime        DateTime @default(now())
   updateTime        DateTime @updatedAt
 

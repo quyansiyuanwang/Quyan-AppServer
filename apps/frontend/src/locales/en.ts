@@ -2234,6 +2234,10 @@ export default {
     maxRetriesHelp: 'Maximum number of different channels to try (0 = only use the first channel)',
     failoverThreshold: 'Retries Per Channel',
     failoverThresholdHelp: 'Number of failures on the same channel before switching to the next',
+    failbackCooldownMinutes: 'Failback Cooldown (Minutes)',
+    failbackCooldownMinutesHelp:
+      'After switching to a new channel, later requests keep preferring the current channel for this many minutes instead of immediately switching back to earlier channels. 0 disables it.',
+    failbackCooldownCompact: '{minutes}m cooldown',
     retryStatusCodes: 'Failover Match Rules',
     retryStatusCodesPlaceholder: 'Default: 4xx / 5xx, or enter 401, 429, /^5(02\\|03)$/',
     retryStatusCodesHelp:

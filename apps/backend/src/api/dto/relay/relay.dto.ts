@@ -179,6 +179,13 @@ export interface RelayTokenFailoverConfigDto {
    * @default 0
    */
   failoverThreshold: number;
+  /**
+   * 切换后保持当前渠道优先的时长（分钟），0 表示关闭
+   * @minimum 0
+   * @maximum 10080
+   * @default 0
+   */
+  failbackCooldownMinutes: number;
 }
 
 export interface RelayTokenChannelConfigDto {

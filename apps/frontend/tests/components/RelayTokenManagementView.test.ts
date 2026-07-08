@@ -320,6 +320,7 @@ const relayToken = {
     maxRetries: 2,
     retryStatusCodes: ['4xx', '/^5(02|03)$/'],
     failoverThreshold: 0,
+    failbackCooldownMinutes: 0,
   },
 } as any
 
@@ -522,12 +523,13 @@ describe('RelayTokenManagementView', () => {
       expect.objectContaining({
         channelId: 'channel-primary',
         channelConfigs: [{ channelId: 'channel-primary', priority: 0 }],
-        failoverConfig: {
+        failoverConfig: expect.objectContaining({
           enabled: false,
           maxRetries: 1,
           retryStatusCodes: ['4xx', '5xx'],
           failoverThreshold: 0,
-        },
+          failbackCooldownMinutes: 0,
+        }),
       }),
     )
   })
