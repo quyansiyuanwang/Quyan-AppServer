@@ -824,8 +824,9 @@ async function loadPreferences() {
     for (const key of Object.keys(subscribedSet)) {
       subscribedSet[key] = false
     }
+    const validEventValues = new Set(eventList.value.map((ev) => ev.value))
     for (const ev of (data.subscribedEvents ?? []) as string[]) {
-      subscribedSet[ev] = true
+      if (validEventValues.has(ev)) subscribedSet[ev] = true
     }
   } catch {
     // ignore
@@ -853,8 +854,9 @@ async function handleTestEmail() {
 async function savePreferences() {
   savingPrefs.value = true
   try {
+    const validEventValues = new Set(eventList.value.map((ev) => ev.value))
     const subscribedEvents = Object.entries(subscribedSet)
-      .filter(([, checked]) => checked)
+      .filter(([key, checked]) => checked && validEventValues.has(key))
       .map(([key]) => key)
 
     // Only include thresholds for subscribed threshold events
