@@ -43,6 +43,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log deployment context
+        run: |
+          echo "[deploy] event_name=${{ github.event_name }}"
+          echo "[deploy] ref=${{ github.ref }}"
+          echo "[deploy] ref_name=${{ github.ref_name }}"
+          echo "[deploy] sha=${{ github.sha }}"
+          echo "[deploy] actor=${{ github.actor }}"
+          echo "[deploy] deploy-backend=${{ github.event.inputs.deploy-backend || 'n/a' }}"
+          echo "[deploy] latest commit:" 
+          git log -1 --pretty=format:'[deploy] commit=%H%n[deploy] short_commit=%h%n[deploy] subject=%s%n[deploy] author=%an%n[deploy] commit_time=%cI'
+
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
@@ -77,6 +88,11 @@ jobs:
 
       - name: Build
         run: pnpm --filter @appserver/backend run build:full:prod
+
+      - name: Log generated build info
+        run: |
+          echo "[deploy] apps/backend/src/generated/buildInfo.ts"
+          sed -n '1,40p' apps/backend/src/generated/buildInfo.ts
 
       - name: Setup SSH
         run: |
@@ -118,6 +134,13 @@ jobs:
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "cd ${{ secrets.REMOTE_BACKEND_PATH }} && node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.dependencies['@appserver/shared'];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')\" && pnpm install --config.confirmModulesPurge=false"
 
+      - name: Log remote build info before reload
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -p ${{ secrets.SSH_PORT || '22' }} \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && echo '[deploy] remote buildInfo.ts' && sed -n '1,40p' src/generated/buildInfo.ts && echo '[deploy] remote dist/index.cjs timestamp' && stat dist/index.cjs"
+
       - name: Generate Prisma Client on server
         run: |
           ssh -i ~/.ssh/deploy_key \
@@ -138,3 +161,10 @@ jobs:
             -p ${{ secrets.SSH_PORT || '22' }} \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "cd ${{ secrets.REMOTE_BACKEND_PATH }} && if [ ! -f ecosystem.config.cjs ]; then echo '[deploy] ecosystem.config.cjs not found'; exit 1; fi && if [ ! -f dist/index.cjs ]; then echo '[deploy] dist/index.cjs not found'; exit 1; fi && pm2 startOrReload ./ecosystem.config.cjs --env production"
+
+      - name: Log PM2 status after reload
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+            -p ${{ secrets.SSH_PORT || '22' }} \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "pm2 status backend && pm2 logs backend --lines 80 --nostream"
