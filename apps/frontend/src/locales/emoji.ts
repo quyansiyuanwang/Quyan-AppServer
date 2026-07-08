@@ -2307,6 +2307,10 @@ const emoji: DeepStringify<typeof en> = {
     maxRetriesHelp: '🔁 🧮 📡；0️⃣ = 1️⃣ 📡',
     failoverThreshold: '🔁 ⚡',
     failoverThresholdHelp: '1️⃣ 📡 ❌ 🧮 ➜ 🔀',
+    failbackCooldownMinutes: '↩️ ⏱️ (分钟)',
+    failbackCooldownMinutesHelp:
+      '🔀 到新 📡 后，后续请求会先继续用当前 📡 一段时间；不会立刻回到更前面的 📡。0️⃣ = 关闭。',
+    failbackCooldownCompact: '⏱️ {minutes}m',
     retryStatusCodes: '🔁 📏',
     retryStatusCodesPlaceholder: '4xx / 5xx ➕ 401 / /^5(02\\|03)$/',
     retryStatusCodesHelp:

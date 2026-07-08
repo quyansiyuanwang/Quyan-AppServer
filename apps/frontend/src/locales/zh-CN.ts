@@ -2163,6 +2163,10 @@ const zhCN: DeepStringify<typeof en> = {
     maxRetriesHelp: '最多尝试几个不同的渠道（0 表示只用第一个渠道）',
     failoverThreshold: '单渠道重试次数',
     failoverThresholdHelp: '同一渠道失败多少次后才切换到下一个渠道',
+    failbackCooldownMinutes: '回切冷却时间（分钟）',
+    failbackCooldownMinutesHelp:
+      '切换到新渠道后，在这段时间内后续请求会继续优先使用当前渠道，不会立即切回更前面的渠道；0 表示关闭。',
+    failbackCooldownCompact: '冷却 {minutes} 分钟',
     retryStatusCodes: '触发切换规则',
     retryStatusCodesPlaceholder: '默认可选 4xx / 5xx，也可输入 401、429、/^5(02\\|03)$/',
     retryStatusCodesHelp:

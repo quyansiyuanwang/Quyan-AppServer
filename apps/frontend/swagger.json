@@ -29315,6 +29315,14 @@
 						"default": 0,
 						"minimum": 0,
 						"maximum": 32
+					},
+					"failbackCooldownMinutes": {
+						"type": "number",
+						"format": "double",
+						"description": "切换后保持当前渠道优先的时长（分钟），0 表示关闭",
+						"default": 0,
+						"minimum": 0,
+						"maximum": 10080
 					}
 				},
 				"required": [

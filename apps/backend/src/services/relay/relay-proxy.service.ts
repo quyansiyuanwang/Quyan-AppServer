@@ -98,6 +98,7 @@ interface RelayFailoverRuntimeConfig {
   maxRetries: number;
   retryStatusCodes: string[];
   failoverThreshold: number;
+  failbackCooldownMinutes: number;
 }
 
 interface StreamForwardResult {
@@ -1366,7 +1367,176 @@ export class RelayProxyService {
       maxRetries: Math.max(0, Number(relayToken.failoverConfig?.maxRetries ?? 0)),
       retryStatusCodes,
       failoverThreshold: Math.max(0, Number(relayToken.failoverConfig?.failoverThreshold ?? 0)) + 1, // 重试次数 + 1 = 尝试次数
+      failbackCooldownMinutes: Math.max(0, Number(relayToken.failoverConfig?.failbackCooldownMinutes ?? 0)),
     };
+  }
+
+  private buildFailoverStickyChannelKey(
+    relayTokenId: string,
+    requestFormat: "openai" | "anthropic" | "gemini",
+    requestedModel: string,
+  ): string {
+    const normalizedModel = encodeURIComponent(requestedModel.trim() || "_");
+    return `relay:token:failover:sticky:${relayTokenId}:${requestFormat}:${normalizedModel}`;
+  }
+
+  private async clearStickyPreferredChannel(params: {
+    relayTokenId: string;
+    requestFormat: "openai" | "anthropic" | "gemini";
+    requestedModel: string;
+  }): Promise<void> {
+    const stickyKey = this.buildFailoverStickyChannelKey(
+      params.relayTokenId,
+      params.requestFormat,
+      params.requestedModel,
+    );
+
+    try {
+      await this.redis.delete(stickyKey);
+    } catch (error) {
+      logger.warn("Failed to clear sticky relay failover channel", {
+        ...params,
+        stickyKey,
+        error,
+      });
+    }
+  }
+
+  private async getStickyPreferredChannelId(params: {
+    relayTokenId: string;
+    requestFormat: "openai" | "anthropic" | "gemini";
+    requestedModel: string;
+    failbackCooldownMinutes: number;
+  }): Promise<string | null> {
+    if (params.failbackCooldownMinutes <= 0) return null;
+
+    const stickyKey = this.buildFailoverStickyChannelKey(
+      params.relayTokenId,
+      params.requestFormat,
+      params.requestedModel,
+    );
+
+    try {
+      const stickyChannelId = await this.redis.get(stickyKey);
+      const normalizedChannelId = String(stickyChannelId || "").trim();
+      return normalizedChannelId || null;
+    } catch (error) {
+      logger.warn("Failed to read sticky relay failover channel", {
+        ...params,
+        stickyKey,
+        error,
+      });
+      return null;
+    }
+  }
+
+  private async setStickyPreferredChannel(params: {
+    relayTokenId: string;
+    channelId: string;
+    requestFormat: "openai" | "anthropic" | "gemini";
+    requestedModel: string;
+    failbackCooldownMinutes: number;
+  }): Promise<void> {
+    const stickyKey = this.buildFailoverStickyChannelKey(
+      params.relayTokenId,
+      params.requestFormat,
+      params.requestedModel,
+    );
+
+    try {
+      if (params.failbackCooldownMinutes <= 0) {
+        await this.redis.delete(stickyKey);
+        return;
+      }
+
+      const ttlInSeconds = Math.max(1, Math.floor(params.failbackCooldownMinutes * 60));
+      await this.redis.set(stickyKey, params.channelId, ttlInSeconds);
+    } catch (error) {
+      logger.warn("Failed to update sticky relay failover channel", {
+        ...params,
+        stickyKey,
+        error,
+      });
+    }
+  }
+
+  private isStickyPreferredChannelEligible(params: {
+    channel: RelayChannel;
+    requestFormat: "openai" | "anthropic" | "gemini";
+    requestedModel: string;
+    candidateModelConfigs: ModelPricingDto[];
+    modelPricing: ModelPricingDto[];
+  }): boolean {
+    try {
+      const channelModelConfig = this.resolveChannelModelConfig(
+        params.channel,
+        params.requestedModel,
+        params.candidateModelConfigs,
+        params.modelPricing,
+      );
+      this.validateChannelModelConfig(params.channel, channelModelConfig, params.requestedModel, params.modelPricing);
+      this.resolveChannelUpstreamConfig(params.channel, params.requestFormat);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async prioritizeStickyPreferredChannel(params: {
+    relayToken: RelayTokenWithChannel;
+    channels: RelayChannel[];
+    requestFormat: "openai" | "anthropic" | "gemini";
+    requestedModel: string;
+    candidateModelConfigs: ModelPricingDto[];
+    modelPricing: ModelPricingDto[];
+    failbackCooldownMinutes: number;
+  }): Promise<RelayChannel[]> {
+    if (params.channels.length < 2 || params.failbackCooldownMinutes <= 0) return params.channels;
+
+    const stickyChannelId = await this.getStickyPreferredChannelId({
+      relayTokenId: params.relayToken.id,
+      requestFormat: params.requestFormat,
+      requestedModel: params.requestedModel,
+      failbackCooldownMinutes: params.failbackCooldownMinutes,
+    });
+
+    if (!stickyChannelId) return params.channels;
+
+    const stickyChannelIndex = params.channels.findIndex((channel) => channel.id === stickyChannelId);
+    if (stickyChannelIndex < 0) {
+      await this.clearStickyPreferredChannel({
+        relayTokenId: params.relayToken.id,
+        requestFormat: params.requestFormat,
+        requestedModel: params.requestedModel,
+      });
+      return params.channels;
+    }
+
+    if (stickyChannelIndex === 0) return params.channels;
+
+    const stickyChannel = params.channels[stickyChannelIndex];
+    if (
+      !this.isStickyPreferredChannelEligible({
+        channel: stickyChannel,
+        requestFormat: params.requestFormat,
+        requestedModel: params.requestedModel,
+        candidateModelConfigs: params.candidateModelConfigs,
+        modelPricing: params.modelPricing,
+      })
+    ) {
+      await this.clearStickyPreferredChannel({
+        relayTokenId: params.relayToken.id,
+        requestFormat: params.requestFormat,
+        requestedModel: params.requestedModel,
+      });
+      return params.channels;
+    }
+
+    return [
+      stickyChannel,
+      ...params.channels.slice(0, stickyChannelIndex),
+      ...params.channels.slice(stickyChannelIndex + 1),
+    ];
   }
 
   private getOrderedAttemptChannels(relayToken: RelayTokenWithChannel): RelayChannel[] {
@@ -1430,6 +1600,9 @@ export class RelayProxyService {
     requestPath: string;
     method: string;
     modelName?: string;
+    requestFormat?: "openai" | "anthropic" | "gemini";
+    requestedModel?: string;
+    failbackCooldownMinutes?: number;
   }): Promise<void> {
     try {
       await this.relayTokenRepo.createSwitchLog(params);
@@ -1439,6 +1612,16 @@ export class RelayProxyService {
         error,
       });
     }
+
+    if (!params.requestFormat || !params.requestedModel) return;
+
+    await this.setStickyPreferredChannel({
+      relayTokenId: params.relayTokenId,
+      channelId: params.toChannelId,
+      requestFormat: params.requestFormat,
+      requestedModel: params.requestedModel,
+      failbackCooldownMinutes: Math.max(0, Number(params.failbackCooldownMinutes ?? 0)),
+    });
   }
 
   /**
@@ -1946,11 +2129,6 @@ export class RelayProxyService {
     if (eligibleChannels.length === 0)
       throw new ForbiddenError(`No enabled relay channel supports ${requestFormat} format requests`);
 
-    const maxAttempts = failoverConfig.enabled
-      ? Math.max(1, Math.min(eligibleChannels.length, failoverConfig.maxRetries + 1))
-      : 1;
-    const attemptChannels = eligibleChannels.slice(0, maxAttempts);
-
     // Apply token-level model mapping for pricing resolution.
     // The requested model (e.g. "gpt-5-codex") may not exist in model_pricing,
     // but the token's mapping (e.g. "*" → "deepseek-v4-flash") tells us which
@@ -1991,6 +2169,21 @@ export class RelayProxyService {
           firstModelConfig.supportedFormats || "all"
         }`,
       );
+
+    const orderedEligibleChannels = await this.prioritizeStickyPreferredChannel({
+      relayToken,
+      channels: eligibleChannels,
+      requestFormat,
+      requestedModel: normalizedRequestedModel,
+      candidateModelConfigs,
+      modelPricing,
+      failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+    });
+
+    const maxAttempts = failoverConfig.enabled
+      ? Math.max(1, Math.min(orderedEligibleChannels.length, failoverConfig.maxRetries + 1))
+      : 1;
+    const attemptChannels = orderedEligibleChannels.slice(0, maxAttempts);
 
     await this.assertRelayTokenQuotaAvailable(relayToken);
 
@@ -2261,6 +2454,9 @@ export class RelayProxyService {
                   requestPath: req.path,
                   method: req.method,
                   modelName: selectedModelName,
+                  requestFormat,
+                  requestedModel: normalizedRequestedModel,
+                  failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
                 });
                 channelSwitched = true;
                 break;
@@ -2324,6 +2520,9 @@ export class RelayProxyService {
                   requestPath: req.path,
                   method: req.method,
                   modelName: selectedModelName,
+                  requestFormat,
+                  requestedModel: normalizedRequestedModel,
+                  failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
                 });
                 channelSwitched = true;
                 break;
@@ -2405,6 +2604,9 @@ export class RelayProxyService {
                 requestPath: req.path,
                 method: req.method,
                 modelName: selectedModelName,
+                requestFormat,
+                requestedModel: normalizedRequestedModel,
+                failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
               });
               channelSwitched = true;
               break;
@@ -2618,6 +2820,9 @@ export class RelayProxyService {
                 requestPath: req.path,
                 method: req.method,
                 modelName: selectedModelName,
+                requestFormat,
+                requestedModel: normalizedRequestedModel,
+                failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
               });
               channelSwitched = true;
               break;
@@ -2657,6 +2862,9 @@ export class RelayProxyService {
                 requestPath: req.path,
                 method: req.method,
                 modelName: normalizedRequestedModel,
+                requestFormat,
+                requestedModel: normalizedRequestedModel,
+                failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
               });
               channelSwitched = true;
               break;

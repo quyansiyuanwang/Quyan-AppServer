@@ -1177,6 +1177,7 @@ export class RelayTokenService {
               Array.isArray(token.failoverConfig.retryStatusCodes) ? token.failoverConfig.retryStatusCodes : [],
             ),
             failoverThreshold: Math.max(0, Number(token.failoverConfig.failoverThreshold ?? 0)),
+            failbackCooldownMinutes: Math.max(0, Number(token.failoverConfig.failbackCooldownMinutes ?? 0)),
           }
         : undefined,
     };
@@ -1200,6 +1201,7 @@ export class RelayTokenService {
               Array.isArray(token.failoverConfig.retryStatusCodes) ? token.failoverConfig.retryStatusCodes : [],
             ),
             failoverThreshold: Math.max(0, Number(token.failoverConfig.failoverThreshold ?? 0)),
+            failbackCooldownMinutes: Math.max(0, Number(token.failoverConfig.failbackCooldownMinutes ?? 0)),
           }
         : undefined,
       quotaLimit: token.quotaLimit != null ? Number(token.quotaLimit) : undefined,
