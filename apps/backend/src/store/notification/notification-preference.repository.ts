@@ -202,11 +202,11 @@ export class NotificationPreferenceRepository {
     page: number,
     pageSize: number,
     unreadOnly: boolean,
-  ): Promise<{ items: NotificationInboxItem[]; total: number; unreadCount: number }> {
+  ): Promise<{ items: NotificationInboxItem[]; total: number; unreadCount: number; pixelOpenedUnreadCount: number }> {
     const skip = (page - 1) * pageSize;
     const where = { userId, status: 1, ...(unreadOnly ? { isRead: false } : {}) };
 
-    const [items, total, unreadCount] = await Promise.all([
+    const [items, total, unreadCount, pixelOpenedUnreadCount] = await Promise.all([
       prisma.notificationInboxItem.findMany({
         where,
         orderBy: [{ isRead: "asc" }, { createTime: "desc" }],
@@ -215,15 +215,16 @@ export class NotificationPreferenceRepository {
       }),
       prisma.notificationInboxItem.count({ where }),
       prisma.notificationInboxItem.count({ where: { userId, status: 1, isRead: false } }),
+      prisma.notificationInboxItem.count({ where: { userId, status: 1, isRead: false, pixelOpened: true } }),
     ]);
 
-    return { items, total, unreadCount };
+    return { items, total, unreadCount, pixelOpenedUnreadCount };
   }
 
-  async markInboxItemReadById(id: string): Promise<boolean> {
+  async markInboxItemPixelOpenedById(id: string): Promise<boolean> {
     const result = await prisma.notificationInboxItem.updateMany({
-      where: { id, status: 1, isRead: false },
-      data: { isRead: true, readTime: new Date() },
+      where: { id, status: 1, pixelOpened: false },
+      data: { pixelOpened: true, pixelOpenedTime: new Date() },
     });
 
     return result.count > 0;
@@ -234,7 +235,7 @@ export class NotificationPreferenceRepository {
 
     const result = await prisma.notificationInboxItem.updateMany({
       where: { userId, id: { in: ids }, status: 1, isRead: false },
-      data: { isRead: true, readTime: new Date() },
+      data: { isRead: true, readTime: new Date(), readSource: "manual" },
     });
 
     return result.count;
@@ -243,7 +244,16 @@ export class NotificationPreferenceRepository {
   async markAllInboxItemsRead(userId: string): Promise<number> {
     const result = await prisma.notificationInboxItem.updateMany({
       where: { userId, status: 1, isRead: false },
-      data: { isRead: true, readTime: new Date() },
+      data: { isRead: true, readTime: new Date(), readSource: "manual" },
+    });
+
+    return result.count;
+  }
+
+  async confirmPixelOpenedInboxItemsRead(userId: string): Promise<number> {
+    const result = await prisma.notificationInboxItem.updateMany({
+      where: { userId, status: 1, isRead: false, pixelOpened: true },
+      data: { isRead: true, readTime: new Date(), readSource: "pixel" },
     });
 
     return result.count;

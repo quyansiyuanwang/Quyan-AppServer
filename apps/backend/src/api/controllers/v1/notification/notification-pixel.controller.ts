@@ -21,6 +21,6 @@ export class NotificationPixelController extends Controller {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.status(200).send(TRANSPARENT_GIF);
 
-    this.repository.markInboxItemReadById(inboxItemId).catch(() => {});
+    this.repository.markInboxItemPixelOpenedById(inboxItemId).catch(() => {});
   }
 }

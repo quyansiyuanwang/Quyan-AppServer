@@ -1591,22 +1591,26 @@ model NotificationLog {
 }
 
 model NotificationInboxItem {
-  id          String   @id @default(cuid())
-  status      Int      @default(1)
-  createTime  DateTime @default(now())
-  updateTime  DateTime @updatedAt
-  userId      String
-  eventType   String   @db.VarChar(60)
-  title       String   @db.VarChar(200)
-  content     String   @db.Text
-  isRead      Boolean  @default(false)
-  readTime    DateTime?
-  metadata    Json?
+  id              String    @id @default(cuid())
+  status          Int       @default(1)
+  createTime      DateTime  @default(now())
+  updateTime      DateTime  @updatedAt
+  userId          String
+  eventType       String    @db.VarChar(60)
+  title           String    @db.VarChar(200)
+  content         String    @db.Text
+  isRead          Boolean   @default(false)
+  readTime        DateTime?
+  readSource      String?   @db.VarChar(20)
+  pixelOpened     Boolean   @default(false)
+  pixelOpenedTime DateTime?
+  metadata        Json?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createTime])
   @@index([userId, isRead, createTime])
+  @@index([userId, pixelOpened, isRead])
   @@index([eventType])
   @@map("notification_inbox_items")
 }

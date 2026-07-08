@@ -241,11 +241,17 @@ export class NotificationManagementService {
     pageSize: number,
     unreadOnly: boolean,
   ): Promise<NotificationInboxListDto> {
-    const { items, total, unreadCount } = await this.repository.findInboxByUserId(userId, page, pageSize, unreadOnly);
+    const { items, total, unreadCount, pixelOpenedUnreadCount } = await this.repository.findInboxByUserId(
+      userId,
+      page,
+      pageSize,
+      unreadOnly,
+    );
     return {
       items: items.map((item) => this.toInboxItemDto(item)),
       total,
       unreadCount,
+      pixelOpenedUnreadCount,
       page,
       pageSize,
     };
@@ -256,6 +262,12 @@ export class NotificationManagementService {
       ? await this.repository.markAllInboxItemsRead(userId)
       : await this.repository.markInboxItemsRead(userId, dto.ids ?? []);
 
+    return { success: true, count };
+  }
+
+  /** Promote unread items whose email tracking pixel has been opened to isRead, marking their source as "pixel" */
+  async confirmPixelOpenedRead(userId: string): Promise<{ success: boolean; count: number }> {
+    const count = await this.repository.confirmPixelOpenedInboxItemsRead(userId);
     return { success: true, count };
   }
 
@@ -304,6 +316,9 @@ export class NotificationManagementService {
     content: string;
     isRead: boolean;
     readTime: Date | null;
+    readSource: string | null;
+    pixelOpened: boolean;
+    pixelOpenedTime: Date | null;
     metadata: unknown;
     createTime: Date;
     updateTime: Date;
@@ -315,6 +330,9 @@ export class NotificationManagementService {
       content: item.content,
       isRead: item.isRead,
       readTime: item.readTime?.toISOString() ?? null,
+      readSource: item.readSource ?? null,
+      pixelOpened: item.pixelOpened,
+      pixelOpenedTime: item.pixelOpenedTime?.toISOString() ?? null,
       metadata:
         item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata)
           ? (item.metadata as Record<string, unknown>)

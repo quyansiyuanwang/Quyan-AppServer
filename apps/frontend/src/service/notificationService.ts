@@ -85,6 +85,11 @@ export class NotificationService {
     return checkApiResult(result, true)
   }
 
+  async confirmPixelOpenedRead() {
+    const result = await notificationApi.confirmPixelOpenedRead({})
+    return checkApiResult(result, true)
+  }
+
   async getEventList() {
     const result = await notificationApi.getEventList({})
     return checkApiResult(result, true)
