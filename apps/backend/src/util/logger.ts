@@ -1,3 +1,4 @@
+import fs from "fs";
 import winston from "winston";
 import DailyRotateFile from "winston-daily-rotate-file";
 import path from "path";
@@ -41,6 +42,18 @@ const logConfig = EnvSpace.logConfig ?? {
   enableFileLogging: false,
 };
 const logsDir = path.join(EnvSpace.cwd || process.cwd(), "logs");
+
+function canWriteLogsDir(): boolean {
+  try {
+    fs.mkdirSync(logsDir, { recursive: true });
+    fs.accessSync(logsDir, fs.constants.W_OK);
+    return true;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    console.warn(`[logger] File logging disabled: cannot write to ${logsDir} (${reason})`);
+    return false;
+  }
+}
 
 /**
  * 自定义日志格式
@@ -99,7 +112,7 @@ if (!logConfig.disableConsoleLog)
   );
 
 // 文件日志（仅在生产环境或明确启用时）
-if (!isDev || logConfig.enableFileLogging) {
+if ((!isDev || logConfig.enableFileLogging) && canWriteLogsDir()) {
   // 错误日志（每天轮换）
   transports.push(
     new DailyRotateFile({
