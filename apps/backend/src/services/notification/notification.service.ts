@@ -220,7 +220,7 @@ export class NotificationService {
       </div>`;
 
     await transporter.sendMail({
-      from: smtpConfig.user,
+      from: `"${smtpConfig.senderName}" <${smtpConfig.senderEmail}>`,
       to: email,
       subject: payload.title,
       html,
