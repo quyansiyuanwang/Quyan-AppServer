@@ -3762,7 +3762,7 @@ export default {
     ram_policy_deleted: 'Policy Deleted',
   },
   notificationEventThresholdUnit: {
-    balance_low: 'CNY',
+    balance_low: '曲',
     monthly_pass_quota_low: '% remaining',
     monthly_pass_daily_limit: '% of daily limit',
     relay_token_quota_low: '% used',

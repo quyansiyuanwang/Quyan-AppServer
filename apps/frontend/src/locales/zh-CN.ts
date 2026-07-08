@@ -3621,7 +3621,7 @@ const zhCN: DeepStringify<typeof en> = {
     ram_policy_deleted: '权限策略已删除',
   },
   notificationEventThresholdUnit: {
-    balance_low: '元',
+    balance_low: '曲',
     monthly_pass_quota_low: '% 剩余',
     monthly_pass_daily_limit: '% 日限额',
     relay_token_quota_low: '% 已用',
