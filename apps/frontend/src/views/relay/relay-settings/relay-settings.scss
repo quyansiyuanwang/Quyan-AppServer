@@ -1,0 +1,220 @@
+.section-collapse-enter-active {
+  transition:
+    height 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.22s ease;
+  overflow: hidden;
+}
+
+.section-collapse-leave-active {
+  transition:
+    height 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.18s ease;
+  overflow: hidden;
+}
+
+.section-collapse-enter-from,
+.section-collapse-leave-to {
+  height: 0 !important;
+  opacity: 0;
+}
+
+.section-toggle-icon {
+  display: inline-block;
+  transform: rotate(-90deg);
+  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.section-toggle-icon.is-expanded {
+  transform: rotate(0deg);
+}
+
+.relay-settings {
+  width: 100%;
+}
+
+.relay-settings-desktop {
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.relay-settings .el-collapse {
+  border: none;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.relay-settings .el-collapse-item {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+  background: var(--el-bg-color);
+  overflow: hidden;
+}
+
+.relay-settings .el-collapse-item__header {
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+}
+
+.relay-settings .el-collapse-item.is-active .el-collapse-item__header {
+  border-bottom-color: var(--el-border-color-lighter);
+}
+
+.relay-settings .el-collapse-item__wrap {
+  border-bottom: none;
+}
+
+.relay-settings .el-collapse-item__content {
+  padding: 8px 16px 16px;
+}
+
+.relay-settings .el-form-item {
+  margin-bottom: 16px;
+}
+
+.relay-settings .el-form-item:last-child {
+  margin-bottom: 0;
+}
+
+.relay-settings-desktop .el-form-item__label {
+  font-weight: 500;
+}
+
+.relay-settings-desktop .el-input,
+.relay-settings-desktop .el-select,
+.relay-settings-desktop .el-input-number {
+  max-width: 360px;
+}
+
+.collapse-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.form-help {
+  display: block;
+  margin-top: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  max-width: 680px;
+}
+
+.relay-settings-save-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.editing-row {
+  background-color: var(--el-color-primary-light-9) !important;
+}
+
+.relay-settings .el-table__row {
+  cursor: pointer;
+}
+
+.config-item-card .el-card__body {
+  padding: 12px;
+}
+
+.section-body {
+  contain: style;
+}
+
+.relay-settings-mobile-adapter .hide-on-mobile {
+  display: none !important;
+}
+
+.relay-settings-mobile-adapter .el-form--inline {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.relay-settings-mobile-adapter .el-form-item,
+.relay-settings-mobile-adapter .el-form--inline .el-form-item {
+  margin-right: 0;
+  margin-bottom: 10px;
+}
+
+.relay-settings-mobile-adapter .el-form-item__label {
+  float: none;
+  display: block;
+  text-align: left;
+  padding: 0 0 6px;
+}
+
+.relay-settings-mobile-adapter .el-form-item__content {
+  margin-left: 0 !important;
+}
+
+.relay-settings-mobile-adapter .el-input,
+.relay-settings-mobile-adapter .el-select,
+.relay-settings-mobile-adapter .el-date-editor,
+.relay-settings-mobile-adapter .el-input-number,
+.relay-settings-mobile-adapter .el-textarea {
+  width: 100%;
+}
+
+.relay-settings-mobile-adapter .el-input-number .el-input__wrapper,
+.relay-settings-mobile-adapter .el-select__wrapper {
+  width: 100%;
+}
+
+.relay-settings-mobile-adapter .el-dialog {
+  width: 96% !important;
+  max-width: 96% !important;
+  margin-top: 3vh !important;
+}
+
+.relay-settings-mobile-adapter .el-dialog__body {
+  max-height: 72vh;
+  overflow: auto;
+  padding: 12px 14px;
+}
+
+.relay-settings-mobile-adapter .el-pagination {
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.config-item-card {
+  cursor: pointer;
+  transition:
+    box-shadow 0.2s,
+    border-color 0.2s;
+}
+
+.config-item-card:active {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.config-item-card.is-editing {
+  border-color: var(--el-color-primary-light-5) !important;
+  box-shadow: 0 0 0 2px var(--el-color-primary-light-8);
+}
+
+.config-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.config-item-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
