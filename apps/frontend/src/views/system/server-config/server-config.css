@@ -1,0 +1,385 @@
+.server-config {
+  width: 100%;
+}
+
+.server-config-desktop {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.server-config-mobile {
+  padding: 6px 2px 12px;
+}
+
+.server-config :deep(.el-collapse) {
+  border: none;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.server-config :deep(.el-collapse-item) {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+  background: var(--el-bg-color);
+  overflow: hidden;
+}
+
+.server-config :deep(.el-collapse-item__header) {
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+}
+
+.server-config :deep(.el-collapse-item.is-active .el-collapse-item__header) {
+  border-bottom-color: var(--el-border-color-lighter);
+}
+
+.server-config :deep(.el-collapse-item__wrap) {
+  border-bottom: none;
+}
+
+.server-config :deep(.el-collapse-item__content) {
+  padding: 8px 16px 16px;
+}
+
+.server-config :deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+
+.server-config :deep(.el-form-item:last-child) {
+  margin-bottom: 0;
+}
+
+.server-config-desktop :deep(.el-form-item__label) {
+  font-weight: 500;
+}
+
+.server-config-desktop :deep(.el-input),
+.server-config-desktop :deep(.el-select),
+.server-config-desktop :deep(.el-date-editor),
+.server-config-desktop :deep(.el-input-number) {
+  max-width: 360px;
+}
+
+.collapse-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.form-help {
+  display: block;
+  margin-top: 6px;
+  margin-left: 0;
+  max-width: 680px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.form-help--inline {
+  margin-top: 4px;
+}
+
+.form-help--active {
+  color: var(--el-color-primary);
+  font-weight: 500;
+}
+
+.notification-events-field {
+  width: 100%;
+}
+
+.notification-events-field--mobile {
+  width: 100%;
+}
+
+.notification-thresholds-field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 760px;
+}
+
+.notification-thresholds-field--mobile {
+  max-width: 100%;
+}
+
+.notification-assignment-field {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 760px;
+}
+
+.notification-assignment-field--mobile {
+  max-width: 100%;
+}
+
+.assignment-rule-card {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-blank);
+  padding: 12px;
+}
+
+.assignment-rule-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.assignment-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.assignment-rule-grid__full {
+  grid-column: 1 / -1;
+}
+
+.notification-threshold-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-blank);
+}
+
+.notification-threshold-item__label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+
+.notification-threshold-item__control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notification-events-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.notification-event-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 760px;
+}
+
+.notification-event-grid--mobile {
+  grid-template-columns: 1fr;
+}
+
+.notification-event-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-blank);
+}
+
+.provider-card-group {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 720px;
+}
+
+.provider-card-group--mobile {
+  grid-template-columns: 1fr;
+}
+
+.provider-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 12px;
+  background: var(--el-bg-color);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.provider-card--small {
+  min-height: 88px;
+}
+
+.provider-card:hover {
+  border-color: var(--el-color-primary-light-5);
+}
+
+.provider-card--active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  box-shadow: 0 0 0 1px var(--el-color-primary-light-5) inset;
+}
+
+.provider-card--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.provider-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.provider-card__desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--el-text-color-secondary);
+}
+
+.model-tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background-color: var(--el-fill-color-blank);
+  min-height: 40px;
+  max-width: 600px;
+}
+
+.server-config :deep(.el-button) {
+  min-height: 36px;
+}
+
+.server-config-desktop :deep(.el-form-item .el-button[type='primary']) {
+  min-width: 112px;
+}
+
+.server-config-mobile-adapter {
+  padding: 8px 6px 16px;
+}
+
+.server-config-mobile-adapter :deep(.hide-on-mobile) {
+  display: none !important;
+}
+
+.server-config-mobile-adapter :deep(.el-form-item) {
+  margin-right: 0;
+  margin-bottom: 12px;
+}
+
+.server-config-mobile-adapter :deep(.el-form-item__label) {
+  float: none;
+  display: block;
+  text-align: left;
+  width: 100% !important;
+  line-height: 1.4;
+  padding: 0 0 6px;
+  font-weight: 600;
+}
+
+.server-config-mobile-adapter :deep(.el-form-item__content) {
+  margin-left: 0 !important;
+  width: 100%;
+}
+
+.server-config-mobile-adapter :deep(.el-input),
+.server-config-mobile-adapter :deep(.el-select),
+.server-config-mobile-adapter :deep(.el-date-editor),
+.server-config-mobile-adapter :deep(.el-input-number),
+.server-config-mobile-adapter :deep(.el-textarea),
+.server-config-mobile-adapter :deep(.el-button) {
+  width: 100%;
+  max-width: 100% !important;
+}
+
+.server-config-mobile-adapter :deep(.el-dialog) {
+  width: 96% !important;
+  max-width: 96% !important;
+  margin-top: 3vh !important;
+}
+
+.server-config-mobile-adapter :deep(.el-dialog__body) {
+  max-height: 72vh;
+  overflow: auto;
+  padding: 12px 14px;
+}
+
+.server-config-mobile-adapter :deep(.el-form) {
+  display: block;
+}
+
+.server-config-mobile-adapter :deep(.el-table) {
+  font-size: 12px;
+}
+
+.server-config-mobile-adapter :deep(.el-table .el-input),
+.server-config-mobile-adapter :deep(.el-table .el-input-number) {
+  width: 100% !important;
+}
+
+.server-config-mobile-adapter :deep(.el-table__body-wrapper) {
+  overflow-x: auto;
+}
+
+.server-config-mobile-adapter :deep(.el-divider__text) {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .server-config :deep(.el-collapse-item__header) {
+    min-height: 48px;
+    padding: 0 12px;
+  }
+
+  .server-config :deep(.el-collapse-item__content) {
+    padding: 6px 12px 12px;
+  }
+
+  .notification-event-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-threshold-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .notification-threshold-item__control {
+    width: 100%;
+  }
+
+  .assignment-rule-grid {
+    grid-template-columns: 1fr;
+  }
+}
