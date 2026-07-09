@@ -11,11 +11,16 @@
           </div>
 
           <div class="log-meta">
-            <div>{{ i18ns.t('BusinessLogs.timestamp') }}: {{ formatTimestamp(row.createTime) }}</div>
+            <div>
+              {{ i18ns.t('BusinessLogs.timestamp') }}: {{ formatTimestamp(row.createTime) }}
+            </div>
             <div>
               {{ i18ns.t('BusinessLogs.operationCategory') }}: {{ row.operationCategory || '-' }}
             </div>
-            <div>{{ i18ns.t('BusinessLogs.actor') }}: {{ row.actorUsername || i18ns.t('BusinessLogs.system') }}</div>
+            <div>
+              {{ i18ns.t('BusinessLogs.actor') }}:
+              {{ row.actorUsername || i18ns.t('BusinessLogs.system') }}
+            </div>
             <div>{{ i18ns.t('BusinessLogs.target') }}: {{ formatTarget(row) }}</div>
             <div>{{ i18ns.t('BusinessLogs.ipAddress') }}: {{ row.ipAddress || '-' }}</div>
             <div>{{ i18ns.t('BusinessLogs.description') }}: {{ row.description || '-' }}</div>

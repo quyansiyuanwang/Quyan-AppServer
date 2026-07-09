@@ -209,10 +209,7 @@ const emit = defineEmits<{
   'update:pagination': [value: TicketPaginationModel]
 }>()
 
-function updateFilter<K extends keyof TicketFiltersModel>(
-  key: K,
-  value: TicketFiltersModel[K],
-) {
+function updateFilter<K extends keyof TicketFiltersModel>(key: K, value: TicketFiltersModel[K]) {
   emit('update:filters', {
     ...props.filters,
     [key]: value,

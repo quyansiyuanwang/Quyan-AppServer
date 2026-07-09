@@ -23,10 +23,15 @@
         <div class="sm-mobile-card-name">{{ script.name }}</div>
         <div v-if="script.description" class="sm-mobile-card-desc">{{ script.description }}</div>
         <div v-if="hasNetworkRisk(script)" class="sm-mobile-card-risk">
-          ⚠ {{ i18ns.tf('scriptManager.networkRiskDetail', { apis: getDetectedApisText(script) }) }}
+          ⚠
+          {{ i18ns.tf('scriptManager.networkRiskDetail', { apis: getDetectedApisText(script) }) }}
         </div>
         <div class="sm-mobile-card-actions">
-          <button class="sm-btn sm-btn-run" :disabled="!runSafetyConfirmed" @click="emit('runSingle', script)">
+          <button
+            class="sm-btn sm-btn-run"
+            :disabled="!runSafetyConfirmed"
+            @click="emit('runSingle', script)"
+          >
             ▶ {{ i18ns.t('scriptManager.run') }}
           </button>
           <button class="sm-btn sm-btn-ghost" @click="emit('history', script)">

@@ -38,7 +38,9 @@
 
     <template #footer>
       <el-button @click="emit('update:visible', false)">{{ i18ns.t('cancel') }}</el-button>
-      <el-button type="primary" :loading="saving" @click="emit('save')">{{ i18ns.t('save') }}</el-button>
+      <el-button type="primary" :loading="saving" @click="emit('save')">{{
+        i18ns.t('save')
+      }}</el-button>
     </template>
   </el-dialog>
 </template>

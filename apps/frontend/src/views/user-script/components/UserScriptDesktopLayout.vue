@@ -68,7 +68,11 @@
           <button v-if="hasRunning" class="sm-btn sm-btn-danger" @click="emit('terminateAll')">
             ■ {{ i18ns.t('scriptManager.terminateAll') }}
           </button>
-          <button v-if="executions.length > 0" class="sm-btn sm-btn-ghost" @click="emit('clearResults')">
+          <button
+            v-if="executions.length > 0"
+            class="sm-btn sm-btn-ghost"
+            @click="emit('clearResults')"
+          >
             {{ i18ns.t('scriptManager.clearResults') }}
           </button>
         </div>
@@ -95,14 +99,20 @@
             <span v-if="script.description" class="sm-row-desc">{{ script.description }}</span>
             <span v-if="hasNetworkRisk(script)" class="sm-row-risk">
               ⚠
-              {{ i18ns.tf('scriptManager.networkRiskDetail', { apis: getDetectedApisText(script) }) }}
+              {{
+                i18ns.tf('scriptManager.networkRiskDetail', { apis: getDetectedApisText(script) })
+              }}
             </span>
           </div>
           <div class="sm-row-actions" @click.stop>
             <button
               class="sm-action-btn sm-action-run"
               :disabled="!runSafetyConfirmed"
-              :title="runSafetyConfirmed ? i18ns.t('scriptManager.run') : i18ns.t('scriptManager.acknowledgeHint')"
+              :title="
+                runSafetyConfirmed
+                  ? i18ns.t('scriptManager.run')
+                  : i18ns.t('scriptManager.acknowledgeHint')
+              "
               @click="emit('runSingle', script)"
             >
               ▶
@@ -110,9 +120,15 @@
             <PermissionWrapper :require="[Permission.SCRIPT_CREATE]" mode="disabled">
               <button class="sm-action-btn" title="Edit" @click="emit('edit', script)">✎</button>
             </PermissionWrapper>
-            <button class="sm-action-btn" title="History" @click="emit('history', script)">⧗</button>
+            <button class="sm-action-btn" title="History" @click="emit('history', script)">
+              ⧗
+            </button>
             <PermissionWrapper :require="[Permission.SCRIPT_DELETE]" mode="disabled">
-              <button class="sm-action-btn sm-action-del" title="Delete" @click="emit('delete', script)">
+              <button
+                class="sm-action-btn sm-action-del"
+                title="Delete"
+                @click="emit('delete', script)"
+              >
                 ✕
               </button>
             </PermissionWrapper>

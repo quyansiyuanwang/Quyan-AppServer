@@ -31,7 +31,9 @@
             formatDateTime(selectedDetail.lastReplyAt)
           }}</el-descriptions-item>
           <el-descriptions-item :label="i18ns.t('ticket.sourcePage')"
-            ><span class="wrap-text">{{ selectedDetail.sourcePage || '-' }}</span></el-descriptions-item
+            ><span class="wrap-text">{{
+              selectedDetail.sourcePage || '-'
+            }}</span></el-descriptions-item
           >
           <el-descriptions-item class-name="description-cell" :label="i18ns.t('ticket.description')"
             ><div class="wrap-text">{{ selectedDetail.description }}</div></el-descriptions-item
@@ -39,10 +41,14 @@
           <el-descriptions-item
             class-name="description-cell"
             :label="i18ns.t('ticket.reproduceSteps')"
-            ><div class="wrap-text">{{ selectedDetail.reproduceSteps || '-' }}</div></el-descriptions-item
+            ><div class="wrap-text">
+              {{ selectedDetail.reproduceSteps || '-' }}
+            </div></el-descriptions-item
           >
           <el-descriptions-item class-name="description-cell" :label="i18ns.t('ticket.contactInfo')"
-            ><div class="wrap-text">{{ selectedDetail.contactInfo || '-' }}</div></el-descriptions-item
+            ><div class="wrap-text">
+              {{ selectedDetail.contactInfo || '-' }}
+            </div></el-descriptions-item
           >
         </el-descriptions>
 
@@ -83,9 +89,12 @@
           />
           <div class="form-actions">
             <el-button @click="commentDraftProxy = ''">{{ i18ns.t('reset') }}</el-button>
-            <el-button type="primary" :loading="commentSubmitting" @click="$emit('submitComment')">{{
-              i18ns.t('ticket.postReply')
-            }}</el-button>
+            <el-button
+              type="primary"
+              :loading="commentSubmitting"
+              @click="$emit('submitComment')"
+              >{{ i18ns.t('ticket.postReply') }}</el-button
+            >
           </div>
         </el-card>
 

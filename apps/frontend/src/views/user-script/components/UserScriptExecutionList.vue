@@ -13,15 +13,20 @@
           <span class="sm-exec-badge" :class="`sm-badge-${exec.status}`">
             {{ statusLabel(exec.status) }}
           </span>
-          <span v-if="exec.durationMs !== undefined" class="sm-exec-ms">{{ exec.durationMs }}ms</span>
+          <span v-if="exec.durationMs !== undefined" class="sm-exec-ms"
+            >{{ exec.durationMs }}ms</span
+          >
         </span>
-        <button v-if="exec.status === 'running'" class="sm-exec-kill" @click="emit('terminate', exec)">
+        <button
+          v-if="exec.status === 'running'"
+          class="sm-exec-kill"
+          @click="emit('terminate', exec)"
+        >
           ■ {{ i18ns.t('scriptManager.terminate') }}
         </button>
       </div>
-      <pre class="sm-exec-output"
-        >{{ exec.output || i18ns.t('scriptManager.noOutput') }}<span v-if="exec.status === 'running'" class="sm-cursor-blink"> _</span></pre
-      >
+      <pre
+        class="sm-exec-output">{{ exec.output || i18ns.t('scriptManager.noOutput') }}<span v-if="exec.status === 'running'" class="sm-cursor-blink"> _</span></pre>
     </div>
   </TransitionGroup>
 </template>

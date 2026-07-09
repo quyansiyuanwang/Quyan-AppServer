@@ -13,15 +13,13 @@
           {{ new Date(row.createTime).toLocaleString() }}
         </template>
       </el-table-column>
-      <el-table-column
-        :label="i18ns.t('scriptManager.duration')"
-        width="120"
-        prop="durationMs"
-      />
+      <el-table-column :label="i18ns.t('scriptManager.duration')" width="120" prop="durationMs" />
       <el-table-column :label="i18ns.t('scriptManager.output')" min-width="300">
         <template #default="{ row }">
           <el-tooltip :content="row.output" placement="top" :show-after="300">
-            <span class="sm-history-preview">{{ row.output || i18ns.t('scriptManager.noOutput') }}</span>
+            <span class="sm-history-preview">{{
+              row.output || i18ns.t('scriptManager.noOutput')
+            }}</span>
           </el-tooltip>
         </template>
       </el-table-column>

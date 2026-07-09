@@ -25,7 +25,9 @@
         <el-card class="chart-card" shadow="never">
           <template #header>
             <div class="card-header">
-              <span class="card-title">{{ i18ns.t('BusinessLogs.operationTypeDistribution') }}</span>
+              <span class="card-title">{{
+                i18ns.t('BusinessLogs.operationTypeDistribution')
+              }}</span>
             </div>
           </template>
           <AsyncVChart class="chart" autoresize :option="typePieOption" />
