@@ -2,7 +2,7 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [master]
+    branches: [master, staging]
     paths:
       - 'apps/backend/**'
       - 'pnpm-lock.yaml'
@@ -37,8 +37,9 @@ jobs:
 
   deploy-backend:
     needs: changes
-    if: ${{ needs.changes.outputs.backend == 'true' || github.event.inputs.deploy-backend == 'true' }}
+    if: ${{ (github.ref_name == 'master' || github.ref_name == 'staging') && (needs.changes.outputs.backend == 'true' || github.event.inputs.deploy-backend == 'true') }}
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'master' && 'production' || 'staging' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +49,7 @@ jobs:
           echo "[deploy] event_name=${{ github.event_name }}"
           echo "[deploy] ref=${{ github.ref }}"
           echo "[deploy] ref_name=${{ github.ref_name }}"
+          echo "[deploy] environment=${{ github.ref_name == 'master' && 'production' || 'staging' }}"
           echo "[deploy] sha=${{ github.sha }}"
           echo "[deploy] actor=${{ github.actor }}"
           echo "[deploy] deploy-backend=${{ github.event.inputs.deploy-backend || 'n/a' }}"
