@@ -1010,9 +1010,15 @@ export class RelayTokenService {
 
   /** 旧版 getCurrentTokenQuotaSummary — 无 allTimeSummary、无 totalSpend、无 range 字段 */
   async getCurrentTokenQuotaSummaryLegacy(relayToken: RelayTokenWithRelations): Promise<RelayTokenCurrentQuotaDto> {
-    const summary = this.buildUsageSummaryDto(relayToken, undefined);
-    const quotaWindowUsageMap = await this.buildQuotaWindowUsageMap([relayToken]);
-    const balanceAccount = await this.balanceRepo.findAccountByUserId(relayToken.userId);
+    const [aggregateRows, quotaWindowUsageMap, balanceAccount] = await Promise.all([
+      this.relayUsageRepo.aggregateByRelayTokenIds([relayToken.id]),
+      this.buildQuotaWindowUsageMap([relayToken]),
+      this.balanceRepo.findAccountByUserId(relayToken.userId),
+    ]);
+    const summary = this.buildUsageSummaryDto(relayToken, aggregateRows[0], {
+      rangeMode: "lifetime",
+      rangeLabel: "lifetime",
+    });
 
     return {
       scopedSummary: summary,

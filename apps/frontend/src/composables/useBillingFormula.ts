@@ -20,6 +20,9 @@ export const hasFormulaFields = (tx: BalanceTransactionResponse): boolean =>
   isFiniteNumber(tx.inputRate) &&
   isFiniteNumber(tx.outputRate)
 
+export const hasPerRequestFormulaFields = (tx: BalanceTransactionResponse): boolean =>
+  tx.pricingType === 'per-request' && isFiniteNumber(tx.fixedPrice)
+
 export const resolveModelMultiplier = (tx: BalanceTransactionResponse): number =>
   normalizeMultiplierValue(tx.multiplier)
 

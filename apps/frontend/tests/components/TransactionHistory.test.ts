@@ -14,6 +14,7 @@ vi.mock('@/composables/useBillingFormula', () => ({
   CACHE_CREATION_MULTIPLIER: 1.25,
   CACHE_READ_MULTIPLIER: 0.1,
   hasFormulaFields: vi.fn(() => false),
+  hasPerRequestFormulaFields: vi.fn(() => false),
   resolveChannelMultiplier: vi.fn(() => 1),
   resolveEffectiveMultiplier: vi.fn(() => 1),
   resolveGlobalMultiplier: vi.fn(() => 1),
@@ -50,6 +51,7 @@ vi.mock('echarts/components', () => ({
 }))
 
 import TransactionHistory from '@/components/balance/TransactionHistory.vue'
+import * as billingFormula from '@/composables/useBillingFormula'
 
 const rowsRef = ref<any[]>([])
 
@@ -170,5 +172,23 @@ describe('TransactionHistory', () => {
     expect(wrapper.find('.zero-charge-hint').exists()).toBe(false)
     expect(wrapper.text()).toContain('0')
     expect(wrapper.text()).not.toContain('未扣费')
+  })
+
+  it('renders formula block for per-request pricing records', () => {
+    vi.mocked(billingFormula.hasPerRequestFormulaFields).mockReturnValue(true)
+    vi.mocked(billingFormula.buildBillingFormula).mockReturnValue('0.25 元/次 × 1 = 0.25 元')
+
+    const wrapper = mountComponent([
+      {
+        ...baseTransaction,
+        id: 'tx-3',
+        amount: -0.25,
+        pricingType: 'per-request',
+        fixedPrice: 0.25,
+        description: 'API调用: /relay/proxy/v1/responses',
+      },
+    ])
+
+    expect(wrapper.text()).toContain('0.25 元/次 × 1 = 0.25 元')
   })
 })
