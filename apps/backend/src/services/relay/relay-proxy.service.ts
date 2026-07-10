@@ -1812,13 +1812,11 @@ export class RelayProxyService {
         ? Number(selectedRateConfig.cacheReadMultiplier)
         : DEFAULT_CACHE_READ_MULTIPLIER;
 
-    const tokenBreakdown = isPerRequestPricing
-      ? createZeroTokenBreakdown()
-      : this.calculateTokens(
-          convertedBody,
-          { __relayForwardedResponseByteLength: responseBytes },
-          inputTokensIncludeCacheRead,
-        );
+    const tokenBreakdown = this.calculateTokens(
+      convertedBody,
+      { __relayForwardedResponseByteLength: responseBytes },
+      inputTokensIncludeCacheRead,
+    );
 
     const costResult = this.calculateCost(
       tokenBreakdown.requestTokens,
@@ -2699,9 +2697,7 @@ export class RelayProxyService {
             }
 
             const { requestTokens, responseTokens, totalTokens, cacheCreationTokens, cacheReadTokens } =
-              isPerRequestPricing
-                ? createZeroTokenBreakdown()
-                : this.calculateTokens(convertedBody, response.data, channel.inputTokensIncludeCacheRead !== false);
+              this.calculateTokens(convertedBody, response.data, channel.inputTokensIncludeCacheRead !== false);
 
             logger.info("Cache metrics", {
               cacheCreationTokens,

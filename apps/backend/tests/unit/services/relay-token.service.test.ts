@@ -578,6 +578,60 @@ describe("RelayTokenService", () => {
     );
   });
 
+  it("returns aggregated spend in legacy current quota summary", async () => {
+    const token = createToken({
+      id: "token-legacy",
+      name: "Legacy Token",
+      quotaLimit: 100,
+      usedQuota: 999,
+      requestCount: 999,
+      totalTokens: 999,
+      lastUsedAt: now,
+    });
+
+    relayUsageRepository.aggregateByRelayTokenIds.mockResolvedValue([
+      {
+        relayTokenId: "token-legacy",
+        requestCount: 3,
+        requestTokens: 120,
+        responseTokens: 180,
+        totalTokens: 300,
+        cacheCreationTokens: 10,
+        cacheReadTokens: 5,
+        chargedAmount: 6.25,
+        coveredAmount: 1.75,
+        lastUsedAt: now,
+      },
+    ]);
+    balanceRepository.findAccountByUserId.mockResolvedValue({ balance: 42.12345 });
+
+    const result = await service.getCurrentTokenQuotaSummaryLegacy(
+      token as unknown as Parameters<typeof service.getCurrentTokenQuotaSummaryLegacy>[0],
+    );
+
+    expect(relayUsageRepository.aggregateByRelayTokenIds).toHaveBeenCalledWith(["token-legacy"]);
+    expect(result).toEqual(
+      expect.objectContaining({
+        balance: 42.1234,
+        scopedSummary: expect.objectContaining({
+          rangeMode: "lifetime",
+          rangeLabel: "lifetime",
+          requestCount: 3,
+          totalTokens: 300,
+          chargedAmount: 6.25,
+          coveredAmount: 1.75,
+          totalSpend: 8,
+          lastUsedAt: now,
+        }),
+        allTimeSummary: expect.objectContaining({
+          chargedAmount: 6.25,
+          coveredAmount: 1.75,
+          totalSpend: 8,
+        }),
+      }),
+    );
+  });
+
   it("returns detailed usage summary with pagination and quota floor at zero", async () => {
     const token = createToken({ id: "token-1", name: "Quota Token", quotaLimit: 50 });
 

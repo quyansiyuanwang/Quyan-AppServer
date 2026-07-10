@@ -588,6 +588,7 @@ import {
   CACHE_CREATION_MULTIPLIER,
   CACHE_READ_MULTIPLIER,
   hasFormulaFields,
+  hasPerRequestFormulaFields,
   resolveChannelMultiplier,
   resolveEffectiveMultiplier,
   resolveGlobalMultiplier,
@@ -769,6 +770,8 @@ const hasBillingDetails = (tx: BalanceTransactionResponse): boolean =>
     tx.outputTokens,
     tx.inputRate,
     tx.outputRate,
+    tx.pricingType,
+    tx.fixedPrice,
     tx.cacheCreationTokens,
     tx.cacheReadTokens,
     tx.multiplier,
@@ -780,7 +783,8 @@ const hasBillingDetails = (tx: BalanceTransactionResponse): boolean =>
     tx.channelName,
   ].some((value) => value !== undefined && value !== null)
 
-const canShowFormula = (tx: BalanceTransactionResponse): boolean => hasFormulaFields(tx)
+const canShowFormula = (tx: BalanceTransactionResponse): boolean =>
+  hasFormulaFields(tx) || hasPerRequestFormulaFields(tx)
 
 const getBillingFormulaText = (tx: BalanceTransactionResponse): string =>
   buildBillingFormula(tx, i18ns.t('balance.yuan'))

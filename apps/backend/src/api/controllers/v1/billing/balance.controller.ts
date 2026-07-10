@@ -112,6 +112,9 @@ export class BalanceController extends Controller {
       multiplier: r.multiplier != null ? Number(r.multiplier) : undefined,
       cacheCreationMultiplier: r.cacheCreationMultiplier != null ? Number(r.cacheCreationMultiplier) : undefined,
       cacheReadMultiplier: r.cacheReadMultiplier != null ? Number(r.cacheReadMultiplier) : undefined,
+      pricingType:
+        r.pricingType === "token-based" || r.pricingType === "per-request" ? r.pricingType : undefined,
+      fixedPrice: r.fixedPrice != null ? Number(r.fixedPrice) : undefined,
       channelName: r.channelName || undefined,
       channelMultiplier: r.channelMultiplier != null ? Number(r.channelMultiplier) : undefined,
       globalMultiplier: r.globalMultiplier != null ? Number(r.globalMultiplier) : undefined,

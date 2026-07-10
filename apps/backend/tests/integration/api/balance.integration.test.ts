@@ -161,6 +161,36 @@ describe("Balance API Integration", () => {
     expect(categoryById.get(chatUsage.id)).toBe("chat_usage");
   });
 
+  it("returns per-request pricing metadata in transaction records", async () => {
+    const transaction = await prisma.balanceTransaction.create({
+      data: {
+        userId: targetUserId,
+        type: "api_usage",
+        amount: -0.25,
+        balanceBefore: 88.2098,
+        balanceAfter: 87.9598,
+        description: "API调用: /relay/proxy/v1/responses",
+        model: "gpt-5.4",
+        pricingType: "per-request",
+        fixedPrice: 0.25,
+      },
+    });
+
+    const allTxRes = await request(app)
+      .get(`/v1/balance/transactions/all?userId=${targetUserId}&limit=100&offset=0`)
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(allTxRes.status).toBe(200);
+    const record = (allTxRes.body.data.records as Array<Record<string, unknown>>).find((item) => item.id === transaction.id);
+    expect(record).toBeTruthy();
+    expect(record).toEqual(
+      expect.objectContaining({
+        pricingType: "per-request",
+        fixedPrice: 0.25,
+      }),
+    );
+  });
+
   it("rejects balance transaction queries larger than 30 days", async () => {
     const tooEarlyStartTime = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
     const endTime = new Date().toISOString();

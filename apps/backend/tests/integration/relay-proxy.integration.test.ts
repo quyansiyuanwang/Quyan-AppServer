@@ -370,6 +370,81 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     RELAY_LOG_PERSISTENCE_TEST_TIMEOUT_MS,
   );
 
+  it("relay /v1/usage 返回的 legacy 汇总应包含实际聚合消费金额", async () => {
+    const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
+    const beforeTransactionCount = await prisma.balanceTransaction.count({ where: { userId: testUserId } });
+    const perRequestModel = `test-relay-openai-per-request-${suffix}`;
+    const perRequestModelId = `test-relay-openai-per-request-id-${suffix}`;
+
+    await prisma.modelPricing.create({
+      data: {
+        model: perRequestModel,
+        provider: perRequestModelId,
+        pricingType: "per-request",
+        inputPrice: 0,
+        outputPrice: 0,
+        fixedPrice: 0.25,
+        supportedFormats: "openai",
+        status: 1,
+      },
+    });
+
+    try {
+      const relayResponse = await request(app)
+        .post("/relay/proxy/v1/chat/completions")
+        .set("Authorization", `Bearer ${openaiRelayTokenValue}`)
+        .send({
+          model: perRequestModelId,
+          messages: [{ role: "user", content: "请返回一个用于 usage 汇总验证的回答" }],
+          stream: false,
+        });
+
+      expect(relayResponse.status).toBe(200);
+
+      const usage = await getLatestUsage(openaiRelayTokenId, beforeUsageCount + 1);
+      expect(usage).toBeTruthy();
+      expect(usage?.totalTokens ?? 0).toBeGreaterThan(0);
+
+      const latestTransaction = await getLatestBalanceTransaction(testUserId, beforeTransactionCount + 1);
+      expect(latestTransaction.type).toBe("api_usage");
+      expect(latestTransaction.relatedId).toBe(usage?.id);
+      expect(latestTransaction.pricingType).toBe("per-request");
+      expect(Number(latestTransaction.fixedPrice)).toBe(0.25);
+      expect(Number(latestTransaction.amount)).toBe(-0.25);
+
+      const usageSummaryResponse = await request(app)
+        .get("/relay/proxy/v1/usage")
+        .set("Authorization", `Bearer ${openaiRelayTokenValue}`);
+
+      expect(usageSummaryResponse.status).toBe(200);
+      expect(usageSummaryResponse.body.code).toBe(0);
+      expect(usageSummaryResponse.body.data).toEqual(
+        expect.objectContaining({
+          scopedSummary: expect.objectContaining({
+            requestCount: expect.any(Number),
+            totalTokens: expect.any(Number),
+            chargedAmount: expect.any(Number),
+            coveredAmount: expect.any(Number),
+            totalSpend: expect.any(Number),
+          }),
+        }),
+      );
+      expect(usageSummaryResponse.body.data.scopedSummary.requestCount).toBeGreaterThan(0);
+      expect(usageSummaryResponse.body.data.scopedSummary.totalTokens).toBeGreaterThan(0);
+      expect(usageSummaryResponse.body.data.scopedSummary.chargedAmount).toBeGreaterThan(0);
+      expect(usageSummaryResponse.body.data.scopedSummary.totalSpend).toBe(
+        Number(
+          (
+            usageSummaryResponse.body.data.scopedSummary.chargedAmount +
+            usageSummaryResponse.body.data.scopedSummary.coveredAmount
+          ).toFixed(4),
+        ),
+      );
+    } finally {
+      await prisma.modelPricing.deleteMany({ where: { model: perRequestModel } });
+    }
+  });
+
   it("OpenAI 非流式上游错误会记录 usage 和 0 元消费流水，但不扣减余额", async () => {
     const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
     const beforeTransactionCount = await prisma.balanceTransaction.count({ where: { userId: testUserId } });

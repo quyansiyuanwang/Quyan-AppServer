@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { BalanceTransactionResponse } from '@/client/types.gen'
 import {
   buildBillingFormula,
+  hasPerRequestFormulaFields,
   resolveEffectiveMultiplier,
   shouldShowChannelMultiplier,
   shouldShowGlobalMultiplier,
@@ -80,5 +81,20 @@ describe('useBillingFormula', () => {
 
     expect(formula).toContain('× 2')
     expect(formula).toContain('= 2 元')
+  })
+
+  it('supports per-request fixed-price formula metadata', () => {
+    const tx = createTx({
+      pricingType: 'per-request',
+      fixedPrice: 0.25,
+      inputTokens: undefined,
+      outputTokens: undefined,
+      inputRate: undefined,
+      outputRate: undefined,
+      amount: -0.25,
+    })
+
+    expect(hasPerRequestFormulaFields(tx)).toBe(true)
+    expect(buildBillingFormula(tx, '元')).toBe('0.25 = 0.25 元')
   })
 })
