@@ -1,0 +1,239 @@
+.page-wrap {
+  width: 100%;
+}
+
+.remote-terminal-product-card :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.subtitle,
+.secondary-text,
+.label {
+  color: var(--el-text-color-secondary);
+}
+
+.unbind-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 120px;
+}
+
+.unbind-dialog__warning {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+
+.unbind-dialog__line {
+  line-height: 1.6;
+}
+
+.summary-grid,
+.plan-grid {
+  width: 100%;
+}
+
+.summary-card,
+.plan-card {
+  border: 1px solid var(--el-border-color-light);
+}
+
+.plan-card :deep(.el-card__body) {
+  padding: 12px;
+}
+
+.summary-label {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+.summary-value {
+  margin-top: 8px;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 400px));
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.card-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.card-description {
+  margin-top: 2px;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.35;
+  font-size: 12px;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+}
+
+.compact-field .value {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.purchase-form {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.purchase-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.purchase-cell-row {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.purchase-cell-hint {
+  align-items: flex-start;
+}
+
+.compact-input {
+  width: 104px;
+}
+
+.compact-select {
+  width: 100%;
+}
+
+.mini-label {
+  font-size: 12px;
+}
+
+.mini-helper {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.plan-actions {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.compact-actions {
+  padding-top: 2px;
+}
+
+.total-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.total-value {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.price-breakdown-line {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  white-space: pre;
+  line-height: 1.6;
+}
+
+.field,
+.token-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.token-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.permission-empty {
+  padding: 24px 0;
+}
+
+@media (max-width: 768px) {
+  .header-row,
+  .plan-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .purchase-form,
+  .card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plan-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .purchase-cell-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .compact-input {
+    width: 100%;
+  }
+}
