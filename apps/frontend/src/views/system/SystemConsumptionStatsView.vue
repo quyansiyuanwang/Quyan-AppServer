@@ -204,7 +204,10 @@ const selectAllFilter = (key: FilterSelectionKey, options: ConsumptionStatsFilte
   filterSelections[key] = options.map((option) => option.key)
 }
 
-const invertFilterSelection = (key: FilterSelectionKey, options: ConsumptionStatsFilterOption[]) => {
+const invertFilterSelection = (
+  key: FilterSelectionKey,
+  options: ConsumptionStatsFilterOption[],
+) => {
   const selected = new Set(filterSelections[key])
   filterSelections[key] = options
     .map((option) => option.key)
@@ -289,13 +292,8 @@ const rangeText = computed(() => {
   return `${formatDate(stats.value.range.startDate)} ~ ${formatDate(stats.value.range.endDate)}`
 })
 
-const {
-  summaryCards,
-  dailyTrendOption,
-  channelPieOption,
-  modelBarOption,
-  userBarOption,
-} = createConsumptionChartOptions(stats, formatCurrency, formatNumber)
+const { summaryCards, dailyTrendOption, channelPieOption, modelBarOption, userBarOption } =
+  createConsumptionChartOptions(stats, formatCurrency, formatNumber)
 
 const loadStats = async () => {
   loading.value = true

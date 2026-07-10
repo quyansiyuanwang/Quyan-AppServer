@@ -20,7 +20,11 @@ const submitWebhookDialog = state.submitWebhookDialog
 <template>
   <el-dialog
     v-model="webhookDialogVisible"
-    :title="editingWebhook ? i18ns.t('NotificationSettingsView.webhookEdit') : i18ns.t('NotificationSettingsView.webhookAdd')"
+    :title="
+      editingWebhook
+        ? i18ns.t('NotificationSettingsView.webhookEdit')
+        : i18ns.t('NotificationSettingsView.webhookAdd')
+    "
     width="520px"
     :close-on-click-modal="false"
   >

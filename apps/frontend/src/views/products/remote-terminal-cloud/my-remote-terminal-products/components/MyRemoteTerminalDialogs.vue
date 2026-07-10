@@ -93,7 +93,9 @@
           style="color: var(--el-color-danger); font-size: 12px; margin-top: 4px"
         >
           {{ i18ns.t('remoteTerminalProduct.installVersionFetchFailed') }}
-          <el-button link size="small" @click="fetchInstallVersion">{{ i18ns.t('refresh') }}</el-button>
+          <el-button link size="small" @click="fetchInstallVersion">{{
+            i18ns.t('refresh')
+          }}</el-button>
         </div>
       </el-form-item>
       <el-form-item :label="i18ns.t('remoteTerminalProduct.installProxy')">
@@ -134,7 +136,9 @@
               :rows="cmd.command.split('\n').length + 2"
               style="flex: 1; font-family: monospace; font-size: 12px"
             />
-            <el-button size="small" @click="copyCommand(cmd.command)">{{ i18ns.t('copy') }}</el-button>
+            <el-button size="small" @click="copyCommand(cmd.command)">{{
+              i18ns.t('copy')
+            }}</el-button>
           </div>
         </div>
       </div>

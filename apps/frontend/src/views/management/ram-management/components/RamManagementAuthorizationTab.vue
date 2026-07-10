@@ -26,9 +26,18 @@
           {{ effectivePerms.ramUsername }}
         </el-descriptions-item>
         <el-descriptions-item
-          :label="i18ns.t('RamManagement.totalEffective', { count: effectivePerms.effectivePermissions.length })"
+          :label="
+            i18ns.t('RamManagement.totalEffective', {
+              count: effectivePerms.effectivePermissions.length,
+            })
+          "
         >
-          <el-tag v-for="perm in effectivePerms.effectivePermissions" :key="perm" round style="margin: 2px">
+          <el-tag
+            v-for="perm in effectivePerms.effectivePermissions"
+            :key="perm"
+            round
+            style="margin: 2px"
+          >
             <el-tooltip :content="getPermTooltip(perm)" placement="top" :show-after="300">
               <span>{{ getPermLabel(perm) }}</span>
               <code class="perm-source">{{ perm }}</code>

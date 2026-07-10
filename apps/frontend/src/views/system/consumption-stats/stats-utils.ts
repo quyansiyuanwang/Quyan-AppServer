@@ -364,9 +364,18 @@ export const mergeChunkedStats = (
   const merged = defaultStats()
 
   for (const chunk of chunks) {
-    merged.filterOptions.users = mergeFilterOptions(merged.filterOptions.users, chunk.filterOptions.users)
-    merged.filterOptions.models = mergeFilterOptions(merged.filterOptions.models, chunk.filterOptions.models)
-    merged.filterOptions.channels = mergeFilterOptions(merged.filterOptions.channels, chunk.filterOptions.channels)
+    merged.filterOptions.users = mergeFilterOptions(
+      merged.filterOptions.users,
+      chunk.filterOptions.users,
+    )
+    merged.filterOptions.models = mergeFilterOptions(
+      merged.filterOptions.models,
+      chunk.filterOptions.models,
+    )
+    merged.filterOptions.channels = mergeFilterOptions(
+      merged.filterOptions.channels,
+      chunk.filterOptions.channels,
+    )
     merged.filterOptions.relayTokens = mergeFilterOptions(
       merged.filterOptions.relayTokens,
       chunk.filterOptions.relayTokens,
@@ -388,7 +397,8 @@ export const mergeChunkedStats = (
       merged.modelDailyDistribution,
       chunk.modelDailyDistribution,
     )
-    merged.generatedAt = chunk.generatedAt > merged.generatedAt ? chunk.generatedAt : merged.generatedAt
+    merged.generatedAt =
+      chunk.generatedAt > merged.generatedAt ? chunk.generatedAt : merged.generatedAt
   }
 
   merged.byUser = finalizeBreakdownList(merged.byUser, merged.summary.totalSpend)

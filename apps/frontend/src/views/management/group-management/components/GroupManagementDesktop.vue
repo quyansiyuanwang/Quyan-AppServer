@@ -67,7 +67,9 @@
           <el-table-column :label="i18ns.t('actions')" fixed="right" width="220">
             <template #default="{ row }">
               <PermissionWrapper :require="[Permission.GROUP_UPDATE]" mode="disabled">
-                <el-button link type="primary" @click="handleEdit(row)">{{ i18ns.t('edit') }}</el-button>
+                <el-button link type="primary" @click="handleEdit(row)">{{
+                  i18ns.t('edit')
+                }}</el-button>
               </PermissionWrapper>
               <PermissionWrapper :require="[Permission.GROUP_PERMISSION_ADD]" mode="disabled">
                 <el-button link type="primary" @click="handleEditPermissions(row)">
@@ -75,7 +77,9 @@
                 </el-button>
               </PermissionWrapper>
               <PermissionWrapper :require="[Permission.GROUP_DELETE]" mode="disabled">
-                <el-button link type="danger" @click="handleDelete(row)">{{ i18ns.t('delete') }}</el-button>
+                <el-button link type="danger" @click="handleDelete(row)">{{
+                  i18ns.t('delete')
+                }}</el-button>
               </PermissionWrapper>
             </template>
           </el-table-column>

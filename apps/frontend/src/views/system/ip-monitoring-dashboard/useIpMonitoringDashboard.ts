@@ -228,9 +228,7 @@ export const useIpMonitoringDashboard = () => {
     ]
     for (const threshold of thresholds) {
       if (result.errorWeight < threshold.val) continue
-      const nThreshold = Math.ceil(
-        Math.log(threshold.val / result.errorWeight) / Math.log(factor),
-      )
+      const nThreshold = Math.ceil(Math.log(threshold.val / result.errorWeight) / Math.log(factor))
       times.push({ label: threshold.label, time: formatMinutes(nThreshold * interval) })
     }
 
@@ -375,13 +373,16 @@ export const useIpMonitoringDashboard = () => {
 
   const handleSearch = () => {
     if (searchIP.value) {
-      blacklistData.value = blacklistData.value.filter((item) => item.ipAddress.includes(searchIP.value))
+      blacklistData.value = blacklistData.value.filter((item) =>
+        item.ipAddress.includes(searchIP.value),
+      )
     } else {
       loadBlacklist()
     }
   }
 
-  const getBanLevelType = (level: number) => (level === 1 ? 'warning' : level >= 2 ? 'danger' : 'info')
+  const getBanLevelType = (level: number) =>
+    level === 1 ? 'warning' : level >= 2 ? 'danger' : 'info'
   const isExpired = (time: string) => new Date(time) < new Date()
   const formatExpireTime = (time: string) =>
     new Date(time).getFullYear() >= 2099

@@ -12,12 +12,21 @@ const canViewServerLogs = state.canViewServerLogs
 </script>
 
 <template>
-  <el-tabs v-if="canViewAnyLogs" v-model="activeTab" class="logs-tabs" @tab-change="state.handleTabChange">
+  <el-tabs
+    v-if="canViewAnyLogs"
+    v-model="activeTab"
+    class="logs-tabs"
+    @tab-change="state.handleTabChange"
+  >
     <el-tab-pane v-if="canViewApiLogs" :label="i18ns.t('SystemLogs.apiLogsTab')" name="api">
       <SystemLogsApiTab />
     </el-tab-pane>
 
-    <el-tab-pane v-if="canViewServerLogs" :label="i18ns.t('SystemLogs.serverLogsTab')" name="server">
+    <el-tab-pane
+      v-if="canViewServerLogs"
+      :label="i18ns.t('SystemLogs.serverLogsTab')"
+      name="server"
+    >
       <SystemLogsServerTab />
     </el-tab-pane>
   </el-tabs>

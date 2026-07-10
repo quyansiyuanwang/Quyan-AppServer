@@ -80,9 +80,7 @@
 
               <div v-if="decayEstimates(queryResult) || trendEstimate" class="decay-estimates">
                 <template v-if="decayEstimates(queryResult)">
-                  <div>
-                    预计归零：{{ decayEstimates(queryResult)!.zeroTime }}（假设无新错误）
-                  </div>
+                  <div>预计归零：{{ decayEstimates(queryResult)!.zeroTime }}（假设无新错误）</div>
                   <div v-for="item in decayEstimates(queryResult)!.times" :key="item.label">
                     预计衰减至 {{ item.label }} 以下：{{ item.time }}
                   </div>
@@ -96,10 +94,18 @@
                 <div class="error-breakdown-title">
                   {{ i18ns.t('ipMonitoring.errorBreakdown') }}
                 </div>
-                <div v-if="!queryResult.errorBreakdown || queryResult.errorBreakdown.length === 0" class="error-breakdown-empty">
+                <div
+                  v-if="!queryResult.errorBreakdown || queryResult.errorBreakdown.length === 0"
+                  class="error-breakdown-empty"
+                >
                   {{ i18ns.t('ipMonitoring.errorBreakdownEmpty') }}
                 </div>
-                <el-table v-else :data="queryResult.errorBreakdown" size="small" style="width: 100%">
+                <el-table
+                  v-else
+                  :data="queryResult.errorBreakdown"
+                  size="small"
+                  style="width: 100%"
+                >
                   <el-table-column :label="i18ns.t('ipMonitoring.errorType')" min-width="200">
                     <template #default="{ row }">
                       <el-tag :type="getBreakdownTagType(row)" size="small" class="breakdown-tag">
@@ -154,7 +160,10 @@
                 <div class="seg-bar">
                   <div
                     class="seg seg-green"
-                    :style="{ width: (queryResult.thresholds.level1 / queryResult.thresholds.level3) * 100 + '%' }"
+                    :style="{
+                      width:
+                        (queryResult.thresholds.level1 / queryResult.thresholds.level3) * 100 + '%',
+                    }"
                   >
                     L1
                   </div>
@@ -186,27 +195,37 @@
                     class="seg-passed"
                     :style="{
                       width:
-                        Math.min(100, (queryResult.errorWeight / queryResult.thresholds.level3) * 100) +
-                        '%',
+                        Math.min(
+                          100,
+                          (queryResult.errorWeight / queryResult.thresholds.level3) * 100,
+                        ) + '%',
                     }"
                   />
                   <div
                     class="seg-cursor"
                     :style="{
                       left:
-                        Math.min(100, (queryResult.errorWeight / queryResult.thresholds.level3) * 100) +
-                        '%',
+                        Math.min(
+                          100,
+                          (queryResult.errorWeight / queryResult.thresholds.level3) * 100,
+                        ) + '%',
                     }"
                   />
                 </div>
                 <div class="seg-labels">
                   <span
-                    :style="{ left: (queryResult.thresholds.level1 / queryResult.thresholds.level3) * 100 + '%' }"
+                    :style="{
+                      left:
+                        (queryResult.thresholds.level1 / queryResult.thresholds.level3) * 100 + '%',
+                    }"
                   >
                     L1: {{ queryResult.thresholds.level1 }}
                   </span>
                   <span
-                    :style="{ left: (queryResult.thresholds.level2 / queryResult.thresholds.level3) * 100 + '%' }"
+                    :style="{
+                      left:
+                        (queryResult.thresholds.level2 / queryResult.thresholds.level3) * 100 + '%',
+                    }"
                   >
                     L2: {{ queryResult.thresholds.level2 }}
                   </span>
@@ -223,7 +242,12 @@
                     size="small"
                     class="adjust-weight-input"
                   />
-                  <el-button type="primary" size="small" :loading="actionLoading" @click="handleSetWeight">
+                  <el-button
+                    type="primary"
+                    size="small"
+                    :loading="actionLoading"
+                    @click="handleSetWeight"
+                  >
                     {{ i18ns.t('confirm') }}
                   </el-button>
                 </template>
@@ -235,22 +259,34 @@
             <el-row :gutter="20" class="stats-cards">
               <el-col :xs="24" :sm="12" :lg="6">
                 <el-card class="stats-card">
-                  <el-statistic :title="i18ns.t('ipMonitoring.totalBans')" :value="dashboardData.activeBans.total" />
+                  <el-statistic
+                    :title="i18ns.t('ipMonitoring.totalBans')"
+                    :value="dashboardData.activeBans.total"
+                  />
                 </el-card>
               </el-col>
               <el-col :xs="24" :sm="12" :lg="6">
                 <el-card class="stats-card">
-                  <el-statistic :title="i18ns.t('ipMonitoring.level1Bans')" :value="dashboardData.activeBans.byLevel.level1" />
+                  <el-statistic
+                    :title="i18ns.t('ipMonitoring.level1Bans')"
+                    :value="dashboardData.activeBans.byLevel.level1"
+                  />
                 </el-card>
               </el-col>
               <el-col :xs="24" :sm="12" :lg="6">
                 <el-card class="stats-card">
-                  <el-statistic :title="i18ns.t('ipMonitoring.level2Bans')" :value="dashboardData.activeBans.byLevel.level2" />
+                  <el-statistic
+                    :title="i18ns.t('ipMonitoring.level2Bans')"
+                    :value="dashboardData.activeBans.byLevel.level2"
+                  />
                 </el-card>
               </el-col>
               <el-col :xs="24" :sm="12" :lg="6">
                 <el-card class="stats-card">
-                  <el-statistic :title="i18ns.t('ipMonitoring.level3Bans')" :value="dashboardData.activeBans.byLevel.level3" />
+                  <el-statistic
+                    :title="i18ns.t('ipMonitoring.level3Bans')"
+                    :value="dashboardData.activeBans.byLevel.level3"
+                  />
                 </el-card>
               </el-col>
             </el-row>
@@ -258,7 +294,12 @@
             <el-card class="section">
               <template #header>{{ i18ns.t('ipMonitoring.topBannedIPs') }}</template>
               <div class="top-banned-table-wrap">
-                <el-table :data="dashboardData.topBannedIPs" stripe class="top-banned-table" style="width: 100%">
+                <el-table
+                  :data="dashboardData.topBannedIPs"
+                  stripe
+                  class="top-banned-table"
+                  style="width: 100%"
+                >
                   <el-table-column
                     prop="ipAddress"
                     :label="i18ns.t('ipMonitoring.ipAddress')"
@@ -267,7 +308,9 @@
                   />
                   <el-table-column prop="banCount" :label="i18ns.t('ipMonitoring.banCount')" />
                   <el-table-column :label="i18ns.t('ipMonitoring.lastBanTime')">
-                    <template #default="{ row }">{{ new Date(row.lastBanTime).toLocaleString() }}</template>
+                    <template #default="{ row }">{{
+                      new Date(row.lastBanTime).toLocaleString()
+                    }}</template>
                   </el-table-column>
                   <el-table-column :label="i18ns.t('ipMonitoring.status')">
                     <template #default="{ row }">
@@ -311,8 +354,18 @@
           </div>
         </div>
 
-        <el-table v-loading="blLoading" :data="blacklistData" stripe border class="ip-blacklist-table">
-          <el-table-column prop="ipAddress" :label="i18ns.t('ipBlacklist.ipAddress')" min-width="150" />
+        <el-table
+          v-loading="blLoading"
+          :data="blacklistData"
+          stripe
+          border
+          class="ip-blacklist-table"
+        >
+          <el-table-column
+            prop="ipAddress"
+            :label="i18ns.t('ipBlacklist.ipAddress')"
+            min-width="150"
+          />
           <el-table-column :label="i18ns.t('ipBlacklist.banType')" min-width="100">
             <template #default="{ row }">
               <el-tag :type="row.bannedBy ? 'info' : 'warning'">
@@ -336,7 +389,9 @@
           />
           <el-table-column :label="i18ns.t('ipBlacklist.expireTime')" min-width="180">
             <template #default="{ row }">
-              <span :class="{ 'expired-text': isExpired(row.expireTime) }">{{ formatExpireTime(row.expireTime) }}</span>
+              <span :class="{ 'expired-text': isExpired(row.expireTime) }">{{
+                formatExpireTime(row.expireTime)
+              }}</span>
             </template>
           </el-table-column>
           <el-table-column :label="i18ns.t('ipBlacklist.createTime')" min-width="180">
@@ -392,7 +447,11 @@
         </div>
 
         <el-table v-loading="wlLoading" :data="wlData" stripe border class="ip-whitelist-table">
-          <el-table-column prop="ipAddress" :label="i18ns.t('ipWhitelist.ipAddress')" min-width="150" />
+          <el-table-column
+            prop="ipAddress"
+            :label="i18ns.t('ipWhitelist.ipAddress')"
+            min-width="150"
+          />
           <el-table-column
             prop="reason"
             :label="i18ns.t('ipWhitelist.reason')"
@@ -408,7 +467,9 @@
           />
           <el-table-column :label="i18ns.t('ipWhitelist.expiresAt')" min-width="180">
             <template #default="{ row }">
-              <span :class="{ 'expired-text': isWlExpired(row.expiresAt) }">{{ formatWlExpiry(row.expiresAt) }}</span>
+              <span :class="{ 'expired-text': isWlExpired(row.expiresAt) }">{{
+                formatWlExpiry(row.expiresAt)
+              }}</span>
             </template>
           </el-table-column>
           <el-table-column

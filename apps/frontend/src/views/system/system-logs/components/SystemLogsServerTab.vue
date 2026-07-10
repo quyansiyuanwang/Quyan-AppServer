@@ -18,7 +18,11 @@ const serverLogContent = state.serverLogContent
     <div class="server-toolbar filters-container">
       <el-form :inline="true" class="toolbar-row">
         <el-form-item :label="i18ns.t('SystemLogs.serverLogType')">
-          <el-select v-model="serverLogType" style="width: 180px" @change="state.handleServerLogTypeChange">
+          <el-select
+            v-model="serverLogType"
+            style="width: 180px"
+            @change="state.handleServerLogTypeChange"
+          >
             <el-option :label="i18ns.t('SystemLogs.combinedLog')" value="combined" />
             <el-option :label="i18ns.t('SystemLogs.errorLog')" value="error" />
           </el-select>
@@ -77,7 +81,11 @@ const serverLogContent = state.serverLogContent
             <div class="server-file-main">
               <span class="server-file-name">{{ file.name }}</span>
               <el-tag size="small" :type="file.type === 'error' ? 'danger' : 'success'">
-                {{ file.type === 'error' ? i18ns.t('SystemLogs.errorLog') : i18ns.t('SystemLogs.combinedLog') }}
+                {{
+                  file.type === 'error'
+                    ? i18ns.t('SystemLogs.errorLog')
+                    : i18ns.t('SystemLogs.combinedLog')
+                }}
               </el-tag>
             </div>
             <div class="server-file-meta">
@@ -94,10 +102,19 @@ const serverLogContent = state.serverLogContent
           <div class="panel-title-row panel-title-row-wrap">
             <span class="panel-title">{{ i18ns.t('SystemLogs.serverLogContent') }}</span>
             <div class="server-content-tags">
-              <el-tag size="small" :type="serverLogContent.file.type === 'error' ? 'danger' : 'success'">
-                {{ serverLogContent.file.type === 'error' ? i18ns.t('SystemLogs.errorLog') : i18ns.t('SystemLogs.combinedLog') }}
+              <el-tag
+                size="small"
+                :type="serverLogContent.file.type === 'error' ? 'danger' : 'success'"
+              >
+                {{
+                  serverLogContent.file.type === 'error'
+                    ? i18ns.t('SystemLogs.errorLog')
+                    : i18ns.t('SystemLogs.combinedLog')
+                }}
               </el-tag>
-              <el-tag size="small" type="info">{{ state.formatBytes(serverLogContent.file.sizeBytes) }}</el-tag>
+              <el-tag size="small" type="info">{{
+                state.formatBytes(serverLogContent.file.sizeBytes)
+              }}</el-tag>
               <el-tag v-if="serverLogContent.file.compressed" size="small" type="warning">
                 gzip
               </el-tag>
@@ -131,7 +148,12 @@ const serverLogContent = state.serverLogContent
             </div>
           </div>
 
-          <el-alert v-if="serverLogContent.truncated" type="info" :closable="false" class="server-log-alert">
+          <el-alert
+            v-if="serverLogContent.truncated"
+            type="info"
+            :closable="false"
+            class="server-log-alert"
+          >
             {{ i18ns.t('SystemLogs.truncatedHint') }}
           </el-alert>
 
@@ -140,7 +162,11 @@ const serverLogContent = state.serverLogContent
 
         <el-empty
           v-else
-          :description="selectedServerLogFileName ? i18ns.t('SystemLogs.noServerLogContent') : i18ns.t('SystemLogs.noServerLogSelected')"
+          :description="
+            selectedServerLogFileName
+              ? i18ns.t('SystemLogs.noServerLogContent')
+              : i18ns.t('SystemLogs.noServerLogSelected')
+          "
         />
       </div>
     </div>

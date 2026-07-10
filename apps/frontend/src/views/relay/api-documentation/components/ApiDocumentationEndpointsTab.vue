@@ -49,7 +49,13 @@ const copyText = state.copyText
       </template>
       <div class="endpoint-content">
         <el-text tag="code" class="endpoint-code">{{ aiBaseUrl }}</el-text>
-        <el-button :icon="CopyDocument" size="small" @click="copyText(aiBaseUrl)" type="primary" text />
+        <el-button
+          :icon="CopyDocument"
+          size="small"
+          @click="copyText(aiBaseUrl)"
+          type="primary"
+          text
+        />
       </div>
     </el-descriptions-item>
 
@@ -62,7 +68,13 @@ const copyText = state.copyText
       </template>
       <div class="endpoint-content">
         <el-text tag="code" class="endpoint-code">{{ displayOpenaiEndpoint }}</el-text>
-        <el-button :icon="CopyDocument" size="small" @click="copyText(displayOpenaiEndpoint)" type="primary" text />
+        <el-button
+          :icon="CopyDocument"
+          size="small"
+          @click="copyText(displayOpenaiEndpoint)"
+          type="primary"
+          text
+        />
       </div>
       <div class="endpoint-note">{{ $t('apiDoc.openaiNote') }}</div>
     </el-descriptions-item>
@@ -76,7 +88,13 @@ const copyText = state.copyText
       </template>
       <div class="endpoint-content">
         <el-text tag="code" class="endpoint-code">{{ displayAnthropicEndpoint }}</el-text>
-        <el-button :icon="CopyDocument" size="small" @click="copyText(displayAnthropicEndpoint)" type="primary" text />
+        <el-button
+          :icon="CopyDocument"
+          size="small"
+          @click="copyText(displayAnthropicEndpoint)"
+          type="primary"
+          text
+        />
       </div>
       <div class="endpoint-note">{{ $t('apiDoc.anthropicNote') }}</div>
     </el-descriptions-item>
@@ -90,7 +108,13 @@ const copyText = state.copyText
       </template>
       <div class="endpoint-content">
         <el-text tag="code" class="endpoint-code">{{ displayGeminiEndpoint }}</el-text>
-        <el-button :icon="CopyDocument" size="small" @click="copyText(displayGeminiEndpoint)" type="primary" text />
+        <el-button
+          :icon="CopyDocument"
+          size="small"
+          @click="copyText(displayGeminiEndpoint)"
+          type="primary"
+          text
+        />
       </div>
       <div class="endpoint-note">{{ $t('apiDoc.geminiNote') }}</div>
     </el-descriptions-item>
@@ -104,7 +128,13 @@ const copyText = state.copyText
       </template>
       <div class="endpoint-content">
         <el-text tag="code" class="endpoint-code">{{ relayUsageEndpoint }}</el-text>
-        <el-button :icon="CopyDocument" size="small" @click="copyText(relayUsageEndpoint)" type="primary" text />
+        <el-button
+          :icon="CopyDocument"
+          size="small"
+          @click="copyText(relayUsageEndpoint)"
+          type="primary"
+          text
+        />
       </div>
       <div class="endpoint-note">{{ $t('apiDoc.balanceNote') }}</div>
       <div style="margin-top: 12px">
@@ -113,7 +143,13 @@ const copyText = state.copyText
         </div>
         <div class="endpoint-content">
           <el-text tag="code" class="endpoint-code">{{ platformBalanceEndpoint }}</el-text>
-          <el-button :icon="CopyDocument" size="small" @click="copyText(platformBalanceEndpoint)" type="primary" text />
+          <el-button
+            :icon="CopyDocument"
+            size="small"
+            @click="copyText(platformBalanceEndpoint)"
+            type="primary"
+            text
+          />
         </div>
         <div class="endpoint-note">{{ $t('apiDoc.platformBalanceNote') }}</div>
       </div>

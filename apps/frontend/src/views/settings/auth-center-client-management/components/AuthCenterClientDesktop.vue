@@ -104,7 +104,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="lastUsedAt" :label="i18ns.t('authCenterClient.lastUsed')" width="180">
+        <el-table-column
+          prop="lastUsedAt"
+          :label="i18ns.t('authCenterClient.lastUsed')"
+          width="180"
+        >
           <template #default="{ row }">
             {{ row.lastUsedAt ? new Date(row.lastUsedAt).toLocaleString() : '-' }}
           </template>

@@ -72,7 +72,8 @@ export function useBalanceHistory() {
           item.value,
           {
             label: item.label(),
-            style: item.value < minLevel ? { color: 'var(--el-text-color-placeholder)' } : undefined,
+            style:
+              item.value < minLevel ? { color: 'var(--el-text-color-placeholder)' } : undefined,
           },
         ]),
       ),
@@ -160,7 +161,6 @@ export function useBalanceHistory() {
     }
 
     if (rangeKey !== 'all' || !complete) return
-
     ;(['1d', '7d', '30d'] as const).forEach((key) => {
       historyRangeCache[key] = {
         records: sortByCreateTimeDesc(filterTransactionsByRange(records, key)),
@@ -312,7 +312,6 @@ export function useBalanceHistory() {
 
   const mergeRecordsIntoCache = (records: BalanceTransactionResponse[]) => {
     if (records.length === 0) return
-
     ;(['all', '30d', '7d', '1d'] as const).forEach((rangeKey) => {
       if (!historyRangeCache[rangeKey].complete) return
 
@@ -586,7 +585,10 @@ export function useBalanceHistory() {
           if (loadToken != null && !isHistoryLoadCurrent(rangeKey, loadToken)) return
 
           const sortedUniqueNew = sortByCreateTimeDesc(filteredUniqueNew)
-          allTransactions.value = mergeSortedTransactionsDesc(sortedUniqueNew, allTransactions.value)
+          allTransactions.value = mergeSortedTransactionsDesc(
+            sortedUniqueNew,
+            allTransactions.value,
+          )
           lastLoadTime.value = allTransactions.value[0]?.createTime || lastLoadTime.value
           setRangeCache(rangeKey, allTransactions.value, historyRangeCache[rangeKey].complete)
           mergeRecordsIntoCache(uniqueNew)

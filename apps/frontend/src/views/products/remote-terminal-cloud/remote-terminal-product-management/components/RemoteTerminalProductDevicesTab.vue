@@ -57,9 +57,21 @@ const entitlements = computed(() => state.entitlements.value)
 
   <el-table :data="state.devices" border stripe>
     <el-table-column prop="username" :label="$t('common.user')" min-width="140" />
-    <el-table-column prop="deviceName" :label="$t('remoteTerminalProduct.deviceName')" min-width="180" />
-    <el-table-column prop="entitlementName" :label="$t('remoteTerminalProduct.entitlementName')" min-width="180" />
-    <el-table-column prop="clientDeviceId" :label="$t('remoteTerminalProduct.clientDeviceId')" min-width="180" />
+    <el-table-column
+      prop="deviceName"
+      :label="$t('remoteTerminalProduct.deviceName')"
+      min-width="180"
+    />
+    <el-table-column
+      prop="entitlementName"
+      :label="$t('remoteTerminalProduct.entitlementName')"
+      min-width="180"
+    />
+    <el-table-column
+      prop="clientDeviceId"
+      :label="$t('remoteTerminalProduct.clientDeviceId')"
+      min-width="180"
+    />
     <el-table-column prop="bindingStatusLabel" :label="$t('common.status')" width="120" />
     <el-table-column :label="$t('remoteTerminalProduct.lastSeenAt')" min-width="180">
       <template #default="{ row }">

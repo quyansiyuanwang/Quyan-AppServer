@@ -29,7 +29,9 @@
         <el-form-item :label="i18ns.t('RamManagement.accessConfig')" prop="accessType">
           <el-checkbox-group v-model="userForm.accessTypes">
             <el-checkbox value="console">{{ i18ns.t('RamManagement.consoleAccess') }}</el-checkbox>
-            <el-checkbox value="accesskey">{{ i18ns.t('RamManagement.accessKeyAccess') }}</el-checkbox>
+            <el-checkbox value="accesskey">{{
+              i18ns.t('RamManagement.accessKeyAccess')
+            }}</el-checkbox>
           </el-checkbox-group>
         </el-form-item>
 
@@ -74,7 +76,12 @@
 
         <el-form-item :label="i18ns.t('RamManagement.userGroup')" prop="groupId">
           <el-select v-model="userForm.groupId" filterable clearable style="width: 100%">
-            <el-option v-for="group in groups" :key="group.id" :label="group.name || group.username" :value="group.id" />
+            <el-option
+              v-for="group in groups"
+              :key="group.id"
+              :label="group.name || group.username"
+              :value="group.id"
+            />
           </el-select>
           <div class="text-secondary field-hint">{{ i18ns.t('RamManagement.userGroupHint') }}</div>
         </el-form-item>
@@ -83,7 +90,9 @@
     <template #footer>
       <div class="form-footer">
         <el-button @click="userDialogVisible = false">{{ i18ns.t('cancel') }}</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitUser">{{ i18ns.t('confirm') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitUser">{{
+          i18ns.t('confirm')
+        }}</el-button>
       </div>
     </template>
   </el-drawer>
@@ -107,22 +116,34 @@
       <el-descriptions-item :label="i18ns.t('RamManagement.accessKeySecret')">
         <div class="secret-row">
           <code class="secret-code">{{ createdAccessKeySecret }}</code>
-          <el-button size="small" @click="copyAccessKeySecret">{{ i18ns.t('RamManagement.copySecret') }}</el-button>
+          <el-button size="small" @click="copyAccessKeySecret">{{
+            i18ns.t('RamManagement.copySecret')
+          }}</el-button>
         </div>
       </el-descriptions-item>
     </el-descriptions>
     <template #footer>
-      <el-button type="primary" @click="accessKeyDialogVisible = false">{{ i18ns.t('confirm') }}</el-button>
+      <el-button type="primary" @click="accessKeyDialogVisible = false">{{
+        i18ns.t('confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 
-  <el-dialog v-model="passwordDialogVisible" :title="i18ns.t('RamManagement.userCreated')" width="480px">
+  <el-dialog
+    v-model="passwordDialogVisible"
+    :title="i18ns.t('RamManagement.userCreated')"
+    width="480px"
+  >
     <el-descriptions :column="1" border>
-      <el-descriptions-item :label="i18ns.t('username')">{{ createdPasswordUsername }}</el-descriptions-item>
+      <el-descriptions-item :label="i18ns.t('username')">{{
+        createdPasswordUsername
+      }}</el-descriptions-item>
       <el-descriptions-item :label="i18ns.t('password')">
         <div class="secret-row">
           <code class="password-code">{{ createdPasswordValue }}</code>
-          <el-button size="small" @click="copyCreatedPassword">{{ i18ns.t('RamManagement.copySecret') }}</el-button>
+          <el-button size="small" @click="copyCreatedPassword">{{
+            i18ns.t('RamManagement.copySecret')
+          }}</el-button>
         </div>
       </el-descriptions-item>
     </el-descriptions>
@@ -134,7 +155,9 @@
       class="alert-top-gap"
     />
     <template #footer>
-      <el-button type="primary" @click="passwordDialogVisible = false">{{ i18ns.t('confirm') }}</el-button>
+      <el-button type="primary" @click="passwordDialogVisible = false">{{
+        i18ns.t('confirm')
+      }}</el-button>
     </template>
   </el-dialog>
 
@@ -166,35 +189,52 @@
     <template #footer>
       <div class="form-footer">
         <el-button @click="roleDialogVisible = false">{{ i18ns.t('cancel') }}</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitRole">{{ i18ns.t('confirm') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitRole">{{
+          i18ns.t('confirm')
+        }}</el-button>
       </div>
     </template>
   </el-drawer>
 
   <el-dialog
     v-model="bindDialogVisible"
-    :title="bindMode === 'user' ? i18ns.t('RamManagement.bindUser') : i18ns.t('RamManagement.bindGroup')"
+    :title="
+      bindMode === 'user' ? i18ns.t('RamManagement.bindUser') : i18ns.t('RamManagement.bindGroup')
+    "
     width="460px"
     @closed="bindTargetId = ''"
   >
     <el-form label-width="110px">
-      <el-form-item :label="bindMode === 'user' ? i18ns.t('RamManagement.user') : i18ns.t('RamManagement.group')">
+      <el-form-item
+        :label="
+          bindMode === 'user' ? i18ns.t('RamManagement.user') : i18ns.t('RamManagement.group')
+        "
+      >
         <el-select v-model="bindTargetId" filterable style="width: 100%">
-          <el-option v-for="option in bindOptions" :key="option.id" :label="option.label" :value="option.id" />
+          <el-option
+            v-for="option in bindOptions"
+            :key="option.id"
+            :label="option.label"
+            :value="option.id"
+          />
         </el-select>
       </el-form-item>
     </el-form>
     <template #footer>
       <div class="form-footer">
         <el-button @click="bindDialogVisible = false">{{ i18ns.t('cancel') }}</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitBind">{{ i18ns.t('confirm') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitBind">{{
+          i18ns.t('confirm')
+        }}</el-button>
       </div>
     </template>
   </el-dialog>
 
   <el-drawer
     v-model="policyDialogVisible"
-    :title="editingPolicy ? i18ns.t('RamManagement.editPolicy') : i18ns.t('RamManagement.createPolicy')"
+    :title="
+      editingPolicy ? i18ns.t('RamManagement.editPolicy') : i18ns.t('RamManagement.createPolicy')
+    "
     direction="rtl"
     size="65%"
     @closed="resetPolicyForm"
@@ -217,7 +257,12 @@
             @check="onPolicyTreeCheck"
           >
             <template #default="{ data }">
-              <el-tooltip v-if="data.tooltip" :content="data.tooltip" placement="right" :show-after="300">
+              <el-tooltip
+                v-if="data.tooltip"
+                :content="data.tooltip"
+                placement="right"
+                :show-after="300"
+              >
                 <span>{{ data.label }}</span>
                 <code class="perm-source">{{ data.value }}</code>
               </el-tooltip>
@@ -231,7 +276,9 @@
     <template #footer>
       <div class="form-footer">
         <el-button @click="policyDialogVisible = false">{{ i18ns.t('cancel') }}</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitPolicy">{{ i18ns.t('confirm') }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitPolicy">{{
+          i18ns.t('confirm')
+        }}</el-button>
       </div>
     </template>
   </el-drawer>
@@ -265,12 +312,21 @@
         </el-form-item>
         <el-form-item :label="i18ns.t('RamManagement.targetName')">
           <el-select v-model="attachForm.targetId" filterable style="width: 100%">
-            <el-option v-for="option in attachTargetOptions" :key="option.id" :label="option.label" :value="option.id" />
+            <el-option
+              v-for="option in attachTargetOptions"
+              :key="option.id"
+              :label="option.label"
+              :value="option.id"
+            />
           </el-select>
         </el-form-item>
         <div class="form-footer">
-          <el-button size="small" @click="showAttachForm = false">{{ i18ns.t('cancel') }}</el-button>
-          <el-button size="small" type="primary" :loading="submitting" @click="submitAttach">{{ i18ns.t('confirm') }}</el-button>
+          <el-button size="small" @click="showAttachForm = false">{{
+            i18ns.t('cancel')
+          }}</el-button>
+          <el-button size="small" type="primary" :loading="submitting" @click="submitAttach">{{
+            i18ns.t('confirm')
+          }}</el-button>
         </div>
       </el-form>
     </div>
@@ -284,7 +340,13 @@
       </el-table-column>
       <el-table-column :label="i18ns.t('actions')" width="100">
         <template #default="{ row }">
-          <el-button v-if="canDetachPolicies" link type="danger" size="small" @click="detachAttachment(row)">
+          <el-button
+            v-if="canDetachPolicies"
+            link
+            type="danger"
+            size="small"
+            @click="detachAttachment(row)"
+          >
             {{ i18ns.t('RamManagement.detachPolicy') }}
           </el-button>
         </template>

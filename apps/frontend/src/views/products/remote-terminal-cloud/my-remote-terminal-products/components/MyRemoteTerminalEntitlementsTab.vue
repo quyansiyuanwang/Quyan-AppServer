@@ -5,7 +5,11 @@
       :description="i18ns.t('remoteTerminalProduct.emptyEntitlements')"
     />
     <el-table v-else :data="entitlements" v-loading="loading" stripe>
-      <el-table-column prop="name" :label="i18ns.t('remoteTerminalProduct.planName')" min-width="80" />
+      <el-table-column
+        prop="name"
+        :label="i18ns.t('remoteTerminalProduct.planName')"
+        min-width="80"
+      />
       <el-table-column
         prop="templateName"
         :label="i18ns.t('remoteTerminalProduct.templatesTab')"
@@ -21,7 +25,9 @@
         <template #default="{ row }">{{ row.durationDays }}</template>
       </el-table-column>
       <el-table-column :label="i18ns.t('remoteTerminalProduct.deviceLimit')" width="100">
-        <template #default="{ row }">{{ row.registeredDeviceCount }} / {{ row.deviceLimit }}</template>
+        <template #default="{ row }"
+          >{{ row.registeredDeviceCount }} / {{ row.deviceLimit }}</template
+        >
       </el-table-column>
       <el-table-column
         prop="terminalLimit"
@@ -31,7 +37,9 @@
       <el-table-column :label="i18ns.t('remoteTerminalProduct.registrationToken')" min-width="120">
         <template #default="{ row }">
           <div class="token-stack">
-            <span>{{ row.registrationToken?.maskedToken || i18ns.t('remoteTerminalProduct.noToken') }}</span>
+            <span>{{
+              row.registrationToken?.maskedToken || i18ns.t('remoteTerminalProduct.noToken')
+            }}</span>
             <span v-if="!hasDeviceQuota(row.deviceLimit)" class="secondary-text">
               {{ i18ns.t('remoteTerminalProduct.tokenUnavailableForTerminalOnly') }}
             </span>

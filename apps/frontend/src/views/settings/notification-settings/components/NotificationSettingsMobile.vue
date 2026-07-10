@@ -70,7 +70,12 @@ const onLogPageChange = state.onLogPageChange
           </div>
         </template>
 
-        <el-form v-loading="loadingPrefs" :model="prefForm" label-position="top" class="mobile-form">
+        <el-form
+          v-loading="loadingPrefs"
+          :model="prefForm"
+          label-position="top"
+          class="mobile-form"
+        >
           <el-form-item :label="i18ns.t('NotificationSettingsView.emailLabel')">
             <div class="mobile-stack">
               <el-input
@@ -86,7 +91,10 @@ const onLogPageChange = state.onLogPageChange
               >
                 {{ i18ns.t('NotificationSettingsView.emailTest') }}
               </el-button>
-              <span v-if="emailTestResult !== null" :class="emailTestResult ? 'test-ok' : 'test-fail'">
+              <span
+                v-if="emailTestResult !== null"
+                :class="emailTestResult ? 'test-ok' : 'test-fail'"
+              >
                 {{
                   emailTestResult
                     ? i18ns.t('NotificationSettingsView.webhookTestSuccess')
@@ -241,10 +249,18 @@ const onLogPageChange = state.onLogPageChange
 
         <div v-loading="loadingInbox" class="mobile-inbox-list">
           <template v-if="inboxItems.length > 0">
-            <div v-for="row in inboxItems" :key="row.id" class="mobile-inbox-item" :class="{ unread: !row.isRead }">
+            <div
+              v-for="row in inboxItems"
+              :key="row.id"
+              class="mobile-inbox-item"
+              :class="{ unread: !row.isRead }"
+            >
               <div class="mobile-inbox-top">
                 <div class="mobile-inbox-event">{{ eventLabel(row.eventType) }}</div>
-                <el-tag :type="row.isRead ? 'info' : row.pixelOpened ? 'warning' : 'danger'" size="small">
+                <el-tag
+                  :type="row.isRead ? 'info' : row.pixelOpened ? 'warning' : 'danger'"
+                  size="small"
+                >
                   {{
                     row.isRead
                       ? i18ns.t('NotificationSettingsView.readStatusRead')
@@ -314,7 +330,11 @@ const onLogPageChange = state.onLogPageChange
               <div class="mobile-log-title">{{ row.title }}</div>
               <div class="mobile-log-meta">
                 <span>
-                  {{ row.channel === 'email' ? i18ns.t('NotificationSettingsView.channelEmail') : i18ns.t('NotificationSettingsView.channelWebhook') }}
+                  {{
+                    row.channel === 'email'
+                      ? i18ns.t('NotificationSettingsView.channelEmail')
+                      : i18ns.t('NotificationSettingsView.channelWebhook')
+                  }}
                 </span>
                 <span>{{ new Date(row.createTime).toLocaleString() }}</span>
               </div>

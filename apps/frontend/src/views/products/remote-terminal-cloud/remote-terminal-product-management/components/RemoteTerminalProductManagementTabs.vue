@@ -10,7 +10,11 @@ const visibleTabs = computed(() => state.visibleTabs.value)
 </script>
 
 <template>
-  <el-empty v-if="!state.canView" class="permission-empty" :description="$t('common.noPermission')" />
+  <el-empty
+    v-if="!state.canView"
+    class="permission-empty"
+    :description="$t('common.noPermission')"
+  />
 
   <el-tabs v-else v-model="state.activeTab">
     <el-tab-pane

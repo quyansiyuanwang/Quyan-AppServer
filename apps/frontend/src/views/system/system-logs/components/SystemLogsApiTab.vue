@@ -277,7 +277,11 @@ const pageSizes = computed(() => [10, 20, 50, 100])
           </template>
         </el-table-column>
 
-        <el-table-column :label="i18ns.t('SystemLogs.userId')" width="140" class-name="hide-on-mobile">
+        <el-table-column
+          :label="i18ns.t('SystemLogs.userId')"
+          width="140"
+          class-name="hide-on-mobile"
+        >
           <template #default="{ row }">
             <el-tag v-if="row.userID === null" type="info" size="small">
               {{ i18ns.t('SystemLogs.anonymous') }}
@@ -286,16 +290,29 @@ const pageSizes = computed(() => [10, 20, 50, 100])
           </template>
         </el-table-column>
 
-        <el-table-column :label="i18ns.t('SystemLogs.username')" width="110" class-name="hide-on-mobile">
+        <el-table-column
+          :label="i18ns.t('SystemLogs.username')"
+          width="110"
+          class-name="hide-on-mobile"
+        >
           <template #default="{ row }">
             <el-tag v-if="row.username === null" type="info" size="small">-</el-tag>
             <span v-else class="truncate-text" :title="row.username">{{ row.username }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column :label="i18ns.t('SystemLogs.method')" width="100" class-name="hide-on-mobile">
+        <el-table-column
+          :label="i18ns.t('SystemLogs.method')"
+          width="100"
+          class-name="hide-on-mobile"
+        >
           <template #default="{ row }">
-            <el-tag :type="state.getMethodType(row.method)" size="small" effect="dark" class="method-tag">
+            <el-tag
+              :type="state.getMethodType(row.method)"
+              size="small"
+              effect="dark"
+              class="method-tag"
+            >
               {{ row.method }}
             </el-tag>
           </template>
@@ -321,13 +338,22 @@ const pageSizes = computed(() => [10, 20, 50, 100])
 
         <el-table-column :label="i18ns.t('SystemLogs.statusCode')" width="100">
           <template #default="{ row }">
-            <el-tag :type="state.getStatusType(row.statusCode)" size="small" effect="light" class="status-code-tag">
+            <el-tag
+              :type="state.getStatusType(row.statusCode)"
+              size="small"
+              effect="light"
+              class="status-code-tag"
+            >
               {{ row.statusCode }}
             </el-tag>
           </template>
         </el-table-column>
 
-        <el-table-column :label="i18ns.t('SystemLogs.ipAddress')" width="150" class-name="hide-on-mobile">
+        <el-table-column
+          :label="i18ns.t('SystemLogs.ipAddress')"
+          width="150"
+          class-name="hide-on-mobile"
+        >
           <template #default="{ row }">
             {{ row.ipAddress }}
           </template>
@@ -351,19 +377,39 @@ const pageSizes = computed(() => [10, 20, 50, 100])
         <div v-if="logs.length" class="log-card-list">
           <el-card v-for="row in logs" :key="row.id" class="log-card mobile-card" shadow="never">
             <div class="log-head">
-              <el-tag :type="state.getMethodType(row.method)" size="small" effect="dark" class="method-tag">
+              <el-tag
+                :type="state.getMethodType(row.method)"
+                size="small"
+                effect="dark"
+                class="method-tag"
+              >
                 {{ row.method }}
               </el-tag>
-              <el-tag :type="state.getStatusType(row.statusCode)" size="small" effect="light" class="status-code-tag">
+              <el-tag
+                :type="state.getStatusType(row.statusCode)"
+                size="small"
+                effect="light"
+                class="status-code-tag"
+              >
                 {{ row.statusCode }}
               </el-tag>
             </div>
             <div class="log-meta">
-              <div>{{ i18ns.t('SystemLogs.timestamp') }}: {{ state.formatTimestamp(row.createTime) }}</div>
+              <div>
+                {{ i18ns.t('SystemLogs.timestamp') }}: {{ state.formatTimestamp(row.createTime) }}
+              </div>
               <div>{{ i18ns.t('SystemLogs.path') }}: {{ row.path }}</div>
-              <div>{{ i18ns.t('SystemLogs.requestSize') }}: {{ row.requestSizeFormatted || '-' }}</div>
-              <div>{{ i18ns.t('SystemLogs.responseSize') }}: {{ state.getResponseSizeDisplay(row.id, row.responseSizeFormatted) }}</div>
-              <div>{{ i18ns.t('SystemLogs.userId') }}: {{ row.userID || i18ns.t('SystemLogs.anonymous') }}</div>
+              <div>
+                {{ i18ns.t('SystemLogs.requestSize') }}: {{ row.requestSizeFormatted || '-' }}
+              </div>
+              <div>
+                {{ i18ns.t('SystemLogs.responseSize') }}:
+                {{ state.getResponseSizeDisplay(row.id, row.responseSizeFormatted) }}
+              </div>
+              <div>
+                {{ i18ns.t('SystemLogs.userId') }}:
+                {{ row.userID || i18ns.t('SystemLogs.anonymous') }}
+              </div>
               <div>{{ i18ns.t('SystemLogs.username') }}: {{ row.username || '-' }}</div>
               <div>{{ i18ns.t('SystemLogs.ipAddress') }}: {{ row.ipAddress || '-' }}</div>
               <div>{{ i18ns.t('SystemLogs.requestId') }}: {{ row.requestID || '-' }}</div>
@@ -398,8 +444,12 @@ const pageSizes = computed(() => [10, 20, 50, 100])
                 <div class="expand-item">
                   <strong>{{ i18ns.t('SystemLogs.response') }}:</strong>
                   <div v-if="responseLoading[row.id]" v-loading="true" style="min-height: 40px" />
-                  <pre v-else-if="responseCache[row.id] !== undefined">{{ state.formatJson(responseCache[row.id]) }}</pre>
-                  <el-text v-else type="info">{{ i18ns.t('SystemLogs.responseNotLoaded') }}</el-text>
+                  <pre v-else-if="responseCache[row.id] !== undefined">{{
+                    state.formatJson(responseCache[row.id])
+                  }}</pre>
+                  <el-text v-else type="info">{{
+                    i18ns.t('SystemLogs.responseNotLoaded')
+                  }}</el-text>
                 </div>
               </el-collapse-item>
             </el-collapse>

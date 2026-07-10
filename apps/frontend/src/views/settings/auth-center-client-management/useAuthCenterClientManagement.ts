@@ -62,8 +62,7 @@ export const useAuthCenterClientManagement = () => {
 
   const isPkceLocked = computed(
     () =>
-      form.value.clientType === 'public' &&
-      form.value.grantTypes.includes('authorization_code'),
+      form.value.clientType === 'public' && form.value.grantTypes.includes('authorization_code'),
   )
 
   const grantTypeOptions = computed(() => [
@@ -145,7 +144,9 @@ export const useAuthCenterClientManagement = () => {
 
   const syncClientTypeRules = () => {
     if (form.value.clientType === 'public') {
-      const filteredGrantTypes = form.value.grantTypes.filter((item) => item !== 'client_credentials')
+      const filteredGrantTypes = form.value.grantTypes.filter(
+        (item) => item !== 'client_credentials',
+      )
       if (filteredGrantTypes.length !== form.value.grantTypes.length) {
         form.value.grantTypes = filteredGrantTypes
       }

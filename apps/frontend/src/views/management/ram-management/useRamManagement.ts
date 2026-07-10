@@ -419,9 +419,9 @@ export function useRamManagement() {
 
   const genRandomPassword = (length = 16) => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
-    return Array.from({ length }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join(
-      '',
-    )
+    return Array.from({ length }, () =>
+      chars.charAt(Math.floor(Math.random() * chars.length)),
+    ).join('')
   }
 
   const submitUser = async () => {

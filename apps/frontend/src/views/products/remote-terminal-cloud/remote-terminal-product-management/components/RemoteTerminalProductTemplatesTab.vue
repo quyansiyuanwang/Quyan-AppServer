@@ -32,7 +32,11 @@ const state = useRemoteTerminalProductManagementContext()
   </div>
 
   <el-table :data="state.templates" border stripe>
-    <el-table-column prop="name" :label="$t('remoteTerminalProduct.templateName')" min-width="180" />
+    <el-table-column
+      prop="name"
+      :label="$t('remoteTerminalProduct.templateName')"
+      min-width="180"
+    />
     <el-table-column :label="$t('remoteTerminalProduct.offeredUnits')" min-width="220">
       <template #default="{ row }">
         <div class="tag-stack">
@@ -44,7 +48,10 @@ const state = useRemoteTerminalProductManagementContext()
             {{ $t('remoteTerminalProduct.terminalQuota') }}:
             {{ state.formatUnitPrice(row.terminalPrice, row.currency, row.billingUnit) }}
           </el-tag>
-          <span v-if="!state.supportsDevice(row) && !state.supportsTerminal(row)" class="secondary-text">
+          <span
+            v-if="!state.supportsDevice(row) && !state.supportsTerminal(row)"
+            class="secondary-text"
+          >
             -
           </span>
         </div>
@@ -52,7 +59,13 @@ const state = useRemoteTerminalProductManagementContext()
     </el-table-column>
     <el-table-column :label="$t('remoteTerminalProduct.purchaseRule')" min-width="220">
       <template #default="{ row }">
-        <div>{{ $t('remoteTerminalProduct.minimumPurchaseUnitsValue', { count: row.minimumPurchaseUnits }) }}</div>
+        <div>
+          {{
+            $t('remoteTerminalProduct.minimumPurchaseUnitsValue', {
+              count: row.minimumPurchaseUnits,
+            })
+          }}
+        </div>
         <div class="secondary-text">
           {{ state.formatTemplatePurchaseLimit(row) }}
         </div>
@@ -92,7 +105,11 @@ const state = useRemoteTerminalProductManagementContext()
     <el-table-column :label="$t('remoteTerminalProduct.publishStatus')" width="140">
       <template #default="{ row }">
         <el-tag :type="row.publishedAt ? 'success' : 'info'">
-          {{ row.publishedAt ? $t('remoteTerminalProduct.published') : $t('remoteTerminalProduct.unpublished') }}
+          {{
+            row.publishedAt
+              ? $t('remoteTerminalProduct.published')
+              : $t('remoteTerminalProduct.unpublished')
+          }}
         </el-tag>
       </template>
     </el-table-column>

@@ -102,12 +102,7 @@ const onLogPageChange = state.onLogPageChange
         </el-form-item>
 
         <el-form-item :label="i18ns.t('NotificationSettingsView.cooldownLabel')">
-          <el-input-number
-            v-model="cooldownMinutes"
-            :min="1"
-            :max="10080"
-            style="width: 160px"
-          />
+          <el-input-number v-model="cooldownMinutes" :min="1" :max="10080" style="width: 160px" />
           <div class="form-help">{{ i18ns.t('NotificationSettingsView.cooldownHelp') }}</div>
         </el-form-item>
 
@@ -141,7 +136,10 @@ const onLogPageChange = state.onLogPageChange
                   </span>
                 </template>
               </el-table-column>
-              <el-table-column :label="i18ns.t('NotificationSettingsView.eventThreshold')" width="240">
+              <el-table-column
+                :label="i18ns.t('NotificationSettingsView.eventThreshold')"
+                width="240"
+              >
                 <template #default="{ row }">
                   <template v-if="row.hasThreshold">
                     <el-input-number
@@ -254,7 +252,10 @@ const onLogPageChange = state.onLogPageChange
       <el-table v-loading="loadingInbox" :data="inboxItems">
         <el-table-column width="110">
           <template #default="{ row }">
-            <el-tag :type="row.isRead ? 'info' : row.pixelOpened ? 'warning' : 'danger'" size="small">
+            <el-tag
+              :type="row.isRead ? 'info' : row.pixelOpened ? 'warning' : 'danger'"
+              size="small"
+            >
               {{
                 row.isRead
                   ? i18ns.t('NotificationSettingsView.readStatusRead')
@@ -277,8 +278,18 @@ const onLogPageChange = state.onLogPageChange
             {{ eventLabel(row.eventType) }}
           </template>
         </el-table-column>
-        <el-table-column prop="title" :label="i18ns.t('NotificationSettingsView.inboxTitle')" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="content" :label="i18ns.t('NotificationSettingsView.inboxContent')" min-width="320" show-overflow-tooltip />
+        <el-table-column
+          prop="title"
+          :label="i18ns.t('NotificationSettingsView.inboxTitle')"
+          min-width="220"
+          show-overflow-tooltip
+        />
+        <el-table-column
+          prop="content"
+          :label="i18ns.t('NotificationSettingsView.inboxContent')"
+          min-width="320"
+          show-overflow-tooltip
+        />
         <el-table-column :label="i18ns.t('NotificationSettingsView.logTime')" width="180">
           <template #default="{ row }">
             {{ new Date(row.createTime).toLocaleString() }}
@@ -319,7 +330,7 @@ const onLogPageChange = state.onLogPageChange
       <template #header>
         <div class="card-header">
           <span>{{ i18ns.t('NotificationSettingsView.logsSection') }}</span>
-            <el-button :icon="Refresh" :loading="loadingLogs" @click="loadLogs">
+          <el-button :icon="Refresh" :loading="loadingLogs" @click="loadLogs">
             {{ i18ns.t('refresh') }}
           </el-button>
         </div>
@@ -331,10 +342,18 @@ const onLogPageChange = state.onLogPageChange
             {{ eventLabel(row.eventType) }}
           </template>
         </el-table-column>
-        <el-table-column prop="title" :label="i18ns.t('NotificationSettingsView.logTitle')" show-overflow-tooltip />
+        <el-table-column
+          prop="title"
+          :label="i18ns.t('NotificationSettingsView.logTitle')"
+          show-overflow-tooltip
+        />
         <el-table-column :label="i18ns.t('NotificationSettingsView.logChannel')" width="100">
           <template #default="{ row }">
-            {{ row.channel === 'email' ? i18ns.t('NotificationSettingsView.channelEmail') : i18ns.t('NotificationSettingsView.channelWebhook') }}
+            {{
+              row.channel === 'email'
+                ? i18ns.t('NotificationSettingsView.channelEmail')
+                : i18ns.t('NotificationSettingsView.channelWebhook')
+            }}
           </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('NotificationSettingsView.logStatus')" width="90">
@@ -349,7 +368,10 @@ const onLogPageChange = state.onLogPageChange
             {{ new Date(row.createTime).toLocaleString() }}
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('NotificationSettingsView.logError')" show-overflow-tooltip>
+        <el-table-column
+          :label="i18ns.t('NotificationSettingsView.logError')"
+          show-overflow-tooltip
+        >
           <template #default="{ row }">
             {{ row.errorMessage ?? '-' }}
           </template>

@@ -10,11 +10,7 @@
         :label="i18ns.t('RamManagement.sessionName')"
         min-width="170"
       />
-      <el-table-column
-        prop="roleName"
-        :label="i18ns.t('RamManagement.roleName')"
-        min-width="150"
-      />
+      <el-table-column prop="roleName" :label="i18ns.t('RamManagement.roleName')" min-width="150" />
       <el-table-column
         prop="subjectUserId"
         :label="i18ns.t('RamManagement.subjectUserId')"

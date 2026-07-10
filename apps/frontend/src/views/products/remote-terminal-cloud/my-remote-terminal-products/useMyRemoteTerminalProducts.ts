@@ -398,7 +398,8 @@ export const useMyRemoteTerminalProducts = () => {
 
   const getEstimatedPrice = (item: RemoteTerminalProductTemplateDto) => {
     const form = getNormalizedPurchaseForm(item)
-    const mergeTarget = form.purchaseMode === 'merge' ? getSelectedMergeTarget(item, form) : undefined
+    const mergeTarget =
+      form.purchaseMode === 'merge' ? getSelectedMergeTarget(item, form) : undefined
     const billingUnitDays = getBillingUnitDays(item.billingUnit)
 
     if (mergeTarget) {
@@ -411,7 +412,10 @@ export const useMyRemoteTerminalProducts = () => {
         ((supportsDevice(item) ? Number(item.devicePrice || 0) * newDeviceCount : 0) +
           (supportsTerminal(item) ? Number(item.terminalPrice || 0) * newTerminalCount : 0))
 
-      const additionalDeviceCount = Math.max(0, newDeviceCount - Number(mergeTarget.deviceLimit || 0))
+      const additionalDeviceCount = Math.max(
+        0,
+        newDeviceCount - Number(mergeTarget.deviceLimit || 0),
+      )
       const additionalTerminalCount = Math.max(
         0,
         newTerminalCount - Number(mergeTarget.terminalLimit || 0),
@@ -444,7 +448,8 @@ export const useMyRemoteTerminalProducts = () => {
 
   const getPriceBreakdown = (item: RemoteTerminalProductTemplateDto): string[] => {
     const form = getNormalizedPurchaseForm(item)
-    const mergeTarget = form.purchaseMode === 'merge' ? getSelectedMergeTarget(item, form) : undefined
+    const mergeTarget =
+      form.purchaseMode === 'merge' ? getSelectedMergeTarget(item, form) : undefined
     const billingUnitDays = getBillingUnitDays(item.billingUnit)
     const unit = formatBillingUnitLabel(item.billingUnit)
     const cur = item.currency
@@ -533,7 +538,8 @@ export const useMyRemoteTerminalProducts = () => {
         }
         const upgradeTotal =
           upgradeRatio *
-          ((supportsDevice(item) ? dPrice * addD : 0) + (supportsTerminal(item) ? tPrice * addT : 0))
+          ((supportsDevice(item) ? dPrice * addD : 0) +
+            (supportsTerminal(item) ? tPrice * addT : 0))
         lines.push(t18('breakdownSubtotal', { total: fp(upgradeTotal) }))
         lines.push(t18('breakdownTotal', { total: fp(renewalTotal + upgradeTotal) }))
       } else {
@@ -621,7 +627,8 @@ export const useMyRemoteTerminalProducts = () => {
       return { disabledReason: i18ns.t('remoteTerminalProduct.mergeSelectionRequired') }
     }
 
-    const mergeTarget = form.purchaseMode === 'merge' ? getSelectedMergeTarget(item, form) : undefined
+    const mergeTarget =
+      form.purchaseMode === 'merge' ? getSelectedMergeTarget(item, form) : undefined
 
     if (mergeTarget && Number(form.deviceCount || 0) < Number(mergeTarget.deviceLimit || 0)) {
       return { disabledReason: i18ns.t('remoteTerminalProduct.mergeDeviceCountTooLow') }
@@ -935,7 +942,8 @@ export const useMyRemoteTerminalProducts = () => {
   const openInstallDialog = async (row: InstallDialogTarget) => {
     installCurrentRow = row
     const entitlementId = 'entitlementId' in row ? row.entitlementId : row.id
-    installOs.value = ('platform' in row ? (row.platform as RemoteTerminalPlatform) : null) ?? 'linux'
+    installOs.value =
+      ('platform' in row ? (row.platform as RemoteTerminalPlatform) : null) ?? 'linux'
     installArch.value = 'x64'
     installToken.value = ''
     installDialogVisible.value = true
@@ -945,7 +953,8 @@ export const useMyRemoteTerminalProducts = () => {
     if (installUseStaticToken.value) {
       const entitlement = 'entitlementId' in row ? row : row
       installToken.value =
-        ('registrationToken' in entitlement ? entitlement.registrationToken?.token : undefined) ?? ''
+        ('registrationToken' in entitlement ? entitlement.registrationToken?.token : undefined) ??
+        ''
     } else {
       try {
         const result = await remoteTerminalProductService.issueMyInstallToken(entitlementId)

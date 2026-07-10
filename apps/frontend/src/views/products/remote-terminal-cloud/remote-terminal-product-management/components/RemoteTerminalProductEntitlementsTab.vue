@@ -53,15 +53,27 @@ const userOptions = computed(() => state.userOptions.value)
       />
     </el-select>
     <div style="flex: 1" />
-    <el-button v-if="state.canWriteAssignment" type="primary" @click="state.openAssignEntitlementDialog">
+    <el-button
+      v-if="state.canWriteAssignment"
+      type="primary"
+      @click="state.openAssignEntitlementDialog"
+    >
       {{ $t('remoteTerminalProduct.assignEntitlement') }}
     </el-button>
   </div>
 
   <el-table :data="state.entitlements" border stripe>
     <el-table-column prop="username" :label="$t('common.user')" min-width="150" />
-    <el-table-column prop="name" :label="$t('remoteTerminalProduct.entitlementName')" min-width="180" />
-    <el-table-column prop="templateName" :label="$t('remoteTerminalProduct.templateName')" min-width="160" />
+    <el-table-column
+      prop="name"
+      :label="$t('remoteTerminalProduct.entitlementName')"
+      min-width="180"
+    />
+    <el-table-column
+      prop="templateName"
+      :label="$t('remoteTerminalProduct.templateName')"
+      min-width="160"
+    />
     <el-table-column :label="$t('remoteTerminalProduct.quota')" min-width="220">
       <template #default="{ row }">
         <div class="entitlement-mix">
@@ -74,7 +86,9 @@ const userOptions = computed(() => state.userOptions.value)
       <template #default="{ row }">
         <div v-if="row.registrationToken" class="token-stack">
           <span>{{ row.registrationToken.label || '-' }}</span>
-          <span class="secondary-text">{{ state.formatDateTime(row.registrationToken.expiresAt) }}</span>
+          <span class="secondary-text">{{
+            state.formatDateTime(row.registrationToken.expiresAt)
+          }}</span>
         </div>
         <span v-else class="secondary-text">-</span>
       </template>

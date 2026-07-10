@@ -469,7 +469,9 @@ export const useRemoteTerminalManagement = () => {
     lastPongAt: null,
   })
 
-  const currentTab = computed(() => tabs.value.find((tab) => tab.tabId === activeTabId.value) ?? null)
+  const currentTab = computed(
+    () => tabs.value.find((tab) => tab.tabId === activeTabId.value) ?? null,
+  )
 
   const currentWorkingDirectory = computed<string>({
     get: () => currentTab.value?.workingDirectory ?? '',
@@ -484,7 +486,9 @@ export const useRemoteTerminalManagement = () => {
     formatWorkingDirectoryLabel(currentWorkingDirectory.value),
   )
 
-  const customShortcuts = computed(() => shortcutButtons.value.filter((shortcut) => !shortcut.preset))
+  const customShortcuts = computed(() =>
+    shortcutButtons.value.filter((shortcut) => !shortcut.preset),
+  )
 
   const shortcutCaptureModifierKeys = new Set(['Control', 'Shift', 'Alt', 'Meta'])
 
@@ -501,8 +505,12 @@ export const useRemoteTerminalManagement = () => {
 
   const currentSessionConnecting = computed(() => currentTab.value?.sessionConnecting ?? false)
   const currentSocketConnected = computed(() => currentTab.value?.socketConnected ?? false)
-  const currentRetryCountdownSeconds = computed(() => currentTab.value?.retryCountdownSeconds ?? null)
-  const currentAutoReconnectPending = computed(() => currentTab.value?.autoReconnectPending ?? false)
+  const currentRetryCountdownSeconds = computed(
+    () => currentTab.value?.retryCountdownSeconds ?? null,
+  )
+  const currentAutoReconnectPending = computed(
+    () => currentTab.value?.autoReconnectPending ?? false,
+  )
 
   const currentCanReconnect = computed(() => {
     if (!currentTab.value) {
@@ -1654,8 +1662,13 @@ export const useRemoteTerminalManagement = () => {
     terminalContainerRefs.delete(tab.tabId)
   }
 
-  const connectTerminal = async (tab: TerminalTabState, options?: { isAutoReconnect?: boolean }) => {
-    const reconnectTarget = options?.isAutoReconnect ? tab.lastConnectedDeviceId || tab.deviceId : ''
+  const connectTerminal = async (
+    tab: TerminalTabState,
+    options?: { isAutoReconnect?: boolean },
+  ) => {
+    const reconnectTarget = options?.isAutoReconnect
+      ? tab.lastConnectedDeviceId || tab.deviceId
+      : ''
     if (options?.isAutoReconnect && reconnectTarget) {
       tab.deviceId = reconnectTarget
     }
@@ -1923,7 +1936,11 @@ export const useRemoteTerminalManagement = () => {
       await ensureTerminal(currentTab.value)
     }
 
-    if (route.query.autoConnect === '1' && currentTab.value && currentSelectedOnlineDeviceId.value) {
+    if (
+      route.query.autoConnect === '1' &&
+      currentTab.value &&
+      currentSelectedOnlineDeviceId.value
+    ) {
       await connectTerminal(currentTab.value)
     }
   })

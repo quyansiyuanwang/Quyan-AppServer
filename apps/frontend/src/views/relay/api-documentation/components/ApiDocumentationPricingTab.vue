@@ -86,7 +86,14 @@ const toggleMobilePricingAdvancedSettingsExpanded = () => {
         <div
           v-if="filterChannel"
           class="pricing-filter"
-          style="display: flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; min-width: 0"
+          style="
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            flex: none;
+            min-width: 0;
+          "
         >
           <el-switch v-model="showCalculatedPrice" :disabled="!filterChannel" />
           <span style="font-size: 13px; color: var(--el-text-color-regular)">

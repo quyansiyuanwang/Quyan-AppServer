@@ -29,7 +29,12 @@ const closeLimitAdjustDialog = () => {
     width="720px"
     destroy-on-close
   >
-    <el-form ref="state.templateFormRef" :model="state.templateForm" :rules="state.templateFormRules" label-width="160px">
+    <el-form
+      ref="state.templateFormRef"
+      :model="state.templateForm"
+      :rules="state.templateFormRules"
+      label-width="160px"
+    >
       <el-form-item prop="name" :label="$t('remoteTerminalProduct.templateName')">
         <el-input v-model="state.templateForm.name" />
       </el-form-item>
@@ -38,20 +43,36 @@ const closeLimitAdjustDialog = () => {
       </el-form-item>
       <el-form-item prop="billingUnit" :label="$t('remoteTerminalProduct.billingUnit')">
         <el-radio-group v-model="state.templateForm.billingUnit">
-          <el-radio-button label="day">{{ $t('remoteTerminalProduct.billingUnitDay') }}</el-radio-button>
-          <el-radio-button label="week">{{ $t('remoteTerminalProduct.billingUnitWeek') }}</el-radio-button>
-          <el-radio-button label="month">{{ $t('remoteTerminalProduct.billingUnitMonth') }}</el-radio-button>
+          <el-radio-button label="day">{{
+            $t('remoteTerminalProduct.billingUnitDay')
+          }}</el-radio-button>
+          <el-radio-button label="week">{{
+            $t('remoteTerminalProduct.billingUnitWeek')
+          }}</el-radio-button>
+          <el-radio-button label="month">{{
+            $t('remoteTerminalProduct.billingUnitMonth')
+          }}</el-radio-button>
         </el-radio-group>
       </el-form-item>
       <el-form-item :label="$t('remoteTerminalProduct.offeredUnits')" required>
         <div class="full-width">
           <div class="template-range-row">
             <span>{{ $t('remoteTerminalProduct.deviceQuota') }}</span>
-            <el-input-number v-model="state.templateForm.devicePrice" :min="0" :precision="4" :step="0.1" />
+            <el-input-number
+              v-model="state.templateForm.devicePrice"
+              :min="0"
+              :precision="4"
+              :step="0.1"
+            />
           </div>
           <div class="template-range-row">
             <span>{{ $t('remoteTerminalProduct.terminalQuota') }}</span>
-            <el-input-number v-model="state.templateForm.terminalPrice" :min="0" :precision="4" :step="0.1" />
+            <el-input-number
+              v-model="state.templateForm.terminalPrice"
+              :min="0"
+              :precision="4"
+              :step="0.1"
+            />
           </div>
         </div>
       </el-form-item>
@@ -61,7 +82,10 @@ const closeLimitAdjustDialog = () => {
       <el-form-item :label="$t('remoteTerminalProduct.minimumPurchaseUnits')">
         <el-input-number v-model="state.templateForm.minimumPurchaseUnits" :min="1" />
       </el-form-item>
-      <el-form-item prop="maximumPurchaseUnits" :label="$t('remoteTerminalProduct.maximumPurchaseUnits')">
+      <el-form-item
+        prop="maximumPurchaseUnits"
+        :label="$t('remoteTerminalProduct.maximumPurchaseUnits')"
+      >
         <el-input-number v-model="state.templateForm.maximumPurchaseUnits" :min="1" />
       </el-form-item>
       <el-form-item :label="$t('remoteTerminalProduct.purchaseLimit')">
@@ -98,7 +122,11 @@ const closeLimitAdjustDialog = () => {
     </el-form>
     <template #footer>
       <el-button @click="closeTemplateDialog">{{ $t('common.cancel') }}</el-button>
-      <el-button type="primary" :loading="state.dialogSubmitting" @click="state.submitTemplateDialog">
+      <el-button
+        type="primary"
+        :loading="state.dialogSubmitting"
+        @click="state.submitTemplateDialog"
+      >
         {{ $t('common.confirm') }}
       </el-button>
     </template>
@@ -110,7 +138,12 @@ const closeLimitAdjustDialog = () => {
     width="720px"
     destroy-on-close
   >
-    <el-form ref="state.entitlementFormRef" :model="state.entitlementForm" :rules="state.entitlementFormRules" label-width="160px">
+    <el-form
+      ref="state.entitlementFormRef"
+      :model="state.entitlementForm"
+      :rules="state.entitlementFormRules"
+      label-width="160px"
+    >
       <el-form-item prop="userId" :label="$t('common.user')">
         <el-select
           v-model="state.entitlementForm.userId"
@@ -185,7 +218,11 @@ const closeLimitAdjustDialog = () => {
     </el-form>
     <template #footer>
       <el-button @click="closeEntitlementDialog">{{ $t('common.cancel') }}</el-button>
-      <el-button type="primary" :loading="state.dialogSubmitting" @click="state.submitEntitlementDialog">
+      <el-button
+        type="primary"
+        :loading="state.dialogSubmitting"
+        @click="state.submitEntitlementDialog"
+      >
         {{ $t('common.confirm') }}
       </el-button>
     </template>
@@ -225,7 +262,12 @@ const closeLimitAdjustDialog = () => {
     destroy-on-close
   >
     <div class="limit-adjust-row">
-      <el-form ref="state.limitAdjustFormRef" :model="state.limitAdjustForm" label-width="150px" class="full-width">
+      <el-form
+        ref="state.limitAdjustFormRef"
+        :model="state.limitAdjustForm"
+        label-width="150px"
+        class="full-width"
+      >
         <el-form-item :label="$t('remoteTerminalProduct.deviceQuota')">
           <el-input-number v-model="state.limitAdjustForm.deviceLimit" :min="0" />
         </el-form-item>
@@ -243,7 +285,9 @@ const closeLimitAdjustDialog = () => {
     <div class="reset-unbind-section">
       <div class="reset-unbind-info">
         <div class="reset-unbind-label">{{ $t('remoteTerminalProduct.resetUnbindCount') }}</div>
-        <div class="reset-unbind-desc">{{ $t('remoteTerminalProduct.resetUnbindDescription') }}</div>
+        <div class="reset-unbind-desc">
+          {{ $t('remoteTerminalProduct.resetUnbindDescription') }}
+        </div>
       </div>
       <el-button :loading="state.resettingUnbind" @click="state.handleResetUnbindCount">
         {{ $t('remoteTerminalProduct.resetUnbindCount') }}
@@ -251,7 +295,11 @@ const closeLimitAdjustDialog = () => {
     </div>
     <template #footer>
       <el-button @click="closeLimitAdjustDialog">{{ $t('common.cancel') }}</el-button>
-      <el-button type="primary" :loading="state.dialogSubmitting" @click="state.submitLimitAdjustDialog">
+      <el-button
+        type="primary"
+        :loading="state.dialogSubmitting"
+        @click="state.submitLimitAdjustDialog"
+      >
         {{ $t('common.confirm') }}
       </el-button>
     </template>

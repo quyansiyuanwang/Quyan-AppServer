@@ -35,7 +35,12 @@
 
         <el-skeleton :loading="loading" :rows="5" animated>
           <div v-if="groupList.length" class="group-list">
-            <el-card v-for="row in groupList" :key="row.id" class="group-item mobile-card" shadow="never">
+            <el-card
+              v-for="row in groupList"
+              :key="row.id"
+              class="group-item mobile-card"
+              shadow="never"
+            >
               <div class="group-item-header">
                 <div>
                   <div class="group-username">{{ row.username }}</div>
@@ -46,12 +51,20 @@
 
               <div class="meta">
                 <div>{{ i18ns.t('GroupManagement.level') }}: {{ row.level }}</div>
-                <div>{{ i18ns.t('GroupManagement.description') }}: {{ row.description || '-' }}</div>
+                <div>
+                  {{ i18ns.t('GroupManagement.description') }}: {{ row.description || '-' }}
+                </div>
               </div>
 
               <div class="actions">
                 <PermissionWrapper :require="[Permission.GROUP_UPDATE]" mode="disabled">
-                  <el-button plain size="small" type="primary" :icon="Edit" @click="handleEdit(row)">
+                  <el-button
+                    plain
+                    size="small"
+                    type="primary"
+                    :icon="Edit"
+                    @click="handleEdit(row)"
+                  >
                     {{ i18ns.t('edit') }}
                   </el-button>
                 </PermissionWrapper>
@@ -67,7 +80,13 @@
                   </el-button>
                 </PermissionWrapper>
                 <PermissionWrapper :require="[Permission.GROUP_DELETE]" mode="disabled">
-                  <el-button plain size="small" type="danger" :icon="Delete" @click="handleDelete(row)">
+                  <el-button
+                    plain
+                    size="small"
+                    type="danger"
+                    :icon="Delete"
+                    @click="handleDelete(row)"
+                  >
                     {{ i18ns.t('delete') }}
                   </el-button>
                 </PermissionWrapper>

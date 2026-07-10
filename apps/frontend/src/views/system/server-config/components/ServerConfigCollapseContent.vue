@@ -26,7 +26,9 @@
         </el-form-item>
         <el-form-item :label="i18ns.t('ServerConfigView.verificationCodeExpiry')">
           <el-input-number v-model="codeExpiry" :min="60" :max="3600" :step="60" />
-          <span class="form-help">{{ i18ns.t('ServerConfigView.verificationCodeExpiryHelp') }}</span>
+          <span class="form-help">{{
+            i18ns.t('ServerConfigView.verificationCodeExpiryHelp')
+          }}</span>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="savingReg" @click="saveRegistration">
@@ -82,23 +84,25 @@
 
     <el-collapse-item name="remoteTerminalUnbind">
       <template #title>
-        <span class="collapse-title">{{ i18ns.t('ServerConfigView.remoteTerminalUnbindTitle') }}</span>
+        <span class="collapse-title">{{
+          i18ns.t('ServerConfigView.remoteTerminalUnbindTitle')
+        }}</span>
       </template>
       <el-form :label-width="labelWidth" :label-position="labelPosition">
         <el-form-item :label="i18ns.t('ServerConfigView.remoteTerminalUnbindMaxCount')">
           <el-input-number v-model="remoteTerminalUnbindMaxCount" :min="0" :max="1000" />
-          <span class="form-help">{{ i18ns.t('ServerConfigView.remoteTerminalUnbindMaxCountHelp') }}</span>
+          <span class="form-help">{{
+            i18ns.t('ServerConfigView.remoteTerminalUnbindMaxCountHelp')
+          }}</span>
         </el-form-item>
         <el-form-item :label="i18ns.t('ServerConfigView.remoteTerminalUnbindWindowHours')">
           <el-input-number v-model="remoteTerminalUnbindWindowHours" :min="1" :max="8760" />
-          <span class="form-help">{{ i18ns.t('ServerConfigView.remoteTerminalUnbindWindowHoursHelp') }}</span>
+          <span class="form-help">{{
+            i18ns.t('ServerConfigView.remoteTerminalUnbindWindowHoursHelp')
+          }}</span>
         </el-form-item>
         <el-form-item :label="i18ns.t('ServerConfigView.remoteTerminalRebindCooldownMinutes')">
-          <el-input-number
-            v-model="remoteTerminalRebindCooldownMinutes"
-            :min="0"
-            :max="525600"
-          />
+          <el-input-number v-model="remoteTerminalRebindCooldownMinutes" :min="0" :max="525600" />
           <span class="form-help">{{
             i18ns.t('ServerConfigView.remoteTerminalRebindCooldownMinutesHelp')
           }}</span>
@@ -121,7 +125,12 @@
       </template>
       <el-form :label-width="labelWidth" :label-position="labelPosition">
         <el-form-item :label="i18ns.t('ServerConfigView.notificationDefaultSubscribedEvents')">
-          <div :class="['notification-events-field', !isDesktop && 'notification-events-field--mobile']">
+          <div
+            :class="[
+              'notification-events-field',
+              !isDesktop && 'notification-events-field--mobile',
+            ]"
+          >
             <div class="notification-events-toolbar">
               <el-button size="small" @click="selectAllNotificationDefaultEvents">
                 {{ i18ns.t('ServerConfigView.notificationSelectAll') }}
@@ -131,7 +140,12 @@
               </el-button>
             </div>
             <el-checkbox-group v-model="notificationDefaultSubscribedEvents">
-              <div :class="['notification-event-grid', !isDesktop && 'notification-event-grid--mobile']">
+              <div
+                :class="[
+                  'notification-event-grid',
+                  !isDesktop && 'notification-event-grid--mobile',
+                ]"
+              >
                 <label
                   v-for="event in notificationEventOptions"
                   :key="event.value"
@@ -151,7 +165,10 @@
         </el-form-item>
         <el-form-item :label="i18ns.t('ServerConfigView.notificationDefaultThresholds')">
           <div
-            :class="['notification-thresholds-field', !isDesktop && 'notification-thresholds-field--mobile']"
+            :class="[
+              'notification-thresholds-field',
+              !isDesktop && 'notification-thresholds-field--mobile',
+            ]"
           >
             <div
               v-for="event in notificationThresholdEventOptions"
@@ -234,7 +251,9 @@
               <span class="provider-card__desc">{{ option.description }}</span>
             </button>
           </div>
-          <span class="form-help">{{ i18ns.t('ServerConfigView.captchaFallbackProviderHelp') }}</span>
+          <span class="form-help">{{
+            i18ns.t('ServerConfigView.captchaFallbackProviderHelp')
+          }}</span>
         </el-form-item>
         <el-form-item :label="i18ns.t('ServerConfigView.captchaMinScore')">
           <el-input-number
@@ -255,7 +274,9 @@
         </el-form-item>
         <el-form-item :label="i18ns.t('ServerConfigView.captchaTrustWindowMinutes')">
           <el-input-number v-model="captchaTrustWindowMinutes" :min="0" :max="1440" :step="5" />
-          <span class="form-help">{{ i18ns.t('ServerConfigView.captchaTrustWindowMinutesHelp') }}</span>
+          <span class="form-help">{{
+            i18ns.t('ServerConfigView.captchaTrustWindowMinutesHelp')
+          }}</span>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="savingCaptcha" @click="saveCaptcha">
@@ -331,7 +352,13 @@
           <span class="form-help">{{ i18ns.t('ServerConfigView.errorDecayEnabledHelp') }}</span>
         </el-form-item>
         <el-form-item :label="i18ns.t('ServerConfigView.errorDecayRate')">
-          <el-input-number v-model="errorDecayRate" :min="0.1" :max="100" :step="0.1" :precision="1" />
+          <el-input-number
+            v-model="errorDecayRate"
+            :min="0.1"
+            :max="100"
+            :step="0.1"
+            :precision="1"
+          />
           <span class="form-help">{{ i18ns.t('ServerConfigView.errorDecayRateHelp') }}</span>
         </el-form-item>
         <el-form-item :label="i18ns.t('ServerConfigView.errorDecayMinThreshold')">
@@ -342,7 +369,9 @@
             :step="0.01"
             :precision="2"
           />
-          <span class="form-help">{{ i18ns.t('ServerConfigView.errorDecayMinThresholdHelp') }}</span>
+          <span class="form-help">{{
+            i18ns.t('ServerConfigView.errorDecayMinThresholdHelp')
+          }}</span>
         </el-form-item>
         <el-form-item :label="i18ns.t('ServerConfigView.errorDecayInterval')">
           <el-input-number v-model="errorDecayInterval" :min="1" :max="60" />
@@ -366,7 +395,9 @@
         </template>
       </el-alert>
       <el-form :label-width="labelWidth" :label-position="labelPosition">
-        <el-divider content-position="left">{{ i18ns.t('ServerConfigView.statusCodeWeights') }}</el-divider>
+        <el-divider content-position="left">{{
+          i18ns.t('ServerConfigView.statusCodeWeights')
+        }}</el-divider>
         <el-table :data="statusCodeWeights" border style="margin-bottom: 8px">
           <el-table-column :label="i18ns.t('ServerConfigView.statusCode')">
             <template #default="{ row }">
@@ -387,7 +418,12 @@
           </el-table-column>
           <el-table-column width="70">
             <template #default="{ $index }">
-              <el-button type="danger" link size="small" @click="statusCodeWeights.splice($index, 1)">
+              <el-button
+                type="danger"
+                link
+                size="small"
+                @click="statusCodeWeights.splice($index, 1)"
+              >
                 {{ i18ns.t('delete') }}
               </el-button>
             </template>
@@ -400,7 +436,9 @@
         >
           + {{ i18ns.t('ServerConfigView.addRow') }}
         </el-button>
-        <el-divider content-position="left">{{ i18ns.t('ServerConfigView.customCodeWeights') }}</el-divider>
+        <el-divider content-position="left">{{
+          i18ns.t('ServerConfigView.customCodeWeights')
+        }}</el-divider>
         <el-table :data="customCodeWeights" border style="margin-bottom: 8px">
           <el-table-column :label="i18ns.t('ServerConfigView.customCode')">
             <template #default="{ row }">
@@ -421,7 +459,12 @@
           </el-table-column>
           <el-table-column width="70">
             <template #default="{ $index }">
-              <el-button type="danger" link size="small" @click="customCodeWeights.splice($index, 1)">
+              <el-button
+                type="danger"
+                link
+                size="small"
+                @click="customCodeWeights.splice($index, 1)"
+              >
                 {{ i18ns.t('delete') }}
               </el-button>
             </template>

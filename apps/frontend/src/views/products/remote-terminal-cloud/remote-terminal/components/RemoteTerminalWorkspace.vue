@@ -70,7 +70,9 @@
             :class="{ fullscreen: isFullscreen && activeTabId === tab.tabId }"
           >
             <div class="session-meta">
-              <span>{{ i18ns.t('remoteTerminal.sessionId') }}: {{ tab.activeSessionId || '—' }}</span>
+              <span
+                >{{ i18ns.t('remoteTerminal.sessionId') }}: {{ tab.activeSessionId || '—' }}</span
+              >
               <span>
                 {{ i18ns.t('remoteTerminal.openLocationShort') }}:
                 {{ formatWorkingDirectoryLabel(tab.workingDirectory) }}
@@ -105,16 +107,25 @@
               </div>
 
               <div class="modifier-locks">
-                <el-check-tag :checked="modifierLocks.ctrl" @change="setModifierLock('ctrl', $event)">
+                <el-check-tag
+                  :checked="modifierLocks.ctrl"
+                  @change="setModifierLock('ctrl', $event)"
+                >
                   Ctrl
                 </el-check-tag>
                 <el-check-tag :checked="modifierLocks.alt" @change="setModifierLock('alt', $event)">
                   Alt
                 </el-check-tag>
-                <el-check-tag :checked="modifierLocks.shift" @change="setModifierLock('shift', $event)">
+                <el-check-tag
+                  :checked="modifierLocks.shift"
+                  @change="setModifierLock('shift', $event)"
+                >
                   Shift
                 </el-check-tag>
-                <el-check-tag :checked="modifierLocks.meta" @change="setModifierLock('meta', $event)">
+                <el-check-tag
+                  :checked="modifierLocks.meta"
+                  @change="setModifierLock('meta', $event)"
+                >
                   Meta
                 </el-check-tag>
                 <el-button text class="modifier-clear" @click="clearModifierLocks">

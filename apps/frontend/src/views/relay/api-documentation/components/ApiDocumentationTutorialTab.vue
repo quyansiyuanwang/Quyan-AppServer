@@ -28,7 +28,13 @@ const copyText = state.copyText
           <p>{{ $t('apiDoc.step2Desc') }}</p>
           <div class="endpoint-content">
             <el-text tag="code" class="endpoint-code">{{ displayAnthropicEndpoint }}</el-text>
-            <el-button :icon="CopyDocument" size="small" @click="copyText(displayAnthropicEndpoint)" type="primary" text />
+            <el-button
+              :icon="CopyDocument"
+              size="small"
+              @click="copyText(displayAnthropicEndpoint)"
+              type="primary"
+              text
+            />
           </div>
         </div>
       </template>
@@ -57,21 +63,39 @@ const copyText = state.copyText
             <p>{{ $t('apiDoc.step5Desc1') }}</p>
             <div class="endpoint-content">
               <el-text tag="code" class="endpoint-code">{{ platformBalanceEndpoint }}</el-text>
-              <el-button :icon="CopyDocument" size="small" @click="copyText(platformBalanceEndpoint)" type="primary" text />
+              <el-button
+                :icon="CopyDocument"
+                size="small"
+                @click="copyText(platformBalanceEndpoint)"
+                type="primary"
+                text
+              />
             </div>
           </div>
           <p>{{ $t('apiDoc.step5Desc2') }}</p>
           <p>{{ $t('apiDoc.step5Desc3') }}</p>
           <div class="endpoint-content">
             <el-text tag="code" class="endpoint-code">{{ relayUsageEndpoint }}</el-text>
-            <el-button :icon="CopyDocument" size="small" @click="copyText(relayUsageEndpoint)" type="primary" text />
+            <el-button
+              :icon="CopyDocument"
+              size="small"
+              @click="copyText(relayUsageEndpoint)"
+              type="primary"
+              text
+            />
           </div>
           <el-button type="primary" size="small" @click="state.goSettingsSecurity">
             {{ $t('apiDoc.goToAccessKeys') }}
           </el-button>
           <div style="margin-top: 16px; display: flex; align-items: center; gap: 8px">
             <p style="font-weight: 600; margin: 0">{{ $t('apiDoc.ccswitchTemplate') }}:</p>
-            <el-button :icon="CopyDocument" size="small" @click="copyText(ccswitchBalanceSample)" type="primary" text>
+            <el-button
+              :icon="CopyDocument"
+              size="small"
+              @click="copyText(ccswitchBalanceSample)"
+              type="primary"
+              text
+            >
               {{ $t('button.copy') }}
             </el-button>
           </div>

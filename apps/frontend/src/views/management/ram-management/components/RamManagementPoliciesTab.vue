@@ -2,12 +2,7 @@
   <el-tab-pane :label="i18ns.t('RamManagement.policies')" name="policies">
     <div v-if="canReadPolicies" class="section-toolbar">
       <div class="toolbar-left">
-        <el-button
-          v-if="canCreatePolicies"
-          type="primary"
-          :icon="Plus"
-          @click="openPolicyDialog()"
-        >
+        <el-button v-if="canCreatePolicies" type="primary" :icon="Plus" @click="openPolicyDialog()">
           {{ i18ns.t('RamManagement.createPolicy') }}
         </el-button>
       </div>
@@ -20,7 +15,13 @@
       />
     </div>
 
-    <el-table v-if="canReadPolicies" v-loading="loading.policies" :data="filteredPolicies" border stripe>
+    <el-table
+      v-if="canReadPolicies"
+      v-loading="loading.policies"
+      :data="filteredPolicies"
+      border
+      stripe
+    >
       <el-table-column prop="name" :label="i18ns.t('RamManagement.policyName')" min-width="180" />
       <el-table-column
         prop="description"

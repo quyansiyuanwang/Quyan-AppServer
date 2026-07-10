@@ -10,7 +10,9 @@
         <span class="perm-stat-selected">{{ selectedPermissions.length }}</span>
         <span class="perm-stat-sep">/</span>
         <span class="perm-stat-total">{{ ALL_PERMISSIONS.length }}</span>
-        <span v-if="isDesktop" class="perm-stat-label">{{ i18ns.t('GroupManagement.permSelected') }}</span>
+        <span v-if="isDesktop" class="perm-stat-label">{{
+          i18ns.t('GroupManagement.permSelected')
+        }}</span>
       </div>
       <el-input
         v-model="permSearch"
