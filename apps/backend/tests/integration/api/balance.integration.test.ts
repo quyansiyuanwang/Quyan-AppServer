@@ -181,7 +181,9 @@ describe("Balance API Integration", () => {
       .set("Authorization", `Bearer ${accessToken}`);
 
     expect(allTxRes.status).toBe(200);
-    const record = (allTxRes.body.data.records as Array<Record<string, unknown>>).find((item) => item.id === transaction.id);
+    const record = (allTxRes.body.data.records as Array<Record<string, unknown>>).find(
+      (item) => item.id === transaction.id,
+    );
     expect(record).toBeTruthy();
     expect(record).toEqual(
       expect.objectContaining({
