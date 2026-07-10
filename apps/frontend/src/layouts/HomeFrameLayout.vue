@@ -6,10 +6,7 @@
       :class="{ 'with-banner': impersonationStore.isImpersonating }"
     >
       <el-aside v-if="showAside" class="aside"><AsideMenu /></el-aside>
-      <el-main
-        class="main desktop-page md:desktop-page"
-        :class="{ 'is-embedded': isEmbeddedShell }"
-      >
+      <el-main class="main" :class="{ 'is-embedded': isEmbeddedShell }">
         <slot />
       </el-main>
     </el-container>
@@ -53,6 +50,7 @@ onMounted(async () => {
 .common-layout {
   width: 100%;
   height: 100%;
+  min-width: 0;
   background: var(--color-background);
   color: var(--color-text);
 }
@@ -69,6 +67,7 @@ onMounted(async () => {
 
 .el-container {
   height: 100%;
+  min-width: 0;
 }
 
 .with-banner {
@@ -102,8 +101,12 @@ onMounted(async () => {
 
 .main {
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   height: 100%;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  flex: 1 1 auto;
   padding: 20px;
   position: relative;
 }
