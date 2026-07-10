@@ -2484,6 +2484,7 @@ export const useRelayTokenManagement = () => {
     openTokenImportDialog,
     openCreateDialog,
     openEditDialog,
+    handleRefreshToken,
     handleToggleStatus,
     handleDelete,
     handleMoreCommand,

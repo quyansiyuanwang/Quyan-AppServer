@@ -98,7 +98,7 @@
                           {{ isAllChannelConfigsSelected ? i18ns.t('relay.clearChannelSelection') : i18ns.t('relay.selectAllChannels') }}
                         </el-button>
                         <el-select
-                          v-model="state.tokenChannelBatchAddIds"
+                          v-model="tokenChannelBatchAddIds"
                           multiple
                           collapse-tags
                           collapse-tags-tooltip
@@ -135,7 +135,7 @@
                       <el-icon><Rank /></el-icon>
                     </div>
                     <div class="channel-config-checkbox">
-                      <el-checkbox v-model="state.selectedChannelConfigKeys" :value="config.tempKey" />
+                      <el-checkbox v-model="selectedChannelConfigKeys" :value="config.tempKey" />
                     </div>
                     <div class="channel-config-order">
                       {{ index === 0 ? i18ns.t('relay.primaryChannel') : `#${index + 1}` }}
@@ -167,12 +167,12 @@
                   </el-button>
                 </div>
                 <el-alert
-                  v-if="state.showUnavailableChannelWarning"
+                  v-if="showUnavailableChannelWarning"
                   class="channel-warning-alert"
                   type="warning"
                   :closable="false"
                   :title="i18ns.t('relay.unavailableChannelsWarningTitle')"
-                  :description="state.unavailableChannelWarningText"
+                  :description="unavailableChannelWarningText"
                 />
               </el-form-item>
 
@@ -287,12 +287,12 @@
                   </div>
                 </div>
                 <el-alert
-                  v-if="state.showMaxRetriesRiskWarning"
+                  v-if="showMaxRetriesRiskWarning"
                   class="failover-risk-alert"
                   type="warning"
                   :closable="false"
                   :title="i18ns.t('warning')"
-                  :description="state.maxRetriesRiskWarningText"
+                  :description="maxRetriesRiskWarningText"
                 />
               </el-form-item>
             </div>
@@ -514,7 +514,7 @@
                   filterable
                   :placeholder="i18ns.t('relay.selectModels')"
                   style="width: 100%"
-                  :loading="state.loadingModels"
+                  :loading="loadingModels"
                 >
                   <el-option v-for="modelId in filteredModelIds" :key="modelId" :label="state.getModelIdDisplayLabel(modelId)" :value="modelId" />
                 </el-select>
@@ -532,7 +532,7 @@
     </div>
     <template #footer>
       <el-button @click="showEditDialog = false">{{ i18ns.t('cancel') }}</el-button>
-      <el-button type="primary" :loading="state.saving" @click="state.handleSave">{{ i18ns.t('confirm') }}</el-button>
+      <el-button type="primary" :loading="saving" @click="state.handleSave">{{ i18ns.t('confirm') }}</el-button>
     </template>
   </el-drawer>
 </template>
@@ -554,11 +554,19 @@ const {
   isDesktop,
   editForm,
   editDialogSectionNames,
+  selectedChannelConfigKeys,
+  tokenChannelBatchAddIds,
   isAllChannelConfigsSelected,
   selectedChannelConfigs,
   tokenChannelBatchAddOptions,
   filteredModelIds,
   channelFilteredModelNames,
+  saving,
+  showUnavailableChannelWarning,
+  unavailableChannelWarningText,
+  showMaxRetriesRiskWarning,
+  maxRetriesRiskWarningText,
+  loadingModels,
 } = state
 
 const setChannelListRef = (element: Element | ComponentPublicInstance | null) => {

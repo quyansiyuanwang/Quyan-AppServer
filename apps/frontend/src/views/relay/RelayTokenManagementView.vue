@@ -1,6 +1,6 @@
 <template>
   <div class="relay-token-management">
-    <RelayTokenPageDesktop v-if="state.isDesktop" />
+    <RelayTokenPageDesktop v-if="isDesktop" />
     <RelayTokenPageMobile v-else />
 
     <RelayTokenEditDrawer />
@@ -207,4 +207,6 @@ const {
 } = state
 
 provide(relayTokenManagementContextKey, state)
+
+defineExpose(state)
 </script>

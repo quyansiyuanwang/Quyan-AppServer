@@ -148,6 +148,7 @@ import type {
 
 const stats = ref<ConsumptionStatsResponse>(defaultStats())
 const loading = ref(false)
+const userRegex = ref('')
 
 const filterSelections = reactive<ConsumptionFilterSelections>(defaultSelections())
 
@@ -197,6 +198,21 @@ const activeFilterTags = computed(() => {
 
 const clearAllFilterSelections = () => {
   Object.assign(filterSelections, defaultSelections())
+}
+
+const selectAllFilter = (key: FilterSelectionKey, options: ConsumptionStatsFilterOption[]) => {
+  filterSelections[key] = options.map((option) => option.key)
+}
+
+const invertFilterSelection = (key: FilterSelectionKey, options: ConsumptionStatsFilterOption[]) => {
+  const selected = new Set(filterSelections[key])
+  filterSelections[key] = options
+    .map((option) => option.key)
+    .filter((optionKey) => !selected.has(optionKey))
+}
+
+const clearFilterSelection = (key: FilterSelectionKey) => {
+  filterSelections[key] = []
 }
 
 const getSelectedSummary = (key: FilterSelectionKey, total: number): string => {
@@ -309,7 +325,30 @@ const loadStats = async () => {
 
 const resetAllFilters = async () => {
   clearAllFilterSelections()
+  userRegex.value = ''
   await loadStats()
+}
+
+const applyUserRegexSelection = () => {
+  let matcher: RegExp
+
+  try {
+    matcher = new RegExp(userRegex.value, 'i')
+  } catch {
+    ElMessage.warning('Invalid user regex')
+    return
+  }
+
+  const matched = stats.value.filterOptions.users
+    .filter((option) => matcher.test(option.label) || matcher.test(option.key))
+    .map((option) => option.key)
+
+  if (matched.length === 0) {
+    ElMessage.warning('No users matched the regex')
+    return
+  }
+
+  filterSelections.userIds = matched
 }
 
 const onMobileDateChange = (value: [Date, Date] | null) => {
@@ -325,8 +364,13 @@ onMounted(() => {
 defineExpose({
   loadStats,
   resetAllFilters,
+  selectAllFilter,
+  invertFilterSelection,
+  clearFilterSelection,
+  applyUserRegexSelection,
   filterSelections,
   stats,
+  userRegex,
 })
 
 const { isDesktop } = usePageDevice()

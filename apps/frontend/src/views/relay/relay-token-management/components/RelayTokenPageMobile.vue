@@ -20,7 +20,7 @@
               <el-button plain :disabled="!selectedTokenIds.length" @click="state.clearTokenSelection">
                 {{ i18ns.t('relay.clearTokenSelection') }}
               </el-button>
-              <el-button :icon="Refresh" :loading="state.loadingTokens" @click="state.refreshTokens">
+              <el-button :icon="Refresh" :loading="loadingTokens" @click="state.refreshTokens">
                 {{ i18ns.t('refresh') }}
               </el-button>
               <PermissionWrapper :require="[Permission.RELAY_TOKEN_CREATE]">
@@ -34,8 +34,8 @@
 
         <div class="token-filter-bar token-filter-bar--mobile">
           <el-select
-            v-if="state.canManageAllTokens"
-            v-model="state.selectedTargetUserId"
+            v-if="canManageAllTokens"
+            v-model="selectedTargetUserId"
             filterable
             remote
             clearable
@@ -55,7 +55,7 @@
             />
           </el-select>
           <el-input
-            v-model="state.searchKeyword"
+            v-model="searchKeyword"
             clearable
             class="token-filter-input"
             :placeholder="i18ns.t('relay.searchKeywordPlaceholder')"
@@ -63,7 +63,7 @@
             @keyup.enter="state.handleSearch"
           />
           <el-input
-            v-model="state.searchTokenKeyword"
+            v-model="searchTokenKeyword"
             clearable
             class="token-filter-input"
             :placeholder="i18ns.t('relay.searchTokenPlaceholder')"
@@ -71,11 +71,11 @@
             @keyup.enter="state.handleSearch"
           />
           <div class="token-filter-actions token-filter-actions--mobile">
-            <el-button type="primary" :loading="state.loadingTokens" @click="state.handleSearch">
+            <el-button type="primary" :loading="loadingTokens" @click="state.handleSearch">
               {{ i18ns.t('relay.searchAction') }}
             </el-button>
-            <el-button :loading="state.loadingTokens" @click="state.toggleShowAll">
-              {{ i18ns.t(state.showAllMode ? 'relay.pagedDisplay' : 'relay.showAll') }}
+            <el-button :loading="loadingTokens" @click="state.toggleShowAll">
+              {{ i18ns.t(showAllMode ? 'relay.pagedDisplay' : 'relay.showAll') }}
             </el-button>
           </div>
         </div>
@@ -279,13 +279,13 @@
 
         <div v-if="showPagination" class="pagination-wrapper pagination-wrapper--mobile">
           <el-pagination
-            v-model:current-page="state.currentPage"
-            v-model:page-size="state.pageSize"
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
             :background="true"
-            :disabled="state.loadingTokens"
-            :page-sizes="state.pageSizeOptions"
+            :disabled="loadingTokens"
+            :page-sizes="pageSizeOptions"
             :small="true"
-            :total="state.paginationTotal"
+            :total="paginationTotal"
             layout="total, prev, pager, next"
             @current-change="state.handleCurrentPageChange"
             @size-change="state.handlePageSizeChange"
@@ -306,5 +306,22 @@ import { useRelayTokenManagementContext } from '../context'
 
 const state = useRelayTokenManagementContext()
 
-const { tokens, selectedTokenIds, selectedTokenIdSet, showPagination, userOptionsLoading, userOptions } = state
+const {
+  tokens,
+  selectedTokenIds,
+  selectedTokenIdSet,
+  showPagination,
+  userOptionsLoading,
+  userOptions,
+  canManageAllTokens,
+  selectedTargetUserId,
+  searchKeyword,
+  searchTokenKeyword,
+  loadingTokens,
+  showAllMode,
+  currentPage,
+  pageSize,
+  pageSizeOptions,
+  paginationTotal,
+} = state
 </script>
