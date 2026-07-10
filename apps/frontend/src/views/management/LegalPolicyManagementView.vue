@@ -583,7 +583,8 @@ const { isDesktop } = usePageDevice()
 
 <style scoped>
 .legal-policy-management {
-  padding: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 .card-header {

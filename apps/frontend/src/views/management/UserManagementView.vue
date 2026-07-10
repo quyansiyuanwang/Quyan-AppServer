@@ -633,7 +633,8 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .user-management {
-  padding: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 .user-management-mobile {

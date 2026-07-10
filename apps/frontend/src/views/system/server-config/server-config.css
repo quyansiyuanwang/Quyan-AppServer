@@ -3,9 +3,8 @@
 }
 
 .server-config-desktop {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 .server-config-mobile {

@@ -798,7 +798,8 @@ onMounted(() => {
 
 <style scoped>
 .page-shell {
-  padding: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 .stats-row {
@@ -923,7 +924,7 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .page-shell {
-    padding: 8px 6px 16px;
+    width: 100%;
   }
 }
 </style>

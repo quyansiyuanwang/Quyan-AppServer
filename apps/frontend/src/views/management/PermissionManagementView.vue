@@ -552,7 +552,8 @@ const { isDesktop } = usePageDevice()
 
 <style scoped lang="scss">
 .permission-management {
-  padding: 20px;
+  width: 100%;
+  min-width: 0;
 
   .card-header {
     display: flex;

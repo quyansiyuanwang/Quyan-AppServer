@@ -353,7 +353,8 @@ if (!isDesktop.value) {
 
 <style scoped>
 .upstream-status-page {
-  padding: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 .status-card {

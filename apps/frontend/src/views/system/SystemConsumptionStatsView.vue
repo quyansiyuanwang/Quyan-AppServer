@@ -379,9 +379,9 @@ const { isDesktop } = usePageDevice()
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
-  max-width: 1400px;
-  margin: 0 auto 8px;
+  padding: 12px 0;
+  width: 100%;
+  margin: 0 0 8px;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -400,9 +400,9 @@ const { isDesktop } = usePageDevice()
 }
 
 .consumption-stats-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 20px 24px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 24px;
 }
 
 .consumption-mobile {
@@ -422,7 +422,7 @@ const { isDesktop } = usePageDevice()
   }
 
   .consumption-stats-container {
-    padding: 0 10px 16px;
+    padding: 0 0 16px;
   }
 }
 </style>

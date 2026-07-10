@@ -400,9 +400,8 @@ if (!isDesktop.value) {
 
 <style scoped>
 .home-container {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .welcome-card {

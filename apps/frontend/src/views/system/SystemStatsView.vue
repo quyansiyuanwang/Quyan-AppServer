@@ -797,9 +797,9 @@ const { isDesktop } = usePageDevice()
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
-  max-width: 1200px;
-  margin: 0 auto 4px;
+  padding: 12px 0;
+  width: 100%;
+  margin: 0 0 4px;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -839,9 +839,9 @@ const { isDesktop } = usePageDevice()
 }
 
 .system-stats-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px 20px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 20px;
 }
 
 .stats-card {

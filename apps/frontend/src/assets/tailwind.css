@@ -14,7 +14,11 @@
   }
 
   .desktop-page {
-    @apply px-5 py-4 lg:px-7 lg:py-5;
+    @apply box-border w-full min-w-0;
+  }
+
+  .page-shell {
+    @apply box-border w-full min-w-0;
   }
 
   .mobile-page {

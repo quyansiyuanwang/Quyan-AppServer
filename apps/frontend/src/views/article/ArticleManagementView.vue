@@ -759,7 +759,8 @@ const { isDesktop } = usePageDevice()
 
 <style scoped>
 .article-management {
-  padding: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 .card-header {
