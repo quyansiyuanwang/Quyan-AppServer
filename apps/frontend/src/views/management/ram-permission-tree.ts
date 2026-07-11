@@ -126,8 +126,8 @@ const PERMISSION_CATEGORY_TRANSLATIONS = {
 
 type PermissionCategoryKey = keyof typeof PERMISSION_CATEGORY_TRANSLATIONS
 type PermissionCategoryTranslationKey =
-  (typeof PERMISSION_CATEGORY_TRANSLATIONS)[PermissionCategoryKey]['label'] |
-  (typeof PERMISSION_CATEGORY_TRANSLATIONS)[PermissionCategoryKey]['tooltip']
+  | (typeof PERMISSION_CATEGORY_TRANSLATIONS)[PermissionCategoryKey]['label']
+  | (typeof PERMISSION_CATEGORY_TRANSLATIONS)[PermissionCategoryKey]['tooltip']
 
 const isPermissionCategoryKey = (value: string): value is PermissionCategoryKey =>
   value in PERMISSION_CATEGORY_TRANSLATIONS

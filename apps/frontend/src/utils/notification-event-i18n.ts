@@ -9,14 +9,15 @@ import { i18ns } from '@/locales'
 
 const notificationEventSet = new Set<string>(ALL_NOTIFICATION_EVENTS)
 type ThresholdNotificationEvent = (typeof THRESHOLD_NOTIFICATION_EVENTS)[number]
-const thresholdNotificationEventSet = new Set<ThresholdNotificationEvent>(THRESHOLD_NOTIFICATION_EVENTS)
+const thresholdNotificationEventSet = new Set<ThresholdNotificationEvent>(
+  THRESHOLD_NOTIFICATION_EVENTS,
+)
 
 const isNotificationEvent = (eventType: string): eventType is NotificationEvent =>
   notificationEventSet.has(eventType)
 
-const isThresholdNotificationEvent = (
-  eventType: string,
-): eventType is ThresholdNotificationEvent => thresholdNotificationEventSet.has(eventType as ThresholdNotificationEvent)
+const isThresholdNotificationEvent = (eventType: string): eventType is ThresholdNotificationEvent =>
+  thresholdNotificationEventSet.has(eventType as ThresholdNotificationEvent)
 
 export function getNotificationEventLabel(eventType: string): string {
   if (!isNotificationEvent(eventType)) return eventType

@@ -28,11 +28,28 @@
   transform: rotate(0deg);
 }
 
+.relay-settings-view {
+  width: 100%;
+  min-width: 0;
+}
+
 .relay-settings {
   width: 100%;
+  min-width: 0;
 }
 
 .relay-settings-desktop {
+  width: 100%;
+  min-width: 0;
+}
+
+.relay-settings .el-collapse,
+.relay-settings .el-collapse-item,
+.relay-settings .el-collapse-item__wrap,
+.relay-settings .el-collapse-item__content,
+.relay-settings .el-form,
+.relay-settings .el-form-item,
+.relay-settings .el-form-item__content {
   width: 100%;
   min-width: 0;
 }
@@ -87,6 +104,35 @@
 .relay-settings-desktop .el-select,
 .relay-settings-desktop .el-input-number {
   max-width: 360px;
+}
+
+.relay-settings-desktop :deep(.block-form-item) {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.relay-settings-desktop :deep(.block-form-item .el-form-item__label) {
+  width: 100% !important;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 0 0 8px;
+}
+
+.relay-settings-desktop :deep(.block-form-item .el-form-item__content) {
+  margin-left: 0 !important;
+  width: 100%;
+  min-width: 0;
+}
+
+.relay-settings :deep(.el-table),
+.relay-settings :deep(.el-table__header),
+.relay-settings :deep(.el-table__body) {
+  width: 100% !important;
+}
+
+.relay-settings :deep(.el-table__header),
+.relay-settings :deep(.el-table__body) {
+  table-layout: fixed;
 }
 
 .collapse-title {

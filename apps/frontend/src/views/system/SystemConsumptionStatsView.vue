@@ -416,6 +416,11 @@ const { isDesktop } = usePageDevice()
   min-width: 0;
 }
 
+.consumption-stats-page :deep(.el-row),
+.consumption-stats-page :deep(.el-col) {
+  min-width: 0;
+}
+
 .consumption-stats-page :deep(.el-card),
 .consumption-stats-page :deep(.el-card__header),
 .consumption-stats-page :deep(.el-card__body) {

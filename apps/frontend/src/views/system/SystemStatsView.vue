@@ -853,6 +853,10 @@ const { isDesktop } = usePageDevice()
   padding: 0 0 20px;
 }
 
+.system-stats-container > * {
+  min-width: 0;
+}
+
 .stats-card {
   border-radius: 8px;
   margin-bottom: 16px;
@@ -890,6 +894,11 @@ const { isDesktop } = usePageDevice()
 
 .el-col {
   margin-bottom: 18px;
+}
+
+.system-stats-page :deep(.el-row),
+.system-stats-page :deep(.el-col) {
+  min-width: 0;
 }
 
 .info-item {
@@ -954,5 +963,13 @@ const { isDesktop } = usePageDevice()
 .system-stats-mobile-adapter :deep(.el-descriptions__content) {
   width: 60%;
   font-size: 13px;
+}
+
+@media (min-width: 992px) and (max-width: 1360px) {
+  .system-stats-page :deep(.el-col-md-6),
+  .system-stats-page :deep(.el-col-md-8) {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
 }
 </style>

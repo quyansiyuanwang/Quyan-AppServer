@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="user-management-root">
     <div v-if="isDesktop" class="user-management desktop-page">
       <el-card class="page-card">
         <template #header>
@@ -18,7 +18,7 @@
 
         <div class="search-bar">
           <el-row :gutter="12" align="middle">
-            <el-col :span="8">
+            <el-col :xs="24" :sm="12" :md="10" :lg="10">
               <el-input
                 v-model="keyword"
                 :placeholder="i18ns.t('UserManagement.searchKeyword')"
@@ -27,7 +27,7 @@
                 @clear="handleSearch"
               />
             </el-col>
-            <el-col :span="6">
+            <el-col :xs="24" :sm="12" :md="8" :lg="7">
               <el-select
                 v-model="searchGroupId"
                 :placeholder="i18ns.t('UserManagement.filterGroup')"
@@ -43,7 +43,7 @@
                 />
               </el-select>
             </el-col>
-            <el-col :span="6">
+            <el-col :xs="24" :sm="24" :md="6" :lg="7">
               <el-switch
                 v-model="showRamUsers"
                 :active-text="i18ns.t('UserManagement.showRamUsers')"
@@ -53,7 +53,7 @@
           </el-row>
         </div>
 
-        <el-table v-loading="loading" :data="userList" border stripe>
+        <el-table v-loading="loading" :data="userList" border stripe style="width: 100%">
           <template #empty>
             <el-empty :description="i18ns.t('noData')" />
           </template>
@@ -632,6 +632,11 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.user-management-root {
+  width: 100%;
+  min-width: 0;
+}
+
 .user-management {
   width: 100%;
   min-width: 0;
@@ -656,6 +661,12 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
+.search-bar :deep(.el-row),
+.search-bar :deep(.el-col) {
+  width: 100%;
+  min-width: 0;
+}
+
 .mobile-search-bar {
   padding: 0 4px;
 }
@@ -672,6 +683,23 @@ onMounted(() => {
 .desktop-pagination {
   margin-top: 20px;
   justify-content: flex-end;
+}
+
+.user-management :deep(.page-card),
+.user-management :deep(.el-card__body),
+.user-management :deep(.el-table),
+.user-management :deep(.el-table__inner-wrapper),
+.user-management :deep(.el-table__header-wrapper),
+.user-management :deep(.el-table__body-wrapper),
+.user-management :deep(.el-table__header),
+.user-management :deep(.el-table__body) {
+  width: 100%;
+  min-width: 0;
+}
+
+.user-management :deep(.el-table__header),
+.user-management :deep(.el-table__body) {
+  table-layout: fixed;
 }
 
 .mobile-pagination {

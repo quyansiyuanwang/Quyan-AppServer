@@ -114,14 +114,6 @@ interface ImageForwardResult extends StreamForwardResult {
   data?: any;
 }
 
-const createZeroTokenBreakdown = () => ({
-  requestTokens: 0,
-  responseTokens: 0,
-  totalTokens: 0,
-  cacheCreationTokens: 0,
-  cacheReadTokens: 0,
-});
-
 const HOP_BY_HOP_RESPONSE_HEADERS = new Set([
   "connection",
   "keep-alive",
@@ -1798,7 +1790,6 @@ export class RelayProxyService {
       originalModel,
     } = params;
 
-    const isPerRequestPricing = this.isPerRequestPricingConfig(selectedRateConfig);
     const modelMult =
       selectedRateConfig && typeof selectedRateConfig === "object" && selectedRateConfig.multiplier != null
         ? Number(selectedRateConfig.multiplier)

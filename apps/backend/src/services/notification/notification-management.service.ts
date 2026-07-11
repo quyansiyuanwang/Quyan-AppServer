@@ -35,6 +35,7 @@ import type { NotificationPreference, NotificationWebhook } from "@prisma/client
 
 export class NotificationManagementService {
   private static instance: NotificationManagementService;
+  private readonly thresholdEventSet = new Set<NotificationEvent>(THRESHOLD_EVENTS);
 
   private constructor(
     private readonly repository = NotificationPreferenceRepository.getInstance(),
@@ -276,13 +277,19 @@ export class NotificationManagementService {
   getEventList(): NotificationEventInfoDto[] {
     return ALL_NOTIFICATION_EVENTS.map((event) => ({
       value: event,
-      labelI18nKey: NOTIFICATION_EVENT_I18N_KEYS[event as NotificationEvent] ?? event,
-      hasThreshold: (THRESHOLD_EVENTS as readonly string[]).includes(event),
-      thresholdUnitI18nKey: NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS[event as NotificationEvent],
+      labelI18nKey: NOTIFICATION_EVENT_I18N_KEYS[event] ?? event,
+      hasThreshold: this.isThresholdNotificationEvent(event),
+      thresholdUnitI18nKey: this.isThresholdNotificationEvent(event)
+        ? NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS[event]
+        : undefined,
     }));
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
+
+  private isThresholdNotificationEvent(event: NotificationEvent): event is (typeof THRESHOLD_EVENTS)[number] {
+    return this.thresholdEventSet.has(event);
+  }
 
   private toPreferenceDto(pref: NotificationPreference): NotificationPreferenceDto {
     return {

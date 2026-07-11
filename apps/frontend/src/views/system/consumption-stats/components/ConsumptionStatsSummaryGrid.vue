@@ -1,7 +1,15 @@
 <template>
   <div v-if="isDesktop">
     <el-row :gutter="16" class="summary-grid">
-      <el-col v-for="item in summaryCards" :key="item.key" :xs="24" :sm="12" :md="8" :lg="4">
+      <el-col
+        v-for="item in summaryCards"
+        :key="item.key"
+        :xs="24"
+        :sm="12"
+        :md="8"
+        :lg="8"
+        :xl="4"
+      >
         <el-card class="summary-card" shadow="hover" v-loading="loading">
           <div class="summary-label">{{ item.label }}</div>
           <div class="summary-value">{{ item.value }}</div>

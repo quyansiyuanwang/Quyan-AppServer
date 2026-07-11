@@ -479,7 +479,8 @@ const normalizeBalanceScriptSettings = (value?: Partial<BalanceScriptSettings> |
     BALANCE_SCRIPT_FIELDS.map((field) => {
       const format = value?.fieldFormats?.[field]
       const kind = BALANCE_SCRIPT_FIELD_KINDS[field] ?? 'number'
-      const allowed = BALANCE_SCRIPT_ALLOWED_FORMATS[field] ?? BALANCE_SCRIPT_FIELD_FORMATS_BY_KIND[kind]
+      const allowed =
+        BALANCE_SCRIPT_ALLOWED_FORMATS[field] ?? BALANCE_SCRIPT_FIELD_FORMATS_BY_KIND[kind]
       return [
         field,
         format && allowed.includes(format)

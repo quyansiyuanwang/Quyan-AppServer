@@ -26,7 +26,7 @@
   }
 
   .page-card {
-    @apply rounded-xl border border-slate-200 bg-white/95 shadow-sm dark:border-slate-800 dark:bg-slate-900/90;
+    @apply w-full min-w-0 rounded-xl border border-slate-200 bg-white/95 shadow-sm dark:border-slate-800 dark:bg-slate-900/90;
   }
 
   .mobile-card {
@@ -39,7 +39,7 @@
 
   /* Dual-end visual system */
   .desktop-page :where(.el-card) {
-    @apply rounded-xl border border-slate-200 bg-white/95 shadow-sm dark:border-slate-800 dark:bg-slate-900/90;
+    @apply w-full min-w-0 rounded-xl border border-slate-200 bg-white/95 shadow-sm dark:border-slate-800 dark:bg-slate-900/90;
   }
 
   .mobile-page :where(.el-card) {
@@ -47,11 +47,11 @@
   }
 
   .desktop-page :where(.el-card__header) {
-    @apply border-b border-slate-200/70 px-5 py-3.5 dark:border-slate-800/70;
+    @apply w-full min-w-0 border-b border-slate-200/70 px-5 py-3.5 dark:border-slate-800/70;
   }
 
   .desktop-page :where(.el-card__body) {
-    @apply px-5 py-4;
+    @apply w-full min-w-0 px-5 py-4;
   }
 
   .mobile-page :where(.el-card__header) {

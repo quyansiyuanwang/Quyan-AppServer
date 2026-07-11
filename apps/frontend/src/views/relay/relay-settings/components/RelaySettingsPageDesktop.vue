@@ -27,7 +27,7 @@
               />
               <span class="form-help">{{ i18ns.t('relay.uptimeStatusUrlHelp') }}</span>
             </el-form-item>
-            <el-form-item :label="i18ns.t('relay.monitorConfig')">
+            <el-form-item :label="i18ns.t('relay.monitorConfig')" class="block-form-item">
               <div style="width: 100%">
                 <el-switch v-model="monitorConfigEnabled" />
                 <span class="form-help">{{ i18ns.t('relay.monitorConfigHelp') }}</span>
@@ -192,7 +192,10 @@
             }}</span>
           </template>
           <el-form label-width="200px" label-position="right">
-            <el-form-item :label="i18ns.t('ServerConfigView.allowedModelsAndPricing')">
+            <el-form-item
+              :label="i18ns.t('ServerConfigView.allowedModelsAndPricing')"
+              class="block-form-item"
+            >
               <div style="width: 100%">
                 <div style="margin-bottom: 8px; display: flex; gap: 8px; flex-wrap: wrap">
                   <el-button size="small" @click="exportModelPricing">{{
