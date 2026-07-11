@@ -234,7 +234,8 @@ export const useApiDocumentationPricing = () => {
     ).find((candidate) => candidate.id === channel.id)
 
     const customMultiplier = customPriceMultiplier.value ?? 1
-    const channelMultiplier = (availableChannel?.multiplier ?? channel.multiplier ?? 1) * customMultiplier
+    const channelMultiplier =
+      (availableChannel?.multiplier ?? channel.multiplier ?? 1) * customMultiplier
     const divisor = getTokenPriceUnitDivisor()
 
     if (!availableChannel) {
@@ -256,11 +257,16 @@ export const useApiDocumentationPricing = () => {
       channelId: channel.id,
       channelName: channel.name,
       multiplier: channelMultiplier,
-      fixedPrice: item.pricingType === 'per-request' ? (item.fixedPrice ?? 0) * channelMultiplier : null,
+      fixedPrice:
+        item.pricingType === 'per-request' ? (item.fixedPrice ?? 0) * channelMultiplier : null,
       inputPrice:
-        item.pricingType === 'per-request' ? null : ((item.inputPrice ?? 0) * channelMultiplier) / divisor,
+        item.pricingType === 'per-request'
+          ? null
+          : ((item.inputPrice ?? 0) * channelMultiplier) / divisor,
       outputPrice:
-        item.pricingType === 'per-request' ? null : ((item.outputPrice ?? 0) * channelMultiplier) / divisor,
+        item.pricingType === 'per-request'
+          ? null
+          : ((item.outputPrice ?? 0) * channelMultiplier) / divisor,
       cacheCreationMultiplier: item.cacheCreationMultiplier ?? null,
       cacheReadMultiplier: item.cacheReadMultiplier ?? null,
     }
