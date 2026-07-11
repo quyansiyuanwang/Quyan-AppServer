@@ -95,6 +95,27 @@ export const useApiDocumentationPricing = () => {
 
   const selectedChannelIdsSet = computed(() => new Set(filterChannelIds.value))
 
+  const filterChannel = computed<string>({
+    get: () => filterChannelIds.value[0] || '',
+    set: (channelId) => {
+      filterChannelIds.value = channelId ? [channelId] : []
+    },
+  })
+
+  const showLowestChannelPrice = computed<boolean>({
+    get: () => channelPriceMode.value === 'global-lowest',
+    set: (enabled) => {
+      if (enabled) {
+        channelPriceMode.value = 'global-lowest'
+        return
+      }
+
+      if (channelPriceMode.value === 'global-lowest') {
+        channelPriceMode.value = filterChannelIds.value.length > 0 ? 'selected-lowest' : 'base'
+      }
+    },
+  })
+
   const selectedChannels = computed(() => {
     const channelMap = new Map(channels.value.map((channel) => [channel.id, channel]))
 
@@ -585,12 +606,14 @@ export const useApiDocumentationPricing = () => {
     channels,
     selectedChannels,
     filterFormat,
+    filterChannel,
     filterChannelIds,
     filterPricingType,
     filterModelKeyword,
     onlyModelsWithChannels,
     channelMatchMode,
     channelPriceMode,
+    showLowestChannelPrice,
     pricingTableMode,
     primaryComparisonChannelId,
     customPriceMultiplier,
