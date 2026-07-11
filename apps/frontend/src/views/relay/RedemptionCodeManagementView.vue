@@ -289,6 +289,17 @@ onMounted(() => loadCodes())
   min-width: 1410px;
 }
 
+.redemption-code-management__table-wrap :deep(.el-table__header),
+.redemption-code-management__table-wrap :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.redemption-code-management__table-wrap :deep(.el-table__inner-wrapper),
+.redemption-code-management__table-wrap :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
 .redemption-code-management :deep(.el-table .cell) {
   word-break: break-word;
 }
