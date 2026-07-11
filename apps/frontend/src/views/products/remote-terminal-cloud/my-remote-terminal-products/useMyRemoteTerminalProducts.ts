@@ -2,6 +2,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
+import type { I18nENAvailableKeys } from '@/locales'
 import { MANAGED_STATUS } from '@/constant/status'
 import type {
   RemoteTerminalBillingUnit,
@@ -23,6 +24,44 @@ type EntitlementStatus = 'active' | 'pending' | 'expired' | 'disabled'
 type PurchaseMode = 'new' | 'merge'
 
 type InstallDialogTarget = RemoteTerminalBoundDeviceDto | RemoteTerminalUserEntitlementDto
+
+type RemoteTerminalProductBreakdownTranslationKey = Extract<
+  I18nENAvailableKeys,
+  `remoteTerminalProduct.breakdown${string}`
+>
+
+const REMOTE_TERMINAL_PRODUCT_BREAKDOWN_KEYS = {
+  breakdownRenewal: 'remoteTerminalProduct.breakdownRenewal',
+  breakdownRenewalOnly: 'remoteTerminalProduct.breakdownRenewalOnly',
+  breakdownUpgrade: 'remoteTerminalProduct.breakdownUpgrade',
+  breakdownDevice: 'remoteTerminalProduct.breakdownDevice',
+  breakdownTerminal: 'remoteTerminalProduct.breakdownTerminal',
+  breakdownSubtotal: 'remoteTerminalProduct.breakdownSubtotal',
+  breakdownTotal: 'remoteTerminalProduct.breakdownTotal',
+  breakdownOldQuota: 'remoteTerminalProduct.breakdownOldQuota',
+  breakdownNewQuota: 'remoteTerminalProduct.breakdownNewQuota',
+  breakdownRemainingDays: 'remoteTerminalProduct.breakdownRemainingDays',
+  breakdownDeviceUpgrade: 'remoteTerminalProduct.breakdownDeviceUpgrade',
+  breakdownTerminalUpgrade: 'remoteTerminalProduct.breakdownTerminalUpgrade',
+  breakdownNewDevice: 'remoteTerminalProduct.breakdownNewDevice',
+  breakdownNewTerminal: 'remoteTerminalProduct.breakdownNewTerminal',
+} satisfies Record<
+  | 'breakdownRenewal'
+  | 'breakdownRenewalOnly'
+  | 'breakdownUpgrade'
+  | 'breakdownDevice'
+  | 'breakdownTerminal'
+  | 'breakdownSubtotal'
+  | 'breakdownTotal'
+  | 'breakdownOldQuota'
+  | 'breakdownNewQuota'
+  | 'breakdownRemainingDays'
+  | 'breakdownDeviceUpgrade'
+  | 'breakdownTerminalUpgrade'
+  | 'breakdownNewDevice'
+  | 'breakdownNewTerminal',
+  RemoteTerminalProductBreakdownTranslationKey
+>
 
 export interface PurchaseFormState {
   purchaseMode: PurchaseMode
@@ -121,6 +160,11 @@ export const useMyRemoteTerminalProducts = () => {
       .toFixed(4)
       .replace(/\.?0+$/, '')} ${currency || '曲'}`
   }
+
+  const tBreakdown = (
+    key: keyof typeof REMOTE_TERMINAL_PRODUCT_BREAKDOWN_KEYS,
+    params?: Record<string, unknown>,
+  ) => i18ns.t(REMOTE_TERMINAL_PRODUCT_BREAKDOWN_KEYS[key], params)
 
   const formatUnitPrice = (
     price?: number,
@@ -469,14 +513,12 @@ export const useMyRemoteTerminalProducts = () => {
       const renewalTotal =
         units *
         ((supportsDevice(item) ? dPrice * newD : 0) + (supportsTerminal(item) ? tPrice * newT : 0))
-      const t18 = (k: string, p?: Record<string, unknown>) =>
-        i18ns.t(`remoteTerminalProduct.${k}` as never, p)
       const lines: string[] = []
       if (units > 0) {
-        lines.push(t18('breakdownRenewal'))
+        lines.push(tBreakdown('breakdownRenewal'))
         if (supportsDevice(item)) {
           lines.push(
-            t18('breakdownDevice', {
+            tBreakdown('breakdownDevice', {
               units,
               unit,
               count: newD,
@@ -487,7 +529,7 @@ export const useMyRemoteTerminalProducts = () => {
         }
         if (supportsTerminal(item)) {
           lines.push(
-            t18('breakdownTerminal', {
+            tBreakdown('breakdownTerminal', {
               units,
               unit,
               count: newT,
@@ -496,9 +538,9 @@ export const useMyRemoteTerminalProducts = () => {
             }),
           )
         }
-        lines.push(t18('breakdownSubtotal', { total: fp(renewalTotal) }))
+        lines.push(tBreakdown('breakdownSubtotal', { total: fp(renewalTotal) }))
       } else {
-        lines.push(t18('breakdownRenewalOnly'))
+        lines.push(tBreakdown('breakdownRenewalOnly'))
       }
 
       if (addD > 0 || addT > 0) {
@@ -508,13 +550,13 @@ export const useMyRemoteTerminalProducts = () => {
         const upgradeRatio = remainingHours / (billingUnitDays * 24)
         const rh = String(remainingHours)
         const unitHours = billingUnitDays * 24
-        lines.push(t18('breakdownUpgrade'))
-        lines.push(t18('breakdownOldQuota', { device: oldD, terminal: oldT }))
-        lines.push(t18('breakdownNewQuota', { device: newD, terminal: newT }))
-        lines.push(t18('breakdownRemainingDays', { days: rh, unit, unitDays: unitHours }))
+        lines.push(tBreakdown('breakdownUpgrade'))
+        lines.push(tBreakdown('breakdownOldQuota', { device: oldD, terminal: oldT }))
+        lines.push(tBreakdown('breakdownNewQuota', { device: newD, terminal: newT }))
+        lines.push(tBreakdown('breakdownRemainingDays', { days: rh, unit, unitDays: unitHours }))
         if (addD > 0) {
           lines.push(
-            t18('breakdownDeviceUpgrade', {
+            tBreakdown('breakdownDeviceUpgrade', {
               days: rh,
               unitDays: unitHours,
               count: addD,
@@ -526,7 +568,7 @@ export const useMyRemoteTerminalProducts = () => {
         }
         if (addT > 0) {
           lines.push(
-            t18('breakdownTerminalUpgrade', {
+            tBreakdown('breakdownTerminalUpgrade', {
               days: rh,
               unitDays: unitHours,
               count: addT,
@@ -540,10 +582,10 @@ export const useMyRemoteTerminalProducts = () => {
           upgradeRatio *
           ((supportsDevice(item) ? dPrice * addD : 0) +
             (supportsTerminal(item) ? tPrice * addT : 0))
-        lines.push(t18('breakdownSubtotal', { total: fp(upgradeTotal) }))
-        lines.push(t18('breakdownTotal', { total: fp(renewalTotal + upgradeTotal) }))
+        lines.push(tBreakdown('breakdownSubtotal', { total: fp(upgradeTotal) }))
+        lines.push(tBreakdown('breakdownTotal', { total: fp(renewalTotal + upgradeTotal) }))
       } else {
-        lines.push(t18('breakdownTotal', { total: fp(renewalTotal) }))
+        lines.push(tBreakdown('breakdownTotal', { total: fp(renewalTotal) }))
       }
       return lines
     }
@@ -552,12 +594,10 @@ export const useMyRemoteTerminalProducts = () => {
     const t = Number(form.terminalCount || 0)
     const dPrice = Number(item.devicePrice || 0)
     const tPrice = Number(item.terminalPrice || 0)
-    const t18 = (k: string, p?: Record<string, unknown>) =>
-      i18ns.t(`remoteTerminalProduct.${k}` as never, p)
     const lines: string[] = []
     if (supportsDevice(item) && d > 0) {
       lines.push(
-        t18('breakdownNewDevice', {
+        tBreakdown('breakdownNewDevice', {
           units,
           unit,
           count: d,
@@ -568,7 +608,7 @@ export const useMyRemoteTerminalProducts = () => {
     }
     if (supportsTerminal(item) && t > 0) {
       lines.push(
-        t18('breakdownNewTerminal', {
+        tBreakdown('breakdownNewTerminal', {
           units,
           unit,
           count: t,
@@ -579,7 +619,7 @@ export const useMyRemoteTerminalProducts = () => {
     }
     const total =
       units * ((supportsDevice(item) ? dPrice * d : 0) + (supportsTerminal(item) ? tPrice * t : 0))
-    if (lines.length > 1) lines.push(t18('breakdownTotal', { total: fp(total) }))
+    if (lines.length > 1) lines.push(tBreakdown('breakdownTotal', { total: fp(total) }))
     return lines
   }
 

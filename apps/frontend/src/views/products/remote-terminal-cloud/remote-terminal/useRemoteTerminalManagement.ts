@@ -6,6 +6,7 @@ import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import 'xterm/css/xterm.css'
 import { i18ns } from '@/locales'
+import type { I18nENAvailableKeys } from '@/locales'
 import type {
   RemoteTerminalAgentPreferencesDto,
   RemoteTerminalDirectoryBrowseDto,
@@ -79,6 +80,21 @@ type TerminalInputModeSnapshot = {
   isBracketedPasteMode: boolean
   isFocusReportingMode: boolean
 }
+
+type RemoteTerminalShellTypeTranslationKey = Extract<
+  I18nENAvailableKeys,
+  `remoteTerminal.shellTypes.${string}`
+>
+
+const REMOTE_TERMINAL_SHELL_TYPE_LABEL_KEYS = {
+  'system-default': 'remoteTerminal.shellTypes.system-default',
+  cmd: 'remoteTerminal.shellTypes.cmd',
+  powershell: 'remoteTerminal.shellTypes.powershell',
+  pwsh: 'remoteTerminal.shellTypes.pwsh',
+  bash: 'remoteTerminal.shellTypes.bash',
+  zsh: 'remoteTerminal.shellTypes.zsh',
+  sh: 'remoteTerminal.shellTypes.sh',
+} satisfies Record<RemoteTerminalShellType, RemoteTerminalShellTypeTranslationKey>
 
 export type QuickCommand = {
   id: string
@@ -1048,7 +1064,7 @@ export const useRemoteTerminalManagement = () => {
   }
 
   const getShellTypeLabel = (shellType: RemoteTerminalShellType) =>
-    i18ns.t(`remoteTerminal.shellTypes.${shellType}` as never)
+    i18ns.t(REMOTE_TERMINAL_SHELL_TYPE_LABEL_KEYS[shellType])
 
   const normalizeTerminalOutput = (data: string) => data.replace(/\r?\n/g, '\r\n')
 

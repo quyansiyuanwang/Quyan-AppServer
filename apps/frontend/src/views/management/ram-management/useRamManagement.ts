@@ -101,8 +101,8 @@ export function useRamManagement() {
   const permissionTree = computed(() =>
     buildGrantablePermissionTree({
       effectivePermissions: grantablePermissions.value,
-      locale: i18ns.refer.value as string,
-      translateCategory: (key) => i18ns.t(key as any),
+      locale: String(i18ns.refer.value),
+      translateCategory: (key) => i18ns.t(key),
     }),
   )
 
