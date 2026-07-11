@@ -6,7 +6,7 @@ const state = useApiDocumentationContext()
 const canOpenSwagger = state.canOpenSwagger
 const openingSwaggerDocs = state.openingSwaggerDocs
 const openSwaggerDocs = state.openSwaggerDocs
-const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
+const t = i18ns.t
 </script>
 
 <template>

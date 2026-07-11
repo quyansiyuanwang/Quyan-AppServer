@@ -4,35 +4,54 @@ import { i18ns } from '@/locales'
 import { useRemoteTerminalProductManagementContext } from '../context'
 
 const state = useRemoteTerminalProductManagementContext()
-const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
+const t = i18ns.t
 const userOptions = computed(() => state.userOptions.value)
+const templateDialogVisible = state.templateDialogVisible
+const templateDialogTitle = state.templateDialogTitle
+const templateFormRef = state.templateFormRef
+const dialogSubmitting = state.dialogSubmitting
+const submitTemplateDialog = state.submitTemplateDialog
+const entitlementDialogVisible = state.entitlementDialogVisible
+const entitlementDialogTitle = state.entitlementDialogTitle
+const entitlementFormRef = state.entitlementFormRef
+const handleUserSearch = state.handleUserSearch
+const userOptionsLoading = state.userOptionsLoading
+const templateOptions = computed(() => state.filterOptions.templates)
+const submitEntitlementDialog = state.submitEntitlementDialog
+const tokenDialogVisible = state.tokenDialogVisible
+const submitRotateToken = state.submitRotateToken
+const limitAdjustDialogVisible = state.limitAdjustDialogVisible
+const limitAdjustFormRef = state.limitAdjustFormRef
+const resettingUnbind = state.resettingUnbind
+const handleResetUnbindCount = state.handleResetUnbindCount
+const submitLimitAdjustDialog = state.submitLimitAdjustDialog
 
 const closeTemplateDialog = () => {
-  state.templateDialogVisible.value = false
+  templateDialogVisible.value = false
 }
 
 const closeEntitlementDialog = () => {
-  state.entitlementDialogVisible.value = false
+  entitlementDialogVisible.value = false
 }
 
 const closeTokenDialog = () => {
-  state.tokenDialogVisible.value = false
+  tokenDialogVisible.value = false
 }
 
 const closeLimitAdjustDialog = () => {
-  state.limitAdjustDialogVisible.value = false
+  limitAdjustDialogVisible.value = false
 }
 </script>
 
 <template>
   <el-dialog
-    v-model="state.templateDialogVisible"
-    :title="state.templateDialogTitle"
+    v-model="templateDialogVisible"
+    :title="templateDialogTitle"
     width="720px"
     destroy-on-close
   >
     <el-form
-      ref="state.templateFormRef"
+      ref="templateFormRef"
       :model="state.templateForm"
       :rules="state.templateFormRules"
       label-width="160px"
@@ -124,24 +143,20 @@ const closeLimitAdjustDialog = () => {
     </el-form>
     <template #footer>
       <el-button @click="closeTemplateDialog">{{ t('common.cancel') }}</el-button>
-      <el-button
-        type="primary"
-        :loading="state.dialogSubmitting"
-        @click="state.submitTemplateDialog"
-      >
+      <el-button type="primary" :loading="dialogSubmitting" @click="submitTemplateDialog">
         {{ t('common.confirm') }}
       </el-button>
     </template>
   </el-dialog>
 
   <el-dialog
-    v-model="state.entitlementDialogVisible"
-    :title="state.entitlementDialogTitle"
+    v-model="entitlementDialogVisible"
+    :title="entitlementDialogTitle"
     width="720px"
     destroy-on-close
   >
     <el-form
-      ref="state.entitlementFormRef"
+      ref="entitlementFormRef"
       :model="state.entitlementForm"
       :rules="state.entitlementFormRules"
       label-width="160px"
@@ -153,8 +168,8 @@ const closeLimitAdjustDialog = () => {
           filterable
           remote
           reserve-keyword
-          :remote-method="state.handleUserSearch"
-          :loading="state.userOptionsLoading"
+          :remote-method="handleUserSearch"
+          :loading="userOptionsLoading"
         >
           <el-option
             v-for="user in userOptions"
@@ -167,7 +182,7 @@ const closeLimitAdjustDialog = () => {
       <el-form-item :label="t('remoteTerminalProduct.templateName')">
         <el-select v-model="state.entitlementForm.templateId" class="full-width" clearable>
           <el-option
-            v-for="template in state.filterOptions.templates"
+            v-for="template in templateOptions"
             :key="template.id"
             :label="template.name"
             :value="template.id"
@@ -220,18 +235,14 @@ const closeLimitAdjustDialog = () => {
     </el-form>
     <template #footer>
       <el-button @click="closeEntitlementDialog">{{ t('common.cancel') }}</el-button>
-      <el-button
-        type="primary"
-        :loading="state.dialogSubmitting"
-        @click="state.submitEntitlementDialog"
-      >
+      <el-button type="primary" :loading="dialogSubmitting" @click="submitEntitlementDialog">
         {{ t('common.confirm') }}
       </el-button>
     </template>
   </el-dialog>
 
   <el-dialog
-    v-model="state.tokenDialogVisible"
+    v-model="tokenDialogVisible"
     :title="t('remoteTerminalProduct.rotateToken')"
     width="520px"
     destroy-on-close
@@ -251,21 +262,21 @@ const closeLimitAdjustDialog = () => {
     </el-form>
     <template #footer>
       <el-button @click="closeTokenDialog">{{ t('common.cancel') }}</el-button>
-      <el-button type="primary" :loading="state.dialogSubmitting" @click="state.submitRotateToken">
+      <el-button type="primary" :loading="dialogSubmitting" @click="submitRotateToken">
         {{ t('common.confirm') }}
       </el-button>
     </template>
   </el-dialog>
 
   <el-dialog
-    v-model="state.limitAdjustDialogVisible"
+    v-model="limitAdjustDialogVisible"
     :title="t('remoteTerminalProduct.adjustQuota')"
     width="560px"
     destroy-on-close
   >
     <div class="limit-adjust-row">
       <el-form
-        ref="state.limitAdjustFormRef"
+        ref="limitAdjustFormRef"
         :model="state.limitAdjustForm"
         label-width="150px"
         class="full-width"
@@ -291,17 +302,13 @@ const closeLimitAdjustDialog = () => {
           {{ t('remoteTerminalProduct.resetUnbindDescription') }}
         </div>
       </div>
-      <el-button :loading="state.resettingUnbind" @click="state.handleResetUnbindCount">
+      <el-button :loading="resettingUnbind" @click="handleResetUnbindCount">
         {{ t('remoteTerminalProduct.resetUnbindCount') }}
       </el-button>
     </div>
     <template #footer>
       <el-button @click="closeLimitAdjustDialog">{{ t('common.cancel') }}</el-button>
-      <el-button
-        type="primary"
-        :loading="state.dialogSubmitting"
-        @click="state.submitLimitAdjustDialog"
-      >
+      <el-button type="primary" :loading="dialogSubmitting" @click="submitLimitAdjustDialog">
         {{ t('common.confirm') }}
       </el-button>
     </template>

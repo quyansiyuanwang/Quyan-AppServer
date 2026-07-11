@@ -13,7 +13,7 @@ const platformBalanceEndpoint = state.platformBalanceEndpoint
 const balanceFields = state.balanceFields
 const showFullEndpoint = state.showFullEndpoint
 const copyText = state.copyText
-const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
+const t = i18ns.t
 </script>
 
 <template>

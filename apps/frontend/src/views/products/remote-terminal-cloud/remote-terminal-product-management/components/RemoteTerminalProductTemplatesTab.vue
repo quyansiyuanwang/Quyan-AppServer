@@ -1,55 +1,67 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { i18ns } from '@/locales'
 import { useRemoteTerminalProductManagementContext } from '../context'
 
 const state = useRemoteTerminalProductManagementContext()
-const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
+const t = i18ns.t
+const templateKeyword = state.templateKeyword
+const templateStatus = state.templateStatus
+const templateStatusOptions = computed(() => state.filterOptions.templateStatusOptions)
+const canWriteTemplate = state.canWriteTemplate
+const openCreateTemplateDialog = state.openCreateTemplateDialog
+const openEditTemplateDialog = state.openEditTemplateDialog
+const handlePublish = state.handlePublish
+const handleUnpublish = state.handleUnpublish
+const handleDeleteTemplate = state.handleDeleteTemplate
+const templates = computed(() => state.templates.value)
+const supportsDevice = state.supportsDevice
+const supportsTerminal = state.supportsTerminal
+const formatUnitPrice = state.formatUnitPrice
+const formatTemplatePurchaseLimit = state.formatTemplatePurchaseLimit
 </script>
 
 <template>
   <div class="toolbar-row">
     <el-input
-      v-model="state.templateKeyword"
+      v-model="templateKeyword"
       class="toolbar-input"
       clearable
       :placeholder="t('remoteTerminalProduct.searchTemplatePlaceholder')"
     />
     <el-select
-      v-model="state.templateStatus"
+      v-model="templateStatus"
       class="toolbar-select"
       clearable
       :placeholder="t('common.status')"
     >
       <el-option
-        v-for="option in state.filterOptions.templateStatusOptions"
+        v-for="option in templateStatusOptions"
         :key="option.value"
         :label="option.label"
         :value="option.value"
       />
     </el-select>
     <div style="flex: 1" />
-    <el-button v-if="state.canWriteTemplate" type="primary" @click="state.openCreateTemplateDialog">
+    <el-button v-if="canWriteTemplate" type="primary" @click="openCreateTemplateDialog">
       {{ t('remoteTerminalProduct.createTemplate') }}
     </el-button>
   </div>
 
-  <el-table :data="state.templates" border stripe>
+  <el-table :data="templates" border stripe>
     <el-table-column prop="name" :label="t('remoteTerminalProduct.templateName')" min-width="180" />
     <el-table-column :label="t('remoteTerminalProduct.offeredUnits')" min-width="220">
       <template #default="{ row }">
         <div class="tag-stack">
-          <el-tag v-if="state.supportsDevice(row)" type="success">
+          <el-tag v-if="supportsDevice(row)" type="success">
             {{ t('remoteTerminalProduct.deviceQuota') }}:
-            {{ state.formatUnitPrice(row.devicePrice, row.currency, row.billingUnit) }}
+            {{ formatUnitPrice(row.devicePrice, row.currency, row.billingUnit) }}
           </el-tag>
-          <el-tag v-if="state.supportsTerminal(row)" type="warning">
+          <el-tag v-if="supportsTerminal(row)" type="warning">
             {{ t('remoteTerminalProduct.terminalQuota') }}:
-            {{ state.formatUnitPrice(row.terminalPrice, row.currency, row.billingUnit) }}
+            {{ formatUnitPrice(row.terminalPrice, row.currency, row.billingUnit) }}
           </el-tag>
-          <span
-            v-if="!state.supportsDevice(row) && !state.supportsTerminal(row)"
-            class="secondary-text"
-          >
+          <span v-if="!supportsDevice(row) && !supportsTerminal(row)" class="secondary-text">
             -
           </span>
         </div>
@@ -65,7 +77,7 @@ const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
           }}
         </div>
         <div class="secondary-text">
-          {{ state.formatTemplatePurchaseLimit(row) }}
+          {{ formatTemplatePurchaseLimit(row) }}
         </div>
       </template>
     </el-table-column>
@@ -114,30 +126,30 @@ const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
     <el-table-column :label="t('common.actions')" fixed="right" width="260">
       <template #default="{ row }">
         <div class="token-actions">
-          <el-button link type="primary" @click="state.openEditTemplateDialog(row)">
+          <el-button link type="primary" @click="openEditTemplateDialog(row)">
             {{ t('common.edit') }}
           </el-button>
           <el-button
-            v-if="state.canWriteTemplate && !row.publishedAt"
+            v-if="canWriteTemplate && !row.publishedAt"
             link
             type="success"
-            @click="state.handlePublish(row.id)"
+            @click="handlePublish(row.id)"
           >
             {{ t('remoteTerminalProduct.publish') }}
           </el-button>
           <el-button
-            v-if="state.canWriteTemplate && row.publishedAt"
+            v-if="canWriteTemplate && row.publishedAt"
             link
             type="warning"
-            @click="state.handleUnpublish(row.id)"
+            @click="handleUnpublish(row.id)"
           >
             {{ t('remoteTerminalProduct.unpublish') }}
           </el-button>
           <el-button
-            v-if="state.canWriteTemplate"
+            v-if="canWriteTemplate"
             link
             type="danger"
-            @click="state.handleDeleteTemplate(row.id)"
+            @click="handleDeleteTemplate(row.id)"
           >
             {{ t('common.delete') }}
           </el-button>

@@ -8,7 +8,7 @@ import { useApiDocumentationContext } from '../context'
 const state = useApiDocumentationContext()
 const activeTabName = state.activeTabName
 const handleTabChange = state.handleTabChange
-const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
+const t = i18ns.t
 </script>
 
 <template>

@@ -11,7 +11,7 @@ const ccswitchBalanceSample = state.ccswitchBalanceSample
 const copyText = state.copyText
 const goRelayTokenManagement = state.goRelayTokenManagement
 const goSettingsSecurity = state.goSettingsSecurity
-const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
+const t = i18ns.t
 </script>
 
 <template>

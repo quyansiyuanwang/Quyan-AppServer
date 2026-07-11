@@ -3,7 +3,9 @@ import { i18ns } from '@/locales'
 import { useRemoteTerminalProductManagementContext } from '../context'
 
 const state = useRemoteTerminalProductManagementContext()
-const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
+const t = i18ns.t
+const loading = state.loading
+const refreshAll = state.refreshAll
 </script>
 
 <template>
@@ -12,7 +14,7 @@ const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
       <div class="title">{{ t('remoteTerminalProduct.title') }}</div>
       <div class="subtitle">{{ t('remoteTerminalProduct.subtitle') }}</div>
     </div>
-    <el-button :loading="state.loading" @click="state.refreshAll">
+    <el-button :loading="loading" @click="refreshAll">
       {{ t('common.refresh') }}
     </el-button>
   </div>

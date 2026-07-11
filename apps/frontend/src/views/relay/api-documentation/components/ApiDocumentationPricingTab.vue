@@ -54,7 +54,7 @@ const handlePriceRangeChange = state.handlePriceRangeChange
 const resetPriceRangeFilter = state.resetPriceRangeFilter
 const handlePricingTypeFilterChange = state.handlePricingTypeFilterChange
 const handleSortChange = state.handleSortChange
-const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
+const t = i18ns.t
 
 const toggleMobilePricingControlsExpanded = () => {
   mobilePricingControlsExpanded.value = !mobilePricingControlsExpanded.value

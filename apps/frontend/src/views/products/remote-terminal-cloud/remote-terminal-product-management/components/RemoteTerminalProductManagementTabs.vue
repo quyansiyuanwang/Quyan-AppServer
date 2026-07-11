@@ -7,18 +7,16 @@ import RemoteTerminalProductEntitlementsTab from './RemoteTerminalProductEntitle
 import RemoteTerminalProductDevicesTab from './RemoteTerminalProductDevicesTab.vue'
 
 const state = useRemoteTerminalProductManagementContext()
-const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
+const t = i18ns.t
+const canView = state.canView
+const activeTab = state.activeTab
 const visibleTabs = computed(() => state.visibleTabs.value)
 </script>
 
 <template>
-  <el-empty
-    v-if="!state.canView"
-    class="permission-empty"
-    :description="t('common.noPermission')"
-  />
+  <el-empty v-if="!canView" class="permission-empty" :description="t('common.noPermission')" />
 
-  <el-tabs v-else v-model="state.activeTab">
+  <el-tabs v-else v-model="activeTab">
     <el-tab-pane
       v-if="visibleTabs.includes('templates')"
       name="templates"
