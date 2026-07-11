@@ -19,7 +19,9 @@ export type PricingModelRow = ModelPricingDto & {
 
 export type PricingSortField = 'model' | 'fixedPrice' | 'inputPrice' | 'outputPrice' | ''
 export type PricingSortOrder = 'asc' | 'desc' | ''
-export type PricingDisplayMode = 'base' | 'selected-channel' | 'lowest-channel'
+export type ChannelMatchMode = 'match-any' | 'match-all'
+export type ChannelPriceMode = 'base' | 'selected-lowest' | 'global-lowest'
+export type PricingDisplayMode = ChannelPriceMode
 export type PriceRangeField = 'fixedPrice' | 'inputPrice' | 'outputPrice'
 export type PricingTokenUnit = 'M' | 'K'
 
@@ -43,12 +45,12 @@ export const useApiDocumentationPricing = () => {
   const channels = ref<RelayChannelDto[]>([])
 
   const filterFormat = ref<string>('')
-  const filterChannel = ref<string>('')
+  const filterChannelIds = ref<string[]>([])
   const filterPricingType = ref<string>('')
   const filterModelKeyword = ref<string>('')
   const onlyModelsWithChannels = ref(true)
-  const showCalculatedPrice = ref(false)
-  const showLowestChannelPrice = ref(true)
+  const channelMatchMode = ref<ChannelMatchMode>('match-any')
+  const channelPriceMode = ref<ChannelPriceMode>('selected-lowest')
   const customPriceMultiplier = ref<number | null>(null)
   const tokenPriceUnit = ref<PricingTokenUnit>('M')
   const fixedPriceMin = ref<number | null>(null)
@@ -75,6 +77,12 @@ export const useApiDocumentationPricing = () => {
 
     return (item.model || '').trim()
   }
+
+  const selectedChannelIdsSet = computed(() => new Set(filterChannelIds.value))
+
+  const selectedChannels = computed(() =>
+    channels.value.filter((channel) => selectedChannelIdsSet.value.has(channel.id)),
+  )
 
   const parseAllowedModels = (allowedModels?: string | null): string[] | null => {
     if (!allowedModels) return null
@@ -113,6 +121,7 @@ export const useApiDocumentationPricing = () => {
     modelFormat?: string,
   ): RelayChannelDto[] => {
     const normalizedModelName = modelName.trim()
+    const normalizedModelId = modelId.trim()
     const modelFormats = normalizeFormats(modelFormat)
 
     return channels.value.filter((channel) => {
@@ -135,8 +144,23 @@ export const useApiDocumentationPricing = () => {
       const allowedModels = parseAllowedModels(channel.allowedModels)
       if (!allowedModels) return true
 
-      return allowedModels.some((allowedModelName) => allowedModelName === normalizedModelName)
+      return allowedModels.some(
+        (allowedModelName) =>
+          allowedModelName === normalizedModelName || allowedModelName === normalizedModelId,
+      )
     })
+  }
+
+  const getSelectedChannelsForModel = (item: PricingModelRow): RelayChannelDto[] => {
+    const availableChannels = getChannelsForModel(
+      item.model || '',
+      getRequestModelId(item),
+      item.supportedFormats,
+    )
+
+    if (selectedChannelIdsSet.value.size === 0) return []
+
+    return availableChannels.filter((channel) => selectedChannelIdsSet.value.has(channel.id))
   }
 
   const getLowestMultiplierForModel = (item: PricingModelRow): number | null => {
@@ -151,24 +175,34 @@ export const useApiDocumentationPricing = () => {
     return Math.min(...availableChannels.map((channel) => channel.multiplier ?? 1))
   }
 
+  const getLowestSelectedMultiplierForModel = (item: PricingModelRow): number | null => {
+    const availableSelectedChannels = getSelectedChannelsForModel(item)
+
+    if (availableSelectedChannels.length === 0) return null
+
+    return Math.min(...availableSelectedChannels.map((channel) => channel.multiplier ?? 1))
+  }
+
   const getDisplayedPriceMultiplier = (item: PricingModelRow): number => {
     const customMultiplier = customPriceMultiplier.value ?? 1
 
-    if (showLowestChannelPrice.value) {
+    if (channelPriceMode.value === 'global-lowest') {
       return (getLowestMultiplierForModel(item) ?? 1) * customMultiplier
     }
 
-    if (showCalculatedPrice.value && filterChannel.value) {
-      const selectedChannel = channels.value.find((channel) => channel.id === filterChannel.value)
-      return (selectedChannel?.multiplier ?? 1) * customMultiplier
+    if (channelPriceMode.value === 'selected-lowest') {
+      return (getLowestSelectedMultiplierForModel(item) ?? 1) * customMultiplier
     }
 
     return customMultiplier
   }
 
   const priceDisplayMode = computed<PricingDisplayMode>(() => {
-    if (showLowestChannelPrice.value) return 'lowest-channel'
-    if (showCalculatedPrice.value && filterChannel.value) return 'selected-channel'
+    if (channelPriceMode.value === 'global-lowest') return 'global-lowest'
+    if (channelPriceMode.value === 'selected-lowest' && filterChannelIds.value.length > 0) {
+      return 'selected-lowest'
+    }
+
     return 'base'
   })
 
@@ -239,14 +273,15 @@ export const useApiDocumentationPricing = () => {
       )
     }
 
-    if (filterChannel.value) {
+    if (filterChannelIds.value.length > 0) {
       result = result.filter((item) => {
-        const availableChannels = getChannelsForModel(
-          item.model || '',
-          getRequestModelId(item),
-          item.supportedFormats,
-        )
-        return availableChannels.some((channel) => channel.id === filterChannel.value)
+        const availableSelectedChannels = getSelectedChannelsForModel(item)
+
+        if (channelMatchMode.value === 'match-all') {
+          return availableSelectedChannels.length === filterChannelIds.value.length
+        }
+
+        return availableSelectedChannels.length > 0
       })
     }
 
@@ -401,12 +436,12 @@ export const useApiDocumentationPricing = () => {
 
   const resetFilters = () => {
     filterFormat.value = ''
-    filterChannel.value = ''
+    filterChannelIds.value = []
     filterPricingType.value = ''
     filterModelKeyword.value = ''
     onlyModelsWithChannels.value = true
-    showCalculatedPrice.value = false
-    showLowestChannelPrice.value = true
+    channelMatchMode.value = 'match-any'
+    channelPriceMode.value = 'selected-lowest'
     customPriceMultiplier.value = null
     tokenPriceUnit.value = 'M'
     fixedPriceMin.value = null
@@ -423,16 +458,10 @@ export const useApiDocumentationPricing = () => {
     highlightPartsCache.clear()
   })
 
-  watch(filterChannel, (val) => {
-    if (!val) showCalculatedPrice.value = false
-  })
-
-  watch(showLowestChannelPrice, (val) => {
-    if (val) showCalculatedPrice.value = false
-  })
-
-  watch(showCalculatedPrice, (val) => {
-    if (val) showLowestChannelPrice.value = false
+  watch(filterChannelIds, (ids) => {
+    if (ids.length === 0 && channelPriceMode.value === 'selected-lowest') {
+      channelPriceMode.value = 'base'
+    }
   })
 
   watch(sortField, (val) => {
@@ -448,13 +477,14 @@ export const useApiDocumentationPricing = () => {
     loading,
     loadErrorMessage,
     channels,
+    selectedChannels,
     filterFormat,
-    filterChannel,
+    filterChannelIds,
     filterPricingType,
     filterModelKeyword,
     onlyModelsWithChannels,
-    showCalculatedPrice,
-    showLowestChannelPrice,
+    channelMatchMode,
+    channelPriceMode,
     customPriceMultiplier,
     tokenPriceUnit,
     fixedPriceMin,
@@ -470,7 +500,9 @@ export const useApiDocumentationPricing = () => {
     normalizeFormats,
     getRequestModelId,
     getChannelsForModel,
+    getSelectedChannelsForModel,
     getLowestMultiplierForModel,
+    getLowestSelectedMultiplierForModel,
     getDisplayedPriceMultiplier,
     getHighlightParts,
     toggleTokenPriceUnit,

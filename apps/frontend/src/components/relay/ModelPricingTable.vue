@@ -527,8 +527,8 @@
               </template>
               <el-tag
                 size="small"
-                type="primary"
-                effect="plain"
+                :type="isSelectedChannel(channel.id) ? 'success' : 'primary'"
+                :effect="isSelectedChannel(channel.id) ? 'dark' : 'plain'"
                 style="margin: 2px; cursor: default"
                 class="channel-tag"
               >
@@ -594,7 +594,7 @@ const props = defineProps<{
   priceRanges: Record<PriceRangeField, PriceRangeValue>
   onCopyModelId: (modelId: string) => void
   displayMode?: PricingDisplayMode
-  selectedChannel?: RelayChannelDto | null
+  selectedChannels?: RelayChannelDto[]
   pricingTypeFilter?: string
   sortField?: PricingSortField
   sortOrder?: PricingSortOrder
@@ -614,6 +614,16 @@ const priceLabel = (key: 'apiDoc.inputPrice' | 'apiDoc.outputPrice'): string => 
   const hint = props.customMultiplierActive ? ' ⚠' : ''
   return `${t(key)} (${tokenUnitHint.value}${hint})`
 }
+
+const selectedChannelIdSet = computed(
+  () => new Set((props.selectedChannels || []).map((channel) => channel.id)),
+)
+
+const displayModeSummary = computed(() => {
+  if (props.displayMode === 'selected-lowest') return t('apiDoc.channelPriceModeSelectedLowestHint')
+  if (props.displayMode === 'global-lowest') return t('apiDoc.channelPriceModeGlobalLowestHint')
+  return t('apiDoc.channelPriceModeBaseHint')
+})
 
 const getModelId = (item: PricingModelRow): string => {
   return props.getRequestModelId(item)
@@ -690,6 +700,8 @@ const getTooltipMultiplier = (_item: PricingModelRow, channel: RelayChannelDto):
 const getTooltipMultiplierLabel = (item: PricingModelRow, channel: RelayChannelDto): string => {
   return formatMultiplier(getTooltipMultiplier(item, channel))
 }
+
+const isSelectedChannel = (channelId: string): boolean => selectedChannelIdSet.value.has(channelId)
 
 const formatChannelTokenPrice = (basePrice?: number, multiplier?: number): string => {
   const divisor = props.tokenPriceUnit === 'K' ? 1000 : 1

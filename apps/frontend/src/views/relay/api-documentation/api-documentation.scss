@@ -118,12 +118,15 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .pricing-more-settings-item {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .pricing-more-settings-item--between {
@@ -149,6 +152,8 @@
   font-size: 13px;
   color: var(--el-text-color-regular);
   line-height: 1.5;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .pricing-multiplier-input {
@@ -166,6 +171,41 @@
 
 .pricing-checkbox {
   margin-top: 4px;
+}
+
+.pricing-mode-segmented {
+  width: 100%;
+  min-width: 0;
+}
+
+.pricing-more-settings-popover {
+  max-width: min(440px, calc(100vw - 32px));
+}
+
+.pricing-more-settings-popover :deep(.el-popover) {
+  max-width: inherit;
+}
+
+.pricing-more-settings-popover :deep(.el-segmented) {
+  width: 100%;
+  max-width: 100%;
+}
+
+.pricing-more-settings-popover :deep(.el-segmented__group) {
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.pricing-more-settings-popover :deep(.el-segmented__item) {
+  min-width: 0;
+  flex: 1 1 120px;
+}
+
+.pricing-more-settings-popover :deep(.el-segmented__item-label) {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
+  text-align: center;
 }
 
 .toolbar-count {
