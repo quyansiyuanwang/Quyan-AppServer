@@ -46,11 +46,7 @@
           </div>
 
           <div v-if="isDesktop" class="desktop-table-wrap">
-            <el-table
-              :data="templates"
-              v-loading="loadingTemplates"
-              style="width: 100%"
-            >
+            <el-table :data="templates" v-loading="loadingTemplates" style="width: 100%">
               <el-table-column
                 prop="name"
                 :label="i18ns.t('monthlyPass.templateName')"
@@ -71,7 +67,9 @@
                 <template #default="{ row }">{{ formatPriceValue(row.originalPrice) }}</template>
               </el-table-column>
               <el-table-column :label="i18ns.t('monthlyPass.discountPercent')" width="120">
-                <template #default="{ row }">{{ formatPercentValue(row.discountPercent) }}</template>
+                <template #default="{ row }">{{
+                  formatPercentValue(row.discountPercent)
+                }}</template>
               </el-table-column>
               <el-table-column :label="i18ns.t('monthlyPass.discountedPrice')" width="130">
                 <template #default="{ row }">{{ formatPriceValue(row.discountedPrice) }}</template>
@@ -346,15 +344,15 @@
           </div>
 
           <div v-if="isDesktop" class="desktop-table-wrap">
-            <el-table
-              :data="userPasses"
-              v-loading="loadingAssignments"
-              style="width: 100%"
-            >
+            <el-table :data="userPasses" v-loading="loadingAssignments" style="width: 100%">
               <el-table-column :label="i18ns.t('monthlyPass.user')" min-width="180">
                 <template #default="{ row }">{{ row.username || row.userId }}</template>
               </el-table-column>
-              <el-table-column prop="templateName" :label="i18ns.t('monthlyPass.template')" min-width="160" />
+              <el-table-column
+                prop="templateName"
+                :label="i18ns.t('monthlyPass.template')"
+                min-width="160"
+              />
               <el-table-column :label="i18ns.t('monthlyPass.startAt')" min-width="180">
                 <template #default="{ row }">{{ formatDateTime(row.startAt) }}</template>
               </el-table-column>
@@ -565,22 +563,24 @@
           </div>
 
           <div v-if="isDesktop" class="desktop-table-wrap">
-            <el-table
-              :data="usageRecords"
-              v-loading="loadingUsages"
-              style="width: 100%"
-            >
+            <el-table :data="usageRecords" v-loading="loadingUsages" style="width: 100%">
               <el-table-column :label="i18ns.t('monthlyPass.user')" min-width="220">
                 <template #default="{ row }">
                   {{ userNameById.get(row.userId) || row.userId }} ({{ row.userId }})
                 </template>
               </el-table-column>
-              <el-table-column prop="templateName" :label="i18ns.t('monthlyPass.template')" min-width="160" />
+              <el-table-column
+                prop="templateName"
+                :label="i18ns.t('monthlyPass.template')"
+                min-width="160"
+              />
               <el-table-column prop="model" :label="i18ns.t('monthlyPass.model')" min-width="160">
                 <template #default="{ row }">{{ row.model || '-' }}</template>
               </el-table-column>
               <el-table-column :label="i18ns.t('monthlyPass.channel')" min-width="180">
-                <template #default="{ row }">{{ row.channelName || row.channelId || '-' }}</template>
+                <template #default="{ row }">{{
+                  row.channelName || row.channelId || '-'
+                }}</template>
               </el-table-column>
               <el-table-column :label="i18ns.t('monthlyPass.coverageAmount')" width="130">
                 <template #default="{ row }">{{ formatAmount(row.coveredAmount) }}</template>

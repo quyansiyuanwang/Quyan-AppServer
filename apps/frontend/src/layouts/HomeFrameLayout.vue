@@ -97,6 +97,7 @@ onMounted(async () => {
   width: auto;
   overflow: hidden;
   border-right: 1px solid var(--surface-card-border);
+  transition: width 0.24s ease;
 }
 
 .main {

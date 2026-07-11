@@ -1,16 +1,16 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page">
+  <div v-if="isDesktop" class="desktop-page page-shell oj-usage-page">
     <el-card class="page-card">
       <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-          <span>{{ i18ns.t('ojSubmitter.usageStatistics') }}</span>
-          <div style="display: flex; gap: 10px; align-items: center">
+        <div class="oj-usage-page__header">
+          <span class="oj-usage-page__title">{{ i18ns.t('ojSubmitter.usageStatistics') }}</span>
+          <div class="oj-usage-page__filters">
             <el-date-picker
               v-model="dateRange"
               type="daterange"
               :start-placeholder="i18ns.t('ojSubmitter.startDate')"
               :end-placeholder="i18ns.t('ojSubmitter.endDate')"
-              style="width: 280px"
+              class="oj-usage-page__date-range"
               @change="loadStats"
             />
             <el-button @click="resetFilter">{{ i18ns.t('reset') }}</el-button>
@@ -19,7 +19,7 @@
       </template>
 
       <!-- Summary Stats -->
-      <el-row :gutter="20" style="margin-bottom: 24px" class="stats-row">
+      <el-row :gutter="20" class="stats-row oj-usage-page__stats-row">
         <el-col :xs="24" :sm="12" :span="6">
           <el-statistic :title="i18ns.t('ojSubmitter.requestCount')" :value="stats.requestCount" />
         </el-col>
@@ -43,52 +43,59 @@
       </el-row>
 
       <!-- Usage Table -->
-      <el-table :data="usages" style="width: 100%" v-loading="loading">
-        <el-table-column :label="i18ns.t('ojSubmitter.createTime')" width="160">
-          <template #default="{ row }">
-            {{ new Date(row.createTime).toLocaleString() }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="model" :label="i18ns.t('ojSubmitter.model')" width="180" />
-        <el-table-column
-          prop="question"
-          :label="i18ns.t('ojSubmitter.question')"
-          show-overflow-tooltip
-          class-name="hide-on-mobile"
-        />
-        <el-table-column
-          prop="inputTokens"
-          :label="i18ns.t('ojSubmitter.inputTokens')"
-          width="100"
-          class-name="hide-on-mobile"
-        />
-        <el-table-column
-          prop="outputTokens"
-          :label="i18ns.t('ojSubmitter.outputTokens')"
-          width="110"
-          class-name="hide-on-mobile"
-        />
-        <el-table-column
-          prop="totalTokens"
-          :label="i18ns.t('ojSubmitter.totalTokens')"
-          width="100"
-        />
-        <el-table-column :label="i18ns.t('ojSubmitter.cost')" width="120">
-          <template #default="{ row }">
-            {{ Number(row.cost).toFixed(4) }} {{ i18ns.t('balance.yuan') }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="i18ns.t('actions')" width="140" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" @click="viewDetail(row)">{{
-              i18ns.t('button.viewDetails')
-            }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="oj-usage-page__table-wrap">
+        <el-table
+          :data="usages"
+          class="oj-usage-page__table"
+          style="width: 100%"
+          v-loading="loading"
+        >
+          <el-table-column :label="i18ns.t('ojSubmitter.createTime')" width="160">
+            <template #default="{ row }">
+              {{ new Date(row.createTime).toLocaleString() }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="model" :label="i18ns.t('ojSubmitter.model')" width="180" />
+          <el-table-column
+            prop="question"
+            :label="i18ns.t('ojSubmitter.question')"
+            show-overflow-tooltip
+            class-name="hide-on-mobile"
+          />
+          <el-table-column
+            prop="inputTokens"
+            :label="i18ns.t('ojSubmitter.inputTokens')"
+            width="100"
+            class-name="hide-on-mobile"
+          />
+          <el-table-column
+            prop="outputTokens"
+            :label="i18ns.t('ojSubmitter.outputTokens')"
+            width="110"
+            class-name="hide-on-mobile"
+          />
+          <el-table-column
+            prop="totalTokens"
+            :label="i18ns.t('ojSubmitter.totalTokens')"
+            width="100"
+          />
+          <el-table-column :label="i18ns.t('ojSubmitter.cost')" width="120">
+            <template #default="{ row }">
+              {{ Number(row.cost).toFixed(4) }} {{ i18ns.t('balance.yuan') }}
+            </template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('actions')" width="140" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" @click="viewDetail(row)">{{
+                i18ns.t('button.viewDetails')
+              }}</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
 
       <!-- Pagination -->
-      <div style="display: flex; justify-content: flex-end; margin-top: 16px">
+      <div class="oj-usage-page__pagination">
         <el-pagination
           v-model:current-page="page"
           v-model:page-size="pageSize"
@@ -338,6 +345,96 @@ const { isDesktop } = usePageDevice()
 </script>
 
 <style scoped>
+.oj-usage-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.oj-usage-page :deep(.el-card__body) {
+  width: 100%;
+  min-width: 0;
+}
+
+.oj-usage-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.oj-usage-page__title {
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.oj-usage-page__filters {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.oj-usage-page__date-range {
+  width: 280px;
+  max-width: 100%;
+}
+
+.oj-usage-page__stats-row {
+  margin-bottom: 24px;
+}
+
+.oj-usage-page__stats-row :deep(.el-col) {
+  min-width: 0;
+}
+
+.oj-usage-page__table-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.oj-usage-page__table-wrap :deep(.oj-usage-page__table) {
+  min-width: 1180px;
+}
+
+.oj-usage-page__table-wrap :deep(.el-table__header),
+.oj-usage-page__table-wrap :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.oj-usage-page__table-wrap :deep(.el-table__inner-wrapper),
+.oj-usage-page__table-wrap :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
+.oj-usage-page :deep(.el-table .cell) {
+  word-break: break-word;
+}
+
+.oj-usage-page__pagination {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+@media (max-width: 1200px) {
+  .oj-usage-page__header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .oj-usage-page__filters {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 768px) {
   :deep(.hide-on-mobile) {
     display: none;

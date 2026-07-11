@@ -146,18 +146,23 @@ const updateSelection = (key: FilterSelectionKey, value: string[]) => {
 .filter-card {
   margin-bottom: 16px;
   border-radius: 10px;
+  width: 100%;
+  min-width: 0;
 }
 
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  width: 100%;
+  min-width: 0;
 }
 
 .filter-item {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .filter-label-row {
@@ -198,6 +203,7 @@ const updateSelection = (key: FilterSelectionKey, value: string[]) => {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .card-title {

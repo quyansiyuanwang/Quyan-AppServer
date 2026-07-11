@@ -28,7 +28,12 @@
                 <span class="balance-amount">{{ balance.toFixed(4) }}</span>
               </div>
               <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-                <el-button size="small" type="primary" link @click="router.push({ name: 'balanceHistory' })">
+                <el-button
+                  size="small"
+                  type="primary"
+                  link
+                  @click="router.push({ name: 'balanceHistory' })"
+                >
                   {{ i18ns.t('home.viewDetails') }}
                 </el-button>
               </PermissionWrapper>

@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page">
+  <div v-if="isDesktop" class="desktop-page consumption-stats-page">
     <div class="stats-toolbar">
       <div class="page-title">{{ i18ns.t('ConsumptionStats.title') }}</div>
       <div class="toolbar-right">
@@ -375,6 +375,11 @@ const { isDesktop } = usePageDevice()
 </script>
 
 <style scoped>
+.consumption-stats-page {
+  width: 100%;
+  min-width: 0;
+}
+
 .stats-toolbar {
   display: flex;
   align-items: center;
@@ -397,12 +402,26 @@ const { isDesktop } = usePageDevice()
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 .consumption-stats-container {
   width: 100%;
   min-width: 0;
   padding: 0 0 24px;
+}
+
+.consumption-stats-container > * {
+  min-width: 0;
+}
+
+.consumption-stats-page :deep(.el-card),
+.consumption-stats-page :deep(.el-card__header),
+.consumption-stats-page :deep(.el-card__body) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .consumption-mobile {

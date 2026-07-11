@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page">
+  <div v-if="isDesktop" class="desktop-page system-stats-page">
     <!-- Toolbar outside any card -->
     <div class="stats-toolbar">
       <div class="toolbar-left">
@@ -793,6 +793,11 @@ const { isDesktop } = usePageDevice()
 </script>
 
 <style scoped>
+.system-stats-page {
+  width: 100%;
+  min-width: 0;
+}
+
 .stats-toolbar {
   display: flex;
   align-items: center;
@@ -815,16 +820,20 @@ const { isDesktop } = usePageDevice()
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 .auto-refresh-box {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
   background: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
   padding: 6px 10px;
+  min-width: 0;
 }
 
 .auto-refresh-label {
@@ -847,6 +856,15 @@ const { isDesktop } = usePageDevice()
 .stats-card {
   border-radius: 8px;
   margin-bottom: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.stats-card :deep(.el-card__header),
+.stats-card :deep(.el-card__body) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .card-header {

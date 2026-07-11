@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { i18ns } from '@/locales'
 import { useRemoteTerminalProductManagementContext } from '../context'
 
 const state = useRemoteTerminalProductManagementContext()
+const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
 const userOptions = computed(() => state.userOptions.value)
 </script>
 
@@ -17,7 +19,7 @@ const userOptions = computed(() => state.userOptions.value)
       reserve-keyword
       :remote-method="state.handleUserSearch"
       :loading="state.userOptionsLoading"
-      :placeholder="$t('remoteTerminalProduct.selectUser')"
+      :placeholder="t('remoteTerminalProduct.selectUser')"
     >
       <el-option
         v-for="user in userOptions"
@@ -30,7 +32,7 @@ const userOptions = computed(() => state.userOptions.value)
       v-model="state.entitlementFilter.templateId"
       class="toolbar-select"
       clearable
-      :placeholder="$t('remoteTerminalProduct.selectTemplate')"
+      :placeholder="t('remoteTerminalProduct.selectTemplate')"
     >
       <el-option
         v-for="template in state.filterOptions.templates"
@@ -43,7 +45,7 @@ const userOptions = computed(() => state.userOptions.value)
       v-model="state.entitlementFilter.status"
       class="toolbar-select"
       clearable
-      :placeholder="$t('common.status')"
+      :placeholder="t('common.status')"
     >
       <el-option
         v-for="option in state.filterOptions.assignmentStatusOptions"
@@ -58,31 +60,31 @@ const userOptions = computed(() => state.userOptions.value)
       type="primary"
       @click="state.openAssignEntitlementDialog"
     >
-      {{ $t('remoteTerminalProduct.assignEntitlement') }}
+      {{ t('remoteTerminalProduct.assignEntitlement') }}
     </el-button>
   </div>
 
   <el-table :data="state.entitlements" border stripe>
-    <el-table-column prop="username" :label="$t('common.user')" min-width="150" />
+    <el-table-column prop="username" :label="t('common.user')" min-width="150" />
     <el-table-column
       prop="name"
-      :label="$t('remoteTerminalProduct.entitlementName')"
+      :label="t('remoteTerminalProduct.entitlementName')"
       min-width="180"
     />
     <el-table-column
       prop="templateName"
-      :label="$t('remoteTerminalProduct.templateName')"
+      :label="t('remoteTerminalProduct.templateName')"
       min-width="160"
     />
-    <el-table-column :label="$t('remoteTerminalProduct.quota')" min-width="220">
+    <el-table-column :label="t('remoteTerminalProduct.quota')" min-width="220">
       <template #default="{ row }">
         <div class="entitlement-mix">
-          <span>{{ $t('remoteTerminalProduct.deviceQuota') }}: {{ row.deviceLimit }}</span>
-          <span>{{ $t('remoteTerminalProduct.terminalQuota') }}: {{ row.terminalLimit }}</span>
+          <span>{{ t('remoteTerminalProduct.deviceQuota') }}: {{ row.deviceLimit }}</span>
+          <span>{{ t('remoteTerminalProduct.terminalQuota') }}: {{ row.terminalLimit }}</span>
         </div>
       </template>
     </el-table-column>
-    <el-table-column :label="$t('remoteTerminalProduct.registrationToken')" min-width="220">
+    <el-table-column :label="t('remoteTerminalProduct.registrationToken')" min-width="220">
       <template #default="{ row }">
         <div v-if="row.registrationToken" class="token-stack">
           <span>{{ row.registrationToken.label || '-' }}</span>
@@ -93,24 +95,24 @@ const userOptions = computed(() => state.userOptions.value)
         <span v-else class="secondary-text">-</span>
       </template>
     </el-table-column>
-    <el-table-column :label="$t('remoteTerminalProduct.validity')" min-width="220">
+    <el-table-column :label="t('remoteTerminalProduct.validity')" min-width="220">
       <template #default="{ row }">
         <div>{{ state.formatDateTime(row.startAt) }}</div>
         <div>{{ state.formatDateTime(row.endAt) }}</div>
       </template>
     </el-table-column>
-    <el-table-column :label="$t('common.status')" width="120">
+    <el-table-column :label="t('common.status')" width="120">
       <template #default="{ row }">
         <el-tag :type="row.status === 1 ? 'success' : 'info'">
           {{ row.statusLabel || row.status }}
         </el-tag>
       </template>
     </el-table-column>
-    <el-table-column :label="$t('common.actions')" fixed="right" width="300">
+    <el-table-column :label="t('common.actions')" fixed="right" width="300">
       <template #default="{ row }">
         <div class="token-actions">
           <el-button link type="primary" @click="state.openEditEntitlementDialog(row)">
-            {{ $t('common.edit') }}
+            {{ t('common.edit') }}
           </el-button>
           <el-button
             v-if="state.canWriteToken && state.hasDeviceQuota(row.deviceLimit)"
@@ -118,7 +120,7 @@ const userOptions = computed(() => state.userOptions.value)
             type="warning"
             @click="state.openRotateTokenDialog(row)"
           >
-            {{ $t('remoteTerminalProduct.rotateToken') }}
+            {{ t('remoteTerminalProduct.rotateToken') }}
           </el-button>
           <el-button
             v-if="state.canWriteAssignment"
@@ -126,7 +128,7 @@ const userOptions = computed(() => state.userOptions.value)
             type="success"
             @click="state.openLimitAdjustDialog(row)"
           >
-            {{ $t('remoteTerminalProduct.adjustQuota') }}
+            {{ t('remoteTerminalProduct.adjustQuota') }}
           </el-button>
           <el-button
             v-if="state.canWriteAssignment"
@@ -134,7 +136,7 @@ const userOptions = computed(() => state.userOptions.value)
             type="danger"
             @click="state.handleDeleteEntitlement(row.id)"
           >
-            {{ $t('common.delete') }}
+            {{ t('common.delete') }}
           </el-button>
         </div>
       </template>

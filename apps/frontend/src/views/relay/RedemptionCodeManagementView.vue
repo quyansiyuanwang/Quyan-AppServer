@@ -45,11 +45,7 @@
               <el-tag v-else type="success">{{ i18ns.t('redemption.unused') }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            prop="usedBy"
-            :label="i18ns.t('redemption.usedBy')"
-            min-width="160"
-          >
+          <el-table-column prop="usedBy" :label="i18ns.t('redemption.usedBy')" min-width="160">
             <template #default="{ row }">
               <span v-if="row.usedByUsername">{{ row.usedByUsername }}</span>
               <span v-else-if="row.usedBy">{{ row.usedBy }}</span>

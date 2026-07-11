@@ -1,23 +1,28 @@
 <script setup lang="ts">
+import { i18ns } from '@/locales'
 import { useApiDocumentationContext } from '../context'
 
 const state = useApiDocumentationContext()
+const canOpenSwagger = state.canOpenSwagger
+const openingSwaggerDocs = state.openingSwaggerDocs
+const openSwaggerDocs = state.openSwaggerDocs
+const t = i18ns.t as (key: string, params?: Record<string, unknown>) => string
 </script>
 
 <template>
   <div class="card-header toolbar-row">
-    <span>{{ $t('nav.apiDocumentation') }}</span>
+    <span>{{ t('nav.apiDocumentation') }}</span>
     <div class="card-header-actions">
-      <el-tag type="info" size="small">{{ $t('apiDoc.version') }}</el-tag>
+      <el-tag type="info" size="small">{{ t('apiDoc.version') }}</el-tag>
       <el-button
-        v-if="state.canOpenSwagger"
+        v-if="canOpenSwagger"
         type="primary"
         plain
         size="small"
-        :loading="state.openingSwaggerDocs"
-        @click="state.openSwaggerDocs"
+        :loading="openingSwaggerDocs"
+        @click="openSwaggerDocs"
       >
-        {{ $t('apiDoc.openSwaggerDocs') }}
+        {{ t('apiDoc.openSwaggerDocs') }}
       </el-button>
     </div>
   </div>

@@ -38,11 +38,15 @@ defineProps<{
 <style scoped>
 .summary-grid {
   margin-bottom: 16px;
+  width: 100%;
+  min-width: 0;
 }
 
 .summary-card {
   border-radius: 10px;
   min-height: 120px;
+  width: 100%;
+  min-width: 0;
 }
 
 .summary-label {

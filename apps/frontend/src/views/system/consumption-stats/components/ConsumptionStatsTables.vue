@@ -181,10 +181,20 @@ defineProps<{
 <style scoped>
 .table-grid {
   margin-bottom: 16px;
+  width: 100%;
+  min-width: 0;
 }
 
 .table-card {
   border-radius: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.table-card :deep(.el-card__body) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .card-header,
@@ -193,6 +203,7 @@ defineProps<{
   justify-content: space-between;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .card-title {
@@ -200,7 +211,29 @@ defineProps<{
   font-weight: 600;
 }
 
+.table-card :deep(.el-table),
+.mobile-collapse :deep(.el-table) {
+  width: 100%;
+}
+
+.table-card :deep(.el-table__inner-wrapper),
+.table-card :deep(.el-table__body-wrapper),
+.mobile-collapse :deep(.el-table__inner-wrapper),
+.mobile-collapse :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
+.table-card :deep(.el-table__header),
+.table-card :deep(.el-table__body),
+.mobile-collapse :deep(.el-table__header),
+.mobile-collapse :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
 .mobile-collapse {
   margin-top: 12px;
+  width: 100%;
+  min-width: 0;
 }
 </style>
