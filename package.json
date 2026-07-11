@@ -10,6 +10,7 @@
     "dev": "concurrently \"pnpm --filter @appserver/backend dev\" \"pnpm --filter @appserver/frontend dev\"",
     "dev:backend": "pnpm --filter @appserver/backend dev",
     "dev:frontend": "pnpm --filter @appserver/frontend dev",
+    "prod:frontend": "pnpm --filter @appserver/frontend prod",
     "dev:docs": "pnpm --filter @appserver/docs-site dev",
     "_2_build": "",
     "build:backend": "pnpm --filter @appserver/backend run build:only",

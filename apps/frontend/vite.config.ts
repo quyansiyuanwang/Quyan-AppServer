@@ -21,6 +21,12 @@ export default defineConfig(({ mode }) => {
   const isProd = mode === 'production' || mode === 'prod'
   const enableObfuscation = isProd && process.env.VITE_ENABLE_OBFUSCATION === 'true'
 
+  const stripOriginHeader = (proxy: { on: (event: 'proxyReq', handler: (proxyReq: { removeHeader: (header: string) => void }) => void) => void }) => {
+    proxy.on('proxyReq', (proxyReq) => {
+      proxyReq.removeHeader('origin')
+    })
+  }
+
   const shouldSkipModulePreload = (dep: string): boolean =>
     dep.includes('lib-echarts-') ||
     dep.includes('lib-zrender-') ||
@@ -181,12 +187,14 @@ export default defineConfig(({ mode }) => {
                 target: 'https://api.qysyw.cn',
                 changeOrigin: true,
                 secure: true,
+                configure: stripOriginHeader,
                 rewrite: (path) => path.replace(/^\/prod-api/, ''),
               },
               '/prod-ai': {
                 target: 'https://ai.qysyw.cn',
                 changeOrigin: true,
                 secure: true,
+                configure: stripOriginHeader,
                 rewrite: (path) => path.replace(/^\/prod-ai/, ''),
               },
             }
