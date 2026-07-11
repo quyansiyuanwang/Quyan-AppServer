@@ -43,13 +43,19 @@
   min-width: 0;
 }
 
+.relay-settings-desktop-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
 .relay-settings .el-collapse,
 .relay-settings .el-collapse-item,
 .relay-settings .el-collapse-item__wrap,
 .relay-settings .el-collapse-item__content,
-.relay-settings .el-form,
-.relay-settings .el-form-item,
-.relay-settings .el-form-item__content {
+.relay-settings .el-form {
   width: 100%;
   min-width: 0;
 }

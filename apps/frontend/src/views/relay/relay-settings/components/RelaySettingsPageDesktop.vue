@@ -1,98 +1,99 @@
 <template>
   <div class="desktop-page">
-    <div class="relay-settings relay-settings-desktop" v-loading="loading">
-      <el-collapse v-model="desktopSections">
-        <el-collapse-item name="basic">
-          <template #title>
-            <span class="collapse-title">{{ i18ns.t('nav.relaySettings') }}</span>
-          </template>
-          <el-form label-width="200px" label-position="right">
-            <el-form-item :label="i18ns.t('ServerConfigView.globalMultiplier')">
-              <el-input-number v-model="globalMultiplier" :step="0.000001" :precision="6" />
-              <span class="form-help">{{ i18ns.t('ServerConfigView.globalMultiplierHelp') }}</span>
-            </el-form-item>
-          </el-form>
-        </el-collapse-item>
+    <div class="relay-settings-desktop-stack">
+      <div class="relay-settings relay-settings-desktop" v-loading="loading">
+        <el-collapse v-model="desktopSections">
+          <el-collapse-item name="basic">
+            <template #title>
+              <span class="collapse-title">{{ i18ns.t('nav.relaySettings') }}</span>
+            </template>
+            <el-form label-width="200px" label-position="right">
+              <el-form-item :label="i18ns.t('ServerConfigView.globalMultiplier')">
+                <el-input-number v-model="globalMultiplier" :step="0.000001" :precision="6" />
+                <span class="form-help">{{ i18ns.t('ServerConfigView.globalMultiplierHelp') }}</span>
+              </el-form-item>
+            </el-form>
+          </el-collapse-item>
 
-        <el-collapse-item name="monitor">
-          <template #title>
-            <span class="collapse-title">{{ i18ns.t('relay.monitorConfig') }}</span>
-          </template>
-          <el-form label-width="200px" label-position="right">
-            <el-form-item :label="i18ns.t('relay.uptimeStatusUrl')">
-              <el-input
-                v-model="uptimeStatusUrl"
-                placeholder="https://example.com/api/uptime/status"
-                clearable
-              />
-              <span class="form-help">{{ i18ns.t('relay.uptimeStatusUrlHelp') }}</span>
-            </el-form-item>
-            <el-form-item :label="i18ns.t('relay.monitorConfig')" class="block-form-item">
-              <div style="width: 100%">
-                <el-switch v-model="monitorConfigEnabled" />
-                <span class="form-help">{{ i18ns.t('relay.monitorConfigHelp') }}</span>
-                <div v-if="monitorConfigEnabled" style="margin-top: 12px">
-                  <el-alert type="info" :closable="false" style="margin-bottom: 12px">
-                    <template #default>
-                      <div style="font-size: 13px">
-                        <div style="margin-bottom: 4px">
-                          <strong>{{
-                            i18ns.t('ServerConfigView.monitorConfigDescription')
-                          }}</strong>
+          <el-collapse-item name="monitor">
+            <template #title>
+              <span class="collapse-title">{{ i18ns.t('relay.monitorConfig') }}</span>
+            </template>
+            <el-form label-width="200px" label-position="right">
+              <el-form-item :label="i18ns.t('relay.uptimeStatusUrl')">
+                <el-input
+                  v-model="uptimeStatusUrl"
+                  placeholder="https://example.com/api/uptime/status"
+                  clearable
+                />
+                <span class="form-help">{{ i18ns.t('relay.uptimeStatusUrlHelp') }}</span>
+              </el-form-item>
+              <el-form-item :label="i18ns.t('relay.monitorConfig')" class="block-form-item">
+                <div style="width: 100%">
+                  <el-switch v-model="monitorConfigEnabled" />
+                  <span class="form-help">{{ i18ns.t('relay.monitorConfigHelp') }}</span>
+                  <div v-if="monitorConfigEnabled" style="margin-top: 12px">
+                    <el-alert type="info" :closable="false" style="margin-bottom: 12px">
+                      <template #default>
+                        <div style="font-size: 13px">
+                          <div style="margin-bottom: 4px">
+                            <strong>{{
+                              i18ns.t('ServerConfigView.monitorConfigDescription')
+                            }}</strong>
+                          </div>
+                          <div style="color: #909399">
+                            {{ i18ns.t('ServerConfigView.monitorIdFormat') }}
+                          </div>
                         </div>
-                        <div style="color: #909399">
-                          {{ i18ns.t('ServerConfigView.monitorIdFormat') }}
-                        </div>
-                      </div>
-                    </template>
-                  </el-alert>
-                  <el-checkbox v-model="showOnlyConfigured" style="margin-bottom: 12px">
-                    {{ i18ns.t('ServerConfigView.showOnlyConfigured') }}
-                  </el-checkbox>
-                  <el-table :data="monitorConfigs" border size="small">
-                    <el-table-column :label="i18ns.t('ServerConfigView.monitorId')" width="120">
-                      <template #default="{ row }">
-                        <el-input
-                          v-model="row.monitorId"
-                          size="small"
-                          placeholder="2"
-                          @input="row.monitorId = row.monitorId.replace(/[^0-9]/g, '')"
-                        />
                       </template>
-                    </el-table-column>
-                    <el-table-column
-                      :label="i18ns.t('ServerConfigView.monitorDisplayName')"
-                      min-width="200"
-                    >
-                      <template #default="{ row }">
-                        <el-input
-                          v-model="row.displayName"
-                          size="small"
-                          :placeholder="i18ns.t('ServerConfigView.monitorDisplayNamePlaceholder')"
-                        />
-                      </template>
-                    </el-table-column>
-                    <el-table-column width="80">
-                      <template #default="{ $index }">
-                        <el-button
-                          type="danger"
-                          link
-                          size="small"
-                          @click="monitorConfigs.splice($index, 1)"
-                        >
-                          {{ i18ns.t('delete') }}
-                        </el-button>
-                      </template>
-                    </el-table-column>
-                  </el-table>
-                  <el-button size="small" style="margin-top: 8px" @click="addMonitorConfig">
-                    {{ i18ns.t('relay.addMonitorConfig') }}
-                  </el-button>
+                    </el-alert>
+                    <el-checkbox v-model="showOnlyConfigured" style="margin-bottom: 12px">
+                      {{ i18ns.t('ServerConfigView.showOnlyConfigured') }}
+                    </el-checkbox>
+                    <el-table :data="monitorConfigs" border size="small">
+                      <el-table-column :label="i18ns.t('ServerConfigView.monitorId')" width="120">
+                        <template #default="{ row }">
+                          <el-input
+                            v-model="row.monitorId"
+                            size="small"
+                            placeholder="2"
+                            @input="row.monitorId = row.monitorId.replace(/[^0-9]/g, '')"
+                          />
+                        </template>
+                      </el-table-column>
+                      <el-table-column
+                        :label="i18ns.t('ServerConfigView.monitorDisplayName')"
+                        min-width="200"
+                      >
+                        <template #default="{ row }">
+                          <el-input
+                            v-model="row.displayName"
+                            size="small"
+                            :placeholder="i18ns.t('ServerConfigView.monitorDisplayNamePlaceholder')"
+                          />
+                        </template>
+                      </el-table-column>
+                      <el-table-column width="80">
+                        <template #default="{ $index }">
+                          <el-button
+                            type="danger"
+                            link
+                            size="small"
+                            @click="monitorConfigs.splice($index, 1)"
+                          >
+                            {{ i18ns.t('delete') }}
+                          </el-button>
+                        </template>
+                      </el-table-column>
+                    </el-table>
+                    <el-button size="small" style="margin-top: 8px" @click="addMonitorConfig">
+                      {{ i18ns.t('relay.addMonitorConfig') }}
+                    </el-button>
+                  </div>
                 </div>
-              </div>
-            </el-form-item>
-          </el-form>
-        </el-collapse-item>
+              </el-form-item>
+            </el-form>
+          </el-collapse-item>
 
         <el-collapse-item name="queue">
           <template #title>
@@ -419,10 +420,12 @@
             </el-form-item>
           </el-form>
         </el-collapse-item>
-      </el-collapse>
 
-      <div class="relay-settings-save-bar">
-        <el-button type="primary" :loading="saving" @click="save">{{ i18ns.t('save') }}</el-button>
+        </el-collapse>
+
+        <div class="relay-settings-save-bar">
+          <el-button type="primary" :loading="saving" @click="save">{{ i18ns.t('save') }}</el-button>
+        </div>
       </div>
 
       <el-dialog
@@ -442,258 +445,254 @@
           <el-button type="primary" @click="handleImport">{{ i18ns.t('confirm') }}</el-button>
         </template>
       </el-dialog>
-    </div>
 
-    <div
-      class="relay-settings relay-settings-desktop"
-      v-loading="channelLoading"
-      style="margin-top: 16px"
-    >
-      <el-collapse v-model="desktopSections">
-        <el-collapse-item name="channels">
-          <template #title>
-            <span class="collapse-title">{{ i18ns.t('relay.channelManagement') }}</span>
-          </template>
-          <div class="flex flex-col gap-3 mb-3">
-            <div class="flex flex-wrap items-center gap-2">
-              <PermissionWrapper :require="[Permission.RELAY_CHANNEL_CREATE]">
-                <el-button type="primary" size="small" @click="openCreateChannelDialog">{{
-                  i18ns.t('relay.createChannel')
-                }}</el-button>
-              </PermissionWrapper>
-              <PermissionWrapper :require="[Permission.RELAY_CHANNEL_CREATE]">
-                <el-button size="small" @click="openChannelImportDialog">{{
-                  i18ns.t('relay.importChannels')
-                }}</el-button>
-              </PermissionWrapper>
-              <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
-                <el-button size="small" @click="exportChannelsAsJson">{{
-                  i18ns.t('relay.exportChannels')
-                }}</el-button>
-              </PermissionWrapper>
-              <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
-                <el-button size="small" @click="copyChannelsAsJson">{{
-                  i18ns.t('relay.copyChannels')
-                }}</el-button>
-              </PermissionWrapper>
-            </div>
-            <div class="flex flex-wrap items-center gap-2 justify-between">
-              <div class="flex flex-wrap items-center gap-2">
-                <el-tag v-if="selectedChannels.length" type="info" size="small">
-                  {{ i18ns.t('relay.selectedChannels', { count: selectedChannels.length }) }}
-                </el-tag>
-                <el-checkbox :model-value="isAllChannelsSelected" @change="toggleAllChannels">
-                  {{ i18ns.t('relay.selectAllChannels') }}
-                </el-checkbox>
-                <el-button
-                  text
-                  size="small"
-                  :disabled="!hasChannelSelection"
-                  @click="clearChannelSelection"
-                >
-                  {{ i18ns.t('relay.clearChannelSelection') }}
-                </el-button>
-              </div>
+      <div class="relay-settings relay-settings-desktop" v-loading="channelLoading">
+        <el-collapse v-model="desktopSections">
+          <el-collapse-item name="channels">
+            <template #title>
+              <span class="collapse-title">{{ i18ns.t('relay.channelManagement') }}</span>
+            </template>
+            <div class="flex flex-col gap-3 mb-3">
               <div class="flex flex-wrap items-center gap-2">
                 <PermissionWrapper :require="[Permission.RELAY_CHANNEL_CREATE]">
-                  <el-button
-                    size="small"
-                    :disabled="!hasChannelSelection"
-                    @click="handleBatchDuplicateChannels"
-                    >{{ i18ns.t('relay.batchDuplicateChannels') }}</el-button
-                  >
+                  <el-button type="primary" size="small" @click="openCreateChannelDialog">{{
+                    i18ns.t('relay.createChannel')
+                  }}</el-button>
+                </PermissionWrapper>
+                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_CREATE]">
+                  <el-button size="small" @click="openChannelImportDialog">{{
+                    i18ns.t('relay.importChannels')
+                  }}</el-button>
                 </PermissionWrapper>
                 <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
-                  <el-button
-                    size="small"
-                    :disabled="!hasChannelSelection"
-                    @click="exportChannelsAsJson"
-                    >{{ i18ns.t('relay.batchExportChannels') }}</el-button
-                  >
+                  <el-button size="small" @click="exportChannelsAsJson">{{
+                    i18ns.t('relay.exportChannels')
+                  }}</el-button>
                 </PermissionWrapper>
-                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
-                  <el-button
-                    size="small"
-                    type="success"
-                    :disabled="!hasChannelSelection"
-                    @click="handleBatchSetChannelStatus(true)"
-                    >{{ i18ns.t('relay.batchEnableChannels') }}</el-button
-                  >
-                </PermissionWrapper>
-                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
-                  <el-button
-                    size="small"
-                    type="warning"
-                    :disabled="!hasChannelSelection"
-                    @click="handleBatchSetChannelStatus(false)"
-                    >{{ i18ns.t('relay.batchDisableChannels') }}</el-button
-                  >
-                </PermissionWrapper>
-                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_DELETE]">
-                  <el-button
-                    size="small"
-                    type="danger"
-                    :disabled="!hasChannelSelection"
-                    @click="handleBatchDeleteChannels"
-                    >{{ i18ns.t('relay.batchDeleteChannels') }}</el-button
-                  >
+                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
+                  <el-button size="small" @click="copyChannelsAsJson">{{
+                    i18ns.t('relay.copyChannels')
+                  }}</el-button>
                 </PermissionWrapper>
               </div>
-            </div>
-          </div>
-          <el-table :data="channels" style="width: 100%" size="small" row-key="id">
-            <el-table-column width="58" align="center">
-              <template #header>
-                <el-checkbox :model-value="isAllChannelsSelected" @change="toggleAllChannels" />
-              </template>
-              <template #default="{ row }">
-                <el-checkbox
-                  :model-value="isChannelSelected(row.id)"
-                  @change="toggleChannelSelection(row.id, $event)"
-                />
-              </template>
-            </el-table-column>
-            <el-table-column prop="name" :label="i18ns.t('relay.channelName')" min-width="120" />
-            <el-table-column
-              :label="i18ns.t('relay.supportedFormats')"
-              width="180"
-              class-name="hide-on-mobile"
-            >
-              <template #default="{ row }">
-                <div style="display: flex; gap: 4px; flex-wrap: wrap">
-                  <template v-if="row.allowedFormats === 'all'">
-                    <el-tag type="success" size="small">OpenAI</el-tag>
-                    <el-tag type="warning" size="small">Anthropic</el-tag>
-                    <el-tag type="primary" size="small">Gemini</el-tag>
-                  </template>
-                  <template v-else>
-                    <el-tag v-if="row.allowedFormats.includes('openai')" type="success" size="small"
-                      >OpenAI</el-tag
-                    >
-                    <el-tag
-                      v-if="row.allowedFormats.includes('anthropic')"
-                      type="warning"
-                      size="small"
-                      >Anthropic</el-tag
-                    >
-                    <el-tag v-if="row.allowedFormats.includes('gemini')" type="primary" size="small"
-                      >Gemini</el-tag
-                    >
-                  </template>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column
-              :label="i18ns.t('relay.upstreamConfig')"
-              min-width="200"
-              class-name="hide-on-mobile"
-            >
-              <template #default="{ row }">
-                <div style="font-size: 12px">
-                  <div
-                    v-if="computeShowUpstream(row.allowedFormats.split(','), 'openai')"
-                    style="margin-top: 4px"
-                  >
-                    <el-tag size="small" type="success">OpenAI</el-tag>
-                    <span style="margin-left: 4px; word-break: break-all">{{
-                      row.openaiUpstreamUrl
-                    }}</span>
-                  </div>
-                  <div
-                    v-if="computeShowUpstream(row.allowedFormats.split(','), 'anthropic')"
-                    style="margin-top: 4px"
-                  >
-                    <el-tag size="small" type="warning">Anthropic</el-tag>
-                    <span style="margin-left: 4px; word-break: break-all">{{
-                      row.anthropicUpstreamUrl
-                    }}</span>
-                  </div>
-                  <div
-                    v-if="computeShowUpstream(row.allowedFormats.split(','), 'gemini')"
-                    style="margin-top: 4px"
-                  >
-                    <el-tag size="small" type="primary">Gemini</el-tag>
-                    <span style="margin-left: 4px; word-break: break-all">{{
-                      row.geminiUpstreamUrl
-                    }}</span>
-                  </div>
-                </div>
-              </template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('relay.allowedModelsChannel')" width="120">
-              <template #default="{ row }">
-                <el-tag v-if="!row.allowedModels" type="info" size="small">{{
-                  i18ns.t('relay.allModels')
-                }}</el-tag>
-                <el-tag
-                  v-else-if="parseAllowedModels(row.allowedModels).length === 0"
-                  type="danger"
-                  size="small"
-                  >{{ i18ns.t('relay.noModels') }}</el-tag
-                >
-                <el-tooltip
-                  v-else
-                  :content="parseAllowedModels(row.allowedModels).join(', ')"
-                  placement="top"
-                >
-                  <el-tag type="primary" size="small">
-                    {{ parseAllowedModels(row.allowedModels).length }}
-                    {{ i18ns.t('relay.modelsCount') }}
+              <div class="flex flex-wrap items-center gap-2 justify-between">
+                <div class="flex flex-wrap items-center gap-2">
+                  <el-tag v-if="selectedChannels.length" type="info" size="small">
+                    {{ i18ns.t('relay.selectedChannels', { count: selectedChannels.length }) }}
                   </el-tag>
-                </el-tooltip>
-              </template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('status')" width="100">
-              <template #default="{ row }">
-                <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
-                  row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
-                }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('relay.channelMultiplier')" width="100">
-              <template #default="{ row }">{{ row.multiplier }}x</template>
-            </el-table-column>
-            <el-table-column
-              :label="i18ns.t('relay.createTime')"
-              width="170"
-              class-name="hide-on-mobile"
-            >
-              <template #default="{ row }">{{
-                new Date(row.createTime).toLocaleString()
-              }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('actions')" width="360" fixed="right">
-              <template #default="{ row }">
-                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
+                  <el-checkbox :model-value="isAllChannelsSelected" @change="toggleAllChannels">
+                    {{ i18ns.t('relay.selectAllChannels') }}
+                  </el-checkbox>
                   <el-button
+                    text
                     size="small"
-                    :type="row.enabled ? 'warning' : 'success'"
-                    :loading="togglingChannelId === row.id"
-                    @click="handleToggleChannelStatus(row)"
+                    :disabled="!hasChannelSelection"
+                    @click="clearChannelSelection"
                   >
-                    {{ row.enabled ? i18ns.t('relay.disable') : i18ns.t('relay.enable') }}
+                    {{ i18ns.t('relay.clearChannelSelection') }}
                   </el-button>
-                </PermissionWrapper>
-                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
-                  <el-button size="small" @click="openEditChannelDialog(row)">{{
-                    i18ns.t('edit')
-                  }}</el-button>
-                </PermissionWrapper>
-                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_CREATE]">
-                  <el-button size="small" @click="handleDuplicateChannel(row)">{{
-                    i18ns.t('relay.duplicateChannel')
-                  }}</el-button>
-                </PermissionWrapper>
-                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_DELETE]">
-                  <el-button size="small" type="danger" @click="handleDeleteChannel(row)">{{
-                    i18ns.t('delete')
-                  }}</el-button>
-                </PermissionWrapper>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-collapse-item>
-      </el-collapse>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_CREATE]">
+                    <el-button
+                      size="small"
+                      :disabled="!hasChannelSelection"
+                      @click="handleBatchDuplicateChannels"
+                      >{{ i18ns.t('relay.batchDuplicateChannels') }}</el-button
+                    >
+                  </PermissionWrapper>
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
+                    <el-button
+                      size="small"
+                      :disabled="!hasChannelSelection"
+                      @click="exportChannelsAsJson"
+                      >{{ i18ns.t('relay.batchExportChannels') }}</el-button
+                    >
+                  </PermissionWrapper>
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
+                    <el-button
+                      size="small"
+                      type="success"
+                      :disabled="!hasChannelSelection"
+                      @click="handleBatchSetChannelStatus(true)"
+                      >{{ i18ns.t('relay.batchEnableChannels') }}</el-button
+                    >
+                  </PermissionWrapper>
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
+                    <el-button
+                      size="small"
+                      type="warning"
+                      :disabled="!hasChannelSelection"
+                      @click="handleBatchSetChannelStatus(false)"
+                      >{{ i18ns.t('relay.batchDisableChannels') }}</el-button
+                    >
+                  </PermissionWrapper>
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_DELETE]">
+                    <el-button
+                      size="small"
+                      type="danger"
+                      :disabled="!hasChannelSelection"
+                      @click="handleBatchDeleteChannels"
+                      >{{ i18ns.t('relay.batchDeleteChannels') }}</el-button
+                    >
+                  </PermissionWrapper>
+                </div>
+              </div>
+            </div>
+            <el-table :data="channels" style="width: 100%" size="small" row-key="id">
+              <el-table-column width="58" align="center">
+                <template #header>
+                  <el-checkbox :model-value="isAllChannelsSelected" @change="toggleAllChannels" />
+                </template>
+                <template #default="{ row }">
+                  <el-checkbox
+                    :model-value="isChannelSelected(row.id)"
+                    @change="toggleChannelSelection(row.id, $event)"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column prop="name" :label="i18ns.t('relay.channelName')" min-width="120" />
+              <el-table-column
+                :label="i18ns.t('relay.supportedFormats')"
+                width="180"
+                class-name="hide-on-mobile"
+              >
+                <template #default="{ row }">
+                  <div style="display: flex; gap: 4px; flex-wrap: wrap">
+                    <template v-if="row.allowedFormats === 'all'">
+                      <el-tag type="success" size="small">OpenAI</el-tag>
+                      <el-tag type="warning" size="small">Anthropic</el-tag>
+                      <el-tag type="primary" size="small">Gemini</el-tag>
+                    </template>
+                    <template v-else>
+                      <el-tag v-if="row.allowedFormats.includes('openai')" type="success" size="small"
+                        >OpenAI</el-tag
+                      >
+                      <el-tag
+                        v-if="row.allowedFormats.includes('anthropic')"
+                        type="warning"
+                        size="small"
+                        >Anthropic</el-tag
+                      >
+                      <el-tag v-if="row.allowedFormats.includes('gemini')" type="primary" size="small"
+                        >Gemini</el-tag
+                      >
+                    </template>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                :label="i18ns.t('relay.upstreamConfig')"
+                min-width="200"
+                class-name="hide-on-mobile"
+              >
+                <template #default="{ row }">
+                  <div style="font-size: 12px">
+                    <div
+                      v-if="computeShowUpstream(row.allowedFormats.split(','), 'openai')"
+                      style="margin-top: 4px"
+                    >
+                      <el-tag size="small" type="success">OpenAI</el-tag>
+                      <span style="margin-left: 4px; word-break: break-all">{{
+                        row.openaiUpstreamUrl
+                      }}</span>
+                    </div>
+                    <div
+                      v-if="computeShowUpstream(row.allowedFormats.split(','), 'anthropic')"
+                      style="margin-top: 4px"
+                    >
+                      <el-tag size="small" type="warning">Anthropic</el-tag>
+                      <span style="margin-left: 4px; word-break: break-all">{{
+                        row.anthropicUpstreamUrl
+                      }}</span>
+                    </div>
+                    <div
+                      v-if="computeShowUpstream(row.allowedFormats.split(','), 'gemini')"
+                      style="margin-top: 4px"
+                    >
+                      <el-tag size="small" type="primary">Gemini</el-tag>
+                      <span style="margin-left: 4px; word-break: break-all">{{
+                        row.geminiUpstreamUrl
+                      }}</span>
+                    </div>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('relay.allowedModelsChannel')" width="120">
+                <template #default="{ row }">
+                  <el-tag v-if="!row.allowedModels" type="info" size="small">{{
+                    i18ns.t('relay.allModels')
+                  }}</el-tag>
+                  <el-tag
+                    v-else-if="parseAllowedModels(row.allowedModels).length === 0"
+                    type="danger"
+                    size="small"
+                    >{{ i18ns.t('relay.noModels') }}</el-tag
+                  >
+                  <el-tooltip
+                    v-else
+                    :content="parseAllowedModels(row.allowedModels).join(', ')"
+                    placement="top"
+                  >
+                    <el-tag type="primary" size="small">
+                      {{ parseAllowedModels(row.allowedModels).length }}
+                      {{ i18ns.t('relay.modelsCount') }}
+                    </el-tag>
+                  </el-tooltip>
+                </template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('status')" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
+                    row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
+                  }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('relay.channelMultiplier')" width="100">
+                <template #default="{ row }">{{ row.multiplier }}x</template>
+              </el-table-column>
+              <el-table-column
+                :label="i18ns.t('relay.createTime')"
+                width="170"
+                class-name="hide-on-mobile"
+              >
+                <template #default="{ row }">{{
+                  new Date(row.createTime).toLocaleString()
+                }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('actions')" width="360" fixed="right">
+                <template #default="{ row }">
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
+                    <el-button
+                      size="small"
+                      :type="row.enabled ? 'warning' : 'success'"
+                      :loading="togglingChannelId === row.id"
+                      @click="handleToggleChannelStatus(row)"
+                    >
+                      {{ row.enabled ? i18ns.t('relay.disable') : i18ns.t('relay.enable') }}
+                    </el-button>
+                  </PermissionWrapper>
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
+                    <el-button size="small" @click="openEditChannelDialog(row)">{{
+                      i18ns.t('edit')
+                    }}</el-button>
+                  </PermissionWrapper>
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_CREATE]">
+                    <el-button size="small" @click="handleDuplicateChannel(row)">{{
+                      i18ns.t('relay.duplicateChannel')
+                    }}</el-button>
+                  </PermissionWrapper>
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_DELETE]">
+                    <el-button size="small" type="danger" @click="handleDeleteChannel(row)">{{
+                      i18ns.t('delete')
+                    }}</el-button>
+                  </PermissionWrapper>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-collapse-item>
+        </el-collapse>
+      </div>
     </div>
   </div>
 </template>
