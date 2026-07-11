@@ -1,5 +1,5 @@
 <template>
-  <div :class="isDesktop ? 'desktop-page' : 'mobile-page'">
+  <div :class="isDesktop ? 'desktop-page page-shell' : 'mobile-page'">
     <el-card class="page-card monthly-pass-card">
       <template #header>
         <div class="card-header toolbar-row">
@@ -45,121 +45,122 @@
             </div>
           </div>
 
-          <el-table
-            v-if="isDesktop"
-            :data="templates"
-            v-loading="loadingTemplates"
-            style="width: 100%"
-          >
-            <el-table-column
-              prop="name"
-              :label="i18ns.t('monthlyPass.templateName')"
-              min-width="160"
-            />
-            <el-table-column
-              prop="description"
-              :label="i18ns.t('monthlyPass.description')"
-              min-width="180"
+          <div v-if="isDesktop" class="desktop-table-wrap">
+            <el-table
+              :data="templates"
+              v-loading="loadingTemplates"
+              style="width: 100%"
             >
-              <template #default="{ row }">{{ row.description || '-' }}</template>
-            </el-table-column>
-            <el-table-column
-              prop="originalPrice"
-              :label="i18ns.t('monthlyPass.originalPrice')"
-              width="130"
-            >
-              <template #default="{ row }">{{ formatPriceValue(row.originalPrice) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.discountPercent')" width="120">
-              <template #default="{ row }">{{ formatPercentValue(row.discountPercent) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.discountedPrice')" width="130">
-              <template #default="{ row }">{{ formatPriceValue(row.discountedPrice) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.rechargeRatio')" width="120">
-              <template #default="{ row }">{{ formatRatioValue(row.rechargeRatio) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.derivedQuota')" width="130">
-              <template #default="{ row }">{{
-                formatQuotaValue(row.defaultQuota, 'amount')
-              }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.dailyQuota')" width="130">
-              <template #default="{ row }">{{
-                formatDailyQuota(row.dailyQuota, 'amount')
-              }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.purchaseLimit')" min-width="180">
-              <template #default="{ row }">{{ formatPurchaseLimit(row) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.quotaWindows')" min-width="220">
-              <template #default="{ row }">{{
-                formatQuotaWindows(getTemplateQuotaWindowSource(row))
-              }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.allowedModels')" min-width="200">
-              <template #default="{ row }">{{ formatAllowedModels(row.allowedModels) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.allowedChannels')" min-width="220">
-              <template #default="{ row }">{{
-                formatAllowedChannels(row.allowedChannels)
-              }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.status')" width="100">
-              <template #default="{ row }">
-                <el-tag :type="row.status === MANAGED_STATUS.ENABLED ? 'success' : 'info'">{{
-                  statusLabel(row.status)
-                }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.publishStatus')" width="120">
-              <template #default="{ row }">
-                <el-tag :type="publishStatusTagType(row.publishStatus)">{{
-                  publishStatusLabel(row.publishStatus)
-                }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.publishedAt')" min-width="180">
-              <template #default="{ row }">{{ formatDateTime(row.publishedAt) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.createTime')" min-width="180">
-              <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
-            </el-table-column>
-            <el-table-column
-              v-if="canWriteTemplates"
-              :label="i18ns.t('monthlyPass.actions')"
-              width="360"
-              fixed="right"
-            >
-              <template #default="{ row }">
-                <el-button type="info" size="small" @click="openCopyTemplateDialog(row)">{{
-                  i18ns.t('monthlyPass.copyTemplate')
-                }}</el-button>
-                <el-button
-                  v-if="canPublishTemplate(row)"
-                  type="success"
-                  size="small"
-                  @click="publishTemplate(row)"
-                >
-                  {{ i18ns.t('monthlyPass.publish') }}
-                </el-button>
-                <el-button
-                  v-else-if="canUnpublishTemplate(row)"
-                  type="warning"
-                  size="small"
-                  @click="unpublishTemplate(row)"
-                >
-                  {{ i18ns.t('monthlyPass.unpublish') }}
-                </el-button>
-                <el-button type="primary" size="small" @click="openEditTemplateDialog(row)">{{
-                  i18ns.t('edit')
-                }}</el-button>
-                <el-button type="danger" size="small" @click="deleteTemplate(row)">{{
-                  i18ns.t('delete')
-                }}</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+              <el-table-column
+                prop="name"
+                :label="i18ns.t('monthlyPass.templateName')"
+                min-width="160"
+              />
+              <el-table-column
+                prop="description"
+                :label="i18ns.t('monthlyPass.description')"
+                min-width="180"
+              >
+                <template #default="{ row }">{{ row.description || '-' }}</template>
+              </el-table-column>
+              <el-table-column
+                prop="originalPrice"
+                :label="i18ns.t('monthlyPass.originalPrice')"
+                width="130"
+              >
+                <template #default="{ row }">{{ formatPriceValue(row.originalPrice) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.discountPercent')" width="120">
+                <template #default="{ row }">{{ formatPercentValue(row.discountPercent) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.discountedPrice')" width="130">
+                <template #default="{ row }">{{ formatPriceValue(row.discountedPrice) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.rechargeRatio')" width="120">
+                <template #default="{ row }">{{ formatRatioValue(row.rechargeRatio) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.derivedQuota')" width="130">
+                <template #default="{ row }">{{
+                  formatQuotaValue(row.defaultQuota, 'amount')
+                }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.dailyQuota')" width="130">
+                <template #default="{ row }">{{
+                  formatDailyQuota(row.dailyQuota, 'amount')
+                }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.purchaseLimit')" min-width="180">
+                <template #default="{ row }">{{ formatPurchaseLimit(row) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.quotaWindows')" min-width="220">
+                <template #default="{ row }">{{
+                  formatQuotaWindows(getTemplateQuotaWindowSource(row))
+                }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.allowedModels')" min-width="200">
+                <template #default="{ row }">{{ formatAllowedModels(row.allowedModels) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.allowedChannels')" min-width="220">
+                <template #default="{ row }">{{
+                  formatAllowedChannels(row.allowedChannels)
+                }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.status')" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="row.status === MANAGED_STATUS.ENABLED ? 'success' : 'info'">{{
+                    statusLabel(row.status)
+                  }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.publishStatus')" width="120">
+                <template #default="{ row }">
+                  <el-tag :type="publishStatusTagType(row.publishStatus)">{{
+                    publishStatusLabel(row.publishStatus)
+                  }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.publishedAt')" min-width="180">
+                <template #default="{ row }">{{ formatDateTime(row.publishedAt) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.createTime')" min-width="180">
+                <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
+              </el-table-column>
+              <el-table-column
+                v-if="canWriteTemplates"
+                :label="i18ns.t('monthlyPass.actions')"
+                width="300"
+                fixed="right"
+              >
+                <template #default="{ row }">
+                  <el-button type="info" size="small" @click="openCopyTemplateDialog(row)">{{
+                    i18ns.t('monthlyPass.copyTemplate')
+                  }}</el-button>
+                  <el-button
+                    v-if="canPublishTemplate(row)"
+                    type="success"
+                    size="small"
+                    @click="publishTemplate(row)"
+                  >
+                    {{ i18ns.t('monthlyPass.publish') }}
+                  </el-button>
+                  <el-button
+                    v-else-if="canUnpublishTemplate(row)"
+                    type="warning"
+                    size="small"
+                    @click="unpublishTemplate(row)"
+                  >
+                    {{ i18ns.t('monthlyPass.unpublish') }}
+                  </el-button>
+                  <el-button type="primary" size="small" @click="openEditTemplateDialog(row)">{{
+                    i18ns.t('edit')
+                  }}</el-button>
+                  <el-button type="danger" size="small" @click="deleteTemplate(row)">{{
+                    i18ns.t('delete')
+                  }}</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
 
           <div v-else class="mobile-card-list" v-loading="loadingTemplates">
             <el-empty v-if="!templates.length" :description="i18ns.t('monthlyPass.loadFailed')" />
@@ -344,76 +345,77 @@
             </div>
           </div>
 
-          <el-table
-            v-if="isDesktop"
-            :data="userPasses"
-            v-loading="loadingAssignments"
-            style="width: 100%"
-          >
-            <el-table-column :label="i18ns.t('monthlyPass.user')">
-              <template #default="{ row }">{{ row.username || row.userId }}</template>
-            </el-table-column>
-            <el-table-column prop="templateName" :label="i18ns.t('monthlyPass.template')" />
-            <el-table-column :label="i18ns.t('monthlyPass.startAt')">
-              <template #default="{ row }">{{ formatDateTime(row.startAt) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.endAt')">
-              <template #default="{ row }">{{ formatDateTime(row.endAt) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.totalQuota')">
-              <template #default="{ row }">{{
-                formatQuotaValue(row.totalQuota, row.quotaUnit)
-              }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.dailyQuota')">
-              <template #default="{ row }">{{
-                formatDailyQuota(row.dailyQuota, row.quotaUnit)
-              }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.quotaUnit')">
-              <template #default="{ row }">{{ formatQuotaUnit(row.quotaUnit) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.quotaWindows')" min-width="220">
-              <template #default="{ row }">{{
-                formatQuotaWindows(getUserPassQuotaWindowSource(row))
-              }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.usedQuota')">
-              <template #default="{ row }">{{
-                formatQuotaValue(row.usedQuota, row.quotaUnit)
-              }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.remainingQuota')">
-              <template #default="{ row }">{{
-                formatQuotaValue(row.remainingQuota, row.quotaUnit)
-              }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.status')">
-              <template #default="{ row }">
-                <el-tag :type="row.status === MANAGED_STATUS.ENABLED ? 'success' : 'info'">{{
-                  statusLabel(row.status)
-                }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.note')">
-              <template #default="{ row }">{{ row.note || '-' }}</template>
-            </el-table-column>
-            <el-table-column
-              v-if="canWriteAssignments"
-              :label="i18ns.t('monthlyPass.actions')"
-              width="160"
-              fixed="right"
+          <div v-if="isDesktop" class="desktop-table-wrap">
+            <el-table
+              :data="userPasses"
+              v-loading="loadingAssignments"
+              style="width: 100%"
             >
-              <template #default="{ row }">
-                <el-button type="primary" size="small" @click="openEditAssignmentDialog(row)">{{
-                  i18ns.t('edit')
-                }}</el-button>
-                <el-button type="danger" size="small" @click="deleteAssignment(row)">{{
-                  i18ns.t('delete')
-                }}</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+              <el-table-column :label="i18ns.t('monthlyPass.user')" min-width="180">
+                <template #default="{ row }">{{ row.username || row.userId }}</template>
+              </el-table-column>
+              <el-table-column prop="templateName" :label="i18ns.t('monthlyPass.template')" min-width="160" />
+              <el-table-column :label="i18ns.t('monthlyPass.startAt')" min-width="180">
+                <template #default="{ row }">{{ formatDateTime(row.startAt) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.endAt')" min-width="180">
+                <template #default="{ row }">{{ formatDateTime(row.endAt) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.totalQuota')" width="140">
+                <template #default="{ row }">{{
+                  formatQuotaValue(row.totalQuota, row.quotaUnit)
+                }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.dailyQuota')" width="140">
+                <template #default="{ row }">{{
+                  formatDailyQuota(row.dailyQuota, row.quotaUnit)
+                }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.quotaUnit')" width="120">
+                <template #default="{ row }">{{ formatQuotaUnit(row.quotaUnit) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.quotaWindows')" min-width="220">
+                <template #default="{ row }">{{
+                  formatQuotaWindows(getUserPassQuotaWindowSource(row))
+                }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.usedQuota')" width="140">
+                <template #default="{ row }">{{
+                  formatQuotaValue(row.usedQuota, row.quotaUnit)
+                }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.remainingQuota')" width="160">
+                <template #default="{ row }">{{
+                  formatQuotaValue(row.remainingQuota, row.quotaUnit)
+                }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.status')" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="row.status === MANAGED_STATUS.ENABLED ? 'success' : 'info'">{{
+                    statusLabel(row.status)
+                  }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.note')" min-width="180">
+                <template #default="{ row }">{{ row.note || '-' }}</template>
+              </el-table-column>
+              <el-table-column
+                v-if="canWriteAssignments"
+                :label="i18ns.t('monthlyPass.actions')"
+                width="160"
+                fixed="right"
+              >
+                <template #default="{ row }">
+                  <el-button type="primary" size="small" @click="openEditAssignmentDialog(row)">{{
+                    i18ns.t('edit')
+                  }}</el-button>
+                  <el-button type="danger" size="small" @click="deleteAssignment(row)">{{
+                    i18ns.t('delete')
+                  }}</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
 
           <div v-else class="mobile-card-list" v-loading="loadingAssignments">
             <el-empty v-if="!userPasses.length" :description="i18ns.t('monthlyPass.loadFailed')" />
@@ -562,37 +564,38 @@
             </div>
           </div>
 
-          <el-table
-            v-if="isDesktop"
-            :data="usageRecords"
-            v-loading="loadingUsages"
-            style="width: 100%"
-          >
-            <el-table-column :label="i18ns.t('monthlyPass.user')">
-              <template #default="{ row }">
-                {{ userNameById.get(row.userId) || row.userId }} ({{ row.userId }})
-              </template>
-            </el-table-column>
-            <el-table-column prop="templateName" :label="i18ns.t('monthlyPass.template')" />
-            <el-table-column prop="model" :label="i18ns.t('monthlyPass.model')">
-              <template #default="{ row }">{{ row.model || '-' }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.channel')">
-              <template #default="{ row }">{{ row.channelName || row.channelId || '-' }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.coverageAmount')" width="130">
-              <template #default="{ row }">{{ formatAmount(row.coveredAmount) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.totalRequestCost')" width="140">
-              <template #default="{ row }">{{ formatAmount(row.totalRequestCost) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.remainingRequestCost')" width="150">
-              <template #default="{ row }">{{ formatAmount(row.remainingRequestCost) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('monthlyPass.createTime')">
-              <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
-            </el-table-column>
-          </el-table>
+          <div v-if="isDesktop" class="desktop-table-wrap">
+            <el-table
+              :data="usageRecords"
+              v-loading="loadingUsages"
+              style="width: 100%"
+            >
+              <el-table-column :label="i18ns.t('monthlyPass.user')" min-width="220">
+                <template #default="{ row }">
+                  {{ userNameById.get(row.userId) || row.userId }} ({{ row.userId }})
+                </template>
+              </el-table-column>
+              <el-table-column prop="templateName" :label="i18ns.t('monthlyPass.template')" min-width="160" />
+              <el-table-column prop="model" :label="i18ns.t('monthlyPass.model')" min-width="160">
+                <template #default="{ row }">{{ row.model || '-' }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.channel')" min-width="180">
+                <template #default="{ row }">{{ row.channelName || row.channelId || '-' }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.coverageAmount')" width="130">
+                <template #default="{ row }">{{ formatAmount(row.coveredAmount) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.totalRequestCost')" width="140">
+                <template #default="{ row }">{{ formatAmount(row.totalRequestCost) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.remainingRequestCost')" width="150">
+                <template #default="{ row }">{{ formatAmount(row.remainingRequestCost) }}</template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('monthlyPass.createTime')" min-width="180">
+                <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
 
           <div v-else class="mobile-card-list" v-loading="loadingUsages">
             <el-empty
@@ -733,3 +736,19 @@ const {
   loadUsages,
 } = state
 </script>
+
+<style scoped>
+.desktop-table-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.desktop-table-wrap :deep(.el-table) {
+  width: 100%;
+}
+
+.desktop-table-wrap :deep(.el-table .cell) {
+  word-break: break-word;
+}
+</style>

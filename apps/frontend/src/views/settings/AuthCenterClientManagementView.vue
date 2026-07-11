@@ -1,5 +1,10 @@
 <template>
-  <div class="auth-center-client-management-view">
+  <div
+    :class="[
+      'auth-center-client-management-view',
+      state.isDesktop.value ? 'desktop-page page-shell' : 'auth-center-client-mobile mobile-page',
+    ]"
+  >
     <AuthCenterClientReferenceCard />
     <AuthCenterClientDesktop v-if="state.isDesktop.value" />
     <AuthCenterClientMobile v-else />
@@ -24,3 +29,13 @@ const state = useAuthCenterClientManagement()
 provide(authCenterClientManagementContextKey, state)
 defineExpose(state)
 </script>
+
+<style scoped>
+.auth-center-client-management-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+</style>

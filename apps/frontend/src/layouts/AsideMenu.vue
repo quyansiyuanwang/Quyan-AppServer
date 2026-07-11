@@ -1348,7 +1348,6 @@ watch(
   border-right: 1px solid var(--el-border-color-lighter);
   overflow: hidden;
   width: 220px;
-  transition: width 0.25s ease;
 
   &.is-collapsed {
     width: 64px;
@@ -1908,10 +1907,6 @@ watch(
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  transition:
-    width 0.25s ease,
-    min-width 0.25s ease;
-  will-change: width;
 
   &::-webkit-scrollbar {
     width: 4px;

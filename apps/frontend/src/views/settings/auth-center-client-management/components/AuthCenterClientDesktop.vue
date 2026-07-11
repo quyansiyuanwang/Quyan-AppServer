@@ -1,5 +1,5 @@
 <template>
-  <div class="desktop-page">
+  <div class="auth-center-client-desktop">
     <el-card class="page-card">
       <template #header>
         <div class="card-header toolbar-row">
@@ -168,3 +168,18 @@ const {
   handleDelete,
 } = useAuthCenterClientManagementContext()
 </script>
+
+<style scoped>
+.auth-center-client-desktop {
+  width: 100%;
+  min-width: 0;
+}
+
+.auth-center-client-desktop :deep(.el-table) {
+  width: 100%;
+}
+
+.auth-center-client-desktop :deep(.el-table .cell) {
+  word-break: break-word;
+}
+</style>

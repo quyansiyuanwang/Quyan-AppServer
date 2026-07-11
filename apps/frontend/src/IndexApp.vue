@@ -110,13 +110,13 @@ onBeforeUnmount(() => {
 :global(.page-fade-leave-to),
 :global(.page-fade-appear-from) {
   opacity: 0;
-  transform: translateY(8px) scale(0.996);
+  transform: translateY(8px);
 }
 
 :global(.page-fade-enter-to),
 :global(.page-fade-leave-from),
 :global(.page-fade-appear-to) {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translateY(0);
 }
 </style>

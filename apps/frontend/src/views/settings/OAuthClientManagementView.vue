@@ -1,6 +1,11 @@
 <template>
-  <div class="oauth-client-management-view">
-    <el-card class="oauth-scope-reference page-card">
+  <div
+    :class="[
+      'oauth-client-management-view',
+      isDesktop ? 'desktop-page page-shell' : 'oauth-client-mobile mobile-page',
+    ]"
+  >
+    <el-card :class="['oauth-scope-reference', isDesktop ? 'page-card' : 'mobile-card']">
       <template #header>
         <div class="card-header">
           <span>{{ i18ns.t('oauthClient.scopeReferenceTitle') }}</span>
@@ -37,7 +42,7 @@
       </div>
     </el-card>
 
-    <div v-if="isDesktop" class="oauth-client-management desktop-page">
+    <div v-if="isDesktop" class="oauth-client-management">
       <el-card class="page-card">
         <template #header>
           <div class="card-header toolbar-row">
@@ -139,7 +144,7 @@
       </el-card>
     </div>
 
-    <div v-else class="oauth-client-mobile mobile-page">
+    <div v-else class="oauth-client-management">
       <el-card class="mobile-card">
         <template #header>
           <div class="card-header toolbar-row">
@@ -759,8 +764,22 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.oauth-client-management-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.oauth-client-management {
+  width: 100%;
+  min-width: 0;
+}
+
 .oauth-scope-reference {
-  margin-bottom: 16px;
+  width: 100%;
+  min-width: 0;
 }
 
 .oauth-scope-reference__intro {
@@ -950,10 +969,6 @@ onMounted(() => {
   margin-top: 4px;
 }
 
-.oauth-client-mobile {
-  padding: 8px 6px 16px;
-}
-
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -1024,6 +1039,14 @@ onMounted(() => {
 
 .oauth-client-management-view :deep(.oauth-client-table__redirect-column .compact-list) {
   margin-top: 0;
+}
+
+.oauth-client-management-view :deep(.el-table) {
+  width: 100%;
+}
+
+.oauth-client-management-view :deep(.el-table .cell) {
+  word-break: break-word;
 }
 
 .mono {

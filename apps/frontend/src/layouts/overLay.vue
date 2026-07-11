@@ -35,11 +35,11 @@ import LayoutWrapper from '@/layouts/HomeFrameLayout.vue'
 .page-fade-enter-from,
 .page-fade-leave-to {
   opacity: 0;
-  transform: translateY(8px) scale(0.996);
+  transform: translateY(8px);
 }
 .page-fade-enter-to,
 .page-fade-leave-from {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translateY(0);
 }
 </style>

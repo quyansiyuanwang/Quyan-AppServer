@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page">
+  <div v-if="isDesktop" class="desktop-page page-shell redemption-code-management">
     <el-card class="page-card">
       <template #header>
         <div class="card-header toolbar-row">
@@ -10,58 +10,80 @@
         </div>
       </template>
 
-      <el-table :data="codes" style="width: 100%">
-        <el-table-column prop="code" :label="i18ns.t('redemption.code')">
-          <template #default="{ row }">
-            <el-link type="primary" @click="copyCode(row.code)">{{ row.code }}</el-link>
-          </template>
-        </el-table-column>
-        <el-table-column prop="amount" :label="i18ns.t('redemption.amount')" />
-        <el-table-column :label="i18ns.t('relay.statusCode')">
-          <template #default="{ row }">
-            <el-tag v-if="row.usedBy" type="info">{{ i18ns.t('redemption.used') }}</el-tag>
-            <el-tag
-              v-else-if="row.expiresAt && new Date(row.expiresAt) < new Date()"
-              type="danger"
-              >{{ i18ns.t('redemption.expired') }}</el-tag
-            >
-            <el-tag v-else type="success">{{ i18ns.t('redemption.unused') }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="usedBy" :label="i18ns.t('redemption.usedBy')">
-          <template #default="{ row }">
-            <span v-if="row.usedByUsername">{{ row.usedByUsername }}</span>
-            <span v-else-if="row.usedBy">{{ row.usedBy }}</span>
-            <span v-else class="muted">-</span>
-          </template>
-        </el-table-column>
-        <el-table-column :label="i18ns.t('redemption.usedAt')">
-          <template #default="{ row }">{{
-            row.usedAt ? new Date(row.usedAt).toLocaleString() : '-'
-          }}</template>
-        </el-table-column>
-        <el-table-column :label="i18ns.t('redemption.expiresAt')">
-          <template #default="{ row }">{{
-            row.expiresAt ? new Date(row.expiresAt).toLocaleString() : '-'
-          }}</template>
-        </el-table-column>
-        <el-table-column :label="i18ns.t('redemption.createdBy')">
-          <template #default="{ row }">
-            <span v-if="row.createdByUsername">{{ row.createdByUsername }}</span>
-            <span v-else>{{ row.createdBy }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column :label="i18ns.t('relay.createTime')">
-          <template #default="{ row }">{{ new Date(row.createTime).toLocaleString() }}</template>
-        </el-table-column>
-        <el-table-column :label="i18ns.t('actions')" width="100">
-          <template #default="{ row }">
-            <el-button type="danger" size="small" @click="handleDelete(row)">{{
-              i18ns.t('delete')
-            }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="redemption-code-management__table-wrap">
+        <el-table
+          v-loading="loading"
+          :data="codes"
+          class="redemption-code-management__table"
+          style="width: 100%"
+        >
+          <el-table-column
+            prop="code"
+            :label="i18ns.t('redemption.code')"
+            min-width="220"
+            class-name="redemption-code-management__code-column"
+          >
+            <template #default="{ row }">
+              <el-link
+                type="primary"
+                class="redemption-code-management__code-link"
+                @click="copyCode(row.code)"
+              >
+                {{ row.code }}
+              </el-link>
+            </template>
+          </el-table-column>
+          <el-table-column prop="amount" :label="i18ns.t('redemption.amount')" width="120" />
+          <el-table-column :label="i18ns.t('relay.statusCode')" width="120">
+            <template #default="{ row }">
+              <el-tag v-if="row.usedBy" type="info">{{ i18ns.t('redemption.used') }}</el-tag>
+              <el-tag
+                v-else-if="row.expiresAt && new Date(row.expiresAt) < new Date()"
+                type="danger"
+                >{{ i18ns.t('redemption.expired') }}</el-tag
+              >
+              <el-tag v-else type="success">{{ i18ns.t('redemption.unused') }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="usedBy"
+            :label="i18ns.t('redemption.usedBy')"
+            min-width="160"
+          >
+            <template #default="{ row }">
+              <span v-if="row.usedByUsername">{{ row.usedByUsername }}</span>
+              <span v-else-if="row.usedBy">{{ row.usedBy }}</span>
+              <span v-else class="muted">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('redemption.usedAt')" min-width="180">
+            <template #default="{ row }">{{
+              row.usedAt ? new Date(row.usedAt).toLocaleString() : '-'
+            }}</template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('redemption.expiresAt')" min-width="180">
+            <template #default="{ row }">{{
+              row.expiresAt ? new Date(row.expiresAt).toLocaleString() : '-'
+            }}</template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('redemption.createdBy')" min-width="150">
+            <template #default="{ row }">
+              <span v-if="row.createdByUsername">{{ row.createdByUsername }}</span>
+              <span v-else>{{ row.createdBy }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('relay.createTime')" min-width="180">
+            <template #default="{ row }">{{ new Date(row.createTime).toLocaleString() }}</template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('actions')" width="100">
+            <template #default="{ row }">
+              <el-button type="danger" size="small" @click="handleDelete(row)">{{
+                i18ns.t('delete')
+              }}</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
 
       <el-pagination
         v-model:current-page="pagination.page"
@@ -188,6 +210,7 @@ import { redemptionCodeService } from '@/service/redemptionCodeService'
 const { isDesktop } = usePageDevice()
 
 const codes = ref<any[]>([])
+const loading = ref(false)
 const showCreateDialog = ref(false)
 const creating = ref(false)
 const form = ref({ amount: 1, count: 1, expiresAt: null as Date | null })
@@ -199,6 +222,7 @@ const pagination = reactive({
 })
 
 const loadCodes = async () => {
+  loading.value = true
   try {
     const result = await redemptionCodeService.listCodes(pagination.page, pagination.pageSize)
     codes.value = result.data.records
@@ -206,6 +230,8 @@ const loadCodes = async () => {
   } catch (error: any) {
     codes.value = []
     ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+  } finally {
+    loading.value = false
   }
 }
 
@@ -248,6 +274,37 @@ onMounted(() => loadCodes())
 </script>
 
 <style scoped>
+.redemption-code-management {
+  width: 100%;
+  min-width: 0;
+}
+
+.redemption-code-management__table-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.redemption-code-management__table-wrap :deep(.redemption-code-management__table) {
+  min-width: 1410px;
+}
+
+.redemption-code-management :deep(.el-table .cell) {
+  word-break: break-word;
+}
+
+.redemption-code-management__code-link {
+  display: inline-block;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.redemption-code-management :deep(.redemption-code-management__code-column .cell) {
+  white-space: normal;
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;

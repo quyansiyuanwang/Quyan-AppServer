@@ -490,11 +490,11 @@ if (!isDesktop.value) {
 }
 
 .info-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .actions-grid {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
 .info-card {
@@ -515,7 +515,11 @@ if (!isDesktop.value) {
   border: 1px solid var(--el-border-color-lighter);
   background: var(--el-bg-color);
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease,
+    background-color 0.2s ease;
   text-align: center;
   min-width: 0;
 }

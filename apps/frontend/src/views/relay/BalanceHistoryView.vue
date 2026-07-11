@@ -1,5 +1,5 @@
 <template>
-  <div :class="[isDesktop ? 'desktop-page' : 'mobile-page', 'balance-history-page-root']">
+  <div :class="[isDesktop ? 'desktop-page page-shell' : 'mobile-page', 'balance-history-page-root']">
     <div class="balance-container">
       <BalanceHistorySummary :card-class="isDesktop ? 'page-card' : 'mobile-card'" />
       <BalanceHistoryTransactions :card-class="isDesktop ? 'page-card' : 'mobile-card'" />
