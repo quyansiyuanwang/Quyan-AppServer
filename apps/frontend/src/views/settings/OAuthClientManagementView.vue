@@ -1045,6 +1045,17 @@ onMounted(() => {
   width: 100%;
 }
 
+.oauth-client-management-view :deep(.el-table__header),
+.oauth-client-management-view :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.oauth-client-management-view :deep(.el-table__inner-wrapper),
+.oauth-client-management-view :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
 .oauth-client-management-view :deep(.el-table .cell) {
   word-break: break-word;
 }

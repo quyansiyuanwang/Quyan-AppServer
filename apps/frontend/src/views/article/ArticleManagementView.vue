@@ -763,6 +763,17 @@ const { isDesktop } = usePageDevice()
   min-width: 0;
 }
 
+.article-management :deep(.el-table__header),
+.article-management :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.article-management :deep(.el-table__inner-wrapper),
+.article-management :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
 .article-management :deep(.el-table .cell) {
   word-break: break-word;
 }

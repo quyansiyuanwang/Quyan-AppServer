@@ -179,6 +179,17 @@ const {
   width: 100%;
 }
 
+.auth-center-client-desktop :deep(.el-table__header),
+.auth-center-client-desktop :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.auth-center-client-desktop :deep(.el-table__inner-wrapper),
+.auth-center-client-desktop :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
 .auth-center-client-desktop :deep(.el-table .cell) {
   word-break: break-word;
 }

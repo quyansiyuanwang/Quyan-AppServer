@@ -802,6 +802,17 @@ onMounted(() => {
   min-width: 0;
 }
 
+.user-online-monitor :deep(.el-table__header),
+.user-online-monitor :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.user-online-monitor :deep(.el-table__inner-wrapper),
+.user-online-monitor :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
 .stats-row {
   margin-bottom: 20px;
 }

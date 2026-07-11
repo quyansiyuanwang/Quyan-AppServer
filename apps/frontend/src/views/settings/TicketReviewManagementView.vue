@@ -894,6 +894,17 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.ticket-review-view :deep(.el-table__header),
+.ticket-review-view :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.ticket-review-view :deep(.el-table__inner-wrapper),
+.ticket-review-view :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
 .pagination-wrapper {
   display: flex;
   justify-content: flex-end;

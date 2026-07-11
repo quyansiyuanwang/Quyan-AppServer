@@ -748,6 +748,17 @@ const {
   width: 100%;
 }
 
+.desktop-table-wrap :deep(.el-table__header),
+.desktop-table-wrap :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.desktop-table-wrap :deep(.el-table__inner-wrapper),
+.desktop-table-wrap :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
 .desktop-table-wrap :deep(.el-table .cell) {
   word-break: break-word;
 }
