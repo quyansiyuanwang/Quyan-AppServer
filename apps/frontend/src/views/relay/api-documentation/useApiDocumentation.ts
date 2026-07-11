@@ -1,5 +1,8 @@
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import {
+  type ChannelMatchMode,
+  type ChannelPriceMode,
+  type PricingTableMode,
   type PriceRangeField,
   type PricingSortField,
   type PricingSortOrder,
@@ -71,13 +74,17 @@ export function useApiDocumentation() {
     loading,
     loadErrorMessage,
     channels,
+    selectedChannels,
     filterFormat,
-    filterChannel,
+    filterChannelIds,
     filterPricingType,
     filterModelKeyword,
     onlyModelsWithChannels,
-    showCalculatedPrice,
-    showLowestChannelPrice,
+    channelMatchMode,
+    channelPriceMode,
+    pricingTableMode,
+    primaryComparisonChannelId,
+    primaryComparisonChannel,
     customPriceMultiplier,
     tokenPriceUnit,
     fixedPriceMin,
@@ -93,7 +100,9 @@ export function useApiDocumentation() {
     normalizeFormats,
     getRequestModelId,
     getChannelsForModel,
+    getSelectedChannelsForModel,
     getDisplayedPriceMultiplier,
+    getChannelPriceCell,
     getHighlightParts,
     toggleTokenPriceUnit,
     resetFilters,
@@ -107,9 +116,37 @@ export function useApiDocumentation() {
     () => customPriceMultiplier.value !== null && customPriceMultiplier.value !== 1,
   )
 
-  const selectedChannel = computed(() =>
-    filterChannel.value ? (channels.value.find((c) => c.id === filterChannel.value) ?? null) : null,
-  )
+  const selectedChannelCount = computed(() => selectedChannels.value.length)
+
+  const selectedChannelSummary = computed(() => {
+    if (selectedChannelCount.value === 0) return ''
+    return i18ns.t('apiDoc.selectedChannelsSummary', { count: selectedChannelCount.value })
+  })
+
+  const handleChannelMatchModeChange = (value: ChannelMatchMode) => {
+    channelMatchMode.value = value
+    currentPage.value = 1
+  }
+
+  const handleChannelPriceModeChange = (value: ChannelPriceMode) => {
+    if (value === 'selected-lowest' && filterChannelIds.value.length === 0) {
+      channelPriceMode.value = 'base'
+      return
+    }
+
+    channelPriceMode.value = value
+    currentPage.value = 1
+  }
+
+  const handlePricingTableModeChange = (value: PricingTableMode) => {
+    pricingTableMode.value = value
+    currentPage.value = 1
+  }
+
+  const handlePrimaryComparisonChannelChange = (value: string) => {
+    primaryComparisonChannelId.value = value
+    currentPage.value = 1
+  }
 
   const mobileSortField = computed<PricingSortField>({
     get: () => sortField.value || '',
@@ -323,12 +360,14 @@ export function useApiDocumentation() {
   watch(
     [
       filterFormat,
-      filterChannel,
+      filterChannelIds,
       filterPricingType,
       filterModelKeyword,
       onlyModelsWithChannels,
-      showCalculatedPrice,
-      showLowestChannelPrice,
+      channelMatchMode,
+      channelPriceMode,
+      pricingTableMode,
+      primaryComparisonChannelId,
       fixedPriceMin,
       fixedPriceMax,
       inputPriceMin,
@@ -352,6 +391,9 @@ export function useApiDocumentation() {
     canOpenSwagger,
     ccswitchBalanceSample,
     channels,
+    channelMatchMode,
+    channelPriceMode,
+    pricingTableMode,
     copyText,
     currentPage,
     customMultiplierActive,
@@ -359,7 +401,7 @@ export function useApiDocumentation() {
     displayAnthropicEndpoint,
     displayGeminiEndpoint,
     displayOpenaiEndpoint,
-    filterChannel,
+    filterChannelIds,
     filterFormat,
     filterModelKeyword,
     filterPricingType,
@@ -367,12 +409,17 @@ export function useApiDocumentation() {
     fixedPriceMax,
     fixedPriceMin,
     getChannelsForModel,
+    getSelectedChannelsForModel,
     getDisplayedPriceMultiplier,
     getHighlightParts,
     getRequestModelId,
     goRelayTokenManagement,
     goSettingsSecurity,
+    handleChannelMatchModeChange,
+    handleChannelPriceModeChange,
+    handlePricingTableModeChange,
     handlePriceRangeChange,
+    handlePrimaryComparisonChannelChange,
     handlePricingTypeFilterChange,
     handleResetFilters,
     handleSortChange,
@@ -399,18 +446,21 @@ export function useApiDocumentation() {
     priceDisplayMode,
     priceRanges,
     pricingTabActivated,
+    primaryComparisonChannel,
+    primaryComparisonChannelId,
     refreshData,
     relayUsageEndpoint,
     resetPriceRangeFilter,
-    selectedChannel,
+    selectedChannelCount,
+    selectedChannelSummary,
+    selectedChannels,
     showCacheMultipliers,
-    showCalculatedPrice,
     showFullEndpoint,
-    showLowestChannelPrice,
     sortField,
     sortOrder,
     tokenPriceUnit,
     toggleTokenPriceUnit,
+    getChannelPriceCell,
   }
 }
 

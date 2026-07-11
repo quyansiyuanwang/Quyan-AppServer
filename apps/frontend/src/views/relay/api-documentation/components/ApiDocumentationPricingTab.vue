@@ -8,12 +8,14 @@ import { useApiDocumentationContext } from '../context'
 const state = useApiDocumentationContext()
 const channels = state.channels
 const filterFormat = state.filterFormat
-const filterChannel = state.filterChannel
+const filterChannelIds = state.filterChannelIds
 const filterPricingType = state.filterPricingType
 const filterModelKeyword = state.filterModelKeyword
 const onlyModelsWithChannels = state.onlyModelsWithChannels
-const showCalculatedPrice = state.showCalculatedPrice
-const showLowestChannelPrice = state.showLowestChannelPrice
+const channelMatchMode = state.channelMatchMode
+const channelPriceMode = state.channelPriceMode
+const pricingTableMode = state.pricingTableMode
+const primaryComparisonChannelId = state.primaryComparisonChannelId
 const customPriceMultiplier = state.customPriceMultiplier
 const tokenPriceUnit = state.tokenPriceUnit
 const fixedPriceMin = state.fixedPriceMin
@@ -36,7 +38,10 @@ const mobilePricingAdvancedSettingsExpanded = state.mobilePricingAdvancedSetting
 const mobileSortField = state.mobileSortField
 const mobileSortOrder = state.mobileSortOrder
 const paginatedPricingData = state.paginatedPricingData
-const selectedChannel = state.selectedChannel
+const selectedChannelCount = state.selectedChannelCount
+const selectedChannelSummary = state.selectedChannelSummary
+const selectedChannels = state.selectedChannels
+const primaryComparisonChannel = state.primaryComparisonChannel
 const showCacheMultipliers = state.showCacheMultipliers
 const customMultiplierActive = state.customMultiplierActive
 const priceRanges = state.priceRanges
@@ -50,11 +55,35 @@ const getRequestModelId = state.getRequestModelId
 const getHighlightParts = state.getHighlightParts
 const getChannelsForModel = state.getChannelsForModel
 const getDisplayedPriceMultiplier = state.getDisplayedPriceMultiplier
+const getChannelPriceCell = state.getChannelPriceCell
 const handlePriceRangeChange = state.handlePriceRangeChange
 const resetPriceRangeFilter = state.resetPriceRangeFilter
 const handlePricingTypeFilterChange = state.handlePricingTypeFilterChange
+const handleChannelMatchModeChange = state.handleChannelMatchModeChange
+const handleChannelPriceModeChange = state.handleChannelPriceModeChange
+const handlePricingTableModeChange = state.handlePricingTableModeChange
+const handlePrimaryComparisonChannelChange = state.handlePrimaryComparisonChannelChange
 const handleSortChange = state.handleSortChange
 const t = i18ns.t
+
+const comparisonSortField = mobileSortField
+const comparisonSortOrder = mobileSortOrder
+
+const channelMatchModeOptions = [
+  { label: t('apiDoc.channelMatchModeAny'), value: 'match-any' },
+  { label: t('apiDoc.channelMatchModeAll'), value: 'match-all' },
+] as const
+
+const channelPriceModeOptions = [
+  { label: t('apiDoc.channelPriceModeBase'), value: 'base' },
+  { label: t('apiDoc.channelPriceModeSelectedLowest'), value: 'selected-lowest' },
+  { label: t('apiDoc.channelPriceModeGlobalLowest'), value: 'global-lowest' },
+] as const
+
+const pricingTableModeOptions = [
+  { label: t('apiDoc.pricingTableModeSummary'), value: 'summary' },
+  { label: t('apiDoc.pricingTableModeChannelColumns'), value: 'channel-columns' },
+] as const
 
 const toggleMobilePricingControlsExpanded = () => {
   mobilePricingControlsExpanded.value = !mobilePricingControlsExpanded.value
@@ -62,6 +91,22 @@ const toggleMobilePricingControlsExpanded = () => {
 
 const toggleMobilePricingAdvancedSettingsExpanded = () => {
   mobilePricingAdvancedSettingsExpanded.value = !mobilePricingAdvancedSettingsExpanded.value
+}
+
+const onChannelMatchModeChange = (value: string | number | boolean | undefined) => {
+  handleChannelMatchModeChange((value || 'match-any') as 'match-any' | 'match-all')
+}
+
+const onChannelPriceModeChange = (value: string | number | boolean | undefined) => {
+  handleChannelPriceModeChange((value || 'base') as 'base' | 'selected-lowest' | 'global-lowest')
+}
+
+const onPricingTableModeChange = (value: string | number | boolean | undefined) => {
+  handlePricingTableModeChange((value || 'summary') as 'summary' | 'channel-columns')
+}
+
+const onPrimaryComparisonChannelChange = (value: string | number | boolean | undefined) => {
+  handlePrimaryComparisonChannelChange(String(value || ''))
 }
 </script>
 
@@ -85,10 +130,13 @@ const toggleMobilePricingAdvancedSettingsExpanded = () => {
         </el-select>
 
         <el-select
-          v-model="filterChannel"
+          v-model="filterChannelIds"
           :placeholder="t('apiDoc.filterByChannel')"
-          clearable
+          multiple
           filterable
+          collapse-tags
+          collapse-tags-tooltip
+          :max-collapse-tags="2"
           class="pricing-filter"
         >
           <el-option
@@ -99,23 +147,9 @@ const toggleMobilePricingAdvancedSettingsExpanded = () => {
           />
         </el-select>
 
-        <div
-          v-if="filterChannel"
-          class="pricing-filter"
-          style="
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            white-space: nowrap;
-            flex: none;
-            min-width: 0;
-          "
-        >
-          <el-switch v-model="showCalculatedPrice" :disabled="!filterChannel" />
-          <span style="font-size: 13px; color: var(--el-text-color-regular)">
-            {{ t('apiDoc.showCalculatedPrice') }}
-          </span>
-        </div>
+        <el-tag v-if="selectedChannelCount > 0" type="info" size="small" effect="plain">
+          {{ selectedChannelSummary }}
+        </el-tag>
 
         <el-input
           v-model="filterModelKeyword"
@@ -125,7 +159,12 @@ const toggleMobilePricingAdvancedSettingsExpanded = () => {
           class="pricing-filter"
         />
 
-        <el-popover placement="bottom-start" trigger="click" :width="320">
+        <el-popover
+          placement="bottom-start"
+          trigger="click"
+          :width="440"
+          popper-class="pricing-more-settings-popover"
+        >
           <template #reference>
             <el-button>
               {{ t('apiDoc.moreSettings') }}
@@ -157,9 +196,169 @@ const toggleMobilePricingAdvancedSettingsExpanded = () => {
               <el-switch v-model="showCacheMultipliers" />
             </div>
 
-            <div class="pricing-more-settings-item pricing-more-settings-item--between">
-              <span class="pricing-inline-label">{{ t('apiDoc.showLowestChannelPrice') }}</span>
-              <el-switch v-model="showLowestChannelPrice" />
+            <div class="pricing-more-settings-item">
+              <span class="pricing-inline-label">{{ t('apiDoc.pricingTableMode') }}</span>
+              <el-segmented
+                :model-value="pricingTableMode"
+                :options="pricingTableModeOptions"
+                class="pricing-mode-segmented"
+                @change="onPricingTableModeChange"
+              />
+            </div>
+
+            <div
+              v-if="pricingTableMode === 'channel-columns'"
+              class="pricing-more-settings-item pricing-more-settings-item--comparison"
+            >
+              <div class="pricing-setting-heading">
+                <span class="pricing-inline-label">{{ t('apiDoc.primaryComparisonChannel') }}</span>
+                <el-text
+                  v-if="primaryComparisonChannel"
+                  size="small"
+                  type="info"
+                  class="pricing-setting-hint"
+                >
+                  {{ t('apiDoc.primaryComparisonChannelHint') }}
+                </el-text>
+              </div>
+              <el-select
+                :model-value="primaryComparisonChannelId"
+                :placeholder="t('apiDoc.primaryComparisonChannelPlaceholder')"
+                :disabled="selectedChannels.length === 0"
+                :teleported="false"
+                class="pricing-filter"
+                @update:model-value="onPrimaryComparisonChannelChange"
+              >
+                <el-option
+                  v-for="channel in selectedChannels"
+                  :key="channel.id"
+                  :label="channel.name"
+                  :value="channel.id"
+                />
+              </el-select>
+
+              <div class="pricing-comparison-settings-grid">
+                <div class="pricing-more-settings-item">
+                  <span class="pricing-inline-label">{{ t('apiDoc.sortField') }}</span>
+                  <el-select
+                    v-model="comparisonSortField"
+                    :placeholder="t('apiDoc.sortField')"
+                    :teleported="false"
+                    class="pricing-filter"
+                  >
+                    <el-option :label="t('apiDoc.noSorting')" value="" />
+                    <el-option :label="t('apiDoc.model')" value="model" />
+                    <el-option :label="t('apiDoc.fixedPrice')" value="fixedPrice" />
+                    <el-option :label="t('apiDoc.inputPrice')" value="inputPrice" />
+                    <el-option :label="t('apiDoc.outputPrice')" value="outputPrice" />
+                  </el-select>
+                </div>
+
+                <div class="pricing-more-settings-item">
+                  <span class="pricing-inline-label">{{ t('apiDoc.sortOrder') }}</span>
+                  <el-select
+                    v-model="comparisonSortOrder"
+                    :placeholder="t('apiDoc.sortOrder')"
+                    :disabled="!comparisonSortField"
+                    :teleported="false"
+                    class="pricing-filter"
+                  >
+                    <el-option :label="t('apiDoc.sortAscending')" value="asc" />
+                    <el-option :label="t('apiDoc.sortDescending')" value="desc" />
+                  </el-select>
+                </div>
+              </div>
+
+              <div class="pricing-comparison-ranges">
+                <div class="price-range-group price-range-group--popover">
+                  <span class="price-range-label">{{ t('apiDoc.fixedPrice') }}</span>
+                  <el-input-number
+                    v-model="fixedPriceMin"
+                    :placeholder="t('apiDoc.minPrice')"
+                    :min="0"
+                    :step="0.01"
+                    :precision="4"
+                    class="price-range-input"
+                    controls-position="right"
+                  />
+                  <span class="price-range-separator">~</span>
+                  <el-input-number
+                    v-model="fixedPriceMax"
+                    :placeholder="t('apiDoc.maxPrice')"
+                    :min="0"
+                    :step="0.01"
+                    :precision="4"
+                    class="price-range-input"
+                    controls-position="right"
+                  />
+                </div>
+
+                <div class="price-range-group price-range-group--popover">
+                  <span class="price-range-label">{{ t('apiDoc.inputPrice') }}</span>
+                  <el-input-number
+                    v-model="inputPriceMin"
+                    :placeholder="t('apiDoc.minPrice')"
+                    :min="0"
+                    :step="0.01"
+                    :precision="4"
+                    class="price-range-input"
+                    controls-position="right"
+                  />
+                  <span class="price-range-separator">~</span>
+                  <el-input-number
+                    v-model="inputPriceMax"
+                    :placeholder="t('apiDoc.maxPrice')"
+                    :min="0"
+                    :step="0.01"
+                    :precision="4"
+                    class="price-range-input"
+                    controls-position="right"
+                  />
+                </div>
+
+                <div class="price-range-group price-range-group--popover">
+                  <span class="price-range-label">{{ t('apiDoc.outputPrice') }}</span>
+                  <el-input-number
+                    v-model="outputPriceMin"
+                    :placeholder="t('apiDoc.minPrice')"
+                    :min="0"
+                    :step="0.01"
+                    :precision="4"
+                    class="price-range-input"
+                    controls-position="right"
+                  />
+                  <span class="price-range-separator">~</span>
+                  <el-input-number
+                    v-model="outputPriceMax"
+                    :placeholder="t('apiDoc.maxPrice')"
+                    :min="0"
+                    :step="0.01"
+                    :precision="4"
+                    class="price-range-input"
+                    controls-position="right"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="pricing-more-settings-item">
+              <span class="pricing-inline-label">{{ t('apiDoc.channelMatchMode') }}</span>
+              <el-segmented
+                :model-value="channelMatchMode"
+                :options="channelMatchModeOptions"
+                class="pricing-mode-segmented"
+                @change="onChannelMatchModeChange"
+              />
+            </div>
+
+            <div class="pricing-more-settings-item">
+              <span class="pricing-inline-label">{{ t('apiDoc.channelPriceMode') }}</span>
+              <el-segmented
+                :model-value="channelPriceMode"
+                :options="channelPriceModeOptions"
+                class="pricing-mode-segmented"
+                @change="onChannelPriceModeChange"
+              />
             </div>
 
             <el-checkbox v-model="onlyModelsWithChannels" class="pricing-checkbox">
@@ -230,9 +429,13 @@ const toggleMobilePricingAdvancedSettingsExpanded = () => {
             </el-select>
 
             <el-select
-              v-model="filterChannel"
+              v-model="filterChannelIds"
               :placeholder="t('apiDoc.filterByChannel')"
-              clearable
+              multiple
+              filterable
+              collapse-tags
+              collapse-tags-tooltip
+              :max-collapse-tags="2"
               class="pricing-filter"
             >
               <el-option
@@ -275,12 +478,9 @@ const toggleMobilePricingAdvancedSettingsExpanded = () => {
               <el-option :label="t('apiDoc.sortDescending')" value="desc" />
             </el-select>
 
-            <div v-if="filterChannel" class="pricing-mobile-switch">
-              <span class="pricing-mobile-switch-label">
-                {{ t('apiDoc.showCalculatedPrice') }}
-              </span>
-              <el-switch v-model="showCalculatedPrice" :disabled="!filterChannel" />
-            </div>
+            <el-tag v-if="selectedChannelCount > 0" type="info" size="small" effect="plain">
+              {{ selectedChannelSummary }}
+            </el-tag>
 
             <el-button
               text
@@ -328,11 +528,61 @@ const toggleMobilePricingAdvancedSettingsExpanded = () => {
                   </el-button>
                 </div>
 
-                <div class="pricing-mobile-switch">
-                  <span class="pricing-mobile-switch-label">
-                    {{ t('apiDoc.showLowestChannelPrice') }}
+                <div class="pricing-inline-control pricing-inline-control--mobile">
+                  <span class="pricing-inline-label">{{ t('apiDoc.pricingTableMode') }}</span>
+                  <el-segmented
+                    :model-value="pricingTableMode"
+                    :options="pricingTableModeOptions"
+                    block
+                    class="pricing-mode-segmented"
+                    @change="onPricingTableModeChange"
+                  />
+                </div>
+
+                <div
+                  v-if="pricingTableMode === 'channel-columns'"
+                  class="pricing-inline-control pricing-inline-control--mobile"
+                >
+                  <span class="pricing-inline-label">
+                    {{ t('apiDoc.primaryComparisonChannel') }}
                   </span>
-                  <el-switch v-model="showLowestChannelPrice" />
+                  <el-select
+                    :model-value="primaryComparisonChannelId"
+                    :placeholder="t('apiDoc.primaryComparisonChannelPlaceholder')"
+                    :disabled="selectedChannels.length === 0"
+                    :teleported="false"
+                    class="pricing-filter"
+                    @update:model-value="onPrimaryComparisonChannelChange"
+                  >
+                    <el-option
+                      v-for="channel in selectedChannels"
+                      :key="channel.id"
+                      :label="channel.name"
+                      :value="channel.id"
+                    />
+                  </el-select>
+                </div>
+
+                <div class="pricing-inline-control pricing-inline-control--mobile">
+                  <span class="pricing-inline-label">{{ t('apiDoc.channelMatchMode') }}</span>
+                  <el-segmented
+                    :model-value="channelMatchMode"
+                    :options="channelMatchModeOptions"
+                    block
+                    class="pricing-mode-segmented"
+                    @change="onChannelMatchModeChange"
+                  />
+                </div>
+
+                <div class="pricing-inline-control pricing-inline-control--mobile">
+                  <span class="pricing-inline-label">{{ t('apiDoc.channelPriceMode') }}</span>
+                  <el-segmented
+                    :model-value="channelPriceMode"
+                    :options="channelPriceModeOptions"
+                    block
+                    class="pricing-mode-segmented"
+                    @change="onChannelPriceModeChange"
+                  />
                 </div>
 
                 <el-checkbox v-model="onlyModelsWithChannels" class="pricing-checkbox">
@@ -432,6 +682,7 @@ const toggleMobilePricingAdvancedSettingsExpanded = () => {
         :get-highlight-parts="getHighlightParts"
         :get-channels-for-model="getChannelsForModel"
         :get-displayed-price-multiplier="getDisplayedPriceMultiplier"
+        :get-channel-price-cell="getChannelPriceCell"
         :custom-price-multiplier="customPriceMultiplier"
         :custom-multiplier-active="customMultiplierActive"
         :show-cache-multipliers="showCacheMultipliers"
@@ -439,7 +690,10 @@ const toggleMobilePricingAdvancedSettingsExpanded = () => {
         :price-ranges="priceRanges"
         :on-copy-model-id="state.copyText"
         :display-mode="priceDisplayMode"
-        :selected-channel="selectedChannel"
+        :selected-channels="selectedChannels"
+        :pricing-table-mode="pricingTableMode"
+        :primary-comparison-channel-id="primaryComparisonChannelId"
+        :is-desktop="isDesktop"
         :pricing-type-filter="filterPricingType"
         :on-price-range-change="handlePriceRangeChange"
         :on-price-range-reset="resetPriceRangeFilter"
