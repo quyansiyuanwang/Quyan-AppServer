@@ -129,11 +129,34 @@
   min-width: 0;
 }
 
+.pricing-more-settings-item--comparison {
+  gap: 12px;
+}
+
 .pricing-more-settings-item--between {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.pricing-setting-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pricing-comparison-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pricing-comparison-ranges {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }
 
 .pricing-inline-control {
@@ -175,6 +198,10 @@
 
 .pricing-mode-segmented {
   width: 100%;
+  min-width: 0;
+}
+
+.pricing-toolbar :deep(.el-select) {
   min-width: 0;
 }
 
@@ -236,6 +263,10 @@
   grid-template-columns: 88px minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 10px;
+}
+
+.price-range-group--popover {
+  grid-template-columns: 76px minmax(0, 1fr) auto minmax(0, 1fr);
 }
 
 .price-range-label {
@@ -303,6 +334,15 @@
 
 .pricing-table :deep(.el-table__row td) {
   vertical-align: top;
+}
+
+.pricing-table :deep(.el-table__body-wrapper) {
+  overflow-x: auto;
+}
+
+.pricing-table :deep(.el-table__body),
+.pricing-table :deep(.el-table__header) {
+  min-width: 100%;
 }
 
 .pricing-table :deep(.el-table__cell) {
@@ -491,6 +531,26 @@
   display: none;
 }
 
+@media (max-width: 900px) {
+  .pricing-setting-heading,
+  .pricing-more-settings-item--between {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pricing-comparison-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .price-range-group--popover {
+    grid-template-columns: 1fr;
+  }
+
+  .price-range-group--popover .price-range-separator {
+    display: none;
+  }
+}
+
 .mobile-adapter :deep(.pricing-table .model-cell) {
   display: flex;
   flex-direction: column;
@@ -503,4 +563,10 @@
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 2px;
+}
+
+.mobile-adapter :deep(.comparison-card-list) {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }

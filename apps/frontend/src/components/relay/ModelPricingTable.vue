@@ -9,6 +9,98 @@
       style="margin-bottom: 12px"
     />
 
+    <div
+      v-else-if="props.pricingTableMode === 'channel-columns' && comparisonChannels.length === 0"
+      class="pricing-table-empty-state"
+    >
+      <el-empty :description="t('apiDoc.comparisonModeEmpty')" />
+    </div>
+
+    <div v-else-if="props.pricingTableMode === 'channel-columns' && props.isDesktop === false">
+      <div v-if="rows.length === 0" class="pricing-table-empty-state">
+        <el-empty description="No pricing data available" />
+      </div>
+
+      <div v-else class="comparison-card-list">
+        <article v-for="row in rows" :key="getModelId(row)" class="comparison-card">
+          <div class="comparison-card__header">
+            <div class="model-cell">
+              <div class="model-id-section">
+                <el-link type="primary" tag="b" @click="copyModelId(row)" class="model-id-link">
+                  <span>
+                    <template
+                      v-for="(part, index) in getHighlightParts(getModelId(row))"
+                      :key="`mobile-modelId-${row.model}-${index}`"
+                    >
+                      <mark v-if="part.matched" class="highlight-match">{{ part.text }}</mark>
+                      <span v-else>{{ part.text }}</span>
+                    </template>
+                  </span>
+                </el-link>
+              </div>
+              <div v-if="row.model" class="model-name-section">
+                <el-text size="small" type="info">
+                  <template
+                    v-for="(part, index) in getHighlightParts(row.model)"
+                    :key="`mobile-model-${row.model}-${index}`"
+                  >
+                    <mark v-if="part.matched" class="highlight-match">{{ part.text }}</mark>
+                    <span v-else>{{ part.text }}</span>
+                  </template>
+                </el-text>
+              </div>
+            </div>
+          </div>
+
+          <div class="comparison-card__channels">
+            <section
+              v-for="channel in comparisonChannels"
+              :key="`${getModelId(row)}-${channel.id}`"
+              class="comparison-channel-card"
+            >
+              <div class="comparison-channel-card__title-row">
+                <span class="comparison-channel-card__title">{{ channel.name }}</span>
+                <el-tag
+                  v-if="channel.id === props.primaryComparisonChannelId"
+                  size="small"
+                  type="success"
+                  effect="plain"
+                >
+                  {{ t('apiDoc.primaryComparisonChannelTag') }}
+                </el-tag>
+              </div>
+
+              <template v-if="getChannelPriceCellValue(row, channel).available">
+                <div v-if="row.pricingType === 'per-request'" class="comparison-price-row">
+                  <span class="comparison-price-label">{{ t('apiDoc.fixedPrice') }}</span>
+                  <el-text type="danger" tag="b">
+                    {{ formatComparableFixedPrice(getChannelPriceCellValue(row, channel).fixedPrice) }}
+                  </el-text>
+                </div>
+                <template v-else>
+                  <div class="comparison-price-row">
+                    <span class="comparison-price-label">{{ t('apiDoc.inputPrice') }}</span>
+                    <el-text type="success" tag="b">
+                      {{ formatComparableTokenPrice(getChannelPriceCellValue(row, channel).inputPrice) }}
+                    </el-text>
+                  </div>
+                  <div class="comparison-price-row">
+                    <span class="comparison-price-label">{{ t('apiDoc.outputPrice') }}</span>
+                    <el-text type="warning" tag="b">
+                      {{ formatComparableTokenPrice(getChannelPriceCellValue(row, channel).outputPrice) }}
+                    </el-text>
+                  </div>
+                </template>
+              </template>
+              <el-text v-else size="small" type="info">
+                {{ t('apiDoc.channelUnavailableForModel') }}
+              </el-text>
+            </section>
+          </div>
+        </article>
+      </div>
+    </div>
+
     <el-table v-else :data="rows" border stripe v-loading="loading" class="pricing-table">
       <template #empty>
         <el-empty description="No pricing data available" />
@@ -62,7 +154,12 @@
         </template>
       </el-table-column>
 
-      <el-table-column :label="t('apiDoc.pricingType')" width="120" align="center">
+      <el-table-column
+        v-if="props.pricingTableMode === 'summary'"
+        :label="t('apiDoc.pricingType')"
+        width="120"
+        align="center"
+      >
         <template #header>
           <div class="column-header">
             <span>{{ t('apiDoc.pricingType') }}</span>
@@ -132,7 +229,13 @@
         </template>
       </el-table-column>
 
-      <el-table-column :label="t('apiDoc.fixedPrice')" width="140" align="right" prop="fixedPrice">
+      <el-table-column
+        v-if="props.pricingTableMode === 'summary'"
+        :label="t('apiDoc.fixedPrice')"
+        width="140"
+        align="right"
+        prop="fixedPrice"
+      >
         <template #header>
           <div class="column-header column-header--right">
             <span>{{ t('apiDoc.fixedPrice') }}</span>
@@ -218,7 +321,13 @@
         </template>
       </el-table-column>
 
-      <el-table-column :label="t('apiDoc.inputPrice')" width="180" align="right" prop="inputPrice">
+      <el-table-column
+        v-if="props.pricingTableMode === 'summary'"
+        :label="t('apiDoc.inputPrice')"
+        width="180"
+        align="right"
+        prop="inputPrice"
+      >
         <template #header>
           <div class="column-header column-header--right">
             <span>{{ priceLabel('apiDoc.inputPrice') }}</span>
@@ -319,6 +428,7 @@
       </el-table-column>
 
       <el-table-column
+        v-if="props.pricingTableMode === 'summary'"
         :label="t('apiDoc.outputPrice')"
         width="180"
         align="right"
@@ -423,7 +533,12 @@
         </template>
       </el-table-column>
 
-      <el-table-column :label="t('apiDoc.supportedFormats')" width="140" align="center">
+      <el-table-column
+        v-if="props.pricingTableMode === 'summary'"
+        :label="t('apiDoc.supportedFormats')"
+        width="140"
+        align="center"
+      >
         <template #default="{ row }">
           <el-tag
             v-if="normalizeFormats(row.supportedFormats).includes('openai')"
@@ -449,7 +564,11 @@
         </template>
       </el-table-column>
 
-      <el-table-column :label="t('apiDoc.availableChannels')" min-width="220">
+      <el-table-column
+        v-if="props.pricingTableMode === 'summary'"
+        :label="t('apiDoc.availableChannels')"
+        min-width="220"
+      >
         <template #default="{ row }">
           <div class="channels-cell">
             <el-tooltip
@@ -544,6 +663,84 @@
           </div>
         </template>
       </el-table-column>
+
+      <template v-if="props.pricingTableMode === 'channel-columns'">
+        <el-table-column v-for="channel in comparisonChannels" :key="channel.id" :min-width="220">
+          <template #header>
+            <div class="comparison-column-header">
+              <div class="comparison-column-header__title-row">
+                <span class="comparison-column-header__title">{{ channel.name }}</span>
+                <el-tag
+                  v-if="channel.id === props.primaryComparisonChannelId"
+                  size="small"
+                  type="success"
+                  effect="plain"
+                >
+                  {{ t('apiDoc.primaryComparisonChannelTag') }}
+                </el-tag>
+              </div>
+              <el-tag
+                v-if="channel.id === props.primaryComparisonChannelId && props.customMultiplierActive"
+                size="small"
+                type="warning"
+                effect="plain"
+              >
+                {{ t('apiDoc.customMultiplierApplied') }}
+              </el-tag>
+            </div>
+          </template>
+          <template #default="{ row }">
+            <div class="comparison-cell">
+              <template v-if="getChannelPriceCellValue(row, channel).available">
+                <div class="comparison-multiplier-row">
+                  <el-tag size="small" type="info" effect="plain">
+                    ×{{ formatMultiplier(getChannelPriceCellValue(row, channel).multiplier) }}
+                  </el-tag>
+                </div>
+
+                <div v-if="row.pricingType === 'per-request'" class="comparison-price-block">
+                  <span class="comparison-price-label">{{ t('apiDoc.fixedPrice') }}</span>
+                  <el-text type="danger" tag="b">
+                    {{ formatComparableFixedPrice(getChannelPriceCellValue(row, channel).fixedPrice) }}
+                  </el-text>
+                </div>
+
+                <template v-else>
+                  <div class="comparison-price-block">
+                    <span class="comparison-price-label">{{ t('apiDoc.inputPrice') }}</span>
+                    <el-text type="success" tag="b">
+                      {{ formatComparableTokenPrice(getChannelPriceCellValue(row, channel).inputPrice) }}
+                    </el-text>
+                  </div>
+                  <div class="comparison-price-block">
+                    <span class="comparison-price-label">{{ t('apiDoc.outputPrice') }}</span>
+                    <el-text type="warning" tag="b">
+                      {{ formatComparableTokenPrice(getChannelPriceCellValue(row, channel).outputPrice) }}
+                    </el-text>
+                  </div>
+                  <el-text
+                    v-if="props.showCacheMultipliers"
+                    size="small"
+                    type="warning"
+                    class="cache-multiplier-text"
+                  >
+                    {{
+                      formatCacheMultiplier(
+                        row.cacheCreationMultiplier,
+                        row.cacheReadMultiplier,
+                      )
+                    }}
+                  </el-text>
+                </template>
+              </template>
+
+              <el-text v-else size="small" type="info">
+                {{ t('apiDoc.channelUnavailableForModel') }}
+              </el-text>
+            </div>
+          </template>
+        </el-table-column>
+      </template>
     </el-table>
   </div>
 </template>
@@ -551,10 +748,12 @@
 <script setup lang="ts">
 import type { ModelPricingDto, RelayChannelDto } from '@/client/types.gen'
 import type {
+  ChannelPriceCell,
   PriceRangeField,
   PricingDisplayMode,
   PricingSortField,
   PricingSortOrder,
+  PricingTableMode,
 } from '@/composables/useApiDocumentationPricing'
 import { i18ns } from '@/locales'
 import { computed } from 'vue'
@@ -587,6 +786,10 @@ const props = defineProps<{
     modelFormat?: string,
   ) => RelayChannelDto[]
   getDisplayedPriceMultiplier: (item: PricingModelRow) => number
+  getChannelPriceCell: (
+    item: PricingModelRow,
+    channel: Pick<RelayChannelDto, 'id' | 'name' | 'multiplier'>,
+  ) => ChannelPriceCell
   customPriceMultiplier?: number | null
   customMultiplierActive?: boolean
   showCacheMultipliers?: boolean
@@ -594,10 +797,13 @@ const props = defineProps<{
   priceRanges: Record<PriceRangeField, PriceRangeValue>
   onCopyModelId: (modelId: string) => void
   displayMode?: PricingDisplayMode
+  pricingTableMode?: PricingTableMode
   selectedChannels?: RelayChannelDto[]
+  primaryComparisonChannelId?: string
   pricingTypeFilter?: string
   sortField?: PricingSortField
   sortOrder?: PricingSortOrder
+  isDesktop?: boolean
   onPriceRangeChange?: (field: PriceRangeField, bound: 'min' | 'max', value: number | null) => void
   onPriceRangeReset?: (field: PriceRangeField) => void
   onPricingTypeFilterChange?: (value: string) => void
@@ -618,6 +824,8 @@ const priceLabel = (key: 'apiDoc.inputPrice' | 'apiDoc.outputPrice'): string => 
 const selectedChannelIdSet = computed(
   () => new Set((props.selectedChannels || []).map((channel) => channel.id)),
 )
+
+const comparisonChannels = computed(() => props.selectedChannels || [])
 
 const displayModeSummary = computed(() => {
   if (props.displayMode === 'selected-lowest') return t('apiDoc.channelPriceModeSelectedLowestHint')
@@ -714,6 +922,16 @@ const formatChannelFixedPrice = (basePrice?: number, multiplier?: number): strin
   return price.toFixed(4)
 }
 
+const formatComparableTokenPrice = (value: number | null): string => {
+  if (value == null) return '-'
+  return value.toFixed(props.tokenPriceUnit === 'K' ? 4 : 2)
+}
+
+const formatComparableFixedPrice = (value: number | null): string => {
+  if (value == null) return '-'
+  return value.toFixed(4)
+}
+
 const errorMessage = computed(() => props.errorMessage || '')
 
 const copyModelId = (item: PricingModelRow) => {
@@ -737,11 +955,22 @@ const getAvailableChannels = (item: PricingModelRow): RelayChannelDto[] =>
     props.getRequestModelId(item),
     item.supportedFormats,
   )
+
+const getChannelPriceCellValue = (
+  item: PricingModelRow,
+  channel: Pick<RelayChannelDto, 'id' | 'name' | 'multiplier'>,
+): ChannelPriceCell => {
+  return props.getChannelPriceCell(item, channel)
+}
 </script>
 
 <style scoped>
 .pricing-table-wrapper {
   width: 100%;
+}
+
+.pricing-table-empty-state {
+  padding: 24px 0;
 }
 
 .column-header {
@@ -787,6 +1016,26 @@ const getAvailableChannels = (item: PricingModelRow): RelayChannelDto[] =>
   height: 22px;
   min-height: 22px;
   padding: 0;
+}
+
+.comparison-column-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.comparison-column-header__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.comparison-column-header__title {
+  min-width: 0;
+  line-height: 1.35;
 }
 
 .price-filter-panel {
@@ -894,6 +1143,85 @@ const getAvailableChannels = (item: PricingModelRow): RelayChannelDto[] =>
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
+}
+
+.comparison-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.comparison-multiplier-row {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.comparison-price-block {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.comparison-price-label {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
+.comparison-card-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.comparison-card {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-bg-color);
+  padding: 14px;
+}
+
+.comparison-card__header {
+  margin-bottom: 12px;
+}
+
+.comparison-card__channels {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.comparison-channel-card {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--el-fill-color-blank);
+}
+
+.comparison-channel-card__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.comparison-channel-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.comparison-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .token-price-tooltip-value {

@@ -2,6 +2,7 @@ import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels
 import {
   type ChannelMatchMode,
   type ChannelPriceMode,
+  type PricingTableMode,
   type PriceRangeField,
   type PricingSortField,
   type PricingSortOrder,
@@ -81,6 +82,9 @@ export function useApiDocumentation() {
     onlyModelsWithChannels,
     channelMatchMode,
     channelPriceMode,
+    pricingTableMode,
+    primaryComparisonChannelId,
+    primaryComparisonChannel,
     customPriceMultiplier,
     tokenPriceUnit,
     fixedPriceMin,
@@ -98,6 +102,7 @@ export function useApiDocumentation() {
     getChannelsForModel,
     getSelectedChannelsForModel,
     getDisplayedPriceMultiplier,
+    getChannelPriceCell,
     getHighlightParts,
     toggleTokenPriceUnit,
     resetFilters,
@@ -130,6 +135,16 @@ export function useApiDocumentation() {
     }
 
     channelPriceMode.value = value
+    currentPage.value = 1
+  }
+
+  const handlePricingTableModeChange = (value: PricingTableMode) => {
+    pricingTableMode.value = value
+    currentPage.value = 1
+  }
+
+  const handlePrimaryComparisonChannelChange = (value: string) => {
+    primaryComparisonChannelId.value = value
     currentPage.value = 1
   }
 
@@ -351,6 +366,8 @@ export function useApiDocumentation() {
       onlyModelsWithChannels,
       channelMatchMode,
       channelPriceMode,
+      pricingTableMode,
+      primaryComparisonChannelId,
       fixedPriceMin,
       fixedPriceMax,
       inputPriceMin,
@@ -376,6 +393,7 @@ export function useApiDocumentation() {
     channels,
     channelMatchMode,
     channelPriceMode,
+    pricingTableMode,
     copyText,
     currentPage,
     customMultiplierActive,
@@ -399,7 +417,9 @@ export function useApiDocumentation() {
     goSettingsSecurity,
     handleChannelMatchModeChange,
     handleChannelPriceModeChange,
+    handlePricingTableModeChange,
     handlePriceRangeChange,
+    handlePrimaryComparisonChannelChange,
     handlePricingTypeFilterChange,
     handleResetFilters,
     handleSortChange,
@@ -426,6 +446,8 @@ export function useApiDocumentation() {
     priceDisplayMode,
     priceRanges,
     pricingTabActivated,
+    primaryComparisonChannel,
+    primaryComparisonChannelId,
     refreshData,
     relayUsageEndpoint,
     resetPriceRangeFilter,
@@ -438,6 +460,7 @@ export function useApiDocumentation() {
     sortOrder,
     tokenPriceUnit,
     toggleTokenPriceUnit,
+    getChannelPriceCell,
   }
 }
 
