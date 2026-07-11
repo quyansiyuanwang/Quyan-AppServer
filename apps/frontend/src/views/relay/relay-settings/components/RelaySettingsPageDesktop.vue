@@ -10,7 +10,9 @@
             <el-form label-width="200px" label-position="right">
               <el-form-item :label="i18ns.t('ServerConfigView.globalMultiplier')">
                 <el-input-number v-model="globalMultiplier" :step="0.000001" :precision="6" />
-                <span class="form-help">{{ i18ns.t('ServerConfigView.globalMultiplierHelp') }}</span>
+                <span class="form-help">{{
+                  i18ns.t('ServerConfigView.globalMultiplierHelp')
+                }}</span>
               </el-form-item>
             </el-form>
           </el-collapse-item>
@@ -95,336 +97,349 @@
             </el-form>
           </el-collapse-item>
 
-        <el-collapse-item name="queue">
-          <template #title>
-            <span class="collapse-title">{{ i18ns.t('ServerConfigView.requestQueueTitle') }}</span>
-          </template>
-          <el-alert type="info" :closable="false" style="margin-bottom: 16px">
-            {{ i18ns.t('ServerConfigView.imageScopeNotice') }}
-          </el-alert>
-          <el-form label-width="200px" label-position="right">
-            <el-form-item :label="i18ns.t('ServerConfigView.enableQueue')">
-              <el-switch v-model="enableQueue" />
-              <span class="form-help">{{ i18ns.t('ServerConfigView.enableQueueHelp') }}</span>
-            </el-form-item>
-            <el-form-item :label="i18ns.t('ServerConfigView.maxConcurrency')">
-              <el-input-number
-                v-model="maxConcurrency"
-                :min="1"
-                :max="100"
-                :step="1"
-                :precision="0"
-              />
-              <span class="form-help">{{ i18ns.t('ServerConfigView.maxConcurrencyHelp') }}</span>
-            </el-form-item>
-            <el-form-item :label="i18ns.t('ServerConfigView.queueTimeout')">
-              <el-input-number v-model="queueTimeoutSec" :min="0" :step="1" :precision="0" />
-              <span class="form-help">{{ i18ns.t('ServerConfigView.queueTimeoutHelp') }}</span>
-            </el-form-item>
-            <el-form-item :label="i18ns.t('ServerConfigView.upstreamStreamTimeout')">
-              <el-input-number
-                v-model="upstreamStreamTimeoutSec"
-                :min="0"
-                :step="1"
-                :precision="0"
-              />
-              <span class="form-help">{{
-                i18ns.t('ServerConfigView.upstreamStreamTimeoutHelp')
+          <el-collapse-item name="queue">
+            <template #title>
+              <span class="collapse-title">{{
+                i18ns.t('ServerConfigView.requestQueueTitle')
               }}</span>
-            </el-form-item>
-          </el-form>
-        </el-collapse-item>
+            </template>
+            <el-alert type="info" :closable="false" style="margin-bottom: 16px">
+              {{ i18ns.t('ServerConfigView.imageScopeNotice') }}
+            </el-alert>
+            <el-form label-width="200px" label-position="right">
+              <el-form-item :label="i18ns.t('ServerConfigView.enableQueue')">
+                <el-switch v-model="enableQueue" />
+                <span class="form-help">{{ i18ns.t('ServerConfigView.enableQueueHelp') }}</span>
+              </el-form-item>
+              <el-form-item :label="i18ns.t('ServerConfigView.maxConcurrency')">
+                <el-input-number
+                  v-model="maxConcurrency"
+                  :min="1"
+                  :max="100"
+                  :step="1"
+                  :precision="0"
+                />
+                <span class="form-help">{{ i18ns.t('ServerConfigView.maxConcurrencyHelp') }}</span>
+              </el-form-item>
+              <el-form-item :label="i18ns.t('ServerConfigView.queueTimeout')">
+                <el-input-number v-model="queueTimeoutSec" :min="0" :step="1" :precision="0" />
+                <span class="form-help">{{ i18ns.t('ServerConfigView.queueTimeoutHelp') }}</span>
+              </el-form-item>
+              <el-form-item :label="i18ns.t('ServerConfigView.upstreamStreamTimeout')">
+                <el-input-number
+                  v-model="upstreamStreamTimeoutSec"
+                  :min="0"
+                  :step="1"
+                  :precision="0"
+                />
+                <span class="form-help">{{
+                  i18ns.t('ServerConfigView.upstreamStreamTimeoutHelp')
+                }}</span>
+              </el-form-item>
+            </el-form>
+          </el-collapse-item>
 
-        <el-collapse-item name="customKey">
-          <template #title>
-            <span class="collapse-title">{{
-              i18ns.t('ServerConfigView.relayCustomKeyTitle')
-            }}</span>
-          </template>
-          <el-form label-width="200px" label-position="right">
-            <el-form-item :label="i18ns.t('ServerConfigView.relayCustomKeyEnabled')">
-              <el-switch v-model="relayCustomKeyEnabled" />
-              <span class="form-help">{{
-                i18ns.t('ServerConfigView.relayCustomKeyEnabledHelp')
+          <el-collapse-item name="customKey">
+            <template #title>
+              <span class="collapse-title">{{
+                i18ns.t('ServerConfigView.relayCustomKeyTitle')
               }}</span>
-            </el-form-item>
-            <el-form-item :label="i18ns.t('ServerConfigView.relayCustomKeyMaxTokensPerUser')">
-              <el-input-number
-                v-model="relayCustomKeyMaxTokensPerUser"
-                :min="0"
-                :max="1000"
-                :disabled="!relayCustomKeyEnabled"
-              />
-              <span class="form-help">{{
-                i18ns.t('ServerConfigView.relayCustomKeyMaxTokensPerUserHelp')
-              }}</span>
-            </el-form-item>
-            <el-form-item
-              :label="i18ns.t('ServerConfigView.relayCustomKeyCreateLimitWindowMinutes')"
-            >
-              <el-input-number
-                v-model="relayCustomKeyCreateLimitWindowMinutes"
-                :min="1"
-                :max="525600"
-                :disabled="!relayCustomKeyEnabled"
-              />
-              <span class="form-help">{{
-                i18ns.t('ServerConfigView.relayCustomKeyCreateLimitWindowMinutesHelp')
-              }}</span>
-            </el-form-item>
-            <el-form-item :label="i18ns.t('ServerConfigView.relayCustomKeyCreateLimitMaxCount')">
-              <el-input-number
-                v-model="relayCustomKeyCreateLimitMaxCount"
-                :min="0"
-                :max="100000"
-                :disabled="!relayCustomKeyEnabled"
-              />
-              <span class="form-help">{{
-                i18ns.t('ServerConfigView.relayCustomKeyCreateLimitMaxCountHelp')
-              }}</span>
-            </el-form-item>
-          </el-form>
-        </el-collapse-item>
+            </template>
+            <el-form label-width="200px" label-position="right">
+              <el-form-item :label="i18ns.t('ServerConfigView.relayCustomKeyEnabled')">
+                <el-switch v-model="relayCustomKeyEnabled" />
+                <span class="form-help">{{
+                  i18ns.t('ServerConfigView.relayCustomKeyEnabledHelp')
+                }}</span>
+              </el-form-item>
+              <el-form-item :label="i18ns.t('ServerConfigView.relayCustomKeyMaxTokensPerUser')">
+                <el-input-number
+                  v-model="relayCustomKeyMaxTokensPerUser"
+                  :min="0"
+                  :max="1000"
+                  :disabled="!relayCustomKeyEnabled"
+                />
+                <span class="form-help">{{
+                  i18ns.t('ServerConfigView.relayCustomKeyMaxTokensPerUserHelp')
+                }}</span>
+              </el-form-item>
+              <el-form-item
+                :label="i18ns.t('ServerConfigView.relayCustomKeyCreateLimitWindowMinutes')"
+              >
+                <el-input-number
+                  v-model="relayCustomKeyCreateLimitWindowMinutes"
+                  :min="1"
+                  :max="525600"
+                  :disabled="!relayCustomKeyEnabled"
+                />
+                <span class="form-help">{{
+                  i18ns.t('ServerConfigView.relayCustomKeyCreateLimitWindowMinutesHelp')
+                }}</span>
+              </el-form-item>
+              <el-form-item :label="i18ns.t('ServerConfigView.relayCustomKeyCreateLimitMaxCount')">
+                <el-input-number
+                  v-model="relayCustomKeyCreateLimitMaxCount"
+                  :min="0"
+                  :max="100000"
+                  :disabled="!relayCustomKeyEnabled"
+                />
+                <span class="form-help">{{
+                  i18ns.t('ServerConfigView.relayCustomKeyCreateLimitMaxCountHelp')
+                }}</span>
+              </el-form-item>
+            </el-form>
+          </el-collapse-item>
 
-        <el-collapse-item name="pricing">
-          <template #title>
-            <span class="collapse-title">{{
-              i18ns.t('ServerConfigView.allowedModelsAndPricing')
-            }}</span>
-          </template>
-          <el-form label-width="200px" label-position="right">
-            <el-form-item
-              :label="i18ns.t('ServerConfigView.allowedModelsAndPricing')"
-              class="block-form-item"
-            >
-              <div style="width: 100%">
-                <div style="margin-bottom: 8px; display: flex; gap: 8px; flex-wrap: wrap">
-                  <el-button size="small" @click="exportModelPricing">{{
-                    i18ns.t('ServerConfigView.exportPricing')
+          <el-collapse-item name="pricing">
+            <template #title>
+              <span class="collapse-title">{{
+                i18ns.t('ServerConfigView.allowedModelsAndPricing')
+              }}</span>
+            </template>
+            <el-form label-width="200px" label-position="right">
+              <el-form-item
+                :label="i18ns.t('ServerConfigView.allowedModelsAndPricing')"
+                class="block-form-item"
+              >
+                <div style="width: 100%">
+                  <div style="margin-bottom: 8px; display: flex; gap: 8px; flex-wrap: wrap">
+                    <el-button size="small" @click="exportModelPricing">{{
+                      i18ns.t('ServerConfigView.exportPricing')
+                    }}</el-button>
+                    <el-button size="small" @click="copyModelPricing">{{
+                      i18ns.t('ServerConfigView.copyPricing')
+                    }}</el-button>
+                    <el-button size="small" @click="showImportDialog = true">{{
+                      i18ns.t('ServerConfigView.importPricing')
+                    }}</el-button>
+                  </div>
+                  <el-table
+                    :data="modelRates"
+                    border
+                    size="small"
+                    :row-key="getModelRateRowKey"
+                    :row-class-name="
+                      ({ rowIndex }: { rowIndex: number }) =>
+                        rowIndex === editingRowIndex ? 'editing-row' : ''
+                    "
+                    @row-click="(row: any) => (editingRowIndex = modelRates.indexOf(row))"
+                  >
+                    <el-table-column :label="i18ns.t('ServerConfigView.modelName')" width="200">
+                      <template #default="{ row, $index }">
+                        <el-input
+                          v-if="editingRowIndex === $index"
+                          v-model="row.model"
+                          size="small"
+                          :placeholder="i18ns.t('ServerConfigView.modelNamePlaceholder')"
+                        />
+                        <span v-else style="cursor: pointer">{{ row.model || '-' }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column :label="i18ns.t('ServerConfigView.modelId')" width="200">
+                      <template #default="{ row, $index }">
+                        <el-input
+                          v-if="editingRowIndex === $index"
+                          v-model="row.modelId"
+                          size="small"
+                          :placeholder="i18ns.t('ServerConfigView.modelIdPlaceholder')"
+                        />
+                        <span v-else style="cursor: pointer">{{
+                          row.modelId || row.model || '-'
+                        }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column :label="i18ns.t('ServerConfigView.pricingType')" width="130">
+                      <template #default="{ row, $index }">
+                        <el-select
+                          v-if="editingRowIndex === $index"
+                          v-model="row.pricingType"
+                          size="small"
+                          style="width: 100%"
+                        >
+                          <el-option
+                            :label="i18ns.t('ServerConfigView.pricingTypeTokenBased')"
+                            value="token-based"
+                          />
+                          <el-option
+                            :label="i18ns.t('ServerConfigView.pricingTypePerRequest')"
+                            value="per-request"
+                          />
+                        </el-select>
+                        <span v-else style="cursor: pointer">{{
+                          row.pricingType === 'per-request'
+                            ? i18ns.t('ServerConfigView.pricingTypePerRequest')
+                            : i18ns.t('ServerConfigView.pricingTypeTokenBased')
+                        }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column
+                      :label="i18ns.t('ServerConfigView.supportedFormats')"
+                      width="180"
+                      class-name="hide-on-mobile"
+                    >
+                      <template #default="{ row, $index }">
+                        <el-select
+                          v-if="editingRowIndex === $index"
+                          v-model="row.supportedFormats"
+                          size="small"
+                          :placeholder="i18ns.t('ServerConfigView.selectFormat')"
+                          multiple
+                          collapse-tags
+                          collapse-tags-tooltip
+                          :max-collapse-tags="2"
+                          style="width: 100%"
+                        >
+                          <el-option label="OpenAI" value="openai" />
+                          <el-option label="Anthropic" value="anthropic" />
+                          <el-option label="Gemini" value="gemini" />
+                        </el-select>
+                        <span v-else style="cursor: pointer">{{
+                          Array.isArray(row.supportedFormats) && row.supportedFormats.length
+                            ? row.supportedFormats.join(', ')
+                            : 'All'
+                        }}</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column
+                      :label="i18ns.t('ServerConfigView.fixedPrice')"
+                      width="120"
+                      class-name="hide-on-mobile"
+                    >
+                      <template #default="{ row, $index }">
+                        <el-input-number
+                          v-if="editingRowIndex === $index && row.pricingType === 'per-request'"
+                          v-model="row.fixedPrice"
+                          :step="0.01"
+                          :precision="4"
+                          size="small"
+                          style="width: 100%"
+                        />
+                        <span
+                          v-else-if="row.pricingType === 'per-request'"
+                          style="cursor: pointer"
+                          >{{ row.fixedPrice }}</span
+                        >
+                        <span v-else style="color: #909399; font-size: 12px">-</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column
+                      :label="i18ns.t('ServerConfigView.inputPricePerMillion')"
+                      width="120"
+                    >
+                      <template #default="{ row, $index }">
+                        <el-input-number
+                          v-if="editingRowIndex === $index && row.pricingType === 'token-based'"
+                          v-model="row.inputPrice"
+                          :step="0.01"
+                          :precision="6"
+                          size="small"
+                          style="width: 100%"
+                        />
+                        <span
+                          v-else-if="row.pricingType === 'token-based'"
+                          style="cursor: pointer"
+                          >{{ row.inputPrice }}</span
+                        >
+                        <span v-else style="color: #909399; font-size: 12px">-</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column
+                      :label="i18ns.t('ServerConfigView.outputPricePerMillion')"
+                      width="120"
+                    >
+                      <template #default="{ row, $index }">
+                        <el-input-number
+                          v-if="editingRowIndex === $index && row.pricingType === 'token-based'"
+                          v-model="row.outputPrice"
+                          :step="0.01"
+                          :precision="6"
+                          size="small"
+                          style="width: 100%"
+                        />
+                        <span
+                          v-else-if="row.pricingType === 'token-based'"
+                          style="cursor: pointer"
+                          >{{ row.outputPrice }}</span
+                        >
+                        <span v-else style="color: #909399; font-size: 12px">-</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column
+                      :label="i18ns.t('ServerConfigView.cacheCreationMultiplier')"
+                      width="110"
+                      class-name="hide-on-mobile"
+                    >
+                      <template #default="{ row, $index }">
+                        <el-input-number
+                          v-if="editingRowIndex === $index && row.pricingType === 'token-based'"
+                          v-model="row.cacheCreationMultiplier"
+                          :step="0.01"
+                          :precision="2"
+                          size="small"
+                          style="width: 100%"
+                        />
+                        <span
+                          v-else-if="row.pricingType === 'token-based'"
+                          style="cursor: pointer"
+                          >{{ row.cacheCreationMultiplier }}</span
+                        >
+                        <span v-else style="color: #909399; font-size: 12px">-</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column
+                      :label="i18ns.t('ServerConfigView.cacheReadMultiplier')"
+                      width="110"
+                      class-name="hide-on-mobile"
+                    >
+                      <template #default="{ row, $index }">
+                        <el-input-number
+                          v-if="editingRowIndex === $index && row.pricingType === 'token-based'"
+                          v-model="row.cacheReadMultiplier"
+                          :step="0.01"
+                          :precision="2"
+                          size="small"
+                          style="width: 100%"
+                        />
+                        <span
+                          v-else-if="row.pricingType === 'token-based'"
+                          style="cursor: pointer"
+                          >{{ row.cacheReadMultiplier }}</span
+                        >
+                        <span v-else style="color: #909399; font-size: 12px">-</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column :label="i18ns.t('actions')" min-width="80">
+                      <template #default="{ $index }">
+                        <el-button
+                          type="danger"
+                          link
+                          size="small"
+                          @click.stop="
+                            () => {
+                              modelRates.splice($index, 1)
+                              if (editingRowIndex === $index) editingRowIndex = null
+                            }
+                          "
+                        >
+                          {{ i18ns.t('delete') }}
+                        </el-button>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                  <el-button size="small" style="margin-top: 8px" @click="addModelRate">{{
+                    i18ns.t('ServerConfigView.addModel')
                   }}</el-button>
-                  <el-button size="small" @click="copyModelPricing">{{
-                    i18ns.t('ServerConfigView.copyPricing')
-                  }}</el-button>
-                  <el-button size="small" @click="showImportDialog = true">{{
-                    i18ns.t('ServerConfigView.importPricing')
-                  }}</el-button>
+                  <span class="form-help">{{ i18ns.t('ServerConfigView.modelPricingHelp') }}</span>
                 </div>
-                <el-table
-                  :data="modelRates"
-                  border
-                  size="small"
-                  :row-key="getModelRateRowKey"
-                  :row-class-name="
-                    ({ rowIndex }: { rowIndex: number }) =>
-                      rowIndex === editingRowIndex ? 'editing-row' : ''
-                  "
-                  @row-click="(row: any) => (editingRowIndex = modelRates.indexOf(row))"
-                >
-                  <el-table-column :label="i18ns.t('ServerConfigView.modelName')" width="200">
-                    <template #default="{ row, $index }">
-                      <el-input
-                        v-if="editingRowIndex === $index"
-                        v-model="row.model"
-                        size="small"
-                        :placeholder="i18ns.t('ServerConfigView.modelNamePlaceholder')"
-                      />
-                      <span v-else style="cursor: pointer">{{ row.model || '-' }}</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column :label="i18ns.t('ServerConfigView.modelId')" width="200">
-                    <template #default="{ row, $index }">
-                      <el-input
-                        v-if="editingRowIndex === $index"
-                        v-model="row.modelId"
-                        size="small"
-                        :placeholder="i18ns.t('ServerConfigView.modelIdPlaceholder')"
-                      />
-                      <span v-else style="cursor: pointer">{{
-                        row.modelId || row.model || '-'
-                      }}</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column :label="i18ns.t('ServerConfigView.pricingType')" width="130">
-                    <template #default="{ row, $index }">
-                      <el-select
-                        v-if="editingRowIndex === $index"
-                        v-model="row.pricingType"
-                        size="small"
-                        style="width: 100%"
-                      >
-                        <el-option
-                          :label="i18ns.t('ServerConfigView.pricingTypeTokenBased')"
-                          value="token-based"
-                        />
-                        <el-option
-                          :label="i18ns.t('ServerConfigView.pricingTypePerRequest')"
-                          value="per-request"
-                        />
-                      </el-select>
-                      <span v-else style="cursor: pointer">{{
-                        row.pricingType === 'per-request'
-                          ? i18ns.t('ServerConfigView.pricingTypePerRequest')
-                          : i18ns.t('ServerConfigView.pricingTypeTokenBased')
-                      }}</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column
-                    :label="i18ns.t('ServerConfigView.supportedFormats')"
-                    width="180"
-                    class-name="hide-on-mobile"
-                  >
-                    <template #default="{ row, $index }">
-                      <el-select
-                        v-if="editingRowIndex === $index"
-                        v-model="row.supportedFormats"
-                        size="small"
-                        :placeholder="i18ns.t('ServerConfigView.selectFormat')"
-                        multiple
-                        collapse-tags
-                        collapse-tags-tooltip
-                        :max-collapse-tags="2"
-                        style="width: 100%"
-                      >
-                        <el-option label="OpenAI" value="openai" />
-                        <el-option label="Anthropic" value="anthropic" />
-                        <el-option label="Gemini" value="gemini" />
-                      </el-select>
-                      <span v-else style="cursor: pointer">{{
-                        Array.isArray(row.supportedFormats) && row.supportedFormats.length
-                          ? row.supportedFormats.join(', ')
-                          : 'All'
-                      }}</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column
-                    :label="i18ns.t('ServerConfigView.fixedPrice')"
-                    width="120"
-                    class-name="hide-on-mobile"
-                  >
-                    <template #default="{ row, $index }">
-                      <el-input-number
-                        v-if="editingRowIndex === $index && row.pricingType === 'per-request'"
-                        v-model="row.fixedPrice"
-                        :step="0.01"
-                        :precision="4"
-                        size="small"
-                        style="width: 100%"
-                      />
-                      <span v-else-if="row.pricingType === 'per-request'" style="cursor: pointer">{{
-                        row.fixedPrice
-                      }}</span>
-                      <span v-else style="color: #909399; font-size: 12px">-</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column
-                    :label="i18ns.t('ServerConfigView.inputPricePerMillion')"
-                    width="120"
-                  >
-                    <template #default="{ row, $index }">
-                      <el-input-number
-                        v-if="editingRowIndex === $index && row.pricingType === 'token-based'"
-                        v-model="row.inputPrice"
-                        :step="0.01"
-                        :precision="6"
-                        size="small"
-                        style="width: 100%"
-                      />
-                      <span v-else-if="row.pricingType === 'token-based'" style="cursor: pointer">{{
-                        row.inputPrice
-                      }}</span>
-                      <span v-else style="color: #909399; font-size: 12px">-</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column
-                    :label="i18ns.t('ServerConfigView.outputPricePerMillion')"
-                    width="120"
-                  >
-                    <template #default="{ row, $index }">
-                      <el-input-number
-                        v-if="editingRowIndex === $index && row.pricingType === 'token-based'"
-                        v-model="row.outputPrice"
-                        :step="0.01"
-                        :precision="6"
-                        size="small"
-                        style="width: 100%"
-                      />
-                      <span v-else-if="row.pricingType === 'token-based'" style="cursor: pointer">{{
-                        row.outputPrice
-                      }}</span>
-                      <span v-else style="color: #909399; font-size: 12px">-</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column
-                    :label="i18ns.t('ServerConfigView.cacheCreationMultiplier')"
-                    width="110"
-                    class-name="hide-on-mobile"
-                  >
-                    <template #default="{ row, $index }">
-                      <el-input-number
-                        v-if="editingRowIndex === $index && row.pricingType === 'token-based'"
-                        v-model="row.cacheCreationMultiplier"
-                        :step="0.01"
-                        :precision="2"
-                        size="small"
-                        style="width: 100%"
-                      />
-                      <span v-else-if="row.pricingType === 'token-based'" style="cursor: pointer">{{
-                        row.cacheCreationMultiplier
-                      }}</span>
-                      <span v-else style="color: #909399; font-size: 12px">-</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column
-                    :label="i18ns.t('ServerConfigView.cacheReadMultiplier')"
-                    width="110"
-                    class-name="hide-on-mobile"
-                  >
-                    <template #default="{ row, $index }">
-                      <el-input-number
-                        v-if="editingRowIndex === $index && row.pricingType === 'token-based'"
-                        v-model="row.cacheReadMultiplier"
-                        :step="0.01"
-                        :precision="2"
-                        size="small"
-                        style="width: 100%"
-                      />
-                      <span v-else-if="row.pricingType === 'token-based'" style="cursor: pointer">{{
-                        row.cacheReadMultiplier
-                      }}</span>
-                      <span v-else style="color: #909399; font-size: 12px">-</span>
-                    </template>
-                  </el-table-column>
-                  <el-table-column :label="i18ns.t('actions')" min-width="80">
-                    <template #default="{ $index }">
-                      <el-button
-                        type="danger"
-                        link
-                        size="small"
-                        @click.stop="
-                          () => {
-                            modelRates.splice($index, 1)
-                            if (editingRowIndex === $index) editingRowIndex = null
-                          }
-                        "
-                      >
-                        {{ i18ns.t('delete') }}
-                      </el-button>
-                    </template>
-                  </el-table-column>
-                </el-table>
-                <el-button size="small" style="margin-top: 8px" @click="addModelRate">{{
-                  i18ns.t('ServerConfigView.addModel')
-                }}</el-button>
-                <span class="form-help">{{ i18ns.t('ServerConfigView.modelPricingHelp') }}</span>
-              </div>
-            </el-form-item>
-          </el-form>
-        </el-collapse-item>
-
+              </el-form-item>
+            </el-form>
+          </el-collapse-item>
         </el-collapse>
 
         <div class="relay-settings-save-bar">
-          <el-button type="primary" :loading="saving" @click="save">{{ i18ns.t('save') }}</el-button>
+          <el-button type="primary" :loading="saving" @click="save">{{
+            i18ns.t('save')
+          }}</el-button>
         </div>
       </div>
 
@@ -565,7 +580,10 @@
                       <el-tag type="primary" size="small">Gemini</el-tag>
                     </template>
                     <template v-else>
-                      <el-tag v-if="row.allowedFormats.includes('openai')" type="success" size="small"
+                      <el-tag
+                        v-if="row.allowedFormats.includes('openai')"
+                        type="success"
+                        size="small"
                         >OpenAI</el-tag
                       >
                       <el-tag
@@ -574,7 +592,10 @@
                         size="small"
                         >Anthropic</el-tag
                       >
-                      <el-tag v-if="row.allowedFormats.includes('gemini')" type="primary" size="small"
+                      <el-tag
+                        v-if="row.allowedFormats.includes('gemini')"
+                        type="primary"
+                        size="small"
                         >Gemini</el-tag
                       >
                     </template>
