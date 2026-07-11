@@ -231,7 +231,8 @@ export function useRemoteTerminalProductManagement() {
         validator: (_rule: unknown, _value: unknown, callback: (error?: Error) => void) => {
           if (
             templateForm.maximumPurchaseUnits != null &&
-            Number(templateForm.minimumPurchaseUnits || 1) > Number(templateForm.maximumPurchaseUnits)
+            Number(templateForm.minimumPurchaseUnits || 1) >
+              Number(templateForm.maximumPurchaseUnits)
           ) {
             callback(new Error(i18ns.t('remoteTerminalProduct.maximumPurchaseUnitsInvalid')))
             return

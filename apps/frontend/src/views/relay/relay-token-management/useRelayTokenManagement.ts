@@ -566,7 +566,8 @@ export const useRelayTokenManagement = () => {
     })
   }
 
-  const buildTokenChannelExportContent = () => JSON.stringify(buildTokenChannelExportItems(), null, 2)
+  const buildTokenChannelExportContent = () =>
+    JSON.stringify(buildTokenChannelExportItems(), null, 2)
 
   const downloadJsonFile = (fileName: string, content: string) => {
     const blob = new Blob([content], { type: 'application/json;charset=utf-8' })
@@ -664,11 +665,15 @@ export const useRelayTokenManagement = () => {
       return
     }
 
-    const existingConfigs = editForm.value.channelConfigs.filter((config) => config.channelId.trim())
+    const existingConfigs = editForm.value.channelConfigs.filter((config) =>
+      config.channelId.trim(),
+    )
     const existingIds = new Set(existingConfigs.map((config) => config.channelId.trim()))
     const additions = tokenChannelBatchAddIds.value
       .filter((channelId) => !existingIds.has(channelId))
-      .map((channelId, index) => createEmptyChannelConfig(existingConfigs.length + index, channelId))
+      .map((channelId, index) =>
+        createEmptyChannelConfig(existingConfigs.length + index, channelId),
+      )
 
     replaceChannelConfigs([...existingConfigs, ...additions])
     tokenChannelBatchAddIds.value = []
@@ -1551,7 +1556,9 @@ export const useRelayTokenManagement = () => {
 
   const addChannelConfig = () => {
     if (editForm.value.channelConfigs.length >= channels.value.length) return
-    editForm.value.channelConfigs.push(createEmptyChannelConfig(editForm.value.channelConfigs.length))
+    editForm.value.channelConfigs.push(
+      createEmptyChannelConfig(editForm.value.channelConfigs.length),
+    )
     syncTokenChannelBatchAddIds()
   }
 
@@ -1957,7 +1964,8 @@ export const useRelayTokenManagement = () => {
 
   const buildCcswitchImportUri = (row: RelayTokenDto, format: RelayFormat) => {
     const baseEndpoint = getAIEndpointUrl()
-    const name = row.name?.trim() || `${i18ns.t('relay.unnamedToken')} ${maskToken(row.token, 6, 4)}`
+    const name =
+      row.name?.trim() || `${i18ns.t('relay.unnamedToken')} ${maskToken(row.token, 6, 4)}`
 
     let endpoint: string
     if (format === 'anthropic') {
@@ -2055,7 +2063,8 @@ export const useRelayTokenManagement = () => {
       }
 
       const leftHours = normalizeQuotaWindowHours(left.quotaWindowHours) ?? Number.POSITIVE_INFINITY
-      const rightHours = normalizeQuotaWindowHours(right.quotaWindowHours) ?? Number.POSITIVE_INFINITY
+      const rightHours =
+        normalizeQuotaWindowHours(right.quotaWindowHours) ?? Number.POSITIVE_INFINITY
 
       if (leftHours !== rightHours) {
         return leftHours - rightHours

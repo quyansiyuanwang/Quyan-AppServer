@@ -82,7 +82,11 @@
             {{ row.toChannelName || state.getChannelName(row.toChannelId) }}
           </template>
         </el-table-column>
-        <el-table-column prop="triggerStatusCode" :label="i18ns.t('relay.statusCode')" width="100" />
+        <el-table-column
+          prop="triggerStatusCode"
+          :label="i18ns.t('relay.statusCode')"
+          width="100"
+        />
         <el-table-column prop="attemptNumber" :label="i18ns.t('relay.attemptNumber')" width="100" />
         <el-table-column prop="method" :label="i18ns.t('relay.method')" width="90" />
         <el-table-column

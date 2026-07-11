@@ -20,7 +20,12 @@
         <el-input v-model="formData.name" />
       </el-form-item>
       <el-form-item :label="i18ns.t('GroupManagement.level')" prop="level">
-        <el-input-number v-model="formData.level" :min="0" :max="100" :style="isDesktop ? undefined : 'width: 100%'" />
+        <el-input-number
+          v-model="formData.level"
+          :min="0"
+          :max="100"
+          :style="isDesktop ? undefined : 'width: 100%'"
+        />
       </el-form-item>
       <el-form-item :label="i18ns.t('GroupManagement.description')" prop="description">
         <el-input v-model="formData.description" type="textarea" :rows="3" />
@@ -39,6 +44,15 @@
 import { i18ns } from '@/locales'
 import { useGroupManagementContext } from '../context'
 
-const { isDesktop, dialogVisible, isEdit, submitting, formRef, formData, formRules, resetForm, handleSubmit } =
-  useGroupManagementContext()
+const {
+  isDesktop,
+  dialogVisible,
+  isEdit,
+  submitting,
+  formRef,
+  formData,
+  formRules,
+  resetForm,
+  handleSubmit,
+} = useGroupManagementContext()
 </script>

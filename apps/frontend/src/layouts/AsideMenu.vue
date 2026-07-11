@@ -1348,7 +1348,8 @@ watch(
   border-right: 1px solid var(--el-border-color-lighter);
   overflow: hidden;
   width: 220px;
-  transition: width 0.25s ease;
+  transition: width 0.24s ease;
+  will-change: width;
 
   &.is-collapsed {
     width: 64px;
@@ -1372,7 +1373,9 @@ watch(
   border-bottom: 1px solid var(--el-border-color-lighter);
   flex-shrink: 0;
   user-select: none;
-  transition: background-color 0.2s;
+  transition:
+    padding 0.24s ease,
+    background-color 0.2s;
 
   .aside-brand {
     display: flex;
@@ -1908,10 +1911,7 @@ watch(
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  transition:
-    width 0.25s ease,
-    min-width 0.25s ease;
-  will-change: width;
+  transition: width 0.24s ease;
 
   &::-webkit-scrollbar {
     width: 4px;

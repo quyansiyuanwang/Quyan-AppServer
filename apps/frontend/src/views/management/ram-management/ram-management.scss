@@ -1,4 +1,11 @@
 .ram-management {
+  width: 100%;
+  min-width: 0;
+}
+
+.ram-management .page-card,
+.ram-tabs {
+  width: 100%;
   min-width: 0;
 }
 
@@ -15,6 +22,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+
+.section-toolbar > * {
+  min-width: 0;
 }
 
 .permission-tree-container {
@@ -67,6 +79,28 @@
 
 .ram-tabs :deep(.el-tabs__content) {
   overflow: visible;
+  width: 100%;
+  min-width: 0;
+}
+
+.ram-tabs :deep(.el-tab-pane) {
+  width: 100%;
+  min-width: 0;
+}
+
+.ram-management :deep(.el-table) {
+  width: 100%;
+}
+
+.ram-management :deep(.el-table__inner-wrapper),
+.ram-management :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
+.ram-management :deep(.el-table__header),
+.ram-management :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
 }
 
 .header-actions {

@@ -1022,7 +1022,8 @@ export const useMonthlyPassManagement = () => {
 
   const handleTabChange = async (name: string | number) => {
     const normalized = String(name)
-    if (normalized !== 'templates' && normalized !== 'assignments' && normalized !== 'usages') return
+    if (normalized !== 'templates' && normalized !== 'assignments' && normalized !== 'usages')
+      return
 
     await loadByTab(normalized)
   }
@@ -1183,7 +1184,11 @@ export const useMonthlyPassManagement = () => {
         purchaseLimitPerUser: purchaseLimitPerUser ?? (isEditingTemplate ? null : undefined),
         purchaseLimitWindowDays: purchaseLimitWindowDays ?? (isEditingTemplate ? null : undefined),
         dailyQuota:
-          normalizedDailyQuota != null ? normalizedDailyQuota : isEditingTemplate ? null : undefined,
+          normalizedDailyQuota != null
+            ? normalizedDailyQuota
+            : isEditingTemplate
+              ? null
+              : undefined,
         quotaWindowHours: isEditingTemplate ? null : undefined,
         quotaWindows: normalizedQuotaWindows,
         allowedModels: hasSelectedModels
@@ -1528,7 +1533,8 @@ export const useMonthlyPassManagement = () => {
   )
 
   watch(
-    () => [showAssignmentDialog.value, assignmentForm.batchMode, editingAssignmentId.value] as const,
+    () =>
+      [showAssignmentDialog.value, assignmentForm.batchMode, editingAssignmentId.value] as const,
     ([visible, batchMode, editingId]) => {
       if (!visible || !batchMode || Boolean(editingId)) return
       void loadBatchUserOptions()

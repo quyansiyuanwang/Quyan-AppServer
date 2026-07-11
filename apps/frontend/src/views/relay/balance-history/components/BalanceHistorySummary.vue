@@ -88,7 +88,11 @@ const rpmChartOption = state.rpmChartOption
               <div class="stat-chart">
                 <el-progress
                   type="circle"
-                  :percentage="Math.round(usageStats.total > 0 ? (usageStats.used / usageStats.total) * 100 : 0)"
+                  :percentage="
+                    Math.round(
+                      usageStats.total > 0 ? (usageStats.used / usageStats.total) * 100 : 0,
+                    )
+                  "
                   :width="60"
                   :stroke-width="6"
                 />

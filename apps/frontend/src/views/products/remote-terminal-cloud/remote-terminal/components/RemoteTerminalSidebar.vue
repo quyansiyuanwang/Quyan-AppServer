@@ -186,7 +186,9 @@
             <el-input-number v-model="currentRetryMaxAttempts" :min="1" :max="10" />
           </label>
           <label class="retry-policy-item">
-            <span class="retry-policy-label">{{ i18ns.t('remoteTerminal.retryDelaySeconds') }}</span>
+            <span class="retry-policy-label">{{
+              i18ns.t('remoteTerminal.retryDelaySeconds')
+            }}</span>
             <el-input-number v-model="currentRetryDelaySeconds" :min="1" :max="60" />
           </label>
         </div>

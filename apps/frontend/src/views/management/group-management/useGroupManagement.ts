@@ -79,7 +79,8 @@ export const useGroupManagement = () => {
   })
 
   const getCategorySelectedCount = (category: Pick<PermissionCategory, 'permissions'>) =>
-    category.permissions.filter((permission) => selectedPermissions.value.includes(permission)).length
+    category.permissions.filter((permission) => selectedPermissions.value.includes(permission))
+      .length
 
   const togglePermission = (permission: string) => {
     const index = selectedPermissions.value.indexOf(permission)

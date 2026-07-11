@@ -5,8 +5,16 @@
       :description="i18ns.t('remoteTerminalProduct.emptyDevices')"
     />
     <el-table v-else :data="devices" v-loading="loading" stripe>
-      <el-table-column prop="hostname" :label="i18ns.t('remoteTerminalProduct.hostname')" min-width="160" />
-      <el-table-column prop="deviceId" :label="i18ns.t('remoteTerminal.deviceId')" min-width="160" />
+      <el-table-column
+        prop="hostname"
+        :label="i18ns.t('remoteTerminalProduct.hostname')"
+        min-width="160"
+      />
+      <el-table-column
+        prop="deviceId"
+        :label="i18ns.t('remoteTerminal.deviceId')"
+        min-width="160"
+      />
       <el-table-column
         prop="entitlementName"
         :label="i18ns.t('remoteTerminalProduct.entitlementsTab')"

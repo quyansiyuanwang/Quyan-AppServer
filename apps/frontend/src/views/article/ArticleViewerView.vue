@@ -299,13 +299,13 @@ if (!isDesktop.value) {
 
 <style scoped>
 .article-viewer {
-  padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .viewer-layout {
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
   align-items: flex-start;
 }
@@ -316,7 +316,7 @@ if (!isDesktop.value) {
 }
 
 .viewer-sidebar {
-  width: 300px;
+  width: min(300px, 100%);
   flex-shrink: 0;
   position: sticky;
   top: 20px;
@@ -392,7 +392,10 @@ if (!isDesktop.value) {
   padding: 10px 12px;
   cursor: pointer;
   border-radius: 6px;
-  transition: all 0.2s;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
   margin-bottom: 4px;
 }
 

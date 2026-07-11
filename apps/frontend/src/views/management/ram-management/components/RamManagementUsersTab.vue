@@ -47,7 +47,9 @@
       <el-table-column :label="i18ns.t('status')" width="110">
         <template #default="{ row }">
           <el-tag :type="row.status === 1 ? 'success' : 'danger'" round effect="plain">
-            {{ row.status === 1 ? i18ns.t('RamManagement.active') : i18ns.t('RamManagement.disabled') }}
+            {{
+              row.status === 1 ? i18ns.t('RamManagement.active') : i18ns.t('RamManagement.disabled')
+            }}
           </el-tag>
         </template>
       </el-table-column>

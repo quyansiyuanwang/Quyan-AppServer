@@ -502,7 +502,9 @@ export const useSystemLogs = () => {
         return
       }
 
-      const targetFileName = data.files.some((file) => file.name === selectedServerLogFileName.value)
+      const targetFileName = data.files.some(
+        (file) => file.name === selectedServerLogFileName.value,
+      )
         ? selectedServerLogFileName.value
         : firstFile.name
 

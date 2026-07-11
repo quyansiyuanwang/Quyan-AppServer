@@ -14,10 +14,18 @@
                   {{ i18ns.t('relay.importTokens') }}
                 </el-button>
               </PermissionWrapper>
-              <el-button plain :disabled="!tokens.length" @click="state.handleSelectAllVisibleTokens">
+              <el-button
+                plain
+                :disabled="!tokens.length"
+                @click="state.handleSelectAllVisibleTokens"
+              >
                 {{ i18ns.t('relay.selectAllTokens') }}
               </el-button>
-              <el-button plain :disabled="!selectedTokenIds.length" @click="state.clearTokenSelection">
+              <el-button
+                plain
+                :disabled="!selectedTokenIds.length"
+                @click="state.clearTokenSelection"
+              >
                 {{ i18ns.t('relay.clearTokenSelection') }}
               </el-button>
               <el-button :icon="Refresh" :loading="loadingTokens" @click="state.refreshTokens">
@@ -83,7 +91,9 @@
         <div v-if="selectedTokenIds.length" class="token-mobile-batch-actions">
           <el-dropdown
             trigger="click"
-            @command="(command: string | number | object) => state.handleBatchTokenCommand(String(command))"
+            @command="
+              (command: string | number | object) => state.handleBatchTokenCommand(String(command))
+            "
           >
             <el-button size="small" plain>
               {{ i18ns.t('nav.more') }}
@@ -91,25 +101,39 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <PermissionWrapper :require="[Permission.RELAY_TOKEN_UPDATE]">
-                  <el-dropdown-item command="enable">{{ i18ns.t('relay.batchEnableTokens') }}</el-dropdown-item>
+                  <el-dropdown-item command="enable">{{
+                    i18ns.t('relay.batchEnableTokens')
+                  }}</el-dropdown-item>
                 </PermissionWrapper>
                 <PermissionWrapper :require="[Permission.RELAY_TOKEN_UPDATE]">
-                  <el-dropdown-item command="disable">{{ i18ns.t('relay.batchDisableTokens') }}</el-dropdown-item>
+                  <el-dropdown-item command="disable">{{
+                    i18ns.t('relay.batchDisableTokens')
+                  }}</el-dropdown-item>
                 </PermissionWrapper>
                 <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-                  <el-dropdown-item command="export" divided>{{ i18ns.t('relay.batchExportTokens') }}</el-dropdown-item>
+                  <el-dropdown-item command="export" divided>{{
+                    i18ns.t('relay.batchExportTokens')
+                  }}</el-dropdown-item>
                 </PermissionWrapper>
                 <PermissionWrapper :require="[Permission.RELAY_TOKEN_CREATE]">
-                  <el-dropdown-item command="duplicate">{{ i18ns.t('relay.batchDuplicateTokens') }}</el-dropdown-item>
+                  <el-dropdown-item command="duplicate">{{
+                    i18ns.t('relay.batchDuplicateTokens')
+                  }}</el-dropdown-item>
                 </PermissionWrapper>
                 <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-                  <el-dropdown-item command="copy-token-value" divided>{{ i18ns.t('relay.copyTokenValue') }}</el-dropdown-item>
+                  <el-dropdown-item command="copy-token-value" divided>{{
+                    i18ns.t('relay.copyTokenValue')
+                  }}</el-dropdown-item>
                 </PermissionWrapper>
                 <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-                  <el-dropdown-item command="copy-json">{{ i18ns.t('relay.copyTokenJson') }}</el-dropdown-item>
+                  <el-dropdown-item command="copy-json">{{
+                    i18ns.t('relay.copyTokenJson')
+                  }}</el-dropdown-item>
                 </PermissionWrapper>
                 <PermissionWrapper :require="[Permission.RELAY_TOKEN_DELETE]">
-                  <el-dropdown-item command="delete" divided>{{ i18ns.t('relay.batchDeleteTokens') }}</el-dropdown-item>
+                  <el-dropdown-item command="delete" divided>{{
+                    i18ns.t('relay.batchDeleteTokens')
+                  }}</el-dropdown-item>
                 </PermissionWrapper>
               </el-dropdown-menu>
             </template>
@@ -117,16 +141,26 @@
         </div>
 
         <div v-if="tokens.length" class="mobile-card-list token-list">
-          <el-card v-for="row in tokens" :key="row.id" class="token-mobile-card mobile-card" shadow="never">
+          <el-card
+            v-for="row in tokens"
+            :key="row.id"
+            class="token-mobile-card mobile-card"
+            shadow="never"
+          >
             <div class="token-mobile-card__selection">
               <el-checkbox
                 :model-value="selectedTokenIdSet.has(row.id)"
-                @change="(value: string | number | boolean) => state.handleMobileTokenSelectionChange(row.id, Boolean(value))"
+                @change="
+                  (value: string | number | boolean) =>
+                    state.handleMobileTokenSelectionChange(row.id, Boolean(value))
+                "
               />
             </div>
             <div class="token-mobile-card__header">
               <div class="token-mobile-title">{{ row.name || i18ns.t('relay.unnamedToken') }}</div>
-              <el-tag v-if="row.status === MANAGED_STATUS.ENABLED" size="small" type="success">{{ i18ns.t('relay.enabled') }}</el-tag>
+              <el-tag v-if="row.status === MANAGED_STATUS.ENABLED" size="small" type="success">{{
+                i18ns.t('relay.enabled')
+              }}</el-tag>
               <el-tag v-else size="small" type="info">{{ i18ns.t('relay.disabled') }}</el-tag>
             </div>
 
@@ -134,7 +168,11 @@
               <div class="token-mobile-field full token-mobile-token-row">
                 <span class="label">{{ i18ns.t('relay.token') }}</span>
                 <div class="token-mobile-token-content">
-                  <el-link type="primary" class="token-link token-link-mobile" @click="state.copyToken(row.token)">
+                  <el-link
+                    type="primary"
+                    class="token-link token-link-mobile"
+                    @click="state.copyToken(row.token)"
+                  >
                     {{ state.maskToken(row.token, 10, 8) }}
                   </el-link>
                 </div>
@@ -145,29 +183,49 @@
                 <span class="hint">{{ state.formatMobileChannelMeta(row) }}</span>
               </div>
               <div class="token-mobile-field">
-                <span class="label">{{ i18ns.t('relay.requestCount') }} / {{ i18ns.t('relay.totalTokens') }}</span>
+                <span class="label"
+                  >{{ i18ns.t('relay.requestCount') }} / {{ i18ns.t('relay.totalTokens') }}</span
+                >
                 <span class="value">{{ state.formatTokenStatsSummary(row) }}</span>
               </div>
               <div class="token-mobile-field">
                 <span class="label">{{ i18ns.t('relay.expiresAt') }}</span>
-                <span class="value">{{ row.expiresAt ? state.formatDateTime(row.expiresAt) : i18ns.t('relay.neverExpire') }}</span>
+                <span class="value">{{
+                  row.expiresAt ? state.formatDateTime(row.expiresAt) : i18ns.t('relay.neverExpire')
+                }}</span>
               </div>
               <div class="token-mobile-field full token-mobile-field--quota">
                 <span class="label">{{ i18ns.t('relay.quotaUsage') }}</span>
-                <template v-for="(quota, quotaIndex) in [state.getTokenQuotaSnapshot(row)]" :key="quotaIndex">
+                <template
+                  v-for="(quota, quotaIndex) in [state.getTokenQuotaSnapshot(row)]"
+                  :key="quotaIndex"
+                >
                   <div class="token-mobile-quota">
                     <div class="token-mobile-quota__primary">
-                      <span class="quota-text" :class="{ 'quota-text--danger': quota.isQuotaExceeded }">
-                        {{ i18ns.t('relay.usedQuota') }}: {{ state.formatQuotaAmount(quota.usedQuota) }}
+                      <span
+                        class="quota-text"
+                        :class="{ 'quota-text--danger': quota.isQuotaExceeded }"
+                      >
+                        {{ i18ns.t('relay.usedQuota') }}:
+                        {{ state.formatQuotaAmount(quota.usedQuota) }}
                       </span>
                       <span class="quota-limit-text">
                         /
-                        {{ row.quotaLimit != null ? state.formatQuotaAmount(row.quotaLimit) : i18ns.t('relay.unlimited') }}
+                        {{
+                          row.quotaLimit != null
+                            ? state.formatQuotaAmount(row.quotaLimit)
+                            : i18ns.t('relay.unlimited')
+                        }}
                       </span>
                     </div>
                     <div class="token-mobile-quota__secondary">
-                      <span>{{ i18ns.t('relay.remainingQuota') }}: {{ state.formatRemainingQuota(quota) }}</span>
-                      <span v-if="quota.quotaUsagePercent != null">{{ state.formatQuotaPercent(quota.quotaUsagePercent) }}</span>
+                      <span
+                        >{{ i18ns.t('relay.remainingQuota') }}:
+                        {{ state.formatRemainingQuota(quota) }}</span
+                      >
+                      <span v-if="quota.quotaUsagePercent != null">{{
+                        state.formatQuotaPercent(quota.quotaUsagePercent)
+                      }}</span>
                     </div>
                     <el-progress
                       v-if="quota.quotaUsagePercent != null"
@@ -177,29 +235,44 @@
                       :show-text="false"
                       class="quota-progress"
                     />
-                    <div v-if="state.getRelayTokenQuotaWindows(row).length" class="quota-window-list quota-window-list--mobile">
-                      <span class="quota-window-list__label">{{ i18ns.t('relay.quotaWindows') }}:</span>
+                    <div
+                      v-if="state.getRelayTokenQuotaWindows(row).length"
+                      class="quota-window-list quota-window-list--mobile"
+                    >
+                      <span class="quota-window-list__label"
+                        >{{ i18ns.t('relay.quotaWindows') }}:</span
+                      >
                       <template
-                        v-for="(quotaWindow, quotaWindowIndex) in state.getPrimaryRelayTokenQuotaWindows(row)"
+                        v-for="(
+                          quotaWindow, quotaWindowIndex
+                        ) in state.getPrimaryRelayTokenQuotaWindows(row)"
                         :key="`${row.id}-mobile-quota-window-${quotaWindowIndex}`"
                       >
-                        <div class="quota-window-inline quota-window-inline--mobile" :class="{ 'quota-window-inline--danger': quotaWindow.isQuotaExceeded }">
+                        <div
+                          class="quota-window-inline quota-window-inline--mobile"
+                          :class="{ 'quota-window-inline--danger': quotaWindow.isQuotaExceeded }"
+                        >
                           <el-progress
                             v-if="quotaWindow.quotaUsagePercent != null"
-                            :percentage="state.getQuotaProgressPercentage(quotaWindow.quotaUsagePercent)"
+                            :percentage="
+                              state.getQuotaProgressPercentage(quotaWindow.quotaUsagePercent)
+                            "
                             :status="state.getQuotaProgressStatus(quotaWindow.quotaUsagePercent)"
                             :stroke-width="6"
                             :show-text="false"
                             class="quota-window-inline__progress"
                           />
-                          <span class="quota-window-inline__summary">{{ state.formatQuotaWindowCompactSummary(quotaWindow) }}</span>
+                          <span class="quota-window-inline__summary">{{
+                            state.formatQuotaWindowCompactSummary(quotaWindow)
+                          }}</span>
                           <el-button
                             v-if="state.getRemainingRelayTokenQuotaWindowCount(row) > 0"
                             text
                             class="quota-window-inline__more"
                             @click="state.openQuotaWindowDetailDialog(row)"
                           >
-                            {{ i18ns.t('nav.more') }} {{ state.getRemainingRelayTokenQuotaWindowCount(row) }}
+                            {{ i18ns.t('nav.more') }}
+                            {{ state.getRemainingRelayTokenQuotaWindowCount(row) }}
                           </el-button>
                         </div>
                       </template>
@@ -212,12 +285,16 @@
             <div class="token-mobile-actions">
               <div class="token-mobile-action-item">
                 <PermissionWrapper :require="[Permission.RELAY_TOKEN_UPDATE]">
-                  <el-button size="small" type="primary" plain @click="state.openEditDialog(row)">{{ i18ns.t('edit') }}</el-button>
+                  <el-button size="small" type="primary" plain @click="state.openEditDialog(row)">{{
+                    i18ns.t('edit')
+                  }}</el-button>
                 </PermissionWrapper>
               </div>
               <div class="token-mobile-action-item">
                 <PermissionWrapper :require="[Permission.RELAY_TOKEN_UPDATE]">
-                  <el-button size="small" plain @click="state.openSwitchLogsDialog(row)">{{ i18ns.t('relay.switchLogs') }}</el-button>
+                  <el-button size="small" plain @click="state.openSwitchLogsDialog(row)">{{
+                    i18ns.t('relay.switchLogs')
+                  }}</el-button>
                 </PermissionWrapper>
               </div>
               <div class="token-mobile-action-item">
@@ -228,38 +305,61 @@
                     plain
                     @click="state.handleToggleStatus(row)"
                   >
-                    {{ row.status === MANAGED_STATUS.ENABLED ? i18ns.t('relay.disable') : i18ns.t('relay.enable') }}
+                    {{
+                      row.status === MANAGED_STATUS.ENABLED
+                        ? i18ns.t('relay.disable')
+                        : i18ns.t('relay.enable')
+                    }}
                   </el-button>
                 </PermissionWrapper>
               </div>
               <div class="token-mobile-action-item">
                 <PermissionWrapper :require="[Permission.RELAY_TOKEN_DELETE]">
-                  <el-button size="small" type="danger" plain @click="state.handleDelete(row)">{{ i18ns.t('delete') }}</el-button>
+                  <el-button size="small" type="danger" plain @click="state.handleDelete(row)">{{
+                    i18ns.t('delete')
+                  }}</el-button>
                 </PermissionWrapper>
               </div>
               <div class="token-mobile-action-item">
                 <el-dropdown
                   trigger="click"
-                  @command="(command: string | number | object) => state.handleMoreCommand(String(command), row)"
+                  @command="
+                    (command: string | number | object) =>
+                      state.handleMoreCommand(String(command), row)
+                  "
                 >
                   <el-button size="small" plain>{{ i18ns.t('nav.more') }}</el-button>
                   <template #dropdown>
                     <el-dropdown-menu>
                       <PermissionWrapper :require="[Permission.RELAY_TOKEN_UPDATE]">
-                        <el-dropdown-item command="refresh-token">{{ i18ns.t('relay.refreshToken') }}</el-dropdown-item>
+                        <el-dropdown-item command="refresh-token">{{
+                          i18ns.t('relay.refreshToken')
+                        }}</el-dropdown-item>
                       </PermissionWrapper>
                       <PermissionWrapper :require="[Permission.RELAY_TOKEN_UPDATE]">
-                        <el-dropdown-item command="open-switch-logs">{{ i18ns.t('relay.switchLogs') }}</el-dropdown-item>
+                        <el-dropdown-item command="open-switch-logs">{{
+                          i18ns.t('relay.switchLogs')
+                        }}</el-dropdown-item>
                       </PermissionWrapper>
-                      <el-dropdown-item command="copy-token-value" divided>{{ i18ns.t('relay.copyTokenValue') }}</el-dropdown-item>
-                      <el-dropdown-item command="copy-json">{{ i18ns.t('relay.copyTokenJson') }}</el-dropdown-item>
+                      <el-dropdown-item command="copy-token-value" divided>{{
+                        i18ns.t('relay.copyTokenValue')
+                      }}</el-dropdown-item>
+                      <el-dropdown-item command="copy-json">{{
+                        i18ns.t('relay.copyTokenJson')
+                      }}</el-dropdown-item>
                       <PermissionWrapper :require="[Permission.RELAY_TOKEN_CREATE]">
-                        <el-dropdown-item command="duplicate" divided>{{ i18ns.t('relay.cloneToken') }}</el-dropdown-item>
+                        <el-dropdown-item command="duplicate" divided>{{
+                          i18ns.t('relay.cloneToken')
+                        }}</el-dropdown-item>
                       </PermissionWrapper>
                       <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-                        <el-dropdown-item command="export">{{ i18ns.t('relay.exportTokens') }}</el-dropdown-item>
+                        <el-dropdown-item command="export">{{
+                          i18ns.t('relay.exportTokens')
+                        }}</el-dropdown-item>
                       </PermissionWrapper>
-                      <el-dropdown-item command="export-ccswitch">{{ i18ns.t('relay.exportToCcswitch') }}</el-dropdown-item>
+                      <el-dropdown-item command="export-ccswitch">{{
+                        i18ns.t('relay.exportToCcswitch')
+                      }}</el-dropdown-item>
                       <el-dropdown-item
                         v-for="format in state.getTokenSupportedFormats(row)"
                         :key="`mobile-ccswitch-${row.id}-${format}`"

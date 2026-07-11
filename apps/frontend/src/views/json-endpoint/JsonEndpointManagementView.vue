@@ -490,6 +490,18 @@ const { isDesktop } = usePageDevice()
   align-items: center;
 }
 
+.json-endpoint-management,
+.page-card {
+  width: 100%;
+  min-width: 0;
+}
+
+.page-card :deep(.el-card__body) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .card-title {
   font-size: 18px;
   font-weight: 600;
@@ -523,6 +535,21 @@ const { isDesktop } = usePageDevice()
   overflow: auto;
   font-family: monospace;
   font-size: 12px;
+}
+
+.json-endpoint-management :deep(.el-table),
+.json-endpoint-management :deep(.el-table__inner-wrapper),
+.json-endpoint-management :deep(.el-table__header-wrapper),
+.json-endpoint-management :deep(.el-table__body-wrapper),
+.json-endpoint-management :deep(.el-table__header),
+.json-endpoint-management :deep(.el-table__body) {
+  width: 100%;
+  min-width: 0;
+}
+
+.json-endpoint-management :deep(.el-table__header),
+.json-endpoint-management :deep(.el-table__body) {
+  table-layout: fixed;
 }
 
 @media (max-width: 768px) {

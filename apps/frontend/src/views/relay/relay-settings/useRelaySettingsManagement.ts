@@ -489,8 +489,11 @@ export const useRelaySettingsManagement = () => {
           modelRates.value.push({
             model: key,
             modelId:
-              resolveModelId({ model: item.model, modelId: item.modelId, provider: item.provider }) ||
-              key,
+              resolveModelId({
+                model: item.model,
+                modelId: item.modelId,
+                provider: item.provider,
+              }) || key,
             pricingType: item.pricingType ?? 'token-based',
             inputPrice: item.inputPrice,
             outputPrice: item.outputPrice,
@@ -711,7 +714,9 @@ export const useRelaySettingsManagement = () => {
     }
 
     for (const selectedModelName of channelForm.value.allowedModelsArray) {
-      const selectedModelInfo = availableModels.value.find((item) => item.model === selectedModelName)
+      const selectedModelInfo = availableModels.value.find(
+        (item) => item.model === selectedModelName,
+      )
       if (!selectedModelInfo) continue
 
       const selectedModelId = resolveModelId({

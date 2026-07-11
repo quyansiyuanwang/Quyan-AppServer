@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page">
+  <div v-if="isDesktop" class="desktop-page page-shell">
     <div class="article-management">
       <el-card class="page-card">
         <template #header>
@@ -64,7 +64,7 @@
                   >{{ cat.trim() }}</el-tag
                 >
               </template>
-              <span v-else class="mobile-page text-muted">—</span>
+              <span v-else class="text-muted">—</span>
             </template>
           </el-table-column>
           <el-table-column :label="i18ns.t('article.publishStatus')" min-width="100">
@@ -99,7 +99,7 @@
               {{ formatDate(row.createTime) }}
             </template>
           </el-table-column>
-          <el-table-column :label="i18ns.t('actions')" fixed="right" width="340">
+          <el-table-column :label="i18ns.t('actions')" fixed="right" width="280">
             <template #default="{ row }">
               <PermissionWrapper :require="[Permission.ARTICLE_UPDATE]" mode="disabled">
                 <el-button link type="primary" @click="handleEdit(row)">
@@ -247,7 +247,7 @@
                 </el-tabs>
               </template>
               <!-- Split view: side by side with sync scroll -->
-              <div v-else class="mobile-page editor-body split-mode">
+              <div v-else class="editor-body split-mode">
                 <div class="editor-left">
                   <el-input
                     ref="textareaRef"
@@ -759,7 +759,23 @@ const { isDesktop } = usePageDevice()
 
 <style scoped>
 .article-management {
-  padding: 20px;
+  width: 100%;
+  min-width: 0;
+}
+
+.article-management :deep(.el-table__header),
+.article-management :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.article-management :deep(.el-table__inner-wrapper),
+.article-management :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
+.article-management :deep(.el-table .cell) {
+  word-break: break-word;
 }
 
 .card-header {

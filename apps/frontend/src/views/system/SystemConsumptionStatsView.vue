@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page">
+  <div v-if="isDesktop" class="desktop-page consumption-stats-page">
     <div class="stats-toolbar">
       <div class="page-title">{{ i18ns.t('ConsumptionStats.title') }}</div>
       <div class="toolbar-right">
@@ -204,7 +204,10 @@ const selectAllFilter = (key: FilterSelectionKey, options: ConsumptionStatsFilte
   filterSelections[key] = options.map((option) => option.key)
 }
 
-const invertFilterSelection = (key: FilterSelectionKey, options: ConsumptionStatsFilterOption[]) => {
+const invertFilterSelection = (
+  key: FilterSelectionKey,
+  options: ConsumptionStatsFilterOption[],
+) => {
   const selected = new Set(filterSelections[key])
   filterSelections[key] = options
     .map((option) => option.key)
@@ -289,13 +292,8 @@ const rangeText = computed(() => {
   return `${formatDate(stats.value.range.startDate)} ~ ${formatDate(stats.value.range.endDate)}`
 })
 
-const {
-  summaryCards,
-  dailyTrendOption,
-  channelPieOption,
-  modelBarOption,
-  userBarOption,
-} = createConsumptionChartOptions(stats, formatCurrency, formatNumber)
+const { summaryCards, dailyTrendOption, channelPieOption, modelBarOption, userBarOption } =
+  createConsumptionChartOptions(stats, formatCurrency, formatNumber)
 
 const loadStats = async () => {
   loading.value = true
@@ -377,13 +375,18 @@ const { isDesktop } = usePageDevice()
 </script>
 
 <style scoped>
+.consumption-stats-page {
+  width: 100%;
+  min-width: 0;
+}
+
 .stats-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
-  max-width: 1400px;
-  margin: 0 auto 8px;
+  padding: 12px 0;
+  width: 100%;
+  margin: 0 0 8px;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -399,12 +402,31 @@ const { isDesktop } = usePageDevice()
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 .consumption-stats-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 20px 24px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 24px;
+}
+
+.consumption-stats-container > * {
+  min-width: 0;
+}
+
+.consumption-stats-page :deep(.el-row),
+.consumption-stats-page :deep(.el-col) {
+  min-width: 0;
+}
+
+.consumption-stats-page :deep(.el-card),
+.consumption-stats-page :deep(.el-card__header),
+.consumption-stats-page :deep(.el-card__body) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .consumption-mobile {
@@ -424,7 +446,7 @@ const { isDesktop } = usePageDevice()
   }
 
   .consumption-stats-container {
-    padding: 0 10px 16px;
+    padding: 0 0 16px;
   }
 }
 </style>

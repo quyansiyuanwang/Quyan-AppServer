@@ -451,8 +451,8 @@ const handleClearSelected = async () => {
 
 <style scoped lang="scss">
 .settings-container {
-  max-width: 61.8vw;
-  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .page-header {

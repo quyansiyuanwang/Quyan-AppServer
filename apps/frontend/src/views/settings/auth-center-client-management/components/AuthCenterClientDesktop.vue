@@ -1,5 +1,5 @@
 <template>
-  <div class="desktop-page">
+  <div class="auth-center-client-desktop">
     <el-card class="page-card">
       <template #header>
         <div class="card-header toolbar-row">
@@ -104,7 +104,11 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="lastUsedAt" :label="i18ns.t('authCenterClient.lastUsed')" width="180">
+        <el-table-column
+          prop="lastUsedAt"
+          :label="i18ns.t('authCenterClient.lastUsed')"
+          width="180"
+        >
           <template #default="{ row }">
             {{ row.lastUsedAt ? new Date(row.lastUsedAt).toLocaleString() : '-' }}
           </template>
@@ -164,3 +168,29 @@ const {
   handleDelete,
 } = useAuthCenterClientManagementContext()
 </script>
+
+<style scoped>
+.auth-center-client-desktop {
+  width: 100%;
+  min-width: 0;
+}
+
+.auth-center-client-desktop :deep(.el-table) {
+  width: 100%;
+}
+
+.auth-center-client-desktop :deep(.el-table__header),
+.auth-center-client-desktop :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.auth-center-client-desktop :deep(.el-table__inner-wrapper),
+.auth-center-client-desktop :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
+.auth-center-client-desktop :deep(.el-table .cell) {
+  word-break: break-word;
+}
+</style>

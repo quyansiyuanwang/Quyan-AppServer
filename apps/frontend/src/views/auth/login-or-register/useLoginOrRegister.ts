@@ -163,7 +163,9 @@ export function useLoginOrRegister() {
   }
 
   const isLogin = computed(() => mode.value === 'login')
-  const currentForm = computed<LoginForm | RegisterForm>(() => (isLogin.value ? loginForm : registerForm))
+  const currentForm = computed<LoginForm | RegisterForm>(() =>
+    isLogin.value ? loginForm : registerForm,
+  )
   const currentRules = computed<FormRules>(() => (isLogin.value ? loginRules : registerRules))
   const submitDisabled = computed(() => captchaVerifying.value)
   const passkeySupported =
@@ -447,11 +449,7 @@ export function useLoginOrRegister() {
         'error',
       )
     } else if (loginRes.code === CustomCode.ACCOUNT_DISABLED) {
-      Notification.notify(
-        i18ns.t('information'),
-        i18ns.t('message.error.accountDisabled'),
-        'error',
-      )
+      Notification.notify(i18ns.t('information'), i18ns.t('message.error.accountDisabled'), 'error')
     } else if (
       loginRes.message?.toLowerCase?.().includes('captcha') ||
       loginRes.message?.includes('人机验证')
@@ -508,11 +506,7 @@ export function useLoginOrRegister() {
       )
       setTimeout(toggleMode, 500)
     } else if (result.code === CustomCode.REGISTRATION_DISABLED) {
-      Notification.notify(
-        i18ns.t('error'),
-        i18ns.t('message.error.registrationDisabled'),
-        'error',
-      )
+      Notification.notify(i18ns.t('error'), i18ns.t('message.error.registrationDisabled'), 'error')
     } else if (result.code === CustomCode.VERIFICATION_CODE_INVALID) {
       Notification.notify(
         i18ns.t('error'),
@@ -520,11 +514,7 @@ export function useLoginOrRegister() {
         'error',
       )
     } else if (result.code === CustomCode.EMAIL_LIMIT_REACHED) {
-      Notification.notify(
-        i18ns.t('error'),
-        i18ns.t('message.error.emailLimitReached'),
-        'error',
-      )
+      Notification.notify(i18ns.t('error'), i18ns.t('message.error.emailLimitReached'), 'error')
     } else if (
       result.message?.toLowerCase?.().includes('captcha') ||
       result.message?.includes('人机验证')
@@ -666,11 +656,7 @@ export function useLoginOrRegister() {
           : errorMessage || i18ns.t('loginOrRegisterPage.tooManyRequestsFallback')
         Notification.notify(i18ns.t('error'), message, 'error')
       } else if (errorCode === CustomCode.SMTP_NOT_CONFIGURED) {
-        Notification.notify(
-          i18ns.t('error'),
-          i18ns.t('message.error.smtpNotConfigured'),
-          'error',
-        )
+        Notification.notify(i18ns.t('error'), i18ns.t('message.error.smtpNotConfigured'), 'error')
       } else if (
         errorMessage?.toLowerCase?.().includes('captcha') ||
         errorMessage?.includes('人机验证')

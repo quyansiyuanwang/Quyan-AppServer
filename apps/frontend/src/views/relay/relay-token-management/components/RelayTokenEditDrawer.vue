@@ -8,30 +8,56 @@
     :class="isDesktop ? 'relay-token-edit-dialog--desktop' : 'relay-token-edit-dialog--mobile'"
   >
     <div :class="isDesktop ? '' : 'relay-token-mobile'">
-      <el-form :model="editForm" :label-width="isDesktop ? '124px' : undefined" :label-position="isDesktop ? 'right' : 'top'" :class="isDesktop ? 'relay-token-edit-form' : ''">
+      <el-form
+        :model="editForm"
+        :label-width="isDesktop ? '124px' : undefined"
+        :label-position="isDesktop ? 'right' : 'top'"
+        :class="isDesktop ? 'relay-token-edit-form' : ''"
+      >
         <el-collapse v-model="editDialogSectionNames" class="relay-token-edit-sections">
           <el-collapse-item name="basic">
             <template #title>
-              <span class="relay-token-edit-sections__title">{{ i18ns.t('relay.basicSettings') }}</span>
+              <span class="relay-token-edit-sections__title">{{
+                i18ns.t('relay.basicSettings')
+              }}</span>
             </template>
-            <div :class="isDesktop ? 'relay-token-edit-section-grid' : 'relay-token-edit-section-stack relay-token-edit-section-stack--mobile'">
+            <div
+              :class="
+                isDesktop
+                  ? 'relay-token-edit-section-grid'
+                  : 'relay-token-edit-section-stack relay-token-edit-section-stack--mobile'
+              "
+            >
               <el-form-item :label="i18ns.t('relay.tokenName')">
-                <el-input v-model="editForm.name" :placeholder="i18ns.t('relay.tokenNamePlaceholder')" />
+                <el-input
+                  v-model="editForm.name"
+                  :placeholder="i18ns.t('relay.tokenNamePlaceholder')"
+                />
               </el-form-item>
-              <PermissionWrapper :any-require="[Permission.RELAY_TOKEN_CUSTOM_KEY, Permission.RELAY_TOKEN_CUSTOM_KEY_FREE]">
+              <PermissionWrapper
+                :any-require="[
+                  Permission.RELAY_TOKEN_CUSTOM_KEY,
+                  Permission.RELAY_TOKEN_CUSTOM_KEY_FREE,
+                ]"
+              >
                 <el-form-item>
                   <template #label>
                     <span class="form-label-with-help">
                       <span>{{ i18ns.t('relay.customKey') }}</span>
                       <el-tooltip placement="top">
                         <template #content>
-                          <div class="help-tooltip-content">{{ i18ns.t('relay.customKeyHint') }}</div>
+                          <div class="help-tooltip-content">
+                            {{ i18ns.t('relay.customKeyHint') }}
+                          </div>
                         </template>
                         <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
                       </el-tooltip>
                     </span>
                   </template>
-                  <el-input v-model="editForm.token" :placeholder="i18ns.t('relay.customKeyPlaceholder')" />
+                  <el-input
+                    v-model="editForm.token"
+                    :placeholder="i18ns.t('relay.customKeyPlaceholder')"
+                  />
                 </el-form-item>
               </PermissionWrapper>
               <el-form-item>
@@ -58,16 +84,26 @@
 
           <el-collapse-item name="channelFailover">
             <template #title>
-              <span class="relay-token-edit-sections__title">{{ i18ns.t('relay.channelFailoverSettings') }}</span>
+              <span class="relay-token-edit-sections__title">{{
+                i18ns.t('relay.channelFailoverSettings')
+              }}</span>
             </template>
-            <div :class="isDesktop ? 'relay-token-edit-section-grid' : 'relay-token-edit-section-stack relay-token-edit-section-stack--mobile'">
+            <div
+              :class="
+                isDesktop
+                  ? 'relay-token-edit-section-grid'
+                  : 'relay-token-edit-section-stack relay-token-edit-section-stack--mobile'
+              "
+            >
               <el-form-item required :class="isDesktop ? 'form-item-span-2' : undefined">
                 <template #label>
                   <span class="form-label-with-help">
                     <span>{{ i18ns.t('relay.orderedChannels') }}</span>
                     <el-tooltip placement="top">
                       <template #content>
-                        <div class="help-tooltip-content">{{ i18ns.t('relay.channelOrderHelp') }}</div>
+                        <div class="help-tooltip-content">
+                          {{ i18ns.t('relay.channelOrderHelp') }}
+                        </div>
                       </template>
                       <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
                     </el-tooltip>
@@ -78,24 +114,52 @@
                   class="channel-config-editor"
                   :class="isDesktop ? '' : 'mobile-channel-config-editor'"
                 >
-                  <div class="channel-config-toolbar" :class="isDesktop ? '' : 'channel-config-toolbar--mobile'">
+                  <div
+                    class="channel-config-toolbar"
+                    :class="isDesktop ? '' : 'channel-config-toolbar--mobile'"
+                  >
                     <template v-if="isDesktop">
                       <div class="channel-config-toolbar__actions">
-                        <el-button plain @click="state.handleCopyTokenChannelConfigs">{{ i18ns.t('copy') }}</el-button>
-                        <el-button plain @click="state.handleExportTokenChannelConfigs">{{ i18ns.t('relay.exportChannels') }}</el-button>
-                        <el-button plain @click="state.openTokenChannelImportDialog">{{ i18ns.t('relay.importChannels') }}</el-button>
-                        <el-button plain type="danger" :disabled="!state.hasSelectedChannelConfigs" @click="state.handleBatchRemoveTokenChannelConfigs">
+                        <el-button plain @click="state.handleCopyTokenChannelConfigs">{{
+                          i18ns.t('copy')
+                        }}</el-button>
+                        <el-button plain @click="state.handleExportTokenChannelConfigs">{{
+                          i18ns.t('relay.exportChannels')
+                        }}</el-button>
+                        <el-button plain @click="state.openTokenChannelImportDialog">{{
+                          i18ns.t('relay.importChannels')
+                        }}</el-button>
+                        <el-button
+                          plain
+                          type="danger"
+                          :disabled="!state.hasSelectedChannelConfigs"
+                          @click="state.handleBatchRemoveTokenChannelConfigs"
+                        >
                           {{ i18ns.t('relay.tokenChannelBatchRemove') }}
                         </el-button>
                       </div>
                     </template>
                     <template v-else>
                       <div class="channel-config-toolbar__summary">
-                        {{ i18ns.t('relay.tokenChannelSelectedConfigs', { count: selectedChannelConfigs.length }) }}
+                        {{
+                          i18ns.t('relay.tokenChannelSelectedConfigs', {
+                            count: selectedChannelConfigs.length,
+                          })
+                        }}
                       </div>
-                      <div class="channel-config-toolbar__actions channel-config-toolbar__actions--mobile">
-                        <el-button link type="primary" @click="state.toggleAllChannelConfigSelections">
-                          {{ isAllChannelConfigsSelected ? i18ns.t('relay.clearChannelSelection') : i18ns.t('relay.selectAllChannels') }}
+                      <div
+                        class="channel-config-toolbar__actions channel-config-toolbar__actions--mobile"
+                      >
+                        <el-button
+                          link
+                          type="primary"
+                          @click="state.toggleAllChannelConfigSelections"
+                        >
+                          {{
+                            isAllChannelConfigsSelected
+                              ? i18ns.t('relay.clearChannelSelection')
+                              : i18ns.t('relay.selectAllChannels')
+                          }}
                         </el-button>
                         <el-select
                           v-model="tokenChannelBatchAddIds"
@@ -109,15 +173,37 @@
                           <el-option
                             v-for="channel in tokenChannelBatchAddOptions"
                             :key="channel.id"
-                            :label="state.getChannelOptionLabel({ id: channel.id, name: channel.name, multiplier: channel.multiplier })"
+                            :label="
+                              state.getChannelOptionLabel({
+                                id: channel.id,
+                                name: channel.name,
+                                multiplier: channel.multiplier,
+                              })
+                            "
                             :value="channel.id"
                           />
                         </el-select>
-                        <el-button plain type="primary" @click="state.handleBatchAddTokenChannels">{{ i18ns.t('relay.tokenChannelBatchAdd') }}</el-button>
-                        <el-button plain @click="state.handleCopyTokenChannelConfigs">{{ i18ns.t('copy') }}</el-button>
-                        <el-button plain @click="state.handleExportTokenChannelConfigs">{{ i18ns.t('relay.exportChannels') }}</el-button>
-                        <el-button plain @click="state.openTokenChannelImportDialog">{{ i18ns.t('relay.importChannels') }}</el-button>
-                        <el-button plain type="danger" :disabled="!state.hasSelectedChannelConfigs" @click="state.handleBatchRemoveTokenChannelConfigs">
+                        <el-button
+                          plain
+                          type="primary"
+                          @click="state.handleBatchAddTokenChannels"
+                          >{{ i18ns.t('relay.tokenChannelBatchAdd') }}</el-button
+                        >
+                        <el-button plain @click="state.handleCopyTokenChannelConfigs">{{
+                          i18ns.t('copy')
+                        }}</el-button>
+                        <el-button plain @click="state.handleExportTokenChannelConfigs">{{
+                          i18ns.t('relay.exportChannels')
+                        }}</el-button>
+                        <el-button plain @click="state.openTokenChannelImportDialog">{{
+                          i18ns.t('relay.importChannels')
+                        }}</el-button>
+                        <el-button
+                          plain
+                          type="danger"
+                          :disabled="!state.hasSelectedChannelConfigs"
+                          @click="state.handleBatchRemoveTokenChannelConfigs"
+                        >
                           {{ i18ns.t('relay.tokenChannelBatchRemove') }}
                         </el-button>
                       </div>
@@ -140,7 +226,12 @@
                     <div class="channel-config-order">
                       {{ index === 0 ? i18ns.t('relay.primaryChannel') : `#${index + 1}` }}
                     </div>
-                    <el-select v-model="config.channelId" :placeholder="i18ns.t('relay.channel')" class="channel-config-select" filterable>
+                    <el-select
+                      v-model="config.channelId"
+                      :placeholder="i18ns.t('relay.channel')"
+                      class="channel-config-select"
+                      filterable
+                    >
                       <el-option
                         v-for="ch in state.getAvailableChannelOptions(config.channelId)"
                         :key="ch.id"
@@ -148,7 +239,10 @@
                         :value="ch.id"
                       />
                     </el-select>
-                    <div class="channel-config-actions" :class="isDesktop ? '' : 'mobile-channel-config-actions'">
+                    <div
+                      class="channel-config-actions"
+                      :class="isDesktop ? '' : 'mobile-channel-config-actions'"
+                    >
                       <el-tooltip :content="i18ns.t('delete')" placement="top">
                         <el-button
                           plain
@@ -162,7 +256,12 @@
                       </el-tooltip>
                     </div>
                   </div>
-                  <el-button plain type="primary" :disabled="channelLimitReached" @click="state.addChannelConfig">
+                  <el-button
+                    plain
+                    type="primary"
+                    :disabled="channelLimitReached"
+                    @click="state.addChannelConfig"
+                  >
                     {{ i18ns.t('relay.addChannel') }}
                   </el-button>
                 </div>
@@ -182,22 +281,36 @@
                     <span>{{ i18ns.t('relay.failoverSettings') }}</span>
                     <el-tooltip placement="top">
                       <template #content>
-                        <div class="help-tooltip-content">{{ i18ns.t('relay.failoverOverviewHelp') }}</div>
+                        <div class="help-tooltip-content">
+                          {{ i18ns.t('relay.failoverOverviewHelp') }}
+                        </div>
                       </template>
                       <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
                     </el-tooltip>
                   </span>
                 </template>
-                <div class="failover-config-editor" :class="[{ 'is-disabled': !editForm.failoverConfig.enabled }, isDesktop ? '' : 'mobile-failover-config-editor']">
+                <div
+                  class="failover-config-editor"
+                  :class="[
+                    { 'is-disabled': !editForm.failoverConfig.enabled },
+                    isDesktop ? '' : 'mobile-failover-config-editor',
+                  ]"
+                >
                   <div class="failover-overview">
                     <div class="failover-overview__content">
                       <div class="failover-overview__headline">
                         <span class="failover-overview__status">
-                          {{ editForm.failoverConfig.enabled ? i18ns.t('relay.failoverEnabled') : i18ns.t('relay.failoverDisabled') }}
+                          {{
+                            editForm.failoverConfig.enabled
+                              ? i18ns.t('relay.failoverEnabled')
+                              : i18ns.t('relay.failoverDisabled')
+                          }}
                         </span>
                         <el-tooltip placement="top">
                           <template #content>
-                            <div class="help-tooltip-content">{{ i18ns.t('relay.failoverOverviewHelp') }}</div>
+                            <div class="help-tooltip-content">
+                              {{ i18ns.t('relay.failoverOverviewHelp') }}
+                            </div>
                           </template>
                           <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
                         </el-tooltip>
@@ -213,13 +326,20 @@
                           <span>{{ i18ns.t('relay.failoverThreshold') }}</span>
                           <el-tooltip placement="top">
                             <template #content>
-                              <div class="help-tooltip-content">{{ i18ns.t('relay.failoverThresholdHelp') }}</div>
+                              <div class="help-tooltip-content">
+                                {{ i18ns.t('relay.failoverThresholdHelp') }}
+                              </div>
                             </template>
                             <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
                           </el-tooltip>
                         </span>
                       </div>
-                      <el-input-number v-model="editForm.failoverConfig.failoverThreshold" :min="0" :max="32" class="failover-input" />
+                      <el-input-number
+                        v-model="editForm.failoverConfig.failoverThreshold"
+                        :min="0"
+                        :max="32"
+                        class="failover-input"
+                      />
                     </div>
 
                     <div class="failover-metric-card">
@@ -228,13 +348,20 @@
                           <span>{{ i18ns.t('relay.maxRetries') }}</span>
                           <el-tooltip placement="top">
                             <template #content>
-                              <div class="help-tooltip-content">{{ i18ns.t('relay.maxRetriesHelp') }}</div>
+                              <div class="help-tooltip-content">
+                                {{ i18ns.t('relay.maxRetriesHelp') }}
+                              </div>
                             </template>
                             <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
                           </el-tooltip>
                         </span>
                       </div>
-                      <el-input-number v-model="editForm.failoverConfig.maxRetries" :min="0" :max="10" class="failover-input" />
+                      <el-input-number
+                        v-model="editForm.failoverConfig.maxRetries"
+                        :min="0"
+                        :max="10"
+                        class="failover-input"
+                      />
                     </div>
 
                     <div class="failover-metric-card">
@@ -243,13 +370,20 @@
                           <span>{{ i18ns.t('relay.failbackCooldownMinutes') }}</span>
                           <el-tooltip placement="top">
                             <template #content>
-                              <div class="help-tooltip-content">{{ i18ns.t('relay.failbackCooldownMinutesHelp') }}</div>
+                              <div class="help-tooltip-content">
+                                {{ i18ns.t('relay.failbackCooldownMinutesHelp') }}
+                              </div>
                             </template>
                             <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
                           </el-tooltip>
                         </span>
                       </div>
-                      <el-input-number v-model="editForm.failoverConfig.failbackCooldownMinutes" :min="0" :max="10080" class="failover-input" />
+                      <el-input-number
+                        v-model="editForm.failoverConfig.failbackCooldownMinutes"
+                        :min="0"
+                        :max="10080"
+                        class="failover-input"
+                      />
                     </div>
                   </div>
 
@@ -260,7 +394,15 @@
                         <el-tooltip placement="top">
                           <template #content>
                             <div class="help-tooltip-content">
-                              <div>{{ i18ns.t(isDesktop ? 'relay.retryStatusCodesHelpIntro' : 'relay.retryStatusCodesHelpMobile') }}</div>
+                              <div>
+                                {{
+                                  i18ns.t(
+                                    isDesktop
+                                      ? 'relay.retryStatusCodesHelpIntro'
+                                      : 'relay.retryStatusCodesHelpMobile',
+                                  )
+                                }}
+                              </div>
                               <div>{{ i18ns.t('relay.retryStatusCodesHelpExamples') }}</div>
                             </div>
                           </template>
@@ -300,16 +442,26 @@
 
           <el-collapse-item name="quota">
             <template #title>
-              <span class="relay-token-edit-sections__title">{{ i18ns.t('relay.quotaSettings') }}</span>
+              <span class="relay-token-edit-sections__title">{{
+                i18ns.t('relay.quotaSettings')
+              }}</span>
             </template>
-            <div :class="isDesktop ? 'relay-token-edit-section-grid' : 'relay-token-edit-section-stack relay-token-edit-section-stack--mobile'">
+            <div
+              :class="
+                isDesktop
+                  ? 'relay-token-edit-section-grid'
+                  : 'relay-token-edit-section-stack relay-token-edit-section-stack--mobile'
+              "
+            >
               <el-form-item :class="isDesktop ? '' : undefined">
                 <template #label>
                   <span class="form-label-with-help">
                     <span>{{ i18ns.t('relay.quotaLimit') }}</span>
                     <el-tooltip placement="top">
                       <template #content>
-                        <div class="help-tooltip-content">{{ i18ns.t('relay.quotaLimitHelp') }}</div>
+                        <div class="help-tooltip-content">
+                          {{ i18ns.t('relay.quotaLimitHelp') }}
+                        </div>
                       </template>
                       <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
                     </el-tooltip>
@@ -332,16 +484,26 @@
                     <span>{{ i18ns.t('relay.quotaWindows') }}</span>
                     <el-tooltip placement="top">
                       <template #content>
-                        <div class="help-tooltip-content">{{ i18ns.t('relay.quotaWindowsHelp') }}</div>
+                        <div class="help-tooltip-content">
+                          {{ i18ns.t('relay.quotaWindowsHelp') }}
+                        </div>
                       </template>
                       <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
                     </el-tooltip>
                   </span>
                 </template>
-                <div class="quota-window-editor" :class="isDesktop ? '' : 'quota-window-editor--mobile'">
-                  <div class="quota-window-editor__header" :class="isDesktop ? '' : 'quota-window-editor__header--mobile'">
+                <div
+                  class="quota-window-editor"
+                  :class="isDesktop ? '' : 'quota-window-editor--mobile'"
+                >
+                  <div
+                    class="quota-window-editor__header"
+                    :class="isDesktop ? '' : 'quota-window-editor__header--mobile'"
+                  >
                     <div class="quota-window-editor__header-content">
-                      <div class="quota-window-editor__title">{{ i18ns.t('relay.quotaWindows') }}</div>
+                      <div class="quota-window-editor__title">
+                        {{ i18ns.t('relay.quotaWindows') }}
+                      </div>
                       <div class="quota-window-editor__summary">
                         {{
                           !editForm.quotaWindowsEnabled
@@ -354,7 +516,9 @@
                     </div>
                     <div class="quota-window-editor__header-actions">
                       <div class="quota-window-editor__toggle">
-                        <span class="quota-window-editor__toggle-label">{{ i18ns.t('relay.quotaWindowsToggle') }}</span>
+                        <span class="quota-window-editor__toggle-label">{{
+                          i18ns.t('relay.quotaWindowsToggle')
+                        }}</span>
                         <el-switch
                           :model-value="editForm.quotaWindowsEnabled"
                           :disabled="state.saving"
@@ -365,7 +529,10 @@
                         plain
                         type="primary"
                         :size="isDesktop ? undefined : 'small'"
-                        :disabled="!editForm.quotaWindowsEnabled || editForm.quotaWindows.length >= state.MAX_QUOTA_WINDOWS"
+                        :disabled="
+                          !editForm.quotaWindowsEnabled ||
+                          editForm.quotaWindows.length >= state.MAX_QUOTA_WINDOWS
+                        "
                         @click="state.addQuotaWindow"
                       >
                         {{ i18ns.t('relay.addQuotaWindow') }}
@@ -373,7 +540,10 @@
                     </div>
                   </div>
 
-                  <div v-if="editForm.quotaWindowsEnabled && editForm.quotaWindows.length" class="quota-window-editor__list">
+                  <div
+                    v-if="editForm.quotaWindowsEnabled && editForm.quotaWindows.length"
+                    class="quota-window-editor__list"
+                  >
                     <div
                       v-for="(quotaWindow, index) in editForm.quotaWindows"
                       :key="`${isDesktop ? 'desktop' : 'mobile'}-quota-window-${index}`"
@@ -382,7 +552,9 @@
                     >
                       <div class="quota-window-editor__item-head">
                         <div class="quota-window-editor__item-heading">
-                          <span class="quota-window-editor__item-title">{{ i18ns.t('relay.quotaWindowRuleTitle', { index: index + 1 }) }}</span>
+                          <span class="quota-window-editor__item-title">{{
+                            i18ns.t('relay.quotaWindowRuleTitle', { index: index + 1 })
+                          }}</span>
                           <span
                             v-if="!isDesktop"
                             class="quota-window-editor__item-meta"
@@ -390,26 +562,53 @@
                             tabindex="0"
                             @click="state.toggleQuotaWindowPreviewMode(quotaWindow, index)"
                             @keydown.enter="state.toggleQuotaWindowPreviewMode(quotaWindow, index)"
-                            @keydown.space.prevent="state.toggleQuotaWindowPreviewMode(quotaWindow, index)"
+                            @keydown.space.prevent="
+                              state.toggleQuotaWindowPreviewMode(quotaWindow, index)
+                            "
                           >
                             {{ state.formatQuotaWindowPreview(quotaWindow, index) }}
                           </span>
                         </div>
-                        <el-button link type="danger" :size="isDesktop ? undefined : 'small'" :disabled="state.saving" @click="state.removeQuotaWindow(index)">
+                        <el-button
+                          link
+                          type="danger"
+                          :size="isDesktop ? undefined : 'small'"
+                          :disabled="state.saving"
+                          @click="state.removeQuotaWindow(index)"
+                        >
                           {{ i18ns.t('relay.removeQuotaWindow') }}
                         </el-button>
                       </div>
-                      <div class="quota-window-editor__fields" :class="isDesktop ? '' : 'quota-window-editor__fields--mobile'">
+                      <div
+                        class="quota-window-editor__fields"
+                        :class="isDesktop ? '' : 'quota-window-editor__fields--mobile'"
+                      >
                         <div class="quota-window-editor__field">
-                          <label class="quota-window-editor__field-label">{{ i18ns.t('relay.quotaWindowUnit') }}</label>
-                          <el-select v-model="quotaWindow.quotaUnit" @change="state.handleQuotaWindowUnitChange(quotaWindow)">
-                            <el-option :label="i18ns.t('relay.quotaWindowUnitAmount')" value="amount" />
-                            <el-option :label="i18ns.t('relay.quotaWindowUnitRequest')" value="request" />
-                            <el-option :label="i18ns.t('relay.quotaWindowUnitToken')" value="token" />
+                          <label class="quota-window-editor__field-label">{{
+                            i18ns.t('relay.quotaWindowUnit')
+                          }}</label>
+                          <el-select
+                            v-model="quotaWindow.quotaUnit"
+                            @change="state.handleQuotaWindowUnitChange(quotaWindow)"
+                          >
+                            <el-option
+                              :label="i18ns.t('relay.quotaWindowUnitAmount')"
+                              value="amount"
+                            />
+                            <el-option
+                              :label="i18ns.t('relay.quotaWindowUnitRequest')"
+                              value="request"
+                            />
+                            <el-option
+                              :label="i18ns.t('relay.quotaWindowUnitToken')"
+                              value="token"
+                            />
                           </el-select>
                         </div>
                         <div class="quota-window-editor__field">
-                          <label class="quota-window-editor__field-label">{{ i18ns.t('relay.quotaWindowLimit') }}</label>
+                          <label class="quota-window-editor__field-label">{{
+                            i18ns.t('relay.quotaWindowLimit')
+                          }}</label>
                           <el-input-number
                             :key="`${isDesktop ? 'desktop' : 'mobile'}-quota-limit-${index}-${quotaWindow.quotaUnit}`"
                             v-model="quotaWindow.quotaLimit"
@@ -420,36 +619,102 @@
                             :style="isDesktop ? undefined : 'width: 100%'"
                           />
                         </div>
-                        <div class="quota-window-editor__field" :class="isDesktop ? 'quota-window-editor__field--span-2' : undefined">
-                          <label class="quota-window-editor__field-label">{{ i18ns.t('monthlyPass.quotaWindowHours') }}</label>
-                          <div class="quota-window-duration-card" :class="isDesktop ? '' : 'quota-window-duration-card--mobile'">
-                            <div class="quota-window-picker-row" :class="isDesktop ? '' : 'quota-window-picker-row--mobile'">
-                              <div class="quota-window-picker" :class="isDesktop ? 'quota-window-picker--desktop' : 'quota-window-picker--mobile'">
+                        <div
+                          class="quota-window-editor__field"
+                          :class="isDesktop ? 'quota-window-editor__field--span-2' : undefined"
+                        >
+                          <label class="quota-window-editor__field-label">{{
+                            i18ns.t('monthlyPass.quotaWindowHours')
+                          }}</label>
+                          <div
+                            class="quota-window-duration-card"
+                            :class="isDesktop ? '' : 'quota-window-duration-card--mobile'"
+                          >
+                            <div
+                              class="quota-window-picker-row"
+                              :class="isDesktop ? '' : 'quota-window-picker-row--mobile'"
+                            >
+                              <div
+                                class="quota-window-picker"
+                                :class="
+                                  isDesktop
+                                    ? 'quota-window-picker--desktop'
+                                    : 'quota-window-picker--mobile'
+                                "
+                              >
                                 <div class="quota-window-picker__segment">
-                                  <el-input-number v-model="quotaWindow.months" :min="0" :max="state.MAX_QUOTA_WINDOW_MONTHS" :step="1" :precision="0" class="quota-window-input" @change="state.applyQuotaWindowParts(quotaWindow)" />
-                                  <span class="quota-window-unit">{{ i18ns.t('monthlyPass.monthsUnit') }}</span>
+                                  <el-input-number
+                                    v-model="quotaWindow.months"
+                                    :min="0"
+                                    :max="state.MAX_QUOTA_WINDOW_MONTHS"
+                                    :step="1"
+                                    :precision="0"
+                                    class="quota-window-input"
+                                    @change="state.applyQuotaWindowParts(quotaWindow)"
+                                  />
+                                  <span class="quota-window-unit">{{
+                                    i18ns.t('monthlyPass.monthsUnit')
+                                  }}</span>
                                 </div>
                                 <div class="quota-window-picker__segment">
-                                  <el-input-number v-model="quotaWindow.days" :min="0" :max="state.MAX_QUOTA_WINDOW_DAYS" :step="1" :precision="0" class="quota-window-input" @change="state.applyQuotaWindowParts(quotaWindow)" />
-                                  <span class="quota-window-unit">{{ i18ns.t('monthlyPass.daysUnit') }}</span>
+                                  <el-input-number
+                                    v-model="quotaWindow.days"
+                                    :min="0"
+                                    :max="state.MAX_QUOTA_WINDOW_DAYS"
+                                    :step="1"
+                                    :precision="0"
+                                    class="quota-window-input"
+                                    @change="state.applyQuotaWindowParts(quotaWindow)"
+                                  />
+                                  <span class="quota-window-unit">{{
+                                    i18ns.t('monthlyPass.daysUnit')
+                                  }}</span>
                                 </div>
                                 <div class="quota-window-picker__segment">
-                                  <el-input-number v-model="quotaWindow.hours" :min="0" :max="state.MAX_QUOTA_WINDOW_HOUR_PART" :step="1" :precision="0" class="quota-window-input" @change="state.applyQuotaWindowParts(quotaWindow)" />
-                                  <span class="quota-window-unit">{{ i18ns.t('monthlyPass.hoursUnit') }}</span>
+                                  <el-input-number
+                                    v-model="quotaWindow.hours"
+                                    :min="0"
+                                    :max="state.MAX_QUOTA_WINDOW_HOUR_PART"
+                                    :step="1"
+                                    :precision="0"
+                                    class="quota-window-input"
+                                    @change="state.applyQuotaWindowParts(quotaWindow)"
+                                  />
+                                  <span class="quota-window-unit">{{
+                                    i18ns.t('monthlyPass.hoursUnit')
+                                  }}</span>
                                 </div>
                                 <div class="quota-window-picker__segment">
-                                  <el-input-number v-model="quotaWindow.minutes" :min="0" :max="state.MAX_QUOTA_WINDOW_MINUTE_PART" :step="1" :precision="0" class="quota-window-input" @change="state.applyQuotaWindowParts(quotaWindow)" />
-                                  <span class="quota-window-unit">{{ i18ns.t('monthlyPass.minutesUnit') }}</span>
+                                  <el-input-number
+                                    v-model="quotaWindow.minutes"
+                                    :min="0"
+                                    :max="state.MAX_QUOTA_WINDOW_MINUTE_PART"
+                                    :step="1"
+                                    :precision="0"
+                                    class="quota-window-input"
+                                    @change="state.applyQuotaWindowParts(quotaWindow)"
+                                  />
+                                  <span class="quota-window-unit">{{
+                                    i18ns.t('monthlyPass.minutesUnit')
+                                  }}</span>
                                 </div>
                               </div>
                               <div
                                 class="quota-window-value"
-                                :class="isDesktop ? 'quota-window-value--desktop' : 'quota-window-value--mobile'"
+                                :class="
+                                  isDesktop
+                                    ? 'quota-window-value--desktop'
+                                    : 'quota-window-value--mobile'
+                                "
                                 role="button"
                                 tabindex="0"
                                 @click="state.toggleQuotaWindowPreviewMode(quotaWindow, index)"
-                                @keydown.enter="state.toggleQuotaWindowPreviewMode(quotaWindow, index)"
-                                @keydown.space.prevent="state.toggleQuotaWindowPreviewMode(quotaWindow, index)"
+                                @keydown.enter="
+                                  state.toggleQuotaWindowPreviewMode(quotaWindow, index)
+                                "
+                                @keydown.space.prevent="
+                                  state.toggleQuotaWindowPreviewMode(quotaWindow, index)
+                                "
                               >
                                 {{ state.formatQuotaWindowPreview(quotaWindow, index) }}
                               </div>
@@ -466,7 +731,11 @@
                     :title="i18ns.t('relay.quotaWindowsDisabled')"
                     :description="i18ns.t('relay.quotaWindowsToggleHelp')"
                   />
-                  <el-empty v-else :description="i18ns.t('relay.quotaWindowsEmpty')" :image-size="isDesktop ? 92 : 84" />
+                  <el-empty
+                    v-else
+                    :description="i18ns.t('relay.quotaWindowsEmpty')"
+                    :image-size="isDesktop ? 92 : 84"
+                  />
                 </div>
               </el-form-item>
             </div>
@@ -474,16 +743,26 @@
 
           <el-collapse-item name="advanced">
             <template #title>
-              <span class="relay-token-edit-sections__title">{{ i18ns.t('relay.advancedSettings') }}</span>
+              <span class="relay-token-edit-sections__title">{{
+                i18ns.t('relay.advancedSettings')
+              }}</span>
             </template>
-            <div :class="isDesktop ? 'relay-token-edit-section-grid' : 'relay-token-edit-section-stack relay-token-edit-section-stack--mobile'">
+            <div
+              :class="
+                isDesktop
+                  ? 'relay-token-edit-section-grid'
+                  : 'relay-token-edit-section-stack relay-token-edit-section-stack--mobile'
+              "
+            >
               <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
                 <template #label>
                   <span class="form-label-with-help">
                     <span>{{ i18ns.t('relay.ipWhitelist') }}</span>
                     <el-tooltip placement="top">
                       <template #content>
-                        <div class="help-tooltip-content">{{ i18ns.t('relay.ipWhitelistHelp') }}</div>
+                        <div class="help-tooltip-content">
+                          {{ i18ns.t('relay.ipWhitelistHelp') }}
+                        </div>
                       </template>
                       <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
                     </el-tooltip>
@@ -502,7 +781,9 @@
                     <span>{{ i18ns.t('relay.allowedModels') }}</span>
                     <el-tooltip placement="top">
                       <template #content>
-                        <div class="help-tooltip-content">{{ i18ns.t('relay.allowedModelsHelp') }}</div>
+                        <div class="help-tooltip-content">
+                          {{ i18ns.t('relay.allowedModelsHelp') }}
+                        </div>
                       </template>
                       <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
                     </el-tooltip>
@@ -516,13 +797,26 @@
                   style="width: 100%"
                   :loading="loadingModels"
                 >
-                  <el-option v-for="modelId in filteredModelIds" :key="modelId" :label="state.getModelIdDisplayLabel(modelId)" :value="modelId" />
+                  <el-option
+                    v-for="modelId in filteredModelIds"
+                    :key="modelId"
+                    :label="state.getModelIdDisplayLabel(modelId)"
+                    :value="modelId"
+                  />
                 </el-select>
               </el-form-item>
-              <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined" :label="i18ns.t('relay.modelMapping')">
+              <el-form-item
+                :class="isDesktop ? 'form-item-span-2' : undefined"
+                :label="i18ns.t('relay.modelMapping')"
+              >
                 <div class="flex flex-col gap-1 w-full">
-                  <ModelMappingEditor v-model="editForm.modelMapping" :available-models="channelFilteredModelNames" />
-                  <span class="text-[#909399] text-xs">{{ i18ns.t('relay.tokenModelMappingHelp') }}</span>
+                  <ModelMappingEditor
+                    v-model="editForm.modelMapping"
+                    :available-models="channelFilteredModelNames"
+                  />
+                  <span class="text-[#909399] text-xs">{{
+                    i18ns.t('relay.tokenModelMappingHelp')
+                  }}</span>
                 </div>
               </el-form-item>
             </div>
@@ -532,7 +826,9 @@
     </div>
     <template #footer>
       <el-button @click="showEditDialog = false">{{ i18ns.t('cancel') }}</el-button>
-      <el-button type="primary" :loading="saving" @click="state.handleSave">{{ i18ns.t('confirm') }}</el-button>
+      <el-button type="primary" :loading="saving" @click="state.handleSave">{{
+        i18ns.t('confirm')
+      }}</el-button>
     </template>
   </el-drawer>
 </template>

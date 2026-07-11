@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktop" class="passkey-management desktop-page">
+  <div v-if="isDesktop" class="passkey-management desktop-page page-shell">
     <el-card class="page-card">
       <template #header>
         <div class="card-header toolbar-row">
@@ -229,6 +229,11 @@ onMounted(loadCredentials)
 </script>
 
 <style scoped>
+.passkey-management {
+  width: 100%;
+  min-width: 0;
+}
+
 .passkey-mobile {
   padding: 8px 6px 16px;
 }

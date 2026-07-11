@@ -74,10 +74,20 @@ defineProps<{
 <style scoped>
 .chart-grid {
   margin-bottom: 16px;
+  width: 100%;
+  min-width: 0;
 }
 
 .chart-card {
   border-radius: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.chart-card :deep(.el-card__body) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .card-header {

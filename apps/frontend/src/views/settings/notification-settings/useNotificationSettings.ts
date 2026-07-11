@@ -305,7 +305,11 @@ export const useNotificationSettings = () => {
   const loadInbox = async () => {
     loadingInbox.value = true
     try {
-      const res = await service.getInbox(inboxPage.value, inboxPageSize.value, inboxUnreadOnly.value)
+      const res = await service.getInbox(
+        inboxPage.value,
+        inboxPageSize.value,
+        inboxUnreadOnly.value,
+      )
       inboxItems.value = (res.data?.items ?? []) as NotificationInboxItemDto[]
       inboxTotal.value = (res.data?.total ?? 0) as number
       inboxUnreadCount.value = (res.data?.unreadCount ?? 0) as number

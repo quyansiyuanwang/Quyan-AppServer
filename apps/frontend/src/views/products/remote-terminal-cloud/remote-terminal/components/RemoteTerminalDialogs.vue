@@ -30,7 +30,9 @@
         </el-button>
         <el-button
           :disabled="
-            !currentSelectedOnlineDeviceId || directoryBrowserLoading || !directoryBrowser.parentPath
+            !currentSelectedOnlineDeviceId ||
+            directoryBrowserLoading ||
+            !directoryBrowser.parentPath
           "
           @click="browseRemoteDirectory(directoryBrowser.parentPath)"
         >
@@ -169,7 +171,9 @@
           </template>
           <div class="dialog-hint">{{ i18ns.t('remoteTerminal.shortcutEditorHint') }}</div>
           <div class="shortcut-editor-actions">
-            <el-button @click="resetShortcutDraft">{{ i18ns.t('remoteTerminal.clearShortcutDraft') }}</el-button>
+            <el-button @click="resetShortcutDraft">{{
+              i18ns.t('remoteTerminal.clearShortcutDraft')
+            }}</el-button>
             <el-button type="primary" @click="saveShortcutDraft">
               {{
                 shortcutEditMode === 'create'

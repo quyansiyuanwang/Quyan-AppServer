@@ -8,18 +8,42 @@
         </div>
       </template>
       <el-table :data="stats.byChannel" size="small">
-        <el-table-column prop="label" :label="i18ns.t('ConsumptionStats.channel')" min-width="180" />
-        <el-table-column prop="totalSpend" :label="i18ns.t('ConsumptionStats.totalSpend')" min-width="140">
+        <el-table-column
+          prop="label"
+          :label="i18ns.t('ConsumptionStats.channel')"
+          min-width="180"
+        />
+        <el-table-column
+          prop="totalSpend"
+          :label="i18ns.t('ConsumptionStats.totalSpend')"
+          min-width="140"
+        >
           <template #default="{ row }">{{ formatCurrency(row.totalSpend) }}</template>
         </el-table-column>
-        <el-table-column prop="chargedSpend" :label="i18ns.t('ConsumptionStats.chargedSpend')" min-width="140">
+        <el-table-column
+          prop="chargedSpend"
+          :label="i18ns.t('ConsumptionStats.chargedSpend')"
+          min-width="140"
+        >
           <template #default="{ row }">{{ formatCurrency(row.chargedSpend) }}</template>
         </el-table-column>
-        <el-table-column prop="coveredSpend" :label="i18ns.t('ConsumptionStats.coveredSpend')" min-width="140">
+        <el-table-column
+          prop="coveredSpend"
+          :label="i18ns.t('ConsumptionStats.coveredSpend')"
+          min-width="140"
+        >
           <template #default="{ row }">{{ formatCurrency(row.coveredSpend) }}</template>
         </el-table-column>
-        <el-table-column prop="totalRequests" :label="i18ns.t('ConsumptionStats.requests')" min-width="110" />
-        <el-table-column prop="totalTokens" :label="i18ns.t('ConsumptionStats.tokens')" min-width="130" />
+        <el-table-column
+          prop="totalRequests"
+          :label="i18ns.t('ConsumptionStats.requests')"
+          min-width="110"
+        />
+        <el-table-column
+          prop="totalTokens"
+          :label="i18ns.t('ConsumptionStats.tokens')"
+          min-width="130"
+        />
         <el-table-column prop="share" :label="i18ns.t('ConsumptionStats.share')" min-width="110">
           <template #default="{ row }">{{ formatPercent(row.share) }}</template>
         </el-table-column>
@@ -35,12 +59,28 @@
             </div>
           </template>
           <el-table :data="stats.byModel" size="small">
-            <el-table-column prop="label" :label="i18ns.t('ConsumptionStats.model')" min-width="200" />
-            <el-table-column prop="totalSpend" :label="i18ns.t('ConsumptionStats.totalSpend')" min-width="130">
+            <el-table-column
+              prop="label"
+              :label="i18ns.t('ConsumptionStats.model')"
+              min-width="200"
+            />
+            <el-table-column
+              prop="totalSpend"
+              :label="i18ns.t('ConsumptionStats.totalSpend')"
+              min-width="130"
+            >
               <template #default="{ row }">{{ formatCurrency(row.totalSpend) }}</template>
             </el-table-column>
-            <el-table-column prop="totalRequests" :label="i18ns.t('ConsumptionStats.requests')" min-width="100" />
-            <el-table-column prop="totalTokens" :label="i18ns.t('ConsumptionStats.tokens')" min-width="120" />
+            <el-table-column
+              prop="totalRequests"
+              :label="i18ns.t('ConsumptionStats.requests')"
+              min-width="100"
+            />
+            <el-table-column
+              prop="totalTokens"
+              :label="i18ns.t('ConsumptionStats.tokens')"
+              min-width="120"
+            />
           </el-table>
         </el-card>
       </el-col>
@@ -52,12 +92,28 @@
             </div>
           </template>
           <el-table :data="stats.byUser" size="small">
-            <el-table-column prop="label" :label="i18ns.t('ConsumptionStats.user')" min-width="180" />
-            <el-table-column prop="totalSpend" :label="i18ns.t('ConsumptionStats.totalSpend')" min-width="130">
+            <el-table-column
+              prop="label"
+              :label="i18ns.t('ConsumptionStats.user')"
+              min-width="180"
+            />
+            <el-table-column
+              prop="totalSpend"
+              :label="i18ns.t('ConsumptionStats.totalSpend')"
+              min-width="130"
+            >
               <template #default="{ row }">{{ formatCurrency(row.totalSpend) }}</template>
             </el-table-column>
-            <el-table-column prop="totalRequests" :label="i18ns.t('ConsumptionStats.requests')" min-width="100" />
-            <el-table-column prop="totalTokens" :label="i18ns.t('ConsumptionStats.tokens')" min-width="120" />
+            <el-table-column
+              prop="totalRequests"
+              :label="i18ns.t('ConsumptionStats.requests')"
+              min-width="100"
+            />
+            <el-table-column
+              prop="totalTokens"
+              :label="i18ns.t('ConsumptionStats.tokens')"
+              min-width="120"
+            />
           </el-table>
         </el-card>
       </el-col>
@@ -67,8 +123,16 @@
   <el-collapse v-else class="mobile-collapse">
     <el-collapse-item :title="i18ns.t('ConsumptionStats.channelTable')" name="channel">
       <el-table :data="stats.byChannel" size="small">
-        <el-table-column prop="label" :label="i18ns.t('ConsumptionStats.channel')" min-width="140" />
-        <el-table-column prop="totalSpend" :label="i18ns.t('ConsumptionStats.totalSpend')" min-width="120">
+        <el-table-column
+          prop="label"
+          :label="i18ns.t('ConsumptionStats.channel')"
+          min-width="140"
+        />
+        <el-table-column
+          prop="totalSpend"
+          :label="i18ns.t('ConsumptionStats.totalSpend')"
+          min-width="120"
+        >
           <template #default="{ row }">{{ formatCurrency(row.totalSpend) }}</template>
         </el-table-column>
       </el-table>
@@ -76,7 +140,11 @@
     <el-collapse-item :title="i18ns.t('ConsumptionStats.modelTable')" name="model">
       <el-table :data="stats.byModel" size="small">
         <el-table-column prop="label" :label="i18ns.t('ConsumptionStats.model')" min-width="160" />
-        <el-table-column prop="totalSpend" :label="i18ns.t('ConsumptionStats.totalSpend')" min-width="120">
+        <el-table-column
+          prop="totalSpend"
+          :label="i18ns.t('ConsumptionStats.totalSpend')"
+          min-width="120"
+        >
           <template #default="{ row }">{{ formatCurrency(row.totalSpend) }}</template>
         </el-table-column>
       </el-table>
@@ -84,7 +152,11 @@
     <el-collapse-item :title="i18ns.t('ConsumptionStats.userTable')" name="user">
       <el-table :data="stats.byUser" size="small">
         <el-table-column prop="label" :label="i18ns.t('ConsumptionStats.user')" min-width="140" />
-        <el-table-column prop="totalSpend" :label="i18ns.t('ConsumptionStats.totalSpend')" min-width="120">
+        <el-table-column
+          prop="totalSpend"
+          :label="i18ns.t('ConsumptionStats.totalSpend')"
+          min-width="120"
+        >
           <template #default="{ row }">{{ formatCurrency(row.totalSpend) }}</template>
         </el-table-column>
       </el-table>
@@ -109,10 +181,20 @@ defineProps<{
 <style scoped>
 .table-grid {
   margin-bottom: 16px;
+  width: 100%;
+  min-width: 0;
 }
 
 .table-card {
   border-radius: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.table-card :deep(.el-card__body) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .card-header,
@@ -121,6 +203,7 @@ defineProps<{
   justify-content: space-between;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .card-title {
@@ -128,7 +211,29 @@ defineProps<{
   font-weight: 600;
 }
 
+.table-card :deep(.el-table),
+.mobile-collapse :deep(.el-table) {
+  width: 100%;
+}
+
+.table-card :deep(.el-table__inner-wrapper),
+.table-card :deep(.el-table__body-wrapper),
+.mobile-collapse :deep(.el-table__inner-wrapper),
+.mobile-collapse :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
+.table-card :deep(.el-table__header),
+.table-card :deep(.el-table__body),
+.mobile-collapse :deep(.el-table__header),
+.mobile-collapse :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
 .mobile-collapse {
   margin-top: 12px;
+  width: 100%;
+  min-width: 0;
 }
 </style>

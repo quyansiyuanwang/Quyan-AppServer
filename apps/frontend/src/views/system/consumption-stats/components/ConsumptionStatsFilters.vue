@@ -18,7 +18,9 @@
       <div class="filter-item">
         <div class="filter-label-row">
           <span class="filter-label">{{ i18ns.t('ConsumptionStats.userFilter') }}</span>
-          <span class="filter-count">{{ getSelectedSummary('userIds', stats.filterOptions.users.length) }}</span>
+          <span class="filter-count">{{
+            getSelectedSummary('userIds', stats.filterOptions.users.length)
+          }}</span>
         </div>
         <FilterTableSelect
           :model-value="filterSelections.userIds"
@@ -34,7 +36,9 @@
       <div class="filter-item">
         <div class="filter-label-row">
           <span class="filter-label">{{ i18ns.t('ConsumptionStats.modelFilter') }}</span>
-          <span class="filter-count">{{ getSelectedSummary('models', stats.filterOptions.models.length) }}</span>
+          <span class="filter-count">{{
+            getSelectedSummary('models', stats.filterOptions.models.length)
+          }}</span>
         </div>
         <FilterTableSelect
           :model-value="filterSelections.models"
@@ -50,7 +54,9 @@
       <div class="filter-item">
         <div class="filter-label-row">
           <span class="filter-label">{{ i18ns.t('ConsumptionStats.channelFilter') }}</span>
-          <span class="filter-count">{{ getSelectedSummary('channels', stats.filterOptions.channels.length) }}</span>
+          <span class="filter-count">{{
+            getSelectedSummary('channels', stats.filterOptions.channels.length)
+          }}</span>
         </div>
         <FilterTableSelect
           :model-value="filterSelections.channels"
@@ -66,7 +72,9 @@
       <div class="filter-item">
         <div class="filter-label-row">
           <span class="filter-label">{{ i18ns.t('ConsumptionStats.relayTokenFilter') }}</span>
-          <span class="filter-count">{{ getSelectedSummary('relayTokenIds', stats.filterOptions.relayTokens.length) }}</span>
+          <span class="filter-count">{{
+            getSelectedSummary('relayTokenIds', stats.filterOptions.relayTokens.length)
+          }}</span>
         </div>
         <FilterTableSelect
           :model-value="filterSelections.relayTokenIds"
@@ -95,7 +103,9 @@
       <el-button type="primary" :loading="loading" @click="$emit('apply')">
         {{ i18ns.t('ConsumptionStats.applyFilters') }}
       </el-button>
-      <el-button @click="$emit('reset')">{{ i18ns.t('ConsumptionStats.clearAllFilters') }}</el-button>
+      <el-button @click="$emit('reset')">{{
+        i18ns.t('ConsumptionStats.clearAllFilters')
+      }}</el-button>
     </div>
   </el-card>
 </template>
@@ -136,18 +146,23 @@ const updateSelection = (key: FilterSelectionKey, value: string[]) => {
 .filter-card {
   margin-bottom: 16px;
   border-radius: 10px;
+  width: 100%;
+  min-width: 0;
 }
 
 .filter-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  width: 100%;
+  min-width: 0;
 }
 
 .filter-item {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .filter-label-row {
@@ -188,6 +203,7 @@ const updateSelection = (key: FilterSelectionKey, value: string[]) => {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .card-title {

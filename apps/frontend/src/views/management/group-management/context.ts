@@ -1,9 +1,8 @@
 import { inject, type InjectionKey } from 'vue'
 import type { GroupManagementState } from './useGroupManagement'
 
-export const groupManagementContextKey: InjectionKey<GroupManagementState> = Symbol(
-  'groupManagementContext',
-)
+export const groupManagementContextKey: InjectionKey<GroupManagementState> =
+  Symbol('groupManagementContext')
 
 export const useGroupManagementContext = () => {
   const context = inject(groupManagementContextKey)

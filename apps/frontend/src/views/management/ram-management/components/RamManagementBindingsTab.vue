@@ -16,7 +16,9 @@
       <el-table-column prop="roleName" :label="i18ns.t('RamManagement.roleName')" min-width="150" />
       <el-table-column :label="i18ns.t('RamManagement.bindingType')" width="120">
         <template #default="{ row }">
-          {{ row.source === 'user' ? i18ns.t('RamManagement.user') : i18ns.t('RamManagement.group') }}
+          {{
+            row.source === 'user' ? i18ns.t('RamManagement.user') : i18ns.t('RamManagement.group')
+          }}
         </template>
       </el-table-column>
       <el-table-column :label="i18ns.t('RamManagement.bindingTarget')" min-width="180">

@@ -1,5 +1,5 @@
 <template>
-  <div class="ticket-review-view page-shell">
+  <div class="ticket-review-view desktop-page page-shell">
     <el-card class="page-card" shadow="never">
       <template #header>
         <div class="card-header-row">
@@ -860,7 +860,7 @@ onMounted(() => {
 
 .filter-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) repeat(4, minmax(130px, 170px)) auto;
+  grid-template-columns: minmax(220px, 1.2fr) repeat(4, minmax(140px, 1fr)) auto;
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -892,6 +892,17 @@ onMounted(() => {
 .table-title,
 .timeline-item-title {
   font-weight: 600;
+}
+
+.ticket-review-view :deep(.el-table__header),
+.ticket-review-view :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.ticket-review-view :deep(.el-table__inner-wrapper),
+.ticket-review-view :deep(.el-table__body-wrapper) {
+  width: 100%;
 }
 
 .pagination-wrapper {
@@ -948,7 +959,7 @@ onMounted(() => {
 
 @media (max-width: 1200px) {
   .filter-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

@@ -16,7 +16,10 @@
             <el-dropdown
               trigger="click"
               :disabled="!selectedTokenIds.length"
-              @command="(command: string | number | object) => state.handleBatchTokenCommand(String(command))"
+              @command="
+                (command: string | number | object) =>
+                  state.handleBatchTokenCommand(String(command))
+              "
             >
               <el-button plain :disabled="!selectedTokenIds.length">
                 {{ i18ns.t('nav.more') }}
@@ -163,20 +166,37 @@
                       :key="`tooltip-${row.id}-${config.channelId}-${config.priority}`"
                       class="channel-config-item"
                     >
-                      <el-tag size="small" :type="config.priority === 0 ? 'success' : 'info'" effect="plain">
-                        {{ `#${config.priority + 1} ${config.channelName || state.getChannelName(config.channelId)}` }}
+                      <el-tag
+                        size="small"
+                        :type="config.priority === 0 ? 'success' : 'info'"
+                        effect="plain"
+                      >
+                        {{
+                          `#${config.priority + 1} ${config.channelName || state.getChannelName(config.channelId)}`
+                        }}
                       </el-tag>
-                      <span class="channel-success-rate">{{ state.formatSuccessRate(config.successRate) }}</span>
+                      <span class="channel-success-rate">{{
+                        state.formatSuccessRate(config.successRate)
+                      }}</span>
                     </div>
                   </div>
                   <div v-else>{{ i18ns.t('relay.noChannel') }}</div>
 
                   <div class="failover-tooltip-content">
                     <div>
-                      {{ row.failoverConfig?.enabled ? i18ns.t('relay.failoverEnabled') : i18ns.t('relay.failoverDisabled') }}
+                      {{
+                        row.failoverConfig?.enabled
+                          ? i18ns.t('relay.failoverEnabled')
+                          : i18ns.t('relay.failoverDisabled')
+                      }}
                     </div>
-                    <div>{{ i18ns.t('relay.maxRetries') }}: {{ row.failoverConfig?.maxRetries ?? 0 }}</div>
-                    <div>{{ i18ns.t('relay.failoverThreshold') }}: {{ row.failoverConfig?.failoverThreshold ?? 0 }}</div>
+                    <div>
+                      {{ i18ns.t('relay.maxRetries') }}: {{ row.failoverConfig?.maxRetries ?? 0 }}
+                    </div>
+                    <div>
+                      {{ i18ns.t('relay.failoverThreshold') }}:
+                      {{ row.failoverConfig?.failoverThreshold ?? 0 }}
+                    </div>
                     <div>
                       {{ i18ns.t('relay.failbackCooldownMinutes') }}:
                       {{ row.failoverConfig?.failbackCooldownMinutes ?? 0 }}
@@ -195,10 +215,18 @@
                     :key="`${row.id}-${config.channelId}-${config.priority}`"
                     class="channel-config-item"
                   >
-                    <el-tag size="small" :type="config.priority === 0 ? 'success' : 'info'" effect="plain">
-                      {{ `#${config.priority + 1} ${config.channelName || state.getChannelName(config.channelId)}` }}
+                    <el-tag
+                      size="small"
+                      :type="config.priority === 0 ? 'success' : 'info'"
+                      effect="plain"
+                    >
+                      {{
+                        `#${config.priority + 1} ${config.channelName || state.getChannelName(config.channelId)}`
+                      }}
                     </el-tag>
-                    <span class="channel-success-rate">{{ state.formatSuccessRate(config.successRate) }}</span>
+                    <span class="channel-success-rate">{{
+                      state.formatSuccessRate(config.successRate)
+                    }}</span>
                   </div>
                   <el-tag
                     v-if="state.getHiddenChannelConfigCount(row) > 0"
@@ -213,8 +241,16 @@
                 <span v-else class="stat-text">{{ i18ns.t('relay.noChannel') }}</span>
 
                 <div class="failover-summary failover-summary-compact channel-config-meta">
-                  <el-tag size="small" :type="row.failoverConfig?.enabled ? 'success' : 'info'" effect="plain">
-                    {{ row.failoverConfig?.enabled ? i18ns.t('relay.failoverEnabled') : i18ns.t('relay.failoverDisabled') }}
+                  <el-tag
+                    size="small"
+                    :type="row.failoverConfig?.enabled ? 'success' : 'info'"
+                    effect="plain"
+                  >
+                    {{
+                      row.failoverConfig?.enabled
+                        ? i18ns.t('relay.failoverEnabled')
+                        : i18ns.t('relay.failoverDisabled')
+                    }}
                   </el-tag>
                   <div class="summary-line">{{ state.formatCompactFailoverSummary(row) }}</div>
                 </div>
@@ -235,7 +271,9 @@
               </div>
               <div class="stat-summary__item">
                 <span class="stat-summary__label">{{ i18ns.t('relay.totalTokens') }}</span>
-                <span class="stat-summary__value">{{ state.formatNumber(row.totalTokens || 0) }}</span>
+                <span class="stat-summary__value">{{
+                  state.formatNumber(row.totalTokens || 0)
+                }}</span>
               </div>
             </div>
           </template>
@@ -244,14 +282,21 @@
           <template #default="{ row }">
             <div class="expire-cell">
               <el-icon v-if="row.expiresAt" class="time-icon"><Clock /></el-icon>
-              <span v-if="row.expiresAt" class="datetime-text">{{ state.formatDateTime(row.expiresAt) }}</span>
-              <el-tag v-else size="small" type="success" effect="plain">{{ i18ns.t('relay.neverExpire') }}</el-tag>
+              <span v-if="row.expiresAt" class="datetime-text">{{
+                state.formatDateTime(row.expiresAt)
+              }}</span>
+              <el-tag v-else size="small" type="success" effect="plain">{{
+                i18ns.t('relay.neverExpire')
+              }}</el-tag>
             </div>
           </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.quotaUsage')" min-width="220" align="center">
           <template #default="{ row }">
-            <template v-for="(quota, quotaIndex) in [state.getTokenQuotaSnapshot(row)]" :key="quotaIndex">
+            <template
+              v-for="(quota, quotaIndex) in [state.getTokenQuotaSnapshot(row)]"
+              :key="quotaIndex"
+            >
               <div class="quota-usage-cell">
                 <div class="quota-usage-line">
                   <span class="quota-text" :class="{ 'quota-text--danger': quota.isQuotaExceeded }">
@@ -260,11 +305,17 @@
                   </span>
                   <span class="quota-limit-text">
                     /
-                    {{ row.quotaLimit != null ? state.formatQuotaAmount(row.quotaLimit) : i18ns.t('relay.unlimited') }}
+                    {{
+                      row.quotaLimit != null
+                        ? state.formatQuotaAmount(row.quotaLimit)
+                        : i18ns.t('relay.unlimited')
+                    }}
                   </span>
                 </div>
                 <div class="quota-meta">
-                  <span v-if="quota.quotaUsagePercent != null">{{ state.formatQuotaPercent(quota.quotaUsagePercent) }}</span>
+                  <span v-if="quota.quotaUsagePercent != null">{{
+                    state.formatQuotaPercent(quota.quotaUsagePercent)
+                  }}</span>
                 </div>
                 <el-progress
                   v-if="quota.quotaUsagePercent != null"
@@ -276,13 +327,20 @@
                 />
                 <div v-if="state.getRelayTokenQuotaWindows(row).length" class="quota-window-list">
                   <template
-                    v-for="(quotaWindow, quotaWindowIndex) in state.getPrimaryRelayTokenQuotaWindows(row)"
+                    v-for="(
+                      quotaWindow, quotaWindowIndex
+                    ) in state.getPrimaryRelayTokenQuotaWindows(row)"
                     :key="`${row.id}-quota-window-${quotaWindowIndex}`"
                   >
-                    <div class="quota-window-inline" :class="{ 'quota-window-inline--danger': quotaWindow.isQuotaExceeded }">
+                    <div
+                      class="quota-window-inline"
+                      :class="{ 'quota-window-inline--danger': quotaWindow.isQuotaExceeded }"
+                    >
                       <el-progress
                         v-if="quotaWindow.quotaUsagePercent != null"
-                        :percentage="state.getQuotaProgressPercentage(quotaWindow.quotaUsagePercent)"
+                        :percentage="
+                          state.getQuotaProgressPercentage(quotaWindow.quotaUsagePercent)
+                        "
                         :status="state.getQuotaProgressStatus(quotaWindow.quotaUsagePercent)"
                         :stroke-width="6"
                         :show-text="false"
@@ -309,17 +367,26 @@
         </el-table-column>
         <el-table-column :label="i18ns.t('status')" width="90" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.status === MANAGED_STATUS.ENABLED" size="small" type="success" effect="dark">
+            <el-tag
+              v-if="row.status === MANAGED_STATUS.ENABLED"
+              size="small"
+              type="success"
+              effect="dark"
+            >
               {{ i18ns.t('relay.enabled') }}
             </el-tag>
-            <el-tag v-else size="small" type="info" effect="dark">{{ i18ns.t('relay.disabled') }}</el-tag>
+            <el-tag v-else size="small" type="info" effect="dark">{{
+              i18ns.t('relay.disabled')
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('actions')" width="340" fixed="right" align="center">
           <template #default="{ row }">
             <div class="action-buttons">
               <PermissionWrapper :require="[Permission.RELAY_TOKEN_UPDATE]">
-                <el-button size="small" type="primary" plain @click="state.openEditDialog(row)">{{ i18ns.t('edit') }}</el-button>
+                <el-button size="small" type="primary" plain @click="state.openEditDialog(row)">{{
+                  i18ns.t('edit')
+                }}</el-button>
               </PermissionWrapper>
               <PermissionWrapper :require="[Permission.RELAY_TOKEN_UPDATE]">
                 <el-button
@@ -328,15 +395,24 @@
                   plain
                   @click="state.handleToggleStatus(row)"
                 >
-                  {{ row.status === MANAGED_STATUS.ENABLED ? i18ns.t('relay.disable') : i18ns.t('relay.enable') }}
+                  {{
+                    row.status === MANAGED_STATUS.ENABLED
+                      ? i18ns.t('relay.disable')
+                      : i18ns.t('relay.enable')
+                  }}
                 </el-button>
               </PermissionWrapper>
               <PermissionWrapper :require="[Permission.RELAY_TOKEN_DELETE]">
-                <el-button size="small" type="danger" plain @click="state.handleDelete(row)">{{ i18ns.t('delete') }}</el-button>
+                <el-button size="small" type="danger" plain @click="state.handleDelete(row)">{{
+                  i18ns.t('delete')
+                }}</el-button>
               </PermissionWrapper>
               <el-dropdown
                 trigger="click"
-                @command="(command: string | number | object) => state.handleMoreCommand(String(command), row)"
+                @command="
+                  (command: string | number | object) =>
+                    state.handleMoreCommand(String(command), row)
+                "
               >
                 <el-button size="small" plain>
                   {{ i18ns.t('nav.more') }}

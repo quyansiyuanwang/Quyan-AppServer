@@ -1,21 +1,21 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page">
+  <div v-if="isDesktop" class="desktop-page page-shell balance-management-page">
     <div class="balance-management">
       <el-card class="page-card">
         <template #header>
           <span>{{ i18ns.t('balance.management') }}</span>
         </template>
 
-        <el-form inline class="toolbar-row">
-          <el-form-item :label="i18ns.t('balance.userId')">
+        <el-form inline class="toolbar-row balance-toolbar">
+          <el-form-item :label="i18ns.t('balance.userId')" class="balance-toolbar__search">
             <el-input
               v-model="filters.userId"
+              class="balance-toolbar__user-input"
               :placeholder="i18ns.t('balance.enterUserId')"
               clearable
-              style="width: 200px"
             />
           </el-form-item>
-          <el-form-item>
+          <el-form-item class="balance-toolbar__actions">
             <el-button type="primary" @click="handleSearch">{{ i18ns.t('search') }}</el-button>
             <el-button @click="refreshList">{{ i18ns.t('refresh') }}</el-button>
           </el-form-item>
@@ -526,6 +526,42 @@ const { isDesktop } = usePageDevice()
 </script>
 
 <style scoped>
+.balance-management-page,
+.balance-management {
+  width: 100%;
+  min-width: 0;
+}
+
+.balance-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.balance-toolbar :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+
+.balance-toolbar__search {
+  flex: 1 1 260px;
+  min-width: min(260px, 100%);
+}
+
+.balance-toolbar__search :deep(.el-form-item__content) {
+  width: 100%;
+}
+
+.balance-toolbar__user-input {
+  width: 100% !important;
+}
+
+.balance-toolbar__actions :deep(.el-form-item__content) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .balance-amount {
   font-weight: bold;
   color: #409eff;

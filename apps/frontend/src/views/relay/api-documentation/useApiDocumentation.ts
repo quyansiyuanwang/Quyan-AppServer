@@ -108,7 +108,7 @@ export function useApiDocumentation() {
   )
 
   const selectedChannel = computed(() =>
-    filterChannel.value ? channels.value.find((c) => c.id === filterChannel.value) ?? null : null,
+    filterChannel.value ? (channels.value.find((c) => c.id === filterChannel.value) ?? null) : null,
   )
 
   const mobileSortField = computed<PricingSortField>({

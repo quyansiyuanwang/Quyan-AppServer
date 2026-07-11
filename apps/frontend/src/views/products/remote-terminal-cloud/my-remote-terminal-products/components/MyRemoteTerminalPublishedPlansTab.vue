@@ -31,11 +31,15 @@
         <div class="card-grid">
           <div class="field compact-field">
             <span class="label">{{ i18ns.t('remoteTerminalProduct.deviceUnitPrice') }}</span>
-            <span class="value">{{ formatUnitPrice(item.devicePrice, item.currency, item.billingUnit) }}</span>
+            <span class="value">{{
+              formatUnitPrice(item.devicePrice, item.currency, item.billingUnit)
+            }}</span>
           </div>
           <div class="field compact-field">
             <span class="label">{{ i18ns.t('remoteTerminalProduct.terminalUnitPrice') }}</span>
-            <span class="value">{{ formatUnitPrice(item.terminalPrice, item.currency, item.billingUnit) }}</span>
+            <span class="value">{{
+              formatUnitPrice(item.terminalPrice, item.currency, item.billingUnit)
+            }}</span>
           </div>
           <div class="field compact-field">
             <span class="label">{{ i18ns.t('remoteTerminalProduct.billingUnit') }}</span>
@@ -59,7 +63,9 @@
             />
           </div>
           <div v-if="getMergeCandidates(item).length > 0" class="purchase-cell">
-            <span class="label mini-label">{{ i18ns.t('remoteTerminalProduct.purchaseMode') }}</span>
+            <span class="label mini-label">{{
+              i18ns.t('remoteTerminalProduct.purchaseMode')
+            }}</span>
             <el-radio-group
               v-model="getPurchaseForm(item.id).purchaseMode"
               size="small"
@@ -90,16 +96,25 @@
               />
             </el-select>
           </div>
-          <div v-if="getPurchaseForm(item.id).purchaseMode === 'merge'" class="purchase-cell purchase-cell-hint">
+          <div
+            v-if="getPurchaseForm(item.id).purchaseMode === 'merge'"
+            class="purchase-cell purchase-cell-hint"
+          >
             <span class="secondary-text mini-helper">
               {{ i18ns.t('remoteTerminalProduct.mergeQuotaHint') }}
             </span>
           </div>
           <div class="purchase-cell purchase-cell-row">
-            <span class="label mini-label">{{ i18ns.t('remoteTerminalProduct.purchaseUnits') }}</span>
+            <span class="label mini-label">{{
+              i18ns.t('remoteTerminalProduct.purchaseUnits')
+            }}</span>
             <el-input-number
               v-model="getPurchaseForm(item.id).purchaseUnits"
-              :min="getPurchaseForm(item.id).purchaseMode === 'merge' ? 0 : item.minimumPurchaseUnits || 1"
+              :min="
+                getPurchaseForm(item.id).purchaseMode === 'merge'
+                  ? 0
+                  : item.minimumPurchaseUnits || 1
+              "
               :max="item.maximumPurchaseUnits ?? undefined"
               :step="1"
               size="small"
@@ -130,7 +145,9 @@
             />
           </div>
           <div class="purchase-cell purchase-cell-row">
-            <span class="label mini-label">{{ i18ns.t('remoteTerminalProduct.terminalCount') }}</span>
+            <span class="label mini-label">{{
+              i18ns.t('remoteTerminalProduct.terminalCount')
+            }}</span>
             <el-input-number
               v-model="getPurchaseForm(item.id).terminalCount"
               :min="getMinimumTerminalCount(item)"
@@ -146,8 +163,12 @@
 
         <div class="plan-actions compact-actions">
           <div class="total-box">
-            <span class="label mini-label">{{ i18ns.t('remoteTerminalProduct.estimatedPrice') }}</span>
-            <span class="value total-value">{{ formatPrice(getEstimatedPrice(item), item.currency) }}</span>
+            <span class="label mini-label">{{
+              i18ns.t('remoteTerminalProduct.estimatedPrice')
+            }}</span>
+            <span class="value total-value">{{
+              formatPrice(getEstimatedPrice(item), item.currency)
+            }}</span>
             <div v-for="line in getPriceBreakdown(item)" :key="line" class="price-breakdown-line">
               {{ line }}
             </div>

@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page">
+  <div v-if="isDesktop" class="desktop-page page-shell oj-pricing-page">
     <el-card class="page-card">
       <template #header>
         <div class="pricing-page-header">
@@ -12,51 +12,58 @@
         </div>
       </template>
 
-      <el-table :data="pricings" style="width: 100%" v-loading="loading">
-        <el-table-column prop="model" :label="i18ns.t('ojSubmitter.model')" min-width="200" />
-        <el-table-column
-          prop="provider"
-          :label="i18ns.t('ojSubmitter.provider')"
-          width="100"
-          class-name="hide-on-mobile"
-        />
-        <el-table-column :label="i18ns.t('ojSubmitter.inputPrice')" width="160">
-          <template #default="{ row }">
-            {{ row.inputPrice }} {{ i18ns.t('ojSubmitter.priceUnit') }}
-          </template>
-        </el-table-column>
-        <el-table-column :label="i18ns.t('ojSubmitter.outputPrice')" width="160">
-          <template #default="{ row }">
-            {{ row.outputPrice }} {{ i18ns.t('ojSubmitter.priceUnit') }}
-          </template>
-        </el-table-column>
-        <el-table-column
-          prop="multiplier"
-          :label="i18ns.t('ojSubmitter.multiplier')"
-          width="100"
-          class-name="hide-on-mobile"
-        />
-        <el-table-column
-          prop="cacheCreationMultiplier"
-          :label="i18ns.t('ojSubmitter.cacheCreationMultiplier')"
-          width="140"
-          class-name="hide-on-mobile"
-        />
-        <el-table-column
-          prop="cacheReadMultiplier"
-          :label="i18ns.t('ojSubmitter.cacheReadMultiplier')"
-          width="130"
-          class-name="hide-on-mobile"
-        />
-        <el-table-column :label="i18ns.t('actions')" width="140" fixed="right">
-          <template #default="{ row }">
-            <el-button size="small" @click="openEditDialog(row)">{{ i18ns.t('edit') }}</el-button>
-            <el-button size="small" type="danger" @click="handleDelete(row)">{{
-              i18ns.t('delete')
-            }}</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div class="oj-pricing-page__table-wrap">
+        <el-table
+          :data="pricings"
+          class="oj-pricing-page__table"
+          style="width: 100%"
+          v-loading="loading"
+        >
+          <el-table-column prop="model" :label="i18ns.t('ojSubmitter.model')" min-width="200" />
+          <el-table-column
+            prop="provider"
+            :label="i18ns.t('ojSubmitter.provider')"
+            width="100"
+            class-name="hide-on-mobile"
+          />
+          <el-table-column :label="i18ns.t('ojSubmitter.inputPrice')" width="160">
+            <template #default="{ row }">
+              {{ row.inputPrice }} {{ i18ns.t('ojSubmitter.priceUnit') }}
+            </template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('ojSubmitter.outputPrice')" width="160">
+            <template #default="{ row }">
+              {{ row.outputPrice }} {{ i18ns.t('ojSubmitter.priceUnit') }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="multiplier"
+            :label="i18ns.t('ojSubmitter.multiplier')"
+            width="100"
+            class-name="hide-on-mobile"
+          />
+          <el-table-column
+            prop="cacheCreationMultiplier"
+            :label="i18ns.t('ojSubmitter.cacheCreationMultiplier')"
+            width="140"
+            class-name="hide-on-mobile"
+          />
+          <el-table-column
+            prop="cacheReadMultiplier"
+            :label="i18ns.t('ojSubmitter.cacheReadMultiplier')"
+            width="130"
+            class-name="hide-on-mobile"
+          />
+          <el-table-column :label="i18ns.t('actions')" width="140" fixed="right">
+            <template #default="{ row }">
+              <el-button size="small" @click="openEditDialog(row)">{{ i18ns.t('edit') }}</el-button>
+              <el-button size="small" type="danger" @click="handleDelete(row)">{{
+                i18ns.t('delete')
+              }}</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
 
       <!-- Create / Edit Dialog -->
       <el-dialog
@@ -408,16 +415,61 @@ const { isDesktop } = usePageDevice()
 </script>
 
 <style scoped>
+.oj-pricing-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.oj-pricing-page :deep(.el-card__body) {
+  width: 100%;
+  min-width: 0;
+}
+
 .pricing-page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .pricing-page-title {
   font-size: 16px;
   font-weight: 600;
+  min-width: 0;
+}
+
+.oj-pricing-page__table-wrap {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.oj-pricing-page__table-wrap :deep(.oj-pricing-page__table) {
+  min-width: 1240px;
+}
+
+.oj-pricing-page__table-wrap :deep(.el-table__header),
+.oj-pricing-page__table-wrap :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.oj-pricing-page__table-wrap :deep(.el-table__inner-wrapper),
+.oj-pricing-page__table-wrap :deep(.el-table__body-wrapper) {
+  width: 100%;
+}
+
+.oj-pricing-page :deep(.el-table .cell) {
+  word-break: break-word;
+}
+
+@media (max-width: 1200px) {
+  .pricing-page-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 768px) {

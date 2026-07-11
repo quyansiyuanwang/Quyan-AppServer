@@ -131,11 +131,7 @@ const sendCodeDisabled = computed(() => {
               @keyup.enter="state.handlePasswordEnter"
             />
           </el-form-item>
-          <el-form-item
-            v-if="!isLogin"
-            :label="i18ns.t('confirmPassword')"
-            prop="confirmPassword"
-          >
+          <el-form-item v-if="!isLogin" :label="i18ns.t('confirmPassword')" prop="confirmPassword">
             <el-input
               v-model="agreedRegisterForm.confirmPassword"
               type="password"

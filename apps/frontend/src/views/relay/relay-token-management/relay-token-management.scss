@@ -63,6 +63,17 @@
   width: 100%;
 }
 
+.token-table .el-table__header,
+.token-table .el-table__body {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.token-table .el-table__inner-wrapper,
+.token-table .el-table__body-wrapper {
+  width: 100%;
+}
+
 .token-table .token-table-header .cell {
   text-align: center;
   justify-content: center;

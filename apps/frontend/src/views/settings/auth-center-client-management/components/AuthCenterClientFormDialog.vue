@@ -143,7 +143,9 @@
           <el-form-item :label="i18ns.t('authCenterClient.pkceRequired')">
             <el-switch v-model="form.isPkceRequired" :disabled="isPkceLocked" />
           </el-form-item>
-          <div class="small-text text-secondary auth-center-client-form__hint-card auth-center-client-form__span-full">
+          <div
+            class="small-text text-secondary auth-center-client-form__hint-card auth-center-client-form__span-full"
+          >
             {{ i18ns.t('authCenterClient.tokenSettingsHint') }}
           </div>
         </div>
@@ -187,16 +189,28 @@
         </div>
         <div class="auth-center-client-form__grid">
           <el-form-item :label="i18ns.t('authCenterClient.homepageUrl')">
-            <el-input v-model="form.homepageUrl" :placeholder="i18ns.t('authCenterClient.urlPlaceholder')" />
+            <el-input
+              v-model="form.homepageUrl"
+              :placeholder="i18ns.t('authCenterClient.urlPlaceholder')"
+            />
           </el-form-item>
           <el-form-item :label="i18ns.t('authCenterClient.logoUrl')">
-            <el-input v-model="form.logoUrl" :placeholder="i18ns.t('authCenterClient.urlPlaceholder')" />
+            <el-input
+              v-model="form.logoUrl"
+              :placeholder="i18ns.t('authCenterClient.urlPlaceholder')"
+            />
           </el-form-item>
           <el-form-item :label="i18ns.t('authCenterClient.policyUrl')">
-            <el-input v-model="form.policyUrl" :placeholder="i18ns.t('authCenterClient.urlPlaceholder')" />
+            <el-input
+              v-model="form.policyUrl"
+              :placeholder="i18ns.t('authCenterClient.urlPlaceholder')"
+            />
           </el-form-item>
           <el-form-item :label="i18ns.t('authCenterClient.tosUrl')">
-            <el-input v-model="form.tosUrl" :placeholder="i18ns.t('authCenterClient.urlPlaceholder')" />
+            <el-input
+              v-model="form.tosUrl"
+              :placeholder="i18ns.t('authCenterClient.urlPlaceholder')"
+            />
           </el-form-item>
         </div>
       </div>

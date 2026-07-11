@@ -11,10 +11,7 @@
         <el-input v-model="wlForm.ipAddress" :placeholder="i18ns.t('ipWhitelist.ipPlaceholder')" />
       </el-form-item>
       <el-form-item :label="i18ns.t('ipWhitelist.reason')">
-        <el-input
-          v-model="wlForm.reason"
-          :placeholder="i18ns.t('ipWhitelist.reasonPlaceholder')"
-        />
+        <el-input v-model="wlForm.reason" :placeholder="i18ns.t('ipWhitelist.reasonPlaceholder')" />
       </el-form-item>
       <el-form-item :label="i18ns.t('ipWhitelist.expiresAt')">
         <el-date-picker

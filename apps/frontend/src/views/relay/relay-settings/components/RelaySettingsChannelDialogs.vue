@@ -7,10 +7,15 @@
   >
     <el-form :model="channelForm" label-width="180px" label-position="right">
       <el-form-item :label="i18ns.t('relay.channelName')" required>
-        <el-input v-model="channelForm.name" :placeholder="i18ns.t('relay.channelNamePlaceholder')" />
+        <el-input
+          v-model="channelForm.name"
+          :placeholder="i18ns.t('relay.channelNamePlaceholder')"
+        />
       </el-form-item>
 
-      <el-divider content-position="left">{{ i18ns.t('relay.formatAndModelRestrictions') }}</el-divider>
+      <el-divider content-position="left">{{
+        i18ns.t('relay.formatAndModelRestrictions')
+      }}</el-divider>
       <el-form-item :label="i18ns.t('relay.allowedFormats')" required>
         <el-select
           v-model="channelForm.allowedFormats"
@@ -66,7 +71,10 @@
       </el-divider>
       <template v-if="computeShowUpstream(channelForm.allowedFormats, 'openai')">
         <el-form-item :label="i18ns.t('ServerConfigView.openaiUpstreamUrl')">
-          <el-input v-model="channelForm.openaiUpstreamUrl" placeholder="https://api.openai.com/v1" />
+          <el-input
+            v-model="channelForm.openaiUpstreamUrl"
+            placeholder="https://api.openai.com/v1"
+          />
         </el-form-item>
         <el-form-item :label="i18ns.t('ServerConfigView.openaiUpstreamApiKey')">
           <el-input v-model="channelForm.openaiUpstreamApiKey" type="password" show-password />
@@ -112,7 +120,9 @@
       <el-divider content-position="left">{{ i18ns.t('relay.channelSettings') }}</el-divider>
       <el-form-item :label="i18ns.t('relay.channelMultiplier')">
         <el-input-number v-model="channelForm.multiplier" :step="0.000001" :precision="6" />
-        <span class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.channelMultiplierHelp') }}</span>
+        <span class="ml-3 text-[#909399] text-xs">{{
+          i18ns.t('relay.channelMultiplierHelp')
+        }}</span>
       </el-form-item>
       <el-form-item v-if="isDesktop" :label="i18ns.t('relay.inputTokensIncludeCacheRead')">
         <el-switch v-model="channelForm.inputTokensIncludeCacheRead" />
@@ -124,7 +134,10 @@
       <el-divider content-position="left">{{ i18ns.t('relay.modelMappingSection') }}</el-divider>
       <el-form-item :label="i18ns.t('relay.modelMapping')">
         <div class="flex flex-col gap-1 w-full">
-          <ModelMappingEditor v-model="channelForm.modelMapping" :available-models="filteredModelNames" />
+          <ModelMappingEditor
+            v-model="channelForm.modelMapping"
+            :available-models="filteredModelNames"
+          />
           <span class="text-[#909399] text-xs">{{ i18ns.t('relay.modelMappingHelp') }}</span>
         </div>
       </el-form-item>
@@ -132,7 +145,9 @@
       <el-divider content-position="left">{{ i18ns.t('relay.timeRules') }}</el-divider>
       <el-form-item label="">
         <div class="flex flex-col gap-2 w-full">
-          <el-button size="small" @click="openAddTimeRule">{{ i18ns.t('relay.timeRuleAdd') }}</el-button>
+          <el-button size="small" @click="openAddTimeRule">{{
+            i18ns.t('relay.timeRuleAdd')
+          }}</el-button>
           <template v-if="isDesktop">
             <el-table :data="channelForm.timePeriodMultipliers" size="small" max-height="300">
               <el-table-column prop="name" :label="i18ns.t('relay.timeRuleName')" min-width="100" />
@@ -146,7 +161,9 @@
               </el-table-column>
               <el-table-column :label="i18ns.t('relay.timeRuleMultiplier')" width="80">
                 <template #default="{ row }">
-                  <el-tag :type="row.multiplier >= 1 ? 'warning' : 'success'" size="small">{{ row.multiplier }}x</el-tag>
+                  <el-tag :type="row.multiplier >= 1 ? 'warning' : 'success'" size="small"
+                    >{{ row.multiplier }}x</el-tag
+                  >
                 </template>
               </el-table-column>
               <el-table-column :label="i18ns.t('relay.timeRuleEnabled')" width="70">
@@ -156,8 +173,12 @@
               </el-table-column>
               <el-table-column :label="i18ns.t('actions')" width="140" fixed="right">
                 <template #default="{ $index }">
-                  <el-button size="small" @click="openEditTimeRule($index)">{{ i18ns.t('edit') }}</el-button>
-                  <el-button size="small" type="danger" @click="removeTimeRule($index)">{{ i18ns.t('delete') }}</el-button>
+                  <el-button size="small" @click="openEditTimeRule($index)">{{
+                    i18ns.t('edit')
+                  }}</el-button>
+                  <el-button size="small" type="danger" @click="removeTimeRule($index)">{{
+                    i18ns.t('delete')
+                  }}</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -176,10 +197,16 @@
                 {{ formatTimeRuleDays(rule.dayOfWeek) }} · {{ rule.startTime }} - {{ rule.endTime }}
               </div>
               <div class="flex justify-between items-center mt-1">
-                <el-tag :type="rule.multiplier >= 1 ? 'warning' : 'success'" size="small">{{ rule.multiplier }}x</el-tag>
+                <el-tag :type="rule.multiplier >= 1 ? 'warning' : 'success'" size="small"
+                  >{{ rule.multiplier }}x</el-tag
+                >
                 <div class="flex gap-1">
-                  <el-button size="small" @click="openEditTimeRule(idx)">{{ i18ns.t('edit') }}</el-button>
-                  <el-button size="small" type="danger" @click="removeTimeRule(idx)">{{ i18ns.t('delete') }}</el-button>
+                  <el-button size="small" @click="openEditTimeRule(idx)">{{
+                    i18ns.t('edit')
+                  }}</el-button>
+                  <el-button size="small" type="danger" @click="removeTimeRule(idx)">{{
+                    i18ns.t('delete')
+                  }}</el-button>
                 </div>
               </div>
             </div>
