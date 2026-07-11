@@ -74,20 +74,30 @@
                 <div v-if="row.pricingType === 'per-request'" class="comparison-price-row">
                   <span class="comparison-price-label">{{ t('apiDoc.fixedPrice') }}</span>
                   <el-text type="danger" tag="b">
-                    {{ formatComparableFixedPrice(getChannelPriceCellValue(row, channel).fixedPrice) }}
+                    {{
+                      formatComparableFixedPrice(getChannelPriceCellValue(row, channel).fixedPrice)
+                    }}
                   </el-text>
                 </div>
                 <template v-else>
                   <div class="comparison-price-row">
                     <span class="comparison-price-label">{{ t('apiDoc.inputPrice') }}</span>
                     <el-text type="success" tag="b">
-                      {{ formatComparableTokenPrice(getChannelPriceCellValue(row, channel).inputPrice) }}
+                      {{
+                        formatComparableTokenPrice(
+                          getChannelPriceCellValue(row, channel).inputPrice,
+                        )
+                      }}
                     </el-text>
                   </div>
                   <div class="comparison-price-row">
                     <span class="comparison-price-label">{{ t('apiDoc.outputPrice') }}</span>
                     <el-text type="warning" tag="b">
-                      {{ formatComparableTokenPrice(getChannelPriceCellValue(row, channel).outputPrice) }}
+                      {{
+                        formatComparableTokenPrice(
+                          getChannelPriceCellValue(row, channel).outputPrice,
+                        )
+                      }}
                     </el-text>
                   </div>
                 </template>
@@ -183,6 +193,7 @@
                     :model-value="props.pricingTypeFilter"
                     :placeholder="t('apiDoc.filterByPricingType')"
                     clearable
+                    :teleported="false"
                     class="price-filter-input"
                     @update:model-value="
                       (value: string | number | boolean | null | undefined) =>
@@ -680,7 +691,9 @@
                 </el-tag>
               </div>
               <el-tag
-                v-if="channel.id === props.primaryComparisonChannelId && props.customMultiplierActive"
+                v-if="
+                  channel.id === props.primaryComparisonChannelId && props.customMultiplierActive
+                "
                 size="small"
                 type="warning"
                 effect="plain"
@@ -701,7 +714,9 @@
                 <div v-if="row.pricingType === 'per-request'" class="comparison-price-block">
                   <span class="comparison-price-label">{{ t('apiDoc.fixedPrice') }}</span>
                   <el-text type="danger" tag="b">
-                    {{ formatComparableFixedPrice(getChannelPriceCellValue(row, channel).fixedPrice) }}
+                    {{
+                      formatComparableFixedPrice(getChannelPriceCellValue(row, channel).fixedPrice)
+                    }}
                   </el-text>
                 </div>
 
@@ -709,13 +724,21 @@
                   <div class="comparison-price-block">
                     <span class="comparison-price-label">{{ t('apiDoc.inputPrice') }}</span>
                     <el-text type="success" tag="b">
-                      {{ formatComparableTokenPrice(getChannelPriceCellValue(row, channel).inputPrice) }}
+                      {{
+                        formatComparableTokenPrice(
+                          getChannelPriceCellValue(row, channel).inputPrice,
+                        )
+                      }}
                     </el-text>
                   </div>
                   <div class="comparison-price-block">
                     <span class="comparison-price-label">{{ t('apiDoc.outputPrice') }}</span>
                     <el-text type="warning" tag="b">
-                      {{ formatComparableTokenPrice(getChannelPriceCellValue(row, channel).outputPrice) }}
+                      {{
+                        formatComparableTokenPrice(
+                          getChannelPriceCellValue(row, channel).outputPrice,
+                        )
+                      }}
                     </el-text>
                   </div>
                   <el-text
@@ -725,10 +748,7 @@
                     class="cache-multiplier-text"
                   >
                     {{
-                      formatCacheMultiplier(
-                        row.cacheCreationMultiplier,
-                        row.cacheReadMultiplier,
-                      )
+                      formatCacheMultiplier(row.cacheCreationMultiplier, row.cacheReadMultiplier)
                     }}
                   </el-text>
                 </template>
@@ -826,12 +846,6 @@ const selectedChannelIdSet = computed(
 )
 
 const comparisonChannels = computed(() => props.selectedChannels || [])
-
-const displayModeSummary = computed(() => {
-  if (props.displayMode === 'selected-lowest') return t('apiDoc.channelPriceModeSelectedLowestHint')
-  if (props.displayMode === 'global-lowest') return t('apiDoc.channelPriceModeGlobalLowestHint')
-  return t('apiDoc.channelPriceModeBaseHint')
-})
 
 const getModelId = (item: PricingModelRow): string => {
   return props.getRequestModelId(item)

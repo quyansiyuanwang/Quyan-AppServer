@@ -106,8 +106,13 @@
 }
 
 .pricing-filter {
-  flex: 1 1 140px;
+  width: 100%;
   min-width: 120px;
+}
+
+.pricing-toolbar > .pricing-filter {
+  flex: 1 1 140px;
+  width: auto;
 }
 
 .custom-multiplier-badge {
@@ -142,9 +147,15 @@
 
 .pricing-setting-heading {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 4px;
+}
+
+.pricing-setting-hint {
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .pricing-comparison-settings-grid {
@@ -203,6 +214,14 @@
 
 .pricing-toolbar :deep(.el-select) {
   min-width: 0;
+}
+
+.pricing-more-settings-panel .pricing-filter,
+.pricing-mobile-panel .pricing-filter,
+.pricing-mobile-advanced-panel .pricing-filter,
+.pricing-comparison-settings-grid .pricing-filter {
+  flex: none;
+  align-self: stretch;
 }
 
 .pricing-more-settings-popover {

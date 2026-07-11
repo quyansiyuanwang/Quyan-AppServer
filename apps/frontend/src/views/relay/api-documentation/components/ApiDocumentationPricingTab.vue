@@ -98,9 +98,7 @@ const onChannelMatchModeChange = (value: string | number | boolean | undefined) 
 }
 
 const onChannelPriceModeChange = (value: string | number | boolean | undefined) => {
-  handleChannelPriceModeChange(
-    (value || 'base') as 'base' | 'selected-lowest' | 'global-lowest',
-  )
+  handleChannelPriceModeChange((value || 'base') as 'base' | 'selected-lowest' | 'global-lowest')
 }
 
 const onPricingTableModeChange = (value: string | number | boolean | undefined) => {
@@ -214,7 +212,12 @@ const onPrimaryComparisonChannelChange = (value: string | number | boolean | und
             >
               <div class="pricing-setting-heading">
                 <span class="pricing-inline-label">{{ t('apiDoc.primaryComparisonChannel') }}</span>
-                <el-text v-if="primaryComparisonChannel" size="small" type="info">
+                <el-text
+                  v-if="primaryComparisonChannel"
+                  size="small"
+                  type="info"
+                  class="pricing-setting-hint"
+                >
                   {{ t('apiDoc.primaryComparisonChannelHint') }}
                 </el-text>
               </div>
@@ -222,6 +225,7 @@ const onPrimaryComparisonChannelChange = (value: string | number | boolean | und
                 :model-value="primaryComparisonChannelId"
                 :placeholder="t('apiDoc.primaryComparisonChannelPlaceholder')"
                 :disabled="selectedChannels.length === 0"
+                :teleported="false"
                 class="pricing-filter"
                 @update:model-value="onPrimaryComparisonChannelChange"
               >
@@ -239,6 +243,7 @@ const onPrimaryComparisonChannelChange = (value: string | number | boolean | und
                   <el-select
                     v-model="comparisonSortField"
                     :placeholder="t('apiDoc.sortField')"
+                    :teleported="false"
                     class="pricing-filter"
                   >
                     <el-option :label="t('apiDoc.noSorting')" value="" />
@@ -255,6 +260,7 @@ const onPrimaryComparisonChannelChange = (value: string | number | boolean | und
                     v-model="comparisonSortOrder"
                     :placeholder="t('apiDoc.sortOrder')"
                     :disabled="!comparisonSortField"
+                    :teleported="false"
                     class="pricing-filter"
                   >
                     <el-option :label="t('apiDoc.sortAscending')" value="asc" />
@@ -544,6 +550,7 @@ const onPrimaryComparisonChannelChange = (value: string | number | boolean | und
                     :model-value="primaryComparisonChannelId"
                     :placeholder="t('apiDoc.primaryComparisonChannelPlaceholder')"
                     :disabled="selectedChannels.length === 0"
+                    :teleported="false"
                     class="pricing-filter"
                     @update:model-value="onPrimaryComparisonChannelChange"
                   >
