@@ -19,9 +19,24 @@ export type PricingModelRow = ModelPricingDto & {
 
 export type PricingSortField = 'model' | 'fixedPrice' | 'inputPrice' | 'outputPrice' | ''
 export type PricingSortOrder = 'asc' | 'desc' | ''
-export type PricingDisplayMode = 'base' | 'selected-channel' | 'lowest-channel'
+export type ChannelMatchMode = 'match-any' | 'match-all'
+export type ChannelPriceMode = 'base' | 'selected-lowest' | 'global-lowest'
+export type PricingDisplayMode = ChannelPriceMode
+export type PricingTableMode = 'summary' | 'channel-columns'
 export type PriceRangeField = 'fixedPrice' | 'inputPrice' | 'outputPrice'
 export type PricingTokenUnit = 'M' | 'K'
+
+export type ChannelPriceCell = {
+  available: boolean
+  channelId: string
+  channelName: string
+  multiplier: number
+  fixedPrice: number | null
+  inputPrice: number | null
+  outputPrice: number | null
+  cacheCreationMultiplier: number | null
+  cacheReadMultiplier: number | null
+}
 
 const HIGHLIGHT_CACHE_MAX_SIZE = 500
 const MAX_LOGGED_ALLOWED_MODELS_ERRORS = 200
@@ -43,12 +58,14 @@ export const useApiDocumentationPricing = () => {
   const channels = ref<RelayChannelDto[]>([])
 
   const filterFormat = ref<string>('')
-  const filterChannel = ref<string>('')
+  const filterChannelIds = ref<string[]>([])
   const filterPricingType = ref<string>('')
   const filterModelKeyword = ref<string>('')
   const onlyModelsWithChannels = ref(true)
-  const showCalculatedPrice = ref(false)
-  const showLowestChannelPrice = ref(true)
+  const channelMatchMode = ref<ChannelMatchMode>('match-any')
+  const channelPriceMode = ref<ChannelPriceMode>('selected-lowest')
+  const pricingTableMode = ref<PricingTableMode>('summary')
+  const primaryComparisonChannelId = ref('')
   const customPriceMultiplier = ref<number | null>(null)
   const tokenPriceUnit = ref<PricingTokenUnit>('M')
   const fixedPriceMin = ref<number | null>(null)
@@ -75,6 +92,44 @@ export const useApiDocumentationPricing = () => {
 
     return (item.model || '').trim()
   }
+
+  const selectedChannelIdsSet = computed(() => new Set(filterChannelIds.value))
+
+  const filterChannel = computed<string>({
+    get: () => filterChannelIds.value[0] || '',
+    set: (channelId) => {
+      filterChannelIds.value = channelId ? [channelId] : []
+    },
+  })
+
+  const showLowestChannelPrice = computed<boolean>({
+    get: () => channelPriceMode.value === 'global-lowest',
+    set: (enabled) => {
+      if (enabled) {
+        channelPriceMode.value = 'global-lowest'
+        return
+      }
+
+      if (channelPriceMode.value === 'global-lowest') {
+        channelPriceMode.value = filterChannelIds.value.length > 0 ? 'selected-lowest' : 'base'
+      }
+    },
+  })
+
+  const selectedChannels = computed(() => {
+    const channelMap = new Map(channels.value.map((channel) => [channel.id, channel]))
+
+    return filterChannelIds.value
+      .map((channelId) => channelMap.get(channelId))
+      .filter((channel): channel is RelayChannelDto => Boolean(channel))
+  })
+
+  const primaryComparisonChannel = computed(() => {
+    return (
+      selectedChannels.value.find((channel) => channel.id === primaryComparisonChannelId.value) ||
+      null
+    )
+  })
 
   const parseAllowedModels = (allowedModels?: string | null): string[] | null => {
     if (!allowedModels) return null
@@ -113,6 +168,7 @@ export const useApiDocumentationPricing = () => {
     modelFormat?: string,
   ): RelayChannelDto[] => {
     const normalizedModelName = modelName.trim()
+    const normalizedModelId = modelId.trim()
     const modelFormats = normalizeFormats(modelFormat)
 
     return channels.value.filter((channel) => {
@@ -135,8 +191,23 @@ export const useApiDocumentationPricing = () => {
       const allowedModels = parseAllowedModels(channel.allowedModels)
       if (!allowedModels) return true
 
-      return allowedModels.some((allowedModelName) => allowedModelName === normalizedModelName)
+      return allowedModels.some(
+        (allowedModelName) =>
+          allowedModelName === normalizedModelName || allowedModelName === normalizedModelId,
+      )
     })
+  }
+
+  const getSelectedChannelsForModel = (item: PricingModelRow): RelayChannelDto[] => {
+    const availableChannels = getChannelsForModel(
+      item.model || '',
+      getRequestModelId(item),
+      item.supportedFormats,
+    )
+
+    if (selectedChannelIdsSet.value.size === 0) return []
+
+    return availableChannels.filter((channel) => selectedChannelIdsSet.value.has(channel.id))
   }
 
   const getLowestMultiplierForModel = (item: PricingModelRow): number | null => {
@@ -151,24 +222,83 @@ export const useApiDocumentationPricing = () => {
     return Math.min(...availableChannels.map((channel) => channel.multiplier ?? 1))
   }
 
+  const getLowestSelectedMultiplierForModel = (item: PricingModelRow): number | null => {
+    const availableSelectedChannels = getSelectedChannelsForModel(item)
+
+    if (availableSelectedChannels.length === 0) return null
+
+    return Math.min(...availableSelectedChannels.map((channel) => channel.multiplier ?? 1))
+  }
+
   const getDisplayedPriceMultiplier = (item: PricingModelRow): number => {
     const customMultiplier = customPriceMultiplier.value ?? 1
 
-    if (showLowestChannelPrice.value) {
+    if (channelPriceMode.value === 'global-lowest') {
       return (getLowestMultiplierForModel(item) ?? 1) * customMultiplier
     }
 
-    if (showCalculatedPrice.value && filterChannel.value) {
-      const selectedChannel = channels.value.find((channel) => channel.id === filterChannel.value)
-      return (selectedChannel?.multiplier ?? 1) * customMultiplier
+    if (channelPriceMode.value === 'selected-lowest') {
+      return (getLowestSelectedMultiplierForModel(item) ?? 1) * customMultiplier
     }
 
     return customMultiplier
   }
 
+  const getChannelPriceCell = (
+    item: PricingModelRow,
+    channel: Pick<RelayChannelDto, 'id' | 'name' | 'multiplier'>,
+  ): ChannelPriceCell => {
+    const availableChannel = getChannelsForModel(
+      item.model || '',
+      getRequestModelId(item),
+      item.supportedFormats,
+    ).find((candidate) => candidate.id === channel.id)
+
+    const customMultiplier = customPriceMultiplier.value ?? 1
+    const channelMultiplier =
+      (availableChannel?.multiplier ?? channel.multiplier ?? 1) * customMultiplier
+    const divisor = getTokenPriceUnitDivisor()
+
+    if (!availableChannel) {
+      return {
+        available: false,
+        channelId: channel.id,
+        channelName: channel.name,
+        multiplier: channelMultiplier,
+        fixedPrice: null,
+        inputPrice: null,
+        outputPrice: null,
+        cacheCreationMultiplier: item.cacheCreationMultiplier ?? null,
+        cacheReadMultiplier: item.cacheReadMultiplier ?? null,
+      }
+    }
+
+    return {
+      available: true,
+      channelId: channel.id,
+      channelName: channel.name,
+      multiplier: channelMultiplier,
+      fixedPrice:
+        item.pricingType === 'per-request' ? (item.fixedPrice ?? 0) * channelMultiplier : null,
+      inputPrice:
+        item.pricingType === 'per-request'
+          ? null
+          : ((item.inputPrice ?? 0) * channelMultiplier) / divisor,
+      outputPrice:
+        item.pricingType === 'per-request'
+          ? null
+          : ((item.outputPrice ?? 0) * channelMultiplier) / divisor,
+      cacheCreationMultiplier: item.cacheCreationMultiplier ?? null,
+      cacheReadMultiplier: item.cacheReadMultiplier ?? null,
+    }
+  }
+
   const priceDisplayMode = computed<PricingDisplayMode>(() => {
-    if (showLowestChannelPrice.value) return 'lowest-channel'
-    if (showCalculatedPrice.value && filterChannel.value) return 'selected-channel'
+    if (channelPriceMode.value === 'global-lowest') return 'global-lowest'
+    if (channelPriceMode.value === 'selected-lowest' && filterChannelIds.value.length > 0) {
+      return 'selected-lowest'
+    }
+
     return 'base'
   })
 
@@ -180,6 +310,15 @@ export const useApiDocumentationPricing = () => {
     item: PricingModelRow,
     field: Exclude<PricingSortField, ''>,
   ): number | null => {
+    if (pricingTableMode.value === 'channel-columns' && primaryComparisonChannel.value) {
+      const comparisonCell = getChannelPriceCell(item, primaryComparisonChannel.value)
+
+      if (field === 'fixedPrice') return comparisonCell.fixedPrice
+      if (field === 'inputPrice') return comparisonCell.inputPrice
+      if (field === 'outputPrice') return comparisonCell.outputPrice
+      return null
+    }
+
     const multiplier = getDisplayedPriceMultiplier(item)
 
     if (field === 'fixedPrice') {
@@ -239,14 +378,15 @@ export const useApiDocumentationPricing = () => {
       )
     }
 
-    if (filterChannel.value) {
+    if (filterChannelIds.value.length > 0) {
       result = result.filter((item) => {
-        const availableChannels = getChannelsForModel(
-          item.model || '',
-          getRequestModelId(item),
-          item.supportedFormats,
-        )
-        return availableChannels.some((channel) => channel.id === filterChannel.value)
+        const availableSelectedChannels = getSelectedChannelsForModel(item)
+
+        if (channelMatchMode.value === 'match-all') {
+          return availableSelectedChannels.length === filterChannelIds.value.length
+        }
+
+        return availableSelectedChannels.length > 0
       })
     }
 
@@ -401,12 +541,14 @@ export const useApiDocumentationPricing = () => {
 
   const resetFilters = () => {
     filterFormat.value = ''
-    filterChannel.value = ''
+    filterChannelIds.value = []
     filterPricingType.value = ''
     filterModelKeyword.value = ''
     onlyModelsWithChannels.value = true
-    showCalculatedPrice.value = false
-    showLowestChannelPrice.value = true
+    channelMatchMode.value = 'match-any'
+    channelPriceMode.value = 'selected-lowest'
+    pricingTableMode.value = 'summary'
+    primaryComparisonChannelId.value = ''
     customPriceMultiplier.value = null
     tokenPriceUnit.value = 'M'
     fixedPriceMin.value = null
@@ -423,17 +565,31 @@ export const useApiDocumentationPricing = () => {
     highlightPartsCache.clear()
   })
 
-  watch(filterChannel, (val) => {
-    if (!val) showCalculatedPrice.value = false
+  watch(filterChannelIds, (ids) => {
+    if (ids.length === 0 && channelPriceMode.value === 'selected-lowest') {
+      channelPriceMode.value = 'base'
+    }
   })
 
-  watch(showLowestChannelPrice, (val) => {
-    if (val) showCalculatedPrice.value = false
-  })
+  watch(
+    selectedChannels,
+    (channelsForComparison) => {
+      if (channelsForComparison.length === 0) {
+        primaryComparisonChannelId.value = ''
+        return
+      }
 
-  watch(showCalculatedPrice, (val) => {
-    if (val) showLowestChannelPrice.value = false
-  })
+      const currentChannelStillSelected = channelsForComparison.some(
+        (channel) => channel.id === primaryComparisonChannelId.value,
+      )
+
+      if (!currentChannelStillSelected) {
+        const firstChannel = channelsForComparison[0]
+        primaryComparisonChannelId.value = firstChannel ? firstChannel.id : ''
+      }
+    },
+    { immediate: true },
+  )
 
   watch(sortField, (val) => {
     if (!val) sortOrder.value = ''
@@ -448,13 +604,18 @@ export const useApiDocumentationPricing = () => {
     loading,
     loadErrorMessage,
     channels,
+    selectedChannels,
     filterFormat,
     filterChannel,
+    filterChannelIds,
     filterPricingType,
     filterModelKeyword,
     onlyModelsWithChannels,
-    showCalculatedPrice,
+    channelMatchMode,
+    channelPriceMode,
     showLowestChannelPrice,
+    pricingTableMode,
+    primaryComparisonChannelId,
     customPriceMultiplier,
     tokenPriceUnit,
     fixedPriceMin,
@@ -467,11 +628,15 @@ export const useApiDocumentationPricing = () => {
     sortOrder,
     filteredPricingData,
     priceDisplayMode,
+    primaryComparisonChannel,
     normalizeFormats,
     getRequestModelId,
     getChannelsForModel,
+    getSelectedChannelsForModel,
     getLowestMultiplierForModel,
+    getLowestSelectedMultiplierForModel,
     getDisplayedPriceMultiplier,
+    getChannelPriceCell,
     getHighlightParts,
     toggleTokenPriceUnit,
     resetFilters,

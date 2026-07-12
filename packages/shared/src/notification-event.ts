@@ -38,7 +38,7 @@ export const THRESHOLD_NOTIFICATION_EVENTS = [
   NotificationEvent.RELAY_TOKEN_QUOTA_LOW,
 ] as const;
 
-export const NOTIFICATION_EVENT_I18N_KEYS: Record<NotificationEvent, string> = {
+export const NOTIFICATION_EVENT_I18N_KEYS = {
   [NotificationEvent.BALANCE_LOW]: "notificationEvent.balance_low",
   [NotificationEvent.RECHARGE_SUCCESS]: "notificationEvent.recharge_success",
   [NotificationEvent.REDEMPTION_SUCCESS]: "notificationEvent.redemption_success",
@@ -64,11 +64,11 @@ export const NOTIFICATION_EVENT_I18N_KEYS: Record<NotificationEvent, string> = {
   [NotificationEvent.RAM_ROLE_DELETED]: "notificationEvent.ram_role_deleted",
   [NotificationEvent.RAM_POLICY_CREATED]: "notificationEvent.ram_policy_created",
   [NotificationEvent.RAM_POLICY_DELETED]: "notificationEvent.ram_policy_deleted",
-};
+} as const satisfies Record<NotificationEvent, `notificationEvent.${NotificationEvent}`>;
 
-export const NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS: Partial<Record<NotificationEvent, string>> = {
+export const NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS = {
   [NotificationEvent.BALANCE_LOW]: "notificationEventThresholdUnit.balance_low",
   [NotificationEvent.MONTHLY_PASS_QUOTA_LOW]: "notificationEventThresholdUnit.monthly_pass_quota_low",
   [NotificationEvent.MONTHLY_PASS_DAILY_LIMIT]: "notificationEventThresholdUnit.monthly_pass_daily_limit",
   [NotificationEvent.RELAY_TOKEN_QUOTA_LOW]: "notificationEventThresholdUnit.relay_token_quota_low",
-};
+} as const satisfies Partial<Record<NotificationEvent, `notificationEventThresholdUnit.${NotificationEvent}`>>;

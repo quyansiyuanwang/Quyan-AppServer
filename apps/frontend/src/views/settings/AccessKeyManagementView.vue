@@ -1,6 +1,6 @@
 <template>
   <div class="accesskey-management-view">
-    <div v-if="isDesktop" class="accesskey-management desktop-page">
+    <div v-if="isDesktop" class="accesskey-management desktop-page page-shell">
       <el-card class="page-card">
         <template #header>
           <div class="card-header toolbar-row">
@@ -321,6 +321,11 @@ watch(showCreateDialog, (visible) => {
 </script>
 
 <style scoped>
+.accesskey-management {
+  width: 100%;
+  min-width: 0;
+}
+
 .accesskey-mobile {
   padding: 8px 6px 16px;
 }

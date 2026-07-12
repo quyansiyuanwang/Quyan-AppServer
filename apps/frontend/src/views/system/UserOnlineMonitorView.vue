@@ -798,7 +798,19 @@ onMounted(() => {
 
 <style scoped>
 .page-shell {
-  padding: 20px;
+  width: 100%;
+  min-width: 0;
+}
+
+.user-online-monitor :deep(.el-table__header),
+.user-online-monitor :deep(.el-table__body) {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.user-online-monitor :deep(.el-table__inner-wrapper),
+.user-online-monitor :deep(.el-table__body-wrapper) {
+  width: 100%;
 }
 
 .stats-row {
@@ -923,7 +935,7 @@ onMounted(() => {
 
 @media (max-width: 768px) {
   .page-shell {
-    padding: 8px 6px 16px;
+    width: 100%;
   }
 }
 </style>

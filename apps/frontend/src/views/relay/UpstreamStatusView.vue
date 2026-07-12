@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page">
+  <div v-if="isDesktop" class="desktop-page page-shell">
     <div class="upstream-status-page">
       <el-card v-loading="loading" shadow="never" class="status-card page-card">
         <!-- Header -->
@@ -49,7 +49,7 @@
         />
 
         <!-- Monitors List -->
-        <div v-else class="mobile-page monitors-container">
+        <div v-else class="monitors-container">
           <div v-for="category in uptimeData" :key="category.categoryName" class="category-section">
             <h2 class="section-title">{{ category.categoryName }}</h2>
 
@@ -167,7 +167,7 @@
         />
 
         <!-- Monitors List -->
-        <div v-else class="mobile-page monitors-container">
+        <div v-else class="monitors-container">
           <div v-for="category in uptimeData" :key="category.categoryName" class="category-section">
             <h2 class="section-title">{{ category.categoryName }}</h2>
 
@@ -353,7 +353,8 @@ if (!isDesktop.value) {
 
 <style scoped>
 .upstream-status-page {
-  padding: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 .status-card {
@@ -441,7 +442,10 @@ if (!isDesktop.value) {
   border: 1px solid var(--el-border-color-light);
   border-radius: 8px;
   padding: 20px;
-  transition: all 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.3s ease;
 }
 
 .monitor-item:hover {
@@ -492,7 +496,10 @@ if (!isDesktop.value) {
   min-width: 4px;
   height: 100%;
   border-radius: 2px;
-  transition: all 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease,
+    background-color 0.2s ease;
   cursor: pointer;
 }
 

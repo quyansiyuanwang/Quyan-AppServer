@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page">
+  <div v-if="isDesktop" class="desktop-page system-stats-page">
     <!-- Toolbar outside any card -->
     <div class="stats-toolbar">
       <div class="toolbar-left">
@@ -793,13 +793,18 @@ const { isDesktop } = usePageDevice()
 </script>
 
 <style scoped>
+.system-stats-page {
+  width: 100%;
+  min-width: 0;
+}
+
 .stats-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 20px;
-  max-width: 1200px;
-  margin: 0 auto 4px;
+  padding: 12px 0;
+  width: 100%;
+  margin: 0 0 4px;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -815,16 +820,20 @@ const { isDesktop } = usePageDevice()
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 .auto-refresh-box {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
   background: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
   padding: 6px 10px;
+  min-width: 0;
 }
 
 .auto-refresh-label {
@@ -839,14 +848,27 @@ const { isDesktop } = usePageDevice()
 }
 
 .system-stats-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px 20px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 20px;
+}
+
+.system-stats-container > * {
+  min-width: 0;
 }
 
 .stats-card {
   border-radius: 8px;
   margin-bottom: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.stats-card :deep(.el-card__header),
+.stats-card :deep(.el-card__body) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .card-header {
@@ -872,6 +894,11 @@ const { isDesktop } = usePageDevice()
 
 .el-col {
   margin-bottom: 18px;
+}
+
+.system-stats-page :deep(.el-row),
+.system-stats-page :deep(.el-col) {
+  min-width: 0;
 }
 
 .info-item {
@@ -936,5 +963,13 @@ const { isDesktop } = usePageDevice()
 .system-stats-mobile-adapter :deep(.el-descriptions__content) {
   width: 60%;
   font-size: 13px;
+}
+
+@media (min-width: 992px) and (max-width: 1360px) {
+  .system-stats-page :deep(.el-col-md-6),
+  .system-stats-page :deep(.el-col-md-8) {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
 }
 </style>

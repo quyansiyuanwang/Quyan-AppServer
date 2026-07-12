@@ -405,6 +405,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { ArrowRight, QuestionFilled } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
+import type { I18nENAvailableKeys } from '@/locales'
 import { ElMessage } from 'element-plus'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { copyTextWithFallback } from '@/utils/clipboard'
@@ -441,6 +442,12 @@ type BalanceScriptTemplatePlaceholderOption = {
   description: string
 }
 
+type BalanceScriptFieldTranslationMap = {
+  label: Extract<I18nENAvailableKeys, `relay.balanceScript${string}`>
+  shortLabel: Extract<I18nENAvailableKeys, `relay.balanceScript${string}Short`>
+  tooltip: Extract<I18nENAvailableKeys, `relay.balanceScriptFieldTooltip${string}`>
+}
+
 const props = defineProps<{
   modelValue: boolean
   token: RelayTokenDto | null
@@ -468,18 +475,12 @@ const normalizeBalanceScriptSettings = (value?: Partial<BalanceScriptSettings> |
     ? Math.min(Math.max(decimalPlaces, 0), 4)
     : fallback.decimalPlaces
 
-  const BALANCE_SCRIPT_FIELD_FORMATS_BY_KIND: Record<string, BalanceScriptMetricFormat[]> = {
-    number: ['exact', 'smart', 'k', 'm'],
-    date: ['dateTime', 'dateOnly', 'iso', 'relative'],
-    text: ['text', 'raw'],
-  }
-
   const safeFieldFormats = Object.fromEntries(
     BALANCE_SCRIPT_FIELDS.map((field) => {
       const format = value?.fieldFormats?.[field]
-      const kind = BALANCE_SCRIPT_FIELD_KINDS[field]
+      const kind = BALANCE_SCRIPT_FIELD_KINDS[field] ?? 'number'
       const allowed =
-        BALANCE_SCRIPT_ALLOWED_FORMATS[field] ?? BALANCE_SCRIPT_FIELD_FORMATS_BY_KIND[kind!] ?? []
+        BALANCE_SCRIPT_ALLOWED_FORMATS[field] ?? BALANCE_SCRIPT_FIELD_FORMATS_BY_KIND[kind]
       return [
         field,
         format && allowed.includes(format)
@@ -554,6 +555,88 @@ const BALANCE_SCRIPT_ALLOWED_FORMATS: Partial<Record<string, BalanceScriptMetric
   lastUsedAt: ['dateTime', 'dateOnly', 'iso', 'relative', 'off'],
   rangeLabel: ['text', 'off'],
 }
+
+const BALANCE_SCRIPT_FIELD_FORMATS_BY_KIND: Record<
+  'number' | 'date' | 'text',
+  BalanceScriptMetricFormat[]
+> = {
+  number: ['exact', 'smart', 'k', 'm'],
+  date: ['dateTime', 'dateOnly', 'iso', 'relative'],
+  text: ['text', 'raw'],
+}
+
+const BALANCE_SCRIPT_FIELD_TRANSLATIONS = {
+  requestCount: {
+    label: 'relay.balanceScriptRequestCount',
+    shortLabel: 'relay.balanceScriptRequestCountShort',
+    tooltip: 'relay.balanceScriptFieldTooltipRequestCount',
+  },
+  totalTokens: {
+    label: 'relay.balanceScriptTotalTokens',
+    shortLabel: 'relay.balanceScriptTotalTokensShort',
+    tooltip: 'relay.balanceScriptFieldTooltipTotalTokens',
+  },
+  requestTokens: {
+    label: 'relay.balanceScriptRequestTokens',
+    shortLabel: 'relay.balanceScriptRequestTokensShort',
+    tooltip: 'relay.balanceScriptFieldTooltipRequestTokens',
+  },
+  responseTokens: {
+    label: 'relay.balanceScriptResponseTokens',
+    shortLabel: 'relay.balanceScriptResponseTokensShort',
+    tooltip: 'relay.balanceScriptFieldTooltipResponseTokens',
+  },
+  cacheCreationTokens: {
+    label: 'relay.balanceScriptCacheCreationTokens',
+    shortLabel: 'relay.balanceScriptCacheCreationTokensShort',
+    tooltip: 'relay.balanceScriptFieldTooltipCacheCreationTokens',
+  },
+  cacheReadTokens: {
+    label: 'relay.balanceScriptCacheReadTokens',
+    shortLabel: 'relay.balanceScriptCacheReadTokensShort',
+    tooltip: 'relay.balanceScriptFieldTooltipCacheReadTokens',
+  },
+  chargedAmount: {
+    label: 'relay.balanceScriptChargedAmount',
+    shortLabel: 'relay.balanceScriptChargedAmountShort',
+    tooltip: 'relay.balanceScriptFieldTooltipChargedAmount',
+  },
+  coveredAmount: {
+    label: 'relay.balanceScriptCoveredAmount',
+    shortLabel: 'relay.balanceScriptCoveredAmountShort',
+    tooltip: 'relay.balanceScriptFieldTooltipCoveredAmount',
+  },
+  totalSpend: {
+    label: 'relay.balanceScriptTotalSpend',
+    shortLabel: 'relay.balanceScriptTotalSpendShort',
+    tooltip: 'relay.balanceScriptFieldTooltipTotalSpend',
+  },
+  usedQuota: {
+    label: 'relay.balanceScriptUsedQuota',
+    shortLabel: 'relay.balanceScriptUsedQuotaShort',
+    tooltip: 'relay.balanceScriptFieldTooltipUsedQuota',
+  },
+  remainingQuota: {
+    label: 'relay.balanceScriptRemainingQuota',
+    shortLabel: 'relay.balanceScriptRemainingQuotaShort',
+    tooltip: 'relay.balanceScriptFieldTooltipRemainingQuota',
+  },
+  quotaLimit: {
+    label: 'relay.balanceScriptQuotaLimit',
+    shortLabel: 'relay.balanceScriptQuotaLimitShort',
+    tooltip: 'relay.balanceScriptFieldTooltipQuotaLimit',
+  },
+  lastUsedAt: {
+    label: 'relay.balanceScriptLastUsedAt',
+    shortLabel: 'relay.balanceScriptLastUsedAtShort',
+    tooltip: 'relay.balanceScriptFieldTooltipLastUsedAt',
+  },
+  rangeLabel: {
+    label: 'relay.balanceScriptRangeLabel',
+    shortLabel: 'relay.balanceScriptRangeLabelShort',
+    tooltip: 'relay.balanceScriptFieldTooltipRangeLabel',
+  },
+} satisfies Record<BalanceScriptFieldKey, BalanceScriptFieldTranslationMap>
 
 const getBalanceScriptFieldFormatOptions = (field: BalanceScriptFieldOption) =>
   field.formatOptions.map((value) => ({
@@ -655,22 +738,13 @@ const balanceScriptFieldOptions = computed<BalanceScriptFieldOption[]>(() =>
   BALANCE_SCRIPT_FIELDS.map((key) => {
     const kind = BALANCE_SCRIPT_FIELD_KINDS[key] || 'number'
     const allowedFormatsForKey = BALANCE_SCRIPT_ALLOWED_FORMATS[key]
-    const formatOptions =
-      allowedFormatsForKey ??
-      ((kind === 'date'
-        ? (['dateTime', 'dateOnly', 'iso', 'relative'] as const)
-        : kind === 'text'
-          ? (['text', 'raw'] as const)
-          : (['exact', 'smart', 'k', 'm'] as const)) as unknown as BalanceScriptMetricFormat[])
-    const labelKey = `relay.balanceScript${key.charAt(0).toUpperCase() + key.slice(1)}`
-    const shortLabelKey = `${labelKey}Short`
+    const formatOptions = allowedFormatsForKey ?? BALANCE_SCRIPT_FIELD_FORMATS_BY_KIND[kind]
+    const translation = BALANCE_SCRIPT_FIELD_TRANSLATIONS[key]
     return {
       value: key,
-      label: i18ns.t(labelKey as any),
-      shortLabel: i18ns.t(shortLabelKey as any),
-      tooltip: i18ns.t(
-        `relay.balanceScriptFieldTooltip${key.charAt(0).toUpperCase() + key.slice(1)}` as any,
-      ),
+      label: i18ns.t(translation.label),
+      shortLabel: i18ns.t(translation.shortLabel),
+      tooltip: i18ns.t(translation.tooltip),
       kind,
       formatOptions,
     }
