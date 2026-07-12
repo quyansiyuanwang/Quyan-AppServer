@@ -48,6 +48,7 @@ const makePreferenceRecord = (overrides: Record<string, unknown> = {}) => ({
   userId: "user-1",
   notificationEmail: "user@example.com",
   subscribedEvents: [NotificationEvent.BALANCE_LOW],
+  knownEvents: [...ALL_NOTIFICATION_EVENTS],
   thresholds: { balance_low: 10 },
   cooldownMinutes: 60,
   createTime: new Date("2026-01-01"),
@@ -156,7 +157,27 @@ describe("NotificationManagementService", () => {
 
       const [, updateData] = repoMock.upsertPreference.mock.calls[0];
       expect(updateData).not.toHaveProperty("notificationEmail");
+      expect(updateData).not.toHaveProperty("knownEvents");
       expect(updateData.cooldownMinutes).toBe(30);
+    });
+
+    it("应保留显式取消后的空订阅列表", async () => {
+      repoMock.upsertPreference.mockResolvedValue(makePreferenceRecord({ subscribedEvents: [] }));
+
+      const result = await service.updatePreference(
+        "user-1",
+        { subscribedEvents: [] },
+        mockRequest,
+      );
+
+      expect(repoMock.upsertPreference).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({
+          subscribedEvents: [],
+          knownEvents: [...ALL_NOTIFICATION_EVENTS],
+        }),
+      );
+      expect(result.subscribedEvents).toEqual([]);
     });
   });
 

@@ -10,6 +10,7 @@ import { prisma } from "@/config/database";
 export interface NotificationPreferenceUpdateInput {
   notificationEmail?: string | null;
   subscribedEvents?: string[];
+  knownEvents?: string[];
   thresholds?: Record<string, number>;
   cooldownMinutes?: number;
 }
@@ -73,6 +74,7 @@ export class NotificationPreferenceRepository {
       data: {
         userId,
         subscribedEvents: [],
+        knownEvents: [],
         thresholds: {},
       },
     });
@@ -85,12 +87,14 @@ export class NotificationPreferenceRepository {
         userId,
         notificationEmail: data.notificationEmail ?? null,
         subscribedEvents: data.subscribedEvents ?? [],
+        knownEvents: data.knownEvents ?? [],
         thresholds: data.thresholds ?? {},
         cooldownMinutes: data.cooldownMinutes ?? 60,
       },
       update: {
         ...(data.notificationEmail !== undefined && { notificationEmail: data.notificationEmail }),
         ...(data.subscribedEvents !== undefined && { subscribedEvents: data.subscribedEvents }),
+        ...(data.knownEvents !== undefined && { knownEvents: data.knownEvents }),
         ...(data.thresholds !== undefined && { thresholds: data.thresholds }),
         ...(data.cooldownMinutes !== undefined && { cooldownMinutes: data.cooldownMinutes }),
       },

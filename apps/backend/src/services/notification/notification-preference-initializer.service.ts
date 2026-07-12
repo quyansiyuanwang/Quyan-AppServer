@@ -1,4 +1,5 @@
 import { ALL_NOTIFICATION_EVENTS } from "@appserver/shared";
+import type { NotificationPreference } from "@prisma/client";
 import { ConfigService } from "@/services/system/config.service";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { UserRepository } from "@/store/users/user.repository";
@@ -19,6 +20,12 @@ export class NotificationPreferenceInitializerService {
     return NotificationPreferenceInitializerService.instance;
   }
 
+  private normalizeEvents(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+
+    return value.filter((event): event is string => typeof event === "string");
+  }
+
   async getOrInitialize(userId: string) {
     const existing = await this.repository.findByUserId(userId);
     if (!existing) {
@@ -30,23 +37,35 @@ export class NotificationPreferenceInitializerService {
       return await this.repository.upsertPreference(userId, {
         notificationEmail: user?.email ?? null,
         subscribedEvents: config.defaultSubscribedEvents,
+        knownEvents: [...ALL_NOTIFICATION_EVENTS],
         thresholds: config.defaultThresholds,
         cooldownMinutes: 60,
       });
     }
 
-    // Merge any new events (added after user initialized their preferences)
-    // into the user's subscribed list so they default to enabled.
-    const existingEvents = new Set(existing.subscribedEvents as string[]);
-    const missingEvents = ALL_NOTIFICATION_EVENTS.filter((e) => !existingEvents.has(e));
+    return this.syncKnownEvents(userId, existing);
+  }
 
-    if (missingEvents.length > 0) {
-      existing.subscribedEvents = [...(existing.subscribedEvents as string[]), ...missingEvents];
-      await this.repository.upsertPreference(userId, {
-        subscribedEvents: existing.subscribedEvents as string[],
+  private async syncKnownEvents(userId: string, existing: NotificationPreference) {
+    const subscribedEvents = this.normalizeEvents(existing.subscribedEvents);
+    const knownEvents = this.normalizeEvents(existing.knownEvents);
+
+    if (knownEvents.length === 0) {
+      return await this.repository.upsertPreference(userId, {
+        knownEvents: [...ALL_NOTIFICATION_EVENTS],
       });
     }
 
-    return existing;
+    const knownEventSet = new Set(knownEvents);
+    const newlyIntroducedEvents = ALL_NOTIFICATION_EVENTS.filter((event) => !knownEventSet.has(event));
+
+    if (newlyIntroducedEvents.length === 0) {
+      return existing;
+    }
+
+    return await this.repository.upsertPreference(userId, {
+      subscribedEvents: [...new Set([...subscribedEvents, ...newlyIntroducedEvents])],
+      knownEvents: [...knownEvents, ...newlyIntroducedEvents],
+    });
   }
 }

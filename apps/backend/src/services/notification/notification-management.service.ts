@@ -67,7 +67,10 @@ export class NotificationManagementService {
     const updateData: NotificationPreferenceUpdateInput = {};
 
     if (dto.notificationEmail !== undefined) updateData.notificationEmail = dto.notificationEmail;
-    if (dto.subscribedEvents !== undefined) updateData.subscribedEvents = dto.subscribedEvents;
+    if (dto.subscribedEvents !== undefined) {
+      updateData.subscribedEvents = dto.subscribedEvents;
+      updateData.knownEvents = [...ALL_NOTIFICATION_EVENTS];
+    }
     if (dto.thresholds !== undefined) updateData.thresholds = dto.thresholds;
     if (dto.cooldownMinutes !== undefined) updateData.cooldownMinutes = dto.cooldownMinutes;
 

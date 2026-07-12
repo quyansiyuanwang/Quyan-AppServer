@@ -5,6 +5,7 @@ import type {
   NotificationEventInfoDto,
   NotificationInboxItemDto,
   NotificationLogDto,
+  NotificationPreferenceDto,
   NotificationWebhookDto,
 } from '@/client/types.gen'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -56,6 +57,21 @@ export const useNotificationSettings = () => {
     eventList.value.filter((ev) => ev.hasThreshold && subscribedSet[ev.value]),
   )
 
+  const applyPreferences = (data: Partial<NotificationPreferenceDto> | undefined) => {
+    prefForm.notificationEmail = data?.notificationEmail ?? ''
+    prefForm.cooldownMinutes = data?.cooldownMinutes ?? 60
+    prefForm.thresholds = { ...(data?.thresholds ?? {}) }
+
+    for (const ev of eventList.value) {
+      subscribedSet[ev.value] = false
+    }
+
+    const validEventValues = new Set(eventList.value.map((ev) => ev.value))
+    for (const ev of (data?.subscribedEvents ?? []) as string[]) {
+      if (validEventValues.has(ev)) subscribedSet[ev] = true
+    }
+  }
+
   const loadEventList = async () => {
     loadingEvents.value = true
     try {
@@ -72,17 +88,7 @@ export const useNotificationSettings = () => {
     loadingPrefs.value = true
     try {
       const res = await service.getPreferences()
-      const data = res.data
-      prefForm.notificationEmail = data.notificationEmail ?? ''
-      prefForm.cooldownMinutes = data.cooldownMinutes ?? 60
-      prefForm.thresholds = { ...(data.thresholds ?? {}) }
-      for (const key of Object.keys(subscribedSet)) {
-        subscribedSet[key] = false
-      }
-      const validEventValues = new Set(eventList.value.map((ev) => ev.value))
-      for (const ev of (data.subscribedEvents ?? []) as string[]) {
-        if (validEventValues.has(ev)) subscribedSet[ev] = true
-      }
+      applyPreferences(res.data)
     } catch {
       // ignore
     } finally {
@@ -122,12 +128,13 @@ export const useNotificationSettings = () => {
         }
       }
 
-      await service.updatePreferences({
+      const result = await service.updatePreferences({
         notificationEmail: prefForm.notificationEmail || null,
         subscribedEvents,
         thresholds,
         cooldownMinutes: prefForm.cooldownMinutes,
       })
+      applyPreferences(result.data)
       ElMessage.success(i18ns.t('NotificationSettingsView.preferenceSaved'))
     } catch {
       // error handled by interceptor
