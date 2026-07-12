@@ -5,9 +5,7 @@
 
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
-import router from '@/router'
-import { defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
-import { preloadAllRoutes } from '@/utils/routePreloader'
+import { defineAsyncComponent, onMounted, ref } from 'vue'
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
@@ -31,16 +29,4 @@ onMounted(() => {
 
   setTimeout(enableController, 1200)
 })
-
-// 页面预加载：首屏渲染完成后，在空闲时预加载所有懒加载路由组件
-router.isReady().then(() => {
-  const idleWindow = window as IdleWindow
-  if (typeof idleWindow.requestIdleCallback === 'function') {
-    idleWindow.requestIdleCallback(preloadAllRoutes, { timeout: 3000 })
-  } else {
-    setTimeout(preloadAllRoutes, 1500)
-  }
-})
-
-onBeforeUnmount(() => {})
 </script>
