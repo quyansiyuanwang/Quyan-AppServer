@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 
 import App from '@/App.vue'
 import router from '@/router'
+import { routes } from '@/router/routes'
 import { i18ns, initializeI18n } from '@/locales'
 import { configureAll } from '@/config'
 import { useImpersonationStore } from '@/stores/impersonationStore'
@@ -34,10 +35,40 @@ const scheduleAfterLoad = (task: () => void, delay: number, timeout: number) => 
   window.addEventListener('load', scheduleTask, { once: true })
 }
 
-const shouldSkipDeferredStartupWork = () =>
-  router
-    .resolve(window.location.pathname)
-    .matched.some((record) => record.meta.isAuthEntry === true)
+const resolveRoutePath = (path: string, basePath = ''): string => {
+  if (!path) return basePath || '/'
+  if (path.startsWith('/')) return path
+
+  const normalizedBase = basePath === '/' ? '' : basePath.replace(/\/$/, '')
+  const normalizedPath = path.replace(/^\//, '')
+
+  if (!normalizedBase) return `/${normalizedPath}`
+  return `${normalizedBase}/${normalizedPath}`
+}
+
+const hasAuthEntryRoute = (records: typeof routes, pathname: string, basePath = ''): boolean => {
+  for (const record of records) {
+    const fullPath = resolveRoutePath(record.path, basePath)
+
+    if (record.meta?.isAuthEntry === true && fullPath === pathname) {
+      return true
+    }
+
+    if (record.children && record.children.length > 0) {
+      const nextBasePath = record.path.startsWith('/')
+        ? record.path
+        : resolveRoutePath(record.path, basePath)
+
+      if (hasAuthEntryRoute(record.children, pathname, nextBasePath)) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+const shouldSkipDeferredStartupWork = () => hasAuthEntryRoute(routes, window.location.pathname)
 
 export const bootstrapApp = async () => {
   try {
