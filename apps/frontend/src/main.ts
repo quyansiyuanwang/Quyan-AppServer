@@ -9,7 +9,7 @@ import { bootstrapApp } from '@/bootstrap'
 if (import.meta.env.MODE !== 'test') {
   const startApp = async () => {
     if (isDarkThemeActive()) {
-      await ensureElementPlusDarkTheme()
+      void ensureElementPlusDarkTheme()
     }
 
     await bootstrapApp()
