@@ -144,7 +144,6 @@ const updateSelection = (key: FilterSelectionKey, value: string[]) => {
 
 <style scoped>
 .filter-card {
-  margin-bottom: 16px;
   border-radius: 10px;
   width: 100%;
   min-width: 0;
@@ -212,7 +211,6 @@ const updateSelection = (key: FilterSelectionKey, value: string[]) => {
 }
 
 .mobile-filter-card {
-  margin-bottom: 12px;
 }
 
 .mobile-filter-grid {

@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page system-stats-page">
+  <div v-if="isDesktop" class="desktop-page page-shell system-stats-page">
     <!-- Toolbar outside any card -->
     <div class="stats-toolbar">
       <div class="toolbar-left">
@@ -421,7 +421,7 @@
   </div>
 
   <!-- Mobile View -->
-  <div v-else class="mobile-page system-stats-mobile-adapter">
+  <div v-else class="mobile-page mobile-adapter system-stats-mobile-adapter">
     <div class="mobile-toolbar">
       <div class="auto-refresh-box">
         <el-input-number
@@ -848,6 +848,9 @@ const { isDesktop } = usePageDevice()
 }
 
 .system-stats-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   width: 100%;
   min-width: 0;
   padding: 0 0 20px;
@@ -859,7 +862,6 @@ const { isDesktop } = usePageDevice()
 
 .stats-card {
   border-radius: 8px;
-  margin-bottom: 16px;
   width: 100%;
   min-width: 0;
 }
