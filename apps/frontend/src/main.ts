@@ -1,6 +1,5 @@
 import '@/assets/main.css'
 import '@/assets/tailwind.css'
-import '@/assets/april-fools.css'
 
 import { ensureElementPlusDarkTheme, isDarkThemeActive } from '@/utils/elementPlusTheme'
 

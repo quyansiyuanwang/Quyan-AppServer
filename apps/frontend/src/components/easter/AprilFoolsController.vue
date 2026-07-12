@@ -170,6 +170,8 @@
 </template>
 
 <script setup lang="ts">
+import '@/assets/april-fools.css'
+
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'

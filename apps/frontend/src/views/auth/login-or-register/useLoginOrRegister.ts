@@ -4,10 +4,6 @@ import { CustomCode } from '@/constant/custom-code'
 import { i18ns } from '@/locales'
 import router from '@/router'
 import { authorizationService } from '@/service/authorizationService'
-import { warmupCaptchaTrust } from '@/service/captchaDialogService'
-import { configService } from '@/service/configService'
-import { legalPolicyService } from '@/service/legalPolicyService'
-import { passkeyService } from '@/service/passkeyService'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
 import { md5 } from '@/utils/encryption'
 import { Notification } from '@/utils/notification'
@@ -23,6 +19,10 @@ import type { LegalPolicyType, PublicLegalPolicyDto } from '@/client/types.gen'
 import type { FormInstance, FormRules } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+}
 
 type LegalPolicyConsentCache = {
   username: string
@@ -68,6 +68,11 @@ export function useLoginOrRegister() {
   const legalPolicies = ref<PublicLegalPolicyDto[]>([])
   const mode = ref<'login' | 'register'>('login')
   const { isDesktop } = usePageDevice()
+
+  const loadCaptchaDialogService = () => import('@/service/captchaDialogService')
+  const loadConfigService = () => import('@/service/configService')
+  const loadLegalPolicyService = () => import('@/service/legalPolicyService')
+  const loadPasskeyService = () => import('@/service/passkeyService')
 
   let cooldownTimer: ReturnType<typeof setInterval> | null = null
   let passkeyLibPromise: Promise<typeof import('@simplewebauthn/browser')> | null = null
@@ -257,6 +262,7 @@ export function useLoginOrRegister() {
   const loadLegalPolicies = async () => {
     policyDialogLoading.value = true
     try {
+      const { legalPolicyService } = await loadLegalPolicyService()
       legalPolicies.value = await legalPolicyService.getCurrentPolicies()
       if (!policyMap.value.get(policyActiveTab.value)) {
         const firstPolicy = legalPolicies.value[0]
@@ -723,6 +729,7 @@ export function useLoginOrRegister() {
 
     try {
       const startAuthentication = await loadPasskeyStartAuthentication()
+      const { passkeyService } = await loadPasskeyService()
       const { options, sessionId } = await passkeyService.getAuthOptions()
       const authResponse = await startAuthentication({ optionsJSON: options as any })
       const result = await passkeyService.verifyAuth(sessionId, authResponse)
@@ -779,16 +786,38 @@ export function useLoginOrRegister() {
     const initialModeFromQuery = typeof route.query.mode === 'string' ? route.query.mode : 'login'
     mode.value =
       route.path === '/register' || initialModeFromQuery === 'register' ? 'register' : 'login'
-    captchaWarmupRunning.value = true
-    void warmupCaptchaTrust(mode.value === 'register' ? 'register' : 'login').finally(() => {
-      captchaWarmupRunning.value = false
-    })
-    try {
-      registrationEnabled.value = await configService.getRegistrationStatus()
-    } catch (error) {
-      console.error('Failed to load registration status:', error)
-      registrationEnabled.value = false
+
+    const scheduleIdleTask = (callback: () => void, timeout = 3000) => {
+      const idleWindow = window as IdleWindow
+      if (typeof idleWindow.requestIdleCallback === 'function') {
+        idleWindow.requestIdleCallback(callback, { timeout })
+        return
+      }
+      setTimeout(callback, Math.min(timeout, 1200))
     }
+
+    scheduleIdleTask(() => {
+      captchaWarmupRunning.value = true
+      void loadCaptchaDialogService()
+        .then(({ warmupCaptchaTrust }) =>
+          warmupCaptchaTrust(mode.value === 'register' ? 'register' : 'login'),
+        )
+        .finally(() => {
+          captchaWarmupRunning.value = false
+        })
+    }, 5000)
+
+    scheduleIdleTask(() => {
+      void loadConfigService()
+        .then(({ configService }) => configService.getRegistrationStatus())
+        .then((enabled) => {
+          registrationEnabled.value = enabled
+        })
+        .catch((error) => {
+          console.error('Failed to load registration status:', error)
+          registrationEnabled.value = false
+        })
+    }, 3500)
   })
 
   onBeforeUnmount(() => {
@@ -813,11 +842,6 @@ export function useLoginOrRegister() {
     },
     { immediate: true },
   )
-
-  void loadLegalPolicies().catch((error) => {
-    console.error('Failed to preload legal policies:', error)
-  })
-
   return {
     captchaVerifying,
     captchaWarmupRunning,

@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
+import { defineAsyncComponent } from 'vue'
 import { i18ns } from '@/locales'
 import { useLoginOrRegisterContext } from '../context'
+
+const MarkdownRenderer = defineAsyncComponent(
+  () => import('@/components/common/MarkdownRenderer.vue'),
+)
 
 const state = useLoginOrRegisterContext()
 const policyDialogVisible = state.policyDialogVisible
