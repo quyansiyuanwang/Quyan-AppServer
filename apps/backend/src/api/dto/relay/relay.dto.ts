@@ -168,21 +168,26 @@ export interface RelayTokenChannelConfigInputDto {
 export interface RelayTokenFailoverConfigDto {
   /** 是否启用自动切换 */
   enabled: boolean;
-  /** 最大重试次数 */
+  /**
+   * 最大渠道切换次数
+   * @minimum 0
+   * @maximum 100
+   * @default 0
+   */
   maxRetries: number;
   /** 触发切换的 HTTP 状态码/匹配规则，如 401、4xx、/^5(02|03)$/ */
   retryStatusCodes: string[];
   /**
    * 单渠道重试次数（0 = 不重试直接切换，1 = 重试1次）
    * @minimum 0
-   * @maximum 32
+   * @maximum 100
    * @default 0
    */
   failoverThreshold: number;
   /**
    * 切换后保持当前渠道优先的时长（分钟），0 表示关闭
    * @minimum 0
-   * @maximum 10080
+   * @maximum 525600
    * @default 0
    */
   failbackCooldownMinutes: number;

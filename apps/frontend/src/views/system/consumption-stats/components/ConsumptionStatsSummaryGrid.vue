@@ -45,7 +45,6 @@ defineProps<{
 
 <style scoped>
 .summary-grid {
-  margin-bottom: 16px;
   width: 100%;
   min-width: 0;
 }
@@ -80,6 +79,5 @@ defineProps<{
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
-  margin-bottom: 12px;
 }
 </style>

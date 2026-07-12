@@ -1,12 +1,37 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import { routes } from './routes'
-import { authorizationService, AuthorizationService } from '@/service/authorizationService'
 import { globalEventBus } from '@/stores/globalInstance'
 import { usePermissionStore } from '@/stores/permissionStore'
-import { captchaTrustStateService } from '@/service/captchaTrustStateService'
-import { resolveCaptchaPreflightAction } from '@/service/captchaDialogService'
 import { getLoginRoute } from '@/utils/auth-routes'
-import { tracker } from '@/utils/tracker'
+
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+}
+
+const isAuthEntryRoute = (to: RouteLocationNormalized): boolean =>
+  to.matched.some((record) => record.meta.isAuthEntry === true)
+
+const scheduleAnalyticsTrack = (task: () => void) => {
+  const scheduleTask = () => {
+    const idleWindow = window as IdleWindow
+
+    setTimeout(() => {
+      if (typeof idleWindow.requestIdleCallback === 'function') {
+        idleWindow.requestIdleCallback(task, { timeout: 5000 })
+        return
+      }
+
+      task()
+    }, 1200)
+  }
+
+  if (document.readyState === 'complete') {
+    scheduleTask()
+    return
+  }
+
+  window.addEventListener('load', scheduleTask, { once: true })
+}
 
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -15,6 +40,11 @@ export const router = createRouter({
 
 // 全局路由守卫：检查认证状态
 router.beforeEach(async (to, from, next) => {
+  if (isAuthEntryRoute(to)) {
+    next()
+    return
+  }
+
   const allowGuestWhenEmbedded =
     to.meta.allowGuestWhenEmbedded === true && String(to.query.embed ?? '') === '1'
   const allowGuest = to.meta.allowGuest === true
@@ -22,6 +52,11 @@ router.beforeEach(async (to, from, next) => {
   const requiresCaptchaPreflight = Boolean(to.meta.requiresCaptchaPreflight)
 
   if (requiresCaptchaPreflight && to.name !== 'captchaVerification') {
+    const [{ captchaTrustStateService }, { resolveCaptchaPreflightAction }] = await Promise.all([
+      import('@/service/captchaTrustStateService'),
+      import('@/service/captchaDialogService'),
+    ])
+
     const captchaAction = resolveCaptchaPreflightAction(to)
     if (captchaAction) {
       try {
@@ -36,19 +71,9 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  // 如果访问登录页，直接放行
-  if (
-    to.name === 'login' ||
-    to.name === 'register' ||
-    to.name === 'forgotPassword' ||
-    to.name === 'oauthAuthorize' ||
-    to.name === 'authVerification' ||
-    to.name === 'captchaVerification'
-  ) {
-    next()
-    return
-  }
-
+  const { authorizationService, AuthorizationService } = await import(
+    '@/service/authorizationService'
+  )
   const accessToken = AuthorizationService.getAccessToken()
   const token = accessToken || (await authorizationService.bootstrapSession())
 
@@ -97,11 +122,21 @@ router.beforeEach(async (to, from, next) => {
 })
 
 router.afterEach((to, from) => {
-  tracker.track('view', 'page_view', {
-    toPath: to.fullPath,
-    toName: String(to.name ?? ''),
-    fromPath: from.fullPath,
-    title: document.title,
+  if (isAuthEntryRoute(to)) return
+
+  scheduleAnalyticsTrack(() => {
+    void import('@/utils/tracker')
+      .then(({ tracker }) => {
+        tracker.track('view', 'page_view', {
+          toPath: to.fullPath,
+          toName: String(to.name ?? ''),
+          fromPath: from.fullPath,
+          title: document.title,
+        })
+      })
+      .catch((error) => {
+        console.warn('[router] Failed to record page view:', error)
+      })
   })
 })
 

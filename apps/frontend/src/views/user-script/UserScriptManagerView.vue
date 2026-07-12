@@ -263,8 +263,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
-
 .sm-root {
   height: 100%;
   display: flex;

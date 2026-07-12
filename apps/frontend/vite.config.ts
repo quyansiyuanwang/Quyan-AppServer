@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url'
-import { copyFileSync } from 'node:fs'
+import { copyFileSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { brotliCompressSync, constants as zlibConstants } from 'node:zlib'
 
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
@@ -20,6 +21,7 @@ import { autoRouteTypes } from './scripts/plugins/vite-plugin-auto-route-types'
 export default defineConfig(({ mode }) => {
   const isProd = mode === 'production' || mode === 'prod'
   const enableObfuscation = isProd && process.env.VITE_ENABLE_OBFUSCATION === 'true'
+  const enableVueDevTools = process.env.VITE_ENABLE_VUE_DEVTOOLS === 'true'
 
   const stripOriginHeader = (proxy: { on: (event: 'proxyReq', handler: (proxyReq: { removeHeader: (header: string) => void }) => void) => void }) => {
     proxy.on('proxyReq', (proxyReq) => {
@@ -114,6 +116,43 @@ export default defineConfig(({ mode }) => {
     return resolveNodeModuleChunk(moduleId)
   }
 
+  const writeBrotliAssets = (rootDir: string, threshold: number) => {
+    const compressibleExtensions = new Set(['.css', '.html', '.js', '.json', '.svg', '.txt', '.xml'])
+
+    const walk = (dirPath: string) => {
+      for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
+        const fullPath = resolve(dirPath, entry.name)
+
+        if (entry.isDirectory()) {
+          walk(fullPath)
+          continue
+        }
+
+        const extensionIndex = entry.name.lastIndexOf('.')
+        const extension = extensionIndex >= 0 ? entry.name.slice(extensionIndex) : ''
+        if (!compressibleExtensions.has(extension) || entry.name.endsWith('.br') || entry.name.endsWith('.gz')) {
+          continue
+        }
+
+        const stats = statSync(fullPath)
+        if (stats.size < threshold) {
+          continue
+        }
+
+        const source = readFileSync(fullPath)
+        const compressed = brotliCompressSync(source, {
+          params: {
+            [zlibConstants.BROTLI_PARAM_QUALITY]: zlibConstants.BROTLI_MAX_QUALITY,
+          },
+        })
+
+        writeFileSync(`${fullPath}.br`, compressed)
+      }
+    }
+
+    walk(rootDir)
+  }
+
   return {
     plugins: [
       autoRouteTypes({
@@ -122,7 +161,7 @@ export default defineConfig(({ mode }) => {
       }),
       buildInfoPlugin(),
       vue(),
-      vueDevTools(),
+      enableVueDevTools && vueDevTools(),
       visualizer(),
       AutoImport({
         resolvers: [ElementPlusResolver({ importStyle: 'css' })],
@@ -169,6 +208,13 @@ export default defineConfig(({ mode }) => {
         writeBundle() {
           const outDir = resolve(__dirname, 'dist')
           copyFileSync(resolve(outDir, 'index.html'), resolve(outDir, '404.html'))
+        },
+      },
+      {
+        name: 'write-brotli-assets',
+        writeBundle() {
+          const outDir = resolve(__dirname, 'dist')
+          writeBrotliAssets(outDir, 10240)
         },
       },
     ].filter(Boolean),

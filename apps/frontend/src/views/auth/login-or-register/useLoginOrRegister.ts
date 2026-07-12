@@ -3,11 +3,6 @@ import StorageKey from '@/constant/storagekey'
 import { CustomCode } from '@/constant/custom-code'
 import { i18ns } from '@/locales'
 import router from '@/router'
-import { authorizationService } from '@/service/authorizationService'
-import { warmupCaptchaTrust } from '@/service/captchaDialogService'
-import { configService } from '@/service/configService'
-import { legalPolicyService } from '@/service/legalPolicyService'
-import { passkeyService } from '@/service/passkeyService'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
 import { md5 } from '@/utils/encryption'
 import { Notification } from '@/utils/notification'
@@ -23,6 +18,10 @@ import type { LegalPolicyType, PublicLegalPolicyDto } from '@/client/types.gen'
 import type { FormInstance, FormRules } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+}
 
 type LegalPolicyConsentCache = {
   username: string
@@ -52,12 +51,13 @@ export function useLoginOrRegister() {
   const passwordInputRef = ref()
   const waterMarkTextStore = useWaterMarkTextStore()
   const route = useRoute()
-  const registrationEnabled = ref(true)
+  const registrationEnabled = ref<boolean | null>(null)
   const captchaWarmupRunning = ref(false)
   const codeCooldown = ref(0)
   const loading = ref(false)
   const passkeyLoading = ref(false)
   const captchaVerifying = ref(false)
+  const registrationStatusReady = ref(false)
   const policyDialogVisible = ref(false)
   const policyDialogLoading = ref(false)
   const policyDialogSubmitting = ref(false)
@@ -69,8 +69,15 @@ export function useLoginOrRegister() {
   const mode = ref<'login' | 'register'>('login')
   const { isDesktop } = usePageDevice()
 
+  const loadCaptchaDialogService = () => import('@/service/captchaDialogService')
+  const loadConfigService = () => import('@/service/configService')
+  const loadLegalPolicyService = () => import('@/service/legalPolicyService')
+  const loadPasskeyService = () => import('@/service/passkeyService')
+  const loadAuthorizationService = () => import('@/service/authorizationService')
+
   let cooldownTimer: ReturnType<typeof setInterval> | null = null
   let passkeyLibPromise: Promise<typeof import('@simplewebauthn/browser')> | null = null
+  let registrationStatusPromise: Promise<boolean> | null = null
 
   const loginForm = reactive<LoginForm>({
     username: '',
@@ -247,6 +254,34 @@ export function useLoginOrRegister() {
     return module.startAuthentication
   }
 
+  const ensureRegistrationEnabled = async () => {
+    if (registrationEnabled.value !== null) {
+      registrationStatusReady.value = true
+      return registrationEnabled.value
+    }
+
+    if (!registrationStatusPromise) {
+      registrationStatusPromise = loadConfigService()
+        .then(({ configService }) => configService.getRegistrationStatus())
+        .then((enabled) => {
+          registrationEnabled.value = enabled
+          registrationStatusReady.value = true
+          return enabled
+        })
+        .catch((error) => {
+          console.error('Failed to load registration status:', error)
+          registrationEnabled.value = false
+          registrationStatusReady.value = true
+          return false
+        })
+        .finally(() => {
+          registrationStatusPromise = null
+        })
+    }
+
+    return registrationStatusPromise
+  }
+
   const getSafeRedirect = (): string | undefined => {
     return getSafeAuthRedirect(route.query.redirect, {
       blockedExactPaths: ['/login', '/register', '/forgot-password'],
@@ -257,6 +292,7 @@ export function useLoginOrRegister() {
   const loadLegalPolicies = async () => {
     policyDialogLoading.value = true
     try {
+      const { legalPolicyService } = await loadLegalPolicyService()
       legalPolicies.value = await legalPolicyService.getCurrentPolicies()
       if (!policyMap.value.get(policyActiveTab.value)) {
         const firstPolicy = legalPolicies.value[0]
@@ -300,6 +336,7 @@ export function useLoginOrRegister() {
   }
 
   const redirectAfterSuccessfulLogin = async (userData?: Record<string, any>) => {
+    const { authorizationService } = await loadAuthorizationService()
     await authorizationService.reloadAuthStoresAfterLogin(userData)
 
     Notification.notify(
@@ -333,6 +370,7 @@ export function useLoginOrRegister() {
 
     policyDialogSubmitting.value = true
     try {
+      const { authorizationService } = await loadAuthorizationService()
       const authData = await authorizationService.acceptPolicyConsent(
         policyConsentChallengeToken.value,
       )
@@ -369,6 +407,7 @@ export function useLoginOrRegister() {
 
     loading.value = true
     try {
+      const { authorizationService } = await loadAuthorizationService()
       const authData = await authorizationService.acceptPolicyConsent(
         policyConsentChallengeToken.value,
       )
@@ -389,6 +428,7 @@ export function useLoginOrRegister() {
   }
 
   const handleLogin = async () => {
+    const { authorizationService } = await loadAuthorizationService()
     const loginRes = await authorizationService.login(
       currentForm.value.username,
       md5(currentForm.value.password),
@@ -463,6 +503,7 @@ export function useLoginOrRegister() {
   }
 
   const handleRegister = async () => {
+    const { authorizationService } = await loadAuthorizationService()
     const result = await authorizationService.register(
       {
         username: registerForm.username,
@@ -620,6 +661,7 @@ export function useLoginOrRegister() {
     if (!email) return
 
     try {
+      const { authorizationService } = await loadAuthorizationService()
       await authorizationService.sendRegisterVerificationCode(
         email,
         () => {
@@ -683,14 +725,29 @@ export function useLoginOrRegister() {
     formRef.value.resetFields()
   }
 
-  const toggleMode = () => {
+  const toggleMode = async () => {
+    const nextMode = isLogin.value ? 'register' : 'login'
+
+    if (nextMode === 'register') {
+      const enabled = await ensureRegistrationEnabled()
+      if (!enabled) {
+        Notification.notify(
+          i18ns.t('error'),
+          i18ns.t('message.error.registrationDisabled'),
+          'error',
+        )
+        return
+      }
+    }
+
     if (formRef.value) {
       formRef.value.resetFields()
       formRef.value.clearValidate()
     }
-    const nextMode = isLogin.value ? 'register' : 'login'
+
     if (nextMode === 'login') clearLoginForm()
     else clearRegisterForm()
+
     mode.value = nextMode
     const redirect = getSafeRedirect()
     void router.replace(
@@ -722,7 +779,9 @@ export function useLoginOrRegister() {
     passkeyLoading.value = true
 
     try {
+      const { authorizationService } = await loadAuthorizationService()
       const startAuthentication = await loadPasskeyStartAuthentication()
+      const { passkeyService } = await loadPasskeyService()
       const { options, sessionId } = await passkeyService.getAuthOptions()
       const authResponse = await startAuthentication({ optionsJSON: options as any })
       const result = await passkeyService.verifyAuth(sessionId, authResponse)
@@ -779,15 +838,43 @@ export function useLoginOrRegister() {
     const initialModeFromQuery = typeof route.query.mode === 'string' ? route.query.mode : 'login'
     mode.value =
       route.path === '/register' || initialModeFromQuery === 'register' ? 'register' : 'login'
-    captchaWarmupRunning.value = true
-    void warmupCaptchaTrust(mode.value === 'register' ? 'register' : 'login').finally(() => {
-      captchaWarmupRunning.value = false
-    })
-    try {
-      registrationEnabled.value = await configService.getRegistrationStatus()
-    } catch (error) {
-      console.error('Failed to load registration status:', error)
-      registrationEnabled.value = false
+
+    const scheduleIdleTask = (callback: () => void, timeout = 3000) => {
+      const idleWindow = window as IdleWindow
+      if (typeof idleWindow.requestIdleCallback === 'function') {
+        idleWindow.requestIdleCallback(callback, { timeout })
+        return
+      }
+      setTimeout(callback, Math.min(timeout, 1200))
+    }
+
+    scheduleIdleTask(() => {
+      captchaWarmupRunning.value = true
+      void loadCaptchaDialogService()
+        .then(({ warmupCaptchaTrust }) =>
+          warmupCaptchaTrust(mode.value === 'register' ? 'register' : 'login'),
+        )
+        .finally(() => {
+          captchaWarmupRunning.value = false
+        })
+    }, 0)
+
+    if (mode.value === 'login') {
+      scheduleIdleTask(() => {
+        void ensureRegistrationEnabled()
+      }, 2500)
+    }
+
+    if (mode.value === 'register') {
+      scheduleIdleTask(() => {
+        void ensureRegistrationEnabled().then((enabled) => {
+          if (enabled) return
+
+          mode.value = 'login'
+          clearRegisterForm()
+          void router.replace(getLoginRoute(getSafeRedirect()))
+        })
+      }, 2000)
     }
   })
 
@@ -813,11 +900,6 @@ export function useLoginOrRegister() {
     },
     { immediate: true },
   )
-
-  void loadLegalPolicies().catch((error) => {
-    console.error('Failed to preload legal policies:', error)
-  })
-
   return {
     captchaVerifying,
     captchaWarmupRunning,
@@ -855,6 +937,7 @@ export function useLoginOrRegister() {
     policyTabs,
     registerForm,
     registrationEnabled,
+    registrationStatusReady,
     submitDisabled,
     toggleMode,
     usernameInputRef,

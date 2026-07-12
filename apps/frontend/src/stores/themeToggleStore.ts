@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useToggle } from '@vueuse/shared'
 import { useColorMode, usePreferredDark } from '@vueuse/core'
 import localStorageKeys from '@/constant/storagekey'
+import { ensureElementPlusDarkTheme } from '@/utils/elementPlusTheme'
 
 export const useThemeToggleStore = defineStore('themeToggle', () => {
   const preferredDark = usePreferredDark()
@@ -16,6 +17,11 @@ export const useThemeToggleStore = defineStore('themeToggle', () => {
     onChanged: (mode, defaultHandler) => {
       defaultHandler(mode)
       const resolvedDark = mode === 'auto' ? preferredDark.value : mode === 'dark'
+
+      if (resolvedDark) {
+        void ensureElementPlusDarkTheme()
+      }
+
       document.documentElement.classList.toggle('dark', resolvedDark)
       document.documentElement.style.colorScheme = resolvedDark ? 'dark' : 'light'
     },

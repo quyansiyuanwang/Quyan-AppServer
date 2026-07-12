@@ -16,6 +16,7 @@ export const routes = [
         name: 'login',
         component: () => import('@/views/auth/LoginOrRegisterView.vue'),
         meta: {
+          isAuthEntry: true,
           requiresCaptchaPreflight: true,
         },
       },
@@ -24,6 +25,7 @@ export const routes = [
         name: 'register',
         component: () => import('@/views/auth/LoginOrRegisterView.vue'),
         meta: {
+          isAuthEntry: true,
           requiresCaptchaPreflight: true,
           captchaAction: 'register',
         },
@@ -33,6 +35,7 @@ export const routes = [
         name: 'forgotPassword',
         component: () => import('@/views/auth/ForgotPasswordView.vue'),
         meta: {
+          isAuthEntry: true,
           requiresCaptchaPreflight: true,
           captchaAction: 'reset_password',
         },
@@ -40,16 +43,25 @@ export const routes = [
       {
         path: '/auth/verify',
         name: 'authVerification',
+        meta: {
+          isAuthEntry: true,
+        },
         component: () => import('@/views/auth/AuthVerificationView.vue'),
       },
       {
         path: '/oauth/authorize',
         name: 'oauthAuthorize',
+        meta: {
+          isAuthEntry: true,
+        },
         component: () => import('@/views/auth/OAuthAuthorizeView.vue'),
       },
       {
         path: '/auth/captcha',
         name: 'captchaVerification',
+        meta: {
+          isAuthEntry: true,
+        },
         component: () => import('@/views/auth/CaptchaVerificationView.vue'),
       },
       {

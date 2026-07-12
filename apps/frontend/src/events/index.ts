@@ -1,7 +1,6 @@
 import { authEventBus, globalEventBus, customCodeBus } from '@/stores/globalInstance'
 import { Notification } from '@/utils/notification'
 import { i18ns } from '@/locales'
-import { authorizationService } from '@/service/authorizationService'
 import { ElMessageBox } from 'element-plus'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { usePermissionStore } from '@/stores/permissionStore'
@@ -26,6 +25,8 @@ interface TwoFactorRequiredPayload {
   redirect?: string
   expiresIn?: number
 }
+
+const loadAuthorizationService = () => import('@/service/authorizationService')
 
 const scheduleSessionExpiredUnlock = () => {
   if (sessionExpiredUnlockTimer) clearTimeout(sessionExpiredUnlockTimer)
@@ -57,9 +58,14 @@ const triggerSessionExpiredLogout = (message: string) => {
       ? currentPath
       : undefined
 
-  void authorizationService.logout(redirectPath).finally(() => {
-    scheduleSessionExpiredUnlock()
-  })
+  void loadAuthorizationService()
+    .then(({ authorizationService }) => authorizationService.logout(redirectPath))
+    .catch((error) => {
+      console.warn('[events] Failed to process session-expired logout:', error)
+    })
+    .finally(() => {
+      scheduleSessionExpiredUnlock()
+    })
 }
 
 const normalizeTwoFactorMethod = (value: unknown): TwoFactorMethod => {
@@ -117,23 +123,28 @@ const redirectToTwoFactorVerification = (raw: any) => {
   const method = normalizeTwoFactorMethod(payload.method)
   const redirect = getSafeRedirect(payload.redirect)
 
-  authorizationService.setPendingTwoFactorChallenge(payload.challengeToken, redirect, 'login')
+  void loadAuthorizationService()
+    .then(({ authorizationService }) => {
+      authorizationService.setPendingTwoFactorChallenge(payload.challengeToken, redirect, 'login')
 
-  const currentRoute = router.currentRoute.value
-  if (currentRoute?.name === 'authVerification') {
-    scheduleTwoFactorRedirectUnlock()
-    return
-  }
+      const currentRoute = router.currentRoute.value
+      if (currentRoute?.name === 'authVerification') {
+        scheduleTwoFactorRedirectUnlock()
+        return
+      }
 
-  void router
-    .push({
-      name: 'authVerification',
-      query: {
-        purpose,
-        method,
-        authEntry: 'login',
-        ...(redirect ? { redirect } : {}),
-      },
+      return router.push({
+        name: 'authVerification',
+        query: {
+          purpose,
+          method,
+          authEntry: 'login',
+          ...(redirect ? { redirect } : {}),
+        },
+      })
+    })
+    .catch((error) => {
+      console.warn('[events] Failed to redirect to two-factor verification:', error)
     })
     .finally(() => {
       scheduleTwoFactorRedirectUnlock()
@@ -160,9 +171,11 @@ export function registerAuthEvents() {
   authEventBus.on(
     'REQUEST_REFRESH_TOKEN',
     (token) => {
-      void authorizationService.refreshToken(token).catch((error) => {
-        console.error('Refresh token flow failed unexpectedly:', error)
-      })
+      void loadAuthorizationService()
+        .then(({ authorizationService }) => authorizationService.refreshToken(token))
+        .catch((error) => {
+          console.error('Refresh token flow failed unexpectedly:', error)
+        })
     },
     false,
   )
