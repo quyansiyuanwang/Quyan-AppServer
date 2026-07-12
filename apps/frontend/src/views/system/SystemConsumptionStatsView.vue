@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isDesktop" class="desktop-page consumption-stats-page">
+  <div v-if="isDesktop" class="desktop-page page-shell consumption-stats-page">
     <div class="stats-toolbar">
       <div class="page-title">{{ i18ns.t('ConsumptionStats.title') }}</div>
       <div class="toolbar-right">
@@ -58,7 +58,7 @@
     </div>
   </div>
 
-  <div v-else class="mobile-page consumption-mobile">
+  <div v-else class="mobile-page mobile-adapter consumption-mobile">
     <div class="mobile-toolbar">
       <el-date-picker
         v-model="mobileDateRange"
@@ -407,6 +407,9 @@ const { isDesktop } = usePageDevice()
 }
 
 .consumption-stats-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   width: 100%;
   min-width: 0;
   padding: 0 0 24px;

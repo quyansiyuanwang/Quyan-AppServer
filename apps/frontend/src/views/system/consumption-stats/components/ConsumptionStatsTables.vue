@@ -180,7 +180,6 @@ defineProps<{
 
 <style scoped>
 .table-grid {
-  margin-bottom: 16px;
   width: 100%;
   min-width: 0;
 }
@@ -232,7 +231,6 @@ defineProps<{
 }
 
 .mobile-collapse {
-  margin-top: 12px;
   width: 100%;
   min-width: 0;
 }

@@ -73,7 +73,6 @@ defineProps<{
 
 <style scoped>
 .chart-grid {
-  margin-bottom: 16px;
   width: 100%;
   min-width: 0;
 }
