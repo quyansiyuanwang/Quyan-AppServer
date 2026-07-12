@@ -57,6 +57,7 @@ export function useLoginOrRegister() {
   const loading = ref(false)
   const passkeyLoading = ref(false)
   const captchaVerifying = ref(false)
+  const registrationStatusReady = ref(false)
   const policyDialogVisible = ref(false)
   const policyDialogLoading = ref(false)
   const policyDialogSubmitting = ref(false)
@@ -255,6 +256,7 @@ export function useLoginOrRegister() {
 
   const ensureRegistrationEnabled = async () => {
     if (registrationEnabled.value !== null) {
+      registrationStatusReady.value = true
       return registrationEnabled.value
     }
 
@@ -263,11 +265,13 @@ export function useLoginOrRegister() {
         .then(({ configService }) => configService.getRegistrationStatus())
         .then((enabled) => {
           registrationEnabled.value = enabled
+          registrationStatusReady.value = true
           return enabled
         })
         .catch((error) => {
           console.error('Failed to load registration status:', error)
           registrationEnabled.value = false
+          registrationStatusReady.value = true
           return false
         })
         .finally(() => {
@@ -855,6 +859,12 @@ export function useLoginOrRegister() {
         })
     }, 5000)
 
+    if (mode.value === 'login') {
+      scheduleIdleTask(() => {
+        void ensureRegistrationEnabled()
+      }, 2500)
+    }
+
     if (mode.value === 'register') {
       scheduleIdleTask(() => {
         void ensureRegistrationEnabled().then((enabled) => {
@@ -927,6 +937,7 @@ export function useLoginOrRegister() {
     policyTabs,
     registerForm,
     registrationEnabled,
+    registrationStatusReady,
     submitDisabled,
     toggleMode,
     usernameInputRef,
