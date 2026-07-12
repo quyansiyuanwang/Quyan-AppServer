@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import type { RouteRecordRaw } from 'vue-router'
 
 import App from '@/App.vue'
 import router from '@/router'
@@ -46,7 +47,11 @@ const resolveRoutePath = (path: string, basePath = ''): string => {
   return `${normalizedBase}/${normalizedPath}`
 }
 
-const hasAuthEntryRoute = (records: typeof routes, pathname: string, basePath = ''): boolean => {
+const hasAuthEntryRoute = (
+  records: readonly RouteRecordRaw[],
+  pathname: string,
+  basePath = '',
+): boolean => {
   for (const record of records) {
     const fullPath = resolveRoutePath(record.path, basePath)
 
@@ -54,7 +59,7 @@ const hasAuthEntryRoute = (records: typeof routes, pathname: string, basePath = 
       return true
     }
 
-    if (record.children && record.children.length > 0) {
+    if (Array.isArray(record.children) && record.children.length > 0) {
       const nextBasePath = record.path.startsWith('/')
         ? record.path
         : resolveRoutePath(record.path, basePath)
