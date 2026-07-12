@@ -64,6 +64,12 @@
   font-size: 14px;
 }
 
+.toggle-tip__placeholder {
+  display: block;
+  width: min(220px, 70%);
+  height: 20px;
+}
+
 .forgot-link {
   display: flex;
   justify-content: center;

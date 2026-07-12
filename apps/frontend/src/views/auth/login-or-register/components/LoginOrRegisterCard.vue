@@ -26,6 +26,7 @@ const loginForm = computed(() => state.loginForm)
 const registerForm = computed(() => state.registerForm)
 const agreedLoginForm = computed(() => state.loginForm as LoginForm)
 const agreedRegisterForm = computed(() => state.registerForm as RegisterForm)
+const registrationStatusReady = state.registrationStatusReady
 const canShowRegisterEntry = computed(() => registrationEnabled.value !== false)
 const sendCodeDisabled = computed(() => {
   if (state.isDesktop.value) {
@@ -214,7 +215,10 @@ const sendCodeDisabled = computed(() => {
       </Transition>
     </el-form>
     <div class="toggle-tip">
-      <template v-if="isLogin && canShowRegisterEntry">
+      <template v-if="isLogin && !registrationStatusReady">
+        <span class="toggle-tip__placeholder" aria-hidden="true"></span>
+      </template>
+      <template v-else-if="isLogin && canShowRegisterEntry">
         <span>{{ i18ns.t('loginOrRegisterPage.noAccount') }}</span>
         <el-button type="primary" link :disabled="formDisabled" @click="state.toggleMode">
           {{ i18ns.t('loginOrRegisterPage.goRegister') }}
