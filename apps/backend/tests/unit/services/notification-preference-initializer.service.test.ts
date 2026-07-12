@@ -41,7 +41,12 @@ describe("NotificationPreferenceInitializerService", () => {
   });
 
   it("returns existing preference without reinitializing", async () => {
-    const existing = { id: "pref-1", userId: "user-1", subscribedEvents: [...ALL_NOTIFICATION_EVENTS] };
+    const existing = {
+      id: "pref-1",
+      userId: "user-1",
+      subscribedEvents: [...ALL_NOTIFICATION_EVENTS],
+      knownEvents: [...ALL_NOTIFICATION_EVENTS],
+    };
     repositoryMock.findByUserId.mockResolvedValue(existing);
 
     const result = await service.getOrInitialize("user-1");
@@ -49,6 +54,54 @@ describe("NotificationPreferenceInitializerService", () => {
     expect(result).toBe(existing);
     expect(configServiceMock.getNotificationConfig).not.toHaveBeenCalled();
     expect(repositoryMock.upsertPreference).not.toHaveBeenCalled();
+  });
+
+  it("does not auto-resubscribe events removed by the user", async () => {
+    const existing = {
+      id: "pref-1",
+      userId: "user-1",
+      subscribedEvents: [NotificationEvent.BALANCE_LOW],
+      knownEvents: [],
+    };
+    const synced = {
+      ...existing,
+      knownEvents: [...ALL_NOTIFICATION_EVENTS],
+    };
+    repositoryMock.findByUserId.mockResolvedValue(existing);
+    repositoryMock.upsertPreference.mockResolvedValue(synced);
+
+    const result = await service.getOrInitialize("user-1");
+
+    expect(result).toBe(synced);
+    expect(repositoryMock.upsertPreference).toHaveBeenCalledWith("user-1", {
+      knownEvents: [...ALL_NOTIFICATION_EVENTS],
+    });
+  });
+
+  it("auto-subscribes only events introduced after the user last saved preferences", async () => {
+    const knownEvents = [NotificationEvent.BALANCE_LOW, NotificationEvent.TICKET_STATUS_UPDATED];
+    const existing = {
+      id: "pref-1",
+      userId: "user-1",
+      subscribedEvents: [NotificationEvent.BALANCE_LOW],
+      knownEvents,
+    };
+    const newlyIntroducedEvents = ALL_NOTIFICATION_EVENTS.filter((event) => !knownEvents.includes(event));
+    const synced = {
+      ...existing,
+      subscribedEvents: [NotificationEvent.BALANCE_LOW, ...newlyIntroducedEvents],
+      knownEvents: [...knownEvents, ...newlyIntroducedEvents],
+    };
+    repositoryMock.findByUserId.mockResolvedValue(existing);
+    repositoryMock.upsertPreference.mockResolvedValue(synced);
+
+    const result = await service.getOrInitialize("user-1");
+
+    expect(result).toBe(synced);
+    expect(repositoryMock.upsertPreference).toHaveBeenCalledWith("user-1", {
+      subscribedEvents: [NotificationEvent.BALANCE_LOW, ...newlyIntroducedEvents],
+      knownEvents: [...knownEvents, ...newlyIntroducedEvents],
+    });
   });
 
   it("initializes email, subscribed events and default thresholds on first run", async () => {
@@ -70,6 +123,7 @@ describe("NotificationPreferenceInitializerService", () => {
     expect(repositoryMock.upsertPreference).toHaveBeenCalledWith("user-1", {
       notificationEmail: "seed@example.com",
       subscribedEvents: [NotificationEvent.BALANCE_LOW, NotificationEvent.MONTHLY_PASS_QUOTA_LOW],
+      knownEvents: [...ALL_NOTIFICATION_EVENTS],
       thresholds: {
         [NotificationEvent.BALANCE_LOW]: 10,
         [NotificationEvent.MONTHLY_PASS_QUOTA_LOW]: 20,
@@ -100,6 +154,7 @@ describe("NotificationPreferenceInitializerService", () => {
       "user-1",
       expect.objectContaining({
         subscribedEvents: [...ALL_NOTIFICATION_EVENTS],
+        knownEvents: [...ALL_NOTIFICATION_EVENTS],
       }),
     );
     expect((repositoryMock.upsertPreference as any).mock.calls[0][1].subscribedEvents).toContain(

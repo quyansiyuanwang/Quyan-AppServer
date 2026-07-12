@@ -1543,6 +1543,7 @@ model NotificationPreference {
   userId            String   @unique
   notificationEmail String?  @db.VarChar(200)
   subscribedEvents  Json     @default("[]")
+  knownEvents       Json?
   thresholds        Json     @default("{}")
   cooldownMinutes   Int      @default(60)
 
