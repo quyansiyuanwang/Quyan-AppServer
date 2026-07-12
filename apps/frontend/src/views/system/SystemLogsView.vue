@@ -6,12 +6,14 @@ import { useSystemLogs } from './system-logs/useSystemLogs'
 import './system-logs/system-logs.scss'
 
 const state = useSystemLogs()
+const isDesktop = state.isDesktop
+const activeLoading = state.activeLoading
 
 provide(systemLogsContextKey, state)
 </script>
 
 <template>
-  <div :class="['system-logs-page', { 'system-logs-mobile-adapter': !state.isDesktop.value }]">
+  <div :class="['system-logs-page', { 'system-logs-mobile-adapter': !isDesktop }]">
     <div class="system-logs-container">
       <el-card class="logs-card page-card">
         <template #header>
@@ -20,7 +22,7 @@ provide(systemLogsContextKey, state)
             <el-button
               type="primary"
               :icon="state.Refresh"
-              :loading="state.activeLoading"
+              :loading="activeLoading"
               @click="state.handleRefresh"
             >
               {{ state.i18ns.t('refresh') }}
