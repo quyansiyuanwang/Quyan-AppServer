@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import { routes } from './routes'
 import { globalEventBus } from '@/stores/globalInstance'
 import { usePermissionStore } from '@/stores/permissionStore'
@@ -8,17 +8,8 @@ type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
 }
 
-const AUTH_ENTRY_ROUTE_NAMES = new Set([
-  'login',
-  'register',
-  'forgotPassword',
-  'oauthAuthorize',
-  'authVerification',
-  'captchaVerification',
-])
-
-const isAuthEntryRoute = (routeName: unknown): boolean =>
-  typeof routeName === 'string' && AUTH_ENTRY_ROUTE_NAMES.has(routeName)
+const isAuthEntryRoute = (to: RouteLocationNormalized): boolean =>
+  to.matched.some((record) => record.meta.isAuthEntry === true)
 
 const scheduleAnalyticsTrack = (task: () => void) => {
   const scheduleTask = () => {
@@ -49,7 +40,7 @@ export const router = createRouter({
 
 // 全局路由守卫：检查认证状态
 router.beforeEach(async (to, from, next) => {
-  if (isAuthEntryRoute(to.name)) {
+  if (isAuthEntryRoute(to)) {
     next()
     return
   }
@@ -129,7 +120,7 @@ router.beforeEach(async (to, from, next) => {
 })
 
 router.afterEach((to, from) => {
-  if (isAuthEntryRoute(to.name)) return
+  if (isAuthEntryRoute(to)) return
 
   scheduleAnalyticsTrack(() => {
     void import('@/utils/tracker')

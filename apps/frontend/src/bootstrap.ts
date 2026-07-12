@@ -12,15 +12,6 @@ type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
 }
 
-const AUTH_ENTRY_PATHS = new Set([
-  '/login',
-  '/register',
-  '/forgot-password',
-  '/auth/verify',
-  '/oauth/authorize',
-  '/auth/captcha',
-])
-
 const scheduleAfterLoad = (task: () => void, delay: number, timeout: number) => {
   const scheduleTask = () => {
     const idleWindow = window as IdleWindow
@@ -43,7 +34,8 @@ const scheduleAfterLoad = (task: () => void, delay: number, timeout: number) => 
   window.addEventListener('load', scheduleTask, { once: true })
 }
 
-const shouldSkipDeferredStartupWork = () => AUTH_ENTRY_PATHS.has(window.location.pathname)
+const shouldSkipDeferredStartupWork = () =>
+  router.resolve(window.location.pathname).matched.some((record) => record.meta.isAuthEntry === true)
 
 export const bootstrapApp = async () => {
   try {
