@@ -30,15 +30,19 @@ const configureTopProgress = () => {
   const topLoadingProgressStore = useTopLoadingProgressStore()
   const taskWrapper = topLoadingProgressStore.wrapTask
 
-  scheduleAfterLoad(() => {
-    void import('@/stores/request')
-      .then(({ MyAxios }) => {
-        MyAxios.setDefaultOptions({ requestWrapper: taskWrapper })
-      })
-      .catch((error) => {
-        console.warn('[config] Failed to initialize request progress wrapper:', error)
-      })
-  }, 800, 4000)
+  scheduleAfterLoad(
+    () => {
+      void import('@/stores/request')
+        .then(({ MyAxios }) => {
+          MyAxios.setDefaultOptions({ requestWrapper: taskWrapper })
+        })
+        .catch((error) => {
+          console.warn('[config] Failed to initialize request progress wrapper:', error)
+        })
+    },
+    800,
+    4000,
+  )
 }
 
 const scheduleWatchDog = () => {

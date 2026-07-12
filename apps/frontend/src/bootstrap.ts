@@ -35,7 +35,9 @@ const scheduleAfterLoad = (task: () => void, delay: number, timeout: number) => 
 }
 
 const shouldSkipDeferredStartupWork = () =>
-  router.resolve(window.location.pathname).matched.some((record) => record.meta.isAuthEntry === true)
+  router
+    .resolve(window.location.pathname)
+    .matched.some((record) => record.meta.isAuthEntry === true)
 
 export const bootstrapApp = async () => {
   try {
@@ -70,37 +72,49 @@ export const bootstrapApp = async () => {
   app.mount('#app')
 
   if (shouldSkipDeferredStartupWork()) {
-    scheduleAfterLoad(() => {
-      void import('@/events')
-        .then(({ registerAllEvents }) => {
-          registerAllEvents()
-        })
-        .catch((error) => {
-          console.warn('[bootstrap] Failed to register deferred event listeners:', error)
-        })
-    }, 800, 4000)
+    scheduleAfterLoad(
+      () => {
+        void import('@/events')
+          .then(({ registerAllEvents }) => {
+            registerAllEvents()
+          })
+          .catch((error) => {
+            console.warn('[bootstrap] Failed to register deferred event listeners:', error)
+          })
+      },
+      800,
+      4000,
+    )
   } else {
     const { registerAllEvents } = await import('@/events')
     registerAllEvents()
   }
 
   if (!shouldSkipDeferredStartupWork()) {
-    scheduleAfterLoad(() => {
-      void import('@/plugins/analytics')
-        .then(({ setupAnalytics }) => {
-          setupAnalytics(app)
-        })
-        .catch((error) => {
-          console.warn('[bootstrap] Failed to initialize analytics:', error)
-        })
-    }, 1200, 5000)
+    scheduleAfterLoad(
+      () => {
+        void import('@/plugins/analytics')
+          .then(({ setupAnalytics }) => {
+            setupAnalytics(app)
+          })
+          .catch((error) => {
+            console.warn('[bootstrap] Failed to initialize analytics:', error)
+          })
+      },
+      1200,
+      5000,
+    )
 
-    scheduleAfterLoad(() => {
-      void import('@/service/authorizationService')
-        .then(({ authorizationService }) => authorizationService.bootstrapSession())
-        .catch((error) => {
-          console.warn('[bootstrap] Failed to restore heartbeat session:', error)
-        })
-    }, 2400, 8000)
+    scheduleAfterLoad(
+      () => {
+        void import('@/service/authorizationService')
+          .then(({ authorizationService }) => authorizationService.bootstrapSession())
+          .catch((error) => {
+            console.warn('[bootstrap] Failed to restore heartbeat session:', error)
+          })
+      },
+      2400,
+      8000,
+    )
   }
 }
