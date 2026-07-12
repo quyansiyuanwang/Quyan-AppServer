@@ -337,7 +337,7 @@
                       <el-input-number
                         v-model="editForm.failoverConfig.failoverThreshold"
                         :min="0"
-                        :max="32"
+                        :max="100"
                         class="failover-input"
                       />
                     </div>
@@ -359,7 +359,7 @@
                       <el-input-number
                         v-model="editForm.failoverConfig.maxRetries"
                         :min="0"
-                        :max="10"
+                        :max="100"
                         class="failover-input"
                       />
                     </div>
@@ -381,7 +381,7 @@
                       <el-input-number
                         v-model="editForm.failoverConfig.failbackCooldownMinutes"
                         :min="0"
-                        :max="10080"
+                        :max="525600"
                         class="failover-input"
                       />
                     </div>
