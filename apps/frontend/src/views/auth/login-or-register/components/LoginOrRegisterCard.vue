@@ -26,6 +26,7 @@ const loginForm = computed(() => state.loginForm)
 const registerForm = computed(() => state.registerForm)
 const agreedLoginForm = computed(() => state.loginForm as LoginForm)
 const agreedRegisterForm = computed(() => state.registerForm as RegisterForm)
+const canShowRegisterEntry = computed(() => registrationEnabled.value !== false)
 const sendCodeDisabled = computed(() => {
   if (state.isDesktop.value) {
     return codeCooldown.value > 0 || !state.registerForm.email || captchaVerifying.value
@@ -213,13 +214,13 @@ const sendCodeDisabled = computed(() => {
       </Transition>
     </el-form>
     <div class="toggle-tip">
-      <template v-if="isLogin && registrationEnabled">
+      <template v-if="isLogin && canShowRegisterEntry">
         <span>{{ i18ns.t('loginOrRegisterPage.noAccount') }}</span>
         <el-button type="primary" link :disabled="formDisabled" @click="state.toggleMode">
           {{ i18ns.t('loginOrRegisterPage.goRegister') }}
         </el-button>
       </template>
-      <template v-else-if="isLogin && !registrationEnabled">
+      <template v-else-if="isLogin && registrationEnabled === false">
         <span style="color: var(--el-text-color-secondary); font-size: 13px">
           {{ i18ns.t('loginOrRegisterPage.registrationDisabled') }}
         </span>

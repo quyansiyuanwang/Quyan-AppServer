@@ -15,13 +15,13 @@ import { visualizer } from 'rollup-plugin-visualizer'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import obfuscatorPlugin from './scripts/plugins/vite-plugin-obfuscator-custom.js'
 import { buildInfoPlugin } from './scripts/plugins/vite-plugin-build-info.js'
-import deferCssPlugin from './scripts/plugins/vite-plugin-defer-css.js'
 import { autoRouteTypes } from './scripts/plugins/vite-plugin-auto-route-types'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const isProd = mode === 'production' || mode === 'prod'
   const enableObfuscation = isProd && process.env.VITE_ENABLE_OBFUSCATION === 'true'
+  const enableVueDevTools = process.env.VITE_ENABLE_VUE_DEVTOOLS === 'true'
 
   const stripOriginHeader = (proxy: { on: (event: 'proxyReq', handler: (proxyReq: { removeHeader: (header: string) => void }) => void) => void }) => {
     proxy.on('proxyReq', (proxyReq) => {
@@ -161,7 +161,7 @@ export default defineConfig(({ mode }) => {
       }),
       buildInfoPlugin(),
       vue(),
-      vueDevTools(),
+      enableVueDevTools && vueDevTools(),
       visualizer(),
       AutoImport({
         resolvers: [ElementPlusResolver({ importStyle: 'css' })],
@@ -176,7 +176,6 @@ export default defineConfig(({ mode }) => {
       ElementPlus({
         importStyle: 'css',
       }),
-      deferCssPlugin(),
       // 生产环境启用代码混淆（closeBundle 钩子按插件顺序执行，确保先混淆再压缩）
       enableObfuscation &&
         obfuscatorPlugin({

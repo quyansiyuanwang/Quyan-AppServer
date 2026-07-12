@@ -3,7 +3,6 @@ import StorageKey from '@/constant/storagekey'
 import { CustomCode } from '@/constant/custom-code'
 import { i18ns } from '@/locales'
 import router from '@/router'
-import { authorizationService } from '@/service/authorizationService'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
 import { md5 } from '@/utils/encryption'
 import { Notification } from '@/utils/notification'
@@ -52,7 +51,7 @@ export function useLoginOrRegister() {
   const passwordInputRef = ref()
   const waterMarkTextStore = useWaterMarkTextStore()
   const route = useRoute()
-  const registrationEnabled = ref(true)
+  const registrationEnabled = ref<boolean | null>(null)
   const captchaWarmupRunning = ref(false)
   const codeCooldown = ref(0)
   const loading = ref(false)
@@ -73,9 +72,11 @@ export function useLoginOrRegister() {
   const loadConfigService = () => import('@/service/configService')
   const loadLegalPolicyService = () => import('@/service/legalPolicyService')
   const loadPasskeyService = () => import('@/service/passkeyService')
+  const loadAuthorizationService = () => import('@/service/authorizationService')
 
   let cooldownTimer: ReturnType<typeof setInterval> | null = null
   let passkeyLibPromise: Promise<typeof import('@simplewebauthn/browser')> | null = null
+  let registrationStatusPromise: Promise<boolean> | null = null
 
   const loginForm = reactive<LoginForm>({
     username: '',
@@ -252,6 +253,31 @@ export function useLoginOrRegister() {
     return module.startAuthentication
   }
 
+  const ensureRegistrationEnabled = async () => {
+    if (registrationEnabled.value !== null) {
+      return registrationEnabled.value
+    }
+
+    if (!registrationStatusPromise) {
+      registrationStatusPromise = loadConfigService()
+        .then(({ configService }) => configService.getRegistrationStatus())
+        .then((enabled) => {
+          registrationEnabled.value = enabled
+          return enabled
+        })
+        .catch((error) => {
+          console.error('Failed to load registration status:', error)
+          registrationEnabled.value = false
+          return false
+        })
+        .finally(() => {
+          registrationStatusPromise = null
+        })
+    }
+
+    return registrationStatusPromise
+  }
+
   const getSafeRedirect = (): string | undefined => {
     return getSafeAuthRedirect(route.query.redirect, {
       blockedExactPaths: ['/login', '/register', '/forgot-password'],
@@ -306,6 +332,7 @@ export function useLoginOrRegister() {
   }
 
   const redirectAfterSuccessfulLogin = async (userData?: Record<string, any>) => {
+    const { authorizationService } = await loadAuthorizationService()
     await authorizationService.reloadAuthStoresAfterLogin(userData)
 
     Notification.notify(
@@ -339,6 +366,7 @@ export function useLoginOrRegister() {
 
     policyDialogSubmitting.value = true
     try {
+      const { authorizationService } = await loadAuthorizationService()
       const authData = await authorizationService.acceptPolicyConsent(
         policyConsentChallengeToken.value,
       )
@@ -375,6 +403,7 @@ export function useLoginOrRegister() {
 
     loading.value = true
     try {
+      const { authorizationService } = await loadAuthorizationService()
       const authData = await authorizationService.acceptPolicyConsent(
         policyConsentChallengeToken.value,
       )
@@ -395,6 +424,7 @@ export function useLoginOrRegister() {
   }
 
   const handleLogin = async () => {
+    const { authorizationService } = await loadAuthorizationService()
     const loginRes = await authorizationService.login(
       currentForm.value.username,
       md5(currentForm.value.password),
@@ -469,6 +499,7 @@ export function useLoginOrRegister() {
   }
 
   const handleRegister = async () => {
+    const { authorizationService } = await loadAuthorizationService()
     const result = await authorizationService.register(
       {
         username: registerForm.username,
@@ -626,6 +657,7 @@ export function useLoginOrRegister() {
     if (!email) return
 
     try {
+      const { authorizationService } = await loadAuthorizationService()
       await authorizationService.sendRegisterVerificationCode(
         email,
         () => {
@@ -689,14 +721,29 @@ export function useLoginOrRegister() {
     formRef.value.resetFields()
   }
 
-  const toggleMode = () => {
+  const toggleMode = async () => {
+    const nextMode = isLogin.value ? 'register' : 'login'
+
+    if (nextMode === 'register') {
+      const enabled = await ensureRegistrationEnabled()
+      if (!enabled) {
+        Notification.notify(
+          i18ns.t('error'),
+          i18ns.t('message.error.registrationDisabled'),
+          'error',
+        )
+        return
+      }
+    }
+
     if (formRef.value) {
       formRef.value.resetFields()
       formRef.value.clearValidate()
     }
-    const nextMode = isLogin.value ? 'register' : 'login'
+
     if (nextMode === 'login') clearLoginForm()
     else clearRegisterForm()
+
     mode.value = nextMode
     const redirect = getSafeRedirect()
     void router.replace(
@@ -728,6 +775,7 @@ export function useLoginOrRegister() {
     passkeyLoading.value = true
 
     try {
+      const { authorizationService } = await loadAuthorizationService()
       const startAuthentication = await loadPasskeyStartAuthentication()
       const { passkeyService } = await loadPasskeyService()
       const { options, sessionId } = await passkeyService.getAuthOptions()
@@ -807,17 +855,17 @@ export function useLoginOrRegister() {
         })
     }, 5000)
 
-    scheduleIdleTask(() => {
-      void loadConfigService()
-        .then(({ configService }) => configService.getRegistrationStatus())
-        .then((enabled) => {
-          registrationEnabled.value = enabled
+    if (mode.value === 'register') {
+      scheduleIdleTask(() => {
+        void ensureRegistrationEnabled().then((enabled) => {
+          if (enabled) return
+
+          mode.value = 'login'
+          clearRegisterForm()
+          void router.replace(getLoginRoute(getSafeRedirect()))
         })
-        .catch((error) => {
-          console.error('Failed to load registration status:', error)
-          registrationEnabled.value = false
-        })
-    }, 3500)
+      }, 2000)
+    }
   })
 
   onBeforeUnmount(() => {
