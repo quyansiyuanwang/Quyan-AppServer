@@ -2,7 +2,7 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [master, staging]
+    branches: [master]
     paths:
       - 'apps/backend/**'
       - 'pnpm-lock.yaml'
