@@ -78,14 +78,14 @@ const retryStatusRuleSchema = z
 
 const relayTokenFailoverConfigSchema = z.object({
   enabled: z.boolean(),
-  maxRetries: z.coerce.number().int().min(0).max(10),
+  maxRetries: z.coerce.number().int().min(0).max(100),
   retryStatusCodes: z
     .array(retryStatusRuleSchema)
     .max(MAX_RETRY_STATUS_RULES)
     .default([])
     .transform((rules) => normalizeRetryStatusRules(rules)),
-  failoverThreshold: z.coerce.number().int().min(0).max(32).default(0),
-  failbackCooldownMinutes: z.coerce.number().int().min(0).max(10080).default(0),
+  failoverThreshold: z.coerce.number().int().min(0).max(100).default(0),
+  failbackCooldownMinutes: z.coerce.number().int().min(0).max(525600).default(0),
 });
 
 const relayTokenIpWhitelistSchema = z
