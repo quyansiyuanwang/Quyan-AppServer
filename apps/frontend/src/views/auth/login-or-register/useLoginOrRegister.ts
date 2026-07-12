@@ -857,7 +857,7 @@ export function useLoginOrRegister() {
         .finally(() => {
           captchaWarmupRunning.value = false
         })
-    }, 5000)
+    }, 0)
 
     if (mode.value === 'login') {
       scheduleIdleTask(() => {
