@@ -164,11 +164,7 @@ describe("NotificationManagementService", () => {
     it("应保留显式取消后的空订阅列表", async () => {
       repoMock.upsertPreference.mockResolvedValue(makePreferenceRecord({ subscribedEvents: [] }));
 
-      const result = await service.updatePreference(
-        "user-1",
-        { subscribedEvents: [] },
-        mockRequest,
-      );
+      const result = await service.updatePreference("user-1", { subscribedEvents: [] }, mockRequest);
 
       expect(repoMock.upsertPreference).toHaveBeenCalledWith(
         "user-1",
