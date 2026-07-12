@@ -71,7 +71,9 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 
-  const { authorizationService, AuthorizationService } = await import('@/service/authorizationService')
+  const { authorizationService, AuthorizationService } = await import(
+    '@/service/authorizationService'
+  )
   const accessToken = AuthorizationService.getAccessToken()
   const token = accessToken || (await authorizationService.bootstrapSession())
 
