@@ -110,6 +110,28 @@
   min-width: 120px;
 }
 
+.pricing-channel-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.pricing-channel-option__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pricing-channel-option__multiplier {
+  flex: none;
+  color: var(--el-color-success);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .pricing-toolbar > .pricing-filter {
   flex: 1 1 140px;
   width: auto;

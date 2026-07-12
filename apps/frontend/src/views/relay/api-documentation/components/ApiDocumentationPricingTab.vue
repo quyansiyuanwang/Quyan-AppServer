@@ -108,6 +108,15 @@ const onPricingTableModeChange = (value: string | number | boolean | undefined) 
 const onPrimaryComparisonChannelChange = (value: string | number | boolean | undefined) => {
   handlePrimaryComparisonChannelChange(String(value || ''))
 }
+
+const formatChannelMultiplier = (multiplier?: number | null) => {
+  const resolvedMultiplier = multiplier ?? 1
+  return `x${resolvedMultiplier}`
+}
+
+const formatChannelOptionLabel = (channelName: string, multiplier?: number | null) => {
+  return `${channelName} ${formatChannelMultiplier(multiplier)}`
+}
 </script>
 
 <template>
@@ -142,9 +151,16 @@ const onPrimaryComparisonChannelChange = (value: string | number | boolean | und
           <el-option
             v-for="channel in channels"
             :key="channel.id"
-            :label="channel.name"
+            :label="formatChannelOptionLabel(channel.name, channel.multiplier)"
             :value="channel.id"
-          />
+          >
+            <div class="pricing-channel-option">
+              <span class="pricing-channel-option__name">{{ channel.name }}</span>
+              <span class="pricing-channel-option__multiplier">
+                {{ formatChannelMultiplier(channel.multiplier) }}
+              </span>
+            </div>
+          </el-option>
         </el-select>
 
         <el-tag v-if="selectedChannelCount > 0" type="info" size="small" effect="plain">
@@ -441,9 +457,16 @@ const onPrimaryComparisonChannelChange = (value: string | number | boolean | und
               <el-option
                 v-for="channel in channels"
                 :key="channel.id"
-                :label="channel.name"
+                :label="formatChannelOptionLabel(channel.name, channel.multiplier)"
                 :value="channel.id"
-              />
+              >
+                <div class="pricing-channel-option">
+                  <span class="pricing-channel-option__name">{{ channel.name }}</span>
+                  <span class="pricing-channel-option__multiplier">
+                    {{ formatChannelMultiplier(channel.multiplier) }}
+                  </span>
+                </div>
+              </el-option>
             </el-select>
 
             <el-select
