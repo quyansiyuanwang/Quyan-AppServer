@@ -462,6 +462,16 @@ export function useLoginOrRegister() {
     await openLegalPolicyDialog('terms_of_service', true)
   }
 
+  const restorePendingPolicyConsentChallenge = async () => {
+    const { authorizationService } = await loadAuthorizationService()
+    const pendingChallenge = authorizationService.getPendingPolicyConsentChallenge()
+    if (!pendingChallenge?.challengeToken) return
+
+    policyConsentChallengeToken.value = pendingChallenge.challengeToken
+    authorizationService.clearPendingPolicyConsentChallenge()
+    await openPolicyConsentDialog(pendingChallenge.challengeToken)
+  }
+
   const clearPendingPolicyConsent = () => {
     policyConsentChallengeToken.value = ''
     policyDialogRequireConfirmation.value = false
@@ -703,6 +713,7 @@ export function useLoginOrRegister() {
       const authData = await authorizationService.acceptPolicyConsent(
         policyConsentChallengeToken.value,
       )
+      authorizationService.clearPendingPolicyConsentChallenge()
       persistLegalPolicyConsentCache(authData.user?.username ?? loginForm.username)
       policyDialogVisible.value = false
       policyDialogRequireConfirmation.value = false
@@ -740,6 +751,7 @@ export function useLoginOrRegister() {
       const authData = await authorizationService.acceptPolicyConsent(
         policyConsentChallengeToken.value,
       )
+      authorizationService.clearPendingPolicyConsentChallenge()
       persistLegalPolicyConsentCache(authData.user?.username ?? loginForm.username)
       clearPendingPolicyConsent()
       await redirectAfterSuccessfulLogin(authData.user)
@@ -1249,6 +1261,10 @@ export function useLoginOrRegister() {
           void router.replace(getLoginRoute(getSafeRedirect()))
         })
       }, 2000)
+    }
+
+    if (mode.value === 'login') {
+      await restorePendingPolicyConsentChallenge()
     }
 
     await restoreQrSessionFromRoute()
