@@ -542,7 +542,10 @@ export class RelayTokenService {
           priority: index + 1,
         })),
       ].filter((config, index, list) => list.findIndex((item) => item.channelId === config.channelId) === index);
-      await this.assertChannelsExist(actorUserId, nextConfigs.map((config) => config.channelId));
+      await this.assertChannelsExist(
+        actorUserId,
+        nextConfigs.map((config) => config.channelId),
+      );
       await this.relayTokenRepo.replaceChannelConfigs(tokenId, data.channelId, nextConfigs);
     } else {
       const reorderedConfigs = [
@@ -1481,7 +1484,10 @@ export class RelayTokenService {
 
     if (normalizedConfigs.length === 0) throw new BadRequestError("At least one relay channel must be configured");
 
-    await this.assertChannelsExist(actorUserId, normalizedConfigs.map((config) => config.channelId));
+    await this.assertChannelsExist(
+      actorUserId,
+      normalizedConfigs.map((config) => config.channelId),
+    );
 
     return {
       defaultChannelId: normalizedConfigs[0].channelId,

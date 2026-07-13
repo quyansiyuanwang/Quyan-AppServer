@@ -231,7 +231,8 @@ export class RelayChannelService {
   private async canUserAccessChannel(channel: RelayChannel, actorUserId: string): Promise<boolean> {
     if (await this.canBypassVisibility(actorUserId)) return true;
 
-    const visibilityMode = (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE;
+    const visibilityMode =
+      (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE;
     if (visibilityMode === "public") return true;
     if (visibilityMode === "private") return false;
 
