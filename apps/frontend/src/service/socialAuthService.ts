@@ -20,12 +20,6 @@ import { toServiceError } from '@/utils/error-utils'
 
 const getAuthControllerApi = cache(() => createAuthControllerApi(useRequestStore().getAxios()))
 
-type ServiceResultLike = {
-  code?: number
-  message?: string
-  data?: unknown
-}
-
 const isAuthData = (value: unknown): value is AuthData => {
   return !!value && typeof value === 'object' && 'access_token' in value && 'user' in value
 }
