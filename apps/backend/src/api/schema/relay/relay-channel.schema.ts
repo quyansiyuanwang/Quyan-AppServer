@@ -32,6 +32,49 @@ const timePeriodRuleSchema = z.object({
   multiplier: z.number().min(0.01).max(100),
 });
 
+const relayChannelTypeSchema = z.enum(["standalone", "pooled"]);
+const routingStrategySchema = z.enum([
+  "priority",
+  "random",
+  "weighted-random",
+  "round-robin",
+  "health-priority",
+  "latency-priority",
+]);
+const visibilityModeSchema = z.enum(["public", "private", "whitelist"]);
+
+const relayChannelMemberSchema = z.object({
+  id: z.string().trim().min(1).optional(),
+  memberChannelId: z.string().trim().min(1),
+  priority: z.coerce.number().int().min(0).max(9999),
+  weight: z.coerce.number().min(0).max(100000).optional(),
+  enabled: z.coerce.boolean().optional(),
+});
+
+const routingConfigSchema = z
+  .object({
+    maxRetries: z.coerce.number().int().min(0).max(100).optional(),
+    failoverThreshold: z.coerce.number().int().min(0).max(100).optional(),
+    retryStatusCodes: z.array(z.union([z.coerce.number().int().min(100).max(599), z.string().trim().min(1)])).optional(),
+    failbackCooldownMinutes: z.coerce.number().int().min(0).max(10080).optional(),
+    healthScoreThreshold: z.coerce.number().min(0).max(1).optional(),
+    latencyThresholdMs: z.coerce.number().int().min(0).max(600000).optional(),
+    circuitBreakerThreshold: z.coerce.number().int().min(0).max(1000).optional(),
+    stickyByModel: z.coerce.boolean().optional(),
+    stickyByFormat: z.coerce.boolean().optional(),
+  })
+  .nullable()
+  .optional();
+
+const visibilityConfigSchema = z
+  .object({
+    userIds: z.array(z.string().trim().min(1)).max(500).optional(),
+    groupIds: z.array(z.string().trim().min(1)).max(500).optional(),
+    roleIds: z.array(z.string().trim().min(1)).max(500).optional(),
+  })
+  .nullable()
+  .optional();
+
 const relayChannelBaseSchema = z.object({
   name: z.string().trim().min(1).max(100),
   openaiUpstreamUrl: z.string().max(500).optional(),
@@ -40,6 +83,12 @@ const relayChannelBaseSchema = z.object({
   anthropicUpstreamApiKey: z.string().max(500).optional(),
   geminiUpstreamUrl: z.string().max(500).optional(),
   geminiUpstreamApiKey: z.string().max(500).optional(),
+  channelType: relayChannelTypeSchema.optional(),
+  routingStrategy: routingStrategySchema.optional(),
+  routingConfig: routingConfigSchema,
+  visibilityMode: visibilityModeSchema.optional(),
+  visibilityConfig: visibilityConfigSchema,
+  poolMembers: z.array(relayChannelMemberSchema).max(200).nullable().optional(),
   multiplier: channelMultiplierSchema,
   allowedFormats: z.string().max(500).optional(),
   allowedModels: z.string().max(2000).nullable().optional(),

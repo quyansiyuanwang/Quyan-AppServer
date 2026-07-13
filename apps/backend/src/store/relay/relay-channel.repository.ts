@@ -1,7 +1,14 @@
 import { prisma } from "@/config/database";
 import { RELAY_CHANNEL_STATUS, VISIBLE_RELAY_CHANNEL_STATUSES } from "@/constant/relay-channel";
 import type { RelayChannel, Prisma } from "@prisma/client";
-import type { RelayChannelStore, RelayChannelTransactionClient } from "./relay-channel.store";
+import type { RelayChannelMemberInput, RelayChannelStore, RelayChannelTransactionClient } from "./relay-channel.store";
+
+const relayChannelInclude = {
+  poolMembers: {
+    include: { memberChannel: true },
+    orderBy: { priority: "asc" },
+  },
+} satisfies Prisma.RelayChannelInclude;
 
 export class RelayChannelRepository implements RelayChannelStore {
   private static instance: RelayChannelRepository;
@@ -22,6 +29,7 @@ export class RelayChannelRepository implements RelayChannelStore {
         name,
         status: RELAY_CHANNEL_STATUS.ENABLED,
       },
+      include: relayChannelInclude,
     });
   }
 
@@ -31,6 +39,7 @@ export class RelayChannelRepository implements RelayChannelStore {
         name,
         status: { in: VISIBLE_RELAY_CHANNEL_STATUSES },
       },
+      include: relayChannelInclude,
     });
   }
 
@@ -38,6 +47,7 @@ export class RelayChannelRepository implements RelayChannelStore {
     return prisma.relayChannel.findMany({
       where: { status: RELAY_CHANNEL_STATUS.ENABLED },
       orderBy: { createTime: "desc" },
+      include: relayChannelInclude,
     });
   }
 
@@ -45,6 +55,7 @@ export class RelayChannelRepository implements RelayChannelStore {
     return prisma.relayChannel.findMany({
       where: { status: { in: VISIBLE_RELAY_CHANNEL_STATUSES } },
       orderBy: { createTime: "desc" },
+      include: relayChannelInclude,
     });
   }
 
@@ -54,6 +65,7 @@ export class RelayChannelRepository implements RelayChannelStore {
         id,
         status: RELAY_CHANNEL_STATUS.ENABLED,
       },
+      include: relayChannelInclude,
     });
   }
 
@@ -63,6 +75,7 @@ export class RelayChannelRepository implements RelayChannelStore {
         id,
         status: { in: VISIBLE_RELAY_CHANNEL_STATUSES },
       },
+      include: relayChannelInclude,
     });
   }
 
@@ -74,6 +87,7 @@ export class RelayChannelRepository implements RelayChannelStore {
         id: { in: ids },
         status: RELAY_CHANNEL_STATUS.ENABLED,
       },
+      include: relayChannelInclude,
     });
   }
 
@@ -85,6 +99,7 @@ export class RelayChannelRepository implements RelayChannelStore {
         id: { in: ids },
         status: { in: VISIBLE_RELAY_CHANNEL_STATUSES },
       },
+      include: relayChannelInclude,
     });
   }
 
@@ -93,13 +108,22 @@ export class RelayChannelRepository implements RelayChannelStore {
     tx?: RelayChannelTransactionClient,
   ): Promise<RelayChannel> {
     const client = tx ?? prisma;
-    return client.relayChannel.create({ data });
+    return client.relayChannel.create({
+      data,
+      include: relayChannelInclude,
+    });
   }
 
-  async updateById(id: string, data: Prisma.RelayChannelUncheckedUpdateInput): Promise<RelayChannel> {
-    return prisma.relayChannel.update({
+  async updateById(
+    id: string,
+    data: Prisma.RelayChannelUncheckedUpdateInput,
+    tx?: RelayChannelTransactionClient,
+  ): Promise<RelayChannel> {
+    const client = tx ?? prisma;
+    return client.relayChannel.update({
       where: { id },
       data,
+      include: relayChannelInclude,
     });
   }
 
@@ -124,6 +148,14 @@ export class RelayChannelRepository implements RelayChannelStore {
         data: { channelId: null },
       });
 
+      await tx.relayChannelMember.deleteMany({
+        where: { relayChannelId: id },
+      });
+
+      await tx.relayChannelMember.deleteMany({
+        where: { memberChannelId: id },
+      });
+
       await tx.relayChannel.update({
         where: { id },
         data: { status: RELAY_CHANNEL_STATUS.DELETED },
@@ -144,6 +176,12 @@ export class RelayChannelRepository implements RelayChannelStore {
         where: { channelId: { in: ids } },
       });
 
+      await tx.relayChannelMember.deleteMany({
+        where: {
+          OR: [{ relayChannelId: { in: ids } }, { memberChannelId: { in: ids } }],
+        },
+      });
+
       const result = await tx.relayChannel.updateMany({
         where: {
           id: { in: ids },
@@ -153,6 +191,37 @@ export class RelayChannelRepository implements RelayChannelStore {
       });
 
       return result.count;
+    });
+  }
+
+  async replaceMembersByChannelId(
+    relayChannelId: string,
+    members: RelayChannelMemberInput[],
+    tx?: RelayChannelTransactionClient,
+  ): Promise<void> {
+    const client = tx ?? prisma;
+
+    await client.relayChannelMember.deleteMany({
+      where: { relayChannelId },
+    });
+
+    if (members.length === 0) return;
+
+    await client.relayChannelMember.createMany({
+      data: members.map((member) => ({
+        relayChannelId,
+        memberChannelId: member.memberChannelId,
+        priority: member.priority,
+        weight: member.weight ?? 1,
+        enabled: member.enabled ?? true,
+      })),
+    });
+  }
+
+  async deleteMembersByChannelId(relayChannelId: string, tx?: RelayChannelTransactionClient): Promise<void> {
+    const client = tx ?? prisma;
+    await client.relayChannelMember.deleteMany({
+      where: { relayChannelId },
     });
   }
 }

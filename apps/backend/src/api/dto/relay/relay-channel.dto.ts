@@ -7,10 +7,54 @@ export interface TimePeriodMultiplierRule {
   multiplier: number;
 }
 
+export type RelayChannelType = "standalone" | "pooled";
+
+export type RelayChannelRoutingStrategy =
+  | "priority"
+  | "random"
+  | "weighted-random"
+  | "round-robin"
+  | "health-priority"
+  | "latency-priority";
+
+export type RelayChannelVisibilityMode = "public" | "private" | "whitelist";
+
+export interface RelayChannelMemberDto {
+  id?: string;
+  memberChannelId: string;
+  priority: number;
+  weight?: number;
+  enabled?: boolean;
+}
+
+export interface RelayChannelRoutingConfigDto {
+  maxRetries?: number;
+  failoverThreshold?: number;
+  retryStatusCodes?: Array<number | string>;
+  failbackCooldownMinutes?: number;
+  healthScoreThreshold?: number;
+  latencyThresholdMs?: number;
+  circuitBreakerThreshold?: number;
+  stickyByModel?: boolean;
+  stickyByFormat?: boolean;
+}
+
+export interface RelayChannelVisibilityConfigDto {
+  userIds?: string[];
+  groupIds?: string[];
+  roleIds?: string[];
+}
+
 export interface RelayChannelDto {
   id: string;
   name: string;
   enabled: boolean;
+  channelType: RelayChannelType;
+  routingStrategy: RelayChannelRoutingStrategy;
+  routingConfig?: RelayChannelRoutingConfigDto;
+  visibilityMode: RelayChannelVisibilityMode;
+  visibilityConfig?: RelayChannelVisibilityConfigDto;
+  poolMembers?: RelayChannelMemberDto[];
   openaiUpstreamUrl?: string;
   openaiUpstreamApiKey?: string;
   anthropicUpstreamUrl?: string;
@@ -101,6 +145,18 @@ export interface CreateRelayChannelRequest {
   geminiUpstreamUrl?: string;
   /** Gemini 上游 API Key */
   geminiUpstreamApiKey?: string;
+  /** 渠道类型 */
+  channelType?: RelayChannelType;
+  /** 混池路由策略 */
+  routingStrategy?: RelayChannelRoutingStrategy;
+  /** 路由策略配置 */
+  routingConfig?: RelayChannelRoutingConfigDto | null;
+  /** 可见性模式 */
+  visibilityMode?: RelayChannelVisibilityMode;
+  /** 可见性白名单 */
+  visibilityConfig?: RelayChannelVisibilityConfigDto | null;
+  /** 混池成员 */
+  poolMembers?: RelayChannelMemberDto[] | null;
   /**
    * 价格倍率
    */
@@ -132,6 +188,18 @@ export interface UpdateRelayChannelRequest {
   geminiUpstreamUrl?: string;
   /** Gemini 上游 API Key */
   geminiUpstreamApiKey?: string;
+  /** 渠道类型 */
+  channelType?: RelayChannelType;
+  /** 混池路由策略 */
+  routingStrategy?: RelayChannelRoutingStrategy;
+  /** 路由策略配置，传 null 清除 */
+  routingConfig?: RelayChannelRoutingConfigDto | null;
+  /** 可见性模式 */
+  visibilityMode?: RelayChannelVisibilityMode;
+  /** 可见性白名单，传 null 清除 */
+  visibilityConfig?: RelayChannelVisibilityConfigDto | null;
+  /** 混池成员，传 [] 或 null 清空 */
+  poolMembers?: RelayChannelMemberDto[] | null;
   /** 价格倍率 */
   multiplier?: number;
   /** 允许的格式 */
