@@ -73,6 +73,7 @@ import { PermissionService } from "@/services/users/permission.service";
 import { Permission } from "@/constant/permission";
 import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
 import { backendI18n } from "@/locales";
+import { RelayChannelService } from "@/services/relay/relay-channel.service";
 
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 const trimTrailingZeros = (value: number): string => String(value).replace(/\.0+$|(\.\d*?[1-9])0+$/, "$1");
@@ -152,6 +153,7 @@ export class RelayTokenService {
     private readonly configService: ConfigService = ConfigService.getInstance(),
     private readonly permissionService: PermissionService = PermissionService.getInstance(),
     private readonly rateLimiterService: RateLimiterService = RateLimiterService.getInstance(),
+    private readonly relayChannelService: RelayChannelService = RelayChannelService.getInstance(),
   ) {}
 
   private async resolveManagedUserId(
@@ -261,7 +263,7 @@ export class RelayTokenService {
       data.targetUserId,
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
-    const normalizedConfig = await this.normalizeChannelConfiguration(data.channelId, data.channelConfigs);
+    const normalizedConfig = await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
 
     let tokenValue: string;
     let isCustomKey = false;
@@ -529,6 +531,8 @@ export class RelayTokenService {
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
 
+    await this.assertChannelsExist(actorUserId, [data.channelId]);
+
     const channelIds = token.channelConfigs.map((config) => config.channelId);
     if (!channelIds.includes(data.channelId)) {
       const nextConfigs = [
@@ -538,7 +542,7 @@ export class RelayTokenService {
           priority: index + 1,
         })),
       ].filter((config, index, list) => list.findIndex((item) => item.channelId === config.channelId) === index);
-      await this.assertChannelsExist(nextConfigs.map((config) => config.channelId));
+      await this.assertChannelsExist(actorUserId, nextConfigs.map((config) => config.channelId));
       await this.relayTokenRepo.replaceChannelConfigs(tokenId, data.channelId, nextConfigs);
     } else {
       const reorderedConfigs = [
@@ -586,6 +590,7 @@ export class RelayTokenService {
     );
 
     const normalizedConfig = await this.normalizeChannelConfiguration(
+      actorUserId,
       data.channelId ?? token.channelId ?? undefined,
       data.channelConfigs,
     );
@@ -1461,6 +1466,7 @@ export class RelayTokenService {
   }
 
   private async normalizeChannelConfiguration(
+    actorUserId: string,
     channelId?: string,
     channelConfigs?: Array<{ channelId: string; priority: number }>,
   ): Promise<{ defaultChannelId: string; channelConfigs: Array<{ channelId: string; priority: number }> }> {
@@ -1475,7 +1481,7 @@ export class RelayTokenService {
 
     if (normalizedConfigs.length === 0) throw new BadRequestError("At least one relay channel must be configured");
 
-    await this.assertChannelsExist(normalizedConfigs.map((config) => config.channelId));
+    await this.assertChannelsExist(actorUserId, normalizedConfigs.map((config) => config.channelId));
 
     return {
       defaultChannelId: normalizedConfigs[0].channelId,
@@ -1559,7 +1565,7 @@ export class RelayTokenService {
     reservedTokens: Set<string> = new Set<string>(),
     tx?: RelayTokenTransactionClient,
   ): Promise<RelayTokenWithRelations> {
-    const normalizedConfig = await this.normalizeChannelConfiguration(data.channelId, data.channelConfigs);
+    const normalizedConfig = await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
 
     const hasCustomToken = Boolean(data.token?.trim());
     if (hasCustomToken) {
@@ -1654,7 +1660,7 @@ export class RelayTokenService {
     });
   }
 
-  private async assertChannelsExist(channelIds: string[]): Promise<void> {
+  private async assertChannelsExist(actorUserId: string, channelIds: string[]): Promise<void> {
     const uniqueChannelIds = [...new Set(channelIds)];
     const channels = await this.relayChannelRepo.listActiveByIds(uniqueChannelIds);
     if (channels.length !== uniqueChannelIds.length) {
@@ -1662,6 +1668,10 @@ export class RelayTokenService {
       const missingIds = uniqueChannelIds.filter((id) => !foundIds.has(id));
       throw new BadRequestError(`Relay channel not found or disabled: ${missingIds.join(", ")}`);
     }
+
+    await Promise.all(
+      uniqueChannelIds.map((channelId) => this.relayChannelService.assertChannelAccessibleById(channelId, actorUserId)),
+    );
   }
 
   private generateRelayTokenValue(): string {

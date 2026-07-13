@@ -22,10 +22,25 @@ describe("RelayChannelService", () => {
   const businessLogService = {
     logOperation: vi.fn(),
   };
+  const userRepository = {
+    findByIdWithGroup: vi.fn(),
+  };
+  const ramRoleRepository = {
+    listRoleBindingsForUser: vi.fn(),
+  };
+  const permissionService = {
+    hasAnyPermission: vi.fn(),
+  };
 
   const RelayChannelServiceCtor = RelayChannelService as unknown as new (...args: any[]) => RelayChannelService;
 
-  const service = new RelayChannelServiceCtor(relayChannelRepository, businessLogService);
+  const service = new RelayChannelServiceCtor(
+    relayChannelRepository,
+    businessLogService,
+    userRepository,
+    ramRoleRepository,
+    permissionService,
+  );
 
   const now = new Date("2026-01-01T00:00:00.000Z");
   const sampleChannel = {
@@ -50,12 +65,15 @@ describe("RelayChannelService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     relayChannelRepository.findVisibleByName.mockResolvedValue(null);
+    permissionService.hasAnyPermission.mockResolvedValue(false);
+    userRepository.findByIdWithGroup.mockResolvedValue({ id: "actor-user", groupId: "group-1" });
+    ramRoleRepository.listRoleBindingsForUser.mockResolvedValue([]);
   });
 
   it("lists active channels", async () => {
     relayChannelRepository.listActive.mockResolvedValue([sampleChannel]);
 
-    const result = await service.listChannels();
+    const result = await service.listChannels("actor-user");
 
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("channel-1");
@@ -65,16 +83,66 @@ describe("RelayChannelService", () => {
   it("lists visible channels when includeDisabled is true", async () => {
     relayChannelRepository.listVisible.mockResolvedValue([{ ...sampleChannel, status: RELAY_CHANNEL_STATUS.DISABLED }]);
 
-    const result = await service.listChannels(true);
+    const result = await service.listChannels("actor-user", true);
 
     expect(relayChannelRepository.listVisible).toHaveBeenCalled();
     expect(result[0].enabled).toBe(false);
   });
 
+  it("hides private channels from non-manager users", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      { ...sampleChannel, id: "public-channel", visibilityMode: "public" },
+      { ...sampleChannel, id: "private-channel", visibilityMode: "private" },
+    ]);
+
+    const result = await service.listChannels("actor-user");
+
+    expect(result.map((item) => item.id)).toEqual(["public-channel"]);
+  });
+
+  it("shows private channels to channel managers", async () => {
+    permissionService.hasAnyPermission.mockResolvedValue(true);
+    relayChannelRepository.listActive.mockResolvedValue([
+      { ...sampleChannel, id: "public-channel", visibilityMode: "public" },
+      { ...sampleChannel, id: "private-channel", visibilityMode: "private" },
+    ]);
+
+    const result = await service.listChannels("actor-user");
+
+    expect(result.map((item) => item.id)).toEqual(["public-channel", "private-channel"]);
+  });
+
+  it("shows whitelisted channels to matched users", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      {
+        ...sampleChannel,
+        id: "whitelist-channel",
+        visibilityMode: "whitelist",
+        visibilityConfig: {
+          userIds: ["actor-user"],
+        },
+      },
+    ]);
+
+    const result = await service.listChannels("actor-user");
+
+    expect(result.map((item) => item.id)).toEqual(["whitelist-channel"]);
+  });
+
   it("throws NotFoundError when getting a missing channel", async () => {
     relayChannelRepository.findVisibleById.mockResolvedValue(null);
 
-    await expect(service.getChannel("missing-id")).rejects.toThrow(NotFoundError);
+    await expect(service.getChannel("missing-id", "actor-user")).rejects.toThrow(NotFoundError);
+  });
+
+  it("treats inaccessible private channels as not found", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      id: "private-channel",
+      visibilityMode: "private",
+    });
+
+    await expect(service.getChannel("private-channel", "actor-user")).rejects.toThrow(NotFoundError);
   });
 
   it("validates channel name on create", async () => {
@@ -354,7 +422,7 @@ describe("RelayChannelService", () => {
   it("serializes inputTokensIncludeCacheRead correctly in toDto", async () => {
     relayChannelRepository.findVisibleById.mockResolvedValue(sampleChannel);
 
-    const result = await service.getChannel("channel-1");
+    const result = await service.getChannel("channel-1", "actor-user");
 
     expect(result.inputTokensIncludeCacheRead).toBe(false);
   });
@@ -363,7 +431,7 @@ describe("RelayChannelService", () => {
     const channelWithTrue = { ...sampleChannel, inputTokensIncludeCacheRead: true };
     relayChannelRepository.findVisibleById.mockResolvedValue(channelWithTrue);
 
-    const result = await service.getChannel("channel-1");
+    const result = await service.getChannel("channel-1", "actor-user");
 
     expect(result.inputTokensIncludeCacheRead).toBe(true);
   });
