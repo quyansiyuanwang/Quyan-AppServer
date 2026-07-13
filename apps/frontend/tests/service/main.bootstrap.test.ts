@@ -67,6 +67,9 @@ vi.mock('@/service/impersonationService', () => ({
 vi.mock('@/service/authorizationService', () => ({
   authorizationService: {
     bootstrapSession: bootstrapSessionMock,
+    getPendingPolicyConsentChallenge: vi.fn(() => null),
+    setPendingPolicyConsentChallenge: vi.fn(),
+    clearPendingPolicyConsentChallenge: vi.fn(),
   },
 }))
 

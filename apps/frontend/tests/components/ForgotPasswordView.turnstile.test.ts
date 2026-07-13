@@ -18,6 +18,9 @@ vi.mock('@/service/authorizationService', () => ({
   authorizationService: {
     sendPasswordResetCode: vi.fn(),
     resetPassword: vi.fn(),
+    getPendingPolicyConsentChallenge: vi.fn(() => null),
+    setPendingPolicyConsentChallenge: vi.fn(),
+    clearPendingPolicyConsentChallenge: vi.fn(),
   },
 }))
 
