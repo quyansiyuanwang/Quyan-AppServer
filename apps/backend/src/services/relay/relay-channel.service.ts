@@ -362,39 +362,41 @@ export class RelayChannelService {
         throw new BadRequestError("allowedModels must be a valid JSON array");
       }
 
-    if (!openaiUpstreamUrl && !anthropicUpstreamUrl && !geminiUpstreamUrl)
-      throw new BadRequestError("At least one upstream URL (OpenAI, Anthropic, or Gemini) must be configured");
+    if (channelType !== "pooled") {
+      if (!openaiUpstreamUrl && !anthropicUpstreamUrl && !geminiUpstreamUrl)
+        throw new BadRequestError("At least one upstream URL (OpenAI, Anthropic, or Gemini) must be configured");
 
-    if (formats.includes("openai")) {
-      if (!openaiUpstreamUrl)
-        throw new BadRequestError("OpenAI upstream URL is required when allowedFormats includes 'openai'");
-      if (!openaiUpstreamApiKey)
-        throw new BadRequestError("OpenAI API key is required when allowedFormats includes 'openai'");
-    }
-    if (formats.includes("anthropic")) {
-      if (!anthropicUpstreamUrl)
-        throw new BadRequestError("Anthropic upstream URL is required when allowedFormats includes 'anthropic'");
-      if (!anthropicUpstreamApiKey)
-        throw new BadRequestError("Anthropic API key is required when allowedFormats includes 'anthropic'");
-    }
-    if (formats.includes("gemini")) {
-      if (!geminiUpstreamUrl)
-        throw new BadRequestError("Gemini upstream URL is required when allowedFormats includes 'gemini'");
-      if (!geminiUpstreamApiKey)
-        throw new BadRequestError("Gemini API key is required when allowedFormats includes 'gemini'");
-    }
+      if (formats.includes("openai")) {
+        if (!openaiUpstreamUrl)
+          throw new BadRequestError("OpenAI upstream URL is required when allowedFormats includes 'openai'");
+        if (!openaiUpstreamApiKey)
+          throw new BadRequestError("OpenAI API key is required when allowedFormats includes 'openai'");
+      }
+      if (formats.includes("anthropic")) {
+        if (!anthropicUpstreamUrl)
+          throw new BadRequestError("Anthropic upstream URL is required when allowedFormats includes 'anthropic'");
+        if (!anthropicUpstreamApiKey)
+          throw new BadRequestError("Anthropic API key is required when allowedFormats includes 'anthropic'");
+      }
+      if (formats.includes("gemini")) {
+        if (!geminiUpstreamUrl)
+          throw new BadRequestError("Gemini upstream URL is required when allowedFormats includes 'gemini'");
+        if (!geminiUpstreamApiKey)
+          throw new BadRequestError("Gemini API key is required when allowedFormats includes 'gemini'");
+      }
 
-    if (allowedFormats === "all") {
-      if (openaiUpstreamUrl && !openaiUpstreamApiKey)
-        throw new BadRequestError("OpenAI API key is required when OpenAI upstream URL is configured");
-      if (anthropicUpstreamUrl && !anthropicUpstreamApiKey)
-        throw new BadRequestError("Anthropic API key is required when Anthropic upstream URL is configured");
-      if (geminiUpstreamUrl && !geminiUpstreamApiKey)
-        throw new BadRequestError("Gemini API key is required when Gemini upstream URL is configured");
+      if (allowedFormats === "all") {
+        if (openaiUpstreamUrl && !openaiUpstreamApiKey)
+          throw new BadRequestError("OpenAI API key is required when OpenAI upstream URL is configured");
+        if (anthropicUpstreamUrl && !anthropicUpstreamApiKey)
+          throw new BadRequestError("Anthropic API key is required when Anthropic upstream URL is configured");
+        if (geminiUpstreamUrl && !geminiUpstreamApiKey)
+          throw new BadRequestError("Gemini API key is required when Gemini upstream URL is configured");
+      }
     }
 
     if (channelType === "pooled") {
-      const memberCount = poolMembers === undefined ? undefined : poolMembers.length;
+      const memberCount = poolMembers == null ? undefined : poolMembers.length;
       if (isCreate || !wasPooled) {
         if (!memberCount)
           throw new BadRequestError("pooled channel must contain at least one member");

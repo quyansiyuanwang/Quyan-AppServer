@@ -13,6 +13,221 @@
         />
       </el-form-item>
 
+      <el-divider content-position="left">{{ i18ns.t('relay.channelComposition') }}</el-divider>
+      <el-form-item :label="i18ns.t('relay.channelType')">
+        <el-radio-group v-model="channelForm.channelType">
+          <el-radio-button value="standalone">{{
+            i18ns.t('relay.channelTypeStandalone')
+          }}</el-radio-button>
+          <el-radio-button value="pooled">{{ i18ns.t('relay.channelTypePooled') }}</el-radio-button>
+        </el-radio-group>
+        <div class="ml-3 text-[#909399] text-xs">
+          {{ i18ns.t('relay.channelTypeHelp') }}
+        </div>
+      </el-form-item>
+
+      <template v-if="channelForm.channelType === 'pooled'">
+        <el-form-item :label="i18ns.t('relay.poolMembers')" required>
+          <div class="flex flex-col gap-3 w-full">
+            <div class="flex flex-wrap gap-2">
+              <el-button size="small" @click="addPoolMember">{{
+                i18ns.t('relay.addPoolMember')
+              }}</el-button>
+            </div>
+
+            <el-empty
+              v-if="channelForm.poolMembers.length === 0"
+              :description="i18ns.t('relay.poolMembersHelp')"
+            />
+
+            <div
+              v-for="(member, index) in channelForm.poolMembers"
+              :key="member.id || `${member.memberChannelId}-${index}`"
+              class="border border-[var(--el-border-color-lighter)] rounded-lg p-3 flex flex-col gap-3"
+            >
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <el-form-item :label="i18ns.t('relay.poolMemberChannel')" label-width="auto">
+                  <el-select
+                    v-model="member.memberChannelId"
+                    filterable
+                    :placeholder="i18ns.t('select')"
+                  >
+                    <el-option
+                      v-for="channel in availablePoolMemberChannels"
+                      :key="channel.id"
+                      :label="channel.name"
+                      :value="channel.id"
+                      :disabled="isPoolMemberOptionDisabled(channel.id, index)"
+                    />
+                  </el-select>
+                </el-form-item>
+
+                <el-form-item :label="i18ns.t('relay.poolMemberPriority')" label-width="auto">
+                  <el-input-number v-model="member.priority" :min="1" :step="1" />
+                </el-form-item>
+
+                <el-form-item :label="i18ns.t('relay.poolMemberWeight')" label-width="auto">
+                  <el-input-number v-model="member.weight" :min="0" :step="0.1" :precision="3" />
+                </el-form-item>
+
+                <el-form-item :label="i18ns.t('relay.poolMemberEnabled')" label-width="auto">
+                  <el-switch v-model="member.enabled" />
+                </el-form-item>
+              </div>
+
+              <div class="flex justify-end">
+                <el-button size="small" type="danger" @click="removePoolMember(index)">{
+                  { i18ns.t('delete') }
+                }</el-button>
+              </div>
+            </div>
+
+            <div class="text-[#909399] text-xs">{{ i18ns.t('relay.poolMembersHelp') }}</div>
+          </div>
+        </el-form-item>
+
+        <el-divider content-position="left">{{ i18ns.t('relay.routingStrategy') }}</el-divider>
+        <el-form-item :label="i18ns.t('relay.routingStrategy')">
+          <el-select v-model="channelForm.routingStrategy" style="width: 100%">
+            <el-option :label="i18ns.t('relay.routingStrategyPriority')" value="priority" />
+            <el-option :label="i18ns.t('relay.routingStrategyRandom')" value="random" />
+            <el-option
+              :label="i18ns.t('relay.routingStrategyWeightedRandom')"
+              value="weighted-random"
+            />
+            <el-option :label="i18ns.t('relay.routingStrategyRoundRobin')" value="round-robin" />
+            <el-option
+              :label="i18ns.t('relay.routingStrategyHealthPriority')"
+              value="health-priority"
+            />
+            <el-option
+              :label="i18ns.t('relay.routingStrategyLatencyPriority')"
+              value="latency-priority"
+            />
+          </el-select>
+          <div class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.routingStrategyHelp') }}</div>
+        </el-form-item>
+
+        <el-form-item :label="i18ns.t('relay.routingConfig')">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+            <el-form-item :label="i18ns.t('relay.maxRetries')" label-width="auto">
+              <el-input-number v-model="channelForm.routingConfig.maxRetries" :min="0" :step="1" />
+            </el-form-item>
+            <el-form-item :label="i18ns.t('relay.failoverThreshold')" label-width="auto">
+              <el-input-number
+                v-model="channelForm.routingConfig.failoverThreshold"
+                :min="0"
+                :step="1"
+              />
+            </el-form-item>
+            <el-form-item :label="i18ns.t('relay.failbackCooldownMinutes')" label-width="auto">
+              <el-input-number
+                v-model="channelForm.routingConfig.failbackCooldownMinutes"
+                :min="0"
+                :step="1"
+              />
+            </el-form-item>
+            <el-form-item :label="i18ns.t('relay.healthScoreThreshold')" label-width="auto">
+              <el-input-number
+                v-model="channelForm.routingConfig.healthScoreThreshold"
+                :min="0"
+                :step="0.01"
+                :precision="2"
+              />
+            </el-form-item>
+            <el-form-item :label="i18ns.t('relay.latencyThresholdMs')" label-width="auto">
+              <el-input-number
+                v-model="channelForm.routingConfig.latencyThresholdMs"
+                :min="0"
+                :step="10"
+              />
+            </el-form-item>
+            <el-form-item :label="i18ns.t('relay.circuitBreakerThreshold')" label-width="auto">
+              <el-input-number
+                v-model="channelForm.routingConfig.circuitBreakerThreshold"
+                :min="0"
+                :step="1"
+              />
+            </el-form-item>
+            <el-form-item :label="i18ns.t('relay.stickyByModel')" label-width="auto">
+              <el-switch v-model="channelForm.routingConfig.stickyByModel" />
+            </el-form-item>
+            <el-form-item :label="i18ns.t('relay.stickyByFormat')" label-width="auto">
+              <el-switch v-model="channelForm.routingConfig.stickyByFormat" />
+            </el-form-item>
+          </div>
+          <el-form-item :label="i18ns.t('relay.retryStatusCodes')" label-width="auto">
+            <el-select
+              v-model="channelForm.routingConfig.retryStatusCodes"
+              multiple
+              filterable
+              allow-create
+              default-first-option
+              :placeholder="i18ns.t('relay.retryStatusCodesPlaceholder')"
+              style="width: 100%"
+            >
+              <el-option :label="i18ns.t('relay.retryStatusCodeLabel4xx')" value="4xx" />
+              <el-option :label="i18ns.t('relay.retryStatusCodeLabel5xx')" value="5xx" />
+              <el-option :label="i18ns.t('relay.retryStatusCodeLabel401')" value="401" />
+              <el-option :label="i18ns.t('relay.retryStatusCodeLabel403')" value="403" />
+              <el-option :label="i18ns.t('relay.retryStatusCodeLabel429')" value="429" />
+              <el-option :label="i18ns.t('relay.retryStatusCodeLabel500')" value="500" />
+              <el-option :label="i18ns.t('relay.retryStatusCodeLabel502')" value="502" />
+              <el-option :label="i18ns.t('relay.retryStatusCodeLabel503')" value="503" />
+              <el-option :label="i18ns.t('relay.retryStatusCodeLabel504')" value="504" />
+            </el-select>
+          </el-form-item>
+          <div class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.routingConfigHelp') }}</div>
+        </el-form-item>
+      </template>
+
+      <el-divider content-position="left">{{ i18ns.t('relay.visibilityMode') }}</el-divider>
+      <el-form-item :label="i18ns.t('relay.visibilityMode')">
+        <el-select v-model="channelForm.visibilityMode" style="width: 100%">
+          <el-option :label="i18ns.t('relay.visibilityModePublic')" value="public" />
+          <el-option :label="i18ns.t('relay.visibilityModePrivate')" value="private" />
+          <el-option :label="i18ns.t('relay.visibilityModeWhitelist')" value="whitelist" />
+        </el-select>
+        <div class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.visibilityModeHelp') }}</div>
+      </el-form-item>
+
+      <template v-if="channelForm.visibilityMode === 'whitelist'">
+        <el-form-item :label="i18ns.t('relay.visibilityUsers')">
+          <el-select
+            v-model="channelForm.visibilityConfig.userIds"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            style="width: 100%"
+            :placeholder="i18ns.t('relay.visibilityIdsPlaceholder')"
+          />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('relay.visibilityGroups')">
+          <el-select
+            v-model="channelForm.visibilityConfig.groupIds"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            style="width: 100%"
+            :placeholder="i18ns.t('relay.visibilityIdsPlaceholder')"
+          />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('relay.visibilityRoles')">
+          <el-select
+            v-model="channelForm.visibilityConfig.roleIds"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            style="width: 100%"
+            :placeholder="i18ns.t('relay.visibilityIdsPlaceholder')"
+          />
+          <div class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.visibilityIdsHelp') }}</div>
+        </el-form-item>
+      </template>
+
       <el-divider content-position="left">{{
         i18ns.t('relay.formatAndModelRestrictions')
       }}</el-divider>
@@ -63,59 +278,72 @@
         </div>
       </el-form-item>
 
-      <el-divider
-        v-if="computeShowUpstream(channelForm.allowedFormats, 'openai')"
-        content-position="left"
-      >
-        {{ i18ns.t('relay.openaiUpstream') }}
-      </el-divider>
-      <template v-if="computeShowUpstream(channelForm.allowedFormats, 'openai')">
-        <el-form-item :label="i18ns.t('ServerConfigView.openaiUpstreamUrl')">
-          <el-input
-            v-model="channelForm.openaiUpstreamUrl"
-            placeholder="https://api.openai.com/v1"
-          />
-        </el-form-item>
-        <el-form-item :label="i18ns.t('ServerConfigView.openaiUpstreamApiKey')">
-          <el-input v-model="channelForm.openaiUpstreamApiKey" type="password" show-password />
-        </el-form-item>
-      </template>
+      <template v-if="channelForm.channelType === 'standalone'">
+        <el-divider
+          v-if="computeShowUpstream(channelForm.allowedFormats, 'openai')"
+          content-position="left"
+        >
+          {{ i18ns.t('relay.openaiUpstream') }}
+        </el-divider>
+        <template v-if="computeShowUpstream(channelForm.allowedFormats, 'openai')">
+          <el-form-item :label="i18ns.t('ServerConfigView.openaiUpstreamUrl')">
+            <el-input
+              v-model="channelForm.openaiUpstreamUrl"
+              placeholder="https://api.openai.com/v1"
+            />
+          </el-form-item>
+          <el-form-item :label="i18ns.t('ServerConfigView.openaiUpstreamApiKey')">
+            <el-input v-model="channelForm.openaiUpstreamApiKey" type="password" show-password />
+          </el-form-item>
+        </template>
 
-      <el-divider
-        v-if="computeShowUpstream(channelForm.allowedFormats, 'anthropic')"
-        content-position="left"
-      >
-        {{ i18ns.t('relay.anthropicUpstream') }}
-      </el-divider>
-      <template v-if="computeShowUpstream(channelForm.allowedFormats, 'anthropic')">
-        <el-form-item :label="i18ns.t('ServerConfigView.anthropicUpstreamUrl')">
-          <el-input
-            v-model="channelForm.anthropicUpstreamUrl"
-            placeholder="https://api.anthropic.com/v1"
-          />
-        </el-form-item>
-        <el-form-item :label="i18ns.t('ServerConfigView.anthropicUpstreamApiKey')">
-          <el-input v-model="channelForm.anthropicUpstreamApiKey" type="password" show-password />
-        </el-form-item>
-      </template>
+        <el-divider
+          v-if="computeShowUpstream(channelForm.allowedFormats, 'anthropic')"
+          content-position="left"
+        >
+          {{ i18ns.t('relay.anthropicUpstream') }}
+        </el-divider>
+        <template v-if="computeShowUpstream(channelForm.allowedFormats, 'anthropic')">
+          <el-form-item :label="i18ns.t('ServerConfigView.anthropicUpstreamUrl')">
+            <el-input
+              v-model="channelForm.anthropicUpstreamUrl"
+              placeholder="https://api.anthropic.com/v1"
+            />
+          </el-form-item>
+          <el-form-item :label="i18ns.t('ServerConfigView.anthropicUpstreamApiKey')">
+            <el-input
+              v-model="channelForm.anthropicUpstreamApiKey"
+              type="password"
+              show-password
+            />
+          </el-form-item>
+        </template>
 
-      <el-divider
-        v-if="computeShowUpstream(channelForm.allowedFormats, 'gemini')"
-        content-position="left"
-      >
-        {{ i18ns.t('relay.geminiUpstream') }}
-      </el-divider>
-      <template v-if="computeShowUpstream(channelForm.allowedFormats, 'gemini')">
-        <el-form-item :label="i18ns.t('ServerConfigView.geminiUpstreamUrl')">
-          <el-input
-            v-model="channelForm.geminiUpstreamUrl"
-            placeholder="https://generativelanguage.googleapis.com"
-          />
-        </el-form-item>
-        <el-form-item :label="i18ns.t('ServerConfigView.geminiUpstreamApiKey')">
-          <el-input v-model="channelForm.geminiUpstreamApiKey" type="password" show-password />
-        </el-form-item>
+        <el-divider
+          v-if="computeShowUpstream(channelForm.allowedFormats, 'gemini')"
+          content-position="left"
+        >
+          {{ i18ns.t('relay.geminiUpstream') }}
+        </el-divider>
+        <template v-if="computeShowUpstream(channelForm.allowedFormats, 'gemini')">
+          <el-form-item :label="i18ns.t('ServerConfigView.geminiUpstreamUrl')">
+            <el-input
+              v-model="channelForm.geminiUpstreamUrl"
+              placeholder="https://generativelanguage.googleapis.com"
+            />
+          </el-form-item>
+          <el-form-item :label="i18ns.t('ServerConfigView.geminiUpstreamApiKey')">
+            <el-input v-model="channelForm.geminiUpstreamApiKey" type="password" show-password />
+          </el-form-item>
+        </template>
       </template>
+      <el-alert
+        v-else
+        type="info"
+        :closable="false"
+        class="mb-4"
+        :title="i18ns.t('relay.pooledNoDirectUpstreamHelp')"
+      />
 
       <el-divider content-position="left">{{ i18ns.t('relay.channelSettings') }}</el-divider>
       <el-form-item :label="i18ns.t('relay.channelMultiplier')">
@@ -257,6 +485,10 @@ const {
   formatModelOptionLabel,
   isModelDisabled,
   computeShowUpstream,
+  availablePoolMemberChannels,
+  isPoolMemberOptionDisabled,
+  addPoolMember,
+  removePoolMember,
   filteredModelNames,
   openAddTimeRule,
   formatTimeRuleDays,

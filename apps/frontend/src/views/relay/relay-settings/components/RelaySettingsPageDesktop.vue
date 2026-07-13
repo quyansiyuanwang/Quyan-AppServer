@@ -602,15 +602,66 @@
                   </div>
                 </template>
               </el-table-column>
+              <el-table-column :label="i18ns.t('relay.channelType')" width="120">
+                <template #default="{ row }">
+                  <el-tag :type="row.channelType === 'pooled' ? 'warning' : 'info'" size="small">
+                    {{ formatChannelTypeLabel(row.channelType) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('relay.routingStrategy')" width="150">
+                <template #default="{ row }">
+                  <template v-if="row.channelType === 'pooled'">
+                    <el-tag type="primary" size="small">{{
+                      formatRoutingStrategyLabel(row.routingStrategy)
+                    }}</el-tag>
+                  </template>
+                  <span v-else class="text-[#909399]">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('relay.visibilityMode')" width="180">
+                <template #default="{ row }">
+                  <el-tooltip :content="getVisibilitySummary(row)" placement="top">
+                    <el-tag
+                      :type="row.visibilityMode === 'public' ? 'success' : row.visibilityMode === 'private' ? 'info' : 'danger'"
+                      size="small"
+                    >
+                      {{ formatVisibilityModeLabel(row.visibilityMode) }}
+                    </el-tag>
+                  </el-tooltip>
+                </template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('relay.poolMembers')" min-width="180">
+                <template #default="{ row }">
+                  <template v-if="row.channelType === 'pooled'">
+                    <el-tooltip
+                      v-if="(row.poolMembers || []).length > 0"
+                      :content="getPoolMembersSummary(row.poolMembers)"
+                      placement="top"
+                    >
+                      <el-tag type="warning" size="small">
+                        {{ (row.poolMembers || []).length }} {{ i18ns.t('relay.poolMemberCount') }}
+                      </el-tag>
+                    </el-tooltip>
+                    <el-tag v-else type="danger" size="small">{{
+                      i18ns.t('relay.noPoolMembers')
+                    }}</el-tag>
+                  </template>
+                  <span v-else class="text-[#909399]">-</span>
+                </template>
+              </el-table-column>
               <el-table-column
                 :label="i18ns.t('relay.upstreamConfig')"
                 min-width="200"
                 class-name="hide-on-mobile"
               >
                 <template #default="{ row }">
+                  <div v-if="row.channelType === 'pooled'" style="font-size: 12px; color: #909399">
+                    {{ i18ns.t('relay.pooledNoDirectUpstreamHelp') }}
+                  </div>
                   <div style="font-size: 12px">
                     <div
-                      v-if="computeShowUpstream(row.allowedFormats.split(','), 'openai')"
+                      v-if="row.channelType !== 'pooled' && computeShowUpstream(row.allowedFormats, 'openai')"
                       style="margin-top: 4px"
                     >
                       <el-tag size="small" type="success">OpenAI</el-tag>
@@ -619,7 +670,7 @@
                       }}</span>
                     </div>
                     <div
-                      v-if="computeShowUpstream(row.allowedFormats.split(','), 'anthropic')"
+                      v-if="row.channelType !== 'pooled' && computeShowUpstream(row.allowedFormats, 'anthropic')"
                       style="margin-top: 4px"
                     >
                       <el-tag size="small" type="warning">Anthropic</el-tag>
@@ -628,7 +679,7 @@
                       }}</span>
                     </div>
                     <div
-                      v-if="computeShowUpstream(row.allowedFormats.split(','), 'gemini')"
+                      v-if="row.channelType !== 'pooled' && computeShowUpstream(row.allowedFormats, 'gemini')"
                       style="margin-top: 4px"
                     >
                       <el-tag size="small" type="primary">Gemini</el-tag>
@@ -772,6 +823,11 @@ const {
   isChannelSelected,
   toggleChannelSelection,
   computeShowUpstream,
+  formatChannelTypeLabel,
+  formatRoutingStrategyLabel,
+  formatVisibilityModeLabel,
+  getVisibilitySummary,
+  getPoolMembersSummary,
   parseAllowedModels,
   togglingChannelId,
   handleToggleChannelStatus,
