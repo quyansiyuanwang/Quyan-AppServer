@@ -51,6 +51,47 @@ export interface PublicCaptchaConfigDto {
   fallbackProvider: CaptchaProviderDto;
 }
 
+export interface SocialAuthGithubConfigDto {
+  enabled: boolean;
+  clientId: string;
+  clientSecret: string;
+  authorizeUrl: string;
+  tokenUrl: string;
+  userUrl: string;
+  emailUrl: string;
+  scope: string;
+  callbackPath: string;
+}
+
+export interface SocialAuthWechatConfigDto {
+  enabled: boolean;
+  appId: string;
+  appSecret: string;
+  authorizeUrl: string;
+  tokenUrl: string;
+  userUrl: string;
+  scope: string;
+  callbackPath: string;
+}
+
+export interface SocialAuthConfigDto {
+  frontendBaseUrl: string;
+  qrLoginEnabled: boolean;
+  stateTtlSeconds: number;
+  qrLoginTtlSeconds: number;
+  qrLoginPollIntervalSeconds: number;
+  github: SocialAuthGithubConfigDto;
+  wechatOpen: SocialAuthWechatConfigDto;
+  wechatWeb: SocialAuthWechatConfigDto;
+}
+
+export interface PublicSocialAuthConfigDto {
+  githubEnabled: boolean;
+  wechatOpenEnabled: boolean;
+  wechatWebEnabled: boolean;
+  qrLoginEnabled: boolean;
+}
+
 export interface SetBillingConfigDto {
   /**
    * 充值比例：1 元可兑换的额度数量
@@ -91,6 +132,17 @@ export interface SetCaptchaConfigDto {
    */
   minScore: number;
   trustWindowMinutes: number;
+}
+
+export interface SetSocialAuthConfigDto {
+  frontendBaseUrl: string;
+  qrLoginEnabled: boolean;
+  stateTtlSeconds: number;
+  qrLoginTtlSeconds: number;
+  qrLoginPollIntervalSeconds: number;
+  github: SocialAuthGithubConfigDto;
+  wechatOpen: SocialAuthWechatConfigDto;
+  wechatWeb: SocialAuthWechatConfigDto;
 }
 
 export interface SetRegistrationConfigDto {

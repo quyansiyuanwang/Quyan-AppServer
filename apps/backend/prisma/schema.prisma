@@ -55,6 +55,7 @@ model User {
   remoteTerminalEntitlements   RemoteTerminalUserEntitlement[]
   remoteTerminalDevices        RemoteTerminalDeviceBinding[]
   passkeys                     PasskeyCredential[]
+  externalIdentities           UserExternalIdentity[]
   twoFactorCredential          TwoFactorCredential?
   jsonEndpoints                JsonEndpoint[]
   articles                     Article[]
@@ -84,6 +85,37 @@ model User {
   @@index([parentUserId])
   @@index([accountOwnerId, userType])
   @@map("users")
+}
+
+model UserExternalIdentity {
+  id               String    @id @default(cuid())
+  status           Int       @default(1)
+  createTime       DateTime  @default(now())
+  updateTime       DateTime  @updatedAt
+  userId           String
+  provider         String    @db.VarChar(50)
+  providerUserId   String    @db.VarChar(191)
+  providerUnionId  String?   @db.VarChar(191)
+  providerUsername String?   @db.VarChar(191)
+  providerEmail    String?   @db.VarChar(191)
+  avatarUrl        String?   @db.VarChar(500)
+  profileRaw       Json?
+  accessToken      String?   @db.Text
+  refreshToken     String?   @db.Text
+  scope            String?   @db.VarChar(500)
+  linkedAt         DateTime  @default(now())
+  lastLoginAt      DateTime?
+  lastSyncedAt     DateTime?
+  revokedAt        DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@unique([provider, providerUnionId])
+  @@index([userId])
+  @@index([provider])
+  @@index([provider, status])
+  @@map("user_external_identities")
 }
 
 model Group {

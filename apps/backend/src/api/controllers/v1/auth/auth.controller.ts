@@ -1,6 +1,8 @@
 import {
   Body,
   Get,
+  Path,
+  Query,
   Post,
   Route,
   SuccessResponse,
@@ -19,6 +21,8 @@ import type {
   LoginResponse,
   RefreshDto,
   RefreshResponse,
+  StartExternalAuthDto,
+  StartExternalAuthResponse,
   VerifyTwoFactorLoginDto,
   VerifyTwoFactorLoginResponse,
   VerifyDto,
@@ -40,6 +44,16 @@ import type {
   ReplaySigningSessionResponse,
   ResetPasswordDto,
   ResetPasswordResponse,
+  ExternalAuthCallbackResponse,
+  BindExternalIdentityDto,
+  BindExternalIdentityResponse,
+  ListExternalIdentitiesResponse,
+  UnbindExternalIdentityDto,
+  UnbindExternalIdentityResponse,
+  CreateQrLoginSessionResponse,
+  ScanQrLoginDto,
+  ConfirmQrLoginDto,
+  QrLoginSessionStatusResponse,
 } from "@/api/dto/auth/auth.dto";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { Request as ExpressRequest } from "express";
@@ -58,14 +72,23 @@ import {
   verifyTwoFactorLoginBodySchema,
   verifyBodySchema,
   logoutBodySchema,
+  startExternalAuthBodySchema,
+  externalAuthCallbackQuerySchema,
+  bindExternalIdentityBodySchema,
+  unbindExternalIdentityBodySchema,
+  scanQrLoginBodySchema,
+  confirmQrLoginBodySchema,
+  qrLoginStatusQuerySchema,
 } from "@/api/schema/auth/auth.schema";
-import { validateBody } from "@/middleware/validation";
+import { validateBody, validateQuery } from "@/middleware/validation";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { CaptchaProtected, captchaMiddleware } from "@/util/captcha-protected-decorator";
 import { ConfigService } from "@/services/system/config.service";
 import { setResponseMessageKey } from "@/util/response-wrapper";
+import { Security } from "@tsoa/runtime";
+import { ExternalAuthService } from "@/services/auth/external-auth.service";
 import {
   emailVerificationRateLimitMiddleware,
   passwordResetCodeRateLimitMiddleware,
@@ -83,6 +106,7 @@ const logger = getLogger("AuthController", LogCategory.AUTH);
 @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "参数验证失败")
 export class AuthController extends Controller {
   private authService = new AuthService();
+  private externalAuthService = ExternalAuthService.getInstance();
   private businessLogService = BusinessLogService.getInstance();
   private captchaService = CaptchaService.getInstance();
   private configService = ConfigService.getInstance();
@@ -157,6 +181,119 @@ export class AuthController extends Controller {
     const login_res = await this.authService.login(requestBody.username, requestBody.password, request);
     logger.info("用户登录成功: %s", requestBody.username);
     return login_res;
+  }
+
+  @Post("external/start")
+  @ReplayProtected()
+  @SuccessResponse(HttpStatusCode.Ok, "获取外部登录地址成功")
+  @Middlewares(replayProtectionMiddleware, validateBody(startExternalAuthBodySchema))
+  public async startExternalAuth(
+    @Body() requestBody: StartExternalAuthDto,
+    @Request() request: ExpressRequest,
+  ): Promise<StartExternalAuthResponse> {
+    return this.externalAuthService.startAuth(
+      requestBody.provider,
+      requestBody.action,
+      requestBody.redirectUri,
+      request.user?.userId,
+      request,
+    );
+  }
+
+  @Get("external/{provider}/callback")
+  @SuccessResponse(HttpStatusCode.Ok, "外部登录回调成功")
+  @Middlewares(validateQuery(externalAuthCallbackQuerySchema))
+  public async externalAuthCallback(
+    @Path() provider: StartExternalAuthDto["provider"],
+    @Request() request: ExpressRequest,
+    @Query() code?: string,
+    @Query() state?: string,
+  ): Promise<ExternalAuthCallbackResponse> {
+    if (!code || !state) throw new Error("Missing external auth callback query params");
+    return this.externalAuthService.handleCallback(provider, code, state, request);
+  }
+
+  @Get("external/identities")
+  @Security("jwt")
+  @SuccessResponse(HttpStatusCode.Ok, "获取绑定账号成功")
+  public async listExternalIdentities(@Request() request: ExpressRequest): Promise<ListExternalIdentitiesResponse> {
+    return this.externalAuthService.listIdentities(request.user!.userId);
+  }
+
+  @Post("external/bind")
+  @Security("jwt")
+  @ReplayProtected()
+  @SuccessResponse(HttpStatusCode.Ok, "绑定外部账号成功")
+  @Middlewares(replayProtectionMiddleware, validateBody(bindExternalIdentityBodySchema))
+  public async bindExternalIdentity(
+    @Body() requestBody: BindExternalIdentityDto,
+    @Request() request: ExpressRequest,
+  ): Promise<BindExternalIdentityResponse> {
+    return this.externalAuthService.bindIdentity(
+      request.user!.userId,
+      requestBody.provider,
+      requestBody.bindingToken,
+      request,
+    );
+  }
+
+  @Post("external/unbind")
+  @Security("jwt")
+  @ReplayProtected()
+  @SuccessResponse(HttpStatusCode.Ok, "解绑外部账号成功")
+  @Middlewares(replayProtectionMiddleware, validateBody(unbindExternalIdentityBodySchema))
+  public async unbindExternalIdentity(
+    @Body() requestBody: UnbindExternalIdentityDto,
+    @Request() request: ExpressRequest,
+  ): Promise<UnbindExternalIdentityResponse> {
+    return this.externalAuthService.unbindIdentity(request.user!.userId, requestBody.provider, request);
+  }
+
+  @Post("qr-login/session")
+  @ReplayProtected()
+  @SuccessResponse(HttpStatusCode.Ok, "创建扫码登录会话成功")
+  @Middlewares(replayProtectionMiddleware)
+  public async createQrLoginSession(@Request() request: ExpressRequest): Promise<CreateQrLoginSessionResponse> {
+    return this.externalAuthService.createQrLoginSession(request);
+  }
+
+  @Post("qr-login/scan")
+  @Security("jwt")
+  @ReplayProtected()
+  @SuccessResponse(HttpStatusCode.Ok, "扫码登录会话已标记")
+  @Middlewares(replayProtectionMiddleware, validateBody(scanQrLoginBodySchema))
+  public async scanQrLogin(
+    @Body() requestBody: ScanQrLoginDto,
+    @Request() request: ExpressRequest,
+  ): Promise<QrLoginSessionStatusResponse> {
+    return this.externalAuthService.markQrSessionScanned(requestBody.sessionId, request.user!.userId, request);
+  }
+
+  @Post("qr-login/confirm")
+  @Security("jwt")
+  @ReplayProtected()
+  @SuccessResponse(HttpStatusCode.Ok, "扫码登录确认成功")
+  @Middlewares(replayProtectionMiddleware, validateBody(confirmQrLoginBodySchema))
+  public async confirmQrLogin(
+    @Body() requestBody: ConfirmQrLoginDto,
+    @Request() request: ExpressRequest,
+  ): Promise<QrLoginSessionStatusResponse> {
+    return this.externalAuthService.confirmQrLogin(
+      requestBody.sessionId,
+      requestBody.approve,
+      request.user!.userId,
+      request,
+    );
+  }
+
+  @Get("qr-login/status")
+  @SuccessResponse(HttpStatusCode.Ok, "获取扫码登录状态成功")
+  @Middlewares(validateQuery(qrLoginStatusQuerySchema))
+  public async getQrLoginStatus(
+    @Query() sessionId: string,
+    @Request() request: ExpressRequest,
+  ): Promise<QrLoginSessionStatusResponse> {
+    return this.externalAuthService.getQrLoginStatus(sessionId, request);
   }
 
   /**

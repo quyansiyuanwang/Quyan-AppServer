@@ -456,6 +456,48 @@ function replayProtectionConfig() {
   };
 }
 
+function socialAuthConfig() {
+  const frontendBaseUrl = String(process.env.FRONTEND_BASE_URL || "").trim();
+
+  return {
+    frontendBaseUrl,
+    github: {
+      enabled: process.env.GITHUB_OAUTH_ENABLED === "true",
+      clientId: String(process.env.GITHUB_OAUTH_CLIENT_ID || "").trim(),
+      clientSecret: String(process.env.GITHUB_OAUTH_CLIENT_SECRET || "").trim(),
+      authorizeUrl: String(process.env.GITHUB_OAUTH_AUTHORIZE_URL || "https://github.com/login/oauth/authorize").trim(),
+      tokenUrl: String(process.env.GITHUB_OAUTH_TOKEN_URL || "https://github.com/login/oauth/access_token").trim(),
+      userUrl: String(process.env.GITHUB_OAUTH_USER_URL || "https://api.github.com/user").trim(),
+      emailUrl: String(process.env.GITHUB_OAUTH_EMAIL_URL || "https://api.github.com/user/emails").trim(),
+      scope: String(process.env.GITHUB_OAUTH_SCOPE || "read:user user:email").trim(),
+      callbackPath: String(process.env.GITHUB_OAUTH_CALLBACK_PATH || "/v1/auth/external/github/callback").trim(),
+    },
+    wechatOpen: {
+      enabled: process.env.WECHAT_OPEN_OAUTH_ENABLED === "true",
+      appId: String(process.env.WECHAT_OPEN_APP_ID || "").trim(),
+      appSecret: String(process.env.WECHAT_OPEN_APP_SECRET || "").trim(),
+      authorizeUrl: String(process.env.WECHAT_OPEN_AUTHORIZE_URL || "https://open.weixin.qq.com/connect/qrconnect").trim(),
+      tokenUrl: String(process.env.WECHAT_OPEN_TOKEN_URL || "https://api.weixin.qq.com/sns/oauth2/access_token").trim(),
+      userUrl: String(process.env.WECHAT_OPEN_USER_URL || "https://api.weixin.qq.com/sns/userinfo").trim(),
+      scope: String(process.env.WECHAT_OPEN_SCOPE || "snsapi_login").trim(),
+      callbackPath: String(process.env.WECHAT_OPEN_CALLBACK_PATH || "/v1/auth/external/wechat-open/callback").trim(),
+    },
+    wechatWeb: {
+      enabled: process.env.WECHAT_WEB_OAUTH_ENABLED === "true",
+      appId: String(process.env.WECHAT_WEB_APP_ID || "").trim(),
+      appSecret: String(process.env.WECHAT_WEB_APP_SECRET || "").trim(),
+      authorizeUrl: String(process.env.WECHAT_WEB_AUTHORIZE_URL || "https://open.weixin.qq.com/connect/oauth2/authorize").trim(),
+      tokenUrl: String(process.env.WECHAT_WEB_TOKEN_URL || "https://api.weixin.qq.com/sns/oauth2/access_token").trim(),
+      userUrl: String(process.env.WECHAT_WEB_USER_URL || "https://api.weixin.qq.com/sns/userinfo").trim(),
+      scope: String(process.env.WECHAT_WEB_SCOPE || "snsapi_userinfo").trim(),
+      callbackPath: String(process.env.WECHAT_WEB_CALLBACK_PATH || "/v1/auth/external/wechat-web/callback").trim(),
+    },
+    stateTtlSeconds: sanitizeInt(process.env.EXTERNAL_AUTH_STATE_TTL_SECONDS, 600, 60, 3600),
+    qrLoginTtlSeconds: sanitizeInt(process.env.QR_LOGIN_TTL_SECONDS, 300, 60, 1800),
+    qrLoginPollIntervalSeconds: sanitizeInt(process.env.QR_LOGIN_POLL_INTERVAL_SECONDS, 2, 1, 30),
+  };
+}
+
 function cwd(): string {
   return process.cwd();
 }
@@ -496,6 +538,7 @@ export const EnvSpace = {
   relayResourceGuardConfig: noUndefined(relayResourceGuardConfig),
   requestSizeLimitConfig: noUndefined(requestSizeLimitConfig),
   replayProtectionConfig: noUndefined(replayProtectionConfig),
+  socialAuthConfig: noUndefined(socialAuthConfig),
   authCenterConfig: noUndefined(authCenterConfig),
   cwd: noUndefined(cwd),
 };

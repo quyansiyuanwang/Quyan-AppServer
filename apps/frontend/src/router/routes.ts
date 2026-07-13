@@ -57,6 +57,14 @@ export const routes = [
         component: () => import('@/views/auth/OAuthAuthorizeView.vue'),
       },
       {
+        path: '/auth/external/:provider/callback',
+        name: 'externalAuthCallback',
+        meta: {
+          isAuthEntry: true,
+        },
+        component: () => import('@/views/auth/ExternalAuthCallbackView.vue'),
+      },
+      {
         path: '/auth/captcha',
         name: 'captchaVerification',
         meta: {

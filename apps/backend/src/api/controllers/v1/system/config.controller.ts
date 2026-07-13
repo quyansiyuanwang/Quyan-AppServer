@@ -23,6 +23,7 @@ import type {
   GetConfigResponse,
   NotificationConfigDto,
   PublicCaptchaConfigDto,
+  PublicSocialAuthConfigDto,
   RegistrationStatusResponse,
   SetBillingConfigDto,
   SetCaptchaConfigDto,
@@ -31,10 +32,12 @@ import type {
   SetNotificationConfigDto,
   SetRegistrationConfigDto,
   SetRelayConfigDto,
+  SetSocialAuthConfigDto,
   SetSmtpConfigDto,
   SetSiteConfigDto,
   SetIpBanConfigDto,
   SiteConfigDto,
+  SocialAuthConfigDto,
 } from "@/api/dto/system/config.dto";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
@@ -52,6 +55,7 @@ import {
   setIpBanConfigBodySchema,
   setRegistrationConfigBodySchema,
   setRelayConfigBodySchema,
+  setSocialAuthConfigBodySchema,
   setSmtpConfigBodySchema,
   setSiteConfigBodySchema,
 } from "@/api/schema/system/config.schema";
@@ -112,6 +116,12 @@ export class ConfigController extends Controller {
       provider: config.provider,
       fallbackProvider: config.fallbackProvider,
     };
+  }
+
+  @Get("public/social-auth")
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
+  public async getPublicSocialAuthConfig(): Promise<PublicSocialAuthConfigDto> {
+    return await this.configService.getPublicSocialAuthConfig();
   }
 
   @Get("registration")
@@ -184,6 +194,13 @@ export class ConfigController extends Controller {
   @RequirePermission(Permission.SYSTEM_CONFIG)
   public async getCaptchaConfig(@Request() _request: TypedRequest): Promise<CaptchaConfigDto> {
     return await this.configService.getCaptchaConfig();
+  }
+
+  @Get("social-auth")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_CONFIG)
+  public async getSocialAuthConfig(@Request() _request: TypedRequest): Promise<SocialAuthConfigDto> {
+    return await this.configService.getSocialAuthConfig();
   }
 
   @Put("registration")
@@ -430,6 +447,57 @@ export class ConfigController extends Controller {
         [CONFIG_KEYS.CAPTCHA.FALLBACK_PROVIDER]: body.fallbackProvider,
         [CONFIG_KEYS.CAPTCHA.MIN_SCORE]: String(body.minScore),
         [CONFIG_KEYS.CAPTCHA.TRUST_WINDOW_MINUTES]: String(body.trustWindowMinutes),
+      },
+      currentUserId,
+      request,
+    );
+    setResponseMessageKey(request, "system.configUpdated");
+    return { message: "配置更新成功" };
+  }
+
+  @Put("social-auth")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(setSocialAuthConfigBodySchema),
+  )
+  public async setSocialAuthConfig(@Body() body: SetSocialAuthConfigDto, @Request() request: TypedRequest) {
+    const currentUserId = request.user!.userId;
+    await this.configService.setMultiple(
+      {
+        [CONFIG_KEYS.SOCIAL_AUTH.FRONTEND_BASE_URL]: body.frontendBaseUrl,
+        [CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_ENABLED]: String(body.qrLoginEnabled),
+        [CONFIG_KEYS.SOCIAL_AUTH.STATE_TTL_SECONDS]: String(body.stateTtlSeconds),
+        [CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_TTL_SECONDS]: String(body.qrLoginTtlSeconds),
+        [CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_POLL_INTERVAL_SECONDS]: String(body.qrLoginPollIntervalSeconds),
+        [CONFIG_KEYS.SOCIAL_AUTH.GITHUB.ENABLED]: String(body.github.enabled),
+        [CONFIG_KEYS.SOCIAL_AUTH.GITHUB.CLIENT_ID]: body.github.clientId,
+        [CONFIG_KEYS.SOCIAL_AUTH.GITHUB.CLIENT_SECRET]: body.github.clientSecret,
+        [CONFIG_KEYS.SOCIAL_AUTH.GITHUB.AUTHORIZE_URL]: body.github.authorizeUrl,
+        [CONFIG_KEYS.SOCIAL_AUTH.GITHUB.TOKEN_URL]: body.github.tokenUrl,
+        [CONFIG_KEYS.SOCIAL_AUTH.GITHUB.USER_URL]: body.github.userUrl,
+        [CONFIG_KEYS.SOCIAL_AUTH.GITHUB.EMAIL_URL]: body.github.emailUrl,
+        [CONFIG_KEYS.SOCIAL_AUTH.GITHUB.SCOPE]: body.github.scope,
+        [CONFIG_KEYS.SOCIAL_AUTH.GITHUB.CALLBACK_PATH]: body.github.callbackPath,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.ENABLED]: String(body.wechatOpen.enabled),
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.APP_ID]: body.wechatOpen.appId,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.APP_SECRET]: body.wechatOpen.appSecret,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.AUTHORIZE_URL]: body.wechatOpen.authorizeUrl,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.TOKEN_URL]: body.wechatOpen.tokenUrl,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.USER_URL]: body.wechatOpen.userUrl,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.SCOPE]: body.wechatOpen.scope,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.CALLBACK_PATH]: body.wechatOpen.callbackPath,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.ENABLED]: String(body.wechatWeb.enabled),
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.APP_ID]: body.wechatWeb.appId,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.APP_SECRET]: body.wechatWeb.appSecret,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.AUTHORIZE_URL]: body.wechatWeb.authorizeUrl,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.TOKEN_URL]: body.wechatWeb.tokenUrl,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.USER_URL]: body.wechatWeb.userUrl,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.SCOPE]: body.wechatWeb.scope,
+        [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.CALLBACK_PATH]: body.wechatWeb.callbackPath,
       },
       currentUserId,
       request,

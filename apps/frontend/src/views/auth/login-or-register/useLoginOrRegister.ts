@@ -14,10 +14,20 @@ import {
   getSafeAuthRedirect,
 } from '@/utils/auth-routes'
 import { usePageDevice } from '@/composables/usePageDevice'
-import type { LegalPolicyType, PublicLegalPolicyDto } from '@/client/types.gen'
+import type {
+  AuthData,
+  CreateQrLoginSessionResponse,
+  LegalPolicyType,
+  PolicyConsentRequiredData,
+  PublicLegalPolicyDto,
+  QrLoginSessionStatusResponse,
+  TwoFactorRequiredData,
+  PublicSocialAuthConfigDto,
+} from '@/client/types.gen'
 import type { FormInstance, FormRules } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { socialAuthService } from '@/service/socialAuthService'
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
@@ -45,6 +55,9 @@ export type RegisterForm = {
   agreedToLegalPolicies: boolean
 }
 
+type ExternalAuthProvider = 'github' | 'wechat-open' | 'wechat-web'
+type QrLoginStatus = 'pending' | 'scanned' | 'approved' | 'rejected' | 'expired' | 'consumed'
+
 export function useLoginOrRegister() {
   const formRef = ref<FormInstance>()
   const usernameInputRef = ref()
@@ -52,12 +65,46 @@ export function useLoginOrRegister() {
   const waterMarkTextStore = useWaterMarkTextStore()
   const route = useRoute()
   const registrationEnabled = ref<boolean | null>(null)
+  const registrationStatusReady = ref(false)
+  const publicSocialAuthConfig = ref<PublicSocialAuthConfigDto | null>(null)
   const captchaWarmupRunning = ref(false)
   const codeCooldown = ref(0)
   const loading = ref(false)
   const passkeyLoading = ref(false)
   const captchaVerifying = ref(false)
-  const registrationStatusReady = ref(false)
+  const externalAuthLoading = ref<string | null>(null)
+  const qrLoginSession = ref<CreateQrLoginSessionResponse | null>(null)
+  const qrLoginStatus = ref<QrLoginStatus | null>(null)
+  const qrLoginScannedUser = ref<{ username?: string; email?: string | null } | null>(null)
+  const qrLoginBusy = ref(false)
+  const qrPolling = ref(false)
+  let publicSocialAuthPromise: Promise<PublicSocialAuthConfigDto | null> | null = null
+
+  const ensurePublicSocialAuthConfig = async (): Promise<PublicSocialAuthConfigDto | null> => {
+    if (publicSocialAuthConfig.value !== null) {
+      return publicSocialAuthConfig.value
+    }
+
+    if (!publicSocialAuthPromise) {
+      publicSocialAuthPromise = loadConfigService()
+        .then(({ configService }) => configService.getPublicSocialAuthConfig())
+        .then((config) => {
+          publicSocialAuthConfig.value = config
+          return config
+        })
+        .catch((error) => {
+          console.error('Failed to load public social auth config:', error)
+          publicSocialAuthConfig.value = null
+          return null
+        })
+        .finally(() => {
+          publicSocialAuthPromise = null
+        })
+    }
+
+    return publicSocialAuthPromise
+  }
+
   const policyDialogVisible = ref(false)
   const policyDialogLoading = ref(false)
   const policyDialogSubmitting = ref(false)
@@ -76,6 +123,7 @@ export function useLoginOrRegister() {
   const loadAuthorizationService = () => import('@/service/authorizationService')
 
   let cooldownTimer: ReturnType<typeof setInterval> | null = null
+  let qrPollingTimer: ReturnType<typeof setTimeout> | null = null
   let passkeyLibPromise: Promise<typeof import('@simplewebauthn/browser')> | null = null
   let registrationStatusPromise: Promise<boolean> | null = null
 
@@ -289,6 +337,64 @@ export function useLoginOrRegister() {
     })
   }
 
+  const getQrSessionIdFromRoute = (): string | undefined => {
+    return typeof route.query.qrSession === 'string' && route.query.qrSession.trim()
+      ? route.query.qrSession.trim()
+      : undefined
+  }
+
+  const getQrContinuationRedirect = (): string | undefined => {
+    const sessionId = getQrSessionIdFromRoute()
+    if (!sessionId) return undefined
+
+    const query = new URLSearchParams()
+    query.set('qrSession', sessionId)
+
+    const redirect = getSafeRedirect()
+    if (redirect) query.set('redirect', redirect)
+
+    return `/login?${query.toString()}`
+  }
+
+  const getChallengeRedirect = (): string | undefined => {
+    return getSafeRedirect() ?? getQrContinuationRedirect()
+  }
+
+  const clearQrPollingTimer = () => {
+    if (qrPollingTimer) {
+      clearTimeout(qrPollingTimer)
+      qrPollingTimer = null
+    }
+  }
+
+  const resetQrSessionState = () => {
+    clearQrPollingTimer()
+    qrPolling.value = false
+    qrLoginBusy.value = false
+    qrLoginSession.value = null
+    qrLoginStatus.value = null
+    qrLoginScannedUser.value = null
+  }
+
+  const getQrStatusText = (status: QrLoginStatus | null): string => {
+    switch (status) {
+      case 'pending':
+        return 'Pending'
+      case 'scanned':
+        return 'Scanned'
+      case 'approved':
+        return 'Approved'
+      case 'rejected':
+        return 'Rejected'
+      case 'expired':
+        return i18ns.t('message.warning.sessionExpired')
+      case 'consumed':
+        return 'Consumed'
+      default:
+        return ''
+    }
+  }
+
   const loadLegalPolicies = async () => {
     policyDialogLoading.value = true
     try {
@@ -350,6 +456,165 @@ export function useLoginOrRegister() {
       await router.push(redirect)
     } else {
       await router.push({ name: 'home' })
+    }
+  }
+
+  const clearQrSessionQuery = async () => {
+    if (!getQrSessionIdFromRoute()) return
+
+    const nextQuery = { ...route.query }
+    delete nextQuery.qrSession
+    await router.replace({ name: 'login', query: nextQuery })
+  }
+
+  const finishQrAuth = async (
+    auth: AuthData | TwoFactorRequiredData | PolicyConsentRequiredData,
+  ) => {
+    const { authorizationService } = await loadAuthorizationService()
+
+    if (authorizationService.isTwoFactorChallengePayload(auth)) {
+      const redirect = getChallengeRedirect()
+      authorizationService.setPendingTwoFactorChallenge(auth.challengeToken, redirect, 'login')
+      await router.replace({
+        name: 'authVerification',
+        query: {
+          method: 'code',
+          authEntry: 'login',
+          ...(redirect ? { redirect } : {}),
+        },
+      })
+      return
+    }
+
+    if (authorizationService.isPolicyConsentPayload(auth)) {
+      await openPolicyConsentDialog(auth.challengeToken)
+      return
+    }
+
+    authorizationService.completeLogin(auth)
+    await redirectAfterSuccessfulLogin(auth.user)
+  }
+
+  const handleQrStatusResponse = async (status: QrLoginSessionStatusResponse) => {
+    qrLoginStatus.value = status.status
+    qrLoginScannedUser.value = status.user
+      ? {
+          username: status.user.username,
+          email: status.user.email,
+        }
+      : null
+
+    if (status.status === 'approved' && status.auth) {
+      qrPolling.value = false
+      clearQrPollingTimer()
+      await finishQrAuth(status.auth)
+      return
+    }
+
+    if (status.status === 'rejected' || status.status === 'expired' || status.status === 'consumed') {
+      qrPolling.value = false
+      clearQrPollingTimer()
+      return
+    }
+
+    qrPolling.value = status.status === 'pending' || status.status === 'scanned'
+  }
+
+  const pollQrLoginStatus = async (sessionId: string, delayMs = 0) => {
+    clearQrPollingTimer()
+    qrPollingTimer = setTimeout(async () => {
+      try {
+        const status = await socialAuthService.getQrLoginStatus(sessionId)
+        await handleQrStatusResponse(status)
+
+        if (status.status === 'pending' || status.status === 'scanned') {
+          const intervalSeconds = qrLoginSession.value?.pollIntervalSeconds ?? 3
+          await pollQrLoginStatus(sessionId, intervalSeconds * 1000)
+        }
+      } catch (error: any) {
+        if (error?.code === CustomCode.QR_LOGIN_SESSION_EXPIRED) {
+          qrLoginStatus.value = 'expired'
+        }
+        qrPolling.value = false
+      }
+    }, delayMs)
+  }
+
+  const startQrPolling = async (sessionId: string, pollIntervalSeconds = 0) => {
+    qrPolling.value = true
+    await pollQrLoginStatus(sessionId, Math.max(0, pollIntervalSeconds * 1000))
+  }
+
+  const restoreQrSessionFromRoute = async () => {
+    const sessionId = getQrSessionIdFromRoute()
+    if (!sessionId) {
+      resetQrSessionState()
+      return
+    }
+
+    qrLoginSession.value = {
+      sessionId,
+      qrCodeDataUrl: qrLoginSession.value?.sessionId === sessionId ? qrLoginSession.value.qrCodeDataUrl : '',
+      expiresIn: qrLoginSession.value?.sessionId === sessionId ? qrLoginSession.value.expiresIn : 0,
+      pollIntervalSeconds: qrLoginSession.value?.sessionId === sessionId ? qrLoginSession.value.pollIntervalSeconds : 3,
+    }
+    if (!qrLoginStatus.value) qrLoginStatus.value = 'pending'
+    await startQrPolling(sessionId)
+  }
+
+  const createAndTrackQrLoginSession = async () => {
+    const session = await socialAuthService.createQrLoginSession()
+    qrLoginSession.value = session
+    qrLoginStatus.value = 'pending'
+    qrLoginScannedUser.value = null
+    await router.push({
+      name: 'login',
+      query: {
+        ...(getSafeRedirect() ? { redirect: getSafeRedirect() } : {}),
+        qrSession: session.sessionId,
+      },
+    })
+    await startQrPolling(session.sessionId, session.pollIntervalSeconds)
+  }
+
+  const handleQrScan = async () => {
+    const sessionId = getQrSessionIdFromRoute()
+    if (!sessionId) return
+
+    qrLoginBusy.value = true
+    try {
+      const status = await socialAuthService.scanQrLogin(sessionId)
+      await handleQrStatusResponse(status)
+    } catch (error: any) {
+      Notification.notify(
+        i18ns.t('error'),
+        error?.message || i18ns.t('operationFailed'),
+        'error',
+      )
+    } finally {
+      qrLoginBusy.value = false
+    }
+  }
+
+  const handleQrConfirm = async (approve: boolean) => {
+    const sessionId = getQrSessionIdFromRoute()
+    if (!sessionId) return
+
+    qrLoginBusy.value = true
+    try {
+      const status = await socialAuthService.confirmQrLogin(sessionId, approve)
+      await handleQrStatusResponse(status)
+      if (!approve) {
+        await clearQrSessionQuery()
+      }
+    } catch (error: any) {
+      Notification.notify(
+        i18ns.t('error'),
+        error?.message || i18ns.t('operationFailed'),
+        'error',
+      )
+    } finally {
+      qrLoginBusy.value = false
     }
   }
 
@@ -445,7 +710,7 @@ export function useLoginOrRegister() {
       loginRes.code === CustomCode.OK &&
       authorizationService.isTwoFactorChallengePayload(loginRes.data)
     ) {
-      const redirect = getSafeRedirect()
+      const redirect = getChallengeRedirect()
       authorizationService.setPendingTwoFactorChallenge(
         loginRes.data.challengeToken,
         redirect,
@@ -524,7 +789,7 @@ export function useLoginOrRegister() {
       result.code === CustomCode.OK &&
       authorizationService.isTwoFactorChallengePayload(result.data)
     ) {
-      const redirect = getSafeRedirect()
+      const redirect = getChallengeRedirect()
       authorizationService.setPendingTwoFactorChallenge(
         result.data.challengeToken,
         redirect,
@@ -787,7 +1052,7 @@ export function useLoginOrRegister() {
       const result = await passkeyService.verifyAuth(sessionId, authResponse)
 
       if (passkeyService.isTwoFactorChallengePayload(result)) {
-        const redirect = getSafeRedirect()
+        const redirect = getChallengeRedirect()
         authorizationService.setPendingTwoFactorChallenge(result.challengeToken, redirect, 'login')
 
         Notification.notify(
@@ -829,6 +1094,39 @@ export function useLoginOrRegister() {
     }
   }
 
+  const handleExternalAuthLogin = async (provider: ExternalAuthProvider) => {
+    externalAuthLoading.value = provider
+    try {
+      const redirect = getChallengeRedirect()
+      const { authorizeUrl } = await socialAuthService.startExternalAuth(provider, 'login', redirect)
+      window.location.href = authorizeUrl
+    } catch (error) {
+      Notification.notify(
+        i18ns.t('error'),
+        (error instanceof Error && error.message) || i18ns.t('message.error.loginFailed'),
+        'error',
+      )
+    } finally {
+      externalAuthLoading.value = null
+    }
+  }
+
+  const handleQrLogin = async () => {
+    externalAuthLoading.value = 'qr'
+    try {
+      await createAndTrackQrLoginSession()
+      Notification.notify(i18ns.t('information'), i18ns.t('message.information.createSuccess'), 'success')
+    } catch (error) {
+      Notification.notify(
+        i18ns.t('error'),
+        (error instanceof Error && error.message) || i18ns.t('message.error.loginFailed'),
+        'error',
+      )
+    } finally {
+      externalAuthLoading.value = null
+    }
+  }
+
   const closePolicyDialog = () => {
     policyDialogVisible.value = false
   }
@@ -863,6 +1161,10 @@ export function useLoginOrRegister() {
       scheduleIdleTask(() => {
         void ensureRegistrationEnabled()
       }, 2500)
+
+      scheduleIdleTask(() => {
+        void ensurePublicSocialAuthConfig()
+      }, 3000)
     }
 
     if (mode.value === 'register') {
@@ -876,6 +1178,8 @@ export function useLoginOrRegister() {
         })
       }, 2000)
     }
+
+    await restoreQrSessionFromRoute()
   })
 
   onBeforeUnmount(() => {
@@ -883,6 +1187,7 @@ export function useLoginOrRegister() {
       clearInterval(cooldownTimer)
       cooldownTimer = null
     }
+    clearQrPollingTimer()
   })
 
   watch(
@@ -900,6 +1205,14 @@ export function useLoginOrRegister() {
     },
     { immediate: true },
   )
+
+  watch(
+    () => route.query.qrSession,
+    () => {
+      void restoreQrSessionFromRoute()
+    },
+  )
+
   return {
     captchaVerifying,
     captchaWarmupRunning,
@@ -910,7 +1223,13 @@ export function useLoginOrRegister() {
     currentRules,
     currentPolicySignature,
     formRef,
+    getQrSessionIdFromRoute,
+    getQrStatusText,
     handleForgotPassword,
+    handleExternalAuthLogin,
+    handleQrConfirm,
+    handleQrLogin,
+    handleQrScan,
     handlePasswordEnter,
     handlePasskeyLogin,
     handleReset,
@@ -921,12 +1240,15 @@ export function useLoginOrRegister() {
     isLogin,
     legalPolicies,
     loading,
+    externalAuthLoading,
     loginForm,
     mobileFieldDisabled,
     mode,
     openLegalPolicyDialog,
     passkeyLoading,
     passkeySupported,
+    publicSocialAuthConfig,
+    ensurePublicSocialAuthConfig,
     passwordInputRef,
     policyActiveTab,
     policyConsentChecked,
@@ -935,6 +1257,11 @@ export function useLoginOrRegister() {
     policyDialogSubmitting,
     policyDialogVisible,
     policyTabs,
+    qrLoginBusy,
+    qrLoginScannedUser,
+    qrLoginSession,
+    qrLoginStatus,
+    qrPolling,
     registerForm,
     registrationEnabled,
     registrationStatusReady,

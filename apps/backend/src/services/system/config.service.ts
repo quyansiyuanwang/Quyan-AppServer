@@ -24,6 +24,7 @@ const DEFAULT_RELAY_CUSTOM_KEY_ENABLED = true;
 const DEFAULT_RELAY_CUSTOM_KEY_MAX_TOKENS_PER_USER = 3;
 const DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_WINDOW_MINUTES = 10;
 const DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_MAX_COUNT = 5;
+const DEFAULT_SOCIAL_AUTH_QR_LOGIN_ENABLED = true;
 
 export interface RegistrationConfig {
   enabled: boolean;
@@ -120,6 +121,47 @@ export interface NotificationConfig {
   ticketAssignmentRules: TicketAssignmentRule[];
 }
 
+export interface SocialAuthGithubConfig {
+  enabled: boolean;
+  clientId: string;
+  clientSecret: string;
+  authorizeUrl: string;
+  tokenUrl: string;
+  userUrl: string;
+  emailUrl: string;
+  scope: string;
+  callbackPath: string;
+}
+
+export interface SocialAuthWechatConfig {
+  enabled: boolean;
+  appId: string;
+  appSecret: string;
+  authorizeUrl: string;
+  tokenUrl: string;
+  userUrl: string;
+  scope: string;
+  callbackPath: string;
+}
+
+export interface SocialAuthConfig {
+  frontendBaseUrl: string;
+  qrLoginEnabled: boolean;
+  stateTtlSeconds: number;
+  qrLoginTtlSeconds: number;
+  qrLoginPollIntervalSeconds: number;
+  github: SocialAuthGithubConfig;
+  wechatOpen: SocialAuthWechatConfig;
+  wechatWeb: SocialAuthWechatConfig;
+}
+
+export interface PublicSocialAuthConfig {
+  githubEnabled: boolean;
+  wechatOpenEnabled: boolean;
+  wechatWebEnabled: boolean;
+  qrLoginEnabled: boolean;
+}
+
 export interface TicketAssignmentRule {
   type?: string;
   priority?: string;
@@ -134,6 +176,11 @@ function sanitizeInt(value: string | undefined, fallback: number, min: number, m
   const parsed = Number.parseInt(value || "", 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, parsed));
+}
+
+function sanitizeBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) return fallback;
+  return value === "true";
 }
 
 export class ConfigService {
@@ -311,6 +358,97 @@ export class ConfigService {
   async getSiteConfig(): Promise<SiteConfig> {
     const url = await this.get(CONFIG_KEYS.SITE.BACKEND_PUBLIC_URL);
     return { backendPublicUrl: url || "" };
+  }
+
+  async getSocialAuthConfig(): Promise<SocialAuthConfig> {
+    const envConfig = EnvSpace.socialAuthConfig;
+    const keys = [
+      CONFIG_KEYS.SOCIAL_AUTH.FRONTEND_BASE_URL,
+      CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_ENABLED,
+      CONFIG_KEYS.SOCIAL_AUTH.STATE_TTL_SECONDS,
+      CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_TTL_SECONDS,
+      CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_POLL_INTERVAL_SECONDS,
+      ...Object.values(CONFIG_KEYS.SOCIAL_AUTH.GITHUB),
+      ...Object.values(CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN),
+      ...Object.values(CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB),
+    ];
+    const configs = await this.getMultiple(keys);
+
+    return {
+      frontendBaseUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.FRONTEND_BASE_URL] ?? envConfig.frontendBaseUrl,
+      qrLoginEnabled: sanitizeBoolean(
+        configs[CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_ENABLED],
+        DEFAULT_SOCIAL_AUTH_QR_LOGIN_ENABLED,
+      ),
+      stateTtlSeconds: sanitizeInt(
+        configs[CONFIG_KEYS.SOCIAL_AUTH.STATE_TTL_SECONDS],
+        envConfig.stateTtlSeconds,
+        60,
+        3600,
+      ),
+      qrLoginTtlSeconds: sanitizeInt(
+        configs[CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_TTL_SECONDS],
+        envConfig.qrLoginTtlSeconds,
+        60,
+        1800,
+      ),
+      qrLoginPollIntervalSeconds: sanitizeInt(
+        configs[CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_POLL_INTERVAL_SECONDS],
+        envConfig.qrLoginPollIntervalSeconds,
+        1,
+        30,
+      ),
+      github: {
+        enabled: sanitizeBoolean(configs[CONFIG_KEYS.SOCIAL_AUTH.GITHUB.ENABLED], envConfig.github.enabled),
+        clientId: configs[CONFIG_KEYS.SOCIAL_AUTH.GITHUB.CLIENT_ID] ?? envConfig.github.clientId,
+        clientSecret: configs[CONFIG_KEYS.SOCIAL_AUTH.GITHUB.CLIENT_SECRET] ?? envConfig.github.clientSecret,
+        authorizeUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.GITHUB.AUTHORIZE_URL] ?? envConfig.github.authorizeUrl,
+        tokenUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.GITHUB.TOKEN_URL] ?? envConfig.github.tokenUrl,
+        userUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.GITHUB.USER_URL] ?? envConfig.github.userUrl,
+        emailUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.GITHUB.EMAIL_URL] ?? envConfig.github.emailUrl,
+        scope: configs[CONFIG_KEYS.SOCIAL_AUTH.GITHUB.SCOPE] ?? envConfig.github.scope,
+        callbackPath: configs[CONFIG_KEYS.SOCIAL_AUTH.GITHUB.CALLBACK_PATH] ?? envConfig.github.callbackPath,
+      },
+      wechatOpen: {
+        enabled: sanitizeBoolean(
+          configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.ENABLED],
+          envConfig.wechatOpen.enabled,
+        ),
+        appId: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.APP_ID] ?? envConfig.wechatOpen.appId,
+        appSecret: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.APP_SECRET] ?? envConfig.wechatOpen.appSecret,
+        authorizeUrl:
+          configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.AUTHORIZE_URL] ?? envConfig.wechatOpen.authorizeUrl,
+        tokenUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.TOKEN_URL] ?? envConfig.wechatOpen.tokenUrl,
+        userUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.USER_URL] ?? envConfig.wechatOpen.userUrl,
+        scope: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.SCOPE] ?? envConfig.wechatOpen.scope,
+        callbackPath:
+          configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.CALLBACK_PATH] ?? envConfig.wechatOpen.callbackPath,
+      },
+      wechatWeb: {
+        enabled: sanitizeBoolean(
+          configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.ENABLED],
+          envConfig.wechatWeb.enabled,
+        ),
+        appId: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.APP_ID] ?? envConfig.wechatWeb.appId,
+        appSecret: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.APP_SECRET] ?? envConfig.wechatWeb.appSecret,
+        authorizeUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.AUTHORIZE_URL] ?? envConfig.wechatWeb.authorizeUrl,
+        tokenUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.TOKEN_URL] ?? envConfig.wechatWeb.tokenUrl,
+        userUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.USER_URL] ?? envConfig.wechatWeb.userUrl,
+        scope: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.SCOPE] ?? envConfig.wechatWeb.scope,
+        callbackPath:
+          configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.CALLBACK_PATH] ?? envConfig.wechatWeb.callbackPath,
+      },
+    };
+  }
+
+  async getPublicSocialAuthConfig(): Promise<PublicSocialAuthConfig> {
+    const config = await this.getSocialAuthConfig();
+    return {
+      githubEnabled: config.github.enabled,
+      wechatOpenEnabled: config.wechatOpen.enabled,
+      wechatWebEnabled: config.wechatWeb.enabled,
+      qrLoginEnabled: config.qrLoginEnabled,
+    };
   }
 
   async getSmtpConfig(): Promise<SmtpConfig> {
