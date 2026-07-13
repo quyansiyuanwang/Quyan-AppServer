@@ -10,8 +10,10 @@ import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import {
   getForgotPasswordRoute,
   getLoginRoute,
+  getQrApprovalRoute,
   getRegisterRoute,
   getSafeAuthRedirect,
+  isQrApprovalRedirect,
 } from '@/utils/auth-routes'
 import { usePageDevice } from '@/composables/usePageDevice'
 import type {
@@ -341,6 +343,35 @@ export function useLoginOrRegister() {
     })
   }
 
+  const getQrApprovalSessionId = (): string | undefined => {
+    if (
+      route.path === '/auth/qr-approve' &&
+      typeof route.query.sessionId === 'string' &&
+      route.query.sessionId.trim()
+    ) {
+      return route.query.sessionId.trim()
+    }
+
+    const redirect = getSafeRedirect()
+    if (!isQrApprovalRedirect(redirect)) return undefined
+
+    try {
+      const parsed = new URL(redirect, window.location.origin)
+      const sessionId = parsed.searchParams.get('sessionId')?.trim()
+      return sessionId || undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  const buildPostLoginRoute = () => {
+    const qrApprovalSessionId = getQrApprovalSessionId()
+    if (qrApprovalSessionId) return getQrApprovalRoute(qrApprovalSessionId, getSafeRedirect())
+
+    const redirect = getSafeRedirect()
+    return redirect ? redirect : '/'
+  }
+
   const getQrSessionIdFromRoute = (): string | undefined => {
     return typeof route.query.qrSession === 'string' && route.query.qrSession.trim()
       ? route.query.qrSession.trim()
@@ -431,6 +462,16 @@ export function useLoginOrRegister() {
     await openLegalPolicyDialog('terms_of_service', true)
   }
 
+  const restorePendingPolicyConsentChallenge = async () => {
+    const { authorizationService } = await loadAuthorizationService()
+    const pendingChallenge = authorizationService.getPendingPolicyConsentChallenge()
+    if (!pendingChallenge?.challengeToken) return
+
+    policyConsentChallengeToken.value = pendingChallenge.challengeToken
+    authorizationService.clearPendingPolicyConsentChallenge()
+    await openPolicyConsentDialog(pendingChallenge.challengeToken)
+  }
+
   const clearPendingPolicyConsent = () => {
     policyConsentChallengeToken.value = ''
     policyDialogRequireConfirmation.value = false
@@ -446,12 +487,7 @@ export function useLoginOrRegister() {
       'success',
     )
 
-    const redirect = getSafeRedirect()
-    if (redirect) {
-      await router.push(redirect)
-    } else {
-      await router.push({ name: 'home' })
-    }
+    await router.push(buildPostLoginRoute())
   }
 
   const clearQrSessionQuery = async () => {
@@ -595,7 +631,12 @@ export function useLoginOrRegister() {
     if (!qrLoginStatus.value) qrLoginStatus.value = 'pending'
     await startQrPolling(sessionId)
 
-    if (!isDesktop.value && getAccessToken() && autoScannedQrSessionId !== sessionId) {
+    if (
+      !isDesktop.value &&
+      route.path !== '/auth/qr-approve' &&
+      getAccessToken() &&
+      autoScannedQrSessionId !== sessionId
+    ) {
       autoScannedQrSessionId = sessionId
       void handleQrScan(true)
     }
@@ -672,6 +713,7 @@ export function useLoginOrRegister() {
       const authData = await authorizationService.acceptPolicyConsent(
         policyConsentChallengeToken.value,
       )
+      authorizationService.clearPendingPolicyConsentChallenge()
       persistLegalPolicyConsentCache(authData.user?.username ?? loginForm.username)
       policyDialogVisible.value = false
       policyDialogRequireConfirmation.value = false
@@ -709,6 +751,7 @@ export function useLoginOrRegister() {
       const authData = await authorizationService.acceptPolicyConsent(
         policyConsentChallengeToken.value,
       )
+      authorizationService.clearPendingPolicyConsentChallenge()
       persistLegalPolicyConsentCache(authData.user?.username ?? loginForm.username)
       clearPendingPolicyConsent()
       await redirectAfterSuccessfulLogin(authData.user)
@@ -1218,6 +1261,10 @@ export function useLoginOrRegister() {
           void router.replace(getLoginRoute(getSafeRedirect()))
         })
       }, 2000)
+    }
+
+    if (mode.value === 'login') {
+      await restorePendingPolicyConsentChallenge()
     }
 
     await restoreQrSessionFromRoute()

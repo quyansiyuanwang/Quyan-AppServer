@@ -25,6 +25,9 @@ vi.mock('@/service/authorizationService', () => ({
     login: vi.fn(),
     register: vi.fn(),
     acceptPolicyConsent: vi.fn(),
+    getPendingPolicyConsentChallenge: vi.fn(() => null),
+    setPendingPolicyConsentChallenge: vi.fn(),
+    clearPendingPolicyConsentChallenge: vi.fn(),
     reloadAuthStoresAfterLogin: vi.fn(),
   },
 }))

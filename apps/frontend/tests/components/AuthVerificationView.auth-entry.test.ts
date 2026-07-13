@@ -48,7 +48,10 @@ vi.mock('@/composables/usePageDevice', () => ({
 vi.mock('@/service/authorizationService', () => ({
   authorizationService: {
     clearPendingTwoFactorChallenge: vi.fn(),
+    clearPendingPolicyConsentChallenge: vi.fn(),
     getPendingTwoFactorChallenge: getPendingTwoFactorChallengeMock,
+    getPendingPolicyConsentChallenge: vi.fn(() => null),
+    setPendingPolicyConsentChallenge: vi.fn(),
     reloadAuthStoresAfterLogin: vi.fn(),
     isPolicyConsentPayload: vi.fn(() => false),
     acceptPolicyConsent: vi.fn(),
