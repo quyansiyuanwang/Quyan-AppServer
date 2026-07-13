@@ -692,9 +692,9 @@
               <el-table-column :label="i18ns.t('actions')" width="430" fixed="right">
                 <template #default="{ row }">
                   <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
-                    <el-button size="small" @click="openChannelDetailDialog(row)"
-                      >{{ i18ns.t('button.viewDetails') }}</el-button
-                    >
+                    <el-button size="small" @click="openChannelDetailDialog(row)">{{
+                      i18ns.t('button.viewDetails')
+                    }}</el-button>
                   </PermissionWrapper>
                   <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
                     <el-button
