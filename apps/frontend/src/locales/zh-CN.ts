@@ -2142,7 +2142,8 @@ const zhCN: DeepStringify<typeof en> = {
     channelType: '渠道类型',
     channelTypeStandalone: '独立渠道',
     channelTypePooled: '混池渠道',
-    channelTypeHelp: '独立渠道直接连接上游；混池渠道会把多个已有渠道组合成一个对用户可见的逻辑渠道。',
+    channelTypeHelp:
+      '独立渠道直接连接上游；混池渠道会把多个已有渠道组合成一个对用户可见的逻辑渠道。',
     poolMembers: '混池成员',
     poolMembersHelp: '添加要纳入此逻辑渠道的成员渠道，可配置优先级、权重和启用状态。',
     addPoolMember: '添加成员渠道',
@@ -2154,7 +2155,8 @@ const zhCN: DeepStringify<typeof en> = {
     noPoolMembers: '无成员',
     poolMembersRequired: '混池渠道至少需要一个成员渠道',
     routingStrategy: '路由策略',
-    routingStrategyHelp: '配置成员渠道的选择方式，可配合下面的策略参数实现随机、轮询、权重和故障切换。',
+    routingStrategyHelp:
+      '配置成员渠道的选择方式，可配合下面的策略参数实现随机、轮询、权重和故障切换。',
     routingStrategyPriority: '优先级故障转移',
     routingStrategyRandom: '随机',
     routingStrategyWeightedRandom: '加权随机',

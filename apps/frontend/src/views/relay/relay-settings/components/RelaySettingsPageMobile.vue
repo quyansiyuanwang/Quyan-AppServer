@@ -851,7 +851,10 @@
                       <div class="config-item-title">{{ row.name }}</div>
                     </div>
                     <div class="flex items-center gap-2">
-                      <el-tag :type="row.channelType === 'pooled' ? 'warning' : 'info'" size="small">
+                      <el-tag
+                        :type="row.channelType === 'pooled' ? 'warning' : 'info'"
+                        size="small"
+                      >
                         {{ formatChannelTypeLabel(row.channelType) }}
                       </el-tag>
                       <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
@@ -880,7 +883,13 @@
                     <div class="flex flex-wrap gap-2">
                       <el-tooltip :content="getVisibilitySummary(row)" placement="top">
                         <el-tag
-                          :type="row.visibilityMode === 'public' ? 'success' : row.visibilityMode === 'private' ? 'info' : 'danger'"
+                          :type="
+                            row.visibilityMode === 'public'
+                              ? 'success'
+                              : row.visibilityMode === 'private'
+                                ? 'info'
+                                : 'danger'
+                          "
                           size="small"
                         >
                           {{ formatVisibilityModeLabel(row.visibilityMode) }}
@@ -900,7 +909,8 @@
                         placement="top"
                       >
                         <el-tag type="warning" size="small">
-                          {{ (row.poolMembers || []).length }} {{ i18ns.t('relay.poolMemberCount') }}
+                          {{ (row.poolMembers || []).length }}
+                          {{ i18ns.t('relay.poolMemberCount') }}
                         </el-tag>
                       </el-tooltip>
                       <el-tag v-else type="danger" size="small">{{
@@ -973,7 +983,10 @@
                       class="text-xs font-semibold text-[var(--el-text-color-secondary)] leading-tight"
                       >{{ i18ns.t('relay.upstreamConfig') }}</span
                     >
-                    <div v-if="row.channelType === 'pooled'" class="text-xs text-[var(--el-text-color-secondary)]">
+                    <div
+                      v-if="row.channelType === 'pooled'"
+                      class="text-xs text-[var(--el-text-color-secondary)]"
+                    >
                       {{ i18ns.t('relay.pooledNoDirectUpstreamHelp') }}
                     </div>
                     <div v-else class="flex flex-col gap-2">

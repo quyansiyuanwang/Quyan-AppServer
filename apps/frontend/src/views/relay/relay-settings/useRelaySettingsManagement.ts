@@ -106,11 +106,7 @@ const normalizeStringArray = (value?: Array<string | number | null | undefined>)
   if (!Array.isArray(value)) return []
 
   return Array.from(
-    new Set(
-      value
-        .map((item) => String(item ?? '').trim())
-        .filter((item) => item.length > 0),
-    ),
+    new Set(value.map((item) => String(item ?? '').trim()).filter((item) => item.length > 0)),
   )
 }
 
@@ -130,8 +126,7 @@ const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigDto | null
       ? config.failbackCooldownMinutes
       : null,
   healthScoreThreshold:
-    typeof config?.healthScoreThreshold === 'number' &&
-    Number.isFinite(config.healthScoreThreshold)
+    typeof config?.healthScoreThreshold === 'number' && Number.isFinite(config.healthScoreThreshold)
       ? config.healthScoreThreshold
       : null,
   latencyThresholdMs:
@@ -163,8 +158,7 @@ const normalizePoolMembersForm = (members?: RelayChannelMemberDto[] | null) => {
       typeof member.priority === 'number' && Number.isFinite(member.priority)
         ? member.priority
         : index + 1,
-    weight:
-      typeof member.weight === 'number' && Number.isFinite(member.weight) ? member.weight : 1,
+    weight: typeof member.weight === 'number' && Number.isFinite(member.weight) ? member.weight : 1,
     enabled: member.enabled !== false,
   }))
 }
@@ -874,7 +868,9 @@ export const useRelaySettingsManagement = () => {
   }
 
   const addPoolMember = () => {
-    channelForm.value.poolMembers.push(defaultPoolMemberForm(channelForm.value.poolMembers.length + 1))
+    channelForm.value.poolMembers.push(
+      defaultPoolMemberForm(channelForm.value.poolMembers.length + 1),
+    )
   }
 
   const removePoolMember = (index: number) => {
@@ -894,7 +890,9 @@ export const useRelaySettingsManagement = () => {
       : i18ns.t('relay.channelTypeStandalone')
   }
 
-  const formatRoutingStrategyLabel = (strategy: RelayChannelRoutingStrategy | string | undefined) => {
+  const formatRoutingStrategyLabel = (
+    strategy: RelayChannelRoutingStrategy | string | undefined,
+  ) => {
     switch (strategy) {
       case 'random':
         return i18ns.t('relay.routingStrategyRandom')
@@ -924,16 +922,21 @@ export const useRelaySettingsManagement = () => {
     }
   }
 
-  const getVisibilitySummary = (row: Pick<RelayChannelDto, 'visibilityMode' | 'visibilityConfig'>) => {
+  const getVisibilitySummary = (
+    row: Pick<RelayChannelDto, 'visibilityMode' | 'visibilityConfig'>,
+  ) => {
     if (row.visibilityMode !== 'whitelist') {
       return formatVisibilityModeLabel(row.visibilityMode)
     }
 
     const config = normalizeVisibilityConfigForm(row.visibilityConfig)
     const parts: string[] = []
-    if (config.userIds.length > 0) parts.push(i18ns.t('relay.visibilityUsersSummary', { count: config.userIds.length }))
-    if (config.groupIds.length > 0) parts.push(i18ns.t('relay.visibilityGroupsSummary', { count: config.groupIds.length }))
-    if (config.roleIds.length > 0) parts.push(i18ns.t('relay.visibilityRolesSummary', { count: config.roleIds.length }))
+    if (config.userIds.length > 0)
+      parts.push(i18ns.t('relay.visibilityUsersSummary', { count: config.userIds.length }))
+    if (config.groupIds.length > 0)
+      parts.push(i18ns.t('relay.visibilityGroupsSummary', { count: config.groupIds.length }))
+    if (config.roleIds.length > 0)
+      parts.push(i18ns.t('relay.visibilityRolesSummary', { count: config.roleIds.length }))
 
     return parts.length > 0 ? parts.join(' · ') : i18ns.t('relay.visibilityEmptyWhitelist')
   }
@@ -1412,8 +1415,7 @@ export const useRelaySettingsManagement = () => {
     }
 
     if (
-      !isPooledChannel &&
-      !Array.isArray(channelForm.value.allowedFormats) ||
+      (!isPooledChannel && !Array.isArray(channelForm.value.allowedFormats)) ||
       channelForm.value.allowedFormats.length === 0
     ) {
       if (channelForm.value.openaiUpstreamUrl && !channelForm.value.openaiUpstreamApiKey) {

@@ -224,7 +224,9 @@ export class RelayChannelService {
     return { normalized: [...new Set(formats)].join(","), formats: [...new Set(formats)] };
   }
 
-  private normalizeRelayChannelMembers(members?: RelayChannelMemberDto[] | null): RelayChannelMemberDto[] | null | undefined {
+  private normalizeRelayChannelMembers(
+    members?: RelayChannelMemberDto[] | null,
+  ): RelayChannelMemberDto[] | null | undefined {
     if (members === undefined) return undefined;
     if (members === null) return null;
     const seen = new Set<string>();
@@ -307,12 +309,26 @@ export class RelayChannelService {
     const multiplier = data.multiplier !== undefined ? data.multiplier : Number(existing?.multiplier ?? 1);
     if (multiplier < 0) throw new BadRequestError("multiplier must be >= 0");
 
-    const channelType = (data.channelType ?? (existing?.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE) as RelayChannelType;
-    const routingStrategy = (data.routingStrategy ?? (existing?.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY) as RelayChannelRoutingStrategy;
-    const visibilityMode = (data.visibilityMode ?? (existing?.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE) as RelayChannelVisibilityMode;
-    const routingConfig = data.routingConfig !== undefined ? data.routingConfig : (existing?.routingConfig as RelayChannelRoutingConfigDto | null | undefined);
-    const visibilityConfig = data.visibilityConfig !== undefined ? data.visibilityConfig : (existing?.visibilityConfig as RelayChannelVisibilityConfigDto | null | undefined);
-    const poolMembers = this.normalizeRelayChannelMembers(data.poolMembers !== undefined ? data.poolMembers : undefined);
+    const channelType = (data.channelType ??
+      (existing?.channelType as RelayChannelType | undefined) ??
+      DEFAULT_CHANNEL_TYPE) as RelayChannelType;
+    const routingStrategy = (data.routingStrategy ??
+      (existing?.routingStrategy as RelayChannelRoutingStrategy | undefined) ??
+      DEFAULT_ROUTING_STRATEGY) as RelayChannelRoutingStrategy;
+    const visibilityMode = (data.visibilityMode ??
+      (existing?.visibilityMode as RelayChannelVisibilityMode | undefined) ??
+      DEFAULT_VISIBILITY_MODE) as RelayChannelVisibilityMode;
+    const routingConfig =
+      data.routingConfig !== undefined
+        ? data.routingConfig
+        : (existing?.routingConfig as RelayChannelRoutingConfigDto | null | undefined);
+    const visibilityConfig =
+      data.visibilityConfig !== undefined
+        ? data.visibilityConfig
+        : (existing?.visibilityConfig as RelayChannelVisibilityConfigDto | null | undefined);
+    const poolMembers = this.normalizeRelayChannelMembers(
+      data.poolMembers !== undefined ? data.poolMembers : undefined,
+    );
     this.assertNoSelfReference(existing?.id, poolMembers);
     const isCreate = !existing;
     const wasPooled = existing?.channelType === "pooled";
@@ -398,8 +414,7 @@ export class RelayChannelService {
     if (channelType === "pooled") {
       const memberCount = poolMembers == null ? undefined : poolMembers.length;
       if (isCreate || !wasPooled) {
-        if (!memberCount)
-          throw new BadRequestError("pooled channel must contain at least one member");
+        if (!memberCount) throw new BadRequestError("pooled channel must contain at least one member");
       } else if (poolMembers !== undefined && memberCount === 0)
         throw new BadRequestError("pooled channel must contain at least one member");
     }
@@ -461,15 +476,20 @@ export class RelayChannelService {
       visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
       visibilityConfig: channel.visibilityConfig as RelayChannelVisibilityConfigDto | undefined,
       poolMembers: Array.isArray((channel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
-        ? ((channel as RelayChannel & {
-            poolMembers?: Array<{
-              id: string;
-              memberChannelId: string;
-              priority: number;
-              weight: Prisma.Decimal | number;
-              enabled: boolean;
-              memberChannel?: RelayChannel | null;
-            }> }).poolMembers ?? []).map((member) => this.toPoolMemberDto(member))
+        ? (
+            (
+              channel as RelayChannel & {
+                poolMembers?: Array<{
+                  id: string;
+                  memberChannelId: string;
+                  priority: number;
+                  weight: Prisma.Decimal | number;
+                  enabled: boolean;
+                  memberChannel?: RelayChannel | null;
+                }>;
+              }
+            ).poolMembers ?? []
+          ).map((member) => this.toPoolMemberDto(member))
         : undefined,
       openaiUpstreamUrl: channel.openaiUpstreamUrl || undefined,
       openaiUpstreamApiKey: channel.openaiUpstreamApiKey || undefined,
@@ -824,14 +844,20 @@ export class RelayChannelService {
 
   private toDto(channel: RelayChannel): RelayChannelDto {
     const poolMembers = Array.isArray((channel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
-      ? ((channel as RelayChannel & { poolMembers?: Array<{
-          id: string;
-          memberChannelId: string;
-          priority: number;
-          weight: Prisma.Decimal | number;
-          enabled: boolean;
-          memberChannel?: RelayChannel | null;
-        }> }).poolMembers ?? []).map((member) => this.toPoolMemberDto(member))
+      ? (
+          (
+            channel as RelayChannel & {
+              poolMembers?: Array<{
+                id: string;
+                memberChannelId: string;
+                priority: number;
+                weight: Prisma.Decimal | number;
+                enabled: boolean;
+                memberChannel?: RelayChannel | null;
+              }>;
+            }
+          ).poolMembers ?? []
+        ).map((member) => this.toPoolMemberDto(member))
       : undefined;
 
     return {

@@ -55,7 +55,9 @@ const routingConfigSchema = z
   .object({
     maxRetries: z.coerce.number().int().min(0).max(100).optional(),
     failoverThreshold: z.coerce.number().int().min(0).max(100).optional(),
-    retryStatusCodes: z.array(z.union([z.coerce.number().int().min(100).max(599), z.string().trim().min(1)])).optional(),
+    retryStatusCodes: z
+      .array(z.union([z.coerce.number().int().min(100).max(599), z.string().trim().min(1)]))
+      .optional(),
     failbackCooldownMinutes: z.coerce.number().int().min(0).max(10080).optional(),
     healthScoreThreshold: z.coerce.number().min(0).max(1).optional(),
     latencyThresholdMs: z.coerce.number().int().min(0).max(600000).optional(),

@@ -76,9 +76,9 @@
               </div>
 
               <div class="flex justify-end">
-                <el-button size="small" type="danger" @click="removePoolMember(index)">{
-                  { i18ns.t('delete') }
-                }</el-button>
+                <el-button size="small" type="danger" @click="removePoolMember(index)"
+                  >{ { i18ns.t('delete') } }</el-button
+                >
               </div>
             </div>
 
@@ -311,11 +311,7 @@
             />
           </el-form-item>
           <el-form-item :label="i18ns.t('ServerConfigView.anthropicUpstreamApiKey')">
-            <el-input
-              v-model="channelForm.anthropicUpstreamApiKey"
-              type="password"
-              show-password
-            />
+            <el-input v-model="channelForm.anthropicUpstreamApiKey" type="password" show-password />
           </el-form-item>
         </template>
 

@@ -623,7 +623,13 @@
                 <template #default="{ row }">
                   <el-tooltip :content="getVisibilitySummary(row)" placement="top">
                     <el-tag
-                      :type="row.visibilityMode === 'public' ? 'success' : row.visibilityMode === 'private' ? 'info' : 'danger'"
+                      :type="
+                        row.visibilityMode === 'public'
+                          ? 'success'
+                          : row.visibilityMode === 'private'
+                            ? 'info'
+                            : 'danger'
+                      "
                       size="small"
                     >
                       {{ formatVisibilityModeLabel(row.visibilityMode) }}
@@ -661,7 +667,10 @@
                   </div>
                   <div style="font-size: 12px">
                     <div
-                      v-if="row.channelType !== 'pooled' && computeShowUpstream(row.allowedFormats, 'openai')"
+                      v-if="
+                        row.channelType !== 'pooled' &&
+                        computeShowUpstream(row.allowedFormats, 'openai')
+                      "
                       style="margin-top: 4px"
                     >
                       <el-tag size="small" type="success">OpenAI</el-tag>
@@ -670,7 +679,10 @@
                       }}</span>
                     </div>
                     <div
-                      v-if="row.channelType !== 'pooled' && computeShowUpstream(row.allowedFormats, 'anthropic')"
+                      v-if="
+                        row.channelType !== 'pooled' &&
+                        computeShowUpstream(row.allowedFormats, 'anthropic')
+                      "
                       style="margin-top: 4px"
                     >
                       <el-tag size="small" type="warning">Anthropic</el-tag>
@@ -679,7 +691,10 @@
                       }}</span>
                     </div>
                     <div
-                      v-if="row.channelType !== 'pooled' && computeShowUpstream(row.allowedFormats, 'gemini')"
+                      v-if="
+                        row.channelType !== 'pooled' &&
+                        computeShowUpstream(row.allowedFormats, 'gemini')
+                      "
                       style="margin-top: 4px"
                     >
                       <el-tag size="small" type="primary">Gemini</el-tag>
