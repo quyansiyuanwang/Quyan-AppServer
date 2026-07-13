@@ -76,9 +76,9 @@
               </div>
 
               <div class="flex justify-end">
-                <el-button size="small" type="danger" @click="removePoolMember(index)"
-                  >{{ i18ns.t('delete') }}</el-button
-                >
+                <el-button size="small" type="danger" @click="removePoolMember(index)">{{
+                  i18ns.t('delete')
+                }}</el-button>
               </div>
             </div>
 
@@ -511,7 +511,9 @@
             {{ i18ns.t('status') }}
           </div>
           <el-tag :type="currentChannelDetail.enabled ? 'success' : 'info'" size="small">
-            {{ currentChannelDetail.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled') }}
+            {{
+              currentChannelDetail.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
+            }}
           </el-tag>
         </div>
         <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
@@ -575,11 +577,20 @@
                 :key="member.id || `${member.memberChannelId}-${index}`"
                 class="rounded border border-[var(--el-border-color-lighter)] p-3"
               >
-                <div class="font-medium break-all">{{ getChannelNameById(member.memberChannelId) }}</div>
+                <div class="font-medium break-all">
+                  {{ getChannelNameById(member.memberChannelId) }}
+                </div>
                 <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
                   #{{ member.priority }}
                   <span v-if="typeof member.weight === 'number'"> · w={{ member.weight }}</span>
-                  <span> · {{ member.enabled === false ? i18ns.t('relay.disabled') : i18ns.t('relay.enabled') }}</span>
+                  <span>
+                    ·
+                    {{
+                      member.enabled === false
+                        ? i18ns.t('relay.disabled')
+                        : i18ns.t('relay.enabled')
+                    }}</span
+                  >
                 </div>
               </div>
             </div>
@@ -591,49 +602,104 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
-                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.maxRetries') }}</div>
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+                  {{ i18ns.t('relay.maxRetries') }}
+                </div>
                 <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.maxRetries) }}</div>
               </div>
               <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
-                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.failoverThreshold') }}</div>
-                <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.failoverThreshold) }}</div>
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+                  {{ i18ns.t('relay.failoverThreshold') }}
+                </div>
+                <div>
+                  {{ formatNullableValue(currentChannelDetail.routingConfig?.failoverThreshold) }}
+                </div>
               </div>
               <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
-                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.failbackCooldownMinutes') }}</div>
-                <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.failbackCooldownMinutes) }}</div>
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+                  {{ i18ns.t('relay.failbackCooldownMinutes') }}
+                </div>
+                <div>
+                  {{
+                    formatNullableValue(currentChannelDetail.routingConfig?.failbackCooldownMinutes)
+                  }}
+                </div>
               </div>
               <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
-                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.healthScoreThreshold') }}</div>
-                <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.healthScoreThreshold) }}</div>
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+                  {{ i18ns.t('relay.healthScoreThreshold') }}
+                </div>
+                <div>
+                  {{
+                    formatNullableValue(currentChannelDetail.routingConfig?.healthScoreThreshold)
+                  }}
+                </div>
               </div>
               <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
-                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.latencyThresholdMs') }}</div>
-                <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.latencyThresholdMs) }}</div>
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+                  {{ i18ns.t('relay.latencyThresholdMs') }}
+                </div>
+                <div>
+                  {{ formatNullableValue(currentChannelDetail.routingConfig?.latencyThresholdMs) }}
+                </div>
               </div>
               <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
-                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.circuitBreakerThreshold') }}</div>
-                <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.circuitBreakerThreshold) }}</div>
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+                  {{ i18ns.t('relay.circuitBreakerThreshold') }}
+                </div>
+                <div>
+                  {{
+                    formatNullableValue(currentChannelDetail.routingConfig?.circuitBreakerThreshold)
+                  }}
+                </div>
               </div>
               <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
-                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.stickyByModel') }}</div>
-                <div>{{ currentChannelDetail.routingConfig?.stickyByModel ? i18ns.t('yes') : i18ns.t('no') }}</div>
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+                  {{ i18ns.t('relay.stickyByModel') }}
+                </div>
+                <div>
+                  {{
+                    currentChannelDetail.routingConfig?.stickyByModel
+                      ? i18ns.t('yes')
+                      : i18ns.t('no')
+                  }}
+                </div>
               </div>
               <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
-                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.stickyByFormat') }}</div>
-                <div>{{ currentChannelDetail.routingConfig?.stickyByFormat ? i18ns.t('yes') : i18ns.t('no') }}</div>
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+                  {{ i18ns.t('relay.stickyByFormat') }}
+                </div>
+                <div>
+                  {{
+                    currentChannelDetail.routingConfig?.stickyByFormat
+                      ? i18ns.t('yes')
+                      : i18ns.t('no')
+                  }}
+                </div>
               </div>
             </div>
             <div class="mt-3 rounded border border-[var(--el-border-color-lighter)] p-3">
-              <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.retryStatusCodes') }}</div>
-              <div>{{ formatStringList(currentChannelDetail.routingConfig?.retryStatusCodes) }}</div>
+              <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+                {{ i18ns.t('relay.retryStatusCodes') }}
+              </div>
+              <div>
+                {{ formatStringList(currentChannelDetail.routingConfig?.retryStatusCodes) }}
+              </div>
             </div>
           </div>
         </div>
-        <el-alert v-else type="info" :closable="false" :title="formatChannelTypeLabel(currentChannelDetail.channelType)" />
+        <el-alert
+          v-else
+          type="info"
+          :closable="false"
+          :title="formatChannelTypeLabel(currentChannelDetail.channelType)"
+        />
       </div>
 
       <div>
-        <el-divider content-position="left">{{ i18ns.t('relay.formatAndModelRestrictions') }}</el-divider>
+        <el-divider content-position="left">{{
+          i18ns.t('relay.formatAndModelRestrictions')
+        }}</el-divider>
         <div class="flex flex-col gap-3">
           <div>
             <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">
@@ -646,9 +712,24 @@
                 <el-tag type="primary" size="small">Gemini</el-tag>
               </template>
               <template v-else>
-                <el-tag v-if="currentChannelDetail.allowedFormats.includes('openai')" type="success" size="small">OpenAI</el-tag>
-                <el-tag v-if="currentChannelDetail.allowedFormats.includes('anthropic')" type="warning" size="small">Anthropic</el-tag>
-                <el-tag v-if="currentChannelDetail.allowedFormats.includes('gemini')" type="primary" size="small">Gemini</el-tag>
+                <el-tag
+                  v-if="currentChannelDetail.allowedFormats.includes('openai')"
+                  type="success"
+                  size="small"
+                  >OpenAI</el-tag
+                >
+                <el-tag
+                  v-if="currentChannelDetail.allowedFormats.includes('anthropic')"
+                  type="warning"
+                  size="small"
+                  >Anthropic</el-tag
+                >
+                <el-tag
+                  v-if="currentChannelDetail.allowedFormats.includes('gemini')"
+                  type="primary"
+                  size="small"
+                  >Gemini</el-tag
+                >
               </template>
             </div>
           </div>
@@ -657,14 +738,17 @@
               {{ i18ns.t('relay.allowedModelsChannel') }}
             </div>
             <div class="flex flex-wrap gap-2">
-              <el-tag v-if="!currentChannelDetail.allowedModels" type="info" size="small">{{ i18ns.t('relay.allModels') }}</el-tag>
+              <el-tag v-if="!currentChannelDetail.allowedModels" type="info" size="small">{{
+                i18ns.t('relay.allModels')
+              }}</el-tag>
               <template v-else-if="parseAllowedModels(currentChannelDetail.allowedModels).length">
                 <el-tag
                   v-for="model in parseAllowedModels(currentChannelDetail.allowedModels)"
                   :key="model"
                   type="primary"
                   size="small"
-                >{{ model }}</el-tag>
+                  >{{ model }}</el-tag
+                >
               </template>
               <el-tag v-else type="danger" size="small">{{ i18ns.t('relay.noModels') }}</el-tag>
             </div>
@@ -684,8 +768,16 @@
             </div>
             <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">URL</div>
             <div class="break-all mb-3">{{ currentChannelDetail.openaiUpstreamUrl || '-' }}</div>
-            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.apiKeyConfigured') }}</div>
-            <div>{{ hasConfiguredValue(currentChannelDetail.openaiUpstreamApiKey) ? i18ns.t('yes') : i18ns.t('relay.notConfigured') }}</div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+              {{ i18ns.t('relay.apiKeyConfigured') }}
+            </div>
+            <div>
+              {{
+                hasConfiguredValue(currentChannelDetail.openaiUpstreamApiKey)
+                  ? i18ns.t('yes')
+                  : i18ns.t('relay.notConfigured')
+              }}
+            </div>
           </div>
           <div
             v-if="computeShowUpstream(currentChannelDetail.allowedFormats, 'anthropic')"
@@ -696,8 +788,16 @@
             </div>
             <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">URL</div>
             <div class="break-all mb-3">{{ currentChannelDetail.anthropicUpstreamUrl || '-' }}</div>
-            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.apiKeyConfigured') }}</div>
-            <div>{{ hasConfiguredValue(currentChannelDetail.anthropicUpstreamApiKey) ? i18ns.t('yes') : i18ns.t('relay.notConfigured') }}</div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+              {{ i18ns.t('relay.apiKeyConfigured') }}
+            </div>
+            <div>
+              {{
+                hasConfiguredValue(currentChannelDetail.anthropicUpstreamApiKey)
+                  ? i18ns.t('yes')
+                  : i18ns.t('relay.notConfigured')
+              }}
+            </div>
           </div>
           <div
             v-if="computeShowUpstream(currentChannelDetail.allowedFormats, 'gemini')"
@@ -708,8 +808,16 @@
             </div>
             <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">URL</div>
             <div class="break-all mb-3">{{ currentChannelDetail.geminiUpstreamUrl || '-' }}</div>
-            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.apiKeyConfigured') }}</div>
-            <div>{{ hasConfiguredValue(currentChannelDetail.geminiUpstreamApiKey) ? i18ns.t('yes') : i18ns.t('relay.notConfigured') }}</div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+              {{ i18ns.t('relay.apiKeyConfigured') }}
+            </div>
+            <div>
+              {{
+                hasConfiguredValue(currentChannelDetail.geminiUpstreamApiKey)
+                  ? i18ns.t('yes')
+                  : i18ns.t('relay.notConfigured')
+              }}
+            </div>
           </div>
         </div>
         <el-alert
@@ -727,7 +835,9 @@
           class="flex flex-col gap-2"
         >
           <div
-            v-for="([sourceModel, targetModel], index) in getModelMappingEntries(currentChannelDetail.modelMapping)"
+            v-for="([sourceModel, targetModel], index) in getModelMappingEntries(
+              currentChannelDetail.modelMapping,
+            )"
             :key="`${sourceModel}-${targetModel}-${index}`"
             class="rounded border border-[var(--el-border-color-lighter)] p-3 flex items-center justify-between gap-3"
           >
@@ -741,7 +851,10 @@
 
       <div>
         <el-divider content-position="left">{{ i18ns.t('relay.timeRules') }}</el-divider>
-        <div v-if="(currentChannelDetail.timePeriodMultipliers || []).length" class="flex flex-col gap-2">
+        <div
+          v-if="(currentChannelDetail.timePeriodMultipliers || []).length"
+          class="flex flex-col gap-2"
+        >
           <div
             v-for="(rule, index) in currentChannelDetail.timePeriodMultipliers || []"
             :key="`${rule.name}-${index}`"
@@ -749,7 +862,9 @@
           >
             <div class="flex items-center justify-between gap-3">
               <div class="font-medium break-all">{{ rule.name }}</div>
-              <el-tag :type="rule.multiplier >= 1 ? 'warning' : 'success'" size="small">{{ rule.multiplier }}x</el-tag>
+              <el-tag :type="rule.multiplier >= 1 ? 'warning' : 'success'" size="small"
+                >{{ rule.multiplier }}x</el-tag
+              >
             </div>
             <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
               {{ formatTimeRuleDays(rule.dayOfWeek) }} · {{ rule.startTime }} - {{ rule.endTime }}
@@ -817,7 +932,11 @@ const {
   handleImportChannels,
 } = state
 
-const formatVisibilityUserOption = (user: { username: string; name: string | null; id: string }) => {
+const formatVisibilityUserOption = (user: {
+  username: string
+  name: string | null
+  id: string
+}) => {
   const primary = user.name?.trim() || user.username || user.id
   if (primary === user.id) return user.id
   return `${primary} (${user.id})`
@@ -856,7 +975,8 @@ const formatStringList = (value: unknown) => {
   return value.join(', ')
 }
 
-const hasConfiguredValue = (value?: string | null) => typeof value === 'string' && value.trim() !== ''
+const hasConfiguredValue = (value?: string | null) =>
+  typeof value === 'string' && value.trim() !== ''
 
 const getModelMappingEntries = (value: unknown): Array<[string, string]> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return []
