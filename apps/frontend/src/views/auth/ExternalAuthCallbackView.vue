@@ -58,7 +58,10 @@ onMounted(async () => {
 
     if (socialAuthService.isBindingRequiredData(result)) {
       ElMessage.warning(i18ns.t('SettingsView.externalAccountsBindRequired'))
-      await router.replace({ name: 'settingsSecurity', query: { bindProvider: provider, bindingToken: result.bindingToken } })
+      await router.replace({
+        name: 'settingsSecurity',
+        query: { bindProvider: provider, bindingToken: result.bindingToken },
+      })
       return
     }
 
@@ -74,10 +77,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="auth-view-root" style="display:flex;align-items:center;justify-content:center;min-height:60vh">
-    <el-card style="width:min(520px, 92vw)">
+  <div
+    class="auth-view-root"
+    style="display: flex; align-items: center; justify-content: center; min-height: 60vh"
+  >
+    <el-card style="width: min(520px, 92vw)">
       <el-skeleton :loading="loading" animated :rows="4">
-        <div style="text-align:center">
+        <div style="text-align: center">
           <p>{{ i18ns.t('message.information.loggingIn') }}</p>
         </div>
       </el-skeleton>

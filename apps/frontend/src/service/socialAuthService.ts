@@ -53,7 +53,8 @@ export class SocialAuthService {
       body: { provider, action, redirectUri },
     })
 
-    if (result.code === CustomCode.OK && result.data) return result.data as StartExternalAuthResponse
+    if (result.code === CustomCode.OK && result.data)
+      return result.data as StartExternalAuthResponse
 
     throw toServiceError(result)
   }
@@ -75,11 +76,15 @@ export class SocialAuthService {
 
   async listExternalIdentities(): Promise<ExternalIdentityItem[]> {
     const result = await getAuthControllerApi().listExternalIdentities({})
-    if (result.code === CustomCode.OK && Array.isArray(result.data)) return result.data as ExternalIdentityItem[]
+    if (result.code === CustomCode.OK && Array.isArray(result.data))
+      return result.data as ExternalIdentityItem[]
     return []
   }
 
-  async bindExternalIdentity(provider: ExternalAuthProvider, bindingToken: string): Promise<ExternalIdentityItem> {
+  async bindExternalIdentity(
+    provider: ExternalAuthProvider,
+    bindingToken: string,
+  ): Promise<ExternalIdentityItem> {
     const result = await getAuthControllerApi().bindExternalIdentity({
       body: { provider, bindingToken } satisfies BindExternalIdentityDto,
     })
@@ -96,25 +101,29 @@ export class SocialAuthService {
 
   async createQrLoginSession(): Promise<CreateQrLoginSessionResponse> {
     const result = await getAuthControllerApi().createQrLoginSession({})
-    if (result.code === CustomCode.OK && result.data) return result.data as CreateQrLoginSessionResponse
+    if (result.code === CustomCode.OK && result.data)
+      return result.data as CreateQrLoginSessionResponse
     throw toServiceError(result)
   }
 
   async scanQrLogin(sessionId: string): Promise<QrLoginSessionStatusResponse> {
     const result = await getAuthControllerApi().scanQrLogin({ body: { sessionId } })
-    if (result.code === CustomCode.OK && result.data) return result.data as QrLoginSessionStatusResponse
+    if (result.code === CustomCode.OK && result.data)
+      return result.data as QrLoginSessionStatusResponse
     throw toServiceError(result)
   }
 
   async confirmQrLogin(sessionId: string, approve: boolean): Promise<QrLoginSessionStatusResponse> {
     const result = await getAuthControllerApi().confirmQrLogin({ body: { sessionId, approve } })
-    if (result.code === CustomCode.OK && result.data) return result.data as QrLoginSessionStatusResponse
+    if (result.code === CustomCode.OK && result.data)
+      return result.data as QrLoginSessionStatusResponse
     throw toServiceError(result)
   }
 
   async getQrLoginStatus(sessionId: string): Promise<QrLoginSessionStatusResponse> {
     const result = await getAuthControllerApi().getQrLoginStatus({ params: { sessionId } })
-    if (result.code === CustomCode.OK && result.data) return result.data as QrLoginSessionStatusResponse
+    if (result.code === CustomCode.OK && result.data)
+      return result.data as QrLoginSessionStatusResponse
     throw toServiceError(result)
   }
 

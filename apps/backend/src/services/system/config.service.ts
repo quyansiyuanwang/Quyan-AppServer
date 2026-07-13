@@ -410,33 +410,24 @@ export class ConfigService {
         callbackPath: configs[CONFIG_KEYS.SOCIAL_AUTH.GITHUB.CALLBACK_PATH] ?? envConfig.github.callbackPath,
       },
       wechatOpen: {
-        enabled: sanitizeBoolean(
-          configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.ENABLED],
-          envConfig.wechatOpen.enabled,
-        ),
+        enabled: sanitizeBoolean(configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.ENABLED], envConfig.wechatOpen.enabled),
         appId: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.APP_ID] ?? envConfig.wechatOpen.appId,
         appSecret: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.APP_SECRET] ?? envConfig.wechatOpen.appSecret,
-        authorizeUrl:
-          configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.AUTHORIZE_URL] ?? envConfig.wechatOpen.authorizeUrl,
+        authorizeUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.AUTHORIZE_URL] ?? envConfig.wechatOpen.authorizeUrl,
         tokenUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.TOKEN_URL] ?? envConfig.wechatOpen.tokenUrl,
         userUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.USER_URL] ?? envConfig.wechatOpen.userUrl,
         scope: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.SCOPE] ?? envConfig.wechatOpen.scope,
-        callbackPath:
-          configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.CALLBACK_PATH] ?? envConfig.wechatOpen.callbackPath,
+        callbackPath: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.CALLBACK_PATH] ?? envConfig.wechatOpen.callbackPath,
       },
       wechatWeb: {
-        enabled: sanitizeBoolean(
-          configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.ENABLED],
-          envConfig.wechatWeb.enabled,
-        ),
+        enabled: sanitizeBoolean(configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.ENABLED], envConfig.wechatWeb.enabled),
         appId: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.APP_ID] ?? envConfig.wechatWeb.appId,
         appSecret: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.APP_SECRET] ?? envConfig.wechatWeb.appSecret,
         authorizeUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.AUTHORIZE_URL] ?? envConfig.wechatWeb.authorizeUrl,
         tokenUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.TOKEN_URL] ?? envConfig.wechatWeb.tokenUrl,
         userUrl: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.USER_URL] ?? envConfig.wechatWeb.userUrl,
         scope: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.SCOPE] ?? envConfig.wechatWeb.scope,
-        callbackPath:
-          configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.CALLBACK_PATH] ?? envConfig.wechatWeb.callbackPath,
+        callbackPath: configs[CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB.CALLBACK_PATH] ?? envConfig.wechatWeb.callbackPath,
       },
     };
   }

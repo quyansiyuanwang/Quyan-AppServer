@@ -151,19 +151,14 @@ export class ExternalAuthService {
   private async persistExternalState(payload: ExternalAuthStatePayload): Promise<string> {
     const state = randomUUID();
     const socialConfig = await this.configService.getSocialAuthConfig();
-    await this.redisService.set(
-      this.externalStateKey(state),
-      JSON.stringify(payload),
-      socialConfig.stateTtlSeconds,
-    );
+    await this.redisService.set(this.externalStateKey(state), JSON.stringify(payload), socialConfig.stateTtlSeconds);
     return state;
   }
 
   private async consumeExternalState(state: string): Promise<ExternalAuthStatePayload> {
     const key = this.externalStateKey(state);
     const raw = await this.redisService.get(key);
-    if (!raw)
-      throw new UnauthorizedError("外部登录状态已失效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
+    if (!raw) throw new UnauthorizedError("外部登录状态已失效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
 
     await this.redisService.delete(key);
 
@@ -185,8 +180,7 @@ export class ExternalAuthService {
   private async consumeBindingToken(token: string): Promise<ExternalBindingPayload> {
     const key = this.bindingTokenKey(token);
     const raw = await this.redisService.get(key);
-    if (!raw)
-      throw new UnauthorizedError("外部绑定会话已失效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
+    if (!raw) throw new UnauthorizedError("外部绑定会话已失效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
 
     await this.redisService.delete(key);
 
@@ -243,8 +237,7 @@ export class ExternalAuthService {
     );
 
     const accessToken = String(tokenResponse.data?.access_token || "").trim();
-    if (!accessToken)
-      throw new UnauthorizedError("GitHub 登录令牌获取失败", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID);
+    if (!accessToken) throw new UnauthorizedError("GitHub 登录令牌获取失败", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID);
 
     const [profileResponse, emailResponse] = await Promise.all([
       axios.get(config.userUrl, {
@@ -281,7 +274,11 @@ export class ExternalAuthService {
     };
   }
 
-  private async fetchWechatProfile(provider: Extract<ExternalAuthProvider, "wechat-open" | "wechat-web">, code: string, request?: Request): Promise<ExternalProviderProfile> {
+  private async fetchWechatProfile(
+    provider: Extract<ExternalAuthProvider, "wechat-open" | "wechat-web">,
+    code: string,
+    request?: Request,
+  ): Promise<ExternalProviderProfile> {
     const socialConfig = await this.configService.getSocialAuthConfig();
     const config = provider === "wechat-open" ? socialConfig.wechatOpen : socialConfig.wechatWeb;
 
@@ -326,9 +323,14 @@ export class ExternalAuthService {
     };
   }
 
-  private async fetchProviderProfile(provider: ExternalAuthProvider, code: string, request?: Request): Promise<ExternalProviderProfile> {
+  private async fetchProviderProfile(
+    provider: ExternalAuthProvider,
+    code: string,
+    request?: Request,
+  ): Promise<ExternalProviderProfile> {
     if (provider === "github") return this.fetchGithubProfile(code, request);
-    if (provider === "wechat-open" || provider === "wechat-web") return this.fetchWechatProfile(provider, code, request);
+    if (provider === "wechat-open" || provider === "wechat-web")
+      return this.fetchWechatProfile(provider, code, request);
     throw new BadRequestError("不支持的外部登录提供方", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID);
   }
 
@@ -613,8 +615,7 @@ export class ExternalAuthService {
     request?: Request,
   ): Promise<UnbindExternalIdentityResponse> {
     const identity = await this.externalIdentityRepository.findByUserIdAndProvider(userId, provider);
-    if (!identity)
-      throw new NotFoundError("当前账号未绑定该外部账号", CustomCode.EXTERNAL_IDENTITY_NOT_BOUND);
+    if (!identity) throw new NotFoundError("当前账号未绑定该外部账号", CustomCode.EXTERNAL_IDENTITY_NOT_BOUND);
 
     await this.externalIdentityRepository.updateById(identity.id, {
       revokedAt: new Date(),
@@ -695,7 +696,11 @@ export class ExternalAuthService {
     };
   }
 
-  public async markQrSessionScanned(sessionId: string, userId: string, request?: Request): Promise<QrLoginSessionStatusResponse> {
+  public async markQrSessionScanned(
+    sessionId: string,
+    userId: string,
+    request?: Request,
+  ): Promise<QrLoginSessionStatusResponse> {
     const { payload, expiresIn } = await this.readQrSession(sessionId);
     if (payload.status === "expired")
       throw new NotFoundError("扫码登录会话已过期", CustomCode.QR_LOGIN_SESSION_EXPIRED);

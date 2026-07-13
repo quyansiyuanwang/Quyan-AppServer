@@ -476,7 +476,9 @@ function socialAuthConfig() {
       enabled: process.env.WECHAT_OPEN_OAUTH_ENABLED === "true",
       appId: String(process.env.WECHAT_OPEN_APP_ID || "").trim(),
       appSecret: String(process.env.WECHAT_OPEN_APP_SECRET || "").trim(),
-      authorizeUrl: String(process.env.WECHAT_OPEN_AUTHORIZE_URL || "https://open.weixin.qq.com/connect/qrconnect").trim(),
+      authorizeUrl: String(
+        process.env.WECHAT_OPEN_AUTHORIZE_URL || "https://open.weixin.qq.com/connect/qrconnect",
+      ).trim(),
       tokenUrl: String(process.env.WECHAT_OPEN_TOKEN_URL || "https://api.weixin.qq.com/sns/oauth2/access_token").trim(),
       userUrl: String(process.env.WECHAT_OPEN_USER_URL || "https://api.weixin.qq.com/sns/userinfo").trim(),
       scope: String(process.env.WECHAT_OPEN_SCOPE || "snsapi_login").trim(),
@@ -486,7 +488,9 @@ function socialAuthConfig() {
       enabled: process.env.WECHAT_WEB_OAUTH_ENABLED === "true",
       appId: String(process.env.WECHAT_WEB_APP_ID || "").trim(),
       appSecret: String(process.env.WECHAT_WEB_APP_SECRET || "").trim(),
-      authorizeUrl: String(process.env.WECHAT_WEB_AUTHORIZE_URL || "https://open.weixin.qq.com/connect/oauth2/authorize").trim(),
+      authorizeUrl: String(
+        process.env.WECHAT_WEB_AUTHORIZE_URL || "https://open.weixin.qq.com/connect/oauth2/authorize",
+      ).trim(),
       tokenUrl: String(process.env.WECHAT_WEB_TOKEN_URL || "https://api.weixin.qq.com/sns/oauth2/access_token").trim(),
       userUrl: String(process.env.WECHAT_WEB_USER_URL || "https://api.weixin.qq.com/sns/userinfo").trim(),
       scope: String(process.env.WECHAT_WEB_SCOPE || "snsapi_userinfo").trim(),

@@ -1298,19 +1298,15 @@ export default {
     price: 'Price',
     socialAuthTitle: 'Social Login Settings',
     socAuthFrontendBaseUrl: 'Frontend Base URL',
-    socAuthFrontendBaseUrlHelp:
-      'Public frontend URL for OAuth redirects, e.g. https://example.com',
+    socAuthFrontendBaseUrlHelp: 'Public frontend URL for OAuth redirects, e.g. https://example.com',
     socAuthQrLoginEnabled: 'Enable QR Login',
-    socAuthQrLoginEnabledHelp:
-      'Allow users to scan a QR code from a first-party app to log in',
+    socAuthQrLoginEnabledHelp: 'Allow users to scan a QR code from a first-party app to log in',
     socAuthStateTtlSeconds: 'OAuth State TTL (seconds)',
-    socAuthStateTtlSecondsHelp:
-      'How long a generated OAuth state parameter remains valid',
+    socAuthStateTtlSecondsHelp: 'How long a generated OAuth state parameter remains valid',
     socAuthQrLoginTtlSeconds: 'QR Session TTL (seconds)',
     socAuthQrLoginTtlSecondsHelp: 'How long a QR login session remains valid',
     socAuthQrLoginPollIntervalSeconds: 'QR Poll Interval (seconds)',
-    socAuthQrLoginPollIntervalSecondsHelp:
-      'How often the frontend polls for QR scan status',
+    socAuthQrLoginPollIntervalSecondsHelp: 'How often the frontend polls for QR scan status',
     socAuthGithubEnabled: 'Enable GitHub Login',
     socAuthGithubClientId: 'GitHub Client ID',
     socAuthGithubClientSecret: 'GitHub Client Secret',

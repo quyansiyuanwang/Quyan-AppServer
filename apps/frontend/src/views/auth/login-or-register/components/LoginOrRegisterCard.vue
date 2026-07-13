@@ -297,7 +297,12 @@ const sendCodeDisabled = computed(() => {
             <div class="qr-login-panel__title">{{ i18ns.t('loginOrRegisterPage.qrLogin') }}</div>
             <div class="qr-login-panel__status">{{ state.getQrStatusText(qrLoginStatus) }}</div>
           </div>
-          <el-button link type="primary" :disabled="externalAuthLoading === 'qr'" @click="state.handleQrLogin">
+          <el-button
+            link
+            type="primary"
+            :disabled="externalAuthLoading === 'qr'"
+            @click="state.handleQrLogin"
+          >
             {{ i18ns.t('refresh') }}
           </el-button>
         </div>
@@ -305,7 +310,11 @@ const sendCodeDisabled = computed(() => {
         <div v-if="qrLoginSession?.qrCodeDataUrl" class="qr-login-panel__body">
           <img :src="qrLoginSession.qrCodeDataUrl" alt="QR Login" class="qr-login-panel__image" />
           <p class="qr-login-panel__hint">
-            {{ qrPolling ? i18ns.t('message.information.loggingIn') : i18ns.t('loginOrRegisterPage.qrLogin') }}
+            {{
+              qrPolling
+                ? i18ns.t('message.information.loggingIn')
+                : i18ns.t('loginOrRegisterPage.qrLogin')
+            }}
           </p>
           <p v-if="qrLoginScannedUser" class="qr-login-panel__hint">
             {{ qrLoginScannedUser.username || qrLoginScannedUser.email }}

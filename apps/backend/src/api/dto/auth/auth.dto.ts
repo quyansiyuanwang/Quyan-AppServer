@@ -436,10 +436,7 @@ export interface LogoutDto {
 
 // API 响应类型
 export type LoginResponse = AuthData | TwoFactorRequiredData | PolicyConsentRequiredData;
-export type ExternalAuthCallbackResponse =
-  | AuthData
-  | PolicyConsentRequiredData
-  | ExternalAuthBindingRequiredData;
+export type ExternalAuthCallbackResponse = AuthData | PolicyConsentRequiredData | ExternalAuthBindingRequiredData;
 export type RefreshResponse = RefreshData;
 export type VerifyResponse = VerifyData;
 export type RegisterResponse = { message: string };

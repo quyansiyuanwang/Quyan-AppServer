@@ -511,7 +511,11 @@ export function useLoginOrRegister() {
       return
     }
 
-    if (status.status === 'rejected' || status.status === 'expired' || status.status === 'consumed') {
+    if (
+      status.status === 'rejected' ||
+      status.status === 'expired' ||
+      status.status === 'consumed'
+    ) {
       qrPolling.value = false
       clearQrPollingTimer()
       return
@@ -554,9 +558,13 @@ export function useLoginOrRegister() {
 
     qrLoginSession.value = {
       sessionId,
-      qrCodeDataUrl: qrLoginSession.value?.sessionId === sessionId ? qrLoginSession.value.qrCodeDataUrl : '',
+      qrCodeDataUrl:
+        qrLoginSession.value?.sessionId === sessionId ? qrLoginSession.value.qrCodeDataUrl : '',
       expiresIn: qrLoginSession.value?.sessionId === sessionId ? qrLoginSession.value.expiresIn : 0,
-      pollIntervalSeconds: qrLoginSession.value?.sessionId === sessionId ? qrLoginSession.value.pollIntervalSeconds : 3,
+      pollIntervalSeconds:
+        qrLoginSession.value?.sessionId === sessionId
+          ? qrLoginSession.value.pollIntervalSeconds
+          : 3,
     }
     if (!qrLoginStatus.value) qrLoginStatus.value = 'pending'
     await startQrPolling(sessionId)
@@ -586,11 +594,7 @@ export function useLoginOrRegister() {
       const status = await socialAuthService.scanQrLogin(sessionId)
       await handleQrStatusResponse(status)
     } catch (error: any) {
-      Notification.notify(
-        i18ns.t('error'),
-        error?.message || i18ns.t('operationFailed'),
-        'error',
-      )
+      Notification.notify(i18ns.t('error'), error?.message || i18ns.t('operationFailed'), 'error')
     } finally {
       qrLoginBusy.value = false
     }
@@ -608,11 +612,7 @@ export function useLoginOrRegister() {
         await clearQrSessionQuery()
       }
     } catch (error: any) {
-      Notification.notify(
-        i18ns.t('error'),
-        error?.message || i18ns.t('operationFailed'),
-        'error',
-      )
+      Notification.notify(i18ns.t('error'), error?.message || i18ns.t('operationFailed'), 'error')
     } finally {
       qrLoginBusy.value = false
     }
@@ -1098,7 +1098,11 @@ export function useLoginOrRegister() {
     externalAuthLoading.value = provider
     try {
       const redirect = getChallengeRedirect()
-      const { authorizeUrl } = await socialAuthService.startExternalAuth(provider, 'login', redirect)
+      const { authorizeUrl } = await socialAuthService.startExternalAuth(
+        provider,
+        'login',
+        redirect,
+      )
       window.location.href = authorizeUrl
     } catch (error) {
       Notification.notify(
@@ -1115,7 +1119,11 @@ export function useLoginOrRegister() {
     externalAuthLoading.value = 'qr'
     try {
       await createAndTrackQrLoginSession()
-      Notification.notify(i18ns.t('information'), i18ns.t('message.information.createSuccess'), 'success')
+      Notification.notify(
+        i18ns.t('information'),
+        i18ns.t('message.information.createSuccess'),
+        'success',
+      )
     } catch (error) {
       Notification.notify(
         i18ns.t('error'),

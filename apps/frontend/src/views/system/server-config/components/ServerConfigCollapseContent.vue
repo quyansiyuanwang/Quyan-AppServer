@@ -508,12 +508,12 @@
 
       <el-divider>{{ i18ns.t('ServerConfigView.socAuthQrLoginEnabled') }}</el-divider>
       <div class="config-form-item">
-        <div class="config-form-item__label">{{ i18ns.t('ServerConfigView.socAuthQrLoginEnabled') }}</div>
+        <div class="config-form-item__label">
+          {{ i18ns.t('ServerConfigView.socAuthQrLoginEnabled') }}
+        </div>
         <div class="config-form-item__control">
           <el-switch v-model="socAuthQrLoginEnabled" />
-          <span class="form-help">{{
-            i18ns.t('ServerConfigView.socAuthQrLoginEnabledHelp')
-          }}</span>
+          <span class="form-help">{{ i18ns.t('ServerConfigView.socAuthQrLoginEnabledHelp') }}</span>
         </div>
       </div>
       <div class="config-form-item">
@@ -532,12 +532,7 @@
           {{ i18ns.t('ServerConfigView.socAuthQrLoginTtlSeconds') }}
         </div>
         <div class="config-form-item__control">
-          <el-input-number
-            v-model="socAuthQrLoginTtlSeconds"
-            :min="30"
-            :max="86400"
-            :step="30"
-          />
+          <el-input-number v-model="socAuthQrLoginTtlSeconds" :min="30" :max="86400" :step="30" />
           <span class="form-help">{{
             i18ns.t('ServerConfigView.socAuthQrLoginTtlSecondsHelp')
           }}</span>
@@ -562,7 +557,9 @@
 
       <el-divider>{{ i18ns.t('ServerConfigView.socAuthGithubEnabled') }}</el-divider>
       <div class="config-form-item">
-        <div class="config-form-item__label">{{ i18ns.t('ServerConfigView.socAuthGithubEnabled') }}</div>
+        <div class="config-form-item__label">
+          {{ i18ns.t('ServerConfigView.socAuthGithubEnabled') }}
+        </div>
         <div class="config-form-item__control">
           <el-switch v-model="socAuthGithubEnabled" />
         </div>
@@ -591,7 +588,9 @@
 
       <el-divider>{{ i18ns.t('ServerConfigView.socAuthWechatOpenEnabled') }}</el-divider>
       <div class="config-form-item">
-        <div class="config-form-item__label">{{ i18ns.t('ServerConfigView.socAuthWechatOpenEnabled') }}</div>
+        <div class="config-form-item__label">
+          {{ i18ns.t('ServerConfigView.socAuthWechatOpenEnabled') }}
+        </div>
         <div class="config-form-item__control">
           <el-switch v-model="socAuthWechatOpenEnabled" />
         </div>
@@ -620,7 +619,9 @@
 
       <el-divider>{{ i18ns.t('ServerConfigView.socAuthWechatWebEnabled') }}</el-divider>
       <div class="config-form-item">
-        <div class="config-form-item__label">{{ i18ns.t('ServerConfigView.socAuthWechatWebEnabled') }}</div>
+        <div class="config-form-item__label">
+          {{ i18ns.t('ServerConfigView.socAuthWechatWebEnabled') }}
+        </div>
         <div class="config-form-item__control">
           <el-switch v-model="socAuthWechatWebEnabled" />
         </div>

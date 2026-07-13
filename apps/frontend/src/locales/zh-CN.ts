@@ -1254,8 +1254,7 @@ const zhCN: DeepStringify<typeof en> = {
     price: '价格',
     socialAuthTitle: '社交登录设置',
     socAuthFrontendBaseUrl: '前端基础URL',
-    socAuthFrontendBaseUrlHelp:
-      '用于OAuth回调的公开前端地址，例如 https://example.com',
+    socAuthFrontendBaseUrlHelp: '用于OAuth回调的公开前端地址，例如 https://example.com',
     socAuthQrLoginEnabled: '启用扫码登录',
     socAuthQrLoginEnabledHelp: '允许用户通过第一方应用扫码登录',
     socAuthStateTtlSeconds: 'OAuth状态有效期（秒）',
@@ -1263,8 +1262,7 @@ const zhCN: DeepStringify<typeof en> = {
     socAuthQrLoginTtlSeconds: '扫码会话有效期（秒）',
     socAuthQrLoginTtlSecondsHelp: '扫码登录会话的有效时长',
     socAuthQrLoginPollIntervalSeconds: '扫码轮询间隔（秒）',
-    socAuthQrLoginPollIntervalSecondsHelp:
-      '前端轮询扫码状态的间隔时间',
+    socAuthQrLoginPollIntervalSecondsHelp: '前端轮询扫码状态的间隔时间',
     socAuthGithubEnabled: '启用GitHub登录',
     socAuthGithubClientId: 'GitHub Client ID',
     socAuthGithubClientSecret: 'GitHub Client Secret',

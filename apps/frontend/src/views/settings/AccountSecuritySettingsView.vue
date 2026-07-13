@@ -47,10 +47,17 @@
           <h3>{{ i18ns.t('SettingsView.externalAccountsTitle') }}</h3>
           <p class="section-desc">{{ i18ns.t('SettingsView.externalAccountsDesc') }}</p>
           <div class="stack">
-            <div v-for="item in externalIdentities" :key="item.id" class="inline-row" style="justify-content:space-between;gap:12px">
+            <div
+              v-for="item in externalIdentities"
+              :key="item.id"
+              class="inline-row"
+              style="justify-content: space-between; gap: 12px"
+            >
               <div>
                 <strong>{{ item.provider }}</strong>
-                <div class="section-desc">{{ item.providerUsername || item.providerEmail || item.providerUserId }}</div>
+                <div class="section-desc">
+                  {{ item.providerUsername || item.providerEmail || item.providerUserId }}
+                </div>
               </div>
               <el-button
                 type="danger"
@@ -62,7 +69,7 @@
                 {{ i18ns.t('common.delete') }}
               </el-button>
             </div>
-            <div class="inline-row" style="gap:8px;flex-wrap:wrap">
+            <div class="inline-row" style="gap: 8px; flex-wrap: wrap">
               <el-button
                 v-if="publicSocialAuthConfig?.githubEnabled"
                 :loading="externalBindingProvider === 'github'"
@@ -191,9 +198,13 @@
           <h3>{{ i18ns.t('SettingsView.externalAccountsTitle') }}</h3>
           <p class="section-desc">{{ i18ns.t('SettingsView.externalAccountsDesc') }}</p>
           <div class="stack">
-            <div v-for="item in externalIdentities" :key="item.id" class="stack" style="gap:6px">
-              <div><strong>{{ item.provider }}</strong></div>
-              <div class="section-desc">{{ item.providerUsername || item.providerEmail || item.providerUserId }}</div>
+            <div v-for="item in externalIdentities" :key="item.id" class="stack" style="gap: 6px">
+              <div>
+                <strong>{{ item.provider }}</strong>
+              </div>
+              <div class="section-desc">
+                {{ item.providerUsername || item.providerEmail || item.providerUserId }}
+              </div>
               <el-button
                 class="w-full"
                 type="danger"
