@@ -3,7 +3,7 @@ import { copyFileSync, readdirSync, readFileSync, statSync, writeFileSync } from
 import { resolve } from 'node:path'
 import { brotliCompressSync, constants as zlibConstants } from 'node:zlib'
 
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
@@ -13,15 +13,21 @@ import Components from 'unplugin-vue-components/vite'
 import ElementPlus from 'unplugin-element-plus/vite'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
-import obfuscatorPlugin from './scripts/plugins/vite-plugin-obfuscator-custom.js'
-import { buildInfoPlugin } from './scripts/plugins/vite-plugin-build-info.js'
+import obfuscatorPlugin from './scripts/plugins/vite-plugin-obfuscator-custom'
+import { buildInfoPlugin } from './scripts/plugins/vite-plugin-build-info'
 import { autoRouteTypes } from './scripts/plugins/vite-plugin-auto-route-types'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
   const isProd = mode === 'production' || mode === 'prod'
-  const enableObfuscation = isProd && process.env.VITE_ENABLE_OBFUSCATION === 'true'
-  const enableVueDevTools = process.env.VITE_ENABLE_VUE_DEVTOOLS === 'true'
+  const readBooleanEnv = (value: string | undefined, defaultValue: boolean): boolean => {
+    if (value == null || value.trim() === '') return defaultValue
+    return value === 'true'
+  }
+
+  const enableObfuscation = isProd && readBooleanEnv(env.VITE_ENABLE_OBFUSCATION, false)
+  const enableVueDevTools = readBooleanEnv(env.VITE_ENABLE_VUE_DEVTOOLS, !isProd)
 
   const stripOriginHeader = (proxy: { on: (event: 'proxyReq', handler: (proxyReq: { removeHeader: (header: string) => void }) => void) => void }) => {
     proxy.on('proxyReq', (proxyReq) => {
@@ -174,7 +180,7 @@ export default defineConfig(({ mode }) => {
         ],
       }),
       ElementPlus({
-        importStyle: 'css',
+        useSource: false,
       }),
       // 生产环境启用代码混淆（closeBundle 钩子按插件顺序执行，确保先混淆再压缩）
       enableObfuscation &&
