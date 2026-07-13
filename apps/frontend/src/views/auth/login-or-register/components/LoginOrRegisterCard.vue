@@ -323,32 +323,6 @@ const sendCodeDisabled = computed(() => {
         <div v-else class="qr-login-panel__empty">
           {{ i18ns.t('refresh') }}
         </div>
-
-        <div
-          v-if="state.getQrSessionIdFromRoute() && !state.isDesktop.value"
-          class="qr-login-panel__actions"
-        >
-          <el-button :loading="qrLoginBusy" @click="state.handleQrScan()">
-            {{ i18ns.t('refresh') }}
-          </el-button>
-          <el-button
-            type="primary"
-            :loading="qrLoginBusy"
-            :disabled="qrLoginStatus !== 'scanned'"
-            @click="state.handleQrConfirm(true)"
-          >
-            {{ i18ns.t('confirm') }}
-          </el-button>
-          <el-button
-            type="danger"
-            plain
-            :loading="qrLoginBusy"
-            :disabled="qrLoginStatus !== 'scanned'"
-            @click="state.handleQrConfirm(false)"
-          >
-            {{ i18ns.t('cancel') }}
-          </el-button>
-        </div>
       </div>
     </div>
     <div class="captcha-notice">

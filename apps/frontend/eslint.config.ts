@@ -51,6 +51,8 @@ export default defineConfigWithVueTs(
             'eslint.config.ts',
             'openapi-ts.config.ts',
             'scripts/plugins/vite-plugin-auto-route-types.ts',
+            'scripts/plugins/vite-plugin-build-info.d.ts',
+            'scripts/plugins/vite-plugin-obfuscator-custom.d.ts',
           ],
           defaultProject: './tsconfig.node.json',
         },

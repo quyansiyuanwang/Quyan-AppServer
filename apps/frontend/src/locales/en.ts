@@ -346,6 +346,11 @@ export default {
     wechatOpenLogin: 'WeChat Open Login',
     wechatWebLogin: 'WeChat Web Login',
     qrLogin: 'QR Login',
+    qrApprovalTitle: 'Confirm device sign-in',
+    qrApprovalNeedLogin:
+      'Please sign in on this device first, then return here to approve the login.',
+    qrApprovalAllow: 'Allow this sign-in',
+    qrApprovalDeny: 'Deny this sign-in',
   },
 
   oauthAuthorize: {
@@ -1936,6 +1941,7 @@ export default {
     requestTokens: 'Request Tokens',
     responseTokens: 'Response Tokens',
     createTime: 'Create Time',
+    updateTime: 'Update Time',
     loadFailed: 'Load failed',
     createSuccess: 'Created successfully',
     createFailed: 'Create failed',
@@ -2231,7 +2237,7 @@ export default {
     routingStrategyLatencyPriority: 'Latency Priority',
     routingConfig: 'Routing Parameters',
     routingConfigHelp:
-      'All parameters below are optional. Leave them empty to let the backend use its default behavior.',
+      'The form starts with recommended values for most pooled-channel setups: max switches 2, retries per channel 0, failover rules 4xx/5xx, failback cooldown 5 minutes, health score threshold 0, latency threshold 30000ms, circuit breaker threshold 5, and sticky-by-model/format disabled.',
     healthScoreThreshold: 'Health Score Threshold',
     latencyThresholdMs: 'Latency Threshold (ms)',
     circuitBreakerThreshold: 'Circuit Breaker Threshold',
@@ -2246,9 +2252,12 @@ export default {
     visibilityUsers: 'User Allowlist',
     visibilityGroups: 'Group Allowlist',
     visibilityRoles: 'Role Allowlist',
+    visibilityUsersPlaceholder: 'Search users or enter a user ID',
+    visibilityGroupsPlaceholder: 'Select groups or enter a group ID',
+    visibilityRolesPlaceholder: 'Select roles or enter a role ID',
     visibilityIdsPlaceholder: 'Type an ID and press Enter',
     visibilityIdsHelp:
-      'Provide at least one scope. You can allowlist user IDs, group IDs, role IDs, or any combination.',
+      'Provide at least one scope. You can choose from loaded options or enter user IDs, group IDs, or role IDs manually.',
     visibilityWhitelistRequired:
       'Whitelist visibility requires at least one user, group, or role ID',
     visibilityUsersSummary: '{count} users',
@@ -2436,6 +2445,7 @@ export default {
     now: 'Now',
     formatAndModelRestrictions: 'Format and Model Restrictions',
     supportedFormats: 'Supported Formats',
+    channelDetailsTitle: 'Channel Details',
     allowedFormats: 'Allowed Formats',
     allowedFormatsHelp: 'Select API formats this channel supports',
     formatAll: 'All Formats',
@@ -2446,6 +2456,10 @@ export default {
     noModels: 'None',
     modelsCount: ' models',
     upstreamConfig: 'Upstream Configuration',
+    apiKeyConfigured: 'API Key Configured',
+    notConfigured: 'Not configured',
+    modelMappingEmpty: 'No model mapping configured',
+    timeRulesEmpty: 'No time period multiplier rules configured',
     openaiUpstream: 'OpenAI Upstream',
     anthropicUpstream: 'Anthropic Upstream',
     geminiUpstream: 'Gemini Upstream',

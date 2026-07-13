@@ -18952,6 +18952,45 @@
 				"security": [],
 				"parameters": [],
 				"X-Replay-Protected": true
+			},
+			"get": {
+				"operationId": "AuthControllerGetQrLoginSessionContext",
+				"responses": {
+					"200": {
+						"description": "获取扫码登录会话详情成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/QrLoginSessionContextDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "sessionId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/auth/qr-login/scan": {
@@ -36750,6 +36789,54 @@
 					"qrCodeDataUrl",
 					"expiresIn",
 					"pollIntervalSeconds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"QrLoginSessionContextDto": {
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"pending",
+							"scanned",
+							"approved",
+							"rejected",
+							"expired",
+							"consumed"
+						]
+					},
+					"expiresIn": {
+						"type": "number",
+						"format": "double"
+					},
+					"createdAt": {
+						"type": "string"
+					},
+					"requestIp": {
+						"type": "string"
+					},
+					"requestLocation": {
+						"type": "string"
+					},
+					"requestUserAgent": {
+						"type": "string"
+					},
+					"deviceSummary": {
+						"type": "string"
+					},
+					"user": {
+						"$ref": "#/components/schemas/UserDto"
+					}
+				},
+				"required": [
+					"sessionId",
+					"status",
+					"expiresIn",
+					"createdAt"
 				],
 				"type": "object",
 				"additionalProperties": false

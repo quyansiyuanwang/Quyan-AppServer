@@ -11,6 +11,7 @@ const StorageKey = {
     REFRESH_TOKEN_EXPIRATION: 'Authentication-RefreshTokenExpiration',
     FORCE_LOGOUT_AT: 'Authentication-ForceLogoutAt',
     PENDING_TWO_FACTOR_CHALLENGE: 'Authentication-PendingTwoFactorChallenge',
+    PENDING_POLICY_CONSENT_CHALLENGE: 'Authentication-PendingPolicyConsentChallenge',
     LEGAL_POLICY_CONSENT: 'Authentication-LegalPolicyConsent',
     REPLAY_SIGNING_SESSION: 'Authentication-ReplaySigningSession',
   },

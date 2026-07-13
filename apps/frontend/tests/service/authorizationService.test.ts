@@ -220,6 +220,28 @@ describe('authorizationService', () => {
     })
   })
 
+  it('persists pending policy consent challenge state', () => {
+    authorizationService.setPendingPolicyConsentChallenge('policy-challenge-1', '/home')
+
+    expect(authorizationService.getPendingPolicyConsentChallenge()).toMatchObject({
+      challengeToken: 'policy-challenge-1',
+      redirect: '/home',
+    })
+  })
+
+  it('clears pending policy consent challenge on logout', async () => {
+    localStorage.setItem(StorageKey.Auth.ACCESS_TOKEN, 'access-before-logout')
+    localStorage.setItem(StorageKey.Auth.REFRESH_TOKEN, 'refresh-before-logout')
+    authorizationService.setPendingPolicyConsentChallenge('policy-challenge-2', '/protected')
+    requestMock.post.mockRejectedValueOnce(new Error('network error'))
+
+    await authorizationService.logout('/protected')
+
+    expect(
+      sessionStorage.getItem(StorageKey.Auth.PENDING_POLICY_CONSENT_CHALLENGE),
+    ).toBeNull()
+  })
+
   it('clears refresh token during logout even if logout request fails', async () => {
     localStorage.setItem(StorageKey.Auth.ACCESS_TOKEN, 'access-before-logout')
     localStorage.setItem(StorageKey.Auth.REFRESH_TOKEN, 'refresh-before-logout')

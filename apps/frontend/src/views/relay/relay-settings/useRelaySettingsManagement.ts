@@ -5,8 +5,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
 import { configService } from '@/service/configService'
+import { groupService } from '@/service/groupService'
+import { ramService } from '@/service/ramService'
 import { relayChannelService } from '@/service/relayChannelService'
 import { relayConfigService } from '@/service/relayConfigService'
+import { userService } from '@/service/userService'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import {
   normalizeRelayFormats,
@@ -73,18 +76,38 @@ const normalizeSupportedFormats = (formats?: string): string[] => toConfiguredRe
 const serializeSupportedFormats = (formats: string[] | string): string =>
   serializeRelayFormats(formats)
 
+const CHANNEL_VISIBILITY_USER_PAGE_SIZE = 100
+
+type ChannelUserOption = {
+  id: string
+  username: string
+  name: string | null
+}
+
+type ChannelGroupOption = {
+  id: string
+  username: string
+  name: string
+}
+
+type ChannelRoleOption = {
+  id: string
+  name: string
+  description: string | null
+}
+
 const toSupportedFormatsArray = (formats: string[] | string | undefined): string[] => {
   return toConfiguredRelayFormats(formats)
 }
 
 const defaultRoutingConfigForm = () => ({
-  maxRetries: null as number | null,
-  failoverThreshold: null as number | null,
-  retryStatusCodes: [] as string[],
-  failbackCooldownMinutes: null as number | null,
-  healthScoreThreshold: null as number | null,
-  latencyThresholdMs: null as number | null,
-  circuitBreakerThreshold: null as number | null,
+  maxRetries: 2,
+  failoverThreshold: 0,
+  retryStatusCodes: ['4xx', '5xx'] as string[],
+  failbackCooldownMinutes: 5,
+  healthScoreThreshold: 0 as number | null,
+  latencyThresholdMs: 30000 as number | null,
+  circuitBreakerThreshold: 5 as number | null,
   stickyByModel: false,
   stickyByFormat: false,
 })
@@ -114,32 +137,41 @@ const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigDto | null
   maxRetries:
     typeof config?.maxRetries === 'number' && Number.isFinite(config.maxRetries)
       ? config.maxRetries
-      : null,
+      : defaultRoutingConfigForm().maxRetries,
   failoverThreshold:
     typeof config?.failoverThreshold === 'number' && Number.isFinite(config.failoverThreshold)
       ? config.failoverThreshold
-      : null,
-  retryStatusCodes: normalizeStringArray(config?.retryStatusCodes),
+      : defaultRoutingConfigForm().failoverThreshold,
+  retryStatusCodes:
+    normalizeStringArray(config?.retryStatusCodes).length > 0
+      ? normalizeStringArray(config?.retryStatusCodes)
+      : defaultRoutingConfigForm().retryStatusCodes,
   failbackCooldownMinutes:
     typeof config?.failbackCooldownMinutes === 'number' &&
     Number.isFinite(config.failbackCooldownMinutes)
       ? config.failbackCooldownMinutes
-      : null,
+      : defaultRoutingConfigForm().failbackCooldownMinutes,
   healthScoreThreshold:
     typeof config?.healthScoreThreshold === 'number' && Number.isFinite(config.healthScoreThreshold)
       ? config.healthScoreThreshold
-      : null,
+      : defaultRoutingConfigForm().healthScoreThreshold,
   latencyThresholdMs:
     typeof config?.latencyThresholdMs === 'number' && Number.isFinite(config.latencyThresholdMs)
       ? config.latencyThresholdMs
-      : null,
+      : defaultRoutingConfigForm().latencyThresholdMs,
   circuitBreakerThreshold:
     typeof config?.circuitBreakerThreshold === 'number' &&
     Number.isFinite(config.circuitBreakerThreshold)
       ? config.circuitBreakerThreshold
-      : null,
-  stickyByModel: config?.stickyByModel === true,
-  stickyByFormat: config?.stickyByFormat === true,
+      : defaultRoutingConfigForm().circuitBreakerThreshold,
+  stickyByModel:
+    typeof config?.stickyByModel === 'boolean'
+      ? config.stickyByModel
+      : defaultRoutingConfigForm().stickyByModel,
+  stickyByFormat:
+    typeof config?.stickyByFormat === 'boolean'
+      ? config.stickyByFormat
+      : defaultRoutingConfigForm().stickyByFormat,
 })
 
 const normalizeVisibilityConfigForm = (config?: RelayChannelVisibilityConfigDto | null) => ({
@@ -620,6 +652,17 @@ export const useRelaySettingsManagement = () => {
   const isEditingChannel = ref(false)
   const editingChannelId = ref('')
   const selectedChannelIds = ref<string[]>([])
+  const visibilityUserOptions = ref<ChannelUserOption[]>([])
+  const visibilityGroupOptions = ref<ChannelGroupOption[]>([])
+  const visibilityRoleOptions = ref<ChannelRoleOption[]>([])
+  const visibilityUserOptionsLoading = ref(false)
+  const visibilityGroupOptionsLoading = ref(false)
+  const visibilityRoleOptionsLoading = ref(false)
+  const hasLoadedVisibilityUsers = ref(false)
+  const hasLoadedVisibilityGroups = ref(false)
+  const hasLoadedVisibilityRoles = ref(false)
+  const showChannelDetailDialog = ref(false)
+  const currentChannelDetail = ref<RelayChannelDto | null>(null)
 
   const selectedChannels = computed(() => {
     const selectedIdSet = new Set(selectedChannelIds.value)
@@ -653,6 +696,166 @@ export const useRelaySettingsManagement = () => {
     modelMapping: {} as Record<string, string>,
     timePeriodMultipliers: [] as TimePeriodMultiplierRule[],
   })
+
+  const ensureVisibilityUserOption = (
+    userId?: string,
+    username?: string | null,
+    name?: string | null,
+  ) => {
+    if (!userId) return
+    if (visibilityUserOptions.value.some((item) => item.id === userId)) return
+
+    visibilityUserOptions.value = [
+      {
+        id: userId,
+        username: username || userId,
+        name: name || null,
+      },
+      ...visibilityUserOptions.value,
+    ]
+  }
+
+  const ensureVisibilityGroupOption = (
+    groupId?: string,
+    username?: string | null,
+    name?: string | null,
+  ) => {
+    if (!groupId) return
+    if (visibilityGroupOptions.value.some((item) => item.id === groupId)) return
+
+    visibilityGroupOptions.value = [
+      {
+        id: groupId,
+        username: username || groupId,
+        name: name || username || groupId,
+      },
+      ...visibilityGroupOptions.value,
+    ]
+  }
+
+  const ensureVisibilityRoleOption = (
+    roleId?: string,
+    name?: string | null,
+    description?: string | null,
+  ) => {
+    if (!roleId) return
+    if (visibilityRoleOptions.value.some((item) => item.id === roleId)) return
+
+    visibilityRoleOptions.value = [
+      {
+        id: roleId,
+        name: name || roleId,
+        description: description || null,
+      },
+      ...visibilityRoleOptions.value,
+    ]
+  }
+
+  const ensureSelectedVisibilityOptions = (config?: RelayChannelVisibilityConfigDto | null) => {
+    const normalized = normalizeVisibilityConfigForm(config)
+    normalized.userIds.forEach((id) => ensureVisibilityUserOption(id))
+    normalized.groupIds.forEach((id) => ensureVisibilityGroupOption(id))
+    normalized.roleIds.forEach((id) => ensureVisibilityRoleOption(id))
+  }
+
+  const loadVisibilityUserOptions = async (keyword?: string) => {
+    visibilityUserOptionsLoading.value = true
+    try {
+      const result = await userService.getAllUsers({
+        page: 1,
+        pageSize: CHANNEL_VISIBILITY_USER_PAGE_SIZE,
+        keyword: keyword?.trim() || undefined,
+      })
+      const users = Array.isArray(result?.users) ? result.users : []
+      visibilityUserOptions.value = users
+        .map((item: { id: string; username?: string | null; name?: string | null }) => ({
+          id: item.id,
+          username: item.username || item.id,
+          name: item.name || null,
+        }))
+        .sort((a, b) => (a.name || a.username).localeCompare(b.name || b.username))
+
+      normalizeStringArray(channelForm.value.visibilityConfig.userIds).forEach((id) =>
+        ensureVisibilityUserOption(id),
+      )
+      hasLoadedVisibilityUsers.value = true
+    } catch (_error) {
+      visibilityUserOptions.value = []
+    } finally {
+      visibilityUserOptionsLoading.value = false
+    }
+  }
+
+  const loadVisibilityGroupOptions = async () => {
+    visibilityGroupOptionsLoading.value = true
+    try {
+      const data = await groupService.getAllGroups()
+      const groups = Array.isArray(data) ? data : data.groups
+      visibilityGroupOptions.value = groups
+        .map((item: { id: string; username: string; name?: string | null }) => ({
+          id: item.id,
+          username: item.username,
+          name: item.name || item.username,
+        }))
+        .sort((a: ChannelGroupOption, b: ChannelGroupOption) => a.name.localeCompare(b.name))
+
+      normalizeStringArray(channelForm.value.visibilityConfig.groupIds).forEach((id) =>
+        ensureVisibilityGroupOption(id),
+      )
+      hasLoadedVisibilityGroups.value = true
+    } catch (_error) {
+      visibilityGroupOptions.value = []
+    } finally {
+      visibilityGroupOptionsLoading.value = false
+    }
+  }
+
+  const loadVisibilityRoleOptions = async () => {
+    visibilityRoleOptionsLoading.value = true
+    try {
+      const roles = await ramService.listRoles()
+      visibilityRoleOptions.value = roles
+        .map((item: { id: string; name: string; description?: string | null }) => ({
+          id: item.id,
+          name: item.name || item.id,
+          description: item.description || null,
+        }))
+        .sort((a: ChannelRoleOption, b: ChannelRoleOption) => a.name.localeCompare(b.name))
+
+      normalizeStringArray(channelForm.value.visibilityConfig.roleIds).forEach((id) =>
+        ensureVisibilityRoleOption(id),
+      )
+      hasLoadedVisibilityRoles.value = true
+    } catch (_error) {
+      visibilityRoleOptions.value = []
+    } finally {
+      visibilityRoleOptionsLoading.value = false
+    }
+  }
+
+  const ensureVisibilityOptionsLoaded = async () => {
+    const tasks: Array<Promise<unknown>> = []
+
+    if (!hasLoadedVisibilityGroups.value && !visibilityGroupOptionsLoading.value) {
+      tasks.push(loadVisibilityGroupOptions())
+    }
+
+    if (!hasLoadedVisibilityRoles.value && !visibilityRoleOptionsLoading.value) {
+      tasks.push(loadVisibilityRoleOptions())
+    }
+
+    if (!hasLoadedVisibilityUsers.value && !visibilityUserOptionsLoading.value) {
+      tasks.push(loadVisibilityUserOptions())
+    }
+
+    if (tasks.length > 0) {
+      await Promise.all(tasks)
+    }
+  }
+
+  const handleVisibilityUserSearch = (query: string) => {
+    void loadVisibilityUserOptions(query)
+  }
 
   const channelForm = ref(defaultChannelForm())
   const timeRuleDialogVisible = ref(false)
@@ -1046,6 +1249,15 @@ export const useRelaySettingsManagement = () => {
     },
   )
 
+  watch(
+    () => channelForm.value.visibilityMode,
+    (mode) => {
+      if (mode === 'whitelist') {
+        void ensureVisibilityOptionsLoaded()
+      }
+    },
+  )
+
   const loggedAllowedModelParseErrors = new Set<string>()
   const hasShownAllowedModelsParseWarning = ref(false)
 
@@ -1309,7 +1521,9 @@ export const useRelaySettingsManagement = () => {
     isEditingChannel.value = false
     editingChannelId.value = ''
     channelForm.value = defaultChannelForm()
+    ensureSelectedVisibilityOptions(channelForm.value.visibilityConfig)
     showChannelDialog.value = true
+    void ensureVisibilityOptionsLoaded()
   }
 
   const openEditChannelDialog = (row: RelayChannelDto) => {
@@ -1338,7 +1552,19 @@ export const useRelaySettingsManagement = () => {
       modelMapping: (row.modelMapping as Record<string, string>) || {},
       timePeriodMultipliers: row.timePeriodMultipliers || [],
     }
+    ensureSelectedVisibilityOptions(row.visibilityConfig)
     showChannelDialog.value = true
+    void ensureVisibilityOptionsLoaded()
+  }
+
+  const openChannelDetailDialog = (row: RelayChannelDto) => {
+    currentChannelDetail.value = row
+    showChannelDetailDialog.value = true
+  }
+
+  const closeChannelDetailDialog = () => {
+    showChannelDetailDialog.value = false
+    currentChannelDetail.value = null
   }
 
   const handleSaveChannel = async () => {
@@ -1599,12 +1825,20 @@ export const useRelaySettingsManagement = () => {
     channelSaving,
     togglingChannelId,
     showChannelDialog,
+    showChannelDetailDialog,
     showChannelImportDialog,
     channelImportText,
     isEditingChannel,
+    currentChannelDetail,
     selectedChannels,
     hasChannelSelection,
     isAllChannelsSelected,
+    visibilityUserOptions,
+    visibilityGroupOptions,
+    visibilityRoleOptions,
+    visibilityUserOptionsLoading,
+    visibilityGroupOptionsLoading,
+    visibilityRoleOptionsLoading,
     channelForm,
     timeRuleDialogVisible,
     editingTimeRuleIndex,
@@ -1642,6 +1876,9 @@ export const useRelaySettingsManagement = () => {
     exportChannelsAsJson,
     copyChannelsAsJson,
     openChannelImportDialog,
+    openChannelDetailDialog,
+    closeChannelDetailDialog,
+    handleVisibilityUserSearch,
     handleImportChannels,
     handleDuplicateChannel,
     handleBatchDuplicateChannels,

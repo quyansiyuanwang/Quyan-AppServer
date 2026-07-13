@@ -54,6 +54,7 @@ onMounted(async () => {
     }
 
     if (authorizationService.isPolicyConsentPayload(result)) {
+      authorizationService.setPendingPolicyConsentChallenge(result.challengeToken, redirect)
       ElMessage.warning(i18ns.t('loginOrRegisterPage.loginConsentPendingHint'))
       await router.replace(getLoginRoute(redirect))
       return

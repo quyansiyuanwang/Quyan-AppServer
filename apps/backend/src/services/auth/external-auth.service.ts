@@ -11,6 +11,7 @@ import type { UserStore } from "@/store/users/user.store";
 import type { ExternalIdentityStore } from "@/store/auth/external-identity.store";
 import { AuthService } from "@/services/auth/auth.service";
 import { ConfigService, type SocialAuthConfig } from "@/services/system/config.service";
+import { IpGeolocationService } from "@/services/infrastructure/ip-geolocation.service";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { CustomCode } from "@/constant/custom-code";
@@ -25,6 +26,7 @@ import {
 } from "@/util/errors";
 import { JWTAccessIns } from "@/util/auth";
 import { SSEStreamService } from "@/util/streaming/sse";
+import { extractClientIp } from "@/util/ip-extractor";
 import type {
   BindExternalIdentityResponse,
   CreateQrLoginSessionResponse,
@@ -35,6 +37,7 @@ import type {
   ExternalIdentityItem,
   ExternalIdentityProfile,
   ListExternalIdentitiesResponse,
+  QrLoginSessionContextDto,
   QrLoginSessionStatusResponse,
   StartExternalAuthResponse,
   UnbindExternalIdentityResponse,
@@ -64,6 +67,10 @@ interface QrLoginSessionPayload {
   status: "pending" | "scanned" | "approved" | "rejected" | "consumed" | "expired";
   createdAt: string;
   approvedByUserId?: string;
+  requestIp?: string;
+  requestLocation?: string;
+  requestUserAgent?: string;
+  deviceSummary?: string;
 }
 
 interface ExternalProviderProfile extends ExternalIdentityProfile {
@@ -88,6 +95,7 @@ export class ExternalAuthService {
     private readonly externalIdentityRepository: ExternalIdentityStore = ExternalIdentityRepository.getInstance(),
     private readonly authService: AuthService = new AuthService(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
+    private readonly ipGeolocationService: IpGeolocationService = IpGeolocationService.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly sseService: SSEStreamService = SSEStreamService.getInstance(),
   ) {}
@@ -111,6 +119,50 @@ export class ExternalAuthService {
 
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private getNormalizedUserAgent(userAgent: string | string[] | undefined): string | undefined {
+    if (Array.isArray(userAgent)) return userAgent[0] || undefined;
+    return userAgent || undefined;
+  }
+
+  private summarizeDevice(userAgent: string | undefined): string | undefined {
+    const normalized = String(userAgent || "").trim();
+    if (!normalized) return undefined;
+
+    const parts: string[] = [];
+    if (/Windows/i.test(normalized)) parts.push("Windows");
+    else if (/Android/i.test(normalized)) parts.push("Android");
+    else if (/(iPhone|iPad|iOS)/i.test(normalized)) parts.push("iOS");
+    else if (/Mac OS X|Macintosh/i.test(normalized)) parts.push("macOS");
+    else if (/Linux/i.test(normalized)) parts.push("Linux");
+
+    if (/Edg\//i.test(normalized)) parts.push("Edge");
+    else if (/Chrome\//i.test(normalized)) parts.push("Chrome");
+    else if (/Firefox\//i.test(normalized)) parts.push("Firefox");
+    else if (/Safari\//i.test(normalized) && !/Chrome\//i.test(normalized)) parts.push("Safari");
+
+    return parts.length > 0 ? parts.join(" · ") : normalized.slice(0, 120);
+  }
+
+  private async buildQrLoginSessionContext(
+    sessionId: string,
+    payload: QrLoginSessionPayload,
+    expiresIn: number,
+  ): Promise<QrLoginSessionContextDto> {
+    const user = payload.approvedByUserId ? await this.userRepository.findById(payload.approvedByUserId) : null;
+
+    return {
+      sessionId,
+      status: payload.status,
+      expiresIn,
+      createdAt: payload.createdAt,
+      requestIp: payload.requestIp,
+      requestLocation: payload.requestLocation,
+      requestUserAgent: payload.requestUserAgent,
+      deviceSummary: payload.deviceSummary,
+      user: this.mapQrUser(user),
+    };
   }
 
   private getProviderConfig(provider: ExternalAuthProvider, config: SocialAuthConfig) {
@@ -873,15 +925,22 @@ export class ExternalAuthService {
 
     const sessionId = randomUUID();
     const expiresIn = socialConfig.qrLoginTtlSeconds;
+    const requestIp = request ? extractClientIp(request) : "unknown";
+    const requestUserAgent = this.getNormalizedUserAgent(request?.headers["user-agent"]);
+    const requestLocation = request ? await this.ipGeolocationService.getLocation(requestIp) : undefined;
     const payload: QrLoginSessionPayload = {
       sessionId,
       status: "pending",
       createdAt: new Date().toISOString(),
+      requestIp,
+      requestLocation,
+      requestUserAgent,
+      deviceSummary: this.summarizeDevice(requestUserAgent),
     };
 
     await this.redisService.set(this.qrLoginKey(sessionId), JSON.stringify(payload), expiresIn);
 
-    const scanUrl = `${socialConfig.frontendBaseUrl || this.getBackendOrigin(request)}/login?qrSession=${encodeURIComponent(sessionId)}`;
+    const scanUrl = `${socialConfig.frontendBaseUrl || this.getBackendOrigin(request)}/auth/qr-approve?sessionId=${encodeURIComponent(sessionId)}`;
     const qrCodeDataUrl = await QRCode.toDataURL(scanUrl);
 
     await this.businessLogService.logOperation({
@@ -921,6 +980,11 @@ export class ExternalAuthService {
       payload: JSON.parse(raw) as QrLoginSessionPayload,
       expiresIn,
     };
+  }
+
+  public async getQrLoginSessionContext(sessionId: string): Promise<QrLoginSessionContextDto> {
+    const { payload, expiresIn } = await this.readQrSession(sessionId);
+    return this.buildQrLoginSessionContext(sessionId, payload, expiresIn);
   }
 
   public async markQrSessionScanned(

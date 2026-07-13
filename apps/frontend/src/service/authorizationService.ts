@@ -66,6 +66,12 @@ interface PendingTwoFactorChallenge {
   createdAt: number
 }
 
+interface PendingPolicyConsentChallenge {
+  challengeToken: string
+  redirect?: string
+  createdAt: number
+}
+
 interface CompleteLoginOptions {
   preserveRefreshTokenIfMissing?: boolean
   clearPendingTwoFactorChallenge?: boolean
@@ -353,6 +359,42 @@ export class AuthorizationService {
     sessionStorage.removeItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)
   }
 
+  setPendingPolicyConsentChallenge(challengeToken: string, redirect?: string) {
+    if (!challengeToken) return
+
+    const payload: PendingPolicyConsentChallenge = {
+      challengeToken,
+      redirect,
+      createdAt: Date.now(),
+    }
+
+    sessionStorage.setItem(
+      StorageKey.Auth.PENDING_POLICY_CONSENT_CHALLENGE,
+      JSON.stringify(payload),
+    )
+  }
+
+  getPendingPolicyConsentChallenge(): PendingPolicyConsentChallenge | null {
+    const raw = sessionStorage.getItem(StorageKey.Auth.PENDING_POLICY_CONSENT_CHALLENGE)
+    if (!raw) return null
+
+    try {
+      const parsed = JSON.parse(raw) as PendingPolicyConsentChallenge
+      if (!parsed?.challengeToken || typeof parsed.challengeToken !== 'string') {
+        this.clearPendingPolicyConsentChallenge()
+        return null
+      }
+      return parsed
+    } catch {
+      this.clearPendingPolicyConsentChallenge()
+      return null
+    }
+  }
+
+  clearPendingPolicyConsentChallenge() {
+    sessionStorage.removeItem(StorageKey.Auth.PENDING_POLICY_CONSENT_CHALLENGE)
+  }
+
   async refreshToken(refresh_token?: string) {
     const impersonationStore = useImpersonationStore()
 
@@ -481,6 +523,7 @@ export class AuthorizationService {
       this.clearStoredRefreshToken()
       this.clearImpersonationArtifacts()
       AuthorizationService.getInstance().clearPendingTwoFactorChallenge()
+      AuthorizationService.getInstance().clearPendingPolicyConsentChallenge()
       ReplaySigningService.getInstance().clearSigningMaterial()
       heartbeatService.stop()
       authEventBus.emit('USER_LOGGED_OUT')

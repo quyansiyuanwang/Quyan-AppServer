@@ -72,3 +72,26 @@ export const getForgotPasswordRoute = (redirect?: string): RouteLocationRaw => {
       }
     : { name: 'forgotPassword' }
 }
+
+export const getQrApprovalRoute = (sessionId: string, redirect?: string): RouteLocationRaw => {
+  const safeRedirect = normalizeRedirect(redirect)
+  return {
+    path: '/auth/qr-approve',
+    query: safeRedirect ? { sessionId, redirect: safeRedirect } : { sessionId },
+  }
+}
+
+export const isQrApprovalRedirect = (redirect: unknown): redirect is string => {
+  const normalized = normalizeRedirect(typeof redirect === 'string' ? redirect : undefined)
+  if (!normalized) return false
+
+  try {
+    const parsed = new URL(normalized, 'http://localhost')
+    return (
+      parsed.pathname.replace(/\/+$/, '') === '/auth/qr-approve' &&
+      parsed.searchParams.has('sessionId')
+    )
+  } catch {
+    return false
+  }
+}

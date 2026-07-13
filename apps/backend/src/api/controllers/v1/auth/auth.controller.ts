@@ -51,6 +51,7 @@ import type {
   UnbindExternalIdentityDto,
   UnbindExternalIdentityResponse,
   CreateQrLoginSessionResponse,
+  QrLoginSessionContextDto,
   ScanQrLoginDto,
   ConfirmQrLoginDto,
   QrLoginSessionStatusResponse,
@@ -256,6 +257,13 @@ export class AuthController extends Controller {
   @Middlewares(replayProtectionMiddleware)
   public async createQrLoginSession(@Request() request: ExpressRequest): Promise<CreateQrLoginSessionResponse> {
     return this.externalAuthService.createQrLoginSession(request);
+  }
+
+  @Get("qr-login/session")
+  @SuccessResponse(HttpStatusCode.Ok, "获取扫码登录会话详情成功")
+  @Middlewares(validateQuery(qrLoginStatusQuerySchema))
+  public async getQrLoginSessionContext(@Query() sessionId: string): Promise<QrLoginSessionContextDto> {
+    return this.externalAuthService.getQrLoginSessionContext(sessionId);
   }
 
   @Post("qr-login/scan")
