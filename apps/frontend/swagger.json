@@ -19089,6 +19089,82 @@
 				]
 			}
 		},
+		"/v1/auth/qr-login/stream": {
+			"get": {
+				"operationId": "AuthControllerStreamQrLoginStatus",
+				"responses": {
+					"200": {
+						"description": "扫码登录状态流建立成功"
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "sessionId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/auth/qr-login/consume": {
+			"post": {
+				"operationId": "AuthControllerConsumeQrLogin",
+				"responses": {
+					"200": {
+						"description": "扫码登录会话已消费",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/QrLoginSessionStatusResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ScanQrLoginDto"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/auth/refresh": {
 			"post": {
 				"operationId": "AuthControllerRefresh",

@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 import { i18ns } from '@/locales'
 import { socialAuthService } from '@/service/socialAuthService'
 import { authorizationService } from '@/service/authorizationService'
-import { getLoginRoute } from '@/utils/auth-routes'
+import { getLoginRoute, getSafeAuthRedirect } from '@/utils/auth-routes'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,7 +19,10 @@ const provider = String((route.params as Record<string, unknown>).provider || ''
 onMounted(async () => {
   const code = typeof route.query.code === 'string' ? route.query.code : ''
   const state = typeof route.query.state === 'string' ? route.query.state : ''
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : undefined
+  const redirect = getSafeAuthRedirect(route.query.redirect, {
+    blockedExactPaths: ['/login', '/register', '/forgot-password'],
+    blockedPrefixes: ['/auth/verify'],
+  })
 
   if (!provider || !code || !state) {
     ElMessage.error(i18ns.t('message.error.loginFailed'))

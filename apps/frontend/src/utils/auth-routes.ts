@@ -6,6 +6,19 @@ const normalizeRedirect = (redirect?: string): string | undefined => {
   return normalized.startsWith('/') ? normalized : undefined
 }
 
+const normalizeComparablePath = (redirect?: string): string | undefined => {
+  const normalized = normalizeRedirect(redirect)
+  if (!normalized) return undefined
+
+  try {
+    const parsed = new URL(normalized, 'http://localhost')
+    return parsed.pathname.replace(/\/+$/, '') || '/'
+  } catch {
+    const [pathOnly] = normalized.split(/[?#]/, 1)
+    return pathOnly?.replace(/\/+$/, '') || '/'
+  }
+}
+
 const normalizeBlockedPaths = (blockedPaths: string[] | undefined): string[] =>
   Array.isArray(blockedPaths) ? blockedPaths.filter((item) => typeof item === 'string') : []
 
@@ -18,12 +31,14 @@ export const getSafeAuthRedirect = (
 ): string | undefined => {
   const normalized = normalizeRedirect(typeof redirect === 'string' ? redirect : undefined)
   if (!normalized) return undefined
+  const comparablePath = normalizeComparablePath(normalized)
 
   const blockedExactPaths = normalizeBlockedPaths(options?.blockedExactPaths)
   const blockedPrefixes = normalizeBlockedPaths(options?.blockedPrefixes)
 
-  if (blockedExactPaths.includes(normalized)) return undefined
-  if (blockedPrefixes.some((prefix) => normalized.startsWith(prefix))) return undefined
+  if (comparablePath && blockedExactPaths.includes(comparablePath)) return undefined
+  if (comparablePath && blockedPrefixes.some((prefix) => comparablePath.startsWith(prefix)))
+    return undefined
 
   return normalized
 }

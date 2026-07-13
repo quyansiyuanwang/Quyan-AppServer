@@ -1,7 +1,7 @@
 import axios from "axios";
 import QRCode from "qrcode";
 import { createHash, randomUUID } from "crypto";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import type { UserExternalIdentity } from "@prisma/client";
 import { EnvSpace } from "@/config/env";
 import { RedisService } from "@/services/infrastructure/redis.service";
@@ -18,11 +18,13 @@ import {
   BadRequestError,
   ConflictError,
   ForbiddenError,
+  GatewayTimeoutError,
   InternalServerError,
   NotFoundError,
   UnauthorizedError,
 } from "@/util/errors";
 import { JWTAccessIns } from "@/util/auth";
+import { SSEStreamService } from "@/util/streaming/sse";
 import type {
   BindExternalIdentityResponse,
   CreateQrLoginSessionResponse,
@@ -71,6 +73,12 @@ interface ExternalProviderProfile extends ExternalIdentityProfile {
   raw: Record<string, unknown>;
 }
 
+type NetworkRetryOptions = {
+  retries?: number;
+  timeoutMs?: number;
+  label: string;
+};
+
 export class ExternalAuthService {
   private static instance: ExternalAuthService;
 
@@ -81,6 +89,7 @@ export class ExternalAuthService {
     private readonly authService: AuthService = new AuthService(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly sseService: SSEStreamService = SSEStreamService.getInstance(),
   ) {}
 
   public static getInstance(): ExternalAuthService {
@@ -98,6 +107,10 @@ export class ExternalAuthService {
 
   private qrLoginKey(sessionId: string): string {
     return `auth:qr-login:${sessionId}`;
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private getProviderConfig(provider: ExternalAuthProvider, config: SocialAuthConfig) {
@@ -128,6 +141,11 @@ export class ExternalAuthService {
     return `http://localhost:${EnvSpace.port}`;
   }
 
+  private getFrontendOrigin(config: SocialAuthConfig, request?: Request): string {
+    const configured = String(config.frontendBaseUrl || "").trim().replace(/\/+$/, "");
+    return configured || this.getBackendOrigin(request);
+  }
+
   private extractBearerToken(request?: Request): string | undefined {
     const authHeader = request?.headers["authorization"];
     if (typeof authHeader !== "string") return undefined;
@@ -151,9 +169,45 @@ export class ExternalAuthService {
     return payload?.userId || undefined;
   }
 
-  private buildCallbackUrl(provider: ExternalAuthProvider, config: SocialAuthConfig, request?: Request): string {
+  private buildCallbackUrl(
+    provider: ExternalAuthProvider,
+    config: SocialAuthConfig,
+    request?: Request,
+    options?: {
+      action?: ExternalAuthAction;
+      redirectUri?: string;
+    },
+  ): string {
     const providerConfig = this.getProviderConfig(provider, config);
-    return new URL(providerConfig.callbackPath, this.getBackendOrigin(request)).toString();
+    const normalizedRedirect = String(options?.redirectUri || "").trim();
+
+    if (options?.action === "bind" && normalizedRedirect) {
+      if (/^https?:\/\//i.test(normalizedRedirect)) return normalizedRedirect;
+      if (normalizedRedirect.startsWith("/"))
+        return new URL(normalizedRedirect, this.getFrontendOrigin(config, request)).toString();
+    }
+
+    const configuredCallbackPath = String(providerConfig.callbackPath || "").trim();
+    const legacyBackendCallbackPath = `/v1/auth/external/${provider}/callback`;
+    const effectiveCallbackPath =
+      !configuredCallbackPath || configuredCallbackPath === legacyBackendCallbackPath
+        ? `/auth/external/${provider}/callback`
+        : configuredCallbackPath;
+
+    const callbackUrl = /^https?:\/\//i.test(effectiveCallbackPath)
+      ? new URL(effectiveCallbackPath)
+      : new URL(
+          effectiveCallbackPath,
+          effectiveCallbackPath.startsWith("/v1/")
+            ? this.getBackendOrigin(request)
+            : this.getFrontendOrigin(config, request),
+        );
+
+    if (options?.action !== "bind" && normalizedRedirect) {
+      callbackUrl.searchParams.set("redirect", normalizedRedirect);
+    }
+
+    return callbackUrl.toString();
   }
 
   private async persistExternalState(payload: ExternalAuthStatePayload): Promise<string> {
@@ -163,18 +217,89 @@ export class ExternalAuthService {
     return state;
   }
 
-  private async consumeExternalState(state: string): Promise<ExternalAuthStatePayload> {
+  private async readExternalState(state: string): Promise<ExternalAuthStatePayload> {
     const key = this.externalStateKey(state);
     const raw = await this.redisService.get(key);
     if (!raw) throw new UnauthorizedError("外部登录状态已失效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
-
-    await this.redisService.delete(key);
 
     try {
       return JSON.parse(raw) as ExternalAuthStatePayload;
     } catch {
       throw new UnauthorizedError("外部登录状态无效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
     }
+  }
+
+  private async peekExternalState(state: string): Promise<ExternalAuthStatePayload> {
+    return this.readExternalState(state);
+  }
+
+  private async consumeExternalState(state: string): Promise<ExternalAuthStatePayload> {
+    const payload = await this.readExternalState(state);
+    await this.redisService.delete(this.externalStateKey(state));
+    return payload;
+  }
+
+  private async withTimeoutAndRetry<T>(operation: () => Promise<T>, options: NetworkRetryOptions): Promise<T> {
+    const retries = Math.max(0, Math.floor(options.retries ?? 0));
+    const timeoutMs = Math.max(1, Math.floor(options.timeoutMs ?? 15_000));
+
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        const shouldRetry = attempt < retries && this.isRetryableNetworkError(error);
+        if (!shouldRetry) break;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    if (lastError instanceof GatewayTimeoutError) throw lastError;
+    throw this.normalizeNetworkError(lastError, options.label);
+  }
+
+  private isRetryableNetworkError(error: unknown): boolean {
+    if (!error || typeof error !== "object") return false;
+
+    const anyError = error as {
+      code?: string;
+      message?: string;
+      name?: string;
+      response?: { status?: number };
+      cause?: { code?: string };
+    };
+
+    const status = anyError.response?.status;
+    if (typeof status === "number" && status >= 500) return true;
+
+    const code = anyError.code || anyError.cause?.code;
+    if (["ECONNABORTED", "ETIMEDOUT", "ENETUNREACH", "EAI_AGAIN", "ECONNRESET", "EPIPE"].includes(code || ""))
+      return true;
+
+    const name = String(anyError.name || "").toLowerCase();
+    if (name.includes("abort")) return true;
+
+    const message = String(anyError.message || "").toLowerCase();
+    return message.includes("timeout") || message.includes("socket hang up");
+  }
+
+  private normalizeNetworkError(error: unknown, label: string): never {
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      if (status === 504 || status === 408 || error.code === "ECONNABORTED") {
+        throw new GatewayTimeoutError(`${label} 请求超时，请稍后重试`);
+      }
+      if (status && status >= 500) {
+        throw new GatewayTimeoutError(`${label} 上游暂时不可用，请稍后重试`);
+      }
+    }
+
+    throw new GatewayTimeoutError(`${label} 暂时不可用，请稍后重试`);
   }
 
   private async createBindingToken(payload: ExternalBindingPayload): Promise<{ token: string; expiresIn: number }> {
@@ -225,22 +350,34 @@ export class ExternalAuthService {
     };
   }
 
-  private async fetchGithubProfile(code: string, request?: Request): Promise<ExternalProviderProfile> {
+  private async fetchGithubProfile(
+    code: string,
+    request?: Request,
+    callbackUrl?: string,
+  ): Promise<ExternalProviderProfile> {
     const socialConfig = await this.configService.getSocialAuthConfig();
     const config = socialConfig.github;
 
-    const tokenResponse = await axios.post(
-      config.tokenUrl,
+    const tokenResponse = await this.withTimeoutAndRetry(
+      async () =>
+        axios.post(
+          config.tokenUrl,
+          {
+            client_id: config.clientId,
+            client_secret: config.clientSecret,
+            code,
+            redirect_uri: callbackUrl || this.buildCallbackUrl("github", socialConfig, request),
+          },
+          {
+            headers: {
+              Accept: "application/json",
+            },
+          },
+        ),
       {
-        client_id: config.clientId,
-        client_secret: config.clientSecret,
-        code,
-        redirect_uri: this.buildCallbackUrl("github", socialConfig, request),
-      },
-      {
-        headers: {
-          Accept: "application/json",
-        },
+        label: "GitHub token",
+        retries: 1,
+        timeoutMs: 15_000,
       },
     );
 
@@ -248,18 +385,34 @@ export class ExternalAuthService {
     if (!accessToken) throw new UnauthorizedError("GitHub 登录令牌获取失败", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID);
 
     const [profileResponse, emailResponse] = await Promise.all([
-      axios.get(config.userUrl, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
+      this.withTimeoutAndRetry(
+        async () =>
+          axios.get(config.userUrl, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Accept: "application/json",
+            },
+          }),
+        {
+          label: "GitHub user",
+          retries: 1,
+          timeoutMs: 15_000,
         },
-      }),
-      axios.get(config.emailUrl, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
+      ),
+      this.withTimeoutAndRetry(
+        async () =>
+          axios.get(config.emailUrl, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              Accept: "application/json",
+            },
+          }),
+        {
+          label: "GitHub email",
+          retries: 1,
+          timeoutMs: 15_000,
         },
-      }),
+      ),
     ]);
 
     const primaryEmail = Array.isArray(emailResponse.data)
@@ -286,6 +439,7 @@ export class ExternalAuthService {
     provider: Extract<ExternalAuthProvider, "wechat-open" | "wechat-web">,
     code: string,
     request?: Request,
+    callbackUrl?: string,
   ): Promise<ExternalProviderProfile> {
     const socialConfig = await this.configService.getSocialAuthConfig();
     const config = provider === "wechat-open" ? socialConfig.wechatOpen : socialConfig.wechatWeb;
@@ -296,7 +450,7 @@ export class ExternalAuthService {
         secret: config.appSecret,
         code,
         grant_type: "authorization_code",
-        redirect_uri: this.buildCallbackUrl(provider, socialConfig, request),
+        redirect_uri: callbackUrl || this.buildCallbackUrl(provider, socialConfig, request),
       },
     });
 
@@ -335,11 +489,64 @@ export class ExternalAuthService {
     provider: ExternalAuthProvider,
     code: string,
     request?: Request,
+    callbackUrl?: string,
   ): Promise<ExternalProviderProfile> {
-    if (provider === "github") return this.fetchGithubProfile(code, request);
+    if (provider === "github") return this.fetchGithubProfile(code, request, callbackUrl);
     if (provider === "wechat-open" || provider === "wechat-web")
-      return this.fetchWechatProfile(provider, code, request);
+      return this.fetchWechatProfile(provider, code, request, callbackUrl);
     throw new BadRequestError("不支持的外部登录提供方", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID);
+  }
+
+  private mapQrUser(user: Awaited<ReturnType<UserStore["findById"]>>): QrLoginSessionStatusResponse["user"] {
+    if (!user) return undefined;
+
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      status: user.status,
+      createdAt: user.createTime.toISOString(),
+      updatedAt: user.updateTime.toISOString(),
+    };
+  }
+
+  private async buildQrLoginStatusResponse(
+    sessionId: string,
+    request?: Request,
+  ): Promise<QrLoginSessionStatusResponse> {
+    const { payload, expiresIn } = await this.readQrSession(sessionId);
+
+    if (payload.status === "approved" && payload.approvedByUserId) {
+      const user = await this.userRepository.findById(payload.approvedByUserId);
+      if (!user) throw new NotFoundError("扫码登录用户不存在", CustomCode.NOT_FOUND);
+
+      const authData = await this.authService.completeKnownUserLogin(user, request, {
+        source: "qr_login",
+        successDescription: "站内扫码登录成功",
+      });
+
+      return {
+        status: "approved",
+        expiresIn,
+        auth: authData,
+        user: "user" in authData ? authData.user : this.mapQrUser(user),
+      };
+    }
+
+    if (payload.status === "scanned" && payload.approvedByUserId) {
+      const user = await this.userRepository.findById(payload.approvedByUserId);
+      return {
+        status: payload.status,
+        expiresIn,
+        user: this.mapQrUser(user),
+      };
+    }
+
+    return {
+      status: payload.status,
+      expiresIn,
+    };
   }
 
   private async findExistingIdentity(profile: ExternalIdentityProfile): Promise<UserExternalIdentity | null> {
@@ -428,7 +635,10 @@ export class ExternalAuthService {
     if (action === "bind" && !resolvedUserId) throw new UnauthorizedError("绑定外部账号需要先登录");
 
     const state = await this.persistExternalState({ provider, action, redirectUri, userId: resolvedUserId });
-    const callbackUrl = this.buildCallbackUrl(provider, socialConfig, request);
+    const callbackUrl = this.buildCallbackUrl(provider, socialConfig, request, {
+      action,
+      redirectUri,
+    });
 
     if (provider === "github") {
       const providerConfig = socialConfig.github;
@@ -468,11 +678,17 @@ export class ExternalAuthService {
     state: string,
     request?: Request,
   ): Promise<ExternalAuthCallbackResponse> {
-    const statePayload = await this.consumeExternalState(state);
+    const statePayload = await this.peekExternalState(state);
     if (statePayload.provider !== provider)
       throw new UnauthorizedError("外部登录状态与提供方不匹配", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
 
-    const profile = await this.fetchProviderProfile(provider, code, request);
+    const socialConfig = await this.configService.getSocialAuthConfig();
+    const callbackUrl = this.buildCallbackUrl(provider, socialConfig, request, {
+      action: statePayload.action,
+      redirectUri: statePayload.redirectUri,
+    });
+    const profile = await this.fetchProviderProfile(provider, code, request, callbackUrl);
+    await this.consumeExternalState(state);
 
     if (statePayload.action === "bind") {
       const userId = String(statePayload.userId || "").trim();
@@ -740,17 +956,7 @@ export class ExternalAuthService {
     return {
       status: nextPayload.status,
       expiresIn,
-      user: user
-        ? {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            name: user.name,
-            status: user.status,
-            createdAt: user.createTime.toISOString(),
-            updatedAt: user.updateTime.toISOString(),
-          }
-        : undefined,
+      user: this.mapQrUser(user),
     };
   }
 
@@ -795,36 +1001,91 @@ export class ExternalAuthService {
   }
 
   public async getQrLoginStatus(sessionId: string, request?: Request): Promise<QrLoginSessionStatusResponse> {
+    return this.buildQrLoginStatusResponse(sessionId, request);
+  }
+
+  public async consumeQrLoginSession(
+    sessionId: string,
+    _request?: Request,
+  ): Promise<QrLoginSessionStatusResponse> {
     const { payload, expiresIn } = await this.readQrSession(sessionId);
-    if (payload.status === "approved" && payload.approvedByUserId) {
-      const user = await this.userRepository.findById(payload.approvedByUserId);
-      if (!user) throw new NotFoundError("扫码登录用户不存在", CustomCode.NOT_FOUND);
 
-      await this.redisService.set(
-        this.qrLoginKey(sessionId),
-        JSON.stringify({
-          ...payload,
-          status: "consumed",
-        } satisfies QrLoginSessionPayload),
-        Math.max(1, expiresIn),
-      );
-
-      const authData = await this.authService.completeKnownUserLogin(user, request, {
-        source: "qr_login",
-        successDescription: "站内扫码登录成功",
-      });
-
+    if (payload.status === "expired") {
       return {
-        status: "approved",
+        status: "expired",
         expiresIn,
-        auth: authData,
-        user: "user" in authData ? authData.user : undefined,
       };
     }
 
+    if (payload.status === "consumed") {
+      return {
+        status: "consumed",
+        expiresIn,
+      };
+    }
+
+    if (payload.status !== "approved") {
+      return this.buildQrLoginStatusResponse(sessionId);
+    }
+
+    await this.redisService.set(
+      this.qrLoginKey(sessionId),
+      JSON.stringify({
+        ...payload,
+        status: "consumed",
+      } satisfies QrLoginSessionPayload),
+      Math.max(1, expiresIn),
+    );
+
     return {
-      status: payload.status,
+      status: "consumed",
       expiresIn,
     };
+  }
+
+  public async streamQrLoginStatus(sessionId: string, request: Request, res: Response): Promise<void> {
+    this.sseService.initStream(res);
+
+    let closed = false;
+    let heartbeatCounter = 0;
+    let previousPayload = "";
+
+    const handleClose = () => {
+      closed = true;
+    };
+
+    request.on("close", handleClose);
+    request.on("aborted", handleClose);
+
+    try {
+      while (!closed) {
+        const status = await this.buildQrLoginStatusResponse(sessionId, request);
+        const serializedStatus = JSON.stringify(status);
+
+        if (serializedStatus !== previousPayload || heartbeatCounter >= 10) {
+          this.sseService.sendChunk(res, status);
+          previousPayload = serializedStatus;
+          heartbeatCounter = 0;
+        } else {
+          heartbeatCounter += 1;
+        }
+
+        if (["approved", "rejected", "expired", "consumed"].includes(status.status)) {
+          this.sseService.sendDone(res);
+          break;
+        }
+
+        await this.sleep(1000);
+      }
+    } catch (error) {
+      if (!closed) {
+        const message = error instanceof Error ? error.message : "QR stream failed";
+        this.sseService.sendError(res, message);
+      }
+    } finally {
+      request.off("close", handleClose);
+      request.off("aborted", handleClose);
+      if (!res.writableEnded) this.sseService.endStream(res);
+    }
   }
 }

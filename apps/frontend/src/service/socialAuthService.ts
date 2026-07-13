@@ -11,6 +11,8 @@ import type {
   StartExternalAuthResponse,
 } from '@/client/types.gen'
 import { CustomCode } from '@/constant/custom-code'
+import { getBackendLocale } from '@/locales'
+import { SSEStream, type SSEOptions } from '@/service/streaming/sse'
 import { useRequestStore } from '@/stores/request'
 import { cache } from '@/utils/common'
 import { toServiceError } from '@/utils/error-utils'
@@ -38,6 +40,11 @@ const isBindingRequiredData = (value: unknown): value is ExternalAuthBindingRequ
 
 export class SocialAuthService {
   private static instance: SocialAuthService | null = null
+
+  private buildBackendUrl(path: string): string {
+    const baseUrl = String(import.meta.env.VITE_BACKEND_URL || window.location.origin).trim()
+    return new URL(path, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).toString()
+  }
 
   static getInstance() {
     if (!this.instance) this.instance = new SocialAuthService()
@@ -125,6 +132,34 @@ export class SocialAuthService {
     if (result.code === CustomCode.OK && result.data)
       return result.data as QrLoginSessionStatusResponse
     throw toServiceError(result)
+  }
+
+  async consumeQrLoginSession(sessionId: string): Promise<QrLoginSessionStatusResponse> {
+    const result = await getAuthControllerApi().consumeQrLogin({
+      body: { sessionId },
+    })
+
+    if (result.code === CustomCode.OK && result.data)
+      return result.data as QrLoginSessionStatusResponse
+
+    throw toServiceError(result)
+  }
+
+  streamQrLoginStatus(sessionId: string, callbacks: SSEOptions): SSEStream {
+    const stream = new SSEStream()
+    void stream.connect(
+      this.buildBackendUrl(`/v1/auth/qr-login/stream?sessionId=${encodeURIComponent(sessionId)}`),
+      {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          Accept: 'text/event-stream',
+          ...(getBackendLocale() ? { 'X-Locale': getBackendLocale() } : {}),
+        },
+      },
+      callbacks,
+    )
+    return stream
   }
 
   isAuthData(data: unknown): data is AuthData {

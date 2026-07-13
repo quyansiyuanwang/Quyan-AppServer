@@ -87,7 +87,7 @@ import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { CaptchaProtected, captchaMiddleware } from "@/util/captcha-protected-decorator";
 import { ConfigService } from "@/services/system/config.service";
-import { setResponseMessageKey } from "@/util/response-wrapper";
+import { setResponseMessageKey, skipResponseWrapper } from "@/util/response-wrapper";
 import { Security } from "@tsoa/runtime";
 import { ExternalAuthService } from "@/services/auth/external-auth.service";
 import {
@@ -295,6 +295,25 @@ export class AuthController extends Controller {
     @Request() request: ExpressRequest,
   ): Promise<QrLoginSessionStatusResponse> {
     return this.externalAuthService.getQrLoginStatus(sessionId, request);
+  }
+
+  @Get("qr-login/stream")
+  @SuccessResponse(HttpStatusCode.Ok, "扫码登录状态流建立成功")
+  @Middlewares(validateQuery(qrLoginStatusQuerySchema))
+  public async streamQrLoginStatus(@Query() sessionId: string, @Request() request: TypedRequest): Promise<void> {
+    skipResponseWrapper(request);
+    if (!request.res) throw new Error("Missing response object for QR stream");
+    await this.externalAuthService.streamQrLoginStatus(sessionId, request, request.res);
+  }
+
+  @Post("qr-login/consume")
+  @SuccessResponse(HttpStatusCode.Ok, "扫码登录会话已消费")
+  @Middlewares(validateBody(scanQrLoginBodySchema))
+  public async consumeQrLogin(
+    @Body() requestBody: ScanQrLoginDto,
+    @Request() request: ExpressRequest,
+  ): Promise<QrLoginSessionStatusResponse> {
+    return this.externalAuthService.consumeQrLoginSession(requestBody.sessionId, request);
   }
 
   /**

@@ -324,8 +324,11 @@ const sendCodeDisabled = computed(() => {
           {{ i18ns.t('refresh') }}
         </div>
 
-        <div v-if="state.getQrSessionIdFromRoute()" class="qr-login-panel__actions">
-          <el-button :loading="qrLoginBusy" @click="state.handleQrScan">
+        <div
+          v-if="state.getQrSessionIdFromRoute() && !state.isDesktop.value"
+          class="qr-login-panel__actions"
+        >
+          <el-button :loading="qrLoginBusy" @click="state.handleQrScan()">
             {{ i18ns.t('refresh') }}
           </el-button>
           <el-button
