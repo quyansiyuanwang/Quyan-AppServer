@@ -150,6 +150,18 @@ export interface CreateQrLoginSessionResponse {
   pollIntervalSeconds: number;
 }
 
+export interface QrLoginSessionContextDto {
+  sessionId: string;
+  status: "pending" | "scanned" | "approved" | "rejected" | "expired" | "consumed";
+  expiresIn: number;
+  createdAt: string;
+  requestIp?: string;
+  requestLocation?: string;
+  requestUserAgent?: string;
+  deviceSummary?: string;
+  user?: UserDto;
+}
+
 export interface ScanQrLoginDto {
   sessionId: string;
 }

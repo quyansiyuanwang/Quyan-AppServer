@@ -332,6 +332,10 @@ const zhCN: DeepStringify<typeof en> = {
     wechatOpenLogin: '微信开放平台登录',
     wechatWebLogin: '微信网页登录',
     qrLogin: '站内二维码登录',
+    qrApprovalTitle: '确认设备登录',
+    qrApprovalNeedLogin: '请先登录当前账号，然后返回此页面确认本次登录。',
+    qrApprovalAllow: '允许本次登录',
+    qrApprovalDeny: '拒绝本次登录',
   },
 
   oauthAuthorize: {

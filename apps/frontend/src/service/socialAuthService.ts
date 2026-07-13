@@ -7,6 +7,7 @@ import type {
   ExternalAuthBindingRequiredData,
   ExternalAuthProvider,
   ExternalIdentityItem,
+  QrLoginSessionContextDto,
   QrLoginSessionStatusResponse,
   StartExternalAuthResponse,
 } from '@/client/types.gen'
@@ -117,6 +118,12 @@ export class SocialAuthService {
     const result = await getAuthControllerApi().scanQrLogin({ body: { sessionId } })
     if (result.code === CustomCode.OK && result.data)
       return result.data as QrLoginSessionStatusResponse
+    throw toServiceError(result)
+  }
+
+  async getQrLoginSessionContext(sessionId: string): Promise<QrLoginSessionContextDto> {
+    const result = await getAuthControllerApi().getQrLoginSessionContext({ params: { sessionId } })
+    if (result.code === CustomCode.OK && result.data) return result.data as QrLoginSessionContextDto
     throw toServiceError(result)
   }
 

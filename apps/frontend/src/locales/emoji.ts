@@ -324,6 +324,10 @@ const emoji: DeepStringify<typeof en> = {
     wechatOpenLogin: '🟩🌍🔐',
     wechatWebLogin: '🟩🌐🔐',
     qrLogin: '🔳🔐',
+    qrApprovalTitle: '✅📱🔐',
+    qrApprovalNeedLogin: '🙏先🔐，然后↩️此页✅本次登录',
+    qrApprovalAllow: '✅本次登录',
+    qrApprovalDeny: '🚫本次登录',
   },
   oauthAuthorize: {
     title: '✅🔐📱',

@@ -65,6 +65,15 @@ export const routes = [
         component: () => import('@/views/auth/ExternalAuthCallbackView.vue'),
       },
       {
+        path: '/auth/qr-approve',
+        name: 'qrApproval',
+        meta: {
+          isAuthEntry: true,
+          requiresCaptchaPreflight: true,
+        },
+        component: () => import('@/views/auth/QrApprovalView.vue'),
+      },
+      {
         path: '/auth/captcha',
         name: 'captchaVerification',
         meta: {

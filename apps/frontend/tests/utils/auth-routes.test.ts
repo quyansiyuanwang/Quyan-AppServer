@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   getForgotPasswordRoute,
   getLoginRoute,
+  getQrApprovalRoute,
   getRegisterRoute,
   getSafeAuthRedirect,
+  isQrApprovalRedirect,
 } from '@/utils/auth-routes'
 
 describe('auth route helpers', () => {
@@ -42,6 +44,28 @@ describe('auth route helpers', () => {
       name: 'forgotPassword',
       query: { redirect: '/home' },
     })
+  })
+
+  it('builds qr approval route without redirect', () => {
+    expect(getQrApprovalRoute('session-1')).toEqual({
+      path: '/auth/qr-approve',
+      query: { sessionId: 'session-1' },
+    })
+  })
+
+  it('builds qr approval route with safe redirect', () => {
+    expect(getQrApprovalRoute('session-1', '/home')).toEqual({
+      path: '/auth/qr-approve',
+      query: { sessionId: 'session-1', redirect: '/home' },
+    })
+  })
+
+  it('recognizes qr approval redirect with session id', () => {
+    expect(isQrApprovalRedirect('/auth/qr-approve?sessionId=session-1')).toBe(true)
+  })
+
+  it('rejects qr approval redirect without session id', () => {
+    expect(isQrApprovalRedirect('/auth/qr-approve')).toBe(false)
   })
 
   it('returns undefined for blocked exact auth redirects', () => {

@@ -346,6 +346,11 @@ export default {
     wechatOpenLogin: 'WeChat Open Login',
     wechatWebLogin: 'WeChat Web Login',
     qrLogin: 'QR Login',
+    qrApprovalTitle: 'Confirm device sign-in',
+    qrApprovalNeedLogin:
+      'Please sign in on this device first, then return here to approve the login.',
+    qrApprovalAllow: 'Allow this sign-in',
+    qrApprovalDeny: 'Deny this sign-in',
   },
 
   oauthAuthorize: {
