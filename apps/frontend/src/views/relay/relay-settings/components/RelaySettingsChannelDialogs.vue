@@ -77,7 +77,7 @@
 
               <div class="flex justify-end">
                 <el-button size="small" type="danger" @click="removePoolMember(index)"
-                  >{ { i18ns.t('delete') } }</el-button
+                  >{{ i18ns.t('delete') }}</el-button
                 >
               </div>
             </div>
@@ -164,7 +164,7 @@
               allow-create
               default-first-option
               :placeholder="i18ns.t('relay.retryStatusCodesPlaceholder')"
-              style="width: 100%"
+              style="width: 500px"
             >
               <el-option :label="i18ns.t('relay.retryStatusCodeLabel4xx')" value="4xx" />
               <el-option :label="i18ns.t('relay.retryStatusCodeLabel5xx')" value="5xx" />
@@ -197,11 +197,21 @@
             v-model="channelForm.visibilityConfig.userIds"
             multiple
             filterable
+            remote
             allow-create
             default-first-option
+            :remote-method="handleVisibilityUserSearch"
+            :loading="visibilityUserOptionsLoading"
             style="width: 100%"
-            :placeholder="i18ns.t('relay.visibilityIdsPlaceholder')"
-          />
+            :placeholder="i18ns.t('relay.visibilityUsersPlaceholder')"
+          >
+            <el-option
+              v-for="user in visibilityUserOptions"
+              :key="user.id"
+              :label="formatVisibilityUserOption(user)"
+              :value="user.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item :label="i18ns.t('relay.visibilityGroups')">
           <el-select
@@ -210,9 +220,17 @@
             filterable
             allow-create
             default-first-option
+            :loading="visibilityGroupOptionsLoading"
             style="width: 100%"
-            :placeholder="i18ns.t('relay.visibilityIdsPlaceholder')"
-          />
+            :placeholder="i18ns.t('relay.visibilityGroupsPlaceholder')"
+          >
+            <el-option
+              v-for="group in visibilityGroupOptions"
+              :key="group.id"
+              :label="formatVisibilityGroupOption(group)"
+              :value="group.id"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item :label="i18ns.t('relay.visibilityRoles')">
           <el-select
@@ -221,9 +239,17 @@
             filterable
             allow-create
             default-first-option
+            :loading="visibilityRoleOptionsLoading"
             style="width: 100%"
-            :placeholder="i18ns.t('relay.visibilityIdsPlaceholder')"
-          />
+            :placeholder="i18ns.t('relay.visibilityRolesPlaceholder')"
+          >
+            <el-option
+              v-for="role in visibilityRoleOptions"
+              :key="role.id"
+              :label="formatVisibilityRoleOption(role)"
+              :value="role.id"
+            />
+          </el-select>
           <div class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.visibilityIdsHelp') }}</div>
         </el-form-item>
       </template>
@@ -463,9 +489,287 @@
       <el-button type="primary" @click="handleImportChannels">{{ i18ns.t('confirm') }}</el-button>
     </template>
   </el-dialog>
+
+  <el-dialog
+    v-model="showChannelDetailDialog"
+    :title="channelDetailDialogTitle"
+    :width="isDesktop ? '760px' : '92vw'"
+    append-to-body
+    destroy-on-close
+    @closed="closeChannelDetailDialog"
+  >
+    <div v-if="currentChannelDetail" class="flex flex-col gap-5">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+            {{ i18ns.t('relay.channelName') }}
+          </div>
+          <div class="font-medium break-all">{{ currentChannelDetail.name || '-' }}</div>
+        </div>
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+            {{ i18ns.t('status') }}
+          </div>
+          <el-tag :type="currentChannelDetail.enabled ? 'success' : 'info'" size="small">
+            {{ currentChannelDetail.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled') }}
+          </el-tag>
+        </div>
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+            {{ i18ns.t('relay.channelType') }}
+          </div>
+          <div>{{ formatChannelTypeLabel(currentChannelDetail.channelType) }}</div>
+        </div>
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+            {{ i18ns.t('relay.visibilityMode') }}
+          </div>
+          <div>{{ getVisibilitySummary(currentChannelDetail) }}</div>
+        </div>
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+            {{ i18ns.t('relay.channelMultiplier') }}
+          </div>
+          <div>{{ currentChannelDetail.multiplier }}x</div>
+        </div>
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+            {{ i18ns.t('relay.inputTokensIncludeCacheRead') }}
+          </div>
+          <div>
+            {{ currentChannelDetail.inputTokensIncludeCacheRead ? i18ns.t('yes') : i18ns.t('no') }}
+          </div>
+        </div>
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+            {{ i18ns.t('relay.createTime') }}
+          </div>
+          <div>{{ formatDateTime(currentChannelDetail.createTime) }}</div>
+        </div>
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+            {{ i18ns.t('relay.updateTime') }}
+          </div>
+          <div>{{ formatDateTime(currentChannelDetail.updateTime) }}</div>
+        </div>
+      </div>
+
+      <div>
+        <el-divider content-position="left">{{ i18ns.t('relay.channelComposition') }}</el-divider>
+        <div v-if="currentChannelDetail.channelType === 'pooled'" class="flex flex-col gap-3">
+          <div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">
+              {{ i18ns.t('relay.routingStrategy') }}
+            </div>
+            <el-tag type="primary" size="small">
+              {{ formatRoutingStrategyLabel(currentChannelDetail.routingStrategy) }}
+            </el-tag>
+          </div>
+          <div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">
+              {{ i18ns.t('relay.poolMembers') }}
+            </div>
+            <div v-if="(currentChannelDetail.poolMembers || []).length" class="flex flex-col gap-2">
+              <div
+                v-for="(member, index) in currentChannelDetail.poolMembers || []"
+                :key="member.id || `${member.memberChannelId}-${index}`"
+                class="rounded border border-[var(--el-border-color-lighter)] p-3"
+              >
+                <div class="font-medium break-all">{{ getChannelNameById(member.memberChannelId) }}</div>
+                <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+                  #{{ member.priority }}
+                  <span v-if="typeof member.weight === 'number'"> · w={{ member.weight }}</span>
+                  <span> · {{ member.enabled === false ? i18ns.t('relay.disabled') : i18ns.t('relay.enabled') }}</span>
+                </div>
+              </div>
+            </div>
+            <el-empty v-else :description="i18ns.t('relay.noPoolMembers')" />
+          </div>
+          <div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">
+              {{ i18ns.t('relay.routingConfig') }}
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.maxRetries') }}</div>
+                <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.maxRetries) }}</div>
+              </div>
+              <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.failoverThreshold') }}</div>
+                <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.failoverThreshold) }}</div>
+              </div>
+              <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.failbackCooldownMinutes') }}</div>
+                <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.failbackCooldownMinutes) }}</div>
+              </div>
+              <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.healthScoreThreshold') }}</div>
+                <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.healthScoreThreshold) }}</div>
+              </div>
+              <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.latencyThresholdMs') }}</div>
+                <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.latencyThresholdMs) }}</div>
+              </div>
+              <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.circuitBreakerThreshold') }}</div>
+                <div>{{ formatNullableValue(currentChannelDetail.routingConfig?.circuitBreakerThreshold) }}</div>
+              </div>
+              <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.stickyByModel') }}</div>
+                <div>{{ currentChannelDetail.routingConfig?.stickyByModel ? i18ns.t('yes') : i18ns.t('no') }}</div>
+              </div>
+              <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.stickyByFormat') }}</div>
+                <div>{{ currentChannelDetail.routingConfig?.stickyByFormat ? i18ns.t('yes') : i18ns.t('no') }}</div>
+              </div>
+            </div>
+            <div class="mt-3 rounded border border-[var(--el-border-color-lighter)] p-3">
+              <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.retryStatusCodes') }}</div>
+              <div>{{ formatStringList(currentChannelDetail.routingConfig?.retryStatusCodes) }}</div>
+            </div>
+          </div>
+        </div>
+        <el-alert v-else type="info" :closable="false" :title="formatChannelTypeLabel(currentChannelDetail.channelType)" />
+      </div>
+
+      <div>
+        <el-divider content-position="left">{{ i18ns.t('relay.formatAndModelRestrictions') }}</el-divider>
+        <div class="flex flex-col gap-3">
+          <div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">
+              {{ i18ns.t('relay.supportedFormats') }}
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <template v-if="currentChannelDetail.allowedFormats === 'all'">
+                <el-tag type="success" size="small">OpenAI</el-tag>
+                <el-tag type="warning" size="small">Anthropic</el-tag>
+                <el-tag type="primary" size="small">Gemini</el-tag>
+              </template>
+              <template v-else>
+                <el-tag v-if="currentChannelDetail.allowedFormats.includes('openai')" type="success" size="small">OpenAI</el-tag>
+                <el-tag v-if="currentChannelDetail.allowedFormats.includes('anthropic')" type="warning" size="small">Anthropic</el-tag>
+                <el-tag v-if="currentChannelDetail.allowedFormats.includes('gemini')" type="primary" size="small">Gemini</el-tag>
+              </template>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">
+              {{ i18ns.t('relay.allowedModelsChannel') }}
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <el-tag v-if="!currentChannelDetail.allowedModels" type="info" size="small">{{ i18ns.t('relay.allModels') }}</el-tag>
+              <template v-else-if="parseAllowedModels(currentChannelDetail.allowedModels).length">
+                <el-tag
+                  v-for="model in parseAllowedModels(currentChannelDetail.allowedModels)"
+                  :key="model"
+                  type="primary"
+                  size="small"
+                >{{ model }}</el-tag>
+              </template>
+              <el-tag v-else type="danger" size="small">{{ i18ns.t('relay.noModels') }}</el-tag>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <el-divider content-position="left">{{ i18ns.t('relay.upstreamConfig') }}</el-divider>
+        <div v-if="currentChannelDetail.channelType !== 'pooled'" class="grid grid-cols-1 gap-3">
+          <div
+            v-if="computeShowUpstream(currentChannelDetail.allowedFormats, 'openai')"
+            class="rounded border border-[var(--el-border-color-lighter)] p-3"
+          >
+            <div class="flex items-center gap-2 mb-2">
+              <el-tag type="success" size="small">OpenAI</el-tag>
+            </div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">URL</div>
+            <div class="break-all mb-3">{{ currentChannelDetail.openaiUpstreamUrl || '-' }}</div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.apiKeyConfigured') }}</div>
+            <div>{{ hasConfiguredValue(currentChannelDetail.openaiUpstreamApiKey) ? i18ns.t('yes') : i18ns.t('relay.notConfigured') }}</div>
+          </div>
+          <div
+            v-if="computeShowUpstream(currentChannelDetail.allowedFormats, 'anthropic')"
+            class="rounded border border-[var(--el-border-color-lighter)] p-3"
+          >
+            <div class="flex items-center gap-2 mb-2">
+              <el-tag type="warning" size="small">Anthropic</el-tag>
+            </div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">URL</div>
+            <div class="break-all mb-3">{{ currentChannelDetail.anthropicUpstreamUrl || '-' }}</div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.apiKeyConfigured') }}</div>
+            <div>{{ hasConfiguredValue(currentChannelDetail.anthropicUpstreamApiKey) ? i18ns.t('yes') : i18ns.t('relay.notConfigured') }}</div>
+          </div>
+          <div
+            v-if="computeShowUpstream(currentChannelDetail.allowedFormats, 'gemini')"
+            class="rounded border border-[var(--el-border-color-lighter)] p-3"
+          >
+            <div class="flex items-center gap-2 mb-2">
+              <el-tag type="primary" size="small">Gemini</el-tag>
+            </div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">URL</div>
+            <div class="break-all mb-3">{{ currentChannelDetail.geminiUpstreamUrl || '-' }}</div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">{{ i18ns.t('relay.apiKeyConfigured') }}</div>
+            <div>{{ hasConfiguredValue(currentChannelDetail.geminiUpstreamApiKey) ? i18ns.t('yes') : i18ns.t('relay.notConfigured') }}</div>
+          </div>
+        </div>
+        <el-alert
+          v-else
+          type="info"
+          :closable="false"
+          :title="i18ns.t('relay.pooledNoDirectUpstreamHelp')"
+        />
+      </div>
+
+      <div>
+        <el-divider content-position="left">{{ i18ns.t('relay.modelMappingSection') }}</el-divider>
+        <div
+          v-if="getModelMappingEntries(currentChannelDetail.modelMapping).length"
+          class="flex flex-col gap-2"
+        >
+          <div
+            v-for="([sourceModel, targetModel], index) in getModelMappingEntries(currentChannelDetail.modelMapping)"
+            :key="`${sourceModel}-${targetModel}-${index}`"
+            class="rounded border border-[var(--el-border-color-lighter)] p-3 flex items-center justify-between gap-3"
+          >
+            <span class="break-all">{{ sourceModel }}</span>
+            <span class="text-[var(--el-text-color-secondary)]">-></span>
+            <span class="break-all text-right">{{ targetModel }}</span>
+          </div>
+        </div>
+        <el-empty v-else :description="i18ns.t('relay.modelMappingEmpty')" />
+      </div>
+
+      <div>
+        <el-divider content-position="left">{{ i18ns.t('relay.timeRules') }}</el-divider>
+        <div v-if="(currentChannelDetail.timePeriodMultipliers || []).length" class="flex flex-col gap-2">
+          <div
+            v-for="(rule, index) in currentChannelDetail.timePeriodMultipliers || []"
+            :key="`${rule.name}-${index}`"
+            class="rounded border border-[var(--el-border-color-lighter)] p-3"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div class="font-medium break-all">{{ rule.name }}</div>
+              <el-tag :type="rule.multiplier >= 1 ? 'warning' : 'success'" size="small">{{ rule.multiplier }}x</el-tag>
+            </div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+              {{ formatTimeRuleDays(rule.dayOfWeek) }} · {{ rule.startTime }} - {{ rule.endTime }}
+            </div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+              {{ rule.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled') }}
+            </div>
+          </div>
+        </div>
+        <el-empty v-else :description="i18ns.t('relay.timeRulesEmpty')" />
+      </div>
+    </div>
+    <template #footer>
+      <el-button @click="closeChannelDetailDialog">{{ i18ns.t('confirm') }}</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
@@ -477,11 +781,20 @@ const {
   showChannelDialog,
   isEditingChannel,
   channelForm,
+  showChannelDetailDialog,
+  currentChannelDetail,
+  visibilityUserOptions,
+  visibilityGroupOptions,
+  visibilityRoleOptions,
+  visibilityUserOptionsLoading,
+  visibilityGroupOptionsLoading,
+  visibilityRoleOptionsLoading,
   filteredModels,
   formatModelOptionLabel,
   isModelDisabled,
   computeShowUpstream,
   availablePoolMemberChannels,
+  getChannelNameById,
   isPoolMemberOptionDisabled,
   addPoolMember,
   removePoolMember,
@@ -492,9 +805,63 @@ const {
   removeTimeRule,
   channelSaving,
   handleSaveChannel,
+  formatChannelTypeLabel,
+  formatRoutingStrategyLabel,
+  getVisibilitySummary,
   showChannelImportDialog,
   channelImportText,
   channelImportPlaceholder,
+  closeChannelDetailDialog,
+  handleVisibilityUserSearch,
+  parseAllowedModels,
   handleImportChannels,
 } = state
+
+const formatVisibilityUserOption = (user: { username: string; name: string | null; id: string }) => {
+  const primary = user.name?.trim() || user.username || user.id
+  if (primary === user.id) return user.id
+  return `${primary} (${user.id})`
+}
+
+const formatVisibilityGroupOption = (group: { name: string; username: string; id: string }) => {
+  const primary = group.name?.trim() || group.username || group.id
+  if (primary === group.id) return group.id
+  return `${primary} (${group.id})`
+}
+
+const formatVisibilityRoleOption = (role: { name: string; id: string }) => {
+  if (!role.name || role.name === role.id) return role.id
+  return `${role.name} (${role.id})`
+}
+
+const channelDetailDialogTitle = computed(() => {
+  if (!currentChannelDetail.value) return i18ns.t('relay.channelDetailsTitle')
+  return `${i18ns.t('relay.channelDetailsTitle')} · ${currentChannelDetail.value.name}`
+})
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString()
+}
+
+const formatNullableValue = (value: number | string | null | undefined) => {
+  if (value === null || value === undefined || value === '') return '-'
+  return String(value)
+}
+
+const formatStringList = (value: unknown) => {
+  if (!Array.isArray(value) || value.length === 0) return '-'
+  return value.join(', ')
+}
+
+const hasConfiguredValue = (value?: string | null) => typeof value === 'string' && value.trim() !== ''
+
+const getModelMappingEntries = (value: unknown): Array<[string, string]> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  return Object.entries(value as Record<string, string>).filter(
+    ([sourceModel, targetModel]) => sourceModel.trim() !== '' && String(targetModel).trim() !== '',
+  )
+}
 </script>

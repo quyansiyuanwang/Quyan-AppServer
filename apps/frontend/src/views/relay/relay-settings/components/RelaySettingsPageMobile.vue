@@ -1021,6 +1021,11 @@
                     <span>{{ new Date(row.createTime).toLocaleString() }}</span>
                   </div>
                   <div class="flex flex-wrap gap-2">
+                    <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
+                      <el-button size="small" @click="openChannelDetailDialog(row)">{
+                        { i18ns.t('viewDetail') }
+                      }</el-button>
+                    </PermissionWrapper>
                     <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
                       <el-button
                         size="small"
@@ -1127,6 +1132,7 @@ const {
   getPoolMembersSummary,
   togglingChannelId,
   handleToggleChannelStatus,
+  openChannelDetailDialog,
   openEditChannelDialog,
   handleDuplicateChannel,
   handleDeleteChannel,

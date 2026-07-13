@@ -656,55 +656,6 @@
                   <span v-else class="text-[#909399]">-</span>
                 </template>
               </el-table-column>
-              <el-table-column
-                :label="i18ns.t('relay.upstreamConfig')"
-                min-width="200"
-                class-name="hide-on-mobile"
-              >
-                <template #default="{ row }">
-                  <div v-if="row.channelType === 'pooled'" style="font-size: 12px; color: #909399">
-                    {{ i18ns.t('relay.pooledNoDirectUpstreamHelp') }}
-                  </div>
-                  <div style="font-size: 12px">
-                    <div
-                      v-if="
-                        row.channelType !== 'pooled' &&
-                        computeShowUpstream(row.allowedFormats, 'openai')
-                      "
-                      style="margin-top: 4px"
-                    >
-                      <el-tag size="small" type="success">OpenAI</el-tag>
-                      <span style="margin-left: 4px; word-break: break-all">{{
-                        row.openaiUpstreamUrl
-                      }}</span>
-                    </div>
-                    <div
-                      v-if="
-                        row.channelType !== 'pooled' &&
-                        computeShowUpstream(row.allowedFormats, 'anthropic')
-                      "
-                      style="margin-top: 4px"
-                    >
-                      <el-tag size="small" type="warning">Anthropic</el-tag>
-                      <span style="margin-left: 4px; word-break: break-all">{{
-                        row.anthropicUpstreamUrl
-                      }}</span>
-                    </div>
-                    <div
-                      v-if="
-                        row.channelType !== 'pooled' &&
-                        computeShowUpstream(row.allowedFormats, 'gemini')
-                      "
-                      style="margin-top: 4px"
-                    >
-                      <el-tag size="small" type="primary">Gemini</el-tag>
-                      <span style="margin-left: 4px; word-break: break-all">{{
-                        row.geminiUpstreamUrl
-                      }}</span>
-                    </div>
-                  </div>
-                </template>
-              </el-table-column>
               <el-table-column :label="i18ns.t('relay.allowedModelsChannel')" width="120">
                 <template #default="{ row }">
                   <el-tag v-if="!row.allowedModels" type="info" size="small">{{
@@ -738,17 +689,13 @@
               <el-table-column :label="i18ns.t('relay.channelMultiplier')" width="100">
                 <template #default="{ row }">{{ row.multiplier }}x</template>
               </el-table-column>
-              <el-table-column
-                :label="i18ns.t('relay.createTime')"
-                width="170"
-                class-name="hide-on-mobile"
-              >
-                <template #default="{ row }">{{
-                  new Date(row.createTime).toLocaleString()
-                }}</template>
-              </el-table-column>
-              <el-table-column :label="i18ns.t('actions')" width="360" fixed="right">
+              <el-table-column :label="i18ns.t('actions')" width="430" fixed="right">
                 <template #default="{ row }">
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
+                    <el-button size="small" @click="openChannelDetailDialog(row)">{
+                      { i18ns.t('viewDetail') }
+                    }</el-button>
+                  </PermissionWrapper>
                   <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
                     <el-button
                       size="small"
@@ -837,7 +784,6 @@ const {
   channels,
   isChannelSelected,
   toggleChannelSelection,
-  computeShowUpstream,
   formatChannelTypeLabel,
   formatRoutingStrategyLabel,
   formatVisibilityModeLabel,
@@ -846,6 +792,7 @@ const {
   parseAllowedModels,
   togglingChannelId,
   handleToggleChannelStatus,
+  openChannelDetailDialog,
   openEditChannelDialog,
   handleDuplicateChannel,
   handleDeleteChannel,
