@@ -57,6 +57,7 @@ import type {
 } from "@/api/dto/auth/auth.dto";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { Request as ExpressRequest } from "express";
+import type { TypedRequest } from "@/types/express";
 import { extractClientIp } from "@/util/ip-extractor";
 import type { ErrorResponse } from "@/api/response";
 import {
@@ -189,7 +190,7 @@ export class AuthController extends Controller {
   @Middlewares(replayProtectionMiddleware, validateBody(startExternalAuthBodySchema))
   public async startExternalAuth(
     @Body() requestBody: StartExternalAuthDto,
-    @Request() request: ExpressRequest,
+    @Request() request: TypedRequest,
   ): Promise<StartExternalAuthResponse> {
     return this.externalAuthService.startAuth(
       requestBody.provider,
@@ -216,7 +217,7 @@ export class AuthController extends Controller {
   @Get("external/identities")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取绑定账号成功")
-  public async listExternalIdentities(@Request() request: ExpressRequest): Promise<ListExternalIdentitiesResponse> {
+  public async listExternalIdentities(@Request() request: TypedRequest): Promise<ListExternalIdentitiesResponse> {
     return this.externalAuthService.listIdentities(request.user!.userId);
   }
 
@@ -227,7 +228,7 @@ export class AuthController extends Controller {
   @Middlewares(replayProtectionMiddleware, validateBody(bindExternalIdentityBodySchema))
   public async bindExternalIdentity(
     @Body() requestBody: BindExternalIdentityDto,
-    @Request() request: ExpressRequest,
+    @Request() request: TypedRequest,
   ): Promise<BindExternalIdentityResponse> {
     return this.externalAuthService.bindIdentity(
       request.user!.userId,
@@ -244,7 +245,7 @@ export class AuthController extends Controller {
   @Middlewares(replayProtectionMiddleware, validateBody(unbindExternalIdentityBodySchema))
   public async unbindExternalIdentity(
     @Body() requestBody: UnbindExternalIdentityDto,
-    @Request() request: ExpressRequest,
+    @Request() request: TypedRequest,
   ): Promise<UnbindExternalIdentityResponse> {
     return this.externalAuthService.unbindIdentity(request.user!.userId, requestBody.provider, request);
   }
@@ -264,7 +265,7 @@ export class AuthController extends Controller {
   @Middlewares(replayProtectionMiddleware, validateBody(scanQrLoginBodySchema))
   public async scanQrLogin(
     @Body() requestBody: ScanQrLoginDto,
-    @Request() request: ExpressRequest,
+    @Request() request: TypedRequest,
   ): Promise<QrLoginSessionStatusResponse> {
     return this.externalAuthService.markQrSessionScanned(requestBody.sessionId, request.user!.userId, request);
   }
@@ -276,7 +277,7 @@ export class AuthController extends Controller {
   @Middlewares(replayProtectionMiddleware, validateBody(confirmQrLoginBodySchema))
   public async confirmQrLogin(
     @Body() requestBody: ConfirmQrLoginDto,
-    @Request() request: ExpressRequest,
+    @Request() request: TypedRequest,
   ): Promise<QrLoginSessionStatusResponse> {
     return this.externalAuthService.confirmQrLogin(
       requestBody.sessionId,

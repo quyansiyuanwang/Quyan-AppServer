@@ -38,6 +38,13 @@ import type {
   UnbindExternalIdentityResponse,
 } from "@/api/dto/auth/auth.dto";
 
+interface AuthenticatedRequest {
+  user?: {
+    userId: string;
+    [key: string]: any;
+  };
+}
+
 interface ExternalAuthStatePayload {
   provider: ExternalAuthProvider;
   action: ExternalAuthAction;
@@ -52,7 +59,7 @@ interface ExternalBindingPayload {
 
 interface QrLoginSessionPayload {
   sessionId: string;
-  status: "pending" | "scanned" | "approved" | "rejected" | "consumed";
+  status: "pending" | "scanned" | "approved" | "rejected" | "consumed" | "expired";
   createdAt: string;
   approvedByUserId?: string;
 }
@@ -134,7 +141,8 @@ export class ExternalAuthService {
   }
 
   private async resolveAuthenticatedUserId(request?: Request): Promise<string | undefined> {
-    if (request?.user?.userId) return request.user.userId;
+    const typedReq = request as AuthenticatedRequest | undefined;
+    if (typedReq?.user?.userId) return typedReq.user.userId;
 
     const bearerToken = this.extractBearerToken(request);
     if (!bearerToken) return undefined;
@@ -377,7 +385,7 @@ export class ExternalAuthService {
         providerUsername: profile.providerUsername,
         providerEmail: profile.providerEmail,
         avatarUrl: profile.avatarUrl,
-        profileRaw: profile.raw,
+        profileRaw: profile.raw as any,
         accessToken: profile.accessToken,
         refreshToken: profile.refreshToken,
         scope: profile.scope,
@@ -396,7 +404,7 @@ export class ExternalAuthService {
       providerUsername: profile.providerUsername,
       providerEmail: profile.providerEmail,
       avatarUrl: profile.avatarUrl,
-      profileRaw: profile.raw,
+      profileRaw: profile.raw as any,
       accessToken: profile.accessToken,
       refreshToken: profile.refreshToken,
       scope: profile.scope,
@@ -524,7 +532,7 @@ export class ExternalAuthService {
       providerUsername: profile.providerUsername,
       providerEmail: profile.providerEmail,
       avatarUrl: profile.avatarUrl,
-      profileRaw: profile.raw,
+      profileRaw: profile.raw as any,
       accessToken: profile.accessToken,
       refreshToken: profile.refreshToken,
       scope: profile.scope,
@@ -689,7 +697,8 @@ export class ExternalAuthService {
         expiresIn: 0,
       };
 
-    const expiresIn = Math.max(0, await this.redisService.ttl(this.qrLoginKey(sessionId)));
+    const ttl = await this.redisService.ttl(this.qrLoginKey(sessionId));
+    const expiresIn = Math.max(0, ttl ?? 0);
     return {
       payload: JSON.parse(raw) as QrLoginSessionPayload,
       expiresIn,
