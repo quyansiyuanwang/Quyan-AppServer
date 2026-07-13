@@ -142,7 +142,9 @@ export class ExternalAuthService {
   }
 
   private getFrontendOrigin(config: SocialAuthConfig, request?: Request): string {
-    const configured = String(config.frontendBaseUrl || "").trim().replace(/\/+$/, "");
+    const configured = String(config.frontendBaseUrl || "")
+      .trim()
+      .replace(/\/+$/, "");
     return configured || this.getBackendOrigin(request);
   }
 
@@ -1004,10 +1006,7 @@ export class ExternalAuthService {
     return this.buildQrLoginStatusResponse(sessionId, request);
   }
 
-  public async consumeQrLoginSession(
-    sessionId: string,
-    _request?: Request,
-  ): Promise<QrLoginSessionStatusResponse> {
+  public async consumeQrLoginSession(sessionId: string, _request?: Request): Promise<QrLoginSessionStatusResponse> {
     const { payload, expiresIn } = await this.readQrSession(sessionId);
 
     if (payload.status === "expired") {
