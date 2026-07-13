@@ -14,9 +14,16 @@ const captchaVerifying = state.captchaVerifying
 const codeCooldown = state.codeCooldown
 const loading = state.loading
 const passkeyLoading = state.passkeyLoading
+const externalAuthLoading = state.externalAuthLoading
 const passkeySupported = state.passkeySupported
 const submitDisabled = state.submitDisabled
 const mobileFieldDisabled = state.mobileFieldDisabled
+const qrLoginSession = state.qrLoginSession
+const qrLoginStatus = state.qrLoginStatus
+const qrLoginScannedUser = state.qrLoginScannedUser
+const qrLoginBusy = state.qrLoginBusy
+const qrPolling = state.qrPolling
+const publicSocialAuthConfig = state.publicSocialAuthConfig
 const formDisabled = computed(() => (state.isDesktop.value ? false : mobileFieldDisabled.value))
 const formRef = state.formRef
 const usernameInputRef = state.usernameInputRef
@@ -252,6 +259,95 @@ const sendCodeDisabled = computed(() => {
         {{ i18ns.t('passkey.loginWithPasskey') }}
       </el-button>
     </div>
+    <div v-if="isLogin" class="social-auth-section">
+      <el-divider>{{ i18ns.t('loginOrRegisterPage.socialLogin') }}</el-divider>
+      <div class="social-auth-grid">
+        <el-button
+          v-if="publicSocialAuthConfig?.githubEnabled"
+          :loading="externalAuthLoading === 'github'"
+          @click="state.handleExternalAuthLogin('github')"
+        >
+          GitHub
+        </el-button>
+        <el-button
+          v-if="publicSocialAuthConfig?.wechatOpenEnabled"
+          :loading="externalAuthLoading === 'wechat-open'"
+          @click="state.handleExternalAuthLogin('wechat-open')"
+        >
+          {{ i18ns.t('loginOrRegisterPage.wechatOpenLogin') }}
+        </el-button>
+        <el-button
+          v-if="publicSocialAuthConfig?.wechatWebEnabled"
+          :loading="externalAuthLoading === 'wechat-web'"
+          @click="state.handleExternalAuthLogin('wechat-web')"
+        >
+          {{ i18ns.t('loginOrRegisterPage.wechatWebLogin') }}
+        </el-button>
+        <el-button
+          v-if="publicSocialAuthConfig?.qrLoginEnabled"
+          :loading="externalAuthLoading === 'qr'"
+          @click="state.handleQrLogin"
+        >
+          {{ i18ns.t('loginOrRegisterPage.qrLogin') }}
+        </el-button>
+      </div>
+      <div v-if="qrLoginSession" class="qr-login-panel">
+        <div class="qr-login-panel__header">
+          <div>
+            <div class="qr-login-panel__title">{{ i18ns.t('loginOrRegisterPage.qrLogin') }}</div>
+            <div class="qr-login-panel__status">{{ state.getQrStatusText(qrLoginStatus) }}</div>
+          </div>
+          <el-button
+            link
+            type="primary"
+            :disabled="externalAuthLoading === 'qr'"
+            @click="state.handleQrLogin"
+          >
+            {{ i18ns.t('refresh') }}
+          </el-button>
+        </div>
+
+        <div v-if="qrLoginSession?.qrCodeDataUrl" class="qr-login-panel__body">
+          <img :src="qrLoginSession.qrCodeDataUrl" alt="QR Login" class="qr-login-panel__image" />
+          <p class="qr-login-panel__hint">
+            {{
+              qrPolling
+                ? i18ns.t('message.information.loggingIn')
+                : i18ns.t('loginOrRegisterPage.qrLogin')
+            }}
+          </p>
+          <p v-if="qrLoginScannedUser" class="qr-login-panel__hint">
+            {{ qrLoginScannedUser.username || qrLoginScannedUser.email }}
+          </p>
+        </div>
+        <div v-else class="qr-login-panel__empty">
+          {{ i18ns.t('refresh') }}
+        </div>
+
+        <div v-if="state.getQrSessionIdFromRoute()" class="qr-login-panel__actions">
+          <el-button :loading="qrLoginBusy" @click="state.handleQrScan">
+            {{ i18ns.t('refresh') }}
+          </el-button>
+          <el-button
+            type="primary"
+            :loading="qrLoginBusy"
+            :disabled="qrLoginStatus !== 'scanned'"
+            @click="state.handleQrConfirm(true)"
+          >
+            {{ i18ns.t('confirm') }}
+          </el-button>
+          <el-button
+            type="danger"
+            plain
+            :loading="qrLoginBusy"
+            :disabled="qrLoginStatus !== 'scanned'"
+            @click="state.handleQrConfirm(false)"
+          >
+            {{ i18ns.t('cancel') }}
+          </el-button>
+        </div>
+      </div>
+    </div>
     <div class="captcha-notice">
       {{ i18ns.t('loginOrRegisterPage.captchaNotice') }}
       <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">
@@ -265,3 +361,78 @@ const sendCodeDisabled = computed(() => {
     </div>
   </el-card>
 </template>
+
+<style scoped lang="scss">
+.social-auth-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.qr-login-panel {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+}
+
+.qr-login-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.qr-login-panel__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.qr-login-panel__status {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.qr-login-panel__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.qr-login-panel__image {
+  width: min(220px, 100%);
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.qr-login-panel__hint,
+.qr-login-panel__empty {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+
+.qr-login-panel__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+@media (max-width: 480px) {
+  .social-auth-grid,
+  .qr-login-panel__actions {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

@@ -15,6 +15,7 @@ export type ServerConfigSectionName =
   | 'modelRate'
   | 'smtp'
   | 'site'
+  | 'socialAuth'
   | 'errorDecay'
   | 'errorWeights'
   | 'ipBan'
@@ -89,6 +90,22 @@ export interface ServerConfigContext {
   savingSite: Ref<boolean>
   siteBackendPublicUrl: Ref<string>
   saveSite: () => Promise<void>
+  savingSocialAuth: Ref<boolean>
+  socAuthFrontendBaseUrl: Ref<string>
+  socAuthQrLoginEnabled: Ref<boolean>
+  socAuthStateTtlSeconds: Ref<number>
+  socAuthQrLoginTtlSeconds: Ref<number>
+  socAuthQrLoginPollIntervalSeconds: Ref<number>
+  socAuthGithubEnabled: Ref<boolean>
+  socAuthGithubClientId: Ref<string>
+  socAuthGithubClientSecret: Ref<string>
+  socAuthWechatOpenEnabled: Ref<boolean>
+  socAuthWechatOpenAppId: Ref<string>
+  socAuthWechatOpenAppSecret: Ref<string>
+  socAuthWechatWebEnabled: Ref<boolean>
+  socAuthWechatWebAppId: Ref<string>
+  socAuthWechatWebAppSecret: Ref<string>
+  saveSocialAuth: () => Promise<void>
   savingErrorDecay: Ref<boolean>
   errorDecayEnabled: Ref<boolean>
   errorDecayRate: Ref<number>

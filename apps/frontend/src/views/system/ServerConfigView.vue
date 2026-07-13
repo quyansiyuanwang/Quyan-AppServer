@@ -115,6 +115,23 @@ const level2Duration = ref(86400)
 const level3Threshold = ref(50)
 const level3Duration = ref(-1)
 
+// Social Auth
+const savingSocialAuth = ref(false)
+const socAuthFrontendBaseUrl = ref('')
+const socAuthQrLoginEnabled = ref(false)
+const socAuthStateTtlSeconds = ref(300)
+const socAuthQrLoginTtlSeconds = ref(300)
+const socAuthQrLoginPollIntervalSeconds = ref(3)
+const socAuthGithubEnabled = ref(false)
+const socAuthGithubClientId = ref('')
+const socAuthGithubClientSecret = ref('')
+const socAuthWechatOpenEnabled = ref(false)
+const socAuthWechatOpenAppId = ref('')
+const socAuthWechatOpenAppSecret = ref('')
+const socAuthWechatWebEnabled = ref(false)
+const socAuthWechatWebAppId = ref('')
+const socAuthWechatWebAppSecret = ref('')
+
 // Loaded flags
 const registrationLoaded = ref(false)
 const billingLoaded = ref(false)
@@ -124,6 +141,7 @@ const notificationLoaded = ref(false)
 const captchaLoaded = ref(false)
 const smtpLoaded = ref(false)
 const siteLoaded = ref(false)
+const socialAuthLoaded = ref(false)
 const errorDecayLoaded = ref(false)
 const errorWeightsLoaded = ref(false)
 const ipBanLoaded = ref(false)
@@ -363,6 +381,30 @@ const loadErrorWeightsConfig = async () => {
   }
 }
 
+const loadSocialAuthConfig = async () => {
+  if (socialAuthLoaded.value) return
+  try {
+    const config = await configService.getSocialAuthConfig()
+    socAuthFrontendBaseUrl.value = config.frontendBaseUrl
+    socAuthQrLoginEnabled.value = config.qrLoginEnabled
+    socAuthStateTtlSeconds.value = config.stateTtlSeconds
+    socAuthQrLoginTtlSeconds.value = config.qrLoginTtlSeconds
+    socAuthQrLoginPollIntervalSeconds.value = config.qrLoginPollIntervalSeconds
+    socAuthGithubEnabled.value = config.github?.enabled ?? false
+    socAuthGithubClientId.value = config.github?.clientId ?? ''
+    socAuthGithubClientSecret.value = config.github?.clientSecret ?? ''
+    socAuthWechatOpenEnabled.value = config.wechatOpen?.enabled ?? false
+    socAuthWechatOpenAppId.value = config.wechatOpen?.appId ?? ''
+    socAuthWechatOpenAppSecret.value = config.wechatOpen?.appSecret ?? ''
+    socAuthWechatWebEnabled.value = config.wechatWeb?.enabled ?? false
+    socAuthWechatWebAppId.value = config.wechatWeb?.appId ?? ''
+    socAuthWechatWebAppSecret.value = config.wechatWeb?.appSecret ?? ''
+    socialAuthLoaded.value = true
+  } catch (error: any) {
+    ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+  }
+}
+
 const loadIpBanConfig = async () => {
   if (ipBanLoaded.value) return
   try {
@@ -569,6 +611,43 @@ const saveErrorWeights = async () => {
   }
 }
 
+const saveSocialAuth = async () => {
+  savingSocialAuth.value = true
+  try {
+    const currentConfig = await configService.getSocialAuthConfig()
+    await configService.setSocialAuthConfig({
+      frontendBaseUrl: socAuthFrontendBaseUrl.value,
+      qrLoginEnabled: socAuthQrLoginEnabled.value,
+      stateTtlSeconds: socAuthStateTtlSeconds.value,
+      qrLoginTtlSeconds: socAuthQrLoginTtlSeconds.value,
+      qrLoginPollIntervalSeconds: socAuthQrLoginPollIntervalSeconds.value,
+      github: {
+        ...currentConfig.github,
+        enabled: socAuthGithubEnabled.value,
+        clientId: socAuthGithubClientId.value,
+        clientSecret: socAuthGithubClientSecret.value,
+      },
+      wechatOpen: {
+        ...currentConfig.wechatOpen,
+        enabled: socAuthWechatOpenEnabled.value,
+        appId: socAuthWechatOpenAppId.value,
+        appSecret: socAuthWechatOpenAppSecret.value,
+      },
+      wechatWeb: {
+        ...currentConfig.wechatWeb,
+        enabled: socAuthWechatWebEnabled.value,
+        appId: socAuthWechatWebAppId.value,
+        appSecret: socAuthWechatWebAppSecret.value,
+      },
+    })
+    ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
+  } catch (error: any) {
+    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+  } finally {
+    savingSocialAuth.value = false
+  }
+}
+
 const saveIpBan = async () => {
   savingIpBan.value = true
   try {
@@ -590,6 +669,7 @@ const saveIpBan = async () => {
 }
 
 watch(activeNames, (newNames) => {
+  if (newNames.includes('socialAuth')) loadSocialAuthConfig()
   if (newNames.includes('registration')) loadRegistrationConfig()
   if (newNames.includes('billing')) loadBillingConfig()
   if (newNames.includes('heartbeat')) loadHeartbeatConfig()
@@ -662,6 +742,22 @@ const serverConfigContext: ServerConfigContext = {
   savingSite,
   siteBackendPublicUrl,
   saveSite,
+  savingSocialAuth,
+  socAuthFrontendBaseUrl,
+  socAuthQrLoginEnabled,
+  socAuthStateTtlSeconds,
+  socAuthQrLoginTtlSeconds,
+  socAuthQrLoginPollIntervalSeconds,
+  socAuthGithubEnabled,
+  socAuthGithubClientId,
+  socAuthGithubClientSecret,
+  socAuthWechatOpenEnabled,
+  socAuthWechatOpenAppId,
+  socAuthWechatOpenAppSecret,
+  socAuthWechatWebEnabled,
+  socAuthWechatWebAppId,
+  socAuthWechatWebAppSecret,
+  saveSocialAuth,
   savingErrorDecay,
   errorDecayEnabled,
   errorDecayRate,

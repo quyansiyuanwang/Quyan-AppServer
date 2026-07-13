@@ -1,6 +1,24 @@
 import { z } from "zod";
 
 const usernameRegex = /^[a-zA-Z0-9_]+$/;
+const siteRelativeRedirectRegex = /^\/(?!\/).*/;
+const externalAuthProviders = ["github", "wechat-open", "wechat-web"] as const;
+const externalAuthActions = ["login", "bind"] as const;
+
+const externalRedirectSchema = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine(
+    (value) => {
+      if (!value) return false;
+      if (siteRelativeRedirectRegex.test(value)) return true;
+      return z.string().url().safeParse(value).success;
+    },
+    {
+      message: "Invalid redirect url",
+    },
+  );
 
 export const loginBodySchema = z.object({
   username: z.string().trim().min(3).max(20).regex(usernameRegex),
@@ -87,4 +105,37 @@ export const verifyCaptchaTrustBodySchema = z.object({
   captchaToken: z.string().trim().min(1).max(4000),
   action: z.string().trim().min(1).max(100),
   provider: z.enum(["recaptcha", "turnstile"]),
+});
+
+export const startExternalAuthBodySchema = z.object({
+  provider: z.enum(externalAuthProviders),
+  action: z.enum(externalAuthActions).optional(),
+  redirectUri: externalRedirectSchema.optional(),
+});
+
+export const externalAuthCallbackQuerySchema = z.object({
+  code: z.string().trim().min(1).max(2000),
+  state: z.string().trim().min(1).max(500),
+});
+
+export const qrLoginStatusQuerySchema = z.object({
+  sessionId: z.string().trim().min(1).max(200),
+});
+
+export const bindExternalIdentityBodySchema = z.object({
+  provider: z.enum(externalAuthProviders),
+  bindingToken: z.string().trim().min(1).max(500),
+});
+
+export const unbindExternalIdentityBodySchema = z.object({
+  provider: z.enum(externalAuthProviders),
+});
+
+export const scanQrLoginBodySchema = z.object({
+  sessionId: z.string().trim().min(1).max(200),
+});
+
+export const confirmQrLoginBodySchema = z.object({
+  sessionId: z.string().trim().min(1).max(200),
+  approve: z.boolean(),
 });

@@ -82,6 +82,90 @@ export interface CaptchaTrustStatusResponse {
   expiresInSeconds: number;
 }
 
+export type ExternalAuthProvider = "github" | "wechat-open" | "wechat-web";
+
+export type ExternalAuthAction = "login" | "bind";
+
+export interface StartExternalAuthDto {
+  provider: ExternalAuthProvider;
+  action?: ExternalAuthAction;
+  redirectUri?: string;
+}
+
+export interface StartExternalAuthResponse {
+  provider: ExternalAuthProvider;
+  action: ExternalAuthAction;
+  authorizeUrl: string;
+  state: string;
+}
+
+export interface ExternalAuthCallbackDto {
+  code: string;
+  state: string;
+}
+
+export interface ExternalIdentityItem {
+  id: string;
+  provider: ExternalAuthProvider;
+  providerUserId: string;
+  providerUnionId?: string | null;
+  providerUsername?: string | null;
+  providerEmail?: string | null;
+  avatarUrl?: string | null;
+  linkedAt: string;
+  lastLoginAt?: string | null;
+  lastSyncedAt?: string | null;
+}
+
+export interface ExternalIdentityProfile {
+  provider: ExternalAuthProvider;
+  providerUserId: string;
+  providerUnionId?: string | null;
+  providerUsername?: string | null;
+  providerEmail?: string | null;
+  avatarUrl?: string | null;
+}
+
+export interface ExternalAuthBindingRequiredData {
+  requiresBinding: true;
+  provider: ExternalAuthProvider;
+  providerProfile: ExternalIdentityProfile;
+  bindingToken: string;
+  expiresIn: number;
+}
+
+export interface BindExternalIdentityDto {
+  provider: ExternalAuthProvider;
+  bindingToken: string;
+}
+
+export interface UnbindExternalIdentityDto {
+  provider: ExternalAuthProvider;
+}
+
+export interface CreateQrLoginSessionResponse {
+  sessionId: string;
+  qrCodeDataUrl: string;
+  expiresIn: number;
+  pollIntervalSeconds: number;
+}
+
+export interface ScanQrLoginDto {
+  sessionId: string;
+}
+
+export interface ConfirmQrLoginDto {
+  sessionId: string;
+  approve: boolean;
+}
+
+export interface QrLoginSessionStatusResponse {
+  status: "pending" | "scanned" | "approved" | "rejected" | "expired" | "consumed";
+  expiresIn: number;
+  user?: UserDto;
+  auth?: AuthData | TwoFactorRequiredData | PolicyConsentRequiredData;
+}
+
 /**
  * 刷新令牌请求
  */
@@ -352,6 +436,12 @@ export interface LogoutDto {
 
 // API 响应类型
 export type LoginResponse = AuthData | TwoFactorRequiredData | PolicyConsentRequiredData;
+export type ExternalAuthCallbackResponse =
+  | AuthData
+  | TwoFactorRequiredData
+  | PolicyConsentRequiredData
+  | ExternalAuthBindingRequiredData
+  | ExternalIdentityItem;
 export type RefreshResponse = RefreshData;
 export type VerifyResponse = VerifyData;
 export type RegisterResponse = { message: string };
@@ -363,3 +453,6 @@ export type VerifyTwoFactorLoginResponse = AuthData | PolicyConsentRequiredData;
 export type SendTwoFactorEmailCodeResponse = { message: string; maskedEmail?: string };
 export type AcceptPolicyConsentResponse = AuthData;
 export type ReplaySigningSessionResponse = ReplaySigningSessionData;
+export type ListExternalIdentitiesResponse = ExternalIdentityItem[];
+export type BindExternalIdentityResponse = ExternalIdentityItem;
+export type UnbindExternalIdentityResponse = { message: string };

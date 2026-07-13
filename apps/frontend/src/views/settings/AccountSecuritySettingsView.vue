@@ -43,6 +43,61 @@
           </el-button>
         </el-card>
 
+        <el-card class="section-card page-card">
+          <h3>{{ i18ns.t('SettingsView.externalAccountsTitle') }}</h3>
+          <p class="section-desc">{{ i18ns.t('SettingsView.externalAccountsDesc') }}</p>
+          <div class="stack">
+            <div
+              v-for="item in externalIdentities"
+              :key="item.id"
+              class="inline-row"
+              style="justify-content: space-between; gap: 12px"
+            >
+              <div>
+                <strong>{{ item.provider }}</strong>
+                <div class="section-desc">
+                  {{ item.providerUsername || item.providerEmail || item.providerUserId }}
+                </div>
+              </div>
+              <el-button
+                type="danger"
+                plain
+                :loading="externalBindingProvider === item.provider"
+                :disabled="externalBindingProvider !== null"
+                @click="handleUnbindExternalIdentity(item.provider)"
+              >
+                {{ i18ns.t('common.delete') }}
+              </el-button>
+            </div>
+            <div class="inline-row" style="gap: 8px; flex-wrap: wrap">
+              <el-button
+                v-if="publicSocialAuthConfig?.githubEnabled"
+                :loading="externalBindingProvider === 'github'"
+                :disabled="externalBindingProvider !== null"
+                @click="handleBindExternalIdentity('github')"
+              >
+                GitHub
+              </el-button>
+              <el-button
+                v-if="publicSocialAuthConfig?.wechatOpenEnabled"
+                :loading="externalBindingProvider === 'wechat-open'"
+                :disabled="externalBindingProvider !== null"
+                @click="handleBindExternalIdentity('wechat-open')"
+              >
+                {{ i18ns.t('SettingsView.wechatOpenBind') }}
+              </el-button>
+              <el-button
+                v-if="publicSocialAuthConfig?.wechatWebEnabled"
+                :loading="externalBindingProvider === 'wechat-web'"
+                :disabled="externalBindingProvider !== null"
+                @click="handleBindExternalIdentity('wechat-web')"
+              >
+                {{ i18ns.t('SettingsView.wechatWebBind') }}
+              </el-button>
+            </div>
+          </div>
+        </el-card>
+
         <el-card class="section-card page-card twofa-card">
           <h3>{{ i18ns.t('twoFactor.title') }}</h3>
           <p class="section-desc">
@@ -137,6 +192,58 @@
           <el-button class="w-full" type="primary" @click="showPasskeyDrawer = true">
             {{ i18ns.t('passkey.manage') }}
           </el-button>
+        </el-card>
+
+        <el-card class="section-card mobile-card">
+          <h3>{{ i18ns.t('SettingsView.externalAccountsTitle') }}</h3>
+          <p class="section-desc">{{ i18ns.t('SettingsView.externalAccountsDesc') }}</p>
+          <div class="stack">
+            <div v-for="item in externalIdentities" :key="item.id" class="stack" style="gap: 6px">
+              <div>
+                <strong>{{ item.provider }}</strong>
+              </div>
+              <div class="section-desc">
+                {{ item.providerUsername || item.providerEmail || item.providerUserId }}
+              </div>
+              <el-button
+                class="w-full"
+                type="danger"
+                plain
+                :loading="externalBindingProvider === item.provider"
+                :disabled="externalBindingProvider !== null"
+                @click="handleUnbindExternalIdentity(item.provider)"
+              >
+                {{ i18ns.t('common.delete') }}
+              </el-button>
+            </div>
+            <el-button
+              v-if="publicSocialAuthConfig?.githubEnabled"
+              class="w-full"
+              :loading="externalBindingProvider === 'github'"
+              :disabled="externalBindingProvider !== null"
+              @click="handleBindExternalIdentity('github')"
+            >
+              GitHub
+            </el-button>
+            <el-button
+              v-if="publicSocialAuthConfig?.wechatOpenEnabled"
+              class="w-full"
+              :loading="externalBindingProvider === 'wechat-open'"
+              :disabled="externalBindingProvider !== null"
+              @click="handleBindExternalIdentity('wechat-open')"
+            >
+              {{ i18ns.t('SettingsView.wechatOpenBind') }}
+            </el-button>
+            <el-button
+              v-if="publicSocialAuthConfig?.wechatWebEnabled"
+              class="w-full"
+              :loading="externalBindingProvider === 'wechat-web'"
+              :disabled="externalBindingProvider !== null"
+              @click="handleBindExternalIdentity('wechat-web')"
+            >
+              {{ i18ns.t('SettingsView.wechatWebBind') }}
+            </el-button>
+          </div>
         </el-card>
 
         <el-card class="section-card mobile-card twofa-card">
@@ -283,8 +390,8 @@
 
 <script setup lang="ts">
 import { usePageDevice } from '@/composables/usePageDevice'
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
 import AccessKeyManagementView from './AccessKeyManagementView.vue'
 import PasskeyManagement from './PasskeyManagementView.vue'
@@ -296,6 +403,7 @@ import { authorizationService } from '@/service/authorizationService'
 import { Notification } from '@/utils/notification'
 import { userService } from '@/service/userService'
 import { useUserInfoStore } from '@/stores/userInfoStore'
+import { socialAuthService } from '@/service/socialAuthService'
 
 const router = useRouter()
 import { Permission } from '@/constant/permission'
@@ -305,6 +413,32 @@ import { validateTwoFactorCode } from '@/utils/validation'
 
 const passwordForm = ref({ new_password: '', confirm_password: '' })
 const userInfoStore = useUserInfoStore()
+const route = useRoute()
+const externalIdentities = ref<
+  Array<{
+    id: string
+    provider: 'github' | 'wechat-open' | 'wechat-web'
+    providerUserId: string
+    providerUsername?: string | null
+    providerEmail?: string | null
+  }>
+>([])
+const externalBindingProvider = ref<'github' | 'wechat-open' | 'wechat-web' | null>(null)
+const publicSocialAuthConfig = ref<{
+  githubEnabled: boolean
+  wechatOpenEnabled: boolean
+  wechatWebEnabled: boolean
+  qrLoginEnabled: boolean
+} | null>(null)
+
+const loadPublicSocialAuthConfig = async () => {
+  try {
+    const { configService } = await import('@/service/configService')
+    publicSocialAuthConfig.value = await configService.getPublicSocialAuthConfig()
+  } catch (error: any) {
+    console.error('Failed to load public social auth config:', error)
+  }
+}
 
 const showAccessKeyDrawer = ref(false)
 const showPasskeyDrawer = ref(false)
@@ -334,8 +468,79 @@ const twoFactorSetupData = ref<null | {
 const twoFactorSetupCode = ref('')
 const twoFactorRecoveryCodes = ref<string[]>([])
 
+const loadExternalIdentities = async () => {
+  try {
+    externalIdentities.value = await socialAuthService.listExternalIdentities()
+  } catch (error: any) {
+    ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsLoadFailed'))
+  }
+}
+
+const clearBindQuery = async () => {
+  const nextQuery = { ...route.query }
+  delete nextQuery.bindProvider
+  delete nextQuery.bindingToken
+  await router.replace({
+    name: 'settingsSecurity',
+    query: nextQuery,
+  })
+}
+
+const consumePendingExternalBinding = async () => {
+  const bindProvider = typeof route.query.bindProvider === 'string' ? route.query.bindProvider : ''
+  const bindingToken = typeof route.query.bindingToken === 'string' ? route.query.bindingToken : ''
+
+  if (
+    !bindingToken ||
+    (bindProvider !== 'github' && bindProvider !== 'wechat-open' && bindProvider !== 'wechat-web')
+  ) {
+    return
+  }
+
+  externalBindingProvider.value = bindProvider
+  try {
+    await socialAuthService.bindExternalIdentity(bindProvider, bindingToken)
+    ElMessage.success(i18ns.t('message.information.editSuccess'))
+    await loadExternalIdentities()
+  } catch (error: any) {
+    ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsBindFailed'))
+  } finally {
+    externalBindingProvider.value = null
+    await clearBindQuery()
+  }
+}
+
+const handleBindExternalIdentity = async (provider: 'github' | 'wechat-open' | 'wechat-web') => {
+  externalBindingProvider.value = provider
+  try {
+    const redirect = `${window.location.origin}/auth/external/${provider}/callback`
+    const { authorizeUrl } = await socialAuthService.startExternalAuth(provider, 'bind', redirect)
+    window.location.href = authorizeUrl
+  } catch (error: any) {
+    ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsBindFailed'))
+  } finally {
+    externalBindingProvider.value = null
+  }
+}
+
+const handleUnbindExternalIdentity = async (provider: string) => {
+  externalBindingProvider.value = provider as 'github' | 'wechat-open' | 'wechat-web'
+  try {
+    await socialAuthService.unbindExternalIdentity(provider as any)
+    ElMessage.success(i18ns.t('SettingsView.externalAccountsUnbindSuccess'))
+    await loadExternalIdentities()
+  } catch (error: any) {
+    ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsUnbindFailed'))
+  } finally {
+    externalBindingProvider.value = null
+  }
+}
+
 onMounted(async () => {
   await loadTwoFactorStatus()
+  await loadExternalIdentities()
+  await consumePendingExternalBinding()
+  await loadPublicSocialAuthConfig()
 })
 
 const changePassword = async () => {
