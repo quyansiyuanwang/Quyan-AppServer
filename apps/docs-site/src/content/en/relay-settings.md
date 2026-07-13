@@ -162,29 +162,38 @@ The form starts with recommended values that fit most pooled-channel setups. Adm
 
 ### Health score threshold
 
+- Recommended default: `0`
 - Purpose: only lets members above a health threshold participate in health-based routing.
 - Effect: higher thresholds exclude unstable members more aggressively.
-- Guidance: enable this only when you understand how the health score is produced.
+- Guidance: `0` means do not filter by health score yet, which is a conservative default. Raise it only when you understand how the score is produced.
 
 ### Latency threshold (ms)
 
+- Recommended default: `30000`
 - Purpose: caps which members are considered acceptable for latency-priority selection.
 - Effect: values that are too low can exclude most channels; values that are too high remove most of the benefit.
+- Guidance: `30000ms` is a loose starting point that avoids excluding normal channels too early. Tighten it after you observe real upstream latency.
 
 ### Circuit breaker threshold
 
+- Recommended default: `5`
 - Purpose: after enough failures, treat a member as temporarily unsuitable.
 - Effect: reduces repeated traffic to a clearly unhealthy upstream.
+- Guidance: `5` is a practical starting point for common API upstreams. It avoids overreacting to one-off failures while still cutting away sustained problems.
 
 ### Sticky by model
 
+- Recommended default: `Disabled`
 - Purpose: keeps the same model tending to land on the same member.
 - Effect: helps cache locality, consistency, and troubleshooting.
+- Guidance: leave it disabled unless you specifically want model-level consistency or cache reuse.
 
 ### Sticky by format
 
+- Recommended default: `Disabled`
 - Purpose: keeps the same request format, such as OpenAI or Anthropic, tending to land on the same member.
 - Effect: useful when protocol compatibility differs across underlying channels.
+- Guidance: leave it disabled by default. Enable it when different members have materially different protocol compatibility.
 
 ## Visibility settings
 

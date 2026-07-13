@@ -105,10 +105,10 @@ const defaultRoutingConfigForm = () => ({
   failoverThreshold: 0,
   retryStatusCodes: ['4xx', '5xx'] as string[],
   failbackCooldownMinutes: 5,
-  healthScoreThreshold: null as number | null,
-  latencyThresholdMs: null as number | null,
-  circuitBreakerThreshold: null as number | null,
-  stickyByModel: true,
+  healthScoreThreshold: 0 as number | null,
+  latencyThresholdMs: 30000 as number | null,
+  circuitBreakerThreshold: 5 as number | null,
+  stickyByModel: false,
   stickyByFormat: false,
 })
 
@@ -154,18 +154,24 @@ const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigDto | null
   healthScoreThreshold:
     typeof config?.healthScoreThreshold === 'number' && Number.isFinite(config.healthScoreThreshold)
       ? config.healthScoreThreshold
-      : null,
+      : defaultRoutingConfigForm().healthScoreThreshold,
   latencyThresholdMs:
     typeof config?.latencyThresholdMs === 'number' && Number.isFinite(config.latencyThresholdMs)
       ? config.latencyThresholdMs
-      : null,
+      : defaultRoutingConfigForm().latencyThresholdMs,
   circuitBreakerThreshold:
     typeof config?.circuitBreakerThreshold === 'number' &&
     Number.isFinite(config.circuitBreakerThreshold)
       ? config.circuitBreakerThreshold
-      : null,
-  stickyByModel: config?.stickyByModel === true,
-  stickyByFormat: config?.stickyByFormat === true,
+      : defaultRoutingConfigForm().circuitBreakerThreshold,
+  stickyByModel:
+    typeof config?.stickyByModel === 'boolean'
+      ? config.stickyByModel
+      : defaultRoutingConfigForm().stickyByModel,
+  stickyByFormat:
+    typeof config?.stickyByFormat === 'boolean'
+      ? config.stickyByFormat
+      : defaultRoutingConfigForm().stickyByFormat,
 })
 
 const normalizeVisibilityConfigForm = (config?: RelayChannelVisibilityConfigDto | null) => ({

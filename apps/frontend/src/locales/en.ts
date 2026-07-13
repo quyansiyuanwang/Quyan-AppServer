@@ -2237,7 +2237,7 @@ export default {
     routingStrategyLatencyPriority: 'Latency Priority',
     routingConfig: 'Routing Parameters',
     routingConfigHelp:
-      'The form starts with recommended values that fit most pooled-channel setups. Override them when needed, and any empty fields still fall back to backend defaults.',
+      'The form starts with recommended values for most pooled-channel setups: max switches 2, retries per channel 0, failover rules 4xx/5xx, failback cooldown 5 minutes, health score threshold 0, latency threshold 30000ms, circuit breaker threshold 5, and sticky-by-model/format disabled.',
     healthScoreThreshold: 'Health Score Threshold',
     latencyThresholdMs: 'Latency Threshold (ms)',
     circuitBreakerThreshold: 'Circuit Breaker Threshold',

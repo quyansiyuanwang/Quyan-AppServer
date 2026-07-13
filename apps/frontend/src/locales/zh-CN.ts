@@ -2170,7 +2170,7 @@ const zhCN: DeepStringify<typeof en> = {
     routingStrategyLatencyPriority: '低延迟优先',
     routingConfig: '路由参数',
     routingConfigHelp:
-      '表单已预填推荐值，适合大多数混池场景；如需完全自定义，可按需覆盖，留空项仍会回退到后端默认行为。',
+      '表单已预填推荐值，适合大多数混池场景：最大切换 2、单渠道重试 0、切换规则 4xx/5xx、回切冷却 5 分钟、健康度阈值 0、延迟阈值 30000ms、熔断阈值 5，模型/格式粘性默认关闭。',
     healthScoreThreshold: '健康度阈值',
     latencyThresholdMs: '延迟阈值（ms）',
     circuitBreakerThreshold: '熔断阈值',
