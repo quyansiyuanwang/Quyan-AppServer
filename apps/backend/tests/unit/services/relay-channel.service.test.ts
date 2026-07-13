@@ -5,14 +5,18 @@ import { OperationType } from "../../../src/constant/operation-type";
 import { NotFoundError } from "../../../src/util/errors";
 
 describe("RelayChannelService", () => {
+  const transactionClient = {} as any;
   const relayChannelRepository = {
     listActive: vi.fn(),
     listVisible: vi.fn(),
     findVisibleByName: vi.fn(),
     findActiveById: vi.fn(),
     findVisibleById: vi.fn(),
+    withTransaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(transactionClient)),
     create: vi.fn(),
     updateById: vi.fn(),
+    replaceMembersByChannelId: vi.fn(),
+    deleteMembersByChannelId: vi.fn(),
     softDeleteAndUnassignTokens: vi.fn(),
   };
   const businessLogService = {
@@ -170,6 +174,7 @@ describe("RelayChannelService", () => {
         addUserIdentifier: true,
         inputTokensIncludeCacheRead: false,
       }),
+      transactionClient,
     );
     expect(businessLogService.logOperation).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -216,6 +221,7 @@ describe("RelayChannelService", () => {
     expect(relayChannelRepository.updateById).toHaveBeenCalledWith(
       "channel-1",
       expect.objectContaining({ name: "Updated", multiplier: 1.5 }),
+      transactionClient,
     );
   });
 
@@ -297,6 +303,7 @@ describe("RelayChannelService", () => {
       expect.objectContaining({
         inputTokensIncludeCacheRead: true,
       }),
+      transactionClient,
     );
   });
 
@@ -317,6 +324,7 @@ describe("RelayChannelService", () => {
       expect.objectContaining({
         inputTokensIncludeCacheRead: false,
       }),
+      transactionClient,
     );
   });
 
@@ -339,6 +347,7 @@ describe("RelayChannelService", () => {
       expect.objectContaining({
         inputTokensIncludeCacheRead: true,
       }),
+      transactionClient,
     );
   });
 

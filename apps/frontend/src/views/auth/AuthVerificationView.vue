@@ -287,17 +287,21 @@ const startEmailCodeCooldown = () => {
 }
 
 const getSafeDisableRedirect = (): string => {
-  const target = redirectPath.value
-  if (!target || !target.startsWith('/')) return '/settings/security'
-  if (target === '/login' || target.startsWith('/auth/verify')) return '/settings/security'
-  return target
+  return (
+    getSafeAuthRedirect(redirectPath.value, {
+      blockedExactPaths: ['/login', '/register', '/forgot-password'],
+      blockedPrefixes: ['/auth/verify'],
+    }) || '/settings/security'
+  )
 }
 
 const getSafeStepUpRedirect = (): string => {
-  const target = redirectPath.value
-  if (!target || !target.startsWith('/')) return '/home'
-  if (target === '/login' || target.startsWith('/auth/verify')) return '/home'
-  return target
+  return (
+    getSafeAuthRedirect(redirectPath.value, {
+      blockedExactPaths: ['/login', '/register', '/forgot-password'],
+      blockedPrefixes: ['/auth/verify'],
+    }) || '/home'
+  )
 }
 
 const completeAndRedirect = async (userData?: Record<string, any>) => {

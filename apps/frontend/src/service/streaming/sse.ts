@@ -11,6 +11,7 @@ export class SSEStream {
 
   async connect(url: string, options: RequestInit, callbacks: SSEOptions) {
     this.controller = new AbortController()
+    let buffer = ''
 
     try {
       const response = await fetch(url, {
@@ -28,21 +29,28 @@ export class SSEStream {
         const { done, value } = await reader.read()
         if (done) break
 
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n')
+        buffer += decoder.decode(value, { stream: true })
+        const events = buffer.split('\n\n')
+        buffer = events.pop() || ''
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data === '[DONE]') {
-              callbacks.onDone?.()
-              return
-            }
-            try {
-              callbacks.onMessage(JSON.parse(data))
-            } catch (e) {
-              console.error('SSE parse error:', e)
-            }
+        for (const event of events) {
+          const lines = event
+            .split('\n')
+            .map((line) => line.trimEnd())
+            .filter((line) => line.startsWith('data: '))
+
+          if (lines.length === 0) continue
+
+          const data = lines.map((line) => line.slice(6)).join('\n')
+          if (data === '[DONE]') {
+            callbacks.onDone?.()
+            return
+          }
+
+          try {
+            callbacks.onMessage(JSON.parse(data))
+          } catch (e) {
+            console.error('SSE parse error:', e)
           }
         }
       }
