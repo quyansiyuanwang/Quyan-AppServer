@@ -23,9 +23,11 @@ import { OperationType, OperationCategory } from "@/constant/operation-type";
 import type {
   AcceptPolicyConsentDto,
   AuthData,
+  PolicyConsentRequiredData,
   RegisterDto,
   ReplaySigningSessionData,
   ResetPasswordDto,
+  TwoFactorRequiredData,
 } from "@/api/dto/auth/auth.dto";
 import type { Request } from "express";
 import { validateAccountStatus } from "@/util/auth/account-status";
@@ -68,7 +70,7 @@ interface PolicyConsentChallengePayload {
   userId: string;
   twoFactorEnabled: boolean;
   grantTrustedDevice: boolean;
-  source: "password_login" | "two_factor_login" | "passkey_login";
+  source: "password_login" | "two_factor_login" | "passkey_login" | "external_login" | "qr_login";
 }
 
 interface CompleteAuthenticatedLoginOptions {
@@ -382,6 +384,66 @@ export class AuthService {
       this.checkAbnormalLogin(user.id, ipAddress).catch(() => {});
 
     return authData;
+  }
+
+  public async completeKnownUserLogin(
+    user: User,
+    request: Request | undefined,
+    options: {
+      source: "external_login" | "qr_login";
+      successDescription: string;
+    },
+  ): Promise<AuthData | TwoFactorRequiredData | PolicyConsentRequiredData> {
+    const ipAddress = request ? this.getClientIP(request) : "unknown";
+    const userAgent = request?.headers["user-agent"];
+    const normalizedUserAgent = this.getUserAgent(userAgent);
+    const fingerprint = request ? extractClientFingerprint(request) : undefined;
+    const trustedDeviceToken = request ? extractTrustedDeviceToken(request) : undefined;
+    const requestId = request?.headers["x-request-id"] as string | undefined;
+
+    const twoFactorEnabled = await this.twoFactorService.isTwoFactorEnabled(user.id);
+    if (twoFactorEnabled) {
+      const trustedWithinWindow = await this.twoFactorService.isTrustedWithinWindow(user.id, {
+        ipAddress,
+        userAgent: normalizedUserAgent,
+        fingerprint,
+        trustedDeviceToken,
+      });
+
+      await this.businessLogService.logOperation({
+        operationType: OperationType.TWO_FACTOR_TRUSTED_DEVICE_VERIFY,
+        operationCategory: OperationCategory.AUTH,
+        actorUserId: user.id,
+        targetUserId: user.id,
+        description: trustedWithinWindow
+          ? `${options.source} 可信设备校验命中`
+          : `${options.source} 可信设备校验未命中`,
+        success: true,
+        metadata: {
+          trustedWithinWindow,
+          channel: options.source,
+        },
+        ipAddress,
+        userAgent: normalizedUserAgent,
+        requestId,
+      });
+
+      if (!trustedWithinWindow) {
+        const challenge = await this.twoFactorService.createLoginChallenge(user.id);
+        return {
+          requiresTwoFactor: true,
+          challengeToken: challenge.challengeToken,
+          expiresIn: challenge.expiresIn,
+        };
+      }
+    }
+
+    return this.completeAuthenticatedLogin(user, request, {
+      twoFactorEnabled,
+      grantTrustedDevice: false,
+      source: options.source,
+      successDescription: options.successDescription,
+    });
   }
 
   public async completeAuthenticatedLogin(

@@ -5,6 +5,7 @@ import type {
   CaptchaConfigDto,
   HeartbeatConfigDto,
   NotificationConfigDto,
+  PublicSocialAuthConfigDto,
   RecordStringString,
   RemoteTerminalUnbindConfigDto,
   SetCaptchaConfigDto,
@@ -16,7 +17,9 @@ import type {
   SetSiteConfigDto,
   SetSmtpConfigDto,
   SetRemoteTerminalUnbindConfigDto,
+  SetSocialAuthConfigDto,
   SiteConfigDto,
+  SocialAuthConfigDto,
 } from '@/client/types.gen'
 import { cacheObject } from '@/utils/common'
 import { createConfigControllerApi } from '@/client/services/config-controller.gen'
@@ -244,6 +247,30 @@ export class ConfigService {
 
   async setNotificationConfig(config: SetNotificationConfigDto) {
     const result = await configApi.setNotificationConfig({ body: config })
+    if (result && result.code === CustomCode.OK) {
+      return true
+    }
+    throw toServiceError(result)
+  }
+
+  async getPublicSocialAuthConfig(): Promise<PublicSocialAuthConfigDto> {
+    const result = await configApi.getPublicSocialAuthConfig({})
+    if (result && result.code === CustomCode.OK && result.data) {
+      return result.data as PublicSocialAuthConfigDto
+    }
+    throw toServiceError(result)
+  }
+
+  async getSocialAuthConfig(): Promise<SocialAuthConfigDto> {
+    const result = await configApi.getSocialAuthConfig({})
+    if (result && result.code === CustomCode.OK && result.data) {
+      return result.data as SocialAuthConfigDto
+    }
+    throw toServiceError(result)
+  }
+
+  async setSocialAuthConfig(config: SetSocialAuthConfigDto) {
+    const result = await configApi.setSocialAuthConfig({ body: config })
     if (result && result.code === CustomCode.OK) {
       return true
     }

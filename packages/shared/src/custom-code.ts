@@ -35,4 +35,13 @@ export enum CustomCode {
   LEGAL_POLICY_VERSION_CONFLICT = 1029, // 法律协议版本创建冲突
   RESOURCE_ALREADY_EXISTS = 1030, // 资源已存在/唯一约束冲突
   CAPTCHA_TRUST_REQUIRED = 1031, // 需要先建立人机验证信任 Cookie
+  EXTERNAL_IDENTITY_ALREADY_BOUND = 1032, // 外部身份已绑定到其他账号
+  EXTERNAL_IDENTITY_NOT_BOUND = 1033, // 外部身份尚未绑定
+  EXTERNAL_AUTH_STATE_INVALID = 1034, // 外部登录 state 无效或已过期
+  EXTERNAL_AUTH_PROVIDER_DISABLED = 1035, // 外部登录提供方未启用
+  EXTERNAL_AUTH_BINDING_REQUIRED = 1036, // 外部身份未绑定，需要用户手动绑定
+  EXTERNAL_AUTH_CALLBACK_INVALID = 1037, // 外部登录回调参数无效
+  QR_LOGIN_SESSION_EXPIRED = 1038, // 扫码登录会话已过期
+  QR_LOGIN_SESSION_CONSUMED = 1039, // 扫码登录会话已被处理
+  QR_LOGIN_SESSION_PENDING = 1040, // 扫码登录尚未完成
 }

@@ -9575,6 +9575,38 @@
 				"parameters": []
 			}
 		},
+		"/v1/config/public/social-auth": {
+			"get": {
+				"operationId": "ConfigControllerGetPublicSocialAuthConfig",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PublicSocialAuthConfigDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
 		"/v1/config/registration": {
 			"get": {
 				"operationId": "ConfigControllerGetRegistrationConfig",
@@ -10503,6 +10535,100 @@
 						"application/json": {
 							"schema": {
 								"$ref": "#/components/schemas/SetCaptchaConfigDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/config/social-auth": {
+			"get": {
+				"operationId": "ConfigControllerGetSocialAuthConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SocialAuthConfigDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "ConfigControllerSetSocialAuthConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetSocialAuthConfigDto"
 							}
 						}
 					}
@@ -18565,6 +18691,404 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/auth/external/start": {
+			"post": {
+				"operationId": "AuthControllerStartExternalAuth",
+				"responses": {
+					"200": {
+						"description": "获取外部登录地址成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/StartExternalAuthResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/StartExternalAuthDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/auth/external/{provider}/callback": {
+			"get": {
+				"operationId": "AuthControllerExternalAuthCallback",
+				"responses": {
+					"200": {
+						"description": "外部登录回调成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ExternalAuthCallbackResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "provider",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/ExternalAuthProvider"
+						}
+					},
+					{
+						"in": "query",
+						"name": "code",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "state",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/auth/external/identities": {
+			"get": {
+				"operationId": "AuthControllerListExternalIdentities",
+				"responses": {
+					"200": {
+						"description": "获取绑定账号成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ListExternalIdentitiesResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/auth/external/bind": {
+			"post": {
+				"operationId": "AuthControllerBindExternalIdentity",
+				"responses": {
+					"200": {
+						"description": "绑定外部账号成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BindExternalIdentityResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BindExternalIdentityDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/auth/external/unbind": {
+			"post": {
+				"operationId": "AuthControllerUnbindExternalIdentity",
+				"responses": {
+					"200": {
+						"description": "解绑外部账号成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/UnbindExternalIdentityResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UnbindExternalIdentityDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/auth/qr-login/session": {
+			"post": {
+				"operationId": "AuthControllerCreateQrLoginSession",
+				"responses": {
+					"200": {
+						"description": "创建扫码登录会话成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreateQrLoginSessionResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/auth/qr-login/scan": {
+			"post": {
+				"operationId": "AuthControllerScanQrLogin",
+				"responses": {
+					"200": {
+						"description": "扫码登录会话已标记",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/QrLoginSessionStatusResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ScanQrLoginDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/auth/qr-login/confirm": {
+			"post": {
+				"operationId": "AuthControllerConfirmQrLogin",
+				"responses": {
+					"200": {
+						"description": "扫码登录确认成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/QrLoginSessionStatusResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ConfirmQrLoginDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/auth/qr-login/status": {
+			"get": {
+				"operationId": "AuthControllerGetQrLoginStatus",
+				"responses": {
+					"200": {
+						"description": "获取扫码登录状态成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/QrLoginSessionStatusResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "sessionId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/auth/refresh": {
 			"post": {
 				"operationId": "AuthControllerRefresh",
@@ -20547,7 +21071,16 @@
 					1028,
 					1029,
 					1030,
-					1031
+					1031,
+					1032,
+					1033,
+					1034,
+					1035,
+					1036,
+					1037,
+					1038,
+					1039,
+					1040
 				],
 				"type": "number"
 			},
@@ -26562,6 +27095,30 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"PublicSocialAuthConfigDto": {
+				"properties": {
+					"githubEnabled": {
+						"type": "boolean"
+					},
+					"wechatOpenEnabled": {
+						"type": "boolean"
+					},
+					"wechatWebEnabled": {
+						"type": "boolean"
+					},
+					"qrLoginEnabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"githubEnabled",
+					"wechatOpenEnabled",
+					"wechatWebEnabled",
+					"qrLoginEnabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RegistrationConfig": {
 				"properties": {
 					"enabled": {
@@ -26857,6 +27414,133 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"SocialAuthGithubConfigDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"clientId": {
+						"type": "string"
+					},
+					"clientSecret": {
+						"type": "string"
+					},
+					"authorizeUrl": {
+						"type": "string"
+					},
+					"tokenUrl": {
+						"type": "string"
+					},
+					"userUrl": {
+						"type": "string"
+					},
+					"emailUrl": {
+						"type": "string"
+					},
+					"scope": {
+						"type": "string"
+					},
+					"callbackPath": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"enabled",
+					"clientId",
+					"clientSecret",
+					"authorizeUrl",
+					"tokenUrl",
+					"userUrl",
+					"emailUrl",
+					"scope",
+					"callbackPath"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SocialAuthWechatConfigDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"appId": {
+						"type": "string"
+					},
+					"appSecret": {
+						"type": "string"
+					},
+					"authorizeUrl": {
+						"type": "string"
+					},
+					"tokenUrl": {
+						"type": "string"
+					},
+					"userUrl": {
+						"type": "string"
+					},
+					"scope": {
+						"type": "string"
+					},
+					"callbackPath": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"enabled",
+					"appId",
+					"appSecret",
+					"authorizeUrl",
+					"tokenUrl",
+					"userUrl",
+					"scope",
+					"callbackPath"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SocialAuthConfigDto": {
+				"properties": {
+					"frontendBaseUrl": {
+						"type": "string"
+					},
+					"qrLoginEnabled": {
+						"type": "boolean"
+					},
+					"stateTtlSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"qrLoginTtlSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"qrLoginPollIntervalSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"github": {
+						"$ref": "#/components/schemas/SocialAuthGithubConfigDto"
+					},
+					"wechatOpen": {
+						"$ref": "#/components/schemas/SocialAuthWechatConfigDto"
+					},
+					"wechatWeb": {
+						"$ref": "#/components/schemas/SocialAuthWechatConfigDto"
+					}
+				},
+				"required": [
+					"frontendBaseUrl",
+					"qrLoginEnabled",
+					"stateTtlSeconds",
+					"qrLoginTtlSeconds",
+					"qrLoginPollIntervalSeconds",
+					"github",
+					"wechatOpen",
+					"wechatWeb"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"SetRegistrationConfigDto": {
 				"properties": {
 					"enabled": {
@@ -27130,6 +27814,49 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"SetSocialAuthConfigDto": {
+				"properties": {
+					"frontendBaseUrl": {
+						"type": "string"
+					},
+					"qrLoginEnabled": {
+						"type": "boolean"
+					},
+					"stateTtlSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"qrLoginTtlSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"qrLoginPollIntervalSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"github": {
+						"$ref": "#/components/schemas/SocialAuthGithubConfigDto"
+					},
+					"wechatOpen": {
+						"$ref": "#/components/schemas/SocialAuthWechatConfigDto"
+					},
+					"wechatWeb": {
+						"$ref": "#/components/schemas/SocialAuthWechatConfigDto"
+					}
+				},
+				"required": [
+					"frontendBaseUrl",
+					"qrLoginEnabled",
+					"stateTtlSeconds",
+					"qrLoginTtlSeconds",
+					"qrLoginPollIntervalSeconds",
+					"github",
+					"wechatOpen",
+					"wechatWeb"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"OperationType": {
 				"description": "Business operation types for audit logging",
 				"enum": [
@@ -27166,6 +27893,12 @@
 					"TWO_FACTOR_TRUSTED_DEVICE_VERIFY",
 					"TWO_FACTOR_TRUSTED_DEVICE_CREATE",
 					"TWO_FACTOR_TRUSTED_DEVICE_DELETE",
+					"EXTERNAL_AUTH_LOGIN",
+					"EXTERNAL_AUTH_BIND",
+					"EXTERNAL_AUTH_UNBIND",
+					"QR_LOGIN_CREATE",
+					"QR_LOGIN_SCAN",
+					"QR_LOGIN_CONFIRM",
 					"USER_CREATE",
 					"USER_UPDATE",
 					"USER_DELETE",
@@ -29299,7 +30032,10 @@
 					"maxRetries": {
 						"type": "number",
 						"format": "double",
-						"description": "最大重试次数"
+						"description": "最大渠道切换次数",
+						"default": 0,
+						"minimum": 0,
+						"maximum": 100
 					},
 					"retryStatusCodes": {
 						"items": {
@@ -29314,7 +30050,7 @@
 						"description": "单渠道重试次数（0 = 不重试直接切换，1 = 重试1次）",
 						"default": 0,
 						"minimum": 0,
-						"maximum": 32
+						"maximum": 100
 					},
 					"failbackCooldownMinutes": {
 						"type": "number",
@@ -29322,12 +30058,11 @@
 						"description": "切换后保持当前渠道优先的时长（分钟），0 表示关闭",
 						"default": 0,
 						"minimum": 0,
-						"maximum": 10080
+						"maximum": 525600
 					}
 				},
 				"required": [
 					"enabled",
-					"maxRetries",
 					"retryStatusCodes"
 				],
 				"type": "object",
@@ -35373,6 +36108,332 @@
 					"username",
 					"password",
 					"agreedToLegalPolicies"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExternalAuthProvider": {
+				"type": "string",
+				"enum": [
+					"github",
+					"wechat-open",
+					"wechat-web"
+				]
+			},
+			"ExternalAuthAction": {
+				"type": "string",
+				"enum": [
+					"login",
+					"bind"
+				]
+			},
+			"StartExternalAuthResponse": {
+				"properties": {
+					"provider": {
+						"$ref": "#/components/schemas/ExternalAuthProvider"
+					},
+					"action": {
+						"$ref": "#/components/schemas/ExternalAuthAction"
+					},
+					"authorizeUrl": {
+						"type": "string"
+					},
+					"state": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"provider",
+					"action",
+					"authorizeUrl",
+					"state"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"StartExternalAuthDto": {
+				"properties": {
+					"provider": {
+						"$ref": "#/components/schemas/ExternalAuthProvider"
+					},
+					"action": {
+						"$ref": "#/components/schemas/ExternalAuthAction"
+					},
+					"redirectUri": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"provider"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExternalIdentityProfile": {
+				"properties": {
+					"provider": {
+						"$ref": "#/components/schemas/ExternalAuthProvider"
+					},
+					"providerUserId": {
+						"type": "string"
+					},
+					"providerUnionId": {
+						"type": "string",
+						"nullable": true
+					},
+					"providerUsername": {
+						"type": "string",
+						"nullable": true
+					},
+					"providerEmail": {
+						"type": "string",
+						"nullable": true
+					},
+					"avatarUrl": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"required": [
+					"provider",
+					"providerUserId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExternalAuthBindingRequiredData": {
+				"properties": {
+					"requiresBinding": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					},
+					"provider": {
+						"$ref": "#/components/schemas/ExternalAuthProvider"
+					},
+					"providerProfile": {
+						"$ref": "#/components/schemas/ExternalIdentityProfile"
+					},
+					"bindingToken": {
+						"type": "string"
+					},
+					"expiresIn": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"requiresBinding",
+					"provider",
+					"providerProfile",
+					"bindingToken",
+					"expiresIn"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ExternalAuthCallbackResponse": {
+				"anyOf": [
+					{
+						"$ref": "#/components/schemas/AuthData"
+					},
+					{
+						"$ref": "#/components/schemas/PolicyConsentRequiredData"
+					},
+					{
+						"$ref": "#/components/schemas/ExternalAuthBindingRequiredData"
+					}
+				]
+			},
+			"ExternalIdentityItem": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"provider": {
+						"$ref": "#/components/schemas/ExternalAuthProvider"
+					},
+					"providerUserId": {
+						"type": "string"
+					},
+					"providerUnionId": {
+						"type": "string",
+						"nullable": true
+					},
+					"providerUsername": {
+						"type": "string",
+						"nullable": true
+					},
+					"providerEmail": {
+						"type": "string",
+						"nullable": true
+					},
+					"avatarUrl": {
+						"type": "string",
+						"nullable": true
+					},
+					"linkedAt": {
+						"type": "string"
+					},
+					"lastLoginAt": {
+						"type": "string",
+						"nullable": true
+					},
+					"lastSyncedAt": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"required": [
+					"id",
+					"provider",
+					"providerUserId",
+					"linkedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ListExternalIdentitiesResponse": {
+				"items": {
+					"$ref": "#/components/schemas/ExternalIdentityItem"
+				},
+				"type": "array"
+			},
+			"BindExternalIdentityResponse": {
+				"$ref": "#/components/schemas/ExternalIdentityItem"
+			},
+			"BindExternalIdentityDto": {
+				"properties": {
+					"provider": {
+						"$ref": "#/components/schemas/ExternalAuthProvider"
+					},
+					"bindingToken": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"provider",
+					"bindingToken"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UnbindExternalIdentityResponse": {
+				"properties": {
+					"message": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"message"
+				],
+				"type": "object"
+			},
+			"UnbindExternalIdentityDto": {
+				"properties": {
+					"provider": {
+						"$ref": "#/components/schemas/ExternalAuthProvider"
+					}
+				},
+				"required": [
+					"provider"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateQrLoginSessionResponse": {
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"qrCodeDataUrl": {
+						"type": "string"
+					},
+					"expiresIn": {
+						"type": "number",
+						"format": "double"
+					},
+					"pollIntervalSeconds": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"sessionId",
+					"qrCodeDataUrl",
+					"expiresIn",
+					"pollIntervalSeconds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"QrLoginSessionStatusResponse": {
+				"properties": {
+					"status": {
+						"type": "string",
+						"enum": [
+							"pending",
+							"scanned",
+							"approved",
+							"rejected",
+							"expired",
+							"consumed"
+						]
+					},
+					"expiresIn": {
+						"type": "number",
+						"format": "double"
+					},
+					"user": {
+						"$ref": "#/components/schemas/UserDto"
+					},
+					"auth": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/AuthData"
+							},
+							{
+								"$ref": "#/components/schemas/TwoFactorRequiredData"
+							},
+							{
+								"$ref": "#/components/schemas/PolicyConsentRequiredData"
+							}
+						]
+					}
+				},
+				"required": [
+					"status",
+					"expiresIn"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ScanQrLoginDto": {
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"sessionId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ConfirmQrLoginDto": {
+				"properties": {
+					"sessionId": {
+						"type": "string"
+					},
+					"approve": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"sessionId",
+					"approve"
 				],
 				"type": "object",
 				"additionalProperties": false

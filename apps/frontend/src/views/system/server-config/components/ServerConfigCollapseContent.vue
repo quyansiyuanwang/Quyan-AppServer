@@ -485,6 +485,107 @@
       </el-form>
     </el-collapse-item>
 
+    <el-collapse-item name="socialAuth">
+      <template #title>
+        <span class="collapse-title">{{ i18ns.t('ServerConfigView.socialAuthTitle') }}</span>
+      </template>
+      <el-form :label-width="labelWidth" :label-position="labelPosition">
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthFrontendBaseUrl')">
+          <el-input
+            v-model="socAuthFrontendBaseUrl"
+            placeholder="https://example.com"
+            style="max-width: 400px"
+          />
+          <span class="form-help">{{
+            i18ns.t('ServerConfigView.socAuthFrontendBaseUrlHelp')
+          }}</span>
+        </el-form-item>
+
+        <el-divider>{{ i18ns.t('ServerConfigView.socAuthQrLoginEnabled') }}</el-divider>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthQrLoginEnabled')">
+          <el-switch v-model="socAuthQrLoginEnabled" />
+          <span class="form-help">{{ i18ns.t('ServerConfigView.socAuthQrLoginEnabledHelp') }}</span>
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthStateTtlSeconds')">
+          <el-input-number v-model="socAuthStateTtlSeconds" :min="30" :max="86400" :step="30" />
+          <span class="form-help">{{
+            i18ns.t('ServerConfigView.socAuthStateTtlSecondsHelp')
+          }}</span>
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthQrLoginTtlSeconds')">
+          <el-input-number v-model="socAuthQrLoginTtlSeconds" :min="30" :max="86400" :step="30" />
+          <span class="form-help">{{
+            i18ns.t('ServerConfigView.socAuthQrLoginTtlSecondsHelp')
+          }}</span>
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthQrLoginPollIntervalSeconds')">
+          <el-input-number
+            v-model="socAuthQrLoginPollIntervalSeconds"
+            :min="1"
+            :max="30"
+            :step="1"
+          />
+          <span class="form-help">{{
+            i18ns.t('ServerConfigView.socAuthQrLoginPollIntervalSecondsHelp')
+          }}</span>
+        </el-form-item>
+
+        <el-divider>{{ i18ns.t('ServerConfigView.socAuthGithubEnabled') }}</el-divider>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthGithubEnabled')">
+          <el-switch v-model="socAuthGithubEnabled" />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthGithubClientId')">
+          <el-input v-model="socAuthGithubClientId" style="max-width: 400px" />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthGithubClientSecret')">
+          <el-input
+            v-model="socAuthGithubClientSecret"
+            type="password"
+            show-password
+            style="max-width: 400px"
+          />
+        </el-form-item>
+
+        <el-divider>{{ i18ns.t('ServerConfigView.socAuthWechatOpenEnabled') }}</el-divider>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthWechatOpenEnabled')">
+          <el-switch v-model="socAuthWechatOpenEnabled" />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthWechatOpenAppId')">
+          <el-input v-model="socAuthWechatOpenAppId" style="max-width: 400px" />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthWechatOpenAppSecret')">
+          <el-input
+            v-model="socAuthWechatOpenAppSecret"
+            type="password"
+            show-password
+            style="max-width: 400px"
+          />
+        </el-form-item>
+
+        <el-divider>{{ i18ns.t('ServerConfigView.socAuthWechatWebEnabled') }}</el-divider>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthWechatWebEnabled')">
+          <el-switch v-model="socAuthWechatWebEnabled" />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthWechatWebAppId')">
+          <el-input v-model="socAuthWechatWebAppId" style="max-width: 400px" />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.socAuthWechatWebAppSecret')">
+          <el-input
+            v-model="socAuthWechatWebAppSecret"
+            type="password"
+            show-password
+            style="max-width: 400px"
+          />
+        </el-form-item>
+
+        <el-form-item>
+          <el-button type="primary" :loading="savingSocialAuth" @click="saveSocialAuth">
+            {{ i18ns.t('save') }}
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </el-collapse-item>
+
     <el-collapse-item name="ipBan">
       <template #title>
         <span class="collapse-title">{{ i18ns.t('ServerConfigView.ipBanTitle') }}</span>
@@ -606,6 +707,22 @@ const {
   savingSite,
   siteBackendPublicUrl,
   saveSite,
+  savingSocialAuth,
+  socAuthFrontendBaseUrl,
+  socAuthQrLoginEnabled,
+  socAuthStateTtlSeconds,
+  socAuthQrLoginTtlSeconds,
+  socAuthQrLoginPollIntervalSeconds,
+  socAuthGithubEnabled,
+  socAuthGithubClientId,
+  socAuthGithubClientSecret,
+  socAuthWechatOpenEnabled,
+  socAuthWechatOpenAppId,
+  socAuthWechatOpenAppSecret,
+  socAuthWechatWebEnabled,
+  socAuthWechatWebAppId,
+  socAuthWechatWebAppSecret,
+  saveSocialAuth,
   savingErrorDecay,
   errorDecayEnabled,
   errorDecayRate,
