@@ -28,6 +28,8 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { socialAuthService } from '@/service/socialAuthService'
+import type { SSEStream } from '@/service/streaming/sse'
+import { getAccessToken } from '@/stores/request'
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
@@ -79,6 +81,8 @@ export function useLoginOrRegister() {
   const qrLoginBusy = ref(false)
   const qrPolling = ref(false)
   let publicSocialAuthPromise: Promise<PublicSocialAuthConfigDto | null> | null = null
+  let qrStatusStream: SSEStream | null = null
+  let autoScannedQrSessionId: string | null = null
 
   const ensurePublicSocialAuthConfig = async (): Promise<PublicSocialAuthConfigDto | null> => {
     if (publicSocialAuthConfig.value !== null) {
@@ -343,22 +347,7 @@ export function useLoginOrRegister() {
       : undefined
   }
 
-  const getQrContinuationRedirect = (): string | undefined => {
-    const sessionId = getQrSessionIdFromRoute()
-    if (!sessionId) return undefined
-
-    const query = new URLSearchParams()
-    query.set('qrSession', sessionId)
-
-    const redirect = getSafeRedirect()
-    if (redirect) query.set('redirect', redirect)
-
-    return `/login?${query.toString()}`
-  }
-
-  const getChallengeRedirect = (): string | undefined => {
-    return getSafeRedirect() ?? getQrContinuationRedirect()
-  }
+  const getChallengeRedirect = (): string | undefined => getSafeRedirect()
 
   const clearQrPollingTimer = () => {
     if (qrPollingTimer) {
@@ -367,8 +356,14 @@ export function useLoginOrRegister() {
     }
   }
 
+  const stopQrStatusStream = () => {
+    qrStatusStream?.abort()
+    qrStatusStream = null
+  }
+
   const resetQrSessionState = () => {
     clearQrPollingTimer()
+    stopQrStatusStream()
     qrPolling.value = false
     qrLoginBusy.value = false
     qrLoginSession.value = null
@@ -495,7 +490,10 @@ export function useLoginOrRegister() {
     await redirectAfterSuccessfulLogin(auth.user)
   }
 
-  const handleQrStatusResponse = async (status: QrLoginSessionStatusResponse) => {
+  const handleQrStatusResponse = async (
+    sessionId: string,
+    status: QrLoginSessionStatusResponse,
+  ) => {
     qrLoginStatus.value = status.status
     qrLoginScannedUser.value = status.user
       ? {
@@ -507,7 +505,11 @@ export function useLoginOrRegister() {
     if (status.status === 'approved' && status.auth) {
       qrPolling.value = false
       clearQrPollingTimer()
+      stopQrStatusStream()
       await finishQrAuth(status.auth)
+      await socialAuthService.consumeQrLoginSession(sessionId).catch((error) => {
+        console.warn('Failed to consume QR login session:', error)
+      })
       return
     }
 
@@ -518,6 +520,7 @@ export function useLoginOrRegister() {
     ) {
       qrPolling.value = false
       clearQrPollingTimer()
+      stopQrStatusStream()
       return
     }
 
@@ -529,7 +532,7 @@ export function useLoginOrRegister() {
     qrPollingTimer = setTimeout(async () => {
       try {
         const status = await socialAuthService.getQrLoginStatus(sessionId)
-        await handleQrStatusResponse(status)
+        await handleQrStatusResponse(sessionId, status)
 
         if (status.status === 'pending' || status.status === 'scanned') {
           const intervalSeconds = qrLoginSession.value?.pollIntervalSeconds ?? 3
@@ -545,8 +548,31 @@ export function useLoginOrRegister() {
   }
 
   const startQrPolling = async (sessionId: string, pollIntervalSeconds = 0) => {
+    stopQrStatusStream()
+    clearQrPollingTimer()
     qrPolling.value = true
-    await pollQrLoginStatus(sessionId, Math.max(0, pollIntervalSeconds * 1000))
+
+    let fallbackStarted = false
+    const startPollingFallback = () => {
+      if (fallbackStarted) return
+      fallbackStarted = true
+      void pollQrLoginStatus(sessionId, Math.max(0, pollIntervalSeconds * 1000))
+    }
+
+    qrStatusStream = socialAuthService.streamQrLoginStatus(sessionId, {
+      onMessage: (data) => {
+        if (!data || typeof data !== 'object' || !('status' in data)) return
+        void handleQrStatusResponse(sessionId, data as QrLoginSessionStatusResponse)
+      },
+      onError: () => {
+        startPollingFallback()
+      },
+      onDone: () => {
+        if (qrLoginStatus.value === 'pending' || qrLoginStatus.value === 'scanned') {
+          startPollingFallback()
+        }
+      },
+    })
   }
 
   const restoreQrSessionFromRoute = async () => {
@@ -568,6 +594,11 @@ export function useLoginOrRegister() {
     }
     if (!qrLoginStatus.value) qrLoginStatus.value = 'pending'
     await startQrPolling(sessionId)
+
+    if (!isDesktop.value && getAccessToken() && autoScannedQrSessionId !== sessionId) {
+      autoScannedQrSessionId = sessionId
+      void handleQrScan(true)
+    }
   }
 
   const createAndTrackQrLoginSession = async () => {
@@ -585,16 +616,18 @@ export function useLoginOrRegister() {
     await startQrPolling(session.sessionId, session.pollIntervalSeconds)
   }
 
-  const handleQrScan = async () => {
+  const handleQrScan = async (silent = false) => {
     const sessionId = getQrSessionIdFromRoute()
     if (!sessionId) return
 
     qrLoginBusy.value = true
     try {
       const status = await socialAuthService.scanQrLogin(sessionId)
-      await handleQrStatusResponse(status)
+      await handleQrStatusResponse(sessionId, status)
     } catch (error: any) {
-      Notification.notify(i18ns.t('error'), error?.message || i18ns.t('operationFailed'), 'error')
+      if (!silent) {
+        Notification.notify(i18ns.t('error'), error?.message || i18ns.t('operationFailed'), 'error')
+      }
     } finally {
       qrLoginBusy.value = false
     }
@@ -607,7 +640,7 @@ export function useLoginOrRegister() {
     qrLoginBusy.value = true
     try {
       const status = await socialAuthService.confirmQrLogin(sessionId, approve)
-      await handleQrStatusResponse(status)
+      await handleQrStatusResponse(sessionId, status)
       if (!approve) {
         await clearQrSessionQuery()
       }
@@ -1196,6 +1229,7 @@ export function useLoginOrRegister() {
       cooldownTimer = null
     }
     clearQrPollingTimer()
+    stopQrStatusStream()
   })
 
   watch(

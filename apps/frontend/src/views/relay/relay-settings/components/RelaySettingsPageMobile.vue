@@ -851,10 +851,71 @@
                       <div class="config-item-title">{{ row.name }}</div>
                     </div>
                     <div class="flex items-center gap-2">
+                      <el-tag
+                        :type="row.channelType === 'pooled' ? 'warning' : 'info'"
+                        size="small"
+                      >
+                        {{ formatChannelTypeLabel(row.channelType) }}
+                      </el-tag>
                       <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
                         row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
                       }}</el-tag>
                       <el-tag size="small" type="primary">{{ row.multiplier }}x</el-tag>
+                    </div>
+                  </div>
+                  <div class="mt-3 flex flex-col gap-1.5">
+                    <span
+                      class="text-xs font-semibold text-[var(--el-text-color-secondary)] leading-tight"
+                      >{{ i18ns.t('relay.routingStrategy') }}</span
+                    >
+                    <div class="flex flex-wrap gap-2">
+                      <el-tag v-if="row.channelType === 'pooled'" type="primary" size="small">{{
+                        formatRoutingStrategyLabel(row.routingStrategy)
+                      }}</el-tag>
+                      <span v-else class="text-xs text-[var(--el-text-color-secondary)]">-</span>
+                    </div>
+                  </div>
+                  <div class="mt-3 flex flex-col gap-1.5">
+                    <span
+                      class="text-xs font-semibold text-[var(--el-text-color-secondary)] leading-tight"
+                      >{{ i18ns.t('relay.visibilityMode') }}</span
+                    >
+                    <div class="flex flex-wrap gap-2">
+                      <el-tooltip :content="getVisibilitySummary(row)" placement="top">
+                        <el-tag
+                          :type="
+                            row.visibilityMode === 'public'
+                              ? 'success'
+                              : row.visibilityMode === 'private'
+                                ? 'info'
+                                : 'danger'
+                          "
+                          size="small"
+                        >
+                          {{ formatVisibilityModeLabel(row.visibilityMode) }}
+                        </el-tag>
+                      </el-tooltip>
+                    </div>
+                  </div>
+                  <div v-if="row.channelType === 'pooled'" class="mt-3 flex flex-col gap-1.5">
+                    <span
+                      class="text-xs font-semibold text-[var(--el-text-color-secondary)] leading-tight"
+                      >{{ i18ns.t('relay.poolMembers') }}</span
+                    >
+                    <div class="flex flex-wrap gap-2">
+                      <el-tooltip
+                        v-if="(row.poolMembers || []).length > 0"
+                        :content="getPoolMembersSummary(row.poolMembers)"
+                        placement="top"
+                      >
+                        <el-tag type="warning" size="small">
+                          {{ (row.poolMembers || []).length }}
+                          {{ i18ns.t('relay.poolMemberCount') }}
+                        </el-tag>
+                      </el-tooltip>
+                      <el-tag v-else type="danger" size="small">{{
+                        i18ns.t('relay.noPoolMembers')
+                      }}</el-tag>
                     </div>
                   </div>
                   <div class="mt-3 flex flex-col gap-1.5">
@@ -922,23 +983,29 @@
                       class="text-xs font-semibold text-[var(--el-text-color-secondary)] leading-tight"
                       >{{ i18ns.t('relay.upstreamConfig') }}</span
                     >
-                    <div class="flex flex-col gap-2">
+                    <div
+                      v-if="row.channelType === 'pooled'"
+                      class="text-xs text-[var(--el-text-color-secondary)]"
+                    >
+                      {{ i18ns.t('relay.pooledNoDirectUpstreamHelp') }}
+                    </div>
+                    <div v-else class="flex flex-col gap-2">
                       <div
-                        v-if="computeShowUpstream(row.allowedFormats.split(','), 'openai')"
+                        v-if="computeShowUpstream(row.allowedFormats, 'openai')"
                         class="flex items-start gap-2 text-xs text-[var(--el-text-color-regular)]"
                       >
                         <el-tag size="small" type="success">OpenAI</el-tag>
                         <span class="break-all">{{ row.openaiUpstreamUrl || '-' }}</span>
                       </div>
                       <div
-                        v-if="computeShowUpstream(row.allowedFormats.split(','), 'anthropic')"
+                        v-if="computeShowUpstream(row.allowedFormats, 'anthropic')"
                         class="flex items-start gap-2 text-xs text-[var(--el-text-color-regular)]"
                       >
                         <el-tag size="small" type="warning">Anthropic</el-tag>
                         <span class="break-all">{{ row.anthropicUpstreamUrl || '-' }}</span>
                       </div>
                       <div
-                        v-if="computeShowUpstream(row.allowedFormats.split(','), 'gemini')"
+                        v-if="computeShowUpstream(row.allowedFormats, 'gemini')"
                         class="flex items-start gap-2 text-xs text-[var(--el-text-color-regular)]"
                       >
                         <el-tag size="small" type="primary">Gemini</el-tag>
@@ -1053,6 +1120,11 @@ const {
   toggleChannelSelection,
   parseAllowedModels,
   computeShowUpstream,
+  formatChannelTypeLabel,
+  formatRoutingStrategyLabel,
+  formatVisibilityModeLabel,
+  getVisibilitySummary,
+  getPoolMembersSummary,
   togglingChannelId,
   handleToggleChannelStatus,
   openEditChannelDialog,

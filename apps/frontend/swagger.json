@@ -19089,6 +19089,82 @@
 				]
 			}
 		},
+		"/v1/auth/qr-login/stream": {
+			"get": {
+				"operationId": "AuthControllerStreamQrLoginStatus",
+				"responses": {
+					"200": {
+						"description": "扫码登录状态流建立成功"
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "sessionId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/auth/qr-login/consume": {
+			"post": {
+				"operationId": "AuthControllerConsumeQrLogin",
+				"responses": {
+					"200": {
+						"description": "扫码登录会话已消费",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/QrLoginSessionStatusResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ScanQrLoginDto"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/auth/refresh": {
 			"post": {
 				"operationId": "AuthControllerRefresh",
@@ -31609,6 +31685,133 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayChannelType": {
+				"type": "string",
+				"enum": [
+					"standalone",
+					"pooled"
+				]
+			},
+			"RelayChannelRoutingStrategy": {
+				"type": "string",
+				"enum": [
+					"priority",
+					"random",
+					"weighted-random",
+					"round-robin",
+					"health-priority",
+					"latency-priority"
+				]
+			},
+			"RelayChannelRoutingConfigDto": {
+				"properties": {
+					"maxRetries": {
+						"type": "number",
+						"format": "double"
+					},
+					"failoverThreshold": {
+						"type": "number",
+						"format": "double"
+					},
+					"retryStatusCodes": {
+						"items": {
+							"anyOf": [
+								{
+									"type": "number",
+									"format": "double"
+								},
+								{
+									"type": "string"
+								}
+							]
+						},
+						"type": "array"
+					},
+					"failbackCooldownMinutes": {
+						"type": "number",
+						"format": "double"
+					},
+					"healthScoreThreshold": {
+						"type": "number",
+						"format": "double"
+					},
+					"latencyThresholdMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"circuitBreakerThreshold": {
+						"type": "number",
+						"format": "double"
+					},
+					"stickyByModel": {
+						"type": "boolean"
+					},
+					"stickyByFormat": {
+						"type": "boolean"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelVisibilityMode": {
+				"type": "string",
+				"enum": [
+					"public",
+					"private",
+					"whitelist"
+				]
+			},
+			"RelayChannelVisibilityConfigDto": {
+				"properties": {
+					"userIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"groupIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"roleIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelMemberDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"memberChannelId": {
+						"type": "string"
+					},
+					"priority": {
+						"type": "number",
+						"format": "double"
+					},
+					"weight": {
+						"type": "number",
+						"format": "double"
+					},
+					"enabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"memberChannelId",
+					"priority"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"TimePeriodMultiplierRule": {
 				"properties": {
 					"name": {
@@ -31652,6 +31855,27 @@
 					},
 					"enabled": {
 						"type": "boolean"
+					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType"
+					},
+					"routingStrategy": {
+						"$ref": "#/components/schemas/RelayChannelRoutingStrategy"
+					},
+					"routingConfig": {
+						"$ref": "#/components/schemas/RelayChannelRoutingConfigDto"
+					},
+					"visibilityMode": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode"
+					},
+					"visibilityConfig": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityConfigDto"
+					},
+					"poolMembers": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelMemberDto"
+						},
+						"type": "array"
 					},
 					"openaiUpstreamUrl": {
 						"type": "string"
@@ -31709,6 +31933,9 @@
 					"id",
 					"name",
 					"enabled",
+					"channelType",
+					"routingStrategy",
+					"visibilityMode",
 					"multiplier",
 					"allowedFormats",
 					"createTime",
@@ -31746,6 +31973,44 @@
 					"geminiUpstreamApiKey": {
 						"type": "string",
 						"description": "Gemini 上游 API Key"
+					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType",
+						"description": "渠道类型"
+					},
+					"routingStrategy": {
+						"$ref": "#/components/schemas/RelayChannelRoutingStrategy",
+						"description": "混池路由策略"
+					},
+					"routingConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelRoutingConfigDto"
+							}
+						],
+						"nullable": true,
+						"description": "路由策略配置"
+					},
+					"visibilityMode": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode",
+						"description": "可见性模式"
+					},
+					"visibilityConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelVisibilityConfigDto"
+							}
+						],
+						"nullable": true,
+						"description": "可见性白名单"
+					},
+					"poolMembers": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelMemberDto"
+						},
+						"type": "array",
+						"nullable": true,
+						"description": "混池成员"
 					},
 					"multiplier": {
 						"type": "number",
@@ -31903,6 +32168,44 @@
 						"type": "string",
 						"description": "Gemini 上游 API Key"
 					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType",
+						"description": "渠道类型"
+					},
+					"routingStrategy": {
+						"$ref": "#/components/schemas/RelayChannelRoutingStrategy",
+						"description": "混池路由策略"
+					},
+					"routingConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelRoutingConfigDto"
+							}
+						],
+						"nullable": true,
+						"description": "路由策略配置"
+					},
+					"visibilityMode": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode",
+						"description": "可见性模式"
+					},
+					"visibilityConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelVisibilityConfigDto"
+							}
+						],
+						"nullable": true,
+						"description": "可见性白名单"
+					},
+					"poolMembers": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelMemberDto"
+						},
+						"type": "array",
+						"nullable": true,
+						"description": "混池成员"
+					},
 					"multiplier": {
 						"type": "number",
 						"format": "double",
@@ -31996,6 +32299,44 @@
 						"type": "string",
 						"description": "Gemini 上游 API Key"
 					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType",
+						"description": "渠道类型"
+					},
+					"routingStrategy": {
+						"$ref": "#/components/schemas/RelayChannelRoutingStrategy",
+						"description": "混池路由策略"
+					},
+					"routingConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelRoutingConfigDto"
+							}
+						],
+						"nullable": true,
+						"description": "路由策略配置"
+					},
+					"visibilityMode": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode",
+						"description": "可见性模式"
+					},
+					"visibilityConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelVisibilityConfigDto"
+							}
+						],
+						"nullable": true,
+						"description": "可见性白名单"
+					},
+					"poolMembers": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelMemberDto"
+						},
+						"type": "array",
+						"nullable": true,
+						"description": "混池成员"
+					},
 					"multiplier": {
 						"type": "number",
 						"format": "double",
@@ -32069,6 +32410,44 @@
 					"geminiUpstreamApiKey": {
 						"type": "string",
 						"description": "Gemini 上游 API Key"
+					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType",
+						"description": "渠道类型"
+					},
+					"routingStrategy": {
+						"$ref": "#/components/schemas/RelayChannelRoutingStrategy",
+						"description": "混池路由策略"
+					},
+					"routingConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelRoutingConfigDto"
+							}
+						],
+						"nullable": true,
+						"description": "路由策略配置，传 null 清除"
+					},
+					"visibilityMode": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode",
+						"description": "可见性模式"
+					},
+					"visibilityConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelVisibilityConfigDto"
+							}
+						],
+						"nullable": true,
+						"description": "可见性白名单，传 null 清除"
+					},
+					"poolMembers": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelMemberDto"
+						},
+						"type": "array",
+						"nullable": true,
+						"description": "混池成员，传 [] 或 null 清空"
 					},
 					"multiplier": {
 						"type": "number",
@@ -36234,19 +36613,6 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"ExternalAuthCallbackResponse": {
-				"anyOf": [
-					{
-						"$ref": "#/components/schemas/AuthData"
-					},
-					{
-						"$ref": "#/components/schemas/PolicyConsentRequiredData"
-					},
-					{
-						"$ref": "#/components/schemas/ExternalAuthBindingRequiredData"
-					}
-				]
-			},
 			"ExternalIdentityItem": {
 				"properties": {
 					"id": {
@@ -36294,6 +36660,25 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"ExternalAuthCallbackResponse": {
+				"anyOf": [
+					{
+						"$ref": "#/components/schemas/AuthData"
+					},
+					{
+						"$ref": "#/components/schemas/TwoFactorRequiredData"
+					},
+					{
+						"$ref": "#/components/schemas/PolicyConsentRequiredData"
+					},
+					{
+						"$ref": "#/components/schemas/ExternalAuthBindingRequiredData"
+					},
+					{
+						"$ref": "#/components/schemas/ExternalIdentityItem"
+					}
+				]
 			},
 			"ListExternalIdentitiesResponse": {
 				"items": {

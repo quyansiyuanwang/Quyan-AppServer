@@ -459,6 +459,11 @@ model RelayChannel {
   createTime                  DateTime @default(now())
   updateTime                  DateTime @updatedAt
   name                        String
+  channelType                 String   @default("standalone") @db.VarChar(30)
+  routingStrategy             String   @default("priority") @db.VarChar(30)
+  routingConfig               Json?
+  visibilityMode             String   @default("public") @db.VarChar(30)
+  visibilityConfig           Json?
   openaiUpstreamUrl           String?  @db.Text
   openaiUpstreamApiKey        String?  @db.Text
   anthropicUpstreamUrl        String?  @db.Text
@@ -475,12 +480,34 @@ model RelayChannel {
 
   relayTokens    RelayToken[]
   tokenConfigs   RelayTokenChannelConfig[]
+  poolMembers    RelayChannelMember[]     @relation("RelayChannelPool")
+  memberOfPools  RelayChannelMember[]     @relation("RelayChannelPoolMember")
   fromSwitchLogs RelayChannelSwitchLog[]   @relation("RelaySwitchLogFromChannel")
   toSwitchLogs   RelayChannelSwitchLog[]   @relation("RelaySwitchLogToChannel")
   ojApiKeys      OJAPIKey[]
 
   @@index([status])
   @@map("relay_channels")
+}
+
+model RelayChannelMember {
+  id              String   @id @default(cuid())
+  relayChannelId   String
+  memberChannelId  String
+  priority        Int
+  weight          Decimal  @default(1.0) @db.Decimal(10, 6)
+  enabled         Boolean  @default(true)
+  createTime      DateTime @default(now())
+  updateTime      DateTime @updatedAt
+
+  relayChannel  RelayChannel @relation("RelayChannelPool", fields: [relayChannelId], references: [id], onDelete: Cascade)
+  memberChannel RelayChannel @relation("RelayChannelPoolMember", fields: [memberChannelId], references: [id], onDelete: Cascade)
+
+  @@unique([relayChannelId, memberChannelId])
+  @@unique([relayChannelId, priority])
+  @@index([relayChannelId, priority])
+  @@index([memberChannelId])
+  @@map("relay_channel_members")
 }
 
 model RelayToken {

@@ -13,6 +13,12 @@ import type {
   RelayChannelImportItemDto,
   TimePeriodMultiplierRule,
   UpdateRelayChannelRequest,
+  RelayChannelMemberDto,
+  RelayChannelRoutingConfigDto,
+  RelayChannelRoutingStrategy,
+  RelayChannelType,
+  RelayChannelVisibilityConfigDto,
+  RelayChannelVisibilityMode,
 } from "@/api/dto/relay/relay-channel.dto";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
@@ -34,6 +40,12 @@ const MAX_CHANNEL_NAME_LENGTH = 100;
 
 interface ValidatedRelayChannelData {
   name: string;
+  channelType: RelayChannelType;
+  routingStrategy: RelayChannelRoutingStrategy;
+  routingConfig?: RelayChannelRoutingConfigDto | null;
+  visibilityMode: RelayChannelVisibilityMode;
+  visibilityConfig?: RelayChannelVisibilityConfigDto | null;
+  poolMembers?: RelayChannelMemberDto[] | null;
   openaiUpstreamUrl?: string;
   openaiUpstreamApiKey?: string;
   anthropicUpstreamUrl?: string;
@@ -48,6 +60,10 @@ interface ValidatedRelayChannelData {
   modelMapping?: Record<string, string> | null;
   timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
 }
+
+const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
+const DEFAULT_ROUTING_STRATEGY: RelayChannelRoutingStrategy = "priority";
+const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
 
 export class RelayChannelService {
   private static instance: RelayChannelService;
@@ -208,6 +224,81 @@ export class RelayChannelService {
     return { normalized: [...new Set(formats)].join(","), formats: [...new Set(formats)] };
   }
 
+  private normalizeRelayChannelMembers(
+    members?: RelayChannelMemberDto[] | null,
+  ): RelayChannelMemberDto[] | null | undefined {
+    if (members === undefined) return undefined;
+    if (members === null) return null;
+    const seen = new Set<string>();
+    return members
+      .map((member) => ({
+        ...member,
+        memberChannelId: member.memberChannelId.trim(),
+        priority: Number(member.priority),
+        weight: member.weight === undefined ? undefined : Number(member.weight),
+        enabled: member.enabled !== false,
+      }))
+      .filter((member) => {
+        if (!member.memberChannelId) return false;
+        if (seen.has(member.memberChannelId)) return false;
+        seen.add(member.memberChannelId);
+        return true;
+      })
+      .sort((a, b) => a.priority - b.priority);
+  }
+
+  private assertNoSelfReference(channelId: string | undefined, members?: RelayChannelMemberDto[] | null): void {
+    if (!channelId || !members) return;
+    if (members.some((member) => member.memberChannelId === channelId)) {
+      throw new BadRequestError("pooled channel cannot include itself as a member");
+    }
+  }
+
+  private async syncPoolMembers(
+    channelId: string,
+    channelType: RelayChannelType,
+    members: RelayChannelMemberDto[] | null | undefined,
+    tx?: Parameters<RelayChannelStore["replaceMembersByChannelId"]>[2],
+  ): Promise<void> {
+    if (channelType !== "pooled") {
+      await this.relayChannelRepository.deleteMembersByChannelId(channelId, tx);
+      return;
+    }
+
+    if (members === undefined) return;
+    if (members === null || members.length === 0) {
+      throw new BadRequestError("pooled channel must contain at least one member");
+    }
+
+    await this.relayChannelRepository.replaceMembersByChannelId(
+      channelId,
+      members.map((member) => ({
+        memberChannelId: member.memberChannelId,
+        priority: member.priority,
+        weight: member.weight,
+        enabled: member.enabled,
+      })),
+      tx,
+    );
+  }
+
+  private toPoolMemberDto(member: {
+    id: string;
+    memberChannelId: string;
+    priority: number;
+    weight: Prisma.Decimal | number;
+    enabled: boolean;
+    memberChannel?: RelayChannel | null;
+  }): RelayChannelMemberDto {
+    return {
+      id: member.id,
+      memberChannelId: member.memberChannelId,
+      priority: member.priority,
+      weight: Number(member.weight),
+      enabled: member.enabled,
+    };
+  }
+
   private async buildValidatedChannelData(
     data: CreateRelayChannelRequest | UpdateRelayChannelRequest,
     existing?: RelayChannel,
@@ -217,6 +308,30 @@ export class RelayChannelService {
 
     const multiplier = data.multiplier !== undefined ? data.multiplier : Number(existing?.multiplier ?? 1);
     if (multiplier < 0) throw new BadRequestError("multiplier must be >= 0");
+
+    const channelType = (data.channelType ??
+      (existing?.channelType as RelayChannelType | undefined) ??
+      DEFAULT_CHANNEL_TYPE) as RelayChannelType;
+    const routingStrategy = (data.routingStrategy ??
+      (existing?.routingStrategy as RelayChannelRoutingStrategy | undefined) ??
+      DEFAULT_ROUTING_STRATEGY) as RelayChannelRoutingStrategy;
+    const visibilityMode = (data.visibilityMode ??
+      (existing?.visibilityMode as RelayChannelVisibilityMode | undefined) ??
+      DEFAULT_VISIBILITY_MODE) as RelayChannelVisibilityMode;
+    const routingConfig =
+      data.routingConfig !== undefined
+        ? data.routingConfig
+        : (existing?.routingConfig as RelayChannelRoutingConfigDto | null | undefined);
+    const visibilityConfig =
+      data.visibilityConfig !== undefined
+        ? data.visibilityConfig
+        : (existing?.visibilityConfig as RelayChannelVisibilityConfigDto | null | undefined);
+    const poolMembers = this.normalizeRelayChannelMembers(
+      data.poolMembers !== undefined ? data.poolMembers : undefined,
+    );
+    this.assertNoSelfReference(existing?.id, poolMembers);
+    const isCreate = !existing;
+    const wasPooled = existing?.channelType === "pooled";
 
     const openaiUpstreamUrl =
       data.openaiUpstreamUrl !== undefined ? data.openaiUpstreamUrl : existing?.openaiUpstreamUrl || undefined;
@@ -263,39 +378,55 @@ export class RelayChannelService {
         throw new BadRequestError("allowedModels must be a valid JSON array");
       }
 
-    if (!openaiUpstreamUrl && !anthropicUpstreamUrl && !geminiUpstreamUrl)
-      throw new BadRequestError("At least one upstream URL (OpenAI, Anthropic, or Gemini) must be configured");
+    if (channelType !== "pooled") {
+      if (!openaiUpstreamUrl && !anthropicUpstreamUrl && !geminiUpstreamUrl)
+        throw new BadRequestError("At least one upstream URL (OpenAI, Anthropic, or Gemini) must be configured");
 
-    if (formats.includes("openai")) {
-      if (!openaiUpstreamUrl)
-        throw new BadRequestError("OpenAI upstream URL is required when allowedFormats includes 'openai'");
-      if (!openaiUpstreamApiKey)
-        throw new BadRequestError("OpenAI API key is required when allowedFormats includes 'openai'");
-    }
-    if (formats.includes("anthropic")) {
-      if (!anthropicUpstreamUrl)
-        throw new BadRequestError("Anthropic upstream URL is required when allowedFormats includes 'anthropic'");
-      if (!anthropicUpstreamApiKey)
-        throw new BadRequestError("Anthropic API key is required when allowedFormats includes 'anthropic'");
-    }
-    if (formats.includes("gemini")) {
-      if (!geminiUpstreamUrl)
-        throw new BadRequestError("Gemini upstream URL is required when allowedFormats includes 'gemini'");
-      if (!geminiUpstreamApiKey)
-        throw new BadRequestError("Gemini API key is required when allowedFormats includes 'gemini'");
+      if (formats.includes("openai")) {
+        if (!openaiUpstreamUrl)
+          throw new BadRequestError("OpenAI upstream URL is required when allowedFormats includes 'openai'");
+        if (!openaiUpstreamApiKey)
+          throw new BadRequestError("OpenAI API key is required when allowedFormats includes 'openai'");
+      }
+      if (formats.includes("anthropic")) {
+        if (!anthropicUpstreamUrl)
+          throw new BadRequestError("Anthropic upstream URL is required when allowedFormats includes 'anthropic'");
+        if (!anthropicUpstreamApiKey)
+          throw new BadRequestError("Anthropic API key is required when allowedFormats includes 'anthropic'");
+      }
+      if (formats.includes("gemini")) {
+        if (!geminiUpstreamUrl)
+          throw new BadRequestError("Gemini upstream URL is required when allowedFormats includes 'gemini'");
+        if (!geminiUpstreamApiKey)
+          throw new BadRequestError("Gemini API key is required when allowedFormats includes 'gemini'");
+      }
+
+      if (allowedFormats === "all") {
+        if (openaiUpstreamUrl && !openaiUpstreamApiKey)
+          throw new BadRequestError("OpenAI API key is required when OpenAI upstream URL is configured");
+        if (anthropicUpstreamUrl && !anthropicUpstreamApiKey)
+          throw new BadRequestError("Anthropic API key is required when Anthropic upstream URL is configured");
+        if (geminiUpstreamUrl && !geminiUpstreamApiKey)
+          throw new BadRequestError("Gemini API key is required when Gemini upstream URL is configured");
+      }
     }
 
-    if (allowedFormats === "all") {
-      if (openaiUpstreamUrl && !openaiUpstreamApiKey)
-        throw new BadRequestError("OpenAI API key is required when OpenAI upstream URL is configured");
-      if (anthropicUpstreamUrl && !anthropicUpstreamApiKey)
-        throw new BadRequestError("Anthropic API key is required when Anthropic upstream URL is configured");
-      if (geminiUpstreamUrl && !geminiUpstreamApiKey)
-        throw new BadRequestError("Gemini API key is required when Gemini upstream URL is configured");
+    if (channelType === "pooled") {
+      const memberCount = poolMembers == null ? undefined : poolMembers.length;
+      if (isCreate || !wasPooled) {
+        if (!memberCount) throw new BadRequestError("pooled channel must contain at least one member");
+      } else if (poolMembers !== undefined && memberCount === 0)
+        throw new BadRequestError("pooled channel must contain at least one member");
     }
 
     return {
       name,
+      channelType,
+      routingStrategy,
+      routingConfig,
+      visibilityMode,
+      visibilityConfig,
+      poolMembers,
       openaiUpstreamUrl,
       openaiUpstreamApiKey,
       anthropicUpstreamUrl,
@@ -315,6 +446,11 @@ export class RelayChannelService {
   private toPersistenceInput(data: ValidatedRelayChannelData): Prisma.RelayChannelUncheckedCreateInput {
     return {
       name: data.name,
+      channelType: data.channelType,
+      routingStrategy: data.routingStrategy,
+      routingConfig: data.routingConfig as Prisma.InputJsonValue | undefined,
+      visibilityMode: data.visibilityMode,
+      visibilityConfig: data.visibilityConfig as Prisma.InputJsonValue | undefined,
       openaiUpstreamUrl: data.openaiUpstreamUrl,
       openaiUpstreamApiKey: data.openaiUpstreamApiKey,
       anthropicUpstreamUrl: data.anthropicUpstreamUrl,
@@ -334,6 +470,27 @@ export class RelayChannelService {
   private toCreateRequest(channel: RelayChannel): RelayChannelImportItemDto {
     return {
       name: channel.name,
+      channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
+      routingStrategy: (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
+      routingConfig: channel.routingConfig as RelayChannelRoutingConfigDto | undefined,
+      visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
+      visibilityConfig: channel.visibilityConfig as RelayChannelVisibilityConfigDto | undefined,
+      poolMembers: Array.isArray((channel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
+        ? (
+            (
+              channel as RelayChannel & {
+                poolMembers?: Array<{
+                  id: string;
+                  memberChannelId: string;
+                  priority: number;
+                  weight: Prisma.Decimal | number;
+                  enabled: boolean;
+                  memberChannel?: RelayChannel | null;
+                }>;
+              }
+            ).poolMembers ?? []
+          ).map((member) => this.toPoolMemberDto(member))
+        : undefined,
       openaiUpstreamUrl: channel.openaiUpstreamUrl || undefined,
       openaiUpstreamApiKey: channel.openaiUpstreamApiKey || undefined,
       anthropicUpstreamUrl: channel.anthropicUpstreamUrl || undefined,
@@ -369,9 +526,18 @@ export class RelayChannelService {
     const validated = await this.buildValidatedChannelData(data);
     await this.assertVisibleNameAvailable(validated.name);
 
-    const channel = await this.relayChannelRepository.create({
-      ...this.toPersistenceInput(validated),
-      status: RELAY_CHANNEL_STATUS.ENABLED,
+    const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
+      const created = await this.relayChannelRepository.create(
+        {
+          ...this.toPersistenceInput(validated),
+          status: RELAY_CHANNEL_STATUS.ENABLED,
+        },
+        tx,
+      );
+
+      await this.syncPoolMembers(created.id, validated.channelType, validated.poolMembers, tx);
+
+      return created;
     });
 
     await this.businessLogService.logOperation({
@@ -400,7 +566,13 @@ export class RelayChannelService {
     const validated = await this.buildValidatedChannelData(data, existing);
     await this.assertVisibleNameAvailable(validated.name, existing.id);
 
-    const channel = await this.relayChannelRepository.updateById(id, this.toPersistenceInput(validated));
+    const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
+      const updated = await this.relayChannelRepository.updateById(id, this.toPersistenceInput(validated), tx);
+
+      await this.syncPoolMembers(updated.id, validated.channelType, validated.poolMembers, tx);
+
+      return updated;
+    });
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CHANNEL_UPDATE,
@@ -431,9 +603,18 @@ export class RelayChannelService {
     const validated = await this.buildValidatedChannelData({ ...this.toCreateRequest(existing), name: duplicatedName });
     await this.assertVisibleNameAvailable(validated.name);
 
-    const channel = await this.relayChannelRepository.create({
-      ...this.toPersistenceInput(validated),
-      status: RELAY_CHANNEL_STATUS.ENABLED,
+    const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
+      const created = await this.relayChannelRepository.create(
+        {
+          ...this.toPersistenceInput(validated),
+          status: RELAY_CHANNEL_STATUS.ENABLED,
+        },
+        tx,
+      );
+
+      await this.syncPoolMembers(created.id, validated.channelType, validated.poolMembers, tx);
+
+      return created;
     });
 
     await this.businessLogService.logOperation({
@@ -474,6 +655,8 @@ export class RelayChannelService {
           },
           tx,
         );
+
+        await this.syncPoolMembers(created.id, validated.channelType, validated.poolMembers, tx);
         items.push(this.toDto(created));
       }
 
@@ -580,6 +763,7 @@ export class RelayChannelService {
           },
           tx,
         );
+        await this.syncPoolMembers(created.id, validated.channelType, validated.poolMembers, tx);
         items.push(this.toDto(created));
       }
 
@@ -659,6 +843,23 @@ export class RelayChannelService {
   }
 
   private toDto(channel: RelayChannel): RelayChannelDto {
+    const poolMembers = Array.isArray((channel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
+      ? (
+          (
+            channel as RelayChannel & {
+              poolMembers?: Array<{
+                id: string;
+                memberChannelId: string;
+                priority: number;
+                weight: Prisma.Decimal | number;
+                enabled: boolean;
+                memberChannel?: RelayChannel | null;
+              }>;
+            }
+          ).poolMembers ?? []
+        ).map((member) => this.toPoolMemberDto(member))
+      : undefined;
+
     return {
       id: channel.id,
       name: channel.name,
@@ -676,6 +877,12 @@ export class RelayChannelService {
       inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true, // Default to false
       modelMapping: channel.modelMapping as Record<string, string> | undefined,
       timePeriodMultipliers: channel.timePeriodMultipliers as unknown as TimePeriodMultiplierRule[] | undefined,
+      channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
+      routingStrategy: (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
+      routingConfig: channel.routingConfig as RelayChannelRoutingConfigDto | undefined,
+      visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
+      visibilityConfig: channel.visibilityConfig as RelayChannelVisibilityConfigDto | undefined,
+      poolMembers,
       createTime: channel.createTime,
       updateTime: channel.updateTime,
     };

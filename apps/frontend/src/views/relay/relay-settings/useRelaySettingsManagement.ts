@@ -17,6 +17,12 @@ import type {
   ModelPricingItemDto,
   RelayChannelDto,
   RelayChannelImportItemDto,
+  RelayChannelMemberDto,
+  RelayChannelRoutingConfigDto,
+  RelayChannelRoutingStrategy,
+  RelayChannelType,
+  RelayChannelVisibilityConfigDto,
+  RelayChannelVisibilityMode,
   TimePeriodMultiplierRule,
   UpdateRelayConfigRequest,
 } from '@/client/types.gen'
@@ -69,6 +75,97 @@ const serializeSupportedFormats = (formats: string[] | string): string =>
 
 const toSupportedFormatsArray = (formats: string[] | string | undefined): string[] => {
   return toConfiguredRelayFormats(formats)
+}
+
+const defaultRoutingConfigForm = () => ({
+  maxRetries: null as number | null,
+  failoverThreshold: null as number | null,
+  retryStatusCodes: [] as string[],
+  failbackCooldownMinutes: null as number | null,
+  healthScoreThreshold: null as number | null,
+  latencyThresholdMs: null as number | null,
+  circuitBreakerThreshold: null as number | null,
+  stickyByModel: false,
+  stickyByFormat: false,
+})
+
+const defaultVisibilityConfigForm = () => ({
+  userIds: [] as string[],
+  groupIds: [] as string[],
+  roleIds: [] as string[],
+})
+
+const defaultPoolMemberForm = (priority = 1): RelayChannelMemberDto => ({
+  memberChannelId: '',
+  priority,
+  weight: 1,
+  enabled: true,
+})
+
+const normalizeStringArray = (value?: Array<string | number | null | undefined>): string[] => {
+  if (!Array.isArray(value)) return []
+
+  return Array.from(
+    new Set(value.map((item) => String(item ?? '').trim()).filter((item) => item.length > 0)),
+  )
+}
+
+const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigDto | null) => ({
+  maxRetries:
+    typeof config?.maxRetries === 'number' && Number.isFinite(config.maxRetries)
+      ? config.maxRetries
+      : null,
+  failoverThreshold:
+    typeof config?.failoverThreshold === 'number' && Number.isFinite(config.failoverThreshold)
+      ? config.failoverThreshold
+      : null,
+  retryStatusCodes: normalizeStringArray(config?.retryStatusCodes),
+  failbackCooldownMinutes:
+    typeof config?.failbackCooldownMinutes === 'number' &&
+    Number.isFinite(config.failbackCooldownMinutes)
+      ? config.failbackCooldownMinutes
+      : null,
+  healthScoreThreshold:
+    typeof config?.healthScoreThreshold === 'number' && Number.isFinite(config.healthScoreThreshold)
+      ? config.healthScoreThreshold
+      : null,
+  latencyThresholdMs:
+    typeof config?.latencyThresholdMs === 'number' && Number.isFinite(config.latencyThresholdMs)
+      ? config.latencyThresholdMs
+      : null,
+  circuitBreakerThreshold:
+    typeof config?.circuitBreakerThreshold === 'number' &&
+    Number.isFinite(config.circuitBreakerThreshold)
+      ? config.circuitBreakerThreshold
+      : null,
+  stickyByModel: config?.stickyByModel === true,
+  stickyByFormat: config?.stickyByFormat === true,
+})
+
+const normalizeVisibilityConfigForm = (config?: RelayChannelVisibilityConfigDto | null) => ({
+  userIds: normalizeStringArray(config?.userIds),
+  groupIds: normalizeStringArray(config?.groupIds),
+  roleIds: normalizeStringArray(config?.roleIds),
+})
+
+const normalizePoolMembersForm = (members?: RelayChannelMemberDto[] | null) => {
+  if (!Array.isArray(members)) return [] as RelayChannelMemberDto[]
+
+  return members.map((member, index) => ({
+    id: member.id,
+    memberChannelId: member.memberChannelId || '',
+    priority:
+      typeof member.priority === 'number' && Number.isFinite(member.priority)
+        ? member.priority
+        : index + 1,
+    weight: typeof member.weight === 'number' && Number.isFinite(member.weight) ? member.weight : 1,
+    enabled: member.enabled !== false,
+  }))
+}
+
+const toNullableNumber = (value: number | null | undefined): number | undefined => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  return value
 }
 
 let modelRateRowCounter = 0
@@ -536,6 +633,12 @@ export const useRelaySettingsManagement = () => {
 
   const defaultChannelForm = () => ({
     name: '',
+    channelType: 'standalone' as RelayChannelType,
+    routingStrategy: 'priority' as RelayChannelRoutingStrategy,
+    routingConfig: defaultRoutingConfigForm(),
+    visibilityMode: 'public' as RelayChannelVisibilityMode,
+    visibilityConfig: defaultVisibilityConfigForm(),
+    poolMembers: [] as RelayChannelMemberDto[],
     openaiUpstreamUrl: '',
     openaiUpstreamApiKey: '',
     anthropicUpstreamUrl: '',
@@ -745,6 +848,190 @@ export const useRelaySettingsManagement = () => {
     if (normalizedFormats.length === 0) return false
 
     return normalizedFormats.includes(upstream)
+  }
+
+  const availablePoolMemberChannels = computed(() =>
+    channels.value.filter((channel) => channel.id !== editingChannelId.value),
+  )
+
+  const getChannelNameById = (channelId: string) => {
+    return channels.value.find((channel) => channel.id === channelId)?.name || channelId
+  }
+
+  const isPoolMemberOptionDisabled = (candidateId: string, index: number) => {
+    if (!candidateId) return false
+    if (candidateId === editingChannelId.value) return true
+
+    return channelForm.value.poolMembers.some(
+      (member, memberIndex) => memberIndex !== index && member.memberChannelId === candidateId,
+    )
+  }
+
+  const addPoolMember = () => {
+    channelForm.value.poolMembers.push(
+      defaultPoolMemberForm(channelForm.value.poolMembers.length + 1),
+    )
+  }
+
+  const removePoolMember = (index: number) => {
+    channelForm.value.poolMembers.splice(index, 1)
+    channelForm.value.poolMembers = channelForm.value.poolMembers.map((member, memberIndex) => ({
+      ...member,
+      priority:
+        typeof member.priority === 'number' && Number.isFinite(member.priority)
+          ? member.priority
+          : memberIndex + 1,
+    }))
+  }
+
+  const formatChannelTypeLabel = (channelType: RelayChannelType | string | undefined) => {
+    return channelType === 'pooled'
+      ? i18ns.t('relay.channelTypePooled')
+      : i18ns.t('relay.channelTypeStandalone')
+  }
+
+  const formatRoutingStrategyLabel = (
+    strategy: RelayChannelRoutingStrategy | string | undefined,
+  ) => {
+    switch (strategy) {
+      case 'random':
+        return i18ns.t('relay.routingStrategyRandom')
+      case 'weighted-random':
+        return i18ns.t('relay.routingStrategyWeightedRandom')
+      case 'round-robin':
+        return i18ns.t('relay.routingStrategyRoundRobin')
+      case 'health-priority':
+        return i18ns.t('relay.routingStrategyHealthPriority')
+      case 'latency-priority':
+        return i18ns.t('relay.routingStrategyLatencyPriority')
+      case 'priority':
+      default:
+        return i18ns.t('relay.routingStrategyPriority')
+    }
+  }
+
+  const formatVisibilityModeLabel = (mode: RelayChannelVisibilityMode | string | undefined) => {
+    switch (mode) {
+      case 'private':
+        return i18ns.t('relay.visibilityModePrivate')
+      case 'whitelist':
+        return i18ns.t('relay.visibilityModeWhitelist')
+      case 'public':
+      default:
+        return i18ns.t('relay.visibilityModePublic')
+    }
+  }
+
+  const getVisibilitySummary = (
+    row: Pick<RelayChannelDto, 'visibilityMode' | 'visibilityConfig'>,
+  ) => {
+    if (row.visibilityMode !== 'whitelist') {
+      return formatVisibilityModeLabel(row.visibilityMode)
+    }
+
+    const config = normalizeVisibilityConfigForm(row.visibilityConfig)
+    const parts: string[] = []
+    if (config.userIds.length > 0)
+      parts.push(i18ns.t('relay.visibilityUsersSummary', { count: config.userIds.length }))
+    if (config.groupIds.length > 0)
+      parts.push(i18ns.t('relay.visibilityGroupsSummary', { count: config.groupIds.length }))
+    if (config.roleIds.length > 0)
+      parts.push(i18ns.t('relay.visibilityRolesSummary', { count: config.roleIds.length }))
+
+    return parts.length > 0 ? parts.join(' · ') : i18ns.t('relay.visibilityEmptyWhitelist')
+  }
+
+  const getPoolMembersSummary = (members?: RelayChannelMemberDto[] | null) => {
+    const normalizedMembers = normalizePoolMembersForm(members)
+    if (normalizedMembers.length === 0) return ''
+
+    return normalizedMembers
+      .map((member) => {
+        const parts = [getChannelNameById(member.memberChannelId)]
+        parts.push(`#${member.priority}`)
+        if (typeof member.weight === 'number' && Number.isFinite(member.weight)) {
+          parts.push(`w=${member.weight}`)
+        }
+        if (member.enabled === false) {
+          parts.push(i18ns.t('relay.disabled'))
+        }
+        return parts.join(' ')
+      })
+      .join(' | ')
+  }
+
+  const buildRoutingConfigPayload = (): RelayChannelRoutingConfigDto | null => {
+    const config = channelForm.value.routingConfig
+    const payload: RelayChannelRoutingConfigDto = {}
+
+    const maxRetries = toNullableNumber(config.maxRetries)
+    if (maxRetries !== undefined) payload.maxRetries = maxRetries
+
+    const failoverThreshold = toNullableNumber(config.failoverThreshold)
+    if (failoverThreshold !== undefined) payload.failoverThreshold = failoverThreshold
+
+    const retryStatusCodes = normalizeStringArray(config.retryStatusCodes)
+    if (retryStatusCodes.length > 0) payload.retryStatusCodes = retryStatusCodes
+
+    const failbackCooldownMinutes = toNullableNumber(config.failbackCooldownMinutes)
+    if (failbackCooldownMinutes !== undefined) {
+      payload.failbackCooldownMinutes = failbackCooldownMinutes
+    }
+
+    const healthScoreThreshold = toNullableNumber(config.healthScoreThreshold)
+    if (healthScoreThreshold !== undefined) payload.healthScoreThreshold = healthScoreThreshold
+
+    const latencyThresholdMs = toNullableNumber(config.latencyThresholdMs)
+    if (latencyThresholdMs !== undefined) payload.latencyThresholdMs = latencyThresholdMs
+
+    const circuitBreakerThreshold = toNullableNumber(config.circuitBreakerThreshold)
+    if (circuitBreakerThreshold !== undefined) {
+      payload.circuitBreakerThreshold = circuitBreakerThreshold
+    }
+
+    if (config.stickyByModel === true) payload.stickyByModel = true
+    if (config.stickyByFormat === true) payload.stickyByFormat = true
+
+    return Object.keys(payload).length > 0 ? payload : null
+  }
+
+  const buildVisibilityConfigPayload = (): RelayChannelVisibilityConfigDto | null => {
+    const config = channelForm.value.visibilityConfig
+    const payload: RelayChannelVisibilityConfigDto = {}
+
+    const userIds = normalizeStringArray(config.userIds)
+    if (userIds.length > 0) payload.userIds = userIds
+
+    const groupIds = normalizeStringArray(config.groupIds)
+    if (groupIds.length > 0) payload.groupIds = groupIds
+
+    const roleIds = normalizeStringArray(config.roleIds)
+    if (roleIds.length > 0) payload.roleIds = roleIds
+
+    return Object.keys(payload).length > 0 ? payload : null
+  }
+
+  const buildPoolMembersPayload = (): RelayChannelMemberDto[] => {
+    const seen = new Set<string>()
+
+    return channelForm.value.poolMembers
+      .map((member, index) => ({
+        id: member.id,
+        memberChannelId: member.memberChannelId.trim(),
+        priority:
+          typeof member.priority === 'number' && Number.isFinite(member.priority)
+            ? member.priority
+            : index + 1,
+        weight:
+          typeof member.weight === 'number' && Number.isFinite(member.weight) ? member.weight : 1,
+        enabled: member.enabled !== false,
+      }))
+      .filter((member) => {
+        if (!member.memberChannelId) return false
+        if (seen.has(member.memberChannelId)) return false
+        seen.add(member.memberChannelId)
+        return true
+      })
   }
 
   watch(
@@ -1031,6 +1318,12 @@ export const useRelaySettingsManagement = () => {
     const parsedModels = parseAllowedModels(row.allowedModels)
     channelForm.value = {
       name: row.name,
+      channelType: row.channelType || 'standalone',
+      routingStrategy: row.routingStrategy || 'priority',
+      routingConfig: normalizeRoutingConfigForm(row.routingConfig),
+      visibilityMode: row.visibilityMode || 'public',
+      visibilityConfig: normalizeVisibilityConfigForm(row.visibilityConfig),
+      poolMembers: normalizePoolMembersForm(row.poolMembers),
       openaiUpstreamUrl: row.openaiUpstreamUrl || '',
       openaiUpstreamApiKey: row.openaiUpstreamApiKey || '',
       anthropicUpstreamUrl: row.anthropicUpstreamUrl || '',
@@ -1054,13 +1347,35 @@ export const useRelaySettingsManagement = () => {
       return
     }
 
+    const isPooledChannel = channelForm.value.channelType === 'pooled'
+
     if (
-      !channelForm.value.openaiUpstreamUrl &&
-      !channelForm.value.anthropicUpstreamUrl &&
-      !channelForm.value.geminiUpstreamUrl
+      channelForm.value.visibilityMode === 'whitelist' &&
+      normalizeStringArray(channelForm.value.visibilityConfig.userIds).length === 0 &&
+      normalizeStringArray(channelForm.value.visibilityConfig.groupIds).length === 0 &&
+      normalizeStringArray(channelForm.value.visibilityConfig.roleIds).length === 0
     ) {
-      ElMessage.error(i18ns.t('relay.atLeastOneUpstream'))
+      ElMessage.error(i18ns.t('relay.visibilityWhitelistRequired'))
       return
+    }
+
+    if (isPooledChannel) {
+      const poolMembers = buildPoolMembersPayload()
+      if (poolMembers.length === 0) {
+        ElMessage.error(i18ns.t('relay.poolMembersRequired'))
+        return
+      }
+    }
+
+    if (!isPooledChannel) {
+      if (
+        !channelForm.value.openaiUpstreamUrl &&
+        !channelForm.value.anthropicUpstreamUrl &&
+        !channelForm.value.geminiUpstreamUrl
+      ) {
+        ElMessage.error(i18ns.t('relay.atLeastOneUpstream'))
+        return
+      }
     }
 
     const formats =
@@ -1068,7 +1383,7 @@ export const useRelaySettingsManagement = () => {
         ? channelForm.value.allowedFormats
         : ['openai', 'anthropic', 'gemini']
 
-    if (formats.includes('openai')) {
+    if (!isPooledChannel && formats.includes('openai')) {
       if (!channelForm.value.openaiUpstreamUrl) {
         ElMessage.error(i18ns.t('relay.openaiFormatNoUrl'))
         return
@@ -1078,7 +1393,7 @@ export const useRelaySettingsManagement = () => {
         return
       }
     }
-    if (formats.includes('anthropic')) {
+    if (!isPooledChannel && formats.includes('anthropic')) {
       if (!channelForm.value.anthropicUpstreamUrl) {
         ElMessage.error(i18ns.t('relay.anthropicFormatNoUrl'))
         return
@@ -1088,7 +1403,7 @@ export const useRelaySettingsManagement = () => {
         return
       }
     }
-    if (formats.includes('gemini')) {
+    if (!isPooledChannel && formats.includes('gemini')) {
       if (!channelForm.value.geminiUpstreamUrl) {
         ElMessage.error(i18ns.t('relay.geminiFormatNoUrl'))
         return
@@ -1100,7 +1415,7 @@ export const useRelaySettingsManagement = () => {
     }
 
     if (
-      !Array.isArray(channelForm.value.allowedFormats) ||
+      (!isPooledChannel && !Array.isArray(channelForm.value.allowedFormats)) ||
       channelForm.value.allowedFormats.length === 0
     ) {
       if (channelForm.value.openaiUpstreamUrl && !channelForm.value.openaiUpstreamApiKey) {
@@ -1119,14 +1434,24 @@ export const useRelaySettingsManagement = () => {
 
     channelSaving.value = true
     try {
+      const routingConfig = buildRoutingConfigPayload()
+      const visibilityConfig = buildVisibilityConfigPayload()
+      const poolMembers = isPooledChannel ? buildPoolMembersPayload() : []
+
       const data = {
         name: channelForm.value.name,
-        openaiUpstreamUrl: channelForm.value.openaiUpstreamUrl || undefined,
-        openaiUpstreamApiKey: channelForm.value.openaiUpstreamApiKey || undefined,
-        anthropicUpstreamUrl: channelForm.value.anthropicUpstreamUrl || undefined,
-        anthropicUpstreamApiKey: channelForm.value.anthropicUpstreamApiKey || undefined,
-        geminiUpstreamUrl: channelForm.value.geminiUpstreamUrl || undefined,
-        geminiUpstreamApiKey: channelForm.value.geminiUpstreamApiKey || undefined,
+        channelType: channelForm.value.channelType,
+        routingStrategy: channelForm.value.routingStrategy,
+        routingConfig: isPooledChannel ? routingConfig : null,
+        visibilityMode: channelForm.value.visibilityMode,
+        visibilityConfig,
+        poolMembers: isPooledChannel ? poolMembers : [],
+        openaiUpstreamUrl: isPooledChannel ? '' : channelForm.value.openaiUpstreamUrl,
+        openaiUpstreamApiKey: isPooledChannel ? '' : channelForm.value.openaiUpstreamApiKey,
+        anthropicUpstreamUrl: isPooledChannel ? '' : channelForm.value.anthropicUpstreamUrl,
+        anthropicUpstreamApiKey: isPooledChannel ? '' : channelForm.value.anthropicUpstreamApiKey,
+        geminiUpstreamUrl: isPooledChannel ? '' : channelForm.value.geminiUpstreamUrl,
+        geminiUpstreamApiKey: isPooledChannel ? '' : channelForm.value.geminiUpstreamApiKey,
         multiplier: channelForm.value.multiplier,
         allowedFormats:
           Array.isArray(channelForm.value.allowedFormats) &&
@@ -1298,6 +1623,16 @@ export const useRelaySettingsManagement = () => {
     formatModelOptionLabel,
     isModelDisabled,
     computeShowUpstream,
+    availablePoolMemberChannels,
+    getChannelNameById,
+    isPoolMemberOptionDisabled,
+    addPoolMember,
+    removePoolMember,
+    formatChannelTypeLabel,
+    formatRoutingStrategyLabel,
+    formatVisibilityModeLabel,
+    getVisibilitySummary,
+    getPoolMembersSummary,
     parseAllowedModels,
     isChannelSelected,
     toggleChannelSelection,
