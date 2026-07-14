@@ -658,12 +658,25 @@
               </el-table-column>
               <el-table-column :label="i18ns.t('relay.allowedModelsChannel')" width="120">
                 <template #default="{ row }">
+                  <el-tooltip
+                    v-if="
+                      getChannelAllowedModelsMode(row) === 'auto' &&
+                      row.inferredAllowedModels?.length
+                    "
+                    :content="row.inferredAllowedModels.join(', ')"
+                    placement="top"
+                  >
+                    <el-tag type="warning" size="small">{{
+                      getChannelAllowedModelsSummary(row)
+                    }}</el-tag>
+                  </el-tooltip>
                   <el-tag
-                    v-if="getChannelAllowedModelsMode(row) === 'auto'"
+                    v-else-if="getChannelAllowedModelsMode(row) === 'auto'"
                     type="warning"
                     size="small"
-                    >{{ i18ns.t('relay.allowedModelsModeAutoShort') }}</el-tag
                   >
+                    {{ getChannelAllowedModelsSummary(row) }}
+                  </el-tag>
                   <el-tag
                     v-else-if="getChannelAllowedModelsMode(row) === 'all'"
                     type="info"

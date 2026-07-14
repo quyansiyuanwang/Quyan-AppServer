@@ -64,6 +64,10 @@ describe("ChatService", () => {
     chargeUsage: vi.fn(),
   };
 
+  const relayPoolResolver = {
+    resolveActiveLeaves: vi.fn(async (roots: any[]) => roots.filter(Boolean)),
+  };
+
   const ChatServiceCtor = ChatService as unknown as new (...args: any[]) => ChatService;
 
   const service = new ChatServiceCtor(
@@ -75,6 +79,7 @@ describe("ChatService", () => {
     modelPricingRepository,
     relayConfigRepository,
     usageChargeService,
+    relayPoolResolver,
   );
 
   beforeEach(() => {

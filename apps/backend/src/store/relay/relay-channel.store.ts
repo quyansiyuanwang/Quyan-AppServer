@@ -15,8 +15,8 @@ export interface RelayChannelMemberInput {
 export interface RelayChannelQueryStore {
   findActiveByName(name: string): Promise<RelayChannel | null>;
   findVisibleByName(name: string): Promise<RelayChannel | null>;
-  listActive(): Promise<RelayChannel[]>;
-  listVisible(): Promise<RelayChannel[]>;
+  listActive(tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
+  listVisible(tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
   findActiveById(id: string): Promise<RelayChannel | null>;
   findVisibleById(id: string): Promise<RelayChannel | null>;
   listActiveByIds(ids: string[]): Promise<RelayChannel[]>;

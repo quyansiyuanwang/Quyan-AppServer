@@ -104,7 +104,10 @@ const onLogPageChange = state.onLogPageChange
         </el-form-item>
 
         <el-form-item :label="i18ns.t('NotificationSettingsView.cooldownLabel')">
-          <div class="cooldown-duration-picker" style="display: inline-flex; align-items: center; gap: 8px;">
+          <div
+            class="cooldown-duration-picker"
+            style="display: inline-flex; align-items: center; gap: 8px"
+          >
             <el-select v-model="cooldownDays" style="width: 100px">
               <el-option
                 v-for="opt in dayOptions"
