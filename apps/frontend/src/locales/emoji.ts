@@ -2542,7 +2542,7 @@ const emoji: DeepStringify<typeof en> = {
     formatGemini: '😦',
     allModels: '🌌',
     noModels: '⚔️',
-    modelsCount: '🤖',
+    modelsCount: '{count} 🤖',
     upstreamConfig: '🌊 🥵',
     apiKeyConfigured: '🔌 🗝️ ✅',
     notConfigured: '🚫 ⚙️',
