@@ -178,6 +178,8 @@ export const useApiDocumentationPricing = () => {
       )
       if (!hasCommonFormat) return false
 
+      if (channel.channelType === 'pooled') return true
+
       const hasUpstream = modelFormats.some((format) => {
         if (format === 'openai') return Boolean(channel.openaiUpstreamUrl)
         if (format === 'anthropic') return Boolean(channel.anthropicUpstreamUrl)

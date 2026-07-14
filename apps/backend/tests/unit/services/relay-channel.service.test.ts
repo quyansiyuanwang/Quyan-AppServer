@@ -129,6 +129,41 @@ describe("RelayChannelService", () => {
     expect(result.map((item) => item.id)).toEqual(["whitelist-channel"]);
   });
 
+  it("shows whitelisted channels to matched groups", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      {
+        ...sampleChannel,
+        id: "group-whitelist-channel",
+        visibilityMode: "whitelist",
+        visibilityConfig: {
+          groupIds: ["group-1"],
+        },
+      },
+    ]);
+
+    const result = await service.listChannels("actor-user");
+
+    expect(result.map((item) => item.id)).toEqual(["group-whitelist-channel"]);
+  });
+
+  it("shows whitelisted channels to matched roles", async () => {
+    ramRoleRepository.listRoleBindingsForUser.mockResolvedValue([{ roleId: "role-1" }]);
+    relayChannelRepository.listActive.mockResolvedValue([
+      {
+        ...sampleChannel,
+        id: "role-whitelist-channel",
+        visibilityMode: "whitelist",
+        visibilityConfig: {
+          roleIds: ["role-1"],
+        },
+      },
+    ]);
+
+    const result = await service.listChannels("actor-user");
+
+    expect(result.map((item) => item.id)).toEqual(["role-whitelist-channel"]);
+  });
+
   it("throws NotFoundError when getting a missing channel", async () => {
     relayChannelRepository.findVisibleById.mockResolvedValue(null);
 
@@ -256,6 +291,72 @@ describe("RelayChannelService", () => {
     );
   });
 
+  it("creates pooled channel with auto allowed models mode and syncs members", async () => {
+    relayChannelRepository.create.mockResolvedValue({
+      ...sampleChannel,
+      id: "pooled-channel-1",
+      name: "Pool",
+      channelType: "pooled",
+      routingStrategy: "round-robin",
+      routingConfig: {
+        maxRetries: 2,
+        allowedModelsMode: "auto",
+        healthScoreThreshold: null,
+      },
+      allowedFormats: "openai",
+    });
+
+    const result = await service.createChannel(
+      {
+        name: "Pool",
+        channelType: "pooled",
+        routingStrategy: "round-robin",
+        allowedFormats: "openai",
+        routingConfig: {
+          maxRetries: 2,
+          allowedModelsMode: "auto",
+          healthScoreThreshold: null,
+        },
+        poolMembers: [
+          {
+            memberChannelId: "member-1",
+            priority: 1,
+            weight: 3,
+            enabled: true,
+          },
+        ],
+      },
+      "actor-user",
+    );
+
+    expect(result.id).toBe("pooled-channel-1");
+    expect(relayChannelRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelType: "pooled",
+        routingStrategy: "round-robin",
+        routingConfig: expect.objectContaining({
+          maxRetries: 2,
+          allowedModelsMode: "auto",
+          healthScoreThreshold: null,
+        }),
+        allowedFormats: "openai",
+      }),
+      transactionClient,
+    );
+    expect(relayChannelRepository.replaceMembersByChannelId).toHaveBeenCalledWith(
+      "pooled-channel-1",
+      [
+        {
+          memberChannelId: "member-1",
+          priority: 1,
+          weight: 3,
+          enabled: true,
+        },
+      ],
+      transactionClient,
+    );
+  });
+
   it("throws NotFoundError on update for missing channel", async () => {
     relayChannelRepository.findVisibleById.mockResolvedValue(null);
 
@@ -291,6 +392,100 @@ describe("RelayChannelService", () => {
       expect.objectContaining({ name: "Updated", multiplier: 1.5 }),
       transactionClient,
     );
+  });
+
+  it("preserves explicit null routing thresholds on update and strips pooled-only mode for standalone channel", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      routingConfig: {
+        healthScoreThreshold: 80,
+        latencyThresholdMs: 1000,
+        circuitBreakerThreshold: 5,
+      },
+    });
+    relayChannelRepository.updateById.mockResolvedValue({
+      ...sampleChannel,
+      routingConfig: {
+        healthScoreThreshold: null,
+        latencyThresholdMs: null,
+        circuitBreakerThreshold: null,
+      },
+    });
+
+    await service.updateChannel(
+      "channel-1",
+      {
+        routingConfig: {
+          healthScoreThreshold: null,
+          latencyThresholdMs: null,
+          circuitBreakerThreshold: null,
+          allowedModelsMode: "auto",
+        },
+      },
+      "actor-user",
+    );
+
+    expect(relayChannelRepository.updateById).toHaveBeenCalledWith(
+      "channel-1",
+      expect.objectContaining({
+        routingConfig: {
+          healthScoreThreshold: null,
+          latencyThresholdMs: null,
+          circuitBreakerThreshold: null,
+        },
+      }),
+      transactionClient,
+    );
+  });
+
+  it("rejects pooled channel update when pool contains itself", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      id: "channel-1",
+      channelType: "pooled",
+    });
+
+    await expect(
+      service.updateChannel(
+        "channel-1",
+        {
+          channelType: "pooled",
+          poolMembers: [
+            {
+              memberChannelId: "channel-1",
+              priority: 1,
+              weight: 1,
+              enabled: true,
+            },
+          ],
+        },
+        "actor-user",
+      ),
+    ).rejects.toThrow("pooled channel cannot include itself as a member");
+
+    expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
+  });
+
+  it("rejects pooled channel update when all members are cleared", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      id: "channel-1",
+      channelType: "pooled",
+    });
+
+    await expect(
+      service.updateChannel(
+        "channel-1",
+        {
+          channelType: "pooled",
+          poolMembers: [],
+        },
+        "actor-user",
+      ),
+    ).rejects.toThrow("pooled channel must contain at least one member");
+
+    expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
+    expect(relayChannelRepository.replaceMembersByChannelId).not.toHaveBeenCalled();
   });
 
   it("toggles channel status between enabled and disabled", async () => {

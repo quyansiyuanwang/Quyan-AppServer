@@ -1205,6 +1205,162 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     }
   });
 
+  it("混池渠道在首个成员返回 503 时会切换到下一个成员并成功完成请求", async () => {
+    const pooledPrimaryChannel = await prisma.relayChannel.create({
+      data: {
+        name: `test_relay_pool_primary_${suffix}`,
+        openaiUpstreamUrl: relayAIMockPlugin!.baseUrl,
+        openaiUpstreamApiKey: "test-openai-pool-primary-key",
+        allowedFormats: "openai",
+        multiplier: 1,
+      },
+    });
+
+    const pooledSecondaryChannel = await prisma.relayChannel.create({
+      data: {
+        name: `test_relay_pool_secondary_${suffix}`,
+        openaiUpstreamUrl: relayAIMockPlugin!.baseUrl,
+        openaiUpstreamApiKey: "test-openai-pool-secondary-key",
+        allowedFormats: "openai",
+        multiplier: 1,
+      },
+    });
+
+    const pooledChannel = await prisma.relayChannel.create({
+      data: {
+        name: `test_relay_pool_${suffix}`,
+        channelType: "pooled",
+        routingStrategy: "priority",
+        allowedFormats: "openai",
+        routingConfig: {
+          maxRetries: 1,
+          retryStatusCodes: ["5xx"],
+          allowedModelsMode: "all",
+        },
+        multiplier: 1,
+      },
+    });
+
+    await prisma.relayChannelMember.createMany({
+      data: [
+        {
+          relayChannelId: pooledChannel.id,
+          memberChannelId: pooledPrimaryChannel.id,
+          priority: 1,
+          weight: 1,
+          enabled: true,
+        },
+        {
+          relayChannelId: pooledChannel.id,
+          memberChannelId: pooledSecondaryChannel.id,
+          priority: 2,
+          weight: 1,
+          enabled: true,
+        },
+      ],
+    });
+
+    const pooledTokenValue = `rlt_${randomUUID().replace(/-/g, "")}`;
+    const pooledToken = await prisma.relayToken.create({
+      data: {
+        userId: testUserId,
+        name: `test_relay_pool_token_${suffix}`,
+        token: pooledTokenValue,
+        channelId: pooledChannel.id,
+      },
+    });
+
+    const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: pooledToken.id } });
+    const beforeSwitchCount = await prisma.relayChannelSwitchLog.count({ where: { relayTokenId: pooledToken.id } });
+
+    relayAIMockPlugin!.useOpenAI(async (ctx) => {
+      const authHeader = String(ctx.headers.authorization || "");
+      if (authHeader === "Bearer test-openai-pool-primary-key") {
+        return {
+          status: 503,
+          body: { error: { message: "pooled primary unavailable" } },
+        };
+      }
+
+      return {
+        body: {
+          id: "chatcmpl_pool_ok",
+          object: "chat.completion",
+          model: ctx.model,
+          choices: [
+            {
+              index: 0,
+              finish_reason: "stop",
+              message: {
+                role: "assistant",
+                content: "pooled-secondary-success",
+              },
+            },
+          ],
+          usage: {
+            prompt_tokens: 7,
+            completion_tokens: 5,
+            total_tokens: 12,
+          },
+        },
+      };
+    });
+
+    try {
+      const relayResponse = await request(app)
+        .post("/relay/proxy/v1/chat/completions")
+        .set("Authorization", `Bearer ${pooledTokenValue}`)
+        .send({
+          model: openaiRelayModelId,
+          messages: [{ role: "user", content: "请在混池中切换到可用成员" }],
+          stream: false,
+        });
+
+      expect(relayResponse.status).toBe(200);
+      expect(relayResponse.body?.choices?.[0]?.message?.content).toContain("pooled-secondary-success");
+
+      await waitForUsageCount(pooledToken.id, beforeUsageCount + 2);
+
+      const usageRecords = await prisma.relayUsage.findMany({
+        where: { relayTokenId: pooledToken.id },
+        orderBy: { createTime: "asc" },
+      });
+      expect(usageRecords.length).toBe(beforeUsageCount + 2);
+      expect(usageRecords[usageRecords.length - 2]?.statusCode).toBe(503);
+      expect(usageRecords[usageRecords.length - 1]?.statusCode).toBe(200);
+
+      const switchLogs = await prisma.relayChannelSwitchLog.findMany({
+        where: { relayTokenId: pooledToken.id },
+        orderBy: { createTime: "asc" },
+      });
+      expect(switchLogs.length).toBe(beforeSwitchCount + 1);
+
+      const latestSwitchLog = switchLogs[switchLogs.length - 1];
+      expect(latestSwitchLog.fromChannelId).toBe(pooledPrimaryChannel.id);
+      expect(latestSwitchLog.toChannelId).toBe(pooledSecondaryChannel.id);
+      expect(latestSwitchLog.triggerStatusCode).toBe(503);
+      expect(String(latestSwitchLog.triggerError || "")).toContain("pooled primary unavailable");
+    } finally {
+      relayAIMockPlugin!.useOpenAI(async (ctx) => ({
+        ...(ctx.body.stream === true
+          ? relayAIMockPlugin!["buildOpenAIStreamReply"](ctx as any)
+          : { body: relayAIMockPlugin!["buildOpenAIBody"](ctx as any) }),
+      }));
+
+      await prisma.relayUsage.deleteMany({ where: { relayTokenId: pooledToken.id } });
+      await prisma.relayChannelSwitchLog.deleteMany({ where: { relayTokenId: pooledToken.id } });
+      await prisma.relayToken.deleteMany({ where: { id: pooledToken.id } });
+      await prisma.relayChannelMember.deleteMany({ where: { relayChannelId: pooledChannel.id } });
+      await prisma.relayChannel.deleteMany({
+        where: {
+          id: {
+            in: [pooledChannel.id, pooledPrimaryChannel.id, pooledSecondaryChannel.id],
+          },
+        },
+      });
+    }
+  });
+
   it("Anthropic 非流式 messages 请求成功并记录 usage", async () => {
     const beforeCount = await prisma.relayUsage.count({ where: { relayTokenId: anthropicRelayTokenId } });
 

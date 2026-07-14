@@ -128,6 +128,27 @@ describe('useApiDocumentationPricing', () => {
     dispose()
   })
 
+  it('includes pooled channels without direct upstream urls', () => {
+    const { composable, dispose } = createComposable()
+
+    composable.channels.value = [
+      createChannel({
+        id: 'pooled-channel',
+        channelType: 'pooled',
+        openaiUpstreamUrl: null,
+        anthropicUpstreamUrl: null,
+        geminiUpstreamUrl: null,
+        allowedModels: JSON.stringify(['gpt-4o-mini']),
+      }),
+    ]
+
+    const channels = composable.getChannelsForModel('gpt-4o-mini', 'openai/gpt-4o-mini', 'openai')
+
+    expect(channels.map((channel) => channel.id)).toEqual(['pooled-channel'])
+
+    dispose()
+  })
+
   it('uses lowest channel multiplier when enabled for range filtering', async () => {
     const { composable, dispose } = createComposable()
 
@@ -160,7 +181,7 @@ describe('useApiDocumentationPricing', () => {
 
     await composable.refreshData()
 
-  composable.onlyModelsWithChannels.value = false
+    composable.onlyModelsWithChannels.value = false
     composable.sortField.value = 'inputPrice'
     composable.sortOrder.value = 'desc'
 
