@@ -53,11 +53,11 @@ export const useNotificationSettings = () => {
   const durationToMinutes = (days: number, time: string): number => {
     const [h, m] = time.split(':').map(Number)
     const total = days * 1440 + (h || 0) * 60 + (m || 0)
-    return Math.max(1, Math.min(10080, total))
+    return Math.max(0, Math.min(43200, total))
   }
 
   const cooldownDays = ref(0)
-  const cooldownTime = ref('01:00')
+  const cooldownTime = ref('00:00')
 
   const dayOptions = computed(() =>
     Array.from({ length: 8 }, (_, i) => ({
