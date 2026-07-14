@@ -220,6 +220,45 @@ export const updateRelayTokenBodySchema = z
     }
   });
 
+export const relayTokenAvailableModelsPreviewBodySchema = z
+  .object({
+    targetUserId: z.string().trim().min(1).max(50).optional(),
+    channelId: z.string().trim().min(1).max(50).optional(),
+    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
+    failoverConfig: relayTokenFailoverConfigSchema.optional(),
+    allowedModels: z.string().max(2000).nullish(),
+    modelMapping: z.record(z.string(), z.string()).nullable().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.channelId && (!value.channelConfigs || value.channelConfigs.length === 0))
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "channelId or channelConfigs is required",
+        path: ["channelConfigs"],
+      });
+
+    if (!value.channelConfigs) return;
+    const channelIds = new Set<string>();
+    const priorities = new Set<number>();
+    for (const [index, config] of value.channelConfigs.entries()) {
+      if (channelIds.has(config.channelId))
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "channelId must be unique",
+          path: ["channelConfigs", index, "channelId"],
+        });
+      channelIds.add(config.channelId);
+
+      if (priorities.has(config.priority))
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "priority must be unique",
+          path: ["channelConfigs", index, "priority"],
+        });
+      priorities.add(config.priority);
+    }
+  });
+
 export const updateRelayTokenChannelBodySchema = z.object({
   targetUserId: z.string().trim().min(1).max(50).optional(),
   channelId: z.string().trim().min(1).max(50),

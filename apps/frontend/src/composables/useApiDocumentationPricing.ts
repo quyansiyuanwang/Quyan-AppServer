@@ -7,6 +7,7 @@ import { relayChannelService } from '@/service/relayChannelService'
 import { LruCache } from '@/utils/lru-cache'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { normalizeRelayFormats } from '../utils/relay-formats'
+import { parseAllowedModelsJson } from '@appserver/shared'
 
 export type HighlightPart = {
   text: string
@@ -132,34 +133,27 @@ export const useApiDocumentationPricing = () => {
   })
 
   const parseAllowedModels = (allowedModels?: string | null): string[] | null => {
-    if (!allowedModels) return null
+    const parsed = parseAllowedModelsJson(allowedModels)
+    if (parsed !== null || !allowedModels) return parsed
 
-    try {
-      const parsed = JSON.parse(allowedModels)
-      if (!Array.isArray(parsed)) return null
-
-      return parsed.map((item) => String(item || '').trim()).filter(Boolean)
-    } catch (error) {
-      if (!loggedAllowedModelsParseErrors.has(allowedModels)) {
-        if (loggedAllowedModelsParseErrors.size >= MAX_LOGGED_ALLOWED_MODELS_ERRORS) {
-          const oldest = loggedAllowedModelsParseErrors.values().next().value
-          if (oldest !== undefined) loggedAllowedModelsParseErrors.delete(oldest)
-        }
-
-        console.warn('Failed to parse channel allowedModels JSON in ApiDocumentationView', {
-          allowedModels,
-          error,
-        })
-        loggedAllowedModelsParseErrors.add(allowedModels)
+    if (!loggedAllowedModelsParseErrors.has(allowedModels)) {
+      if (loggedAllowedModelsParseErrors.size >= MAX_LOGGED_ALLOWED_MODELS_ERRORS) {
+        const oldest = loggedAllowedModelsParseErrors.values().next().value
+        if (oldest !== undefined) loggedAllowedModelsParseErrors.delete(oldest)
       }
 
-      if (!hasShownAllowedModelsParseWarning.value) {
-        ElMessage.warning('Some channel model whitelist settings are invalid and were ignored.')
-        hasShownAllowedModelsParseWarning.value = true
-      }
-
-      return null
+      console.warn('Failed to parse channel allowedModels JSON in ApiDocumentationView', {
+        allowedModels,
+      })
+      loggedAllowedModelsParseErrors.add(allowedModels)
     }
+
+    if (!hasShownAllowedModelsParseWarning.value) {
+      ElMessage.warning('Some channel model whitelist settings are invalid and were ignored.')
+      hasShownAllowedModelsParseWarning.value = true
+    }
+
+    return null
   }
 
   const getChannelsForModel = (
@@ -178,7 +172,14 @@ export const useApiDocumentationPricing = () => {
       )
       if (!hasCommonFormat) return false
 
-      if (channel.channelType === 'pooled') return true
+      if (channel.channelType === 'pooled') {
+        const inferredAllowedModels = channel.inferredAllowedModels
+        if (!inferredAllowedModels) return false
+        return inferredAllowedModels.some(
+          (allowedModelName) =>
+            allowedModelName === normalizedModelName || allowedModelName === normalizedModelId,
+        )
+      }
 
       const hasUpstream = modelFormats.some((format) => {
         if (format === 'openai') return Boolean(channel.openaiUpstreamUrl)

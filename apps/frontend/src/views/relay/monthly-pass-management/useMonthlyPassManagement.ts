@@ -26,6 +26,7 @@ import type {
   UserMonthlyPassDto,
 } from '@/client/types.gen'
 import { PermissionService } from '@/service/permissionService'
+import { parseAllowedModelsJson } from '@appserver/shared'
 
 export type TabKey = 'templates' | 'assignments' | 'usages'
 export type QuotaUnit = 'amount' | 'request' | 'token'
@@ -35,6 +36,7 @@ export interface ChannelOption {
   label: string
   name: string
   allowedModels: string[] | null
+  inferredAllowedModels: string[] | null
 }
 
 export interface UserOption {
@@ -427,12 +429,12 @@ export const useMonthlyPassManagement = () => {
     let hasUnrestrictedChannel = false
 
     selectedChannels.forEach((channel) => {
-      if (channel.allowedModels === null) {
+      if (channel.inferredAllowedModels === null) {
         hasUnrestrictedChannel = true
         return
       }
 
-      channel.allowedModels.forEach((model) => channelUnionModels.add(model))
+      channel.inferredAllowedModels.forEach((model) => channelUnionModels.add(model))
     })
 
     if (hasUnrestrictedChannel) {
@@ -510,16 +512,8 @@ export const useMonthlyPassManagement = () => {
   })
 
   const parseChannelAllowedModels = (allowedModels?: string | null): string[] | null => {
-    if (!allowedModels) return null
-
-    try {
-      const parsed = JSON.parse(allowedModels)
-      if (!Array.isArray(parsed)) return null
-      const cleaned = parsed.map((item) => String(item || '').trim()).filter(Boolean)
-      return Array.from(new Set(cleaned))
-    } catch {
-      return null
-    }
+    const parsed = parseAllowedModelsJson(allowedModels)
+    return parsed ? Array.from(new Set(parsed)) : parsed
   }
 
   const createEditableQuotaWindow = (
@@ -752,6 +746,8 @@ export const useMonthlyPassManagement = () => {
           name: item.name,
           label: item.name ? `${item.name} (${item.id})` : item.id,
           allowedModels: parseChannelAllowedModels(item.allowedModels),
+          inferredAllowedModels:
+            item.inferredAllowedModels || parseChannelAllowedModels(item.allowedModels),
         }))
         .sort((a, b) => a.label.localeCompare(b.label))
     } catch (_error) {

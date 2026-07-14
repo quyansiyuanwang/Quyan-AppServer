@@ -13,6 +13,8 @@ import type {
   RelayAvailableModelsMapDto,
   RelayTokenCurrentQuotaDto,
   RelayTokenExportResponse,
+  RelayTokenAvailableModelsDto,
+  RelayTokenAvailableModelsPreviewRequest,
   RelayTokenPageDto,
   RelayTokenUsageDetailDto,
   RelayTokenUsageSummaryBatchDto,
@@ -268,6 +270,24 @@ class RelayTokenService {
       modelIdToModelNamesMap,
       modelIds,
     }
+  }
+
+  async getTokenAvailableModels(
+    id: string,
+    targetUserId?: string,
+  ): Promise<RelayTokenAvailableModelsDto> {
+    const result = await relayApi.getTokenAvailableModels({
+      path: { id },
+      params: { targetUserId: this.normalizeTargetUserId(targetUserId) },
+    })
+    return this.unwrapResponse(result)
+  }
+
+  async previewTokenAvailableModels(
+    data: RelayTokenAvailableModelsPreviewRequest,
+  ): Promise<RelayTokenAvailableModelsDto> {
+    const result = await relayApi.previewTokenAvailableModels({ body: data })
+    return this.unwrapResponse(result)
   }
 
   async getTokenSwitchLogs(

@@ -370,6 +370,18 @@ export class RelayChannelService {
     }
   }
 
+  private async assertPoolMembersExist(
+    members: RelayChannelMemberDto[],
+    tx?: Parameters<RelayChannelStore["replaceMembersByChannelId"]>[2],
+  ): Promise<void> {
+    const memberChannelIds = [...new Set(members.map((member) => member.memberChannelId))];
+    const channels = await this.relayChannelRepository.listVisibleByIds(memberChannelIds, tx);
+
+    if (channels.length !== memberChannelIds.length) {
+      throw new BadRequestError("One or more pooled channel members were not found");
+    }
+  }
+
   private async assertNoPoolCycle(
     channelId: string,
     tx?: Parameters<RelayChannelStore["replaceMembersByChannelId"]>[2],
@@ -409,6 +421,8 @@ export class RelayChannelService {
     if (members === null || members.length === 0) {
       throw new BadRequestError("pooled channel must contain at least one member");
     }
+
+    await this.assertPoolMembersExist(members, tx);
 
     await this.relayChannelRepository.replaceMembersByChannelId(
       channelId,

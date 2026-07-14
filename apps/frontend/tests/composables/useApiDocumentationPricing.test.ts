@@ -128,7 +128,7 @@ describe('useApiDocumentationPricing', () => {
     dispose()
   })
 
-  it('includes pooled channels without direct upstream urls', () => {
+  it('uses resolver-provided inferred models for pooled channels without direct upstream urls', () => {
     const { composable, dispose } = createComposable()
 
     composable.channels.value = [
@@ -138,13 +138,36 @@ describe('useApiDocumentationPricing', () => {
         openaiUpstreamUrl: null,
         anthropicUpstreamUrl: null,
         geminiUpstreamUrl: null,
-        allowedModels: JSON.stringify(['gpt-4o-mini']),
+        allowedModels: null,
+        inferredAllowedModels: ['gpt-4o-mini'],
       }),
     ]
 
     const channels = composable.getChannelsForModel('gpt-4o-mini', 'openai/gpt-4o-mini', 'openai')
 
     expect(channels.map((channel) => channel.id)).toEqual(['pooled-channel'])
+
+    dispose()
+  })
+
+  it('does not expose all models when a pooled channel has no inferred availability', () => {
+    const { composable, dispose } = createComposable()
+
+    composable.channels.value = [
+      createChannel({
+        id: 'pooled-channel',
+        channelType: 'pooled',
+        openaiUpstreamUrl: null,
+        anthropicUpstreamUrl: null,
+        geminiUpstreamUrl: null,
+        allowedModels: null,
+        inferredAllowedModels: [],
+      }),
+    ]
+
+    expect(
+      composable.getChannelsForModel('gpt-4o-mini', 'openai/gpt-4o-mini', 'openai'),
+    ).toEqual([])
 
     dispose()
   })

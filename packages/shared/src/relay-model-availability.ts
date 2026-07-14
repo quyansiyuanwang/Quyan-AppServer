@@ -1,0 +1,124 @@
+export type RelayRequestFormat = 'openai' | 'anthropic' | 'gemini';
+
+export const ALL_RELAY_REQUEST_FORMATS: RelayRequestFormat[] = ['openai', 'anthropic', 'gemini'];
+
+export interface ModelIdentityLike {
+  model?: string | null;
+  provider?: string | null;
+}
+
+export const normalizeModelEntry = (value?: string | null): string => {
+  return typeof value === 'string' ? value.trim() : '';
+};
+
+export const resolveModelId = (modelConfig: ModelIdentityLike): string => {
+  const provider = normalizeModelEntry(modelConfig.provider);
+  return provider || normalizeModelEntry(modelConfig.model);
+};
+
+export const parseAllowedModelsJson = (allowedModels?: string | null): string[] | null => {
+  if (!allowedModels) return null;
+
+  try {
+    const parsed = JSON.parse(allowedModels);
+    if (!Array.isArray(parsed)) return null;
+    return parsed.map((item) => normalizeModelEntry(String(item ?? ''))).filter(Boolean);
+  } catch {
+    return null;
+  }
+};
+
+export const parseRelayTokenAllowedModelIds = (allowedModels?: string | null): string[] => {
+  if (!allowedModels) return [];
+
+  return allowedModels.split(',').map(normalizeModelEntry).filter(Boolean);
+};
+
+export const parseRelayRequestFormats = (allowedFormats?: string | null): RelayRequestFormat[] => {
+  const normalizedFormats = normalizeModelEntry(allowedFormats);
+  if (!normalizedFormats || normalizedFormats === 'all') return [...ALL_RELAY_REQUEST_FORMATS];
+
+  const validFormats = new Set<RelayRequestFormat>(ALL_RELAY_REQUEST_FORMATS);
+  return normalizedFormats
+    .split(',')
+    .map(normalizeModelEntry)
+    .filter((item): item is RelayRequestFormat => validFormats.has(item as RelayRequestFormat));
+};
+
+export const supportsRelayRequestFormat = (
+  allowedFormats: string | null | undefined,
+  requestFormat: RelayRequestFormat,
+): boolean => {
+  const normalizedFormats = normalizeModelEntry(allowedFormats);
+  return !normalizedFormats || normalizedFormats === 'all' || parseRelayRequestFormats(normalizedFormats).includes(requestFormat);
+};
+
+export const isModelNameAllowed = (allowedEntries: string[] | null | undefined, modelName: string): boolean => {
+  if (!allowedEntries) return true;
+
+  const normalizedModelName = normalizeModelEntry(modelName);
+  return !!normalizedModelName && allowedEntries.some((entry) => normalizeModelEntry(entry) === normalizedModelName);
+};
+
+export const isModelIdAllowed = (
+  allowedModelIds: string[] | null | undefined,
+  modelConfig: ModelIdentityLike,
+): boolean => {
+  if (!allowedModelIds) return true;
+
+  const modelId = resolveModelId(modelConfig);
+  return !!modelId && allowedModelIds.some((entry) => normalizeModelEntry(entry) === modelId);
+};
+
+export const normalizeAllowedModelEntriesToModelNames = (
+  allowedEntries: string[] | null | undefined,
+  modelCatalog: ModelIdentityLike[],
+): string[] | null | undefined => {
+  if (!allowedEntries) return allowedEntries;
+
+  const exactModelNames = new Set<string>();
+  const modelIdToName = new Map<string, string | null>();
+
+  for (const item of modelCatalog) {
+    const modelName = normalizeModelEntry(item.model);
+    if (!modelName) continue;
+
+    exactModelNames.add(modelName);
+    const modelId = resolveModelId(item);
+    if (!modelId || modelId === modelName) continue;
+
+    const previous = modelIdToName.get(modelId);
+    if (previous === undefined) modelIdToName.set(modelId, modelName);
+    else if (previous !== modelName) modelIdToName.set(modelId, null);
+  }
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const rawEntry of allowedEntries) {
+    const normalizedEntry = normalizeModelEntry(rawEntry);
+    if (!normalizedEntry) continue;
+
+    const canonicalName = exactModelNames.has(normalizedEntry)
+      ? normalizedEntry
+      : (modelIdToName.get(normalizedEntry) ?? normalizedEntry);
+    if (seen.has(canonicalName)) continue;
+    seen.add(canonicalName);
+    result.push(canonicalName);
+  }
+
+  return result;
+};
+
+export const unionUniqueModelIds = (...modelIdLists: Array<ReadonlyArray<string> | null | undefined>): string[] => {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const modelIds of modelIdLists) {
+    for (const modelId of modelIds ?? []) {
+      const normalizedModelId = normalizeModelEntry(modelId);
+      if (!normalizedModelId || seen.has(normalizedModelId)) continue;
+      seen.add(normalizedModelId);
+      result.push(normalizedModelId);
+    }
+  }
+  return result;
+};

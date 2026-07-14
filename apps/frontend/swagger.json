@@ -13504,6 +13504,42 @@
 				"parameters": []
 			}
 		},
+		"/v1/relay/tokens/available-models/preview": {
+			"post": {
+				"operationId": "RelayControllerPreviewTokenAvailableModels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayTokenAvailableModelsDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RelayTokenAvailableModelsPreviewRequest"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/relay/tokens/{id}/switch-logs": {
 			"get": {
 				"operationId": "RelayControllerGetTokenSwitchLogs",
@@ -31189,6 +31225,77 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayTokenAvailableModelsDto": {
+				"properties": {
+					"openai": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "OpenAI 格式可用模型列表"
+					},
+					"anthropic": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Anthropic 格式可用模型列表"
+					},
+					"gemini": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Gemini 格式可用模型列表"
+					}
+				},
+				"required": [
+					"openai",
+					"anthropic",
+					"gemini"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayTokenAvailableModelsPreviewRequest": {
+				"description": "Unsaved relay-token values that determine requestable model availability.",
+				"properties": {
+					"targetUserId": {
+						"type": "string",
+						"description": "Target user ID; omitted for the current user."
+					},
+					"channelId": {
+						"type": "string",
+						"description": "Legacy single root channel."
+					},
+					"channelConfigs": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenChannelConfigInputDto"
+						},
+						"type": "array",
+						"description": "Ordered token route roots."
+					},
+					"failoverConfig": {
+						"$ref": "#/components/schemas/RelayTokenFailoverConfigDto"
+					},
+					"allowedModels": {
+						"type": "string",
+						"nullable": true,
+						"description": "Comma-separated token whitelist."
+					},
+					"modelMapping": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Record_string.string_"
+							}
+						],
+						"nullable": true,
+						"description": "Request-model to billing-model mapping."
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayChannelSwitchLogDto": {
 				"properties": {
 					"id": {
@@ -31258,38 +31365,6 @@
 				},
 				"required": [
 					"logs"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"RelayTokenAvailableModelsDto": {
-				"properties": {
-					"openai": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array",
-						"description": "OpenAI 格式可用模型列表"
-					},
-					"anthropic": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array",
-						"description": "Anthropic 格式可用模型列表"
-					},
-					"gemini": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array",
-						"description": "Gemini 格式可用模型列表"
-					}
-				},
-				"required": [
-					"openai",
-					"anthropic",
-					"gemini"
 				],
 				"type": "object",
 				"additionalProperties": false

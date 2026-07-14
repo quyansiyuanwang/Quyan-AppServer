@@ -21,6 +21,7 @@ import type {
   RelayChannelSwitchLogDto,
   RelayTokenImportItemDto,
   RelayTokenChannelConfigDto,
+  RelayTokenAvailableModelsDto,
   RelayTokenDto,
   RelayTokenQuotaWindowDto,
   UserDto,
@@ -304,6 +305,15 @@ export const useRelayTokenManagement = () => {
   const showEditDialog = ref(false)
   const saving = ref(false)
   const loadingModels = ref(false)
+  const loadingModelAvailability = ref(false)
+  const modelAvailabilityError = ref('')
+  const modelAvailability = ref<RelayTokenAvailableModelsDto>({
+    openai: [],
+    anthropic: [],
+    gemini: [],
+  })
+  let modelAvailabilityTimer: ReturnType<typeof setTimeout> | null = null
+  let modelAvailabilityRequestId = 0
   const editMode = ref<'create' | 'edit'>('create')
   const currentEditId = ref('')
   const DEFAULT_EDIT_DIALOG_SECTIONS = ['basic', 'channelFailover', 'quota']
@@ -692,136 +702,18 @@ export const useRelayTokenManagement = () => {
     )
   }
 
-  const filteredModelIds = computed(() => {
-    const selectedChannelIds = editForm.value.channelConfigs
-      .map((config) => config.channelId)
-      .filter((id) => id)
+  const previewAvailableModelIds = computed(() =>
+    [
+      ...new Set([
+        ...modelAvailability.value.openai,
+        ...modelAvailability.value.anthropic,
+        ...modelAvailability.value.gemini,
+      ]),
+    ].sort(),
+  )
 
-    if (selectedChannelIds.length === 0) return availableModelIds.value
-
-    const channelIdsToCheck = editForm.value.failoverConfig.enabled
-      ? selectedChannelIds
-      : [selectedChannelIds[0]]
-
-    const allAllowedModelNames = new Set<string>()
-    let hasUnrestrictedChannel = false
-    let hasResolvedSelectedChannel = false
-
-    for (const channelId of channelIdsToCheck) {
-      const selectedChannel = channels.value.find((ch) => ch.id === channelId)
-      if (!selectedChannel) continue
-      hasResolvedSelectedChannel = true
-
-      if (!selectedChannel.allowedModels) {
-        hasUnrestrictedChannel = true
-        break
-      }
-
-      try {
-        const parsedAllowedModels = JSON.parse(selectedChannel.allowedModels)
-        if (!Array.isArray(parsedAllowedModels)) {
-          hasUnrestrictedChannel = true
-          break
-        }
-
-        for (const rawEntry of parsedAllowedModels) {
-          const normalizedEntry = String(rawEntry || '').trim()
-          if (normalizedEntry) allAllowedModelNames.add(normalizedEntry)
-        }
-      } catch {
-        hasUnrestrictedChannel = true
-        break
-      }
-    }
-
-    if (hasUnrestrictedChannel) {
-      return availableModelIds.value
-    }
-
-    if (!hasResolvedSelectedChannel) {
-      return availableModelIds.value
-    }
-
-    const modelNameToIds = new Map<string, Set<string>>()
-    for (const [modelId, modelNames] of modelIdToModelNamesMap.value.entries()) {
-      for (const modelName of modelNames) {
-        if (!modelNameToIds.has(modelName)) {
-          modelNameToIds.set(modelName, new Set())
-        }
-        modelNameToIds.get(modelName)!.add(modelId)
-      }
-    }
-
-    for (const modelId of availableModelIds.value) {
-      if (!modelIdToModelNamesMap.value.has(modelId)) {
-        if (availableModels.value.includes(modelId)) {
-          if (!modelNameToIds.has(modelId)) {
-            modelNameToIds.set(modelId, new Set())
-          }
-          modelNameToIds.get(modelId)!.add(modelId)
-        }
-      }
-    }
-
-    const allowedModelIdsSet = new Set<string>()
-    for (const modelName of allAllowedModelNames) {
-      const modelIds = modelNameToIds.get(modelName)
-      if (modelIds) {
-        modelIds.forEach((id) => allowedModelIdsSet.add(id))
-      }
-    }
-
-    return Array.from(allowedModelIdsSet)
-  })
-
-  const channelFilteredModelNames = computed(() => {
-    const selectedChannelIds = editForm.value.channelConfigs
-      .map((config) => config.channelId)
-      .filter((id) => id)
-
-    if (selectedChannelIds.length === 0) return availableModels.value
-
-    const channelIdsToCheck = editForm.value.failoverConfig.enabled
-      ? selectedChannelIds
-      : [selectedChannelIds[0]]
-
-    const allModelNames = new Set<string>()
-    let hasUnrestrictedChannel = false
-    let hasResolvedSelectedChannel = false
-
-    for (const channelId of channelIdsToCheck) {
-      const selectedChannel = channels.value.find((ch) => ch.id === channelId)
-      if (!selectedChannel) continue
-      hasResolvedSelectedChannel = true
-
-      if (!selectedChannel.allowedModels) {
-        hasUnrestrictedChannel = true
-        break
-      }
-
-      try {
-        const parsedAllowedModels = JSON.parse(selectedChannel.allowedModels)
-        if (!Array.isArray(parsedAllowedModels)) {
-          hasUnrestrictedChannel = true
-          break
-        }
-
-        for (const rawEntry of parsedAllowedModels) {
-          const normalizedEntry = String(rawEntry || '').trim()
-          if (normalizedEntry) allModelNames.add(normalizedEntry)
-        }
-      } catch {
-        hasUnrestrictedChannel = true
-        break
-      }
-    }
-
-    if (hasUnrestrictedChannel || !hasResolvedSelectedChannel) {
-      return availableModels.value
-    }
-
-    return Array.from(allModelNames)
-  })
+  const filteredModelIds = computed(() => previewAvailableModelIds.value)
+  const channelFilteredModelNames = computed(() => previewAvailableModelIds.value)
 
   const requiredRetrySlots = computed(() => Math.max(0, editForm.value.channelConfigs.length - 1))
 
@@ -844,29 +736,79 @@ export const useRelayTokenManagement = () => {
     return modelId
   }
 
+  const resetModelAvailability = () => {
+    modelAvailabilityRequestId += 1
+    if (modelAvailabilityTimer) clearTimeout(modelAvailabilityTimer)
+    modelAvailabilityTimer = null
+    loadingModelAvailability.value = false
+    modelAvailabilityError.value = ''
+    modelAvailability.value = { openai: [], anthropic: [], gemini: [] }
+  }
+
+  const scheduleModelAvailabilityPreview = () => {
+    if (!showEditDialog.value) return
+
+    const channelConfigs = editForm.value.channelConfigs
+      .map((config, priority) => ({ channelId: config.channelId.trim(), priority }))
+      .filter((config) => config.channelId)
+
+    if (!channelConfigs.length) {
+      modelAvailability.value = { openai: [], anthropic: [], gemini: [] }
+      modelAvailabilityError.value = ''
+      return
+    }
+
+    const primaryChannel = channelConfigs[0]
+    if (!primaryChannel) return
+
+    if (modelAvailabilityTimer) clearTimeout(modelAvailabilityTimer)
+    const requestId = ++modelAvailabilityRequestId
+    modelAvailabilityTimer = setTimeout(async () => {
+      loadingModelAvailability.value = true
+      modelAvailabilityError.value = ''
+      try {
+        const result = await relayTokenService.previewTokenAvailableModels({
+          targetUserId: currentTargetUserIdForRequest.value,
+          channelId: primaryChannel.channelId,
+          channelConfigs,
+          failoverConfig: { ...editForm.value.failoverConfig },
+          allowedModels: editForm.value.allowedModelIdsList.length
+            ? editForm.value.allowedModelIdsList.join(',')
+            : null,
+          modelMapping: Object.keys(editForm.value.modelMapping).length
+            ? { ...editForm.value.modelMapping }
+            : null,
+        })
+        if (requestId === modelAvailabilityRequestId) modelAvailability.value = result
+      } catch (error: any) {
+        if (requestId === modelAvailabilityRequestId) {
+          modelAvailability.value = { openai: [], anthropic: [], gemini: [] }
+          modelAvailabilityError.value = error.message || i18ns.t('relay.loadFailed')
+        }
+      } finally {
+        if (requestId === modelAvailabilityRequestId) loadingModelAvailability.value = false
+      }
+    }, 250)
+  }
+
   watch(
-    () => editForm.value.channelConfigs.map((config) => config.channelId),
+    () => [
+      editForm.value.channelConfigs.map((config) => config.channelId).join(','),
+      editForm.value.failoverConfig.enabled,
+      editForm.value.failoverConfig.maxRetries,
+      editForm.value.failoverConfig.retryStatusCodes.join(','),
+      editForm.value.failoverConfig.failoverThreshold,
+      editForm.value.failoverConfig.failbackCooldownMinutes,
+      editForm.value.allowedModelIdsList.join(','),
+      JSON.stringify(editForm.value.modelMapping),
+      currentTargetUserIdForRequest.value,
+    ],
     () => {
       editForm.value.channelId = editForm.value.channelConfigs[0]?.channelId || ''
       syncTokenChannelBatchAddIds()
-      if (!editForm.value.allowedModelIdsList.length) return
-      const validModelIds = new Set(filteredModelIds.value)
-      editForm.value.allowedModelIdsList = editForm.value.allowedModelIdsList.filter((modelId) =>
-        validModelIds.has(modelId),
-      )
+      scheduleModelAvailabilityPreview()
     },
     { deep: true },
-  )
-
-  watch(
-    () => editForm.value.failoverConfig.enabled,
-    () => {
-      if (!editForm.value.allowedModelIdsList.length) return
-      const validModelIds = new Set(filteredModelIds.value)
-      editForm.value.allowedModelIdsList = editForm.value.allowedModelIdsList.filter((modelId) =>
-        validModelIds.has(modelId),
-      )
-    },
   )
 
   watch(showEditDialog, (isOpen) => {
@@ -875,13 +817,16 @@ export const useRelayTokenManagement = () => {
       setTimeout(() => {
         initSortable()
       }, 100)
+      scheduleModelAvailabilityPreview()
     } else {
+      resetModelAvailability()
       resetTokenChannelEditorState()
       destroySortable()
     }
   })
 
   onBeforeUnmount(() => {
+    resetModelAvailability()
     resetFloatingOverlayHidden()
   })
 
@@ -2473,6 +2418,8 @@ export const useRelayTokenManagement = () => {
     unavailableChannelWarningText,
     filteredModelIds,
     channelFilteredModelNames,
+    loadingModelAvailability,
+    modelAvailabilityError,
     showMaxRetriesRiskWarning,
     maxRetriesRiskWarningText,
     currentQuotaWindowDetailWindows,

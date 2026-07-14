@@ -21,3 +21,17 @@ export { LegalPolicyType, LEGAL_POLICY_TYPES, LegalPolicyPublishStatus, LEGAL_PO
 export { RELAY_CHANNEL_STATUS } from './relay-channel';
 export type { RelayChannelStatus } from './relay-channel';
 export { FINGERPRINT_PATTERN, normalizeFingerprint } from './client-fingerprint';
+export {
+  ALL_RELAY_REQUEST_FORMATS,
+  isModelIdAllowed,
+  isModelNameAllowed,
+  normalizeAllowedModelEntriesToModelNames,
+  normalizeModelEntry,
+  parseAllowedModelsJson,
+  parseRelayRequestFormats,
+  parseRelayTokenAllowedModelIds,
+  resolveModelId,
+  supportsRelayRequestFormat,
+  unionUniqueModelIds,
+} from './relay-model-availability';
+export type { ModelIdentityLike, RelayRequestFormat } from './relay-model-availability';

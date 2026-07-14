@@ -9,6 +9,7 @@ describe("RelayChannelService", () => {
   const relayChannelRepository = {
     listActive: vi.fn(),
     listVisible: vi.fn(),
+    listVisibleByIds: vi.fn(),
     findVisibleByName: vi.fn(),
     findActiveById: vi.fn(),
     findVisibleById: vi.fn(),
@@ -65,6 +66,9 @@ describe("RelayChannelService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     relayChannelRepository.listVisible.mockResolvedValue([sampleChannel]);
+    relayChannelRepository.listVisibleByIds.mockImplementation(async (ids: string[]) =>
+      ids.map((id) => ({ ...sampleChannel, id })),
+    );
     relayChannelRepository.findVisibleByName.mockResolvedValue(null);
     permissionService.hasAnyPermission.mockResolvedValue(false);
     userRepository.findByIdWithGroup.mockResolvedValue({ id: "actor-user", groupId: "group-1" });
@@ -356,6 +360,28 @@ describe("RelayChannelService", () => {
       ],
       transactionClient,
     );
+  });
+
+  it("rejects pooled channels with nonexistent members before persistence", async () => {
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([]);
+    relayChannelRepository.create.mockResolvedValue({
+      ...sampleChannel,
+      id: "pooled-channel-1",
+      channelType: "pooled",
+    });
+
+    await expect(
+      service.createChannel(
+        {
+          name: "Pool",
+          channelType: "pooled",
+          poolMembers: [{ memberChannelId: "missing-member", priority: 0 }],
+        },
+        "actor-user",
+      ),
+    ).rejects.toThrow("One or more pooled channel members were not found");
+
+    expect(relayChannelRepository.replaceMembersByChannelId).not.toHaveBeenCalled();
   });
 
   it("throws NotFoundError on update for missing channel", async () => {

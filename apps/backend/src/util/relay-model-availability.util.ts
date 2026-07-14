@@ -3,15 +3,24 @@ import { BadRequestError, ForbiddenError } from "@/util/errors";
 import logger from "@/util/logger";
 import type { Prisma } from "@prisma/client";
 import {
+  ALL_RELAY_REQUEST_FORMATS,
   isModelIdAllowed,
   isModelNameAllowed,
   parseAllowedModelsJson,
+  parseRelayRequestFormats,
+  parseRelayTokenAllowedModelIds,
   resolveModelId,
-} from "@/util/model-resolution.util";
+  supportsRelayRequestFormat,
+  type RelayRequestFormat,
+} from "@appserver/shared";
 
-export type RelayRequestFormat = "openai" | "anthropic" | "gemini";
-
-export const ALL_RELAY_REQUEST_FORMATS: RelayRequestFormat[] = ["openai", "anthropic", "gemini"];
+export {
+  ALL_RELAY_REQUEST_FORMATS,
+  parseRelayRequestFormats,
+  parseRelayTokenAllowedModelIds,
+  supportsRelayRequestFormat,
+};
+export type { RelayRequestFormat };
 
 export interface RelayModelFormatLike {
   model?: string | null;
@@ -76,59 +85,6 @@ const getModelNamesForFormats = (
     .filter(Boolean);
 };
 
-const inferAllowedModelsFromPoolMembers = (
-  channel: RelayChannelAccessLike,
-  modelCatalog: Array<Pick<RelayModelFormatLike, "model" | "provider" | "supportedFormats">>,
-): string[] => {
-  const members = Array.isArray(channel.poolMembers) ? channel.poolMembers : [];
-  const inferred = new Set<string>();
-
-  for (const member of members) {
-    if (member?.enabled === false) continue;
-    const memberChannel = member?.memberChannel;
-    if (!memberChannel) continue;
-
-    const memberAllowedModels = parseRelayChannelAllowedModelNames(memberChannel, modelCatalog);
-    if (memberAllowedModels == null) {
-      for (const modelName of getModelNamesForFormats(modelCatalog, memberChannel.allowedFormats))
-        inferred.add(modelName);
-      continue;
-    }
-
-    for (const modelName of memberAllowedModels) inferred.add(modelName);
-  }
-
-  return [...inferred];
-};
-
-const formatListIncludes = (rawValue: string, requestFormat: RelayRequestFormat): boolean => {
-  return rawValue
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .includes(requestFormat);
-};
-
-export const parseRelayRequestFormats = (allowedFormats?: string | null): RelayRequestFormat[] => {
-  const normalizedFormats = typeof allowedFormats === "string" ? allowedFormats.trim() : "";
-  if (!normalizedFormats || normalizedFormats === "all") return [...ALL_RELAY_REQUEST_FORMATS];
-
-  const validFormats = new Set<RelayRequestFormat>(ALL_RELAY_REQUEST_FORMATS);
-  return normalizedFormats
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item): item is RelayRequestFormat => validFormats.has(item as RelayRequestFormat));
-};
-
-export const supportsRelayRequestFormat = (
-  allowedFormats: string | null | undefined,
-  requestFormat: RelayRequestFormat,
-): boolean => {
-  const normalizedFormats = typeof allowedFormats === "string" ? allowedFormats.trim() : "";
-  if (!normalizedFormats || normalizedFormats === "all") return true;
-  return formatListIncludes(normalizedFormats, requestFormat);
-};
-
 export const requireRelayChannelForFormat = (
   relayToken: RelayTokenAccessLike,
   requestFormat: RelayRequestFormat,
@@ -155,7 +111,9 @@ export const parseRelayChannelAllowedModelNames = (
 ): string[] | null => {
   const allowedModelsMode = getRelayChannelAllowedModelsMode(channel);
   if (allowedModelsMode === "all") return null;
-  if (allowedModelsMode === "auto") return inferAllowedModelsFromPoolMembers(channel, modelCatalog);
+  // Pool auto mode must be resolved by RelayPoolResolverService. A raw channel
+  // record cannot safely infer nested, disabled, or inherited restrictions.
+  if (allowedModelsMode === "auto") return [];
 
   if (!channel.allowedModels) return [];
 
@@ -170,15 +128,6 @@ export const parseRelayChannelAllowedModelNames = (
 
   // Return the model names directly (stored as model field)
   return allowedModelNames.map((item) => item.trim()).filter(Boolean);
-};
-
-export const parseRelayTokenAllowedModelIds = (allowedModels?: string | null): string[] => {
-  if (!allowedModels) return [];
-
-  return allowedModels
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
 };
 
 export const filterRelayModelsByFormat = <T extends RelayModelFormatLike>(

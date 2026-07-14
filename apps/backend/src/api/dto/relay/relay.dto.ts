@@ -359,3 +359,18 @@ export interface RelayTokenAvailableModelsDto {
   /** Gemini 格式可用模型列表 */
   gemini: string[];
 }
+
+/** Unsaved relay-token values that determine requestable model availability. */
+export interface RelayTokenAvailableModelsPreviewRequest {
+  /** Target user ID; omitted for the current user. */
+  targetUserId?: string;
+  /** Legacy single root channel. */
+  channelId?: string;
+  /** Ordered token route roots. */
+  channelConfigs?: RelayTokenChannelConfigInputDto[];
+  failoverConfig?: RelayTokenFailoverConfigDto;
+  /** Comma-separated token whitelist. */
+  allowedModels?: string | null;
+  /** Request-model to billing-model mapping. */
+  modelMapping?: Record<string, string> | null;
+}

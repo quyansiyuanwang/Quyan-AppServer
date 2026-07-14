@@ -33,6 +33,7 @@ import {
   RelayAvailableModelsMapDto,
   RelayTokenSwitchLogsDto,
   RelayTokenAvailableModelsDto,
+  RelayTokenAvailableModelsPreviewRequest,
 } from "@/api/dto/relay/relay.dto";
 import { NotFoundError, BadRequestError, ForbiddenError } from "@/util/errors";
 import { resolveModelId } from "@/util/model-resolution.util";
@@ -51,7 +52,7 @@ import type {
   RelayTokenUsageSummaryTarget,
   RelayTokenWithRelations,
 } from "@/store/relay/relay-token.store";
-import { RelayProxyService } from "@/services/relay/relay-proxy.service";
+import { RelayProxyService, type RelayTokenAvailabilityInput } from "@/services/relay/relay-proxy.service";
 import { BalanceRepository } from "@/store/billing/balance.repository";
 import type { BalanceStore } from "@/store/billing/balance.store";
 import {
@@ -1124,17 +1125,33 @@ export class RelayTokenService {
   ): Promise<RelayTokenAvailableModelsDto> {
     const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
 
-    const [openaiModels, anthropicModels, geminiModels] = await Promise.all([
-      this.relayProxyService.getAvailableModelsForToken(token, "openai"),
-      this.relayProxyService.getAvailableModelsForToken(token, "anthropic"),
-      this.relayProxyService.getAvailableModelsForToken(token, "gemini"),
-    ]);
+    return this.relayProxyService.getAvailableModelMapForToken(token);
+  }
 
-    return {
-      openai: openaiModels,
-      anthropic: anthropicModels,
-      gemini: geminiModels,
+  async previewTokenAvailableModels(
+    actorUserId: string,
+    data: RelayTokenAvailableModelsPreviewRequest,
+  ): Promise<RelayTokenAvailableModelsDto> {
+    await this.resolveManagedUserId(actorUserId, data.targetUserId);
+    const normalizedConfig = await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
+    const channels = await Promise.all(
+      normalizedConfig.channelConfigs.map((config) =>
+        this.relayChannelService.assertChannelAccessibleById(config.channelId, actorUserId),
+      ),
+    );
+    const channelById = new Map(channels.map((channel) => [channel.id, channel]));
+    const availabilityInput: RelayTokenAvailabilityInput = {
+      allowedModels: data.allowedModels ?? null,
+      modelMapping: data.modelMapping ?? null,
+      channel: channelById.get(normalizedConfig.defaultChannelId) ?? null,
+      channelConfigs: normalizedConfig.channelConfigs.map((config) => ({
+        priority: config.priority,
+        channel: channelById.get(config.channelId) ?? null,
+      })),
+      failoverConfig: data.failoverConfig,
     };
+
+    return this.relayProxyService.getAvailableModelMapForToken(availabilityInput);
   }
 
   private toDto(

@@ -33,7 +33,7 @@ import type { RelayChannelRoutingConfigDto, RelayChannelRoutingStrategy } from "
 import type { RelayTokenStore } from "@/store/relay/relay-token.store";
 import type { RelayUsageStore } from "@/store/relay/relay-usage.store";
 import type { RelayProxyStore } from "@/store/relay/relay-proxy.store";
-import { RelayToken, RelayChannel } from "@prisma/client";
+import { Prisma, RelayToken, RelayChannel } from "@prisma/client";
 import {
   BadRequestError,
   ForbiddenError,
@@ -120,6 +120,23 @@ interface ImageForwardResult extends StreamForwardResult {
 interface RelayAttemptPlan {
   channels: RelayChannel[];
   failoverConfig: RelayFailoverRuntimeConfig;
+}
+
+export interface RelayTokenAvailabilityInput {
+  allowedModels?: string | null;
+  modelMapping?: Prisma.JsonValue | Record<string, string> | null;
+  channel?: RelayChannel | null;
+  channelConfigs?: Array<{
+    channel?: RelayChannel | null;
+    priority?: number | null;
+  }> | null;
+  failoverConfig?: {
+    enabled?: boolean | null;
+    maxRetries?: number | null;
+    retryStatusCodes?: Prisma.JsonValue | string[] | null;
+    failoverThreshold?: number | null;
+    failbackCooldownMinutes?: number | null;
+  } | null;
 }
 
 type RelayChannelWithPool = NonNullable<RelayTokenWithRelations["channel"]>;
@@ -817,7 +834,7 @@ export class RelayProxyService {
   }
 
   async getAvailableModelsForToken(
-    relayToken: RelayTokenWithChannel,
+    relayToken: RelayTokenAvailabilityInput,
     requestFormat: "openai" | "anthropic" | "gemini",
   ): Promise<string[]> {
     const modelPricing = await this.modelPricingService.getModelPricing();
@@ -876,7 +893,29 @@ export class RelayProxyService {
         if (tokenMapping[key]) modelIds.add(tokenMapping[key]);
       }
 
-    return [...modelIds];
+    return [...modelIds].sort((left, right) => left.localeCompare(right));
+  }
+
+  async getAvailableModelMapForToken(relayToken: RelayTokenAvailabilityInput): Promise<{
+    openai: string[];
+    anthropic: string[];
+    gemini: string[];
+  }> {
+    const getModels = async (requestFormat: "openai" | "anthropic" | "gemini") => {
+      try {
+        return await this.getAvailableModelsForToken(relayToken, requestFormat);
+      } catch (error) {
+        if (error instanceof BadRequestError) return [];
+        throw error;
+      }
+    };
+
+    const [openai, anthropic, gemini] = await Promise.all([
+      getModels("openai"),
+      getModels("anthropic"),
+      getModels("gemini"),
+    ]);
+    return { openai, anthropic, gemini };
   }
 
   private rewriteGeminiModelPath(path: string, upstreamModelId: string): string {
@@ -1367,7 +1406,7 @@ export class RelayProxyService {
     };
   }
 
-  private getFailoverRuntimeConfig(relayToken: RelayTokenWithChannel): RelayFailoverRuntimeConfig {
+  private getFailoverRuntimeConfig(relayToken: RelayTokenAvailabilityInput): RelayFailoverRuntimeConfig {
     const retryStatusCodes = normalizeRetryStatusRules(
       Array.isArray(relayToken.failoverConfig?.retryStatusCodes) ? relayToken.failoverConfig.retryStatusCodes : [],
     );
@@ -1434,7 +1473,7 @@ export class RelayProxyService {
     return ordered;
   }
 
-  private getTopLevelAttemptChannels(relayToken: RelayTokenWithChannel): RelayChannelWithPool[] {
+  private getTopLevelAttemptChannels(relayToken: RelayTokenAvailabilityInput): RelayChannelWithPool[] {
     const candidates = relayToken.channelConfigs?.length
       ? relayToken.channelConfigs.map((config) => config.channel).filter(Boolean)
       : relayToken.channel
@@ -1494,7 +1533,7 @@ export class RelayProxyService {
     };
   }
 
-  private async buildAttemptPlan(relayToken: RelayTokenWithChannel): Promise<RelayAttemptPlan> {
+  private async buildAttemptPlan(relayToken: RelayTokenAvailabilityInput): Promise<RelayAttemptPlan> {
     const topLevelChannels = this.getTopLevelAttemptChannels(relayToken);
     const channels = await this.relayPoolResolver.resolveActiveLeaves(topLevelChannels, (pool, members) =>
       this.orderPooledMemberChannels(pool, members),
