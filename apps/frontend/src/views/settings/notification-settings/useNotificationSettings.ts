@@ -32,13 +32,13 @@ export const useNotificationSettings = () => {
     thresholds: Record<string, number>
   }>({
     notificationEmail: '',
-    cooldownMinutes: 60,
+    cooldownMinutes: 0,
     thresholds: {},
   })
 
   /** Decompose total minutes into days + HH:mm string */
   const minutesToDuration = (totalMinutes: number): { days: number; time: string } => {
-    const safe = Math.max(1, Math.min(10080, Math.floor(totalMinutes || 60)))
+    const safe = Math.max(0, Math.min(43200, Math.floor(totalMinutes || 0)))
     const days = Math.floor(safe / 1440)
     const remainder = safe % 1440
     const hours = Math.floor(remainder / 60)
@@ -89,7 +89,7 @@ export const useNotificationSettings = () => {
 
   const applyPreferences = (data: Partial<NotificationPreferenceDto> | undefined) => {
     prefForm.notificationEmail = data?.notificationEmail ?? ''
-    prefForm.cooldownMinutes = data?.cooldownMinutes ?? 60
+    prefForm.cooldownMinutes = data?.cooldownMinutes ?? 0
     prefForm.thresholds = { ...(data?.thresholds ?? {}) }
 
     // Decompose cooldown for days + time picker UI
