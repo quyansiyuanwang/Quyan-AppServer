@@ -100,6 +100,12 @@ const createService = () => {
     hasCoverageOrPositiveBalance: vi.fn().mockResolvedValue(true),
     chargeUsage: vi.fn().mockResolvedValue({ applied: true }),
   };
+  const businessLogService = {
+    logOperation: vi.fn().mockResolvedValue(undefined),
+  };
+  const relayPoolResolver = {
+    resolveActiveLeaves: vi.fn(async (roots: any[]) => roots.filter(Boolean)),
+  };
   const redis = {
     isRedisAvailable: vi.fn().mockReturnValue(true),
     acquireSemaphoreSlot: vi.fn().mockResolvedValue("relay:concurrency:image:global:slot:1"),
@@ -118,6 +124,8 @@ const createService = () => {
     modelPricingService as any,
     usageChargeService as any,
     redis as any,
+    businessLogService as any,
+    relayPoolResolver as any,
   );
 
   return {
@@ -127,6 +135,8 @@ const createService = () => {
     relayConfigService,
     modelPricingService,
     usageChargeService,
+    businessLogService,
+    relayPoolResolver,
     redis,
   };
 };
