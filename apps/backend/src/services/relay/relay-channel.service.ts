@@ -11,6 +11,7 @@ import type {
   RelayChannelExportItemDto,
   RelayChannelExportResponse,
   RelayChannelImportItemDto,
+  RelayChannelAllowedModelsMode,
   TimePeriodMultiplierRule,
   UpdateRelayChannelRequest,
   RelayChannelMemberDto,
@@ -29,6 +30,12 @@ import {
 } from "@/constant/relay-channel";
 import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
 import type { RelayChannelStore } from "@/store/relay/relay-channel.store";
+import { UserRepository } from "@/store/users/user.repository";
+import type { UserStore } from "@/store/users/user.store";
+import { RamRoleRepository } from "@/store/users/ram-role.repository";
+import type { RamRoleStore } from "@/store/users/ram-role.store";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@/constant/permission";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, ConflictError, NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
@@ -37,6 +44,7 @@ import type { Request } from "express";
 
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
+const POOLED_ALLOWED_MODE_VALUES = new Set(["all", "manual", "auto"] as const);
 
 interface ValidatedRelayChannelData {
   name: string;
@@ -71,6 +79,9 @@ export class RelayChannelService {
   private constructor(
     private readonly relayChannelRepository: RelayChannelStore = RelayChannelRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly userRepository: UserStore = UserRepository.getInstance(),
+    private readonly ramRoleRepository: RamRoleStore = RamRoleRepository.getInstance(),
+    private readonly permissionService: PermissionService = PermissionService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -78,17 +89,27 @@ export class RelayChannelService {
     return this.instance;
   }
 
-  async listChannels(includeDisabled = false): Promise<RelayChannelDto[]> {
+  async listChannels(actorUserId: string, includeDisabled = false): Promise<RelayChannelDto[]> {
     const channels = includeDisabled
       ? await this.relayChannelRepository.listVisible()
       : await this.relayChannelRepository.listActive();
-    return channels.map((channel) => this.toDto(channel));
+    const visibleChannels = await this.filterAccessibleChannels(channels, actorUserId);
+    return visibleChannels.map((channel) => this.toDto(channel));
   }
 
-  async getChannel(id: string): Promise<RelayChannelDto> {
+  async getChannel(id: string, actorUserId: string): Promise<RelayChannelDto> {
     const channel = await this.relayChannelRepository.findVisibleById(id);
     if (!channel) throw new NotFoundError("Relay channel not found");
+    await this.assertChannelAccessible(channel, actorUserId);
     return this.toDto(channel);
+  }
+
+  async assertChannelAccessibleById(id: string, actorUserId: string): Promise<RelayChannel> {
+    const channel = await this.relayChannelRepository.findVisibleById(id);
+    if (!channel) throw new NotFoundError("Relay channel not found");
+
+    await this.assertChannelAccessible(channel, actorUserId);
+    return channel;
   }
 
   async exportChannels(
@@ -191,6 +212,59 @@ export class RelayChannelService {
     return new Set(channels.map((channel) => channel.name));
   }
 
+  private async canBypassVisibility(actorUserId: string): Promise<boolean> {
+    return this.permissionService.hasAnyPermission(actorUserId, [
+      Permission.RELAY_CHANNEL_CREATE,
+      Permission.RELAY_CHANNEL_UPDATE,
+      Permission.RELAY_CHANNEL_DELETE,
+    ]);
+  }
+
+  private normalizeVisibilityConfig(
+    visibilityConfig?: RelayChannelVisibilityConfigDto | null,
+  ): Required<RelayChannelVisibilityConfigDto> {
+    return {
+      userIds: Array.isArray(visibilityConfig?.userIds) ? visibilityConfig.userIds.filter(Boolean) : [],
+      groupIds: Array.isArray(visibilityConfig?.groupIds) ? visibilityConfig.groupIds.filter(Boolean) : [],
+      roleIds: Array.isArray(visibilityConfig?.roleIds) ? visibilityConfig.roleIds.filter(Boolean) : [],
+    };
+  }
+
+  private async canUserAccessChannel(channel: RelayChannel, actorUserId: string): Promise<boolean> {
+    if (await this.canBypassVisibility(actorUserId)) return true;
+
+    const visibilityMode =
+      (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE;
+    if (visibilityMode === "public") return true;
+    if (visibilityMode === "private") return false;
+
+    const { userIds, groupIds, roleIds } = this.normalizeVisibilityConfig(
+      channel.visibilityConfig as RelayChannelVisibilityConfigDto | null | undefined,
+    );
+
+    if (userIds.includes(actorUserId)) return true;
+
+    const user = await this.userRepository.findByIdWithGroup(actorUserId);
+    if (!user) return false;
+
+    if (user.groupId && groupIds.includes(user.groupId)) return true;
+
+    if (roleIds.length === 0) return false;
+
+    const roleBindings = await this.ramRoleRepository.listRoleBindingsForUser(actorUserId, user.groupId ?? null);
+    return roleBindings.some((binding) => roleIds.includes(binding.roleId));
+  }
+
+  private async filterAccessibleChannels(channels: RelayChannel[], actorUserId: string): Promise<RelayChannel[]> {
+    const accessResults = await Promise.all(channels.map((channel) => this.canUserAccessChannel(channel, actorUserId)));
+    return channels.filter((_, index) => accessResults[index]);
+  }
+
+  private async assertChannelAccessible(channel: RelayChannel, actorUserId: string): Promise<void> {
+    const canAccess = await this.canUserAccessChannel(channel, actorUserId);
+    if (!canAccess) throw new NotFoundError("Relay channel not found");
+  }
+
   private async getOrderedChannelsByIds(ids: string[], includeDisabled: boolean): Promise<RelayChannel[]> {
     const uniqueIds = [...new Set(ids)];
     const channels = includeDisabled
@@ -245,6 +319,42 @@ export class RelayChannelService {
         return true;
       })
       .sort((a, b) => a.priority - b.priority);
+  }
+
+  private normalizeRoutingConfig(
+    routingConfig: RelayChannelRoutingConfigDto | null | undefined,
+    channelType: RelayChannelType,
+  ): RelayChannelRoutingConfigDto | null | undefined {
+    if (routingConfig === undefined) return undefined;
+    if (routingConfig === null) return null;
+
+    const normalized: RelayChannelRoutingConfigDto = { ...routingConfig };
+
+    if (Object.prototype.hasOwnProperty.call(normalized, "healthScoreThreshold")) {
+      normalized.healthScoreThreshold =
+        normalized.healthScoreThreshold === null ? null : Number(normalized.healthScoreThreshold);
+    }
+    if (Object.prototype.hasOwnProperty.call(normalized, "latencyThresholdMs")) {
+      normalized.latencyThresholdMs =
+        normalized.latencyThresholdMs === null ? null : Number(normalized.latencyThresholdMs);
+    }
+    if (Object.prototype.hasOwnProperty.call(normalized, "circuitBreakerThreshold")) {
+      normalized.circuitBreakerThreshold =
+        normalized.circuitBreakerThreshold === null ? null : Number(normalized.circuitBreakerThreshold);
+    }
+
+    const rawAllowedModelsMode =
+      typeof normalized.allowedModelsMode === "string" ? normalized.allowedModelsMode.trim() : undefined;
+    if (rawAllowedModelsMode && !POOLED_ALLOWED_MODE_VALUES.has(rawAllowedModelsMode as "all" | "manual" | "auto"))
+      throw new BadRequestError(`Invalid allowedModelsMode '${rawAllowedModelsMode}'`);
+
+    if (channelType !== "pooled") {
+      delete normalized.allowedModelsMode;
+      return normalized;
+    }
+
+    if (rawAllowedModelsMode) normalized.allowedModelsMode = rawAllowedModelsMode as RelayChannelAllowedModelsMode;
+    return normalized;
   }
 
   private assertNoSelfReference(channelId: string | undefined, members?: RelayChannelMemberDto[] | null): void {
@@ -332,6 +442,7 @@ export class RelayChannelService {
     this.assertNoSelfReference(existing?.id, poolMembers);
     const isCreate = !existing;
     const wasPooled = existing?.channelType === "pooled";
+    const normalizedRoutingConfig = this.normalizeRoutingConfig(routingConfig, channelType);
 
     const openaiUpstreamUrl =
       data.openaiUpstreamUrl !== undefined ? data.openaiUpstreamUrl : existing?.openaiUpstreamUrl || undefined;
@@ -423,7 +534,7 @@ export class RelayChannelService {
       name,
       channelType,
       routingStrategy,
-      routingConfig,
+      routingConfig: normalizedRoutingConfig,
       visibilityMode,
       visibilityConfig,
       poolMembers,

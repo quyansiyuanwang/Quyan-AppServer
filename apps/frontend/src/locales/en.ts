@@ -2236,8 +2236,10 @@ export default {
     routingStrategyHealthPriority: 'Health Priority',
     routingStrategyLatencyPriority: 'Latency Priority',
     routingConfig: 'Routing Parameters',
-    routingConfigHelp:
-      'The form starts with recommended values for most pooled-channel setups: max switches 2, retries per channel 0, failover rules 4xx/5xx, failback cooldown 5 minutes, health score threshold 0, latency threshold 30000ms, circuit breaker threshold 5, and sticky-by-model/format disabled.',
+    restoreRecommendedRoutingConfig: 'Restore recommended values',
+    clearOptionalThresholds: 'Clear',
+    routingConfigOptionalThresholdsHelp:
+      'Health, latency, and circuit-breaker thresholds are optional and can be left empty.',
     healthScoreThreshold: 'Health Score Threshold',
     latencyThresholdMs: 'Latency Threshold (ms)',
     circuitBreakerThreshold: 'Circuit Breaker Threshold',
@@ -2466,6 +2468,13 @@ export default {
     allowedModelsChannel: 'Allowed Models',
     allowedModelsChannelHelp:
       'When restricted, only models in the list are allowed; when unrestricted, all models are allowed',
+    allowedModelsPooledHelp:
+      'For pooled channels, allow all models, infer them from member channels, or define a manual list.',
+    allowedModelsModeAll: 'All models',
+    allowedModelsModeAuto: 'Infer from pool members',
+    allowedModelsModeAutoShort: 'Auto',
+    allowedModelsModeManual: 'Manual list',
+    allowedModelsManualPlaceholder: 'Select or enter model names',
     restrictModels: 'Restrict Models',
     allowAllModels: 'Allow All Models',
     apiKeyRequired: ' API Key is required',

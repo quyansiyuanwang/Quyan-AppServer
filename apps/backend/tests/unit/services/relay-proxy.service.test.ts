@@ -118,6 +118,69 @@ const createRelayTokenWithThreeChannels = () => {
   } as any;
 };
 
+const createRelayTokenWithPooledChannel = (overrides: Record<string, unknown> = {}) => {
+  const memberA = createChannel("member-a", "Member A", "member-a.example.com", {
+    allowedModels: JSON.stringify(["gpt-4o-mini"]),
+  });
+  const memberB = createChannel("member-b", "Member B", "member-b.example.com", {
+    allowedModels: JSON.stringify(["gpt-4o-mini"]),
+  });
+  const memberC = createChannel("member-c", "Member C", "member-c.example.com", {
+    allowedModels: JSON.stringify(["gpt-4o-mini"]),
+  });
+
+  const pooledChannel = {
+    ...createChannel("pool-1", "Pool", "pool.example.com"),
+    channelType: "pooled",
+    routingStrategy: "priority",
+    routingConfig: {
+      maxRetries: 2,
+      retryStatusCodes: ["4xx", "5xx"],
+      failbackCooldownMinutes: 0,
+    },
+    openaiUpstreamUrl: null,
+    openaiUpstreamApiKey: null,
+    poolMembers: [
+      {
+        id: "pool-member-a",
+        memberChannelId: memberA.id,
+        priority: 1,
+        weight: 5,
+        enabled: true,
+        memberChannel: memberA,
+      },
+      {
+        id: "pool-member-b",
+        memberChannelId: memberB.id,
+        priority: 2,
+        weight: 1,
+        enabled: true,
+        memberChannel: memberB,
+      },
+      {
+        id: "pool-member-c",
+        memberChannelId: memberC.id,
+        priority: 3,
+        weight: 2,
+        enabled: true,
+        memberChannel: memberC,
+      },
+    ],
+  };
+
+  return {
+    id: "token-pooled",
+    userId: "user-1",
+    token: "relay-token-pooled",
+    allowedModels: null,
+    channelId: pooledChannel.id,
+    channel: pooledChannel,
+    failoverConfig: null,
+    channelConfigs: [],
+    ...overrides,
+  } as any;
+};
+
 const createRequest = (overrides: Record<string, unknown> = {}) => ({
   path: "/relay/proxy/v1/chat/completions",
   originalUrl: "/relay/proxy/v1/chat/completions",
@@ -525,6 +588,82 @@ describe("RelayProxyService failover", () => {
 
     await expect(service.forwardRequest(relayToken, req)).rejects.toBeInstanceOf(LockBackendUnavailableError);
     expect(axiosMock).not.toHaveBeenCalled();
+  });
+
+  it("builds pooled attempt plan in priority order and derives pool failover config", async () => {
+    const relayToken = createRelayTokenWithPooledChannel();
+    const { service } = createService();
+
+    const result = await (service as any).buildAttemptPlan(relayToken);
+
+    expect(result.channels.map((channel: any) => channel.id)).toEqual(["member-a", "member-b", "member-c"]);
+    expect(result.failoverConfig).toEqual({
+      enabled: true,
+      maxRetries: 2,
+      retryStatusCodes: ["4xx", "5xx"],
+      failoverThreshold: 1,
+      failbackCooldownMinutes: 0,
+    });
+  });
+
+  it("uses round-robin ordering for pooled members", async () => {
+    const relayToken = createRelayTokenWithPooledChannel({
+      channel: {
+        ...createRelayTokenWithPooledChannel().channel,
+        routingStrategy: "round-robin",
+      },
+    });
+    const { service } = createService({
+      redis: {
+        increment: vi.fn().mockResolvedValue(2),
+      },
+    });
+
+    const result = await (service as any).buildAttemptPlan(relayToken);
+
+    expect(result.channels.map((channel: any) => channel.id)).toEqual(["member-b", "member-c", "member-a"]);
+  });
+
+  it("uses weighted-random ordering for pooled members", async () => {
+    const relayToken = createRelayTokenWithPooledChannel({
+      channel: {
+        ...createRelayTokenWithPooledChannel().channel,
+        routingStrategy: "weighted-random",
+      },
+    });
+    const { service } = createService();
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValueOnce(0);
+
+    try {
+      const result = await (service as any).buildAttemptPlan(relayToken);
+      expect(result.channels.map((channel: any) => channel.id)).toEqual(["member-a", "member-b", "member-c"]);
+    } finally {
+      randomSpy.mockRestore();
+    }
+  });
+
+  it("keeps priority ordering for health-priority and latency-priority pooled strategies", async () => {
+    const { service } = createService();
+
+    const healthPlan = await (service as any).buildAttemptPlan(
+      createRelayTokenWithPooledChannel({
+        channel: {
+          ...createRelayTokenWithPooledChannel().channel,
+          routingStrategy: "health-priority",
+        },
+      }),
+    );
+    const latencyPlan = await (service as any).buildAttemptPlan(
+      createRelayTokenWithPooledChannel({
+        channel: {
+          ...createRelayTokenWithPooledChannel().channel,
+          routingStrategy: "latency-priority",
+        },
+      }),
+    );
+
+    expect(healthPlan.channels.map((channel: any) => channel.id)).toEqual(["member-a", "member-b", "member-c"]);
+    expect(latencyPlan.channels.map((channel: any) => channel.id)).toEqual(["member-a", "member-b", "member-c"]);
   });
 
   it("retries the next channel on configured upstream status codes", async () => {

@@ -14,6 +14,7 @@ import type { RelayTokenStore, RelayTokenWithChannel } from "@/store/relay/relay
 import type { RelayUsageStore } from "@/store/relay/relay-usage.store";
 import type { ModelPricingStore } from "@/store/relay/model-pricing.store";
 import type { RelayConfigStore } from "@/store/relay/relay-config.store";
+import type { RelayChannel } from "@prisma/client";
 import { TOKEN_PRICE_DIVISOR } from "@/constant/pricing";
 import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";
 import {
@@ -70,47 +71,84 @@ export class ChatService {
 
   private getUpstreamConfigForFormat(
     token: RelayTokenWithChannel,
+    channel: RelayChannel | null,
     requestFormat: RelayRequestFormat,
   ): { upstreamUrl?: string | null; upstreamApiKey?: string | null } {
     if (requestFormat === "openai")
       return {
-        upstreamUrl: token.upstreamUrl || token.channel?.openaiUpstreamUrl,
-        upstreamApiKey: token.upstreamApiKey || token.channel?.openaiUpstreamApiKey,
+        upstreamUrl: token.upstreamUrl || channel?.openaiUpstreamUrl,
+        upstreamApiKey: token.upstreamApiKey || channel?.openaiUpstreamApiKey,
       };
 
     if (requestFormat === "anthropic")
       return {
-        upstreamUrl: token.channel?.anthropicUpstreamUrl || token.upstreamUrl,
-        upstreamApiKey: token.channel?.anthropicUpstreamApiKey || token.upstreamApiKey,
+        upstreamUrl: channel?.anthropicUpstreamUrl || token.upstreamUrl,
+        upstreamApiKey: channel?.anthropicUpstreamApiKey || token.upstreamApiKey,
       };
 
     return {
-      upstreamUrl: token.channel?.geminiUpstreamUrl || token.upstreamUrl,
-      upstreamApiKey: token.channel?.geminiUpstreamApiKey || token.upstreamApiKey,
+      upstreamUrl: channel?.geminiUpstreamUrl || token.upstreamUrl,
+      upstreamApiKey: channel?.geminiUpstreamApiKey || token.upstreamApiKey,
     };
+  }
+
+  private getCandidateChatChannels(token: RelayTokenWithChannel): RelayChannel[] {
+    const assignedChannel = token.channel;
+    if (!assignedChannel) return [];
+    if ((assignedChannel.channelType || "standalone") !== "pooled") return [assignedChannel as RelayChannel];
+
+    return Array.isArray((assignedChannel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
+      ? (
+          (
+            assignedChannel as RelayChannel & {
+              poolMembers?: Array<{
+                enabled?: boolean;
+                priority: number;
+                memberChannel?: RelayChannel | null;
+              }>;
+            }
+          ).poolMembers ?? []
+        )
+          .filter((member) => member.enabled !== false && member.memberChannel)
+          .filter((member) => member.memberChannel?.status === 1)
+          .sort((left, right) => left.priority - right.priority)
+          .map((member) => member.memberChannel!)
+      : [];
   }
 
   private resolveChatRequestFormat(
     token: RelayTokenWithChannel,
     modelPricing: ModelPricing,
     selectedModelId: string,
-  ): { requestFormat: RelayRequestFormat; upstreamUrl: string; upstreamApiKey: string } {
+    configuredModels: ModelPricing[],
+  ): { channel: RelayChannel; requestFormat: RelayRequestFormat; upstreamUrl: string; upstreamApiKey: string } {
     const orderedFormats = this.getPreferredRequestFormatOrder(selectedModelId, modelPricing.supportedFormats);
-    const channelAllowedFormats = token.channel?.allowedFormats || "all";
+    const candidateChannels = this.getCandidateChatChannels(token);
+
+    if (candidateChannels.length === 0)
+      throw new BadRequestError(
+        "No relay channel assigned to this relay token. Please assign a channel before using chat.",
+      );
 
     for (const requestFormat of orderedFormats) {
-      if (!supportsRelayRequestFormat(channelAllowedFormats, requestFormat)) continue;
+      for (const channel of candidateChannels) {
+        const channelAllowedFormats = channel.allowedFormats || "all";
+        if (!supportsRelayRequestFormat(channelAllowedFormats, requestFormat)) continue;
 
-      const config = this.getUpstreamConfigForFormat(token, requestFormat);
-      const upstreamUrl = config.upstreamUrl?.trim();
-      const upstreamApiKey = config.upstreamApiKey?.trim();
-      if (upstreamUrl && upstreamApiKey) return { requestFormat, upstreamUrl, upstreamApiKey };
+        const channelAllowedModels = parseRelayChannelAllowedModelNames(channel, configuredModels);
+        if (!isModelNameAllowed(channelAllowedModels, modelPricing.model.trim())) continue;
+
+        const config = this.getUpstreamConfigForFormat(token, channel, requestFormat);
+        const upstreamUrl = config.upstreamUrl?.trim();
+        const upstreamApiKey = config.upstreamApiKey?.trim();
+        if (upstreamUrl && upstreamApiKey) return { channel, requestFormat, upstreamUrl, upstreamApiKey };
+      }
     }
 
     throw new BadRequestError(
       `Model ${modelPricing.model.trim()} has no compatible upstream configuration. Supported formats: ${
         modelPricing.supportedFormats || "all"
-      }, channel formats: ${channelAllowedFormats}`,
+      }`,
     );
   }
 
@@ -187,15 +225,14 @@ export class ChatService {
     const selectedModelName = resolvedPricing.model.trim();
     const selectedModelId = resolveModelId(resolvedPricing);
     const {
+      channel: effectiveChannel,
       requestFormat,
       upstreamUrl,
       upstreamApiKey: apiKey,
-    } = this.resolveChatRequestFormat(token, resolvedPricing, selectedModelId);
-    requireRelayChannelForFormat(token, requestFormat);
+    } = this.resolveChatRequestFormat(token, resolvedPricing, selectedModelId, configuredModels);
+    requireRelayChannelForFormat({ ...token, channel: effectiveChannel }, requestFormat);
 
-    const channelAllowedModels = token.channel
-      ? parseRelayChannelAllowedModelNames(token.channel, configuredModels)
-      : null;
+    const channelAllowedModels = parseRelayChannelAllowedModelNames(effectiveChannel, configuredModels);
     if (!isModelNameAllowed(channelAllowedModels, selectedModelName))
       throw new BadRequestError(`Channel does not support model ${requestedModel}`);
 
@@ -207,7 +244,7 @@ export class ChatService {
     const hasChargeCoverage = await this.usageChargeService.hasCoverageOrPositiveBalance({
       userId,
       modelName: selectedModelName,
-      channelId: token.channelId || "",
+      channelId: effectiveChannel.id,
       at: monthlyPassCoverageAt,
     });
 
@@ -295,7 +332,7 @@ export class ChatService {
     const outputRate = Number(resolvedPricing.outputPrice) / TOKEN_PRICE_DIVISOR;
     const cacheCreationMultiplier = Number(resolvedPricing.cacheCreationMultiplier);
     const cacheReadMultiplier = Number(resolvedPricing.cacheReadMultiplier);
-    const channelMultiplier = token.channel?.multiplier ? Number(token.channel.multiplier) : 1;
+    const channelMultiplier = effectiveChannel.multiplier ? Number(effectiveChannel.multiplier) : 1;
     const globalMultiplier = relayConfig ? Number(relayConfig.globalMultiplier) : 1;
     const modelMultiplier = 1;
     const combinedMultiplier = modelMultiplier * channelMultiplier * globalMultiplier;
@@ -346,14 +383,14 @@ export class ChatService {
       cost,
       modelName: selectedModelName,
       modelId: selectedModelId,
-      channelId: token.channelId || "",
+      channelId: effectiveChannel.id,
       monthlyPassCoverageAt,
       inputRate,
       outputRate,
       multiplier: modelMultiplier,
       cacheCreationMultiplier,
       cacheReadMultiplier,
-      channelName: token.channel?.name || null,
+      channelName: effectiveChannel.name || null,
       channelMultiplier,
       globalMultiplier,
       balanceChargeMode: "allow-negative",

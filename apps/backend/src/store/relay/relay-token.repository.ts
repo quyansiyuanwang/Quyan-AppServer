@@ -23,10 +23,26 @@ const visibleRelayTokenStatuses = [MANAGED_STATUS.DISABLED, MANAGED_STATUS.ENABL
 
 const relayTokenInclude = {
   user: true,
-  channel: true,
+  channel: {
+    include: {
+      poolMembers: {
+        include: { memberChannel: true },
+        orderBy: { priority: "asc" },
+      },
+    },
+  },
   failoverConfig: true,
   channelConfigs: {
-    include: { channel: true },
+    include: {
+      channel: {
+        include: {
+          poolMembers: {
+            include: { memberChannel: true },
+            orderBy: { priority: "asc" },
+          },
+        },
+      },
+    },
     orderBy: { priority: "asc" },
   },
   quotaWindows: {
