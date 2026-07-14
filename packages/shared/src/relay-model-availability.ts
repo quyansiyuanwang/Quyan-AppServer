@@ -7,6 +7,11 @@ export interface ModelIdentityLike {
   provider?: string | null;
 }
 
+export type RelayModelNameConstraint =
+  | { kind: 'unrestricted' }
+  | { kind: 'restricted'; values: string[] }
+  | { kind: 'malformed' };
+
 export const normalizeModelEntry = (value?: string | null): string => {
   return typeof value === 'string' ? value.trim() : '';
 };
@@ -25,6 +30,22 @@ export const parseAllowedModelsJson = (allowedModels?: string | null): string[] 
     return parsed.map((item) => normalizeModelEntry(String(item ?? ''))).filter(Boolean);
   } catch {
     return null;
+  }
+};
+
+export const parseRelayModelNameConstraint = (allowedModels?: string | null): RelayModelNameConstraint => {
+  if (allowedModels == null || allowedModels.trim() === '') return { kind: 'unrestricted' };
+
+  try {
+    const parsed = JSON.parse(allowedModels);
+    if (!Array.isArray(parsed)) return { kind: 'malformed' };
+
+    return {
+      kind: 'restricted',
+      values: parsed.map((item) => normalizeModelEntry(String(item ?? ''))).filter(Boolean),
+    };
+  } catch {
+    return { kind: 'malformed' };
   }
 };
 

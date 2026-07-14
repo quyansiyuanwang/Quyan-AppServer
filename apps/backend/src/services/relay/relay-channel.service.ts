@@ -107,16 +107,44 @@ export class RelayChannelService {
   async listChannelOptions(actorUserId: string): Promise<RelayChannelOptionDto[]> {
     const channels = await this.filterAccessibleChannels(await this.relayChannelRepository.listActive(), actorUserId);
     const modelCatalog = await this.modelPricingService.getModelPricing();
+    const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog);
     const options = await Promise.all(
       channels.map(async (channel) => {
-        const dto = await this.toDto(channel, modelCatalog);
+        const resolvedCapabilities = await this.relayPoolResolver.resolveChannelCapabilities(
+          channel.id,
+          resolverContext,
+        );
+        const modelCapabilities = new Map<
+          string,
+          RelayChannelOptionDto["modelCapabilities"][number]
+        >();
+        for (const capability of resolvedCapabilities) {
+          const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
+          const existing = modelCapabilities.get(key);
+          if (existing) {
+            existing.supportedRequestFormats = [
+              ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
+            ];
+          } else {
+            modelCapabilities.set(key, {
+              catalogModelName: capability.catalogModelName,
+              requestModelId: capability.requestModelId,
+              supportedRequestFormats: [...capability.supportedRequestFormats],
+            });
+          }
+        }
+
         return {
-          id: dto.id,
-          name: dto.name,
-          enabled: dto.enabled,
-          multiplier: dto.multiplier,
-          allowedFormats: dto.allowedFormats,
-          allowedModels: dto.allowedModels,
+          id: channel.id,
+          name: channel.name,
+          enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+          multiplier: Number(channel.multiplier),
+          allowedFormats: channel.allowedFormats,
+          modelCapabilities: [...modelCapabilities.values()].sort(
+            (left, right) =>
+              left.catalogModelName.localeCompare(right.catalogModelName) ||
+              left.requestModelId.localeCompare(right.requestModelId),
+          ),
         };
       }),
     );

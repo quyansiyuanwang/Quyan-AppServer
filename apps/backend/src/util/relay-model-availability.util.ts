@@ -7,6 +7,7 @@ import {
   isModelIdAllowed,
   isModelNameAllowed,
   parseAllowedModelsJson,
+  parseRelayModelNameConstraint,
   parseRelayRequestFormats,
   parseRelayTokenAllowedModelIds,
   resolveModelId,
@@ -115,10 +116,9 @@ export const parseRelayChannelAllowedModelNames = (
   // record cannot safely infer nested, disabled, or inherited restrictions.
   if (allowedModelsMode === "auto") return [];
 
-  if (!channel.allowedModels) return [];
-
-  const allowedModelNames = parseAllowedModelsJson(channel.allowedModels);
-  if (!allowedModelNames) {
+  const constraint = parseRelayModelNameConstraint(channel.allowedModels);
+  if (constraint.kind === "unrestricted") return [];
+  if (constraint.kind === "malformed") {
     logger.warn("Invalid allowedModels in channel config, fallback to allow-all", {
       channelId: channel.id || undefined,
       source: "relay-model-availability",
@@ -127,7 +127,7 @@ export const parseRelayChannelAllowedModelNames = (
   }
 
   // Return the model names directly (stored as model field)
-  return allowedModelNames.map((item) => item.trim()).filter(Boolean);
+  return constraint.values;
 };
 
 export const filterRelayModelsByFormat = <T extends RelayModelFormatLike>(

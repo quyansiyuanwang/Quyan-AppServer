@@ -88,7 +88,13 @@ export interface RelayChannelOptionDto {
   enabled: boolean;
   multiplier: number;
   allowedFormats: string;
-  allowedModels: string[];
+  modelCapabilities: RelayChannelModelCapabilityDto[];
+}
+
+export interface RelayChannelModelCapabilityDto {
+  catalogModelName: string;
+  requestModelId: string;
+  supportedRequestFormats: Array<"openai" | "anthropic" | "gemini">;
 }
 
 export interface RelayChannelExportItemDto extends CreateRelayChannelRequest {

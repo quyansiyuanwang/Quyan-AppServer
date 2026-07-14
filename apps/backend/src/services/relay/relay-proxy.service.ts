@@ -600,8 +600,8 @@ export class RelayProxyService {
   ): ModelPricingDto | null {
     const allowedModelNames = parseRelayChannelAllowedModelNames(channel, modelPricing);
 
-    // If channel has no restrictions, use the first candidate
-    if (!allowedModelNames || allowedModelNames.length === 0) return candidateConfigs[0] || null;
+    // null means unrestricted; an explicit empty list denies every model.
+    if (allowedModelNames === null) return candidateConfigs[0] || null;
 
     // Find the first model config whose name is in the channel's allowedModels
     for (const config of candidateConfigs) if (isModelNameAllowed(allowedModelNames, config.model || "")) return config;

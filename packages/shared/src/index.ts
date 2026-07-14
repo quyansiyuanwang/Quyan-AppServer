@@ -28,10 +28,11 @@ export {
   normalizeAllowedModelEntriesToModelNames,
   normalizeModelEntry,
   parseAllowedModelsJson,
+  parseRelayModelNameConstraint,
   parseRelayRequestFormats,
   parseRelayTokenAllowedModelIds,
   resolveModelId,
   supportsRelayRequestFormat,
   unionUniqueModelIds,
 } from './relay-model-availability';
-export type { ModelIdentityLike, RelayRequestFormat } from './relay-model-availability';
+export type { ModelIdentityLike, RelayModelNameConstraint, RelayRequestFormat } from './relay-model-availability';
