@@ -3845,6 +3845,7 @@ export default {
     eventThreshold: 'Threshold',
     cooldownLabel: 'Cooldown Period (minutes)',
     cooldownHelp: 'Minimum interval between notifications for the same event',
+    cooldownDayOption: '{count} day{s}',
     thresholdsSection: 'Event Thresholds',
     thresholdsHelp: 'Set threshold values for events that support them',
     savePreferences: 'Save Preferences',

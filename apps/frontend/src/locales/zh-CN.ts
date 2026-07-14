@@ -3695,6 +3695,7 @@ const zhCN: DeepStringify<typeof en> = {
     eventThreshold: '触发阈值',
     cooldownLabel: '冷却时间（分钟）',
     cooldownHelp: '同一事件两次通知之间的最短间隔',
+    cooldownDayOption: '{count}天',
     thresholdsSection: '事件阈值',
     thresholdsHelp: '为支持阈值的事件设置触发条件',
     savePreferences: '保存偏好',
