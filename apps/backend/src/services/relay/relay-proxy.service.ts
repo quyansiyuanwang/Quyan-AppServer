@@ -53,6 +53,7 @@ import { extractTokenUsageMetrics, normalizeTokenBreakdown } from "@/util/token-
 import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";
 import { resolveMappedModel } from "@/util/model-mapping.util";
 import {
+  parseRelayRequestFormats,
   parseRelayChannelAllowedModelNames,
   parseRelayTokenAllowedModelIds,
   supportsRelayRequestFormat,
@@ -825,7 +826,14 @@ export class RelayProxyService {
       supportsRelayRequestFormat(channel.allowedFormats, requestFormat),
     );
 
-    if (eligibleChannels.length === 0) return [];
+    if (eligibleChannels.length === 0) {
+      const allowedFormats = [
+        ...new Set(attemptPlan.channels.flatMap((channel) => parseRelayRequestFormats(channel.allowedFormats))),
+      ].join(",");
+      throw new BadRequestError(
+        `Channel does not support ${requestFormat} format requests. Allowed formats: ${allowedFormats || "none"}`,
+      );
+    }
 
     const tokenAllowedModelIds = parseRelayTokenAllowedModelIds(relayToken.allowedModels);
     const formatScopedModels = modelPricing.filter((model) =>
