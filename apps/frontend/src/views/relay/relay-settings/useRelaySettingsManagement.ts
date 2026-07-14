@@ -1356,10 +1356,22 @@ export const useRelaySettingsManagement = () => {
   }
 
   const getChannelAllowedModelsSummary = (
-    row: Pick<RelayChannelDto, 'channelType' | 'allowedModels' | 'routingConfig'>,
+    row: Pick<
+      RelayChannelDto,
+      | 'channelType'
+      | 'allowedModels'
+      | 'routingConfig'
+      | 'inferredAllowedModels'
+      | 'inferredAllowedModelsCount'
+    >,
   ) => {
     const mode = getChannelAllowedModelsMode(row)
-    if (mode === 'auto') return i18ns.t('relay.allowedModelsModeAuto')
+    if (mode === 'auto') {
+      const count = row.inferredAllowedModelsCount ?? row.inferredAllowedModels?.length
+      return count === undefined
+        ? i18ns.t('relay.allowedModelsModeAuto')
+        : `${i18ns.t('relay.allowedModelsModeAutoShort')} · ${i18ns.t('relay.modelsCount', { count })}`
+    }
     if (mode === 'all') return i18ns.t('relay.allModels')
 
     const models = parseAllowedModels(row.allowedModels)

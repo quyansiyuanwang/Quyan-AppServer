@@ -25141,6 +25141,9 @@
 			},
 			"ReviewTicketDto": {
 				"properties": {
+					"type": {
+						"$ref": "#/components/schemas/TicketType"
+					},
 					"workflowStatus": {
 						"$ref": "#/components/schemas/TicketWorkflowStatus"
 					},
@@ -28086,6 +28089,7 @@
 					"TICKET_UPDATE",
 					"TICKET_COMMENT_CREATE",
 					"TICKET_ASSIGN",
+					"TICKET_TYPE_CHANGE",
 					"TICKET_STATUS_CHANGE",
 					"TICKET_PRIORITY_CHANGE",
 					"TICKET_DELETE",
@@ -31957,6 +31961,17 @@
 					},
 					"allowedModels": {
 						"type": "string"
+					},
+					"inferredAllowedModels": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Automatically inferred allowed models for pooled channels in auto mode."
+					},
+					"inferredAllowedModelsCount": {
+						"type": "number",
+						"format": "double"
 					},
 					"addUserIdentifier": {
 						"type": "boolean"

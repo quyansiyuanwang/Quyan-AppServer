@@ -43,16 +43,18 @@ export class RelayChannelRepository implements RelayChannelStore {
     });
   }
 
-  async listActive(): Promise<RelayChannel[]> {
-    return prisma.relayChannel.findMany({
+  async listActive(tx?: RelayChannelTransactionClient): Promise<RelayChannel[]> {
+    const client = tx ?? prisma;
+    return client.relayChannel.findMany({
       where: { status: RELAY_CHANNEL_STATUS.ENABLED },
       orderBy: { createTime: "desc" },
       include: relayChannelInclude,
     });
   }
 
-  async listVisible(): Promise<RelayChannel[]> {
-    return prisma.relayChannel.findMany({
+  async listVisible(tx?: RelayChannelTransactionClient): Promise<RelayChannel[]> {
+    const client = tx ?? prisma;
+    return client.relayChannel.findMany({
       where: { status: { in: VISIBLE_RELAY_CHANNEL_STATUSES } },
       orderBy: { createTime: "desc" },
       include: relayChannelInclude,

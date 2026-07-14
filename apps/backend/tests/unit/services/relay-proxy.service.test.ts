@@ -245,6 +245,35 @@ const createService = (
   const businessLogService = {
     logOperation: vi.fn().mockResolvedValue(undefined),
   };
+  const relayPoolResolver = {
+    resolveActiveLeaves: vi.fn(async (roots: any[], orderMembers?: (pool: any, members: any[]) => Promise<any[]>) => {
+      const leaves: any[] = [];
+      for (const root of roots) {
+        if (!root) continue;
+        if (root.channelType !== "pooled") {
+          leaves.push(root);
+          continue;
+        }
+
+        const members = (root.poolMembers ?? [])
+          .filter((member: any) => member.enabled !== false && member.memberChannel)
+          .map((member: any) => ({
+            memberChannelId: member.memberChannelId,
+            priority: member.priority,
+            weight: member.weight,
+            enabled: member.enabled,
+          }));
+        const orderedMembers = orderMembers ? await orderMembers(root, members) : members;
+        for (const member of orderedMembers) {
+          const sourceMember = (root.poolMembers ?? []).find(
+            (candidate: any) => candidate.memberChannelId === member.memberChannelId,
+          );
+          if (sourceMember?.memberChannel) leaves.push(sourceMember.memberChannel);
+        }
+      }
+      return leaves;
+    }),
+  };
   const redis = {
     isRedisAvailable: vi.fn().mockReturnValue(true),
     acquireSemaphoreSlot: vi.fn().mockResolvedValue("relay:concurrency:default:user-1:slot:1"),
@@ -269,6 +298,7 @@ const createService = (
     usageChargeService as any,
     redis as any,
     businessLogService as any,
+    relayPoolResolver as any,
   );
 
   return {
@@ -279,6 +309,7 @@ const createService = (
     modelPricingService,
     usageChargeService,
     businessLogService,
+    relayPoolResolver,
     redis,
   };
 };

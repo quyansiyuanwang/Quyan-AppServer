@@ -783,12 +783,18 @@
               {{ i18ns.t('relay.allowedModelsChannel') }}
             </div>
             <div class="flex flex-wrap gap-2">
-              <el-tag
-                v-if="getChannelAllowedModelsMode(currentChannelDetail) === 'auto'"
-                type="warning"
-                size="small"
-                >{{ i18ns.t('relay.allowedModelsModeAuto') }}</el-tag
-              >
+              <template v-if="getChannelAllowedModelsMode(currentChannelDetail) === 'auto'">
+                <el-tag type="warning" size="small">{{
+                  getChannelAllowedModelsSummary(currentChannelDetail)
+                }}</el-tag>
+                <el-tag
+                  v-for="model in currentChannelDetail.inferredAllowedModels || []"
+                  :key="model"
+                  type="primary"
+                  size="small"
+                  >{{ model }}</el-tag
+                >
+              </template>
               <el-tag
                 v-else-if="getChannelAllowedModelsMode(currentChannelDetail) === 'all'"
                 type="info"
@@ -992,6 +998,7 @@ const {
   handleVisibilityUserSearch,
   parseAllowedModels,
   getChannelAllowedModelsMode,
+  getChannelAllowedModelsSummary,
   handleImportChannels,
 } = state
 

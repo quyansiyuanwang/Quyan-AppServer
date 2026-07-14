@@ -64,6 +64,7 @@ describe("RelayChannelService", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    relayChannelRepository.listVisible.mockResolvedValue([sampleChannel]);
     relayChannelRepository.findVisibleByName.mockResolvedValue(null);
     permissionService.hasAnyPermission.mockResolvedValue(false);
     userRepository.findByIdWithGroup.mockResolvedValue({ id: "actor-user", groupId: "group-1" });

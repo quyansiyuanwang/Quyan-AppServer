@@ -243,6 +243,8 @@ export class TicketService {
     if (!existing) throw new NotFoundError("工单不存在");
 
     const updateData: Record<string, unknown> = {};
+    if (Object.prototype.hasOwnProperty.call(body, "type") && body.type !== undefined) updateData.type = body.type;
+
     if (Object.prototype.hasOwnProperty.call(body, "workflowStatus") && body.workflowStatus !== undefined)
       updateData.workflowStatus = body.workflowStatus;
 
@@ -261,6 +263,20 @@ export class TicketService {
     if (Object.keys(updateData).length === 0) return this.getReviewTicketDetail(id);
 
     const updated = await this.repository.update(id, updateData);
+
+    if (existing.type !== updated.type)
+      await this.businessLogService.logOperation({
+        operationType: OperationType.TICKET_TYPE_CHANGE,
+        operationCategory: OperationCategory.SYSTEM,
+        actorUserId: reviewerUserId,
+        targetUserId: existing.userId,
+        targetResourceId: updated.id,
+        targetResourceType: "TICKET",
+        description: `更正工单 '${updated.title}' 类型`,
+        changes: { beforeType: existing.type, afterType: updated.type },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
 
     if (existing.workflowStatus !== updated.workflowStatus) {
       await this.businessLogService.logOperation({

@@ -1,5 +1,5 @@
 <template>
-  <div class="auth-center-client-review-view">
+  <div class="auth-center-client-review-view desktop-page page-shell">
     <el-card class="page-card">
       <template #header>
         <div class="card-header toolbar-row">
@@ -15,7 +15,7 @@
         </div>
       </template>
 
-      <div class="filters">
+      <div class="review-filter-row">
         <el-input
           v-model="filters.keyword"
           :placeholder="i18ns.t('authCenterClient.keywordPlaceholder')"
@@ -335,20 +335,31 @@ onMounted(() => {
   font-size: 13px;
 }
 
-.filters {
-  display: flex;
+.review-filter-row {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 180px auto;
   gap: 12px;
-  flex-wrap: wrap;
   margin-bottom: 16px;
 }
 
 .filter-input {
-  flex: 1;
   min-width: 240px;
 }
 
 .filter-select {
   width: 180px;
+}
+
+@media (max-width: 767px) {
+  .review-filter-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .filter-input,
+  .filter-select {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 .row-actions {

@@ -3594,6 +3594,7 @@ const emoji: DeepStringify<typeof en> = {
     eventThreshold: '📊',
     cooldownLabel: '⏱️',
     cooldownHelp: '💡',
+    cooldownDayOption: '📅{count}',
     thresholdsSection: '📊',
     thresholdsHelp: '💡',
     savePreferences: '💾',

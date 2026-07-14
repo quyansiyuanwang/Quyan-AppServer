@@ -27,6 +27,7 @@ import {
   supportsRelayRequestFormat,
 } from "@/util/relay-model-availability.util";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
+import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
 
 interface ChatRequestMeta {
   path?: string;
@@ -46,6 +47,7 @@ export class ChatService {
     private readonly modelPricingRepository: ModelPricingStore = ModelPricingRepository.getInstance(),
     private readonly relayConfigRepository: RelayConfigStore = RelayConfigRepository.getInstance(),
     private readonly usageChargeService: UsageChargeService = UsageChargeService.getInstance(),
+    private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -92,38 +94,25 @@ export class ChatService {
     };
   }
 
-  private getCandidateChatChannels(token: RelayTokenWithChannel): RelayChannel[] {
+  private async getCandidateChatChannels(token: RelayTokenWithChannel): Promise<RelayChannel[]> {
     const assignedChannel = token.channel;
     if (!assignedChannel) return [];
-    if ((assignedChannel.channelType || "standalone") !== "pooled") return [assignedChannel as RelayChannel];
-
-    return Array.isArray((assignedChannel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
-      ? (
-          (
-            assignedChannel as RelayChannel & {
-              poolMembers?: Array<{
-                enabled?: boolean;
-                priority: number;
-                memberChannel?: RelayChannel | null;
-              }>;
-            }
-          ).poolMembers ?? []
-        )
-          .filter((member) => member.enabled !== false && member.memberChannel)
-          .filter((member) => member.memberChannel?.status === 1)
-          .sort((left, right) => left.priority - right.priority)
-          .map((member) => member.memberChannel!)
-      : [];
+    return this.relayPoolResolver.resolveActiveLeaves([assignedChannel]);
   }
 
-  private resolveChatRequestFormat(
+  private async resolveChatRequestFormat(
     token: RelayTokenWithChannel,
     modelPricing: ModelPricing,
     selectedModelId: string,
     configuredModels: ModelPricing[],
-  ): { channel: RelayChannel; requestFormat: RelayRequestFormat; upstreamUrl: string; upstreamApiKey: string } {
+  ): Promise<{
+    channel: RelayChannel;
+    requestFormat: RelayRequestFormat;
+    upstreamUrl: string;
+    upstreamApiKey: string;
+  }> {
     const orderedFormats = this.getPreferredRequestFormatOrder(selectedModelId, modelPricing.supportedFormats);
-    const candidateChannels = this.getCandidateChatChannels(token);
+    const candidateChannels = await this.getCandidateChatChannels(token);
 
     if (candidateChannels.length === 0)
       throw new BadRequestError(
@@ -229,7 +218,7 @@ export class ChatService {
       requestFormat,
       upstreamUrl,
       upstreamApiKey: apiKey,
-    } = this.resolveChatRequestFormat(token, resolvedPricing, selectedModelId, configuredModels);
+    } = await this.resolveChatRequestFormat(token, resolvedPricing, selectedModelId, configuredModels);
     requireRelayChannelForFormat({ ...token, channel: effectiveChannel }, requestFormat);
 
     const channelAllowedModels = parseRelayChannelAllowedModelNames(effectiveChannel, configuredModels);

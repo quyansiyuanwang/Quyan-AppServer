@@ -19,6 +19,7 @@ export interface UpdateMyTicketDto {
 }
 
 export interface ReviewTicketDto {
+  type?: TicketType;
   workflowStatus?: TicketWorkflowStatus;
   priority?: TicketPriority;
   assigneeUserId?: string | null;
