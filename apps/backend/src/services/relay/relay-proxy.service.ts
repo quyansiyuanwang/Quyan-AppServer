@@ -44,6 +44,7 @@ import {
 } from "@/util/errors";
 import { RelayConfigService } from "./relay-config.service";
 import { ModelPricingService } from "./model-pricing.service";
+import { RelayPoolResolverService, type RelayPoolMemberGraph } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime, type TimePeriodRule } from "./time-period-multiplier.service";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
@@ -52,7 +53,6 @@ import { extractTokenUsageMetrics, normalizeTokenBreakdown } from "@/util/token-
 import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";
 import { resolveMappedModel } from "@/util/model-mapping.util";
 import {
-  getAccessibleRelayModelNamesForToken,
   parseRelayChannelAllowedModelNames,
   parseRelayTokenAllowedModelIds,
   supportsRelayRequestFormat,
@@ -122,8 +122,6 @@ interface RelayAttemptPlan {
 }
 
 type RelayChannelWithPool = NonNullable<RelayTokenWithRelations["channel"]>;
-type RelayPoolMember = NonNullable<RelayChannelWithPool["poolMembers"]>[number];
-type RelayPoolMemberChannel = NonNullable<RelayPoolMember["memberChannel"]>;
 
 const HOP_BY_HOP_RESPONSE_HEADERS = new Set([
   "connection",
@@ -216,6 +214,7 @@ export class RelayProxyService {
     private readonly usageChargeService: UsageChargeService = UsageChargeService.getInstance(),
     private readonly redis: RedisService = RedisService.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
   ) {}
 
   static getInstance(): RelayProxyService {
@@ -826,8 +825,7 @@ export class RelayProxyService {
       supportsRelayRequestFormat(channel.allowedFormats, requestFormat),
     );
 
-    if (eligibleChannels.length === 0)
-      return getAccessibleRelayModelNamesForToken(relayToken, modelPricing, requestFormat);
+    if (eligibleChannels.length === 0) return [];
 
     const tokenAllowedModelIds = parseRelayTokenAllowedModelIds(relayToken.allowedModels);
     const formatScopedModels = modelPricing.filter((model) =>
@@ -1443,22 +1441,22 @@ export class RelayProxyService {
     });
   }
 
-  private async orderPooledMemberChannels(channel: RelayChannelWithPool): Promise<RelayPoolMemberChannel[]> {
+  private async orderPooledMemberChannels(
+    channel: RelayChannel,
+    poolMembers: RelayPoolMemberGraph[],
+  ): Promise<RelayPoolMemberGraph[]> {
     const strategy = (channel.routingStrategy || "priority") as RelayChannelRoutingStrategy;
     const routingConfig = this.getChannelRoutingConfig(channel);
-    const poolMembers = (channel.poolMembers ?? [])
-      .filter((member) => member.enabled !== false && member.memberChannel)
-      .filter((member) => member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED)
-      .sort((left, right) => left.priority - right.priority);
+    const orderedPoolMembers = [...poolMembers].sort((left, right) => left.priority - right.priority);
 
-    if (poolMembers.length === 0) return [];
+    if (orderedPoolMembers.length === 0) return [];
 
-    let orderedMembers = poolMembers;
-    if (strategy === "random") orderedMembers = this.shuffleItems(poolMembers);
-    else if (strategy === "weighted-random") orderedMembers = this.weightedShuffleMembers(poolMembers);
+    let orderedMembers = orderedPoolMembers;
+    if (strategy === "random") orderedMembers = this.shuffleItems(orderedPoolMembers);
+    else if (strategy === "weighted-random") orderedMembers = this.weightedShuffleMembers(orderedPoolMembers);
     else if (strategy === "round-robin") {
       const counter = (await this.redis.increment(this.getPoolRoundRobinKey(channel), 0, 1)) ?? 1;
-      orderedMembers = this.rotateItems(poolMembers, Math.max(0, Math.floor(counter - 1)));
+      orderedMembers = this.rotateItems(orderedPoolMembers, Math.max(0, Math.floor(counter - 1)));
     }
 
     const rawMaxRetries = Number(routingConfig?.maxRetries);
@@ -1466,10 +1464,7 @@ export class RelayProxyService {
       ? Math.max(1, Math.min(orderedMembers.length, Math.floor(rawMaxRetries) + 1))
       : orderedMembers.length;
 
-    return orderedMembers
-      .slice(0, maxAttempts)
-      .map((member) => member.memberChannel!)
-      .filter(Boolean);
+    return orderedMembers.slice(0, maxAttempts);
   }
 
   private getPoolFailoverRuntimeConfig(channel: RelayChannel, poolSize: number): RelayFailoverRuntimeConfig {
@@ -1493,19 +1488,9 @@ export class RelayProxyService {
 
   private async buildAttemptPlan(relayToken: RelayTokenWithChannel): Promise<RelayAttemptPlan> {
     const topLevelChannels = this.getTopLevelAttemptChannels(relayToken);
-    const groups = await Promise.all(
-      topLevelChannels.map(async (channel) => {
-        if ((channel.channelType || "standalone") !== "pooled") return [channel];
-        return this.orderPooledMemberChannels(channel);
-      }),
+    const channels = await this.relayPoolResolver.resolveActiveLeaves(topLevelChannels, (pool, members) =>
+      this.orderPooledMemberChannels(pool, members),
     );
-
-    const seen = new Set<string>();
-    const channels = groups.flat().filter((channel) => {
-      if (!channel?.id || seen.has(channel.id)) return false;
-      seen.add(channel.id);
-      return channel.status === RELAY_CHANNEL_STATUS.ENABLED;
-    });
 
     const tokenFailoverConfig = this.getFailoverRuntimeConfig(relayToken);
     const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : null;

@@ -64,6 +64,7 @@ export const ticketReviewListQuerySchema = ticketListQuerySchema.extend({
 
 export const reviewTicketBodySchema = z
   .object({
+    type: ticketTypeSchema.optional(),
     workflowStatus: ticketWorkflowStatusSchema.optional(),
     priority: ticketPrioritySchema.optional(),
     assigneeUserId: z.union([z.string().trim().min(1).max(100), z.literal(""), z.null()]).optional(),

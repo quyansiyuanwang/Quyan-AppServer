@@ -11,6 +11,9 @@ const testingEmail = state.testingEmail
 const emailTestResult = state.emailTestResult
 const emailTestResultError = state.emailTestResultError
 const handleTestEmail = state.handleTestEmail
+const cooldownDays = state.cooldownDays
+const cooldownTime = state.cooldownTime
+const dayOptions = state.dayOptions
 const selectAllEvents = state.selectAllEvents
 const clearAllEvents = state.clearAllEvents
 const loadingEvents = state.loadingEvents
@@ -107,12 +110,25 @@ const onLogPageChange = state.onLogPageChange
 
           <el-form-item :label="i18ns.t('NotificationSettingsView.cooldownLabel')">
             <div class="mobile-stack">
-              <el-input-number
-                v-model="prefForm.cooldownMinutes"
-                :min="1"
-                :max="10080"
-                class="mobile-input-number"
-              />
+              <div
+                class="cooldown-duration-picker"
+                style="display: inline-flex; align-items: center; gap: 8px"
+              >
+                <el-select v-model="cooldownDays" style="width: 100px">
+                  <el-option
+                    v-for="opt in dayOptions"
+                    :key="opt.value"
+                    :label="opt.label"
+                    :value="opt.value"
+                  />
+                </el-select>
+                <el-time-picker
+                  v-model="cooldownTime"
+                  format="HH:mm"
+                  value-format="HH:mm"
+                  style="width: 130px"
+                />
+              </div>
               <div class="form-help">{{ i18ns.t('NotificationSettingsView.cooldownHelp') }}</div>
             </div>
           </el-form-item>

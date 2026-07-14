@@ -10,7 +10,7 @@ export const updateNotificationPreferenceBodySchema = z.object({
     .max(ALL_NOTIFICATION_EVENTS.length)
     .optional(),
   thresholds: z.record(z.string(), z.number().min(0).max(100000)).optional(),
-  cooldownMinutes: z.number().int().min(1).max(10080).optional(), // max 1 week
+  cooldownMinutes: z.number().int().min(0).max(43200).optional(), // max 30 days
 });
 
 export const createNotificationWebhookBodySchema = z.object({

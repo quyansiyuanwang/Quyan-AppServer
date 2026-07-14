@@ -32,9 +32,39 @@ export const useNotificationSettings = () => {
     thresholds: Record<string, number>
   }>({
     notificationEmail: '',
-    cooldownMinutes: 60,
+    cooldownMinutes: 0,
     thresholds: {},
   })
+
+  /** Decompose total minutes into days + HH:mm string */
+  const minutesToDuration = (totalMinutes: number): { days: number; time: string } => {
+    const safe = Math.max(0, Math.min(43200, Math.floor(totalMinutes || 0)))
+    const days = Math.floor(safe / 1440)
+    const remainder = safe % 1440
+    const hours = Math.floor(remainder / 60)
+    const mins = remainder % 60
+    return {
+      days,
+      time: `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`,
+    }
+  }
+
+  /** Compose days + HH:mm back into total minutes, clamped to 1..10080 */
+  const durationToMinutes = (days: number, time: string): number => {
+    const [h, m] = time.split(':').map(Number)
+    const total = days * 1440 + (h || 0) * 60 + (m || 0)
+    return Math.max(0, Math.min(43200, total))
+  }
+
+  const cooldownDays = ref(0)
+  const cooldownTime = ref('00:00')
+
+  const dayOptions = computed(() =>
+    Array.from({ length: 8 }, (_, i) => ({
+      value: i,
+      label: i18ns.tf('NotificationSettingsView.cooldownDayOption', { count: i }, i),
+    })),
+  )
 
   const subscribedSet = reactive<Record<string, boolean>>({})
 
@@ -59,8 +89,13 @@ export const useNotificationSettings = () => {
 
   const applyPreferences = (data: Partial<NotificationPreferenceDto> | undefined) => {
     prefForm.notificationEmail = data?.notificationEmail ?? ''
-    prefForm.cooldownMinutes = data?.cooldownMinutes ?? 60
+    prefForm.cooldownMinutes = data?.cooldownMinutes ?? 0
     prefForm.thresholds = { ...(data?.thresholds ?? {}) }
+
+    // Decompose cooldown for days + time picker UI
+    const { days, time } = minutesToDuration(prefForm.cooldownMinutes)
+    cooldownDays.value = days
+    cooldownTime.value = time
 
     for (const ev of eventList.value) {
       subscribedSet[ev.value] = false
@@ -127,6 +162,9 @@ export const useNotificationSettings = () => {
           thresholds[ev.value] = val
         }
       }
+
+      // Compose cooldown from days + time picker
+      prefForm.cooldownMinutes = durationToMinutes(cooldownDays.value, cooldownTime.value)
 
       const result = await service.updatePreferences({
         notificationEmail: prefForm.notificationEmail || null,
@@ -429,6 +467,9 @@ export const useNotificationSettings = () => {
     emailTestResult,
     emailTestResultError,
     prefForm,
+    cooldownDays,
+    cooldownTime,
+    dayOptions,
     subscribedSet,
     selectAllEvents,
     clearAllEvents,

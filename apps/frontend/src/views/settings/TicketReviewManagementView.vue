@@ -206,6 +206,16 @@
 
             <el-form label-position="top">
               <div class="form-grid">
+                <el-form-item :label="i18ns.t('ticket.type')">
+                  <el-select v-model="reviewForm.type">
+                    <el-option
+                      v-for="type in ticketTypeOptions"
+                      :key="type"
+                      :label="getTypeLabel(type)"
+                      :value="type"
+                    />
+                  </el-select>
+                </el-form-item>
                 <el-form-item :label="i18ns.t('ticket.workflowStatus')">
                   <el-select v-model="reviewForm.workflowStatus" clearable>
                     <el-option
@@ -494,6 +504,7 @@ const filters = reactive({
 const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
 
 const reviewForm = reactive({
+  type: '' as '' | TicketType,
   workflowStatus: '' as '' | TicketWorkflowStatus,
   priority: '' as '' | TicketPriority,
   assigneeUserId: '',
@@ -721,6 +732,7 @@ async function saveAssignmentRules() {
 }
 
 function syncReviewFormFromDetail() {
+  reviewForm.type = detail.value?.type || ''
   reviewForm.workflowStatus = detail.value?.workflowStatus || ''
   reviewForm.priority = detail.value?.priority || ''
   reviewForm.assigneeUserId = detail.value?.assigneeUserId || ''
@@ -735,6 +747,7 @@ async function submitReviewUpdate() {
   if (!detail.value) return
 
   const payload: ReviewTicketDto = {}
+  if (reviewForm.type) payload.type = reviewForm.type
   if (reviewForm.workflowStatus) payload.workflowStatus = reviewForm.workflowStatus
   if (reviewForm.priority) payload.priority = reviewForm.priority
   payload.assigneeUserId = reviewForm.assigneeUserId.trim() || null

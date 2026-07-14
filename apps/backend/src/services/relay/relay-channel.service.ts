@@ -21,6 +21,7 @@ import type {
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
 } from "@/api/dto/relay/relay-channel.dto";
+import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import {
@@ -41,6 +42,8 @@ import { BadRequestError, ConflictError, NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import type { Prisma, RelayChannel } from "@prisma/client";
 import type { Request } from "express";
+import { ModelPricingService } from "./model-pricing.service";
+import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
@@ -82,6 +85,8 @@ export class RelayChannelService {
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly ramRoleRepository: RamRoleStore = RamRoleRepository.getInstance(),
     private readonly permissionService: PermissionService = PermissionService.getInstance(),
+    private readonly modelPricingService: ModelPricingService = ModelPricingService.getInstance(),
+    private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -94,7 +99,8 @@ export class RelayChannelService {
       ? await this.relayChannelRepository.listVisible()
       : await this.relayChannelRepository.listActive();
     const visibleChannels = await this.filterAccessibleChannels(channels, actorUserId);
-    return visibleChannels.map((channel) => this.toDto(channel));
+    const modelCatalog = await this.modelPricingService.getModelPricing();
+    return Promise.all(visibleChannels.map((channel) => this.toDto(channel, modelCatalog)));
   }
 
   async getChannel(id: string, actorUserId: string): Promise<RelayChannelDto> {
@@ -364,6 +370,29 @@ export class RelayChannelService {
     }
   }
 
+  private async assertNoPoolCycle(
+    channelId: string,
+    tx?: Parameters<RelayChannelStore["replaceMembersByChannelId"]>[2],
+  ): Promise<void> {
+    const channels = await this.relayChannelRepository.listVisible(tx);
+    const membersByChannelId = new Map<string, string[]>();
+
+    for (const channel of channels) {
+      const members = (
+        channel as RelayChannel & { poolMembers?: Array<{ enabled?: boolean; memberChannelId: string }> }
+      ).poolMembers;
+      membersByChannelId.set(channel.id, Array.isArray(members) ? members.map((member) => member.memberChannelId) : []);
+    }
+
+    const visit = (currentId: string, path: Set<string>): void => {
+      if (path.has(currentId)) throw new BadRequestError("pooled channels cannot contain an indirect cycle");
+      const nextPath = new Set(path).add(currentId);
+      for (const memberId of membersByChannelId.get(currentId) ?? []) visit(memberId, nextPath);
+    };
+
+    visit(channelId, new Set());
+  }
+
   private async syncPoolMembers(
     channelId: string,
     channelType: RelayChannelType,
@@ -372,6 +401,7 @@ export class RelayChannelService {
   ): Promise<void> {
     if (channelType !== "pooled") {
       await this.relayChannelRepository.deleteMembersByChannelId(channelId, tx);
+      await this.assertNoPoolCycle(channelId, tx);
       return;
     }
 
@@ -390,6 +420,7 @@ export class RelayChannelService {
       })),
       tx,
     );
+    await this.assertNoPoolCycle(channelId, tx);
   }
 
   private toPoolMemberDto(member: {
@@ -751,7 +782,7 @@ export class RelayChannelService {
     const sourceChannels = await this.getOrderedChannelsByIds(ids, true);
     const duplicatedChannels = await this.relayChannelRepository.withTransaction(async (tx) => {
       const reservedNames = await this.getVisibleNameSet();
-      const items: RelayChannelDto[] = [];
+      const items: RelayChannel[] = [];
 
       for (const sourceChannel of sourceChannels) {
         const duplicatedName = this.buildCopyName(sourceChannel.name, reservedNames);
@@ -768,7 +799,7 @@ export class RelayChannelService {
         );
 
         await this.syncPoolMembers(created.id, validated.channelType, validated.poolMembers, tx);
-        items.push(this.toDto(created));
+        items.push(created);
       }
 
       return items;
@@ -788,7 +819,7 @@ export class RelayChannelService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    return duplicatedChannels;
+    return Promise.all(duplicatedChannels.map((channel) => this.toDto(channel)));
   }
 
   async batchSetChannelStatus(
@@ -854,7 +885,7 @@ export class RelayChannelService {
   ): Promise<ImportRelayChannelsResponse> {
     const createdChannels = await this.relayChannelRepository.withTransaction(async (tx) => {
       const reservedNames = await this.getVisibleNameSet();
-      const items: RelayChannelDto[] = [];
+      const items: RelayChannel[] = [];
 
       for (const item of body.channels) {
         const preferredName = item.name.trim();
@@ -875,7 +906,7 @@ export class RelayChannelService {
           tx,
         );
         await this.syncPoolMembers(created.id, validated.channelType, validated.poolMembers, tx);
-        items.push(this.toDto(created));
+        items.push(created);
       }
 
       return items;
@@ -895,12 +926,14 @@ export class RelayChannelService {
       ...buildBusinessLogRequestContext(request),
     });
 
+    const createdChannelDtos = await Promise.all(createdChannels.map((channel) => this.toDto(channel)));
+
     return {
       code: 0,
       message: "success",
-      created: createdChannels.length,
+      created: createdChannelDtos.length,
       total: body.channels.length,
-      data: createdChannels,
+      data: createdChannelDtos,
     };
   }
 
@@ -953,7 +986,7 @@ export class RelayChannelService {
     });
   }
 
-  private toDto(channel: RelayChannel): RelayChannelDto {
+  private async toDto(channel: RelayChannel, modelCatalog?: ModelPricingDto[]): Promise<RelayChannelDto> {
     const poolMembers = Array.isArray((channel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
       ? (
           (
@@ -971,7 +1004,7 @@ export class RelayChannelService {
         ).map((member) => this.toPoolMemberDto(member))
       : undefined;
 
-    return {
+    const dto: RelayChannelDto = {
       id: channel.id,
       name: channel.name,
       enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
@@ -997,5 +1030,17 @@ export class RelayChannelService {
       createTime: channel.createTime,
       updateTime: channel.updateTime,
     };
+
+    const routingConfig = channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined;
+    if (dto.channelType === "pooled" && routingConfig?.allowedModelsMode === "auto") {
+      const inferredAllowedModels = await this.relayPoolResolver.inferAllowedModels(
+        channel.id,
+        modelCatalog ?? (await this.modelPricingService.getModelPricing()),
+      );
+      dto.inferredAllowedModels = inferredAllowedModels;
+      dto.inferredAllowedModelsCount = inferredAllowedModels.length;
+    }
+
+    return dto;
   }
 }

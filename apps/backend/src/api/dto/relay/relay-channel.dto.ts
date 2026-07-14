@@ -67,6 +67,9 @@ export interface RelayChannelDto {
   multiplier: number;
   allowedFormats: string;
   allowedModels?: string;
+  /** Automatically inferred allowed models for pooled channels in auto mode. */
+  inferredAllowedModels?: string[];
+  inferredAllowedModelsCount?: number;
   addUserIdentifier?: boolean;
   inputTokensIncludeCacheRead?: boolean;
   modelMapping?: Record<string, string>;
