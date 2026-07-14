@@ -37,6 +37,8 @@ describe("RelayChannelService", () => {
   };
   const relayPoolResolver = {
     resolveEffectiveAllowedModels: vi.fn(),
+    preloadContext: vi.fn(),
+    resolveChannelCapabilities: vi.fn(),
   };
 
   const RelayChannelServiceCtor = RelayChannelService as unknown as new (...args: any[]) => RelayChannelService;
@@ -83,6 +85,8 @@ describe("RelayChannelService", () => {
     ramRoleRepository.listRoleBindingsForUser.mockResolvedValue([]);
     modelPricingService.getModelPricing.mockResolvedValue([]);
     relayPoolResolver.resolveEffectiveAllowedModels.mockResolvedValue([]);
+    relayPoolResolver.preloadContext.mockResolvedValue({ graph: new Map(), modelCatalog: [] });
+    relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([]);
   });
 
   it("lists active channels", async () => {
@@ -115,7 +119,26 @@ describe("RelayChannelService", () => {
     relayChannelRepository.listActive.mockResolvedValue([
       { ...sampleChannel, allowedModels: JSON.stringify(["configured-model"]) },
     ]);
-    relayPoolResolver.resolveEffectiveAllowedModels.mockResolvedValue(["catalog-model"]);
+    const modelCatalog = [{ model: "Catalog Model", provider: "request-model", supportedFormats: "openai" }];
+    modelPricingService.getModelPricing.mockResolvedValue(modelCatalog);
+    const resolverContext = { graph: new Map(), modelCatalog };
+    relayPoolResolver.preloadContext.mockResolvedValue(resolverContext);
+    relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([
+      {
+        leafChannelId: "leaf-channel",
+        catalogModelName: "Catalog Model",
+        requestModelId: "request-model",
+        supportedRequestFormats: ["openai"],
+        modelMapping: { "request-model": "upstream-model" },
+      },
+      {
+        leafChannelId: "second-leaf",
+        catalogModelName: "Catalog Model",
+        requestModelId: "request-model",
+        supportedRequestFormats: ["anthropic"],
+        modelMapping: {},
+      },
+    ]);
 
     const result = await service.listChannelOptions("actor-user");
 
@@ -126,11 +149,21 @@ describe("RelayChannelService", () => {
         enabled: true,
         multiplier: 1,
         allowedFormats: "openai",
-        allowedModels: ["catalog-model"],
+        modelCapabilities: [
+          {
+            catalogModelName: "Catalog Model",
+            requestModelId: "request-model",
+            supportedRequestFormats: ["openai", "anthropic"],
+          },
+        ],
       },
     ]);
+    expect(relayPoolResolver.preloadContext).toHaveBeenCalledWith(modelCatalog);
+    expect(relayPoolResolver.resolveChannelCapabilities).toHaveBeenCalledWith("channel-1", resolverContext);
     expect(result[0]).not.toHaveProperty("configuredAllowedModels");
     expect(result[0]).not.toHaveProperty("openaiUpstreamUrl");
+    expect(result[0]).not.toHaveProperty("leafChannelId");
+    expect(result[0].modelCapabilities[0]).not.toHaveProperty("modelMapping");
   });
 
   it("lists visible channels when includeDisabled is true", async () => {

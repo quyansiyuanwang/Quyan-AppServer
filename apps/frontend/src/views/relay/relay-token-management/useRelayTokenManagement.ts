@@ -295,6 +295,8 @@ export const useRelayTokenManagement = () => {
   const selectedTargetUserId = ref('')
   const tokenTableRef = ref<TableInstance>()
   const channels = ref<RelayChannelOptionDto[]>([])
+  const channelsLoading = ref(false)
+  const channelsLoadError = ref<unknown>(null)
   const quotaWindowPreviewModes = ref<Record<string, number>>({})
   const loadingTokens = ref(false)
   const showEditDialog = ref(false)
@@ -693,7 +695,9 @@ export const useRelayTokenManagement = () => {
     )
     const resolvedModels = channels.value
       .filter((channel) => selectedChannelIds.has(channel.id))
-      .flatMap((channel) => channel.allowedModels)
+      .flatMap((channel) =>
+        channel.modelCapabilities.map((capability) => capability.requestModelId),
+      )
 
     // Keep saved choices visible while editing even if their channel is no longer available.
     return [...new Set([...resolvedModels, ...editForm.value.allowedModelIdsList])].sort((left, right) =>
@@ -1301,7 +1305,16 @@ export const useRelayTokenManagement = () => {
   }
 
   const loadChannels = async () => {
-    channels.value = await relayChannelService.listChannelOptions()
+    channelsLoading.value = true
+    channelsLoadError.value = null
+    try {
+      channels.value = await relayChannelService.listChannelOptions()
+    } catch (error) {
+      channelsLoadError.value = error
+      channels.value = []
+    } finally {
+      channelsLoading.value = false
+    }
   }
 
   const openCreateDialog = () => {
@@ -2386,6 +2399,8 @@ export const useRelayTokenManagement = () => {
     handleBatchAddTokenChannels,
     handleBatchRemoveTokenChannelConfigs,
     getAvailableChannelOptions,
+    channelsLoading,
+    channelsLoadError,
     getChannelOptionLabel,
     addChannelConfig,
     removeChannelConfig,

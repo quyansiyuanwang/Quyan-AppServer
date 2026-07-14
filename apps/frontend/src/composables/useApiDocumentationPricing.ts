@@ -137,15 +137,11 @@ export const useApiDocumentationPricing = () => {
     const modelFormats = normalizeFormats(modelFormat)
 
     return channels.value.filter((channel) => {
-      const channelFormats = normalizeFormats(channel.allowedFormats || 'all')
-      const hasCommonFormat = channelFormats.some((channelFormat) =>
-        modelFormats.includes(channelFormat),
-      )
-      if (!hasCommonFormat) return false
-
-      return channel.allowedModels.some(
-        (allowedModelName) =>
-          allowedModelName === normalizedModelName || allowedModelName === normalizedModelId,
+      return channel.modelCapabilities.some(
+        (capability) =>
+          (capability.catalogModelName === normalizedModelName ||
+            capability.requestModelId === normalizedModelId) &&
+          capability.supportedRequestFormats.some((format) => modelFormats.includes(format)),
       )
     })
   }
