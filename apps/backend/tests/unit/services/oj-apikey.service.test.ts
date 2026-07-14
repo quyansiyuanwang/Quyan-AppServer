@@ -20,13 +20,17 @@ describe("OJAPIKeyService", () => {
   const businessLogService = {
     logOperation: vi.fn(),
   };
+  const relayChannelService = {
+    assertChannelAccessibleById: vi.fn(),
+  };
 
   const OJAPIKeyServiceCtor = OJAPIKeyService as unknown as new (...args: any[]) => OJAPIKeyService;
 
-  const service = new OJAPIKeyServiceCtor(userRepository, ojApiKeyRepository, businessLogService);
+  const service = new OJAPIKeyServiceCtor(userRepository, ojApiKeyRepository, businessLogService, relayChannelService);
 
   beforeEach(() => {
     vi.clearAllMocks();
+    relayChannelService.assertChannelAccessibleById.mockResolvedValue({ id: "channel-1" });
   });
 
   it("creates API key with ojqa prefix and forwards optional fields", async () => {
@@ -50,6 +54,7 @@ describe("OJAPIKeyService", () => {
     expect(createPayload.name).toBe("main");
     expect(createPayload.expiresAt).toBe(expiresAt);
     expect(createPayload.channelId).toBe("channel-1");
+    expect(relayChannelService.assertChannelAccessibleById).toHaveBeenCalledWith("channel-1", "user-1");
     expect(createPayload.key).toMatch(/^ojqa_[0-9a-f]{64}$/);
     expect(result.key).toMatch(/^ojqa_[0-9a-f]{64}$/);
     expect(businessLogService.logOperation).toHaveBeenCalledWith(
@@ -113,6 +118,7 @@ describe("OJAPIKeyService", () => {
       expiresAt,
       channelId: null,
     });
+    expect(relayChannelService.assertChannelAccessibleById).not.toHaveBeenCalled();
     expect(result.name).toBe("renamed");
     expect(result.expiresAt).toBe(expiresAt);
   });

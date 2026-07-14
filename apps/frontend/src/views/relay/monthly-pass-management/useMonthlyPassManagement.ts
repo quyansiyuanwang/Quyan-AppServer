@@ -26,7 +26,6 @@ import type {
   UserMonthlyPassDto,
 } from '@/client/types.gen'
 import { PermissionService } from '@/service/permissionService'
-import { parseAllowedModelsJson } from '@appserver/shared'
 
 export type TabKey = 'templates' | 'assignments' | 'usages'
 export type QuotaUnit = 'amount' | 'request' | 'token'
@@ -35,8 +34,7 @@ export interface ChannelOption {
   value: string
   label: string
   name: string
-  allowedModels: string[] | null
-  inferredAllowedModels: string[] | null
+  allowedModels: string[]
 }
 
 export interface UserOption {
@@ -426,24 +424,9 @@ export const useMonthlyPassManagement = () => {
     if (!selectedChannels.length) return modelOptions.value
 
     const channelUnionModels = new Set<string>()
-    let hasUnrestrictedChannel = false
-
     selectedChannels.forEach((channel) => {
-      if (channel.inferredAllowedModels === null) {
-        hasUnrestrictedChannel = true
-        return
-      }
-
-      channel.inferredAllowedModels.forEach((model) => channelUnionModels.add(model))
+      channel.allowedModels.forEach((model) => channelUnionModels.add(model))
     })
-
-    if (hasUnrestrictedChannel) {
-      const ordered = [...modelOptions.value]
-      channelUnionModels.forEach((model) => {
-        if (!ordered.includes(model)) ordered.push(model)
-      })
-      return ordered
-    }
 
     const modelOptionsSet = new Set(modelOptions.value)
     const orderedInModelOptions: string[] = []
@@ -510,11 +493,6 @@ export const useMonthlyPassManagement = () => {
       rechargeRatio,
     }
   })
-
-  const parseChannelAllowedModels = (allowedModels?: string | null): string[] | null => {
-    const parsed = parseAllowedModelsJson(allowedModels)
-    return parsed ? Array.from(new Set(parsed)) : parsed
-  }
 
   const createEditableQuotaWindow = (
     source?: Partial<MonthlyPassQuotaWindowDto | MonthlyPassQuotaWindowInputDto>,
@@ -739,15 +717,13 @@ export const useMonthlyPassManagement = () => {
 
   const loadChannelOptions = async () => {
     try {
-      const channels = await relayChannelService.listChannels()
+      const channels = await relayChannelService.listChannelOptions()
       channelOptions.value = channels
         .map((item) => ({
           value: item.id,
           name: item.name,
           label: item.name ? `${item.name} (${item.id})` : item.id,
-          allowedModels: parseChannelAllowedModels(item.allowedModels),
-          inferredAllowedModels:
-            item.inferredAllowedModels || parseChannelAllowedModels(item.allowedModels),
+          allowedModels: item.allowedModels,
         }))
         .sort((a, b) => a.label.localeCompare(b.label))
     } catch (_error) {

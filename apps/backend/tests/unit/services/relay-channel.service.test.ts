@@ -32,6 +32,12 @@ describe("RelayChannelService", () => {
   const permissionService = {
     hasAnyPermission: vi.fn(),
   };
+  const modelPricingService = {
+    getModelPricing: vi.fn(),
+  };
+  const relayPoolResolver = {
+    resolveEffectiveAllowedModels: vi.fn(),
+  };
 
   const RelayChannelServiceCtor = RelayChannelService as unknown as new (...args: any[]) => RelayChannelService;
 
@@ -41,6 +47,8 @@ describe("RelayChannelService", () => {
     userRepository,
     ramRoleRepository,
     permissionService,
+    modelPricingService,
+    relayPoolResolver,
   );
 
   const now = new Date("2026-01-01T00:00:00.000Z");
@@ -73,6 +81,8 @@ describe("RelayChannelService", () => {
     permissionService.hasAnyPermission.mockResolvedValue(false);
     userRepository.findByIdWithGroup.mockResolvedValue({ id: "actor-user", groupId: "group-1" });
     ramRoleRepository.listRoleBindingsForUser.mockResolvedValue([]);
+    modelPricingService.getModelPricing.mockResolvedValue([]);
+    relayPoolResolver.resolveEffectiveAllowedModels.mockResolvedValue([]);
   });
 
   it("lists active channels", async () => {
@@ -83,6 +93,44 @@ describe("RelayChannelService", () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("channel-1");
     expect(result[0].enabled).toBe(true);
+  });
+
+  it("separates configured models from resolved capabilities", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      { ...sampleChannel, allowedModels: JSON.stringify(["configured-model"]) },
+    ]);
+    modelPricingService.getModelPricing.mockResolvedValue([{ model: "catalog-model" }]);
+    relayPoolResolver.resolveEffectiveAllowedModels.mockResolvedValue(["catalog-model"]);
+
+    const [result] = await service.listChannels("actor-user");
+
+    expect(result.allowedModels).toEqual(["catalog-model"]);
+    expect(result.configuredAllowedModels).toBe(JSON.stringify(["configured-model"]));
+    expect(relayPoolResolver.resolveEffectiveAllowedModels).toHaveBeenCalledWith("channel-1", [
+      { model: "catalog-model" },
+    ]);
+  });
+
+  it("projects business channel options without management configuration", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      { ...sampleChannel, allowedModels: JSON.stringify(["configured-model"]) },
+    ]);
+    relayPoolResolver.resolveEffectiveAllowedModels.mockResolvedValue(["catalog-model"]);
+
+    const result = await service.listChannelOptions("actor-user");
+
+    expect(result).toEqual([
+      {
+        id: "channel-1",
+        name: "Main",
+        enabled: true,
+        multiplier: 1,
+        allowedFormats: "openai",
+        allowedModels: ["catalog-model"],
+      },
+    ]);
+    expect(result[0]).not.toHaveProperty("configuredAllowedModels");
+    expect(result[0]).not.toHaveProperty("openaiUpstreamUrl");
   });
 
   it("lists visible channels when includeDisabled is true", async () => {

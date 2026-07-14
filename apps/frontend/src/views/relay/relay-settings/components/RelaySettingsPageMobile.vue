@@ -957,40 +957,12 @@
                       >{{ i18ns.t('relay.allowedModelsChannel') }}</span
                     >
                     <div class="flex flex-wrap gap-2">
-                      <el-tooltip
-                        v-if="
-                          getChannelAllowedModelsMode(row) === 'auto' &&
-                          row.inferredAllowedModels?.length
-                        "
-                        :content="row.inferredAllowedModels.join(', ')"
-                        placement="top"
-                      >
-                        <el-tag type="warning" size="small">{{
-                          getChannelAllowedModelsSummary(row)
-                        }}</el-tag>
-                      </el-tooltip>
-                      <el-tag
-                        v-else-if="getChannelAllowedModelsMode(row) === 'auto'"
-                        type="warning"
-                        size="small"
-                      >
-                        {{ getChannelAllowedModelsSummary(row) }}
+                      <el-tag v-if="row.allowedModels.length === 0" type="danger" size="small">
+                        {{ i18ns.t('relay.noModels') }}
                       </el-tag>
-                      <el-tag
-                        v-else-if="getChannelAllowedModelsMode(row) === 'all'"
-                        type="info"
-                        size="small"
-                        >{{ i18ns.t('relay.allModels') }}</el-tag
-                      >
-                      <el-tag
-                        v-else-if="parseAllowedModels(row.allowedModels).length === 0"
-                        type="danger"
-                        size="small"
-                        >{{ i18ns.t('relay.noModels') }}</el-tag
-                      >
                       <el-tooltip
                         v-else
-                        :content="parseAllowedModels(row.allowedModels).join(', ')"
+                        :content="row.allowedModels.join(', ')"
                         placement="top"
                       >
                         <el-tag type="primary" size="small">
@@ -1144,14 +1116,12 @@ const {
   channels,
   isChannelSelected,
   toggleChannelSelection,
-  parseAllowedModels,
   computeShowUpstream,
   formatChannelTypeLabel,
   formatRoutingStrategyLabel,
   formatVisibilityModeLabel,
   getVisibilitySummary,
   getPoolMembersSummary,
-  getChannelAllowedModelsMode,
   getChannelAllowedModelsSummary,
   togglingChannelId,
   handleToggleChannelStatus,

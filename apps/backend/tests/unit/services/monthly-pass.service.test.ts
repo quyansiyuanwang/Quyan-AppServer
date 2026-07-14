@@ -398,3 +398,59 @@ describe("MonthlyPassService quota window usage summaries", () => {
     );
   });
 });
+
+describe("MonthlyPassService channel pool coverage", () => {
+  const monthlyPassRepository = {
+    findActivePassCandidates: vi.fn(),
+    getUsageSummaryByQuotaWindowRules: vi.fn(),
+  };
+  const relayPoolResolver = {
+    resolveActiveLeaves: vi.fn(),
+  };
+  const MonthlyPassServiceCtor = MonthlyPassService as unknown as new (...args: any[]) => MonthlyPassService;
+  const service = new MonthlyPassServiceCtor(
+    monthlyPassRepository,
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    relayPoolResolver,
+  );
+
+  const activePass = {
+    id: "pass-1",
+    dailyQuota: null,
+    quotaUnit: "amount",
+    quotaWindowHours: null,
+    quotaWindows: [],
+    template: {
+      allowedModels: JSON.stringify(["gpt-4o"]),
+      allowedChannels: JSON.stringify(["pool-root"]),
+    },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    monthlyPassRepository.findActivePassCandidates.mockResolvedValue([activePass]);
+  });
+
+  it("covers a runtime leaf selected through a configured pool root", async () => {
+    relayPoolResolver.resolveActiveLeaves.mockResolvedValue([{ id: "leaf-1" }]);
+
+    await expect(service.hasActiveCoverage("user-1", "gpt-4o", "leaf-1")).resolves.toBe(true);
+    expect(relayPoolResolver.resolveActiveLeaves).toHaveBeenCalledWith([{ id: "pool-root" }]);
+  });
+
+  it("does not cover an unrelated runtime leaf", async () => {
+    relayPoolResolver.resolveActiveLeaves.mockResolvedValue([{ id: "leaf-1" }]);
+
+    await expect(service.hasActiveCoverage("user-1", "gpt-4o", "unrelated-leaf")).resolves.toBe(false);
+  });
+
+  it("does not cover a model outside the template allowance", async () => {
+    await expect(service.hasActiveCoverage("user-1", "claude-3-7", "leaf-1")).resolves.toBe(false);
+    expect(relayPoolResolver.resolveActiveLeaves).not.toHaveBeenCalled();
+  });
+});

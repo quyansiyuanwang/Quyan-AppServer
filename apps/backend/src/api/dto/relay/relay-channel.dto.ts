@@ -66,16 +66,29 @@ export interface RelayChannelDto {
   geminiUpstreamApiKey?: string;
   multiplier: number;
   allowedFormats: string;
-  allowedModels?: string;
-  /** Automatically inferred allowed models for pooled channels in auto mode. */
-  inferredAllowedModels?: string[];
-  inferredAllowedModelsCount?: number;
+  /** Final models available through this channel after active pool resolution and inherited restrictions. */
+  allowedModels: string[];
+  /** Raw JSON model whitelist persisted for channel management configuration. */
+  configuredAllowedModels?: string;
   addUserIdentifier?: boolean;
   inputTokensIncludeCacheRead?: boolean;
   modelMapping?: Record<string, string>;
   timePeriodMultipliers?: TimePeriodMultiplierRule[];
   createTime: Date;
   updateTime: Date;
+}
+
+/**
+ * Pool-transparent channel capability exposed to business-facing clients.
+ * It intentionally excludes routing topology, raw configuration, upstream credentials, and visibility rules.
+ */
+export interface RelayChannelOptionDto {
+  id: string;
+  name: string;
+  enabled: boolean;
+  multiplier: number;
+  allowedFormats: string;
+  allowedModels: string[];
 }
 
 export interface RelayChannelExportItemDto extends CreateRelayChannelRequest {

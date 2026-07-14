@@ -10,11 +10,9 @@ import type {
   ExportRelayTokensRequest,
   ImportRelayTokensRequest,
   ImportRelayTokensResponse,
-  RelayAvailableModelsMapDto,
   RelayTokenCurrentQuotaDto,
   RelayTokenExportResponse,
   RelayTokenAvailableModelsDto,
-  RelayTokenAvailableModelsPreviewRequest,
   RelayTokenPageDto,
   RelayTokenUsageDetailDto,
   RelayTokenUsageSummaryBatchDto,
@@ -226,52 +224,6 @@ class RelayTokenService {
     return this.unwrapResponse(result)
   }
 
-  async getAvailableModels(): Promise<RelayAvailableModelsMapDto> {
-    const result = await relayApi.getAvailableModels({})
-    const payload = this.unwrapResponse(result)
-
-    const modelNames = Array.isArray(payload?.modelNames)
-      ? payload.modelNames.map((item: unknown) => String(item || '').trim()).filter(Boolean)
-      : []
-
-    const rawMap = payload?.modelIdToModelNameMap
-    const modelIdToModelNameMap =
-      rawMap && typeof rawMap === 'object'
-        ? Object.fromEntries(
-            Object.entries(rawMap)
-              .map(([key, value]) => [String(key || '').trim(), String(value || '').trim()])
-              .filter(([key, value]) => Boolean(key) && Boolean(value)),
-          )
-        : {}
-
-    const rawModelIdsMap = payload?.modelIdToModelNamesMap
-    const modelIdToModelNamesMap =
-      rawModelIdsMap && typeof rawModelIdsMap === 'object'
-        ? Object.fromEntries(
-            Object.entries(rawModelIdsMap)
-              .map(([key, value]) => {
-                const modelId = String(key || '').trim()
-                const modelNamesList = Array.isArray(value)
-                  ? value.map((item: unknown) => String(item || '').trim()).filter(Boolean)
-                  : []
-                return [modelId, modelNamesList]
-              })
-              .filter(([key, value]) => Boolean(key) && (value as string[]).length > 0),
-          )
-        : {}
-
-    const modelIds = Array.isArray(payload?.modelIds)
-      ? payload.modelIds.map((item: unknown) => String(item || '').trim()).filter(Boolean)
-      : []
-
-    return {
-      modelNames,
-      modelIdToModelNameMap,
-      modelIdToModelNamesMap,
-      modelIds,
-    }
-  }
-
   async getTokenAvailableModels(
     id: string,
     targetUserId?: string,
@@ -280,13 +232,6 @@ class RelayTokenService {
       path: { id },
       params: { targetUserId: this.normalizeTargetUserId(targetUserId) },
     })
-    return this.unwrapResponse(result)
-  }
-
-  async previewTokenAvailableModels(
-    data: RelayTokenAvailableModelsPreviewRequest,
-  ): Promise<RelayTokenAvailableModelsDto> {
-    const result = await relayApi.previewTokenAvailableModels({ body: data })
     return this.unwrapResponse(result)
   }
 

@@ -48,7 +48,7 @@ import {
 import { MANAGED_STATUS } from "@/constant/status";
 import { AccountStatus } from "@/util/auth/account-status";
 import {
-  isMonthlyPassTemplateMatched,
+  isMonthlyPassModelMatched,
   parseAllowedChannels,
   parseAllowedModels,
   serializeStringArray,
@@ -65,6 +65,7 @@ import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import type { Request } from "express";
 import type { UserListFilters } from "@/store/users/user.store";
+import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
 
 type DecimalLike = Prisma.Decimal | number | string;
 const MAX_CHANNEL_LOOKUP_IDS = 1000;
@@ -255,6 +256,7 @@ export class MonthlyPassService {
     private readonly modelPricingRepository: ModelPricingStore = ModelPricingRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
+    private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
   ) {}
 
   public static getInstance(): MonthlyPassService {
@@ -1752,9 +1754,29 @@ export class MonthlyPassService {
     at: Date = new Date(),
   ): Promise<boolean> {
     const candidates = await this.monthlyPassRepository.findActivePassCandidates(userId, at);
-    const matchedCandidates = candidates.filter((item) =>
-      isMonthlyPassTemplateMatched(item.template, modelName, channelId),
-    );
+    const channelMatchCache = new Map<string, boolean>();
+    const matchedCandidates = (
+      await Promise.all(
+        candidates.map(async (item) => {
+          if (!isMonthlyPassModelMatched(item.template, modelName)) return null;
+
+          const allowedChannelIds = parseAllowedChannels(item.template.allowedChannels);
+          if (!allowedChannelIds || allowedChannelIds.length === 0) return item;
+
+          const cacheKey = `${allowedChannelIds.slice().sort().join(",")}:${channelId}`;
+          let isChannelMatched = channelMatchCache.get(cacheKey);
+          if (isChannelMatched === undefined) {
+            const activeLeaves = await this.relayPoolResolver.resolveActiveLeaves(
+              allowedChannelIds.map((id) => ({ id })),
+            );
+            isChannelMatched = activeLeaves.some((channel) => channel.id === channelId);
+            channelMatchCache.set(cacheKey, isChannelMatched);
+          }
+
+          return isChannelMatched ? item : null;
+        }),
+      )
+    ).filter((item): item is (typeof candidates)[number] => item !== null);
     if (matchedCandidates.length === 0) return false;
 
     const limitedCandidates = matchedCandidates.filter(

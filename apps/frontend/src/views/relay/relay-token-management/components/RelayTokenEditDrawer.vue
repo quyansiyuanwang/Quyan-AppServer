@@ -795,7 +795,6 @@
                   filterable
                   :placeholder="i18ns.t('relay.selectModels')"
                   style="width: 100%"
-                  :loading="loadingModels || loadingModelAvailability"
                 >
                   <el-option
                     v-for="modelId in filteredModelIds"
@@ -814,9 +813,6 @@
                     v-model="editForm.modelMapping"
                     :available-models="channelFilteredModelNames"
                   />
-                  <span v-if="modelAvailabilityError" class="text-[#f56c6c] text-xs">{{
-                    modelAvailabilityError
-                  }}</span>
                   <span class="text-[#909399] text-xs">{{
                     i18ns.t('relay.tokenModelMappingHelp')
                   }}</span>
@@ -865,9 +861,6 @@ const {
   unavailableChannelWarningText,
   showMaxRetriesRiskWarning,
   maxRetriesRiskWarningText,
-  loadingModels,
-  loadingModelAvailability,
-  modelAvailabilityError,
 } = state
 
 const setChannelListRef = (element: Element | ComponentPublicInstance | null) => {

@@ -8,6 +8,7 @@ import type {
   ImportRelayChannelsRequest,
   ImportRelayChannelsResponse,
   RelayChannelDto,
+  RelayChannelOptionDto,
   RelayChannelExportItemDto,
   RelayChannelExportResponse,
   RelayChannelImportItemDto,
@@ -101,6 +102,26 @@ export class RelayChannelService {
     const visibleChannels = await this.filterAccessibleChannels(channels, actorUserId);
     const modelCatalog = await this.modelPricingService.getModelPricing();
     return Promise.all(visibleChannels.map((channel) => this.toDto(channel, modelCatalog)));
+  }
+
+  async listChannelOptions(actorUserId: string): Promise<RelayChannelOptionDto[]> {
+    const channels = await this.filterAccessibleChannels(await this.relayChannelRepository.listActive(), actorUserId);
+    const modelCatalog = await this.modelPricingService.getModelPricing();
+    const options = await Promise.all(
+      channels.map(async (channel) => {
+        const dto = await this.toDto(channel, modelCatalog);
+        return {
+          id: dto.id,
+          name: dto.name,
+          enabled: dto.enabled,
+          multiplier: dto.multiplier,
+          allowedFormats: dto.allowedFormats,
+          allowedModels: dto.allowedModels,
+        };
+      }),
+    );
+
+    return options.sort((left, right) => left.name.localeCompare(right.name));
   }
 
   async getChannel(id: string, actorUserId: string): Promise<RelayChannelDto> {
@@ -1067,7 +1088,8 @@ export class RelayChannelService {
       geminiUpstreamApiKey: channel.geminiUpstreamApiKey || undefined,
       multiplier: Number(channel.multiplier),
       allowedFormats: channel.allowedFormats || "all",
-      allowedModels: channel.allowedModels || undefined,
+      allowedModels: [],
+      configuredAllowedModels: channel.allowedModels || undefined,
       addUserIdentifier: channel.addUserIdentifier !== false, // Default to true
       inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true, // Default to false
       modelMapping: channel.modelMapping as Record<string, string> | undefined,
@@ -1082,15 +1104,10 @@ export class RelayChannelService {
       updateTime: channel.updateTime,
     };
 
-    const routingConfig = channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined;
-    if (dto.channelType === "pooled" && routingConfig?.allowedModelsMode === "auto") {
-      const inferredAllowedModels = await this.relayPoolResolver.inferAllowedModels(
-        channel.id,
-        modelCatalog ?? (await this.modelPricingService.getModelPricing()),
-      );
-      dto.inferredAllowedModels = inferredAllowedModels;
-      dto.inferredAllowedModelsCount = inferredAllowedModels.length;
-    }
+    dto.allowedModels = await this.relayPoolResolver.resolveEffectiveAllowedModels(
+      channel.id,
+      modelCatalog ?? (await this.modelPricingService.getModelPricing()),
+    );
 
     return dto;
   }

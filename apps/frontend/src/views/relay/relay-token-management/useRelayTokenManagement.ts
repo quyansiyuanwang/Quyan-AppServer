@@ -17,11 +17,10 @@ import { Permission } from '@/constant/permission'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type {
   ImportRelayTokensResponse,
-  RelayChannelDto,
+  RelayChannelOptionDto,
   RelayChannelSwitchLogDto,
   RelayTokenImportItemDto,
   RelayTokenChannelConfigDto,
-  RelayTokenAvailableModelsDto,
   RelayTokenDto,
   RelayTokenQuotaWindowDto,
   UserDto,
@@ -295,25 +294,11 @@ export const useRelayTokenManagement = () => {
   const userOptionsLoading = ref(false)
   const selectedTargetUserId = ref('')
   const tokenTableRef = ref<TableInstance>()
-  const channels = ref<RelayChannelDto[]>([])
-  const availableModels = ref<string[]>([])
-  const availableModelIds = ref<string[]>([])
-  const modelIdToModelNameMap = ref<Map<string, string>>(new Map())
-  const modelIdToModelNamesMap = ref<Map<string, string[]>>(new Map())
+  const channels = ref<RelayChannelOptionDto[]>([])
   const quotaWindowPreviewModes = ref<Record<string, number>>({})
   const loadingTokens = ref(false)
   const showEditDialog = ref(false)
   const saving = ref(false)
-  const loadingModels = ref(false)
-  const loadingModelAvailability = ref(false)
-  const modelAvailabilityError = ref('')
-  const modelAvailability = ref<RelayTokenAvailableModelsDto>({
-    openai: [],
-    anthropic: [],
-    gemini: [],
-  })
-  let modelAvailabilityTimer: ReturnType<typeof setTimeout> | null = null
-  let modelAvailabilityRequestId = 0
   const editMode = ref<'create' | 'edit'>('create')
   const currentEditId = ref('')
   const DEFAULT_EDIT_DIALOG_SECTIONS = ['basic', 'channelFailover', 'quota']
@@ -702,18 +687,22 @@ export const useRelayTokenManagement = () => {
     )
   }
 
-  const previewAvailableModelIds = computed(() =>
-    [
-      ...new Set([
-        ...modelAvailability.value.openai,
-        ...modelAvailability.value.anthropic,
-        ...modelAvailability.value.gemini,
-      ]),
-    ].sort(),
-  )
+  const selectedChannelAllowedModels = computed(() => {
+    const selectedChannelIds = new Set(
+      editForm.value.channelConfigs.map((config) => config.channelId.trim()).filter(Boolean),
+    )
+    const resolvedModels = channels.value
+      .filter((channel) => selectedChannelIds.has(channel.id))
+      .flatMap((channel) => channel.allowedModels)
 
-  const filteredModelIds = computed(() => previewAvailableModelIds.value)
-  const channelFilteredModelNames = computed(() => previewAvailableModelIds.value)
+    // Keep saved choices visible while editing even if their channel is no longer available.
+    return [...new Set([...resolvedModels, ...editForm.value.allowedModelIdsList])].sort((left, right) =>
+      left.localeCompare(right),
+    )
+  })
+
+  const filteredModelIds = computed(() => selectedChannelAllowedModels.value)
+  const channelFilteredModelNames = computed(() => selectedChannelAllowedModels.value)
 
   const requiredRetrySlots = computed(() => Math.max(0, editForm.value.channelConfigs.length - 1))
 
@@ -736,77 +725,13 @@ export const useRelayTokenManagement = () => {
     return modelId
   }
 
-  const resetModelAvailability = () => {
-    modelAvailabilityRequestId += 1
-    if (modelAvailabilityTimer) clearTimeout(modelAvailabilityTimer)
-    modelAvailabilityTimer = null
-    loadingModelAvailability.value = false
-    modelAvailabilityError.value = ''
-    modelAvailability.value = { openai: [], anthropic: [], gemini: [] }
-  }
-
-  const scheduleModelAvailabilityPreview = () => {
-    if (!showEditDialog.value) return
-
-    const channelConfigs = editForm.value.channelConfigs
-      .map((config, priority) => ({ channelId: config.channelId.trim(), priority }))
-      .filter((config) => config.channelId)
-
-    if (!channelConfigs.length) {
-      modelAvailability.value = { openai: [], anthropic: [], gemini: [] }
-      modelAvailabilityError.value = ''
-      return
-    }
-
-    const primaryChannel = channelConfigs[0]
-    if (!primaryChannel) return
-
-    if (modelAvailabilityTimer) clearTimeout(modelAvailabilityTimer)
-    const requestId = ++modelAvailabilityRequestId
-    modelAvailabilityTimer = setTimeout(async () => {
-      loadingModelAvailability.value = true
-      modelAvailabilityError.value = ''
-      try {
-        const result = await relayTokenService.previewTokenAvailableModels({
-          targetUserId: currentTargetUserIdForRequest.value,
-          channelId: primaryChannel.channelId,
-          channelConfigs,
-          failoverConfig: { ...editForm.value.failoverConfig },
-          allowedModels: editForm.value.allowedModelIdsList.length
-            ? editForm.value.allowedModelIdsList.join(',')
-            : null,
-          modelMapping: Object.keys(editForm.value.modelMapping).length
-            ? { ...editForm.value.modelMapping }
-            : null,
-        })
-        if (requestId === modelAvailabilityRequestId) modelAvailability.value = result
-      } catch (error: any) {
-        if (requestId === modelAvailabilityRequestId) {
-          modelAvailability.value = { openai: [], anthropic: [], gemini: [] }
-          modelAvailabilityError.value = error.message || i18ns.t('relay.loadFailed')
-        }
-      } finally {
-        if (requestId === modelAvailabilityRequestId) loadingModelAvailability.value = false
-      }
-    }, 250)
-  }
-
   watch(
     () => [
       editForm.value.channelConfigs.map((config) => config.channelId).join(','),
-      editForm.value.failoverConfig.enabled,
-      editForm.value.failoverConfig.maxRetries,
-      editForm.value.failoverConfig.retryStatusCodes.join(','),
-      editForm.value.failoverConfig.failoverThreshold,
-      editForm.value.failoverConfig.failbackCooldownMinutes,
-      editForm.value.allowedModelIdsList.join(','),
-      JSON.stringify(editForm.value.modelMapping),
-      currentTargetUserIdForRequest.value,
     ],
     () => {
       editForm.value.channelId = editForm.value.channelConfigs[0]?.channelId || ''
       syncTokenChannelBatchAddIds()
-      scheduleModelAvailabilityPreview()
     },
     { deep: true },
   )
@@ -817,16 +742,13 @@ export const useRelayTokenManagement = () => {
       setTimeout(() => {
         initSortable()
       }, 100)
-      scheduleModelAvailabilityPreview()
     } else {
-      resetModelAvailability()
       resetTokenChannelEditorState()
       destroySortable()
     }
   })
 
   onBeforeUnmount(() => {
-    resetModelAvailability()
     resetFloatingOverlayHidden()
   })
 
@@ -1379,23 +1301,7 @@ export const useRelayTokenManagement = () => {
   }
 
   const loadChannels = async () => {
-    channels.value = await relayChannelService.listChannels()
-  }
-
-  const loadAvailableModels = async () => {
-    loadingModels.value = true
-    try {
-      const modelsMap = await relayTokenService.getAvailableModels()
-      availableModels.value = modelsMap.modelNames
-      availableModelIds.value = modelsMap.modelIds || []
-      modelIdToModelNameMap.value = new Map(Object.entries(modelsMap.modelIdToModelNameMap))
-      modelIdToModelNamesMap.value = new Map(Object.entries(modelsMap.modelIdToModelNamesMap || {}))
-    } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
-      throw error
-    } finally {
-      loadingModels.value = false
-    }
+    channels.value = await relayChannelService.listChannelOptions()
   }
 
   const openCreateDialog = () => {
@@ -2350,7 +2256,6 @@ export const useRelayTokenManagement = () => {
     selectedTargetUserId.value = userInfoStore.userInfo.id || ''
     void loadTokens()
     void loadChannels()
-    void loadAvailableModels()
     void loadUserOptions()
   })
 
@@ -2375,7 +2280,6 @@ export const useRelayTokenManagement = () => {
     loadingTokens,
     showEditDialog,
     saving,
-    loadingModels,
     editMode,
     editDialogSectionNames,
     showSwitchLogDialog,
@@ -2418,8 +2322,6 @@ export const useRelayTokenManagement = () => {
     unavailableChannelWarningText,
     filteredModelIds,
     channelFilteredModelNames,
-    loadingModelAvailability,
-    modelAvailabilityError,
     showMaxRetriesRiskWarning,
     maxRetriesRiskWarningText,
     currentQuotaWindowDetailWindows,

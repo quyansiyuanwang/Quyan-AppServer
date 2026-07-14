@@ -1342,41 +1342,24 @@ export const useRelaySettingsManagement = () => {
   }
 
   const getChannelAllowedModelsMode = (
-    row: Pick<RelayChannelDto, 'channelType' | 'allowedModels' | 'routingConfig'>,
+    row: Pick<RelayChannelDto, 'channelType' | 'configuredAllowedModels' | 'routingConfig'>,
   ): RelayChannelAllowedModelsMode => {
     if (row.channelType !== 'pooled') {
-      return row.allowedModels ? 'manual' : 'all'
+      return row.configuredAllowedModels ? 'manual' : 'all'
     }
 
     const routingConfig = (row.routingConfig || null) as RelayChannelRoutingConfigFormDto | null
     return normalizeAllowedModelsMode(
       routingConfig?.allowedModelsMode,
-      row.allowedModels ? 'manual' : 'all',
+      row.configuredAllowedModels ? 'manual' : 'all',
     )
   }
 
   const getChannelAllowedModelsSummary = (
-    row: Pick<
-      RelayChannelDto,
-      | 'channelType'
-      | 'allowedModels'
-      | 'routingConfig'
-      | 'inferredAllowedModels'
-      | 'inferredAllowedModelsCount'
-    >,
+    row: Pick<RelayChannelDto, 'allowedModels'>,
   ) => {
-    const mode = getChannelAllowedModelsMode(row)
-    if (mode === 'auto') {
-      const count = row.inferredAllowedModelsCount ?? row.inferredAllowedModels?.length
-      return count === undefined
-        ? i18ns.t('relay.allowedModelsModeAuto')
-        : `${i18ns.t('relay.allowedModelsModeAutoShort')} · ${i18ns.t('relay.modelsCount', { count })}`
-    }
-    if (mode === 'all') return i18ns.t('relay.allModels')
-
-    const models = parseAllowedModels(row.allowedModels)
-    if (models.length === 0) return i18ns.t('relay.noModels')
-    return i18ns.t('relay.modelsCount', { count: models.length })
+    if (row.allowedModels.length === 0) return i18ns.t('relay.noModels')
+    return i18ns.t('relay.modelsCount', { count: row.allowedModels.length })
   }
 
   const syncSelectedChannelIds = () => {
@@ -1619,12 +1602,12 @@ export const useRelaySettingsManagement = () => {
   const openEditChannelDialog = (row: RelayChannelDto) => {
     isEditingChannel.value = true
     editingChannelId.value = row.id
-    const parsedModels = parseAllowedModels(row.allowedModels)
+    const parsedModels = parseAllowedModels(row.configuredAllowedModels)
     const isPooledChannel = row.channelType === 'pooled'
     const pooledAllowedModelsMode = isPooledChannel
       ? normalizeAllowedModelsMode(
           (row.routingConfig as RelayChannelRoutingConfigFormDto | null)?.allowedModelsMode,
-          row.allowedModels ? 'manual' : 'all',
+          row.configuredAllowedModels ? 'manual' : 'all',
         )
       : 'all'
     channelForm.value = {
@@ -1646,7 +1629,7 @@ export const useRelaySettingsManagement = () => {
       allowedFormats: normalizeSupportedFormats(row.allowedFormats || 'all'),
       allowedModelsArray: parsedModels,
       restrictModels:
-        !isPooledChannel && row.allowedModels !== null && row.allowedModels !== undefined,
+        !isPooledChannel && row.configuredAllowedModels !== null && row.configuredAllowedModels !== undefined,
       inputTokensIncludeCacheRead: row.inputTokensIncludeCacheRead === true,
       modelMapping: (row.modelMapping as Record<string, string>) || {},
       timePeriodMultipliers: row.timePeriodMultipliers || [],

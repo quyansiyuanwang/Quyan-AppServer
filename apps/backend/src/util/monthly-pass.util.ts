@@ -34,6 +34,17 @@ export const parseAllowedChannels = (value?: string | null): string[] | null => 
   return parseJsonStringArray(value);
 };
 
+export const isMonthlyPassModelMatched = (template: MonthlyPassTemplateLike, modelName: string): boolean => {
+  const allowedModels = parseAllowedModels(template.allowedModels);
+  const normalizedModelName = (modelName || "").trim();
+
+  return (
+    !allowedModels ||
+    allowedModels.length === 0 ||
+    (normalizedModelName.length > 0 && allowedModels.includes(normalizedModelName))
+  );
+};
+
 export const isMonthlyPassTemplateMatched = (
   template: MonthlyPassTemplateLike,
   modelName: string,
@@ -42,12 +53,7 @@ export const isMonthlyPassTemplateMatched = (
   const allowedModels = parseAllowedModels(template.allowedModels);
   const allowedChannels = parseAllowedChannels(template.allowedChannels);
 
-  const normalizedModelName = (modelName || "").trim();
-
-  const isModelMatched =
-    !allowedModels ||
-    allowedModels.length === 0 ||
-    (normalizedModelName.length > 0 && allowedModels.includes(normalizedModelName));
+  const isModelMatched = isMonthlyPassModelMatched(template, modelName);
   const isChannelMatched = !allowedChannels || allowedChannels.length === 0 || allowedChannels.includes(channelId);
 
   return isModelMatched && isChannelMatched;

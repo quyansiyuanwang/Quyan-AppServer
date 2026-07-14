@@ -20,6 +20,7 @@ import type {
   BatchRelayChannelsResultDto,
   BatchSetRelayChannelStatusRequest,
   RelayChannelDto,
+  RelayChannelOptionDto,
   CreateRelayChannelRequest,
   DuplicateRelayChannelRequest,
   ExportRelayChannelsRequest,
@@ -28,7 +29,7 @@ import type {
   RelayChannelExportResponse,
   UpdateRelayChannelRequest,
 } from "@/api/dto/relay/relay-channel.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import {
@@ -60,6 +61,25 @@ export class RelayChannelController extends Controller {
     @Query() includeDisabled?: boolean,
   ): Promise<RelayChannelDto[]> {
     return this.channelService.listChannels(request.user!.userId, includeDisabled === true);
+  }
+
+  /**
+   * Lists the caller-visible channel capabilities without exposing pool topology or channel configuration.
+   */
+  @Get("options")
+  @Security("jwt")
+  @RequireAnyPermission([
+    Permission.RELAY_CHANNEL_READ,
+    Permission.RELAY_TOKEN_CREATE,
+    Permission.RELAY_TOKEN_READ,
+    Permission.MONTHLY_PASS_TEMPLATE_READ,
+    Permission.MONTHLY_PASS_TEMPLATE_WRITE,
+    Permission.OJ_APIKEY_CREATE,
+    Permission.OJ_APIKEY_READ,
+    Permission.OJ_APIKEY_UPDATE,
+  ])
+  public async listChannelOptions(@Request() request: TypedRequest): Promise<RelayChannelOptionDto[]> {
+    return this.channelService.listChannelOptions(request.user!.userId);
   }
 
   @Get("{id}")

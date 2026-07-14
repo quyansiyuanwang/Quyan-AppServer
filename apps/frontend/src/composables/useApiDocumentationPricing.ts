@@ -1,13 +1,12 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
 import { i18ns } from '@/locales'
-import type { ModelPricingDto, RelayChannelDto } from '@/client/types.gen'
+import type { ModelPricingDto, RelayChannelOptionDto } from '@/client/types.gen'
+import { ElMessage } from 'element-plus'
 import { modelPricingService } from '@/service/modelPricingService'
 import { relayChannelService } from '@/service/relayChannelService'
 import { LruCache } from '@/utils/lru-cache'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { normalizeRelayFormats } from '../utils/relay-formats'
-import { parseAllowedModelsJson } from '@appserver/shared'
 
 export type HighlightPart = {
   text: string
@@ -40,8 +39,6 @@ export type ChannelPriceCell = {
 }
 
 const HIGHLIGHT_CACHE_MAX_SIZE = 500
-const MAX_LOGGED_ALLOWED_MODELS_ERRORS = 200
-
 const normalizeFormats = (formats?: string): string[] => normalizeRelayFormats(formats)
 
 const buildHighlightCacheKey = (keyword: string, text: string): string =>
@@ -56,7 +53,7 @@ export const useApiDocumentationPricing = () => {
   const loading = ref(false)
   const loadErrorMessage = ref('')
   const pricingData = ref<PricingModelRow[]>([])
-  const channels = ref<RelayChannelDto[]>([])
+  const channels = ref<RelayChannelOptionDto[]>([])
 
   const filterFormat = ref<string>('')
   const filterChannelIds = ref<string[]>([])
@@ -78,8 +75,6 @@ export const useApiDocumentationPricing = () => {
   const sortField = ref<PricingSortField>('')
   const sortOrder = ref<PricingSortOrder>('')
 
-  const loggedAllowedModelsParseErrors = new Set<string>()
-  const hasShownAllowedModelsParseWarning = ref(false)
   const highlightPartsCache = new LruCache<string, HighlightPart[]>(HIGHLIGHT_CACHE_MAX_SIZE)
 
   const getRequestModelId = (
@@ -122,7 +117,7 @@ export const useApiDocumentationPricing = () => {
 
     return filterChannelIds.value
       .map((channelId) => channelMap.get(channelId))
-      .filter((channel): channel is RelayChannelDto => Boolean(channel))
+      .filter((channel): channel is RelayChannelOptionDto => Boolean(channel))
   })
 
   const primaryComparisonChannel = computed(() => {
@@ -132,35 +127,11 @@ export const useApiDocumentationPricing = () => {
     )
   })
 
-  const parseAllowedModels = (allowedModels?: string | null): string[] | null => {
-    const parsed = parseAllowedModelsJson(allowedModels)
-    if (parsed !== null || !allowedModels) return parsed
-
-    if (!loggedAllowedModelsParseErrors.has(allowedModels)) {
-      if (loggedAllowedModelsParseErrors.size >= MAX_LOGGED_ALLOWED_MODELS_ERRORS) {
-        const oldest = loggedAllowedModelsParseErrors.values().next().value
-        if (oldest !== undefined) loggedAllowedModelsParseErrors.delete(oldest)
-      }
-
-      console.warn('Failed to parse channel allowedModels JSON in ApiDocumentationView', {
-        allowedModels,
-      })
-      loggedAllowedModelsParseErrors.add(allowedModels)
-    }
-
-    if (!hasShownAllowedModelsParseWarning.value) {
-      ElMessage.warning('Some channel model whitelist settings are invalid and were ignored.')
-      hasShownAllowedModelsParseWarning.value = true
-    }
-
-    return null
-  }
-
   const getChannelsForModel = (
     modelName: string,
     modelId: string,
     modelFormat?: string,
-  ): RelayChannelDto[] => {
+  ): RelayChannelOptionDto[] => {
     const normalizedModelName = modelName.trim()
     const normalizedModelId = modelId.trim()
     const modelFormats = normalizeFormats(modelFormat)
@@ -172,36 +143,14 @@ export const useApiDocumentationPricing = () => {
       )
       if (!hasCommonFormat) return false
 
-      if (channel.channelType === 'pooled') {
-        const inferredAllowedModels = channel.inferredAllowedModels
-        if (!inferredAllowedModels) return false
-        return inferredAllowedModels.some(
-          (allowedModelName) =>
-            allowedModelName === normalizedModelName || allowedModelName === normalizedModelId,
-        )
-      }
-
-      const hasUpstream = modelFormats.some((format) => {
-        if (format === 'openai') return Boolean(channel.openaiUpstreamUrl)
-        if (format === 'anthropic') return Boolean(channel.anthropicUpstreamUrl)
-        if (format === 'gemini') return Boolean(channel.geminiUpstreamUrl)
-        return false
-      })
-      if (!hasUpstream) return false
-
-      if (!channel.allowedModels) return true
-
-      const allowedModels = parseAllowedModels(channel.allowedModels)
-      if (!allowedModels) return true
-
-      return allowedModels.some(
+      return channel.allowedModels.some(
         (allowedModelName) =>
           allowedModelName === normalizedModelName || allowedModelName === normalizedModelId,
       )
     })
   }
 
-  const getSelectedChannelsForModel = (item: PricingModelRow): RelayChannelDto[] => {
+  const getSelectedChannelsForModel = (item: PricingModelRow): RelayChannelOptionDto[] => {
     const availableChannels = getChannelsForModel(
       item.model || '',
       getRequestModelId(item),
@@ -249,7 +198,7 @@ export const useApiDocumentationPricing = () => {
 
   const getChannelPriceCell = (
     item: PricingModelRow,
-    channel: Pick<RelayChannelDto, 'id' | 'name' | 'multiplier'>,
+    channel: Pick<RelayChannelOptionDto, 'id' | 'name' | 'multiplier'>,
   ): ChannelPriceCell => {
     const availableChannel = getChannelsForModel(
       item.model || '',
@@ -500,7 +449,7 @@ export const useApiDocumentationPricing = () => {
 
   const loadChannels = async () => {
     try {
-      channels.value = await relayChannelService.listChannels()
+      channels.value = await relayChannelService.listChannelOptions()
     } catch (error) {
       loadErrorMessage.value = resolveErrorMessage(error, i18ns.t('relay.loadFailed'))
       ElMessage.error(loadErrorMessage.value)
@@ -600,7 +549,6 @@ export const useApiDocumentationPricing = () => {
 
   onBeforeUnmount(() => {
     highlightPartsCache.clear()
-    loggedAllowedModelsParseErrors.clear()
   })
 
   return {

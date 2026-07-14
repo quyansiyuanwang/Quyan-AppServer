@@ -70,7 +70,7 @@ export class RelayPoolResolverService {
     return leaves;
   }
 
-  async inferAllowedModels(
+  async resolveEffectiveAllowedModels(
     channelId: string,
     modelCatalog: Array<{ model?: string | null; supportedFormats?: string | null }>,
   ): Promise<string[]> {
@@ -89,6 +89,14 @@ export class RelayPoolResolverService {
     }
 
     return [...inferred].sort((left, right) => left.localeCompare(right));
+  }
+
+  /** @deprecated Use resolveEffectiveAllowedModels for final channel availability. */
+  async inferAllowedModels(
+    channelId: string,
+    modelCatalog: Array<{ model?: string | null; supportedFormats?: string | null }>,
+  ): Promise<string[]> {
+    return this.resolveEffectiveAllowedModels(channelId, modelCatalog);
   }
 
   private async getActiveGraph(): Promise<Map<string, RelayChannelGraphNode>> {

@@ -13841,6 +13841,36 @@
 				}
 			}
 		},
+		"/v1/relay-channels/options": {
+			"get": {
+				"operationId": "RelayChannelControllerListChannelOptions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RelayChannelOptionDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Lists the caller-visible channel capabilities without exposing pool topology or channel configuration.",
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/v1/relay-channels/{id}": {
 			"get": {
 				"operationId": "RelayChannelControllerGetChannel",
@@ -32035,18 +32065,15 @@
 						"type": "string"
 					},
 					"allowedModels": {
-						"type": "string"
-					},
-					"inferredAllowedModels": {
 						"items": {
 							"type": "string"
 						},
 						"type": "array",
-						"description": "Automatically inferred allowed models for pooled channels in auto mode."
+						"description": "Final models available through this channel after active pool resolution and inherited restrictions."
 					},
-					"inferredAllowedModelsCount": {
-						"type": "number",
-						"format": "double"
+					"configuredAllowedModels": {
+						"type": "string",
+						"description": "Raw JSON model whitelist persisted for channel management configuration."
 					},
 					"addUserIdentifier": {
 						"type": "boolean"
@@ -32081,8 +32108,46 @@
 					"visibilityMode",
 					"multiplier",
 					"allowedFormats",
+					"allowedModels",
 					"createTime",
 					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelOptionDto": {
+				"description": "Pool-transparent channel capability exposed to business-facing clients.\nIt intentionally excludes routing topology, raw configuration, upstream credentials, and visibility rules.",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"allowedFormats": {
+						"type": "string"
+					},
+					"allowedModels": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"enabled",
+					"multiplier",
+					"allowedFormats",
+					"allowedModels"
 				],
 				"type": "object",
 				"additionalProperties": false
