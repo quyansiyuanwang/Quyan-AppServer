@@ -5,6 +5,7 @@ import http from "http";
 import { Readable, Transform } from "stream";
 import { pipeline } from "stream/promises";
 import { RelayTokenRepository, RelayTokenWithChannel } from "@/store/relay/relay-token.repository";
+import type { RelayTokenWithRelations } from "@/store/relay/relay-token.store";
 
 // HTTP Agent configuration for connection pooling and keep-alive
 // Reduced limits for low-spec servers (2v2g) to prevent resource exhaustion
@@ -28,6 +29,7 @@ const httpAgent = new http.Agent({
 import { RelayUsageRepository } from "@/store/relay/relay-usage.repository";
 import { RelayProxyRepository } from "@/store/relay/relay-proxy.repository";
 import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
+import type { RelayChannelRoutingConfigDto, RelayChannelRoutingStrategy } from "@/api/dto/relay/relay-channel.dto";
 import type { RelayTokenStore } from "@/store/relay/relay-token.store";
 import type { RelayUsageStore } from "@/store/relay/relay-usage.store";
 import type { RelayProxyStore } from "@/store/relay/relay-proxy.store";
@@ -113,6 +115,15 @@ interface ImageForwardResult extends StreamForwardResult {
   headers?: any;
   data?: any;
 }
+
+interface RelayAttemptPlan {
+  channels: RelayChannel[];
+  failoverConfig: RelayFailoverRuntimeConfig;
+}
+
+type RelayChannelWithPool = NonNullable<RelayTokenWithRelations["channel"]>;
+type RelayPoolMember = NonNullable<RelayChannelWithPool["poolMembers"]>[number];
+type RelayPoolMemberChannel = NonNullable<RelayPoolMember["memberChannel"]>;
 
 const HOP_BY_HOP_RESPONSE_HEADERS = new Set([
   "connection",
@@ -810,7 +821,8 @@ export class RelayProxyService {
     requestFormat: "openai" | "anthropic" | "gemini",
   ): Promise<string[]> {
     const modelPricing = await this.modelPricingService.getModelPricing();
-    const eligibleChannels = this.getOrderedAttemptChannels(relayToken).filter((channel) =>
+    const attemptPlan = await this.buildAttemptPlan(relayToken);
+    const eligibleChannels = attemptPlan.channels.filter((channel) =>
       supportsRelayRequestFormat(channel.allowedFormats, requestFormat),
     );
 
@@ -1363,6 +1375,147 @@ export class RelayProxyService {
     };
   }
 
+  private getChannelRoutingConfig(channel: RelayChannel): RelayChannelRoutingConfigDto | null {
+    const routingConfig = channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined;
+    return routingConfig ?? null;
+  }
+
+  private getPoolRoundRobinKey(channel: RelayChannel): string {
+    return `relay:pool:round-robin:${channel.id}`;
+  }
+
+  private rotateItems<T>(items: T[], offset: number): T[] {
+    if (items.length <= 1) return items;
+    const normalizedOffset = ((offset % items.length) + items.length) % items.length;
+    if (normalizedOffset === 0) return items;
+    return [...items.slice(normalizedOffset), ...items.slice(0, normalizedOffset)];
+  }
+
+  private shuffleItems<T>(items: T[]): T[] {
+    const shuffled = [...items];
+    for (let index = shuffled.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+    }
+    return shuffled;
+  }
+
+  private weightedShuffleMembers<T extends { weight?: unknown | null }>(items: T[]): T[] {
+    const remaining = [...items];
+    const ordered: T[] = [];
+
+    while (remaining.length > 0) {
+      const totalWeight = remaining.reduce((sum, item) => {
+        const weight = Number(item.weight ?? 1);
+        return sum + (Number.isFinite(weight) && weight > 0 ? weight : 1);
+      }, 0);
+
+      let cursor = Math.random() * (totalWeight > 0 ? totalWeight : remaining.length);
+      let selectedIndex = 0;
+
+      for (let index = 0; index < remaining.length; index += 1) {
+        const weight = Number(remaining[index]?.weight ?? 1);
+        cursor -= Number.isFinite(weight) && weight > 0 ? weight : 1;
+        if (cursor <= 0) {
+          selectedIndex = index;
+          break;
+        }
+      }
+
+      ordered.push(remaining.splice(selectedIndex, 1)[0]);
+    }
+
+    return ordered;
+  }
+
+  private getTopLevelAttemptChannels(relayToken: RelayTokenWithChannel): RelayChannelWithPool[] {
+    const candidates = relayToken.channelConfigs?.length
+      ? relayToken.channelConfigs.map((config) => config.channel).filter(Boolean)
+      : relayToken.channel
+        ? [relayToken.channel]
+        : [];
+
+    const seen = new Set<string>();
+    return candidates.filter((channel): channel is RelayChannelWithPool => {
+      if (!channel?.id || seen.has(channel.id)) return false;
+      seen.add(channel.id);
+      return channel.status === RELAY_CHANNEL_STATUS.ENABLED;
+    });
+  }
+
+  private async orderPooledMemberChannels(channel: RelayChannelWithPool): Promise<RelayPoolMemberChannel[]> {
+    const strategy = (channel.routingStrategy || "priority") as RelayChannelRoutingStrategy;
+    const routingConfig = this.getChannelRoutingConfig(channel);
+    const poolMembers = (channel.poolMembers ?? [])
+      .filter((member) => member.enabled !== false && member.memberChannel)
+      .filter((member) => member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED)
+      .sort((left, right) => left.priority - right.priority);
+
+    if (poolMembers.length === 0) return [];
+
+    let orderedMembers = poolMembers;
+    if (strategy === "random") orderedMembers = this.shuffleItems(poolMembers);
+    else if (strategy === "weighted-random") orderedMembers = this.weightedShuffleMembers(poolMembers);
+    else if (strategy === "round-robin") {
+      const counter = (await this.redis.increment(this.getPoolRoundRobinKey(channel), 0, 1)) ?? 1;
+      orderedMembers = this.rotateItems(poolMembers, Math.max(0, Math.floor(counter - 1)));
+    }
+
+    const rawMaxRetries = Number(routingConfig?.maxRetries);
+    const maxAttempts = Number.isFinite(rawMaxRetries)
+      ? Math.max(1, Math.min(orderedMembers.length, Math.floor(rawMaxRetries) + 1))
+      : orderedMembers.length;
+
+    return orderedMembers.slice(0, maxAttempts).map((member) => member.memberChannel!).filter(Boolean);
+  }
+
+  private getPoolFailoverRuntimeConfig(channel: RelayChannel, poolSize: number): RelayFailoverRuntimeConfig {
+    const routingConfig = this.getChannelRoutingConfig(channel);
+    const retryStatusCodes = normalizeRetryStatusRules(
+      Array.isArray(routingConfig?.retryStatusCodes) ? routingConfig.retryStatusCodes : ["4xx", "5xx"],
+    );
+    const rawMaxRetries = Number(routingConfig?.maxRetries);
+    const maxRetries = Number.isFinite(rawMaxRetries)
+      ? Math.max(0, Math.floor(rawMaxRetries))
+      : Math.max(0, poolSize - 1);
+
+    return {
+      enabled: poolSize > 1,
+      maxRetries,
+      retryStatusCodes,
+      failoverThreshold: 1,
+      failbackCooldownMinutes: Math.max(0, Number(routingConfig?.failbackCooldownMinutes ?? 0)),
+    };
+  }
+
+  private async buildAttemptPlan(relayToken: RelayTokenWithChannel): Promise<RelayAttemptPlan> {
+    const topLevelChannels = this.getTopLevelAttemptChannels(relayToken);
+    const groups = await Promise.all(
+      topLevelChannels.map(async (channel) => {
+        if ((channel.channelType || "standalone") !== "pooled") return [channel];
+        return this.orderPooledMemberChannels(channel);
+      }),
+    );
+
+    const seen = new Set<string>();
+    const channels = groups.flat().filter((channel) => {
+      if (!channel?.id || seen.has(channel.id)) return false;
+      seen.add(channel.id);
+      return channel.status === RELAY_CHANNEL_STATUS.ENABLED;
+    });
+
+    const tokenFailoverConfig = this.getFailoverRuntimeConfig(relayToken);
+    const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : null;
+
+    if (tokenFailoverConfig.enabled || !singleTopLevelChannel || singleTopLevelChannel.channelType !== "pooled")
+      return { channels, failoverConfig: tokenFailoverConfig };
+
+    return {
+      channels,
+      failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+    };
+  }
+
   private buildFailoverStickyChannelKey(
     relayTokenId: string,
     requestFormat: "openai" | "anthropic" | "gemini",
@@ -1529,21 +1682,6 @@ export class RelayProxyService {
       ...params.channels.slice(0, stickyChannelIndex),
       ...params.channels.slice(stickyChannelIndex + 1),
     ];
-  }
-
-  private getOrderedAttemptChannels(relayToken: RelayTokenWithChannel): RelayChannel[] {
-    const candidates = relayToken.channelConfigs?.length
-      ? relayToken.channelConfigs.map((config) => config.channel).filter(Boolean)
-      : relayToken.channel
-        ? [relayToken.channel]
-        : [];
-
-    const seen = new Set<string>();
-    return candidates.filter((channel): channel is RelayChannel => {
-      if (!channel?.id || seen.has(channel.id)) return false;
-      seen.add(channel.id);
-      return channel.status === RELAY_CHANNEL_STATUS.ENABLED;
-    });
   }
 
   private shouldRetryWithNextChannel(
@@ -2093,6 +2231,7 @@ export class RelayProxyService {
     const requestSizeBytes = getRequestSize();
     const requestSizeMB = (requestSizeBytes / 1024 / 1024).toFixed(2);
     const isImageRequest = this.isImageRequest(req, requestFormat);
+    const attemptPlan = await this.buildAttemptPlan(relayToken);
 
     // Log request details (especially important for image requests)
     logger.info("Relay request received", {
@@ -2109,9 +2248,9 @@ export class RelayProxyService {
     });
 
     const modelPricing = await this.modelPricingService.getModelPricing();
-    const failoverConfig = this.getFailoverRuntimeConfig(relayToken);
+    const failoverConfig = attemptPlan.failoverConfig;
     const isStreamRequested = this.isStreamRequest(req.body, req);
-    const eligibleChannels = this.getOrderedAttemptChannels(relayToken).filter((channel) =>
+    const eligibleChannels = attemptPlan.channels.filter((channel) =>
       supportsRelayRequestFormat(channel.allowedFormats, requestFormat),
     );
 

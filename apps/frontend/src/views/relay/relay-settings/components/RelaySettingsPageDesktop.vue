@@ -658,9 +658,16 @@
               </el-table-column>
               <el-table-column :label="i18ns.t('relay.allowedModelsChannel')" width="120">
                 <template #default="{ row }">
-                  <el-tag v-if="!row.allowedModels" type="info" size="small">{{
-                    i18ns.t('relay.allModels')
-                  }}</el-tag>
+                  <el-tag
+                    v-if="getChannelAllowedModelsMode(row) === 'auto'"
+                    type="warning"
+                    size="small"
+                  >{{ i18ns.t('relay.allowedModelsModeAutoShort') }}</el-tag>
+                  <el-tag
+                    v-else-if="getChannelAllowedModelsMode(row) === 'all'"
+                    type="info"
+                    size="small"
+                  >{{ i18ns.t('relay.allModels') }}</el-tag>
                   <el-tag
                     v-else-if="parseAllowedModels(row.allowedModels).length === 0"
                     type="danger"
@@ -673,8 +680,7 @@
                     placement="top"
                   >
                     <el-tag type="primary" size="small">
-                      {{ parseAllowedModels(row.allowedModels).length }}
-                      {{ i18ns.t('relay.modelsCount') }}
+                      {{ getChannelAllowedModelsSummary(row) }}
                     </el-tag>
                   </el-tooltip>
                 </template>
@@ -789,6 +795,8 @@ const {
   formatVisibilityModeLabel,
   getVisibilitySummary,
   getPoolMembersSummary,
+  getChannelAllowedModelsMode,
+  getChannelAllowedModelsSummary,
   parseAllowedModels,
   togglingChannelId,
   handleToggleChannelStatus,

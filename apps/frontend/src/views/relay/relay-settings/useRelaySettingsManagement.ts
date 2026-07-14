@@ -50,6 +50,18 @@ type ModelIdentitySource = {
 
 type RelayConfigModelRateItem = ModelPricingItemDto & { provider?: string | null }
 
+type RelayChannelAllowedModelsMode = 'all' | 'manual' | 'auto'
+
+type RelayChannelRoutingConfigFormDto = Omit<
+  RelayChannelRoutingConfigDto,
+  'healthScoreThreshold' | 'latencyThresholdMs' | 'circuitBreakerThreshold'
+> & {
+  healthScoreThreshold?: number | null
+  latencyThresholdMs?: number | null
+  circuitBreakerThreshold?: number | null
+  allowedModelsMode?: RelayChannelAllowedModelsMode | null
+}
+
 type RelayConfigUpdatePayload = Omit<
   UpdateRelayConfigRequest,
   'modelRates' | 'monitorNameMapping'
@@ -100,17 +112,19 @@ const toSupportedFormatsArray = (formats: string[] | string | undefined): string
   return toConfiguredRelayFormats(formats)
 }
 
-const defaultRoutingConfigForm = () => ({
+const recommendedRoutingConfigForm = () => ({
   maxRetries: 2,
   failoverThreshold: 0,
   retryStatusCodes: ['4xx', '5xx'] as string[],
   failbackCooldownMinutes: 5,
-  healthScoreThreshold: 0 as number | null,
-  latencyThresholdMs: 30000 as number | null,
-  circuitBreakerThreshold: 5 as number | null,
+  healthScoreThreshold: null as number | null,
+  latencyThresholdMs: null as number | null,
+  circuitBreakerThreshold: null as number | null,
   stickyByModel: false,
   stickyByFormat: false,
 })
+
+const defaultRoutingConfigForm = () => recommendedRoutingConfigForm()
 
 const defaultVisibilityConfigForm = () => ({
   userIds: [] as string[],
@@ -133,7 +147,23 @@ const normalizeStringArray = (value?: Array<string | number | null | undefined>)
   )
 }
 
-const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigDto | null) => ({
+const normalizeAllowedModelsMode = (
+  value?: string | null,
+  fallback: RelayChannelAllowedModelsMode = 'all',
+): RelayChannelAllowedModelsMode => {
+  if (value === 'all' || value === 'manual' || value === 'auto') {
+    return value
+  }
+
+  return fallback
+}
+
+const normalizeOptionalThreshold = (value?: number | null): number | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  return value
+}
+
+const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigFormDto | null) => ({
   maxRetries:
     typeof config?.maxRetries === 'number' && Number.isFinite(config.maxRetries)
       ? config.maxRetries
@@ -151,19 +181,9 @@ const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigDto | null
     Number.isFinite(config.failbackCooldownMinutes)
       ? config.failbackCooldownMinutes
       : defaultRoutingConfigForm().failbackCooldownMinutes,
-  healthScoreThreshold:
-    typeof config?.healthScoreThreshold === 'number' && Number.isFinite(config.healthScoreThreshold)
-      ? config.healthScoreThreshold
-      : defaultRoutingConfigForm().healthScoreThreshold,
-  latencyThresholdMs:
-    typeof config?.latencyThresholdMs === 'number' && Number.isFinite(config.latencyThresholdMs)
-      ? config.latencyThresholdMs
-      : defaultRoutingConfigForm().latencyThresholdMs,
-  circuitBreakerThreshold:
-    typeof config?.circuitBreakerThreshold === 'number' &&
-    Number.isFinite(config.circuitBreakerThreshold)
-      ? config.circuitBreakerThreshold
-      : defaultRoutingConfigForm().circuitBreakerThreshold,
+  healthScoreThreshold: normalizeOptionalThreshold(config?.healthScoreThreshold),
+  latencyThresholdMs: normalizeOptionalThreshold(config?.latencyThresholdMs),
+  circuitBreakerThreshold: normalizeOptionalThreshold(config?.circuitBreakerThreshold),
   stickyByModel:
     typeof config?.stickyByModel === 'boolean'
       ? config.stickyByModel
@@ -195,8 +215,13 @@ const normalizePoolMembersForm = (members?: RelayChannelMemberDto[] | null) => {
   }))
 }
 
-const toNullableNumber = (value: number | null | undefined): number | undefined => {
+const toFiniteNumber = (value: number | null | undefined): number | undefined => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  return value
+}
+
+const toNullableThresholdPayload = (value: number | null | undefined): number | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
   return value
 }
 
@@ -679,6 +704,7 @@ export const useRelaySettingsManagement = () => {
     channelType: 'standalone' as RelayChannelType,
     routingStrategy: 'priority' as RelayChannelRoutingStrategy,
     routingConfig: defaultRoutingConfigForm(),
+    pooledAllowedModelsMode: 'all' as RelayChannelAllowedModelsMode,
     visibilityMode: 'public' as RelayChannelVisibilityMode,
     visibilityConfig: defaultVisibilityConfigForm(),
     poolMembers: [] as RelayChannelMemberDto[],
@@ -1087,6 +1113,19 @@ export const useRelaySettingsManagement = () => {
     }))
   }
 
+  const resetRoutingConfigToRecommended = () => {
+    channelForm.value.routingConfig = recommendedRoutingConfigForm()
+  }
+
+  const clearOptionalRoutingThresholds = () => {
+    channelForm.value.routingConfig = {
+      ...channelForm.value.routingConfig,
+      healthScoreThreshold: null,
+      latencyThresholdMs: null,
+      circuitBreakerThreshold: null,
+    }
+  }
+
   const formatChannelTypeLabel = (channelType: RelayChannelType | string | undefined) => {
     return channelType === 'pooled'
       ? i18ns.t('relay.channelTypePooled')
@@ -1165,37 +1204,36 @@ export const useRelaySettingsManagement = () => {
 
   const buildRoutingConfigPayload = (): RelayChannelRoutingConfigDto | null => {
     const config = channelForm.value.routingConfig
-    const payload: RelayChannelRoutingConfigDto = {}
+    const payload: RelayChannelRoutingConfigFormDto = {}
 
-    const maxRetries = toNullableNumber(config.maxRetries)
+    const maxRetries = toFiniteNumber(config.maxRetries)
     if (maxRetries !== undefined) payload.maxRetries = maxRetries
 
-    const failoverThreshold = toNullableNumber(config.failoverThreshold)
+    const failoverThreshold = toFiniteNumber(config.failoverThreshold)
     if (failoverThreshold !== undefined) payload.failoverThreshold = failoverThreshold
 
     const retryStatusCodes = normalizeStringArray(config.retryStatusCodes)
     if (retryStatusCodes.length > 0) payload.retryStatusCodes = retryStatusCodes
 
-    const failbackCooldownMinutes = toNullableNumber(config.failbackCooldownMinutes)
+    const failbackCooldownMinutes = toFiniteNumber(config.failbackCooldownMinutes)
     if (failbackCooldownMinutes !== undefined) {
       payload.failbackCooldownMinutes = failbackCooldownMinutes
     }
 
-    const healthScoreThreshold = toNullableNumber(config.healthScoreThreshold)
-    if (healthScoreThreshold !== undefined) payload.healthScoreThreshold = healthScoreThreshold
+    payload.healthScoreThreshold = toNullableThresholdPayload(config.healthScoreThreshold)
 
-    const latencyThresholdMs = toNullableNumber(config.latencyThresholdMs)
-    if (latencyThresholdMs !== undefined) payload.latencyThresholdMs = latencyThresholdMs
+    payload.latencyThresholdMs = toNullableThresholdPayload(config.latencyThresholdMs)
 
-    const circuitBreakerThreshold = toNullableNumber(config.circuitBreakerThreshold)
-    if (circuitBreakerThreshold !== undefined) {
-      payload.circuitBreakerThreshold = circuitBreakerThreshold
+    payload.circuitBreakerThreshold = toNullableThresholdPayload(config.circuitBreakerThreshold)
+
+    if (channelForm.value.channelType === 'pooled') {
+      payload.allowedModelsMode = normalizeAllowedModelsMode(channelForm.value.pooledAllowedModelsMode)
     }
 
     if (config.stickyByModel === true) payload.stickyByModel = true
     if (config.stickyByFormat === true) payload.stickyByFormat = true
 
-    return Object.keys(payload).length > 0 ? payload : null
+    return Object.keys(payload).length > 0 ? (payload as RelayChannelRoutingConfigDto) : null
   }
 
   const buildVisibilityConfigPayload = (): RelayChannelVisibilityConfigDto | null => {
@@ -1250,6 +1288,18 @@ export const useRelaySettingsManagement = () => {
   )
 
   watch(
+    () => channelForm.value.channelType,
+    (channelType) => {
+      if (channelType === 'pooled') {
+        channelForm.value.restrictModels = false
+        return
+      }
+
+      channelForm.value.pooledAllowedModelsMode = 'all'
+    },
+  )
+
+  watch(
     () => channelForm.value.visibilityMode,
     (mode) => {
       if (mode === 'whitelist') {
@@ -1287,6 +1337,29 @@ export const useRelaySettingsManagement = () => {
 
       return []
     }
+  }
+
+  const getChannelAllowedModelsMode = (
+    row: Pick<RelayChannelDto, 'channelType' | 'allowedModels' | 'routingConfig'>,
+  ): RelayChannelAllowedModelsMode => {
+    if (row.channelType !== 'pooled') {
+      return row.allowedModels ? 'manual' : 'all'
+    }
+
+    const routingConfig = (row.routingConfig || null) as RelayChannelRoutingConfigFormDto | null
+    return normalizeAllowedModelsMode(routingConfig?.allowedModelsMode, row.allowedModels ? 'manual' : 'all')
+  }
+
+  const getChannelAllowedModelsSummary = (
+    row: Pick<RelayChannelDto, 'channelType' | 'allowedModels' | 'routingConfig'>,
+  ) => {
+    const mode = getChannelAllowedModelsMode(row)
+    if (mode === 'auto') return i18ns.t('relay.allowedModelsModeAuto')
+    if (mode === 'all') return i18ns.t('relay.allModels')
+
+    const models = parseAllowedModels(row.allowedModels)
+    if (models.length === 0) return i18ns.t('relay.noModels')
+    return i18ns.t('relay.modelsCount', { count: models.length })
   }
 
   const syncSelectedChannelIds = () => {
@@ -1530,11 +1603,19 @@ export const useRelaySettingsManagement = () => {
     isEditingChannel.value = true
     editingChannelId.value = row.id
     const parsedModels = parseAllowedModels(row.allowedModels)
+    const isPooledChannel = row.channelType === 'pooled'
+    const pooledAllowedModelsMode = isPooledChannel
+      ? normalizeAllowedModelsMode(
+          (row.routingConfig as RelayChannelRoutingConfigFormDto | null)?.allowedModelsMode,
+          row.allowedModels ? 'manual' : 'all',
+        )
+      : 'all'
     channelForm.value = {
       name: row.name,
       channelType: row.channelType || 'standalone',
       routingStrategy: row.routingStrategy || 'priority',
       routingConfig: normalizeRoutingConfigForm(row.routingConfig),
+      pooledAllowedModelsMode,
       visibilityMode: row.visibilityMode || 'public',
       visibilityConfig: normalizeVisibilityConfigForm(row.visibilityConfig),
       poolMembers: normalizePoolMembersForm(row.poolMembers),
@@ -1547,7 +1628,8 @@ export const useRelaySettingsManagement = () => {
       multiplier: row.multiplier,
       allowedFormats: normalizeSupportedFormats(row.allowedFormats || 'all'),
       allowedModelsArray: parsedModels,
-      restrictModels: row.allowedModels !== null && row.allowedModels !== undefined,
+      restrictModels:
+        !isPooledChannel && row.allowedModels !== null && row.allowedModels !== undefined,
       inputTokensIncludeCacheRead: row.inputTokensIncludeCacheRead === true,
       modelMapping: (row.modelMapping as Record<string, string>) || {},
       timePeriodMultipliers: row.timePeriodMultipliers || [],
@@ -1684,9 +1766,13 @@ export const useRelaySettingsManagement = () => {
           channelForm.value.allowedFormats.length > 0
             ? channelForm.value.allowedFormats.join(',')
             : 'all',
-        allowedModels: channelForm.value.restrictModels
-          ? JSON.stringify(channelForm.value.allowedModelsArray)
-          : null,
+        allowedModels: isPooledChannel
+          ? channelForm.value.pooledAllowedModelsMode === 'manual'
+            ? JSON.stringify(channelForm.value.allowedModelsArray)
+            : null
+          : channelForm.value.restrictModels
+            ? JSON.stringify(channelForm.value.allowedModelsArray)
+            : null,
         inputTokensIncludeCacheRead: channelForm.value.inputTokensIncludeCacheRead,
         modelMapping:
           channelForm.value.modelMapping && Object.keys(channelForm.value.modelMapping).length > 0
@@ -1862,11 +1948,15 @@ export const useRelaySettingsManagement = () => {
     isPoolMemberOptionDisabled,
     addPoolMember,
     removePoolMember,
+    resetRoutingConfigToRecommended,
+    clearOptionalRoutingThresholds,
     formatChannelTypeLabel,
     formatRoutingStrategyLabel,
     formatVisibilityModeLabel,
     getVisibilitySummary,
     getPoolMembersSummary,
+    getChannelAllowedModelsMode,
+    getChannelAllowedModelsSummary,
     parseAllowedModels,
     isChannelSelected,
     toggleChannelSelection,

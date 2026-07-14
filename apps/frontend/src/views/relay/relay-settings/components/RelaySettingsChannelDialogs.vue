@@ -109,6 +109,14 @@
         </el-form-item>
 
         <el-form-item :label="i18ns.t('relay.routingConfig')">
+          <div class="mb-3 flex flex-wrap gap-2 w-full">
+            <el-button size="small" @click="resetRoutingConfigToRecommended">
+              {{ i18ns.t('relay.restoreRecommendedRoutingConfig') }}
+            </el-button>
+            <el-button size="small" @click="clearOptionalRoutingThresholds">
+              {{ i18ns.t('relay.clearOptionalThresholds') }}
+            </el-button>
+          </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
             <el-form-item :label="i18ns.t('relay.maxRetries')" label-width="auto">
               <el-input-number v-model="channelForm.routingConfig.maxRetries" :min="0" :step="1" />
@@ -177,7 +185,9 @@
               <el-option :label="i18ns.t('relay.retryStatusCodeLabel504')" value="504" />
             </el-select>
           </el-form-item>
-          <div class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.routingConfigHelp') }}</div>
+          <div class="ml-3 text-[#909399] text-xs">
+            {{ i18ns.t('relay.routingConfigOptionalThresholdsHelp') }}
+          </div>
         </el-form-item>
       </template>
 
@@ -276,32 +286,61 @@
         </div>
       </el-form-item>
       <el-form-item :label="i18ns.t('relay.allowedModelsChannel')">
-        <el-switch
-          v-model="channelForm.restrictModels"
-          :active-text="i18ns.t('relay.restrictModels')"
-          :inactive-text="i18ns.t('relay.allowAllModels')"
-          style="margin-bottom: 12px"
-        />
-        <el-select
-          v-if="channelForm.restrictModels"
-          v-model="channelForm.allowedModelsArray"
-          multiple
-          filterable
-          allow-create
-          :placeholder="i18ns.t('relay.allowedModelsChannelHelp')"
-          style="width: 100%"
-        >
-          <el-option
-            v-for="model in filteredModels"
-            :key="model.model"
-            :label="formatModelOptionLabel(model)"
-            :value="model.model"
-            :disabled="isModelDisabled(model)"
+        <template v-if="channelForm.channelType === 'pooled'">
+          <el-radio-group v-model="channelForm.pooledAllowedModelsMode" style="margin-bottom: 12px">
+            <el-radio-button label="all">{{ i18ns.t('relay.allowedModelsModeAll') }}</el-radio-button>
+            <el-radio-button label="auto">{{ i18ns.t('relay.allowedModelsModeAuto') }}</el-radio-button>
+            <el-radio-button label="manual">{{ i18ns.t('relay.allowedModelsModeManual') }}</el-radio-button>
+          </el-radio-group>
+          <el-select
+            v-if="channelForm.pooledAllowedModelsMode === 'manual'"
+            v-model="channelForm.allowedModelsArray"
+            multiple
+            filterable
+            allow-create
+            :placeholder="i18ns.t('relay.allowedModelsManualPlaceholder')"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="model in filteredModels"
+              :key="model.model"
+              :label="formatModelOptionLabel(model)"
+              :value="model.model"
+              :disabled="isModelDisabled(model)"
+            />
+          </el-select>
+          <div class="ml-3 text-[#909399] text-xs">
+            {{ i18ns.t('relay.allowedModelsPooledHelp') }}
+          </div>
+        </template>
+        <template v-else>
+          <el-switch
+            v-model="channelForm.restrictModels"
+            :active-text="i18ns.t('relay.restrictModels')"
+            :inactive-text="i18ns.t('relay.allowAllModels')"
+            style="margin-bottom: 12px"
           />
-        </el-select>
-        <div class="ml-3 text-[#909399] text-xs">
-          {{ i18ns.t('relay.allowedModelsChannelHelp') }}
-        </div>
+          <el-select
+            v-if="channelForm.restrictModels"
+            v-model="channelForm.allowedModelsArray"
+            multiple
+            filterable
+            allow-create
+            :placeholder="i18ns.t('relay.allowedModelsManualPlaceholder')"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="model in filteredModels"
+              :key="model.model"
+              :label="formatModelOptionLabel(model)"
+              :value="model.model"
+              :disabled="isModelDisabled(model)"
+            />
+          </el-select>
+          <div class="ml-3 text-[#909399] text-xs">
+            {{ i18ns.t('relay.allowedModelsChannelHelp') }}
+          </div>
+        </template>
       </el-form-item>
 
       <template v-if="channelForm.channelType === 'standalone'">
@@ -738,9 +777,16 @@
               {{ i18ns.t('relay.allowedModelsChannel') }}
             </div>
             <div class="flex flex-wrap gap-2">
-              <el-tag v-if="!currentChannelDetail.allowedModels" type="info" size="small">{{
-                i18ns.t('relay.allModels')
-              }}</el-tag>
+              <el-tag
+                v-if="getChannelAllowedModelsMode(currentChannelDetail) === 'auto'"
+                type="warning"
+                size="small"
+              >{{ i18ns.t('relay.allowedModelsModeAuto') }}</el-tag>
+              <el-tag
+                v-else-if="getChannelAllowedModelsMode(currentChannelDetail) === 'all'"
+                type="info"
+                size="small"
+              >{{ i18ns.t('relay.allModels') }}</el-tag>
               <template v-else-if="parseAllowedModels(currentChannelDetail.allowedModels).length">
                 <el-tag
                   v-for="model in parseAllowedModels(currentChannelDetail.allowedModels)"
@@ -751,6 +797,12 @@
                 >
               </template>
               <el-tag v-else type="danger" size="small">{{ i18ns.t('relay.noModels') }}</el-tag>
+            </div>
+            <div
+              v-if="currentChannelDetail.channelType === 'pooled'"
+              class="mt-2 text-xs text-[var(--el-text-color-secondary)]"
+            >
+              {{ formatAllowedModelsModeLabel(getChannelAllowedModelsMode(currentChannelDetail)) }}
             </div>
           </div>
         </div>
@@ -920,6 +972,8 @@ const {
   removeTimeRule,
   channelSaving,
   handleSaveChannel,
+  resetRoutingConfigToRecommended,
+  clearOptionalRoutingThresholds,
   formatChannelTypeLabel,
   formatRoutingStrategyLabel,
   getVisibilitySummary,
@@ -929,6 +983,7 @@ const {
   closeChannelDetailDialog,
   handleVisibilityUserSearch,
   parseAllowedModels,
+  getChannelAllowedModelsMode,
   handleImportChannels,
 } = state
 
@@ -973,6 +1028,18 @@ const formatNullableValue = (value: number | string | null | undefined) => {
 const formatStringList = (value: unknown) => {
   if (!Array.isArray(value) || value.length === 0) return '-'
   return value.join(', ')
+}
+
+const formatAllowedModelsModeLabel = (mode: 'all' | 'manual' | 'auto') => {
+  switch (mode) {
+    case 'auto':
+      return i18ns.t('relay.allowedModelsModeAuto')
+    case 'manual':
+      return i18ns.t('relay.allowedModelsModeManual')
+    case 'all':
+    default:
+      return i18ns.t('relay.allowedModelsModeAll')
+  }
 }
 
 const hasConfiguredValue = (value?: string | null) =>

@@ -9,13 +9,26 @@ import type {
 
 export type RelayTokenQuotaUnit = "amount" | "request" | "token";
 
+const relayChannelWithPoolInclude = {
+  poolMembers: {
+    include: { memberChannel: true },
+    orderBy: { priority: "asc" },
+  },
+} satisfies Prisma.RelayChannelInclude;
+
 export type RelayTokenWithRelations = Prisma.RelayTokenGetPayload<{
   include: {
     user: true;
-    channel: true;
+    channel: {
+      include: typeof relayChannelWithPoolInclude;
+    };
     failoverConfig: true;
     channelConfigs: {
-      include: { channel: true };
+      include: {
+        channel: {
+          include: typeof relayChannelWithPoolInclude;
+        };
+      };
       orderBy: { priority: "asc" };
     };
     quotaWindows: {
@@ -25,7 +38,11 @@ export type RelayTokenWithRelations = Prisma.RelayTokenGetPayload<{
 }>;
 
 export type RelayTokenChannelConfigWithChannel = Prisma.RelayTokenChannelConfigGetPayload<{
-  include: { channel: true };
+  include: {
+    channel: {
+      include: typeof relayChannelWithPoolInclude;
+    };
+  };
 }>;
 
 export type RelayTokenWithChannel = RelayTokenWithRelations;

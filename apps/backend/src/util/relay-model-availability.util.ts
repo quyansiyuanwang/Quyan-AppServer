@@ -1,6 +1,7 @@
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { BadRequestError, ForbiddenError } from "@/util/errors";
 import logger from "@/util/logger";
+import type { Prisma } from "@prisma/client";
 import {
   isModelIdAllowed,
   isModelNameAllowed,
@@ -20,9 +21,16 @@ export interface RelayModelFormatLike {
 
 export interface RelayChannelAccessLike {
   id?: string | null;
+  channelType?: string | null;
   allowedFormats?: string | null;
   allowedModels?: string | null;
   status?: number | null;
+  routingConfig?: Prisma.JsonValue | null;
+  poolMembers?: Array<{
+    enabled?: boolean | null;
+    memberChannelId?: string | null;
+    memberChannel?: RelayChannelAccessLike | null;
+  }> | null;
 }
 
 export interface RelayTokenAccessLike {
@@ -32,6 +40,62 @@ export interface RelayTokenAccessLike {
 
 const normalizeModelName = (value?: string | null): string => {
   return typeof value === "string" ? value.trim() : "";
+};
+
+const getRoutingConfigAllowedModelsMode = (routingConfig: Prisma.JsonValue | null | undefined): string => {
+  if (!routingConfig || typeof routingConfig !== "object" || Array.isArray(routingConfig)) return "";
+
+  const rawMode = (routingConfig as Record<string, unknown>).allowedModelsMode;
+  return typeof rawMode === "string" ? rawMode.trim() : "";
+};
+
+export const getRelayChannelAllowedModelsMode = (channel: RelayChannelAccessLike): "all" | "manual" | "auto" => {
+  const rawMode = getRoutingConfigAllowedModelsMode(channel.routingConfig);
+
+  if (channel.channelType === "pooled" && rawMode === "auto") return "auto";
+  if (rawMode === "manual") return "manual";
+  if (rawMode === "all") return "all";
+  return channel.allowedModels ? "manual" : "all";
+};
+
+const getModelNamesForFormats = (
+  modelCatalog: Array<Pick<RelayModelFormatLike, "model" | "provider" | "supportedFormats">>,
+  allowedFormats?: string | null,
+): string[] => {
+  return modelCatalog
+    .filter((model) => {
+      const modelName = normalizeModelName(model.model);
+      if (!modelName) return false;
+      return ALL_RELAY_REQUEST_FORMATS.some(
+        (format) => supportsRelayRequestFormat(allowedFormats, format) && supportsRelayRequestFormat(model.supportedFormats, format),
+      );
+    })
+    .map((model) => normalizeModelName(model.model))
+    .filter(Boolean);
+};
+
+const inferAllowedModelsFromPoolMembers = (
+  channel: RelayChannelAccessLike,
+  modelCatalog: Array<Pick<RelayModelFormatLike, "model" | "provider" | "supportedFormats">>,
+): string[] => {
+  const members = Array.isArray(channel.poolMembers) ? channel.poolMembers : [];
+  const inferred = new Set<string>();
+
+  for (const member of members) {
+    if (member?.enabled === false) continue;
+    const memberChannel = member?.memberChannel;
+    if (!memberChannel) continue;
+
+    const memberAllowedModels = parseRelayChannelAllowedModelNames(memberChannel, modelCatalog);
+    if (memberAllowedModels == null) {
+      for (const modelName of getModelNamesForFormats(modelCatalog, memberChannel.allowedFormats)) inferred.add(modelName);
+      continue;
+    }
+
+    for (const modelName of memberAllowedModels) inferred.add(modelName);
+  }
+
+  return [...inferred];
 };
 
 const formatListIncludes = (rawValue: string, requestFormat: RelayRequestFormat): boolean => {
@@ -84,9 +148,13 @@ export const requireRelayChannelForFormat = (
 
 export const parseRelayChannelAllowedModelNames = (
   channel: RelayChannelAccessLike,
-  _modelCatalog: Array<Pick<RelayModelFormatLike, "model" | "provider">>,
+  modelCatalog: Array<Pick<RelayModelFormatLike, "model" | "provider" | "supportedFormats">>,
 ): string[] | null => {
-  if (!channel.allowedModels) return null;
+  const allowedModelsMode = getRelayChannelAllowedModelsMode(channel);
+  if (allowedModelsMode === "all") return null;
+  if (allowedModelsMode === "auto") return inferAllowedModelsFromPoolMembers(channel, modelCatalog);
+
+  if (!channel.allowedModels) return [];
 
   const allowedModelNames = parseAllowedModelsJson(channel.allowedModels);
   if (!allowedModelNames) {

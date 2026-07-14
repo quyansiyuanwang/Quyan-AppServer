@@ -11,6 +11,7 @@ import type {
   RelayChannelExportItemDto,
   RelayChannelExportResponse,
   RelayChannelImportItemDto,
+  RelayChannelAllowedModelsMode,
   TimePeriodMultiplierRule,
   UpdateRelayChannelRequest,
   RelayChannelMemberDto,
@@ -43,6 +44,7 @@ import type { Request } from "express";
 
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
+const POOLED_ALLOWED_MODE_VALUES = new Set(["all", "manual", "auto"] as const);
 
 interface ValidatedRelayChannelData {
   name: string;
@@ -319,6 +321,40 @@ export class RelayChannelService {
       .sort((a, b) => a.priority - b.priority);
   }
 
+  private normalizeRoutingConfig(
+    routingConfig: RelayChannelRoutingConfigDto | null | undefined,
+    channelType: RelayChannelType,
+  ): RelayChannelRoutingConfigDto | null | undefined {
+    if (routingConfig === undefined) return undefined;
+    if (routingConfig === null) return null;
+
+    const normalized: RelayChannelRoutingConfigDto = { ...routingConfig };
+
+    if (Object.prototype.hasOwnProperty.call(normalized, "healthScoreThreshold")) {
+      normalized.healthScoreThreshold =
+        normalized.healthScoreThreshold === null ? null : Number(normalized.healthScoreThreshold);
+    }
+    if (Object.prototype.hasOwnProperty.call(normalized, "latencyThresholdMs")) {
+      normalized.latencyThresholdMs = normalized.latencyThresholdMs === null ? null : Number(normalized.latencyThresholdMs);
+    }
+    if (Object.prototype.hasOwnProperty.call(normalized, "circuitBreakerThreshold")) {
+      normalized.circuitBreakerThreshold =
+        normalized.circuitBreakerThreshold === null ? null : Number(normalized.circuitBreakerThreshold);
+    }
+
+    const rawAllowedModelsMode = typeof normalized.allowedModelsMode === "string" ? normalized.allowedModelsMode.trim() : undefined;
+    if (rawAllowedModelsMode && !POOLED_ALLOWED_MODE_VALUES.has(rawAllowedModelsMode as "all" | "manual" | "auto"))
+      throw new BadRequestError(`Invalid allowedModelsMode '${rawAllowedModelsMode}'`);
+
+    if (channelType !== "pooled") {
+      delete normalized.allowedModelsMode;
+      return normalized;
+    }
+
+    if (rawAllowedModelsMode) normalized.allowedModelsMode = rawAllowedModelsMode as RelayChannelAllowedModelsMode;
+    return normalized;
+  }
+
   private assertNoSelfReference(channelId: string | undefined, members?: RelayChannelMemberDto[] | null): void {
     if (!channelId || !members) return;
     if (members.some((member) => member.memberChannelId === channelId)) {
@@ -404,6 +440,7 @@ export class RelayChannelService {
     this.assertNoSelfReference(existing?.id, poolMembers);
     const isCreate = !existing;
     const wasPooled = existing?.channelType === "pooled";
+    const normalizedRoutingConfig = this.normalizeRoutingConfig(routingConfig, channelType);
 
     const openaiUpstreamUrl =
       data.openaiUpstreamUrl !== undefined ? data.openaiUpstreamUrl : existing?.openaiUpstreamUrl || undefined;
@@ -495,7 +532,7 @@ export class RelayChannelService {
       name,
       channelType,
       routingStrategy,
-      routingConfig,
+      routingConfig: normalizedRoutingConfig,
       visibilityMode,
       visibilityConfig,
       poolMembers,
