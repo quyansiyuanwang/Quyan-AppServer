@@ -33,7 +33,6 @@ import {
   RelayAvailableModelsMapDto,
   RelayTokenSwitchLogsDto,
   RelayTokenAvailableModelsDto,
-  RelayTokenAvailableModelsPreviewRequest,
 } from "@/api/dto/relay/relay.dto";
 import { NotFoundError, BadRequestError, ForbiddenError } from "@/util/errors";
 import { resolveModelId } from "@/util/model-resolution.util";
@@ -52,7 +51,7 @@ import type {
   RelayTokenUsageSummaryTarget,
   RelayTokenWithRelations,
 } from "@/store/relay/relay-token.store";
-import { RelayProxyService, type RelayTokenAvailabilityInput } from "@/services/relay/relay-proxy.service";
+import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 import { BalanceRepository } from "@/store/billing/balance.repository";
 import type { BalanceStore } from "@/store/billing/balance.store";
 import {
@@ -593,11 +592,16 @@ export class RelayTokenService {
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
 
-    const normalizedConfig = await this.normalizeChannelConfiguration(
-      actorUserId,
-      data.channelId ?? token.channelId ?? undefined,
-      data.channelConfigs,
-    );
+    const hasChannelId = Object.prototype.hasOwnProperty.call(data, "channelId");
+    const hasChannelConfigs = Object.prototype.hasOwnProperty.call(data, "channelConfigs");
+    const hasRoutingUpdate = hasChannelId || hasChannelConfigs;
+    const normalizedConfig = hasRoutingUpdate
+      ? await this.normalizeChannelConfiguration(
+          actorUserId,
+          data.channelId ?? token.channelId ?? undefined,
+          data.channelConfigs,
+        )
+      : null;
     const hasName = Object.prototype.hasOwnProperty.call(data, "name");
     const hasExpiresAt = Object.prototype.hasOwnProperty.call(data, "expiresAt");
     const hasQuotaWindows = Object.prototype.hasOwnProperty.call(data, "quotaWindows");
@@ -630,8 +634,8 @@ export class RelayTokenService {
         ? this.normalizeOptionalIpWhitelist(data.ipWhitelist)
         : undefined,
       modelMapping: hasModelMapping ? (data.modelMapping ?? null) : undefined,
-      channelId: normalizedConfig.defaultChannelId,
-      channelConfigs: normalizedConfig.channelConfigs,
+      channelId: normalizedConfig?.defaultChannelId,
+      channelConfigs: normalizedConfig?.channelConfigs,
       failoverConfig: data.failoverConfig,
     });
     const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
@@ -1126,32 +1130,6 @@ export class RelayTokenService {
     const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
 
     return this.relayProxyService.getAvailableModelMapForToken(token);
-  }
-
-  async previewTokenAvailableModels(
-    actorUserId: string,
-    data: RelayTokenAvailableModelsPreviewRequest,
-  ): Promise<RelayTokenAvailableModelsDto> {
-    await this.resolveManagedUserId(actorUserId, data.targetUserId);
-    const normalizedConfig = await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
-    const channels = await Promise.all(
-      normalizedConfig.channelConfigs.map((config) =>
-        this.relayChannelService.assertChannelAccessibleById(config.channelId, actorUserId),
-      ),
-    );
-    const channelById = new Map(channels.map((channel) => [channel.id, channel]));
-    const availabilityInput: RelayTokenAvailabilityInput = {
-      allowedModels: data.allowedModels ?? null,
-      modelMapping: data.modelMapping ?? null,
-      channel: channelById.get(normalizedConfig.defaultChannelId) ?? null,
-      channelConfigs: normalizedConfig.channelConfigs.map((config) => ({
-        priority: config.priority,
-        channel: channelById.get(config.channelId) ?? null,
-      })),
-      failoverConfig: data.failoverConfig,
-    };
-
-    return this.relayProxyService.getAvailableModelMapForToken(availabilityInput);
   }
 
   private toDto(

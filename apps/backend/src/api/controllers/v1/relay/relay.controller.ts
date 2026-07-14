@@ -38,7 +38,6 @@ import type {
   RelayAvailableModelsMapDto,
   RelayTokenSwitchLogsDto,
   RelayTokenAvailableModelsDto,
-  RelayTokenAvailableModelsPreviewRequest,
 } from "@/api/dto/relay/relay.dto";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
@@ -57,7 +56,6 @@ import {
   relayTokenSwitchLogsQuerySchema,
   relayTokenUsageQuerySchema,
   relayTokenUsageSummaryQuerySchema,
-  relayTokenAvailableModelsPreviewBodySchema,
   updateRelayTokenBodySchema,
   updateRelayTokenChannelBodySchema,
 } from "@/api/schema/relay/relay.schema";
@@ -368,17 +366,6 @@ export class RelayController extends Controller {
   @RequirePermission(Permission.RELAY_TOKEN_READ)
   async getAvailableModels(): Promise<RelayAvailableModelsMapDto> {
     return this.relayTokenService.getAvailableModels();
-  }
-
-  @Post("tokens/available-models/preview")
-  @Security("jwt")
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
-  @Middlewares(validateBody(relayTokenAvailableModelsPreviewBodySchema))
-  async previewTokenAvailableModels(
-    @Body() body: RelayTokenAvailableModelsPreviewRequest,
-    @Request() request: TypedRequest,
-  ): Promise<RelayTokenAvailableModelsDto> {
-    return this.relayTokenService.previewTokenAvailableModels(request.user!.userId, body);
   }
 
   @Get("tokens/{id}/switch-logs")

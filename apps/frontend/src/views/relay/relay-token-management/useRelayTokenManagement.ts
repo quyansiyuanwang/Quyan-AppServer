@@ -1004,7 +1004,8 @@ export const useRelayTokenManagement = () => {
       quotaLimit: token.quotaLimit ?? null,
       allowedModels: token.allowedModels || null,
       ipWhitelist: token.ipWhitelist || null,
-      status: token.status,
+      modelMapping: token.modelMapping || undefined,
+      enabled: token.status === MANAGED_STATUS.ENABLED,
       channelConfigs: (token.channelConfigs || []).map((config) => ({
         channelId: config.channelId,
         priority: config.priority,
