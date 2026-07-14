@@ -68,7 +68,10 @@ export const preloadResolvedRouteComponents = async (
   await preloadRouteComponents(resolved.matched)
 }
 
-export const preloadRouteLocation = async (router: Router, target: RouteLocationRaw): Promise<void> => {
+export const preloadRouteLocation = async (
+  router: Router,
+  target: RouteLocationRaw,
+): Promise<void> => {
   await preloadResolvedRouteComponents(router.resolve(target))
 }
 
