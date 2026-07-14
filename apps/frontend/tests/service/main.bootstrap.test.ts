@@ -10,6 +10,7 @@ const resetCurrentStorageScopeMock = vi.fn()
 const useMock = vi.fn()
 const mountMock = vi.fn()
 const directiveMock = vi.fn()
+const queueBusinessRoutePreloadMock = vi.fn()
 
 vi.mock('vue', () => ({
   createApp: vi.fn(() => ({
@@ -29,6 +30,10 @@ vi.mock('@/App.vue', () => ({
 
 vi.mock('@/router', () => ({
   default: { __router: true },
+}))
+
+vi.mock('@/router/preload', () => ({
+  queueBusinessRoutePreload: queueBusinessRoutePreloadMock,
 }))
 
 vi.mock('@/locales', () => ({
@@ -77,8 +82,13 @@ describe('main bootstrap impersonation restore', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    vi.useFakeTimers()
     localStorage.clear()
     sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('restores impersonation scope and expiry handler instead of clearing the session', async () => {
@@ -102,5 +112,18 @@ describe('main bootstrap impersonation restore', () => {
     expect(resetCurrentStorageScopeMock).not.toHaveBeenCalled()
     expect(registerExpiryHandlerOnRestoreMock).toHaveBeenCalledTimes(1)
     expect(localStorage.getItem(StorageKey.Impersonation.SESSION_INFO)).not.toBeNull()
+  })
+
+  it('queues business route preloading after restoring a valid session', async () => {
+    bootstrapSessionMock.mockResolvedValueOnce('access-token')
+
+    const { bootstrapApp } = await import('@/bootstrap')
+    await bootstrapApp()
+    await vi.advanceTimersByTimeAsync(2400)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(bootstrapSessionMock).toHaveBeenCalledTimes(1)
+    expect(queueBusinessRoutePreloadMock).toHaveBeenCalledWith({ __router: true })
   })
 })
