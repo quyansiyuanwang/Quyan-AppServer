@@ -288,9 +288,15 @@
       <el-form-item :label="i18ns.t('relay.allowedModelsChannel')">
         <template v-if="channelForm.channelType === 'pooled'">
           <el-radio-group v-model="channelForm.pooledAllowedModelsMode" style="margin-bottom: 12px">
-            <el-radio-button label="all">{{ i18ns.t('relay.allowedModelsModeAll') }}</el-radio-button>
-            <el-radio-button label="auto">{{ i18ns.t('relay.allowedModelsModeAuto') }}</el-radio-button>
-            <el-radio-button label="manual">{{ i18ns.t('relay.allowedModelsModeManual') }}</el-radio-button>
+            <el-radio-button label="all">{{
+              i18ns.t('relay.allowedModelsModeAll')
+            }}</el-radio-button>
+            <el-radio-button label="auto">{{
+              i18ns.t('relay.allowedModelsModeAuto')
+            }}</el-radio-button>
+            <el-radio-button label="manual">{{
+              i18ns.t('relay.allowedModelsModeManual')
+            }}</el-radio-button>
           </el-radio-group>
           <el-select
             v-if="channelForm.pooledAllowedModelsMode === 'manual'"
@@ -781,12 +787,14 @@
                 v-if="getChannelAllowedModelsMode(currentChannelDetail) === 'auto'"
                 type="warning"
                 size="small"
-              >{{ i18ns.t('relay.allowedModelsModeAuto') }}</el-tag>
+                >{{ i18ns.t('relay.allowedModelsModeAuto') }}</el-tag
+              >
               <el-tag
                 v-else-if="getChannelAllowedModelsMode(currentChannelDetail) === 'all'"
                 type="info"
                 size="small"
-              >{{ i18ns.t('relay.allModels') }}</el-tag>
+                >{{ i18ns.t('relay.allModels') }}</el-tag
+              >
               <template v-else-if="parseAllowedModels(currentChannelDetail.allowedModels).length">
                 <el-tag
                   v-for="model in parseAllowedModels(currentChannelDetail.allowedModels)"

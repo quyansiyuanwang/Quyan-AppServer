@@ -632,11 +632,7 @@ describe("RelayProxyService failover", () => {
       },
     });
     const { service } = createService();
-    const randomSpy = vi
-      .spyOn(Math, "random")
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0);
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValueOnce(0);
 
     try {
       const result = await (service as any).buildAttemptPlan(relayToken);

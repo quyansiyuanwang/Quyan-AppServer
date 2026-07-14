@@ -335,14 +335,16 @@ export class RelayChannelService {
         normalized.healthScoreThreshold === null ? null : Number(normalized.healthScoreThreshold);
     }
     if (Object.prototype.hasOwnProperty.call(normalized, "latencyThresholdMs")) {
-      normalized.latencyThresholdMs = normalized.latencyThresholdMs === null ? null : Number(normalized.latencyThresholdMs);
+      normalized.latencyThresholdMs =
+        normalized.latencyThresholdMs === null ? null : Number(normalized.latencyThresholdMs);
     }
     if (Object.prototype.hasOwnProperty.call(normalized, "circuitBreakerThreshold")) {
       normalized.circuitBreakerThreshold =
         normalized.circuitBreakerThreshold === null ? null : Number(normalized.circuitBreakerThreshold);
     }
 
-    const rawAllowedModelsMode = typeof normalized.allowedModelsMode === "string" ? normalized.allowedModelsMode.trim() : undefined;
+    const rawAllowedModelsMode =
+      typeof normalized.allowedModelsMode === "string" ? normalized.allowedModelsMode.trim() : undefined;
     if (rawAllowedModelsMode && !POOLED_ALLOWED_MODE_VALUES.has(rawAllowedModelsMode as "all" | "manual" | "auto"))
       throw new BadRequestError(`Invalid allowedModelsMode '${rawAllowedModelsMode}'`);
 

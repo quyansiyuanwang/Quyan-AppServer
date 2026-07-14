@@ -99,13 +99,15 @@ export class ChatService {
 
     return Array.isArray((assignedChannel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
       ? (
-          (assignedChannel as RelayChannel & {
-            poolMembers?: Array<{
-              enabled?: boolean;
-              priority: number;
-              memberChannel?: RelayChannel | null;
-            }>;
-          }).poolMembers ?? []
+          (
+            assignedChannel as RelayChannel & {
+              poolMembers?: Array<{
+                enabled?: boolean;
+                priority: number;
+                memberChannel?: RelayChannel | null;
+              }>;
+            }
+          ).poolMembers ?? []
         )
           .filter((member) => member.enabled !== false && member.memberChannel)
           .filter((member) => member.memberChannel?.status === 1)
@@ -124,7 +126,9 @@ export class ChatService {
     const candidateChannels = this.getCandidateChatChannels(token);
 
     if (candidateChannels.length === 0)
-      throw new BadRequestError("No relay channel assigned to this relay token. Please assign a channel before using chat.");
+      throw new BadRequestError(
+        "No relay channel assigned to this relay token. Please assign a channel before using chat.",
+      );
 
     for (const requestFormat of orderedFormats) {
       for (const channel of candidateChannels) {

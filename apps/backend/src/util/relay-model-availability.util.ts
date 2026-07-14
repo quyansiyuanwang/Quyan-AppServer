@@ -67,7 +67,9 @@ const getModelNamesForFormats = (
       const modelName = normalizeModelName(model.model);
       if (!modelName) return false;
       return ALL_RELAY_REQUEST_FORMATS.some(
-        (format) => supportsRelayRequestFormat(allowedFormats, format) && supportsRelayRequestFormat(model.supportedFormats, format),
+        (format) =>
+          supportsRelayRequestFormat(allowedFormats, format) &&
+          supportsRelayRequestFormat(model.supportedFormats, format),
       );
     })
     .map((model) => normalizeModelName(model.model))
@@ -88,7 +90,8 @@ const inferAllowedModelsFromPoolMembers = (
 
     const memberAllowedModels = parseRelayChannelAllowedModelNames(memberChannel, modelCatalog);
     if (memberAllowedModels == null) {
-      for (const modelName of getModelNamesForFormats(modelCatalog, memberChannel.allowedFormats)) inferred.add(modelName);
+      for (const modelName of getModelNamesForFormats(modelCatalog, memberChannel.allowedFormats))
+        inferred.add(modelName);
       continue;
     }
 

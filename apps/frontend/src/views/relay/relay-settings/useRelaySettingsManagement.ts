@@ -1227,7 +1227,9 @@ export const useRelaySettingsManagement = () => {
     payload.circuitBreakerThreshold = toNullableThresholdPayload(config.circuitBreakerThreshold)
 
     if (channelForm.value.channelType === 'pooled') {
-      payload.allowedModelsMode = normalizeAllowedModelsMode(channelForm.value.pooledAllowedModelsMode)
+      payload.allowedModelsMode = normalizeAllowedModelsMode(
+        channelForm.value.pooledAllowedModelsMode,
+      )
     }
 
     if (config.stickyByModel === true) payload.stickyByModel = true
@@ -1347,7 +1349,10 @@ export const useRelaySettingsManagement = () => {
     }
 
     const routingConfig = (row.routingConfig || null) as RelayChannelRoutingConfigFormDto | null
-    return normalizeAllowedModelsMode(routingConfig?.allowedModelsMode, row.allowedModels ? 'manual' : 'all')
+    return normalizeAllowedModelsMode(
+      routingConfig?.allowedModelsMode,
+      row.allowedModels ? 'manual' : 'all',
+    )
   }
 
   const getChannelAllowedModelsSummary = (

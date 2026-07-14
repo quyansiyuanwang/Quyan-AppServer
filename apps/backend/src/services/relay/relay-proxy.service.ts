@@ -1466,7 +1466,10 @@ export class RelayProxyService {
       ? Math.max(1, Math.min(orderedMembers.length, Math.floor(rawMaxRetries) + 1))
       : orderedMembers.length;
 
-    return orderedMembers.slice(0, maxAttempts).map((member) => member.memberChannel!).filter(Boolean);
+    return orderedMembers
+      .slice(0, maxAttempts)
+      .map((member) => member.memberChannel!)
+      .filter(Boolean);
   }
 
   private getPoolFailoverRuntimeConfig(channel: RelayChannel, poolSize: number): RelayFailoverRuntimeConfig {
