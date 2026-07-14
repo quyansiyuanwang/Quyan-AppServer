@@ -114,10 +114,7 @@ export class RelayChannelService {
           channel.id,
           resolverContext,
         );
-        const modelCapabilities = new Map<
-          string,
-          RelayChannelOptionDto["modelCapabilities"][number]
-        >();
+        const modelCapabilities = new Map<string, RelayChannelOptionDto["modelCapabilities"][number]>();
         for (const capability of resolvedCapabilities) {
           const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
           const existing = modelCapabilities.get(key);

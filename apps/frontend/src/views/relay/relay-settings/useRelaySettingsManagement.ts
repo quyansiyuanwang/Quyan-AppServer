@@ -1355,9 +1355,7 @@ export const useRelaySettingsManagement = () => {
     )
   }
 
-  const getChannelAllowedModelsSummary = (
-    row: Pick<RelayChannelDto, 'allowedModels'>,
-  ) => {
+  const getChannelAllowedModelsSummary = (row: Pick<RelayChannelDto, 'allowedModels'>) => {
     if (row.allowedModels.length === 0) return i18ns.t('relay.noModels')
     return i18ns.t('relay.modelsCount', { count: row.allowedModels.length })
   }
@@ -1629,7 +1627,9 @@ export const useRelaySettingsManagement = () => {
       allowedFormats: normalizeSupportedFormats(row.allowedFormats || 'all'),
       allowedModelsArray: parsedModels,
       restrictModels:
-        !isPooledChannel && row.configuredAllowedModels !== null && row.configuredAllowedModels !== undefined,
+        !isPooledChannel &&
+        row.configuredAllowedModels !== null &&
+        row.configuredAllowedModels !== undefined,
       inputTokensIncludeCacheRead: row.inputTokensIncludeCacheRead === true,
       modelMapping: (row.modelMapping as Record<string, string>) || {},
       timePeriodMultipliers: row.timePeriodMultipliers || [],

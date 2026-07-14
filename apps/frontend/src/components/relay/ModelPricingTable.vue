@@ -919,7 +919,10 @@ const getTooltipMultiplier = (_item: PricingModelRow, channel: RelayChannelOptio
   return channel.multiplier ?? 1
 }
 
-const getTooltipMultiplierLabel = (item: PricingModelRow, channel: RelayChannelOptionDto): string => {
+const getTooltipMultiplierLabel = (
+  item: PricingModelRow,
+  channel: RelayChannelOptionDto,
+): string => {
   return formatMultiplier(getTooltipMultiplier(item, channel))
 }
 

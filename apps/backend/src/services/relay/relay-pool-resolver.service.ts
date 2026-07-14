@@ -1,9 +1,5 @@
 import type { Prisma, RelayChannel } from "@prisma/client";
-import {
-  parseRelayModelNameConstraint,
-  resolveModelId,
-  type RelayRequestFormat,
-} from "@appserver/shared";
+import { parseRelayModelNameConstraint, resolveModelId, type RelayRequestFormat } from "@appserver/shared";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { BadRequestError } from "@/util/errors";
 import logger from "@/util/logger";
@@ -84,13 +80,7 @@ export class RelayPoolResolverService {
     const channel = context.graph.get(channelId);
     if (!channel) return [];
 
-    const paths = await this.resolveLeafPaths(
-      channel,
-      context.graph,
-      this.initialConstraints(),
-      undefined,
-      new Set(),
-    );
+    const paths = await this.resolveLeafPaths(channel, context.graph, this.initialConstraints(), undefined, new Set());
     const capabilities = new Map<string, RelayChannelModelCapability>();
 
     for (const path of paths) {
@@ -147,13 +137,7 @@ export class RelayPoolResolverService {
       if (!root?.id) continue;
       const channel = graph.get(root.id);
       if (!channel) continue;
-      const resolved = await this.resolveLeafPaths(
-        channel,
-        graph,
-        this.initialConstraints(),
-        orderMembers,
-        new Set(),
-      );
+      const resolved = await this.resolveLeafPaths(channel, graph, this.initialConstraints(), orderMembers, new Set());
       for (const path of resolved) {
         const leaf = this.applyConstraints(path.channel, path.constraints);
         const existing = leaves.get(leaf.id);
@@ -222,9 +206,7 @@ export class RelayPoolResolverService {
     for (const member of orderedMembers) {
       const memberChannel = graph.get(member.memberChannelId);
       if (!memberChannel || memberChannel.status !== RELAY_CHANNEL_STATUS.ENABLED) continue;
-      leaves.push(
-        ...(await this.resolveLeafPaths(memberChannel, graph, constraints, orderMembers, nextAncestors)),
-      );
+      leaves.push(...(await this.resolveLeafPaths(memberChannel, graph, constraints, orderMembers, nextAncestors)));
     }
 
     return leaves;

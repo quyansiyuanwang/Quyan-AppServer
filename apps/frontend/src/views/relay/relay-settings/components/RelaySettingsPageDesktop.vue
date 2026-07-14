@@ -661,11 +661,7 @@
                   <el-tag v-if="row.allowedModels.length === 0" type="danger" size="small">
                     {{ i18ns.t('relay.noModels') }}
                   </el-tag>
-                  <el-tooltip
-                    v-else
-                    :content="row.allowedModels.join(', ')"
-                    placement="top"
-                  >
+                  <el-tooltip v-else :content="row.allowedModels.join(', ')" placement="top">
                     <el-tag type="primary" size="small">
                       {{ getChannelAllowedModelsSummary(row) }}
                     </el-tag>

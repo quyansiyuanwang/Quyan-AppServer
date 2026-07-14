@@ -700,8 +700,8 @@ export const useRelayTokenManagement = () => {
       )
 
     // Keep saved choices visible while editing even if their channel is no longer available.
-    return [...new Set([...resolvedModels, ...editForm.value.allowedModelIdsList])].sort((left, right) =>
-      left.localeCompare(right),
+    return [...new Set([...resolvedModels, ...editForm.value.allowedModelIdsList])].sort(
+      (left, right) => left.localeCompare(right),
     )
   })
 
@@ -730,9 +730,7 @@ export const useRelayTokenManagement = () => {
   }
 
   watch(
-    () => [
-      editForm.value.channelConfigs.map((config) => config.channelId).join(','),
-    ],
+    () => [editForm.value.channelConfigs.map((config) => config.channelId).join(',')],
     () => {
       editForm.value.channelId = editForm.value.channelConfigs[0]?.channelId || ''
       syncTokenChannelBatchAddIds()

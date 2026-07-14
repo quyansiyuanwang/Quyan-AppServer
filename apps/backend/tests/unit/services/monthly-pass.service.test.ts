@@ -408,16 +408,7 @@ describe("MonthlyPassService channel pool coverage", () => {
     resolveActiveLeaves: vi.fn(),
   };
   const MonthlyPassServiceCtor = MonthlyPassService as unknown as new (...args: any[]) => MonthlyPassService;
-  const service = new MonthlyPassServiceCtor(
-    monthlyPassRepository,
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    relayPoolResolver,
-  );
+  const service = new MonthlyPassServiceCtor(monthlyPassRepository, {}, {}, {}, {}, {}, {}, relayPoolResolver);
 
   const activePass = {
     id: "pass-1",
