@@ -4,6 +4,7 @@ import type { RouteRecordRaw } from 'vue-router'
 
 import App from '@/App.vue'
 import router from '@/router'
+import { queueBusinessRoutePreload } from '@/router/preload'
 import { routes } from '@/router/routes'
 import { i18ns, initializeI18n } from '@/locales'
 import { configureAll } from '@/config'
@@ -144,7 +145,10 @@ export const bootstrapApp = async () => {
     scheduleAfterLoad(
       () => {
         void import('@/service/authorizationService')
-          .then(({ authorizationService }) => authorizationService.bootstrapSession())
+          .then(async ({ authorizationService }) => {
+            const token = await authorizationService.bootstrapSession()
+            if (token) queueBusinessRoutePreload(router)
+          })
           .catch((error) => {
             console.warn('[bootstrap] Failed to restore heartbeat session:', error)
           })

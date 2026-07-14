@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
+import { queueBusinessRoutePreload } from './preload'
 import { routes } from './routes'
 import { globalEventBus } from '@/stores/globalInstance'
 import { usePermissionStore } from '@/stores/permissionStore'
@@ -123,6 +124,10 @@ router.beforeEach(async (to, from, next) => {
 
 router.afterEach((to, from) => {
   if (isAuthEntryRoute(to)) return
+
+  scheduleAnalyticsTrack(() => {
+    queueBusinessRoutePreload(router)
+  })
 
   scheduleAnalyticsTrack(() => {
     void import('@/utils/tracker')
