@@ -213,8 +213,8 @@ export class RelayChannelService {
     throw new BadRequestError("Unable to generate a unique relay channel name");
   }
 
-  private async getVisibleNameSet(): Promise<Set<string>> {
-    const channels = await this.relayChannelRepository.listVisible();
+  private async getVisibleNameSet(tx?: Parameters<RelayChannelStore["listVisible"]>[0]): Promise<Set<string>> {
+    const channels = await this.relayChannelRepository.listVisible(tx);
     return new Set(channels.map((channel) => channel.name));
   }
 
@@ -898,8 +898,33 @@ export class RelayChannelService {
     request?: Request,
   ): Promise<ImportRelayChannelsResponse> {
     const createdChannels = await this.relayChannelRepository.withTransaction(async (tx) => {
-      const reservedNames = await this.getVisibleNameSet();
-      const items: RelayChannel[] = [];
+      const sourceIds = body.channels.map((item) => item.id).filter((id): id is string => Boolean(id));
+      const hasSourceIds = sourceIds.length > 0;
+      if (hasSourceIds && sourceIds.length !== body.channels.length) {
+        throw new BadRequestError("Imported relay channels must either all include source IDs or all omit them");
+      }
+      if (new Set(sourceIds).size !== sourceIds.length) {
+        throw new BadRequestError("Imported relay channel source IDs must be unique");
+      }
+
+      const sourceIdSet = new Set(sourceIds);
+      if (hasSourceIds) {
+        for (const item of body.channels) {
+          for (const member of item.poolMembers ?? []) {
+            if (!sourceIdSet.has(member.memberChannelId)) {
+              throw new BadRequestError("Imported pooled channel member was not found in the import payload");
+            }
+          }
+        }
+      }
+
+      const reservedNames = await this.getVisibleNameSet(tx);
+      const importedChannels: Array<{
+        created: RelayChannel;
+        channelType: RelayChannelType;
+        poolMembers?: RelayChannelMemberDto[] | null;
+      }> = [];
+      const importedChannelIds = new Map<string, string>();
 
       for (const item of body.channels) {
         const preferredName = item.name.trim();
@@ -919,11 +944,23 @@ export class RelayChannelService {
           },
           tx,
         );
-        await this.syncPoolMembers(created.id, validated.channelType, validated.poolMembers, tx);
-        items.push(created);
+        if (item.id) importedChannelIds.set(item.id, created.id);
+        importedChannels.push({
+          created,
+          channelType: validated.channelType,
+          poolMembers: validated.poolMembers,
+        });
       }
 
-      return items;
+      for (const importedChannel of importedChannels) {
+        const poolMembers = importedChannel.poolMembers?.map((member) => ({
+          ...member,
+          memberChannelId: importedChannelIds.get(member.memberChannelId) ?? member.memberChannelId,
+        }));
+        await this.syncPoolMembers(importedChannel.created.id, importedChannel.channelType, poolMembers, tx);
+      }
+
+      return importedChannels.map(({ created }) => created);
     });
 
     await this.businessLogService.logOperation({

@@ -142,6 +142,7 @@ export const importRelayChannelsBodySchema = z.object({
   channels: z
     .array(
       relayChannelBaseSchema.extend({
+        id: z.string().trim().min(1).optional(),
         enabled: z.coerce.boolean().optional(),
       }),
     )

@@ -32386,6 +32386,10 @@
 						"nullable": true,
 						"description": "时段倍率规则"
 					},
+					"id": {
+						"type": "string",
+						"description": "Export source channel ID, used only to remap pooled members during import."
+					},
 					"enabled": {
 						"type": "boolean",
 						"description": "导入后是否启用，默认启用"

@@ -384,6 +384,43 @@ describe("RelayChannelService", () => {
     expect(relayChannelRepository.replaceMembersByChannelId).not.toHaveBeenCalled();
   });
 
+  it("remaps imported pooled members to newly created channel IDs", async () => {
+    relayChannelRepository.create
+      .mockResolvedValueOnce({ ...sampleChannel, id: "target-pool", name: "Pool", channelType: "pooled" })
+      .mockResolvedValueOnce({ ...sampleChannel, id: "target-member", name: "Member" });
+    relayChannelRepository.listVisibleByIds.mockImplementation(async (ids: string[]) =>
+      ids.map((id) => ({ ...sampleChannel, id })),
+    );
+
+    await service.importChannels(
+      {
+        channels: [
+          {
+            id: "source-pool",
+            name: "Pool",
+            channelType: "pooled",
+            allowedFormats: "openai",
+            poolMembers: [{ memberChannelId: "source-member", priority: 1, weight: 1, enabled: true }],
+          },
+          {
+            id: "source-member",
+            name: "Member",
+            openaiUpstreamUrl: "https://upstream.example.com",
+            openaiUpstreamApiKey: "openai-key",
+            allowedFormats: "openai",
+          },
+        ],
+      },
+      "actor-user",
+    );
+
+    expect(relayChannelRepository.replaceMembersByChannelId).toHaveBeenCalledWith(
+      "target-pool",
+      [{ memberChannelId: "target-member", priority: 1, weight: 1, enabled: true }],
+      transactionClient,
+    );
+  });
+
   it("throws NotFoundError on update for missing channel", async () => {
     relayChannelRepository.findVisibleById.mockResolvedValue(null);
 
