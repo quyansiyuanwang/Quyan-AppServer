@@ -41,6 +41,7 @@ const routingStrategySchema = z.enum([
   "health-priority",
   "latency-priority",
 ]);
+const allowedModelsModeSchema = z.enum(["all", "manual", "auto"]);
 const visibilityModeSchema = z.enum(["public", "private", "whitelist"]);
 
 const relayChannelMemberSchema = z.object({
@@ -59,9 +60,10 @@ const routingConfigSchema = z
       .array(z.union([z.coerce.number().int().min(100).max(599), z.string().trim().min(1)]))
       .optional(),
     failbackCooldownMinutes: z.coerce.number().int().min(0).max(10080).optional(),
-    healthScoreThreshold: z.coerce.number().min(0).max(1).optional(),
-    latencyThresholdMs: z.coerce.number().int().min(0).max(600000).optional(),
-    circuitBreakerThreshold: z.coerce.number().int().min(0).max(1000).optional(),
+    healthScoreThreshold: z.coerce.number().min(0).max(1).nullable().optional(),
+    latencyThresholdMs: z.coerce.number().int().min(0).max(600000).nullable().optional(),
+    circuitBreakerThreshold: z.coerce.number().int().min(0).max(1000).nullable().optional(),
+    allowedModelsMode: allowedModelsModeSchema.optional(),
     stickyByModel: z.coerce.boolean().optional(),
     stickyByFormat: z.coerce.boolean().optional(),
   })

@@ -957,9 +957,18 @@
                       >{{ i18ns.t('relay.allowedModelsChannel') }}</span
                     >
                     <div class="flex flex-wrap gap-2">
-                      <el-tag v-if="!row.allowedModels" type="info" size="small">{{
-                        i18ns.t('relay.allModels')
-                      }}</el-tag>
+                      <el-tag
+                        v-if="getChannelAllowedModelsMode(row) === 'auto'"
+                        type="warning"
+                        size="small"
+                        >{{ i18ns.t('relay.allowedModelsModeAutoShort') }}</el-tag
+                      >
+                      <el-tag
+                        v-else-if="getChannelAllowedModelsMode(row) === 'all'"
+                        type="info"
+                        size="small"
+                        >{{ i18ns.t('relay.allModels') }}</el-tag
+                      >
                       <el-tag
                         v-else-if="parseAllowedModels(row.allowedModels).length === 0"
                         type="danger"
@@ -972,8 +981,7 @@
                         placement="top"
                       >
                         <el-tag type="primary" size="small">
-                          {{ parseAllowedModels(row.allowedModels).length }}
-                          {{ i18ns.t('relay.modelsCount') }}
+                          {{ getChannelAllowedModelsSummary(row) }}
                         </el-tag>
                       </el-tooltip>
                     </div>
@@ -1130,6 +1138,8 @@ const {
   formatVisibilityModeLabel,
   getVisibilitySummary,
   getPoolMembersSummary,
+  getChannelAllowedModelsMode,
+  getChannelAllowedModelsSummary,
   togglingChannelId,
   handleToggleChannelStatus,
   openChannelDetailDialog,

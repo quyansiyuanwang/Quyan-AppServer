@@ -112,6 +112,13 @@ export class AuthService {
     };
   }
 
+  private canWriteResponseCookies(request?: Request): boolean {
+    if (!request?.res) return false;
+    if (request.res.headersSent) return false;
+    if (request.res.writableEnded) return false;
+    return true;
+  }
+
   public async issueReplaySigningSession(request?: Request): Promise<ReplaySigningSessionData> {
     if (!this.redisService.isRedisAvailable()) throw createReplayProtectionUnavailableError();
 
@@ -324,7 +331,9 @@ export class AuthService {
       status: user.status,
     });
 
-    if (request) {
+    const canWriteCookies = this.canWriteResponseCookies(request);
+
+    if (canWriteCookies && request) {
       setRefreshTokenCookie(request, refreshToken);
       setAuthSessionIdCookie(request);
     } else authData.refresh_token = refreshToken;
@@ -339,7 +348,7 @@ export class AuthService {
 
       const oneTimeToken = await this.twoFactorService.createOneTimeTrustedToken(user.id, 30);
 
-      if (request && trustedGrant)
+      if (canWriteCookies && request && trustedGrant)
         setTrustedDeviceTokenCookie(request, trustedGrant.trustedDeviceToken, trustedGrant.expiresIn);
 
       if (trustedGrant)

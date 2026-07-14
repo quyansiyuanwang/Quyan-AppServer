@@ -390,7 +390,7 @@
 
 <script setup lang="ts">
 import { usePageDevice } from '@/composables/usePageDevice'
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
 import AccessKeyManagementView from './AccessKeyManagementView.vue'

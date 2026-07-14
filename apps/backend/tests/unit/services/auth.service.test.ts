@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import { AuthService } from "../../../src/services/auth/auth.service";
 import { prisma } from "../../../src/config/database";
 import { hashPassword } from "../../../src/util/crypto";
 import { UnauthorizedError } from "../../../src/util/errors";
 import { JWTAccessIns, JWTRefreshIns } from "../../../src/util/auth";
 import { RedisService } from "../../../src/services/infrastructure/redis.service";
+import type { Request, Response } from "express";
 
 const redisService = RedisService.getInstance();
 
@@ -222,6 +223,33 @@ describe("认证服务测试", () => {
       // 4. 验证新的访问令牌
       const newVerifyResult = await authService.verify(refreshResult.access_token);
       expect(newVerifyResult.userId).toBe(testUser.id);
+    });
+  });
+
+  describe("已发送响应头场景", () => {
+    it("应该在 headersSent=true 时避免写入 cookie 并回退返回 refresh_token", async () => {
+      const cookieSpy = vi.fn();
+      const clearCookieSpy = vi.fn();
+
+      const request = {
+        ip: "127.0.0.1",
+        headers: {
+          "user-agent": "vitest",
+        },
+        res: {
+          headersSent: true,
+          writableEnded: false,
+          cookie: cookieSpy,
+          clearCookie: clearCookieSpy,
+        } as unknown as Response,
+      } as unknown as Request;
+
+      const result = await authService.login("test_auth_user", "test_password_123", request);
+      const authData = requireTokenAuthData(result);
+
+      expect(authData.refresh_token).toBeTruthy();
+      expect(cookieSpy).not.toHaveBeenCalled();
+      expect(clearCookieSpy).not.toHaveBeenCalled();
     });
   });
 });

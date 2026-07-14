@@ -19,6 +19,8 @@ export type RelayChannelRoutingStrategy =
 
 export type RelayChannelVisibilityMode = "public" | "private" | "whitelist";
 
+export type RelayChannelAllowedModelsMode = "all" | "manual" | "auto";
+
 export interface RelayChannelMemberDto {
   id?: string;
   memberChannelId: string;
@@ -32,9 +34,10 @@ export interface RelayChannelRoutingConfigDto {
   failoverThreshold?: number;
   retryStatusCodes?: Array<number | string>;
   failbackCooldownMinutes?: number;
-  healthScoreThreshold?: number;
-  latencyThresholdMs?: number;
-  circuitBreakerThreshold?: number;
+  healthScoreThreshold?: number | null;
+  latencyThresholdMs?: number | null;
+  circuitBreakerThreshold?: number | null;
+  allowedModelsMode?: RelayChannelAllowedModelsMode;
   stickyByModel?: boolean;
   stickyByFormat?: boolean;
 }

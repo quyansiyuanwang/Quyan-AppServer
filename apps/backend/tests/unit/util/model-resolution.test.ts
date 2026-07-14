@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { isModelNameAllowed } from "@/util/model-resolution.util";
 import {
+  getRelayChannelAllowedModelsMode,
   parseRelayChannelAllowedModelNames,
   parseRelayTokenAllowedModelIds,
   getAccessibleRelayModelConfigsForToken,
@@ -60,6 +61,91 @@ describe("Model ID + Channel -> Model Config Logic", () => {
       };
       const result = parseRelayChannelAllowedModelNames(channel, []);
       expect(result).toEqual(["gpt-5.4-.1C", "gpt-5.3-codex-.1C"]);
+    });
+
+    it("should infer allowed model names from pooled members in auto mode", () => {
+      const modelCatalog = [
+        {
+          model: "gpt-4o-mini",
+          provider: "openai/gpt-4o-mini",
+          supportedFormats: "openai",
+        },
+        {
+          model: "claude-3.5-sonnet",
+          provider: "anthropic/claude-3.5-sonnet",
+          supportedFormats: "anthropic",
+        },
+        {
+          model: "gemini-2.0-flash",
+          provider: "gemini/gemini-2.0-flash",
+          supportedFormats: "gemini",
+        },
+      ];
+
+      const channel = {
+        channelType: "pooled",
+        allowedModels: null,
+        routingConfig: { allowedModelsMode: "auto" },
+        poolMembers: [
+          {
+            enabled: true,
+            memberChannelId: "member-1",
+            memberChannel: {
+              allowedFormats: "openai",
+              allowedModels: '["gpt-4o-mini"]',
+            },
+          },
+          {
+            enabled: true,
+            memberChannelId: "member-2",
+            memberChannel: {
+              allowedFormats: "anthropic",
+              allowedModels: null,
+            },
+          },
+          {
+            enabled: false,
+            memberChannelId: "member-3",
+            memberChannel: {
+              allowedFormats: "gemini",
+              allowedModels: null,
+            },
+          },
+        ],
+      };
+
+      const result = parseRelayChannelAllowedModelNames(channel, modelCatalog);
+      expect(result).toEqual(["gpt-4o-mini", "claude-3.5-sonnet"]);
+    });
+  });
+
+  describe("getRelayChannelAllowedModelsMode", () => {
+    it("should resolve pooled auto mode from routing config", () => {
+      expect(
+        getRelayChannelAllowedModelsMode({
+          channelType: "pooled",
+          allowedModels: null,
+          routingConfig: { allowedModelsMode: "auto" },
+        }),
+      ).toBe("auto");
+    });
+
+    it("should resolve manual mode when allowedModels is set", () => {
+      expect(
+        getRelayChannelAllowedModelsMode({
+          channelType: "standalone",
+          allowedModels: '["gpt-4o-mini"]',
+        }),
+      ).toBe("manual");
+    });
+
+    it("should resolve all mode when no restriction exists", () => {
+      expect(
+        getRelayChannelAllowedModelsMode({
+          channelType: "standalone",
+          allowedModels: null,
+        }),
+      ).toBe("all");
     });
   });
 
@@ -205,6 +291,67 @@ describe("Model ID + Channel -> Model Config Logic", () => {
       // Only gpt-5.4-premium is in both channel (by name) and token (by ID) allowedModels
       expect(result).toHaveLength(1);
       expect(result[0].model).toBe("gpt-5.4-premium");
+    });
+
+    it("should support pooled auto mode when filtering accessible models", () => {
+      const modelCatalog = [
+        {
+          model: "gpt-4o-mini",
+          provider: "openai/gpt-4o-mini",
+          supportedFormats: "openai",
+          inputPrice: 10,
+          outputPrice: 20,
+        },
+        {
+          model: "claude-3.5-sonnet",
+          provider: "anthropic/claude-3.5-sonnet",
+          supportedFormats: "anthropic",
+          inputPrice: 12,
+          outputPrice: 24,
+        },
+        {
+          model: "gpt-image-1",
+          provider: "openai/gpt-image-1",
+          supportedFormats: "openai",
+          inputPrice: 4,
+          outputPrice: 8,
+        },
+      ];
+
+      const relayToken = {
+        allowedModels: "openai/gpt-4o-mini",
+        channel: {
+          id: "pool-1",
+          channelType: "pooled",
+          status: 1,
+          allowedFormats: "openai,anthropic",
+          allowedModels: null,
+          routingConfig: { allowedModelsMode: "auto" },
+          poolMembers: [
+            {
+              enabled: true,
+              memberChannelId: "member-openai",
+              memberChannel: {
+                allowedFormats: "openai",
+                allowedModels: '["gpt-4o-mini"]',
+              },
+            },
+            {
+              enabled: true,
+              memberChannelId: "member-anthropic",
+              memberChannel: {
+                allowedFormats: "anthropic",
+                allowedModels: '["claude-3.5-sonnet"]',
+              },
+            },
+          ],
+        },
+      };
+
+      const result = getAccessibleRelayModelConfigsForToken(relayToken, modelCatalog, "openai");
+
+      expect(result).toHaveLength(1);
+      expect(result[0].model).toBe("gpt-4o-mini");
     });
   });
 });

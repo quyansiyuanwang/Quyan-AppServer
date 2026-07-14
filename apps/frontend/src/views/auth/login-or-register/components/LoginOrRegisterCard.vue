@@ -21,7 +21,6 @@ const mobileFieldDisabled = state.mobileFieldDisabled
 const qrLoginSession = state.qrLoginSession
 const qrLoginStatus = state.qrLoginStatus
 const qrLoginScannedUser = state.qrLoginScannedUser
-const qrLoginBusy = state.qrLoginBusy
 const qrPolling = state.qrPolling
 const publicSocialAuthConfig = state.publicSocialAuthConfig
 const formDisabled = computed(() => (state.isDesktop.value ? false : mobileFieldDisabled.value))
@@ -29,8 +28,6 @@ const formRef = state.formRef
 const usernameInputRef = state.usernameInputRef
 const passwordInputRef = state.passwordInputRef
 
-const loginForm = computed(() => state.loginForm)
-const registerForm = computed(() => state.registerForm)
 const agreedLoginForm = computed(() => state.loginForm as LoginForm)
 const agreedRegisterForm = computed(() => state.registerForm as RegisterForm)
 const registrationStatusReady = state.registrationStatusReady

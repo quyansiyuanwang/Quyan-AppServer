@@ -55,16 +55,19 @@ export class RelayChannelController extends Controller {
   @Get()
   @Security("jwt")
   @RequirePermission(Permission.RELAY_CHANNEL_READ)
-  public async listChannels(@Query() includeDisabled?: boolean): Promise<RelayChannelDto[]> {
-    return this.channelService.listChannels(includeDisabled === true);
+  public async listChannels(
+    @Request() request: TypedRequest,
+    @Query() includeDisabled?: boolean,
+  ): Promise<RelayChannelDto[]> {
+    return this.channelService.listChannels(request.user!.userId, includeDisabled === true);
   }
 
   @Get("{id}")
   @Security("jwt")
   @RequirePermission(Permission.RELAY_CHANNEL_READ)
   @Middlewares(validateParams(relayChannelIdParamsSchema))
-  public async getChannel(@Path() id: string): Promise<RelayChannelDto> {
-    return this.channelService.getChannel(id);
+  public async getChannel(@Path() id: string, @Request() request: TypedRequest): Promise<RelayChannelDto> {
+    return this.channelService.getChannel(id, request.user!.userId);
   }
 
   @Post("export")

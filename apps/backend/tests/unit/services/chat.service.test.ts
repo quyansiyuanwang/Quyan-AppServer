@@ -110,7 +110,7 @@ describe("ChatService", () => {
       channelId: "channel-1",
       upstreamUrl: "https://upstream.example.com",
       upstreamApiKey: "upstream-key",
-      channel: { name: "main" },
+      channel: { id: "channel-1", name: "main" },
     });
     usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(false);
 
@@ -130,6 +130,7 @@ describe("ChatService", () => {
       upstreamUrl: "https://upstream.example.com",
       upstreamApiKey: "upstream-key",
       channel: {
+        id: "channel-1",
         name: "main",
         multiplier: 1,
         allowedModels: null,
@@ -241,6 +242,7 @@ describe("ChatService", () => {
       upstreamApiKey: "upstream-key",
       allowedModels: null,
       channel: {
+        id: "channel-1",
         name: "main",
         allowedModels: null,
       },
@@ -293,6 +295,7 @@ describe("ChatService", () => {
       upstreamApiKey: "upstream-key",
       allowedModels: null,
       channel: {
+        id: "channel-1",
         name: "main",
         allowedModels: null,
       },
@@ -372,6 +375,7 @@ describe("ChatService", () => {
       upstreamApiKey: "upstream-key",
       allowedModels: "gpt-4o-mini",
       channel: {
+        id: "channel-1",
         name: "main",
         allowedModels: null,
       },

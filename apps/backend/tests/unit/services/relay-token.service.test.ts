@@ -54,6 +54,10 @@ describe("RelayTokenService", () => {
     clearNamedBackoffRateLimit: vi.fn(),
   };
 
+  const relayChannelService = {
+    assertChannelAccessibleById: vi.fn(),
+  };
+
   const RelayTokenServiceCtor = RelayTokenService as unknown as new (...args: any[]) => RelayTokenService;
 
   const service = new RelayTokenServiceCtor(
@@ -67,6 +71,7 @@ describe("RelayTokenService", () => {
     configService,
     permissionService,
     rateLimiterService,
+    relayChannelService,
   );
 
   const now = new Date("2026-01-01T00:00:00.000Z");
@@ -97,6 +102,21 @@ describe("RelayTokenService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    relayChannelService.assertChannelAccessibleById.mockResolvedValue({ id: "channel-1" });
+  });
+
+  it("rejects binding a token to an inaccessible relay channel", async () => {
+    relayChannelRepository.listActiveByIds.mockResolvedValue([{ id: "channel-private" }]);
+    relayChannelService.assertChannelAccessibleById.mockRejectedValue(new NotFoundError("Relay channel not found"));
+
+    await expect(
+      service.generateToken("user-1", {
+        name: "Token",
+        channelId: "channel-private",
+      } as any),
+    ).rejects.toThrow(NotFoundError);
+
+    expect(relayChannelService.assertChannelAccessibleById).toHaveBeenCalledWith("channel-private", "user-1");
   });
 
   it("returns persisted usage summaries for all user tokens without live aggregation", async () => {

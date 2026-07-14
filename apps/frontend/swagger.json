@@ -31742,6 +31742,14 @@
 					"latency-priority"
 				]
 			},
+			"RelayChannelAllowedModelsMode": {
+				"type": "string",
+				"enum": [
+					"all",
+					"manual",
+					"auto"
+				]
+			},
 			"RelayChannelRoutingConfigDto": {
 				"properties": {
 					"maxRetries": {
@@ -31772,15 +31780,21 @@
 					},
 					"healthScoreThreshold": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"nullable": true
 					},
 					"latencyThresholdMs": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"nullable": true
 					},
 					"circuitBreakerThreshold": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"nullable": true
+					},
+					"allowedModelsMode": {
+						"$ref": "#/components/schemas/RelayChannelAllowedModelsMode"
 					},
 					"stickyByModel": {
 						"type": "boolean"
