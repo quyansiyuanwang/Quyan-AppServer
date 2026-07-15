@@ -1,7 +1,7 @@
 import { getCurrentStorageScope } from '@/utils/storageScope'
 
 const DB_NAME_PREFIX = 'AppServerSessionDB'
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 interface StoreConfig {
   name: string
@@ -58,6 +58,12 @@ class SessionDB {
             )
           }
         })
+
+        if ((event as IDBVersionChangeEvent).oldVersion < 3) {
+          const transaction = (event.target as IDBOpenDBRequest).transaction
+          transaction?.objectStore('balanceTransactions').clear()
+          transaction?.objectStore('sessionMeta').clear()
+        }
       }
     })
   }

@@ -45,16 +45,40 @@ export class RelayUsageRepository implements RelayUsageStore {
   async findByIdsWithTokenName(ids: string[]): Promise<RelayUsageWithTokenName[]> {
     if (ids.length === 0) return [];
 
-    return prisma.relayUsage.findMany({
-      where: {
-        id: { in: ids },
-      },
-      include: {
-        relayToken: {
-          select: { name: true },
-        },
-      },
-    });
+    const uniqueIds = [...new Set(ids)];
+    const usages: Array<Omit<RelayUsageWithTokenName, "monthlyPassUsages">> = [];
+    const monthlyPassUsagesByRelayUsageId = new Map<string, Array<{ channelName: string | null }>>();
+
+    for (let index = 0; index < uniqueIds.length; index += RelayUsageRepository.BILLING_QUERY_CHUNK_SIZE) {
+      const idChunk = uniqueIds.slice(index, index + RelayUsageRepository.BILLING_QUERY_CHUNK_SIZE);
+      const [usageChunk, monthlyPassUsageChunk] = await Promise.all([
+        prisma.relayUsage.findMany({
+          where: { id: { in: idChunk } },
+          include: {
+            relayToken: {
+              select: { name: true },
+            },
+          },
+        }),
+        prisma.monthlyPassUsage.findMany({
+          where: { relayUsageId: { in: idChunk } },
+          select: { relayUsageId: true, channelName: true },
+        }),
+      ]);
+
+      usages.push(...usageChunk);
+      for (const monthlyPassUsage of monthlyPassUsageChunk) {
+        if (!monthlyPassUsage.relayUsageId) continue;
+        const relatedUsages = monthlyPassUsagesByRelayUsageId.get(monthlyPassUsage.relayUsageId) || [];
+        relatedUsages.push({ channelName: monthlyPassUsage.channelName });
+        monthlyPassUsagesByRelayUsageId.set(monthlyPassUsage.relayUsageId, relatedUsages);
+      }
+    }
+
+    return usages.map((usage) => ({
+      ...usage,
+      monthlyPassUsages: monthlyPassUsagesByRelayUsageId.get(usage.id) || [],
+    }));
   }
 
   async aggregateByRelayTokenIds(

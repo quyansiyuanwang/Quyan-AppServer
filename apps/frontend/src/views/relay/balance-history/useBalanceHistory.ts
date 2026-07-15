@@ -601,6 +601,25 @@ export function useBalanceHistory() {
     }
   }
 
+  const refreshTransactions = async () => {
+    const rangeKey = activeHistoryRangeKey.value
+    const loadToken = ++historyLoadToken
+    loading.value = true
+    loadingAllData.value = true
+
+    try {
+      await fetchAndApplyRangeTransactions(rangeKey, loadToken)
+    } catch (error: any) {
+      ElMessage.error(error.message || i18ns.t('balance.loadFailed'))
+      console.error('Failed to refresh transactions:', error)
+    } finally {
+      if (isHistoryLoadCurrent(rangeKey, loadToken)) {
+        loading.value = false
+        loadingAllData.value = false
+      }
+    }
+  }
+
   const loadTransactionsByRange = async (
     rangeKey: HistoryRangeKey,
     options?: {
@@ -779,6 +798,7 @@ export function useBalanceHistory() {
     rpmChartOption,
     handleRedeem,
     refreshBalanceAndStats,
+    refreshTransactions,
     incrementalUpdateTransactions,
     handleHistorySliderChange,
   }
