@@ -230,8 +230,8 @@ export interface MonthlyPassUsageDto {
   templateName: string;
   relayUsageId?: string;
   model?: string;
-  channelId?: string;
-  channelName?: string;
+  displayChannelId?: string;
+  displayChannelName?: string;
   coveredAmount: number;
   coveredRequests?: number;
   coveredTokens?: number;

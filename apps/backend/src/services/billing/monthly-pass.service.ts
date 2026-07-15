@@ -696,8 +696,8 @@ export class MonthlyPassService {
     userId: string;
     relayUsageId: string | null;
     model: string | null;
-    channelId: string | null;
-    channelName: string | null;
+    displayChannelId: string | null;
+    displayChannelName: string | null;
     coveredAmount: DecimalLike;
     coveredRequests: number;
     coveredTokens: number;
@@ -715,8 +715,8 @@ export class MonthlyPassService {
       templateName: record.userMonthlyPass.template.name,
       relayUsageId: record.relayUsageId || undefined,
       model: record.model || undefined,
-      channelId: record.channelId || undefined,
-      channelName: record.channelName || undefined,
+      displayChannelId: record.displayChannelId || undefined,
+      displayChannelName: record.displayChannelName || undefined,
       coveredAmount: Number(record.coveredAmount),
       coveredRequests: record.coveredRequests || undefined,
       coveredTokens: record.coveredTokens || undefined,

@@ -2183,6 +2183,8 @@ const zhCN: DeepStringify<typeof en> = {
     visibilityModePublic: '公开',
     visibilityModePrivate: '私有',
     visibilityModeWhitelist: '白名单',
+    visibilityModeHidden: '隐藏混池成员',
+    visibilityModeHiddenHelp: '仅用于内部混池拓扑。可作为混池成员，但不能被中转令牌、OJ API Key 或月卡直接选择。',
     visibilityUsers: '用户白名单',
     visibilityGroups: '用户组白名单',
     visibilityRoles: '角色白名单',

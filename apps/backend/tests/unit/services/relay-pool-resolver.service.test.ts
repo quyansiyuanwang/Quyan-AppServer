@@ -43,6 +43,21 @@ describe("RelayPoolResolverService", () => {
     expect(leaves.map((channel) => channel.id)).toEqual([leaf.id]);
   });
 
+  it("preserves the configured root as the display channel for a pooled leaf", async () => {
+    const leaf = createChannel("leaf");
+    const pool = createChannel("pool", {
+      channelType: "pooled",
+      poolMembers: [{ memberChannelId: leaf.id, priority: 0, weight: 1, enabled: true }],
+    });
+    const { resolver } = createResolver([pool, leaf]);
+
+    const candidates = await resolver.resolveActiveLeafCandidates([pool]);
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]?.resolvedChannel.id).toBe(leaf.id);
+    expect(candidates[0]?.displayChannel.id).toBe(pool.id);
+  });
+
   it("skips disabled edges and channels absent from the active graph", async () => {
     const activeLeaf = createChannel("active-leaf");
     const inactiveLeaf = createChannel("inactive-leaf", { status: RELAY_CHANNEL_STATUS.DISABLED });

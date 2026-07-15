@@ -31234,16 +31234,16 @@
 					"relayTokenId": {
 						"type": "string"
 					},
-					"fromChannelId": {
+					"fromDisplayChannelId": {
 						"type": "string"
 					},
-					"fromChannelName": {
+					"fromDisplayChannelName": {
 						"type": "string"
 					},
-					"toChannelId": {
+					"toDisplayChannelId": {
 						"type": "string"
 					},
-					"toChannelName": {
+					"toDisplayChannelName": {
 						"type": "string"
 					},
 					"triggerStatusCode": {
@@ -31274,8 +31274,6 @@
 				"required": [
 					"id",
 					"relayTokenId",
-					"fromChannelId",
-					"toChannelId",
 					"attemptNumber",
 					"requestPath",
 					"method",
@@ -31852,7 +31850,8 @@
 				"enum": [
 					"public",
 					"private",
-					"whitelist"
+					"whitelist",
+					"hidden"
 				]
 			},
 			"RelayChannelVisibilityConfigDto": {
@@ -35745,10 +35744,10 @@
 					"model": {
 						"type": "string"
 					},
-					"channelId": {
+					"displayChannelId": {
 						"type": "string"
 					},
-					"channelName": {
+					"displayChannelName": {
 						"type": "string"
 					},
 					"coveredAmount": {
@@ -36000,7 +35999,7 @@
 						"type": "number",
 						"format": "double"
 					},
-					"channelName": {
+					"displayChannelName": {
 						"type": "string"
 					},
 					"channelMultiplier": {

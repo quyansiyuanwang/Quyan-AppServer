@@ -641,7 +641,9 @@
                           ? 'success'
                           : row.visibilityMode === 'private'
                             ? 'info'
-                            : 'danger'
+                            : row.visibilityMode === 'hidden'
+                              ? 'warning'
+                              : 'danger'
                       "
                       size="small"
                     >

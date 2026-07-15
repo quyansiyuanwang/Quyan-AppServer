@@ -44,7 +44,11 @@ import {
 } from "@/util/errors";
 import { RelayConfigService } from "./relay-config.service";
 import { ModelPricingService } from "./model-pricing.service";
-import { RelayPoolResolverService, type RelayPoolMemberGraph } from "./relay-pool-resolver.service";
+import {
+  RelayPoolResolverService,
+  type RelayPoolMemberGraph,
+  type RelayResolvedChannelCandidate,
+} from "./relay-pool-resolver.service";
 import { computeMultiplierForTime, type TimePeriodRule } from "./time-period-multiplier.service";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
@@ -118,7 +122,7 @@ interface ImageForwardResult extends StreamForwardResult {
 }
 
 interface RelayAttemptPlan {
-  channels: RelayChannel[];
+  channels: RelayResolvedChannelCandidate[];
   failoverConfig: RelayFailoverRuntimeConfig;
 }
 
@@ -161,7 +165,6 @@ type RelayChannelSkipReason =
   | "insufficient-balance";
 
 interface RelayAttemptIssue {
-  channelId: string;
   channelName: string;
   attemptNumber: number;
   reason: string;
@@ -251,7 +254,9 @@ export class RelayProxyService {
     startTime: number;
     firstByteTime: number | null;
     isStreaming: boolean;
-    channelName: string | null;
+    executionChannelId: string | null;
+    displayChannelId: string | null;
+    displayChannelName: string | null;
     channelMultiplier: number;
     relayGlobalMultiplier: number;
     timeMultiplier?: number;
@@ -267,7 +272,9 @@ export class RelayProxyService {
       startTime,
       firstByteTime,
       isStreaming,
-      channelName,
+      executionChannelId,
+      displayChannelId,
+      displayChannelName,
       channelMultiplier,
       relayGlobalMultiplier,
       originalModel,
@@ -308,7 +315,9 @@ export class RelayProxyService {
       multiplier: modelMult,
       cacheCreationMultiplier: cacheCreationMult,
       cacheReadMultiplier: cacheReadMult,
-      channelName,
+      executionChannelId,
+      displayChannelId,
+      displayChannelName,
       channelMultiplier,
       globalMultiplier: relayGlobalMultiplier,
       timeMultiplier: params.timeMultiplier,
@@ -676,14 +685,13 @@ export class RelayProxyService {
 
   private appendAttemptIssue(
     issues: RelayAttemptIssue[],
-    channel: RelayChannel,
+    displayChannel: RelayChannel,
     attemptNumber: number,
     reason: string,
     statusCode?: number,
   ): void {
     issues.push({
-      channelId: channel.id,
-      channelName: channel.name || channel.id,
+      channelName: displayChannel.name || "configured channel",
       attemptNumber,
       reason,
       statusCode,
@@ -811,13 +819,17 @@ export class RelayProxyService {
   ): Promise<string[]> {
     const modelPricing = await this.modelPricingService.getModelPricing();
     const attemptPlan = await this.buildAttemptPlan(relayToken);
-    const eligibleChannels = attemptPlan.channels.filter((channel) =>
-      supportsRelayRequestFormat(channel.allowedFormats, requestFormat),
+    const eligibleChannels = attemptPlan.channels
+      .map((candidate) => candidate.resolvedChannel)
+      .filter((channel) =>
+        supportsRelayRequestFormat(channel.allowedFormats, requestFormat),
     );
 
     if (eligibleChannels.length === 0) {
       const allowedFormats = [
-        ...new Set(attemptPlan.channels.flatMap((channel) => parseRelayRequestFormats(channel.allowedFormats))),
+        ...new Set(
+          attemptPlan.channels.flatMap((candidate) => parseRelayRequestFormats(candidate.resolvedChannel.allowedFormats)),
+        ),
       ].join(",");
       throw new BadRequestError(
         `Channel does not support ${requestFormat} format requests. Allowed formats: ${allowedFormats || "none"}`,
@@ -1507,7 +1519,7 @@ export class RelayProxyService {
 
   private async buildAttemptPlan(relayToken: RelayTokenAvailabilityInput): Promise<RelayAttemptPlan> {
     const topLevelChannels = this.getTopLevelAttemptChannels(relayToken);
-    const channels = await this.relayPoolResolver.resolveActiveLeaves(topLevelChannels, (pool, members) =>
+    const channels = await this.relayPoolResolver.resolveActiveLeafCandidates(topLevelChannels, (pool, members) =>
       this.orderPooledMemberChannels(pool, members),
     );
 
@@ -1634,12 +1646,12 @@ export class RelayProxyService {
 
   private async prioritizeStickyPreferredChannel(params: {
     relayToken: RelayTokenWithChannel;
-    channels: RelayChannel[];
+    channels: RelayResolvedChannelCandidate[];
     requestFormat: "openai" | "anthropic" | "gemini";
     requestedModel: string;
     candidateModelConfigs: ModelPricingDto[];
     failbackCooldownMinutes: number;
-  }): Promise<RelayChannel[]> {
+  }): Promise<RelayResolvedChannelCandidate[]> {
     if (params.channels.length < 2 || params.failbackCooldownMinutes <= 0) return params.channels;
 
     const stickyChannelId = await this.getStickyPreferredChannelId({
@@ -1651,7 +1663,9 @@ export class RelayProxyService {
 
     if (!stickyChannelId) return params.channels;
 
-    const stickyChannelIndex = params.channels.findIndex((channel) => channel.id === stickyChannelId);
+    const stickyChannelIndex = params.channels.findIndex(
+      (candidate) => candidate.resolvedChannel.id === stickyChannelId,
+    );
     if (stickyChannelIndex < 0) {
       await this.clearStickyPreferredChannel({
         relayTokenId: params.relayToken.id,
@@ -1666,7 +1680,7 @@ export class RelayProxyService {
     const stickyChannel = params.channels[stickyChannelIndex];
     if (
       !this.isStickyPreferredChannelEligible({
-        channel: stickyChannel,
+        channel: stickyChannel.resolvedChannel,
         requestFormat: params.requestFormat,
         requestedModel: params.requestedModel,
         candidateModelConfigs: params.candidateModelConfigs,
@@ -1726,7 +1740,11 @@ export class RelayProxyService {
   private async recordChannelSwitch(params: {
     relayTokenId: string;
     fromChannelId: string;
+    fromDisplayChannelId?: string | null;
+    fromDisplayChannelName?: string | null;
     toChannelId: string;
+    toDisplayChannelId?: string | null;
+    toDisplayChannelName?: string | null;
     triggerStatusCode?: number;
     triggerError?: string;
     attemptNumber: number;
@@ -1902,7 +1920,9 @@ export class RelayProxyService {
     globalMultiplier: number;
     relayGlobalMultiplier: number;
     channelMultiplier: number;
-    channelName: string | null;
+    executionChannelId: string;
+    displayChannelId: string;
+    displayChannelName: string | null;
     channelId: string;
     monthlyPassCoverageAt: Date;
     inputTokensIncludeCacheRead: boolean;
@@ -1923,7 +1943,9 @@ export class RelayProxyService {
       globalMultiplier,
       relayGlobalMultiplier,
       channelMultiplier,
-      channelName,
+      executionChannelId,
+      displayChannelId,
+      displayChannelName,
       channelId,
       monthlyPassCoverageAt,
       inputTokensIncludeCacheRead,
@@ -1981,13 +2003,15 @@ export class RelayProxyService {
       modelName: selectedModelName,
       modelId: selectedModelId,
       channelId,
+      executionChannelId,
+      displayChannelId,
+      displayChannelName,
       monthlyPassCoverageAt,
       inputRate: costResult.inputRate,
       outputRate: costResult.outputRate,
       multiplier: modelMult,
       cacheCreationMultiplier: cacheCreationMult,
       cacheReadMultiplier: cacheReadMult,
-      channelName,
       channelMultiplier,
       globalMultiplier: relayGlobalMultiplier,
       timeMultiplier,
@@ -2014,7 +2038,9 @@ export class RelayProxyService {
     convertedBody: any,
     relayGlobalMultiplier: number,
     channelMultiplier: number,
-    channelName: string | null,
+    executionChannelId: string,
+    displayChannelId: string,
+    displayChannelName: string | null,
     channelId: string,
     monthlyPassCoverageAt: Date,
     timeoutMs: number,
@@ -2116,7 +2142,9 @@ export class RelayProxyService {
         multiplier: modelMult,
         cacheCreationMultiplier: cacheCreationMult,
         cacheReadMultiplier: cacheReadMult,
-        channelName,
+        executionChannelId,
+        displayChannelId,
+        displayChannelName,
         channelMultiplier,
         globalMultiplier: relayGlobalMultiplier,
         timeMultiplier,
@@ -2189,7 +2217,9 @@ export class RelayProxyService {
         globalMultiplier,
         relayGlobalMultiplier,
         channelMultiplier,
-        channelName,
+        executionChannelId,
+        displayChannelId,
+        displayChannelName,
         channelId,
         monthlyPassCoverageAt,
         inputTokensIncludeCacheRead,
@@ -2253,8 +2283,8 @@ export class RelayProxyService {
     const modelPricing = await this.modelPricingService.getModelPricing();
     const failoverConfig = attemptPlan.failoverConfig;
     const isStreamRequested = this.isStreamRequest(req.body, req);
-    const eligibleChannels = attemptPlan.channels.filter((channel) =>
-      supportsRelayRequestFormat(channel.allowedFormats, requestFormat),
+    const eligibleChannels = attemptPlan.channels.filter((candidate) =>
+      supportsRelayRequestFormat(candidate.resolvedChannel.allowedFormats, requestFormat),
     );
 
     if (eligibleChannels.length === 0)
@@ -2350,9 +2380,13 @@ export class RelayProxyService {
       const attemptIssues: RelayAttemptIssue[] = [];
 
       for (let attemptIndex = 0; attemptIndex < attemptChannels.length; attemptIndex++) {
-        const channel = attemptChannels[attemptIndex];
-        const nextChannel = attemptChannels[attemptIndex + 1];
-        const hasNextChannel = Boolean(nextChannel);
+        const candidate = attemptChannels[attemptIndex];
+        const nextCandidate = attemptChannels[attemptIndex + 1];
+        const channel = candidate.resolvedChannel;
+        const displayChannel = candidate.displayChannel;
+        const nextChannel = nextCandidate?.resolvedChannel;
+        const nextDisplayChannel = nextCandidate?.displayChannel;
+        const hasNextChannel = Boolean(nextCandidate);
 
         // Define variables that need to be accessible in catch block
         let channelMultiplier = 1;
@@ -2546,7 +2580,9 @@ export class RelayProxyService {
                 requestFormat,
                 relayGlobalMultiplier,
                 channelMultiplier,
-                channel.name || "",
+                channel.id,
+                displayChannel.id,
+                displayChannel.name || null,
                 channel.id,
                 monthlyPassCoverageAt,
                 relayConfig.upstreamStreamTimeout,
@@ -2567,7 +2603,7 @@ export class RelayProxyService {
                 // Threshold exhausted — record failure and switch to next channel
                 this.appendAttemptIssue(
                   attemptIssues,
-                  channel,
+                  displayChannel,
                   attemptIndex + 1,
                   streamResult.triggerError || `HTTP ${streamResult.statusCode || 502}`,
                   streamResult.statusCode,
@@ -2576,7 +2612,11 @@ export class RelayProxyService {
                 await this.recordChannelSwitch({
                   relayTokenId: relayToken.id,
                   fromChannelId: channel.id,
-                  toChannelId: nextChannel.id,
+                  fromDisplayChannelId: displayChannel.id,
+                  fromDisplayChannelName: displayChannel.name || null,
+                  toChannelId: nextChannel!.id,
+                  toDisplayChannelId: nextDisplayChannel?.id || null,
+                  toDisplayChannelName: nextDisplayChannel?.name || null,
                   triggerStatusCode: streamResult.statusCode,
                   triggerError: streamResult.triggerError,
                   attemptNumber: attemptIndex + 1,
@@ -2614,7 +2654,9 @@ export class RelayProxyService {
                 convertedBody,
                 relayGlobalMultiplier,
                 channelMultiplier,
-                channel.name || null,
+                channel.id,
+                displayChannel.id,
+                displayChannel.name || null,
                 channel.id,
                 monthlyPassCoverageAt,
                 resourceGuard.nonStreamUpstreamTimeoutMs,
@@ -2633,7 +2675,7 @@ export class RelayProxyService {
 
                 this.appendAttemptIssue(
                   attemptIssues,
-                  channel,
+                  displayChannel,
                   attemptIndex + 1,
                   imageResult.triggerError || `HTTP ${imageResult.statusCode || 502}`,
                   imageResult.statusCode,
@@ -2642,7 +2684,11 @@ export class RelayProxyService {
                 await this.recordChannelSwitch({
                   relayTokenId: relayToken.id,
                   fromChannelId: channel.id,
-                  toChannelId: nextChannel.id,
+                  fromDisplayChannelId: displayChannel.id,
+                  fromDisplayChannelName: displayChannel.name || null,
+                  toChannelId: nextChannel!.id,
+                  toDisplayChannelId: nextDisplayChannel?.id || null,
+                  toDisplayChannelName: nextDisplayChannel?.name || null,
                   triggerStatusCode: imageResult.statusCode,
                   triggerError: imageResult.triggerError,
                   attemptNumber: attemptIndex + 1,
@@ -2698,7 +2744,9 @@ export class RelayProxyService {
                 startTime,
                 firstByteTime,
                 isStreaming: false,
-                channelName: channel.name || null,
+                executionChannelId: channel.id,
+                displayChannelId: displayChannel.id,
+                displayChannelName: displayChannel.name || null,
                 channelMultiplier,
                 relayGlobalMultiplier,
                 timeMultiplier,
@@ -2717,7 +2765,7 @@ export class RelayProxyService {
 
               this.appendAttemptIssue(
                 attemptIssues,
-                channel,
+                displayChannel,
                 attemptIndex + 1,
                 this.extractUpstreamErrorMessage(response.data, response.status),
                 response.status,
@@ -2726,7 +2774,11 @@ export class RelayProxyService {
               await this.recordChannelSwitch({
                 relayTokenId: relayToken.id,
                 fromChannelId: channel.id,
-                toChannelId: nextChannel.id,
+                fromDisplayChannelId: displayChannel.id,
+                fromDisplayChannelName: displayChannel.name || null,
+                toChannelId: nextChannel!.id,
+                toDisplayChannelId: nextDisplayChannel?.id || null,
+                toDisplayChannelName: nextDisplayChannel?.name || null,
                 triggerStatusCode: response.status,
                 triggerError: this.extractUpstreamErrorMessage(response.data, response.status),
                 attemptNumber: attemptIndex + 1,
@@ -2787,7 +2839,9 @@ export class RelayProxyService {
                 multiplier: modelMult,
                 cacheCreationMultiplier: cacheCreationMult,
                 cacheReadMultiplier: cacheReadMult,
-                channelName: channel.name || null,
+                executionChannelId: channel.id,
+                displayChannelId: displayChannel.id,
+                displayChannelName: displayChannel.name || null,
                 channelMultiplier,
                 globalMultiplier: relayGlobalMultiplier,
                 timeMultiplier,
@@ -2813,7 +2867,7 @@ export class RelayProxyService {
                 selectedModelName: modelName,
                 selectedModelId,
                 channelId: channel.id,
-                channelName: channel.name || null,
+                channelName: displayChannel.name || null,
                 success: false,
                 statusCode: response.status,
                 errorMessage: this.extractUpstreamErrorMessage(response.data, response.status),
@@ -2874,13 +2928,15 @@ export class RelayProxyService {
               modelName,
               modelId: selectedModelId,
               channelId: channel.id,
+              executionChannelId: channel.id,
+              displayChannelId: displayChannel.id,
+              displayChannelName: displayChannel.name || null,
               monthlyPassCoverageAt,
               inputRate,
               outputRate,
               multiplier: modelMult,
               cacheCreationMultiplier: cacheCreationMult,
               cacheReadMultiplier: cacheReadMult,
-              channelName: channel.name || null,
               channelMultiplier,
               globalMultiplier: relayGlobalMultiplier,
               timeMultiplier,
@@ -2901,7 +2957,7 @@ export class RelayProxyService {
               selectedModelName: modelName,
               selectedModelId,
               channelId: channel.id,
-              channelName: channel.name || null,
+              channelName: displayChannel.name || null,
               success: true,
               statusCode: response.status,
               originalModelName: relayOriginalRequestedModel,
@@ -2930,18 +2986,24 @@ export class RelayProxyService {
                 startTime: 0,
                 firstByteTime: null,
                 isStreaming: false,
-                channelName: channel.name || null,
+                executionChannelId: channel.id,
+                displayChannelId: displayChannel.id,
+                displayChannelName: displayChannel.name || null,
                 channelMultiplier,
                 relayGlobalMultiplier,
                 timeMultiplier,
                 originalModel: relayOriginalRequestedModel,
               });
 
-              this.appendAttemptIssue(attemptIssues, channel, attemptIndex + 1, error.message);
+              this.appendAttemptIssue(attemptIssues, displayChannel, attemptIndex + 1, error.message);
               await this.recordChannelSwitch({
                 relayTokenId: relayToken.id,
                 fromChannelId: channel.id,
-                toChannelId: nextChannel.id,
+                fromDisplayChannelId: displayChannel.id,
+                fromDisplayChannelName: displayChannel.name || null,
+                toChannelId: nextChannel!.id,
+                toDisplayChannelId: nextDisplayChannel?.id || null,
+                toDisplayChannelName: nextDisplayChannel?.name || null,
                 triggerError: error instanceof Error ? error.message : "Relay channel is not eligible for this request",
                 attemptNumber: attemptIndex + 1,
                 requestPath: req.path,
@@ -2956,7 +3018,7 @@ export class RelayProxyService {
             }
 
             if (canRetryCurrentAttempt && this.isFallbackEligibleLocalError(error)) {
-              this.appendAttemptIssue(attemptIssues, channel, attemptIndex + 1, error.message);
+              this.appendAttemptIssue(attemptIssues, displayChannel, attemptIndex + 1, error.message);
               throw this.buildAttemptExhaustedError(
                 normalizedRequestedModel,
                 failoverConfig.maxRetries,
@@ -2975,7 +3037,7 @@ export class RelayProxyService {
               // Threshold exhausted — record failure and switch to next channel
               this.appendAttemptIssue(
                 attemptIssues,
-                channel,
+                displayChannel,
                 attemptIndex + 1,
                 error instanceof Error ? error.message : "Upstream request failed",
               );
@@ -2983,7 +3045,11 @@ export class RelayProxyService {
               await this.recordChannelSwitch({
                 relayTokenId: relayToken.id,
                 fromChannelId: channel.id,
-                toChannelId: nextChannel.id,
+                fromDisplayChannelId: displayChannel.id,
+                fromDisplayChannelName: displayChannel.name || null,
+                toChannelId: nextChannel!.id,
+                toDisplayChannelId: nextDisplayChannel?.id || null,
+                toDisplayChannelName: nextDisplayChannel?.name || null,
                 triggerError: error instanceof Error ? error.message : "Upstream request failed",
                 attemptNumber: attemptIndex + 1,
                 requestPath: req.path,
@@ -3000,7 +3066,7 @@ export class RelayProxyService {
             if (!isStreamRequested && canRetryCurrentAttempt && this.shouldFailoverOnError(error)) {
               this.appendAttemptIssue(
                 attemptIssues,
-                channel,
+                displayChannel,
                 attemptIndex + 1,
                 error instanceof Error ? error.message : "Upstream request failed",
               );
@@ -3235,7 +3301,9 @@ export class RelayProxyService {
     requestFormat: "openai" | "anthropic" | "gemini",
     relayGlobalMultiplier: number = globalMultiplier,
     channelMultiplier: number = 1,
-    channelName: string = "",
+    executionChannelId: string,
+    displayChannelId: string,
+    displayChannelName: string | null,
     channelId: string,
     monthlyPassCoverageAt: Date,
     upstreamStreamTimeout: number,
@@ -3422,7 +3490,9 @@ export class RelayProxyService {
                 multiplier: modelMult,
                 cacheCreationMultiplier: cacheCreationMult,
                 cacheReadMultiplier: cacheReadMult,
-                channelName,
+                executionChannelId,
+                displayChannelId,
+                displayChannelName,
                 channelMultiplier,
                 globalMultiplier: relayGlobalMultiplier,
                 timeMultiplier,
@@ -3625,7 +3695,9 @@ export class RelayProxyService {
                 multiplier: modelMult,
                 cacheCreationMult,
                 cacheReadMult,
-                channelName,
+                executionChannelId,
+                displayChannelId,
+                displayChannelName,
                 channelId,
                 channelMultiplier,
                 relayGlobalMultiplier,
@@ -3740,7 +3812,9 @@ export class RelayProxyService {
     const multiplier = data.multiplier;
     const cacheCreationMult = data.cacheCreationMult;
     const cacheReadMult = data.cacheReadMult;
-    const channelName = data.channelName || null;
+    const executionChannelId = data.executionChannelId || data.channelId;
+    const displayChannelId = data.displayChannelId || null;
+    const displayChannelName = data.displayChannelName || null;
     const channelMultiplier = data.channelMultiplier ?? 1;
     const relayGlobalMultiplier = data.relayGlobalMultiplier ?? 1;
     const timeMultiplier = data.timeMultiplier;
@@ -3764,12 +3838,14 @@ export class RelayProxyService {
       modelName: data.modelName,
       modelId: data.modelId,
       monthlyPassCoverageAt: data.monthlyPassCoverageAt,
+      executionChannelId,
+      displayChannelId,
+      displayChannelName,
       inputRate,
       outputRate,
       multiplier,
       cacheCreationMultiplier: cacheCreationMult,
       cacheReadMultiplier: cacheReadMult,
-      channelName,
       channelId: data.channelId,
       channelMultiplier,
       globalMultiplier: relayGlobalMultiplier,

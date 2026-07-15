@@ -26,7 +26,10 @@ import {
   supportsRelayRequestFormat,
 } from "@/util/relay-model-availability.util";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
-import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
+import {
+  RelayPoolResolverService,
+  type RelayResolvedChannelCandidate,
+} from "@/services/relay/relay-pool-resolver.service";
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 
 interface ChatRequestMeta {
@@ -95,10 +98,12 @@ export class ChatService {
     };
   }
 
-  private async getCandidateChatChannels(token: RelayTokenWithChannel): Promise<RelayChannel[]> {
+  private async getCandidateChatChannels(
+    token: RelayTokenWithChannel,
+  ): Promise<RelayResolvedChannelCandidate[]> {
     const assignedChannel = token.channel;
     if (!assignedChannel) return [];
-    return this.relayPoolResolver.resolveActiveLeaves([assignedChannel]);
+    return this.relayPoolResolver.resolveActiveLeafCandidates([assignedChannel]);
   }
 
   private async resolveChatRequestFormat(
@@ -107,6 +112,7 @@ export class ChatService {
     selectedModelId: string,
   ): Promise<{
     channel: RelayChannel;
+    displayChannel: RelayChannel;
     requestFormat: RelayRequestFormat;
     upstreamUrl: string;
     upstreamApiKey: string;
@@ -120,7 +126,8 @@ export class ChatService {
       );
 
     for (const requestFormat of orderedFormats) {
-      for (const channel of candidateChannels) {
+      for (const candidate of candidateChannels) {
+        const channel = candidate.resolvedChannel;
         const channelAllowedFormats = channel.allowedFormats || "all";
         if (!supportsRelayRequestFormat(channelAllowedFormats, requestFormat)) continue;
 
@@ -130,7 +137,14 @@ export class ChatService {
         const config = this.getUpstreamConfigForFormat(token, channel, requestFormat);
         const upstreamUrl = config.upstreamUrl?.trim();
         const upstreamApiKey = config.upstreamApiKey?.trim();
-        if (upstreamUrl && upstreamApiKey) return { channel, requestFormat, upstreamUrl, upstreamApiKey };
+        if (upstreamUrl && upstreamApiKey)
+          return {
+            channel,
+            displayChannel: candidate.displayChannel,
+            requestFormat,
+            upstreamUrl,
+            upstreamApiKey,
+          };
       }
     }
 
@@ -215,6 +229,7 @@ export class ChatService {
     const selectedModelId = resolveModelId(resolvedPricing);
     const {
       channel: effectiveChannel,
+      displayChannel,
       requestFormat,
       upstreamUrl,
       upstreamApiKey: apiKey,
@@ -293,6 +308,9 @@ export class ChatService {
       await this.relayUsageRepository
         .create({
           relayTokenId: token.id,
+          executionChannelId: effectiveChannel.id,
+          displayChannelId: displayChannel.id,
+          displayChannelName: displayChannel.name || null,
           requestTokens: inputTokens,
           responseTokens: outputTokens,
           totalTokens: inputTokens + outputTokens,
@@ -372,6 +390,9 @@ export class ChatService {
       cost,
       modelName: selectedModelName,
       modelId: selectedModelId,
+      executionChannelId: effectiveChannel.id,
+      displayChannelId: displayChannel.id,
+      displayChannelName: displayChannel.name || null,
       channelId: effectiveChannel.id,
       monthlyPassCoverageAt,
       inputRate,
@@ -379,7 +400,6 @@ export class ChatService {
       multiplier: modelMultiplier,
       cacheCreationMultiplier,
       cacheReadMultiplier,
-      channelName: effectiveChannel.name || null,
       channelMultiplier,
       globalMultiplier,
       balanceChargeMode: "allow-negative",

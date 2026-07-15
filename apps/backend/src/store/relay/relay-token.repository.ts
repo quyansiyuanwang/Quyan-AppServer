@@ -461,7 +461,11 @@ export class RelayTokenRepository implements RelayTokenStore {
       data: {
         relayTokenId: data.relayTokenId,
         fromChannelId: data.fromChannelId,
+        fromDisplayChannelId: data.fromDisplayChannelId || null,
+        fromDisplayChannelName: data.fromDisplayChannelName || null,
         toChannelId: data.toChannelId,
+        toDisplayChannelId: data.toDisplayChannelId || null,
+        toDisplayChannelName: data.toDisplayChannelName || null,
         triggerStatusCode: data.triggerStatusCode,
         triggerError: data.triggerError,
         attemptNumber: data.attemptNumber,

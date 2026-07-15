@@ -605,18 +605,22 @@ model RelayTokenChannelConfig {
 }
 
 model RelayChannelSwitchLog {
-  id                String   @id @default(cuid())
-  relayTokenId      String
-  fromChannelId     String
-  toChannelId       String
-  triggerStatusCode Int?
-  triggerError      String?  @db.Text
-  attemptNumber     Int
-  requestPath       String
-  method            String
-  modelName         String?
-  createTime        DateTime @default(now())
-  updateTime        DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  relayTokenId           String
+  fromChannelId          String
+  fromDisplayChannelId   String?
+  fromDisplayChannelName String?  @db.Text
+  toChannelId            String
+  toDisplayChannelId     String?
+  toDisplayChannelName   String?  @db.Text
+  triggerStatusCode      Int?
+  triggerError           String?  @db.Text
+  attemptNumber          Int
+  requestPath            String
+  method                 String
+  modelName              String?
+  createTime             DateTime @default(now())
+  updateTime             DateTime @updatedAt
 
   relayToken  RelayToken   @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
   fromChannel RelayChannel @relation("RelaySwitchLogFromChannel", fields: [fromChannelId], references: [id], onDelete: Cascade)
@@ -634,6 +638,9 @@ model RelayUsage {
   createTime          DateTime @default(now())
   updateTime          DateTime @updatedAt
   relayTokenId        String
+  executionChannelId  String?
+  displayChannelId    String?
+  displayChannelName  String?  @db.Text
   requestTokens       Int      @default(0)
   responseTokens      Int      @default(0)
   totalTokens         Int      @default(0)
@@ -652,6 +659,8 @@ model RelayUsage {
   @@index([relayTokenId])
   @@index([createTime])
   @@index([relayTokenId, createTime])
+  @@index([executionChannelId])
+  @@index([displayChannelId])
   @@map("relay_usages")
 }
 
@@ -1008,6 +1017,8 @@ model BalanceTransaction {
   cacheCreationMultiplier Decimal? @db.Decimal(10, 2)
   cacheReadMultiplier     Decimal? @db.Decimal(10, 2)
   channelName             String?  @db.Text
+  displayChannelId        String?
+  displayChannelName      String?  @db.Text
   channelMultiplier       Decimal? @db.Decimal(10, 6)
   globalMultiplier        Decimal? @db.Decimal(10, 6)
   timeMultiplier          Decimal? @db.Decimal(10, 6)
@@ -1021,6 +1032,7 @@ model BalanceTransaction {
   @@index([userId, type, createTime])
   @@index([model])
   @@index([userId, model, createTime])
+  @@index([displayChannelId])
   @@map("balance_transactions")
 }
 
@@ -1258,6 +1270,8 @@ model MonthlyPassUsage {
   model                String?
   channelId            String?
   channelName          String?  @db.Text
+  displayChannelId     String?
+  displayChannelName   String?  @db.Text
   coveredAmount        Decimal  @db.Decimal(10, 4)
   coveredRequests      Int      @default(0)
   coveredTokens        Int      @default(0)
@@ -1271,6 +1285,7 @@ model MonthlyPassUsage {
   @@index([userId, createTime])
   @@index([relayUsageId])
   @@index([model])
+  @@index([displayChannelId])
   @@index([userMonthlyPassId, status, createTime])
   @@map("monthly_pass_usages")
 }

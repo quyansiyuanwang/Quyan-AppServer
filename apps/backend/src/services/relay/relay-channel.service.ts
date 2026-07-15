@@ -41,7 +41,7 @@ import { Permission } from "@/constant/permission";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, ConflictError, NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
-import type { Prisma, RelayChannel } from "@prisma/client";
+import { Prisma, type RelayChannel } from "@prisma/client";
 import type { Request } from "express";
 import { ModelPricingService } from "./model-pricing.service";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
@@ -105,7 +105,13 @@ export class RelayChannelService {
   }
 
   async listChannelOptions(actorUserId: string): Promise<RelayChannelOptionDto[]> {
-    const channels = await this.filterAccessibleChannels(await this.relayChannelRepository.listActive(), actorUserId);
+    const accessibleChannels = await this.filterAccessibleChannels(
+      await this.relayChannelRepository.listActive(),
+      actorUserId,
+    );
+    const channels = accessibleChannels.filter(
+      (channel) => (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden",
+    );
     const modelCatalog = await this.modelPricingService.getModelPricing();
     const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog);
     const options = await Promise.all(
@@ -161,6 +167,14 @@ export class RelayChannelService {
     if (!channel) throw new NotFoundError("Relay channel not found");
 
     await this.assertChannelAccessible(channel, actorUserId);
+    return channel;
+  }
+
+  async assertChannelBusinessSelectableById(id: string, actorUserId: string): Promise<RelayChannel> {
+    const channel = await this.assertChannelAccessibleById(id, actorUserId);
+    if ((channel.visibilityMode as RelayChannelVisibilityMode | undefined) === "hidden")
+      throw new BadRequestError("Hidden relay channels can only be used as pooled channel members");
+
     return channel;
   }
 
@@ -295,6 +309,7 @@ export class RelayChannelService {
       (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE;
     if (visibilityMode === "public") return true;
     if (visibilityMode === "private") return false;
+    if (visibilityMode === "hidden") return false;
 
     const { userIds, groupIds, roleIds } = this.normalizeVisibilityConfig(
       channel.visibilityConfig as RelayChannelVisibilityConfigDto | null | undefined,
@@ -529,10 +544,11 @@ export class RelayChannelService {
       data.routingConfig !== undefined
         ? data.routingConfig
         : (existing?.routingConfig as RelayChannelRoutingConfigDto | null | undefined);
-    const visibilityConfig =
+    const configuredVisibilityConfig =
       data.visibilityConfig !== undefined
         ? data.visibilityConfig
         : (existing?.visibilityConfig as RelayChannelVisibilityConfigDto | null | undefined);
+    const visibilityConfig = visibilityMode === "hidden" ? null : configuredVisibilityConfig;
     const poolMembers = this.normalizeRelayChannelMembers(
       data.poolMembers !== undefined ? data.poolMembers : undefined,
     );
@@ -658,7 +674,10 @@ export class RelayChannelService {
       routingStrategy: data.routingStrategy,
       routingConfig: data.routingConfig as Prisma.InputJsonValue | undefined,
       visibilityMode: data.visibilityMode,
-      visibilityConfig: data.visibilityConfig as Prisma.InputJsonValue | undefined,
+      visibilityConfig:
+        data.visibilityConfig === null
+          ? Prisma.JsonNull
+          : (data.visibilityConfig as Prisma.InputJsonValue | undefined),
       openaiUpstreamUrl: data.openaiUpstreamUrl,
       openaiUpstreamApiKey: data.openaiUpstreamApiKey,
       anthropicUpstreamUrl: data.anthropicUpstreamUrl,
@@ -773,6 +792,17 @@ export class RelayChannelService {
     if (!existing) throw new NotFoundError("Relay channel not found");
     const validated = await this.buildValidatedChannelData(data, existing);
     await this.assertVisibleNameAvailable(validated.name, existing.id);
+
+    if (
+      validated.visibilityMode === "hidden" &&
+      (existing.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden"
+    ) {
+      const referenceCount = await this.relayChannelRepository.countDirectBusinessReferences(id);
+      if (referenceCount > 0)
+        throw new BadRequestError(
+          "Cannot hide a relay channel while it is directly assigned to relay tokens, OJ API keys, or monthly passes",
+        );
+    }
 
     const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
       const updated = await this.relayChannelRepository.updateById(id, this.toPersistenceInput(validated), tx);
