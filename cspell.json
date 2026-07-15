@@ -9,6 +9,7 @@
     }
   ],
   "dictionaries": ["custom-words"],
+  "ignoreWords": ["quotaWindo"],
   "ignorePaths": [
     "pnpm-lock.yaml",
     "**/node_modules/**",
@@ -27,8 +28,10 @@
     "/[一-鿿]+/",
     "/[぀-ゟ゠-ヿ]+/",
     "/[\\uac00-\\ud7af]+/",
+    "/[\u0600-\u06ff]+/",
     "/[0-9a-f]{8,}/",
     "/[A-Za-z0-9+/]{40,}/",
+    "/%(?:[0-9A-Fa-f]{2})(?:(?:%[0-9A-Fa-f]{2})|[A-Za-z0-9._~-])*/",
     "/\\b[A-Z]{2,5}\\b/"
   ]
 }

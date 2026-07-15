@@ -40,7 +40,7 @@ export enum PermissionCheckMode {
 export function CheckPermission(
   permissions: Permission | Permission[],
   mode: PermissionCheckMode = PermissionCheckMode.ALL,
-  secrityName: SecurityScheme,
+  securityScheme: SecurityScheme,
 ): MethodDecorator {
   return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
@@ -50,13 +50,13 @@ export function CheckPermission(
       let request = getRequestContext();
       if (!request) request = args.find((arg) => arg && arg.user !== undefined);
 
-      if (secrityName === "local-or-jwt" && request && isLocalRequest(request) && !EnvSpace.isTest) {
+      if (securityScheme === "local-or-jwt" && request && isLocalRequest(request) && !EnvSpace.isTest) {
         // 如果是本地请求且不在测试环境，直接放行，不检查权限
         logger.info(`本地请求访问方法 ${String(propertyKey)}，跳过权限检查`);
         return await originalMethod.apply(this, args);
       }
 
-      if (secrityName === "jwt" || secrityName === "local-or-jwt") {
+      if (securityScheme === "jwt" || securityScheme === "local-or-jwt") {
         if (!request || !request.user || !request.user.userId) throw new ForbiddenError("未授权访问，请先登录");
 
         const userId = request.user.userId;
@@ -132,8 +132,8 @@ export function CheckPermission(
  * public async modifyUser() { ... }
  * ```
  */
-export function RequireAllPermissions(permissions: Permission[], secrityName: SecurityScheme = "jwt"): MethodDecorator {
-  return CheckPermission(permissions, PermissionCheckMode.ALL, secrityName);
+export function RequireAllPermissions(permissions: Permission[], securityScheme: SecurityScheme = "jwt"): MethodDecorator {
+  return CheckPermission(permissions, PermissionCheckMode.ALL, securityScheme);
 }
 
 /**
@@ -145,8 +145,8 @@ export function RequireAllPermissions(permissions: Permission[], secrityName: Se
  * public async getUsers() { ... }
  * ```
  */
-export function RequireAnyPermission(permissions: Permission[], secrityName: SecurityScheme = "jwt"): MethodDecorator {
-  return CheckPermission(permissions, PermissionCheckMode.ANY, secrityName);
+export function RequireAnyPermission(permissions: Permission[], securityScheme: SecurityScheme = "jwt"): MethodDecorator {
+  return CheckPermission(permissions, PermissionCheckMode.ANY, securityScheme);
 }
 
 /**
@@ -158,6 +158,6 @@ export function RequireAnyPermission(permissions: Permission[], secrityName: Sec
  * public async createUser() { ... }
  * ```
  */
-export function RequirePermission(permission: Permission, secrityName: SecurityScheme = "jwt"): MethodDecorator {
-  return CheckPermission(permission, PermissionCheckMode.ALL, secrityName);
+export function RequirePermission(permission: Permission, securityScheme: SecurityScheme = "jwt"): MethodDecorator {
+  return CheckPermission(permission, PermissionCheckMode.ALL, securityScheme);
 }

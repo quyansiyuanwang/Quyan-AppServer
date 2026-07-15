@@ -314,7 +314,7 @@ const entitlementWithToken = {
   terminalLimit: 1,
   registrationToken: {
     token: 'rtm_current_token',
-    maskedToken: 'rtm_...oken',
+    maskedToken: 'rtm_...token',
   },
   status: MANAGED_STATUS.ENABLED,
 } as any

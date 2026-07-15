@@ -28,7 +28,7 @@ describe('SegmentedCodeInput', () => {
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual(['123456'])
   })
 
-  it('normalizes alphanumeric paste, uppercases and keeps separator format', async () => {
+  it('normalizes alphanumeric paste, converts to uppercase, and keeps separator format', async () => {
     const wrapper = mount(SegmentedCodeInput, {
       props: {
         modelValue: '',
