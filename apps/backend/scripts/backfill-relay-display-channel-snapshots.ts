@@ -11,7 +11,8 @@ const LEGACY_POOL_DISPLAY_NAME = "历史混池渠道";
 const UNKNOWN_HISTORY_DISPLAY_NAME = "历史渠道（未记录）";
 
 const args = process.argv.slice(2);
-const apply = args.includes("--apply") && !args.includes("--dry-run");
+const applyRequested = args.includes("--apply") && !args.includes("--dry-run");
+const apply = false;
 const batchSizeArg = args.find((arg) => arg.startsWith("--batchSize="));
 const tokenIdArg = args.find((arg) => arg.startsWith("--tokenId="));
 const parsedBatchSize = Number.parseInt(batchSizeArg?.slice("--batchSize=".length) || "", 10);
@@ -53,7 +54,13 @@ const isPrismaPromise = (value: Prisma.PrismaPromise<unknown> | null): value is 
   value !== null;
 
 const run = async (): Promise<void> => {
-  console.log(`[relay-display-snapshots] mode=${apply ? "apply" : "dry-run"}`);
+  if (applyRequested) {
+    throw new Error(
+      "The speculative backfill write mode is disabled. Use relay-history:diagnose-display-snapshots and restore only from immutable record evidence.",
+    );
+  }
+
+  console.log("[relay-display-snapshots] mode=deprecated-read-only");
   console.log(`[relay-display-snapshots] batchSize=${batchSize}`);
   if (tokenId) console.log(`[relay-display-snapshots] tokenId=${tokenId}`);
   console.log("[relay-display-snapshots] Existing non-null display snapshots are never overwritten.");
@@ -333,9 +340,7 @@ const run = async (): Promise<void> => {
       ...monthlyPassUpdates,
     ] as Prisma.PrismaPromise<any>[];
 
-    if (apply)
-      for (const updates of chunkValues(pendingUpdates, UPDATE_BATCH_SIZE))
-        await prisma.$transaction(updates);
+    if (apply) for (const updates of chunkValues(pendingUpdates, UPDATE_BATCH_SIZE)) await prisma.$transaction(updates);
   }
 
   if (!tokenId) {
@@ -401,7 +406,8 @@ const run = async (): Promise<void> => {
         },
       });
     });
-    if (apply) for (const updateChunk of chunkValues(updates, UPDATE_BATCH_SIZE)) await prisma.$transaction(updateChunk);
+    if (apply)
+      for (const updateChunk of chunkValues(updates, UPDATE_BATCH_SIZE)) await prisma.$transaction(updateChunk);
   }
 
   let switchLogCursor: string | undefined;
@@ -466,7 +472,8 @@ const run = async (): Promise<void> => {
         },
       });
     });
-    if (apply) for (const updateChunk of chunkValues(updates, UPDATE_BATCH_SIZE)) await prisma.$transaction(updateChunk);
+    if (apply)
+      for (const updateChunk of chunkValues(updates, UPDATE_BATCH_SIZE)) await prisma.$transaction(updateChunk);
   }
 
   printCounts("planned updates", updatesByTable);
@@ -474,7 +481,9 @@ const run = async (): Promise<void> => {
 
   if (!apply) {
     console.log("[relay-display-snapshots] dry-run only; no data was changed.");
-    console.log("[relay-display-snapshots] Review the summary, then re-run with --apply to write only empty snapshots.");
+    console.log(
+      "[relay-display-snapshots] Apply mode is permanently disabled because current topology is not historical evidence.",
+    );
   } else console.log("[relay-display-snapshots] completed; legacy fields and all non-empty snapshots were preserved.");
 
   await prisma.$disconnect();

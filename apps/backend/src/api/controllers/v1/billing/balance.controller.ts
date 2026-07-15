@@ -23,6 +23,7 @@ import { validateBody, validateParams, validateQuery } from "@/middleware/valida
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { isMonthlyPassCoverageDescription } from "@/util/monthly-pass-coverage.util";
+import { normalizeRelayDisplaySnapshotName } from "@/util/relay-display-channel.util";
 
 type UsageDataMap = Map<
   string,
@@ -31,6 +32,7 @@ type UsageDataMap = Map<
     timeToFirstByte: number | null;
     isStreaming: boolean;
     displayChannelName: string | null;
+    legacyMonthlyPassChannelName: string | null;
   }
 >;
 
@@ -82,11 +84,16 @@ export class BalanceController extends Controller {
     const usages = await this.relayUsageRepository.findByIdsWithTokenName(relatedIds);
     usages.forEach((u) => {
       if (u.relayToken?.name) tokenNameMap.set(u.id, u.relayToken.name);
+      const legacyMonthlyPassChannelNames = new Set(
+        u.monthlyPassUsages.map((usage) => usage.channelName?.trim()).filter((name): name is string => Boolean(name)),
+      );
       usageDataMap.set(u.id, {
         totalOutputTime: u.totalOutputTime,
         timeToFirstByte: u.timeToFirstByte,
         isStreaming: u.isStreaming,
         displayChannelName: u.displayChannelName,
+        legacyMonthlyPassChannelName:
+          legacyMonthlyPassChannelNames.size === 1 ? [...legacyMonthlyPassChannelNames][0] : null,
       });
     });
 
@@ -120,7 +127,14 @@ export class BalanceController extends Controller {
       cacheReadMultiplier: r.cacheReadMultiplier != null ? Number(r.cacheReadMultiplier) : undefined,
       pricingType: r.pricingType === "token-based" || r.pricingType === "per-request" ? r.pricingType : undefined,
       fixedPrice: r.fixedPrice != null ? Number(r.fixedPrice) : undefined,
-      displayChannelName: r.displayChannelName || (r.relatedId ? usageDataMap.get(r.relatedId)?.displayChannelName : undefined) || undefined,
+      displayChannelName:
+        r.channelName?.trim() ||
+        (r.relatedId ? usageDataMap.get(r.relatedId)?.legacyMonthlyPassChannelName : undefined) ||
+        normalizeRelayDisplaySnapshotName(r.displayChannelName) ||
+        (r.relatedId
+          ? normalizeRelayDisplaySnapshotName(usageDataMap.get(r.relatedId)?.displayChannelName)
+          : undefined) ||
+        undefined,
       channelMultiplier: r.channelMultiplier != null ? Number(r.channelMultiplier) : undefined,
       globalMultiplier: r.globalMultiplier != null ? Number(r.globalMultiplier) : undefined,
       timeMultiplier: r.timeMultiplier != null ? Number(r.timeMultiplier) : undefined,

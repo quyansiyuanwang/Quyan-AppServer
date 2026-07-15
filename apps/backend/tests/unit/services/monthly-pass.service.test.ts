@@ -407,6 +407,96 @@ describe("MonthlyPassService quota window usage summaries", () => {
   });
 });
 
+describe("MonthlyPassService historical usage channel display", () => {
+  const monthlyPassRepository = {
+    listUsageRecords: vi.fn(),
+  };
+  const MonthlyPassServiceCtor = MonthlyPassService as unknown as new (...args: any[]) => MonthlyPassService;
+  const service = new MonthlyPassServiceCtor(monthlyPassRepository, {}, {}, {}, {}, {}, {});
+  const now = new Date("2026-07-16T00:00:00.000Z");
+
+  const buildUsageRecord = (overrides: Record<string, unknown>) => ({
+    id: "usage-1",
+    userMonthlyPassId: "pass-1",
+    userId: "user-1",
+    relayUsageId: "relay-usage-1",
+    model: "gpt-5.4",
+    channelName: null,
+    displayChannelId: null,
+    displayChannelName: null,
+    coveredAmount: 1,
+    coveredRequests: 1,
+    coveredTokens: 10,
+    totalRequestCost: 1,
+    remainingRequestCost: 0,
+    description: null,
+    createTime: now,
+    userMonthlyPass: {
+      template: { id: "template-1", name: "Starter Pack" },
+    },
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("restores the original legacy channel name ahead of a backfilled placeholder", async () => {
+    monthlyPassRepository.listUsageRecords.mockResolvedValue({
+      total: 1,
+      records: [
+        buildUsageRecord({
+          channelName: "Legacy Physical Channel",
+          displayChannelId: "guessed-pool-id",
+          displayChannelName: "历史混池渠道",
+        }),
+      ],
+    });
+
+    const result = await service.listUsages();
+
+    expect(result.records[0]).toEqual(
+      expect.objectContaining({
+        displayChannelName: "Legacy Physical Channel",
+        displayChannelId: undefined,
+      }),
+    );
+  });
+
+  it("keeps the immutable logical snapshot for new usage records", async () => {
+    monthlyPassRepository.listUsageRecords.mockResolvedValue({
+      total: 1,
+      records: [
+        buildUsageRecord({
+          displayChannelId: "logical-pool-id",
+          displayChannelName: "Logical Pool",
+        }),
+      ],
+    });
+
+    const result = await service.listUsages();
+
+    expect(result.records[0]).toEqual(
+      expect.objectContaining({
+        displayChannelName: "Logical Pool",
+        displayChannelId: "logical-pool-id",
+      }),
+    );
+  });
+
+  it("leaves the channel absent when no immutable record evidence exists", async () => {
+    monthlyPassRepository.listUsageRecords.mockResolvedValue({
+      total: 1,
+      records: [buildUsageRecord({ displayChannelName: "历史渠道（未记录）" })],
+    });
+
+    const result = await service.listUsages();
+
+    expect(result.records[0]?.displayChannelName).toBeUndefined();
+    expect(result.records[0]?.displayChannelId).toBeUndefined();
+  });
+});
+
 describe("MonthlyPassService channel pool coverage", () => {
   const monthlyPassRepository = {
     findActivePassCandidates: vi.fn(),

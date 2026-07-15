@@ -70,9 +70,12 @@ describe("Balance API Integration", () => {
   });
 
   afterAll(async () => {
+    await prisma.monthlyPassUsage.deleteMany({ where: { userId: { in: [adminUserId, targetUserId] } } });
     await prisma.balanceTransaction.deleteMany({ where: { userId: { in: [adminUserId, targetUserId] } } });
     await prisma.relayUsage.deleteMany({ where: { relayTokenId: { in: relayTokenIds } } });
     await prisma.relayToken.deleteMany({ where: { id: { in: relayTokenIds } } });
+    await prisma.userMonthlyPass.deleteMany({ where: { userId: { in: [adminUserId, targetUserId] } } });
+    await prisma.monthlyPassTemplate.deleteMany({ where: { name: { startsWith: `Balance History ${shortSuffix}` } } });
     await prisma.balanceAccount.deleteMany({ where: { userId: { in: [adminUserId, targetUserId] } } });
     await prisma.user.deleteMany({ where: { id: { in: [adminUserId, targetUserId] } } });
     await prisma.group.deleteMany({ where: { id: testGroupId } });
@@ -196,7 +199,7 @@ describe("Balance API Integration", () => {
     );
   });
 
-  it("uses the associated relay usage display snapshot when a legacy transaction snapshot is empty", async () => {
+  it("restores old physical names while preserving new logical channel snapshots", async () => {
     const relayToken = await prisma.relayToken.create({
       data: {
         userId: targetUserId,
@@ -205,41 +208,160 @@ describe("Balance API Integration", () => {
     });
     relayTokenIds.push(relayToken.id);
 
-    const usage = await prisma.relayUsage.create({
+    const [linkedLogicalUsage, linkedMonthlyPassUsage, conflictingMonthlyPassUsage, placeholderOnlyUsage] =
+      await Promise.all([
+        prisma.relayUsage.create({
+          data: {
+            relayTokenId: relayToken.id,
+            displayChannelId: "linked-logical-channel-id",
+            displayChannelName: "Linked Logical Pool",
+            path: "/relay/proxy/v1/chat/completions",
+            method: "POST",
+            statusCode: 200,
+            ipAddress: "127.0.0.1",
+          },
+        }),
+        prisma.relayUsage.create({
+          data: {
+            relayTokenId: relayToken.id,
+            displayChannelId: "guessed-monthly-pass-pool-id",
+            displayChannelName: "历史混池渠道",
+            path: "/relay/proxy/v1/chat/completions",
+            method: "POST",
+            statusCode: 200,
+            ipAddress: "127.0.0.1",
+          },
+        }),
+        prisma.relayUsage.create({
+          data: {
+            relayTokenId: relayToken.id,
+            path: "/relay/proxy/v1/chat/completions",
+            method: "POST",
+            statusCode: 200,
+            ipAddress: "127.0.0.1",
+          },
+        }),
+        prisma.relayUsage.create({
+          data: {
+            relayTokenId: relayToken.id,
+            displayChannelName: "历史渠道（未记录）",
+            path: "/relay/proxy/v1/chat/completions",
+            method: "POST",
+            statusCode: 200,
+            ipAddress: "127.0.0.1",
+          },
+        }),
+      ]);
+
+    const monthlyPassTemplate = await prisma.monthlyPassTemplate.create({
       data: {
-        relayTokenId: relayToken.id,
-        displayChannelId: "logical-channel-id",
-        displayChannelName: "历史混池渠道",
-        path: "/relay/proxy/v1/chat/completions",
-        method: "POST",
-        statusCode: 200,
-        ipAddress: "127.0.0.1",
+        name: `Balance History ${shortSuffix} Template`,
+        defaultQuota: 10,
+        quotaUnit: "amount",
       },
     });
-    const transaction = await prisma.balanceTransaction.create({
+    const userMonthlyPass = await prisma.userMonthlyPass.create({
       data: {
         userId: targetUserId,
-        type: "api_usage",
-        amount: -0.1,
-        balanceBefore: 87.9598,
-        balanceAfter: 87.8598,
-        relatedId: usage.id,
+        templateId: monthlyPassTemplate.id,
+        startAt: new Date(Date.now() - 60_000),
+        endAt: new Date(Date.now() + 60 * 60 * 1000),
+        totalQuota: 10,
+        remainingQuota: 10,
+        usedQuota: 0,
+        quotaUnit: "amount",
       },
     });
+    await prisma.monthlyPassUsage.createMany({
+      data: [
+        {
+          userMonthlyPassId: userMonthlyPass.id,
+          userId: targetUserId,
+          relayUsageId: linkedMonthlyPassUsage.id,
+          channelName: "Recovered Monthly Pass Member",
+          coveredAmount: 0.1,
+          totalRequestCost: 0.1,
+          remainingRequestCost: 0,
+        },
+        {
+          userMonthlyPassId: userMonthlyPass.id,
+          userId: targetUserId,
+          relayUsageId: conflictingMonthlyPassUsage.id,
+          channelName: "Conflicting Member A",
+          coveredAmount: 0.1,
+          totalRequestCost: 0.1,
+          remainingRequestCost: 0,
+        },
+        {
+          userMonthlyPassId: userMonthlyPass.id,
+          userId: targetUserId,
+          relayUsageId: conflictingMonthlyPassUsage.id,
+          channelName: "Conflicting Member B",
+          coveredAmount: 0.1,
+          totalRequestCost: 0.1,
+          remainingRequestCost: 0,
+        },
+      ],
+    });
+
+    const baseTransaction = {
+      userId: targetUserId,
+      type: "api_usage",
+      amount: -0.1,
+      balanceBefore: 87.9598,
+      balanceAfter: 87.8598,
+    };
+    const [legacyTransaction, logicalTransaction, linkedLogicalTransaction, linkedMonthlyPassTransaction] =
+      await Promise.all([
+        prisma.balanceTransaction.create({
+          data: {
+            ...baseTransaction,
+            channelName: "Original Physical Member",
+            displayChannelId: "guessed-pool-id",
+            displayChannelName: "历史混池渠道",
+          },
+        }),
+        prisma.balanceTransaction.create({
+          data: {
+            ...baseTransaction,
+            displayChannelId: "logical-pool-id",
+            displayChannelName: "Current Logical Pool",
+          },
+        }),
+        prisma.balanceTransaction.create({
+          data: { ...baseTransaction, relatedId: linkedLogicalUsage.id },
+        }),
+        prisma.balanceTransaction.create({
+          data: { ...baseTransaction, relatedId: linkedMonthlyPassUsage.id },
+        }),
+      ]);
+    const [conflictingMonthlyPassTransaction, placeholderOnlyTransaction, unrelatedTransaction] = await Promise.all([
+      prisma.balanceTransaction.create({
+        data: { ...baseTransaction, relatedId: conflictingMonthlyPassUsage.id },
+      }),
+      prisma.balanceTransaction.create({
+        data: { ...baseTransaction, relatedId: placeholderOnlyUsage.id },
+      }),
+      prisma.balanceTransaction.create({
+        data: { ...baseTransaction, relatedId: `non-relay-${shortSuffix}` },
+      }),
+    ]);
 
     const allTxRes = await request(app)
       .get(`/v1/balance/transactions/all?userId=${targetUserId}&limit=100&offset=0`)
       .set("Authorization", `Bearer ${accessToken}`);
 
     expect(allTxRes.status).toBe(200);
-    const record = (allTxRes.body.data.records as Array<Record<string, unknown>>).find(
-      (item) => item.id === transaction.id,
-    );
-    expect(record).toEqual(
-      expect.objectContaining({
-        displayChannelName: "历史混池渠道",
-      }),
-    );
+    const records = allTxRes.body.data.records as Array<Record<string, unknown>>;
+    const recordById = new Map(records.map((record) => [record.id, record]));
+
+    expect(recordById.get(legacyTransaction.id)?.displayChannelName).toBe("Original Physical Member");
+    expect(recordById.get(logicalTransaction.id)?.displayChannelName).toBe("Current Logical Pool");
+    expect(recordById.get(linkedLogicalTransaction.id)?.displayChannelName).toBe("Linked Logical Pool");
+    expect(recordById.get(linkedMonthlyPassTransaction.id)?.displayChannelName).toBe("Recovered Monthly Pass Member");
+    expect(recordById.get(conflictingMonthlyPassTransaction.id)?.displayChannelName).toBeUndefined();
+    expect(recordById.get(placeholderOnlyTransaction.id)?.displayChannelName).toBeUndefined();
+    expect(recordById.get(unrelatedTransaction.id)?.displayChannelName).toBeUndefined();
   });
 
   it("rejects balance transaction queries larger than 30 days", async () => {

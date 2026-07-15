@@ -222,7 +222,7 @@ describe('BalanceHistoryView', () => {
     }
     const refreshedRecord = {
       ...staleRecord,
-      displayChannelName: '历史混池渠道',
+      displayChannelName: 'Original Physical Member',
     }
 
     getUsageStatisticsMock.mockResolvedValue({ data: { total: 100, used: 10, remaining: 90 } })

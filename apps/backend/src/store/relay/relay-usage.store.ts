@@ -4,6 +4,9 @@ export type RelayUsageWithTokenName = RelayUsage & {
   relayToken: {
     name: string | null;
   } | null;
+  monthlyPassUsages: Array<{
+    channelName: string | null;
+  }>;
 };
 
 export interface RelayUsageCreateInput {
