@@ -8,6 +8,8 @@ const {
   createChannelMock,
   updateChannelMock,
   listChannelsMock,
+  exportChannelsMock,
+  batchDuplicateChannelsMock,
   getRelayConfigMock,
   updateRelayConfigMock,
   getSystemRelayConfigMock,
@@ -17,10 +19,13 @@ const {
   listRolesMock,
   messageSuccessMock,
   messageErrorMock,
+  copyTextWithFallbackMock,
 } = vi.hoisted(() => ({
   createChannelMock: vi.fn(),
   updateChannelMock: vi.fn(),
   listChannelsMock: vi.fn(),
+  exportChannelsMock: vi.fn(),
+  batchDuplicateChannelsMock: vi.fn(),
   getRelayConfigMock: vi.fn(),
   updateRelayConfigMock: vi.fn(),
   getSystemRelayConfigMock: vi.fn(),
@@ -30,6 +35,7 @@ const {
   listRolesMock: vi.fn(),
   messageSuccessMock: vi.fn(),
   messageErrorMock: vi.fn(),
+  copyTextWithFallbackMock: vi.fn(),
 }))
 
 vi.mock('element-plus', () => ({
@@ -48,10 +54,10 @@ vi.mock('@/service/relayChannelService', () => ({
     listChannels: listChannelsMock,
     createChannel: createChannelMock,
     updateChannel: updateChannelMock,
-    exportChannels: vi.fn(),
+    exportChannels: exportChannelsMock,
     importChannels: vi.fn(),
     duplicateChannel: vi.fn(),
-    batchDuplicateChannels: vi.fn(),
+    batchDuplicateChannels: batchDuplicateChannelsMock,
     batchSetChannelStatus: vi.fn(),
     batchDeleteChannels: vi.fn(),
     toggleChannelStatus: vi.fn(),
@@ -99,7 +105,7 @@ vi.mock('@/composables/usePageDevice', () => ({
 }))
 
 vi.mock('@/utils/clipboard', () => ({
-  copyTextWithFallback: vi.fn(async () => true),
+  copyTextWithFallback: copyTextWithFallbackMock,
 }))
 
 const createRelayConfigResponse = () => ({
@@ -193,11 +199,13 @@ describe('useRelaySettingsManagement', () => {
     getSystemRelayConfigMock.mockResolvedValue(createSystemRelayConfigResponse())
     setRelayConfigMock.mockResolvedValue(undefined)
     listChannelsMock.mockResolvedValue([])
+    exportChannelsMock.mockResolvedValue({ channels: [] })
     createChannelMock.mockResolvedValue({ id: 'created-channel' })
     updateChannelMock.mockResolvedValue({ id: 'updated-channel' })
     getAllUsersMock.mockResolvedValue({ users: [] })
     getAllGroupsMock.mockResolvedValue([])
     listRolesMock.mockResolvedValue([])
+    copyTextWithFallbackMock.mockResolvedValue(true)
   })
 
   it('loads pooled edit state with auto allowed-model mode and null thresholds', async () => {
@@ -249,6 +257,43 @@ describe('useRelaySettingsManagement', () => {
     expect(api.channelForm.value.routingConfig.healthScoreThreshold).toBeNull()
     expect(api.channelForm.value.routingConfig.latencyThresholdMs).toBeNull()
     expect(api.channelForm.value.routingConfig.circuitBreakerThreshold).toBeNull()
+
+    wrapper.unmount()
+  })
+
+  it('copies selected channel export JSON to the clipboard', async () => {
+    const channel = createChannelRow()
+    const { api, wrapper } = await mountComposable()
+    api.channels.value = [channel]
+    api.toggleChannelSelection(channel.id, true)
+    exportChannelsMock.mockResolvedValue({ channels: [channel] })
+
+    await api.copyChannelsAsJson()
+
+    expect(exportChannelsMock).toHaveBeenCalledWith({
+      ids: [channel.id],
+      includeDisabled: true,
+    })
+    expect(copyTextWithFallbackMock).toHaveBeenCalledWith(
+      JSON.stringify({ channels: [channel] }, null, 2),
+    )
+    expect(batchDuplicateChannelsMock).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('clones selected channels through the batch duplication API', async () => {
+    const channel = createChannelRow()
+    const { api, wrapper } = await mountComposable()
+    api.channels.value = [channel]
+    api.toggleChannelSelection(channel.id, true)
+    batchDuplicateChannelsMock.mockResolvedValue([channel])
+
+    await api.handleBatchDuplicateChannels()
+
+    expect(batchDuplicateChannelsMock).toHaveBeenCalledWith([channel.id])
+    expect(exportChannelsMock).not.toHaveBeenCalled()
+    expect(copyTextWithFallbackMock).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })

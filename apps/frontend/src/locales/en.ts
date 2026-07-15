@@ -2190,6 +2190,7 @@ export default {
     batchEnableChannels: 'Batch Enable',
     batchDisableChannels: 'Batch Disable',
     batchDeleteChannels: 'Batch Delete',
+    batchCopyChannels: 'Batch Copy Channel JSON',
     batchDuplicateChannels: 'Batch Duplicate',
     batchExportChannels: 'Batch Export',
     selectedChannels: '{count} channels selected',
