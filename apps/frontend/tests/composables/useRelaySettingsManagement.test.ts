@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, ref } from 'vue'
+import { defineComponent, ref, shallowRef } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRelaySettingsManagement, type RelaySettingsManagementState } from '@/views/relay/relay-settings/useRelaySettingsManagement'
 import type { RelayChannelDto } from '@/client/types.gen'
@@ -149,33 +149,29 @@ const createChannelRow = (overrides: Partial<RelayChannelDto> = {}): RelayChanne
     enabled: true,
     channelType: 'standalone',
     routingStrategy: 'priority',
-    routingConfig: null,
     visibilityMode: 'public',
-    visibilityConfig: null,
     poolMembers: [],
     multiplier: 1,
     allowedFormats: 'openai',
-    allowedModels: null,
+    allowedModels: [],
     openaiUpstreamUrl: 'https://example.com/v1',
-    openaiUpstreamApiKey: 'key',
-    anthropicUpstreamUrl: null,
-    anthropicUpstreamApiKey: null,
-    geminiUpstreamUrl: null,
-    geminiUpstreamApiKey: null,
+    hasOpenaiUpstreamApiKey: true,
+    hasAnthropicUpstreamApiKey: false,
+    hasGeminiUpstreamApiKey: false,
     inputTokensIncludeCacheRead: false,
-    modelMapping: null,
     timePeriodMultipliers: [],
     createTime: new Date().toISOString(),
+    updateTime: new Date().toISOString(),
     ...overrides,
-  }) as RelayChannelDto
+  })
 
 const mountComposable = async () => {
-  let api: RelaySettingsManagementState | null = null
+  const api = shallowRef<RelaySettingsManagementState | null>(null)
 
   const Host = defineComponent({
     name: 'RelaySettingsManagementHost',
     setup() {
-      api = useRelaySettingsManagement()
+      api.value = useRelaySettingsManagement()
       return () => null
     },
   })
@@ -183,10 +179,11 @@ const mountComposable = async () => {
   const wrapper = mount(Host)
   await flushPromises()
 
-  if (!api) throw new Error('Failed to initialize relay settings composable')
+  const state = api.value
+  if (!state) throw new Error('Failed to initialize relay settings composable')
 
   return {
-    api,
+    api: state,
     wrapper,
   }
 }
@@ -229,8 +226,7 @@ describe('useRelaySettingsManagement', () => {
         ],
         visibilityMode: 'whitelist',
         visibilityConfig: { groupIds: ['group-1'] },
-        openaiUpstreamUrl: null,
-        openaiUpstreamApiKey: null,
+        openaiUpstreamUrl: undefined,
       }),
     )
 
