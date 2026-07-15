@@ -821,14 +821,14 @@ export class RelayProxyService {
     const attemptPlan = await this.buildAttemptPlan(relayToken);
     const eligibleChannels = attemptPlan.channels
       .map((candidate) => candidate.resolvedChannel)
-      .filter((channel) =>
-        supportsRelayRequestFormat(channel.allowedFormats, requestFormat),
-    );
+      .filter((channel) => supportsRelayRequestFormat(channel.allowedFormats, requestFormat));
 
     if (eligibleChannels.length === 0) {
       const allowedFormats = [
         ...new Set(
-          attemptPlan.channels.flatMap((candidate) => parseRelayRequestFormats(candidate.resolvedChannel.allowedFormats)),
+          attemptPlan.channels.flatMap((candidate) =>
+            parseRelayRequestFormats(candidate.resolvedChannel.allowedFormats),
+          ),
         ),
       ].join(",");
       throw new BadRequestError(

@@ -132,7 +132,10 @@ export function CheckPermission(
  * public async modifyUser() { ... }
  * ```
  */
-export function RequireAllPermissions(permissions: Permission[], securityScheme: SecurityScheme = "jwt"): MethodDecorator {
+export function RequireAllPermissions(
+  permissions: Permission[],
+  securityScheme: SecurityScheme = "jwt",
+): MethodDecorator {
   return CheckPermission(permissions, PermissionCheckMode.ALL, securityScheme);
 }
 
@@ -145,7 +148,10 @@ export function RequireAllPermissions(permissions: Permission[], securityScheme:
  * public async getUsers() { ... }
  * ```
  */
-export function RequireAnyPermission(permissions: Permission[], securityScheme: SecurityScheme = "jwt"): MethodDecorator {
+export function RequireAnyPermission(
+  permissions: Permission[],
+  securityScheme: SecurityScheme = "jwt",
+): MethodDecorator {
   return CheckPermission(permissions, PermissionCheckMode.ANY, securityScheme);
 }
 

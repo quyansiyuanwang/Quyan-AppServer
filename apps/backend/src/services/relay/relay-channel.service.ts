@@ -675,9 +675,7 @@ export class RelayChannelService {
       routingConfig: data.routingConfig as Prisma.InputJsonValue | undefined,
       visibilityMode: data.visibilityMode,
       visibilityConfig:
-        data.visibilityConfig === null
-          ? Prisma.JsonNull
-          : (data.visibilityConfig as Prisma.InputJsonValue | undefined),
+        data.visibilityConfig === null ? Prisma.JsonNull : (data.visibilityConfig as Prisma.InputJsonValue | undefined),
       openaiUpstreamUrl: data.openaiUpstreamUrl,
       openaiUpstreamApiKey: data.openaiUpstreamApiKey,
       anthropicUpstreamUrl: data.anthropicUpstreamUrl,

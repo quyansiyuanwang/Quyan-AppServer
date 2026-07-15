@@ -98,9 +98,7 @@ export class ChatService {
     };
   }
 
-  private async getCandidateChatChannels(
-    token: RelayTokenWithChannel,
-  ): Promise<RelayResolvedChannelCandidate[]> {
+  private async getCandidateChatChannels(token: RelayTokenWithChannel): Promise<RelayResolvedChannelCandidate[]> {
     const assignedChannel = token.channel;
     if (!assignedChannel) return [];
     return this.relayPoolResolver.resolveActiveLeafCandidates([assignedChannel]);

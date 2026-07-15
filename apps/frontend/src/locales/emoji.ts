@@ -2377,7 +2377,8 @@ const emoji: DeepStringify<typeof en> = {
     visibilityModePrivate: '🔒 私有',
     visibilityModeWhitelist: '📋 白名单',
     visibilityModeHidden: '🫥 混池成员',
-    visibilityModeHiddenHelp: '仅内部混池拓扑；可作成员，不能被中转令牌、OJ API Key 或月卡直接选择。',
+    visibilityModeHiddenHelp:
+      '仅内部混池拓扑；可作成员，不能被中转令牌、OJ API Key 或月卡直接选择。',
     visibilityUsers: '👤 白名单',
     visibilityGroups: '👥 白名单',
     visibilityRoles: '🪪 白名单',

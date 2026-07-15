@@ -121,10 +121,7 @@ describe("RelayTokenService", () => {
       } as any),
     ).rejects.toThrow(NotFoundError);
 
-    expect(relayChannelService.assertChannelBusinessSelectableById).toHaveBeenCalledWith(
-      "channel-private",
-      "user-1",
-    );
+    expect(relayChannelService.assertChannelBusinessSelectableById).toHaveBeenCalledWith("channel-private", "user-1");
   });
 
   it("preserves multi-channel routing on metadata-only updates", async () => {

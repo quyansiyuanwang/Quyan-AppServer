@@ -884,7 +884,9 @@ const filteredTransactions = computed(() => {
   if (localFilters.value.tokenName)
     filtered = filtered.filter((t) => t.tokenName === localFilters.value.tokenName)
   if (localFilters.value.displayChannelName)
-    filtered = filtered.filter((t) => t.displayChannelName === localFilters.value.displayChannelName)
+    filtered = filtered.filter(
+      (t) => t.displayChannelName === localFilters.value.displayChannelName,
+    )
   if (localFilters.value.startTime)
     filtered = filtered.filter(
       (t) => new Date(t.createTime) >= new Date(localFilters.value.startTime),
