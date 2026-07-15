@@ -50,6 +50,9 @@ export class RelayProxyRepository implements RelayProxyStore {
       await tx.relayUsage.create({
         data: {
           relayTokenId: data.relayTokenId,
+          executionChannelId: data.executionChannelId || null,
+          displayChannelId: data.displayChannelId || null,
+          displayChannelName: data.displayChannelName || null,
           requestTokens: data.requestTokens,
           responseTokens: data.responseTokens,
           totalTokens: data.totalTokens,
@@ -80,6 +83,9 @@ export class RelayProxyRepository implements RelayProxyStore {
       const usageRecord = await tx.relayUsage.create({
         data: {
           relayTokenId: data.relayTokenId,
+          executionChannelId: data.executionChannelId || null,
+          displayChannelId: data.displayChannelId || null,
+          displayChannelName: data.displayChannelName || null,
           requestTokens: data.requestTokens,
           responseTokens: data.responseTokens,
           totalTokens: data.totalTokens,
@@ -122,7 +128,8 @@ export class RelayProxyRepository implements RelayProxyStore {
           multiplier: new Decimal(data.multiplier),
           cacheCreationMultiplier: data.cacheCreationMultiplier > 0 ? new Decimal(data.cacheCreationMultiplier) : null,
           cacheReadMultiplier: data.cacheReadMultiplier > 0 ? new Decimal(data.cacheReadMultiplier) : null,
-          channelName: data.channelName || null,
+          displayChannelId: data.displayChannelId || null,
+          displayChannelName: data.displayChannelName || null,
           channelMultiplier: new Decimal(data.channelMultiplier),
           globalMultiplier: new Decimal(data.globalMultiplier),
           timeMultiplier: data.timeMultiplier != null ? new Decimal(data.timeMultiplier) : null,
@@ -320,6 +327,9 @@ export class RelayProxyRepository implements RelayProxyStore {
           const usageRecord = await tx.relayUsage.create({
             data: {
               relayTokenId: data.relayTokenId,
+              executionChannelId: data.executionChannelId || data.channelId,
+              displayChannelId: data.displayChannelId || null,
+              displayChannelName: data.displayChannelName || null,
               requestTokens: data.requestTokens,
               responseTokens: data.responseTokens,
               totalTokens: data.totalTokens,
@@ -359,7 +369,8 @@ export class RelayProxyRepository implements RelayProxyStore {
                 relayUsageId: usageRecord.id,
                 model: data.modelName,
                 channelId: data.channelId,
-                channelName: data.channelName || null,
+                displayChannelId: data.displayChannelId || null,
+                displayChannelName: data.displayChannelName || null,
                 coveredAmount: new Decimal(plan.coveredAmount),
                 coveredRequests: plan.coveredRequests,
                 coveredTokens: plan.coveredTokens,
@@ -396,7 +407,8 @@ export class RelayProxyRepository implements RelayProxyStore {
                 cacheCreationMultiplier:
                   data.cacheCreationMultiplier > 0 ? new Decimal(data.cacheCreationMultiplier) : null,
                 cacheReadMultiplier: data.cacheReadMultiplier > 0 ? new Decimal(data.cacheReadMultiplier) : null,
-                channelName: data.channelName || null,
+                displayChannelId: data.displayChannelId || null,
+                displayChannelName: data.displayChannelName || null,
                 channelMultiplier: new Decimal(data.channelMultiplier),
                 globalMultiplier: new Decimal(data.globalMultiplier),
                 timeMultiplier: data.timeMultiplier != null ? new Decimal(data.timeMultiplier) : null,
@@ -449,7 +461,8 @@ export class RelayProxyRepository implements RelayProxyStore {
                 cacheCreationMultiplier:
                   data.cacheCreationMultiplier > 0 ? new Decimal(data.cacheCreationMultiplier) : null,
                 cacheReadMultiplier: data.cacheReadMultiplier > 0 ? new Decimal(data.cacheReadMultiplier) : null,
-                channelName: data.channelName || null,
+                displayChannelId: data.displayChannelId || null,
+                displayChannelName: data.displayChannelName || null,
                 channelMultiplier: new Decimal(data.channelMultiplier),
                 globalMultiplier: new Decimal(data.globalMultiplier),
                 timeMultiplier: data.timeMultiplier != null ? new Decimal(data.timeMultiplier) : null,

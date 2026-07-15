@@ -106,7 +106,7 @@ describe('PermissionWrapper', () => {
     expect(button.attributes('disabled')).toBeDefined()
   })
 
-  it('renders nothing in disabled mode when default slot has no clonable vnode', () => {
+  it('renders nothing in disabled mode when default slot has no cloneable vnode', () => {
     hasPermissionMock.mockReturnValue(false)
 
     const wrapper = mount(PermissionWrapper, {

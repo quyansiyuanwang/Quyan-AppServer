@@ -1165,6 +1165,8 @@ export const useRelaySettingsManagement = () => {
         return i18ns.t('relay.visibilityModePrivate')
       case 'whitelist':
         return i18ns.t('relay.visibilityModeWhitelist')
+      case 'hidden':
+        return i18ns.t('relay.visibilityModeHidden')
       case 'public':
       default:
         return i18ns.t('relay.visibilityModePublic')
@@ -1779,7 +1781,8 @@ export const useRelaySettingsManagement = () => {
     channelSaving.value = true
     try {
       const routingConfig = buildRoutingConfigPayload()
-      const visibilityConfig = buildVisibilityConfigPayload()
+      const visibilityConfig =
+        channelForm.value.visibilityMode === 'hidden' ? null : buildVisibilityConfigPayload()
       const poolMembers = isPooledChannel ? buildPoolMembersPayload() : []
 
       const data = {

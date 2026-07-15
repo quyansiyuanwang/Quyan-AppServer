@@ -246,33 +246,36 @@ const createService = (
     logOperation: vi.fn().mockResolvedValue(undefined),
   };
   const relayPoolResolver = {
-    resolveActiveLeaves: vi.fn(async (roots: any[], orderMembers?: (pool: any, members: any[]) => Promise<any[]>) => {
-      const leaves: any[] = [];
-      for (const root of roots) {
-        if (!root) continue;
-        if (root.channelType !== "pooled") {
-          leaves.push(root);
-          continue;
-        }
+    resolveActiveLeafCandidates: vi.fn(
+      async (roots: any[], orderMembers?: (pool: any, members: any[]) => Promise<any[]>) => {
+        const candidates: any[] = [];
+        for (const root of roots) {
+          if (!root) continue;
+          if (root.channelType !== "pooled") {
+            candidates.push({ resolvedChannel: root, displayChannel: root });
+            continue;
+          }
 
-        const members = (root.poolMembers ?? [])
-          .filter((member: any) => member.enabled !== false && member.memberChannel)
-          .map((member: any) => ({
-            memberChannelId: member.memberChannelId,
-            priority: member.priority,
-            weight: member.weight,
-            enabled: member.enabled,
-          }));
-        const orderedMembers = orderMembers ? await orderMembers(root, members) : members;
-        for (const member of orderedMembers) {
-          const sourceMember = (root.poolMembers ?? []).find(
-            (candidate: any) => candidate.memberChannelId === member.memberChannelId,
-          );
-          if (sourceMember?.memberChannel) leaves.push(sourceMember.memberChannel);
+          const members = (root.poolMembers ?? [])
+            .filter((member: any) => member.enabled !== false && member.memberChannel)
+            .map((member: any) => ({
+              memberChannelId: member.memberChannelId,
+              priority: member.priority,
+              weight: member.weight,
+              enabled: member.enabled,
+            }));
+          const orderedMembers = orderMembers ? await orderMembers(root, members) : members;
+          for (const member of orderedMembers) {
+            const sourceMember = (root.poolMembers ?? []).find(
+              (candidate: any) => candidate.memberChannelId === member.memberChannelId,
+            );
+            if (sourceMember?.memberChannel)
+              candidates.push({ resolvedChannel: sourceMember.memberChannel, displayChannel: root });
+          }
         }
-      }
-      return leaves;
-    }),
+        return candidates;
+      },
+    ),
   };
   const redis = {
     isRedisAvailable: vi.fn().mockReturnValue(true),
@@ -627,7 +630,11 @@ describe("RelayProxyService failover", () => {
 
     const result = await (service as any).buildAttemptPlan(relayToken);
 
-    expect(result.channels.map((channel: any) => channel.id)).toEqual(["member-a", "member-b", "member-c"]);
+    expect(result.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([
+      "member-a",
+      "member-b",
+      "member-c",
+    ]);
     expect(result.failoverConfig).toEqual({
       enabled: true,
       maxRetries: 2,
@@ -652,7 +659,11 @@ describe("RelayProxyService failover", () => {
 
     const result = await (service as any).buildAttemptPlan(relayToken);
 
-    expect(result.channels.map((channel: any) => channel.id)).toEqual(["member-b", "member-c", "member-a"]);
+    expect(result.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([
+      "member-b",
+      "member-c",
+      "member-a",
+    ]);
   });
 
   it("uses weighted-random ordering for pooled members", async () => {
@@ -667,7 +678,11 @@ describe("RelayProxyService failover", () => {
 
     try {
       const result = await (service as any).buildAttemptPlan(relayToken);
-      expect(result.channels.map((channel: any) => channel.id)).toEqual(["member-a", "member-b", "member-c"]);
+      expect(result.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([
+        "member-a",
+        "member-b",
+        "member-c",
+      ]);
     } finally {
       randomSpy.mockRestore();
     }
@@ -693,8 +708,16 @@ describe("RelayProxyService failover", () => {
       }),
     );
 
-    expect(healthPlan.channels.map((channel: any) => channel.id)).toEqual(["member-a", "member-b", "member-c"]);
-    expect(latencyPlan.channels.map((channel: any) => channel.id)).toEqual(["member-a", "member-b", "member-c"]);
+    expect(healthPlan.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([
+      "member-a",
+      "member-b",
+      "member-c",
+    ]);
+    expect(latencyPlan.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([
+      "member-a",
+      "member-b",
+      "member-c",
+    ]);
   });
 
   it("retries the next channel on configured upstream status codes", async () => {
@@ -1189,6 +1212,8 @@ describe("RelayProxyService failover", () => {
         "openai",
         1,
         1,
+        "channel-primary",
+        "channel-primary",
         "Primary",
         "channel-primary",
         new Date("2026-01-01T00:00:00.000Z"),
@@ -1371,6 +1396,8 @@ describe("RelayProxyService failover", () => {
         "openai",
         1,
         1,
+        "channel-primary",
+        "channel-primary",
         "Primary",
         "channel-primary",
         new Date("2026-01-01T00:00:00.000Z"),
@@ -1474,6 +1501,8 @@ describe("RelayProxyService failover", () => {
         "openai",
         1,
         1,
+        "channel-primary",
+        "channel-primary",
         "Primary",
         "channel-primary",
         new Date("2026-01-01T00:00:00.000Z"),

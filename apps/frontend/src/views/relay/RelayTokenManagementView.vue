@@ -74,12 +74,12 @@
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.fromChannel')" min-width="120">
           <template #default="{ row }">
-            {{ row.fromChannelName || state.getChannelName(row.fromChannelId) }}
+            {{ row.fromDisplayChannelName || '-' }}
           </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.toChannel')" min-width="120">
           <template #default="{ row }">
-            {{ row.toChannelName || state.getChannelName(row.toChannelId) }}
+            {{ row.toDisplayChannelName || '-' }}
           </template>
         </el-table-column>
         <el-table-column

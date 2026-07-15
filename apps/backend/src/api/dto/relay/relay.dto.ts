@@ -208,10 +208,10 @@ export interface RelayTokenChannelConfigDto {
 export interface RelayChannelSwitchLogDto {
   id: string;
   relayTokenId: string;
-  fromChannelId: string;
-  fromChannelName?: string;
-  toChannelId: string;
-  toChannelName?: string;
+  fromDisplayChannelId?: string;
+  fromDisplayChannelName?: string;
+  toDisplayChannelId?: string;
+  toDisplayChannelName?: string;
   triggerStatusCode?: number;
   triggerError?: string;
   attemptNumber: number;

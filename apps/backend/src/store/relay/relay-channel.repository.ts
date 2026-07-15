@@ -145,6 +145,29 @@ export class RelayChannelRepository implements RelayChannelStore {
     return result.count;
   }
 
+  async countDirectBusinessReferences(id: string): Promise<number> {
+    const [primaryTokenCount, tokenConfigCount, ojApiKeyCount, monthlyPassTemplates] = await Promise.all([
+      prisma.relayToken.count({ where: { channelId: id } }),
+      prisma.relayTokenChannelConfig.count({ where: { channelId: id } }),
+      prisma.oJAPIKey.count({ where: { channelId: id, status: 1 } }),
+      prisma.monthlyPassTemplate.findMany({
+        where: { status: { not: -1 }, allowedChannels: { not: null } },
+        select: { allowedChannels: true },
+      }),
+    ]);
+
+    const monthlyPassReferenceCount = monthlyPassTemplates.filter((template) => {
+      try {
+        const allowedChannels = JSON.parse(template.allowedChannels || "[]");
+        return Array.isArray(allowedChannels) && allowedChannels.includes(id);
+      } catch {
+        return false;
+      }
+    }).length;
+
+    return primaryTokenCount + tokenConfigCount + ojApiKeyCount + monthlyPassReferenceCount;
+  }
+
   async softDeleteAndUnassignTokens(id: string): Promise<void> {
     await prisma.$transaction(async (tx) => {
       await tx.relayToken.updateMany({

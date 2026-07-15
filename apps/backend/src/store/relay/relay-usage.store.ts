@@ -8,6 +8,9 @@ export type RelayUsageWithTokenName = RelayUsage & {
 
 export interface RelayUsageCreateInput {
   relayTokenId: string;
+  executionChannelId?: string | null;
+  displayChannelId?: string | null;
+  displayChannelName?: string | null;
   requestTokens: number;
   responseTokens: number;
   totalTokens: number;

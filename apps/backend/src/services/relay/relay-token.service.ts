@@ -1113,12 +1113,9 @@ export class RelayTokenService {
     await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
 
     const logs = await this.relayTokenRepo.listSwitchLogs(tokenId, limit);
-    const channelIds = [...new Set(logs.flatMap((log) => [log.fromChannelId, log.toChannelId]))];
-    const channels = await this.relayChannelRepo.listActiveByIds(channelIds);
-    const channelNameMap = new Map(channels.map((channel) => [channel.id, channel.name]));
 
     return {
-      logs: logs.map((log) => this.toSwitchLogDto(log, channelNameMap)),
+      logs: logs.map((log) => this.toSwitchLogDto(log)),
     };
   }
 
@@ -1387,14 +1384,14 @@ export class RelayTokenService {
       .filter((token): token is RelayTokenUsageSummaryTarget => Boolean(token));
   }
 
-  private toSwitchLogDto(log: any, channelNameMap: Map<string, string>): RelayChannelSwitchLogDto {
+  private toSwitchLogDto(log: any): RelayChannelSwitchLogDto {
     return {
       id: log.id,
       relayTokenId: log.relayTokenId,
-      fromChannelId: log.fromChannelId,
-      fromChannelName: channelNameMap.get(log.fromChannelId),
-      toChannelId: log.toChannelId,
-      toChannelName: channelNameMap.get(log.toChannelId),
+      fromDisplayChannelId: log.fromDisplayChannelId || undefined,
+      fromDisplayChannelName: log.fromDisplayChannelName || undefined,
+      toDisplayChannelId: log.toDisplayChannelId || undefined,
+      toDisplayChannelName: log.toDisplayChannelName || undefined,
       triggerStatusCode: log.triggerStatusCode ?? undefined,
       triggerError: log.triggerError ?? undefined,
       attemptNumber: log.attemptNumber,
@@ -1671,7 +1668,9 @@ export class RelayTokenService {
     }
 
     await Promise.all(
-      uniqueChannelIds.map((channelId) => this.relayChannelService.assertChannelAccessibleById(channelId, actorUserId)),
+      uniqueChannelIds.map((channelId) =>
+        this.relayChannelService.assertChannelBusinessSelectableById(channelId, actorUserId),
+      ),
     );
   }
 

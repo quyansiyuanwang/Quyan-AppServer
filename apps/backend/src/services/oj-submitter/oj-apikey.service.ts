@@ -39,7 +39,7 @@ export class OJAPIKeyService {
   async createAPIKey(userId: string, name?: string, expiresAt?: Date, channelId?: string, request?: Request) {
     const user = await this.userRepository.findById(userId);
     if (!user) throw new NotFoundError("User not found");
-    if (channelId) await this.relayChannelService.assertChannelAccessibleById(channelId, userId);
+    if (channelId) await this.relayChannelService.assertChannelBusinessSelectableById(channelId, userId);
 
     const key = this.generateAPIKey();
 
@@ -126,7 +126,7 @@ export class OJAPIKeyService {
     const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
 
     if (!key) throw new NotFoundError("API key not found");
-    if (data.channelId) await this.relayChannelService.assertChannelAccessibleById(data.channelId, userId);
+    if (data.channelId) await this.relayChannelService.assertChannelBusinessSelectableById(data.channelId, userId);
 
     const updated = await this.ojApiKeyRepository.updateById(id, data);
 

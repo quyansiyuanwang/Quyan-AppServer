@@ -197,8 +197,15 @@
           <el-option :label="i18ns.t('relay.visibilityModePublic')" value="public" />
           <el-option :label="i18ns.t('relay.visibilityModePrivate')" value="private" />
           <el-option :label="i18ns.t('relay.visibilityModeWhitelist')" value="whitelist" />
+          <el-option :label="i18ns.t('relay.visibilityModeHidden')" value="hidden" />
         </el-select>
         <div class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.visibilityModeHelp') }}</div>
+        <div
+          v-if="channelForm.visibilityMode === 'hidden'"
+          class="ml-3 text-[var(--el-color-warning)] text-xs"
+        >
+          {{ i18ns.t('relay.visibilityModeHiddenHelp') }}
+        </div>
       </el-form-item>
 
       <template v-if="channelForm.visibilityMode === 'whitelist'">

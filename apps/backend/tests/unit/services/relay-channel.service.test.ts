@@ -16,6 +16,7 @@ describe("RelayChannelService", () => {
     withTransaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(transactionClient)),
     create: vi.fn(),
     updateById: vi.fn(),
+    countDirectBusinessReferences: vi.fn(),
     replaceMembersByChannelId: vi.fn(),
     deleteMembersByChannelId: vi.fn(),
     softDeleteAndUnassignTokens: vi.fn(),
@@ -211,6 +212,19 @@ describe("RelayChannelService", () => {
     expect(result[0].modelCapabilities[0]).not.toHaveProperty("modelMapping");
   });
 
+  it("excludes hidden channels from business channel options even for channel managers", async () => {
+    permissionService.hasAnyPermission.mockResolvedValue(true);
+    relayChannelRepository.listActive.mockResolvedValue([
+      { ...sampleChannel, id: "public-channel", visibilityMode: "public" },
+      { ...sampleChannel, id: "hidden-channel", visibilityMode: "hidden" },
+    ]);
+    relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([]);
+
+    const result = await service.listChannelOptions("actor-user");
+
+    expect(result.map((item) => item.id)).toEqual(["public-channel"]);
+  });
+
   it("lists visible channels when includeDisabled is true", async () => {
     relayChannelRepository.listVisible.mockResolvedValue([{ ...sampleChannel, status: RELAY_CHANNEL_STATUS.DISABLED }]);
 
@@ -309,6 +323,19 @@ describe("RelayChannelService", () => {
     });
 
     await expect(service.getChannel("private-channel", "actor-user")).rejects.toThrow(NotFoundError);
+  });
+
+  it("rejects direct business selection of a hidden channel for channel managers", async () => {
+    permissionService.hasAnyPermission.mockResolvedValue(true);
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      id: "hidden-channel",
+      visibilityMode: "hidden",
+    });
+
+    await expect(service.assertChannelBusinessSelectableById("hidden-channel", "actor-user")).rejects.toThrow(
+      "Hidden relay channels can only be used as pooled channel members",
+    );
   });
 
   it("validates channel name on create", async () => {
@@ -582,6 +609,38 @@ describe("RelayChannelService", () => {
       expect.objectContaining({ name: "Updated", multiplier: 1.5 }),
       transactionClient,
     );
+  });
+
+  it("clears visibility configuration when a channel becomes hidden", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      visibilityMode: "whitelist",
+      visibilityConfig: { userIds: ["user-1"] },
+    });
+    relayChannelRepository.countDirectBusinessReferences.mockResolvedValue(0);
+    relayChannelRepository.updateById.mockResolvedValue({
+      ...sampleChannel,
+      visibilityMode: "hidden",
+      visibilityConfig: null,
+    });
+
+    await service.updateChannel("channel-1", { visibilityMode: "hidden" }, "actor-user");
+
+    expect(relayChannelRepository.updateById).toHaveBeenCalledWith(
+      "channel-1",
+      expect.objectContaining({ visibilityMode: "hidden", visibilityConfig: expect.anything() }),
+      transactionClient,
+    );
+  });
+
+  it("rejects hiding a channel with direct business references", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue(sampleChannel);
+    relayChannelRepository.countDirectBusinessReferences.mockResolvedValue(1);
+
+    await expect(service.updateChannel("channel-1", { visibilityMode: "hidden" }, "actor-user")).rejects.toThrow(
+      "Cannot hide a relay channel while it is directly assigned",
+    );
+    expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
   });
 
   it("preserves explicit null routing thresholds on update and strips pooled-only mode for standalone channel", async () => {

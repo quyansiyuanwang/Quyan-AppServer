@@ -42,7 +42,7 @@ const routingStrategySchema = z.enum([
   "latency-priority",
 ]);
 const allowedModelsModeSchema = z.enum(["all", "manual", "auto"]);
-const visibilityModeSchema = z.enum(["public", "private", "whitelist"]);
+const visibilityModeSchema = z.enum(["public", "private", "whitelist", "hidden"]);
 
 const relayChannelMemberSchema = z.object({
   id: z.string().trim().min(1).optional(),

@@ -4,6 +4,9 @@ export type RelayBalanceChargeMode = "strict" | "allow-negative" | "skip-when-no
 
 export interface RelayUsageRecordInput {
   relayTokenId: string;
+  executionChannelId?: string | null;
+  displayChannelId?: string | null;
+  displayChannelName?: string | null;
   requestTokens: number;
   responseTokens: number;
   totalTokens: number;
@@ -26,7 +29,6 @@ export interface RelayZeroChargeUsageInput extends RelayUsageRecordInput {
   multiplier: number;
   cacheCreationMultiplier: number;
   cacheReadMultiplier: number;
-  channelName?: string | null;
   channelMultiplier: number;
   globalMultiplier: number;
   timeMultiplier?: number;
@@ -42,6 +44,7 @@ export interface RelayFinalizeChargeInput extends RelayUsageRecordInput {
   cost: number;
   modelName: string;
   modelId?: string;
+  /** Physical leaf channel used for upstream execution and monthly-pass matching. */
   channelId: string;
   monthlyPassCoverageAt?: Date;
   inputRate: number;
@@ -49,7 +52,6 @@ export interface RelayFinalizeChargeInput extends RelayUsageRecordInput {
   multiplier: number;
   cacheCreationMultiplier: number;
   cacheReadMultiplier: number;
-  channelName?: string | null;
   channelMultiplier: number;
   globalMultiplier: number;
   timeMultiplier?: number;

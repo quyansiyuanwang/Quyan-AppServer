@@ -46,7 +46,7 @@ export interface BalanceTransactionResponse {
   multiplier?: number;
   cacheCreationMultiplier?: number;
   cacheReadMultiplier?: number;
-  channelName?: string;
+  displayChannelName?: string;
   channelMultiplier?: number;
   globalMultiplier?: number;
   timeMultiplier?: number;
