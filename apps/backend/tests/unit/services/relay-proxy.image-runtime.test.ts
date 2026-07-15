@@ -104,7 +104,9 @@ const createService = () => {
     logOperation: vi.fn().mockResolvedValue(undefined),
   };
   const relayPoolResolver = {
-    resolveActiveLeaves: vi.fn(async (roots: any[]) => roots.filter(Boolean)),
+    resolveActiveLeafCandidates: vi.fn(async (roots: any[]) =>
+      roots.filter(Boolean).map((channel: any) => ({ resolvedChannel: channel, displayChannel: channel })),
+    ),
   };
   const redis = {
     isRedisAvailable: vi.fn().mockReturnValue(true),
