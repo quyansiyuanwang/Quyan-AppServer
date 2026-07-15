@@ -907,7 +907,7 @@ describe("月卡功能 + 中转模拟AI输出 集成测试", () => {
     expect(usageCount).toBe(1);
   });
 
-  it("模型匹配边界：allowedModels不匹配时不应覆盖", async () => {
+  it("模型匹配边界：不存在的 allowedModels 不应保存", async () => {
     const createTemplateBody = {
       name: templateNameModelMismatch,
       defaultQuota: 2,
@@ -920,43 +920,11 @@ describe("月卡功能 + 中转模拟AI输出 集成测试", () => {
       .set("Authorization", `Bearer ${accessToken}`)
       .send(createTemplateBody);
 
-    expect(templateResponse.status).toBe(200);
-    expect(templateResponse.body.code).toBe(0);
-    const mismatchTemplateId = String(templateResponse.body.data.id);
-
-    const assignBody = {
-      userId: boundaryUserId,
-      templateId: mismatchTemplateId,
-      startAt: new Date(Date.now() - 60 * 1000).toISOString(),
-      endAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-      totalQuota: 2,
-      dailyQuota: 2,
-      quotaUnit: "request",
-      note: "boundary-model-mismatch",
-    };
-
-    const assignResponse = await postWithReplay("/v1/monthly-passes/user-passes", assignBody)
-      .set("Authorization", `Bearer ${accessToken}`)
-      .send(assignBody);
-
-    expect(assignResponse.status).toBe(200);
-    expect(assignResponse.body.code).toBe(0);
-    const mismatchPassId = String(assignResponse.body.data.id);
-
-    const relayResponse = await request(app)
-      .post("/relay/proxy/v1/chat/completions")
-      .set("Authorization", `Bearer ${boundaryRelayTokenValue}`)
-      .send({
-        model: relayModelId,
-        messages: [{ role: "user", content: "allowedModels mismatch should not cover" }],
-        stream: false,
-      });
-
-    expect(relayResponse.status).toBe(400);
-    expect(String(relayResponse.body?.message || "")).toContain("Insufficient balance");
-
-    const usageCount = await prisma.monthlyPassUsage.count({ where: { userMonthlyPassId: mismatchPassId } });
-    expect(usageCount).toBe(0);
+    expect(templateResponse.status).toBe(400);
+    expect(String(templateResponse.body?.message || "")).toContain("Unknown or inactive monthly pass models");
+    await expect(
+      prisma.monthlyPassTemplate.findUnique({ where: { name: templateNameModelMismatch } }),
+    ).resolves.toBeNull();
   });
 
   it("模板状态边界：模板禁用后对应月卡不应继续覆盖", async () => {
@@ -1407,7 +1375,7 @@ describe("月卡功能 + 中转模拟AI输出 集成测试", () => {
     ).toBe(true);
   });
 
-  it("渠道匹配边界：allowedChannels 不匹配时不应覆盖", async () => {
+  it("渠道匹配边界：不存在的 allowedChannels 不应保存", async () => {
     const templateBody = {
       name: templateNameChannelMismatch,
       defaultQuota: 2,
@@ -1420,75 +1388,13 @@ describe("月卡功能 + 中转模拟AI输出 集成测试", () => {
       .set("Authorization", `Bearer ${accessToken}`)
       .send(templateBody);
 
-    expect(templateResponse.status).toBe(200);
-    const channelMismatchTemplateId = String(templateResponse.body.data.id);
-
-    // Use isolated user/token to avoid interference from other passes created in previous tests.
-    const isolatedSuffix = `${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-    const isolatedUser = await prisma.user.create({
-      data: {
-        username: `tmc_${isolatedSuffix}`,
-        password: hashPassword("test_password"),
-        name: "月卡渠道匹配隔离用户",
-        email: `monthly_channel_${isolatedSuffix}@test.com`,
-        groupId: testGroupId,
-        permissionAdds: [],
-        permissionRemoves: [],
-      },
-    });
-
-    const isolatedRelayTokenValue = `rlt_${randomUUID().replace(/-/g, "")}`;
-    const isolatedRelayToken = await prisma.relayToken.create({
-      data: {
-        userId: isolatedUser.id,
-        name: `test_monthly_channel_token_${isolatedSuffix}`,
-        token: isolatedRelayTokenValue,
-        channelId: relayChannelId,
-      },
-    });
-
-    try {
-      const assignBody = {
-        userId: isolatedUser.id,
-        templateId: channelMismatchTemplateId,
-        startAt: new Date(Date.now() - 60 * 1000).toISOString(),
-        endAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        totalQuota: 2,
-        dailyQuota: 2,
-        quotaUnit: "request",
-        note: "channel-mismatch",
-      };
-
-      const assignResponse = await postWithReplay("/v1/monthly-passes/user-passes", assignBody)
-        .set("Authorization", `Bearer ${accessToken}`)
-        .send(assignBody);
-
-      expect(assignResponse.status).toBe(200);
-      const channelMismatchPassId = String(assignResponse.body.data.id);
-
-      const relayResponse = await request(app)
-        .post("/relay/proxy/v1/chat/completions")
-        .set("Authorization", `Bearer ${isolatedRelayTokenValue}`)
-        .send({
-          model: relayModelId,
-          messages: [{ role: "user", content: "allowedChannels mismatch should not cover" }],
-          stream: false,
-        });
-
-      expect(relayResponse.status).toBe(400);
-      expect(String(relayResponse.body?.message || "")).toContain("Insufficient balance");
-
-      const usageCount = await prisma.monthlyPassUsage.count({ where: { userMonthlyPassId: channelMismatchPassId } });
-      expect(usageCount).toBe(0);
-    } finally {
-      await prisma.monthlyPassUsage.deleteMany({ where: { userId: isolatedUser.id } });
-      await prisma.userMonthlyPass.deleteMany({ where: { userId: isolatedUser.id } });
-      await prisma.balanceTransaction.deleteMany({ where: { userId: isolatedUser.id } });
-      await prisma.balanceAccount.deleteMany({ where: { userId: isolatedUser.id } });
-      await prisma.relayUsage.deleteMany({ where: { relayTokenId: isolatedRelayToken.id } });
-      await prisma.relayToken.deleteMany({ where: { id: isolatedRelayToken.id } });
-      await prisma.user.deleteMany({ where: { id: isolatedUser.id } });
-    }
+    expect(templateResponse.status).toBe(400);
+    expect(String(templateResponse.body?.message || "")).toContain(
+      "Unknown, inactive, or inaccessible monthly pass channels",
+    );
+    await expect(
+      prisma.monthlyPassTemplate.findUnique({ where: { name: templateNameChannelMismatch } }),
+    ).resolves.toBeNull();
   });
 
   it("路径参数边界：删除不存在模板应返回404", async () => {

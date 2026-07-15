@@ -795,7 +795,6 @@
                   filterable
                   :placeholder="i18ns.t('relay.selectModels')"
                   style="width: 100%"
-                  :loading="loadingModels"
                 >
                   <el-option
                     v-for="modelId in filteredModelIds"
@@ -862,7 +861,6 @@ const {
   unavailableChannelWarningText,
   showMaxRetriesRiskWarning,
   maxRetriesRiskWarningText,
-  loadingModels,
 } = state
 
 const setChannelListRef = (element: Element | ComponentPublicInstance | null) => {

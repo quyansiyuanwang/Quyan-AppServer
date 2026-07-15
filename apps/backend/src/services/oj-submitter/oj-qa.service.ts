@@ -9,6 +9,9 @@ import type { OJAPIKeyStore } from "@/store/oj-submitter/oj-apikey.store";
 import type { OJModelPricingStore } from "@/store/oj-submitter/oj-model-pricing.store";
 import type { OJUsageStore } from "@/store/oj-submitter/oj-usage.store";
 import { TOKEN_PRICE_DIVISOR } from "@/constant/pricing";
+import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
+import { parseRelayChannelAllowedModelNames, supportsRelayRequestFormat } from "@/util/relay-model-availability.util";
+import type { RelayChannel } from "@prisma/client";
 
 export class OJQAService {
   private static instance: OJQAService;
@@ -18,6 +21,7 @@ export class OJQAService {
     private readonly ojModelPricingRepository: OJModelPricingStore = OJModelPricingRepository.getInstance(),
     private readonly ojUsageRepository: OJUsageStore = OJUsageRepository.getInstance(),
     private readonly balanceService: BalanceService = BalanceService.getInstance(),
+    private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -28,14 +32,14 @@ export class OJQAService {
   /**
    * 验证API密钥并返回用户ID和渠道信息
    */
-  async validateAPIKey(apiKey: string): Promise<{ userId: string; keyId: string; channelName?: string }> {
+  async validateAPIKey(apiKey: string): Promise<{ userId: string; keyId: string; channel: RelayChannel | null }> {
     const key = await this.ojApiKeyRepository.findActiveByKey(apiKey);
 
     if (!key) throw new UnauthorizedError("Invalid API key");
 
     if (key.expiresAt && key.expiresAt < new Date()) throw new UnauthorizedError("API key has expired");
 
-    return { userId: key.userId, keyId: key.id, channelName: key.channel?.name || undefined };
+    return { userId: key.userId, keyId: key.id, channel: key.channel };
   }
 
   /**
@@ -94,7 +98,7 @@ export class OJQAService {
     const startTime = Date.now();
 
     // 1. 验证API密钥
-    const { userId, keyId, channelName } = await this.validateAPIKey(apiKey);
+    const { userId, keyId, channel } = await this.validateAPIKey(apiKey);
 
     // 2. 检查余额
     const balanceAccount = await this.balanceService.getBalance(userId);
@@ -103,8 +107,17 @@ export class OJQAService {
     // 3. 获取定价（使用客户端指定的模型，默认claude-3-haiku）
     const pricing = await this.getModelPricing(model);
 
-    // 4. 调用AI模型（根据API Key绑定的渠道选择上游）
-    const anthropic = new AnthropicUpstreamClient(channelName);
+    // 4. Resolve path-qualified leaves so pool restrictions and mappings remain correlated.
+    const leaves = channel ? await this.relayPoolResolver.resolveActiveLeaves([channel]) : [null];
+    const eligibleLeaves = leaves.filter((leaf) => {
+      if (!leaf) return true;
+      if (!supportsRelayRequestFormat(leaf.allowedFormats, "anthropic")) return false;
+      const allowedModels = parseRelayChannelAllowedModelNames(leaf);
+      return allowedModels === null || allowedModels.includes(model);
+    });
+    if (eligibleLeaves.length === 0)
+      throw new BadRequestError(`Model '${model}' is not available on the assigned channel`);
+
     let answer = "";
     let inputTokens = 0;
     let outputTokens = 0;
@@ -112,11 +125,25 @@ export class OJQAService {
     let cacheReadTokens = 0;
 
     try {
-      const data = await anthropic.messages({
-        model,
-        max_tokens: maxTokens,
-        messages: [{ role: "user", content: question }],
-      });
+      let data: Awaited<ReturnType<AnthropicUpstreamClient["messages"]>> | undefined;
+      let lastError: unknown;
+      for (const leaf of eligibleLeaves) {
+        const anthropic = new AnthropicUpstreamClient(
+          leaf ? { baseUrl: leaf.anthropicUpstreamUrl, apiKey: leaf.anthropicUpstreamApiKey } : undefined,
+        );
+        const mapping = (leaf?.modelMapping as Record<string, string> | null) ?? {};
+        try {
+          data = await anthropic.messages({
+            model: mapping[model] || model,
+            max_tokens: maxTokens,
+            messages: [{ role: "user", content: question }],
+          });
+          break;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (!data) throw lastError ?? new BadRequestError("No Anthropic upstream is available");
 
       // 提取回答
       const content = data.content?.[0];

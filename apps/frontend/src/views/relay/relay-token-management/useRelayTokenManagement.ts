@@ -17,7 +17,7 @@ import { Permission } from '@/constant/permission'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type {
   ImportRelayTokensResponse,
-  RelayChannelDto,
+  RelayChannelOptionDto,
   RelayChannelSwitchLogDto,
   RelayTokenImportItemDto,
   RelayTokenChannelConfigDto,
@@ -294,16 +294,13 @@ export const useRelayTokenManagement = () => {
   const userOptionsLoading = ref(false)
   const selectedTargetUserId = ref('')
   const tokenTableRef = ref<TableInstance>()
-  const channels = ref<RelayChannelDto[]>([])
-  const availableModels = ref<string[]>([])
-  const availableModelIds = ref<string[]>([])
-  const modelIdToModelNameMap = ref<Map<string, string>>(new Map())
-  const modelIdToModelNamesMap = ref<Map<string, string[]>>(new Map())
+  const channels = ref<RelayChannelOptionDto[]>([])
+  const channelsLoading = ref(false)
+  const channelsLoadError = ref<unknown>(null)
   const quotaWindowPreviewModes = ref<Record<string, number>>({})
   const loadingTokens = ref(false)
   const showEditDialog = ref(false)
   const saving = ref(false)
-  const loadingModels = ref(false)
   const editMode = ref<'create' | 'edit'>('create')
   const currentEditId = ref('')
   const DEFAULT_EDIT_DIALOG_SECTIONS = ['basic', 'channelFailover', 'quota']
@@ -692,136 +689,24 @@ export const useRelayTokenManagement = () => {
     )
   }
 
-  const filteredModelIds = computed(() => {
-    const selectedChannelIds = editForm.value.channelConfigs
-      .map((config) => config.channelId)
-      .filter((id) => id)
+  const selectedChannelAllowedModels = computed(() => {
+    const selectedChannelIds = new Set(
+      editForm.value.channelConfigs.map((config) => config.channelId.trim()).filter(Boolean),
+    )
+    const resolvedModels = channels.value
+      .filter((channel) => selectedChannelIds.has(channel.id))
+      .flatMap((channel) =>
+        channel.modelCapabilities.map((capability) => capability.requestModelId),
+      )
 
-    if (selectedChannelIds.length === 0) return availableModelIds.value
-
-    const channelIdsToCheck = editForm.value.failoverConfig.enabled
-      ? selectedChannelIds
-      : [selectedChannelIds[0]]
-
-    const allAllowedModelNames = new Set<string>()
-    let hasUnrestrictedChannel = false
-    let hasResolvedSelectedChannel = false
-
-    for (const channelId of channelIdsToCheck) {
-      const selectedChannel = channels.value.find((ch) => ch.id === channelId)
-      if (!selectedChannel) continue
-      hasResolvedSelectedChannel = true
-
-      if (!selectedChannel.allowedModels) {
-        hasUnrestrictedChannel = true
-        break
-      }
-
-      try {
-        const parsedAllowedModels = JSON.parse(selectedChannel.allowedModels)
-        if (!Array.isArray(parsedAllowedModels)) {
-          hasUnrestrictedChannel = true
-          break
-        }
-
-        for (const rawEntry of parsedAllowedModels) {
-          const normalizedEntry = String(rawEntry || '').trim()
-          if (normalizedEntry) allAllowedModelNames.add(normalizedEntry)
-        }
-      } catch {
-        hasUnrestrictedChannel = true
-        break
-      }
-    }
-
-    if (hasUnrestrictedChannel) {
-      return availableModelIds.value
-    }
-
-    if (!hasResolvedSelectedChannel) {
-      return availableModelIds.value
-    }
-
-    const modelNameToIds = new Map<string, Set<string>>()
-    for (const [modelId, modelNames] of modelIdToModelNamesMap.value.entries()) {
-      for (const modelName of modelNames) {
-        if (!modelNameToIds.has(modelName)) {
-          modelNameToIds.set(modelName, new Set())
-        }
-        modelNameToIds.get(modelName)!.add(modelId)
-      }
-    }
-
-    for (const modelId of availableModelIds.value) {
-      if (!modelIdToModelNamesMap.value.has(modelId)) {
-        if (availableModels.value.includes(modelId)) {
-          if (!modelNameToIds.has(modelId)) {
-            modelNameToIds.set(modelId, new Set())
-          }
-          modelNameToIds.get(modelId)!.add(modelId)
-        }
-      }
-    }
-
-    const allowedModelIdsSet = new Set<string>()
-    for (const modelName of allAllowedModelNames) {
-      const modelIds = modelNameToIds.get(modelName)
-      if (modelIds) {
-        modelIds.forEach((id) => allowedModelIdsSet.add(id))
-      }
-    }
-
-    return Array.from(allowedModelIdsSet)
+    // Keep saved choices visible while editing even if their channel is no longer available.
+    return [...new Set([...resolvedModels, ...editForm.value.allowedModelIdsList])].sort(
+      (left, right) => left.localeCompare(right),
+    )
   })
 
-  const channelFilteredModelNames = computed(() => {
-    const selectedChannelIds = editForm.value.channelConfigs
-      .map((config) => config.channelId)
-      .filter((id) => id)
-
-    if (selectedChannelIds.length === 0) return availableModels.value
-
-    const channelIdsToCheck = editForm.value.failoverConfig.enabled
-      ? selectedChannelIds
-      : [selectedChannelIds[0]]
-
-    const allModelNames = new Set<string>()
-    let hasUnrestrictedChannel = false
-    let hasResolvedSelectedChannel = false
-
-    for (const channelId of channelIdsToCheck) {
-      const selectedChannel = channels.value.find((ch) => ch.id === channelId)
-      if (!selectedChannel) continue
-      hasResolvedSelectedChannel = true
-
-      if (!selectedChannel.allowedModels) {
-        hasUnrestrictedChannel = true
-        break
-      }
-
-      try {
-        const parsedAllowedModels = JSON.parse(selectedChannel.allowedModels)
-        if (!Array.isArray(parsedAllowedModels)) {
-          hasUnrestrictedChannel = true
-          break
-        }
-
-        for (const rawEntry of parsedAllowedModels) {
-          const normalizedEntry = String(rawEntry || '').trim()
-          if (normalizedEntry) allModelNames.add(normalizedEntry)
-        }
-      } catch {
-        hasUnrestrictedChannel = true
-        break
-      }
-    }
-
-    if (hasUnrestrictedChannel || !hasResolvedSelectedChannel) {
-      return availableModels.value
-    }
-
-    return Array.from(allModelNames)
-  })
+  const filteredModelIds = computed(() => selectedChannelAllowedModels.value)
+  const channelFilteredModelNames = computed(() => selectedChannelAllowedModels.value)
 
   const requiredRetrySlots = computed(() => Math.max(0, editForm.value.channelConfigs.length - 1))
 
@@ -845,28 +730,12 @@ export const useRelayTokenManagement = () => {
   }
 
   watch(
-    () => editForm.value.channelConfigs.map((config) => config.channelId),
+    () => [editForm.value.channelConfigs.map((config) => config.channelId).join(',')],
     () => {
       editForm.value.channelId = editForm.value.channelConfigs[0]?.channelId || ''
       syncTokenChannelBatchAddIds()
-      if (!editForm.value.allowedModelIdsList.length) return
-      const validModelIds = new Set(filteredModelIds.value)
-      editForm.value.allowedModelIdsList = editForm.value.allowedModelIdsList.filter((modelId) =>
-        validModelIds.has(modelId),
-      )
     },
     { deep: true },
-  )
-
-  watch(
-    () => editForm.value.failoverConfig.enabled,
-    () => {
-      if (!editForm.value.allowedModelIdsList.length) return
-      const validModelIds = new Set(filteredModelIds.value)
-      editForm.value.allowedModelIdsList = editForm.value.allowedModelIdsList.filter((modelId) =>
-        validModelIds.has(modelId),
-      )
-    },
   )
 
   watch(showEditDialog, (isOpen) => {
@@ -1133,7 +1002,8 @@ export const useRelayTokenManagement = () => {
       quotaLimit: token.quotaLimit ?? null,
       allowedModels: token.allowedModels || null,
       ipWhitelist: token.ipWhitelist || null,
-      status: token.status,
+      modelMapping: token.modelMapping || undefined,
+      enabled: token.status === MANAGED_STATUS.ENABLED,
       channelConfigs: (token.channelConfigs || []).map((config) => ({
         channelId: config.channelId,
         priority: config.priority,
@@ -1434,22 +1304,15 @@ export const useRelayTokenManagement = () => {
   }
 
   const loadChannels = async () => {
-    channels.value = await relayChannelService.listChannels()
-  }
-
-  const loadAvailableModels = async () => {
-    loadingModels.value = true
+    channelsLoading.value = true
+    channelsLoadError.value = null
     try {
-      const modelsMap = await relayTokenService.getAvailableModels()
-      availableModels.value = modelsMap.modelNames
-      availableModelIds.value = modelsMap.modelIds || []
-      modelIdToModelNameMap.value = new Map(Object.entries(modelsMap.modelIdToModelNameMap))
-      modelIdToModelNamesMap.value = new Map(Object.entries(modelsMap.modelIdToModelNamesMap || {}))
-    } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
-      throw error
+      channels.value = await relayChannelService.listChannelOptions()
+    } catch (error) {
+      channelsLoadError.value = error
+      channels.value = []
     } finally {
-      loadingModels.value = false
+      channelsLoading.value = false
     }
   }
 
@@ -2405,7 +2268,6 @@ export const useRelayTokenManagement = () => {
     selectedTargetUserId.value = userInfoStore.userInfo.id || ''
     void loadTokens()
     void loadChannels()
-    void loadAvailableModels()
     void loadUserOptions()
   })
 
@@ -2430,7 +2292,6 @@ export const useRelayTokenManagement = () => {
     loadingTokens,
     showEditDialog,
     saving,
-    loadingModels,
     editMode,
     editDialogSectionNames,
     showSwitchLogDialog,
@@ -2537,6 +2398,8 @@ export const useRelayTokenManagement = () => {
     handleBatchAddTokenChannels,
     handleBatchRemoveTokenChannelConfigs,
     getAvailableChannelOptions,
+    channelsLoading,
+    channelsLoadError,
     getChannelOptionLabel,
     addChannelConfig,
     removeChannelConfig,

@@ -766,7 +766,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ModelPricingDto, RelayChannelDto } from '@/client/types.gen'
+import type { ModelPricingDto, RelayChannelOptionDto } from '@/client/types.gen'
 import type {
   ChannelPriceCell,
   PriceRangeField,
@@ -804,11 +804,11 @@ const props = defineProps<{
     modelName: string,
     modelId: string,
     modelFormat?: string,
-  ) => RelayChannelDto[]
+  ) => RelayChannelOptionDto[]
   getDisplayedPriceMultiplier: (item: PricingModelRow) => number
   getChannelPriceCell: (
     item: PricingModelRow,
-    channel: Pick<RelayChannelDto, 'id' | 'name' | 'multiplier'>,
+    channel: Pick<RelayChannelOptionDto, 'id' | 'name' | 'multiplier'>,
   ) => ChannelPriceCell
   customPriceMultiplier?: number | null
   customMultiplierActive?: boolean
@@ -818,7 +818,7 @@ const props = defineProps<{
   onCopyModelId: (modelId: string) => void
   displayMode?: PricingDisplayMode
   pricingTableMode?: PricingTableMode
-  selectedChannels?: RelayChannelDto[]
+  selectedChannels?: RelayChannelOptionDto[]
   primaryComparisonChannelId?: string
   pricingTypeFilter?: string
   sortField?: PricingSortField
@@ -915,11 +915,14 @@ const getPricingTypeSummary = (): string => {
   return ''
 }
 
-const getTooltipMultiplier = (_item: PricingModelRow, channel: RelayChannelDto): number => {
+const getTooltipMultiplier = (_item: PricingModelRow, channel: RelayChannelOptionDto): number => {
   return channel.multiplier ?? 1
 }
 
-const getTooltipMultiplierLabel = (item: PricingModelRow, channel: RelayChannelDto): string => {
+const getTooltipMultiplierLabel = (
+  item: PricingModelRow,
+  channel: RelayChannelOptionDto,
+): string => {
   return formatMultiplier(getTooltipMultiplier(item, channel))
 }
 
@@ -963,7 +966,7 @@ const formatCacheMultiplier = (creation?: number, read?: number): string => {
   return `${creationLabel} / ${readLabel}`
 }
 
-const getAvailableChannels = (item: PricingModelRow): RelayChannelDto[] =>
+const getAvailableChannels = (item: PricingModelRow): RelayChannelOptionDto[] =>
   props.getChannelsForModel(
     (item.model || '').trim(),
     props.getRequestModelId(item),
@@ -972,7 +975,7 @@ const getAvailableChannels = (item: PricingModelRow): RelayChannelDto[] =>
 
 const getChannelPriceCellValue = (
   item: PricingModelRow,
-  channel: Pick<RelayChannelDto, 'id' | 'name' | 'multiplier'>,
+  channel: Pick<RelayChannelOptionDto, 'id' | 'name' | 'multiplier'>,
 ): ChannelPriceCell => {
   return props.getChannelPriceCell(item, channel)
 }

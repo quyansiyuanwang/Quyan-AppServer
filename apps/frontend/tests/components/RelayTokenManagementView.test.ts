@@ -5,7 +5,6 @@ import { MANAGED_STATUS } from '@/constant/status'
 
 const {
   getRelayTokensMock,
-  getAvailableModelsMock,
   createRelayTokenMock,
   updateTokenMock,
   refreshRelayTokenMock,
@@ -18,7 +17,6 @@ const {
   deviceModeMock,
 } = vi.hoisted(() => ({
   getRelayTokensMock: vi.fn(),
-  getAvailableModelsMock: vi.fn(),
   createRelayTokenMock: vi.fn(),
   updateTokenMock: vi.fn(),
   refreshRelayTokenMock: vi.fn(),
@@ -37,7 +35,6 @@ const {
 vi.mock('@/service/relayTokenService', () => ({
   relayTokenService: {
     getRelayTokens: getRelayTokensMock,
-    getAvailableModels: getAvailableModelsMock,
     createRelayToken: createRelayTokenMock,
     updateToken: updateTokenMock,
     refreshRelayToken: refreshRelayTokenMock,
@@ -49,7 +46,7 @@ vi.mock('@/service/relayTokenService', () => ({
 
 vi.mock('@/service/relayChannelService', () => ({
   relayChannelService: {
-    listChannels: listChannelsMock,
+    listChannelOptions: listChannelsMock,
   },
 }))
 
@@ -251,21 +248,32 @@ const channelPrimary = {
   id: 'channel-primary',
   name: 'Primary',
   multiplier: 1,
-  allowedModels: JSON.stringify(['gpt-4o', 'provider/model-a']),
+  modelCapabilities: [
+    {
+      catalogModelName: 'gpt-4o',
+      requestModelId: 'gpt-4o',
+      supportedRequestFormats: ['openai'],
+    },
+    {
+      catalogModelName: 'claude-3.5-sonnet',
+      requestModelId: 'provider/model-a',
+      supportedRequestFormats: ['anthropic'],
+    },
+  ],
 } as any
 
 const channelSecondary = {
   id: 'channel-secondary',
   name: 'Secondary',
   multiplier: 1,
-  allowedModels: null,
+  modelCapabilities: [],
 } as any
 
 const channelTertiary = {
   id: 'channel-tertiary',
   name: 'Tertiary',
   multiplier: 1,
-  allowedModels: null,
+  modelCapabilities: [],
 } as any
 
 const relayToken = {
@@ -340,12 +348,6 @@ describe('RelayTokenManagementView', () => {
       pageSize: 20,
       total: 1,
     })
-    getAvailableModelsMock.mockResolvedValue({
-      modelNames: ['gpt-4o', 'claude-3.5-sonnet'],
-      modelIdToModelNameMap: {
-        'provider/model-a': 'claude-3.5-sonnet',
-      },
-    })
     getTokenSwitchLogsMock.mockResolvedValue({ logs: [] })
     listChannelsMock.mockResolvedValue([channelPrimary, channelSecondary, channelTertiary])
     createRelayTokenMock.mockResolvedValue({ id: 'created-token' })
@@ -367,7 +369,6 @@ describe('RelayTokenManagementView', () => {
 
     expect(getRelayTokensMock).toHaveBeenCalledTimes(1)
     expect(listChannelsMock).toHaveBeenCalledTimes(1)
-    expect(getAvailableModelsMock).toHaveBeenCalledTimes(1)
   })
 
   it('renders quota window consumption details on desktop', async () => {

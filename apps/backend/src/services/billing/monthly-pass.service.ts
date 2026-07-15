@@ -48,7 +48,7 @@ import {
 import { MANAGED_STATUS } from "@/constant/status";
 import { AccountStatus } from "@/util/auth/account-status";
 import {
-  isMonthlyPassTemplateMatched,
+  isMonthlyPassModelMatched,
   parseAllowedChannels,
   parseAllowedModels,
   serializeStringArray,
@@ -65,6 +65,8 @@ import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import type { Request } from "express";
 import type { UserListFilters } from "@/store/users/user.store";
+import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
+import { RelayChannelService } from "@/services/relay/relay-channel.service";
 
 type DecimalLike = Prisma.Decimal | number | string;
 const MAX_CHANNEL_LOOKUP_IDS = 1000;
@@ -255,6 +257,8 @@ export class MonthlyPassService {
     private readonly modelPricingRepository: ModelPricingStore = ModelPricingRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
+    private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
+    private readonly relayChannelService: RelayChannelService = RelayChannelService.getInstance(),
   ) {}
 
   public static getInstance(): MonthlyPassService {
@@ -732,11 +736,70 @@ export class MonthlyPassService {
     };
   }
 
+  private async validateTemplateScope(
+    allowedModels: string[] | null | undefined,
+    allowedChannels: string[] | null | undefined,
+    actorUserId: string,
+  ): Promise<void> {
+    const modelNames = [...new Set((allowedModels ?? []).map((item) => item.trim()).filter(Boolean))];
+    const channelIds = [...new Set((allowedChannels ?? []).map((item) => item.trim()).filter(Boolean))];
+    if (modelNames.length === 0 && channelIds.length === 0) return;
+
+    const [modelRecords, channelOptions] = await Promise.all([
+      this.modelPricingRepository.listActiveOrderedByModel(),
+      channelIds.length > 0 ? this.relayChannelService.listChannelOptions(actorUserId) : Promise.resolve([]),
+    ]);
+    const activeModelNames = new Set(modelRecords.map((item) => item.model.trim()).filter(Boolean));
+    const unknownModels = modelNames.filter((modelName) => !activeModelNames.has(modelName));
+    if (unknownModels.length > 0)
+      throw new BadRequestError(`Unknown or inactive monthly pass models: ${unknownModels.join(", ")}`);
+
+    if (channelIds.length === 0) return;
+
+    const optionById = new Map(channelOptions.map((option) => [option.id, option]));
+    const invalidChannelIds = channelIds.filter((channelId) => !optionById.has(channelId));
+    if (invalidChannelIds.length > 0)
+      throw new BadRequestError(
+        `Unknown, inactive, or inaccessible monthly pass channels: ${invalidChannelIds.join(", ")}`,
+      );
+
+    const selectedOptions = channelIds.map((channelId) => optionById.get(channelId)!);
+    const unusableChannelIds = selectedOptions
+      .filter((option) => option.modelCapabilities.length === 0)
+      .map((option) => option.id);
+    if (unusableChannelIds.length > 0)
+      throw new BadRequestError(
+        `Monthly pass channels have no usable model capabilities: ${unusableChannelIds.join(", ")}`,
+      );
+
+    if (modelNames.length === 0) return;
+
+    const selectedModelNames = new Set(modelNames);
+    const supportedModelNames = new Set(
+      selectedOptions.flatMap((option) => option.modelCapabilities.map((capability) => capability.catalogModelName)),
+    );
+    const unsupportedModels = modelNames.filter((modelName) => !supportedModelNames.has(modelName));
+    if (unsupportedModels.length > 0)
+      throw new BadRequestError(
+        `Monthly pass models are unavailable through the selected channels: ${unsupportedModels.join(", ")}`,
+      );
+
+    const incompatibleChannelIds = selectedOptions
+      .filter(
+        (option) => !option.modelCapabilities.some((capability) => selectedModelNames.has(capability.catalogModelName)),
+      )
+      .map((option) => option.id);
+    if (incompatibleChannelIds.length > 0)
+      throw new BadRequestError(
+        `Monthly pass channels do not support any selected model: ${incompatibleChannelIds.join(", ")}`,
+      );
+  }
+
   async getFilterOptions(actorUserId: string): Promise<MonthlyPassFilterOptionsDto> {
     const [templateResult, modelRecords, relayChannels, groups] = await Promise.all([
       this.listTemplates(1, MONTHLY_PASS_MAX_PAGE_SIZE),
       this.modelPricingRepository.listActiveOrderedByModel(),
-      this.relayChannelRepository.listVisible(),
+      this.relayChannelService.listChannelOptions(actorUserId),
       this.getVisibleGroupOptions(actorUserId),
     ]);
 
@@ -788,6 +851,8 @@ export class MonthlyPassService {
     const name = data.name.trim();
     const existed = await this.monthlyPassRepository.findTemplateByName(name);
     if (existed) throw new BadRequestError("Monthly pass template name already exists");
+
+    await this.validateTemplateScope(data.allowedModels, data.allowedChannels, actorUserId);
 
     const hasPricingInput = data.originalPrice !== undefined || data.discountPercent !== undefined;
     const quotaWindowHours = normalizeQuotaWindowHours(data.quotaWindowHours, true);
@@ -913,6 +978,12 @@ export class MonthlyPassService {
     if (normalizeTemplatePublishStatus(existing.publishStatus) === "published")
       throw new BadRequestError("Monthly pass template is already published");
 
+    await this.validateTemplateScope(
+      parseAllowedModels(existing.allowedModels),
+      parseAllowedChannels(existing.allowedChannels),
+      actorUserId,
+    );
+
     const record = await this.monthlyPassRepository.updateTemplate(id, {
       publishStatus: "published",
       publishedAt: new Date(),
@@ -975,6 +1046,12 @@ export class MonthlyPassService {
       const conflict = await this.monthlyPassRepository.findTemplateByName(data.name.trim());
       if (conflict && conflict.id !== id) throw new BadRequestError("Monthly pass template name already exists");
     }
+
+    await this.validateTemplateScope(
+      data.allowedModels === undefined ? parseAllowedModels(existing.allowedModels) : data.allowedModels,
+      data.allowedChannels === undefined ? parseAllowedChannels(existing.allowedChannels) : data.allowedChannels,
+      actorUserId,
+    );
 
     const hasPricingUpdate = data.originalPrice !== undefined || data.discountPercent !== undefined;
     const isExistingPriceFirst = isPriceFirstTemplateRecord(existing);
@@ -1231,12 +1308,6 @@ export class MonthlyPassService {
     if (!template.allowBalanceRedemption)
       throw new BadRequestError("Monthly pass template does not allow balance redemption");
 
-    await this.enforceTemplatePurchaseLimit(actorUserId, {
-      id: template.id,
-      purchaseLimitPerUser: template.purchaseLimitPerUser,
-      purchaseLimitWindowDays: template.purchaseLimitWindowDays,
-    });
-
     const discountedPrice = template.discountedPrice == null ? null : Number(template.discountedPrice);
     if (discountedPrice == null || !Number.isFinite(discountedPrice) || discountedPrice <= 0)
       throw new BadRequestError("Monthly pass template cannot be redeemed by balance");
@@ -1290,6 +1361,13 @@ export class MonthlyPassService {
         purchaseAmount,
         templateName: template.name,
         templateId: template.id,
+        limit:
+          template.purchaseLimitPerUser && template.purchaseLimitWindowDays
+            ? {
+                maximum: template.purchaseLimitPerUser,
+                windowStart: new Date(Date.now() - template.purchaseLimitWindowDays * 24 * 60 * 60 * 1000),
+              }
+            : undefined,
       },
     );
 
@@ -1752,9 +1830,29 @@ export class MonthlyPassService {
     at: Date = new Date(),
   ): Promise<boolean> {
     const candidates = await this.monthlyPassRepository.findActivePassCandidates(userId, at);
-    const matchedCandidates = candidates.filter((item) =>
-      isMonthlyPassTemplateMatched(item.template, modelName, channelId),
-    );
+    const channelMatchCache = new Map<string, boolean>();
+    const matchedCandidates = (
+      await Promise.all(
+        candidates.map(async (item) => {
+          if (!isMonthlyPassModelMatched(item.template, modelName)) return null;
+
+          const allowedChannelIds = parseAllowedChannels(item.template.allowedChannels);
+          if (!allowedChannelIds || allowedChannelIds.length === 0) return item;
+
+          const cacheKey = `${allowedChannelIds.slice().sort().join(",")}:${channelId}`;
+          let isChannelMatched = channelMatchCache.get(cacheKey);
+          if (isChannelMatched === undefined) {
+            const activeLeaves = await this.relayPoolResolver.resolveActiveLeaves(
+              allowedChannelIds.map((id) => ({ id })),
+            );
+            isChannelMatched = activeLeaves.some((channel) => channel.id === channelId);
+            channelMatchCache.set(cacheKey, isChannelMatched);
+          }
+
+          return isChannelMatched ? item : null;
+        }),
+      )
+    ).filter((item): item is (typeof candidates)[number] => item !== null);
     if (matchedCandidates.length === 0) return false;
 
     const limitedCandidates = matchedCandidates.filter(

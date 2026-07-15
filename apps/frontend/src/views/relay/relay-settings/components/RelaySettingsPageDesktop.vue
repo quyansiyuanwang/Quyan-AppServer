@@ -479,13 +479,16 @@
                     i18ns.t('relay.importChannels')
                   }}</el-button>
                 </PermissionWrapper>
-                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
-                  <el-button size="small" @click="exportChannelsAsJson">{{
-                    i18ns.t('relay.exportChannels')
-                  }}</el-button>
+                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_EXPORT]">
+                  <el-button
+                    size="small"
+                    :loading="channelExporting"
+                    @click="exportChannelsAsJson"
+                    >{{ i18ns.t('relay.exportChannels') }}</el-button
+                  >
                 </PermissionWrapper>
-                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
-                  <el-button size="small" @click="copyChannelsAsJson">{{
+                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_EXPORT]">
+                  <el-button size="small" :loading="channelExporting" @click="copyChannelsAsJson">{{
                     i18ns.t('relay.copyChannels')
                   }}</el-button>
                 </PermissionWrapper>
@@ -516,10 +519,11 @@
                       >{{ i18ns.t('relay.batchDuplicateChannels') }}</el-button
                     >
                   </PermissionWrapper>
-                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_EXPORT]">
                     <el-button
                       size="small"
-                      :disabled="!hasChannelSelection"
+                      :disabled="!hasChannelSelection || channelExporting"
+                      :loading="channelExporting"
                       @click="exportChannelsAsJson"
                       >{{ i18ns.t('relay.batchExportChannels') }}</el-button
                     >
@@ -658,42 +662,10 @@
               </el-table-column>
               <el-table-column :label="i18ns.t('relay.allowedModelsChannel')" width="120">
                 <template #default="{ row }">
-                  <el-tooltip
-                    v-if="
-                      getChannelAllowedModelsMode(row) === 'auto' &&
-                      row.inferredAllowedModels?.length
-                    "
-                    :content="row.inferredAllowedModels.join(', ')"
-                    placement="top"
-                  >
-                    <el-tag type="warning" size="small">{{
-                      getChannelAllowedModelsSummary(row)
-                    }}</el-tag>
-                  </el-tooltip>
-                  <el-tag
-                    v-else-if="getChannelAllowedModelsMode(row) === 'auto'"
-                    type="warning"
-                    size="small"
-                  >
-                    {{ getChannelAllowedModelsSummary(row) }}
+                  <el-tag v-if="row.allowedModels.length === 0" type="danger" size="small">
+                    {{ i18ns.t('relay.noModels') }}
                   </el-tag>
-                  <el-tag
-                    v-else-if="getChannelAllowedModelsMode(row) === 'all'"
-                    type="info"
-                    size="small"
-                    >{{ i18ns.t('relay.allModels') }}</el-tag
-                  >
-                  <el-tag
-                    v-else-if="parseAllowedModels(row.allowedModels).length === 0"
-                    type="danger"
-                    size="small"
-                    >{{ i18ns.t('relay.noModels') }}</el-tag
-                  >
-                  <el-tooltip
-                    v-else
-                    :content="parseAllowedModels(row.allowedModels).join(', ')"
-                    placement="top"
-                  >
+                  <el-tooltip v-else :content="row.allowedModels.join(', ')" placement="top">
                     <el-tag type="primary" size="small">
                       {{ getChannelAllowedModelsSummary(row) }}
                     </el-tag>
@@ -790,6 +762,7 @@ const {
   importPricingPlaceholder,
   handleImport,
   channelLoading,
+  channelExporting,
   openCreateChannelDialog,
   openChannelImportDialog,
   exportChannelsAsJson,
@@ -810,9 +783,7 @@ const {
   formatVisibilityModeLabel,
   getVisibilitySummary,
   getPoolMembersSummary,
-  getChannelAllowedModelsMode,
   getChannelAllowedModelsSummary,
-  parseAllowedModels,
   togglingChannelId,
   handleToggleChannelStatus,
   openChannelDetailDialog,

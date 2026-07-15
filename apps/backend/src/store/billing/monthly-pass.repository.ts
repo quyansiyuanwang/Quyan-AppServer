@@ -70,23 +70,18 @@ export class MonthlyPassRepository implements MonthlyPassStore {
   ): Promise<void> {
     if (data.purchaseAmount <= 0) return;
 
-    const account = await tx.balanceAccount.findUnique({ where: { userId: data.userId } });
-    const balanceBefore = account ? Number(account.balance) : 0;
-
-    if (!account || balanceBefore < data.purchaseAmount) throw new BadRequestError("Insufficient balance");
-
-    const currentTotalRecharged = Number(account.totalRecharged);
-    const currentTotalUsed = Number(account.totalUsed);
-    const newTotalUsed = currentTotalUsed + data.purchaseAmount;
-    const newBalance = currentTotalRecharged - newTotalUsed;
-
-    const updatedAccount = await tx.balanceAccount.update({
-      where: { userId: data.userId },
+    const debit = await tx.balanceAccount.updateMany({
+      where: { userId: data.userId, balance: { gte: data.purchaseAmount } },
       data: {
-        balance: new Decimal(newBalance),
+        balance: { decrement: data.purchaseAmount },
         totalUsed: { increment: data.purchaseAmount },
       },
     });
+    if (debit.count !== 1) throw new BadRequestError("Insufficient balance");
+
+    const updatedAccount = await tx.balanceAccount.findUniqueOrThrow({ where: { userId: data.userId } });
+    const balanceAfter = Number(updatedAccount.balance);
+    const balanceBefore = balanceAfter + data.purchaseAmount;
 
     await tx.balanceTransaction.create({
       data: {
@@ -258,9 +253,30 @@ export class MonthlyPassRepository implements MonthlyPassStore {
   async purchaseUserPass(
     data: Prisma.UserMonthlyPassUncheckedCreateInput,
     quotaWindows: MonthlyPassQuotaWindowInput[] = [],
-    purchase: { userId: string; purchaseAmount: number; templateName: string; templateId: string },
+    purchase: {
+      userId: string;
+      purchaseAmount: number;
+      templateName: string;
+      templateId: string;
+      limit?: { maximum: number; windowStart: Date };
+    },
   ): Promise<UserMonthlyPassWithTemplate> {
     return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM balance_accounts WHERE userId = ${purchase.userId} FOR UPDATE`;
+
+      if (purchase.limit) {
+        const currentCount = await tx.userMonthlyPass.count({
+          where: {
+            userId: purchase.userId,
+            templateId: purchase.templateId,
+            status: { gte: MANAGED_STATUS.DISABLED },
+            createTime: { gte: purchase.limit.windowStart },
+          },
+        });
+        if (currentCount >= purchase.limit.maximum)
+          throw new BadRequestError(`purchase limit exceeded: at most ${purchase.limit.maximum} claim(s)`);
+      }
+
       await this.chargePurchase(tx, purchase);
 
       const created = await tx.userMonthlyPass.create({ data });

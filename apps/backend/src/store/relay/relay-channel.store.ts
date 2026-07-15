@@ -19,8 +19,8 @@ export interface RelayChannelQueryStore {
   listVisible(tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
   findActiveById(id: string): Promise<RelayChannel | null>;
   findVisibleById(id: string): Promise<RelayChannel | null>;
-  listActiveByIds(ids: string[]): Promise<RelayChannel[]>;
-  listVisibleByIds(ids: string[]): Promise<RelayChannel[]>;
+  listActiveByIds(ids: string[], tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
+  listVisibleByIds(ids: string[], tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
 }
 
 export interface RelayChannelMutationStore {

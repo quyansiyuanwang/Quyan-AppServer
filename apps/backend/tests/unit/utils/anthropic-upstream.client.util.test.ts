@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import axios from "axios";
 import { BadRequestError } from "@/util/errors";
 import { AnthropicUpstreamClient, type AnthropicMessagesRequest } from "@/util/anthropic-upstream.client";
-import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
 
 vi.mock("axios", async (importOriginal) => {
   const actual = await importOriginal<typeof import("axios")>();
@@ -16,19 +15,8 @@ vi.mock("axios", async (importOriginal) => {
   };
 });
 
-vi.mock("@/store/relay/relay-channel.repository", () => ({
-  RelayChannelRepository: {
-    getInstance: vi.fn(),
-  },
-}));
-
 describe("AnthropicUpstreamClient", () => {
   const mockedPost = vi.mocked(axios.post);
-  const mockedGetInstance = vi.mocked(RelayChannelRepository.getInstance);
-
-  const repositoryMock = {
-    findActiveByName: vi.fn(),
-  };
 
   const requestBody: AnthropicMessagesRequest = {
     model: "claude-3-5-sonnet",
@@ -38,16 +26,11 @@ describe("AnthropicUpstreamClient", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedGetInstance.mockReturnValue(repositoryMock as any);
     delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_BASE_URL;
   });
 
-  it("builds request from relay channel config and returns upstream response", async () => {
-    repositoryMock.findActiveByName.mockResolvedValue({
-      anthropicUpstreamUrl: "https://anthropic.example.com///",
-      anthropicUpstreamApiKey: "channel-key",
-    });
-
+  it("builds request from resolved upstream config and returns upstream response", async () => {
     const upstreamData = {
       id: "msg_123",
       type: "message",
@@ -60,11 +43,13 @@ describe("AnthropicUpstreamClient", () => {
 
     mockedPost.mockResolvedValue({ status: 200, data: upstreamData } as any);
 
-    const client = new AnthropicUpstreamClient("relay-channel");
+    const client = new AnthropicUpstreamClient({
+      baseUrl: "https://anthropic.example.com///",
+      apiKey: "channel-key",
+    });
     const result = await client.messages(requestBody);
 
     expect(result).toEqual(upstreamData);
-    expect(repositoryMock.findActiveByName).toHaveBeenCalledWith("relay-channel");
     expect(mockedPost).toHaveBeenCalledWith(
       "https://anthropic.example.com/v1/messages",
       requestBody,
@@ -82,35 +67,31 @@ describe("AnthropicUpstreamClient", () => {
     expect(options.validateStatus(500)).toBe(true);
   });
 
-  it("throws when api key is missing in both channel and environment", async () => {
-    repositoryMock.findActiveByName.mockResolvedValue(null);
-
-    const client = new AnthropicUpstreamClient("missing-channel");
+  it("throws when api key is missing in both config and environment", async () => {
+    const client = new AnthropicUpstreamClient();
 
     await expect(client.messages(requestBody)).rejects.toThrow(BadRequestError);
     await expect(client.messages(requestBody)).rejects.toThrow("Anthropic API key not configured");
     expect(mockedPost).not.toHaveBeenCalled();
   });
 
-  it("throws when base url is missing even if env api key is set", async () => {
-    repositoryMock.findActiveByName.mockResolvedValue(null);
+  it("uses the default Anthropic base URL with an environment API key", async () => {
     process.env.ANTHROPIC_API_KEY = "env-key";
+    mockedPost.mockResolvedValue({ status: 200, data: { content: [], usage: {} } } as any);
 
-    const client = new AnthropicUpstreamClient("missing-channel");
+    const client = new AnthropicUpstreamClient();
 
-    await expect(client.messages(requestBody)).rejects.toThrow("Anthropic API base URL not configured");
-    expect(mockedPost).not.toHaveBeenCalled();
+    await client.messages(requestBody);
+    expect(mockedPost).toHaveBeenCalledWith("https://api.anthropic.com/v1/messages", requestBody, expect.any(Object));
   });
 
   it("throws BadRequestError when upstream status is not 200", async () => {
-    repositoryMock.findActiveByName.mockResolvedValue({
-      anthropicUpstreamUrl: "https://anthropic.example.com",
-      anthropicUpstreamApiKey: "channel-key",
-    });
-
     mockedPost.mockResolvedValue({ status: 429, data: { error: "rate limit" } } as any);
 
-    const client = new AnthropicUpstreamClient("relay-channel");
+    const client = new AnthropicUpstreamClient({
+      baseUrl: "https://anthropic.example.com",
+      apiKey: "channel-key",
+    });
 
     await expect(client.messages(requestBody)).rejects.toThrow("AI service error: 429");
   });

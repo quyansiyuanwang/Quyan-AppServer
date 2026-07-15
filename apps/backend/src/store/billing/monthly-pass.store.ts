@@ -105,7 +105,13 @@ export interface MonthlyPassStore {
   purchaseUserPass(
     data: Prisma.UserMonthlyPassUncheckedCreateInput,
     quotaWindows: MonthlyPassQuotaWindowInput[],
-    purchase: { userId: string; purchaseAmount: number; templateName: string; templateId: string },
+    purchase: {
+      userId: string;
+      purchaseAmount: number;
+      templateName: string;
+      templateId: string;
+      limit?: { maximum: number; windowStart: Date };
+    },
   ): Promise<UserMonthlyPassWithTemplate>;
   updateUserPass(
     id: string,

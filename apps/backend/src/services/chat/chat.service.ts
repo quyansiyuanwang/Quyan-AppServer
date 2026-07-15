@@ -18,7 +18,6 @@ import type { RelayChannel } from "@prisma/client";
 import { TOKEN_PRICE_DIVISOR } from "@/constant/pricing";
 import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";
 import {
-  getAccessibleRelayModelNamesForToken,
   parseRelayRequestFormats,
   parseRelayChannelAllowedModelNames,
   parseRelayTokenAllowedModelIds,
@@ -28,6 +27,7 @@ import {
 } from "@/util/relay-model-availability.util";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
 import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
+import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 
 interface ChatRequestMeta {
   path?: string;
@@ -48,6 +48,7 @@ export class ChatService {
     private readonly relayConfigRepository: RelayConfigStore = RelayConfigRepository.getInstance(),
     private readonly usageChargeService: UsageChargeService = UsageChargeService.getInstance(),
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
+    private readonly relayProxyService: RelayProxyService = RelayProxyService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -104,7 +105,6 @@ export class ChatService {
     token: RelayTokenWithChannel,
     modelPricing: ModelPricing,
     selectedModelId: string,
-    configuredModels: ModelPricing[],
   ): Promise<{
     channel: RelayChannel;
     requestFormat: RelayRequestFormat;
@@ -124,7 +124,7 @@ export class ChatService {
         const channelAllowedFormats = channel.allowedFormats || "all";
         if (!supportsRelayRequestFormat(channelAllowedFormats, requestFormat)) continue;
 
-        const channelAllowedModels = parseRelayChannelAllowedModelNames(channel, configuredModels);
+        const channelAllowedModels = parseRelayChannelAllowedModelNames(channel);
         if (!isModelNameAllowed(channelAllowedModels, modelPricing.model.trim())) continue;
 
         const config = this.getUpstreamConfigForFormat(token, channel, requestFormat);
@@ -218,10 +218,10 @@ export class ChatService {
       requestFormat,
       upstreamUrl,
       upstreamApiKey: apiKey,
-    } = await this.resolveChatRequestFormat(token, resolvedPricing, selectedModelId, configuredModels);
+    } = await this.resolveChatRequestFormat(token, resolvedPricing, selectedModelId);
     requireRelayChannelForFormat({ ...token, channel: effectiveChannel }, requestFormat);
 
-    const channelAllowedModels = parseRelayChannelAllowedModelNames(effectiveChannel, configuredModels);
+    const channelAllowedModels = parseRelayChannelAllowedModelNames(effectiveChannel);
     if (!isModelNameAllowed(channelAllowedModels, selectedModelName))
       throw new BadRequestError(`Channel does not support model ${requestedModel}`);
 
@@ -396,29 +396,22 @@ export class ChatService {
   }
 
   async getAvailableTokens(userId: string) {
-    const [tokens, configuredModels] = await Promise.all([
-      this.relayTokenRepository.findByUserIdWithChannel(userId),
-      this.modelPricingRepository.listActiveOrderedByModel(),
-    ]);
+    const tokens = await this.relayTokenRepository.findByUserIdWithRelations(userId);
 
-    return tokens.map((token) => {
-      const effectiveModels = new Set<string>();
-      const candidateFormats = parseRelayRequestFormats(token.channel?.allowedFormats);
+    return Promise.all(
+      tokens.map(async (token) => {
+        const available = await this.relayProxyService.getAvailableModelMapForToken(token);
+        const allowedModels = Array.from(
+          new Set([...available.openai, ...available.anthropic, ...available.gemini]),
+        ).sort((left, right) => left.localeCompare(right));
 
-      for (const requestFormat of candidateFormats)
-        try {
-          for (const modelId of getAccessibleRelayModelNamesForToken(token, configuredModels, requestFormat))
-            effectiveModels.add(modelId);
-        } catch {
-          continue;
-        }
-
-      return {
-        id: token.id,
-        name: token.name,
-        token: token.token,
-        allowedModels: Array.from(effectiveModels).join(","),
-      };
-    });
+        return {
+          id: token.id,
+          name: token.name,
+          token: token.token,
+          allowedModels: allowedModels.join(","),
+        };
+      }),
+    );
   }
 }

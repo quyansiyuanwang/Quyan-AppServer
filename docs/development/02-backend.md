@@ -80,6 +80,21 @@ export class UserController extends Controller {
 | **Notification** | NotificationService, NotificationManagementService, WebhookFormatter | 通知引擎、偏好管理、Webhook |
 | **Other** | ChatService, ArticleService, FeedbackService, HeatmapService, etc. | 对话、文章、反馈、分析 |
 
+### Relay 模型与混池契约
+
+- 渠道限制使用 `ModelPricing.model` 的目录名称；令牌允许模型、模型映射和实际路由使用 `resolveModelId()` 解析出的请求模型 ID。两个身份域不得混用。
+- 模型限制的缺失值表示不限制，有效空数组表示禁止全部；历史格式损坏时记录告警并按兼容策略放行。规范解析位于 `@appserver/shared`，前后端不得复制实现。
+- 混池渠道通过 `RelayPoolResolverService` 解析。模型、请求格式、映射和叶子渠道身份必须沿同一条根到叶路径保持关联，不能分别求并集后再组合。
+- 面向业务客户端的渠道 options 使用结构化 `modelCapabilities`，混池和普通渠道采用相同契约；不向用户暴露混池拓扑。
+- 普通渠道读取 DTO 只返回 `has*ApiKey` 配置状态，禁止返回密钥正文。包含密钥的导出使用独立权限、2FA、重放保护和业务审计。
+- OJ 请求按绑定渠道 ID 使用同一混池解析和模型映射流程，并在兼容叶子间故障转移；不得通过可变渠道名称重新查找凭据。
+
+### 月卡一致性契约
+
+- 月卡模板的 `allowedModels` 保存目录模型名称。创建、更新和发布都要校验活动模型、可访问活动渠道及结构化能力交集；发布时必须重新校验草稿，防止模型下架或混池变化后发布失效范围。
+- 更新模板时，字段省略表示保留已有范围，显式空数组表示解除对应限制。校验对象必须是合并后的最终范围。
+- 用户购买月卡时，余额行锁、时间窗口购买次数检查、余额扣减、余额流水和月卡创建必须处于同一数据库事务。所有购买入口必须经过该事务路径。
+
 **Service 模式：**
 
 ```typescript

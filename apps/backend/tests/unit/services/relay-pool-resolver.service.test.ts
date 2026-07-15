@@ -127,6 +127,48 @@ describe("RelayPoolResolverService", () => {
     expect(leaves.map((channel) => channel.id)).toEqual([selectedLeaf.id]);
   });
 
+  it("preserves distinct constraints for duplicate leaf paths", async () => {
+    const leaf = createChannel("leaf");
+    const openaiPool = createChannel("openai-pool", {
+      channelType: "pooled",
+      allowedFormats: "openai",
+      allowedModels: JSON.stringify(["model-a"]),
+      routingConfig: { allowedModelsMode: "manual" },
+      modelMapping: { "request-a": "upstream-a" },
+      poolMembers: [{ memberChannelId: leaf.id, priority: 0, weight: 1, enabled: true }],
+    });
+    const anthropicPool = createChannel("anthropic-pool", {
+      channelType: "pooled",
+      allowedFormats: "anthropic",
+      allowedModels: JSON.stringify(["model-b"]),
+      routingConfig: { allowedModelsMode: "manual" },
+      modelMapping: { "request-b": "upstream-b" },
+      poolMembers: [{ memberChannelId: leaf.id, priority: 0, weight: 1, enabled: true }],
+    });
+    const root = createChannel("root", {
+      channelType: "pooled",
+      poolMembers: [
+        { memberChannelId: openaiPool.id, priority: 0, weight: 1, enabled: true },
+        { memberChannelId: anthropicPool.id, priority: 1, weight: 1, enabled: true },
+      ],
+    });
+    const { resolver } = createResolver([root, openaiPool, anthropicPool, leaf]);
+
+    const leaves = await resolver.resolveActiveLeaves([root]);
+
+    expect(leaves).toHaveLength(2);
+    expect(
+      leaves.map((channel) => ({
+        formats: channel.allowedFormats,
+        models: JSON.parse(channel.allowedModels as string),
+        mapping: channel.modelMapping,
+      })),
+    ).toEqual([
+      { formats: "openai", models: ["model-a"], mapping: { "request-a": "upstream-a" } },
+      { formats: "anthropic", models: ["model-b"], mapping: { "request-b": "upstream-b" } },
+    ]);
+  });
+
   it("rejects direct and indirect pool cycles at runtime", async () => {
     const poolA = createChannel("pool-a", {
       channelType: "pooled",
@@ -160,5 +202,95 @@ describe("RelayPoolResolverService", () => {
     ]);
 
     expect(models).toEqual(["gpt-4o"]);
+  });
+
+  it("keeps request IDs separate from catalog names and inherits model mappings", async () => {
+    const leaf = createChannel("leaf", {
+      allowedFormats: "openai",
+      allowedModels: JSON.stringify(["GPT 4o"]),
+      routingConfig: { allowedModelsMode: "manual" },
+      modelMapping: { "gpt-4o": "upstream-gpt-4o" },
+    });
+    const pool = createChannel("pool", {
+      channelType: "pooled",
+      modelMapping: { "gpt-4o": "pool-gpt-4o" },
+      poolMembers: [{ memberChannelId: leaf.id, priority: 0, weight: 1, enabled: true }],
+    });
+    const { resolver } = createResolver([pool, leaf]);
+    const context = await resolver.preloadContext([
+      { model: "GPT 4o", provider: "gpt-4o", supportedFormats: "openai,anthropic" },
+    ]);
+
+    const capabilities = await resolver.resolveChannelCapabilities(pool.id, context);
+
+    expect(capabilities).toEqual([
+      {
+        leafChannelId: leaf.id,
+        catalogModelName: "GPT 4o",
+        requestModelId: "gpt-4o",
+        supportedRequestFormats: ["openai"],
+        modelMapping: { "gpt-4o": "upstream-gpt-4o" },
+      },
+    ]);
+  });
+
+  it("does not mix formats from a path that denies the model", async () => {
+    const leaf = createChannel("leaf");
+    const openaiPath = createChannel("openai-path", {
+      channelType: "pooled",
+      allowedFormats: "openai",
+      allowedModels: JSON.stringify([]),
+      routingConfig: { allowedModelsMode: "manual" },
+      poolMembers: [{ memberChannelId: leaf.id, priority: 0, weight: 1, enabled: true }],
+    });
+    const anthropicPath = createChannel("anthropic-path", {
+      channelType: "pooled",
+      allowedFormats: "anthropic",
+      allowedModels: JSON.stringify(["Claude"]),
+      routingConfig: { allowedModelsMode: "manual" },
+      poolMembers: [{ memberChannelId: leaf.id, priority: 0, weight: 1, enabled: true }],
+    });
+    const root = createChannel("root", {
+      channelType: "pooled",
+      poolMembers: [
+        { memberChannelId: openaiPath.id, priority: 0, weight: 1, enabled: true },
+        { memberChannelId: anthropicPath.id, priority: 1, weight: 1, enabled: true },
+      ],
+    });
+    const { resolver } = createResolver([root, openaiPath, anthropicPath, leaf]);
+    const context = await resolver.preloadContext([
+      { model: "Claude", provider: "claude-3-5-sonnet", supportedFormats: "openai,anthropic" },
+    ]);
+
+    const capabilities = await resolver.resolveChannelCapabilities(root.id, context);
+
+    expect(capabilities).toHaveLength(1);
+    expect(capabilities[0]?.supportedRequestFormats).toEqual(["anthropic"]);
+  });
+
+  it("preserves an empty format intersection as deny-all in compatibility leaves", async () => {
+    const leaf = createChannel("leaf", { allowedFormats: "anthropic" });
+    const pool = createChannel("pool", {
+      channelType: "pooled",
+      allowedFormats: "openai",
+      poolMembers: [{ memberChannelId: leaf.id, priority: 0, weight: 1, enabled: true }],
+    });
+    const { resolver } = createResolver([pool, leaf]);
+
+    const [resolvedLeaf] = await resolver.resolveActiveLeaves([pool]);
+
+    expect(resolvedLeaf.allowedFormats).toBe("none");
+  });
+
+  it("reuses a preloaded graph when resolving multiple channels", async () => {
+    const first = createChannel("first");
+    const second = createChannel("second");
+    const { resolver, relayChannelRepository } = createResolver([first, second]);
+    const context = await resolver.preloadContext([{ model: "GPT", provider: "gpt", supportedFormats: "openai" }]);
+
+    await resolver.resolveChannelCapabilities(first.id, context);
+    await resolver.resolveChannelCapabilities(second.id, context);
+
+    expect(relayChannelRepository.listActive).toHaveBeenCalledTimes(1);
   });
 });

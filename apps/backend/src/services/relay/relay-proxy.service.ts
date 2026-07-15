@@ -33,7 +33,7 @@ import type { RelayChannelRoutingConfigDto, RelayChannelRoutingStrategy } from "
 import type { RelayTokenStore } from "@/store/relay/relay-token.store";
 import type { RelayUsageStore } from "@/store/relay/relay-usage.store";
 import type { RelayProxyStore } from "@/store/relay/relay-proxy.store";
-import { RelayToken, RelayChannel } from "@prisma/client";
+import { Prisma, RelayToken, RelayChannel } from "@prisma/client";
 import {
   BadRequestError,
   ForbiddenError,
@@ -120,6 +120,23 @@ interface ImageForwardResult extends StreamForwardResult {
 interface RelayAttemptPlan {
   channels: RelayChannel[];
   failoverConfig: RelayFailoverRuntimeConfig;
+}
+
+export interface RelayTokenAvailabilityInput {
+  allowedModels?: string | null;
+  modelMapping?: Prisma.JsonValue | Record<string, string> | null;
+  channel?: RelayChannel | null;
+  channelConfigs?: Array<{
+    channel?: RelayChannel | null;
+    priority?: number | null;
+  }> | null;
+  failoverConfig?: {
+    enabled?: boolean | null;
+    maxRetries?: number | null;
+    retryStatusCodes?: Prisma.JsonValue | string[] | null;
+    failoverThreshold?: number | null;
+    failbackCooldownMinutes?: number | null;
+  } | null;
 }
 
 type RelayChannelWithPool = NonNullable<RelayTokenWithRelations["channel"]>;
@@ -535,22 +552,6 @@ export class RelayProxyService {
     );
   }
 
-  private ensureChannelAllowsModel(
-    requestedModel: string,
-    modelConfig: Pick<ModelPricingDto, "model" | "provider">,
-    allowedEntries: string[],
-  ): void {
-    if (allowedEntries.length === 0)
-      throw new RelayChannelSkipError("Channel does not support any models", "channel-no-models");
-
-    // allowedEntries stores model names, check if the model name is allowed
-    if (!isModelNameAllowed(allowedEntries, modelConfig.model || ""))
-      throw new RelayChannelSkipError(
-        `Channel does not support model ${requestedModel}. Allowed models: ${allowedEntries.join(", ")}`,
-        "channel-model-not-allowed",
-      );
-  }
-
   private resolveRequestedModelConfig(modelPricing: ModelPricingDto[], requestedModel: string): ModelPricingDto | null {
     const normalizedRequestedModel = requestedModel.trim();
     if (!normalizedRequestedModel) return null;
@@ -579,12 +580,11 @@ export class RelayProxyService {
     channel: RelayChannel,
     requestedModelId: string,
     candidateConfigs: ModelPricingDto[],
-    modelPricing: ModelPricingDto[],
   ): ModelPricingDto | null {
-    const allowedModelNames = parseRelayChannelAllowedModelNames(channel, modelPricing);
+    const allowedModelNames = parseRelayChannelAllowedModelNames(channel);
 
-    // If channel has no restrictions, use the first candidate
-    if (!allowedModelNames || allowedModelNames.length === 0) return candidateConfigs[0] || null;
+    // null means unrestricted; an explicit empty list denies every model.
+    if (allowedModelNames === null) return candidateConfigs[0] || null;
 
     // Find the first model config whose name is in the channel's allowedModels
     for (const config of candidateConfigs) if (isModelNameAllowed(allowedModelNames, config.model || "")) return config;
@@ -592,24 +592,13 @@ export class RelayProxyService {
     return null;
   }
 
-  private validateChannelModel(
-    channel: RelayChannel,
-    requestedModel: string,
-    resolvedModel: Pick<ModelPricingDto, "model" | "provider">,
-    modelPricing: ModelPricingDto[],
-  ): void {
-    const allowedEntries = parseRelayChannelAllowedModelNames(channel, modelPricing);
-    if (allowedEntries) this.ensureChannelAllowsModel(requestedModel, resolvedModel, allowedEntries);
-  }
-
   private validateChannelModelConfig(
     channel: RelayChannel,
     modelConfig: ModelPricingDto | null,
     requestedModelId: string,
-    modelPricing: ModelPricingDto[],
   ): void {
     if (!modelConfig) {
-      const allowedModelNames = parseRelayChannelAllowedModelNames(channel, modelPricing);
+      const allowedModelNames = parseRelayChannelAllowedModelNames(channel);
       const allowedModelsStr =
         allowedModelNames && allowedModelNames.length > 0 ? allowedModelNames.join(", ") : "none";
       throw new RelayChannelSkipError(
@@ -817,7 +806,7 @@ export class RelayProxyService {
   }
 
   async getAvailableModelsForToken(
-    relayToken: RelayTokenWithChannel,
+    relayToken: RelayTokenAvailabilityInput,
     requestFormat: "openai" | "anthropic" | "gemini",
   ): Promise<string[]> {
     const modelPricing = await this.modelPricingService.getModelPricing();
@@ -842,7 +831,7 @@ export class RelayProxyService {
     const modelIds = new Set<string>();
 
     for (const channel of eligibleChannels) {
-      const channelAllowedModelNames = parseRelayChannelAllowedModelNames(channel, modelPricing);
+      const channelAllowedModelNames = parseRelayChannelAllowedModelNames(channel);
       let channelScopedModels = formatScopedModels;
       if (channelAllowedModelNames != null)
         channelScopedModels = formatScopedModels.filter((model) =>
@@ -876,7 +865,29 @@ export class RelayProxyService {
         if (tokenMapping[key]) modelIds.add(tokenMapping[key]);
       }
 
-    return [...modelIds];
+    return [...modelIds].sort((left, right) => left.localeCompare(right));
+  }
+
+  async getAvailableModelMapForToken(relayToken: RelayTokenAvailabilityInput): Promise<{
+    openai: string[];
+    anthropic: string[];
+    gemini: string[];
+  }> {
+    const getModels = async (requestFormat: "openai" | "anthropic" | "gemini") => {
+      try {
+        return await this.getAvailableModelsForToken(relayToken, requestFormat);
+      } catch (error) {
+        if (error instanceof BadRequestError) return [];
+        throw error;
+      }
+    };
+
+    const [openai, anthropic, gemini] = await Promise.all([
+      getModels("openai"),
+      getModels("anthropic"),
+      getModels("gemini"),
+    ]);
+    return { openai, anthropic, gemini };
   }
 
   private rewriteGeminiModelPath(path: string, upstreamModelId: string): string {
@@ -1367,7 +1378,7 @@ export class RelayProxyService {
     };
   }
 
-  private getFailoverRuntimeConfig(relayToken: RelayTokenWithChannel): RelayFailoverRuntimeConfig {
+  private getFailoverRuntimeConfig(relayToken: RelayTokenAvailabilityInput): RelayFailoverRuntimeConfig {
     const retryStatusCodes = normalizeRetryStatusRules(
       Array.isArray(relayToken.failoverConfig?.retryStatusCodes) ? relayToken.failoverConfig.retryStatusCodes : [],
     );
@@ -1434,7 +1445,7 @@ export class RelayProxyService {
     return ordered;
   }
 
-  private getTopLevelAttemptChannels(relayToken: RelayTokenWithChannel): RelayChannelWithPool[] {
+  private getTopLevelAttemptChannels(relayToken: RelayTokenAvailabilityInput): RelayChannelWithPool[] {
     const candidates = relayToken.channelConfigs?.length
       ? relayToken.channelConfigs.map((config) => config.channel).filter(Boolean)
       : relayToken.channel
@@ -1494,7 +1505,7 @@ export class RelayProxyService {
     };
   }
 
-  private async buildAttemptPlan(relayToken: RelayTokenWithChannel): Promise<RelayAttemptPlan> {
+  private async buildAttemptPlan(relayToken: RelayTokenAvailabilityInput): Promise<RelayAttemptPlan> {
     const topLevelChannels = this.getTopLevelAttemptChannels(relayToken);
     const channels = await this.relayPoolResolver.resolveActiveLeaves(topLevelChannels, (pool, members) =>
       this.orderPooledMemberChannels(pool, members),
@@ -1606,16 +1617,14 @@ export class RelayProxyService {
     requestFormat: "openai" | "anthropic" | "gemini";
     requestedModel: string;
     candidateModelConfigs: ModelPricingDto[];
-    modelPricing: ModelPricingDto[];
   }): boolean {
     try {
       const channelModelConfig = this.resolveChannelModelConfig(
         params.channel,
         params.requestedModel,
         params.candidateModelConfigs,
-        params.modelPricing,
       );
-      this.validateChannelModelConfig(params.channel, channelModelConfig, params.requestedModel, params.modelPricing);
+      this.validateChannelModelConfig(params.channel, channelModelConfig, params.requestedModel);
       this.resolveChannelUpstreamConfig(params.channel, params.requestFormat);
       return true;
     } catch {
@@ -1629,7 +1638,6 @@ export class RelayProxyService {
     requestFormat: "openai" | "anthropic" | "gemini";
     requestedModel: string;
     candidateModelConfigs: ModelPricingDto[];
-    modelPricing: ModelPricingDto[];
     failbackCooldownMinutes: number;
   }): Promise<RelayChannel[]> {
     if (params.channels.length < 2 || params.failbackCooldownMinutes <= 0) return params.channels;
@@ -1662,7 +1670,6 @@ export class RelayProxyService {
         requestFormat: params.requestFormat,
         requestedModel: params.requestedModel,
         candidateModelConfigs: params.candidateModelConfigs,
-        modelPricing: params.modelPricing,
       })
     ) {
       await this.clearStickyPreferredChannel({
@@ -2300,7 +2307,6 @@ export class RelayProxyService {
       requestFormat,
       requestedModel: normalizedRequestedModel,
       candidateModelConfigs,
-      modelPricing,
       failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
     });
 
@@ -2370,13 +2376,12 @@ export class RelayProxyService {
               channel,
               normalizedRequestedModel,
               candidateModelConfigs,
-              modelPricing,
             );
-            this.validateChannelModelConfig(channel, channelModelConfig, normalizedRequestedModel, modelPricing);
+            this.validateChannelModelConfig(channel, channelModelConfig, normalizedRequestedModel);
 
             // TypeScript doesn't know that validateChannelModelConfig throws if null
             if (!channelModelConfig) {
-              const allowedModelNames = parseRelayChannelAllowedModelNames(channel, modelPricing);
+              const allowedModelNames = parseRelayChannelAllowedModelNames(channel);
               const allowedModelsStr =
                 allowedModelNames && allowedModelNames.length > 0 ? allowedModelNames.join(", ") : "none";
               throw new RelayChannelSkipError(
@@ -3624,7 +3629,6 @@ export class RelayProxyService {
                 channelId,
                 channelMultiplier,
                 relayGlobalMultiplier,
-                timeMultiplier,
                 monthlyPassCoverageAt,
                 path: req.path.replace(/^\/relay\/proxy/, ""),
                 method: req.method,

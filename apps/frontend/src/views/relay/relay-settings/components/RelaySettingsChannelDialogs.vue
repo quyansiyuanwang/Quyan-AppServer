@@ -364,7 +364,12 @@
             />
           </el-form-item>
           <el-form-item :label="i18ns.t('ServerConfigView.openaiUpstreamApiKey')">
-            <el-input v-model="channelForm.openaiUpstreamApiKey" type="password" show-password />
+            <el-input
+              v-model="channelForm.openaiUpstreamApiKey"
+              type="password"
+              show-password
+              @update:model-value="channelForm.openaiUpstreamApiKeyTouched = true"
+            />
           </el-form-item>
         </template>
 
@@ -382,7 +387,12 @@
             />
           </el-form-item>
           <el-form-item :label="i18ns.t('ServerConfigView.anthropicUpstreamApiKey')">
-            <el-input v-model="channelForm.anthropicUpstreamApiKey" type="password" show-password />
+            <el-input
+              v-model="channelForm.anthropicUpstreamApiKey"
+              type="password"
+              show-password
+              @update:model-value="channelForm.anthropicUpstreamApiKeyTouched = true"
+            />
           </el-form-item>
         </template>
 
@@ -400,7 +410,12 @@
             />
           </el-form-item>
           <el-form-item :label="i18ns.t('ServerConfigView.geminiUpstreamApiKey')">
-            <el-input v-model="channelForm.geminiUpstreamApiKey" type="password" show-password />
+            <el-input
+              v-model="channelForm.geminiUpstreamApiKey"
+              type="password"
+              show-password
+              @update:model-value="channelForm.geminiUpstreamApiKeyTouched = true"
+            />
           </el-form-item>
         </template>
       </template>
@@ -783,27 +798,9 @@
               {{ i18ns.t('relay.allowedModelsChannel') }}
             </div>
             <div class="flex flex-wrap gap-2">
-              <template v-if="getChannelAllowedModelsMode(currentChannelDetail) === 'auto'">
-                <el-tag type="warning" size="small">{{
-                  getChannelAllowedModelsSummary(currentChannelDetail)
-                }}</el-tag>
+              <template v-if="currentChannelDetail.allowedModels.length">
                 <el-tag
-                  v-for="model in currentChannelDetail.inferredAllowedModels || []"
-                  :key="model"
-                  type="primary"
-                  size="small"
-                  >{{ model }}</el-tag
-                >
-              </template>
-              <el-tag
-                v-else-if="getChannelAllowedModelsMode(currentChannelDetail) === 'all'"
-                type="info"
-                size="small"
-                >{{ i18ns.t('relay.allModels') }}</el-tag
-              >
-              <template v-else-if="parseAllowedModels(currentChannelDetail.allowedModels).length">
-                <el-tag
-                  v-for="model in parseAllowedModels(currentChannelDetail.allowedModels)"
+                  v-for="model in currentChannelDetail.allowedModels"
                   :key="model"
                   type="primary"
                   size="small"
@@ -839,7 +836,7 @@
             </div>
             <div>
               {{
-                hasConfiguredValue(currentChannelDetail.openaiUpstreamApiKey)
+                currentChannelDetail.hasOpenaiUpstreamApiKey
                   ? i18ns.t('yes')
                   : i18ns.t('relay.notConfigured')
               }}
@@ -859,7 +856,7 @@
             </div>
             <div>
               {{
-                hasConfiguredValue(currentChannelDetail.anthropicUpstreamApiKey)
+                currentChannelDetail.hasAnthropicUpstreamApiKey
                   ? i18ns.t('yes')
                   : i18ns.t('relay.notConfigured')
               }}
@@ -879,7 +876,7 @@
             </div>
             <div>
               {{
-                hasConfiguredValue(currentChannelDetail.geminiUpstreamApiKey)
+                currentChannelDetail.hasGeminiUpstreamApiKey
                   ? i18ns.t('yes')
                   : i18ns.t('relay.notConfigured')
               }}
@@ -996,9 +993,7 @@ const {
   channelImportPlaceholder,
   closeChannelDetailDialog,
   handleVisibilityUserSearch,
-  parseAllowedModels,
   getChannelAllowedModelsMode,
-  getChannelAllowedModelsSummary,
   handleImportChannels,
 } = state
 
@@ -1056,9 +1051,6 @@ const formatAllowedModelsModeLabel = (mode: 'all' | 'manual' | 'auto') => {
       return i18ns.t('relay.allowedModelsModeAll')
   }
 }
-
-const hasConfiguredValue = (value?: string | null) =>
-  typeof value === 'string' && value.trim() !== ''
 
 const getModelMappingEntries = (value: unknown): Array<[string, string]> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return []

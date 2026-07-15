@@ -80,17 +80,32 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = filterPendingDeletedMessages(loaded)
   }
 
+  function resolveAvailableSelection(
+    tokenId?: string,
+    requestedModel?: string,
+  ): { tokenId: string; model: string } | null {
+    const token =
+      availableTokens.value.find((item) => item.id === tokenId) ||
+      availableTokens.value.find((item) => item.id === currentConversation.value?.relayTokenId) ||
+      availableTokens.value[0]
+    if (!token) return null
+
+    const models = parseAllowedModels(token.allowedModels)
+    if (models.length === 0) return null
+    const fallbackModel = models[0]
+    if (!fallbackModel) return null
+    return {
+      tokenId: token.id,
+      model: requestedModel && models.includes(requestedModel) ? requestedModel : fallbackModel,
+    }
+  }
+
   async function sendMessage(content: string, model: string, tokenId?: string) {
     if (!currentConversation.value) return
     if (isSending.value) return
 
-    const normalizedToken =
-      availableTokens.value.find((item) => item.id === tokenId) ||
-      availableTokens.value.find((item) => item.id === currentConversation.value?.relayTokenId) ||
-      availableTokens.value[0]
-    const tokenModels = parseAllowedModels(normalizedToken?.allowedModels)
-    const normalizedModel = tokenModels.includes(model) ? model : tokenModels[0] || model
-    const normalizedTokenId = normalizedToken?.id
+    const selection = resolveAvailableSelection(tokenId, model)
+    if (!selection) return
 
     isSending.value = true
 
@@ -124,8 +139,8 @@ export const useChatStore = defineStore('chat', () => {
       await chatService.sendMessageStream(
         currentConversation.value.id,
         content,
-        normalizedModel,
-        normalizedTokenId,
+        selection.model,
+        selection.tokenId,
         (chunk) => {
           console.log('[ChatStore] onChunk called with:', chunk)
           const assistantMessage = messages.value[assistantMessageIndex]
@@ -214,19 +229,16 @@ export const useChatStore = defineStore('chat', () => {
 
   async function resendMessage(message: Message) {
     if (!currentConversation.value) return
-    const selection = getSelectionFromStorage()
-    const model =
-      selection.model ||
-      message.model ||
-      availableTokens.value[0]?.allowedModels?.split(',')[0] ||
-      'deepseek-chat'
-    const tokenId =
-      selection.tokenId || currentConversation.value.relayTokenId || availableTokens.value[0]?.id
-    if (!tokenId) {
+    const storedSelection = getSelectionFromStorage()
+    const selection = resolveAvailableSelection(
+      storedSelection.tokenId || currentConversation.value.relayTokenId || undefined,
+      storedSelection.model || message.model || undefined,
+    )
+    if (!selection) {
       console.error('[ChatStore] No token available for resend')
       return
     }
-    await sendMessage(message.content, model, tokenId)
+    await sendMessage(message.content, selection.model, selection.tokenId)
   }
 
   async function regenerateMessage(assistantMessage: Message) {
@@ -238,16 +250,12 @@ export const useChatStore = defineStore('chat', () => {
     const userMessage = messages.value[msgIndex - 1]
     if (!userMessage || userMessage.role !== 'user') return
 
-    const selection = getSelectionFromStorage()
-    const model =
-      selection.model ||
-      assistantMessage.model ||
-      userMessage.model ||
-      availableTokens.value[0]?.allowedModels?.split(',')[0] ||
-      'deepseek-chat'
-    const tokenId =
-      selection.tokenId || currentConversation.value.relayTokenId || availableTokens.value[0]?.id
-    if (!tokenId) {
+    const storedSelection = getSelectionFromStorage()
+    const selection = resolveAvailableSelection(
+      storedSelection.tokenId || currentConversation.value.relayTokenId || undefined,
+      storedSelection.model || assistantMessage.model || userMessage.model || undefined,
+    )
+    if (!selection) {
       console.error('[ChatStore] No token available for regenerate')
       return
     }
@@ -256,7 +264,7 @@ export const useChatStore = defineStore('chat', () => {
     const deletedAssistant = await deleteMessage(assistantMessage.id)
     const deletedUser = await deleteMessage(userMessage.id)
     if (!deletedAssistant || !deletedUser) return
-    await sendMessage(userMessage.content, model, tokenId)
+    await sendMessage(userMessage.content, selection.model, selection.tokenId)
   }
 
   async function loadAvailableTokens() {

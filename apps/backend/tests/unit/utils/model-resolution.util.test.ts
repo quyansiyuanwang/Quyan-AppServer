@@ -4,6 +4,7 @@ import {
   isModelNameAllowed,
   normalizeAllowedModelEntriesToModelNames,
   parseAllowedModelsJson,
+  parseRelayModelNameConstraint,
   resolveModelId,
 } from "@/util/model-resolution.util";
 
@@ -82,8 +83,7 @@ describe("model-resolution util", () => {
 
     it("converts non-string values to strings", () => {
       const parsed = parseAllowedModelsJson("[123, true, false, 456.78]");
-      // false converts to "" which is filtered out by filter(Boolean)
-      expect(parsed).toEqual(["123", "true", "456.78"]);
+      expect(parsed).toEqual(["123", "true", "false", "456.78"]);
     });
 
     it("handles nested arrays by converting to string", () => {
@@ -115,6 +115,20 @@ describe("model-resolution util", () => {
 
     it("handles malformed JSON with trailing comma", () => {
       expect(parseAllowedModelsJson('["gpt-4o",]')).toBeNull();
+    });
+  });
+
+  describe("parseRelayModelNameConstraint", () => {
+    it("distinguishes unrestricted, explicit empty, and malformed values", () => {
+      expect(parseRelayModelNameConstraint(null)).toEqual({ kind: "unrestricted" });
+      expect(parseRelayModelNameConstraint(" ")).toEqual({ kind: "unrestricted" });
+      expect(parseRelayModelNameConstraint("[]")).toEqual({ kind: "restricted", values: [] });
+      expect(parseRelayModelNameConstraint('[" catalog-a "]')).toEqual({
+        kind: "restricted",
+        values: ["catalog-a"],
+      });
+      expect(parseRelayModelNameConstraint("invalid")).toEqual({ kind: "malformed" });
+      expect(parseRelayModelNameConstraint("{}")).toEqual({ kind: "malformed" });
     });
   });
 

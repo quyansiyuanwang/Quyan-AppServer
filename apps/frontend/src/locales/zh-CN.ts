@@ -2382,7 +2382,7 @@ const zhCN: DeepStringify<typeof en> = {
     channelDetailsTitle: '渠道详情',
     allModels: '全部',
     noModels: '不可用',
-    modelsCount: '个模型',
+    modelsCount: '{count} 个模型',
     upstreamConfig: '上游配置',
     apiKeyConfigured: 'API Key 已配置',
     notConfigured: '未配置',

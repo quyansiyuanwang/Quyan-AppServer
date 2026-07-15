@@ -10,8 +10,8 @@ const { anthropicMessagesMock, anthropicCtorMock } = vi.hoisted(() => ({
 
 vi.mock("@/util/anthropic-upstream.client", () => ({
   AnthropicUpstreamClient: class {
-    constructor(channelName?: string) {
-      anthropicCtorMock(channelName);
+    constructor(config?: unknown) {
+      anthropicCtorMock(config);
     }
 
     messages = anthropicMessagesMock;
@@ -36,9 +36,19 @@ describe("OJQAService", () => {
     getBalance: vi.fn(),
   };
 
+  const relayPoolResolver = {
+    resolveActiveLeaves: vi.fn(),
+  };
+
   const OJQAServiceCtor = OJQAService as unknown as new (...args: any[]) => OJQAService;
 
-  const service = new OJQAServiceCtor(ojApiKeyRepository, ojModelPricingRepository, ojUsageRepository, balanceService);
+  const service = new OJQAServiceCtor(
+    ojApiKeyRepository,
+    ojModelPricingRepository,
+    ojUsageRepository,
+    balanceService,
+    relayPoolResolver,
+  );
 
   const pricingRecord = {
     inputPrice: new Decimal(1000),
@@ -57,7 +67,7 @@ describe("OJQAService", () => {
       id: "key-1",
       userId: "user-1",
       expiresAt: null,
-      channel: { name: "channel-a" },
+      channel: { id: "channel-a", name: "channel-a" },
     });
 
     const result = await service.validateAPIKey("ojqa_token");
@@ -65,7 +75,7 @@ describe("OJQAService", () => {
     expect(result).toEqual({
       userId: "user-1",
       keyId: "key-1",
-      channelName: "channel-a",
+      channel: { id: "channel-a", name: "channel-a" },
     });
   });
 
@@ -114,10 +124,20 @@ describe("OJQAService", () => {
       id: "key-1",
       userId: "user-1",
       expiresAt: null,
-      channel: { name: "channel-a" },
+      channel: { id: "channel-a", name: "channel-a" },
     });
     balanceService.getBalance.mockResolvedValue({ balance: new Decimal(10) });
     ojModelPricingRepository.findActiveByModel.mockResolvedValue(pricingRecord);
+    relayPoolResolver.resolveActiveLeaves.mockResolvedValue([
+      {
+        id: "leaf-a",
+        allowedFormats: "anthropic",
+        allowedModels: null,
+        anthropicUpstreamUrl: "https://anthropic.example.com",
+        anthropicUpstreamApiKey: "secret",
+        modelMapping: { "claude-haiku": "upstream-haiku" },
+      },
+    ]);
     anthropicMessagesMock.mockResolvedValue({
       content: [{ type: "text", text: "The answer" }],
       usage: {
@@ -131,9 +151,13 @@ describe("OJQAService", () => {
 
     const result = await service.askQuestion("ojqa_token", "What is 2+2?", "claude-haiku", 2048, "127.0.0.1");
 
-    expect(anthropicCtorMock).toHaveBeenCalledWith("channel-a");
+    expect(relayPoolResolver.resolveActiveLeaves).toHaveBeenCalledWith([expect.objectContaining({ id: "channel-a" })]);
+    expect(anthropicCtorMock).toHaveBeenCalledWith({
+      baseUrl: "https://anthropic.example.com",
+      apiKey: "secret",
+    });
     expect(anthropicMessagesMock).toHaveBeenCalledWith({
-      model: "claude-haiku",
+      model: "upstream-haiku",
       max_tokens: 2048,
       messages: [{ role: "user", content: "What is 2+2?" }],
     });
@@ -174,6 +198,50 @@ describe("OJQAService", () => {
     await expect(
       service.askQuestion("ojqa_token", "What is 2+2?", "claude-haiku", undefined, "127.0.0.1"),
     ).rejects.toThrow("AI service error: upstream exploded");
+  });
+
+  it("fails over between eligible pooled leaves", async () => {
+    const channel = { id: "pool", name: "pool" };
+    ojApiKeyRepository.findActiveByKey.mockResolvedValue({
+      id: "key-1",
+      userId: "user-1",
+      expiresAt: null,
+      channel,
+    });
+    balanceService.getBalance.mockResolvedValue({ balance: new Decimal(10) });
+    ojModelPricingRepository.findActiveByModel.mockResolvedValue(pricingRecord);
+    relayPoolResolver.resolveActiveLeaves.mockResolvedValue([
+      {
+        id: "leaf-1",
+        allowedFormats: "anthropic",
+        allowedModels: null,
+        anthropicUpstreamUrl: "https://first.example.com",
+        anthropicUpstreamApiKey: "first-key",
+      },
+      {
+        id: "leaf-2",
+        allowedFormats: "anthropic",
+        allowedModels: null,
+        anthropicUpstreamUrl: "https://second.example.com",
+        anthropicUpstreamApiKey: "second-key",
+      },
+    ]);
+    anthropicMessagesMock.mockRejectedValueOnce(new Error("first failed")).mockResolvedValueOnce({
+      content: [{ type: "text", text: "fallback answer" }],
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    ojUsageRepository.chargeAndRecordUsage.mockResolvedValue(true);
+
+    await service.askQuestion("ojqa_token", "question", "claude-haiku", 100, "127.0.0.1");
+
+    expect(anthropicCtorMock).toHaveBeenNthCalledWith(1, {
+      baseUrl: "https://first.example.com",
+      apiKey: "first-key",
+    });
+    expect(anthropicCtorMock).toHaveBeenNthCalledWith(2, {
+      baseUrl: "https://second.example.com",
+      apiKey: "second-key",
+    });
   });
 
   it("rejects when charge and record reports insufficient balance", async () => {

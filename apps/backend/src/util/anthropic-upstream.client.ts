@@ -9,7 +9,11 @@
 
 import axios from "axios";
 import { BadRequestError } from "@/util/errors";
-import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
+
+export interface AnthropicUpstreamConfig {
+  baseUrl?: string | null;
+  apiKey?: string | null;
+}
 
 export interface AnthropicMessage {
   role: "user" | "assistant";
@@ -41,15 +45,14 @@ export interface AnthropicMessagesResponse {
 }
 
 export class AnthropicUpstreamClient {
-  private channelName?: string;
-  private relayChannelRepository = RelayChannelRepository.getInstance();
+  private readonly upstreamConfig?: AnthropicUpstreamConfig;
 
   /**
    * 构造函数
-   * @param channelName 可选的渠道名称，如果提供则从该渠道读取配置
+   * @param upstreamConfig 可选的已解析上游配置
    */
-  constructor(channelName?: string) {
-    this.channelName = channelName;
+  constructor(upstreamConfig?: AnthropicUpstreamConfig) {
+    this.upstreamConfig = upstreamConfig;
   }
 
   /**
@@ -57,18 +60,8 @@ export class AnthropicUpstreamClient {
    * 优先从指定渠道读取，否则从环境变量读取
    */
   private async buildConfig(): Promise<{ messagesUrl: string; headers: Record<string, string> }> {
-    let apiKey = "";
-    let baseUrl = "";
-
-    // 如果指定了渠道名称，从数据库读取
-    if (this.channelName) {
-      const channel = await this.relayChannelRepository.findActiveByName(this.channelName);
-
-      if (channel) {
-        baseUrl = (channel.anthropicUpstreamUrl || "").replace(/\/+$/, "");
-        apiKey = channel.anthropicUpstreamApiKey || "";
-      }
-    }
+    let apiKey = this.upstreamConfig?.apiKey || "";
+    let baseUrl = (this.upstreamConfig?.baseUrl || "").replace(/\/+$/, "");
 
     // 回退到环境变量
     if (!apiKey) {
@@ -78,6 +71,8 @@ export class AnthropicUpstreamClient {
           "Anthropic API key not configured. Please set the ANTHROPIC_API_KEY environment variable or configure a relay channel.",
         );
     }
+
+    if (!baseUrl) baseUrl = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, "");
 
     if (!baseUrl) throw new BadRequestError("Anthropic API base URL not configured.");
 
