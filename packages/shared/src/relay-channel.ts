@@ -2,6 +2,6 @@ export const RELAY_CHANNEL_STATUS = {
   DELETED: 0,
   ENABLED: 1,
   DISABLED: 2,
-} as const;
+} as const
 
-export type RelayChannelStatus = (typeof RELAY_CHANNEL_STATUS)[keyof typeof RELAY_CHANNEL_STATUS];
+export type RelayChannelStatus = (typeof RELAY_CHANNEL_STATUS)[keyof typeof RELAY_CHANNEL_STATUS]

@@ -281,13 +281,21 @@ describe("MonthlyPassService publish flow", () => {
       purchaseLimitPerUser: 2,
       purchaseLimitWindowDays: 30,
     });
-    monthlyPassRepository.countUserPassesByUserAndTemplateSince.mockResolvedValue(2);
+    monthlyPassRepository.purchaseUserPass.mockRejectedValue(
+      new BadRequestError("purchase limit exceeded: at most 2 claim(s)"),
+    );
 
     await expect(service.claimPublishedTemplate({ templateId: "template-1" }, "user-1")).rejects.toThrow(
       BadRequestError,
     );
 
-    expect(monthlyPassRepository.purchaseUserPass).not.toHaveBeenCalled();
+    expect(monthlyPassRepository.purchaseUserPass).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Array),
+      expect.objectContaining({
+        limit: expect.objectContaining({ maximum: 2, windowStart: expect.any(Date) }),
+      }),
+    );
   });
 });
 
@@ -396,5 +404,185 @@ describe("MonthlyPassService quota window usage summaries", () => {
         }),
       ]),
     );
+  });
+});
+
+describe("MonthlyPassService channel pool coverage", () => {
+  const monthlyPassRepository = {
+    findActivePassCandidates: vi.fn(),
+    getUsageSummaryByQuotaWindowRules: vi.fn(),
+  };
+  const relayPoolResolver = {
+    resolveActiveLeaves: vi.fn(),
+  };
+  const MonthlyPassServiceCtor = MonthlyPassService as unknown as new (...args: any[]) => MonthlyPassService;
+  const service = new MonthlyPassServiceCtor(monthlyPassRepository, {}, {}, {}, {}, {}, {}, relayPoolResolver);
+
+  const activePass = {
+    id: "pass-1",
+    dailyQuota: null,
+    quotaUnit: "amount",
+    quotaWindowHours: null,
+    quotaWindows: [],
+    template: {
+      allowedModels: JSON.stringify(["gpt-4o"]),
+      allowedChannels: JSON.stringify(["pool-root"]),
+    },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    monthlyPassRepository.findActivePassCandidates.mockResolvedValue([activePass]);
+  });
+
+  it("covers a runtime leaf selected through a configured pool root", async () => {
+    relayPoolResolver.resolveActiveLeaves.mockResolvedValue([{ id: "leaf-1" }]);
+
+    await expect(service.hasActiveCoverage("user-1", "gpt-4o", "leaf-1")).resolves.toBe(true);
+    expect(relayPoolResolver.resolveActiveLeaves).toHaveBeenCalledWith([{ id: "pool-root" }]);
+  });
+
+  it("does not cover an unrelated runtime leaf", async () => {
+    relayPoolResolver.resolveActiveLeaves.mockResolvedValue([{ id: "leaf-1" }]);
+
+    await expect(service.hasActiveCoverage("user-1", "gpt-4o", "unrelated-leaf")).resolves.toBe(false);
+  });
+
+  it("does not cover a model outside the template allowance", async () => {
+    await expect(service.hasActiveCoverage("user-1", "claude-3-7", "leaf-1")).resolves.toBe(false);
+    expect(relayPoolResolver.resolveActiveLeaves).not.toHaveBeenCalled();
+  });
+});
+
+describe("MonthlyPassService template scope validation", () => {
+  const monthlyPassRepository = {
+    findTemplateById: vi.fn(),
+    findTemplateByName: vi.fn(),
+    createTemplate: vi.fn(),
+    updateTemplate: vi.fn(),
+  };
+  const modelPricingRepository = {
+    listActiveOrderedByModel: vi.fn(),
+  };
+  const businessLogService = { logOperation: vi.fn() };
+  const relayChannelService = { listChannelOptions: vi.fn() };
+  const MonthlyPassServiceCtor = MonthlyPassService as unknown as new (...args: any[]) => MonthlyPassService;
+  const service = new MonthlyPassServiceCtor(
+    monthlyPassRepository,
+    {},
+    {},
+    {},
+    modelPricingRepository,
+    businessLogService,
+    {},
+    {},
+    relayChannelService,
+  );
+  const templateRecord = {
+    id: "template-1",
+    name: "Scoped Pass",
+    description: null,
+    publishStatus: "draft",
+    publishedAt: null,
+    originalPrice: null,
+    discountPercent: null,
+    discountedPrice: null,
+    rechargeRatio: null,
+    defaultQuota: 10,
+    dailyQuota: null,
+    quotaUnit: "amount",
+    quotaWindowHours: null,
+    allowBalanceRedemption: true,
+    purchaseLimitPerUser: null,
+    purchaseLimitWindowDays: null,
+    allowedModels: JSON.stringify(["gpt-4o"]),
+    allowedChannels: JSON.stringify(["channel-1"]),
+    status: MANAGED_STATUS.ENABLED,
+    createTime: new Date("2026-01-01T00:00:00.000Z"),
+    updateTime: new Date("2026-01-01T00:00:00.000Z"),
+    quotaWindows: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    monthlyPassRepository.findTemplateByName.mockResolvedValue(null);
+    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+      { model: "gpt-4o", provider: "openai/gpt-4o" },
+      { model: "claude-sonnet", provider: "anthropic/claude-sonnet" },
+    ]);
+    relayChannelService.listChannelOptions.mockResolvedValue([
+      {
+        id: "channel-1",
+        name: "Primary",
+        enabled: true,
+        multiplier: 1,
+        allowedFormats: "openai",
+        modelCapabilities: [
+          {
+            catalogModelName: "gpt-4o",
+            requestModelId: "openai/gpt-4o",
+            supportedRequestFormats: ["openai"],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("rejects request model ids when the catalog name is required", async () => {
+    await expect(
+      service.createTemplate({ name: "Invalid", defaultQuota: 10, allowedModels: ["openai/gpt-4o"] }, "actor-1"),
+    ).rejects.toThrow("Unknown or inactive monthly pass models");
+    expect(monthlyPassRepository.createTemplate).not.toHaveBeenCalled();
+  });
+
+  it("rejects selected channels without effective model capabilities", async () => {
+    relayChannelService.listChannelOptions.mockResolvedValue([
+      {
+        id: "empty-pool",
+        name: "Empty Pool",
+        enabled: true,
+        multiplier: 1,
+        allowedFormats: "auto",
+        modelCapabilities: [],
+      },
+    ]);
+
+    await expect(
+      service.createTemplate({ name: "Invalid", defaultQuota: 10, allowedChannels: ["empty-pool"] }, "actor-1"),
+    ).rejects.toThrow("no usable model capabilities");
+  });
+
+  it("rejects model and channel scopes without an effective intersection", async () => {
+    await expect(
+      service.createTemplate(
+        {
+          name: "Invalid",
+          defaultQuota: 10,
+          allowedModels: ["claude-sonnet"],
+          allowedChannels: ["channel-1"],
+        },
+        "actor-1",
+      ),
+    ).rejects.toThrow("unavailable through the selected channels");
+  });
+
+  it("validates the merged persisted scope during metadata-only updates", async () => {
+    monthlyPassRepository.findTemplateById.mockResolvedValue(templateRecord);
+    relayChannelService.listChannelOptions.mockResolvedValue([]);
+
+    await expect(service.updateTemplate("template-1", { description: "changed" }, "actor-1")).rejects.toThrow(
+      "Unknown, inactive, or inaccessible monthly pass channels",
+    );
+    expect(monthlyPassRepository.updateTemplate).not.toHaveBeenCalled();
+  });
+
+  it("revalidates a draft scope immediately before publication", async () => {
+    monthlyPassRepository.findTemplateById.mockResolvedValue(templateRecord);
+    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([]);
+
+    await expect(service.publishTemplate("template-1", "actor-1")).rejects.toThrow(
+      "Unknown or inactive monthly pass models",
+    );
+    expect(monthlyPassRepository.updateTemplate).not.toHaveBeenCalled();
   });
 });

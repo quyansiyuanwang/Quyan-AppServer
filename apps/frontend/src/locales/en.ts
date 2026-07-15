@@ -2456,7 +2456,7 @@ export default {
     formatGemini: 'Gemini',
     allModels: 'All',
     noModels: 'None',
-    modelsCount: ' models',
+    modelsCount: '{count} models',
     upstreamConfig: 'Upstream Configuration',
     apiKeyConfigured: 'API Key Configured',
     notConfigured: 'Not configured',

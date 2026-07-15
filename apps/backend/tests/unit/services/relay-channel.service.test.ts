@@ -9,6 +9,7 @@ describe("RelayChannelService", () => {
   const relayChannelRepository = {
     listActive: vi.fn(),
     listVisible: vi.fn(),
+    listVisibleByIds: vi.fn(),
     findVisibleByName: vi.fn(),
     findActiveById: vi.fn(),
     findVisibleById: vi.fn(),
@@ -31,6 +32,14 @@ describe("RelayChannelService", () => {
   const permissionService = {
     hasAnyPermission: vi.fn(),
   };
+  const modelPricingService = {
+    getModelPricing: vi.fn(),
+  };
+  const relayPoolResolver = {
+    resolveEffectiveAllowedModels: vi.fn(),
+    preloadContext: vi.fn(),
+    resolveChannelCapabilities: vi.fn(),
+  };
 
   const RelayChannelServiceCtor = RelayChannelService as unknown as new (...args: any[]) => RelayChannelService;
 
@@ -40,6 +49,8 @@ describe("RelayChannelService", () => {
     userRepository,
     ramRoleRepository,
     permissionService,
+    modelPricingService,
+    relayPoolResolver,
   );
 
   const now = new Date("2026-01-01T00:00:00.000Z");
@@ -65,10 +76,17 @@ describe("RelayChannelService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     relayChannelRepository.listVisible.mockResolvedValue([sampleChannel]);
+    relayChannelRepository.listVisibleByIds.mockImplementation(async (ids: string[]) =>
+      ids.map((id) => ({ ...sampleChannel, id })),
+    );
     relayChannelRepository.findVisibleByName.mockResolvedValue(null);
     permissionService.hasAnyPermission.mockResolvedValue(false);
     userRepository.findByIdWithGroup.mockResolvedValue({ id: "actor-user", groupId: "group-1" });
     ramRoleRepository.listRoleBindingsForUser.mockResolvedValue([]);
+    modelPricingService.getModelPricing.mockResolvedValue([]);
+    relayPoolResolver.resolveEffectiveAllowedModels.mockResolvedValue([]);
+    relayPoolResolver.preloadContext.mockResolvedValue({ graph: new Map(), modelCatalog: [] });
+    relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([]);
   });
 
   it("lists active channels", async () => {
@@ -79,6 +97,118 @@ describe("RelayChannelService", () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("channel-1");
     expect(result[0].enabled).toBe(true);
+  });
+
+  it("redacts upstream API keys from ordinary channel responses", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      {
+        ...sampleChannel,
+        anthropicUpstreamApiKey: "anthropic-key",
+        geminiUpstreamApiKey: "",
+      },
+    ]);
+
+    const [result] = await service.listChannels("actor-user");
+
+    expect(result).not.toHaveProperty("openaiUpstreamApiKey");
+    expect(result).not.toHaveProperty("anthropicUpstreamApiKey");
+    expect(result).not.toHaveProperty("geminiUpstreamApiKey");
+    expect(result.hasOpenaiUpstreamApiKey).toBe(true);
+    expect(result.hasAnthropicUpstreamApiKey).toBe(true);
+    expect(result.hasGeminiUpstreamApiKey).toBe(false);
+  });
+
+  it("includes upstream API keys only in channel exports", async () => {
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([sampleChannel]);
+
+    const result = await service.exportChannels({ ids: ["channel-1"], includeDisabled: true }, "actor-user");
+
+    expect(result.channels[0].openaiUpstreamApiKey).toBe("openai-key");
+    expect(result.channels[0].anthropicUpstreamApiKey).toBeUndefined();
+    expect(businessLogService.logOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationType: OperationType.RELAY_CHANNEL_EXPORT,
+        actorUserId: "actor-user",
+      }),
+    );
+  });
+
+  it("rejects explicit export of an inaccessible channel", async () => {
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([
+      { ...sampleChannel, id: "private-channel", visibilityMode: "private" },
+    ]);
+
+    await expect(
+      service.exportChannels({ ids: ["private-channel"], includeDisabled: true }, "actor-user"),
+    ).rejects.toThrow(NotFoundError);
+    expect(businessLogService.logOperation).not.toHaveBeenCalled();
+  });
+
+  it("separates configured models from resolved capabilities", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      { ...sampleChannel, allowedModels: JSON.stringify(["configured-model"]) },
+    ]);
+    modelPricingService.getModelPricing.mockResolvedValue([{ model: "catalog-model" }]);
+    relayPoolResolver.resolveEffectiveAllowedModels.mockResolvedValue(["catalog-model"]);
+
+    const [result] = await service.listChannels("actor-user");
+
+    expect(result.allowedModels).toEqual(["catalog-model"]);
+    expect(result.configuredAllowedModels).toBe(JSON.stringify(["configured-model"]));
+    expect(relayPoolResolver.resolveEffectiveAllowedModels).toHaveBeenCalledWith("channel-1", [
+      { model: "catalog-model" },
+    ]);
+  });
+
+  it("projects business channel options without management configuration", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      { ...sampleChannel, allowedModels: JSON.stringify(["configured-model"]) },
+    ]);
+    const modelCatalog = [{ model: "Catalog Model", provider: "request-model", supportedFormats: "openai" }];
+    modelPricingService.getModelPricing.mockResolvedValue(modelCatalog);
+    const resolverContext = { graph: new Map(), modelCatalog };
+    relayPoolResolver.preloadContext.mockResolvedValue(resolverContext);
+    relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([
+      {
+        leafChannelId: "leaf-channel",
+        catalogModelName: "Catalog Model",
+        requestModelId: "request-model",
+        supportedRequestFormats: ["openai"],
+        modelMapping: { "request-model": "upstream-model" },
+      },
+      {
+        leafChannelId: "second-leaf",
+        catalogModelName: "Catalog Model",
+        requestModelId: "request-model",
+        supportedRequestFormats: ["anthropic"],
+        modelMapping: {},
+      },
+    ]);
+
+    const result = await service.listChannelOptions("actor-user");
+
+    expect(result).toEqual([
+      {
+        id: "channel-1",
+        name: "Main",
+        enabled: true,
+        multiplier: 1,
+        allowedFormats: "openai",
+        modelCapabilities: [
+          {
+            catalogModelName: "Catalog Model",
+            requestModelId: "request-model",
+            supportedRequestFormats: ["openai", "anthropic"],
+          },
+        ],
+      },
+    ]);
+    expect(relayPoolResolver.preloadContext).toHaveBeenCalledWith(modelCatalog);
+    expect(relayPoolResolver.resolveChannelCapabilities).toHaveBeenCalledWith("channel-1", resolverContext);
+    expect(result[0]).not.toHaveProperty("configuredAllowedModels");
+    expect(result[0]).not.toHaveProperty("openaiUpstreamUrl");
+    expect(result[0]).not.toHaveProperty("leafChannelId");
+    expect(result[0].modelCapabilities[0]).not.toHaveProperty("modelMapping");
   });
 
   it("lists visible channels when includeDisabled is true", async () => {
@@ -354,6 +484,65 @@ describe("RelayChannelService", () => {
           enabled: true,
         },
       ],
+      transactionClient,
+    );
+  });
+
+  it("rejects pooled channels with nonexistent members before persistence", async () => {
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([]);
+    relayChannelRepository.create.mockResolvedValue({
+      ...sampleChannel,
+      id: "pooled-channel-1",
+      channelType: "pooled",
+    });
+
+    await expect(
+      service.createChannel(
+        {
+          name: "Pool",
+          channelType: "pooled",
+          poolMembers: [{ memberChannelId: "missing-member", priority: 0 }],
+        },
+        "actor-user",
+      ),
+    ).rejects.toThrow("One or more pooled channel members were not found");
+
+    expect(relayChannelRepository.replaceMembersByChannelId).not.toHaveBeenCalled();
+  });
+
+  it("remaps imported pooled members to newly created channel IDs", async () => {
+    relayChannelRepository.create
+      .mockResolvedValueOnce({ ...sampleChannel, id: "target-pool", name: "Pool", channelType: "pooled" })
+      .mockResolvedValueOnce({ ...sampleChannel, id: "target-member", name: "Member" });
+    relayChannelRepository.listVisibleByIds.mockImplementation(async (ids: string[]) =>
+      ids.map((id) => ({ ...sampleChannel, id })),
+    );
+
+    await service.importChannels(
+      {
+        channels: [
+          {
+            id: "source-pool",
+            name: "Pool",
+            channelType: "pooled",
+            allowedFormats: "openai",
+            poolMembers: [{ memberChannelId: "source-member", priority: 1, weight: 1, enabled: true }],
+          },
+          {
+            id: "source-member",
+            name: "Member",
+            openaiUpstreamUrl: "https://upstream.example.com",
+            openaiUpstreamApiKey: "openai-key",
+            allowedFormats: "openai",
+          },
+        ],
+      },
+      "actor-user",
+    );
+
+    expect(relayChannelRepository.replaceMembersByChannelId).toHaveBeenCalledWith(
+      "target-pool",
+      [{ memberChannelId: "target-member", priority: 1, weight: 1, enabled: true }],
       transactionClient,
     );
   });

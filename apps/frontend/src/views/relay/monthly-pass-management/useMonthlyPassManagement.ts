@@ -34,7 +34,7 @@ export interface ChannelOption {
   value: string
   label: string
   name: string
-  allowedModels: string[] | null
+  catalogModelNames: string[]
 }
 
 export interface UserOption {
@@ -304,6 +304,8 @@ export const useMonthlyPassManagement = () => {
 
   const modelOptions = ref<string[]>([])
   const channelOptions = ref<ChannelOption[]>([])
+  const channelOptionsLoading = ref(false)
+  const channelOptionsLoadError = ref<unknown>(null)
   const groupOptions = ref<GroupOption[]>([])
   const userOptions = ref<UserOption[]>([])
   const templateOptions = ref<MonthlyPassTemplateDto[]>([])
@@ -421,27 +423,12 @@ export const useMonthlyPassManagement = () => {
       templateForm.allowedChannels.includes(item.value),
     )
 
-    if (!selectedChannels.length) return modelOptions.value
+    if (!selectedChannels.length || channelOptionsLoadError.value) return []
 
     const channelUnionModels = new Set<string>()
-    let hasUnrestrictedChannel = false
-
     selectedChannels.forEach((channel) => {
-      if (channel.allowedModels === null) {
-        hasUnrestrictedChannel = true
-        return
-      }
-
-      channel.allowedModels.forEach((model) => channelUnionModels.add(model))
+      channel.catalogModelNames.forEach((model) => channelUnionModels.add(model))
     })
-
-    if (hasUnrestrictedChannel) {
-      const ordered = [...modelOptions.value]
-      channelUnionModels.forEach((model) => {
-        if (!ordered.includes(model)) ordered.push(model)
-      })
-      return ordered
-    }
 
     const modelOptionsSet = new Set(modelOptions.value)
     const orderedInModelOptions: string[] = []
@@ -508,19 +495,6 @@ export const useMonthlyPassManagement = () => {
       rechargeRatio,
     }
   })
-
-  const parseChannelAllowedModels = (allowedModels?: string | null): string[] | null => {
-    if (!allowedModels) return null
-
-    try {
-      const parsed = JSON.parse(allowedModels)
-      if (!Array.isArray(parsed)) return null
-      const cleaned = parsed.map((item) => String(item || '').trim()).filter(Boolean)
-      return Array.from(new Set(cleaned))
-    } catch {
-      return null
-    }
-  }
 
   const createEditableQuotaWindow = (
     source?: Partial<MonthlyPassQuotaWindowDto | MonthlyPassQuotaWindowInputDto>,
@@ -744,18 +718,25 @@ export const useMonthlyPassManagement = () => {
   }
 
   const loadChannelOptions = async () => {
+    channelOptionsLoading.value = true
+    channelOptionsLoadError.value = null
     try {
-      const channels = await relayChannelService.listChannels()
+      const channels = await relayChannelService.listChannelOptions()
       channelOptions.value = channels
         .map((item) => ({
           value: item.id,
           name: item.name,
           label: item.name ? `${item.name} (${item.id})` : item.id,
-          allowedModels: parseChannelAllowedModels(item.allowedModels),
+          catalogModelNames: Array.from(
+            new Set(item.modelCapabilities.map((capability) => capability.catalogModelName)),
+          ),
         }))
         .sort((a, b) => a.label.localeCompare(b.label))
-    } catch (_error) {
+    } catch (error) {
+      channelOptionsLoadError.value = error
       channelOptions.value = []
+    } finally {
+      channelOptionsLoading.value = false
     }
   }
 
@@ -1625,6 +1606,8 @@ export const useMonthlyPassManagement = () => {
     canPublishTemplate: canPublishTemplateRow,
     canUnpublishTemplate: canUnpublishTemplateRow,
     formatAllowedModels,
+    channelOptionsLoading,
+    channelOptionsLoadError,
     formatAllowedChannels,
     formatPurchaseLimit,
     getTemplateQuotaWindowSource,

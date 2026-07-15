@@ -248,6 +248,7 @@ const relayTokenImportItemSchema = z
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
     allowedModels: z.string().max(2000).nullish(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
+    modelMapping: z.record(z.string(), z.string()).optional(),
     enabled: z.coerce.boolean().optional(),
   })
   .superRefine((value, ctx) => {

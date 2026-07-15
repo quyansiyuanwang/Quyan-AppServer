@@ -1,11 +1,11 @@
 import { effectScope, type EffectScope } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useApiDocumentationPricing, type PricingModelRow } from '@/composables/useApiDocumentationPricing'
-import type { RelayChannelDto } from '@/client/types.gen'
+import type { RelayChannelOptionDto } from '@/client/types.gen'
 
 const { getModelPricingMock, listChannelsMock } = vi.hoisted(() => ({
   getModelPricingMock: vi.fn<() => Promise<PricingModelRow[]>>(),
-  listChannelsMock: vi.fn<() => Promise<RelayChannelDto[]>>(),
+  listChannelsMock: vi.fn<() => Promise<RelayChannelOptionDto[]>>(),
 }))
 
 vi.mock('element-plus', () => ({
@@ -24,7 +24,7 @@ vi.mock('@/service/modelPricingService', () => ({
 
 vi.mock('@/service/relayChannelService', () => ({
   relayChannelService: {
-    listChannels: listChannelsMock,
+    listChannelOptions: listChannelsMock,
   },
 }))
 
@@ -47,20 +47,24 @@ const createComposable = () => {
   }
 }
 
-const createChannel = (overrides: Partial<RelayChannelDto> = {}): RelayChannelDto =>
+const createChannel = (
+  overrides: Partial<RelayChannelOptionDto> = {},
+): RelayChannelOptionDto =>
   ({
     id: 'channel-1',
     name: 'Test Channel',
     enabled: true,
     multiplier: 1,
     allowedFormats: 'openai',
-    allowedModels: null,
-    openaiUpstreamUrl: 'https://example.com/v1',
-    anthropicUpstreamUrl: null,
-    geminiUpstreamUrl: null,
-    createTime: new Date().toISOString(),
+    modelCapabilities: [
+      {
+        catalogModelName: 'gpt-4o-mini',
+        requestModelId: 'openai/gpt-4o-mini',
+        supportedRequestFormats: ['openai'],
+      },
+    ],
     ...overrides,
-  }) as RelayChannelDto
+  })
 
 const createPricingRow = (overrides: Partial<PricingModelRow> = {}): PricingModelRow =>
   ({
@@ -91,7 +95,13 @@ describe('useApiDocumentationPricing', () => {
 
     composable.channels.value = [
       createChannel({
-        allowedModels: JSON.stringify(['gpt-4o-mini']),
+        modelCapabilities: [
+          {
+            catalogModelName: 'gpt-4o-mini',
+            requestModelId: 'provider-specific-id',
+            supportedRequestFormats: ['openai'],
+          },
+        ],
       }),
     ]
 
@@ -114,7 +124,13 @@ describe('useApiDocumentationPricing', () => {
     listChannelsMock.mockResolvedValue([
       createChannel({
         id: 'channel-match',
-        allowedModels: JSON.stringify(['gpt-4o-mini']),
+        modelCapabilities: [
+          {
+            catalogModelName: 'gpt-4o-mini',
+            requestModelId: 'provider-specific-id',
+            supportedRequestFormats: ['openai'],
+          },
+        ],
       }),
     ])
 
@@ -128,23 +144,42 @@ describe('useApiDocumentationPricing', () => {
     dispose()
   })
 
-  it('includes pooled channels without direct upstream urls', () => {
+  it('uses resolver-provided inferred models for pooled channels without direct upstream urls', () => {
     const { composable, dispose } = createComposable()
 
     composable.channels.value = [
       createChannel({
         id: 'pooled-channel',
-        channelType: 'pooled',
-        openaiUpstreamUrl: null,
-        anthropicUpstreamUrl: null,
-        geminiUpstreamUrl: null,
-        allowedModels: JSON.stringify(['gpt-4o-mini']),
+        modelCapabilities: [
+          {
+            catalogModelName: 'gpt-4o-mini',
+            requestModelId: 'openai/gpt-4o-mini',
+            supportedRequestFormats: ['openai'],
+          },
+        ],
       }),
     ]
 
     const channels = composable.getChannelsForModel('gpt-4o-mini', 'openai/gpt-4o-mini', 'openai')
 
     expect(channels.map((channel) => channel.id)).toEqual(['pooled-channel'])
+
+    dispose()
+  })
+
+  it('does not expose all models when a pooled channel has no inferred availability', () => {
+    const { composable, dispose } = createComposable()
+
+    composable.channels.value = [
+      createChannel({
+        id: 'pooled-channel',
+        modelCapabilities: [],
+      }),
+    ]
+
+    expect(
+      composable.getChannelsForModel('gpt-4o-mini', 'openai/gpt-4o-mini', 'openai'),
+    ).toEqual([])
 
     dispose()
   })
@@ -156,8 +191,8 @@ describe('useApiDocumentationPricing', () => {
       createPricingRow({ model: 'gpt-4o-mini', modelId: 'openai/gpt-4o-mini', inputPrice: 10 }),
     ])
     listChannelsMock.mockResolvedValue([
-      createChannel({ id: 'high', multiplier: 2, allowedModels: JSON.stringify(['gpt-4o-mini']) }),
-      createChannel({ id: 'low', multiplier: 0.5, allowedModels: JSON.stringify(['gpt-4o-mini']) }),
+      createChannel({ id: 'high', multiplier: 2 }),
+      createChannel({ id: 'low', multiplier: 0.5 }),
     ])
 
     await composable.refreshData()

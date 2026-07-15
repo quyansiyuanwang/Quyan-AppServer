@@ -10,6 +10,7 @@ import type {
   ImportRelayChannelsResponse,
   UpdateRelayChannelRequest,
   RelayChannelDto,
+  RelayChannelOptionDto,
   RelayChannelExportResponse,
 } from '@/client/types.gen'
 import { checkApiResult } from '@/utils/service-utils'
@@ -36,6 +37,11 @@ class RelayChannelService {
         includeDisabled: options?.includeDisabled,
       },
     })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async listChannelOptions(): Promise<RelayChannelOptionDto[]> {
+    const result = await relayChannelApi.listChannelOptions()
     return checkApiResult<any>(result, true).data
   }
 

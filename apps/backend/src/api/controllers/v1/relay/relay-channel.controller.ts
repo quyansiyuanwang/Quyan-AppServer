@@ -20,6 +20,7 @@ import type {
   BatchRelayChannelsResultDto,
   BatchSetRelayChannelStatusRequest,
   RelayChannelDto,
+  RelayChannelOptionDto,
   CreateRelayChannelRequest,
   DuplicateRelayChannelRequest,
   ExportRelayChannelsRequest,
@@ -28,7 +29,7 @@ import type {
   RelayChannelExportResponse,
   UpdateRelayChannelRequest,
 } from "@/api/dto/relay/relay-channel.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import {
@@ -44,6 +45,7 @@ import {
 } from "@/api/schema/relay/relay-channel.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
+import { ReplayProtected } from "@/util/replay-protected-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
 
@@ -62,6 +64,25 @@ export class RelayChannelController extends Controller {
     return this.channelService.listChannels(request.user!.userId, includeDisabled === true);
   }
 
+  /**
+   * Lists the caller-visible channel capabilities without exposing pool topology or channel configuration.
+   */
+  @Get("options")
+  @Security("jwt")
+  @RequireAnyPermission([
+    Permission.RELAY_CHANNEL_READ,
+    Permission.RELAY_TOKEN_CREATE,
+    Permission.RELAY_TOKEN_READ,
+    Permission.MONTHLY_PASS_TEMPLATE_READ,
+    Permission.MONTHLY_PASS_TEMPLATE_WRITE,
+    Permission.OJ_APIKEY_CREATE,
+    Permission.OJ_APIKEY_READ,
+    Permission.OJ_APIKEY_UPDATE,
+  ])
+  public async listChannelOptions(@Request() request: TypedRequest): Promise<RelayChannelOptionDto[]> {
+    return this.channelService.listChannelOptions(request.user!.userId);
+  }
+
   @Get("{id}")
   @Security("jwt")
   @RequirePermission(Permission.RELAY_CHANNEL_READ)
@@ -72,8 +93,14 @@ export class RelayChannelController extends Controller {
 
   @Post("export")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_READ)
-  @Middlewares(validateBody(exportRelayChannelsBodySchema))
+  @RequirePermission(Permission.RELAY_CHANNEL_EXPORT)
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(exportRelayChannelsBodySchema),
+  )
   public async exportChannels(
     @Body() body: ExportRelayChannelsRequest,
     @Request() request: TypedRequest,

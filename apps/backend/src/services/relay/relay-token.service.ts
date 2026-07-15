@@ -592,11 +592,16 @@ export class RelayTokenService {
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
 
-    const normalizedConfig = await this.normalizeChannelConfiguration(
-      actorUserId,
-      data.channelId ?? token.channelId ?? undefined,
-      data.channelConfigs,
-    );
+    const hasChannelId = Object.prototype.hasOwnProperty.call(data, "channelId");
+    const hasChannelConfigs = Object.prototype.hasOwnProperty.call(data, "channelConfigs");
+    const hasRoutingUpdate = hasChannelId || hasChannelConfigs;
+    const normalizedConfig = hasRoutingUpdate
+      ? await this.normalizeChannelConfiguration(
+          actorUserId,
+          data.channelId ?? token.channelId ?? undefined,
+          data.channelConfigs,
+        )
+      : null;
     const hasName = Object.prototype.hasOwnProperty.call(data, "name");
     const hasExpiresAt = Object.prototype.hasOwnProperty.call(data, "expiresAt");
     const hasQuotaWindows = Object.prototype.hasOwnProperty.call(data, "quotaWindows");
@@ -629,8 +634,8 @@ export class RelayTokenService {
         ? this.normalizeOptionalIpWhitelist(data.ipWhitelist)
         : undefined,
       modelMapping: hasModelMapping ? (data.modelMapping ?? null) : undefined,
-      channelId: normalizedConfig.defaultChannelId,
-      channelConfigs: normalizedConfig.channelConfigs,
+      channelId: normalizedConfig?.defaultChannelId,
+      channelConfigs: normalizedConfig?.channelConfigs,
       failoverConfig: data.failoverConfig,
     });
     const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
@@ -1124,17 +1129,7 @@ export class RelayTokenService {
   ): Promise<RelayTokenAvailableModelsDto> {
     const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
 
-    const [openaiModels, anthropicModels, geminiModels] = await Promise.all([
-      this.relayProxyService.getAvailableModelsForToken(token, "openai"),
-      this.relayProxyService.getAvailableModelsForToken(token, "anthropic"),
-      this.relayProxyService.getAvailableModelsForToken(token, "gemini"),
-    ]);
-
-    return {
-      openai: openaiModels,
-      anthropic: anthropicModels,
-      gemini: geminiModels,
-    };
+    return this.relayProxyService.getAvailableModelMapForToken(token);
   }
 
   private toDto(

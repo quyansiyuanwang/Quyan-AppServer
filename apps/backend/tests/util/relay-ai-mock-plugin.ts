@@ -1,8 +1,9 @@
 import http, { IncomingMessage, ServerResponse } from "http";
 import type { AddressInfo } from "net";
 import { randomUUID } from "crypto";
+import { RelayRequestFormat } from "@appserver/shared";
 
-type RelayAIMockFormat = "openai" | "anthropic" | "gemini";
+type RelayAIMockFormat = RelayRequestFormat;
 
 interface RelayAIMockUsage {
   promptTokens: number;

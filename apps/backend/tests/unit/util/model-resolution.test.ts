@@ -39,19 +39,19 @@ describe("Model ID + Channel -> Model Config Logic", () => {
       const channel = {
         allowedModels: '["gpt-5.4-.1C", "gpt-5.3-codex-.1C"]',
       };
-      const result = parseRelayChannelAllowedModelNames(channel, []);
+      const result = parseRelayChannelAllowedModelNames(channel);
       expect(result).toEqual(["gpt-5.4-.1C", "gpt-5.3-codex-.1C"]);
     });
 
     it("should return null when allowedModels is not set", () => {
       const channel = { allowedModels: null };
-      const result = parseRelayChannelAllowedModelNames(channel, []);
+      const result = parseRelayChannelAllowedModelNames(channel);
       expect(result).toBeNull();
     });
 
     it("should return null when allowedModels is invalid JSON", () => {
       const channel = { allowedModels: "invalid-json" };
-      const result = parseRelayChannelAllowedModelNames(channel, []);
+      const result = parseRelayChannelAllowedModelNames(channel);
       expect(result).toBeNull();
     });
 
@@ -59,29 +59,11 @@ describe("Model ID + Channel -> Model Config Logic", () => {
       const channel = {
         allowedModels: '["  gpt-5.4-.1C  ", "gpt-5.3-codex-.1C"]',
       };
-      const result = parseRelayChannelAllowedModelNames(channel, []);
+      const result = parseRelayChannelAllowedModelNames(channel);
       expect(result).toEqual(["gpt-5.4-.1C", "gpt-5.3-codex-.1C"]);
     });
 
     it("should infer allowed model names from pooled members in auto mode", () => {
-      const modelCatalog = [
-        {
-          model: "gpt-4o-mini",
-          provider: "openai/gpt-4o-mini",
-          supportedFormats: "openai",
-        },
-        {
-          model: "claude-3.5-sonnet",
-          provider: "anthropic/claude-3.5-sonnet",
-          supportedFormats: "anthropic",
-        },
-        {
-          model: "gemini-2.0-flash",
-          provider: "gemini/gemini-2.0-flash",
-          supportedFormats: "gemini",
-        },
-      ];
-
       const channel = {
         channelType: "pooled",
         allowedModels: null,
@@ -114,8 +96,8 @@ describe("Model ID + Channel -> Model Config Logic", () => {
         ],
       };
 
-      const result = parseRelayChannelAllowedModelNames(channel, modelCatalog);
-      expect(result).toEqual(["gpt-4o-mini", "claude-3.5-sonnet"]);
+      const result = parseRelayChannelAllowedModelNames(channel);
+      expect(result).toEqual([]);
     });
   });
 
@@ -350,8 +332,7 @@ describe("Model ID + Channel -> Model Config Logic", () => {
 
       const result = getAccessibleRelayModelConfigsForToken(relayToken, modelCatalog, "openai");
 
-      expect(result).toHaveLength(1);
-      expect(result[0].model).toBe("gpt-4o-mini");
+      expect(result).toEqual([]);
     });
   });
 });

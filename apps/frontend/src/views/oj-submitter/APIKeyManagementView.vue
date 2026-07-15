@@ -223,7 +223,7 @@
 import { ref, onMounted, onActivated } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-import type { OjapiKeyDto, RelayChannelDto } from '@/client/types.gen'
+import type { OjapiKeyDto, RelayChannelOptionDto } from '@/client/types.gen'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'
 import { OJAPIKeyService } from '@/service/ojAPIKeyService'
@@ -233,7 +233,7 @@ const { isDesktop } = usePageDevice()
 
 const ojAPIKeyService = OJAPIKeyService.getInstance()
 const apiKeys = ref<OjapiKeyDto[]>([])
-const channels = ref<RelayChannelDto[]>([])
+const channels = ref<RelayChannelOptionDto[]>([])
 const loading = ref(false)
 const creating = ref(false)
 const updating = ref(false)
@@ -292,7 +292,7 @@ const loadAPIKeys = async () => {
 
 const loadChannels = async () => {
   try {
-    channels.value = await relayChannelService.listChannels()
+    channels.value = await relayChannelService.listChannelOptions()
   } catch (error: any) {
     ElMessage.error(error.message || i18ns.t('ojSubmitter.loadFailed'))
   }

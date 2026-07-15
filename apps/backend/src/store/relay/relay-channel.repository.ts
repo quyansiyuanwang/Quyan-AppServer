@@ -81,10 +81,11 @@ export class RelayChannelRepository implements RelayChannelStore {
     });
   }
 
-  async listActiveByIds(ids: string[]): Promise<RelayChannel[]> {
+  async listActiveByIds(ids: string[], tx?: RelayChannelTransactionClient): Promise<RelayChannel[]> {
     if (ids.length === 0) return [];
 
-    return prisma.relayChannel.findMany({
+    const client = tx ?? prisma;
+    return client.relayChannel.findMany({
       where: {
         id: { in: ids },
         status: RELAY_CHANNEL_STATUS.ENABLED,
@@ -93,10 +94,11 @@ export class RelayChannelRepository implements RelayChannelStore {
     });
   }
 
-  async listVisibleByIds(ids: string[]): Promise<RelayChannel[]> {
+  async listVisibleByIds(ids: string[], tx?: RelayChannelTransactionClient): Promise<RelayChannel[]> {
     if (ids.length === 0) return [];
 
-    return prisma.relayChannel.findMany({
+    const client = tx ?? prisma;
+    return client.relayChannel.findMany({
       where: {
         id: { in: ids },
         status: { in: VISIBLE_RELAY_CHANNEL_STATUSES },

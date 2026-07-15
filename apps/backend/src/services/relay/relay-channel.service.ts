@@ -8,6 +8,7 @@ import type {
   ImportRelayChannelsRequest,
   ImportRelayChannelsResponse,
   RelayChannelDto,
+  RelayChannelOptionDto,
   RelayChannelExportItemDto,
   RelayChannelExportResponse,
   RelayChannelImportItemDto,
@@ -103,6 +104,51 @@ export class RelayChannelService {
     return Promise.all(visibleChannels.map((channel) => this.toDto(channel, modelCatalog)));
   }
 
+  async listChannelOptions(actorUserId: string): Promise<RelayChannelOptionDto[]> {
+    const channels = await this.filterAccessibleChannels(await this.relayChannelRepository.listActive(), actorUserId);
+    const modelCatalog = await this.modelPricingService.getModelPricing();
+    const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog);
+    const options = await Promise.all(
+      channels.map(async (channel) => {
+        const resolvedCapabilities = await this.relayPoolResolver.resolveChannelCapabilities(
+          channel.id,
+          resolverContext,
+        );
+        const modelCapabilities = new Map<string, RelayChannelOptionDto["modelCapabilities"][number]>();
+        for (const capability of resolvedCapabilities) {
+          const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
+          const existing = modelCapabilities.get(key);
+          if (existing) {
+            existing.supportedRequestFormats = [
+              ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
+            ];
+          } else {
+            modelCapabilities.set(key, {
+              catalogModelName: capability.catalogModelName,
+              requestModelId: capability.requestModelId,
+              supportedRequestFormats: [...capability.supportedRequestFormats],
+            });
+          }
+        }
+
+        return {
+          id: channel.id,
+          name: channel.name,
+          enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+          multiplier: Number(channel.multiplier),
+          allowedFormats: channel.allowedFormats,
+          modelCapabilities: [...modelCapabilities.values()].sort(
+            (left, right) =>
+              left.catalogModelName.localeCompare(right.catalogModelName) ||
+              left.requestModelId.localeCompare(right.requestModelId),
+          ),
+        };
+      }),
+    );
+
+    return options.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
   async getChannel(id: string, actorUserId: string): Promise<RelayChannelDto> {
     const channel = await this.relayChannelRepository.findVisibleById(id);
     if (!channel) throw new NotFoundError("Relay channel not found");
@@ -123,11 +169,17 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<RelayChannelExportResponse> {
-    const channels = body.ids?.length
-      ? await this.getOrderedChannelsByIds(body.ids, body.includeDisabled === true)
-      : body.includeDisabled === true
-        ? await this.relayChannelRepository.listVisible()
-        : await this.relayChannelRepository.listActive();
+    let channels: RelayChannel[];
+    if (body.ids?.length) {
+      channels = await this.getOrderedChannelsByIds(body.ids, body.includeDisabled === true);
+      for (const channel of channels) await this.assertChannelAccessible(channel, actorUserId);
+    } else {
+      const candidates =
+        body.includeDisabled === true
+          ? await this.relayChannelRepository.listVisible()
+          : await this.relayChannelRepository.listActive();
+      channels = await this.filterAccessibleChannels(candidates, actorUserId);
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CHANNEL_EXPORT,
@@ -213,8 +265,8 @@ export class RelayChannelService {
     throw new BadRequestError("Unable to generate a unique relay channel name");
   }
 
-  private async getVisibleNameSet(): Promise<Set<string>> {
-    const channels = await this.relayChannelRepository.listVisible();
+  private async getVisibleNameSet(tx?: Parameters<RelayChannelStore["listVisible"]>[0]): Promise<Set<string>> {
+    const channels = await this.relayChannelRepository.listVisible(tx);
     return new Set(channels.map((channel) => channel.name));
   }
 
@@ -370,6 +422,18 @@ export class RelayChannelService {
     }
   }
 
+  private async assertPoolMembersExist(
+    members: RelayChannelMemberDto[],
+    tx?: Parameters<RelayChannelStore["replaceMembersByChannelId"]>[2],
+  ): Promise<void> {
+    const memberChannelIds = [...new Set(members.map((member) => member.memberChannelId))];
+    const channels = await this.relayChannelRepository.listVisibleByIds(memberChannelIds, tx);
+
+    if (channels.length !== memberChannelIds.length) {
+      throw new BadRequestError("One or more pooled channel members were not found");
+    }
+  }
+
   private async assertNoPoolCycle(
     channelId: string,
     tx?: Parameters<RelayChannelStore["replaceMembersByChannelId"]>[2],
@@ -409,6 +473,8 @@ export class RelayChannelService {
     if (members === null || members.length === 0) {
       throw new BadRequestError("pooled channel must contain at least one member");
     }
+
+    await this.assertPoolMembersExist(members, tx);
 
     await this.relayChannelRepository.replaceMembersByChannelId(
       channelId,
@@ -884,8 +950,33 @@ export class RelayChannelService {
     request?: Request,
   ): Promise<ImportRelayChannelsResponse> {
     const createdChannels = await this.relayChannelRepository.withTransaction(async (tx) => {
-      const reservedNames = await this.getVisibleNameSet();
-      const items: RelayChannel[] = [];
+      const sourceIds = body.channels.map((item) => item.id).filter((id): id is string => Boolean(id));
+      const hasSourceIds = sourceIds.length > 0;
+      if (hasSourceIds && sourceIds.length !== body.channels.length) {
+        throw new BadRequestError("Imported relay channels must either all include source IDs or all omit them");
+      }
+      if (new Set(sourceIds).size !== sourceIds.length) {
+        throw new BadRequestError("Imported relay channel source IDs must be unique");
+      }
+
+      const sourceIdSet = new Set(sourceIds);
+      if (hasSourceIds) {
+        for (const item of body.channels) {
+          for (const member of item.poolMembers ?? []) {
+            if (!sourceIdSet.has(member.memberChannelId)) {
+              throw new BadRequestError("Imported pooled channel member was not found in the import payload");
+            }
+          }
+        }
+      }
+
+      const reservedNames = await this.getVisibleNameSet(tx);
+      const importedChannels: Array<{
+        created: RelayChannel;
+        channelType: RelayChannelType;
+        poolMembers?: RelayChannelMemberDto[] | null;
+      }> = [];
+      const importedChannelIds = new Map<string, string>();
 
       for (const item of body.channels) {
         const preferredName = item.name.trim();
@@ -905,11 +996,23 @@ export class RelayChannelService {
           },
           tx,
         );
-        await this.syncPoolMembers(created.id, validated.channelType, validated.poolMembers, tx);
-        items.push(created);
+        if (item.id) importedChannelIds.set(item.id, created.id);
+        importedChannels.push({
+          created,
+          channelType: validated.channelType,
+          poolMembers: validated.poolMembers,
+        });
       }
 
-      return items;
+      for (const importedChannel of importedChannels) {
+        const poolMembers = importedChannel.poolMembers?.map((member) => ({
+          ...member,
+          memberChannelId: importedChannelIds.get(member.memberChannelId) ?? member.memberChannelId,
+        }));
+        await this.syncPoolMembers(importedChannel.created.id, importedChannel.channelType, poolMembers, tx);
+      }
+
+      return importedChannels.map(({ created }) => created);
     });
 
     await this.businessLogService.logOperation({
@@ -1009,14 +1112,15 @@ export class RelayChannelService {
       name: channel.name,
       enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
       openaiUpstreamUrl: channel.openaiUpstreamUrl || undefined,
-      openaiUpstreamApiKey: channel.openaiUpstreamApiKey || undefined,
+      hasOpenaiUpstreamApiKey: Boolean(channel.openaiUpstreamApiKey),
       anthropicUpstreamUrl: channel.anthropicUpstreamUrl || undefined,
-      anthropicUpstreamApiKey: channel.anthropicUpstreamApiKey || undefined,
+      hasAnthropicUpstreamApiKey: Boolean(channel.anthropicUpstreamApiKey),
       geminiUpstreamUrl: channel.geminiUpstreamUrl || undefined,
-      geminiUpstreamApiKey: channel.geminiUpstreamApiKey || undefined,
+      hasGeminiUpstreamApiKey: Boolean(channel.geminiUpstreamApiKey),
       multiplier: Number(channel.multiplier),
       allowedFormats: channel.allowedFormats || "all",
-      allowedModels: channel.allowedModels || undefined,
+      allowedModels: [],
+      configuredAllowedModels: channel.allowedModels || undefined,
       addUserIdentifier: channel.addUserIdentifier !== false, // Default to true
       inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true, // Default to false
       modelMapping: channel.modelMapping as Record<string, string> | undefined,
@@ -1031,15 +1135,10 @@ export class RelayChannelService {
       updateTime: channel.updateTime,
     };
 
-    const routingConfig = channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined;
-    if (dto.channelType === "pooled" && routingConfig?.allowedModelsMode === "auto") {
-      const inferredAllowedModels = await this.relayPoolResolver.inferAllowedModels(
-        channel.id,
-        modelCatalog ?? (await this.modelPricingService.getModelPricing()),
-      );
-      dto.inferredAllowedModels = inferredAllowedModels;
-      dto.inferredAllowedModelsCount = inferredAllowedModels.length;
-    }
+    dto.allowedModels = await this.relayPoolResolver.resolveEffectiveAllowedModels(
+      channel.id,
+      modelCatalog ?? (await this.modelPricingService.getModelPricing()),
+    );
 
     return dto;
   }

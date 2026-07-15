@@ -1,8 +1,9 @@
 import type { Prisma, RelayChannel } from "@prisma/client";
+import { parseRelayModelNameConstraint, resolveModelId, type RelayRequestFormat } from "@appserver/shared";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { BadRequestError } from "@/util/errors";
-import { parseAllowedModelsJson } from "@/util/model-resolution.util";
-import { parseRelayRequestFormats, type RelayRequestFormat } from "@/util/relay-model-availability.util";
+import logger from "@/util/logger";
+import { parseRelayRequestFormats } from "@/util/relay-model-availability.util";
 import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
 import type { RelayChannelStore } from "@/store/relay/relay-channel.store";
 
@@ -18,13 +19,38 @@ export type RelayPoolMemberOrderer = (
   members: RelayPoolMemberGraph[],
 ) => Promise<RelayPoolMemberGraph[]>;
 
-interface RelayChannelGraphNode extends RelayChannel {
+export interface RelayChannelGraphNode extends RelayChannel {
   poolMembers: RelayPoolMemberGraph[];
 }
 
 interface EffectiveChannelConstraints {
   formats: Set<RelayRequestFormat>;
   allowedModelNames: string[] | null;
+  modelMapping: Record<string, string>;
+}
+
+export interface RelayModelCatalogEntry {
+  model?: string | null;
+  provider?: string | null;
+  supportedFormats?: string | null;
+}
+
+export interface RelayPoolResolverContext<TModel extends RelayModelCatalogEntry = RelayModelCatalogEntry> {
+  graph: ReadonlyMap<string, RelayChannelGraphNode>;
+  modelCatalog: readonly TModel[];
+}
+
+export interface RelayChannelModelCapability {
+  leafChannelId: string;
+  catalogModelName: string;
+  requestModelId: string;
+  supportedRequestFormats: RelayRequestFormat[];
+  modelMapping: Record<string, string>;
+}
+
+interface ResolvedLeafPath {
+  channel: RelayChannelGraphNode;
+  constraints: EffectiveChannelConstraints;
 }
 
 const ALL_FORMATS = new Set<RelayRequestFormat>(["openai", "anthropic", "gemini"]);
@@ -41,54 +67,103 @@ export class RelayPoolResolverService {
     return this.instance;
   }
 
+  async preloadContext<TModel extends RelayModelCatalogEntry>(
+    modelCatalog: readonly TModel[],
+  ): Promise<RelayPoolResolverContext<TModel>> {
+    return { graph: await this.getActiveGraph(), modelCatalog };
+  }
+
+  async resolveChannelCapabilities<TModel extends RelayModelCatalogEntry>(
+    channelId: string,
+    context: RelayPoolResolverContext<TModel>,
+  ): Promise<RelayChannelModelCapability[]> {
+    const channel = context.graph.get(channelId);
+    if (!channel) return [];
+
+    const paths = await this.resolveLeafPaths(channel, context.graph, this.initialConstraints(), undefined, new Set());
+    const capabilities = new Map<string, RelayChannelModelCapability>();
+
+    for (const path of paths) {
+      for (const model of context.modelCatalog) {
+        const catalogModelName = model.model?.trim() || "";
+        const requestModelId = resolveModelId(model);
+        if (!catalogModelName || !requestModelId) continue;
+        if (
+          path.constraints.allowedModelNames !== null &&
+          !path.constraints.allowedModelNames.includes(catalogModelName)
+        )
+          continue;
+
+        const supportedRequestFormats = parseRelayRequestFormats(model.supportedFormats).filter((format) =>
+          path.constraints.formats.has(format),
+        );
+        if (supportedRequestFormats.length === 0) continue;
+
+        const key = `${path.channel.id}\u0000${catalogModelName}\u0000${requestModelId}`;
+        const existing = capabilities.get(key);
+        if (existing) {
+          existing.supportedRequestFormats = this.sortFormats([
+            ...new Set([...existing.supportedRequestFormats, ...supportedRequestFormats]),
+          ]);
+          continue;
+        }
+
+        capabilities.set(key, {
+          leafChannelId: path.channel.id,
+          catalogModelName,
+          requestModelId,
+          supportedRequestFormats: this.sortFormats(supportedRequestFormats),
+          modelMapping: path.constraints.modelMapping,
+        });
+      }
+    }
+
+    return [...capabilities.values()].sort(
+      (left, right) =>
+        left.catalogModelName.localeCompare(right.catalogModelName) ||
+        left.requestModelId.localeCompare(right.requestModelId) ||
+        left.leafChannelId.localeCompare(right.leafChannelId),
+    );
+  }
+
   async resolveActiveLeaves(
     roots: Array<Pick<RelayChannel, "id"> | null | undefined>,
     orderMembers?: RelayPoolMemberOrderer,
   ): Promise<RelayChannel[]> {
     const graph = await this.getActiveGraph();
-    const leaves: RelayChannel[] = [];
-    const seenLeaves = new Set<string>();
+    const leaves = new Map<string, RelayChannel>();
 
     for (const root of roots) {
       if (!root?.id) continue;
       const channel = graph.get(root.id);
       if (!channel) continue;
-      const resolved = await this.resolveLeavesFromNode(
-        channel,
-        graph,
-        this.initialConstraints(),
-        orderMembers,
-        new Set(),
-      );
-      for (const leaf of resolved) {
-        if (seenLeaves.has(leaf.id)) continue;
-        seenLeaves.add(leaf.id);
-        leaves.push(leaf);
+      const resolved = await this.resolveLeafPaths(channel, graph, this.initialConstraints(), orderMembers, new Set());
+      for (const path of resolved) {
+        const leaf = this.applyConstraints(path.channel, path.constraints);
+        leaves.set(this.getLeafConstraintSignature(leaf), leaf);
       }
     }
 
-    return leaves;
+    return [...leaves.values()];
   }
 
+  async resolveEffectiveAllowedModels(
+    channelId: string,
+    modelCatalog: Array<{ model?: string | null; supportedFormats?: string | null }>,
+  ): Promise<string[]> {
+    const context = await this.preloadContext(modelCatalog);
+    const capabilities = await this.resolveChannelCapabilities(channelId, context);
+    return [...new Set(capabilities.map((capability) => capability.catalogModelName))].sort((left, right) =>
+      left.localeCompare(right),
+    );
+  }
+
+  /** @deprecated Use resolveEffectiveAllowedModels for final channel availability. */
   async inferAllowedModels(
     channelId: string,
     modelCatalog: Array<{ model?: string | null; supportedFormats?: string | null }>,
   ): Promise<string[]> {
-    const leaves = await this.resolveActiveLeaves([{ id: channelId }]);
-    const inferred = new Set<string>();
-
-    for (const channel of leaves) {
-      const allowedNames = this.parseManualAllowedModelNames(channel);
-      for (const model of modelCatalog) {
-        const modelName = model.model?.trim() || "";
-        if (!modelName) continue;
-        if (!this.channelSupportsAnyModelFormat(channel, model.supportedFormats)) continue;
-        if (allowedNames !== null && !allowedNames.includes(modelName)) continue;
-        inferred.add(modelName);
-      }
-    }
-
-    return [...inferred].sort((left, right) => left.localeCompare(right));
+    return this.resolveEffectiveAllowedModels(channelId, modelCatalog);
   }
 
   private async getActiveGraph(): Promise<Map<string, RelayChannelGraphNode>> {
@@ -106,17 +181,17 @@ export class RelayPoolResolverService {
     );
   }
 
-  private async resolveLeavesFromNode(
+  private async resolveLeafPaths(
     channel: RelayChannelGraphNode,
-    graph: Map<string, RelayChannelGraphNode>,
+    graph: ReadonlyMap<string, RelayChannelGraphNode>,
     inherited: EffectiveChannelConstraints,
     orderMembers: RelayPoolMemberOrderer | undefined,
     ancestors: Set<string>,
-  ): Promise<RelayChannel[]> {
+  ): Promise<ResolvedLeafPath[]> {
     if (ancestors.has(channel.id)) throw new BadRequestError(`Relay channel pool cycle detected at '${channel.name}'`);
 
     const constraints = this.mergeConstraints(inherited, channel);
-    if ((channel.channelType || "standalone") !== "pooled") return [this.applyConstraints(channel, constraints)];
+    if ((channel.channelType || "standalone") !== "pooled") return [{ channel, constraints }];
 
     const nextAncestors = new Set(ancestors).add(channel.id);
     const enabledMembers = channel.poolMembers.filter(
@@ -125,21 +200,19 @@ export class RelayPoolResolverService {
     const orderedMembers = orderMembers
       ? await orderMembers(channel, enabledMembers)
       : [...enabledMembers].sort((left, right) => left.priority - right.priority);
-    const leaves: RelayChannel[] = [];
+    const leaves: ResolvedLeafPath[] = [];
 
     for (const member of orderedMembers) {
       const memberChannel = graph.get(member.memberChannelId);
       if (!memberChannel || memberChannel.status !== RELAY_CHANNEL_STATUS.ENABLED) continue;
-      leaves.push(
-        ...(await this.resolveLeavesFromNode(memberChannel, graph, constraints, orderMembers, nextAncestors)),
-      );
+      leaves.push(...(await this.resolveLeafPaths(memberChannel, graph, constraints, orderMembers, nextAncestors)));
     }
 
     return leaves;
   }
 
   private initialConstraints(): EffectiveChannelConstraints {
-    return { formats: new Set(ALL_FORMATS), allowedModelNames: null };
+    return { formats: new Set(ALL_FORMATS), allowedModelNames: null, modelMapping: {} };
   }
 
   private mergeConstraints(inherited: EffectiveChannelConstraints, channel: RelayChannel): EffectiveChannelConstraints {
@@ -150,6 +223,10 @@ export class RelayPoolResolverService {
     return {
       formats,
       allowedModelNames: this.intersectAllowedModelNames(inherited.allowedModelNames, ownAllowedModelNames),
+      modelMapping: {
+        ...inherited.modelMapping,
+        ...((channel.modelMapping as Record<string, string> | null) ?? {}),
+      },
     };
   }
 
@@ -159,14 +236,17 @@ export class RelayPoolResolverService {
     const isManual = mode === "manual" || (mode !== "all" && mode !== "auto" && Boolean(channel.allowedModels));
     if (!isManual) return null;
 
-    const parsed = parseAllowedModelsJson(channel.allowedModels);
-    // Preserve the existing invalid-config behavior: malformed JSON is unrestricted rather than silently blocking all use.
-    return parsed ? parsed.map((name) => name.trim()).filter(Boolean) : null;
-  }
+    const constraint = parseRelayModelNameConstraint(channel.allowedModels);
+    if (constraint.kind === "restricted") return constraint.values;
+    if (constraint.kind === "malformed") {
+      logger.warn("Invalid allowedModels in channel config, fallback to allow-all", {
+        channelId: channel.id,
+        source: "relay-pool-resolver",
+      });
+      return null;
+    }
 
-  private parseManualAllowedModelNames(channel: RelayChannel): string[] | null {
-    const parsed = parseAllowedModelsJson(channel.allowedModels);
-    return parsed ? parsed.map((name) => name.trim()).filter(Boolean) : null;
+    return mode === "manual" ? [] : null;
   }
 
   private intersectAllowedModelNames(left: string[] | null, right: string[] | null): string[] | null {
@@ -180,8 +260,14 @@ export class RelayPoolResolverService {
     const routingConfig = (channel.routingConfig as Record<string, unknown> | null) ?? {};
     return {
       ...channel,
-      allowedFormats: constraints.formats.size === ALL_FORMATS.size ? "all" : [...constraints.formats].join(","),
+      allowedFormats:
+        constraints.formats.size === ALL_FORMATS.size
+          ? "all"
+          : constraints.formats.size === 0
+            ? "none"
+            : [...constraints.formats].join(","),
       allowedModels: constraints.allowedModelNames === null ? null : JSON.stringify(constraints.allowedModelNames),
+      modelMapping: constraints.modelMapping as Prisma.JsonObject,
       routingConfig: {
         ...routingConfig,
         allowedModelsMode: constraints.allowedModelNames === null ? "all" : "manual",
@@ -189,8 +275,20 @@ export class RelayPoolResolverService {
     };
   }
 
-  private channelSupportsAnyModelFormat(channel: RelayChannel, supportedFormats?: string | null): boolean {
-    const channelFormats = new Set(parseRelayRequestFormats(channel.allowedFormats));
-    return parseRelayRequestFormats(supportedFormats).some((format) => channelFormats.has(format));
+  private getLeafConstraintSignature(channel: RelayChannel): string {
+    const formats = this.sortFormats(parseRelayRequestFormats(channel.allowedFormats));
+    const models = this.getManualAllowedModelNames(channel);
+    const mapping = Object.entries((channel.modelMapping as Record<string, string> | null) ?? {}).sort(
+      ([left], [right]) => left.localeCompare(right),
+    );
+    return JSON.stringify([channel.id, formats, models, mapping]);
+  }
+
+  private sortFormats(formats: RelayRequestFormat[]): RelayRequestFormat[] {
+    return [...formats].sort(
+      (left, right) => ALL_RELAY_FORMAT_ORDER.indexOf(left) - ALL_RELAY_FORMAT_ORDER.indexOf(right),
+    );
   }
 }
+
+const ALL_RELAY_FORMAT_ORDER: RelayRequestFormat[] = ["openai", "anthropic", "gemini"];

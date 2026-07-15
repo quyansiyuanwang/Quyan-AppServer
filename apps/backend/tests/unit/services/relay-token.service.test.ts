@@ -12,6 +12,7 @@ describe("RelayTokenService", () => {
     findUsageSummaryTargetsByIds: vi.fn(),
     findByIdWithRelations: vi.fn(),
     findById: vi.fn(),
+    update: vi.fn(),
   };
 
   const relayUsageRepository = {
@@ -117,6 +118,31 @@ describe("RelayTokenService", () => {
     ).rejects.toThrow(NotFoundError);
 
     expect(relayChannelService.assertChannelAccessibleById).toHaveBeenCalledWith("channel-private", "user-1");
+  });
+
+  it("preserves multi-channel routing on metadata-only updates", async () => {
+    const token = createToken({
+      channelConfigs: [
+        { channelId: "channel-1", priority: 0 },
+        { channelId: "channel-2", priority: 1 },
+      ],
+      failoverConfig: { enabled: true, maxRetries: 1 },
+    });
+    relayTokenRepository.findByIdWithRelations.mockResolvedValue(token);
+    relayTokenRepository.update.mockResolvedValue(undefined);
+
+    await service.updateToken("token-1", "user-1", { name: "Renamed" });
+
+    expect(relayTokenRepository.update).toHaveBeenCalledWith(
+      "token-1",
+      expect.objectContaining({
+        name: "Renamed",
+        channelId: undefined,
+        channelConfigs: undefined,
+        failoverConfig: undefined,
+      }),
+    );
+    expect(relayChannelService.assertChannelAccessibleById).not.toHaveBeenCalled();
   });
 
   it("returns persisted usage summaries for all user tokens without live aggregation", async () => {

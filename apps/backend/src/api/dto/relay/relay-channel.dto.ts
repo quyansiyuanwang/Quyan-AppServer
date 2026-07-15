@@ -59,23 +59,42 @@ export interface RelayChannelDto {
   visibilityConfig?: RelayChannelVisibilityConfigDto;
   poolMembers?: RelayChannelMemberDto[];
   openaiUpstreamUrl?: string;
-  openaiUpstreamApiKey?: string;
+  hasOpenaiUpstreamApiKey: boolean;
   anthropicUpstreamUrl?: string;
-  anthropicUpstreamApiKey?: string;
+  hasAnthropicUpstreamApiKey: boolean;
   geminiUpstreamUrl?: string;
-  geminiUpstreamApiKey?: string;
+  hasGeminiUpstreamApiKey: boolean;
   multiplier: number;
   allowedFormats: string;
-  allowedModels?: string;
-  /** Automatically inferred allowed models for pooled channels in auto mode. */
-  inferredAllowedModels?: string[];
-  inferredAllowedModelsCount?: number;
+  /** Final models available through this channel after active pool resolution and inherited restrictions. */
+  allowedModels: string[];
+  /** Raw JSON model whitelist persisted for channel management configuration. */
+  configuredAllowedModels?: string;
   addUserIdentifier?: boolean;
   inputTokensIncludeCacheRead?: boolean;
   modelMapping?: Record<string, string>;
   timePeriodMultipliers?: TimePeriodMultiplierRule[];
   createTime: Date;
   updateTime: Date;
+}
+
+/**
+ * Pool-transparent channel capability exposed to business-facing clients.
+ * It intentionally excludes routing topology, raw configuration, upstream credentials, and visibility rules.
+ */
+export interface RelayChannelOptionDto {
+  id: string;
+  name: string;
+  enabled: boolean;
+  multiplier: number;
+  allowedFormats: string;
+  modelCapabilities: RelayChannelModelCapabilityDto[];
+}
+
+export interface RelayChannelModelCapabilityDto {
+  catalogModelName: string;
+  requestModelId: string;
+  supportedRequestFormats: Array<"openai" | "anthropic" | "gemini">;
 }
 
 export interface RelayChannelExportItemDto extends CreateRelayChannelRequest {
@@ -100,6 +119,8 @@ export interface DuplicateRelayChannelRequest {
 }
 
 export interface RelayChannelImportItemDto extends CreateRelayChannelRequest {
+  /** Export source channel ID, used only to remap pooled members during import. */
+  id?: string;
   /** 导入后是否启用，默认启用 */
   enabled?: boolean;
 }
