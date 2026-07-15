@@ -50,7 +50,6 @@ export const isMonthlyPassTemplateMatched = (
   modelName: string,
   channelId: string,
 ): boolean => {
-  const allowedModels = parseAllowedModels(template.allowedModels);
   const allowedChannels = parseAllowedChannels(template.allowedChannels);
 
   const isModelMatched = isMonthlyPassModelMatched(template, modelName);

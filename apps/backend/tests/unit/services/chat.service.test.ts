@@ -45,6 +45,7 @@ describe("ChatService", () => {
     findById: vi.fn(),
     findByIdWithChannel: vi.fn(),
     findByUserIdWithChannel: vi.fn(),
+    findByUserIdWithRelations: vi.fn(),
   };
 
   const relayUsageRepository = {
@@ -68,6 +69,10 @@ describe("ChatService", () => {
     resolveActiveLeaves: vi.fn(async (roots: any[]) => roots.filter(Boolean)),
   };
 
+  const relayProxyService = {
+    getAvailableModelMapForToken: vi.fn(),
+  };
+
   const ChatServiceCtor = ChatService as unknown as new (...args: any[]) => ChatService;
 
   const service = new ChatServiceCtor(
@@ -80,6 +85,7 @@ describe("ChatService", () => {
     relayConfigRepository,
     usageChargeService,
     relayPoolResolver,
+    relayProxyService,
   );
 
   beforeEach(() => {
@@ -188,7 +194,7 @@ describe("ChatService", () => {
   });
 
   it("filters available models by channel and token constraints", async () => {
-    relayTokenRepository.findByUserIdWithChannel.mockResolvedValue([
+    relayTokenRepository.findByUserIdWithRelations.mockResolvedValue([
       {
         id: "token-1",
         name: "token-name",
@@ -205,6 +211,11 @@ describe("ChatService", () => {
       { model: "model-b", provider: null, supportedFormats: "openai" },
       { model: "model-c", provider: null, supportedFormats: "openai" },
     ]);
+    relayProxyService.getAvailableModelMapForToken.mockResolvedValue({
+      openai: ["model-a"],
+      anthropic: [],
+      gemini: [],
+    });
 
     const result = await service.getAvailableTokens("user-1");
 
@@ -213,7 +224,7 @@ describe("ChatService", () => {
   });
 
   it("returns empty available models when token channel does not support openai format", async () => {
-    relayTokenRepository.findByUserIdWithChannel.mockResolvedValue([
+    relayTokenRepository.findByUserIdWithRelations.mockResolvedValue([
       {
         id: "token-1",
         name: "token-name",
@@ -229,6 +240,11 @@ describe("ChatService", () => {
     modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
       { model: "model-a", provider: null, supportedFormats: "openai" },
     ]);
+    relayProxyService.getAvailableModelMapForToken.mockResolvedValue({
+      openai: [],
+      anthropic: [],
+      gemini: [],
+    });
 
     const result = await service.getAvailableTokens("user-1");
 

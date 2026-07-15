@@ -9,7 +9,7 @@ import type {
 
 export type RelayTokenQuotaUnit = "amount" | "request" | "token";
 
-const relayChannelWithPoolInclude = {
+const _relayChannelWithPoolInclude = {
   poolMembers: {
     include: { memberChannel: true },
     orderBy: { priority: "asc" },
@@ -20,13 +20,13 @@ export type RelayTokenWithRelations = Prisma.RelayTokenGetPayload<{
   include: {
     user: true;
     channel: {
-      include: typeof relayChannelWithPoolInclude;
+      include: typeof _relayChannelWithPoolInclude;
     };
     failoverConfig: true;
     channelConfigs: {
       include: {
         channel: {
-          include: typeof relayChannelWithPoolInclude;
+          include: typeof _relayChannelWithPoolInclude;
         };
       };
       orderBy: { priority: "asc" };
@@ -40,7 +40,7 @@ export type RelayTokenWithRelations = Prisma.RelayTokenGetPayload<{
 export type RelayTokenChannelConfigWithChannel = Prisma.RelayTokenChannelConfigGetPayload<{
   include: {
     channel: {
-      include: typeof relayChannelWithPoolInclude;
+      include: typeof _relayChannelWithPoolInclude;
     };
   };
 }>;

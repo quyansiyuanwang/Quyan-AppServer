@@ -169,11 +169,17 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<RelayChannelExportResponse> {
-    const channels = body.ids?.length
-      ? await this.getOrderedChannelsByIds(body.ids, body.includeDisabled === true)
-      : body.includeDisabled === true
-        ? await this.relayChannelRepository.listVisible()
-        : await this.relayChannelRepository.listActive();
+    let channels: RelayChannel[];
+    if (body.ids?.length) {
+      channels = await this.getOrderedChannelsByIds(body.ids, body.includeDisabled === true);
+      for (const channel of channels) await this.assertChannelAccessible(channel, actorUserId);
+    } else {
+      const candidates =
+        body.includeDisabled === true
+          ? await this.relayChannelRepository.listVisible()
+          : await this.relayChannelRepository.listActive();
+      channels = await this.filterAccessibleChannels(candidates, actorUserId);
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CHANNEL_EXPORT,
@@ -1106,11 +1112,11 @@ export class RelayChannelService {
       name: channel.name,
       enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
       openaiUpstreamUrl: channel.openaiUpstreamUrl || undefined,
-      openaiUpstreamApiKey: channel.openaiUpstreamApiKey || undefined,
+      hasOpenaiUpstreamApiKey: Boolean(channel.openaiUpstreamApiKey),
       anthropicUpstreamUrl: channel.anthropicUpstreamUrl || undefined,
-      anthropicUpstreamApiKey: channel.anthropicUpstreamApiKey || undefined,
+      hasAnthropicUpstreamApiKey: Boolean(channel.anthropicUpstreamApiKey),
       geminiUpstreamUrl: channel.geminiUpstreamUrl || undefined,
-      geminiUpstreamApiKey: channel.geminiUpstreamApiKey || undefined,
+      hasGeminiUpstreamApiKey: Boolean(channel.geminiUpstreamApiKey),
       multiplier: Number(channel.multiplier),
       allowedFormats: channel.allowedFormats || "all",
       allowedModels: [],

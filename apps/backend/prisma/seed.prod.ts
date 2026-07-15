@@ -12,7 +12,7 @@ async function main() {
 
   const adminGroup = await prisma.group.upsert({
     where: { username: "admin" },
-    update: {},
+    update: { permissions: JSON.stringify(Object.values(Permission)) },
     create: {
       username: "admin",
       name: "超级管理员",

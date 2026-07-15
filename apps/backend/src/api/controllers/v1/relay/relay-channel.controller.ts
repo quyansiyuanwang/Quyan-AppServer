@@ -45,6 +45,7 @@ import {
 } from "@/api/schema/relay/relay-channel.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
+import { ReplayProtected } from "@/util/replay-protected-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
 
@@ -92,8 +93,14 @@ export class RelayChannelController extends Controller {
 
   @Post("export")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_READ)
-  @Middlewares(validateBody(exportRelayChannelsBodySchema))
+  @RequirePermission(Permission.RELAY_CHANNEL_EXPORT)
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(exportRelayChannelsBodySchema),
+  )
   public async exportChannels(
     @Body() body: ExportRelayChannelsRequest,
     @Request() request: TypedRequest,

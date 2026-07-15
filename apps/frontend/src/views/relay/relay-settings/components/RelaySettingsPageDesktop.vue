@@ -479,13 +479,16 @@
                     i18ns.t('relay.importChannels')
                   }}</el-button>
                 </PermissionWrapper>
-                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
-                  <el-button size="small" @click="exportChannelsAsJson">{{
-                    i18ns.t('relay.exportChannels')
-                  }}</el-button>
+                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_EXPORT]">
+                  <el-button
+                    size="small"
+                    :loading="channelExporting"
+                    @click="exportChannelsAsJson"
+                    >{{ i18ns.t('relay.exportChannels') }}</el-button
+                  >
                 </PermissionWrapper>
-                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
-                  <el-button size="small" @click="copyChannelsAsJson">{{
+                <PermissionWrapper :require="[Permission.RELAY_CHANNEL_EXPORT]">
+                  <el-button size="small" :loading="channelExporting" @click="copyChannelsAsJson">{{
                     i18ns.t('relay.copyChannels')
                   }}</el-button>
                 </PermissionWrapper>
@@ -516,10 +519,11 @@
                       >{{ i18ns.t('relay.batchDuplicateChannels') }}</el-button
                     >
                   </PermissionWrapper>
-                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_EXPORT]">
                     <el-button
                       size="small"
-                      :disabled="!hasChannelSelection"
+                      :disabled="!hasChannelSelection || channelExporting"
+                      :loading="channelExporting"
                       @click="exportChannelsAsJson"
                       >{{ i18ns.t('relay.batchExportChannels') }}</el-button
                     >
@@ -758,6 +762,7 @@ const {
   importPricingPlaceholder,
   handleImport,
   channelLoading,
+  channelExporting,
   openCreateChannelDialog,
   openChannelImportDialog,
   exportChannelsAsJson,

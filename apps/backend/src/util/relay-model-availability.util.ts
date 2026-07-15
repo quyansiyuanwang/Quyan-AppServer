@@ -6,7 +6,6 @@ import {
   ALL_RELAY_REQUEST_FORMATS,
   isModelIdAllowed,
   isModelNameAllowed,
-  parseAllowedModelsJson,
   parseRelayModelNameConstraint,
   parseRelayRequestFormats,
   parseRelayTokenAllowedModelIds,
@@ -68,24 +67,6 @@ export const getRelayChannelAllowedModelsMode = (channel: RelayChannelAccessLike
   return channel.allowedModels ? "manual" : "all";
 };
 
-const getModelNamesForFormats = (
-  modelCatalog: Array<Pick<RelayModelFormatLike, "model" | "provider" | "supportedFormats">>,
-  allowedFormats?: string | null,
-): string[] => {
-  return modelCatalog
-    .filter((model) => {
-      const modelName = normalizeModelName(model.model);
-      if (!modelName) return false;
-      return ALL_RELAY_REQUEST_FORMATS.some(
-        (format) =>
-          supportsRelayRequestFormat(allowedFormats, format) &&
-          supportsRelayRequestFormat(model.supportedFormats, format),
-      );
-    })
-    .map((model) => normalizeModelName(model.model))
-    .filter(Boolean);
-};
-
 export const requireRelayChannelForFormat = (
   relayToken: RelayTokenAccessLike,
   requestFormat: RelayRequestFormat,
@@ -106,10 +87,7 @@ export const requireRelayChannelForFormat = (
   return channel;
 };
 
-export const parseRelayChannelAllowedModelNames = (
-  channel: RelayChannelAccessLike,
-  modelCatalog: Array<Pick<RelayModelFormatLike, "model" | "provider" | "supportedFormats">>,
-): string[] | null => {
+export const parseRelayChannelAllowedModelNames = (channel: RelayChannelAccessLike): string[] | null => {
   const allowedModelsMode = getRelayChannelAllowedModelsMode(channel);
   if (allowedModelsMode === "all") return null;
   // Pool auto mode must be resolved by RelayPoolResolverService. A raw channel
@@ -147,7 +125,7 @@ export const getAccessibleRelayModelConfigsForToken = <T extends RelayModelForma
     (model) => normalizeModelName(model.model).length > 0,
   );
 
-  const channelAllowedModelNames = parseRelayChannelAllowedModelNames(channel, modelCatalog);
+  const channelAllowedModelNames = parseRelayChannelAllowedModelNames(channel);
   const channelScopedModels =
     channelAllowedModelNames == null
       ? formatScopedModels

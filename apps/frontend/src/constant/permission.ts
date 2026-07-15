@@ -509,6 +509,13 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows deleting relay channels',
     category: 'relay',
   },
+  [Permission.RELAY_CHANNEL_EXPORT]: {
+    label: '导出中转渠道',
+    labelEn: 'Export Relay Channels',
+    tooltip: '允许导出包含上游密钥的中转渠道配置',
+    tooltipEn: 'Allows exporting relay channel configuration including upstream keys',
+    category: 'relay',
+  },
 
   [Permission.ACCESSKEY_CREATE]: {
     label: '创建 AccessKey',

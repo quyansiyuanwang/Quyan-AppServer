@@ -127,6 +127,48 @@ describe("RelayPoolResolverService", () => {
     expect(leaves.map((channel) => channel.id)).toEqual([selectedLeaf.id]);
   });
 
+  it("preserves distinct constraints for duplicate leaf paths", async () => {
+    const leaf = createChannel("leaf");
+    const openaiPool = createChannel("openai-pool", {
+      channelType: "pooled",
+      allowedFormats: "openai",
+      allowedModels: JSON.stringify(["model-a"]),
+      routingConfig: { allowedModelsMode: "manual" },
+      modelMapping: { "request-a": "upstream-a" },
+      poolMembers: [{ memberChannelId: leaf.id, priority: 0, weight: 1, enabled: true }],
+    });
+    const anthropicPool = createChannel("anthropic-pool", {
+      channelType: "pooled",
+      allowedFormats: "anthropic",
+      allowedModels: JSON.stringify(["model-b"]),
+      routingConfig: { allowedModelsMode: "manual" },
+      modelMapping: { "request-b": "upstream-b" },
+      poolMembers: [{ memberChannelId: leaf.id, priority: 0, weight: 1, enabled: true }],
+    });
+    const root = createChannel("root", {
+      channelType: "pooled",
+      poolMembers: [
+        { memberChannelId: openaiPool.id, priority: 0, weight: 1, enabled: true },
+        { memberChannelId: anthropicPool.id, priority: 1, weight: 1, enabled: true },
+      ],
+    });
+    const { resolver } = createResolver([root, openaiPool, anthropicPool, leaf]);
+
+    const leaves = await resolver.resolveActiveLeaves([root]);
+
+    expect(leaves).toHaveLength(2);
+    expect(
+      leaves.map((channel) => ({
+        formats: channel.allowedFormats,
+        models: JSON.parse(channel.allowedModels as string),
+        mapping: channel.modelMapping,
+      })),
+    ).toEqual([
+      { formats: "openai", models: ["model-a"], mapping: { "request-a": "upstream-a" } },
+      { formats: "anthropic", models: ["model-b"], mapping: { "request-b": "upstream-b" } },
+    ]);
+  });
+
   it("rejects direct and indirect pool cycles at runtime", async () => {
     const poolA = createChannel("pool-a", {
       channelType: "pooled",

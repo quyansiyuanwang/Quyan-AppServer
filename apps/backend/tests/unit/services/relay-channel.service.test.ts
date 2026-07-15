@@ -99,6 +99,51 @@ describe("RelayChannelService", () => {
     expect(result[0].enabled).toBe(true);
   });
 
+  it("redacts upstream API keys from ordinary channel responses", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      {
+        ...sampleChannel,
+        anthropicUpstreamApiKey: "anthropic-key",
+        geminiUpstreamApiKey: "",
+      },
+    ]);
+
+    const [result] = await service.listChannels("actor-user");
+
+    expect(result).not.toHaveProperty("openaiUpstreamApiKey");
+    expect(result).not.toHaveProperty("anthropicUpstreamApiKey");
+    expect(result).not.toHaveProperty("geminiUpstreamApiKey");
+    expect(result.hasOpenaiUpstreamApiKey).toBe(true);
+    expect(result.hasAnthropicUpstreamApiKey).toBe(true);
+    expect(result.hasGeminiUpstreamApiKey).toBe(false);
+  });
+
+  it("includes upstream API keys only in channel exports", async () => {
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([sampleChannel]);
+
+    const result = await service.exportChannels({ ids: ["channel-1"], includeDisabled: true }, "actor-user");
+
+    expect(result.channels[0].openaiUpstreamApiKey).toBe("openai-key");
+    expect(result.channels[0].anthropicUpstreamApiKey).toBeUndefined();
+    expect(businessLogService.logOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operationType: OperationType.RELAY_CHANNEL_EXPORT,
+        actorUserId: "actor-user",
+      }),
+    );
+  });
+
+  it("rejects explicit export of an inaccessible channel", async () => {
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([
+      { ...sampleChannel, id: "private-channel", visibilityMode: "private" },
+    ]);
+
+    await expect(
+      service.exportChannels({ ids: ["private-channel"], includeDisabled: true }, "actor-user"),
+    ).rejects.toThrow(NotFoundError);
+    expect(businessLogService.logOperation).not.toHaveBeenCalled();
+  });
+
   it("separates configured models from resolved capabilities", async () => {
     relayChannelRepository.listActive.mockResolvedValue([
       { ...sampleChannel, allowedModels: JSON.stringify(["configured-model"]) },

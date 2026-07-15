@@ -59,11 +59,11 @@ export interface RelayChannelDto {
   visibilityConfig?: RelayChannelVisibilityConfigDto;
   poolMembers?: RelayChannelMemberDto[];
   openaiUpstreamUrl?: string;
-  openaiUpstreamApiKey?: string;
+  hasOpenaiUpstreamApiKey: boolean;
   anthropicUpstreamUrl?: string;
-  anthropicUpstreamApiKey?: string;
+  hasAnthropicUpstreamApiKey: boolean;
   geminiUpstreamUrl?: string;
-  geminiUpstreamApiKey?: string;
+  hasGeminiUpstreamApiKey: boolean;
   multiplier: number;
   allowedFormats: string;
   /** Final models available through this channel after active pool resolution and inherited restrictions. */

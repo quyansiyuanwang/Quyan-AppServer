@@ -140,8 +140,7 @@ export class RelayPoolResolverService {
       const resolved = await this.resolveLeafPaths(channel, graph, this.initialConstraints(), orderMembers, new Set());
       for (const path of resolved) {
         const leaf = this.applyConstraints(path.channel, path.constraints);
-        const existing = leaves.get(leaf.id);
-        leaves.set(leaf.id, existing ? this.mergeCompatibleLeaves(existing, leaf) : leaf);
+        leaves.set(this.getLeafConstraintSignature(leaf), leaf);
       }
     }
 
@@ -276,26 +275,13 @@ export class RelayPoolResolverService {
     };
   }
 
-  private mergeCompatibleLeaves(left: RelayChannel, right: RelayChannel): RelayChannel {
-    const formats = this.sortFormats([
-      ...new Set([...parseRelayRequestFormats(left.allowedFormats), ...parseRelayRequestFormats(right.allowedFormats)]),
-    ]);
-    const leftModels = this.getManualAllowedModelNames(left);
-    const rightModels = this.getManualAllowedModelNames(right);
-    const allowedModels =
-      leftModels === null || rightModels === null
-        ? null
-        : JSON.stringify([...new Set([...leftModels, ...rightModels])].sort((a, b) => a.localeCompare(b)));
-
-    return {
-      ...left,
-      allowedFormats: formats.length === ALL_FORMATS.size ? "all" : formats.length === 0 ? "none" : formats.join(","),
-      allowedModels,
-      modelMapping: {
-        ...((left.modelMapping as Record<string, string> | null) ?? {}),
-        ...((right.modelMapping as Record<string, string> | null) ?? {}),
-      },
-    };
+  private getLeafConstraintSignature(channel: RelayChannel): string {
+    const formats = this.sortFormats(parseRelayRequestFormats(channel.allowedFormats));
+    const models = this.getManualAllowedModelNames(channel);
+    const mapping = Object.entries((channel.modelMapping as Record<string, string> | null) ?? {}).sort(
+      ([left], [right]) => left.localeCompare(right),
+    );
+    return JSON.stringify([channel.id, formats, models, mapping]);
   }
 
   private sortFormats(formats: RelayRequestFormat[]): RelayRequestFormat[] {

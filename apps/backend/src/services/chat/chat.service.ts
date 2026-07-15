@@ -105,7 +105,6 @@ export class ChatService {
     token: RelayTokenWithChannel,
     modelPricing: ModelPricing,
     selectedModelId: string,
-    configuredModels: ModelPricing[],
   ): Promise<{
     channel: RelayChannel;
     requestFormat: RelayRequestFormat;
@@ -125,7 +124,7 @@ export class ChatService {
         const channelAllowedFormats = channel.allowedFormats || "all";
         if (!supportsRelayRequestFormat(channelAllowedFormats, requestFormat)) continue;
 
-        const channelAllowedModels = parseRelayChannelAllowedModelNames(channel, configuredModels);
+        const channelAllowedModels = parseRelayChannelAllowedModelNames(channel);
         if (!isModelNameAllowed(channelAllowedModels, modelPricing.model.trim())) continue;
 
         const config = this.getUpstreamConfigForFormat(token, channel, requestFormat);
@@ -219,10 +218,10 @@ export class ChatService {
       requestFormat,
       upstreamUrl,
       upstreamApiKey: apiKey,
-    } = await this.resolveChatRequestFormat(token, resolvedPricing, selectedModelId, configuredModels);
+    } = await this.resolveChatRequestFormat(token, resolvedPricing, selectedModelId);
     requireRelayChannelForFormat({ ...token, channel: effectiveChannel }, requestFormat);
 
-    const channelAllowedModels = parseRelayChannelAllowedModelNames(effectiveChannel, configuredModels);
+    const channelAllowedModels = parseRelayChannelAllowedModelNames(effectiveChannel);
     if (!isModelNameAllowed(channelAllowedModels, selectedModelName))
       throw new BadRequestError(`Channel does not support model ${requestedModel}`);
 

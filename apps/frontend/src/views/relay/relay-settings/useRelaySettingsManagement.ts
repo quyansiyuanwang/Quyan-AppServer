@@ -670,6 +670,7 @@ export const useRelaySettingsManagement = () => {
   const channels = ref<RelayChannelDto[]>([])
   const channelLoading = ref(false)
   const channelSaving = ref(false)
+  const channelExporting = ref(false)
   const togglingChannelId = ref('')
   const showChannelDialog = ref(false)
   const showChannelImportDialog = ref(false)
@@ -710,10 +711,16 @@ export const useRelaySettingsManagement = () => {
     poolMembers: [] as RelayChannelMemberDto[],
     openaiUpstreamUrl: '',
     openaiUpstreamApiKey: '',
+    hasOpenaiUpstreamApiKey: false,
+    openaiUpstreamApiKeyTouched: false,
     anthropicUpstreamUrl: '',
     anthropicUpstreamApiKey: '',
+    hasAnthropicUpstreamApiKey: false,
+    anthropicUpstreamApiKeyTouched: false,
     geminiUpstreamUrl: '',
     geminiUpstreamApiKey: '',
+    hasGeminiUpstreamApiKey: false,
+    geminiUpstreamApiKeyTouched: false,
     multiplier: 1.0,
     allowedFormats: [] as string[],
     allowedModelsArray: [] as string[],
@@ -1424,16 +1431,22 @@ export const useRelaySettingsManagement = () => {
   }
 
   const exportChannelsAsJson = async () => {
+    if (channelExporting.value) return
+    channelExporting.value = true
     try {
       const content = await buildChannelExportContent()
       downloadJsonFile(`relay-channels-${new Date().toISOString().slice(0, 10)}.json`, content)
       ElMessage.success(i18ns.t('relay.channelExportSuccess'))
     } catch (error: any) {
       ElMessage.error(error.message || i18ns.t('operationFailed'))
+    } finally {
+      channelExporting.value = false
     }
   }
 
   const copyChannelsAsJson = async () => {
+    if (channelExporting.value) return
+    channelExporting.value = true
     try {
       const content = await buildChannelExportContent()
       const copied = await copyTextWithFallback(content)
@@ -1445,6 +1458,8 @@ export const useRelaySettingsManagement = () => {
       ElMessage.error(i18ns.t('copyFailed'))
     } catch (error: any) {
       ElMessage.error(error.message || i18ns.t('operationFailed'))
+    } finally {
+      channelExporting.value = false
     }
   }
 
@@ -1618,11 +1633,17 @@ export const useRelaySettingsManagement = () => {
       visibilityConfig: normalizeVisibilityConfigForm(row.visibilityConfig),
       poolMembers: normalizePoolMembersForm(row.poolMembers),
       openaiUpstreamUrl: row.openaiUpstreamUrl || '',
-      openaiUpstreamApiKey: row.openaiUpstreamApiKey || '',
+      openaiUpstreamApiKey: '',
+      hasOpenaiUpstreamApiKey: row.hasOpenaiUpstreamApiKey,
+      openaiUpstreamApiKeyTouched: false,
       anthropicUpstreamUrl: row.anthropicUpstreamUrl || '',
-      anthropicUpstreamApiKey: row.anthropicUpstreamApiKey || '',
+      anthropicUpstreamApiKey: '',
+      hasAnthropicUpstreamApiKey: row.hasAnthropicUpstreamApiKey,
+      anthropicUpstreamApiKeyTouched: false,
       geminiUpstreamUrl: row.geminiUpstreamUrl || '',
-      geminiUpstreamApiKey: row.geminiUpstreamApiKey || '',
+      geminiUpstreamApiKey: '',
+      hasGeminiUpstreamApiKey: row.hasGeminiUpstreamApiKey,
+      geminiUpstreamApiKeyTouched: false,
       multiplier: row.multiplier,
       allowedFormats: normalizeSupportedFormats(row.allowedFormats || 'all'),
       allowedModelsArray: parsedModels,
@@ -1696,7 +1717,7 @@ export const useRelaySettingsManagement = () => {
         ElMessage.error(i18ns.t('relay.openaiFormatNoUrl'))
         return
       }
-      if (!channelForm.value.openaiUpstreamApiKey) {
+      if (!channelForm.value.openaiUpstreamApiKey && !channelForm.value.hasOpenaiUpstreamApiKey) {
         ElMessage.error(i18ns.t('relay.openaiFormatNoKey'))
         return
       }
@@ -1706,7 +1727,10 @@ export const useRelaySettingsManagement = () => {
         ElMessage.error(i18ns.t('relay.anthropicFormatNoUrl'))
         return
       }
-      if (!channelForm.value.anthropicUpstreamApiKey) {
+      if (
+        !channelForm.value.anthropicUpstreamApiKey &&
+        !channelForm.value.hasAnthropicUpstreamApiKey
+      ) {
         ElMessage.error(i18ns.t('relay.anthropicFormatNoKey'))
         return
       }
@@ -1716,7 +1740,7 @@ export const useRelaySettingsManagement = () => {
         ElMessage.error(i18ns.t('relay.geminiFormatNoUrl'))
         return
       }
-      if (!channelForm.value.geminiUpstreamApiKey) {
+      if (!channelForm.value.geminiUpstreamApiKey && !channelForm.value.hasGeminiUpstreamApiKey) {
         ElMessage.error(i18ns.t('relay.geminiFormatNoKey'))
         return
       }
@@ -1726,15 +1750,27 @@ export const useRelaySettingsManagement = () => {
       (!isPooledChannel && !Array.isArray(channelForm.value.allowedFormats)) ||
       channelForm.value.allowedFormats.length === 0
     ) {
-      if (channelForm.value.openaiUpstreamUrl && !channelForm.value.openaiUpstreamApiKey) {
+      if (
+        channelForm.value.openaiUpstreamUrl &&
+        !channelForm.value.openaiUpstreamApiKey &&
+        !channelForm.value.hasOpenaiUpstreamApiKey
+      ) {
         ElMessage.error(i18ns.t('relay.openaiUrlNoKey'))
         return
       }
-      if (channelForm.value.anthropicUpstreamUrl && !channelForm.value.anthropicUpstreamApiKey) {
+      if (
+        channelForm.value.anthropicUpstreamUrl &&
+        !channelForm.value.anthropicUpstreamApiKey &&
+        !channelForm.value.hasAnthropicUpstreamApiKey
+      ) {
         ElMessage.error(i18ns.t('relay.anthropicUrlNoKey'))
         return
       }
-      if (channelForm.value.geminiUpstreamUrl && !channelForm.value.geminiUpstreamApiKey) {
+      if (
+        channelForm.value.geminiUpstreamUrl &&
+        !channelForm.value.geminiUpstreamApiKey &&
+        !channelForm.value.hasGeminiUpstreamApiKey
+      ) {
         ElMessage.error(i18ns.t('relay.geminiUrlNoKey'))
         return
       }
@@ -1755,11 +1791,8 @@ export const useRelaySettingsManagement = () => {
         visibilityConfig,
         poolMembers: isPooledChannel ? poolMembers : [],
         openaiUpstreamUrl: isPooledChannel ? '' : channelForm.value.openaiUpstreamUrl,
-        openaiUpstreamApiKey: isPooledChannel ? '' : channelForm.value.openaiUpstreamApiKey,
         anthropicUpstreamUrl: isPooledChannel ? '' : channelForm.value.anthropicUpstreamUrl,
-        anthropicUpstreamApiKey: isPooledChannel ? '' : channelForm.value.anthropicUpstreamApiKey,
         geminiUpstreamUrl: isPooledChannel ? '' : channelForm.value.geminiUpstreamUrl,
-        geminiUpstreamApiKey: isPooledChannel ? '' : channelForm.value.geminiUpstreamApiKey,
         multiplier: channelForm.value.multiplier,
         allowedFormats:
           Array.isArray(channelForm.value.allowedFormats) &&
@@ -1785,9 +1818,34 @@ export const useRelaySettingsManagement = () => {
       }
 
       if (isEditingChannel.value) {
-        await relayChannelService.updateChannel(editingChannelId.value, data)
+        const secretUpdates = isPooledChannel
+          ? {
+              openaiUpstreamApiKey: '',
+              anthropicUpstreamApiKey: '',
+              geminiUpstreamApiKey: '',
+            }
+          : {
+              ...(channelForm.value.openaiUpstreamApiKeyTouched
+                ? { openaiUpstreamApiKey: channelForm.value.openaiUpstreamApiKey }
+                : {}),
+              ...(channelForm.value.anthropicUpstreamApiKeyTouched
+                ? { anthropicUpstreamApiKey: channelForm.value.anthropicUpstreamApiKey }
+                : {}),
+              ...(channelForm.value.geminiUpstreamApiKeyTouched
+                ? { geminiUpstreamApiKey: channelForm.value.geminiUpstreamApiKey }
+                : {}),
+            }
+        await relayChannelService.updateChannel(editingChannelId.value, {
+          ...data,
+          ...secretUpdates,
+        })
       } else {
-        await relayChannelService.createChannel(data)
+        await relayChannelService.createChannel({
+          ...data,
+          openaiUpstreamApiKey: isPooledChannel ? '' : channelForm.value.openaiUpstreamApiKey,
+          anthropicUpstreamApiKey: isPooledChannel ? '' : channelForm.value.anthropicUpstreamApiKey,
+          geminiUpstreamApiKey: isPooledChannel ? '' : channelForm.value.geminiUpstreamApiKey,
+        })
       }
 
       ElMessage.success(
@@ -1909,6 +1967,7 @@ export const useRelaySettingsManagement = () => {
     channels,
     channelLoading,
     channelSaving,
+    channelExporting,
     togglingChannelId,
     showChannelDialog,
     showChannelDetailDialog,
