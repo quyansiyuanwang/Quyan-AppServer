@@ -511,6 +511,15 @@
                   </el-button>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
+                  <PermissionWrapper :require="[Permission.RELAY_CHANNEL_EXPORT]">
+                    <el-button
+                      size="small"
+                      :disabled="!hasChannelSelection || channelExporting"
+                      :loading="channelExporting"
+                      @click="copyChannelsAsJson"
+                      >{{ i18ns.t('relay.batchCopyChannels') }}</el-button
+                    >
+                  </PermissionWrapper>
                   <PermissionWrapper :require="[Permission.RELAY_CHANNEL_CREATE]">
                     <el-button
                       size="small"

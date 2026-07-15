@@ -2125,6 +2125,7 @@ const zhCN: DeepStringify<typeof en> = {
     batchEnableChannels: '批量启用',
     batchDisableChannels: '批量禁用',
     batchDeleteChannels: '批量删除',
+    batchCopyChannels: '批量复制渠道 JSON',
     batchDuplicateChannels: '批量复制',
     batchExportChannels: '批量导出',
     selectedChannels: '已选 {count} 个渠道',
