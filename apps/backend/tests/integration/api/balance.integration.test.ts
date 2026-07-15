@@ -13,6 +13,7 @@ describe("Balance API Integration", () => {
   let adminUserId = "";
   let targetUserId = "";
   let testGroupId = "";
+  const relayTokenIds: string[] = [];
 
   const shortSuffix = `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 100)}`;
   const adminUsername = `bau_${shortSuffix}`;
@@ -70,6 +71,8 @@ describe("Balance API Integration", () => {
 
   afterAll(async () => {
     await prisma.balanceTransaction.deleteMany({ where: { userId: { in: [adminUserId, targetUserId] } } });
+    await prisma.relayUsage.deleteMany({ where: { relayTokenId: { in: relayTokenIds } } });
+    await prisma.relayToken.deleteMany({ where: { id: { in: relayTokenIds } } });
     await prisma.balanceAccount.deleteMany({ where: { userId: { in: [adminUserId, targetUserId] } } });
     await prisma.user.deleteMany({ where: { id: { in: [adminUserId, targetUserId] } } });
     await prisma.group.deleteMany({ where: { id: testGroupId } });
@@ -189,6 +192,52 @@ describe("Balance API Integration", () => {
       expect.objectContaining({
         pricingType: "per-request",
         fixedPrice: 0.25,
+      }),
+    );
+  });
+
+  it("uses the associated relay usage display snapshot when a legacy transaction snapshot is empty", async () => {
+    const relayToken = await prisma.relayToken.create({
+      data: {
+        userId: targetUserId,
+        token: `balance_snapshot_${shortSuffix}_${Date.now()}`,
+      },
+    });
+    relayTokenIds.push(relayToken.id);
+
+    const usage = await prisma.relayUsage.create({
+      data: {
+        relayTokenId: relayToken.id,
+        displayChannelId: "logical-channel-id",
+        displayChannelName: "历史混池渠道",
+        path: "/relay/proxy/v1/chat/completions",
+        method: "POST",
+        statusCode: 200,
+        ipAddress: "127.0.0.1",
+      },
+    });
+    const transaction = await prisma.balanceTransaction.create({
+      data: {
+        userId: targetUserId,
+        type: "api_usage",
+        amount: -0.1,
+        balanceBefore: 87.9598,
+        balanceAfter: 87.8598,
+        relatedId: usage.id,
+      },
+    });
+
+    const allTxRes = await request(app)
+      .get(`/v1/balance/transactions/all?userId=${targetUserId}&limit=100&offset=0`)
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(allTxRes.status).toBe(200);
+    const record = (allTxRes.body.data.records as Array<Record<string, unknown>>).find(
+      (item) => item.id === transaction.id,
+    );
+    expect(record).toEqual(
+      expect.objectContaining({
+        displayChannelName: "历史混池渠道",
       }),
     );
   });

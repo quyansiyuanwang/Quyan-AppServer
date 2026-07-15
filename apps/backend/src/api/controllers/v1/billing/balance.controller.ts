@@ -26,7 +26,12 @@ import { isMonthlyPassCoverageDescription } from "@/util/monthly-pass-coverage.u
 
 type UsageDataMap = Map<
   string,
-  { totalOutputTime: number | null; timeToFirstByte: number | null; isStreaming: boolean }
+  {
+    totalOutputTime: number | null;
+    timeToFirstByte: number | null;
+    isStreaming: boolean;
+    displayChannelName: string | null;
+  }
 >;
 
 @Route("v1/balance")
@@ -81,6 +86,7 @@ export class BalanceController extends Controller {
         totalOutputTime: u.totalOutputTime,
         timeToFirstByte: u.timeToFirstByte,
         isStreaming: u.isStreaming,
+        displayChannelName: u.displayChannelName,
       });
     });
 
@@ -114,7 +120,7 @@ export class BalanceController extends Controller {
       cacheReadMultiplier: r.cacheReadMultiplier != null ? Number(r.cacheReadMultiplier) : undefined,
       pricingType: r.pricingType === "token-based" || r.pricingType === "per-request" ? r.pricingType : undefined,
       fixedPrice: r.fixedPrice != null ? Number(r.fixedPrice) : undefined,
-      displayChannelName: r.displayChannelName || undefined,
+      displayChannelName: r.displayChannelName || (r.relatedId ? usageDataMap.get(r.relatedId)?.displayChannelName : undefined) || undefined,
       channelMultiplier: r.channelMultiplier != null ? Number(r.channelMultiplier) : undefined,
       globalMultiplier: r.globalMultiplier != null ? Number(r.globalMultiplier) : undefined,
       timeMultiplier: r.timeMultiplier != null ? Number(r.timeMultiplier) : undefined,

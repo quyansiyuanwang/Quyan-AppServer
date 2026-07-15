@@ -14,6 +14,7 @@ const {
   sessionGetAllByIndexMock,
   sessionSaveMock,
   transactionHistoryPropsRef,
+  transactionHistoryEmitRef,
 } = vi.hoisted(() => ({
   getUsageStatisticsMock: vi.fn(),
   getMyBalanceMock: vi.fn(),
@@ -26,6 +27,7 @@ const {
   sessionGetAllByIndexMock: vi.fn(),
   sessionSaveMock: vi.fn(),
   transactionHistoryPropsRef: { value: null as any },
+  transactionHistoryEmitRef: { value: null as any },
 }))
 
 vi.mock('@/composables/usePageDevice', () => ({
@@ -105,8 +107,9 @@ vi.mock('@/components/balance/TransactionHistory.vue', () => ({
       loadingFull: { type: Boolean, default: false },
     },
     emits: ['refresh'],
-    setup(props) {
+    setup(props, { emit }) {
       transactionHistoryPropsRef.value = props
+      transactionHistoryEmitRef.value = emit
       return () => h('div', { class: 'transaction-history-stub' })
     },
   }),
@@ -183,6 +186,7 @@ describe('BalanceHistoryView', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-26T00:15:00.000Z'))
     transactionHistoryPropsRef.value = null
+    transactionHistoryEmitRef.value = null
   })
 
   afterEach(() => {
@@ -208,5 +212,36 @@ describe('BalanceHistoryView', () => {
     expect(statValues[2]?.text()).toBe('30.00')
     expect(statValues[3]?.text()).toBe('0.10')
     expect(transactionHistoryPropsRef.value?.transactions).toHaveLength(2)
+  })
+
+  it('refreshes existing cached records with backfilled display channels', async () => {
+    const staleRecord = {
+      ...createTransactions()[0],
+      id: 'historical-channel',
+      displayChannelName: undefined,
+    }
+    const refreshedRecord = {
+      ...staleRecord,
+      displayChannelName: '历史混池渠道',
+    }
+
+    getUsageStatisticsMock.mockResolvedValue({ data: { total: 100, used: 10, remaining: 90 } })
+    getMyBalanceMock.mockResolvedValue({ data: { balance: 88 } })
+    getMyTransactionsMock
+      .mockResolvedValueOnce({ data: { records: [staleRecord], total: 1 } })
+      .mockResolvedValueOnce({ data: { records: [refreshedRecord], total: 1 } })
+    sessionGetRecentMock.mockResolvedValue([])
+    sessionGetAllByIndexMock.mockResolvedValue([])
+    sessionSaveMock.mockResolvedValue(undefined)
+    redeemCodeMock.mockResolvedValue({ code: 0, data: { balance: 88 } })
+
+    const wrapper = await mountView()
+    transactionHistoryEmitRef.value('refresh')
+    await flushPromises()
+
+    expect(getMyTransactionsMock).toHaveBeenCalledTimes(2)
+    expect(transactionHistoryPropsRef.value?.transactions).toEqual([refreshedRecord])
+    expect(sessionSaveMock).toHaveBeenLastCalledWith('BALANCE_TRANSACTIONS', [refreshedRecord])
+    wrapper.unmount()
   })
 })
