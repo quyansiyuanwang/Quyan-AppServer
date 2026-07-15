@@ -67,6 +67,7 @@ import type { Request } from "express";
 import type { UserListFilters } from "@/store/users/user.store";
 import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
+import { normalizeRelayDisplaySnapshotName } from "@/util/relay-display-channel.util";
 
 type DecimalLike = Prisma.Decimal | number | string;
 const MAX_CHANNEL_LOOKUP_IDS = 1000;
@@ -696,6 +697,7 @@ export class MonthlyPassService {
     userId: string;
     relayUsageId: string | null;
     model: string | null;
+    channelName: string | null;
     displayChannelId: string | null;
     displayChannelName: string | null;
     coveredAmount: DecimalLike;
@@ -707,6 +709,7 @@ export class MonthlyPassService {
     createTime: Date;
     userMonthlyPass: { template: { id: string; name: string } };
   }): MonthlyPassUsageDto {
+    const legacyChannelName = record.channelName?.trim();
     return {
       id: record.id,
       userMonthlyPassId: record.userMonthlyPassId,
@@ -715,8 +718,8 @@ export class MonthlyPassService {
       templateName: record.userMonthlyPass.template.name,
       relayUsageId: record.relayUsageId || undefined,
       model: record.model || undefined,
-      displayChannelId: record.displayChannelId || undefined,
-      displayChannelName: record.displayChannelName || undefined,
+      displayChannelId: legacyChannelName ? undefined : record.displayChannelId || undefined,
+      displayChannelName: legacyChannelName || normalizeRelayDisplaySnapshotName(record.displayChannelName),
       coveredAmount: Number(record.coveredAmount),
       coveredRequests: record.coveredRequests || undefined,
       coveredTokens: record.coveredTokens || undefined,

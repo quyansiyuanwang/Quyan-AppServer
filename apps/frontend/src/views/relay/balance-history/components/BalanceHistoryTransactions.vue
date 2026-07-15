@@ -13,7 +13,7 @@ const loading = state.loading
 const loadingAllData = state.loadingAllData
 const historyRangeHint = state.historyRangeHint
 const historyRangeSlider = state.historyRangeSlider
-const incrementalUpdateTransactions = state.incrementalUpdateTransactions
+const refreshTransactions = state.refreshTransactions
 const handleHistorySliderChange = state.handleHistorySliderChange
 </script>
 
@@ -26,7 +26,7 @@ const handleHistorySliderChange = state.handleHistorySliderChange
         :loading-full="loadingAllData"
         :range-hint="historyRangeHint"
         :range-slider="historyRangeSlider"
-        @refresh="incrementalUpdateTransactions"
+        @refresh="refreshTransactions"
         @range-slider-change="handleHistorySliderChange"
       />
     </ComponentErrorBoundary>
