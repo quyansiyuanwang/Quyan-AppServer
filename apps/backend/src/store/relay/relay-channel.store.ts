@@ -32,6 +32,7 @@ export interface RelayChannelMutationStore {
     tx?: RelayChannelTransactionClient,
   ): Promise<RelayChannel>;
   updateStatusByIds(ids: string[], status: number): Promise<number>;
+  countDirectBusinessReferences(id: string): Promise<number>;
   softDeleteAndUnassignTokens(id: string): Promise<void>;
   softDeleteAndUnassignTokensByIds(ids: string[]): Promise<number>;
   replaceMembersByChannelId(

@@ -22,7 +22,7 @@
         <el-option v-for="token in availableTokens" :key="token" :label="token" :value="token" />
       </el-select>
       <el-select
-        v-model="localFilters.channelName"
+        v-model="localFilters.displayChannelName"
         :placeholder="i18ns.t('balance.selectChannel')"
         clearable
         :style="isDesktop ? { width: '180px' } : { width: '100%' }"
@@ -190,9 +190,9 @@
                         }}×</el-descriptions-item
                       >
                       <el-descriptions-item
-                        v-if="row.channelName"
+                        v-if="row.displayChannelName"
                         :label="i18ns.t('balance.channelUsed')"
-                        >{{ row.channelName }}</el-descriptions-item
+                        >{{ row.displayChannelName }}</el-descriptions-item
                       >
                       <el-descriptions-item
                         v-if="shouldShowModelMultiplier(row)"
@@ -268,7 +268,7 @@
         </el-table-column>
         <el-table-column :label="i18ns.t('balance.channelUsed')" min-width="40">
           <template #default="{ row }">
-            <span v-if="row.channelName">{{ row.channelName }}</span>
+            <span v-if="row.displayChannelName">{{ row.displayChannelName }}</span>
             <span v-else style="color: var(--el-text-color-placeholder)">-</span>
           </template>
         </el-table-column>
@@ -400,9 +400,9 @@
               <span class="tx-label">{{ i18ns.t('balance.tokenName') }}</span>
               <span class="tx-value">{{ row.tokenName }}</span>
             </div>
-            <div v-if="row.channelName" class="tx-card-row">
+            <div v-if="row.displayChannelName" class="tx-card-row">
               <span class="tx-label">{{ i18ns.t('balance.channelUsed') }}</span>
-              <span class="tx-value">{{ row.channelName }}</span>
+              <span class="tx-value">{{ row.displayChannelName }}</span>
             </div>
             <div class="tx-card-row">
               <span class="tx-label">{{ i18ns.t('balance.after') }}</span>
@@ -643,7 +643,7 @@ const localFilters = ref({
   type: '',
   model: '',
   tokenName: '',
-  channelName: '',
+  displayChannelName: '',
   startTime: '',
   endTime: '',
 })
@@ -780,7 +780,7 @@ const hasBillingDetails = (tx: BalanceTransactionResponse): boolean =>
     tx.timeMultiplier,
     tx.cacheCreationMultiplier,
     tx.cacheReadMultiplier,
-    tx.channelName,
+    tx.displayChannelName,
   ].some((value) => value !== undefined && value !== null)
 
 const canShowFormula = (tx: BalanceTransactionResponse): boolean =>
@@ -862,7 +862,7 @@ const filterOptions = computed(() => {
 
   props.transactions.forEach((transaction) => {
     if (transaction.tokenName) tokens.add(transaction.tokenName)
-    if (transaction.channelName) channels.add(transaction.channelName)
+    if (transaction.displayChannelName) channels.add(transaction.displayChannelName)
   })
 
   return {
@@ -883,8 +883,10 @@ const filteredTransactions = computed(() => {
     filtered = filtered.filter((t) => getModelDisplay(t).includes(localFilters.value.model))
   if (localFilters.value.tokenName)
     filtered = filtered.filter((t) => t.tokenName === localFilters.value.tokenName)
-  if (localFilters.value.channelName)
-    filtered = filtered.filter((t) => t.channelName === localFilters.value.channelName)
+  if (localFilters.value.displayChannelName)
+    filtered = filtered.filter(
+      (t) => t.displayChannelName === localFilters.value.displayChannelName,
+    )
   if (localFilters.value.startTime)
     filtered = filtered.filter(
       (t) => new Date(t.createTime) >= new Date(localFilters.value.startTime),

@@ -578,9 +578,7 @@
                 <template #default="{ row }">{{ row.model || '-' }}</template>
               </el-table-column>
               <el-table-column :label="i18ns.t('monthlyPass.channel')" min-width="180">
-                <template #default="{ row }">{{
-                  row.channelName || row.channelId || '-'
-                }}</template>
+                <template #default="{ row }">{{ row.displayChannelName || '-' }}</template>
               </el-table-column>
               <el-table-column :label="i18ns.t('monthlyPass.coverageAmount')" width="130">
                 <template #default="{ row }">{{ formatAmount(row.coveredAmount) }}</template>
@@ -622,7 +620,7 @@
                 </div>
                 <div class="monthly-mobile-field">
                   <span class="label">{{ i18ns.t('monthlyPass.channel') }}</span>
-                  <span class="value">{{ row.channelName || row.channelId || '-' }}</span>
+                  <span class="value">{{ row.displayChannelName || '-' }}</span>
                 </div>
                 <div class="monthly-mobile-field">
                   <span class="label">{{ i18ns.t('monthlyPass.coverageAmount') }}</span>

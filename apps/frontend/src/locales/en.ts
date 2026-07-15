@@ -2252,6 +2252,9 @@ export default {
     visibilityModePublic: 'Public',
     visibilityModePrivate: 'Private',
     visibilityModeWhitelist: 'Whitelist',
+    visibilityModeHidden: 'Hidden pool member',
+    visibilityModeHiddenHelp:
+      'Internal topology only. This channel can be a pool member, but cannot be selected for direct relay tokens, OJ API keys, or monthly passes.',
     visibilityUsers: 'User Allowlist',
     visibilityGroups: 'Group Allowlist',
     visibilityRoles: 'Role Allowlist',

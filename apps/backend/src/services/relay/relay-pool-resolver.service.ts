@@ -48,6 +48,15 @@ export interface RelayChannelModelCapability {
   modelMapping: Record<string, string>;
 }
 
+/**
+ * A resolved physical leaf paired with the logical channel selected by the
+ * caller. Public history must use the display channel, never the leaf.
+ */
+export interface RelayResolvedChannelCandidate {
+  resolvedChannel: RelayChannel;
+  displayChannel: RelayChannel;
+}
+
 interface ResolvedLeafPath {
   channel: RelayChannelGraphNode;
   constraints: EffectiveChannelConstraints;
@@ -130,8 +139,21 @@ export class RelayPoolResolverService {
     roots: Array<Pick<RelayChannel, "id"> | null | undefined>,
     orderMembers?: RelayPoolMemberOrderer,
   ): Promise<RelayChannel[]> {
-    const graph = await this.getActiveGraph();
+    const candidates = await this.resolveActiveLeafCandidates(roots, orderMembers);
     const leaves = new Map<string, RelayChannel>();
+
+    for (const candidate of candidates)
+      leaves.set(this.getLeafConstraintSignature(candidate.resolvedChannel), candidate.resolvedChannel);
+
+    return [...leaves.values()];
+  }
+
+  async resolveActiveLeafCandidates(
+    roots: Array<Pick<RelayChannel, "id"> | null | undefined>,
+    orderMembers?: RelayPoolMemberOrderer,
+  ): Promise<RelayResolvedChannelCandidate[]> {
+    const graph = await this.getActiveGraph();
+    const candidates = new Map<string, RelayResolvedChannelCandidate>();
 
     for (const root of roots) {
       if (!root?.id) continue;
@@ -140,11 +162,15 @@ export class RelayPoolResolverService {
       const resolved = await this.resolveLeafPaths(channel, graph, this.initialConstraints(), orderMembers, new Set());
       for (const path of resolved) {
         const leaf = this.applyConstraints(path.channel, path.constraints);
-        leaves.set(this.getLeafConstraintSignature(leaf), leaf);
+        const signature = `${channel.id}\u0000${this.getLeafConstraintSignature(leaf)}`;
+        candidates.set(signature, {
+          resolvedChannel: leaf,
+          displayChannel: channel,
+        });
       }
     }
 
-    return [...leaves.values()];
+    return [...candidates.values()];
   }
 
   async resolveEffectiveAllowedModels(

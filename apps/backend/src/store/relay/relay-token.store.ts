@@ -141,7 +141,11 @@ export interface RelayChannelConfigUsageUpdateInput {
 export interface RelayChannelSwitchLogInput {
   relayTokenId: string;
   fromChannelId: string;
+  fromDisplayChannelId?: string | null;
+  fromDisplayChannelName?: string | null;
   toChannelId: string;
+  toDisplayChannelId?: string | null;
+  toDisplayChannelName?: string | null;
   triggerStatusCode?: number;
   triggerError?: string;
   attemptNumber: number;

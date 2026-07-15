@@ -17,7 +17,7 @@ export type RelayChannelRoutingStrategy =
   | "health-priority"
   | "latency-priority";
 
-export type RelayChannelVisibilityMode = "public" | "private" | "whitelist";
+export type RelayChannelVisibilityMode = "public" | "private" | "whitelist" | "hidden";
 
 export type RelayChannelAllowedModelsMode = "all" | "manual" | "auto";
 
