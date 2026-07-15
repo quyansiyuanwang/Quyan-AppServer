@@ -298,13 +298,13 @@ describe("Relay Failover Charging Integration Tests", () => {
 
     expect(transactions.length).toBe(2);
 
-    // First transaction: zero charge for failed attempt with primary channel name
+    // First transaction: zero charge with the logical display-channel snapshot
     expect(transactions[0].amount.toNumber()).toBe(0);
-    expect(transactions[0].channelName).toBe("Primary Channel (Fails)");
+    expect(transactions[0].displayChannelName).toBe("Primary Channel (Fails)");
 
-    // Second transaction: actual charge for successful attempt with secondary channel name
+    // Second transaction: actual charge with the logical display-channel snapshot
     expect(transactions[1].amount.toNumber()).toBeLessThan(0);
-    expect(transactions[1].channelName).toBe("Secondary Channel (Success)");
+    expect(transactions[1].displayChannelName).toBe("Secondary Channel (Success)");
 
     // Check switch log
     const switchLogs = await prisma.relayChannelSwitchLog.findMany({
@@ -366,15 +366,15 @@ describe("Relay Failover Charging Integration Tests", () => {
 
     expect(transactions.length).toBe(2);
 
-    // First transaction: zero charge for failed attempt with primary channel name
+    // First transaction: zero charge with the logical display-channel snapshot
     expect(transactions[0].amount.toNumber()).toBe(0);
-    expect(transactions[0].channelName).toBe("Primary Channel (Fails)");
+    expect(transactions[0].displayChannelName).toBe("Primary Channel (Fails)");
     expect(transactions[0].inputRate?.toNumber()).toBe(0);
     expect(transactions[0].outputRate?.toNumber()).toBe(0);
 
-    // Second transaction: fixed charge for successful attempt with secondary channel name
+    // Second transaction: fixed charge with the logical display-channel snapshot
     expect(transactions[1].amount.toNumber()).toBe(-0.5); // Fixed price
-    expect(transactions[1].channelName).toBe("Secondary Channel (Success)");
+    expect(transactions[1].displayChannelName).toBe("Secondary Channel (Success)");
     expect(transactions[1].inputRate?.toNumber()).toBe(0);
     expect(transactions[1].outputRate?.toNumber()).toBe(0);
   });
@@ -428,9 +428,9 @@ describe("Relay Failover Charging Integration Tests", () => {
 
     expect(transactions.length).toBe(2);
     expect(transactions[0].amount.toNumber()).toBe(0);
-    expect(transactions[0].channelName).toBe("Primary Channel (Fails)");
+    expect(transactions[0].displayChannelName).toBe("Primary Channel (Fails)");
     expect(transactions[1].amount.toNumber()).toBe(0);
-    expect(transactions[1].channelName).toBe("Secondary Channel (Success)");
+    expect(transactions[1].displayChannelName).toBe("Secondary Channel (Success)");
 
     // Check switch log
     const switchLogs = await prisma.relayChannelSwitchLog.findMany({
@@ -484,7 +484,7 @@ describe("Relay Failover Charging Integration Tests", () => {
 
     expect(transactions.length).toBe(1);
     expect(transactions[0].amount.toNumber()).toBe(0);
-    expect(transactions[0].channelName).toBe("Primary Channel (Fails)");
+    expect(transactions[0].displayChannelName).toBe("Primary Channel (Fails)");
 
     // Check switch log - should be empty
     const switchLogs = await prisma.relayChannelSwitchLog.findMany({
@@ -541,7 +541,7 @@ describe("Relay Failover Charging Integration Tests", () => {
 
     expect(transactions.length).toBe(1);
     expect(transactions[0].amount.toNumber()).toBe(0);
-    expect(transactions[0].channelName).toBe("Primary Channel (Fails)");
+    expect(transactions[0].displayChannelName).toBe("Primary Channel (Fails)");
 
     // Check switch log - should be empty
     const switchLogs = await prisma.relayChannelSwitchLog.findMany({
@@ -641,7 +641,7 @@ describe("Relay Failover Charging Integration Tests", () => {
     });
     expect(monthlyPassUsages.length).toBe(1);
     expect(monthlyPassUsages[0].channelId).toBe(secondaryChannelId);
-    expect(monthlyPassUsages[0].channelName).toBe("Secondary Channel (Success)");
+    expect(monthlyPassUsages[0].displayChannelName).toBe("Secondary Channel (Success)");
     expect(monthlyPassUsages[0].coveredAmount.toNumber()).toBeGreaterThan(0);
 
     const passAfter = await prisma.userMonthlyPass.findUnique({ where: { id: userPass.id } });
@@ -655,10 +655,10 @@ describe("Relay Failover Charging Integration Tests", () => {
     });
     expect(transactions.length).toBe(2);
     expect(transactions[0].amount.toNumber()).toBe(0);
-    expect(transactions[0].channelName).toBe("Primary Channel (Fails)");
+    expect(transactions[0].displayChannelName).toBe("Primary Channel (Fails)");
     expect(transactions[1].type).toBe("monthly_pass_coverage");
     expect(transactions[1].amount.toNumber()).toBe(0);
-    expect(transactions[1].channelName).toBe("Secondary Channel (Success)");
+    expect(transactions[1].displayChannelName).toBe("Secondary Channel (Success)");
 
     const chargedTransactions = transactions.filter((item) => item.amount.toNumber() < 0);
     expect(chargedTransactions.length).toBe(0);
@@ -705,9 +705,9 @@ describe("Relay Failover Charging Integration Tests", () => {
     });
     expect(transactions.length).toBe(2);
     expect(transactions[0].amount.toNumber()).toBe(0);
-    expect(transactions[0].channelName).toBe("Primary Channel (Fails)");
+    expect(transactions[0].displayChannelName).toBe("Primary Channel (Fails)");
     expect(transactions[1].amount.toNumber()).toBeLessThan(0);
-    expect(transactions[1].channelName).toBe("Secondary Channel (Success)");
+    expect(transactions[1].displayChannelName).toBe("Secondary Channel (Success)");
     expect(transactions[1].type).toBe("api_usage");
 
     const switchLogs = await prisma.relayChannelSwitchLog.findMany({
