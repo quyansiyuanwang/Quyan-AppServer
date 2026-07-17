@@ -1,31 +1,28 @@
 import { z } from "zod";
 import {
-  MONTHLY_PASS_DECIMAL_SCALE,
   MONTHLY_PASS_MAX_AMOUNT_QUOTA,
-  MONTHLY_PASS_MAX_INTEGER_QUOTA,
   MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS,
 } from "@/constant/monthly-pass";
 import { MANAGED_STATUS } from "@/constant/status";
+import {
+  getMonthlyPassDiscountPercentValidationError,
+  getMonthlyPassPriceValidationError,
+  getMonthlyPassQuotaValidationError,
+  hasMonthlyPassDecimalPrecision,
+  MONTHLY_PASS_DISCOUNT_PERCENT_SCALE,
+  MONTHLY_PASS_PRICE_DECIMAL_SCALE,
+  MONTHLY_PASS_PURCHASE_LIMIT_MAX,
+  MONTHLY_PASS_PURCHASE_LIMIT_WINDOW_MAX_DAYS,
+} from "@/util/monthly-pass-validation.util";
 
 const validDateString = (value: string): boolean => {
   const timestamp = Date.parse(value);
   return !Number.isNaN(timestamp);
 };
 
-const PRICE_DECIMAL_SCALE = 4;
-const DISCOUNT_PERCENT_SCALE = 2;
-const PURCHASE_LIMIT_MAX = 9999;
-const PURCHASE_LIMIT_WINDOW_MAX_DAYS = 3650;
-
 const quotaUnitSchema = z.enum(["amount", "request", "token"]);
-const quotaWindowHoursSchema = z.coerce.number().min(0).max(MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS);
+const quotaWindowHoursSchema = z.coerce.number().int().min(1).max(MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS);
 const assignmentModeSchema = z.enum(["create_new", "extend_existing"]);
-
-const hasDecimalPrecision = (value: number, scale: number): boolean => {
-  const factor = 10 ** scale;
-  const scaled = value * factor;
-  return Math.abs(Math.round(scaled) - scaled) < 1e-8;
-};
 
 const validateQuotaByUnit = (
   ctx: z.RefinementCtx,
@@ -36,27 +33,12 @@ const validateQuotaByUnit = (
   if (value == null) return;
 
   const unit = quotaUnit ?? "amount";
-  const max = unit === "amount" ? MONTHLY_PASS_MAX_AMOUNT_QUOTA : MONTHLY_PASS_MAX_INTEGER_QUOTA;
-
-  if (value > max)
+  const message = getMonthlyPassQuotaValidationError(fieldName, value, unit);
+  if (message)
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: [fieldName],
-      message: `${fieldName} must not exceed ${max} when quotaUnit is ${unit}`,
-    });
-
-  if (unit !== "amount" && !Number.isInteger(value))
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: [fieldName],
-      message: `${fieldName} must be an integer when quotaUnit is ${unit}`,
-    });
-
-  if (unit === "amount" && !hasDecimalPrecision(value, MONTHLY_PASS_DECIMAL_SCALE))
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: [fieldName],
-      message: `${fieldName} must have at most ${MONTHLY_PASS_DECIMAL_SCALE} decimal places`,
+      message,
     });
 };
 
@@ -94,8 +76,14 @@ const monthlyPassTemplateBaseObjectSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().max(1000).optional(),
   allowBalanceRedemption: z.coerce.boolean().optional(),
-  purchaseLimitPerUser: z.coerce.number().int().min(1).max(PURCHASE_LIMIT_MAX).nullable().optional(),
-  purchaseLimitWindowDays: z.coerce.number().int().min(1).max(PURCHASE_LIMIT_WINDOW_MAX_DAYS).nullable().optional(),
+  purchaseLimitPerUser: z.coerce.number().int().min(1).max(MONTHLY_PASS_PURCHASE_LIMIT_MAX).nullable().optional(),
+  purchaseLimitWindowDays: z
+    .coerce.number()
+    .int()
+    .min(1)
+    .max(MONTHLY_PASS_PURCHASE_LIMIT_WINDOW_MAX_DAYS)
+    .nullable()
+    .optional(),
   originalPrice: z.coerce.number().min(0.0001).max(MONTHLY_PASS_MAX_AMOUNT_QUOTA).optional(),
   discountPercent: z.coerce.number().min(0).max(100).optional(),
   defaultQuota: z.coerce.number().min(0.0001).max(MONTHLY_PASS_MAX_AMOUNT_QUOTA).optional(),
@@ -148,18 +136,24 @@ const monthlyPassTemplateBaseSchema = monthlyPassTemplateBaseObjectSchema.superR
         message: "quotaUnit must be amount for price-first monthly pass templates",
       });
 
-    if (value.originalPrice !== undefined && !hasDecimalPrecision(value.originalPrice, PRICE_DECIMAL_SCALE))
+    if (
+      value.originalPrice !== undefined &&
+      !hasMonthlyPassDecimalPrecision(value.originalPrice, MONTHLY_PASS_PRICE_DECIMAL_SCALE)
+    )
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["originalPrice"],
-        message: `originalPrice must have at most ${PRICE_DECIMAL_SCALE} decimal places`,
+        message: `originalPrice must have at most ${MONTHLY_PASS_PRICE_DECIMAL_SCALE} decimal places`,
       });
 
-    if (value.discountPercent !== undefined && !hasDecimalPrecision(value.discountPercent, DISCOUNT_PERCENT_SCALE))
+    if (
+      value.discountPercent !== undefined &&
+      !hasMonthlyPassDecimalPrecision(value.discountPercent, MONTHLY_PASS_DISCOUNT_PERCENT_SCALE)
+    )
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["discountPercent"],
-        message: `discountPercent must have at most ${DISCOUNT_PERCENT_SCALE} decimal places`,
+        message: `discountPercent must have at most ${MONTHLY_PASS_DISCOUNT_PERCENT_SCALE} decimal places`,
       });
 
     validateQuotaByUnit(ctx, "amount", "dailyQuota", value.dailyQuota);
@@ -227,66 +221,19 @@ export const updateMonthlyPassTemplateBodySchema = monthlyPassTemplateBaseObject
     status: z.coerce.number().int().min(MANAGED_STATUS.DELETED).max(MANAGED_STATUS.ENABLED).optional(),
   })
   .superRefine((value, ctx) => {
-    const hasLimit = value.purchaseLimitPerUser !== undefined && value.purchaseLimitPerUser !== null;
-    const hasLimitWindow = value.purchaseLimitWindowDays !== undefined && value.purchaseLimitWindowDays !== null;
-    if (hasLimit !== hasLimitWindow)
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["purchaseLimitPerUser"],
-        message: "purchaseLimitPerUser and purchaseLimitWindowDays must be set together",
-      });
-
-    const hasPricingUpdate = value.originalPrice !== undefined || value.discountPercent !== undefined;
-
-    if (value.originalPrice !== undefined && !hasDecimalPrecision(value.originalPrice, PRICE_DECIMAL_SCALE))
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["originalPrice"],
-        message: `originalPrice must have at most ${PRICE_DECIMAL_SCALE} decimal places`,
-      });
-
-    if (value.discountPercent !== undefined && !hasDecimalPrecision(value.discountPercent, DISCOUNT_PERCENT_SCALE))
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["discountPercent"],
-        message: `discountPercent must have at most ${DISCOUNT_PERCENT_SCALE} decimal places`,
-      });
-
-    if (hasPricingUpdate) {
-      if (value.originalPrice === undefined)
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["originalPrice"],
-          message: "originalPrice is required when updating price-first monthly pass templates",
-        });
-
-      if (value.discountPercent === undefined)
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["discountPercent"],
-          message: "discountPercent is required when updating price-first monthly pass templates",
-        });
-
-      if (value.defaultQuota !== undefined)
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["defaultQuota"],
-          message: "defaultQuota cannot be provided when updating price-first monthly pass templates",
-        });
-
-      if (value.quotaUnit !== undefined && value.quotaUnit !== "amount")
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["quotaUnit"],
-          message: "quotaUnit must be amount for price-first monthly pass templates",
-        });
-
-      validateQuotaByUnit(ctx, "amount", "dailyQuota", value.dailyQuota);
-    } else {
-      const quotaUnit = value.quotaUnit ?? "amount";
-      validateQuotaByUnit(ctx, quotaUnit, "defaultQuota", value.defaultQuota);
-      validateQuotaByUnit(ctx, quotaUnit, "dailyQuota", value.dailyQuota);
+    if (value.originalPrice !== undefined) {
+      const message = getMonthlyPassPriceValidationError("originalPrice", value.originalPrice);
+      if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["originalPrice"], message });
     }
+
+    if (value.discountPercent !== undefined) {
+      const message = getMonthlyPassDiscountPercentValidationError(value.discountPercent);
+      if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["discountPercent"], message });
+    }
+
+    const quotaUnit = value.quotaUnit ?? "amount";
+    validateQuotaByUnit(ctx, quotaUnit, "defaultQuota", value.defaultQuota);
+    validateQuotaByUnit(ctx, quotaUnit, "dailyQuota", value.dailyQuota);
 
     validateUniqueQuotaWindowRules(ctx, value.quotaWindows);
   });
@@ -331,10 +278,10 @@ export const updateUserMonthlyPassBodySchema = z
     status: z.coerce.number().int().min(MANAGED_STATUS.DELETED).max(MANAGED_STATUS.ENABLED).optional(),
   })
   .superRefine((value, ctx) => {
-    if (!value.quotaUnit) return;
-
-    validateQuotaByUnit(ctx, value.quotaUnit, "totalQuota", value.totalQuota);
-    validateQuotaByUnit(ctx, value.quotaUnit, "dailyQuota", value.dailyQuota);
+    if (value.quotaUnit) {
+      validateQuotaByUnit(ctx, value.quotaUnit, "totalQuota", value.totalQuota);
+      validateQuotaByUnit(ctx, value.quotaUnit, "dailyQuota", value.dailyQuota);
+    }
 
     validateUniqueQuotaWindowRules(ctx, value.quotaWindows);
   });

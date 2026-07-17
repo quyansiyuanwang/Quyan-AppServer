@@ -227,11 +227,18 @@ describe("RelayChannelService", () => {
 
   it("lists visible channels when includeDisabled is true", async () => {
     relayChannelRepository.listVisible.mockResolvedValue([{ ...sampleChannel, status: RELAY_CHANNEL_STATUS.DISABLED }]);
+    relayPoolResolver.resolveEffectiveAllowedModels.mockResolvedValue(["disabled-channel-model"]);
 
     const result = await service.listChannels("actor-user", true);
 
     expect(relayChannelRepository.listVisible).toHaveBeenCalled();
     expect(result[0].enabled).toBe(false);
+    expect(result[0].allowedModels).toEqual(["disabled-channel-model"]);
+    expect(relayPoolResolver.resolveEffectiveAllowedModels).toHaveBeenCalledWith(
+      "channel-1",
+      [],
+      { includeDisabled: true },
+    );
   });
 
   it("hides private channels from non-manager users", async () => {

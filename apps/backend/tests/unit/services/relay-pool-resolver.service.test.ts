@@ -19,6 +19,7 @@ const createChannel = (id: string, overrides: Record<string, unknown> = {}) =>
 const createResolver = (channels: any[]) => {
   const relayChannelRepository = {
     listActive: vi.fn().mockResolvedValue(channels),
+    listVisible: vi.fn().mockResolvedValue(channels),
   };
   const ResolverCtor = RelayPoolResolverService as unknown as new (...args: any[]) => RelayPoolResolverService;
 
@@ -74,6 +75,20 @@ describe("RelayPoolResolverService", () => {
     const leaves = await resolver.resolveActiveLeaves([pool]);
 
     expect(leaves.map((channel) => channel.id)).toEqual([activeLeaf.id]);
+  });
+
+  it("resolves disabled channels only when explicitly using the visible graph", async () => {
+    const disabledLeaf = createChannel("disabled-leaf", { status: RELAY_CHANNEL_STATUS.DISABLED });
+    const { resolver, relayChannelRepository } = createResolver([]);
+    relayChannelRepository.listVisible.mockResolvedValue([disabledLeaf]);
+    const catalog = [{ model: "Disabled Model", provider: "disabled-model", supportedFormats: "openai" }];
+
+    await expect(resolver.resolveEffectiveAllowedModels(disabledLeaf.id, catalog)).resolves.toEqual([]);
+    await expect(
+      resolver.resolveEffectiveAllowedModels(disabledLeaf.id, catalog, { includeDisabled: true }),
+    ).resolves.toEqual(["Disabled Model"]);
+    expect(relayChannelRepository.listActive).toHaveBeenCalledTimes(1);
+    expect(relayChannelRepository.listVisible).toHaveBeenCalledTimes(1);
   });
 
   it("intersects ancestor formats and manual model restrictions on leaves", async () => {

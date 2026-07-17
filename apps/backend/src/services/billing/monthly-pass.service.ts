@@ -37,11 +37,8 @@ import { UserRepository } from "@/store/users/user.repository";
 import type { UserStore } from "@/store/users/user.store";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import {
-  MONTHLY_PASS_DECIMAL_SCALE,
   MONTHLY_PASS_DEFAULT_PAGE_SIZE,
   MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS,
-  MONTHLY_PASS_MAX_AMOUNT_QUOTA,
-  MONTHLY_PASS_MAX_INTEGER_QUOTA,
   MONTHLY_PASS_MAX_PAGE_SIZE,
   MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS,
 } from "@/constant/monthly-pass";
@@ -68,6 +65,16 @@ import type { UserListFilters } from "@/store/users/user.store";
 import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
 import { normalizeRelayDisplaySnapshotName } from "@/util/relay-display-channel.util";
+import {
+  getMonthlyPassDiscountPercentValidationError,
+  getMonthlyPassPositiveIntegerValidationError,
+  getMonthlyPassPriceValidationError,
+  getMonthlyPassQuotaValidationError,
+  getMonthlyPassQuotaWindowHoursValidationError,
+  isMonthlyPassIntegerQuotaUnit,
+  MONTHLY_PASS_PURCHASE_LIMIT_MAX,
+  MONTHLY_PASS_PURCHASE_LIMIT_WINDOW_MAX_DAYS,
+} from "@/util/monthly-pass-validation.util";
 
 type DecimalLike = Prisma.Decimal | number | string;
 const MAX_CHANNEL_LOOKUP_IDS = 1000;
@@ -101,27 +108,17 @@ const DEFAULT_QUOTA_UNIT_OPTIONS: MonthlyPassStringFilterOptionDto[] = [
   { value: "token", label: "token" },
 ];
 
-const hasDecimalPrecision = (value: number, scale: number): boolean => {
-  const factor = 10 ** scale;
-  const scaled = value * factor;
-  return Math.abs(Math.round(scaled) - scaled) < 1e-8;
-};
-
 const normalizeQuotaUnit = (value?: string | null): MonthlyPassQuotaUnit => {
   if (value === "request" || value === "token") return value;
   return "amount";
 };
 
 const isIntegerQuotaUnit = (unit: MonthlyPassQuotaUnit): boolean => {
-  return unit === "request" || unit === "token";
+  return isMonthlyPassIntegerQuotaUnit(unit);
 };
 
 const normalizeTemplatePublishStatus = (value?: string | null): MonthlyPassTemplatePublishStatus => {
   return value === "published" ? "published" : "draft";
-};
-
-const getQuotaMaxByUnit = (unit: MonthlyPassQuotaUnit): number => {
-  return isIntegerQuotaUnit(unit) ? MONTHLY_PASS_MAX_INTEGER_QUOTA : MONTHLY_PASS_MAX_AMOUNT_QUOTA;
 };
 
 const normalizeQuotaValue = (value: number, unit: MonthlyPassQuotaUnit): number => {
@@ -136,7 +133,12 @@ const normalizeDiscountPercentValue = (value: number): number => round2(value);
 const validateOptionalPositiveIntegerOrNull = (fieldName: string, value?: number | null): number | null | undefined => {
   if (value === undefined) return undefined;
   if (value === null) return null;
-  if (!Number.isInteger(value) || value <= 0) throw new BadRequestError(`${fieldName} must be a positive integer`);
+  const max =
+    fieldName === "purchaseLimitPerUser"
+      ? MONTHLY_PASS_PURCHASE_LIMIT_MAX
+      : MONTHLY_PASS_PURCHASE_LIMIT_WINDOW_MAX_DAYS;
+  const message = getMonthlyPassPositiveIntegerValidationError(fieldName, value, max);
+  if (message) throw new BadRequestError(message);
   return value;
 };
 
@@ -179,35 +181,22 @@ const validateQuotaValue = (
   value: number,
   unit: MonthlyPassQuotaUnit,
 ): void => {
-  if (!Number.isFinite(value) || value <= 0) throw new BadRequestError(`${fieldName} must be greater than 0`);
-
-  if (isIntegerQuotaUnit(unit) && !Number.isInteger(value))
-    throw new BadRequestError(`${fieldName} must be an integer when quotaUnit is ${unit}`);
-
-  if (!isIntegerQuotaUnit(unit) && !hasDecimalPrecision(value, MONTHLY_PASS_DECIMAL_SCALE))
-    throw new BadRequestError(
-      `${fieldName} must have at most ${MONTHLY_PASS_DECIMAL_SCALE} decimal places when quotaUnit is amount`,
-    );
-
-  const max = getQuotaMaxByUnit(unit);
-  if (value > max) throw new BadRequestError(`${fieldName} must not exceed ${max} when quotaUnit is ${unit}`);
+  const message = getMonthlyPassQuotaValidationError(fieldName, value, unit);
+  if (message) throw new BadRequestError(message);
 };
 
-const validatePriceValue = (fieldName: "originalPrice" | "discountedPrice" | "rechargeRatio", value: number): void => {
-  if (!Number.isFinite(value) || value <= 0) throw new BadRequestError(`${fieldName} must be greater than 0`);
-
-  if (!hasDecimalPrecision(value, MONTHLY_PASS_DECIMAL_SCALE))
-    throw new BadRequestError(`${fieldName} must have at most ${MONTHLY_PASS_DECIMAL_SCALE} decimal places`);
-
-  if (value > MONTHLY_PASS_MAX_AMOUNT_QUOTA)
-    throw new BadRequestError(`${fieldName} must not exceed ${MONTHLY_PASS_MAX_AMOUNT_QUOTA}`);
+const validatePriceValue = (
+  fieldName: "originalPrice" | "discountedPrice" | "rechargeRatio",
+  value: number,
+  options: { allowZero?: boolean } = {},
+): void => {
+  const message = getMonthlyPassPriceValidationError(fieldName, value, options);
+  if (message) throw new BadRequestError(message);
 };
 
 const validateDiscountPercentValue = (value: number): void => {
-  if (!Number.isFinite(value) || value < 0 || value > 100)
-    throw new BadRequestError("discountPercent must be greater than or equal to 0 and less than or equal to 100");
-
-  if (!hasDecimalPrecision(value, 2)) throw new BadRequestError("discountPercent must have at most 2 decimal places");
+  const message = getMonthlyPassDiscountPercentValidationError(value);
+  if (message) throw new BadRequestError(message);
 };
 
 const isPriceFirstTemplateRecord = (record: {
@@ -219,19 +208,17 @@ const isPriceFirstTemplateRecord = (record: {
 
 const normalizeQuotaWindowHours = (value?: number | null, enforceMax = false): number | null => {
   if (value == null) return null;
-  if (!Number.isFinite(value)) return null;
-  const rounded = round4(value);
-  if (rounded < 0) return null;
-  if (rounded > MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS) {
-    if (enforceMax)
-      throw new BadRequestError(
-        `quotaWindowHours must be less than or equal to ${MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS}`,
-      );
+  const error = getMonthlyPassQuotaWindowHoursValidationError(value, { allowExceedMax: !enforceMax });
+  if (error) {
+    if (enforceMax) throw new BadRequestError(error);
+    return null;
+  }
 
+  if (value > MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS) {
     // Clamp legacy overflow values so existing records remain usable while new input is validated.
     return MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS;
   }
-  return rounded;
+  return value;
 };
 
 const getWindowConsumed = (
@@ -547,7 +534,7 @@ export class MonthlyPassService {
     validatePriceValue("originalPrice", originalPrice);
     validateDiscountPercentValue(discountPercent);
     validatePriceValue("rechargeRatio", rechargeRatio);
-    validatePriceValue("discountedPrice", discountedPrice);
+    validatePriceValue("discountedPrice", discountedPrice, { allowZero: true });
     validateQuotaValue("defaultQuota", defaultQuota, "amount");
 
     if (dailyQuota != null) {
@@ -573,7 +560,7 @@ export class MonthlyPassService {
       purchaseLimitWindowDays: number | null;
     },
   ): Promise<void> {
-    if (!template.purchaseLimitPerUser || !template.purchaseLimitWindowDays) return;
+    if (template.purchaseLimitPerUser == null || template.purchaseLimitWindowDays == null) return;
 
     const windowStart = new Date();
     windowStart.setDate(windowStart.getDate() - template.purchaseLimitWindowDays);
@@ -1058,6 +1045,7 @@ export class MonthlyPassService {
 
     const hasPricingUpdate = data.originalPrice !== undefined || data.discountPercent !== undefined;
     const isExistingPriceFirst = isPriceFirstTemplateRecord(existing);
+    const finalIsPriceFirst = isExistingPriceFirst || hasPricingUpdate;
     const existingOriginalPrice = existing.originalPrice == null ? null : Number(existing.originalPrice);
     const existingDiscountPercent = existing.discountPercent == null ? null : Number(existing.discountPercent);
     const existingDailyQuota = existing.dailyQuota == null ? null : Number(existing.dailyQuota);
@@ -1075,6 +1063,12 @@ export class MonthlyPassService {
         }
       | undefined;
 
+    if (finalIsPriceFirst && data.defaultQuota !== undefined)
+      throw new BadRequestError("defaultQuota cannot be provided when updating price-first monthly pass templates");
+
+    if (finalIsPriceFirst && data.quotaUnit !== undefined && data.quotaUnit !== "amount")
+      throw new BadRequestError("quotaUnit must be amount for price-first monthly pass templates");
+
     if (hasPricingUpdate) {
       const finalOriginalPrice = data.originalPrice ?? existingOriginalPrice;
       const finalDiscountPercent = data.discountPercent ?? existingDiscountPercent;
@@ -1089,8 +1083,7 @@ export class MonthlyPassService {
       });
     }
 
-    const shouldUseLegacyQuotaPath =
-      !hasPricingUpdate && (!isExistingPriceFirst || data.defaultQuota !== undefined || data.quotaUnit !== undefined);
+    const shouldUseLegacyQuotaPath = !finalIsPriceFirst;
 
     let normalizedQuotaWindowHours =
       data.quotaWindowHours === undefined ? undefined : normalizeQuotaWindowHours(data.quotaWindowHours, true);
@@ -1122,8 +1115,10 @@ export class MonthlyPassService {
         name: data.name?.trim(),
         description: data.description,
         allowBalanceRedemption: data.allowBalanceRedemption,
-        purchaseLimitPerUser: purchaseLimitConfig?.purchaseLimitPerUser,
-        purchaseLimitWindowDays: purchaseLimitConfig?.purchaseLimitWindowDays,
+        purchaseLimitPerUser:
+          purchaseLimitConfig === undefined ? undefined : (purchaseLimitConfig.purchaseLimitPerUser ?? null),
+        purchaseLimitWindowDays:
+          purchaseLimitConfig === undefined ? undefined : (purchaseLimitConfig.purchaseLimitWindowDays ?? null),
         originalPrice: derivedPricing.originalPrice,
         discountPercent: derivedPricing.discountPercent,
         discountedPrice: derivedPricing.discountedPrice,
@@ -1170,8 +1165,10 @@ export class MonthlyPassService {
         name: data.name?.trim(),
         description: data.description,
         allowBalanceRedemption: data.allowBalanceRedemption,
-        purchaseLimitPerUser: purchaseLimitConfig?.purchaseLimitPerUser,
-        purchaseLimitWindowDays: purchaseLimitConfig?.purchaseLimitWindowDays,
+        purchaseLimitPerUser:
+          purchaseLimitConfig === undefined ? undefined : (purchaseLimitConfig.purchaseLimitPerUser ?? null),
+        purchaseLimitWindowDays:
+          purchaseLimitConfig === undefined ? undefined : (purchaseLimitConfig.purchaseLimitWindowDays ?? null),
         originalPrice: null,
         discountPercent: null,
         discountedPrice: null,
@@ -1213,8 +1210,10 @@ export class MonthlyPassService {
         name: data.name?.trim(),
         description: data.description,
         allowBalanceRedemption: data.allowBalanceRedemption,
-        purchaseLimitPerUser: purchaseLimitConfig?.purchaseLimitPerUser,
-        purchaseLimitWindowDays: purchaseLimitConfig?.purchaseLimitWindowDays,
+        purchaseLimitPerUser:
+          purchaseLimitConfig === undefined ? undefined : (purchaseLimitConfig.purchaseLimitPerUser ?? null),
+        purchaseLimitWindowDays:
+          purchaseLimitConfig === undefined ? undefined : (purchaseLimitConfig.purchaseLimitWindowDays ?? null),
         dailyQuota: finalDailyQuota,
         quotaWindowHours: normalizedQuotaWindowHours,
         allowedModels: data.allowedModels === undefined ? undefined : serializeStringArray(data.allowedModels),
@@ -1312,13 +1311,15 @@ export class MonthlyPassService {
       throw new BadRequestError("Monthly pass template does not allow balance redemption");
 
     const discountedPrice = template.discountedPrice == null ? null : Number(template.discountedPrice);
-    if (discountedPrice == null || !Number.isFinite(discountedPrice) || discountedPrice <= 0)
+    if (discountedPrice == null)
       throw new BadRequestError("Monthly pass template cannot be redeemed by balance");
+
+    validatePriceValue("discountedPrice", discountedPrice, { allowZero: true });
 
     const rechargeRatio = normalizePriceValue(await this.configService.getRechargeRatio());
     validatePriceValue("rechargeRatio", rechargeRatio);
     const purchaseAmount = normalizePriceValue(discountedPrice * rechargeRatio);
-    validatePriceValue("discountedPrice", purchaseAmount);
+    validatePriceValue("discountedPrice", purchaseAmount, { allowZero: true });
 
     const quotaUnit = normalizeQuotaUnit(template.quotaUnit);
     const totalQuota = normalizeQuotaValue(Number(template.defaultQuota), quotaUnit);
@@ -1365,7 +1366,7 @@ export class MonthlyPassService {
         templateName: template.name,
         templateId: template.id,
         limit:
-          template.purchaseLimitPerUser && template.purchaseLimitWindowDays
+          template.purchaseLimitPerUser != null && template.purchaseLimitWindowDays != null
             ? {
                 maximum: template.purchaseLimitPerUser,
                 windowStart: new Date(Date.now() - template.purchaseLimitWindowDays * 24 * 60 * 60 * 1000),

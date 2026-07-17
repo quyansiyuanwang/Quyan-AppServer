@@ -347,7 +347,7 @@ const formatMonthlyPassDateTime = (value?: string) => {
 const getMonthlyPassPurchaseAmount = (template: MonthlyPassTemplateDto) => {
   const discountedPrice = Number(template.discountedPrice)
   const rechargeRatio = Number(template.rechargeRatio)
-  if (!Number.isFinite(discountedPrice) || discountedPrice <= 0) return null
+  if (!Number.isFinite(discountedPrice) || discountedPrice < 0) return null
   if (!Number.isFinite(rechargeRatio) || rechargeRatio <= 0) return null
   return Math.round(discountedPrice * rechargeRatio * 10000) / 10000
 }

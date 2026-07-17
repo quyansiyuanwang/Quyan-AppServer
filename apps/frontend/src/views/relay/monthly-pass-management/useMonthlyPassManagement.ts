@@ -480,7 +480,7 @@ export const useMonthlyPassManagement = () => {
       Number.isFinite(originalPrice) &&
       Number.isFinite(discountPercent) &&
       originalPrice > 0 &&
-      discountPercent > 0
+      discountPercent >= 0
         ? round4((originalPrice * discountPercent) / 100)
         : undefined
 
@@ -1171,7 +1171,7 @@ export const useMonthlyPassManagement = () => {
               ? null
               : undefined,
         quotaWindowHours: isEditingTemplate ? null : undefined,
-        quotaWindows: normalizedQuotaWindows,
+        quotaWindows: isEditingTemplate ? (normalizedQuotaWindows ?? []) : normalizedQuotaWindows,
         allowedModels: hasSelectedModels
           ? [...templateForm.allowedModels]
           : isEditingTemplate

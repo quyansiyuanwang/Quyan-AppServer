@@ -101,7 +101,7 @@ export class RelayChannelService {
       : await this.relayChannelRepository.listActive();
     const visibleChannels = await this.filterAccessibleChannels(channels, actorUserId);
     const modelCatalog = await this.modelPricingService.getModelPricing();
-    return Promise.all(visibleChannels.map((channel) => this.toDto(channel, modelCatalog)));
+    return Promise.all(visibleChannels.map((channel) => this.toDto(channel, modelCatalog, includeDisabled)));
   }
 
   async listChannelOptions(actorUserId: string): Promise<RelayChannelOptionDto[]> {
@@ -1117,7 +1117,11 @@ export class RelayChannelService {
     });
   }
 
-  private async toDto(channel: RelayChannel, modelCatalog?: ModelPricingDto[]): Promise<RelayChannelDto> {
+  private async toDto(
+    channel: RelayChannel,
+    modelCatalog?: ModelPricingDto[],
+    includeDisabled = false,
+  ): Promise<RelayChannelDto> {
     const poolMembers = Array.isArray((channel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
       ? (
           (
@@ -1163,10 +1167,12 @@ export class RelayChannelService {
       updateTime: channel.updateTime,
     };
 
-    dto.allowedModels = await this.relayPoolResolver.resolveEffectiveAllowedModels(
-      channel.id,
-      modelCatalog ?? (await this.modelPricingService.getModelPricing()),
-    );
+    const resolvedModelCatalog = modelCatalog ?? (await this.modelPricingService.getModelPricing());
+    dto.allowedModels = includeDisabled
+      ? await this.relayPoolResolver.resolveEffectiveAllowedModels(channel.id, resolvedModelCatalog, {
+          includeDisabled: true,
+        })
+      : await this.relayPoolResolver.resolveEffectiveAllowedModels(channel.id, resolvedModelCatalog);
 
     return dto;
   }
