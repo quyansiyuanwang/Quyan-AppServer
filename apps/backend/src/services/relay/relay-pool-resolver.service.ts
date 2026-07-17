@@ -38,6 +38,11 @@ export interface RelayModelCatalogEntry {
 export interface RelayPoolResolverContext<TModel extends RelayModelCatalogEntry = RelayModelCatalogEntry> {
   graph: ReadonlyMap<string, RelayChannelGraphNode>;
   modelCatalog: readonly TModel[];
+  includeDisabled?: boolean;
+}
+
+export interface RelayPoolResolverOptions {
+  includeDisabled?: boolean;
 }
 
 export interface RelayChannelModelCapability {
@@ -78,8 +83,9 @@ export class RelayPoolResolverService {
 
   async preloadContext<TModel extends RelayModelCatalogEntry>(
     modelCatalog: readonly TModel[],
+    options: RelayPoolResolverOptions = {},
   ): Promise<RelayPoolResolverContext<TModel>> {
-    return { graph: await this.getActiveGraph(), modelCatalog };
+    return { graph: await this.getGraph(options), modelCatalog, includeDisabled: options.includeDisabled === true };
   }
 
   async resolveChannelCapabilities<TModel extends RelayModelCatalogEntry>(
@@ -89,7 +95,14 @@ export class RelayPoolResolverService {
     const channel = context.graph.get(channelId);
     if (!channel) return [];
 
-    const paths = await this.resolveLeafPaths(channel, context.graph, this.initialConstraints(), undefined, new Set());
+    const paths = await this.resolveLeafPaths(
+      channel,
+      context.graph,
+      this.initialConstraints(),
+      undefined,
+      new Set(),
+      context.includeDisabled === true,
+    );
     const capabilities = new Map<string, RelayChannelModelCapability>();
 
     for (const path of paths) {
@@ -152,7 +165,7 @@ export class RelayPoolResolverService {
     roots: Array<Pick<RelayChannel, "id"> | null | undefined>,
     orderMembers?: RelayPoolMemberOrderer,
   ): Promise<RelayResolvedChannelCandidate[]> {
-    const graph = await this.getActiveGraph();
+    const graph = await this.getGraph({});
     const candidates = new Map<string, RelayResolvedChannelCandidate>();
 
     for (const root of roots) {
@@ -176,8 +189,9 @@ export class RelayPoolResolverService {
   async resolveEffectiveAllowedModels(
     channelId: string,
     modelCatalog: Array<{ model?: string | null; supportedFormats?: string | null }>,
+    options: RelayPoolResolverOptions = {},
   ): Promise<string[]> {
-    const context = await this.preloadContext(modelCatalog);
+    const context = await this.preloadContext(modelCatalog, options);
     const capabilities = await this.resolveChannelCapabilities(channelId, context);
     return [...new Set(capabilities.map((capability) => capability.catalogModelName))].sort((left, right) =>
       left.localeCompare(right),
@@ -192,8 +206,10 @@ export class RelayPoolResolverService {
     return this.resolveEffectiveAllowedModels(channelId, modelCatalog);
   }
 
-  private async getActiveGraph(): Promise<Map<string, RelayChannelGraphNode>> {
-    const channels = await this.relayChannelRepository.listActive();
+  private async getGraph(options: RelayPoolResolverOptions): Promise<Map<string, RelayChannelGraphNode>> {
+    const channels = options.includeDisabled
+      ? await this.relayChannelRepository.listVisible()
+      : await this.relayChannelRepository.listActive();
     return new Map(
       channels.map((channel) => [
         channel.id,
@@ -213,6 +229,7 @@ export class RelayPoolResolverService {
     inherited: EffectiveChannelConstraints,
     orderMembers: RelayPoolMemberOrderer | undefined,
     ancestors: Set<string>,
+    includeDisabled = false,
   ): Promise<ResolvedLeafPath[]> {
     if (ancestors.has(channel.id)) throw new BadRequestError(`Relay channel pool cycle detected at '${channel.name}'`);
 
@@ -230,8 +247,17 @@ export class RelayPoolResolverService {
 
     for (const member of orderedMembers) {
       const memberChannel = graph.get(member.memberChannelId);
-      if (!memberChannel || memberChannel.status !== RELAY_CHANNEL_STATUS.ENABLED) continue;
-      leaves.push(...(await this.resolveLeafPaths(memberChannel, graph, constraints, orderMembers, nextAncestors)));
+      if (!memberChannel || (!includeDisabled && memberChannel.status !== RELAY_CHANNEL_STATUS.ENABLED)) continue;
+      leaves.push(
+        ...(await this.resolveLeafPaths(
+          memberChannel,
+          graph,
+          constraints,
+          orderMembers,
+          nextAncestors,
+          includeDisabled,
+        )),
+      );
     }
 
     return leaves;

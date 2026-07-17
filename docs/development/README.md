@@ -6,11 +6,11 @@
 
 | 文档 | 内容 |
 |------|------|
-| [01-architecture.md](./01-architecture.md) | 系统架构概览：monorepo 结构、技术栈、数据流、组件关系 |
-| [02-backend.md](./02-backend.md) | 后端详解：TSOA 3层模式、中间件链、服务目录、路径别名 |
-| [03-frontend.md](./03-frontend.md) | 前端详解：组件层次、Pinia stores、事件总线、API 客户端、i18n |
-| [04-shared-package.md](./04-shared-package.md) | 共享包：Permission 枚举、CustomCode 及所有共享类型 |
-| [05-database.md](./05-database.md) | 数据库：Prisma 模型、关系、软删除模式 |
+| [01-architecture.md](./01-architecture.md) | 项目技术全景概述：架构、技术栈、核心模块亮点（求职展示入口） |
+| [02-backend.md](./02-backend.md) | 后端详解：TSOA 3层模式、47 Controllers、60 Services、中间件链 |
+| [03-frontend.md](./03-frontend.md) | 前端详解：143 页面、12 Pinia stores、52 Services、事件总线 |
+| [04-shared-package.md](./04-shared-package.md) | 共享包：135+ Permission 枚举、47 CustomCode、22 种通知事件 |
+| [05-database.md](./05-database.md) | 数据库：71 个 Prisma 模型、关系、软删除模式 |
 | [06-api-development.md](./06-api-development.md) | API 开发流程：添加 Controller、DTO、Service、Repository |
 | [07-authentication.md](./07-authentication.md) | 认证与授权：JWT、OAuth 2.0、RAM 权限、2FA、重放保护 |
 | [08-openapi-pipeline.md](./08-openapi-pipeline.md) | OpenAPI 生成流水线：TSOA → swagger.json → 前端 typed SDK |
@@ -66,7 +66,7 @@ pnpm run format                  # 所有项目格式化
 |------|------|
 | `apps/backend/src/app.ts` | Express 应用组装、中间件链 |
 | `apps/backend/src/main.ts` | 服务入口、PM2 集群 |
-| `apps/backend/prisma/schema.prisma` | 数据库 schema（68 个模型） |
+| `apps/backend/prisma/schema.prisma` | 数据库 schema（71 个模型） |
 | `apps/backend/tsoa.json` | TSOA 配置（安全方案、路由生成） |
 | `apps/frontend/src/stores/request.ts` | Axios 实例、JWT 拦截器 |
 | `apps/frontend/src/router/routes.ts` | 前端路由定义 |
