@@ -234,11 +234,9 @@ describe("RelayChannelService", () => {
     expect(relayChannelRepository.listVisible).toHaveBeenCalled();
     expect(result[0].enabled).toBe(false);
     expect(result[0].allowedModels).toEqual(["disabled-channel-model"]);
-    expect(relayPoolResolver.resolveEffectiveAllowedModels).toHaveBeenCalledWith(
-      "channel-1",
-      [],
-      { includeDisabled: true },
-    );
+    expect(relayPoolResolver.resolveEffectiveAllowedModels).toHaveBeenCalledWith("channel-1", [], {
+      includeDisabled: true,
+    });
   });
 
   it("hides private channels from non-manager users", async () => {

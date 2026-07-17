@@ -57,8 +57,7 @@ export const getMonthlyPassPriceValidationError = (
   if (!hasMonthlyPassDecimalPrecision(value, MONTHLY_PASS_PRICE_DECIMAL_SCALE))
     return `${fieldName} must have at most ${MONTHLY_PASS_PRICE_DECIMAL_SCALE} decimal places`;
 
-  if (value > MONTHLY_PASS_MAX_AMOUNT_QUOTA)
-    return `${fieldName} must not exceed ${MONTHLY_PASS_MAX_AMOUNT_QUOTA}`;
+  if (value > MONTHLY_PASS_MAX_AMOUNT_QUOTA) return `${fieldName} must not exceed ${MONTHLY_PASS_MAX_AMOUNT_QUOTA}`;
 
   return undefined;
 };

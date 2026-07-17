@@ -1311,8 +1311,7 @@ export class MonthlyPassService {
       throw new BadRequestError("Monthly pass template does not allow balance redemption");
 
     const discountedPrice = template.discountedPrice == null ? null : Number(template.discountedPrice);
-    if (discountedPrice == null)
-      throw new BadRequestError("Monthly pass template cannot be redeemed by balance");
+    if (discountedPrice == null) throw new BadRequestError("Monthly pass template cannot be redeemed by balance");
 
     validatePriceValue("discountedPrice", discountedPrice, { allowZero: true });
 
