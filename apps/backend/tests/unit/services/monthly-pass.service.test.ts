@@ -116,6 +116,48 @@ describe("MonthlyPassService publish flow", () => {
     );
   });
 
+  it("derives a zero discounted price for a free template", async () => {
+    monthlyPassRepository.createTemplate.mockImplementation(async (data: Record<string, unknown>) => ({
+      id: "template-free",
+      name: data.name,
+      description: null,
+      publishStatus: "draft",
+      publishedAt: null,
+      defaultQuota: data.defaultQuota,
+      dailyQuota: null,
+      quotaUnit: "amount",
+      quotaWindowHours: null,
+      allowBalanceRedemption: true,
+      allowedModels: null,
+      allowedChannels: null,
+      status: MANAGED_STATUS.ENABLED,
+      createTime: now,
+      updateTime: now,
+      originalPrice: data.originalPrice,
+      discountPercent: data.discountPercent,
+      discountedPrice: data.discountedPrice,
+      rechargeRatio: data.rechargeRatio,
+      quotaWindows: [],
+    }));
+
+    await service.createTemplate(
+      {
+        name: "Free Pack",
+        originalPrice: 100,
+        discountPercent: 0,
+      },
+      "actor-1",
+    );
+
+    expect(monthlyPassRepository.createTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        discountedPrice: 0,
+        defaultQuota: 200,
+      }),
+      expect.any(Array),
+    );
+  });
+
   it("publishes a draft template and writes audit log", async () => {
     monthlyPassRepository.findTemplateById.mockResolvedValue(draftTemplateRecord);
     monthlyPassRepository.updateTemplate.mockImplementation(async (_id: string, data: Record<string, unknown>) => ({
@@ -268,6 +310,46 @@ describe("MonthlyPassService publish flow", () => {
         changes: expect.objectContaining({ purchaseAmount: 37 }),
       }),
     );
+  });
+
+  it("claims a free template without requiring a positive purchase amount", async () => {
+    monthlyPassRepository.findTemplateById.mockResolvedValue({
+      ...publishedTemplateRecord,
+      discountedPrice: 0,
+      defaultQuota: 10,
+      quotaWindows: [],
+      allowBalanceRedemption: true,
+    });
+    monthlyPassRepository.purchaseUserPass.mockResolvedValue({
+      id: "pass-free",
+      userId: "user-1",
+      templateId: "template-1",
+      startAt: now,
+      endAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      totalQuota: 10,
+      dailyQuota: null,
+      quotaUnit: "amount",
+      quotaWindowHours: null,
+      quotaWindows: [],
+      usedQuota: 0,
+      remainingQuota: 10,
+      assignedBy: "user-1",
+      note: "self-claimed",
+      status: MANAGED_STATUS.ENABLED,
+      createTime: now,
+      updateTime: now,
+      template: { name: "Starter Pack", description: null, allowedModels: null, allowedChannels: null },
+      user: { username: "alice" },
+    });
+
+    const result = await service.claimPublishedTemplate({ templateId: "template-1" }, "user-1");
+
+    expect(monthlyPassRepository.purchaseUserPass).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Array),
+      expect.objectContaining({ purchaseAmount: 0 }),
+    );
+    expect(result.purchaseAmount).toBe(0);
   });
 
   it("rejects claim when template purchase limit is reached", async () => {
