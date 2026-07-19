@@ -157,7 +157,26 @@
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.orderedChannels')" min-width="180">
           <template #default="{ row }">
-            <el-tooltip placement="top" effect="light" :show-after="180">
+            <el-tooltip
+              v-if="state.isAutomaticPoolToken(row)"
+              placement="top"
+              effect="light"
+              :show-after="180"
+            >
+              <template #content>
+                {{ i18ns.t('relay.automaticProxyPoolChannel') }}:
+                {{ state.getAutomaticProxyPoolChannelName(row) }}
+              </template>
+              <div class="channel-config-list">
+                <el-tag size="small" type="success" effect="plain">
+                  {{ state.getAutomaticProxyPoolChannelName(row) }}
+                </el-tag>
+                <div class="summary-line channel-config-meta">
+                  {{ i18ns.t('relay.routingModeAutomaticPool') }}
+                </div>
+              </div>
+            </el-tooltip>
+            <el-tooltip v-else placement="top" effect="light" :show-after="180">
               <template #content>
                 <div class="channel-tooltip-content">
                   <div v-if="state.getSortedChannelConfigs(row).length" class="channel-config-list">

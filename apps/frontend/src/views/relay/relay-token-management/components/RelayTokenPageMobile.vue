@@ -178,7 +178,11 @@
                 </div>
               </div>
               <div class="token-mobile-field">
-                <span class="label">{{ i18ns.t('relay.orderedChannels') }}</span>
+                <span class="label">{{
+                  state.isAutomaticPoolToken(row)
+                    ? i18ns.t('relay.automaticProxyPoolChannel')
+                    : i18ns.t('relay.orderedChannels')
+                }}</span>
                 <span class="value">{{ state.formatChannelSummary(row) }}</span>
                 <span class="hint">{{ state.formatMobileChannelMeta(row) }}</span>
               </div>

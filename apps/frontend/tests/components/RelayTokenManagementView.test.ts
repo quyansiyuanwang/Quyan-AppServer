@@ -276,6 +276,14 @@ const channelTertiary = {
   modelCapabilities: [],
 } as any
 
+const automaticProxyPool = {
+  id: 'automatic-proxy-pool',
+  name: 'Automatic Pool',
+  multiplier: 1,
+  channelType: 'automatic-proxy-pool',
+  modelCapabilities: [],
+} as any
+
 const relayToken = {
   id: 'token-1',
   name: 'Token 1',
@@ -349,7 +357,7 @@ describe('RelayTokenManagementView', () => {
       total: 1,
     })
     getTokenSwitchLogsMock.mockResolvedValue({ logs: [] })
-    listChannelsMock.mockResolvedValue([channelPrimary, channelSecondary, channelTertiary])
+    listChannelsMock.mockResolvedValue([channelPrimary, channelSecondary, channelTertiary, automaticProxyPool])
     createRelayTokenMock.mockResolvedValue({ id: 'created-token' })
     updateTokenMock.mockResolvedValue({ id: relayToken.id })
     refreshRelayTokenMock.mockResolvedValue({ ...relayToken, token: 'rlt_refreshed_token_value' })
@@ -461,6 +469,56 @@ describe('RelayTokenManagementView', () => {
     expect(renderedText).toContain('#1 Primary')
     expect(renderedText).toContain('#2 Secondary')
     expect(renderedText).toContain('更多 1')
+  })
+
+  it('shows the selected automatic proxy pool on desktop', async () => {
+    getRelayTokensMock.mockResolvedValue({
+      items: [
+        createRelayTokenFixture({
+          routingMode: 'automatic-pool',
+          automaticProxyPoolChannelId: automaticProxyPool.id,
+          channelId: undefined,
+          channelName: undefined,
+          channelConfigs: [],
+        }),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Automatic Pool')
+    expect(wrapper.text()).toContain('自动代理池')
+    expect(wrapper.text()).not.toContain('无渠道')
+  })
+
+  it('shows the selected automatic proxy pool on mobile', async () => {
+    deviceModeMock.isDesktop = false
+    deviceModeMock.isMobile = true
+    getRelayTokensMock.mockResolvedValue({
+      items: [
+        createRelayTokenFixture({
+          routingMode: 'automatic-pool',
+          automaticProxyPoolChannelId: automaticProxyPool.id,
+          channelId: undefined,
+          channelName: undefined,
+          channelConfigs: [],
+        }),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('自动代理池渠道')
+    expect(wrapper.text()).toContain('Automatic Pool')
+    expect(wrapper.text()).not.toContain('无渠道')
   })
 
   it('renders amount quota windows with remaining usage details', async () => {
