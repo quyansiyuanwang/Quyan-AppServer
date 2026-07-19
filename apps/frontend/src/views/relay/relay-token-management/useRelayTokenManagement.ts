@@ -25,7 +25,6 @@ import type {
   RelayTokenQuotaWindowDto,
   UserDto,
 } from '@/client/types.gen'
-
 export type EditableChannelConfig = {
   tempKey: string
   channelId: string
@@ -48,6 +47,7 @@ export type ChannelOption = {
 }
 
 type CcswitchApp = 'claude' | 'codex' | 'gemini'
+type RelayRoutingMode = 'ordered' | 'automatic-pool'
 
 export type TokenQuotaSnapshot = {
   usedQuota: number
@@ -71,6 +71,11 @@ export type RelayTokenQuotaWindowLike = Pick<
 
 type RelayTokenWithQuotaWindows = RelayTokenDto & {
   quotaWindows?: RelayTokenQuotaWindowLike[]
+}
+
+type RelayTokenWithRouting = RelayTokenDto & {
+  routingMode?: RelayRoutingMode
+  automaticProxyPoolChannelId?: string
 }
 
 export type EditableQuotaWindow = RelayTokenQuotaWindowLike & {
@@ -424,6 +429,8 @@ export const useRelayTokenManagement = () => {
     allowedModels: '',
     ipWhitelist: [] as string[],
     allowedModelIdsList: [] as string[],
+    routingMode: 'ordered' as RelayRoutingMode,
+    automaticProxyPoolChannelId: '',
     channelConfigs: [createEmptyChannelConfig(0)] as EditableChannelConfig[],
     failoverConfig: createDefaultFailoverConfig() as EditableFailoverConfig,
     modelMapping: {} as Record<string, string>,
@@ -438,6 +445,10 @@ export const useRelayTokenManagement = () => {
   )
 
   const activeChannelIdSet = computed(() => new Set(channels.value.map((channel) => channel.id)))
+
+  const automaticProxyPoolChannelOptions = computed(() =>
+    channels.value.filter((channel) => channel.channelType === 'automatic-proxy-pool'),
+  )
 
   const selectedChannelConfigKeys = ref<string[]>([])
   const tokenChannelBatchAddIds = ref<string[]>([])
@@ -464,7 +475,6 @@ export const useRelayTokenManagement = () => {
     const selectedIds = new Set(
       editForm.value.channelConfigs.map((config) => config.channelId.trim()).filter(Boolean),
     )
-
     return channels.value.filter((channel) => !selectedIds.has(channel.id))
   })
 
@@ -874,6 +884,7 @@ export const useRelayTokenManagement = () => {
     currentPage.value = 1
     clearTokenSelection()
     invalidateAllTokensCache()
+    void loadChannels()
     void loadTokens({ forceAllReload: true })
   }
 
@@ -1307,7 +1318,9 @@ export const useRelayTokenManagement = () => {
     channelsLoading.value = true
     channelsLoadError.value = null
     try {
-      channels.value = await relayChannelService.listChannelOptions()
+      channels.value = await relayChannelService.listChannelOptions(
+        currentTargetUserIdForRequest.value,
+      )
     } catch (error) {
       channelsLoadError.value = error
       channels.value = []
@@ -1333,7 +1346,7 @@ export const useRelayTokenManagement = () => {
     return Array.isArray(quotaWindows) ? quotaWindows : []
   }
 
-  const openEditDialog = (row: RelayTokenDto) => {
+  const openEditDialog = async (row: RelayTokenDto) => {
     editMode.value = 'edit'
     currentEditId.value = row.id
     editDialogSectionNames.value = [...DEFAULT_EDIT_DIALOG_SECTIONS]
@@ -1351,6 +1364,7 @@ export const useRelayTokenManagement = () => {
         )
       : [createEmptyChannelConfig(0, row.channelId || '')]
 
+    const routingToken = row as RelayTokenWithRouting
     const quotaWindows = getRelayTokenQuotaWindows(row).map((quotaWindow) =>
       createEditableQuotaWindow(quotaWindow),
     )
@@ -1367,6 +1381,8 @@ export const useRelayTokenManagement = () => {
       allowedModels: row.allowedModels || '',
       ipWhitelist: splitIpWhitelistInput(row.ipWhitelist),
       allowedModelIdsList: modelIdsList,
+      routingMode: routingToken.routingMode || 'ordered',
+      automaticProxyPoolChannelId: routingToken.automaticProxyPoolChannelId || '',
       channelConfigs,
       failoverConfig: {
         enabled: row.failoverConfig?.enabled ?? false,
@@ -1642,7 +1658,17 @@ export const useRelayTokenManagement = () => {
   const handleSave = async () => {
     saving.value = true
     try {
-      const channelConfigs = buildChannelConfigsPayload()
+      const routingMode = editForm.value.routingMode
+      const channelConfigs = routingMode === 'ordered' ? buildChannelConfigsPayload() : undefined
+      const automaticProxyPoolChannelId = editForm.value.automaticProxyPoolChannelId.trim()
+      if (
+        routingMode === 'automatic-pool' &&
+        !automaticProxyPoolChannelOptions.value.some(
+          (channel) => channel.id === automaticProxyPoolChannelId,
+        )
+      ) {
+        throw new Error(i18ns.t('relay.automaticProxyPoolChannelRequired'))
+      }
       const quotaWindows = normalizeQuotaWindowsPayload()
       const allowedModelsStr = editForm.value.allowedModelIdsList.join(',')
       const normalizedName = editForm.value.name.trim()
@@ -1672,8 +1698,10 @@ export const useRelayTokenManagement = () => {
         const data = {
           name: normalizedName || undefined,
           token: editForm.value.token.trim() || undefined,
-          channelId: channelConfigs[0]?.channelId,
-          channelConfigs,
+          routingMode,
+          automaticProxyPoolChannelId:
+            routingMode === 'automatic-pool' ? automaticProxyPoolChannelId : undefined,
+          ...(channelConfigs ? { channelId: channelConfigs[0]?.channelId, channelConfigs } : {}),
           failoverConfig,
           expiresAt: normalizedExpiresAt ?? undefined,
           quotaLimit: editForm.value.quotaLimit ?? undefined,
@@ -1696,8 +1724,10 @@ export const useRelayTokenManagement = () => {
         const data = {
           name: normalizedName || null,
           token: editForm.value.token.trim() || undefined,
-          channelId: channelConfigs[0]?.channelId,
-          channelConfigs,
+          routingMode,
+          automaticProxyPoolChannelId:
+            routingMode === 'automatic-pool' ? automaticProxyPoolChannelId : null,
+          ...(channelConfigs ? { channelId: channelConfigs[0]?.channelId, channelConfigs } : {}),
           failoverConfig,
           expiresAt: normalizedExpiresAt ?? null,
           quotaLimit: editForm.value.quotaLimit == null ? null : editForm.value.quotaLimit,
@@ -2322,6 +2352,7 @@ export const useRelayTokenManagement = () => {
     desktopChannelListRef,
     mobileChannelListRef,
     editForm,
+    automaticProxyPoolChannelOptions,
     selectedChannelConfigKeys,
     tokenChannelBatchAddIds,
     showTokenChannelImportDialog,

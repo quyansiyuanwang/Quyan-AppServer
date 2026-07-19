@@ -42,6 +42,7 @@ import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, ConflictError, NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { Prisma, type RelayChannel } from "@prisma/client";
+import { formatRelayRequestFormats } from "@appserver/shared";
 import type { Request } from "express";
 import { ModelPricingService } from "./model-pricing.service";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
@@ -49,6 +50,7 @@ import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
 const POOLED_ALLOWED_MODE_VALUES = new Set(["all", "manual", "auto"] as const);
+const isPoolType = (type: RelayChannelType): boolean => type === "pooled" || type === "automatic-proxy-pool";
 
 interface ValidatedRelayChannelData {
   name: string;
@@ -104,10 +106,11 @@ export class RelayChannelService {
     return Promise.all(visibleChannels.map((channel) => this.toDto(channel, modelCatalog, includeDisabled)));
   }
 
-  async listChannelOptions(actorUserId: string): Promise<RelayChannelOptionDto[]> {
+  async listChannelOptions(actorUserId: string, targetUserId?: string): Promise<RelayChannelOptionDto[]> {
+    const effectiveUserId = await this.resolveOptionsUserId(actorUserId, targetUserId);
     const accessibleChannels = await this.filterAccessibleChannels(
       await this.relayChannelRepository.listActive(),
-      actorUserId,
+      effectiveUserId,
     );
     const channels = accessibleChannels.filter(
       (channel) => (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden",
@@ -141,8 +144,14 @@ export class RelayChannelService {
           id: channel.id,
           name: channel.name,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+          channelType:
+            (channel.channelType as RelayChannelOptionDto["channelType"] | undefined) ?? DEFAULT_CHANNEL_TYPE,
           multiplier: Number(channel.multiplier),
-          allowedFormats: channel.allowedFormats,
+          allowedFormats: isPoolType((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE)
+            ? formatRelayRequestFormats([
+                ...new Set([...modelCapabilities.values()].flatMap((item) => item.supportedRequestFormats)),
+              ])
+            : channel.allowedFormats,
           modelCapabilities: [...modelCapabilities.values()].sort(
             (left, right) =>
               left.catalogModelName.localeCompare(right.catalogModelName) ||
@@ -153,6 +162,19 @@ export class RelayChannelService {
     );
 
     return options.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private async resolveOptionsUserId(actorUserId: string, targetUserId?: string): Promise<string> {
+    const normalizedTargetUserId = String(targetUserId || "").trim();
+    if (!normalizedTargetUserId || normalizedTargetUserId === actorUserId) return actorUserId;
+
+    const canManageOthers = await this.permissionService.hasPermission(
+      actorUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
+    );
+    if (!canManageOthers) throw new NotFoundError("Relay channel options not found");
+
+    return normalizedTargetUserId;
   }
 
   async getChannel(id: string, actorUserId: string): Promise<RelayChannelDto> {
@@ -174,6 +196,8 @@ export class RelayChannelService {
     const channel = await this.assertChannelAccessibleById(id, actorUserId);
     if ((channel.visibilityMode as RelayChannelVisibilityMode | undefined) === "hidden")
       throw new BadRequestError("Hidden relay channels can only be used as pooled channel members");
+    if (channel.channelType === "automatic-proxy-pool")
+      throw new BadRequestError("Automatic proxy pools can only be selected through token automatic routing mode");
 
     return channel;
   }
@@ -421,7 +445,7 @@ export class RelayChannelService {
     if (rawAllowedModelsMode && !POOLED_ALLOWED_MODE_VALUES.has(rawAllowedModelsMode as "all" | "manual" | "auto"))
       throw new BadRequestError(`Invalid allowedModelsMode '${rawAllowedModelsMode}'`);
 
-    if (channelType !== "pooled") {
+    if (!isPoolType(channelType)) {
       delete normalized.allowedModelsMode;
       return normalized;
     }
@@ -478,7 +502,7 @@ export class RelayChannelService {
     members: RelayChannelMemberDto[] | null | undefined,
     tx?: Parameters<RelayChannelStore["replaceMembersByChannelId"]>[2],
   ): Promise<void> {
-    if (channelType !== "pooled") {
+    if (!isPoolType(channelType)) {
       await this.relayChannelRepository.deleteMembersByChannelId(channelId, tx);
       await this.assertNoPoolCycle(channelId, tx);
       return;
@@ -490,6 +514,14 @@ export class RelayChannelService {
     }
 
     await this.assertPoolMembersExist(members, tx);
+    if (channelType === "automatic-proxy-pool") {
+      const channels = await this.relayChannelRepository.listVisibleByIds(
+        members.map((member) => member.memberChannelId),
+        tx,
+      );
+      if (channels.some((channel) => channel.channelType !== "standalone"))
+        throw new BadRequestError("automatic proxy pool members must be standalone channels");
+    }
 
     await this.relayChannelRepository.replaceMembersByChannelId(
       channelId,
@@ -554,7 +586,7 @@ export class RelayChannelService {
     );
     this.assertNoSelfReference(existing?.id, poolMembers);
     const isCreate = !existing;
-    const wasPooled = existing?.channelType === "pooled";
+    const wasPooled = isPoolType((existing?.channelType as RelayChannelType | undefined) ?? "standalone");
     const normalizedRoutingConfig = this.normalizeRoutingConfig(routingConfig, channelType);
 
     const openaiUpstreamUrl =
@@ -571,8 +603,11 @@ export class RelayChannelService {
       data.geminiUpstreamUrl !== undefined ? data.geminiUpstreamUrl : existing?.geminiUpstreamUrl || undefined;
     const geminiUpstreamApiKey =
       data.geminiUpstreamApiKey !== undefined ? data.geminiUpstreamApiKey : existing?.geminiUpstreamApiKey || undefined;
-    const allowedFormatsInput =
-      data.allowedFormats !== undefined ? data.allowedFormats : existing?.allowedFormats || "all";
+    const allowedFormatsInput = isPoolType(channelType)
+      ? "all"
+      : data.allowedFormats !== undefined
+        ? data.allowedFormats
+        : existing?.allowedFormats || "all";
     const { normalized: allowedFormats, formats } = this.normalizeAllowedFormats(allowedFormatsInput);
     const allowedModels = data.allowedModels !== undefined ? data.allowedModels : existing?.allowedModels;
     const addUserIdentifier =
@@ -602,7 +637,7 @@ export class RelayChannelService {
         throw new BadRequestError("allowedModels must be a valid JSON array");
       }
 
-    if (channelType !== "pooled") {
+    if (!isPoolType(channelType)) {
       if (!openaiUpstreamUrl && !anthropicUpstreamUrl && !geminiUpstreamUrl)
         throw new BadRequestError("At least one upstream URL (OpenAI, Anthropic, or Gemini) must be configured");
 
@@ -635,7 +670,7 @@ export class RelayChannelService {
       }
     }
 
-    if (channelType === "pooled") {
+    if (isPoolType(channelType)) {
       const memberCount = poolMembers == null ? undefined : poolMembers.length;
       if (isCreate || !wasPooled) {
         if (!memberCount) throw new BadRequestError("pooled channel must contain at least one member");
@@ -1168,6 +1203,15 @@ export class RelayChannelService {
     };
 
     const resolvedModelCatalog = modelCatalog ?? (await this.modelPricingService.getModelPricing());
+    if (isPoolType(dto.channelType)) {
+      const context = await this.relayPoolResolver.preloadContext(resolvedModelCatalog, { includeDisabled });
+      const formats = new Set(
+        (await this.relayPoolResolver.resolveChannelCapabilities(channel.id, context)).flatMap(
+          (capability) => capability.supportedRequestFormats,
+        ),
+      );
+      dto.allowedFormats = formatRelayRequestFormats([...formats]);
+    }
     dto.allowedModels = includeDisabled
       ? await this.relayPoolResolver.resolveEffectiveAllowedModels(channel.id, resolvedModelCatalog, {
           includeDisabled: true,

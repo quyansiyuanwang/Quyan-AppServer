@@ -478,7 +478,8 @@ model RelayChannel {
   modelMapping                Json?
   timePeriodMultipliers       Json?    @default("[]")
 
-  relayTokens    RelayToken[]
+  relayTokens    RelayToken[]             @relation("RelayTokenPrimaryChannel")
+  automaticRouteTokens RelayToken[]       @relation("RelayTokenAutomaticProxyPool")
   tokenConfigs   RelayTokenChannelConfig[]
   poolMembers    RelayChannelMember[]     @relation("RelayChannelPool")
   memberOfPools  RelayChannelMember[]     @relation("RelayChannelPoolMember")
@@ -521,6 +522,8 @@ model RelayToken {
   upstreamUrl    String?   @db.Text
   upstreamApiKey String?   @db.Text
   channelId      String?
+  routingMode    String    @default("ordered") @db.VarChar(30)
+  automaticProxyPoolChannelId String?
   totalTokens    Int       @default(0)
   requestCount   Int       @default(0)
   usedQuota      Decimal   @default(0) @db.Decimal(10, 4)
@@ -533,7 +536,8 @@ model RelayToken {
   isCustomKey    Boolean   @default(false)
 
   user           User                      @relation(fields: [userId], references: [id])
-  channel        RelayChannel?             @relation(fields: [channelId], references: [id])
+  channel        RelayChannel?             @relation("RelayTokenPrimaryChannel", fields: [channelId], references: [id])
+  automaticProxyPoolChannel RelayChannel?  @relation("RelayTokenAutomaticProxyPool", fields: [automaticProxyPoolChannelId], references: [id])
   failoverConfig RelayTokenFailoverConfig?
   channelConfigs RelayTokenChannelConfig[]
   quotaWindows   RelayTokenQuotaWindow[]
@@ -544,6 +548,7 @@ model RelayToken {
   @@index([userId])
   @@index([token])
   @@index([channelId])
+  @@index([automaticProxyPoolChannelId])
   @@index([status, expiresAt])
   @@map("relay_tokens")
 }

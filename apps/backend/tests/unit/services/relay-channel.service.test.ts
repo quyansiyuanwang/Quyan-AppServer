@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RelayChannelService } from "../../../src/services/relay/relay-channel.service";
+import { RelayTokenRepository } from "../../../src/store/relay/relay-token.repository";
 import { RELAY_CHANNEL_STATUS } from "../../../src/constant/relay-channel";
 import { OperationType } from "../../../src/constant/operation-type";
 import { NotFoundError } from "../../../src/util/errors";
@@ -32,6 +33,7 @@ describe("RelayChannelService", () => {
   };
   const permissionService = {
     hasAnyPermission: vi.fn(),
+    hasPermission: vi.fn(),
   };
   const modelPricingService = {
     getModelPricing: vi.fn(),
@@ -40,6 +42,10 @@ describe("RelayChannelService", () => {
     resolveEffectiveAllowedModels: vi.fn(),
     preloadContext: vi.fn(),
     resolveChannelCapabilities: vi.fn(),
+  };
+  const relayTokenRepository = {
+    findManagedPoolsByOwnerUserId: vi.fn(),
+    findManagedPoolByRelayChannelId: vi.fn(),
   };
 
   const RelayChannelServiceCtor = RelayChannelService as unknown as new (...args: any[]) => RelayChannelService;
@@ -75,6 +81,7 @@ describe("RelayChannelService", () => {
   };
 
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     relayChannelRepository.listVisible.mockResolvedValue([sampleChannel]);
     relayChannelRepository.listVisibleByIds.mockImplementation(async (ids: string[]) =>
@@ -82,12 +89,16 @@ describe("RelayChannelService", () => {
     );
     relayChannelRepository.findVisibleByName.mockResolvedValue(null);
     permissionService.hasAnyPermission.mockResolvedValue(false);
+    permissionService.hasPermission.mockResolvedValue(false);
     userRepository.findByIdWithGroup.mockResolvedValue({ id: "actor-user", groupId: "group-1" });
     ramRoleRepository.listRoleBindingsForUser.mockResolvedValue([]);
     modelPricingService.getModelPricing.mockResolvedValue([]);
     relayPoolResolver.resolveEffectiveAllowedModels.mockResolvedValue([]);
     relayPoolResolver.preloadContext.mockResolvedValue({ graph: new Map(), modelCatalog: [] });
     relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([]);
+    relayTokenRepository.findManagedPoolsByOwnerUserId.mockResolvedValue([]);
+    relayTokenRepository.findManagedPoolByRelayChannelId.mockResolvedValue(null);
+    vi.spyOn(RelayTokenRepository, "getInstance").mockReturnValue(relayTokenRepository as any);
   });
 
   it("lists active channels", async () => {
@@ -98,6 +109,16 @@ describe("RelayChannelService", () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("channel-1");
     expect(result[0].enabled).toBe(true);
+  });
+
+  it.skip("legacy token-managed pools were removed", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue(sampleChannel);
+    relayTokenRepository.findManagedPoolByRelayChannelId.mockResolvedValue({ relayChannelId: "channel-1" });
+
+    await expect(service.updateChannel("channel-1", { name: "renamed" }, "actor-user")).rejects.toThrow(
+      "Managed relay pools",
+    );
+    expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
   });
 
   it("redacts upstream API keys from ordinary channel responses", async () => {
@@ -195,6 +216,7 @@ describe("RelayChannelService", () => {
         enabled: true,
         multiplier: 1,
         allowedFormats: "openai",
+        channelType: "standalone",
         modelCapabilities: [
           {
             catalogModelName: "Catalog Model",
@@ -212,6 +234,32 @@ describe("RelayChannelService", () => {
     expect(result[0].modelCapabilities[0]).not.toHaveProperty("modelMapping");
   });
 
+  it("projects automatic pool options with formats inferred from member capabilities", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      { ...sampleChannel, id: "automatic-pool", channelType: "automatic-proxy-pool", allowedFormats: "all" },
+    ]);
+    relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([
+      {
+        leafChannelId: "leaf-openai",
+        catalogModelName: "OpenAI Model",
+        requestModelId: "openai-model",
+        supportedRequestFormats: ["openai"],
+        modelMapping: {},
+      },
+      {
+        leafChannelId: "leaf-anthropic",
+        catalogModelName: "Anthropic Model",
+        requestModelId: "anthropic-model",
+        supportedRequestFormats: ["anthropic"],
+        modelMapping: {},
+      },
+    ]);
+
+    await expect(service.listChannelOptions("actor-user")).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "automatic-pool", allowedFormats: "openai,anthropic" })]),
+    );
+  });
+
   it("excludes hidden channels from business channel options even for channel managers", async () => {
     permissionService.hasAnyPermission.mockResolvedValue(true);
     relayChannelRepository.listActive.mockResolvedValue([
@@ -223,6 +271,24 @@ describe("RelayChannelService", () => {
     const result = await service.listChannelOptions("actor-user");
 
     expect(result.map((item) => item.id)).toEqual(["public-channel"]);
+  });
+
+  it.skip("legacy token-managed pools were removed", async () => {
+    permissionService.hasPermission.mockResolvedValue(true);
+    relayChannelRepository.listActive.mockResolvedValue([{ ...sampleChannel, id: "public-channel" }]);
+    relayTokenRepository.findManagedPoolsByOwnerUserId.mockResolvedValue([
+      {
+        relayChannelId: "managed-pool-channel",
+        relayChannel: { ...sampleChannel, id: "managed-pool-channel", name: "Managed pool" },
+      },
+    ]);
+
+    const result = await service.listChannelOptions("admin-user", "owner-user");
+
+    expect(relayTokenRepository.findManagedPoolsByOwnerUserId).toHaveBeenCalledWith("owner-user");
+    expect(result).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "managed-pool-channel", isManagedPool: true })]),
+    );
   });
 
   it("lists visible channels when includeDisabled is true", async () => {
@@ -474,7 +540,7 @@ describe("RelayChannelService", () => {
         name: "Pool",
         channelType: "pooled",
         routingStrategy: "round-robin",
-        allowedFormats: "openai",
+        allowedFormats: "all",
         routingConfig: {
           maxRetries: 2,
           allowedModelsMode: "auto",
@@ -502,7 +568,7 @@ describe("RelayChannelService", () => {
           allowedModelsMode: "auto",
           healthScoreThreshold: null,
         }),
-        allowedFormats: "openai",
+        allowedFormats: "all",
       }),
       transactionClient,
     );
@@ -540,6 +606,73 @@ describe("RelayChannelService", () => {
     ).rejects.toThrow("One or more pooled channel members were not found");
 
     expect(relayChannelRepository.replaceMembersByChannelId).not.toHaveBeenCalled();
+  });
+
+  it("rejects pooled or automatic-pool members in an automatic proxy pool", async () => {
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([
+      { ...sampleChannel, id: "ordinary-pool", channelType: "pooled" },
+    ]);
+    relayChannelRepository.create.mockResolvedValue({
+      ...sampleChannel,
+      id: "automatic-pool",
+      channelType: "automatic-proxy-pool",
+    });
+
+    await expect(
+      service.createChannel(
+        {
+          name: "Automatic pool",
+          channelType: "automatic-proxy-pool",
+          poolMembers: [{ memberChannelId: "ordinary-pool", priority: 0, weight: 1, enabled: true }],
+        },
+        "actor-user",
+      ),
+    ).rejects.toThrow("automatic proxy pool members must be standalone channels");
+    expect(relayChannelRepository.replaceMembersByChannelId).not.toHaveBeenCalled();
+  });
+
+  it("uses member-derived formats for automatic proxy pools", async () => {
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([
+      { ...sampleChannel, id: "member", channelType: "standalone" },
+    ]);
+    relayChannelRepository.create.mockResolvedValue({
+      ...sampleChannel,
+      id: "automatic-pool",
+      channelType: "automatic-proxy-pool",
+      allowedFormats: "all",
+    });
+
+    await service.createChannel(
+      {
+        name: "Automatic pool",
+        channelType: "automatic-proxy-pool",
+        allowedFormats: "openai",
+        poolMembers: [{ memberChannelId: "member", priority: 0, weight: 1, enabled: true }],
+      },
+      "actor-user",
+    );
+
+    expect(relayChannelRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ allowedFormats: "all" }),
+      transactionClient,
+    );
+  });
+
+  it("returns effective member formats instead of the pool's neutral all value", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      id: "automatic-pool",
+      channelType: "automatic-proxy-pool",
+      allowedFormats: "all",
+    });
+    relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([
+      { supportedRequestFormats: ["openai"] },
+      { supportedRequestFormats: ["anthropic", "openai"] },
+    ]);
+
+    await expect(service.getChannel("automatic-pool", "actor-user")).resolves.toMatchObject({
+      allowedFormats: "openai,anthropic",
+    });
   });
 
   it("remaps imported pooled members to newly created channel IDs", async () => {

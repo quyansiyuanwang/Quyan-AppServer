@@ -146,7 +146,7 @@ export class RelayChannelRepository implements RelayChannelStore {
   }
 
   async countDirectBusinessReferences(id: string): Promise<number> {
-    const [primaryTokenCount, tokenConfigCount, ojApiKeyCount, monthlyPassTemplates] = await Promise.all([
+    const [primaryTokenCount, channelConfigTokenCount, ojApiKeyCount, monthlyPassTemplates] = await Promise.all([
       prisma.relayToken.count({ where: { channelId: id } }),
       prisma.relayTokenChannelConfig.count({ where: { channelId: id } }),
       prisma.oJAPIKey.count({ where: { channelId: id, status: 1 } }),
@@ -165,7 +165,7 @@ export class RelayChannelRepository implements RelayChannelStore {
       }
     }).length;
 
-    return primaryTokenCount + tokenConfigCount + ojApiKeyCount + monthlyPassReferenceCount;
+    return primaryTokenCount + channelConfigTokenCount + ojApiKeyCount + monthlyPassReferenceCount;
   }
 
   async softDeleteAndUnassignTokens(id: string): Promise<void> {
@@ -174,6 +174,8 @@ export class RelayChannelRepository implements RelayChannelStore {
         where: { channelId: id },
         data: { channelId: null },
       });
+
+      await tx.relayTokenChannelConfig.deleteMany({ where: { channelId: id } });
 
       await tx.relayChannelMember.deleteMany({
         where: { relayChannelId: id },
@@ -199,9 +201,7 @@ export class RelayChannelRepository implements RelayChannelStore {
         data: { channelId: null },
       });
 
-      await tx.relayTokenChannelConfig.deleteMany({
-        where: { channelId: { in: ids } },
-      });
+      await tx.relayTokenChannelConfig.deleteMany({ where: { channelId: { in: ids } } });
 
       await tx.relayChannelMember.deleteMany({
         where: {

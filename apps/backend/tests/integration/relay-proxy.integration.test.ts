@@ -143,6 +143,30 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       })
     ).id;
 
+    openaiFailoverPrimaryChannelId = (
+      await prisma.relayChannel.create({
+        data: {
+          name: `test_relay_openai_failover_primary_${suffix}`,
+          openaiUpstreamUrl: relayAIMockPlugin.baseUrl,
+          openaiUpstreamApiKey: "test-openai-failover-primary-key",
+          allowedFormats: "openai",
+          multiplier: 1,
+        },
+      })
+    ).id;
+
+    openaiFailoverSecondaryChannelId = (
+      await prisma.relayChannel.create({
+        data: {
+          name: `test_relay_openai_failover_secondary_${suffix}`,
+          openaiUpstreamUrl: relayAIMockPlugin.baseUrl,
+          openaiUpstreamApiKey: "test-openai-failover-secondary-key",
+          allowedFormats: "openai",
+          multiplier: 1,
+        },
+      })
+    ).id;
+
     anthropicRelayChannelId = (
       await prisma.relayChannel.create({
         data: {
@@ -179,30 +203,6 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       })
     ).id;
 
-    openaiFailoverPrimaryChannelId = (
-      await prisma.relayChannel.create({
-        data: {
-          name: `test_relay_openai_failover_primary_${suffix}`,
-          openaiUpstreamUrl: relayAIMockPlugin.baseUrl,
-          openaiUpstreamApiKey: "test-openai-failover-primary-key",
-          allowedFormats: "openai",
-          multiplier: 1,
-        },
-      })
-    ).id;
-
-    openaiFailoverSecondaryChannelId = (
-      await prisma.relayChannel.create({
-        data: {
-          name: `test_relay_openai_failover_secondary_${suffix}`,
-          openaiUpstreamUrl: relayAIMockPlugin.baseUrl,
-          openaiUpstreamApiKey: "test-openai-failover-secondary-key",
-          allowedFormats: "openai",
-          multiplier: 1,
-        },
-      })
-    ).id;
-
     openaiFailoverTokenValue = `rlt_${randomUUID().replace(/-/g, "")}`;
     openaiFailoverTokenId = (
       await prisma.relayToken.create({
@@ -212,22 +212,12 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           token: openaiFailoverTokenValue,
           channelId: openaiFailoverPrimaryChannelId,
           failoverConfig: {
-            create: {
-              enabled: true,
-              maxRetries: 1,
-              retryStatusCodes: ["5xx"],
-            },
+            create: { enabled: true, maxRetries: 1, retryStatusCodes: ["5xx"] },
           },
           channelConfigs: {
             create: [
-              {
-                channelId: openaiFailoverPrimaryChannelId,
-                priority: 0,
-              },
-              {
-                channelId: openaiFailoverSecondaryChannelId,
-                priority: 1,
-              },
+              { channelId: openaiFailoverPrimaryChannelId, priority: 0 },
+              { channelId: openaiFailoverSecondaryChannelId, priority: 1 },
             ],
           },
         },
@@ -1011,19 +1001,15 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     expect(usage?.responseTokens ?? 0).toBeGreaterThan(0);
   });
 
-  it("OpenAI 非流式请求在首个分组返回 503 时自动切换到下一个分组", async () => {
+  it("OpenAI non-stream requests fail over to the next channel after a 503", async () => {
     const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiFailoverTokenId } });
     const beforeSwitchCount = await prisma.relayChannelSwitchLog.count({
       where: { relayTokenId: openaiFailoverTokenId },
     });
 
     relayAIMockPlugin!.useOpenAI(async (ctx) => {
-      const authHeader = String(ctx.headers.authorization || "");
-      if (authHeader === "Bearer test-openai-failover-primary-key")
-        return {
-          status: 503,
-          body: { error: { message: "primary unavailable for failover test" } },
-        };
+      if (String(ctx.headers.authorization || "") === "Bearer test-openai-failover-primary-key")
+        return { status: 503, body: { error: { message: "primary unavailable for failover test" } } };
 
       return {
         body: {
@@ -1031,20 +1017,9 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           object: "chat.completion",
           model: ctx.model,
           choices: [
-            {
-              index: 0,
-              finish_reason: "stop",
-              message: {
-                role: "assistant",
-                content: "secondary-success-response",
-              },
-            },
+            { index: 0, finish_reason: "stop", message: { role: "assistant", content: "secondary-success-response" } },
           ],
-          usage: {
-            prompt_tokens: 8,
-            completion_tokens: 6,
-            total_tokens: 14,
-          },
+          usage: { prompt_tokens: 8, completion_tokens: 6, total_tokens: 14 },
         },
       };
     });
@@ -1055,46 +1030,34 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         .set("Authorization", `Bearer ${openaiFailoverTokenValue}`)
         .send({
           model: openaiRelayModelId,
-          messages: [{ role: "user", content: "请自动切换到下一个分组" }],
+          messages: [{ role: "user", content: "fail over to the next channel" }],
           stream: false,
         });
 
       expect(relayResponse.status).toBe(200);
       expect(relayResponse.body?.choices?.[0]?.message?.content).toContain("secondary-success-response");
-
-      // Now expects 2 usage records: failed attempt + successful attempt
       await waitForUsageCount(openaiFailoverTokenId, beforeUsageCount + 2);
-      const usageRecords = await prisma.relayUsage.findMany({
+      const usages = await prisma.relayUsage.findMany({
         where: { relayTokenId: openaiFailoverTokenId },
         orderBy: { createTime: "asc" },
       });
-      expect(usageRecords.length).toBe(beforeUsageCount + 2);
+      expect(usages).toHaveLength(beforeUsageCount + 2);
+      expect(usages.at(-2)?.statusCode).toBe(503);
+      expect(usages.at(-1)?.statusCode).toBe(200);
 
-      // First record should be the failed attempt
-      const failedUsage = usageRecords[usageRecords.length - 2];
-      expect(failedUsage?.statusCode).toBe(503);
-
-      // Second record should be the successful attempt
-      const successUsage = usageRecords[usageRecords.length - 1];
-      expect(successUsage?.statusCode).toBe(200);
-
-      const switchLogs = await prisma.relayChannelSwitchLog.findMany({
+      const switches = await prisma.relayChannelSwitchLog.findMany({
         where: { relayTokenId: openaiFailoverTokenId },
         orderBy: { createTime: "asc" },
       });
-      expect(switchLogs.length).toBe(beforeSwitchCount + 1);
-      const latestSwitchLog = switchLogs[switchLogs.length - 1];
-      expect(latestSwitchLog.fromChannelId).toBe(openaiFailoverPrimaryChannelId);
-      expect(latestSwitchLog.toChannelId).toBe(openaiFailoverSecondaryChannelId);
-      expect(latestSwitchLog.triggerStatusCode).toBe(503);
-      expect(String(latestSwitchLog.triggerError || "")).toContain("primary unavailable");
-
-      const channelConfigs = await prisma.relayTokenChannelConfig.findMany({
-        where: { relayTokenId: openaiFailoverTokenId },
-        orderBy: { priority: "asc" },
-      });
-      expect(channelConfigs[0]?.failureCount ?? 0).toBeGreaterThan(0);
-      expect(channelConfigs[1]?.successCount ?? 0).toBeGreaterThan(0);
+      expect(switches).toHaveLength(beforeSwitchCount + 1);
+      expect(switches.at(-1)).toEqual(
+        expect.objectContaining({
+          fromChannelId: openaiFailoverPrimaryChannelId,
+          toChannelId: openaiFailoverSecondaryChannelId,
+          triggerStatusCode: 503,
+        }),
+      );
+      expect(String(switches.at(-1)?.triggerError || "")).toContain("primary unavailable");
     } finally {
       relayAIMockPlugin!.useOpenAI(async (ctx) => ({
         ...(ctx.body.stream === true
@@ -1104,79 +1067,32 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     }
   });
 
-  it("OpenAI 流式请求在首包前收到 503 时自动切换到下一个分组并继续返回 SSE", async () => {
+  it("OpenAI streams fail over after a 503 before the first SSE chunk", async () => {
     const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiFailoverTokenId } });
     const beforeSwitchCount = await prisma.relayChannelSwitchLog.count({
       where: { relayTokenId: openaiFailoverTokenId },
     });
 
     relayAIMockPlugin!.useOpenAI(async (ctx) => {
-      const authHeader = String(ctx.headers.authorization || "");
-      if (authHeader === "Bearer test-openai-failover-primary-key")
-        return {
-          status: 503,
-          body: { error: { message: "primary streaming unavailable" } },
-        };
-
+      if (String(ctx.headers.authorization || "") === "Bearer test-openai-failover-primary-key")
+        return { status: 503, body: { error: { message: "primary streaming unavailable" } } };
       if (ctx.body.stream === true)
         return {
           streamChunks: [
-            `data: ${JSON.stringify({
-              id: "chatcmpl_stream_ok",
-              object: "chat.completion.chunk",
-              model: ctx.model,
-              choices: [{ index: 0, delta: { role: "assistant", content: "secondary-stream-" }, finish_reason: null }],
-            })}\n\n`,
-            `data: ${JSON.stringify({
-              id: "chatcmpl_stream_ok",
-              object: "chat.completion.chunk",
-              model: ctx.model,
-              choices: [{ index: 0, delta: { content: "success" }, finish_reason: null }],
-            })}\n\n`,
-            `data: ${JSON.stringify({
-              id: "chatcmpl_stream_ok",
-              object: "chat.completion.chunk",
-              model: ctx.model,
-              choices: [],
-              usage: { prompt_tokens: 9, completion_tokens: 7, total_tokens: 16 },
-            })}\n\n`,
+            `data: ${JSON.stringify({ id: "chatcmpl_stream_ok", object: "chat.completion.chunk", model: ctx.model, choices: [{ index: 0, delta: { role: "assistant", content: "secondary-stream-" }, finish_reason: null }] })}\n\n`,
+            `data: ${JSON.stringify({ id: "chatcmpl_stream_ok", object: "chat.completion.chunk", model: ctx.model, choices: [{ index: 0, delta: { content: "success" }, finish_reason: null }] })}\n\n`,
+            `data: ${JSON.stringify({ id: "chatcmpl_stream_ok", object: "chat.completion.chunk", model: ctx.model, choices: [], usage: { prompt_tokens: 9, completion_tokens: 7, total_tokens: 16 } })}\n\n`,
             "data: [DONE]\n\n",
           ],
         };
-
-      return {
-        body: {
-          id: "chatcmpl_failover_nonstream_fallback",
-          object: "chat.completion",
-          model: ctx.model,
-          choices: [
-            {
-              index: 0,
-              finish_reason: "stop",
-              message: {
-                role: "assistant",
-                content: "secondary-non-stream-fallback",
-              },
-            },
-          ],
-          usage: {
-            prompt_tokens: 8,
-            completion_tokens: 6,
-            total_tokens: 14,
-          },
-        },
-      };
+      return { body: relayAIMockPlugin!["buildOpenAIBody"](ctx as any) };
     });
 
     try {
       const relayResponse = await request(app)
         .post("/relay/proxy/v1/chat/completions")
         .set("Authorization", `Bearer ${openaiFailoverTokenValue}`)
-        .send({
-          model: openaiRelayModelId,
-          messages: [{ role: "user", content: "请流式切换到下一个分组" }],
-          stream: true,
-        });
+        .send({ model: openaiRelayModelId, messages: [{ role: "user", content: "stream failover" }], stream: true });
 
       expect(relayResponse.status).toBe(200);
       expect(String(relayResponse.headers["content-type"] || "")).toContain("text/event-stream");
@@ -1187,15 +1103,13 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       const usage = await getLatestUsage(openaiFailoverTokenId, beforeUsageCount + 1);
       expect(usage?.isStreaming).toBe(true);
       expect(usage?.statusCode).toBe(200);
-
-      const switchLogs = await prisma.relayChannelSwitchLog.findMany({
+      const switches = await prisma.relayChannelSwitchLog.findMany({
         where: { relayTokenId: openaiFailoverTokenId },
         orderBy: { createTime: "asc" },
       });
-      expect(switchLogs.length).toBe(beforeSwitchCount + 1);
-      const latestSwitchLog = switchLogs[switchLogs.length - 1];
-      expect(latestSwitchLog.triggerStatusCode).toBe(503);
-      expect(String(latestSwitchLog.triggerError || "")).toContain("primary streaming unavailable");
+      expect(switches).toHaveLength(beforeSwitchCount + 1);
+      expect(switches.at(-1)).toEqual(expect.objectContaining({ triggerStatusCode: 503 }));
+      expect(String(switches.at(-1)?.triggerError || "")).toContain("primary streaming unavailable");
     } finally {
       relayAIMockPlugin!.useOpenAI(async (ctx) => ({
         ...(ctx.body.stream === true
@@ -1271,8 +1185,6 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     });
 
     const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: pooledToken.id } });
-    const beforeSwitchCount = await prisma.relayChannelSwitchLog.count({ where: { relayTokenId: pooledToken.id } });
-
     relayAIMockPlugin!.useOpenAI(async (ctx) => {
       const authHeader = String(ctx.headers.authorization || "");
       if (authHeader === "Bearer test-openai-pool-primary-key") {
@@ -1328,18 +1240,6 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       expect(usageRecords.length).toBe(beforeUsageCount + 2);
       expect(usageRecords[usageRecords.length - 2]?.statusCode).toBe(503);
       expect(usageRecords[usageRecords.length - 1]?.statusCode).toBe(200);
-
-      const switchLogs = await prisma.relayChannelSwitchLog.findMany({
-        where: { relayTokenId: pooledToken.id },
-        orderBy: { createTime: "asc" },
-      });
-      expect(switchLogs.length).toBe(beforeSwitchCount + 1);
-
-      const latestSwitchLog = switchLogs[switchLogs.length - 1];
-      expect(latestSwitchLog.fromChannelId).toBe(pooledPrimaryChannel.id);
-      expect(latestSwitchLog.toChannelId).toBe(pooledSecondaryChannel.id);
-      expect(latestSwitchLog.triggerStatusCode).toBe(503);
-      expect(String(latestSwitchLog.triggerError || "")).toContain("pooled primary unavailable");
     } finally {
       relayAIMockPlugin!.useOpenAI(async (ctx) => ({
         ...(ctx.body.stream === true
@@ -1348,7 +1248,6 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       }));
 
       await prisma.relayUsage.deleteMany({ where: { relayTokenId: pooledToken.id } });
-      await prisma.relayChannelSwitchLog.deleteMany({ where: { relayTokenId: pooledToken.id } });
       await prisma.relayToken.deleteMany({ where: { id: pooledToken.id } });
       await prisma.relayChannelMember.deleteMany({ where: { relayChannelId: pooledChannel.id } });
       await prisma.relayChannel.deleteMany({

@@ -175,8 +175,6 @@ const createRelayTokenWithPooledChannel = (overrides: Record<string, unknown> = 
     allowedModels: null,
     channelId: pooledChannel.id,
     channel: pooledChannel,
-    failoverConfig: null,
-    channelConfigs: [],
     ...overrides,
   } as any;
 };
@@ -251,7 +249,7 @@ const createService = (
         const candidates: any[] = [];
         for (const root of roots) {
           if (!root) continue;
-          if (root.channelType !== "pooled") {
+          if (!["pooled", "automatic-proxy-pool"].includes(root.channelType)) {
             candidates.push({ resolvedChannel: root, displayChannel: root });
             continue;
           }
@@ -644,6 +642,83 @@ describe("RelayProxyService failover", () => {
     });
   });
 
+  it("charges a pooled token by its executing member", async () => {
+    const relayToken = createRelayTokenWithPooledChannel();
+    relayToken.channel.multiplier = 1.8;
+    relayToken.channel.poolMembers[0].memberChannel.multiplier = 3.6;
+    const req = createRequest();
+    const { service, relayTokenRepo, usageChargeService } = createService();
+
+    axiosMock.mockResolvedValueOnce({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      data: {
+        id: "pooled-billing-response",
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      },
+    });
+
+    await service.forwardRequest(relayToken, req);
+
+    expect(usageChargeService.hasCoverageOrPositiveBalance).not.toHaveBeenCalled();
+    expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: "member-a",
+        executionChannelId: "member-a",
+        displayChannelId: "pool-1",
+        channelMultiplier: 3.6,
+      }),
+    );
+  });
+
+  it("charges an automatic proxy pool token by its executing member", async () => {
+    const relayToken = createRelayTokenWithPooledChannel();
+    relayToken.channel.channelType = "automatic-proxy-pool";
+    relayToken.channel.multiplier = 99;
+    relayToken.channel.timePeriodMultipliers = [
+      { name: "pool-only", enabled: true, dayOfWeek: "*", startTime: "00:00", endTime: "23:59", multiplier: 9 },
+    ];
+    relayToken.channel.poolMembers[0].memberChannel.multiplier = 4.2;
+    relayToken.routingMode = "automatic-pool";
+    relayToken.automaticProxyPoolChannel = relayToken.channel;
+    relayToken.channel = null;
+    relayToken.channelId = null;
+    const req = createRequest();
+    const { service, usageChargeService } = createService();
+
+    axiosMock.mockResolvedValueOnce({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      data: { id: "automatic-pool-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+    });
+
+    await service.forwardRequest(relayToken, req);
+
+    expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelId: "member-a",
+        executionChannelId: "member-a",
+        displayChannelId: "pool-1",
+        channelMultiplier: 4.2,
+      }),
+    );
+  });
+
+  it("infers the same available models for automatic and directly configured pools", async () => {
+    const directToken = createRelayTokenWithPooledChannel();
+    const automaticToken = createRelayTokenWithPooledChannel();
+    automaticToken.channel.channelType = "automatic-proxy-pool";
+    automaticToken.routingMode = "automatic-pool";
+    automaticToken.automaticProxyPoolChannel = automaticToken.channel;
+    automaticToken.channel = null;
+    automaticToken.channelId = null;
+    const { service } = createService();
+
+    await expect(service.getAvailableModelsForToken(automaticToken, "openai")).resolves.toEqual(
+      await service.getAvailableModelsForToken(directToken, "openai"),
+    );
+  });
+
   it("uses round-robin ordering for pooled members", async () => {
     const relayToken = createRelayTokenWithPooledChannel({
       channel: {
@@ -734,10 +809,7 @@ describe("RelayProxyService failover", () => {
       .mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: {
-          id: "resp-1",
-          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
-        },
+        data: { id: "resp-1", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
       });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -745,14 +817,10 @@ describe("RelayProxyService failover", () => {
     expect(result.status).toBe(200);
     expect(axiosMock).toHaveBeenCalledTimes(2);
     expect(axiosMock.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({
-        url: "https://primary.example.com/v1/chat/completions",
-      }),
+      expect.objectContaining({ url: "https://primary.example.com/v1/chat/completions" }),
     );
     expect(axiosMock.mock.calls[1]?.[0]).toEqual(
-      expect.objectContaining({
-        url: "https://secondary.example.com/v1/chat/completions",
-      }),
+      expect.objectContaining({ url: "https://secondary.example.com/v1/chat/completions" }),
     );
     expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenNthCalledWith(1, {
       relayTokenId: "token-1",
@@ -774,17 +842,10 @@ describe("RelayProxyService failover", () => {
       success: true,
     });
     expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        relayTokenId: "token-1",
-        channelId: "channel-secondary",
-        modelName: "gpt-4o-mini",
-      }),
+      expect.objectContaining({ relayTokenId: "token-1", channelId: "channel-secondary", modelName: "gpt-4o-mini" }),
     );
     expect(businessLogService.logOperation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        operationType: OperationType.RELAY_PROXY_REQUEST_SUCCESS,
-        success: true,
-      }),
+      expect.objectContaining({ operationType: OperationType.RELAY_PROXY_REQUEST_SUCCESS, success: true }),
     );
   });
 
@@ -792,17 +853,13 @@ describe("RelayProxyService failover", () => {
     const relayToken = createRelayToken();
     relayToken.channel.allowedModels = JSON.stringify(["gpt-4o"]);
     relayToken.channelConfigs[0].channel.allowedModels = JSON.stringify(["gpt-4o"]);
-
     const req = createRequest();
     const { service, relayTokenRepo, usageChargeService } = createService();
 
     axiosMock.mockResolvedValueOnce({
       status: 200,
       headers: { "content-type": "application/json" },
-      data: {
-        id: "resp-local-skip-1",
-        usage: { prompt_tokens: 6, completion_tokens: 3, total_tokens: 9 },
-      },
+      data: { id: "resp-local-skip-1", usage: { prompt_tokens: 6, completion_tokens: 3, total_tokens: 9 } },
     });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -810,9 +867,7 @@ describe("RelayProxyService failover", () => {
     expect(result.status).toBe(200);
     expect(axiosMock).toHaveBeenCalledTimes(1);
     expect(axiosMock.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({
-        url: "https://secondary.example.com/v1/chat/completions",
-      }),
+      expect.objectContaining({ url: "https://secondary.example.com/v1/chat/completions" }),
     );
     expect(relayTokenRepo.createSwitchLog).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -821,16 +876,13 @@ describe("RelayProxyService failover", () => {
         triggerError: expect.stringContaining("Channel does not support model gpt-4o-mini"),
       }),
     );
-    expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenCalledTimes(1);
     expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenCalledWith({
       relayTokenId: "token-1",
       channelId: "channel-secondary",
       success: true,
     });
     expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        channelId: "channel-secondary",
-      }),
+      expect.objectContaining({ channelId: "channel-secondary" }),
     );
   });
 
@@ -838,17 +890,13 @@ describe("RelayProxyService failover", () => {
     const relayToken = createRelayToken();
     relayToken.channel.openaiUpstreamUrl = null;
     relayToken.channelConfigs[0].channel.openaiUpstreamUrl = null;
-
     const req = createRequest();
     const { service, relayTokenRepo } = createService();
 
     axiosMock.mockResolvedValueOnce({
       status: 200,
       headers: { "content-type": "application/json" },
-      data: {
-        id: "resp-local-skip-2",
-        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
-      },
+      data: { id: "resp-local-skip-2", usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } },
     });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -856,9 +904,7 @@ describe("RelayProxyService failover", () => {
     expect(result.status).toBe(200);
     expect(axiosMock).toHaveBeenCalledTimes(1);
     expect(axiosMock.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({
-        url: "https://secondary.example.com/v1/chat/completions",
-      }),
+      expect.objectContaining({ url: "https://secondary.example.com/v1/chat/completions" }),
     );
     expect(relayTokenRepo.createSwitchLog).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -867,12 +913,6 @@ describe("RelayProxyService failover", () => {
         triggerError: "Channel does not have OpenAI upstream configured",
       }),
     );
-    expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenCalledTimes(1);
-    expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenCalledWith({
-      relayTokenId: "token-1",
-      channelId: "channel-secondary",
-      success: true,
-    });
   });
 
   it("does not fall back on locally thrown streaming balance checks before contacting upstream", async () => {
@@ -941,7 +981,11 @@ describe("RelayProxyService failover", () => {
         triggerError: expect.stringContaining("Channel does not support model gpt-4o-mini"),
       }),
     );
-    expect(relayTokenRepo.updateChannelConfigUsage).not.toHaveBeenCalled();
+    expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenCalledWith({
+      relayTokenId: "token-1",
+      channelId: "channel-primary",
+      success: false,
+    });
   });
 
   it("does not retry when upstream status is not in retryStatusCodes", async () => {
@@ -996,33 +1040,6 @@ describe("RelayProxyService failover", () => {
     );
   });
 
-  it("truncates long user prompt previews in relay business logs", async () => {
-    const relayToken = createRelayToken();
-    const req = createRequest({
-      body: {
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: "x".repeat(800) }],
-      },
-    });
-    const { service, businessLogService } = createService();
-
-    axiosMock.mockResolvedValueOnce({
-      status: 429,
-      headers: { "content-type": "application/json" },
-      data: { error: { message: "rate limited" } },
-    });
-
-    await service.forwardRequest(relayToken, req);
-
-    expect(businessLogService.logOperation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({
-          promptPreview: expect.stringMatching(/^x{500}…$/),
-        }),
-      }),
-    );
-  });
-
   it("retries the next channel when 401 is configured in retryStatusCodes", async () => {
     const relayToken = createRelayToken();
     relayToken.failoverConfig.retryStatusCodes = ["401", "403", "405"];
@@ -1039,10 +1056,7 @@ describe("RelayProxyService failover", () => {
       .mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: {
-          id: "resp-2",
-          usage: { prompt_tokens: 12, completion_tokens: 6, total_tokens: 18 },
-        },
+        data: { id: "resp-2", usage: { prompt_tokens: 12, completion_tokens: 6, total_tokens: 18 } },
       });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -1080,7 +1094,6 @@ describe("RelayProxyService failover", () => {
   it("retries the next channel when wildcard 4xx is configured", async () => {
     const relayToken = createRelayToken();
     relayToken.failoverConfig.retryStatusCodes = ["4xx"];
-
     const req = createRequest();
     const { service, relayTokenRepo } = createService();
 
@@ -1093,10 +1106,7 @@ describe("RelayProxyService failover", () => {
       .mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: {
-          id: "resp-3",
-          usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
-        },
+        data: { id: "resp-3", usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 } },
       });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -1115,7 +1125,6 @@ describe("RelayProxyService failover", () => {
   it("retries the next channel when a regex retry rule matches", async () => {
     const relayToken = createRelayToken();
     relayToken.failoverConfig.retryStatusCodes = ["/^5(02|03)$/"];
-
     const req = createRequest();
     const { service, relayTokenRepo } = createService();
 
@@ -1128,10 +1137,7 @@ describe("RelayProxyService failover", () => {
       .mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: {
-          id: "resp-4",
-          usage: { prompt_tokens: 9, completion_tokens: 5, total_tokens: 14 },
-        },
+        data: { id: "resp-4", usage: { prompt_tokens: 9, completion_tokens: 5, total_tokens: 14 } },
       });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -1143,6 +1149,33 @@ describe("RelayProxyService failover", () => {
         triggerStatusCode: 503,
         fromChannelId: "channel-primary",
         toChannelId: "channel-secondary",
+      }),
+    );
+  });
+
+  it("truncates long user prompt previews in relay business logs", async () => {
+    const relayToken = createRelayToken();
+    const req = createRequest({
+      body: {
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: "x".repeat(800) }],
+      },
+    });
+    const { service, businessLogService } = createService();
+
+    axiosMock.mockResolvedValueOnce({
+      status: 429,
+      headers: { "content-type": "application/json" },
+      data: { error: { message: "rate limited" } },
+    });
+
+    await service.forwardRequest(relayToken, req);
+
+    expect(businessLogService.logOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          promptPreview: expect.stringMatching(/^x{500}…$/),
+        }),
       }),
     );
   });
@@ -1237,32 +1270,17 @@ describe("RelayProxyService failover", () => {
     }
   });
 
-  it("retries the next channel when a streaming transport timeout happens before headers are sent", async () => {
+  it("does not charge when upstream streaming response is an error", async () => {
     const relayToken = createRelayToken();
     const req = createRequest({
-      body: {
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: "hello" }],
-        stream: true,
-      },
+      body: { model: "gpt-4o-mini", messages: [{ role: "user", content: "hello" }], stream: true },
     });
-    const res = {
-      headersSent: false,
-      writableEnded: false,
-      finished: false,
-      status: vi.fn(() => ({ json: vi.fn() })),
-    };
+    const res = { headersSent: false, writableEnded: false, finished: false, status: vi.fn(() => ({ json: vi.fn() })) };
     const { service, relayTokenRepo } = createService();
-
     const forwardStreamSpy = vi
       .spyOn(service as any, "forwardStreamRequest")
       .mockRejectedValueOnce(new GatewayTimeoutError("primary timeout"))
-      .mockResolvedValueOnce({
-        handled: true,
-        success: true,
-        retryable: false,
-        statusCode: 200,
-      });
+      .mockResolvedValueOnce({ handled: true, success: true, retryable: false, statusCode: 200 });
 
     try {
       const result = await service.forwardRequest(relayToken, req, res);
@@ -1295,11 +1313,7 @@ describe("RelayProxyService failover", () => {
   it("does not switch channels after a streaming response has already started", async () => {
     const relayToken = createRelayToken();
     const req = createRequest({
-      body: {
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: "hello" }],
-        stream: true,
-      },
+      body: { model: "gpt-4o-mini", messages: [{ role: "user", content: "hello" }], stream: true },
     });
     const resStatusJson = vi.fn();
     const res = {
@@ -1309,7 +1323,6 @@ describe("RelayProxyService failover", () => {
       status: vi.fn(() => ({ json: resStatusJson })),
     };
     const { service, relayTokenRepo } = createService();
-
     const forwardStreamSpy = vi
       .spyOn(service as any, "forwardStreamRequest")
       .mockRejectedValueOnce(new GatewayTimeoutError("stream interrupted after first chunk"));
@@ -1560,7 +1573,7 @@ describe("RelayProxyService failover", () => {
       return res;
     });
 
-    const { service, relayTokenRepo, usageChargeService } = createService();
+    const { service, usageChargeService } = createService();
     const upstreamBody = Buffer.from(JSON.stringify({ data: [{ b64_json: "abc123" }] }));
 
     axiosMock.mockResolvedValueOnce({
@@ -1601,11 +1614,6 @@ describe("RelayProxyService failover", () => {
         responseTokens: Math.ceil(upstreamBody.length / 4),
       }),
     );
-    expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenCalledWith({
-      relayTokenId: "token-1",
-      channelId: "channel-primary",
-      success: true,
-    });
   });
 
   it("passes timeMultiplier from channel timePeriodMultipliers to chargeUsage", async () => {

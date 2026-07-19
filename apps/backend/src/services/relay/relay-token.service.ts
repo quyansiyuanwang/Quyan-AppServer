@@ -54,6 +54,7 @@ import type {
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 import { BalanceRepository } from "@/store/billing/balance.repository";
 import type { BalanceStore } from "@/store/billing/balance.store";
+import { Prisma, type RelayChannel } from "@prisma/client";
 import {
   MONTHLY_PASS_DECIMAL_SCALE,
   MONTHLY_PASS_MAX_AMOUNT_QUOTA,
@@ -263,7 +264,11 @@ export class RelayTokenService {
       data.targetUserId,
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
-    const normalizedConfig = await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
+    const automaticPoolId = data.routingMode === "automatic-pool" ? data.automaticProxyPoolChannelId : undefined;
+    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId);
+    const normalizedConfig = automaticPoolId
+      ? { defaultChannelId: undefined, channelConfigs: [] }
+      : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
 
     let tokenValue: string;
     let isCustomKey = false;
@@ -287,6 +292,8 @@ export class RelayTokenService {
       isCustomKey,
       expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
       channelId: normalizedConfig.defaultChannelId,
+      routingMode: automaticPoolId ? "automatic-pool" : "ordered",
+      automaticProxyPoolChannelId: automaticPoolId,
       channelConfigs: normalizedConfig.channelConfigs,
       failoverConfig: data.failoverConfig,
       quotaLimit: data.quotaLimit ?? undefined,
@@ -537,10 +544,7 @@ export class RelayTokenService {
     if (!channelIds.includes(data.channelId)) {
       const nextConfigs = [
         { channelId: data.channelId, priority: 0 },
-        ...token.channelConfigs.map((config, index) => ({
-          channelId: config.channelId,
-          priority: index + 1,
-        })),
+        ...token.channelConfigs.map((config, index) => ({ channelId: config.channelId, priority: index + 1 })),
       ].filter((config, index, list) => list.findIndex((item) => item.channelId === config.channelId) === index);
       await this.assertChannelsExist(
         actorUserId,
@@ -594,14 +598,19 @@ export class RelayTokenService {
 
     const hasChannelId = Object.prototype.hasOwnProperty.call(data, "channelId");
     const hasChannelConfigs = Object.prototype.hasOwnProperty.call(data, "channelConfigs");
-    const hasRoutingUpdate = hasChannelId || hasChannelConfigs;
-    const normalizedConfig = hasRoutingUpdate
-      ? await this.normalizeChannelConfiguration(
-          actorUserId,
-          data.channelId ?? token.channelId ?? undefined,
-          data.channelConfigs,
-        )
-      : null;
+    const hasAutomaticMode = data.routingMode === "automatic-pool";
+    const automaticPoolId = hasAutomaticMode ? data.automaticProxyPoolChannelId : undefined;
+    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId);
+    const hasRoutingUpdate = hasAutomaticMode || hasChannelId || hasChannelConfigs;
+    const normalizedConfig = hasAutomaticMode
+      ? { defaultChannelId: null, channelConfigs: [] }
+      : hasRoutingUpdate
+        ? await this.normalizeChannelConfiguration(
+            actorUserId,
+            data.channelId ?? token.channelId ?? undefined,
+            data.channelConfigs,
+          )
+        : null;
     const hasName = Object.prototype.hasOwnProperty.call(data, "name");
     const hasExpiresAt = Object.prototype.hasOwnProperty.call(data, "expiresAt");
     const hasQuotaWindows = Object.prototype.hasOwnProperty.call(data, "quotaWindows");
@@ -636,6 +645,12 @@ export class RelayTokenService {
       modelMapping: hasModelMapping ? (data.modelMapping ?? null) : undefined,
       channelId: normalizedConfig?.defaultChannelId,
       channelConfigs: normalizedConfig?.channelConfigs,
+      routingMode: data.routingMode,
+      automaticProxyPoolChannelId: hasAutomaticMode
+        ? automaticPoolId
+        : data.routingMode === "ordered"
+          ? null
+          : undefined,
       failoverConfig: data.failoverConfig,
     });
     const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
@@ -654,6 +669,12 @@ export class RelayTokenService {
     });
 
     return updatedToken;
+  }
+
+  private async assertAutomaticProxyPool(channelId: string): Promise<void> {
+    const channel = (await this.relayChannelRepo.listActiveByIds([channelId]))[0];
+    if (!channel || channel.channelType !== "automatic-proxy-pool")
+      throw new BadRequestError("Automatic proxy pool not found or unavailable");
   }
 
   async duplicateToken(
@@ -1111,12 +1132,8 @@ export class RelayTokenService {
     targetUserId?: string,
   ): Promise<RelayTokenSwitchLogsDto> {
     await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
-
     const logs = await this.relayTokenRepo.listSwitchLogs(tokenId, limit);
-
-    return {
-      logs: logs.map((log) => this.toSwitchLogDto(log)),
-    };
+    return { logs: logs.map((log) => this.toSwitchLogDto(log)) };
   }
 
   async getTokenAvailableModels(
@@ -1165,6 +1182,8 @@ export class RelayTokenService {
       usedQuota: Number(token.usedQuota || 0),
       channelId: token.channelId || undefined,
       channelName: token.channel?.name || undefined,
+      routingMode: token.routingMode === "automatic-pool" ? "automatic-pool" : "ordered",
+      automaticProxyPoolChannelId: token.automaticProxyPoolChannelId || undefined,
       expiresAt: token.expiresAt,
       lastUsedAt: token.lastUsedAt,
       createTime: token.createTime,
@@ -1194,6 +1213,8 @@ export class RelayTokenService {
       name: token.name || undefined,
       token: token.token,
       expiresAt: token.expiresAt ? token.expiresAt.toISOString() : undefined,
+      routingMode: token.routingMode === "automatic-pool" ? "automatic-pool" : "ordered",
+      automaticProxyPoolChannelId: token.automaticProxyPoolChannelId || undefined,
       channelId: token.channelId || token.channelConfigs[0]?.channelId || undefined,
       channelConfigs: token.channelConfigs.map((config) => ({
         channelId: config.channelId,
@@ -1384,24 +1405,6 @@ export class RelayTokenService {
       .filter((token): token is RelayTokenUsageSummaryTarget => Boolean(token));
   }
 
-  private toSwitchLogDto(log: any): RelayChannelSwitchLogDto {
-    return {
-      id: log.id,
-      relayTokenId: log.relayTokenId,
-      fromDisplayChannelId: log.fromDisplayChannelId || undefined,
-      fromDisplayChannelName: log.fromDisplayChannelName || undefined,
-      toDisplayChannelId: log.toDisplayChannelId || undefined,
-      toDisplayChannelName: log.toDisplayChannelName || undefined,
-      triggerStatusCode: log.triggerStatusCode ?? undefined,
-      triggerError: log.triggerError ?? undefined,
-      attemptNumber: log.attemptNumber,
-      requestPath: log.requestPath,
-      method: log.method,
-      modelName: log.modelName ?? undefined,
-      createTime: log.createTime,
-    };
-  }
-
   private getQuotaWindowUsageKey(relayTokenId: string, quotaWindowHours: number): string {
     return `${relayTokenId}:${round4(quotaWindowHours)}`;
   }
@@ -1460,6 +1463,39 @@ export class RelayTokenService {
     return quotaWindowUsageMap;
   }
 
+  private buildCopyName(baseName: string, reservedNames: Set<string>): string {
+    for (let index = 1; index < 10000; index += 1) {
+      const suffix = index === 1 ? COPY_SUFFIX : `（副本${index}）`;
+      const trimmedBaseName = baseName.slice(0, Math.max(1, MAX_TOKEN_NAME_LENGTH - suffix.length)).trim();
+      const candidate = `${trimmedBaseName}${suffix}`;
+
+      if (!reservedNames.has(candidate)) {
+        reservedNames.add(candidate);
+        return candidate;
+      }
+    }
+
+    throw new BadRequestError("Unable to generate a unique relay token name");
+  }
+
+  private toSwitchLogDto(log: any): RelayChannelSwitchLogDto {
+    return {
+      id: log.id,
+      relayTokenId: log.relayTokenId,
+      fromDisplayChannelId: log.fromDisplayChannelId || undefined,
+      fromDisplayChannelName: log.fromDisplayChannelName || undefined,
+      toDisplayChannelId: log.toDisplayChannelId || undefined,
+      toDisplayChannelName: log.toDisplayChannelName || undefined,
+      triggerStatusCode: log.triggerStatusCode ?? undefined,
+      triggerError: log.triggerError ?? undefined,
+      attemptNumber: log.attemptNumber,
+      requestPath: log.requestPath,
+      method: log.method,
+      modelName: log.modelName ?? undefined,
+      createTime: log.createTime,
+    };
+  }
+
   private async normalizeChannelConfiguration(
     actorUserId: string,
     channelId?: string,
@@ -1475,31 +1511,11 @@ export class RelayTokenService {
           : [];
 
     if (normalizedConfigs.length === 0) throw new BadRequestError("At least one relay channel must be configured");
-
     await this.assertChannelsExist(
       actorUserId,
       normalizedConfigs.map((config) => config.channelId),
     );
-
-    return {
-      defaultChannelId: normalizedConfigs[0].channelId,
-      channelConfigs: normalizedConfigs,
-    };
-  }
-
-  private buildCopyName(baseName: string, reservedNames: Set<string>): string {
-    for (let index = 1; index < 10000; index += 1) {
-      const suffix = index === 1 ? COPY_SUFFIX : `（副本${index}）`;
-      const trimmedBaseName = baseName.slice(0, Math.max(1, MAX_TOKEN_NAME_LENGTH - suffix.length)).trim();
-      const candidate = `${trimmedBaseName}${suffix}`;
-
-      if (!reservedNames.has(candidate)) {
-        reservedNames.add(candidate);
-        return candidate;
-      }
-    }
-
-    throw new BadRequestError("Unable to generate a unique relay token name");
+    return { defaultChannelId: normalizedConfigs[0].channelId, channelConfigs: normalizedConfigs };
   }
 
   private buildDuplicatedTokenName(baseName?: string | null, reservedNames?: Set<string>): string | undefined {
@@ -1563,7 +1579,11 @@ export class RelayTokenService {
     reservedTokens: Set<string> = new Set<string>(),
     tx?: RelayTokenTransactionClient,
   ): Promise<RelayTokenWithRelations> {
-    const normalizedConfig = await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
+    const automaticPoolId = data.routingMode === "automatic-pool" ? data.automaticProxyPoolChannelId : undefined;
+    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId);
+    const normalizedConfig = automaticPoolId
+      ? { defaultChannelId: undefined, channelConfigs: [] }
+      : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
 
     const hasCustomToken = Boolean(data.token?.trim());
     if (hasCustomToken) {
@@ -1586,6 +1606,8 @@ export class RelayTokenService {
         isCustomKey,
         expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
         channelId: normalizedConfig.defaultChannelId,
+        routingMode: automaticPoolId ? "automatic-pool" : "ordered",
+        automaticProxyPoolChannelId: automaticPoolId,
         channelConfigs: normalizedConfig.channelConfigs,
         failoverConfig: data.failoverConfig,
         quotaLimit: data.quotaLimit ?? undefined,

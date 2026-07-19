@@ -13832,7 +13832,16 @@
 						"jwt": []
 					}
 				],
-				"parameters": []
+				"parameters": [
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/relay-channels/{id}": {
@@ -30373,6 +30382,16 @@
 			},
 			"CreateRelayTokenDto": {
 				"properties": {
+					"routingMode": {
+						"type": "string",
+						"enum": [
+							"ordered",
+							"automatic-pool"
+						]
+					},
+					"automaticProxyPoolChannelId": {
+						"type": "string"
+					},
 					"targetUserId": {
 						"type": "string",
 						"description": "目标用户 ID，不传则为当前用户"
@@ -30438,6 +30457,16 @@
 			},
 			"RelayTokenExportItemDto": {
 				"properties": {
+					"routingMode": {
+						"type": "string",
+						"enum": [
+							"ordered",
+							"automatic-pool"
+						]
+					},
+					"automaticProxyPoolChannelId": {
+						"type": "string"
+					},
 					"targetUserId": {
 						"type": "string",
 						"description": "目标用户 ID，不传则为当前用户"
@@ -30592,6 +30621,16 @@
 			},
 			"RelayTokenImportItemDto": {
 				"properties": {
+					"routingMode": {
+						"type": "string",
+						"enum": [
+							"ordered",
+							"automatic-pool"
+						]
+					},
+					"automaticProxyPoolChannelId": {
+						"type": "string"
+					},
 					"targetUserId": {
 						"type": "string",
 						"description": "目标用户 ID，不传则为当前用户"
@@ -30740,6 +30779,17 @@
 			},
 			"UpdateRelayTokenDto": {
 				"properties": {
+					"routingMode": {
+						"type": "string",
+						"enum": [
+							"ordered",
+							"automatic-pool"
+						]
+					},
+					"automaticProxyPoolChannelId": {
+						"type": "string",
+						"nullable": true
+					},
 					"targetUserId": {
 						"type": "string"
 					},
@@ -31767,7 +31817,8 @@
 				"type": "string",
 				"enum": [
 					"standalone",
-					"pooled"
+					"pooled",
+					"automatic-proxy-pool"
 				]
 			},
 			"RelayChannelRoutingStrategy": {
@@ -32089,6 +32140,9 @@
 					"enabled": {
 						"type": "boolean"
 					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType"
+					},
 					"multiplier": {
 						"type": "number",
 						"format": "double"
@@ -32107,6 +32161,7 @@
 					"id",
 					"name",
 					"enabled",
+					"channelType",
 					"multiplier",
 					"allowedFormats",
 					"modelCapabilities"
