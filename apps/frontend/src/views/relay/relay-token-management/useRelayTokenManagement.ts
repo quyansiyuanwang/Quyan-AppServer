@@ -1483,11 +1483,13 @@ export const useRelayTokenManagement = () => {
   }
 
   const addQuotaWindow = () => {
+    if (saving.value || !editForm.value.quotaWindowsEnabled) return
     if (editForm.value.quotaWindows.length >= MAX_QUOTA_WINDOWS) return
     editForm.value.quotaWindows.push(createEditableQuotaWindow())
   }
 
   const handleQuotaWindowsToggleChange = (value: string | number | boolean) => {
+    if (saving.value) return
     const enabled = Boolean(value)
     editForm.value.quotaWindowsEnabled = enabled
 
