@@ -130,6 +130,8 @@ export interface RelayTokenAvailabilityInput {
   allowedModels?: string | null;
   modelMapping?: Prisma.JsonValue | Record<string, string> | null;
   channel?: RelayChannel | null;
+  routingMode?: string | null;
+  automaticProxyPoolChannel?: RelayChannel | null;
   channelConfigs?: Array<{
     channel?: RelayChannel | null;
     priority?: number | null;
@@ -1390,23 +1392,22 @@ export class RelayProxyService {
     };
   }
 
+  private getChannelRoutingConfig(channel: RelayChannel): RelayChannelRoutingConfigDto | null {
+    const routingConfig = channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined;
+    return routingConfig ?? null;
+  }
+
   private getFailoverRuntimeConfig(relayToken: RelayTokenAvailabilityInput): RelayFailoverRuntimeConfig {
     const retryStatusCodes = normalizeRetryStatusRules(
       Array.isArray(relayToken.failoverConfig?.retryStatusCodes) ? relayToken.failoverConfig.retryStatusCodes : [],
     );
-
     return {
       enabled: Boolean(relayToken.failoverConfig?.enabled),
       maxRetries: Math.max(0, Number(relayToken.failoverConfig?.maxRetries ?? 0)),
       retryStatusCodes,
-      failoverThreshold: Math.max(0, Number(relayToken.failoverConfig?.failoverThreshold ?? 0)) + 1, // 重试次数 + 1 = 尝试次数
+      failoverThreshold: Math.max(0, Number(relayToken.failoverConfig?.failoverThreshold ?? 0)) + 1,
       failbackCooldownMinutes: Math.max(0, Number(relayToken.failoverConfig?.failbackCooldownMinutes ?? 0)),
     };
-  }
-
-  private getChannelRoutingConfig(channel: RelayChannel): RelayChannelRoutingConfigDto | null {
-    const routingConfig = channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined;
-    return routingConfig ?? null;
   }
 
   private getPoolRoundRobinKey(channel: RelayChannel): string {
@@ -1458,6 +1459,10 @@ export class RelayProxyService {
   }
 
   private getTopLevelAttemptChannels(relayToken: RelayTokenAvailabilityInput): RelayChannelWithPool[] {
+    if (relayToken.routingMode === "automatic-pool") {
+      const channel = relayToken.automaticProxyPoolChannel;
+      return channel?.status === RELAY_CHANNEL_STATUS.ENABLED ? [channel as RelayChannelWithPool] : [];
+    }
     const candidates = relayToken.channelConfigs?.length
       ? relayToken.channelConfigs.map((config) => config.channel).filter(Boolean)
       : relayToken.channel
@@ -1526,13 +1531,14 @@ export class RelayProxyService {
     const tokenFailoverConfig = this.getFailoverRuntimeConfig(relayToken);
     const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : null;
 
-    if (tokenFailoverConfig.enabled || !singleTopLevelChannel || singleTopLevelChannel.channelType !== "pooled")
+    if (
+      tokenFailoverConfig.enabled ||
+      !singleTopLevelChannel ||
+      !["pooled", "automatic-proxy-pool"].includes(singleTopLevelChannel.channelType)
+    )
       return { channels, failoverConfig: tokenFailoverConfig };
 
-    return {
-      channels,
-      failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
-    };
+    return { channels, failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length) };
   }
 
   private buildFailoverStickyChannelKey(
@@ -1720,23 +1726,6 @@ export class RelayProxyService {
     );
   }
 
-  private async recordChannelAttempt(relayTokenId: string, channelId: string, success: boolean): Promise<void> {
-    try {
-      await this.relayTokenRepo.updateChannelConfigUsage({
-        relayTokenId,
-        channelId,
-        success,
-      });
-    } catch (error) {
-      logger.warn("Failed to update relay channel usage stats", {
-        relayTokenId,
-        channelId,
-        success,
-        error,
-      });
-    }
-  }
-
   private async recordChannelSwitch(params: {
     relayTokenId: string;
     fromChannelId: string;
@@ -1758,10 +1747,7 @@ export class RelayProxyService {
     try {
       await this.relayTokenRepo.createSwitchLog(params);
     } catch (error) {
-      logger.warn("Failed to create relay channel switch log", {
-        ...params,
-        error,
-      });
+      logger.warn("Failed to create relay channel switch log", { ...params, error });
     }
 
     if (!params.requestFormat || !params.requestedModel) return;
@@ -1773,6 +1759,14 @@ export class RelayProxyService {
       requestedModel: params.requestedModel,
       failbackCooldownMinutes: Math.max(0, Number(params.failbackCooldownMinutes ?? 0)),
     });
+  }
+
+  private async recordChannelAttempt(relayTokenId: string, channelId: string, success: boolean): Promise<void> {
+    try {
+      await this.relayTokenRepo.updateChannelConfigUsage({ relayTokenId, channelId, success });
+    } catch (error) {
+      logger.warn("Failed to update relay channel usage stats", { relayTokenId, channelId, success, error });
+    }
   }
 
   /**
@@ -2403,6 +2397,7 @@ export class RelayProxyService {
           const isLastAttemptForThisChannel = channelAttempt === threshold;
           let relayOriginalRequestedModel: string | undefined;
           let timeMultiplier = 1;
+          let upstreamResponseSucceeded = false;
 
           try {
             // Resolve the model config for this specific channel
@@ -2601,6 +2596,7 @@ export class RelayProxyService {
                   continue;
                 }
                 // Threshold exhausted — record failure and switch to next channel
+                await this.recordChannelAttempt(relayToken.id, channel.id, false);
                 this.appendAttemptIssue(
                   attemptIssues,
                   displayChannel,
@@ -2608,7 +2604,6 @@ export class RelayProxyService {
                   streamResult.triggerError || `HTTP ${streamResult.statusCode || 502}`,
                   streamResult.statusCode,
                 );
-                await this.recordChannelAttempt(relayToken.id, channel.id, false);
                 await this.recordChannelSwitch({
                   relayTokenId: relayToken.id,
                   fromChannelId: channel.id,
@@ -2632,6 +2627,7 @@ export class RelayProxyService {
               }
 
               await this.recordChannelAttempt(relayToken.id, channel.id, streamResult.success);
+
               return { status: streamResult.statusCode || 200, headers: {}, data: {} };
             }
 
@@ -2704,6 +2700,7 @@ export class RelayProxyService {
               }
 
               await this.recordChannelAttempt(relayToken.id, channel.id, imageResult.success);
+
               return {
                 status: imageResult.statusCode || 200,
                 headers: imageResult.headers || {},
@@ -2755,13 +2752,13 @@ export class RelayProxyService {
 
               if (!isLastAttemptForThisChannel) {
                 // Threshold not yet exhausted — retry the same channel
-                // Note: We intentionally do NOT call recordChannelAttempt here for intermediate retries
-                // to avoid inflating failure counts. Only the final failure (when switching) is recorded.
                 lastError = new Error(this.extractUpstreamErrorMessage(response.data, response.status));
                 continue;
               }
 
               // Threshold exhausted — record failure and switch to next channel
+
+              await this.recordChannelAttempt(relayToken.id, channel.id, false);
 
               this.appendAttemptIssue(
                 attemptIssues,
@@ -2770,7 +2767,6 @@ export class RelayProxyService {
                 this.extractUpstreamErrorMessage(response.data, response.status),
                 response.status,
               );
-              await this.recordChannelAttempt(relayToken.id, channel.id, false);
               await this.recordChannelSwitch({
                 relayTokenId: relayToken.id,
                 fromChannelId: channel.id,
@@ -2818,6 +2814,7 @@ export class RelayProxyService {
             });
 
             if (isErrorResponse) {
+              await this.recordChannelAttempt(relayToken.id, channel.id, false);
               await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
                 userId: relayToken.userId,
                 relayTokenId: relayToken.id,
@@ -2849,8 +2846,6 @@ export class RelayProxyService {
                 fixedPrice: rateConfig?.fixedPrice,
               });
 
-              await this.recordChannelAttempt(relayToken.id, channel.id, false);
-
               const logLevel = response.status >= 500 ? "warn" : "info";
               logger[logLevel]("Upstream returned error response (not charged)", {
                 model: normalizedRequestedModel,
@@ -2880,6 +2875,8 @@ export class RelayProxyService {
                 data: buildNormalizedError(),
               };
             }
+
+            upstreamResponseSucceeded = true;
 
             const { requestTokens, responseTokens, totalTokens, cacheCreationTokens, cacheReadTokens } =
               this.calculateTokens(convertedBody, response.data, channel.inputTokensIncludeCacheRead !== false);
@@ -2948,7 +2945,7 @@ export class RelayProxyService {
 
             if (!finalizeResult.applied) throw new BadRequestError("Insufficient balance for this request");
 
-            await this.recordChannelAttempt(relayToken.id, channel.id, !isErrorResponse);
+            await this.recordChannelAttempt(relayToken.id, channel.id, true);
 
             await this.logRelayBusinessOperation({
               relayToken,
@@ -2996,6 +2993,7 @@ export class RelayProxyService {
               });
 
               this.appendAttemptIssue(attemptIssues, displayChannel, attemptIndex + 1, error.message);
+              if (!upstreamResponseSucceeded) await this.recordChannelAttempt(relayToken.id, channel.id, false);
               await this.recordChannelSwitch({
                 relayTokenId: relayToken.id,
                 fromChannelId: channel.id,
@@ -3030,18 +3028,17 @@ export class RelayProxyService {
             if (hasNextChannel && canRetryCurrentAttempt && this.shouldFailoverOnError(error)) {
               if (!isLastAttemptForThisChannel) {
                 // Threshold not yet exhausted — retry the same channel
-                // Note: Intermediate transport errors are not recorded in channel stats
                 lastError = error;
                 continue;
               }
-              // Threshold exhausted — record failure and switch to next channel
+              // Threshold exhausted — switch to next channel
               this.appendAttemptIssue(
                 attemptIssues,
                 displayChannel,
                 attemptIndex + 1,
                 error instanceof Error ? error.message : "Upstream request failed",
               );
-              await this.recordChannelAttempt(relayToken.id, channel.id, false);
+              if (!upstreamResponseSucceeded) await this.recordChannelAttempt(relayToken.id, channel.id, false);
               await this.recordChannelSwitch({
                 relayTokenId: relayToken.id,
                 fromChannelId: channel.id,
@@ -3070,6 +3067,7 @@ export class RelayProxyService {
                 attemptIndex + 1,
                 error instanceof Error ? error.message : "Upstream request failed",
               );
+              if (!upstreamResponseSucceeded) await this.recordChannelAttempt(relayToken.id, channel.id, false);
               throw this.buildAttemptExhaustedError(
                 normalizedRequestedModel,
                 failoverConfig.maxRetries,
@@ -3079,7 +3077,7 @@ export class RelayProxyService {
             }
 
             if (isStreamRequested && res && this.shouldFailoverOnError(error)) {
-              await this.recordChannelAttempt(relayToken.id, channel.id, false);
+              if (!upstreamResponseSucceeded) await this.recordChannelAttempt(relayToken.id, channel.id, false);
               this.sendStreamTransportError(res, error);
               return { status: error instanceof GatewayTimeoutError ? 504 : 502, headers: {}, data: {} };
             }

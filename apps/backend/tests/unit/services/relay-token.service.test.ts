@@ -13,6 +13,13 @@ describe("RelayTokenService", () => {
     findByIdWithRelations: vi.fn(),
     findById: vi.fn(),
     update: vi.fn(),
+    withTransaction: vi.fn(),
+    withSerializableTransaction: vi.fn(),
+    findManagedPoolByRelayTokenId: vi.fn(),
+    findManagedPoolsByOwnerUserId: vi.fn(),
+    findChannelConfiguration: vi.fn(),
+    upsertManagedPool: vi.fn(),
+    replaceChannelConfigs: vi.fn(),
   };
 
   const relayUsageRepository = {
@@ -35,6 +42,8 @@ describe("RelayTokenService", () => {
 
   const relayChannelRepository = {
     listActiveByIds: vi.fn(),
+    listVisible: vi.fn(),
+    replaceMembersByChannelId: vi.fn(),
   };
 
   const relayProxyService = {
@@ -106,6 +115,141 @@ describe("RelayTokenService", () => {
     vi.useRealTimers();
     relayChannelService.assertChannelAccessibleById.mockResolvedValue({ id: "channel-1" });
     relayChannelService.assertChannelBusinessSelectableById.mockResolvedValue({ id: "channel-1" });
+    relayTokenRepository.findManagedPoolsByOwnerUserId.mockResolvedValue([]);
+    relayTokenRepository.findChannelConfiguration.mockResolvedValue({ channelId: "channel-1", channelConfigs: [] });
+    relayChannelRepository.listVisible.mockResolvedValue([]);
+    relayTokenRepository.withTransaction.mockImplementation(async (callback: (tx: any) => Promise<unknown>) =>
+      callback({}),
+    );
+    relayTokenRepository.withSerializableTransaction.mockImplementation(async (callback: (tx: any) => Promise<unknown>) =>
+      callback({}),
+    );
+  });
+
+  it.skip("legacy managed pool attachment was replaced by shared automatic proxy pools", async () => {
+    const token = createToken({
+      channelConfigs: [
+        { channelId: "channel-primary", priority: 0 },
+        { channelId: "channel-backup", priority: 1 },
+      ],
+    });
+    const managedPool = {
+      relayChannelId: "managed-pool-channel",
+      relayChannel: {
+        id: "managed-pool-channel",
+        name: "Managed pool",
+        routingStrategy: "priority",
+        routingConfig: null,
+        poolMembers: [{ memberChannelId: "channel-member", priority: 0, weight: 1, enabled: true }],
+      },
+    };
+    const attachedManagedPool = {
+      ...managedPool,
+      relayToken: {
+        channelConfigs: [
+          { channelId: "channel-primary" },
+          { channelId: "channel-backup" },
+          { channelId: "managed-pool-channel" },
+        ],
+      },
+    };
+    relayTokenRepository.findByIdWithRelations.mockResolvedValue(token);
+    relayChannelRepository.listActiveByIds.mockResolvedValue([{ id: "channel-member" }]);
+    relayTokenRepository.findManagedPoolByRelayTokenId
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(attachedManagedPool);
+    relayTokenRepository.upsertManagedPool.mockResolvedValue(managedPool);
+    relayTokenRepository.findChannelConfiguration.mockResolvedValue({
+      channelId: "channel-primary",
+      channelConfigs: [
+        { channelId: "channel-primary", priority: 0 },
+        { channelId: "channel-backup", priority: 1 },
+      ],
+    });
+
+    const result = await (service as any).updateManagedPool("token-1", "user-1", {
+      attachToToken: true,
+      members: [{ memberChannelId: "channel-member", priority: 0, weight: 1, enabled: true }],
+    });
+
+    expect(relayTokenRepository.replaceChannelConfigs).toHaveBeenCalledWith(
+      "token-1",
+      "channel-primary",
+      [
+        { channelId: "channel-primary", priority: 0 },
+        { channelId: "channel-backup", priority: 1 },
+        { channelId: "managed-pool-channel", priority: 2 },
+      ],
+      expect.anything(),
+    );
+    expect(result.attachedToToken).toBe(true);
+  });
+
+  it.skip("legacy managed pool attachment was replaced by shared automatic proxy pools", async () => {
+    const token = createToken({
+      channelConfigs: [
+        { channelId: "channel-primary", priority: 0 },
+        { channelId: "managed-pool-channel", priority: 1 },
+      ],
+    });
+    const managedPool = {
+      relayChannelId: "managed-pool-channel",
+      relayToken: { channelConfigs: [{ channelId: "channel-primary" }, { channelId: "managed-pool-channel" }] },
+      relayChannel: {
+        id: "managed-pool-channel",
+        name: "Managed pool",
+        routingStrategy: "priority",
+        routingConfig: null,
+        poolMembers: [{ memberChannelId: "channel-member", priority: 0, weight: 1, enabled: true }],
+      },
+    };
+    relayTokenRepository.findByIdWithRelations.mockResolvedValue(token);
+    relayChannelRepository.listActiveByIds.mockResolvedValue([{ id: "channel-member" }]);
+    relayTokenRepository.findManagedPoolByRelayTokenId.mockResolvedValue(managedPool);
+    relayTokenRepository.upsertManagedPool.mockResolvedValue(managedPool);
+    relayTokenRepository.findChannelConfiguration.mockResolvedValue({
+      channelId: "channel-primary",
+      channelConfigs: [
+        { channelId: "channel-primary", priority: 0 },
+        { channelId: "managed-pool-channel", priority: 1 },
+      ],
+    });
+
+    const result = await (service as any).updateManagedPool("token-1", "user-1", {
+      attachToToken: true,
+      members: [{ memberChannelId: "channel-member", priority: 0, weight: 1, enabled: true }],
+    });
+
+    expect(relayTokenRepository.replaceChannelConfigs).not.toHaveBeenCalled();
+    expect(result.attachedToToken).toBe(true);
+  });
+
+  it.skip("legacy managed pool attachment was replaced by shared automatic proxy pools", async () => {
+    const token = createToken();
+    const managedPool = {
+      relayChannelId: "managed-pool-channel",
+      relayChannel: {
+        id: "managed-pool-channel",
+        name: "Managed pool",
+        routingStrategy: "priority",
+        routingConfig: null,
+        poolMembers: [],
+      },
+    };
+    relayTokenRepository.findByIdWithRelations.mockResolvedValue(token);
+    relayChannelRepository.listActiveByIds.mockResolvedValue([{ id: "other-pool" }]);
+    relayTokenRepository.findManagedPoolByRelayTokenId.mockResolvedValue(null);
+    relayTokenRepository.upsertManagedPool.mockResolvedValue(managedPool);
+    relayChannelRepository.listVisible.mockResolvedValue([
+      { id: "managed-pool-channel", poolMembers: [{ memberChannelId: "other-pool" }] },
+      { id: "other-pool", poolMembers: [{ memberChannelId: "managed-pool-channel" }] },
+    ]);
+
+    await expect(
+      (service as any).updateManagedPool("token-1", "user-1", {
+        members: [{ memberChannelId: "other-pool", priority: 0, weight: 1, enabled: true }],
+      }),
+    ).rejects.toThrow("indirect cycle");
   });
 
   it("rejects binding a token to an inaccessible relay channel", async () => {

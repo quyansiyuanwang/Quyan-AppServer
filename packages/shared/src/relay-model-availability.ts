@@ -66,6 +66,11 @@ export const parseRelayRequestFormats = (allowedFormats?: string | null): RelayR
     .filter((item): item is RelayRequestFormat => validFormats.has(item as RelayRequestFormat));
 };
 
+export const formatRelayRequestFormats = (formats: ReadonlyArray<RelayRequestFormat>): string => {
+  const selected = ALL_RELAY_REQUEST_FORMATS.filter((format) => formats.includes(format));
+  return selected.length === ALL_RELAY_REQUEST_FORMATS.length ? 'all' : selected.join(',');
+};
+
 export const supportsRelayRequestFormat = (
   allowedFormats: string | null | undefined,
   requestFormat: RelayRequestFormat,

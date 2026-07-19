@@ -113,6 +113,32 @@ describe("RelayPoolResolverService", () => {
     expect((resolvedLeaf.routingConfig as any).allowedModelsMode).toBe("manual");
   });
 
+  it("infers automatic proxy pool models from enabled member constraints", async () => {
+    const compatibleLeaf = createChannel("compatible", {
+      allowedFormats: "openai,anthropic",
+      allowedModels: JSON.stringify(["gpt-4o", "claude-3-5-sonnet"]),
+      routingConfig: { allowedModelsMode: "manual" },
+    });
+    const disabledLeaf = createChannel("disabled", { status: RELAY_CHANNEL_STATUS.DISABLED });
+    const automaticPool = createChannel("automatic-pool", {
+      channelType: "automatic-proxy-pool",
+      allowedFormats: "openai",
+      allowedModels: JSON.stringify(["gpt-4o"]),
+      routingConfig: { allowedModelsMode: "manual" },
+      poolMembers: [
+        { memberChannelId: compatibleLeaf.id, priority: 0, weight: 1, enabled: true },
+        { memberChannelId: disabledLeaf.id, priority: 1, weight: 1, enabled: true },
+      ],
+    });
+    const { resolver } = createResolver([automaticPool, compatibleLeaf]);
+    const catalog = [
+      { model: "gpt-4o", provider: "gpt-4o", supportedFormats: "openai" },
+      { model: "claude-3-5-sonnet", provider: "claude", supportedFormats: "anthropic" },
+    ];
+
+    await expect(resolver.resolveEffectiveAllowedModels(automaticPool.id, catalog)).resolves.toEqual(["gpt-4o"]);
+  });
+
   it("does not treat all and auto modes as manual restrictions", async () => {
     const leaf = createChannel("leaf", {
       allowedModels: JSON.stringify(["gpt-4o"]),

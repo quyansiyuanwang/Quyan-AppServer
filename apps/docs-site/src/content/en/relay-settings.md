@@ -12,7 +12,7 @@ If you need to answer questions like “who can see this channel?”, “which u
 - Adjust relay-wide defaults and traffic handling behavior.
 - Maintain monitor display names used in status views.
 - Configure model pricing and supported formats.
-- Create standalone channels or pooled channels.
+- Create standalone channels, pooled channels, or automatic proxy pools.
 - Set visibility, routing, upstream credentials, and pricing multipliers per channel.
 
 ## Global settings
@@ -47,10 +47,11 @@ If you need to answer questions like “who can see this channel?”, “which u
 
 ## Channel configuration overview
 
-Each channel is a logical route that tokens or system workflows can use. Channels come in two forms:
+Each channel is a logical route that tokens or system workflows can use. Channels come in three forms:
 
 - `Standalone channel`: connects directly to a real upstream and stores its URL and key.
 - `Pooled channel`: combines multiple existing channels into one logical channel that users see as a single option.
+- `Automatic proxy pool`: a special shared logical channel whose members are centrally maintained for token automatic-routing mode.
 
 ### Channel name
 
@@ -72,6 +73,13 @@ Each channel is a logical route that tokens or system workflows can use. Channel
   - users and tokens typically see only the pooled logical channel
   - member channels carry the actual traffic
   - the pool itself does not store direct upstream credentials
+
+#### Automatic proxy pool
+
+- Best for: centrally managed or automated member updates without requiring every token to be reconfigured.
+- Members: only standalone channels may be members; nested pools are not allowed.
+- Billing: the resolved member supplies the model pricing and channel/time multipliers; the token owner pays the resulting charge.
+- Visibility: token users select the automatic proxy pool, not its underlying members.
 
 ## Pool members and routing strategy
 

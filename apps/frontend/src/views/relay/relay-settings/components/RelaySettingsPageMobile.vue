@@ -870,7 +870,12 @@
                       <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
                         row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
                       }}</el-tag>
-                      <el-tag size="small" type="primary">{{ row.multiplier }}x</el-tag>
+                      <el-tag
+                        v-if="!['pooled', 'automatic-proxy-pool'].includes(row.channelType)"
+                        size="small"
+                        type="primary"
+                        >{{ row.multiplier }}x</el-tag
+                      >
                     </div>
                   </div>
                   <div class="mt-3 flex flex-col gap-1.5">

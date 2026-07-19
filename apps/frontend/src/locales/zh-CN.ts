@@ -2148,6 +2148,7 @@ const zhCN: DeepStringify<typeof en> = {
     channelType: '渠道类型',
     channelTypeStandalone: '独立渠道',
     channelTypePooled: '混池渠道',
+    channelTypeAutomaticProxyPool: '自动代理池',
     channelTypeHelp:
       '独立渠道直接连接上游；混池渠道会把多个已有渠道组合成一个对用户可见的逻辑渠道。',
     poolMembers: '混池成员',
@@ -2254,6 +2255,12 @@ const zhCN: DeepStringify<typeof en> = {
     tokenChannelExportSuccess: '渠道编排导出成功',
     tokenChannelSelectChannelsPlaceholder: '选择要批量加入的渠道',
     duplicateChannels: '同一个渠道不能重复添加',
+    routingMode: '路由模式',
+    routingModeOrdered: '有序渠道',
+    routingModeAutomaticPool: '自动代理池',
+    automaticProxyPoolChannel: '自动代理池渠道',
+    automaticProxyPoolChannelPlaceholder: '请选择自动代理池渠道',
+    automaticProxyPoolChannelRequired: '请选择自动代理池渠道',
     unavailableChannelsWarningTitle: '当前令牌包含不可用渠道',
     unavailableChannelsWarningDesc:
       '检测到以下渠道不存在或已下架：{channels}。请在保存前移除或替换这些渠道。',

@@ -7,7 +7,7 @@ export interface TimePeriodMultiplierRule {
   multiplier: number;
 }
 
-export type RelayChannelType = "standalone" | "pooled";
+export type RelayChannelType = "standalone" | "pooled" | "automatic-proxy-pool";
 
 export type RelayChannelRoutingStrategy =
   | "priority"
@@ -86,6 +86,7 @@ export interface RelayChannelOptionDto {
   id: string;
   name: string;
   enabled: boolean;
+  channelType: RelayChannelType;
   multiplier: number;
   allowedFormats: string;
   modelCapabilities: RelayChannelModelCapabilityDto[];

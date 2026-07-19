@@ -234,7 +234,8 @@ export class RelayPoolResolverService {
     if (ancestors.has(channel.id)) throw new BadRequestError(`Relay channel pool cycle detected at '${channel.name}'`);
 
     const constraints = this.mergeConstraints(inherited, channel);
-    if ((channel.channelType || "standalone") !== "pooled") return [{ channel, constraints }];
+    if (!["pooled", "automatic-proxy-pool"].includes(channel.channelType || "standalone"))
+      return [{ channel, constraints }];
 
     const nextAncestors = new Set(ancestors).add(channel.id);
     const enabledMembers = channel.poolMembers.filter(

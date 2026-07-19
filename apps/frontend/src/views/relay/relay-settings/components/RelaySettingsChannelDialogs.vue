@@ -20,13 +20,14 @@
             i18ns.t('relay.channelTypeStandalone')
           }}</el-radio-button>
           <el-radio-button value="pooled">{{ i18ns.t('relay.channelTypePooled') }}</el-radio-button>
+          <el-radio-button value="automatic-proxy-pool">{{ i18ns.t('relay.channelTypeAutomaticProxyPool') }}</el-radio-button>
         </el-radio-group>
         <div class="ml-3 text-[#909399] text-xs">
           {{ i18ns.t('relay.channelTypeHelp') }}
         </div>
       </el-form-item>
 
-      <template v-if="channelForm.channelType === 'pooled'">
+      <template v-if="['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">
         <el-form-item :label="i18ns.t('relay.poolMembers')" required>
           <div class="flex flex-col gap-3 w-full">
             <div class="flex flex-wrap gap-2">
@@ -274,7 +275,7 @@
       <el-divider content-position="left">{{
         i18ns.t('relay.formatAndModelRestrictions')
       }}</el-divider>
-      <el-form-item :label="i18ns.t('relay.allowedFormats')" required>
+      <el-form-item v-if="channelForm.channelType === 'standalone'" :label="i18ns.t('relay.allowedFormats')" required>
         <el-select
           v-model="channelForm.allowedFormats"
           :placeholder="i18ns.t('select')"
@@ -293,7 +294,7 @@
         </div>
       </el-form-item>
       <el-form-item :label="i18ns.t('relay.allowedModelsChannel')">
-        <template v-if="channelForm.channelType === 'pooled'">
+        <template v-if="['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">
           <el-radio-group v-model="channelForm.pooledAllowedModelsMode" style="margin-bottom: 12px">
             <el-radio-button label="all">{{
               i18ns.t('relay.allowedModelsModeAll')
@@ -434,14 +435,20 @@
         :title="i18ns.t('relay.pooledNoDirectUpstreamHelp')"
       />
 
-      <el-divider content-position="left">{{ i18ns.t('relay.channelSettings') }}</el-divider>
-      <el-form-item :label="i18ns.t('relay.channelMultiplier')">
+      <el-divider content-position="left" v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">{{ i18ns.t('relay.channelSettings') }}</el-divider>
+      <el-form-item
+        v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)"
+        :label="i18ns.t('relay.channelMultiplier')"
+      >
         <el-input-number v-model="channelForm.multiplier" :step="0.000001" :precision="6" />
         <span class="ml-3 text-[#909399] text-xs">{{
           i18ns.t('relay.channelMultiplierHelp')
         }}</span>
       </el-form-item>
-      <el-form-item v-if="isDesktop" :label="i18ns.t('relay.inputTokensIncludeCacheRead')">
+      <el-form-item
+        v-if="isDesktop && !['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)"
+        :label="i18ns.t('relay.inputTokensIncludeCacheRead')"
+      >
         <el-switch v-model="channelForm.inputTokensIncludeCacheRead" />
         <span class="ml-3 text-[#909399] text-xs">{{
           i18ns.t('relay.inputTokensIncludeCacheReadHelp')
@@ -459,77 +466,79 @@
         </div>
       </el-form-item>
 
-      <el-divider content-position="left">{{ i18ns.t('relay.timeRules') }}</el-divider>
-      <el-form-item label="">
-        <div class="flex flex-col gap-2 w-full">
-          <el-button size="small" @click="openAddTimeRule">{{
-            i18ns.t('relay.timeRuleAdd')
-          }}</el-button>
-          <template v-if="isDesktop">
-            <el-table :data="channelForm.timePeriodMultipliers" size="small" max-height="300">
-              <el-table-column prop="name" :label="i18ns.t('relay.timeRuleName')" min-width="100" />
-              <el-table-column :label="i18ns.t('relay.timeRuleDays')" min-width="120">
-                <template #default="{ row }">
-                  {{ formatTimeRuleDays(row.dayOfWeek) }}
-                </template>
-              </el-table-column>
-              <el-table-column :label="i18ns.t('relay.timeRuleTimeRange')" min-width="120">
-                <template #default="{ row }">{{ row.startTime }} - {{ row.endTime }}</template>
-              </el-table-column>
-              <el-table-column :label="i18ns.t('relay.timeRuleMultiplier')" width="80">
-                <template #default="{ row }">
-                  <el-tag :type="row.multiplier >= 1 ? 'warning' : 'success'" size="small"
-                    >{{ row.multiplier }}x</el-tag
+      <template v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">
+        <el-divider content-position="left">{{ i18ns.t('relay.timeRules') }}</el-divider>
+        <el-form-item label="">
+          <div class="flex flex-col gap-2 w-full">
+            <el-button size="small" @click="openAddTimeRule">{{
+              i18ns.t('relay.timeRuleAdd')
+            }}</el-button>
+            <template v-if="isDesktop">
+              <el-table :data="channelForm.timePeriodMultipliers" size="small" max-height="300">
+                <el-table-column prop="name" :label="i18ns.t('relay.timeRuleName')" min-width="100" />
+                <el-table-column :label="i18ns.t('relay.timeRuleDays')" min-width="120">
+                  <template #default="{ row }">
+                    {{ formatTimeRuleDays(row.dayOfWeek) }}
+                  </template>
+                </el-table-column>
+                <el-table-column :label="i18ns.t('relay.timeRuleTimeRange')" min-width="120">
+                  <template #default="{ row }">{{ row.startTime }} - {{ row.endTime }}</template>
+                </el-table-column>
+                <el-table-column :label="i18ns.t('relay.timeRuleMultiplier')" width="80">
+                  <template #default="{ row }">
+                    <el-tag :type="row.multiplier >= 1 ? 'warning' : 'success'" size="small"
+                      >{{ row.multiplier }}x</el-tag
+                    >
+                  </template>
+                </el-table-column>
+                <el-table-column :label="i18ns.t('relay.timeRuleEnabled')" width="70">
+                  <template #default="{ row }">
+                    <el-switch v-model="row.enabled" size="small" />
+                  </template>
+                </el-table-column>
+                <el-table-column :label="i18ns.t('actions')" width="140" fixed="right">
+                  <template #default="{ $index }">
+                    <el-button size="small" @click="openEditTimeRule($index)">{{
+                      i18ns.t('edit')
+                    }}</el-button>
+                    <el-button size="small" type="danger" @click="removeTimeRule($index)">{{
+                      i18ns.t('delete')
+                    }}</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </template>
+            <template v-else>
+              <div
+                v-for="(rule, idx) in channelForm.timePeriodMultipliers"
+                :key="idx"
+                class="mobile-card time-rule-card"
+              >
+                <div class="flex justify-between items-center">
+                  <span class="font-medium">{{ rule.name }}</span>
+                  <el-switch v-model="rule.enabled" size="small" />
+                </div>
+                <div class="text-sm text-[#909399] mt-1">
+                  {{ formatTimeRuleDays(rule.dayOfWeek) }} · {{ rule.startTime }} - {{ rule.endTime }}
+                </div>
+                <div class="flex justify-between items-center mt-1">
+                  <el-tag :type="rule.multiplier >= 1 ? 'warning' : 'success'" size="small"
+                    >{{ rule.multiplier }}x</el-tag
                   >
-                </template>
-              </el-table-column>
-              <el-table-column :label="i18ns.t('relay.timeRuleEnabled')" width="70">
-                <template #default="{ row }">
-                  <el-switch v-model="row.enabled" size="small" />
-                </template>
-              </el-table-column>
-              <el-table-column :label="i18ns.t('actions')" width="140" fixed="right">
-                <template #default="{ $index }">
-                  <el-button size="small" @click="openEditTimeRule($index)">{{
-                    i18ns.t('edit')
-                  }}</el-button>
-                  <el-button size="small" type="danger" @click="removeTimeRule($index)">{{
-                    i18ns.t('delete')
-                  }}</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </template>
-          <template v-else>
-            <div
-              v-for="(rule, idx) in channelForm.timePeriodMultipliers"
-              :key="idx"
-              class="mobile-card time-rule-card"
-            >
-              <div class="flex justify-between items-center">
-                <span class="font-medium">{{ rule.name }}</span>
-                <el-switch v-model="rule.enabled" size="small" />
-              </div>
-              <div class="text-sm text-[#909399] mt-1">
-                {{ formatTimeRuleDays(rule.dayOfWeek) }} · {{ rule.startTime }} - {{ rule.endTime }}
-              </div>
-              <div class="flex justify-between items-center mt-1">
-                <el-tag :type="rule.multiplier >= 1 ? 'warning' : 'success'" size="small"
-                  >{{ rule.multiplier }}x</el-tag
-                >
-                <div class="flex gap-1">
-                  <el-button size="small" @click="openEditTimeRule(idx)">{{
-                    i18ns.t('edit')
-                  }}</el-button>
-                  <el-button size="small" type="danger" @click="removeTimeRule(idx)">{{
-                    i18ns.t('delete')
-                  }}</el-button>
+                  <div class="flex gap-1">
+                    <el-button size="small" @click="openEditTimeRule(idx)">{{
+                      i18ns.t('edit')
+                    }}</el-button>
+                    <el-button size="small" type="danger" @click="removeTimeRule(idx)">{{
+                      i18ns.t('delete')
+                    }}</el-button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </template>
-        </div>
-      </el-form-item>
+            </template>
+          </div>
+        </el-form-item>
+      </template>
     </el-form>
     <template #footer>
       <el-button @click="showChannelDialog = false">{{ i18ns.t('cancel') }}</el-button>
@@ -595,13 +604,19 @@
           </div>
           <div>{{ getVisibilitySummary(currentChannelDetail) }}</div>
         </div>
-        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+        <div
+          v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)"
+          class="rounded border border-[var(--el-border-color-lighter)] p-3"
+        >
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
             {{ i18ns.t('relay.channelMultiplier') }}
           </div>
           <div>{{ currentChannelDetail.multiplier }}x</div>
         </div>
-        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+        <div
+          v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)"
+          class="rounded border border-[var(--el-border-color-lighter)] p-3"
+        >
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
             {{ i18ns.t('relay.inputTokensIncludeCacheRead') }}
           </div>
@@ -625,7 +640,7 @@
 
       <div>
         <el-divider content-position="left">{{ i18ns.t('relay.channelComposition') }}</el-divider>
-        <div v-if="currentChannelDetail.channelType === 'pooled'" class="flex flex-col gap-3">
+        <div v-if="['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)" class="flex flex-col gap-3">
           <div>
             <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">
               {{ i18ns.t('relay.routingStrategy') }}
@@ -817,7 +832,7 @@
               <el-tag v-else type="danger" size="small">{{ i18ns.t('relay.noModels') }}</el-tag>
             </div>
             <div
-              v-if="currentChannelDetail.channelType === 'pooled'"
+              v-if="['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)"
               class="mt-2 text-xs text-[var(--el-text-color-secondary)]"
             >
               {{ formatAllowedModelsModeLabel(getChannelAllowedModelsMode(currentChannelDetail)) }}
@@ -828,7 +843,7 @@
 
       <div>
         <el-divider content-position="left">{{ i18ns.t('relay.upstreamConfig') }}</el-divider>
-        <div v-if="currentChannelDetail.channelType !== 'pooled'" class="grid grid-cols-1 gap-3">
+        <div v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)" class="grid grid-cols-1 gap-3">
           <div
             v-if="computeShowUpstream(currentChannelDetail.allowedFormats, 'openai')"
             class="rounded border border-[var(--el-border-color-lighter)] p-3"
@@ -919,7 +934,7 @@
         <el-empty v-else :description="i18ns.t('relay.modelMappingEmpty')" />
       </div>
 
-      <div>
+      <div v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)">
         <el-divider content-position="left">{{ i18ns.t('relay.timeRules') }}</el-divider>
         <div
           v-if="(currentChannelDetail.timePeriodMultipliers || []).length"

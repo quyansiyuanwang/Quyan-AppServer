@@ -2214,6 +2214,7 @@ export default {
     channelType: 'Channel Type',
     channelTypeStandalone: 'Standalone',
     channelTypePooled: 'Pooled',
+    channelTypeAutomaticProxyPool: 'Automatic Proxy Pool',
     channelTypeHelp:
       'Standalone channels connect directly to upstreams. Pooled channels combine multiple existing channels into one logical channel visible to users.',
     poolMembers: 'Pool Members',
@@ -2328,6 +2329,12 @@ export default {
     tokenChannelExportSuccess: 'Channel config exported successfully',
     tokenChannelSelectChannelsPlaceholder: 'Select channels to add',
     duplicateChannels: 'The same channel cannot be added twice',
+    routingMode: 'Routing Mode',
+    routingModeOrdered: 'Ordered Channels',
+    routingModeAutomaticPool: 'Automatic Proxy Pool',
+    automaticProxyPoolChannel: 'Automatic Proxy Pool Channel',
+    automaticProxyPoolChannelPlaceholder: 'Select an automatic proxy pool channel',
+    automaticProxyPoolChannelRequired: 'Select an automatic proxy pool channel',
     unavailableChannelsWarningTitle: 'This token contains unavailable channels',
     unavailableChannelsWarningDesc:
       'The following channels no longer exist or have been disabled: {channels}. Remove or replace them before saving.',

@@ -617,7 +617,16 @@
               </el-table-column>
               <el-table-column :label="i18ns.t('relay.channelType')" width="120">
                 <template #default="{ row }">
-                  <el-tag :type="row.channelType === 'pooled' ? 'warning' : 'info'" size="small">
+                  <el-tag
+                    :type="
+                      row.channelType === 'pooled'
+                        ? 'warning'
+                        : row.channelType === 'automatic-proxy-pool'
+                          ? 'success'
+                          : 'info'
+                    "
+                    size="small"
+                  >
                     {{ formatChannelTypeLabel(row.channelType) }}
                   </el-tag>
                 </template>
@@ -691,7 +700,11 @@
                 </template>
               </el-table-column>
               <el-table-column :label="i18ns.t('relay.channelMultiplier')" width="100">
-                <template #default="{ row }">{{ row.multiplier }}x</template>
+                <template #default="{ row }">
+                  <template v-if="!['pooled', 'automatic-proxy-pool'].includes(row.channelType)">
+                    {{ row.multiplier }}x
+                  </template>
+                </template>
               </el-table-column>
               <el-table-column :label="i18ns.t('actions')" width="430" fixed="right">
                 <template #default="{ row }">
