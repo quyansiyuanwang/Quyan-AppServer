@@ -1134,8 +1134,11 @@ export const useRelaySettingsManagement = () => {
   }
 
   const formatChannelTypeLabel = (channelType: RelayChannelType | string | undefined) => {
-    if (channelType === 'automatic-proxy-pool') return i18ns.t('relay.channelTypeAutomaticProxyPool')
-    return channelType === 'pooled' ? i18ns.t('relay.channelTypePooled') : i18ns.t('relay.channelTypeStandalone')
+    if (channelType === 'automatic-proxy-pool')
+      return i18ns.t('relay.channelTypeAutomaticProxyPool')
+    return channelType === 'pooled'
+      ? i18ns.t('relay.channelTypePooled')
+      : i18ns.t('relay.channelTypeStandalone')
   }
 
   const formatRoutingStrategyLabel = (
@@ -1677,7 +1680,9 @@ export const useRelaySettingsManagement = () => {
       return
     }
 
-    const isPooledChannel = ['pooled', 'automatic-proxy-pool'].includes(channelForm.value.channelType)
+    const isPooledChannel = ['pooled', 'automatic-proxy-pool'].includes(
+      channelForm.value.channelType,
+    )
 
     if (
       channelForm.value.visibilityMode === 'whitelist' &&

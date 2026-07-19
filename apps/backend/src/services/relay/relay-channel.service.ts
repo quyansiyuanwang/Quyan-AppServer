@@ -144,12 +144,13 @@ export class RelayChannelService {
           id: channel.id,
           name: channel.name,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-          channelType: (channel.channelType as RelayChannelOptionDto["channelType"] | undefined) ?? DEFAULT_CHANNEL_TYPE,
+          channelType:
+            (channel.channelType as RelayChannelOptionDto["channelType"] | undefined) ?? DEFAULT_CHANNEL_TYPE,
           multiplier: Number(channel.multiplier),
-          allowedFormats: isPoolType(
-            (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
-          )
-            ? formatRelayRequestFormats([...new Set([...modelCapabilities.values()].flatMap((item) => item.supportedRequestFormats))])
+          allowedFormats: isPoolType((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE)
+            ? formatRelayRequestFormats([
+                ...new Set([...modelCapabilities.values()].flatMap((item) => item.supportedRequestFormats)),
+              ])
             : channel.allowedFormats,
           modelCapabilities: [...modelCapabilities.values()].sort(
             (left, right) =>

@@ -845,6 +845,12 @@ export function useLoginOrRegister() {
         loginRes.message || i18ns.t('loginOrRegisterPage.captchaFailedFallback'),
         'error',
       )
+    } else {
+      Notification.notify(
+        i18ns.t('error'),
+        loginRes.message || i18ns.t('message.error.loginFailed'),
+        'error',
+      )
     }
   }
 

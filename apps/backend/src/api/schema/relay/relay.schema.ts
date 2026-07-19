@@ -121,16 +121,28 @@ export const createRelayTokenBodySchema = z
     modelMapping: z.record(z.string(), z.string()).optional(),
   })
   .superRefine((value, ctx) => {
-    if (value.routingMode !== "automatic-pool" && !value.channelId && (!value.channelConfigs || value.channelConfigs.length === 0))
+    if (
+      value.routingMode !== "automatic-pool" &&
+      !value.channelId &&
+      (!value.channelConfigs || value.channelConfigs.length === 0)
+    )
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "channelId or channelConfigs is required",
         path: ["channelConfigs"],
       });
     if (value.routingMode === "automatic-pool" && !value.automaticProxyPoolChannelId)
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "automaticProxyPoolChannelId is required", path: ["automaticProxyPoolChannelId"] });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "automaticProxyPoolChannelId is required",
+        path: ["automaticProxyPoolChannelId"],
+      });
     if (value.routingMode === "automatic-pool" && (value.channelId || value.channelConfigs?.length))
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "automatic pool mode cannot include ordered channels", path: ["channelConfigs"] });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "automatic pool mode cannot include ordered channels",
+        path: ["channelConfigs"],
+      });
 
     if (value.channelConfigs) {
       const channelIdSet = new Set<string>();

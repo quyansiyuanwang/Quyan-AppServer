@@ -605,12 +605,12 @@ export class RelayTokenService {
     const normalizedConfig = hasAutomaticMode
       ? { defaultChannelId: null, channelConfigs: [] }
       : hasRoutingUpdate
-      ? await this.normalizeChannelConfiguration(
-          actorUserId,
-          data.channelId ?? token.channelId ?? undefined,
-          data.channelConfigs,
-        )
-      : null;
+        ? await this.normalizeChannelConfiguration(
+            actorUserId,
+            data.channelId ?? token.channelId ?? undefined,
+            data.channelConfigs,
+          )
+        : null;
     const hasName = Object.prototype.hasOwnProperty.call(data, "name");
     const hasExpiresAt = Object.prototype.hasOwnProperty.call(data, "expiresAt");
     const hasQuotaWindows = Object.prototype.hasOwnProperty.call(data, "quotaWindows");
@@ -646,7 +646,11 @@ export class RelayTokenService {
       channelId: normalizedConfig?.defaultChannelId,
       channelConfigs: normalizedConfig?.channelConfigs,
       routingMode: data.routingMode,
-      automaticProxyPoolChannelId: hasAutomaticMode ? automaticPoolId : data.routingMode === "ordered" ? null : undefined,
+      automaticProxyPoolChannelId: hasAutomaticMode
+        ? automaticPoolId
+        : data.routingMode === "ordered"
+          ? null
+          : undefined,
       failoverConfig: data.failoverConfig,
     });
     const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
@@ -1686,7 +1690,9 @@ export class RelayTokenService {
     }
 
     await Promise.all(
-      uniqueChannelIds.map((channelId) => this.relayChannelService.assertChannelBusinessSelectableById(channelId, actorUserId)),
+      uniqueChannelIds.map((channelId) =>
+        this.relayChannelService.assertChannelBusinessSelectableById(channelId, actorUserId),
+      ),
     );
   }
 

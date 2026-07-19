@@ -359,7 +359,15 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async update(id: string, data: RelayTokenUpdateInput): Promise<RelayToken> {
-    const { failoverConfig, channelConfigs, quotaWindows, channelId, modelMapping, automaticProxyPoolChannelId, ...tokenData } = data;
+    const {
+      failoverConfig,
+      channelConfigs,
+      quotaWindows,
+      channelId,
+      modelMapping,
+      automaticProxyPoolChannelId,
+      ...tokenData
+    } = data;
 
     return prisma.$transaction(async (tx) => {
       const updatedToken = await tx.relayToken.update({

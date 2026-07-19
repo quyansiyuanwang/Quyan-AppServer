@@ -121,8 +121,8 @@ describe("RelayTokenService", () => {
     relayTokenRepository.withTransaction.mockImplementation(async (callback: (tx: any) => Promise<unknown>) =>
       callback({}),
     );
-    relayTokenRepository.withSerializableTransaction.mockImplementation(async (callback: (tx: any) => Promise<unknown>) =>
-      callback({}),
+    relayTokenRepository.withSerializableTransaction.mockImplementation(
+      async (callback: (tx: any) => Promise<unknown>) => callback({}),
     );
   });
 

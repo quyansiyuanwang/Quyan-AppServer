@@ -20,7 +20,9 @@
             i18ns.t('relay.channelTypeStandalone')
           }}</el-radio-button>
           <el-radio-button value="pooled">{{ i18ns.t('relay.channelTypePooled') }}</el-radio-button>
-          <el-radio-button value="automatic-proxy-pool">{{ i18ns.t('relay.channelTypeAutomaticProxyPool') }}</el-radio-button>
+          <el-radio-button value="automatic-proxy-pool">{{
+            i18ns.t('relay.channelTypeAutomaticProxyPool')
+          }}</el-radio-button>
         </el-radio-group>
         <div class="ml-3 text-[#909399] text-xs">
           {{ i18ns.t('relay.channelTypeHelp') }}
@@ -275,7 +277,11 @@
       <el-divider content-position="left">{{
         i18ns.t('relay.formatAndModelRestrictions')
       }}</el-divider>
-      <el-form-item v-if="channelForm.channelType === 'standalone'" :label="i18ns.t('relay.allowedFormats')" required>
+      <el-form-item
+        v-if="channelForm.channelType === 'standalone'"
+        :label="i18ns.t('relay.allowedFormats')"
+        required
+      >
         <el-select
           v-model="channelForm.allowedFormats"
           :placeholder="i18ns.t('select')"
@@ -435,7 +441,11 @@
         :title="i18ns.t('relay.pooledNoDirectUpstreamHelp')"
       />
 
-      <el-divider content-position="left" v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">{{ i18ns.t('relay.channelSettings') }}</el-divider>
+      <el-divider
+        content-position="left"
+        v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)"
+        >{{ i18ns.t('relay.channelSettings') }}</el-divider
+      >
       <el-form-item
         v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)"
         :label="i18ns.t('relay.channelMultiplier')"
@@ -475,7 +485,11 @@
             }}</el-button>
             <template v-if="isDesktop">
               <el-table :data="channelForm.timePeriodMultipliers" size="small" max-height="300">
-                <el-table-column prop="name" :label="i18ns.t('relay.timeRuleName')" min-width="100" />
+                <el-table-column
+                  prop="name"
+                  :label="i18ns.t('relay.timeRuleName')"
+                  min-width="100"
+                />
                 <el-table-column :label="i18ns.t('relay.timeRuleDays')" min-width="120">
                   <template #default="{ row }">
                     {{ formatTimeRuleDays(row.dayOfWeek) }}
@@ -519,7 +533,8 @@
                   <el-switch v-model="rule.enabled" size="small" />
                 </div>
                 <div class="text-sm text-[#909399] mt-1">
-                  {{ formatTimeRuleDays(rule.dayOfWeek) }} · {{ rule.startTime }} - {{ rule.endTime }}
+                  {{ formatTimeRuleDays(rule.dayOfWeek) }} · {{ rule.startTime }} -
+                  {{ rule.endTime }}
                 </div>
                 <div class="flex justify-between items-center mt-1">
                   <el-tag :type="rule.multiplier >= 1 ? 'warning' : 'success'" size="small"
@@ -640,7 +655,10 @@
 
       <div>
         <el-divider content-position="left">{{ i18ns.t('relay.channelComposition') }}</el-divider>
-        <div v-if="['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)" class="flex flex-col gap-3">
+        <div
+          v-if="['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)"
+          class="flex flex-col gap-3"
+        >
           <div>
             <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">
               {{ i18ns.t('relay.routingStrategy') }}
@@ -843,7 +861,10 @@
 
       <div>
         <el-divider content-position="left">{{ i18ns.t('relay.upstreamConfig') }}</el-divider>
-        <div v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)" class="grid grid-cols-1 gap-3">
+        <div
+          v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)"
+          class="grid grid-cols-1 gap-3"
+        >
           <div
             v-if="computeShowUpstream(currentChannelDetail.allowedFormats, 'openai')"
             class="rounded border border-[var(--el-border-color-lighter)] p-3"

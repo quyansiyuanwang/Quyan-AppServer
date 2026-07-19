@@ -99,7 +99,9 @@
                 <template #label>{{ i18ns.t('relay.routingMode') }}</template>
                 <el-radio-group v-model="editForm.routingMode">
                   <el-radio value="ordered">{{ i18ns.t('relay.routingModeOrdered') }}</el-radio>
-                  <el-radio value="automatic-pool">{{ i18ns.t('relay.routingModeAutomaticPool') }}</el-radio>
+                  <el-radio value="automatic-pool">{{
+                    i18ns.t('relay.routingModeAutomaticPool')
+                  }}</el-radio>
                 </el-radio-group>
               </el-form-item>
 

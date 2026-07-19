@@ -1318,7 +1318,9 @@ export const useRelayTokenManagement = () => {
     channelsLoading.value = true
     channelsLoadError.value = null
     try {
-      channels.value = await relayChannelService.listChannelOptions(currentTargetUserIdForRequest.value)
+      channels.value = await relayChannelService.listChannelOptions(
+        currentTargetUserIdForRequest.value,
+      )
     } catch (error) {
       channelsLoadError.value = error
       channels.value = []
@@ -1657,8 +1659,7 @@ export const useRelayTokenManagement = () => {
     saving.value = true
     try {
       const routingMode = editForm.value.routingMode
-      const channelConfigs =
-        routingMode === 'ordered' ? buildChannelConfigsPayload() : undefined
+      const channelConfigs = routingMode === 'ordered' ? buildChannelConfigsPayload() : undefined
       const automaticProxyPoolChannelId = editForm.value.automaticProxyPoolChannelId.trim()
       if (
         routingMode === 'automatic-pool' &&
@@ -1700,9 +1701,7 @@ export const useRelayTokenManagement = () => {
           routingMode,
           automaticProxyPoolChannelId:
             routingMode === 'automatic-pool' ? automaticProxyPoolChannelId : undefined,
-          ...(channelConfigs
-            ? { channelId: channelConfigs[0]?.channelId, channelConfigs }
-            : {}),
+          ...(channelConfigs ? { channelId: channelConfigs[0]?.channelId, channelConfigs } : {}),
           failoverConfig,
           expiresAt: normalizedExpiresAt ?? undefined,
           quotaLimit: editForm.value.quotaLimit ?? undefined,
@@ -1728,9 +1727,7 @@ export const useRelayTokenManagement = () => {
           routingMode,
           automaticProxyPoolChannelId:
             routingMode === 'automatic-pool' ? automaticProxyPoolChannelId : null,
-          ...(channelConfigs
-            ? { channelId: channelConfigs[0]?.channelId, channelConfigs }
-            : {}),
+          ...(channelConfigs ? { channelId: channelConfigs[0]?.channelId, channelConfigs } : {}),
           failoverConfig,
           expiresAt: normalizedExpiresAt ?? null,
           quotaLimit: editForm.value.quotaLimit == null ? null : editForm.value.quotaLimit,

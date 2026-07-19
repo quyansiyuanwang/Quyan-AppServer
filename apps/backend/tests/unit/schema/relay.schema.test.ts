@@ -44,11 +44,13 @@ describe("relay token import schema", () => {
     expect(() => createRelayTokenBodySchema.parse({ routingMode: "automatic-pool" })).toThrow(
       "automaticProxyPoolChannelId is required",
     );
-    expect(() => createRelayTokenBodySchema.parse({
-      routingMode: "automatic-pool",
-      automaticProxyPoolChannelId: "automatic-pool-1",
-      channelId: "ordered-channel",
-    })).toThrow("automatic pool mode cannot include ordered channels");
+    expect(() =>
+      createRelayTokenBodySchema.parse({
+        routingMode: "automatic-pool",
+        automaticProxyPoolChannelId: "automatic-pool-1",
+        channelId: "ordered-channel",
+      }),
+    ).toThrow("automatic pool mode cannot include ordered channels");
   });
 
   it("rejects updates that switch to automatic routing without a pool", () => {

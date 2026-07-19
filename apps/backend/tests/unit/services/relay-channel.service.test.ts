@@ -256,9 +256,7 @@ describe("RelayChannelService", () => {
     ]);
 
     await expect(service.listChannelOptions("actor-user")).resolves.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: "automatic-pool", allowedFormats: "openai,anthropic" }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ id: "automatic-pool", allowedFormats: "openai,anthropic" })]),
     );
   });
 
@@ -289,9 +287,7 @@ describe("RelayChannelService", () => {
 
     expect(relayTokenRepository.findManagedPoolsByOwnerUserId).toHaveBeenCalledWith("owner-user");
     expect(result).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: "managed-pool-channel", isManagedPool: true }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ id: "managed-pool-channel", isManagedPool: true })]),
     );
   });
 
@@ -636,7 +632,9 @@ describe("RelayChannelService", () => {
   });
 
   it("uses member-derived formats for automatic proxy pools", async () => {
-    relayChannelRepository.listVisibleByIds.mockResolvedValue([{ ...sampleChannel, id: "member", channelType: "standalone" }]);
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([
+      { ...sampleChannel, id: "member", channelType: "standalone" },
+    ]);
     relayChannelRepository.create.mockResolvedValue({
       ...sampleChannel,
       id: "automatic-pool",
