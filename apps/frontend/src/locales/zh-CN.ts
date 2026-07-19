@@ -3802,7 +3802,7 @@ const zhCN: DeepStringify<typeof en> = {
   notificationEventThresholdUnit: {
     balance_low: '曲',
     monthly_pass_quota_low: '% 剩余',
-    monthly_pass_daily_limit: '% 日限额',
+    monthly_pass_daily_limit: '% 已用',
     relay_token_quota_low: '% 已用',
   },
 }
