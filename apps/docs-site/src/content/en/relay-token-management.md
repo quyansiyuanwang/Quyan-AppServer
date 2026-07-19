@@ -38,6 +38,15 @@ Each token can have one or more rolling time-window rate limits (e.g. per-minute
 - Failover summary (automatic fallback when the primary channel is unavailable).
 - Quota-window detail panel.
 
+### Routing mode
+
+Each token uses exactly one routing mode:
+
+- `Ordered channels`: maintains a channel order and its failover configuration.
+- `Automatic proxy pool`: selects one shared automatic proxy pool and does not retain an ordered channel list. Administrators or automation maintain the pool members centrally.
+
+The resolved member determines the upstream, model capabilities, and billing multiplier. Token users do not see or edit the pool members.
+
 ### Management actions
 
 - Create token.

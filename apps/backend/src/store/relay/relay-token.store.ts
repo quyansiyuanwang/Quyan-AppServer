@@ -101,6 +101,8 @@ export interface RelayTokenCreateInput {
   isCustomKey?: boolean;
   expiresAt?: Date | null;
   channelId?: string;
+  routingMode?: "ordered" | "automatic-pool";
+  automaticProxyPoolChannelId?: string;
   quotaLimit?: number | null;
   quotaWindows?: RelayTokenQuotaWindowInput[];
   allowedModels?: string | null;
@@ -127,6 +129,8 @@ export type RelayTokenUpdateInput = Partial<{
   modelMapping: Record<string, string> | null;
 }> & {
   channelId?: string | null;
+  routingMode?: "ordered" | "automatic-pool";
+  automaticProxyPoolChannelId?: string | null;
   failoverConfig?: RelayFailoverConfigInput;
   channelConfigs?: RelayTokenChannelConfigInput[];
 };
@@ -157,6 +161,7 @@ export interface RelayChannelSwitchLogInput {
 export interface RelayTokenStore {
   create(data: RelayTokenCreateInput, tx?: RelayTokenTransactionClient): Promise<RelayTokenWithRelations>;
   withTransaction<T>(callback: (tx: RelayTokenTransactionClient) => Promise<T>): Promise<T>;
+  withSerializableTransaction<T>(callback: (tx: RelayTokenTransactionClient) => Promise<T>): Promise<T>;
   findByToken(token: string): Promise<RelayTokenWithRelations | null>;
   findById(id: string): Promise<RelayToken | null>;
   findByIdWithRelations(id: string): Promise<RelayTokenWithRelations | null>;
@@ -194,6 +199,7 @@ export interface RelayTokenStore {
     relayTokenId: string,
     channelId: string | null,
     configs: RelayTokenChannelConfigInput[],
+    tx?: RelayTokenTransactionClient,
   ): Promise<void>;
   replaceQuotaWindows(relayTokenId: string, quotaWindows: RelayTokenQuotaWindowInput[]): Promise<void>;
   updateFailoverConfig(

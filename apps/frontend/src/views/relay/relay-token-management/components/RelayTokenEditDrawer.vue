@@ -96,6 +96,41 @@
               "
             >
               <el-form-item required :class="isDesktop ? 'form-item-span-2' : undefined">
+                <template #label>{{ i18ns.t('relay.routingMode') }}</template>
+                <el-radio-group v-model="editForm.routingMode">
+                  <el-radio value="ordered">{{ i18ns.t('relay.routingModeOrdered') }}</el-radio>
+                  <el-radio value="automatic-pool">{{
+                    i18ns.t('relay.routingModeAutomaticPool')
+                  }}</el-radio>
+                </el-radio-group>
+              </el-form-item>
+
+              <el-form-item
+                v-if="editForm.routingMode === 'automatic-pool'"
+                required
+                :class="isDesktop ? 'form-item-span-2' : undefined"
+              >
+                <template #label>{{ i18ns.t('relay.automaticProxyPoolChannel') }}</template>
+                <el-select
+                  v-model="editForm.automaticProxyPoolChannelId"
+                  filterable
+                  style="width: 100%"
+                  :placeholder="i18ns.t('relay.automaticProxyPoolChannelPlaceholder')"
+                >
+                  <el-option
+                    v-for="channel in automaticProxyPoolChannelOptions"
+                    :key="channel.id"
+                    :label="state.getChannelOptionLabel(channel)"
+                    :value="channel.id"
+                  />
+                </el-select>
+              </el-form-item>
+
+              <el-form-item
+                v-if="editForm.routingMode === 'ordered'"
+                required
+                :class="isDesktop ? 'form-item-span-2' : undefined"
+              >
                 <template #label>
                   <span class="form-label-with-help">
                     <span>{{ i18ns.t('relay.orderedChannels') }}</span>
@@ -861,6 +896,7 @@ const {
   unavailableChannelWarningText,
   showMaxRetriesRiskWarning,
   maxRetriesRiskWarningText,
+  automaticProxyPoolChannelOptions,
 } = state
 
 const setChannelListRef = (element: Element | ComponentPublicInstance | null) => {

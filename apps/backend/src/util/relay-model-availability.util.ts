@@ -61,7 +61,8 @@ const getRoutingConfigAllowedModelsMode = (routingConfig: Prisma.JsonValue | nul
 export const getRelayChannelAllowedModelsMode = (channel: RelayChannelAccessLike): "all" | "manual" | "auto" => {
   const rawMode = getRoutingConfigAllowedModelsMode(channel.routingConfig);
 
-  if (channel.channelType === "pooled" && rawMode === "auto") return "auto";
+  if (["pooled", "automatic-proxy-pool"].includes(channel.channelType || "standalone") && rawMode === "auto")
+    return "auto";
   if (rawMode === "manual") return "manual";
   if (rawMode === "all") return "all";
   return channel.allowedModels ? "manual" : "all";

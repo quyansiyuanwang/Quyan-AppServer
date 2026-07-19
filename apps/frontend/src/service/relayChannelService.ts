@@ -40,8 +40,10 @@ class RelayChannelService {
     return checkApiResult<any>(result, true).data
   }
 
-  async listChannelOptions(): Promise<RelayChannelOptionDto[]> {
-    const result = await relayChannelApi.listChannelOptions()
+  async listChannelOptions(targetUserId?: string): Promise<RelayChannelOptionDto[]> {
+    const result = await relayChannelApi.listChannelOptions({
+      params: { targetUserId: targetUserId?.trim() || undefined },
+    })
     return checkApiResult<any>(result, true).data
   }
 

@@ -79,8 +79,11 @@ export class RelayChannelController extends Controller {
     Permission.OJ_APIKEY_READ,
     Permission.OJ_APIKEY_UPDATE,
   ])
-  public async listChannelOptions(@Request() request: TypedRequest): Promise<RelayChannelOptionDto[]> {
-    return this.channelService.listChannelOptions(request.user!.userId);
+  public async listChannelOptions(
+    @Request() request: TypedRequest,
+    @Query() targetUserId?: string,
+  ): Promise<RelayChannelOptionDto[]> {
+    return this.channelService.listChannelOptions(request.user!.userId, targetUserId);
   }
 
   @Get("{id}")

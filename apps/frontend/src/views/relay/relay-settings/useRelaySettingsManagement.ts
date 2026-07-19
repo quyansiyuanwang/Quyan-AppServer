@@ -1134,6 +1134,8 @@ export const useRelaySettingsManagement = () => {
   }
 
   const formatChannelTypeLabel = (channelType: RelayChannelType | string | undefined) => {
+    if (channelType === 'automatic-proxy-pool')
+      return i18ns.t('relay.channelTypeAutomaticProxyPool')
     return channelType === 'pooled'
       ? i18ns.t('relay.channelTypePooled')
       : i18ns.t('relay.channelTypeStandalone')
@@ -1235,7 +1237,7 @@ export const useRelaySettingsManagement = () => {
 
     payload.circuitBreakerThreshold = toNullableThresholdPayload(config.circuitBreakerThreshold)
 
-    if (channelForm.value.channelType === 'pooled') {
+    if (['pooled', 'automatic-proxy-pool'].includes(channelForm.value.channelType)) {
       payload.allowedModelsMode = normalizeAllowedModelsMode(
         channelForm.value.pooledAllowedModelsMode,
       )
@@ -1301,7 +1303,7 @@ export const useRelaySettingsManagement = () => {
   watch(
     () => channelForm.value.channelType,
     (channelType) => {
-      if (channelType === 'pooled') {
+      if (['pooled', 'automatic-proxy-pool'].includes(channelType)) {
         channelForm.value.restrictModels = false
         return
       }
@@ -1353,7 +1355,7 @@ export const useRelaySettingsManagement = () => {
   const getChannelAllowedModelsMode = (
     row: Pick<RelayChannelDto, 'channelType' | 'configuredAllowedModels' | 'routingConfig'>,
   ): RelayChannelAllowedModelsMode => {
-    if (row.channelType !== 'pooled') {
+    if (!['pooled', 'automatic-proxy-pool'].includes(row.channelType)) {
       return row.configuredAllowedModels ? 'manual' : 'all'
     }
 
@@ -1618,7 +1620,7 @@ export const useRelaySettingsManagement = () => {
     isEditingChannel.value = true
     editingChannelId.value = row.id
     const parsedModels = parseAllowedModels(row.configuredAllowedModels)
-    const isPooledChannel = row.channelType === 'pooled'
+    const isPooledChannel = ['pooled', 'automatic-proxy-pool'].includes(row.channelType)
     const pooledAllowedModelsMode = isPooledChannel
       ? normalizeAllowedModelsMode(
           (row.routingConfig as RelayChannelRoutingConfigFormDto | null)?.allowedModelsMode,
@@ -1678,7 +1680,9 @@ export const useRelaySettingsManagement = () => {
       return
     }
 
-    const isPooledChannel = channelForm.value.channelType === 'pooled'
+    const isPooledChannel = ['pooled', 'automatic-proxy-pool'].includes(
+      channelForm.value.channelType,
+    )
 
     if (
       channelForm.value.visibilityMode === 'whitelist' &&

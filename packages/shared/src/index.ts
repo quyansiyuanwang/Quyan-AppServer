@@ -30,6 +30,7 @@ export {
   parseAllowedModelsJson,
   parseRelayModelNameConstraint,
   parseRelayRequestFormats,
+  formatRelayRequestFormats,
   parseRelayTokenAllowedModelIds,
   resolveModelId,
   supportsRelayRequestFormat,

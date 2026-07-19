@@ -32,7 +32,7 @@ const timePeriodRuleSchema = z.object({
   multiplier: z.number().min(0.01).max(100),
 });
 
-const relayChannelTypeSchema = z.enum(["standalone", "pooled"]);
+const relayChannelTypeSchema = z.enum(["standalone", "pooled", "automatic-proxy-pool"]);
 const routingStrategySchema = z.enum([
   "priority",
   "random",

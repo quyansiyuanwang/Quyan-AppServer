@@ -31,6 +31,9 @@ const relayTokenInclude = {
       },
     },
   },
+  automaticProxyPoolChannel: {
+    include: { poolMembers: { include: { memberChannel: true }, orderBy: { priority: "asc" } } },
+  },
   failoverConfig: true,
   channelConfigs: {
     include: {
@@ -125,6 +128,12 @@ export class RelayTokenRepository implements RelayTokenStore {
     return prisma.$transaction((tx) => callback(tx as RelayTokenTransactionClient));
   }
 
+  async withSerializableTransaction<T>(callback: (tx: RelayTokenTransactionClient) => Promise<T>): Promise<T> {
+    return prisma.$transaction((tx) => callback(tx as RelayTokenTransactionClient), {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+  }
+
   async create(data: RelayTokenCreateInput, tx?: RelayTokenTransactionClient): Promise<RelayTokenWithRelations> {
     const failoverConfigCreateData = data.failoverConfig
       ? buildNestedFailoverConfigCreateData(data.failoverConfig)
@@ -141,6 +150,8 @@ export class RelayTokenRepository implements RelayTokenStore {
         isCustomKey: data.isCustomKey ?? false,
         expiresAt: data.expiresAt,
         channelId: data.channelId,
+        routingMode: data.routingMode ?? "ordered",
+        automaticProxyPoolChannelId: data.automaticProxyPoolChannelId,
         quotaLimit: data.quotaLimit,
         allowedModels: data.allowedModels,
         ipWhitelist: data.ipWhitelist,
@@ -348,7 +359,15 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async update(id: string, data: RelayTokenUpdateInput): Promise<RelayToken> {
-    const { failoverConfig, channelConfigs, quotaWindows, channelId, modelMapping, ...tokenData } = data;
+    const {
+      failoverConfig,
+      channelConfigs,
+      quotaWindows,
+      channelId,
+      modelMapping,
+      automaticProxyPoolChannelId,
+      ...tokenData
+    } = data;
 
     return prisma.$transaction(async (tx) => {
       const updatedToken = await tx.relayToken.update({
@@ -356,6 +375,7 @@ export class RelayTokenRepository implements RelayTokenStore {
         data: {
           ...tokenData,
           ...(channelId !== undefined ? { channelId } : {}),
+          ...(automaticProxyPoolChannelId !== undefined ? { automaticProxyPoolChannelId } : {}),
           ...(modelMapping !== undefined ? { modelMapping: modelMapping as Prisma.InputJsonValue } : {}),
         },
       });
@@ -401,7 +421,13 @@ export class RelayTokenRepository implements RelayTokenStore {
     relayTokenId: string,
     channelId: string | null,
     configs: RelayTokenChannelConfigInput[],
+    tx?: RelayTokenTransactionClient,
   ): Promise<void> {
+    if (tx) {
+      await this.replaceChannelConfigsInternal(tx, relayTokenId, channelId, configs);
+      return;
+    }
+
     await prisma.$transaction(async (tx) => {
       await this.replaceChannelConfigsInternal(tx, relayTokenId, channelId, configs);
     });
@@ -444,14 +470,8 @@ export class RelayTokenRepository implements RelayTokenStore {
       update: {
         lastUsedAt: usedAt,
         ...(data.success
-          ? {
-              successCount: { increment: 1 },
-              lastSuccessAt: usedAt,
-            }
-          : {
-              failureCount: { increment: 1 },
-              lastFailureAt: usedAt,
-            }),
+          ? { successCount: { increment: 1 }, lastSuccessAt: usedAt }
+          : { failureCount: { increment: 1 }, lastFailureAt: usedAt }),
       },
     });
   }
@@ -485,10 +505,7 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async delete(id: string): Promise<RelayToken> {
-    return prisma.relayToken.update({
-      where: { id },
-      data: { status: MANAGED_STATUS.DELETED },
-    });
+    return prisma.relayToken.update({ where: { id }, data: { status: MANAGED_STATUS.DELETED } });
   }
 
   async deleteByIds(userId: string, ids: string[]): Promise<number> {
@@ -497,14 +514,9 @@ export class RelayTokenRepository implements RelayTokenStore {
 
   async deleteByIdsForScope(ids: string[], userId?: string): Promise<number> {
     const result = await prisma.relayToken.updateMany({
-      where: {
-        ...(userId ? { userId } : {}),
-        id: { in: ids },
-        status: { in: [...visibleRelayTokenStatuses] },
-      },
+      where: { ...(userId ? { userId } : {}), id: { in: ids }, status: { in: [...visibleRelayTokenStatuses] } },
       data: { status: MANAGED_STATUS.DELETED },
     });
-
     return result.count;
   }
 
@@ -514,17 +526,9 @@ export class RelayTokenRepository implements RelayTokenStore {
     channelId: string | null,
     configs: RelayTokenChannelConfigInput[],
   ): Promise<void> {
-    await tx.relayToken.update({
-      where: { id: relayTokenId },
-      data: { channelId },
-    });
-
-    await tx.relayTokenChannelConfig.deleteMany({
-      where: { relayTokenId },
-    });
-
+    await tx.relayToken.update({ where: { id: relayTokenId }, data: { channelId } });
+    await tx.relayTokenChannelConfig.deleteMany({ where: { relayTokenId } });
     if (configs.length === 0) return;
-
     await tx.relayTokenChannelConfig.createMany({
       data: configs.map((config) => ({
         relayTokenId,

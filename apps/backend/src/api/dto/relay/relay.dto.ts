@@ -84,6 +84,8 @@ export interface BatchRelayTokensResultDto {
 }
 
 export interface CreateRelayTokenDto {
+  routingMode?: "ordered" | "automatic-pool";
+  automaticProxyPoolChannelId?: string;
   /** 目标用户 ID，不传则为当前用户 */
   targetUserId?: string;
   /**
@@ -128,6 +130,8 @@ export interface CreateRelayTokenDto {
 }
 
 export interface UpdateRelayTokenDto {
+  routingMode?: "ordered" | "automatic-pool";
+  automaticProxyPoolChannelId?: string | null;
   targetUserId?: string;
   /** Token 名称 */
   name?: string | null;
@@ -234,6 +238,8 @@ export interface RelayTokenDto {
   usedQuota: number;
   channelId?: string;
   channelName?: string;
+  routingMode?: "ordered" | "automatic-pool";
+  automaticProxyPoolChannelId?: string;
   expiresAt?: Date;
   lastUsedAt?: Date;
   createTime: Date;

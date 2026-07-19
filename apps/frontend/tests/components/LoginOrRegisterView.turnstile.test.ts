@@ -1,34 +1,20 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { defineComponent } from 'vue'
 
-const {
-  ensureCaptchaTrustMock,
- warmupCaptchaTrustMock,
-} = vi.hoisted(() => ({
+const { ensureCaptchaTrustMock, warmupCaptchaTrustMock } = vi.hoisted(() => ({
   ensureCaptchaTrustMock: vi.fn(async () => false),
   warmupCaptchaTrustMock: vi.fn(() => new Promise<void>(() => undefined)),
 }))
 
 vi.mock('@/service/captchaDialogService', () => ({
   ensureCaptchaTrust: ensureCaptchaTrustMock,
- warmupCaptchaTrust: warmupCaptchaTrustMock,
+  warmupCaptchaTrust: warmupCaptchaTrustMock,
 }))
 
 vi.mock('@/service/configService', () => ({
   configService: {
     getRegistrationStatus: vi.fn(async () => true),
-  },
-}))
-
-vi.mock('@/service/authorizationService', () => ({
-  authorizationService: {
-    login: vi.fn(),
-    register: vi.fn(),
-    acceptPolicyConsent: vi.fn(),
-    getPendingPolicyConsentChallenge: vi.fn(() => null),
-    setPendingPolicyConsentChallenge: vi.fn(),
-    clearPendingPolicyConsentChallenge: vi.fn(),
-    reloadAuthStoresAfterLogin: vi.fn(),
   },
 }))
 
@@ -103,6 +89,14 @@ vi.mock('@/composables/usePageDevice', () => ({
 }))
 
 import LoginOrRegisterView from '@/views/auth/LoginOrRegisterView.vue'
+import { useLoginOrRegister } from '@/views/auth/login-or-register/useLoginOrRegister'
+import { authorizationService } from '@/service/authorizationService'
+import { Notification } from '@/utils/notification'
+
+const LoginHarness = defineComponent({
+  setup: () => ({ state: useLoginOrRegister() }),
+  template: '<div />',
+})
 
 describe('LoginOrRegisterView Turnstile UX', () => {
   beforeEach(() => {
@@ -116,5 +110,23 @@ describe('LoginOrRegisterView Turnstile UX', () => {
     expect(wrapper.exists()).toBe(true)
     expect(ensureCaptchaTrustMock).not.toHaveBeenCalled()
     expect(warmupCaptchaTrustMock).toHaveBeenCalledWith('login')
+  })
+
+  it('shows validation errors returned for a nickname entered as the username', async () => {
+    vi.spyOn(authorizationService, 'login').mockResolvedValue({
+      code: 422,
+      message: '参数验证失败',
+    } as any)
+
+    const wrapper = mount(LoginHarness)
+    const state = (wrapper.vm as any).state
+    state.formRef.value = { validate: vi.fn(async () => true) }
+    state.loginForm.username = '显示昵称'
+    state.loginForm.password = 'password'
+    state.loginForm.agreedToLegalPolicies = true
+
+    await state.handleSubmit()
+
+    expect(Notification.notify).toHaveBeenCalledWith('error', '参数验证失败', 'error')
   })
 })
