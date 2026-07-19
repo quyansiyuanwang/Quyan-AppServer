@@ -2377,9 +2377,15 @@ export class RelayProxyService {
         const candidate = attemptChannels[attemptIndex];
         const nextCandidate = attemptChannels[attemptIndex + 1];
         const channel = candidate.resolvedChannel;
-        const displayChannel = candidate.displayChannel;
+        // Mixed pools retain their configured logical channel in history, while
+        // automatic proxy pools must attribute usage to the executing member.
+        const displayChannel = relayToken.routingMode === "automatic-pool" ? channel : candidate.displayChannel;
         const nextChannel = nextCandidate?.resolvedChannel;
-        const nextDisplayChannel = nextCandidate?.displayChannel;
+        const nextDisplayChannel = nextCandidate
+          ? relayToken.routingMode === "automatic-pool"
+            ? nextChannel
+            : nextCandidate.displayChannel
+          : undefined;
         const hasNextChannel = Boolean(nextCandidate);
 
         // Define variables that need to be accessible in catch block

@@ -1341,6 +1341,12 @@ export const useRelayTokenManagement = () => {
   const getSortedChannelConfigs = (row: RelayTokenDto): RelayTokenChannelConfigDto[] =>
     [...(row.channelConfigs || [])].sort((a, b) => a.priority - b.priority)
 
+  const isAutomaticPoolToken = (row: RelayTokenDto) =>
+    (row as RelayTokenWithRouting).routingMode === 'automatic-pool'
+
+  const getAutomaticProxyPoolChannelId = (row: RelayTokenDto) =>
+    (row as RelayTokenWithRouting).automaticProxyPoolChannelId?.trim() || ''
+
   const getRelayTokenQuotaWindows = (row: RelayTokenDto): RelayTokenQuotaWindowLike[] => {
     const quotaWindows = (row as RelayTokenWithQuotaWindows).quotaWindows
     return Array.isArray(quotaWindows) ? quotaWindows : []
@@ -1819,6 +1825,9 @@ export const useRelayTokenManagement = () => {
     const configuredFormats = new Set<RelayFormat>()
     const channelIds = new Set<string>()
 
+    const automaticProxyPoolChannelId = getAutomaticProxyPoolChannelId(row)
+    if (automaticProxyPoolChannelId) channelIds.add(automaticProxyPoolChannelId)
+
     for (const config of getSortedChannelConfigs(row)) {
       if (config.channelId) channelIds.add(config.channelId)
     }
@@ -2001,6 +2010,11 @@ export const useRelayTokenManagement = () => {
 
   const getChannelName = (channelId: string) => channelNameMap.value.get(channelId) || channelId
 
+  const getAutomaticProxyPoolChannelName = (row: RelayTokenDto) => {
+    const channelId = getAutomaticProxyPoolChannelId(row)
+    return channelId ? getChannelName(channelId) : i18ns.t('relay.noChannel')
+  }
+
   const getTokenQuotaSnapshot = (row: RelayTokenDto): TokenQuotaSnapshot => {
     const usedQuota = Number(row.usedQuota || 0)
     const quotaLimit = row.quotaLimit
@@ -2055,6 +2069,8 @@ export const useRelayTokenManagement = () => {
       : '-'
 
   const formatChannelSummary = (row: RelayTokenDto) => {
+    if (isAutomaticPoolToken(row)) return getAutomaticProxyPoolChannelName(row)
+
     const configs = getSortedChannelConfigs(row)
     if (!configs.length) return '-'
     const visibleText = getVisibleChannelConfigs(row)
@@ -2086,6 +2102,8 @@ export const useRelayTokenManagement = () => {
   }
 
   const formatMobileChannelMeta = (row: RelayTokenDto) => {
+    if (isAutomaticPoolToken(row)) return i18ns.t('relay.routingModeAutomaticPool')
+
     const failoverText = formatCompactFailoverSummary(row)
     return row.failoverConfig?.enabled
       ? `${i18ns.t('relay.failoverEnabled')} · ${failoverText}`
@@ -2394,6 +2412,8 @@ export const useRelayTokenManagement = () => {
     getTokenSupportedFormats,
     getCcswitchLaunchLabel,
     getSortedChannelConfigs,
+    isAutomaticPoolToken,
+    getAutomaticProxyPoolChannelName,
     getVisibleChannelConfigs,
     getHiddenChannelConfigCount,
     getChannelName,
