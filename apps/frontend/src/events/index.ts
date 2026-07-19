@@ -14,6 +14,7 @@ let sessionExpiredHandling = false
 let sessionExpiredUnlockTimer: ReturnType<typeof setTimeout> | null = null
 let twoFactorRedirecting = false
 let twoFactorRedirectUnlockTimer: ReturnType<typeof setTimeout> | null = null
+let ipBlacklistDialogPromise: Promise<unknown> | null = null
 
 type TwoFactorMethod = 'passkey' | 'code' | 'email'
 type TwoFactorPurpose = 'login' | 'disable2fa' | 'stepup'
@@ -151,6 +152,33 @@ const redirectToTwoFactorVerification = (raw: any) => {
     })
 }
 
+const showIpBlacklistDialog = (resp: { data?: { expireTime?: string; reason?: string } }) => {
+  if (ipBlacklistDialogPromise) return
+
+  const data = resp.data
+  const expireTime = data?.expireTime
+    ? new Date(data.expireTime).toLocaleString()
+    : i18ns.t('message.error.ipBlacklistPermanent')
+  const reason = data?.reason || i18ns.t('message.error.ipBlacklistDefaultReason')
+
+  ipBlacklistDialogPromise = ElMessageBox.alert(
+    i18ns.t('message.error.ipBlacklisted', { reason, expireTime }),
+    i18ns.t('message.error.accessLimited'),
+    {
+      confirmButtonText: i18ns.t('button.confirm'),
+      type: 'error',
+      closeOnClickModal: false,
+      closeOnPressEscape: false,
+    },
+  )
+    .catch(() => {
+      // Ignore dialog dismissal and open failures.
+    })
+    .finally(() => {
+      ipBlacklistDialogPromise = null
+    })
+}
+
 /**
  * 注册认证相关的全局事件监听器
  */
@@ -200,23 +228,7 @@ export function registerCustomCodeEvents() {
   })
 
   customCodeBus.on('IP_BLACKLISTED', (resp) => {
-    const data = resp.data
-    const expireTime = data?.expireTime
-      ? new Date(data.expireTime).toLocaleString()
-      : i18ns.t('message.error.ipBlacklistPermanent')
-    const reason = data?.reason || i18ns.t('message.error.ipBlacklistDefaultReason')
-    void ElMessageBox.alert(
-      i18ns.t('message.error.ipBlacklisted', { reason, expireTime }),
-      i18ns.t('message.error.accessLimited'),
-      {
-        confirmButtonText: i18ns.t('button.confirm'),
-        type: 'error',
-        closeOnClickModal: false,
-        closeOnPressEscape: false,
-      },
-    ).catch(() => {
-      // Ignore dialog open failures.
-    })
+    showIpBlacklistDialog(resp)
   })
 
   customCodeBus.on('REQUIRE_REPLAY_PROTECTION', () => {

@@ -666,6 +666,7 @@ describe("RelayProxyService failover", () => {
         channelId: "member-a",
         executionChannelId: "member-a",
         displayChannelId: "pool-1",
+        displayChannelName: "Pool",
         channelMultiplier: 3.6,
       }),
     );
@@ -698,7 +699,8 @@ describe("RelayProxyService failover", () => {
       expect.objectContaining({
         channelId: "member-a",
         executionChannelId: "member-a",
-        displayChannelId: "pool-1",
+        displayChannelId: "member-a",
+        displayChannelName: "Member A",
         channelMultiplier: 4.2,
       }),
     );
