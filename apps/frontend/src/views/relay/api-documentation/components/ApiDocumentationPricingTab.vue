@@ -2,6 +2,7 @@
 import { ArrowDown, ArrowUp, Refresh, Search } from '@element-plus/icons-vue'
 import ComponentErrorBoundary from '@/components/common/ComponentErrorBoundary.vue'
 import ModelPricingTable from '@/components/relay/ModelPricingTable.vue'
+import type { RelayChannelOptionDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
 import { useApiDocumentationContext } from '../context'
 
@@ -114,8 +115,35 @@ const formatChannelMultiplier = (multiplier?: number | null) => {
   return `x${resolvedMultiplier}`
 }
 
-const formatChannelOptionLabel = (channelName: string, multiplier?: number | null) => {
-  return `${channelName} ${formatChannelMultiplier(multiplier)}`
+const formatChannelOptionLabel = (channel: RelayChannelOptionDto) => {
+  if (!channel.automaticProxyPool) {
+    return `${channel.name} ${formatChannelMultiplier(channel.multiplier)}`
+  }
+
+  const multipliers = channel.automaticProxyPool.members
+    .filter((member) => member.enabled)
+    .map((member) => member.effectiveMultiplier)
+
+  if (multipliers.length === 0) {
+    return `${channel.name} · ${t('apiDoc.automaticProxyPool')}`
+  }
+
+  return `${channel.name} · ${t('apiDoc.automaticProxyPool')} ${formatChannelMultiplier(
+    Math.min(...multipliers),
+  )}–${formatChannelMultiplier(Math.max(...multipliers))}`
+}
+
+const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
+  if (!channel.automaticProxyPool) return formatChannelMultiplier(channel.multiplier)
+
+  const multipliers = channel.automaticProxyPool.members
+    .filter((member) => member.enabled)
+    .map((member) => member.effectiveMultiplier)
+
+  if (multipliers.length === 0) return t('apiDoc.noActivePoolMembers')
+  return `${formatChannelMultiplier(Math.min(...multipliers))}–${formatChannelMultiplier(
+    Math.max(...multipliers),
+  )}`
 }
 </script>
 
@@ -151,13 +179,13 @@ const formatChannelOptionLabel = (channelName: string, multiplier?: number | nul
           <el-option
             v-for="channel in channels"
             :key="channel.id"
-            :label="formatChannelOptionLabel(channel.name, channel.multiplier)"
+            :label="formatChannelOptionLabel(channel)"
             :value="channel.id"
           >
             <div class="pricing-channel-option">
               <span class="pricing-channel-option__name">{{ channel.name }}</span>
               <span class="pricing-channel-option__multiplier">
-                {{ formatChannelMultiplier(channel.multiplier) }}
+                {{ formatChannelOptionMultiplier(channel) }}
               </span>
             </div>
           </el-option>
@@ -457,13 +485,13 @@ const formatChannelOptionLabel = (channelName: string, multiplier?: number | nul
               <el-option
                 v-for="channel in channels"
                 :key="channel.id"
-                :label="formatChannelOptionLabel(channel.name, channel.multiplier)"
+                :label="formatChannelOptionLabel(channel)"
                 :value="channel.id"
               >
                 <div class="pricing-channel-option">
                   <span class="pricing-channel-option__name">{{ channel.name }}</span>
                   <span class="pricing-channel-option__multiplier">
-                    {{ formatChannelMultiplier(channel.multiplier) }}
+                    {{ formatChannelOptionMultiplier(channel) }}
                   </span>
                 </div>
               </el-option>

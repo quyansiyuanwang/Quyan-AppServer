@@ -260,6 +260,98 @@ describe("RelayChannelService", () => {
     );
   });
 
+  it("projects only safe automatic pool member details and current eligibility", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      {
+        ...sampleChannel,
+        id: "automatic-pool",
+        name: "Automatic Pool",
+        channelType: "automatic-proxy-pool",
+        routingStrategy: "weighted-random",
+        routingConfig: { maxRetries: 2, stickyByModel: true, allowedModelsMode: "auto" },
+        poolMembers: [
+          {
+            memberChannelId: "active-member",
+            priority: 10,
+            weight: 3,
+            enabled: true,
+            memberChannel: {
+              ...sampleChannel,
+              id: "active-member",
+              name: "Active Member",
+              multiplier: 1.5,
+              timePeriodMultipliers: [],
+            },
+          },
+          {
+            memberChannelId: "disabled-member",
+            priority: 20,
+            weight: 1,
+            enabled: false,
+            memberChannel: {
+              ...sampleChannel,
+              id: "disabled-member",
+              name: "Disabled Member",
+              multiplier: 2,
+              timePeriodMultipliers: [],
+            },
+          },
+        ],
+      },
+    ]);
+    relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([
+      {
+        leafChannelId: "active-member",
+        catalogModelName: "Catalog Model",
+        requestModelId: "request-model",
+        supportedRequestFormats: ["openai"],
+        modelMapping: { "request-model": "sensitive-upstream-model" },
+      },
+      {
+        leafChannelId: "disabled-member",
+        catalogModelName: "Catalog Model",
+        requestModelId: "request-model",
+        supportedRequestFormats: ["openai"],
+        modelMapping: {},
+      },
+    ]);
+
+    const [result] = await service.listChannelOptions("actor-user");
+    const pool = result.automaticProxyPool;
+
+    expect(pool).toEqual({
+      routingStrategy: "weighted-random",
+      routingConfig: { maxRetries: 2, stickyByModel: true },
+      members: [
+        expect.objectContaining({
+          id: "active-member",
+          name: "Active Member",
+          enabled: true,
+          priority: 10,
+          weight: 3,
+          multiplier: 1.5,
+          timePeriodMultiplier: 1,
+          effectiveMultiplier: 1.5,
+          modelCapabilities: [
+            {
+              catalogModelName: "Catalog Model",
+              requestModelId: "request-model",
+              supportedRequestFormats: ["openai"],
+            },
+          ],
+        }),
+        expect.objectContaining({
+          id: "disabled-member",
+          enabled: false,
+          modelCapabilities: [],
+        }),
+      ],
+    });
+    expect(JSON.stringify(pool)).not.toContain("upstream.example.com");
+    expect(JSON.stringify(pool)).not.toContain("openai-key");
+    expect(JSON.stringify(pool)).not.toContain("sensitive-upstream-model");
+  });
+
   it("excludes hidden channels from business channel options even for channel managers", async () => {
     permissionService.hasAnyPermission.mockResolvedValue(true);
     relayChannelRepository.listActive.mockResolvedValue([

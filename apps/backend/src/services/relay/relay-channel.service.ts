@@ -13,6 +13,7 @@ import type {
   RelayChannelExportResponse,
   RelayChannelImportItemDto,
   RelayChannelAllowedModelsMode,
+  RelayAutomaticProxyPoolOptionDto,
   TimePeriodMultiplierRule,
   UpdateRelayChannelRequest,
   RelayChannelMemberDto,
@@ -46,6 +47,7 @@ import { formatRelayRequestFormats } from "@appserver/shared";
 import type { Request } from "express";
 import { ModelPricingService } from "./model-pricing.service";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
+import { computeMultiplierForTime } from "./time-period-multiplier.service";
 
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
@@ -78,6 +80,16 @@ interface ValidatedRelayChannelData {
 const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
 const DEFAULT_ROUTING_STRATEGY: RelayChannelRoutingStrategy = "priority";
 const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
+
+type RelayChannelWithMembers = RelayChannel & {
+  poolMembers?: Array<{
+    memberChannelId: string;
+    priority: number;
+    weight: Prisma.Decimal | number;
+    enabled: boolean;
+    memberChannel?: RelayChannel | null;
+  }>;
+};
 
 export class RelayChannelService {
   private static instance: RelayChannelService;
@@ -117,6 +129,7 @@ export class RelayChannelService {
     );
     const modelCatalog = await this.modelPricingService.getModelPricing();
     const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog);
+    const now = new Date();
     const options = await Promise.all(
       channels.map(async (channel) => {
         const resolvedCapabilities = await this.relayPoolResolver.resolveChannelCapabilities(
@@ -140,7 +153,7 @@ export class RelayChannelService {
           }
         }
 
-        return {
+        const option: RelayChannelOptionDto = {
           id: channel.id,
           name: channel.name,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
@@ -158,10 +171,90 @@ export class RelayChannelService {
               left.requestModelId.localeCompare(right.requestModelId),
           ),
         };
+
+        if (channel.channelType === "automatic-proxy-pool") {
+          option.automaticProxyPool = this.toAutomaticProxyPoolOption(
+            channel as RelayChannelWithMembers,
+            resolvedCapabilities,
+            now,
+          );
+        }
+
+        return option;
       }),
     );
 
     return options.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private toAutomaticProxyPoolOption(
+    channel: RelayChannelWithMembers,
+    resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
+    now: Date,
+  ): RelayAutomaticProxyPoolOptionDto {
+    const capabilitiesByLeafChannelId = new Map<string, RelayChannelOptionDto["modelCapabilities"]>();
+
+    for (const capability of resolvedCapabilities) {
+      const capabilities = capabilitiesByLeafChannelId.get(capability.leafChannelId) ?? [];
+      const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
+      const existing = capabilities.find(
+        (item) => `${item.catalogModelName}\u0000${item.requestModelId}` === key,
+      );
+      if (existing) {
+        existing.supportedRequestFormats = [
+          ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
+        ];
+      } else {
+        capabilities.push({
+          catalogModelName: capability.catalogModelName,
+          requestModelId: capability.requestModelId,
+          supportedRequestFormats: [...capability.supportedRequestFormats],
+        });
+      }
+      capabilitiesByLeafChannelId.set(capability.leafChannelId, capabilities);
+    }
+
+    const routingConfig = (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined) ?? undefined;
+    const { allowedModelsMode: _allowedModelsMode, ...safeRoutingConfig } = routingConfig ?? {};
+
+    return {
+      routingStrategy:
+        (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
+      routingConfig: Object.keys(safeRoutingConfig).length > 0 ? safeRoutingConfig : undefined,
+      members: (channel.poolMembers ?? [])
+        .map((member) => {
+          const memberChannel = member.memberChannel;
+          const enabled =
+            member.enabled !== false && memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED;
+          const timePeriodMultiplier = memberChannel
+            ? computeMultiplierForTime(
+                (memberChannel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
+                now,
+              )
+            : 1;
+          const multiplier = memberChannel ? Number(memberChannel.multiplier) : 1;
+          const modelCapabilities = enabled
+            ? (capabilitiesByLeafChannelId.get(member.memberChannelId) ?? []).map((capability) => ({
+                ...capability,
+                supportedRequestFormats: [...capability.supportedRequestFormats],
+              }))
+            : [];
+
+          return {
+            id: member.memberChannelId,
+            name: memberChannel?.name ?? member.memberChannelId,
+            enabled,
+            priority: member.priority,
+            weight: Number(member.weight),
+            multiplier,
+            timePeriodMultiplier,
+            effectiveMultiplier: multiplier * timePeriodMultiplier,
+            allowedFormats: memberChannel?.allowedFormats ?? "none",
+            modelCapabilities,
+          };
+        })
+        .sort((left, right) => left.priority - right.priority || left.name.localeCompare(right.name)),
+    };
   }
 
   private async resolveOptionsUserId(actorUserId: string, targetUserId?: string): Promise<string> {

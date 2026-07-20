@@ -206,6 +206,81 @@ describe('useApiDocumentationPricing', () => {
     dispose()
   })
 
+  it('uses eligible automatic-pool member multipliers for price ranges and lowest pricing', async () => {
+    const { composable, dispose } = createComposable()
+    const row = createPricingRow({ inputPrice: 10, outputPrice: 20 })
+    const capability = {
+      catalogModelName: 'gpt-4o-mini',
+      requestModelId: 'openai/gpt-4o-mini',
+      supportedRequestFormats: ['openai'] as const,
+    }
+
+    composable.channels.value = [
+      createChannel({
+        id: 'automatic-pool',
+        channelType: 'automatic-proxy-pool',
+        multiplier: 99,
+        automaticProxyPool: {
+          routingStrategy: 'weighted-random',
+          members: [
+            {
+              id: 'low-member',
+              name: 'Low member',
+              enabled: true,
+              priority: 1,
+              multiplier: 0.5,
+              timePeriodMultiplier: 1,
+              effectiveMultiplier: 0.5,
+              allowedFormats: 'openai',
+              modelCapabilities: [capability],
+            },
+            {
+              id: 'high-member',
+              name: 'High member',
+              enabled: true,
+              priority: 2,
+              multiplier: 2,
+              timePeriodMultiplier: 1,
+              effectiveMultiplier: 2,
+              allowedFormats: 'openai',
+              modelCapabilities: [capability],
+            },
+            {
+              id: 'disabled-member',
+              name: 'Disabled member',
+              enabled: false,
+              priority: 3,
+              multiplier: 0.1,
+              timePeriodMultiplier: 1,
+              effectiveMultiplier: 0.1,
+              allowedFormats: 'openai',
+              modelCapabilities: [capability],
+            },
+          ],
+        },
+      }),
+    ]
+
+    composable.channelPriceMode.value = 'global-lowest'
+
+    const cell = composable.getChannelPriceCell(row, composable.channels.value[0]!)
+
+    expect(composable.getDisplayedPriceMultiplier(row)).toBe(0.5)
+    expect(cell).toMatchObject({
+      available: true,
+      automaticProxyPool: true,
+      multiplier: 0.5,
+      maximumMultiplier: 2,
+      inputPrice: 5,
+      maximumInputPrice: 20,
+      outputPrice: 10,
+      maximumOutputPrice: 40,
+    })
+    expect(cell.members.map((member) => member.id)).toEqual(['low-member', 'high-member'])
+
+    dispose()
+  })
+
   it('sorts by displayed input price descending', async () => {
     const { composable, dispose } = createComposable()
 
