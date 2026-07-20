@@ -1261,137 +1261,145 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     }
   });
 
-  it("自动代理池重试后将执行、展示和消费统计均归属到最终选中的成员", async () => {
-    const primary = await prisma.relayChannel.create({
-      data: {
-        name: `test_automatic_pool_primary_${suffix}`,
-        openaiUpstreamUrl: relayAIMockPlugin!.baseUrl,
-        openaiUpstreamApiKey: "test-automatic-pool-primary-key",
-        allowedFormats: "openai",
-        multiplier: 1,
-      },
-    });
-    const secondary = await prisma.relayChannel.create({
-      data: {
-        name: `test_automatic_pool_secondary_${suffix}`,
-        openaiUpstreamUrl: relayAIMockPlugin!.baseUrl,
-        openaiUpstreamApiKey: "test-automatic-pool-secondary-key",
-        allowedFormats: "openai",
-        multiplier: 1,
-      },
-    });
-    const automaticPool = await prisma.relayChannel.create({
-      data: {
-        name: `test_automatic_pool_${suffix}`,
-        channelType: "automatic-proxy-pool",
-        routingStrategy: "priority",
-        allowedFormats: "openai",
-        routingConfig: { maxRetries: 1, retryStatusCodes: ["5xx"], allowedModelsMode: "all" },
-        multiplier: 1,
-      },
-    });
-    await prisma.relayChannelMember.createMany({
-      data: [
-        {
-          relayChannelId: automaticPool.id,
-          memberChannelId: primary.id,
-          priority: 1,
-          weight: 1,
-          enabled: true,
+  it(
+    "自动代理池重试后将执行、展示和消费统计均归属到最终选中的成员",
+    async () => {
+      const primary = await prisma.relayChannel.create({
+        data: {
+          name: `test_automatic_pool_primary_${suffix}`,
+          openaiUpstreamUrl: relayAIMockPlugin!.baseUrl,
+          openaiUpstreamApiKey: "test-automatic-pool-primary-key",
+          allowedFormats: "openai",
+          multiplier: 1,
         },
-        {
-          relayChannelId: automaticPool.id,
-          memberChannelId: secondary.id,
-          priority: 2,
-          weight: 1,
-          enabled: true,
+      });
+      const secondary = await prisma.relayChannel.create({
+        data: {
+          name: `test_automatic_pool_secondary_${suffix}`,
+          openaiUpstreamUrl: relayAIMockPlugin!.baseUrl,
+          openaiUpstreamApiKey: "test-automatic-pool-secondary-key",
+          allowedFormats: "openai",
+          multiplier: 1,
         },
-      ],
-    });
-    const token = await prisma.relayToken.create({
-      data: {
-        userId: testUserId,
-        name: `test_automatic_pool_token_${suffix}`,
-        token: `rlt_${randomUUID().replace(/-/g, "")}`,
-        routingMode: "automatic-pool",
-        automaticProxyPoolChannelId: automaticPool.id,
-      },
-    });
+      });
+      const automaticPool = await prisma.relayChannel.create({
+        data: {
+          name: `test_automatic_pool_${suffix}`,
+          channelType: "automatic-proxy-pool",
+          routingStrategy: "priority",
+          allowedFormats: "openai",
+          routingConfig: { maxRetries: 1, retryStatusCodes: ["5xx"], allowedModelsMode: "all" },
+          multiplier: 1,
+        },
+      });
+      await prisma.relayChannelMember.createMany({
+        data: [
+          {
+            relayChannelId: automaticPool.id,
+            memberChannelId: primary.id,
+            priority: 1,
+            weight: 1,
+            enabled: true,
+          },
+          {
+            relayChannelId: automaticPool.id,
+            memberChannelId: secondary.id,
+            priority: 2,
+            weight: 1,
+            enabled: true,
+          },
+        ],
+      });
+      const token = await prisma.relayToken.create({
+        data: {
+          userId: testUserId,
+          name: `test_automatic_pool_token_${suffix}`,
+          token: `rlt_${randomUUID().replace(/-/g, "")}`,
+          routingMode: "automatic-pool",
+          automaticProxyPoolChannelId: automaticPool.id,
+        },
+      });
 
-    const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: token.id } });
-    relayAIMockPlugin!.useOpenAI(async (ctx) => {
-      if (String(ctx.headers.authorization || "") === "Bearer test-automatic-pool-primary-key")
-        return { status: 503, body: { error: { message: "automatic primary unavailable" } } };
-      return {
-        body: {
-          id: "chatcmpl_automatic_pool_ok",
-          object: "chat.completion",
-          model: ctx.model,
-          choices: [
-            { index: 0, finish_reason: "stop", message: { role: "assistant", content: "automatic-secondary-success" } },
-          ],
-          usage: { prompt_tokens: 7, completion_tokens: 5, total_tokens: 12 },
-        },
-      };
-    });
+      const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: token.id } });
+      relayAIMockPlugin!.useOpenAI(async (ctx) => {
+        if (String(ctx.headers.authorization || "") === "Bearer test-automatic-pool-primary-key")
+          return { status: 503, body: { error: { message: "automatic primary unavailable" } } };
+        return {
+          body: {
+            id: "chatcmpl_automatic_pool_ok",
+            object: "chat.completion",
+            model: ctx.model,
+            choices: [
+              {
+                index: 0,
+                finish_reason: "stop",
+                message: { role: "assistant", content: "automatic-secondary-success" },
+              },
+            ],
+            usage: { prompt_tokens: 7, completion_tokens: 5, total_tokens: 12 },
+          },
+        };
+      });
 
-    try {
-      const relayResponse = await request(app)
-        .post("/relay/proxy/v1/chat/completions")
-        .set("Authorization", `Bearer ${token.token}`)
-        .send({
-          model: openaiRelayModelId,
-          messages: [{ role: "user", content: "自动代理池应选择可用成员" }],
-          stream: false,
+      try {
+        const relayResponse = await request(app)
+          .post("/relay/proxy/v1/chat/completions")
+          .set("Authorization", `Bearer ${token.token}`)
+          .send({
+            model: openaiRelayModelId,
+            messages: [{ role: "user", content: "自动代理池应选择可用成员" }],
+            stream: false,
+          });
+
+        expect(relayResponse.status).toBe(200);
+        expect(relayResponse.body?.choices?.[0]?.message?.content).toContain("automatic-secondary-success");
+
+        await waitForUsageCount(token.id, beforeUsageCount + 2);
+        const usages = await prisma.relayUsage.findMany({
+          where: { relayTokenId: token.id },
+          orderBy: { createTime: "asc" },
+        });
+        const successfulUsage = usages.at(-1)!;
+        expect(successfulUsage).toMatchObject({
+          statusCode: 200,
+          executionChannelId: secondary.id,
+          displayChannelId: secondary.id,
+          displayChannelName: secondary.name,
+        });
+        expect(successfulUsage.displayChannelId).not.toBe(automaticPool.id);
+
+        const transaction = await prisma.balanceTransaction.findFirstOrThrow({
+          where: { relatedId: successfulUsage.id, type: "api_usage" },
+        });
+        expect(transaction).toMatchObject({
+          displayChannelId: secondary.id,
+          displayChannelName: secondary.name,
         });
 
-      expect(relayResponse.status).toBe(200);
-      expect(relayResponse.body?.choices?.[0]?.message?.content).toContain("automatic-secondary-success");
-
-      await waitForUsageCount(token.id, beforeUsageCount + 2);
-      const usages = await prisma.relayUsage.findMany({
-        where: { relayTokenId: token.id },
-        orderBy: { createTime: "asc" },
-      });
-      const successfulUsage = usages.at(-1)!;
-      expect(successfulUsage).toMatchObject({
-        statusCode: 200,
-        executionChannelId: secondary.id,
-        displayChannelId: secondary.id,
-        displayChannelName: secondary.name,
-      });
-      expect(successfulUsage.displayChannelId).not.toBe(automaticPool.id);
-
-      const transaction = await prisma.balanceTransaction.findFirstOrThrow({
-        where: { relatedId: successfulUsage.id, type: "api_usage" },
-      });
-      expect(transaction).toMatchObject({
-        displayChannelId: secondary.id,
-        displayChannelName: secondary.name,
-      });
-
-      const statsRows = await ConsumptionStatsRepository.getInstance().listUsageRows(
-        new Date(successfulUsage.createTime.getTime() - 60_000),
-        new Date(successfulUsage.createTime.getTime() + 60_000),
-      );
-      expect(statsRows).toContainEqual(
-        expect.objectContaining({ usageId: successfulUsage.id, channelName: secondary.name }),
-      );
-    } finally {
-      relayAIMockPlugin!.useOpenAI(async (ctx) => ({
-        ...(ctx.body.stream === true
-          ? relayAIMockPlugin!["buildOpenAIStreamReply"](ctx as any)
-          : { body: relayAIMockPlugin!["buildOpenAIBody"](ctx as any) }),
-      }));
-      const usages = await prisma.relayUsage.findMany({ where: { relayTokenId: token.id }, select: { id: true } });
-      await prisma.balanceTransaction.deleteMany({ where: { relatedId: { in: usages.map((usage) => usage.id) } } });
-      await prisma.relayUsage.deleteMany({ where: { relayTokenId: token.id } });
-      await prisma.relayChannelSwitchLog.deleteMany({ where: { relayTokenId: token.id } });
-      await prisma.relayToken.delete({ where: { id: token.id } });
-      await prisma.relayChannelMember.deleteMany({ where: { relayChannelId: automaticPool.id } });
-      await prisma.relayChannel.deleteMany({ where: { id: { in: [automaticPool.id, primary.id, secondary.id] } } });
-    }
-  }, RELAY_LOG_PERSISTENCE_TEST_TIMEOUT_MS);
+        const statsRows = await ConsumptionStatsRepository.getInstance().listUsageRows(
+          new Date(successfulUsage.createTime.getTime() - 60_000),
+          new Date(successfulUsage.createTime.getTime() + 60_000),
+        );
+        expect(statsRows).toContainEqual(
+          expect.objectContaining({ usageId: successfulUsage.id, channelName: secondary.name }),
+        );
+      } finally {
+        relayAIMockPlugin!.useOpenAI(async (ctx) => ({
+          ...(ctx.body.stream === true
+            ? relayAIMockPlugin!["buildOpenAIStreamReply"](ctx as any)
+            : { body: relayAIMockPlugin!["buildOpenAIBody"](ctx as any) }),
+        }));
+        const usages = await prisma.relayUsage.findMany({ where: { relayTokenId: token.id }, select: { id: true } });
+        await prisma.balanceTransaction.deleteMany({ where: { relatedId: { in: usages.map((usage) => usage.id) } } });
+        await prisma.relayUsage.deleteMany({ where: { relayTokenId: token.id } });
+        await prisma.relayChannelSwitchLog.deleteMany({ where: { relayTokenId: token.id } });
+        await prisma.relayToken.delete({ where: { id: token.id } });
+        await prisma.relayChannelMember.deleteMany({ where: { relayChannelId: automaticPool.id } });
+        await prisma.relayChannel.deleteMany({ where: { id: { in: [automaticPool.id, primary.id, secondary.id] } } });
+      }
+    },
+    RELAY_LOG_PERSISTENCE_TEST_TIMEOUT_MS,
+  );
 
   it("Anthropic 非流式 messages 请求成功并记录 usage", async () => {
     const beforeCount = await prisma.relayUsage.count({ where: { relayTokenId: anthropicRelayTokenId } });

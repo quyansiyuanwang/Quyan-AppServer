@@ -43,9 +43,7 @@ describe("ConsumptionStatsRepository", () => {
   });
 
   it("uses transaction display snapshots before linked relay usage snapshots", async () => {
-    prismaMock.balanceTransaction.findMany.mockResolvedValue([
-      transaction({ displayChannelName: "Logical Pool" }),
-    ]);
+    prismaMock.balanceTransaction.findMany.mockResolvedValue([transaction({ displayChannelName: "Logical Pool" })]);
     prismaMock.relayUsage.findMany.mockResolvedValue([
       {
         id: "usage-1",
