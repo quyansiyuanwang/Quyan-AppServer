@@ -65,7 +65,8 @@ export class RelayChannelController extends Controller {
   }
 
   /**
-   * Lists the caller-visible channel capabilities without exposing pool topology or channel configuration.
+   * Lists caller-visible channel capabilities. Automatic proxy pools include limited member and routing data
+   * needed to disclose variable pricing, while upstream credentials, URLs, mappings, and visibility rules remain hidden.
    */
   @Get("options")
   @Security("jwt")

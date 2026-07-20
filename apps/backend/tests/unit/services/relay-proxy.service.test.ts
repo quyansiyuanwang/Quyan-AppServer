@@ -647,7 +647,7 @@ describe("RelayProxyService failover", () => {
     relayToken.channel.multiplier = 1.8;
     relayToken.channel.poolMembers[0].memberChannel.multiplier = 3.6;
     const req = createRequest();
-    const { service, relayTokenRepo, usageChargeService } = createService();
+    const { service, usageChargeService } = createService();
 
     axiosMock.mockResolvedValueOnce({
       status: 200,

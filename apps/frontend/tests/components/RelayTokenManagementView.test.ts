@@ -181,8 +181,9 @@ const ElSwitchStub = defineComponent({
 
 const ElButtonStub = defineComponent({
   name: 'ElButton',
+  props: { disabled: { type: Boolean, default: false } },
   emits: ['click'],
-  template: '<button class="el-button-stub" @click="$emit(\'click\')"><slot /></button>',
+  template: '<button class="el-button-stub" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
 })
 
 const ElSelectStub = defineComponent({
@@ -423,6 +424,27 @@ describe('RelayTokenManagementView', () => {
     expect(wrapper.text()).not.toContain('窗口额度规则暂未设置')
     expect(wrapper.text()).not.toContain('6.25 曲 / 12.5 曲 / 天')
     expect(wrapper.text()).not.toContain('4 请求次数 / 3 请求次数 / 天')
+  })
+
+  it('enables quota windows and adds the first default rule from the drawer switch', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreateDialog()
+    await flushPromises()
+
+    const quotaWindowSwitch = wrapper
+      .find('.quota-window-editor__toggle')
+      .find('button.el-switch-stub')
+
+    expect(quotaWindowSwitch).toBeDefined()
+    await quotaWindowSwitch!.trigger('click')
+    await flushPromises()
+
+    expect(vm.editForm.quotaWindowsEnabled).toBe(true)
+    expect(vm.editForm.quotaWindows).toHaveLength(1)
+    expect(wrapper.text()).toContain('1 / 20')
   })
 
   it('collapses extra ordered channels into a more indicator', async () => {
