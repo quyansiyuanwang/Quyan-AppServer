@@ -1,4 +1,4 @@
-import { effectScope, type EffectScope } from 'vue'
+import { effectScope, nextTick, type EffectScope } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useApiDocumentationPricing, type PricingModelRow } from '@/composables/useApiDocumentationPricing'
 import type { RelayChannelOptionDto } from '@/client/types.gen'
@@ -281,7 +281,7 @@ describe('useApiDocumentationPricing', () => {
     dispose()
   })
 
-  it('hides independent channels and automatic proxy pools independently', () => {
+  it('hides independent channels and automatic proxy pools independently', async () => {
     const { composable, dispose } = createComposable()
     const poolCapability = {
       catalogModelName: 'pool-model',
@@ -325,6 +325,7 @@ describe('useApiDocumentationPricing', () => {
     composable.filterChannelIds.value = ['independent-channel', 'automatic-pool']
 
     composable.hideIndependentChannels.value = true
+    await nextTick()
 
     expect(composable.visibleChannels.value.map((channel) => channel.id)).toEqual(['automatic-pool'])
     expect(composable.selectedChannels.value.map((channel) => channel.id)).toEqual(['automatic-pool'])
@@ -336,6 +337,7 @@ describe('useApiDocumentationPricing', () => {
     ).toEqual(['automatic-pool'])
 
     composable.hideAutomaticProxyPools.value = true
+    await nextTick()
 
     expect(composable.visibleChannels.value).toEqual([])
     expect(composable.selectedChannels.value).toEqual([])
