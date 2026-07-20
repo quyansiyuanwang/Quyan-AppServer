@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { SystemService } from "@/services/system/system.service";
 import type { ConsumptionUsageRow } from "@/store/system/consumption-stats.store";
+import { UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay-display-channel.util";
 
 const toResolvedStartOfDay = (value: string): Date => {
   const date = new Date(value);
@@ -193,5 +194,44 @@ describe("SystemService consumption stats filters", () => {
     expect(withRelayTokenFilter.summary.totalSpend).toBe(2);
     expect(withRelayTokenFilter.byUser).toHaveLength(1);
     expect(withRelayTokenFilter.byUser[0]).toMatchObject({ key: "user-b", label: "Bob" });
+  });
+
+  it("keeps unattributed channels visible and exactly filterable without creating an unknown channel bucket", async () => {
+    const rows: ConsumptionUsageRow[] = [
+      createUsageRow({
+        usageId: "usage-unattributed",
+        channelName: UNATTRIBUTED_RELAY_CHANNEL_NAME,
+        totalSpend: 1,
+        chargedAmount: 1,
+      }),
+      createUsageRow({
+        usageId: "usage-known",
+        channelName: "Known Channel",
+        totalSpend: 2,
+        chargedAmount: 2,
+      }),
+    ];
+    const service = new (SystemService as any)(
+      { query: vi.fn(), findById: vi.fn() },
+      { findUsernamesByIds: vi.fn(), findActiveUsernameById: vi.fn(), countAll: vi.fn() },
+      { countAll: vi.fn() },
+      { listUsageRows: vi.fn().mockResolvedValue(rows) },
+    ) as SystemService;
+
+    const allRows = await service.getConsumptionStats();
+    expect(allRows.byChannel.map((item) => item.key)).toEqual(["Known Channel", UNATTRIBUTED_RELAY_CHANNEL_NAME]);
+    expect(allRows.filterOptions.channels).toEqual(
+      expect.arrayContaining([
+        { key: "Known Channel", label: "Known Channel" },
+        { key: UNATTRIBUTED_RELAY_CHANNEL_NAME, label: UNATTRIBUTED_RELAY_CHANNEL_NAME },
+      ]),
+    );
+    expect(allRows.byChannel.some((item) => item.key === "unknown")).toBe(false);
+
+    const filtered = await service.getConsumptionStats({ channels: [UNATTRIBUTED_RELAY_CHANNEL_NAME] });
+    expect(filtered.summary).toMatchObject({ totalRequests: 1, totalSpend: 1 });
+    expect(filtered.byChannel).toEqual([
+      expect.objectContaining({ key: UNATTRIBUTED_RELAY_CHANNEL_NAME, totalSpend: 1 }),
+    ]);
   });
 });

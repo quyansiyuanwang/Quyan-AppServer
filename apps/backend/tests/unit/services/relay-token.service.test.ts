@@ -6,6 +6,7 @@ import { translateMessage } from "../../../src/locales";
 
 describe("RelayTokenService", () => {
   const relayTokenRepository = {
+    create: vi.fn(),
     findByUserIdWithRelations: vi.fn(),
     findPageWithRelations: vi.fn(),
     findUsageSummaryTargets: vi.fn(),
@@ -266,6 +267,37 @@ describe("RelayTokenService", () => {
     ).rejects.toThrow(NotFoundError);
 
     expect(relayChannelService.assertChannelBusinessSelectableById).toHaveBeenCalledWith("channel-private", "user-1");
+  });
+
+  it("rejects binding a token to an inaccessible automatic proxy pool", async () => {
+    relayChannelService.assertChannelAccessibleById.mockRejectedValue(new NotFoundError("Relay channel not found"));
+
+    await expect(
+      service.generateToken("user-1", {
+        name: "Automatic Token",
+        routingMode: "automatic-pool",
+        automaticProxyPoolChannelId: "private-automatic-pool",
+      } as any),
+    ).rejects.toThrow(NotFoundError);
+
+    expect(relayChannelService.assertChannelAccessibleById).toHaveBeenCalledWith("private-automatic-pool", "user-1");
+    expect(relayChannelService.assertChannelBusinessSelectableById).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-automatic channel selected as an automatic proxy pool", async () => {
+    relayChannelService.assertChannelAccessibleById.mockResolvedValue({
+      id: "channel-1",
+      status: MANAGED_STATUS.ENABLED,
+      channelType: "standalone",
+    });
+
+    await expect(
+      service.generateToken("user-1", {
+        name: "Automatic Token",
+        routingMode: "automatic-pool",
+        automaticProxyPoolChannelId: "channel-1",
+      } as any),
+    ).rejects.toThrow("Automatic proxy pool not found or unavailable");
   });
 
   it("preserves multi-channel routing on metadata-only updates", async () => {
