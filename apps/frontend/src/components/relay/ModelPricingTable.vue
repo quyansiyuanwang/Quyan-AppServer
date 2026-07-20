@@ -75,7 +75,10 @@
                   <span class="comparison-price-label">{{ t('apiDoc.fixedPrice') }}</span>
                   <el-text type="danger" tag="b">
                     {{
-                      formatComparableFixedPrice(getChannelPriceCellValue(row, channel).fixedPrice)
+                      formatComparableFixedPriceRange(
+                        getChannelPriceCellValue(row, channel).fixedPrice,
+                        getChannelPriceCellValue(row, channel).maximumFixedPrice,
+                      )
                     }}
                   </el-text>
                 </div>
@@ -84,8 +87,9 @@
                     <span class="comparison-price-label">{{ t('apiDoc.inputPrice') }}</span>
                     <el-text type="success" tag="b">
                       {{
-                        formatComparableTokenPrice(
+                        formatComparableTokenPriceRange(
                           getChannelPriceCellValue(row, channel).inputPrice,
+                          getChannelPriceCellValue(row, channel).maximumInputPrice,
                         )
                       }}
                     </el-text>
@@ -94,8 +98,9 @@
                     <span class="comparison-price-label">{{ t('apiDoc.outputPrice') }}</span>
                     <el-text type="warning" tag="b">
                       {{
-                        formatComparableTokenPrice(
+                        formatComparableTokenPriceRange(
                           getChannelPriceCellValue(row, channel).outputPrice,
+                          getChannelPriceCellValue(row, channel).maximumOutputPrice,
                         )
                       }}
                     </el-text>
@@ -594,10 +599,94 @@
                   <div class="channel-price-header">
                     {{ channel.name }}
                     <el-tag size="small" type="info" effect="plain">
-                      ×{{ getTooltipMultiplierLabel(row, channel) }}
+                      <template v-if="isAutomaticProxyPool(channel)">
+                        {{ t('apiDoc.automaticProxyPool') }}
+                      </template>
+                      <template v-else>×{{ getTooltipMultiplierLabel(row, channel) }}</template>
                     </el-tag>
                   </div>
-                  <template v-if="row.pricingType !== 'per-request'">
+                  <template v-if="isAutomaticProxyPool(channel)">
+                    <div class="channel-price-hint">
+                      {{ t('apiDoc.automaticPoolVariablePriceHint') }}
+                    </div>
+                    <div class="channel-price-row">
+                      <span class="channel-price-label">{{ t('apiDoc.routingStrategy') }}:</span>
+                      <el-text size="small">{{ getRoutingStrategyLabel(channel) }}</el-text>
+                    </div>
+                    <div
+                      v-for="member in getAutomaticPoolMembers(channel)"
+                      :key="member.id"
+                      class="automatic-pool-member"
+                    >
+                      <div class="automatic-pool-member__header">
+                        <span>{{ member.name }}</span>
+                        <el-tag
+                          size="small"
+                          :type="member.enabled ? 'success' : 'info'"
+                          effect="plain"
+                        >
+                          {{
+                            member.enabled
+                              ? t('apiDoc.poolMemberActive')
+                              : t('apiDoc.poolMemberInactive')
+                          }}
+                        </el-tag>
+                      </div>
+                      <div class="automatic-pool-member__meta">
+                        {{ t('apiDoc.priority') }} {{ member.priority }} · {{ t('apiDoc.weight') }}
+                        {{ member.weight ?? 1 }} · {{ t('apiDoc.baseMultiplier') }} ×{{
+                          formatMultiplier(member.multiplier)
+                        }}
+                        · {{ t('apiDoc.timeMultiplier') }} ×{{
+                          formatMultiplier(member.timePeriodMultiplier)
+                        }}
+                        · {{ t('apiDoc.effectiveMultiplier') }} ×{{
+                          formatMultiplier(member.effectiveMultiplier)
+                        }}
+                      </div>
+                      <div class="automatic-pool-member__meta">
+                        {{ t('apiDoc.supportedFormats') }}: {{ member.allowedFormats }}
+                      </div>
+                      <template v-if="getAutomaticPoolMemberPrice(row, channel, member.id)">
+                        <div
+                          v-if="row.pricingType === 'per-request'"
+                          class="automatic-pool-member__price"
+                        >
+                          {{ t('apiDoc.fixedPrice') }}:
+                          {{
+                            formatComparableFixedPrice(
+                              getAutomaticPoolMemberPrice(row, channel, member.id)?.fixedPrice ??
+                                null,
+                            )
+                          }}
+                        </div>
+                        <template v-else>
+                          <div class="automatic-pool-member__price">
+                            {{ t('apiDoc.inputPrice') }}:
+                            {{
+                              formatComparableTokenPrice(
+                                getAutomaticPoolMemberPrice(row, channel, member.id)?.inputPrice ??
+                                  null,
+                              )
+                            }}
+                          </div>
+                          <div class="automatic-pool-member__price">
+                            {{ t('apiDoc.outputPrice') }}:
+                            {{
+                              formatComparableTokenPrice(
+                                getAutomaticPoolMemberPrice(row, channel, member.id)?.outputPrice ??
+                                  null,
+                              )
+                            }}
+                          </div>
+                        </template>
+                      </template>
+                      <el-text v-else size="small" type="info">{{
+                        t('apiDoc.poolMemberUnavailableForModel')
+                      }}</el-text>
+                    </div>
+                  </template>
+                  <template v-else-if="row.pricingType !== 'per-request'">
                     <div class="channel-price-row">
                       <span class="channel-price-label">{{ t('apiDoc.inputPrice') }}:</span>
                       <div class="token-price-tooltip-value">
@@ -662,10 +751,13 @@
                 style="margin: 2px; cursor: default"
                 class="channel-tag"
               >
-                {{ channel.name
-                }}<span v-if="channel.multiplier !== 1" class="channel-multiplier-badge"
-                  >×{{ formatMultiplier(channel.multiplier) }}</span
-                >
+                {{ channel.name }}
+                <span v-if="isAutomaticProxyPool(channel)" class="channel-multiplier-badge">
+                  {{ t('apiDoc.automaticProxyPool') }}
+                </span>
+                <span v-else-if="channel.multiplier !== 1" class="channel-multiplier-badge">
+                  ×{{ formatMultiplier(channel.multiplier) }}
+                </span>
               </el-tag>
             </el-tooltip>
             <el-text v-if="getAvailableChannels(row).length === 0" type="info" size="small">
@@ -707,7 +799,20 @@
               <template v-if="getChannelPriceCellValue(row, channel).available">
                 <div class="comparison-multiplier-row">
                   <el-tag size="small" type="info" effect="plain">
-                    ×{{ formatMultiplier(getChannelPriceCellValue(row, channel).multiplier) }}
+                    <template v-if="getChannelPriceCellValue(row, channel).automaticProxyPool">
+                      {{ t('apiDoc.automaticProxyPool') }} ·
+                      {{
+                        formatMultiplierRange(
+                          getChannelPriceCellValue(row, channel).multiplier,
+                          getChannelPriceCellValue(row, channel).maximumMultiplier,
+                        )
+                      }}
+                    </template>
+                    <template v-else
+                      >×{{
+                        formatMultiplier(getChannelPriceCellValue(row, channel).multiplier)
+                      }}</template
+                    >
                   </el-tag>
                 </div>
 
@@ -715,7 +820,10 @@
                   <span class="comparison-price-label">{{ t('apiDoc.fixedPrice') }}</span>
                   <el-text type="danger" tag="b">
                     {{
-                      formatComparableFixedPrice(getChannelPriceCellValue(row, channel).fixedPrice)
+                      formatComparableFixedPriceRange(
+                        getChannelPriceCellValue(row, channel).fixedPrice,
+                        getChannelPriceCellValue(row, channel).maximumFixedPrice,
+                      )
                     }}
                   </el-text>
                 </div>
@@ -725,8 +833,9 @@
                     <span class="comparison-price-label">{{ t('apiDoc.inputPrice') }}</span>
                     <el-text type="success" tag="b">
                       {{
-                        formatComparableTokenPrice(
+                        formatComparableTokenPriceRange(
                           getChannelPriceCellValue(row, channel).inputPrice,
+                          getChannelPriceCellValue(row, channel).maximumInputPrice,
                         )
                       }}
                     </el-text>
@@ -735,8 +844,9 @@
                     <span class="comparison-price-label">{{ t('apiDoc.outputPrice') }}</span>
                     <el-text type="warning" tag="b">
                       {{
-                        formatComparableTokenPrice(
+                        formatComparableTokenPriceRange(
                           getChannelPriceCellValue(row, channel).outputPrice,
+                          getChannelPriceCellValue(row, channel).maximumOutputPrice,
                         )
                       }}
                     </el-text>
@@ -806,10 +916,7 @@ const props = defineProps<{
     modelFormat?: string,
   ) => RelayChannelOptionDto[]
   getDisplayedPriceMultiplier: (item: PricingModelRow) => number
-  getChannelPriceCell: (
-    item: PricingModelRow,
-    channel: Pick<RelayChannelOptionDto, 'id' | 'name' | 'multiplier'>,
-  ) => ChannelPriceCell
+  getChannelPriceCell: (item: PricingModelRow, channel: RelayChannelOptionDto) => ChannelPriceCell
   customPriceMultiplier?: number | null
   customMultiplierActive?: boolean
   showCacheMultipliers?: boolean
@@ -919,6 +1026,31 @@ const getTooltipMultiplier = (_item: PricingModelRow, channel: RelayChannelOptio
   return channel.multiplier ?? 1
 }
 
+const isAutomaticProxyPool = (channel: RelayChannelOptionDto): boolean =>
+  Boolean(channel.automaticProxyPool)
+
+const getRoutingStrategyLabel = (channel: RelayChannelOptionDto): string => {
+  const strategy = channel.automaticProxyPool?.routingStrategy
+  if (!strategy) return '-'
+
+  const labels: Record<NonNullable<typeof strategy>, string> = {
+    priority: t('relay.routingStrategyPriority'),
+    random: t('relay.routingStrategyRandom'),
+    'weighted-random': t('relay.routingStrategyWeightedRandom'),
+    'round-robin': t('relay.routingStrategyRoundRobin'),
+    'health-priority': t('relay.routingStrategyHealthPriority'),
+    'latency-priority': t('relay.routingStrategyLatencyPriority'),
+  }
+
+  return labels[strategy]
+}
+
+const getAutomaticPoolMembers = (channel: RelayChannelOptionDto) => {
+  return [...(channel.automaticProxyPool?.members || [])].sort(
+    (left, right) => left.priority - right.priority || left.name.localeCompare(right.name),
+  )
+}
+
 const getTooltipMultiplierLabel = (
   item: PricingModelRow,
   channel: RelayChannelOptionDto,
@@ -949,6 +1081,27 @@ const formatComparableFixedPrice = (value: number | null): string => {
   return value.toFixed(4)
 }
 
+const formatMultiplierRange = (minimum: number, maximum: number | null): string => {
+  if (maximum == null || minimum === maximum) return `×${formatMultiplier(minimum)}`
+  return `×${formatMultiplier(minimum)}–×${formatMultiplier(maximum)}`
+}
+
+const formatComparableTokenPriceRange = (
+  minimum: number | null,
+  maximum: number | null,
+): string => {
+  if (maximum == null || minimum === maximum) return formatComparableTokenPrice(minimum)
+  return `${formatComparableTokenPrice(minimum)}–${formatComparableTokenPrice(maximum)}`
+}
+
+const formatComparableFixedPriceRange = (
+  minimum: number | null,
+  maximum: number | null,
+): string => {
+  if (maximum == null || minimum === maximum) return formatComparableFixedPrice(minimum)
+  return `${formatComparableFixedPrice(minimum)}–${formatComparableFixedPrice(maximum)}`
+}
+
 const errorMessage = computed(() => props.errorMessage || '')
 
 const copyModelId = (item: PricingModelRow) => {
@@ -975,15 +1128,43 @@ const getAvailableChannels = (item: PricingModelRow): RelayChannelOptionDto[] =>
 
 const getChannelPriceCellValue = (
   item: PricingModelRow,
-  channel: Pick<RelayChannelOptionDto, 'id' | 'name' | 'multiplier'>,
+  channel: RelayChannelOptionDto,
 ): ChannelPriceCell => {
   return props.getChannelPriceCell(item, channel)
 }
+
+const getAutomaticPoolMemberPrice = (
+  item: PricingModelRow,
+  channel: RelayChannelOptionDto,
+  memberId: string,
+) => getChannelPriceCellValue(item, channel).members.find((member) => member.id === memberId)
 </script>
 
 <style scoped>
 .pricing-table-wrapper {
   width: 100%;
+}
+
+.automatic-pool-member {
+  padding: 8px 0;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.automatic-pool-member__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.automatic-pool-member__meta,
+.automatic-pool-member__price {
+  margin-top: 3px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .pricing-table-empty-state {

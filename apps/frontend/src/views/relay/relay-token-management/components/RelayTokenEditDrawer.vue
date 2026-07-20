@@ -556,8 +556,8 @@
                         }}</span>
                         <el-switch
                           :model-value="editForm.quotaWindowsEnabled"
-                          :disabled="state.saving"
-                          @change="state.handleQuotaWindowsToggleChange"
+                          :disabled="saving"
+                          @update:model-value="state.handleQuotaWindowsToggleChange"
                         />
                       </div>
                       <el-button
@@ -565,6 +565,7 @@
                         type="primary"
                         :size="isDesktop ? undefined : 'small'"
                         :disabled="
+                          saving ||
                           !editForm.quotaWindowsEnabled ||
                           editForm.quotaWindows.length >= state.MAX_QUOTA_WINDOWS
                         "
@@ -608,7 +609,7 @@
                           link
                           type="danger"
                           :size="isDesktop ? undefined : 'small'"
-                          :disabled="state.saving"
+                          :disabled="saving"
                           @click="state.removeQuotaWindow(index)"
                         >
                           {{ i18ns.t('relay.removeQuotaWindow') }}

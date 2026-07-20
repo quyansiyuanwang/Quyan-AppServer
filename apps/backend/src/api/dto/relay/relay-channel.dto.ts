@@ -79,8 +79,9 @@ export interface RelayChannelDto {
 }
 
 /**
- * Pool-transparent channel capability exposed to business-facing clients.
- * It intentionally excludes routing topology, raw configuration, upstream credentials, and visibility rules.
+ * Business-facing channel capability. Ordinary channels and pooled channels intentionally exclude
+ * routing topology and management configuration. Automatic proxy pools expose a limited routing
+ * and member projection so callers can understand their variable pricing.
  */
 export interface RelayChannelOptionDto {
   id: string;
@@ -90,12 +91,46 @@ export interface RelayChannelOptionDto {
   multiplier: number;
   allowedFormats: string;
   modelCapabilities: RelayChannelModelCapabilityDto[];
+  /** Present only for automatic proxy pools. Excludes upstream URLs, credentials, mappings, and visibility rules. */
+  automaticProxyPool?: RelayAutomaticProxyPoolOptionDto;
 }
 
 export interface RelayChannelModelCapabilityDto {
   catalogModelName: string;
   requestModelId: string;
   supportedRequestFormats: Array<"openai" | "anthropic" | "gemini">;
+}
+
+export interface RelayAutomaticProxyPoolOptionDto {
+  routingStrategy: RelayChannelRoutingStrategy;
+  routingConfig?: RelayAutomaticProxyPoolRoutingConfigDto;
+  members: RelayAutomaticProxyPoolMemberOptionDto[];
+}
+
+export interface RelayAutomaticProxyPoolRoutingConfigDto {
+  maxRetries?: number;
+  failoverThreshold?: number;
+  retryStatusCodes?: Array<number | string>;
+  failbackCooldownMinutes?: number;
+  healthScoreThreshold?: number | null;
+  latencyThresholdMs?: number | null;
+  circuitBreakerThreshold?: number | null;
+  stickyByModel?: boolean;
+  stickyByFormat?: boolean;
+}
+
+export interface RelayAutomaticProxyPoolMemberOptionDto {
+  id: string;
+  name: string;
+  enabled: boolean;
+  priority: number;
+  weight?: number;
+  multiplier: number;
+  timePeriodMultiplier: number;
+  effectiveMultiplier: number;
+  allowedFormats: string;
+  /** Current model/format eligibility after pool constraints are resolved. */
+  modelCapabilities: RelayChannelModelCapabilityDto[];
 }
 
 export interface RelayChannelExportItemDto extends CreateRelayChannelRequest {

@@ -54,7 +54,6 @@ import type {
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 import { BalanceRepository } from "@/store/billing/balance.repository";
 import type { BalanceStore } from "@/store/billing/balance.store";
-import { Prisma, type RelayChannel } from "@prisma/client";
 import {
   MONTHLY_PASS_DECIMAL_SCALE,
   MONTHLY_PASS_MAX_AMOUNT_QUOTA,

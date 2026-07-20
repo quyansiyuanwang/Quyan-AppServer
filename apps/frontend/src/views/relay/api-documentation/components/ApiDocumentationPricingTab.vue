@@ -2,16 +2,19 @@
 import { ArrowDown, ArrowUp, Refresh, Search } from '@element-plus/icons-vue'
 import ComponentErrorBoundary from '@/components/common/ComponentErrorBoundary.vue'
 import ModelPricingTable from '@/components/relay/ModelPricingTable.vue'
+import type { RelayChannelOptionDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
 import { useApiDocumentationContext } from '../context'
 
 const state = useApiDocumentationContext()
-const channels = state.channels
+const visibleChannels = state.visibleChannels
 const filterFormat = state.filterFormat
 const filterChannelIds = state.filterChannelIds
 const filterPricingType = state.filterPricingType
 const filterModelKeyword = state.filterModelKeyword
 const onlyModelsWithChannels = state.onlyModelsWithChannels
+const hideIndependentChannels = state.hideIndependentChannels
+const hideAutomaticProxyPools = state.hideAutomaticProxyPools
 const channelMatchMode = state.channelMatchMode
 const channelPriceMode = state.channelPriceMode
 const pricingTableMode = state.pricingTableMode
@@ -114,8 +117,35 @@ const formatChannelMultiplier = (multiplier?: number | null) => {
   return `x${resolvedMultiplier}`
 }
 
-const formatChannelOptionLabel = (channelName: string, multiplier?: number | null) => {
-  return `${channelName} ${formatChannelMultiplier(multiplier)}`
+const formatChannelOptionLabel = (channel: RelayChannelOptionDto) => {
+  if (!channel.automaticProxyPool) {
+    return `${channel.name} ${formatChannelMultiplier(channel.multiplier)}`
+  }
+
+  const multipliers = channel.automaticProxyPool.members
+    .filter((member) => member.enabled)
+    .map((member) => member.effectiveMultiplier)
+
+  if (multipliers.length === 0) {
+    return `${channel.name} · ${t('apiDoc.automaticProxyPool')}`
+  }
+
+  return `${channel.name} · ${t('apiDoc.automaticProxyPool')} ${formatChannelMultiplier(
+    Math.min(...multipliers),
+  )}–${formatChannelMultiplier(Math.max(...multipliers))}`
+}
+
+const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
+  if (!channel.automaticProxyPool) return formatChannelMultiplier(channel.multiplier)
+
+  const multipliers = channel.automaticProxyPool.members
+    .filter((member) => member.enabled)
+    .map((member) => member.effectiveMultiplier)
+
+  if (multipliers.length === 0) return t('apiDoc.noActivePoolMembers')
+  return `${formatChannelMultiplier(Math.min(...multipliers))}–${formatChannelMultiplier(
+    Math.max(...multipliers),
+  )}`
 }
 </script>
 
@@ -149,15 +179,15 @@ const formatChannelOptionLabel = (channelName: string, multiplier?: number | nul
           class="pricing-filter"
         >
           <el-option
-            v-for="channel in channels"
+            v-for="channel in visibleChannels"
             :key="channel.id"
-            :label="formatChannelOptionLabel(channel.name, channel.multiplier)"
+            :label="formatChannelOptionLabel(channel)"
             :value="channel.id"
           >
             <div class="pricing-channel-option">
               <span class="pricing-channel-option__name">{{ channel.name }}</span>
               <span class="pricing-channel-option__multiplier">
-                {{ formatChannelMultiplier(channel.multiplier) }}
+                {{ formatChannelOptionMultiplier(channel) }}
               </span>
             </div>
           </el-option>
@@ -210,6 +240,16 @@ const formatChannelOptionLabel = (channelName: string, multiplier?: number | nul
             <div class="pricing-more-settings-item pricing-more-settings-item--between">
               <span class="pricing-inline-label">{{ t('apiDoc.showCacheMultipliers') }}</span>
               <el-switch v-model="showCacheMultipliers" />
+            </div>
+
+            <div class="pricing-more-settings-item pricing-more-settings-item--between">
+              <span class="pricing-inline-label">{{ t('apiDoc.hideIndependentChannels') }}</span>
+              <el-switch v-model="hideIndependentChannels" />
+            </div>
+
+            <div class="pricing-more-settings-item pricing-more-settings-item--between">
+              <span class="pricing-inline-label">{{ t('apiDoc.hideAutomaticProxyPools') }}</span>
+              <el-switch v-model="hideAutomaticProxyPools" />
             </div>
 
             <div class="pricing-more-settings-item">
@@ -455,15 +495,15 @@ const formatChannelOptionLabel = (channelName: string, multiplier?: number | nul
               class="pricing-filter"
             >
               <el-option
-                v-for="channel in channels"
+                v-for="channel in visibleChannels"
                 :key="channel.id"
-                :label="formatChannelOptionLabel(channel.name, channel.multiplier)"
+                :label="formatChannelOptionLabel(channel)"
                 :value="channel.id"
               >
                 <div class="pricing-channel-option">
                   <span class="pricing-channel-option__name">{{ channel.name }}</span>
                   <span class="pricing-channel-option__multiplier">
-                    {{ formatChannelMultiplier(channel.multiplier) }}
+                    {{ formatChannelOptionMultiplier(channel) }}
                   </span>
                 </div>
               </el-option>
@@ -539,6 +579,20 @@ const formatChannelOptionLabel = (channelName: string, multiplier?: number | nul
                     {{ t('apiDoc.showCacheMultipliers') }}
                   </span>
                   <el-switch v-model="showCacheMultipliers" />
+                </div>
+
+                <div class="pricing-mobile-switch">
+                  <span class="pricing-mobile-switch-label">
+                    {{ t('apiDoc.hideIndependentChannels') }}
+                  </span>
+                  <el-switch v-model="hideIndependentChannels" />
+                </div>
+
+                <div class="pricing-mobile-switch">
+                  <span class="pricing-mobile-switch-label">
+                    {{ t('apiDoc.hideAutomaticProxyPools') }}
+                  </span>
+                  <el-switch v-model="hideAutomaticProxyPools" />
                 </div>
 
                 <div class="pricing-inline-control pricing-inline-control--mobile">
