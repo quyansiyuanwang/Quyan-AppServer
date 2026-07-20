@@ -75,6 +75,8 @@ export const useApiDocumentationPricing = () => {
   const filterPricingType = ref<string>('')
   const filterModelKeyword = ref<string>('')
   const onlyModelsWithChannels = ref(true)
+  const hideIndependentChannels = ref(false)
+  const hideAutomaticProxyPools = ref(false)
   const channelMatchMode = ref<ChannelMatchMode>('match-any')
   const channelPriceMode = ref<ChannelPriceMode>('selected-lowest')
   const pricingTableMode = ref<PricingTableMode>('summary')
@@ -106,6 +108,14 @@ export const useApiDocumentationPricing = () => {
 
   const selectedChannelIdsSet = computed(() => new Set(filterChannelIds.value))
 
+  const visibleChannels = computed(() =>
+    channels.value.filter((channel) => {
+      const isAutomaticProxyPool = Boolean(channel.automaticProxyPool)
+      if (isAutomaticProxyPool) return !hideAutomaticProxyPools.value
+      return !hideIndependentChannels.value
+    }),
+  )
+
   const filterChannel = computed<string>({
     get: () => filterChannelIds.value[0] || '',
     set: (channelId) => {
@@ -128,7 +138,7 @@ export const useApiDocumentationPricing = () => {
   })
 
   const selectedChannels = computed(() => {
-    const channelMap = new Map(channels.value.map((channel) => [channel.id, channel]))
+    const channelMap = new Map(visibleChannels.value.map((channel) => [channel.id, channel]))
 
     return filterChannelIds.value
       .map((channelId) => channelMap.get(channelId))
@@ -151,7 +161,7 @@ export const useApiDocumentationPricing = () => {
     const normalizedModelId = modelId.trim()
     const modelFormats = normalizeFormats(modelFormat)
 
-    return channels.value.filter((channel) => {
+    return visibleChannels.value.filter((channel) => {
       return channel.modelCapabilities.some(
         (capability) =>
           (capability.catalogModelName === normalizedModelName ||
@@ -303,7 +313,8 @@ export const useApiDocumentationPricing = () => {
       }
     }
 
-    const multipliers = memberMultipliers.length > 0 ? memberMultipliers : [availableChannel.multiplier ?? 1]
+    const multipliers =
+      memberMultipliers.length > 0 ? memberMultipliers : [availableChannel.multiplier ?? 1]
     const effectiveMultipliers = multipliers.map((multiplier) => multiplier * customMultiplier)
     const multiplier = Math.min(...effectiveMultipliers)
     const maximumMultiplier = Math.max(...effectiveMultipliers)
@@ -334,14 +345,11 @@ export const useApiDocumentationPricing = () => {
       channelName: channel.name,
       multiplier,
       maximumMultiplier,
-      fixedPrice:
-        item.pricingType === 'per-request' ? (item.fixedPrice ?? 0) * multiplier : null,
+      fixedPrice: item.pricingType === 'per-request' ? (item.fixedPrice ?? 0) * multiplier : null,
       maximumFixedPrice:
         item.pricingType === 'per-request' ? (item.fixedPrice ?? 0) * maximumMultiplier : null,
       inputPrice:
-        item.pricingType === 'per-request'
-          ? null
-          : ((item.inputPrice ?? 0) * multiplier) / divisor,
+        item.pricingType === 'per-request' ? null : ((item.inputPrice ?? 0) * multiplier) / divisor,
       maximumInputPrice:
         item.pricingType === 'per-request'
           ? null
@@ -613,6 +621,8 @@ export const useApiDocumentationPricing = () => {
     filterPricingType.value = ''
     filterModelKeyword.value = ''
     onlyModelsWithChannels.value = true
+    hideIndependentChannels.value = false
+    hideAutomaticProxyPools.value = false
     channelMatchMode.value = 'match-any'
     channelPriceMode.value = 'selected-lowest'
     pricingTableMode.value = 'summary'
@@ -637,6 +647,13 @@ export const useApiDocumentationPricing = () => {
     if (ids.length === 0 && channelPriceMode.value === 'selected-lowest') {
       channelPriceMode.value = 'base'
     }
+  })
+
+  watch([hideIndependentChannels, hideAutomaticProxyPools, visibleChannels], () => {
+    const visibleChannelIds = new Set(visibleChannels.value.map((channel) => channel.id))
+    filterChannelIds.value = filterChannelIds.value.filter((channelId) =>
+      visibleChannelIds.has(channelId),
+    )
   })
 
   watch(
@@ -671,6 +688,7 @@ export const useApiDocumentationPricing = () => {
     loading,
     loadErrorMessage,
     channels,
+    visibleChannels,
     selectedChannels,
     filterFormat,
     filterChannel,
@@ -678,6 +696,8 @@ export const useApiDocumentationPricing = () => {
     filterPricingType,
     filterModelKeyword,
     onlyModelsWithChannels,
+    hideIndependentChannels,
+    hideAutomaticProxyPools,
     channelMatchMode,
     channelPriceMode,
     showLowestChannelPrice,

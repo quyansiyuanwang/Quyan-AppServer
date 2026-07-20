@@ -3154,6 +3154,8 @@ export default {
     moreSettings: 'More settings',
     hideMoreSettings: 'Hide more settings',
     showCacheMultipliers: 'Show cache multipliers',
+    hideIndependentChannels: 'Hide independent channels',
+    hideAutomaticProxyPools: 'Hide automatic proxy pools',
     cacheMultipliers: 'Cache multipliers',
     cacheCreateShort: 'Create',
     cacheReadShort: 'Read',

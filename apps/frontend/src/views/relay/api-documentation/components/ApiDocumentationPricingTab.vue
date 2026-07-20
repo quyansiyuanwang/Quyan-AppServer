@@ -7,12 +7,14 @@ import { i18ns } from '@/locales'
 import { useApiDocumentationContext } from '../context'
 
 const state = useApiDocumentationContext()
-const channels = state.channels
+const visibleChannels = state.visibleChannels
 const filterFormat = state.filterFormat
 const filterChannelIds = state.filterChannelIds
 const filterPricingType = state.filterPricingType
 const filterModelKeyword = state.filterModelKeyword
 const onlyModelsWithChannels = state.onlyModelsWithChannels
+const hideIndependentChannels = state.hideIndependentChannels
+const hideAutomaticProxyPools = state.hideAutomaticProxyPools
 const channelMatchMode = state.channelMatchMode
 const channelPriceMode = state.channelPriceMode
 const pricingTableMode = state.pricingTableMode
@@ -177,7 +179,7 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
           class="pricing-filter"
         >
           <el-option
-            v-for="channel in channels"
+            v-for="channel in visibleChannels"
             :key="channel.id"
             :label="formatChannelOptionLabel(channel)"
             :value="channel.id"
@@ -238,6 +240,16 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
             <div class="pricing-more-settings-item pricing-more-settings-item--between">
               <span class="pricing-inline-label">{{ t('apiDoc.showCacheMultipliers') }}</span>
               <el-switch v-model="showCacheMultipliers" />
+            </div>
+
+            <div class="pricing-more-settings-item pricing-more-settings-item--between">
+              <span class="pricing-inline-label">{{ t('apiDoc.hideIndependentChannels') }}</span>
+              <el-switch v-model="hideIndependentChannels" />
+            </div>
+
+            <div class="pricing-more-settings-item pricing-more-settings-item--between">
+              <span class="pricing-inline-label">{{ t('apiDoc.hideAutomaticProxyPools') }}</span>
+              <el-switch v-model="hideAutomaticProxyPools" />
             </div>
 
             <div class="pricing-more-settings-item">
@@ -483,7 +495,7 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
               class="pricing-filter"
             >
               <el-option
-                v-for="channel in channels"
+                v-for="channel in visibleChannels"
                 :key="channel.id"
                 :label="formatChannelOptionLabel(channel)"
                 :value="channel.id"
@@ -567,6 +579,20 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
                     {{ t('apiDoc.showCacheMultipliers') }}
                   </span>
                   <el-switch v-model="showCacheMultipliers" />
+                </div>
+
+                <div class="pricing-mobile-switch">
+                  <span class="pricing-mobile-switch-label">
+                    {{ t('apiDoc.hideIndependentChannels') }}
+                  </span>
+                  <el-switch v-model="hideIndependentChannels" />
+                </div>
+
+                <div class="pricing-mobile-switch">
+                  <span class="pricing-mobile-switch-label">
+                    {{ t('apiDoc.hideAutomaticProxyPools') }}
+                  </span>
+                  <el-switch v-model="hideAutomaticProxyPools" />
                 </div>
 
                 <div class="pricing-inline-control pricing-inline-control--mobile">

@@ -2968,6 +2968,8 @@ const emoji: DeepStringify<typeof en> = {
     moreSettings: '➕ ⚙️',
     hideMoreSettings: '➖ ⚙️',
     showCacheMultipliers: '👁️ 💾 ✖️',
+    hideIndependentChannels: '🙈 📡',
+    hideAutomaticProxyPools: '🙈 🤖 🔁 🏊',
     cacheMultipliers: '💾 ✖️',
     cacheCreateShort: '🆕',
     cacheReadShort: '📖',
