@@ -264,7 +264,7 @@ export class RelayTokenService {
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
     const automaticPoolId = data.routingMode === "automatic-pool" ? data.automaticProxyPoolChannelId : undefined;
-    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId);
+    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId, actorUserId);
     const normalizedConfig = automaticPoolId
       ? { defaultChannelId: undefined, channelConfigs: [] }
       : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
@@ -599,7 +599,7 @@ export class RelayTokenService {
     const hasChannelConfigs = Object.prototype.hasOwnProperty.call(data, "channelConfigs");
     const hasAutomaticMode = data.routingMode === "automatic-pool";
     const automaticPoolId = hasAutomaticMode ? data.automaticProxyPoolChannelId : undefined;
-    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId);
+    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId, actorUserId);
     const hasRoutingUpdate = hasAutomaticMode || hasChannelId || hasChannelConfigs;
     const normalizedConfig = hasAutomaticMode
       ? { defaultChannelId: null, channelConfigs: [] }
@@ -670,9 +670,9 @@ export class RelayTokenService {
     return updatedToken;
   }
 
-  private async assertAutomaticProxyPool(channelId: string): Promise<void> {
-    const channel = (await this.relayChannelRepo.listActiveByIds([channelId]))[0];
-    if (!channel || channel.channelType !== "automatic-proxy-pool")
+  private async assertAutomaticProxyPool(channelId: string, actorUserId: string): Promise<void> {
+    const channel = await this.relayChannelService.assertChannelAccessibleById(channelId, actorUserId);
+    if (channel.status !== MANAGED_STATUS.ENABLED || channel.channelType !== "automatic-proxy-pool")
       throw new BadRequestError("Automatic proxy pool not found or unavailable");
   }
 
@@ -1579,7 +1579,7 @@ export class RelayTokenService {
     tx?: RelayTokenTransactionClient,
   ): Promise<RelayTokenWithRelations> {
     const automaticPoolId = data.routingMode === "automatic-pool" ? data.automaticProxyPoolChannelId : undefined;
-    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId);
+    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId, actorUserId);
     const normalizedConfig = automaticPoolId
       ? { defaultChannelId: undefined, channelConfigs: [] }
       : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);

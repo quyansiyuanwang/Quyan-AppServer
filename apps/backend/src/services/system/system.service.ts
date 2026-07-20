@@ -31,6 +31,7 @@ import type {
   ConsumptionStatsStore,
   ConsumptionUsageRow,
 } from "@/store/system/consumption-stats.store";
+import { UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay-display-channel.util";
 import type { APILogStore } from "@/store/system/apilog.store";
 import type { UserStore } from "@/store/users/user.store";
 import type { GroupStore } from "@/store/users/group.store";
@@ -850,7 +851,7 @@ export class SystemService {
 
       const date = formatDateKey(row.createTime);
       const userLabel = row.username || row.userId;
-      const channelLabel = row.channelName || "unknown";
+      const channelLabel = row.channelName || UNATTRIBUTED_RELAY_CHANNEL_NAME;
       const modelLabel = row.model || "unknown";
 
       const daily = dailyMap.get(date) || { date, ...createSummaryAccumulator() };

@@ -1,7 +1,10 @@
 import { prisma } from "@/config/database";
 import { RECORD_STATUS } from "@/constant/status";
+import { normalizeRelayDisplaySnapshotName, UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay-display-channel.util";
 import type { ConsumptionStatsStore, ConsumptionUsageRow } from "./consumption-stats.store";
 import { extractLegacyMonthlyPassCoveredAmount } from "@/util/monthly-pass-coverage.util";
+
+const normalizeLegacyChannelName = (value?: string | null): string | undefined => value?.trim() || undefined;
 
 export class ConsumptionStatsRepository implements ConsumptionStatsStore {
   private static instance: ConsumptionStatsRepository;
@@ -38,6 +41,7 @@ export class ConsumptionStatsRepository implements ConsumptionStatsStore {
         cacheCreationTokens: true,
         cacheReadTokens: true,
         channelName: true,
+        displayChannelName: true,
         description: true,
       },
       orderBy: {
@@ -61,6 +65,7 @@ export class ConsumptionStatsRepository implements ConsumptionStatsStore {
         userId: true,
         model: true,
         channelName: true,
+        displayChannelName: true,
       },
     });
 
@@ -80,6 +85,7 @@ export class ConsumptionStatsRepository implements ConsumptionStatsStore {
           select: {
             id: true,
             relayTokenId: true,
+            displayChannelName: true,
             relayToken: {
               select: {
                 name: true,
@@ -95,6 +101,7 @@ export class ConsumptionStatsRepository implements ConsumptionStatsStore {
         {
           relayTokenId: item.relayTokenId,
           relayTokenName: item.relayToken?.name ?? null,
+          displayChannelName: normalizeRelayDisplaySnapshotName(item.displayChannelName),
         },
       ]),
     );
@@ -118,13 +125,24 @@ export class ConsumptionStatsRepository implements ConsumptionStatsStore {
 
     const usernameMap = new Map(usernameRows.map((item) => [item.id, item.username]));
 
-    const monthlyPassByUsageId = new Map<string, { coveredAmount: number; coveredTokens: number }>();
+    const monthlyPassByUsageId = new Map<
+      string,
+      { coveredAmount: number; coveredTokens: number; legacyChannelNames: Set<string>; displayChannelName?: string }
+    >();
     for (const item of monthlyPassUsages) {
       if (!item.relayUsageId) continue;
-      const existing = monthlyPassByUsageId.get(item.relayUsageId) || { coveredAmount: 0, coveredTokens: 0 };
+      const existing = monthlyPassByUsageId.get(item.relayUsageId) || {
+        coveredAmount: 0,
+        coveredTokens: 0,
+        legacyChannelNames: new Set<string>(),
+      };
+      const legacyChannelName = normalizeLegacyChannelName(item.channelName);
+      if (legacyChannelName) existing.legacyChannelNames.add(legacyChannelName);
       monthlyPassByUsageId.set(item.relayUsageId, {
         coveredAmount: existing.coveredAmount + Number(item.coveredAmount || 0),
         coveredTokens: existing.coveredTokens + Number(item.coveredTokens || 0),
+        legacyChannelNames: existing.legacyChannelNames,
+        displayChannelName: existing.displayChannelName ?? normalizeRelayDisplaySnapshotName(item.displayChannelName),
       });
     }
 
@@ -141,6 +159,15 @@ export class ConsumptionStatsRepository implements ConsumptionStatsStore {
         tx.type === "monthly_pass_coverage" ? extractLegacyMonthlyPassCoveredAmount(tx.description) : 0;
       const coveredMeta = monthlyPassByUsageId.get(usageId);
       const coveredAmount = coveredMeta?.coveredAmount ?? fallbackMonthlyPass;
+      const linkedLegacyMonthlyPassChannelName =
+        coveredMeta?.legacyChannelNames.size === 1 ? [...coveredMeta.legacyChannelNames][0] : undefined;
+      const resolvedChannelName =
+        normalizeLegacyChannelName(tx.channelName) ??
+        linkedLegacyMonthlyPassChannelName ??
+        normalizeRelayDisplaySnapshotName(tx.displayChannelName) ??
+        coveredMeta?.displayChannelName ??
+        relayUsageMeta?.displayChannelName ??
+        UNATTRIBUTED_RELAY_CHANNEL_NAME;
       const totalTokens = Number(tx.tokens ?? 0);
       const inputTokens = Number(tx.inputTokens ?? 0);
       const outputTokens = Number(tx.outputTokens ?? 0);
@@ -157,9 +184,9 @@ export class ConsumptionStatsRepository implements ConsumptionStatsStore {
             ? existing.model
             : tx.model || (existing ? existing.model : undefined) || "unknown",
         channelName:
-          existing && existing.channelName !== "unknown"
+          existing && existing.channelName !== UNATTRIBUTED_RELAY_CHANNEL_NAME
             ? existing.channelName
-            : tx.channelName || (existing ? existing.channelName : undefined) || "unknown",
+            : resolvedChannelName,
         relayTokenId: existing?.relayTokenId ?? relayUsageMeta?.relayTokenId ?? null,
         relayTokenName: existing?.relayTokenName ?? relayUsageMeta?.relayTokenName ?? null,
         chargedAmount,
@@ -180,6 +207,11 @@ export class ConsumptionStatsRepository implements ConsumptionStatsStore {
       const coveredAmount = Number(usage.coveredAmount || 0);
       const coveredTokens = Number(usage.coveredTokens || 0);
       const relayUsageMeta = relayUsageMap.get(usageId);
+      const resolvedChannelName =
+        normalizeLegacyChannelName(usage.channelName) ??
+        normalizeRelayDisplaySnapshotName(usage.displayChannelName) ??
+        relayUsageMeta?.displayChannelName ??
+        UNATTRIBUTED_RELAY_CHANNEL_NAME;
 
       usageRowMap.set(usageId, {
         usageId,
@@ -187,7 +219,7 @@ export class ConsumptionStatsRepository implements ConsumptionStatsStore {
         username: usernameMap.get(usage.userId) ?? null,
         createTime: usage.createTime,
         model: usage.model || "unknown",
-        channelName: usage.channelName || "unknown",
+        channelName: resolvedChannelName,
         relayTokenId: relayUsageMeta?.relayTokenId ?? null,
         relayTokenName: relayUsageMeta?.relayTokenName ?? null,
         chargedAmount: 0,

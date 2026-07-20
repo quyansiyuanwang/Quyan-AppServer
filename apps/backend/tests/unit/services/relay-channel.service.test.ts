@@ -21,6 +21,8 @@ describe("RelayChannelService", () => {
     replaceMembersByChannelId: vi.fn(),
     deleteMembersByChannelId: vi.fn(),
     softDeleteAndUnassignTokens: vi.fn(),
+    softDeleteAndUnassignTokensByIds: vi.fn(),
+    updateStatusByIds: vi.fn(),
   };
   const businessLogService = {
     logOperation: vi.fn(),
@@ -1019,6 +1021,31 @@ describe("RelayChannelService", () => {
     await service.deleteChannel("channel-1", "actor-user");
 
     expect(relayChannelRepository.softDeleteAndUnassignTokens).toHaveBeenCalledWith("channel-1");
+  });
+
+  it("batch deletes channels through the repository cleanup transaction", async () => {
+    relayChannelRepository.softDeleteAndUnassignTokensByIds.mockResolvedValue(2);
+
+    const result = await service.batchDeleteChannels({ ids: ["automatic-pool-1", "automatic-pool-2"] }, "actor-user");
+
+    expect(relayChannelRepository.softDeleteAndUnassignTokensByIds).toHaveBeenCalledWith([
+      "automatic-pool-1",
+      "automatic-pool-2",
+    ]);
+    expect(result).toEqual({ total: 2, affected: 2 });
+  });
+
+  it("batch disabling channels only changes their status and does not invoke deletion cleanup", async () => {
+    relayChannelRepository.updateStatusByIds.mockResolvedValue(1);
+
+    const result = await service.batchSetChannelStatus({ ids: ["automatic-pool-1"], enabled: false }, "actor-user");
+
+    expect(relayChannelRepository.updateStatusByIds).toHaveBeenCalledWith(
+      ["automatic-pool-1"],
+      RELAY_CHANNEL_STATUS.DISABLED,
+    );
+    expect(relayChannelRepository.softDeleteAndUnassignTokensByIds).not.toHaveBeenCalled();
+    expect(result).toEqual({ total: 1, affected: 1 });
   });
 
   it("creates a channel with inputTokensIncludeCacheRead set to false", () => {

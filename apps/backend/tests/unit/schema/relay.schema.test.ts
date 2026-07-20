@@ -53,6 +53,38 @@ describe("relay token import schema", () => {
     ).toThrow("automatic pool mode cannot include ordered channels");
   });
 
+  it("imports automatic routing only with an automatic proxy pool and no ordered channels", () => {
+    expect(
+      importRelayTokensBodySchema.parse({
+        tokens: [
+          {
+            name: "Automatic Import",
+            routingMode: "automatic-pool",
+            automaticProxyPoolChannelId: "automatic-pool-1",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      tokens: [{ routingMode: "automatic-pool", automaticProxyPoolChannelId: "automatic-pool-1" }],
+    });
+
+    expect(() =>
+      importRelayTokensBodySchema.parse({ tokens: [{ name: "Automatic Import", routingMode: "automatic-pool" }] }),
+    ).toThrow("automaticProxyPoolChannelId is required");
+    expect(() =>
+      importRelayTokensBodySchema.parse({
+        tokens: [
+          {
+            name: "Automatic Import",
+            routingMode: "automatic-pool",
+            automaticProxyPoolChannelId: "automatic-pool-1",
+            channelId: "ordered-channel",
+          },
+        ],
+      }),
+    ).toThrow("automatic pool mode cannot include ordered channels");
+  });
+
   it("rejects updates that switch to automatic routing without a pool", () => {
     expect(() => updateRelayTokenBodySchema.parse({ routingMode: "automatic-pool" })).toThrow(
       "automaticProxyPoolChannelId is required",
