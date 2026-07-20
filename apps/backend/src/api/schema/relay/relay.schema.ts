@@ -273,6 +273,8 @@ const relayTokenImportItemSchema = z
     name: z.string().max(100).nullish(),
     token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
+    routingMode: z.enum(["ordered", "automatic-pool"]).optional(),
+    automaticProxyPoolChannelId: z.string().trim().min(1).max(50).optional(),
     channelId: z.string().trim().min(1).max(50).optional(),
     channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
     failoverConfig: relayTokenFailoverConfigSchema.optional(),
@@ -284,10 +286,26 @@ const relayTokenImportItemSchema = z
     enabled: z.coerce.boolean().optional(),
   })
   .superRefine((value, ctx) => {
-    if (!value.channelId && (!value.channelConfigs || value.channelConfigs.length === 0))
+    if (
+      value.routingMode !== "automatic-pool" &&
+      !value.channelId &&
+      (!value.channelConfigs || value.channelConfigs.length === 0)
+    )
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "channelId or channelConfigs is required",
+        path: ["channelConfigs"],
+      });
+    if (value.routingMode === "automatic-pool" && !value.automaticProxyPoolChannelId)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "automaticProxyPoolChannelId is required",
+        path: ["automaticProxyPoolChannelId"],
+      });
+    if (value.routingMode === "automatic-pool" && (value.channelId || value.channelConfigs?.length))
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "automatic pool mode cannot include ordered channels",
         path: ["channelConfigs"],
       });
 

@@ -175,6 +175,11 @@ export class RelayChannelRepository implements RelayChannelStore {
         data: { channelId: null },
       });
 
+      await tx.relayToken.updateMany({
+        where: { automaticProxyPoolChannelId: id },
+        data: { automaticProxyPoolChannelId: null, routingMode: "ordered" },
+      });
+
       await tx.relayTokenChannelConfig.deleteMany({ where: { channelId: id } });
 
       await tx.relayChannelMember.deleteMany({
@@ -199,6 +204,11 @@ export class RelayChannelRepository implements RelayChannelStore {
       await tx.relayToken.updateMany({
         where: { channelId: { in: ids } },
         data: { channelId: null },
+      });
+
+      await tx.relayToken.updateMany({
+        where: { automaticProxyPoolChannelId: { in: ids } },
+        data: { automaticProxyPoolChannelId: null, routingMode: "ordered" },
       });
 
       await tx.relayTokenChannelConfig.deleteMany({ where: { channelId: { in: ids } } });
