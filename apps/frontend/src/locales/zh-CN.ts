@@ -3014,7 +3014,8 @@ const zhCN: DeepStringify<typeof en> = {
     comparisonModeEmpty: '请先选择至少一个渠道以进入比对模式',
     channelUnavailableForModel: '该渠道不支持此模型',
     automaticProxyPool: '自动代理池',
-    automaticPoolVariablePriceHint: '实际扣费由本次请求路由到的成员决定，以下为当前成员配置与价格范围。',
+    automaticPoolVariablePriceHint:
+      '实际扣费由本次请求路由到的成员决定，以下为当前成员配置与价格范围。',
     poolMemberActive: '启用',
     poolMemberInactive: '未启用',
     poolMemberUnavailableForModel: '当前不支持此模型或格式',

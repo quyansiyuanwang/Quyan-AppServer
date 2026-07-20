@@ -197,9 +197,7 @@ export class RelayChannelService {
     for (const capability of resolvedCapabilities) {
       const capabilities = capabilitiesByLeafChannelId.get(capability.leafChannelId) ?? [];
       const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
-      const existing = capabilities.find(
-        (item) => `${item.catalogModelName}\u0000${item.requestModelId}` === key,
-      );
+      const existing = capabilities.find((item) => `${item.catalogModelName}\u0000${item.requestModelId}` === key);
       if (existing) {
         existing.supportedRequestFormats = [
           ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
@@ -218,14 +216,12 @@ export class RelayChannelService {
     const { allowedModelsMode: _allowedModelsMode, ...safeRoutingConfig } = routingConfig ?? {};
 
     return {
-      routingStrategy:
-        (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
+      routingStrategy: (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
       routingConfig: Object.keys(safeRoutingConfig).length > 0 ? safeRoutingConfig : undefined,
       members: (channel.poolMembers ?? [])
         .map((member) => {
           const memberChannel = member.memberChannel;
-          const enabled =
-            member.enabled !== false && memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED;
+          const enabled = member.enabled !== false && memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED;
           const timePeriodMultiplier = memberChannel
             ? computeMultiplierForTime(
                 (memberChannel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],

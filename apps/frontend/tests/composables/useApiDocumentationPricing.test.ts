@@ -281,6 +281,69 @@ describe('useApiDocumentationPricing', () => {
     dispose()
   })
 
+  it('hides independent channels and automatic proxy pools independently', () => {
+    const { composable, dispose } = createComposable()
+    const poolCapability = {
+      catalogModelName: 'pool-model',
+      requestModelId: 'pool-model',
+      supportedRequestFormats: ['openai'] as const,
+    }
+
+    composable.channels.value = [
+      createChannel({
+        id: 'independent-channel',
+        modelCapabilities: [
+          {
+            catalogModelName: 'independent-model',
+            requestModelId: 'independent-model',
+            supportedRequestFormats: ['openai'],
+          },
+        ],
+      }),
+      createChannel({
+        id: 'automatic-pool',
+        channelType: 'automatic-proxy-pool',
+        modelCapabilities: [poolCapability],
+        automaticProxyPool: {
+          routingStrategy: 'weighted-random',
+          members: [
+            {
+              id: 'pool-member',
+              name: 'Pool member',
+              enabled: true,
+              priority: 1,
+              multiplier: 1,
+              timePeriodMultiplier: 1,
+              effectiveMultiplier: 1,
+              allowedFormats: 'openai',
+              modelCapabilities: [poolCapability],
+            },
+          ],
+        },
+      }),
+    ]
+    composable.filterChannelIds.value = ['independent-channel', 'automatic-pool']
+
+    composable.hideIndependentChannels.value = true
+
+    expect(composable.visibleChannels.value.map((channel) => channel.id)).toEqual(['automatic-pool'])
+    expect(composable.selectedChannels.value.map((channel) => channel.id)).toEqual(['automatic-pool'])
+    expect(
+      composable.getChannelsForModel('independent-model', 'independent-model', 'openai'),
+    ).toEqual([])
+    expect(
+      composable.getChannelsForModel('pool-model', 'pool-model', 'openai').map((channel) => channel.id),
+    ).toEqual(['automatic-pool'])
+
+    composable.hideAutomaticProxyPools.value = true
+
+    expect(composable.visibleChannels.value).toEqual([])
+    expect(composable.selectedChannels.value).toEqual([])
+    expect(composable.filterChannelIds.value).toEqual([])
+
+    dispose()
+  })
+
   it('sorts by displayed input price descending', async () => {
     const { composable, dispose } = createComposable()
 
