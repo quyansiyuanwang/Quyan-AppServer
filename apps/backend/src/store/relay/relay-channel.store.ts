@@ -1,5 +1,23 @@
 import type { Prisma, RelayChannel } from "@prisma/client";
 
+export interface RelayChannelManagementQuery {
+  where: Prisma.RelayChannelWhereInput;
+  page: number;
+  pageSize: number;
+}
+
+export interface RelayChannelManagementRecord {
+  id: string;
+  name: string;
+  status: number;
+  channelType: string | null;
+  routingStrategy: string | null;
+  visibilityMode: string | null;
+  multiplier: Prisma.Decimal;
+  updateTime: Date;
+  _count: { poolMembers: number };
+}
+
 export type RelayChannelTransactionClient = Omit<
   Prisma.TransactionClient,
   "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
@@ -21,6 +39,10 @@ export interface RelayChannelQueryStore {
   findVisibleById(id: string): Promise<RelayChannel | null>;
   listActiveByIds(ids: string[], tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
   listVisibleByIds(ids: string[], tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
+  listManagementPage(query: RelayChannelManagementQuery): Promise<{
+    records: RelayChannelManagementRecord[];
+    total: number;
+  }>;
 }
 
 export interface RelayChannelMutationStore {

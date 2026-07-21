@@ -461,7 +461,8 @@
         </template>
       </el-dialog>
 
-      <div class="relay-settings relay-settings-desktop" v-loading="channelLoading">
+      <RelayChannelManagementPanel />
+      <div v-if="false" class="relay-settings relay-settings-desktop" v-loading="channelLoading">
         <el-collapse v-model="desktopSections">
           <el-collapse-item name="channels">
             <template #title>
@@ -752,6 +753,7 @@
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
+import RelayChannelManagementPanel from './RelayChannelManagementPanel.vue'
 
 const state = useRelaySettingsManagementContext()
 

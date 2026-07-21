@@ -19,6 +19,7 @@ import {
 import type {
   ModelPricingItemDto,
   RelayChannelDto,
+  RelayChannelManagementListItemDto,
   RelayChannelImportItemDto,
   RelayChannelMemberDto,
   RelayChannelRoutingConfigDto,
@@ -203,16 +204,19 @@ const normalizeVisibilityConfigForm = (config?: RelayChannelVisibilityConfigDto 
 const normalizePoolMembersForm = (members?: RelayChannelMemberDto[] | null) => {
   if (!Array.isArray(members)) return [] as RelayChannelMemberDto[]
 
-  return members.map((member, index) => ({
-    id: member.id,
-    memberChannelId: member.memberChannelId || '',
-    priority:
-      typeof member.priority === 'number' && Number.isFinite(member.priority)
-        ? member.priority
-        : index + 1,
-    weight: typeof member.weight === 'number' && Number.isFinite(member.weight) ? member.weight : 1,
-    enabled: member.enabled !== false,
-  }))
+  return [...members]
+    .sort((left, right) => left.priority - right.priority)
+    .map((member, index) => ({
+      id: member.id,
+      memberChannelId: member.memberChannelId || '',
+      priority: index + 1,
+      weight:
+        typeof member.weight === 'number' && Number.isFinite(member.weight) ? member.weight : 1,
+      enabled: member.enabled !== false,
+      memberChannelName: member.memberChannelName,
+      memberChannelType: member.memberChannelType,
+      memberChannelEnabled: member.memberChannelEnabled,
+    }))
 }
 
 const toFiniteNumber = (value: number | null | undefined): number | undefined => {
@@ -667,7 +671,13 @@ export const useRelaySettingsManagement = () => {
     }
   }
 
-  const channels = ref<RelayChannelDto[]>([])
+  const channelRows = ref<RelayChannelManagementListItemDto[]>([])
+  const channelFilters = ref<{
+    keyword: string
+    channelType?: RelayChannelType
+    enabled?: boolean
+  }>({ keyword: '' })
+  const channelPagination = ref({ page: 1, pageSize: 25, total: 0 })
   const channelLoading = ref(false)
   const channelSaving = ref(false)
   const channelExporting = ref(false)
@@ -678,6 +688,14 @@ export const useRelaySettingsManagement = () => {
   const isEditingChannel = ref(false)
   const editingChannelId = ref('')
   const selectedChannelIds = ref<string[]>([])
+  const channelRequestVersion = ref(0)
+  const showPoolMemberPicker = ref(false)
+  const poolMemberPickerRows = ref<RelayChannelManagementListItemDto[]>([])
+  const poolMemberPickerPagination = ref({ page: 1, pageSize: 25, total: 0 })
+  const poolMemberPickerKeyword = ref('')
+  const selectedPoolMemberCandidateIds = ref<string[]>([])
+  const poolMemberCandidateCache = ref<Record<string, RelayChannelManagementListItemDto>>({})
+  const poolMemberInsertPosition = ref<'top' | 'bottom'>('bottom')
   const visibilityUserOptions = ref<ChannelUserOption[]>([])
   const visibilityGroupOptions = ref<ChannelGroupOption[]>([])
   const visibilityRoleOptions = ref<ChannelRoleOption[]>([])
@@ -690,14 +708,12 @@ export const useRelaySettingsManagement = () => {
   const showChannelDetailDialog = ref(false)
   const currentChannelDetail = ref<RelayChannelDto | null>(null)
 
-  const selectedChannels = computed(() => {
-    const selectedIdSet = new Set(selectedChannelIds.value)
-    return channels.value.filter((channel) => selectedIdSet.has(channel.id))
-  })
-
   const hasChannelSelection = computed(() => selectedChannelIds.value.length > 0)
-  const isAllChannelsSelected = computed(
-    () => channels.value.length > 0 && selectedChannelIds.value.length === channels.value.length,
+  const selectedChannelCount = computed(() => selectedChannelIds.value.length)
+  const isCurrentPageFullySelected = computed(
+    () =>
+      channelRows.value.length > 0 &&
+      channelRows.value.every((channel) => selectedChannelIds.value.includes(channel.id)),
   )
 
   const defaultChannelForm = () => ({
@@ -1086,38 +1102,94 @@ export const useRelaySettingsManagement = () => {
     return normalizedFormats.includes(upstream)
   }
 
-  const availablePoolMemberChannels = computed(() =>
-    channels.value.filter((channel) => channel.id !== editingChannelId.value),
-  )
-
   const getChannelNameById = (channelId: string) => {
-    return channels.value.find((channel) => channel.id === channelId)?.name || channelId
-  }
-
-  const isPoolMemberOptionDisabled = (candidateId: string, index: number) => {
-    if (!candidateId) return false
-    if (candidateId === editingChannelId.value) return true
-
-    return channelForm.value.poolMembers.some(
-      (member, memberIndex) => memberIndex !== index && member.memberChannelId === candidateId,
+    return (
+      channelForm.value.poolMembers.find((member) => member.memberChannelId === channelId)
+        ?.memberChannelName ||
+      poolMemberCandidateCache.value[channelId]?.name ||
+      channelId
     )
   }
 
-  const addPoolMember = () => {
-    channelForm.value.poolMembers.push(
-      defaultPoolMemberForm(channelForm.value.poolMembers.length + 1),
-    )
+  const reindexPoolMembers = () => {
+    channelForm.value.poolMembers = channelForm.value.poolMembers.map((member, index) => ({
+      ...member,
+      priority: index + 1,
+    }))
+  }
+
+  const movePoolMember = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return
+    const members = [...channelForm.value.poolMembers]
+    const [moved] = members.splice(fromIndex, 1)
+    if (!moved) return
+    members.splice(toIndex, 0, moved)
+    channelForm.value.poolMembers = members
+    reindexPoolMembers()
+  }
+
+  const movePoolMemberToEdge = (index: number, edge: 'top' | 'bottom') => {
+    movePoolMember(index, edge === 'top' ? 0 : channelForm.value.poolMembers.length - 1)
   }
 
   const removePoolMember = (index: number) => {
     channelForm.value.poolMembers.splice(index, 1)
-    channelForm.value.poolMembers = channelForm.value.poolMembers.map((member, memberIndex) => ({
-      ...member,
-      priority:
-        typeof member.priority === 'number' && Number.isFinite(member.priority)
-          ? member.priority
-          : memberIndex + 1,
-    }))
+    reindexPoolMembers()
+  }
+
+  const isPoolMemberCandidateEligible = (channel: RelayChannelManagementListItemDto) => {
+    if (channel.id === editingChannelId.value) return false
+    if (channelForm.value.poolMembers.some((member) => member.memberChannelId === channel.id))
+      return false
+    return (
+      channelForm.value.channelType !== 'automatic-proxy-pool' ||
+      channel.channelType === 'standalone'
+    )
+  }
+
+  const loadPoolMemberCandidates = async () => {
+    const response = await relayChannelService.listManagementChannels({
+      page: poolMemberPickerPagination.value.page,
+      pageSize: poolMemberPickerPagination.value.pageSize,
+      keyword: poolMemberPickerKeyword.value,
+      channelType:
+        channelForm.value.channelType === 'automatic-proxy-pool' ? 'standalone' : undefined,
+    })
+    poolMemberPickerRows.value = response.items.filter(isPoolMemberCandidateEligible)
+    poolMemberPickerPagination.value.total = response.total
+    for (const item of response.items) poolMemberCandidateCache.value[item.id] = item
+  }
+
+  const openPoolMemberPicker = async () => {
+    selectedPoolMemberCandidateIds.value = []
+    poolMemberPickerKeyword.value = ''
+    poolMemberPickerPagination.value.page = 1
+    poolMemberInsertPosition.value = 'bottom'
+    showPoolMemberPicker.value = true
+    await loadPoolMemberCandidates()
+  }
+
+  const addSelectedPoolMembers = () => {
+    const existingIds = new Set(
+      channelForm.value.poolMembers.map((member) => member.memberChannelId),
+    )
+    const additions = selectedPoolMemberCandidateIds.value
+      .map((id) => poolMemberCandidateCache.value[id])
+      .filter((item): item is RelayChannelManagementListItemDto => Boolean(item))
+      .filter((item) => !existingIds.has(item.id) && isPoolMemberCandidateEligible(item))
+      .map((item) => ({
+        ...defaultPoolMemberForm(),
+        memberChannelId: item.id,
+        memberChannelName: item.name,
+        memberChannelType: item.channelType,
+        memberChannelEnabled: item.enabled,
+      }))
+    channelForm.value.poolMembers =
+      poolMemberInsertPosition.value === 'top'
+        ? [...additions, ...channelForm.value.poolMembers]
+        : [...channelForm.value.poolMembers, ...additions]
+    reindexPoolMembers()
+    showPoolMemberPicker.value = false
   }
 
   const resetRoutingConfigToRecommended = () => {
@@ -1269,13 +1341,9 @@ export const useRelaySettingsManagement = () => {
     const seen = new Set<string>()
 
     return channelForm.value.poolMembers
-      .map((member, index) => ({
+      .map((member) => ({
         id: member.id,
         memberChannelId: member.memberChannelId.trim(),
-        priority:
-          typeof member.priority === 'number' && Number.isFinite(member.priority)
-            ? member.priority
-            : index + 1,
         weight:
           typeof member.weight === 'number' && Number.isFinite(member.weight) ? member.weight : 1,
         enabled: member.enabled !== false,
@@ -1286,6 +1354,7 @@ export const useRelaySettingsManagement = () => {
         seen.add(member.memberChannelId)
         return true
       })
+      .map((member, index) => ({ ...member, priority: index + 1 }))
   }
 
   watch(
@@ -1371,11 +1440,6 @@ export const useRelaySettingsManagement = () => {
     return i18ns.t('relay.modelsCount', { count: row.allowedModels.length })
   }
 
-  const syncSelectedChannelIds = () => {
-    const validIds = new Set(channels.value.map((channel) => channel.id))
-    selectedChannelIds.value = selectedChannelIds.value.filter((id) => validIds.has(id))
-  }
-
   const isChannelSelected = (id: string) => selectedChannelIds.value.includes(id)
 
   const toggleChannelSelection = (id: string, checked: boolean | string | number) => {
@@ -1390,8 +1454,12 @@ export const useRelaySettingsManagement = () => {
     selectedChannelIds.value = selectedChannelIds.value.filter((item) => item !== id)
   }
 
-  const toggleAllChannels = (checked: boolean | string | number) => {
-    selectedChannelIds.value = Boolean(checked) ? channels.value.map((channel) => channel.id) : []
+  const toggleCurrentPageSelection = (checked: boolean | string | number) => {
+    const pageIds = channelRows.value.map((channel) => channel.id)
+    const selected = new Set(selectedChannelIds.value)
+    if (Boolean(checked)) pageIds.forEach((id) => selected.add(id))
+    else pageIds.forEach((id) => selected.delete(id))
+    selectedChannelIds.value = [...selected]
   }
 
   const filteredModelNames = computed(() =>
@@ -1405,9 +1473,7 @@ export const useRelaySettingsManagement = () => {
   }
 
   const getChannelExportIds = () =>
-    selectedChannelIds.value.length > 0
-      ? selectedChannelIds.value
-      : channels.value.map((channel) => channel.id)
+    selectedChannelIds.value.length > 0 ? selectedChannelIds.value : undefined
 
   const downloadJsonFile = (filename: string, content: string) => {
     const blob = new Blob([content], { type: 'application/json' })
@@ -1422,7 +1488,7 @@ export const useRelaySettingsManagement = () => {
   const buildChannelExportContent = async () => {
     const exportIds = getChannelExportIds()
     const response = await relayChannelService.exportChannels(
-      exportIds.length > 0 ? { ids: exportIds, includeDisabled: true } : { includeDisabled: true },
+      exportIds ? { ids: exportIds, includeDisabled: true } : { includeDisabled: true },
     )
 
     return JSON.stringify(
@@ -1509,7 +1575,7 @@ export const useRelaySettingsManagement = () => {
     }
   }
 
-  const handleDuplicateChannel = async (row: RelayChannelDto) => {
+  const handleDuplicateChannel = async (row: Pick<RelayChannelManagementListItemDto, 'id'>) => {
     try {
       await relayChannelService.duplicateChannel(row.id)
       ElMessage.success(i18ns.t('relay.channelDuplicateSuccess'))
@@ -1596,15 +1662,55 @@ export const useRelaySettingsManagement = () => {
   }
 
   const loadChannels = async () => {
+    const requestVersion = ++channelRequestVersion.value
     channelLoading.value = true
     try {
-      channels.value = await relayChannelService.listChannels({ includeDisabled: true })
-      syncSelectedChannelIds()
+      const response = await relayChannelService.listManagementChannels({
+        page: channelPagination.value.page,
+        pageSize: channelPagination.value.pageSize,
+        keyword: channelFilters.value.keyword,
+        channelType: channelFilters.value.channelType,
+        enabled: channelFilters.value.enabled,
+      })
+      if (requestVersion !== channelRequestVersion.value) return
+      if (response.items.length === 0 && response.total > 0 && channelPagination.value.page > 1) {
+        channelPagination.value.page -= 1
+        await loadChannels()
+        return
+      }
+      channelRows.value = response.items
+      channelPagination.value.total = response.total
     } catch (error: any) {
       ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
     } finally {
       channelLoading.value = false
     }
+  }
+
+  let channelKeywordTimer: ReturnType<typeof setTimeout> | undefined
+  const setChannelKeyword = (keyword: string) => {
+    channelFilters.value.keyword = keyword
+    if (channelKeywordTimer) clearTimeout(channelKeywordTimer)
+    channelKeywordTimer = setTimeout(() => {
+      channelPagination.value.page = 1
+      void loadChannels()
+    }, 250)
+  }
+
+  const updateChannelFilters = (filters: Partial<typeof channelFilters.value>) => {
+    channelFilters.value = { ...channelFilters.value, ...filters }
+    channelPagination.value.page = 1
+    void loadChannels()
+  }
+
+  const updateChannelPagination = (page?: number, pageSize?: number) => {
+    if (pageSize && pageSize !== channelPagination.value.pageSize) {
+      channelPagination.value.pageSize = pageSize
+      channelPagination.value.page = 1
+    } else if (page) {
+      channelPagination.value.page = page
+    }
+    void loadChannels()
   }
 
   const openCreateChannelDialog = () => {
@@ -1616,7 +1722,29 @@ export const useRelaySettingsManagement = () => {
     void ensureVisibilityOptionsLoaded()
   }
 
-  const openEditChannelDialog = (row: RelayChannelDto) => {
+  const openEditChannelDialog = (
+    row: Pick<RelayChannelManagementListItemDto, 'id'> | RelayChannelDto,
+  ) => {
+    if ('allowedFormats' in row && 'poolMembers' in row) {
+      openChannelEditor(row)
+      return
+    }
+    void loadChannelForEditing(row.id)
+  }
+
+  const loadChannelForEditing = async (channelId: string) => {
+    channelLoading.value = true
+    try {
+      const detail = await relayChannelService.getChannel(channelId)
+      openChannelEditor(detail)
+    } catch (error: any) {
+      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+    } finally {
+      channelLoading.value = false
+    }
+  }
+
+  const openChannelEditor = (row: RelayChannelDto) => {
     isEditingChannel.value = true
     editingChannelId.value = row.id
     const parsedModels = parseAllowedModels(row.configuredAllowedModels)
@@ -1664,9 +1792,16 @@ export const useRelaySettingsManagement = () => {
     void ensureVisibilityOptionsLoaded()
   }
 
-  const openChannelDetailDialog = (row: RelayChannelDto) => {
-    currentChannelDetail.value = row
-    showChannelDetailDialog.value = true
+  const openChannelDetailDialog = async (row: Pick<RelayChannelManagementListItemDto, 'id'>) => {
+    channelLoading.value = true
+    try {
+      currentChannelDetail.value = await relayChannelService.getChannel(row.id)
+      showChannelDetailDialog.value = true
+    } catch (error: any) {
+      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+    } finally {
+      channelLoading.value = false
+    }
   }
 
   const closeChannelDetailDialog = () => {
@@ -1800,7 +1935,7 @@ export const useRelaySettingsManagement = () => {
         openaiUpstreamUrl: isPooledChannel ? '' : channelForm.value.openaiUpstreamUrl,
         anthropicUpstreamUrl: isPooledChannel ? '' : channelForm.value.anthropicUpstreamUrl,
         geminiUpstreamUrl: isPooledChannel ? '' : channelForm.value.geminiUpstreamUrl,
-        multiplier: channelForm.value.multiplier,
+        multiplier: isPooledChannel ? undefined : channelForm.value.multiplier,
         allowedFormats:
           Array.isArray(channelForm.value.allowedFormats) &&
           channelForm.value.allowedFormats.length > 0
@@ -1868,7 +2003,9 @@ export const useRelaySettingsManagement = () => {
     }
   }
 
-  const handleToggleChannelStatus = async (row: RelayChannelDto) => {
+  const handleToggleChannelStatus = async (
+    row: Pick<RelayChannelManagementListItemDto, 'id' | 'enabled'>,
+  ) => {
     try {
       const action = row.enabled ? i18ns.t('relay.disableChannel') : i18ns.t('relay.enableChannel')
       await ElMessageBox.confirm(
@@ -1894,7 +2031,7 @@ export const useRelaySettingsManagement = () => {
     }
   }
 
-  const handleDeleteChannel = async (row: RelayChannelDto) => {
+  const handleDeleteChannel = async (row: Pick<RelayChannelManagementListItemDto, 'id'>) => {
     try {
       await ElMessageBox.confirm(i18ns.t('relay.confirmDeleteChannel'), i18ns.t('warning'), {
         type: 'warning',
@@ -1930,6 +2067,13 @@ export const useRelaySettingsManagement = () => {
       }
     }
   })
+
+  // Legacy page sections remain mounted behind feature guards during the transition to the compact list.
+  const legacyChannels = channelRows as any
+  const legacySelectedChannels = computed(() => selectedChannelIds.value) as any
+  const legacyAvailablePoolMemberChannels = computed(() => []) as any
+  const legacyIsPoolMemberOptionDisabled = () => false
+  const legacyAddPoolMember = () => void openPoolMemberPicker()
 
   return {
     Permission,
@@ -1971,7 +2115,10 @@ export const useRelaySettingsManagement = () => {
     isMobileSectionLoaded,
     toggleMobileSection,
     handleImport,
-    channels,
+    channelRows,
+    channels: legacyChannels,
+    channelFilters,
+    channelPagination,
     channelLoading,
     channelSaving,
     channelExporting,
@@ -1982,9 +2129,11 @@ export const useRelaySettingsManagement = () => {
     channelImportText,
     isEditingChannel,
     currentChannelDetail,
-    selectedChannels,
+    selectedChannelCount,
+    selectedChannels: legacySelectedChannels,
     hasChannelSelection,
-    isAllChannelsSelected,
+    isCurrentPageFullySelected,
+    isAllChannelsSelected: isCurrentPageFullySelected,
     visibilityUserOptions,
     visibilityGroupOptions,
     visibilityRoleOptions,
@@ -2009,10 +2158,21 @@ export const useRelaySettingsManagement = () => {
     formatModelOptionLabel,
     isModelDisabled,
     computeShowUpstream,
-    availablePoolMemberChannels,
     getChannelNameById,
-    isPoolMemberOptionDisabled,
-    addPoolMember,
+    availablePoolMemberChannels: legacyAvailablePoolMemberChannels,
+    isPoolMemberOptionDisabled: legacyIsPoolMemberOptionDisabled,
+    addPoolMember: legacyAddPoolMember,
+    showPoolMemberPicker,
+    poolMemberPickerRows,
+    poolMemberPickerPagination,
+    poolMemberPickerKeyword,
+    selectedPoolMemberCandidateIds,
+    poolMemberInsertPosition,
+    openPoolMemberPicker,
+    loadPoolMemberCandidates,
+    addSelectedPoolMembers,
+    movePoolMember,
+    movePoolMemberToEdge,
     removePoolMember,
     resetRoutingConfigToRecommended,
     clearOptionalRoutingThresholds,
@@ -2026,7 +2186,11 @@ export const useRelaySettingsManagement = () => {
     parseAllowedModels,
     isChannelSelected,
     toggleChannelSelection,
-    toggleAllChannels,
+    toggleCurrentPageSelection,
+    toggleAllChannels: toggleCurrentPageSelection,
+    setChannelKeyword,
+    updateChannelFilters,
+    updateChannelPagination,
     filteredModelNames,
     clearChannelSelection,
     exportChannelsAsJson,

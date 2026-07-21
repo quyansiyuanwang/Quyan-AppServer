@@ -5,11 +5,16 @@ import {
   CreateJsonEndpointDto,
   UpdateJsonEndpointDto,
   JsonEndpointDto,
+  JsonEndpointOwnerOptionDto,
   PublicJsonData,
 } from "@/api/dto/json-endpoint/json-endpoint.dto";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { BadRequestError, NotFoundError, UnauthorizedError, ForbiddenError } from "@/util/errors";
+import { UserRepository } from "@/store/users/user.repository";
+import type { UserStore } from "@/store/users/user.store";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@/constant/permission";
 import type { Request } from "express";
 import bcrypt from "bcrypt";
 
@@ -19,6 +24,8 @@ export class JsonEndpointService {
   private constructor(
     private readonly repository: JsonEndpointStore = JsonEndpointRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly userRepository: UserStore = UserRepository.getInstance(),
+    private readonly permissionService: PermissionService = PermissionService.getInstance(),
   ) {}
 
   public static getInstance(): JsonEndpointService {
@@ -51,12 +58,19 @@ export class JsonEndpointService {
   /**
    * 映射到 DTO
    */
-  private mapToDto(endpoint: JsonEndpoint): JsonEndpointDto {
+  private getPublicPath(endpoint: JsonEndpoint, ownerUsername: string): string {
+    return endpoint.isRootSlug ? `/v1/json/${endpoint.slug}` : `/v1/json/${ownerUsername}/${endpoint.slug}`;
+  }
+
+  private mapToDto(endpoint: JsonEndpoint, ownerUsername: string): JsonEndpointDto {
     return {
       id: endpoint.id,
       userId: endpoint.userId,
+      ownerUsername,
       name: endpoint.name,
       slug: endpoint.slug,
+      isRootSlug: endpoint.isRootSlug,
+      publicUrl: this.getPublicPath(endpoint, ownerUsername),
       description: endpoint.description || undefined,
       jsonContent: endpoint.jsonContent,
       isPublic: endpoint.isPublic,
@@ -66,6 +80,26 @@ export class JsonEndpointService {
       createTime: endpoint.createTime.toISOString(),
       updateTime: endpoint.updateTime.toISOString(),
     };
+  }
+
+  private async getOwnerUsername(userId: string): Promise<string> {
+    const owner = await this.userRepository.findById(userId);
+    if (!owner) throw new NotFoundError("端点所属用户不存在");
+    return owner.username;
+  }
+
+  private async canManage(actorUserId: string): Promise<boolean> {
+    return this.permissionService.hasPermission(actorUserId, Permission.JSON_ENDPOINT_MANAGE);
+  }
+
+  private async assertCanAccessEndpoint(endpoint: JsonEndpoint, actorUserId: string): Promise<void> {
+    if (endpoint.userId === actorUserId) return;
+    if (!(await this.canManage(actorUserId))) throw new ForbiddenError("无权管理此端点");
+  }
+
+  private async assertCanSetRootSlug(actorUserId: string): Promise<void> {
+    if (!(await this.permissionService.hasPermission(actorUserId, Permission.JSON_ENDPOINT_ROOT_SLUG)))
+      throw new ForbiddenError("无权设置根 slug");
   }
 
   /**
@@ -83,9 +117,17 @@ export class JsonEndpointService {
     // 验证 slug 格式
     this.validateSlug(data.slug);
 
-    // 检查 slug 唯一性
-    const existing = await this.repository.findBySlug(data.slug);
-    if (existing) throw new BadRequestError("Slug 已被使用");
+    const canManage = await this.canManage(userId);
+    const ownerUserId = data.ownerUserId || userId;
+    if (ownerUserId !== userId && !canManage) throw new ForbiddenError("无权指定端点所属用户");
+    const ownerUsername = await this.getOwnerUsername(ownerUserId);
+    const isRootSlug = data.isRootSlug === true;
+    if (isRootSlug) {
+      await this.assertCanSetRootSlug(userId);
+      if (await this.repository.findByRootSlug(data.slug)) throw new BadRequestError("根 Slug 已被使用");
+    } else if (await this.repository.findByUserAndSlug(ownerUsername, data.slug)) {
+      throw new BadRequestError("该用户下 Slug 已被使用");
+    }
 
     // 如果非公开，必须提供密码
     if (!data.isPublic && !data.password) throw new BadRequestError("非公开端点必须设置访问密码");
@@ -96,13 +138,15 @@ export class JsonEndpointService {
 
     // 创建端点
     const endpoint = await this.repository.create({
-      userId,
+      userId: ownerUserId,
       name: data.name,
       slug: data.slug,
       description: data.description,
       jsonContent: data.jsonContent,
       apiKey: passwordHash, // 存储密码哈希
       isPublic: data.isPublic,
+      isRootSlug,
+      rootSlug: isRootSlug ? data.slug : null,
     });
 
     // 记录业务日志
@@ -118,7 +162,7 @@ export class JsonEndpointService {
       requestId: request?.headers["x-request-id"] as string | undefined,
     });
 
-    return this.mapToDto(endpoint);
+    return this.mapToDto(endpoint, ownerUsername);
   }
 
   /**
@@ -128,18 +172,32 @@ export class JsonEndpointService {
     const endpoint = await this.repository.findById(id);
     if (!endpoint) throw new NotFoundError("端点不存在");
 
-    // 验证所有权
-    if (endpoint.userId !== userId) throw new ForbiddenError("无权访问此端点");
-
-    return this.mapToDto(endpoint);
+    await this.assertCanAccessEndpoint(endpoint, userId);
+    return this.mapToDto(endpoint, await this.getOwnerUsername(endpoint.userId));
   }
 
   /**
    * 列出用户的所有端点
    */
-  async listEndpoints(userId: string): Promise<JsonEndpointDto[]> {
-    const endpoints = await this.repository.findByUserId(userId);
-    return endpoints.map((e) => this.mapToDto(e));
+  async listEndpoints(userId: string, ownerUserId?: string): Promise<JsonEndpointDto[]> {
+    const canManage = await this.canManage(userId);
+    if (ownerUserId && ownerUserId !== userId && !canManage) throw new ForbiddenError("无权查看其他用户端点");
+    const endpoints =
+      canManage && !ownerUserId
+        ? await this.repository.findAll()
+        : await this.repository.findByUserId(ownerUserId || userId);
+    return Promise.all(
+      endpoints.map(async (endpoint) => this.mapToDto(endpoint, await this.getOwnerUsername(endpoint.userId))),
+    );
+  }
+
+  async listOwnerOptions(actorUserId: string): Promise<JsonEndpointOwnerOptionDto[]> {
+    if (!(await this.canManage(actorUserId))) throw new ForbiddenError("无权管理端点所属用户");
+    const users = await this.userRepository.listNonDeleted();
+    return users
+      .filter((user) => user.status === 1)
+      .map((user) => ({ id: user.id, username: user.username }))
+      .sort((left, right) => left.username.localeCompare(right.username));
   }
 
   /**
@@ -154,8 +212,7 @@ export class JsonEndpointService {
     const endpoint = await this.repository.findById(id);
     if (!endpoint) throw new NotFoundError("端点不存在");
 
-    // 验证所有权
-    if (endpoint.userId !== userId) throw new ForbiddenError("无权修改此端点");
+    await this.assertCanAccessEndpoint(endpoint, userId);
 
     // 准备更新数据
     const updateData: any = {};
@@ -163,6 +220,13 @@ export class JsonEndpointService {
     if (data.description !== undefined) updateData.description = data.description;
     if (data.jsonContent !== undefined) updateData.jsonContent = data.jsonContent;
     if (data.isPublic !== undefined) updateData.isPublic = data.isPublic;
+    if (data.isRootSlug !== undefined && data.isRootSlug !== endpoint.isRootSlug) {
+      await this.assertCanSetRootSlug(userId);
+      if (data.isRootSlug && (await this.repository.findByRootSlug(endpoint.slug)))
+        throw new BadRequestError("根 Slug 已被使用");
+      updateData.isRootSlug = data.isRootSlug;
+      updateData.rootSlug = data.isRootSlug ? endpoint.slug : null;
+    }
 
     // 更新密码
     if (data.password) updateData.apiKey = await this.hashPassword(data.password);
@@ -187,7 +251,7 @@ export class JsonEndpointService {
       requestId: request?.headers["x-request-id"] as string | undefined,
     });
 
-    return this.mapToDto(updated);
+    return this.mapToDto(updated, await this.getOwnerUsername(updated.userId));
   }
 
   /**
@@ -197,8 +261,7 @@ export class JsonEndpointService {
     const endpoint = await this.repository.findById(id);
     if (!endpoint) throw new NotFoundError("端点不存在");
 
-    // 验证所有权
-    if (endpoint.userId !== userId) throw new ForbiddenError("无权删除此端点");
+    await this.assertCanAccessEndpoint(endpoint, userId);
 
     await this.repository.delete(id);
 
@@ -219,8 +282,7 @@ export class JsonEndpointService {
   /**
    * 公开访问端点
    */
-  async accessEndpoint(slug: string, password?: string): Promise<PublicJsonData> {
-    const endpoint = await this.repository.findBySlug(slug);
+  private async accessResolvedEndpoint(endpoint: JsonEndpoint | null, password?: string): Promise<PublicJsonData> {
     if (!endpoint) throw new NotFoundError("端点不存在");
 
     // 验证访问权限
@@ -236,10 +298,21 @@ export class JsonEndpointService {
     // 增加访问计数 (fire-and-forget)
     this.repository.incrementAccessCount(endpoint.id);
 
+    const ownerUsername = await this.getOwnerUsername(endpoint.userId);
     return {
       data: endpoint.jsonContent,
       slug: endpoint.slug,
+      ownerUsername,
+      publicUrl: this.getPublicPath(endpoint, ownerUsername),
       lastUpdated: endpoint.updateTime.toISOString(),
     };
+  }
+
+  async accessRootEndpoint(slug: string, password?: string): Promise<PublicJsonData> {
+    return this.accessResolvedEndpoint(await this.repository.findByRootSlug(slug), password);
+  }
+
+  async accessNamespacedEndpoint(username: string, slug: string, password?: string): Promise<PublicJsonData> {
+    return this.accessResolvedEndpoint(await this.repository.findByUserAndSlug(username, slug), password);
   }
 }

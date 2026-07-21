@@ -557,19 +557,19 @@ describe("Relay Failover Charging Integration Tests", () => {
     });
   });
 
-  it("should handle insufficient balance correctly during failover", async () => {
+  it("rejects insufficient balance before contacting any failover channel", async () => {
     // Clean up previous test data
     await prisma.relayUsage.deleteMany({ where: { relayTokenId: failoverTokenId } });
     await prisma.balanceTransaction.deleteMany({ where: { userId: testUserId } });
     await prisma.relayChannelSwitchLog.deleteMany({ where: { relayTokenId: failoverTokenId } });
 
-    // Set balance to zero so the secondary channel succeeds but charge fails
+    // Set balance to zero: the proxy must reject before contacting the primary channel.
     await prisma.balanceAccount.update({
       where: { userId: testUserId },
       data: { balance: 0 },
     });
 
-    // Configure primary server to return 500 error
+    // These upstream settings must be irrelevant because no upstream call is allowed.
     relayAIMockPlugin!.setErrorMode(500, "Internal Server Error");
     // Secondary server will succeed
     secondaryMockPlugin!.clearErrorMode();
@@ -587,32 +587,59 @@ describe("Relay Failover Charging Integration Tests", () => {
     expect(response.status).toBe(400);
     expect(response.body.message).toContain("Insufficient balance");
 
-    // Wait for usage records
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Check usage records - primary failed attempt is recorded,
-    // secondary request succeeds but charge fails so no usage recorded for it
+    // No attempt is billed or logged because no upstream request was issued.
     const usageRecords = await prisma.relayUsage.findMany({
       where: { relayTokenId: failoverTokenId },
       orderBy: { createTime: "asc" },
     });
 
-    expect(usageRecords.length).toBe(1);
-    expect(usageRecords[0].statusCode).toBe(500); // Primary failed attempt
+    expect(usageRecords).toHaveLength(0);
 
-    // Check switch log - failover should have been attempted
+    // No failover is attempted when the request is ineligible to start.
     const switchLogs = await prisma.relayChannelSwitchLog.findMany({
       where: { relayTokenId: failoverTokenId },
     });
-    expect(switchLogs.length).toBe(1);
-    expect(switchLogs[0].fromChannelId).toBe(primaryChannelId);
-    expect(switchLogs[0].toChannelId).toBe(secondaryChannelId);
+    expect(switchLogs).toHaveLength(0);
 
     // Restore balance for other tests
     await prisma.balanceAccount.update({
       where: { userId: testUserId },
       data: { balance: 1000 },
     });
+  });
+
+  it("records the full charge when a started request exceeds the remaining positive balance", async () => {
+    await resetFailoverBillingState();
+    await prisma.balanceAccount.update({
+      where: { userId: testUserId },
+      data: { balance: 0.1, totalRecharged: 0.1, totalUsed: 0 },
+    });
+
+    const response = await request(app)
+      .post("/relay/proxy/chat/completions")
+      .set("Authorization", `Bearer ${failoverTokenValue}`)
+      .send({
+        model: `${testModelId}-per-request`,
+        messages: [{ role: "user", content: "charge beyond the remaining balance" }],
+      });
+
+    expect(response.status).toBe(200);
+
+    const [account, usage, transaction] = await Promise.all([
+      prisma.balanceAccount.findUniqueOrThrow({ where: { userId: testUserId } }),
+      prisma.relayUsage.findFirstOrThrow({
+        where: { relayTokenId: failoverTokenId, statusCode: 200 },
+        orderBy: { createTime: "desc" },
+      }),
+      prisma.balanceTransaction.findFirstOrThrow({
+        where: { userId: testUserId, type: "api_usage", amount: { lt: 0 } },
+        orderBy: { createTime: "desc" },
+      }),
+    ]);
+
+    expect(account.balance.toNumber()).toBe(-0.4);
+    expect(transaction.amount.toNumber()).toBe(-0.5);
+    expect(transaction.relatedId).toBe(usage.id);
   });
 
   it("should apply monthly pass using the failover channel when backup channel is allowed", async () => {

@@ -1,6 +1,9 @@
 import { effectScope, nextTick, type EffectScope } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useApiDocumentationPricing, type PricingModelRow } from '@/composables/useApiDocumentationPricing'
+import {
+  useApiDocumentationPricing,
+  type PricingModelRow,
+} from '@/composables/useApiDocumentationPricing'
 import type { RelayChannelOptionDto } from '@/client/types.gen'
 
 const { getModelPricingMock, listChannelsMock } = vi.hoisted(() => ({
@@ -47,24 +50,21 @@ const createComposable = () => {
   }
 }
 
-const createChannel = (
-  overrides: Partial<RelayChannelOptionDto> = {},
-): RelayChannelOptionDto =>
-  ({
-    id: 'channel-1',
-    name: 'Test Channel',
-    enabled: true,
-    multiplier: 1,
-    allowedFormats: 'openai',
-    modelCapabilities: [
-      {
-        catalogModelName: 'gpt-4o-mini',
-        requestModelId: 'openai/gpt-4o-mini',
-        supportedRequestFormats: ['openai'],
-      },
-    ],
-    ...overrides,
-  })
+const createChannel = (overrides: Partial<RelayChannelOptionDto> = {}): RelayChannelOptionDto => ({
+  id: 'channel-1',
+  name: 'Test Channel',
+  enabled: true,
+  multiplier: 1,
+  allowedFormats: 'openai',
+  modelCapabilities: [
+    {
+      catalogModelName: 'gpt-4o-mini',
+      requestModelId: 'openai/gpt-4o-mini',
+      supportedRequestFormats: ['openai'],
+    },
+  ],
+  ...overrides,
+})
 
 const createPricingRow = (overrides: Partial<PricingModelRow> = {}): PricingModelRow =>
   ({
@@ -177,9 +177,9 @@ describe('useApiDocumentationPricing', () => {
       }),
     ]
 
-    expect(
-      composable.getChannelsForModel('gpt-4o-mini', 'openai/gpt-4o-mini', 'openai'),
-    ).toEqual([])
+    expect(composable.getChannelsForModel('gpt-4o-mini', 'openai/gpt-4o-mini', 'openai')).toEqual(
+      [],
+    )
 
     dispose()
   })
@@ -201,7 +201,9 @@ describe('useApiDocumentationPricing', () => {
     composable.inputPriceMax.value = 6
 
     expect(composable.filteredPricingData.value).toHaveLength(1)
-    expect(composable.getDisplayedPriceMultiplier(composable.filteredPricingData.value[0]!)).toBe(0.5)
+    expect(composable.getDisplayedPriceMultiplier(composable.filteredPricingData.value[0]!)).toBe(
+      0.5,
+    )
 
     dispose()
   })
@@ -258,6 +260,37 @@ describe('useApiDocumentationPricing', () => {
             },
           ],
         },
+        poolPricing: {
+          members: [
+            {
+              id: 'low-member',
+              name: 'Low member',
+              enabled: true,
+              multiplier: 0.5,
+              timePeriodMultiplier: 1,
+              effectiveMultiplier: 0.5,
+              modelCapabilities: [capability],
+            },
+            {
+              id: 'high-member',
+              name: 'High member',
+              enabled: true,
+              multiplier: 2,
+              timePeriodMultiplier: 1,
+              effectiveMultiplier: 2,
+              modelCapabilities: [capability],
+            },
+            {
+              id: 'disabled-member',
+              name: 'Disabled member',
+              enabled: false,
+              multiplier: 0.1,
+              timePeriodMultiplier: 1,
+              effectiveMultiplier: 0.1,
+              modelCapabilities: [capability],
+            },
+          ],
+        },
       }),
     ]
 
@@ -268,7 +301,7 @@ describe('useApiDocumentationPricing', () => {
     expect(composable.getDisplayedPriceMultiplier(row)).toBe(0.5)
     expect(cell).toMatchObject({
       available: true,
-      automaticProxyPool: true,
+      pooledChannel: true,
       multiplier: 0.5,
       maximumMultiplier: 2,
       inputPrice: 5,
@@ -277,6 +310,64 @@ describe('useApiDocumentationPricing', () => {
       maximumOutputPrice: 40,
     })
     expect(cell.members.map((member) => member.id)).toEqual(['low-member', 'high-member'])
+
+    dispose()
+  })
+
+  it('uses final pooled leaf multipliers instead of the pooled channel legacy multiplier', () => {
+    const { composable, dispose } = createComposable()
+    const row = createPricingRow({ inputPrice: 10, outputPrice: 20 })
+    const capability = {
+      catalogModelName: 'gpt-4o-mini',
+      requestModelId: 'openai/gpt-4o-mini',
+      supportedRequestFormats: ['openai'] as const,
+    }
+
+    composable.channels.value = [
+      createChannel({
+        id: 'pooled-channel',
+        channelType: 'pooled',
+        multiplier: 99,
+        poolPricing: {
+          members: [
+            {
+              id: 'low-leaf',
+              name: 'Low leaf',
+              enabled: true,
+              multiplier: 0.75,
+              timePeriodMultiplier: 1,
+              effectiveMultiplier: 0.75,
+              modelCapabilities: [capability],
+            },
+            {
+              id: 'high-leaf',
+              name: 'High leaf',
+              enabled: true,
+              multiplier: 1.5,
+              timePeriodMultiplier: 1,
+              effectiveMultiplier: 1.5,
+              modelCapabilities: [capability],
+            },
+          ],
+        },
+      }),
+    ]
+    composable.channelPriceMode.value = 'global-lowest'
+
+    const cell = composable.getChannelPriceCell(row, composable.channels.value[0]!)
+
+    expect(composable.getDisplayedPriceMultiplier(row)).toBe(0.75)
+    expect(cell).toMatchObject({
+      available: true,
+      pooledChannel: true,
+      multiplier: 0.75,
+      maximumMultiplier: 1.5,
+      inputPrice: 7.5,
+      maximumInputPrice: 15,
+      outputPrice: 15,
+      maximumOutputPrice: 30,
+    })
+    expect(cell.members.map((member) => member.id)).toEqual(['low-leaf', 'high-leaf'])
 
     dispose()
   })
@@ -321,27 +412,57 @@ describe('useApiDocumentationPricing', () => {
           ],
         },
       }),
+      createChannel({
+        id: 'pooled-channel',
+        channelType: 'pooled',
+        modelCapabilities: [poolCapability],
+        poolPricing: {
+          members: [
+            {
+              id: 'pooled-leaf',
+              name: 'Pooled leaf',
+              enabled: true,
+              multiplier: 1,
+              timePeriodMultiplier: 1,
+              effectiveMultiplier: 1,
+              modelCapabilities: [poolCapability],
+            },
+          ],
+        },
+      }),
     ]
-    composable.filterChannelIds.value = ['independent-channel', 'automatic-pool']
+    composable.filterChannelIds.value = ['independent-channel', 'automatic-pool', 'pooled-channel']
 
     composable.hideIndependentChannels.value = true
     await nextTick()
 
-    expect(composable.visibleChannels.value.map((channel) => channel.id)).toEqual(['automatic-pool'])
-    expect(composable.selectedChannels.value.map((channel) => channel.id)).toEqual(['automatic-pool'])
+    expect(composable.visibleChannels.value.map((channel) => channel.id)).toEqual([
+      'automatic-pool',
+      'pooled-channel',
+    ])
+    expect(composable.selectedChannels.value.map((channel) => channel.id)).toEqual([
+      'automatic-pool',
+      'pooled-channel',
+    ])
     expect(
       composable.getChannelsForModel('independent-model', 'independent-model', 'openai'),
     ).toEqual([])
     expect(
-      composable.getChannelsForModel('pool-model', 'pool-model', 'openai').map((channel) => channel.id),
-    ).toEqual(['automatic-pool'])
+      composable
+        .getChannelsForModel('pool-model', 'pool-model', 'openai')
+        .map((channel) => channel.id),
+    ).toEqual(['automatic-pool', 'pooled-channel'])
 
     composable.hideAutomaticProxyPools.value = true
     await nextTick()
 
-    expect(composable.visibleChannels.value).toEqual([])
-    expect(composable.selectedChannels.value).toEqual([])
-    expect(composable.filterChannelIds.value).toEqual([])
+    expect(composable.visibleChannels.value.map((channel) => channel.id)).toEqual([
+      'pooled-channel',
+    ])
+    expect(composable.selectedChannels.value.map((channel) => channel.id)).toEqual([
+      'pooled-channel',
+    ])
+    expect(composable.filterChannelIds.value).toEqual(['pooled-channel'])
 
     dispose()
   })

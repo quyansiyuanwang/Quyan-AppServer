@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RelayProxyService } from "../../../src/services/relay/relay-proxy.service";
 import { RELAY_CHANNEL_STATUS } from "../../../src/constant/relay-channel";
 import { EnvSpace } from "../../../src/config/env";
-import { GatewayTimeoutError, LockBackendUnavailableError } from "../../../src/util/errors";
+import { GatewayTimeoutError, LockBackendUnavailableError, TooManyRequestsError } from "../../../src/util/errors";
 import { OperationType } from "../../../src/constant/operation-type";
 
 vi.mock("axios", async (importOriginal) => {
@@ -207,7 +207,9 @@ const createService = (
     updateChannelConfigUsage: vi.fn().mockResolvedValue(null),
     createSwitchLog: vi.fn().mockResolvedValue({ id: "switch-1" }),
   };
-  const relayUsageRepo = {};
+  const relayUsageRepo = {
+    aggregateByRelayTokenIds: vi.fn().mockResolvedValue([]),
+  };
   const relayProxyRepository = {
     recordUsageWithoutCharge: vi.fn().mockResolvedValue(undefined),
     recordUsageWithZeroChargeTransaction: vi.fn().mockResolvedValue(undefined),
@@ -305,6 +307,7 @@ const createService = (
   return {
     service,
     relayTokenRepo,
+    relayUsageRepo,
     relayProxyRepository,
     relayConfigService,
     modelPricingService,
@@ -660,7 +663,13 @@ describe("RelayProxyService failover", () => {
 
     await service.forwardRequest(relayToken, req);
 
-    expect(usageChargeService.hasCoverageOrPositiveBalance).not.toHaveBeenCalled();
+    expect(usageChargeService.hasCoverageOrPositiveBalance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        modelName: "gpt-4o-mini",
+        channelId: "member-a",
+      }),
+    );
     expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         channelId: "member-a",
@@ -668,6 +677,7 @@ describe("RelayProxyService failover", () => {
         displayChannelId: "pool-1",
         displayChannelName: "Pool",
         channelMultiplier: 3.6,
+        balanceChargeMode: "allow-negative",
       }),
     );
   });
@@ -947,6 +957,126 @@ describe("RelayProxyService failover", () => {
     } finally {
       forwardStreamSpy.mockRestore();
     }
+  });
+
+  it("rejects a non-stream request before contacting upstream when no balance or monthly-pass coverage is available", async () => {
+    const relayToken = createRelayToken();
+    const req = createRequest();
+    const { service, usageChargeService } = createService();
+    usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValueOnce(false);
+
+    await expect(service.forwardRequest(relayToken, req)).rejects.toThrow("Insufficient balance");
+
+    expect(axiosMock).not.toHaveBeenCalled();
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+  });
+
+  it("rejects an image request before contacting upstream when no balance or monthly-pass coverage is available", async () => {
+    const relayToken = createRelayToken();
+    const req = createRequest({
+      path: "/relay/proxy/v1/images/generations",
+      originalUrl: "/relay/proxy/v1/images/generations",
+      body: { model: "gpt-4o-mini", prompt: "draw a cat" },
+    });
+    const { service, usageChargeService } = createService();
+    usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValueOnce(false);
+
+    await expect(service.forwardRequest(relayToken, req, {})).rejects.toThrow("Insufficient balance");
+
+    expect(axiosMock).not.toHaveBeenCalled();
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+  });
+
+  it("rejects a lifetime quota that has already been exhausted before contacting upstream", async () => {
+    const relayToken = createRelayToken();
+    relayToken.quotaLimit = 10;
+    relayToken.usedQuota = 10;
+    const req = createRequest();
+    const { service } = createService();
+
+    await expect(service.forwardRequest(relayToken, req)).rejects.toBeInstanceOf(TooManyRequestsError);
+
+    expect(axiosMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an exhausted rolling token quota before contacting upstream", async () => {
+    const relayToken = createRelayToken();
+    relayToken.quotaWindows = [{ quotaLimit: 100, quotaUnit: "token", quotaWindowHours: 1 }];
+    const req = createRequest();
+    const { service, relayUsageRepo } = createService();
+    relayUsageRepo.aggregateByRelayTokenIds.mockResolvedValueOnce([
+      {
+        relayTokenId: relayToken.id,
+        requestCount: 1,
+        totalTokens: 100,
+        chargedAmount: 0,
+        coveredAmount: 0,
+      },
+    ]);
+
+    await expect(service.forwardRequest(relayToken, req)).rejects.toBeInstanceOf(TooManyRequestsError);
+
+    expect(axiosMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects exhausted rolling request and amount quotas before contacting upstream", async () => {
+    const relayToken = createRelayToken();
+    const req = createRequest();
+    const { service, relayUsageRepo } = createService();
+    relayUsageRepo.aggregateByRelayTokenIds.mockImplementation(async (_ids: string[], startDate: Date) => {
+      const isOneHourWindow = Date.now() - startDate.getTime() < 2 * 60 * 60 * 1000;
+      return [
+        {
+          relayTokenId: relayToken.id,
+          requestCount: isOneHourWindow ? 2 : 1,
+          totalTokens: 1,
+          chargedAmount: isOneHourWindow ? 0 : 1,
+          coveredAmount: isOneHourWindow ? 0 : 0.5,
+        },
+      ];
+    });
+
+    relayToken.quotaWindows = [{ quotaLimit: 1.5, quotaUnit: "amount", quotaWindowHours: 24 }];
+    await expect(service.forwardRequest(relayToken, req)).rejects.toBeInstanceOf(TooManyRequestsError);
+
+    relayToken.quotaWindows = [{ quotaLimit: 2, quotaUnit: "request", quotaWindowHours: 1 }];
+    await expect(service.forwardRequest(relayToken, req)).rejects.toBeInstanceOf(TooManyRequestsError);
+
+    expect(axiosMock).not.toHaveBeenCalled();
+  });
+
+  it("allows a request after its rolling quota window has no active usage", async () => {
+    const relayToken = createRelayToken();
+    relayToken.quotaWindows = [{ quotaLimit: 1, quotaUnit: "request", quotaWindowHours: 1 }];
+    const req = createRequest();
+    const { service, relayUsageRepo } = createService();
+    relayUsageRepo.aggregateByRelayTokenIds.mockResolvedValueOnce([]);
+    axiosMock.mockResolvedValueOnce({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      data: { usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } },
+    });
+
+    await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(expect.objectContaining({ status: 200 }));
+    expect(axiosMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("settles a request that crosses its lifetime quota boundary so the next request is blocked", async () => {
+    const relayToken = createRelayToken();
+    relayToken.quotaLimit = 10;
+    relayToken.usedQuota = 9.999;
+    const req = createRequest();
+    const { service, usageChargeService } = createService();
+    axiosMock.mockResolvedValueOnce({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      data: { usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+    });
+
+    await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(expect.objectContaining({ status: 200 }));
+    expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ balanceChargeMode: "allow-negative" }),
+    );
   });
 
   it("does not fall back when the relay token globally denies the model", async () => {
@@ -1548,6 +1678,48 @@ describe("RelayProxyService failover", () => {
     }
   });
 
+  it("records zero-cost streaming usage with the allow-negative settlement policy", async () => {
+    const relayToken = createRelayToken();
+    const { service, usageChargeService } = createService();
+
+    await expect(
+      (service as any).finalizeStreamUsage(relayToken, {
+        requestTokens: 10,
+        responseTokens: 0,
+        totalTokens: 10,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+        cost: 0,
+        inputRate: 0,
+        outputRate: 0,
+        multiplier: 1,
+        cacheCreationMult: 1.25,
+        cacheReadMult: 0.1,
+        executionChannelId: "channel-primary",
+        displayChannelId: "channel-primary",
+        displayChannelName: "Primary",
+        channelId: "channel-primary",
+        monthlyPassCoverageAt: new Date("2026-01-01T00:00:00.000Z"),
+        path: "/v1/chat/completions",
+        method: "POST",
+        statusCode: 200,
+        ipAddress: "127.0.0.1",
+        modelName: "gpt-4o-mini",
+        modelId: "gpt-4o-mini",
+        totalOutputTime: 20,
+        timeToFirstByte: 5,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cost: 0,
+        isStreaming: true,
+        balanceChargeMode: "allow-negative",
+      }),
+    );
+  });
+
   it("streams image responses directly instead of buffering Axios response data", async () => {
     const relayToken = createRelayToken();
     const req = createRequest({
@@ -1614,6 +1786,7 @@ describe("RelayProxyService failover", () => {
         channelId: "channel-primary",
         isStreaming: false,
         responseTokens: Math.ceil(upstreamBody.length / 4),
+        balanceChargeMode: "allow-negative",
       }),
     );
   });
