@@ -8,16 +8,24 @@ export interface CreateJsonEndpointParams {
   rootSlug?: string | null;
   description?: string;
   jsonContent: any;
-  apiKey?: string;
+  apiKey?: string | null;
   isPublic: boolean;
+  accessMode?: string | null;
+  publicKey?: string | null;
+  publicKeyFingerprint?: string | null;
+  signatureAlgorithm?: string | null;
 }
 
 export interface UpdateJsonEndpointParams {
   name?: string;
   description?: string;
   jsonContent?: any;
-  apiKey?: string;
+  apiKey?: string | null;
   isPublic?: boolean;
+  accessMode?: string | null;
+  publicKey?: string | null;
+  publicKeyFingerprint?: string | null;
+  signatureAlgorithm?: string | null;
   isRootSlug?: boolean;
   rootSlug?: string | null;
 }

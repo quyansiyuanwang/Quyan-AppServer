@@ -3501,6 +3501,18 @@ const zhCN: DeepStringify<typeof en> = {
     description: '描述',
     isPublic: '公开访问',
     password: '访问密码',
+    authenticationMode: '认证方式',
+    staticPassword: '静态密码',
+    ed25519Signature: 'Ed25519 签名',
+    ed25519PublicKey: 'Ed25519 公钥',
+    publicKeyPlaceholder: '-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----',
+    publicKeyHint:
+      '仅保存 Ed25519 SPKI PEM 公钥。私钥仅应由客户端保管。替换此公钥会立即轮换签名凭据。',
+    invalidPublicKey: '请输入有效的 Ed25519 SPKI PEM 公钥',
+    keyFingerprint: '已保存公钥指纹',
+    signatureRequest: '待签名内容',
+    signatureHeaders:
+      '请求头：X-Json-Timestamp、X-Json-Nonce、X-Json-Signature（base64url）。查询参数必须按编码后的键和值排序后参与签名。',
     jsonContent: 'JSON 内容',
     access: '访问类型',
     public: '公开',

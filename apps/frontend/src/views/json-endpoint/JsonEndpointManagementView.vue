@@ -216,21 +216,85 @@
                       : 'json-endpoint-edit-section-stack'
                   "
                 >
-                  <el-form-item :label="i18ns.t('jsonEndpoint.isPublic')"
-                    ><el-switch v-model="formData.isPublic"
-                  /></el-form-item>
-                  <el-form-item v-if="!formData.isPublic" :label="i18ns.t('jsonEndpoint.password')"
-                    ><el-input
-                      v-model="formData.password"
-                      type="password"
-                      show-password
-                      :placeholder="
-                        isEdit
-                          ? i18ns.t('jsonEndpoint.passwordPlaceholder')
-                          : i18ns.t('jsonEndpoint.enterPassword')
-                      "
-                  /></el-form-item></div
-              ></el-collapse-item>
+                  <el-form-item :label="i18ns.t('jsonEndpoint.isPublic')">
+                    <el-switch v-model="formData.isPublic" />
+                    <template #extra
+                      ><span>{{ i18ns.t('jsonEndpoint.publicHint') }}</span></template
+                    >
+                  </el-form-item>
+                  <template v-if="!formData.isPublic">
+                    <el-form-item
+                      :label="i18ns.t('jsonEndpoint.authenticationMode')"
+                      :class="isDesktop ? 'form-item-span-2' : undefined"
+                    >
+                      <el-radio-group
+                        v-model="formData.accessMode"
+                        class="json-endpoint-access-mode"
+                      >
+                        <el-radio-button label="static-password">{{
+                          i18ns.t('jsonEndpoint.staticPassword')
+                        }}</el-radio-button>
+                        <el-radio-button label="public-key">{{
+                          i18ns.t('jsonEndpoint.ed25519Signature')
+                        }}</el-radio-button>
+                      </el-radio-group>
+                    </el-form-item>
+                    <el-form-item
+                      v-if="formData.accessMode === 'static-password'"
+                      :label="i18ns.t('jsonEndpoint.password')"
+                      :class="isDesktop ? 'form-item-span-2' : undefined"
+                    >
+                      <el-input
+                        v-model="formData.password"
+                        type="password"
+                        show-password
+                        :placeholder="
+                          isEdit
+                            ? i18ns.t('jsonEndpoint.passwordPlaceholder')
+                            : i18ns.t('jsonEndpoint.enterPassword')
+                        "
+                      />
+                    </el-form-item>
+                    <template v-else>
+                      <el-form-item
+                        :label="i18ns.t('jsonEndpoint.ed25519PublicKey')"
+                        :class="isDesktop ? 'form-item-span-2' : undefined"
+                      >
+                        <el-input
+                          v-model="formData.publicKey"
+                          type="textarea"
+                          :rows="6"
+                          :placeholder="i18ns.t('jsonEndpoint.publicKeyPlaceholder')"
+                        />
+                        <template #extra
+                          ><span>{{ i18ns.t('jsonEndpoint.publicKeyHint') }}</span></template
+                        >
+                      </el-form-item>
+                      <div
+                        v-if="savedPublicKeyFingerprint"
+                        :class="isDesktop ? 'form-item-span-2' : undefined"
+                        class="json-endpoint-key-status"
+                      >
+                        <span>{{ i18ns.t('jsonEndpoint.keyFingerprint') }}</span>
+                        <code>{{ savedPublicKeyFingerprint }}</code>
+                        <el-tag size="small" type="info">{{ savedSignatureAlgorithm }}</el-tag>
+                      </div>
+                      <div
+                        :class="isDesktop ? 'form-item-span-2' : undefined"
+                        class="json-endpoint-signature-spec"
+                      >
+                        <strong>{{ i18ns.t('jsonEndpoint.signatureRequest') }}</strong>
+                        <code
+                          >GET\n{{
+                            previewPath
+                          }}\n&lt;canonical-query&gt;\n&lt;unix-seconds&gt;\n&lt;nonce&gt;</code
+                        >
+                        <span>{{ i18ns.t('jsonEndpoint.signatureHeaders') }}</span>
+                      </div>
+                    </template>
+                  </template>
+                </div>
+              </el-collapse-item>
               <el-collapse-item name="content"
                 ><template #title
                   ><span class="json-endpoint-edit-sections__title">{{
@@ -311,6 +375,8 @@ const formData = reactive({
   jsonContent: {} as unknown,
   isPublic: true,
   password: '',
+  accessMode: 'static-password' as 'static-password' | 'public-key',
+  publicKey: '',
   ownerUserId: '',
   isRootSlug: false,
 })
@@ -330,6 +396,13 @@ const previewUrl = computed(() =>
       : `/v1/json/${selectedOwner.value || 'username'}/${formData.slug || 'slug'}`,
   ),
 )
+const previewPath = computed(() =>
+  formData.isRootSlug
+    ? `/v1/json/${formData.slug || 'slug'}`
+    : `/v1/json/${selectedOwner.value || 'username'}/${formData.slug || 'slug'}`,
+)
+const savedPublicKeyFingerprint = ref('')
+const savedSignatureAlgorithm = ref('Ed25519')
 const formRules: FormRules = {
   name: [{ required: true, message: i18ns.t('required'), trigger: 'blur' }],
   slug: [
@@ -378,9 +451,13 @@ function handleEdit(row: JsonEndpointDto) {
     jsonContent: row.jsonContent,
     isPublic: row.isPublic,
     password: '',
+    accessMode: row.accessMode || 'static-password',
+    publicKey: row.publicKey || '',
     ownerUserId: row.userId,
     isRootSlug: row.isRootSlug,
   })
+  savedPublicKeyFingerprint.value = row.publicKeyFingerprint || ''
+  savedSignatureAlgorithm.value = row.signatureAlgorithm || 'Ed25519'
   drawerVisible.value = true
 }
 function handleViewJson(row: JsonEndpointDto) {
@@ -410,6 +487,23 @@ async function handleSubmit() {
   }
   submitting.value = true
   try {
+    if (
+      !formData.isPublic &&
+      formData.accessMode === 'static-password' &&
+      !isEdit.value &&
+      !formData.password
+    ) {
+      ElMessage.error(i18ns.t('jsonEndpoint.enterPassword'))
+      return
+    }
+    if (
+      !formData.isPublic &&
+      formData.accessMode === 'public-key' &&
+      !/-----BEGIN PUBLIC KEY-----[\s\S]+-----END PUBLIC KEY-----/.test(formData.publicKey.trim())
+    ) {
+      ElMessage.error(i18ns.t('jsonEndpoint.invalidPublicKey'))
+      return
+    }
     if (isEdit.value)
       await jsonEndpointService.updateEndpoint(editingEndpointId.value, {
         name: formData.name,
@@ -417,6 +511,11 @@ async function handleSubmit() {
         jsonContent: formData.jsonContent,
         isPublic: formData.isPublic,
         password: formData.password || undefined,
+        accessMode: formData.isPublic ? undefined : formData.accessMode,
+        publicKey:
+          !formData.isPublic && formData.accessMode === 'public-key'
+            ? formData.publicKey.trim()
+            : undefined,
         isRootSlug: canRootSlug.value ? formData.isRootSlug : undefined,
       })
     else
@@ -427,6 +526,11 @@ async function handleSubmit() {
         jsonContent: formData.jsonContent,
         isPublic: formData.isPublic,
         password: formData.isPublic ? undefined : formData.password,
+        accessMode: formData.isPublic ? undefined : formData.accessMode,
+        publicKey:
+          !formData.isPublic && formData.accessMode === 'public-key'
+            ? formData.publicKey.trim()
+            : undefined,
         ownerUserId: canManage.value ? formData.ownerUserId : undefined,
         isRootSlug: canRootSlug.value ? formData.isRootSlug : undefined,
       })
@@ -447,10 +551,13 @@ function resetForm() {
     jsonContent: {},
     isPublic: true,
     password: '',
+    accessMode: 'static-password',
+    publicKey: '',
     ownerUserId: '',
     isRootSlug: false,
   })
   editingEndpointId.value = ''
+  savedPublicKeyFingerprint.value = ''
   formRef.value?.resetFields()
 }
 onMounted(async () => {
@@ -669,6 +776,49 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
+.json-endpoint-access-mode {
+  display: inline-flex;
+  max-width: 100%;
+}
+
+.json-endpoint-key-status,
+.json-endpoint-signature-spec {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.json-endpoint-key-status code,
+.json-endpoint-signature-spec code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--el-text-color-primary);
+}
+
+.json-endpoint-signature-spec {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.json-endpoint-signature-spec code {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  overflow-x: auto;
+  border-radius: 4px;
+  background: var(--el-bg-color);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 .json-endpoint-page__json {
   max-height: 60vh;
   margin: 0;
@@ -770,6 +920,17 @@ onMounted(async () => {
 
   .json-endpoint-edit-section-stack .el-form-item:last-child {
     margin-bottom: 0;
+  }
+
+  .json-endpoint-access-mode {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .json-endpoint-access-mode :deep(.el-radio-button__inner) {
+    width: 100%;
+    padding-inline: 8px;
   }
 }
 </style>

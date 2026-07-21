@@ -1417,6 +1417,10 @@ model JsonEndpoint {
   jsonContent  Json
   apiKey       String?   @unique
   isPublic     Boolean   @default(true)
+  accessMode   String?   @db.VarChar(30)
+  publicKey    String?   @db.Text
+  publicKeyFingerprint String? @db.VarChar(64)
+  signatureAlgorithm   String? @db.VarChar(30)
   accessCount  Int       @default(0)
   lastAccessAt DateTime?
 

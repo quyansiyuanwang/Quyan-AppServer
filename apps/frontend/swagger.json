@@ -16348,7 +16348,7 @@
 				"security": [],
 				"parameters": [
 					{
-						"description": "URL Slug",
+						"description": "URL Slug\n非公开端点可通过 X-Access-Password 使用静态密码，或使用 Ed25519 签名请求头：\nX-Json-Timestamp、X-Json-Nonce、X-Json-Signature。",
 						"in": "path",
 						"name": "slug",
 						"required": true,
@@ -16357,9 +16357,32 @@
 						}
 					},
 					{
-						"description": "可选的访问密码 (通过 X-Access-Password header 传递)",
 						"in": "header",
 						"name": "X-Access-Password",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "X-Json-Timestamp",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "X-Json-Nonce",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "X-Json-Signature",
 						"required": false,
 						"schema": {
 							"type": "string"
@@ -16437,6 +16460,30 @@
 					{
 						"in": "header",
 						"name": "X-Access-Password",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "X-Json-Timestamp",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "X-Json-Nonce",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "X-Json-Signature",
 						"required": false,
 						"schema": {
 							"type": "string"
@@ -34906,6 +34953,25 @@
 					"hasPassword": {
 						"type": "boolean"
 					},
+					"hasPublicKey": {
+						"type": "boolean"
+					},
+					"accessMode": {
+						"type": "string",
+						"enum": [
+							"static-password",
+							"public-key"
+						]
+					},
+					"publicKey": {
+						"type": "string"
+					},
+					"publicKeyFingerprint": {
+						"type": "string"
+					},
+					"signatureAlgorithm": {
+						"type": "string"
+					},
 					"accessCount": {
 						"type": "number",
 						"format": "double"
@@ -34931,6 +34997,7 @@
 					"jsonContent",
 					"isPublic",
 					"hasPassword",
+					"hasPublicKey",
 					"accessCount",
 					"createTime",
 					"updateTime"
@@ -34963,6 +35030,18 @@
 					"password": {
 						"type": "string",
 						"description": "访问密码 (仅当 isPublic=false 时需要)"
+					},
+					"accessMode": {
+						"type": "string",
+						"enum": [
+							"static-password",
+							"public-key"
+						],
+						"description": "非公开端点的访问模式"
+					},
+					"publicKey": {
+						"type": "string",
+						"description": "Ed25519 SPKI PEM 公钥，仅当 accessMode=public-key 时需要"
 					},
 					"ownerUserId": {
 						"type": "string"
@@ -35017,6 +35096,18 @@
 					"password": {
 						"type": "string",
 						"description": "更新访问密码 (可选)"
+					},
+					"accessMode": {
+						"type": "string",
+						"enum": [
+							"static-password",
+							"public-key"
+						],
+						"description": "非公开端点的访问模式"
+					},
+					"publicKey": {
+						"type": "string",
+						"description": "Ed25519 SPKI PEM 公钥，仅当 accessMode=public-key 时需要"
 					},
 					"isRootSlug": {
 						"type": "boolean"

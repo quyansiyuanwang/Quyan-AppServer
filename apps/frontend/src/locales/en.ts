@@ -3646,6 +3646,18 @@ export default {
     description: 'Description',
     isPublic: 'Public Access',
     password: 'Access Password',
+    authenticationMode: 'Authentication Mode',
+    staticPassword: 'Static Password',
+    ed25519Signature: 'Ed25519 Signature',
+    ed25519PublicKey: 'Ed25519 Public Key',
+    publicKeyPlaceholder: '-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----',
+    publicKeyHint:
+      'Only an Ed25519 SPKI PEM public key is stored. Keep the private key only on the client. Replacing this key rotates the signing credential immediately.',
+    invalidPublicKey: 'Enter a valid Ed25519 SPKI PEM public key',
+    keyFingerprint: 'Saved public key fingerprint',
+    signatureRequest: 'Signing payload',
+    signatureHeaders:
+      'Headers: X-Json-Timestamp, X-Json-Nonce, X-Json-Signature (base64url). Sort encoded query key/value pairs before signing.',
     jsonContent: 'JSON Content',
     access: 'Access Type',
     public: 'Public',

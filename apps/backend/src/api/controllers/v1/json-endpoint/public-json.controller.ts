@@ -1,4 +1,15 @@
-import { Get, Path, Route, SuccessResponse, Response, Tags, Controller, Header, Middlewares } from "@tsoa/runtime";
+import {
+  Get,
+  Path,
+  Route,
+  SuccessResponse,
+  Response,
+  Tags,
+  Controller,
+  Header,
+  Middlewares,
+  Request,
+} from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
 import { JsonEndpointService } from "@/services/json-endpoint/json-endpoint.service";
 import type { PublicJsonData } from "@/api/dto/json-endpoint/json-endpoint.dto";
@@ -8,6 +19,7 @@ import {
   publicJsonSlugParamsSchema,
 } from "@/api/schema/json-endpoint/json-endpoint.schema";
 import { validateParams } from "@/middleware/validation";
+import type { TypedRequest } from "@/types/express";
 
 @Route("v1/json")
 @Tags("Public JSON Access")
@@ -17,7 +29,8 @@ export class PublicJsonController extends Controller {
   /**
    * 公开访问 JSON 数据
    * @param slug URL Slug
-   * @param password 可选的访问密码 (通过 X-Access-Password header 传递)
+   * 非公开端点可通过 X-Access-Password 使用静态密码，或使用 Ed25519 签名请求头：
+   * X-Json-Timestamp、X-Json-Nonce、X-Json-Signature。
    */
   @Get("{slug}")
   @SuccessResponse(HttpStatusCode.Ok, "Success")
@@ -28,8 +41,19 @@ export class PublicJsonController extends Controller {
   public async accessEndpoint(
     @Path() slug: string,
     @Header("X-Access-Password") password?: string,
+    @Header("X-Json-Timestamp") timestamp?: string,
+    @Header("X-Json-Nonce") nonce?: string,
+    @Header("X-Json-Signature") signature?: string,
+    @Request() request?: TypedRequest,
   ): Promise<PublicJsonData> {
-    return this.service.accessRootEndpoint(slug, password);
+    return this.service.accessRootEndpoint(slug, {
+      password,
+      timestamp,
+      nonce,
+      signature,
+      pathname: request?.path,
+      originalUrl: request?.originalUrl,
+    });
   }
 
   @Get("{username}/{slug}")
@@ -42,7 +66,18 @@ export class PublicJsonController extends Controller {
     @Path() username: string,
     @Path() slug: string,
     @Header("X-Access-Password") password?: string,
+    @Header("X-Json-Timestamp") timestamp?: string,
+    @Header("X-Json-Nonce") nonce?: string,
+    @Header("X-Json-Signature") signature?: string,
+    @Request() request?: TypedRequest,
   ): Promise<PublicJsonData> {
-    return this.service.accessNamespacedEndpoint(username, slug, password);
+    return this.service.accessNamespacedEndpoint(username, slug, {
+      password,
+      timestamp,
+      nonce,
+      signature,
+      pathname: request?.path,
+      originalUrl: request?.originalUrl,
+    });
   }
 }
