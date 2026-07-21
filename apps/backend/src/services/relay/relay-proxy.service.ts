@@ -776,7 +776,7 @@ export class RelayProxyService {
     const usedQuota = Number(relayToken.usedQuota || 0);
 
     if (lifetimeQuotaLimit != null && usedQuota + RELAY_TOKEN_QUOTA_COMPARE_EPSILON >= lifetimeQuotaLimit)
-      throw new BadRequestError(
+      throw new TooManyRequestsError(
         `Relay token lifetime quota exceeded (${this.formatRelayTokenQuotaValue(usedQuota, "amount")}/${this.formatRelayTokenQuotaValue(lifetimeQuotaLimit, "amount")})`,
       );
 
@@ -809,7 +809,7 @@ export class RelayProxyService {
 
       if (!this.isRelayTokenQuotaExceeded(consumed, quotaLimit, quotaUnit)) continue;
 
-      throw new BadRequestError(
+      throw new TooManyRequestsError(
         `Relay token ${quotaUnit} quota exceeded in ${this.formatRelayTokenQuotaWindowHours(quotaWindowHours)} window (${this.formatRelayTokenQuotaValue(consumed, quotaUnit)}/${this.formatRelayTokenQuotaValue(quotaLimit, quotaUnit)})`,
       );
     }
@@ -2009,7 +2009,7 @@ export class RelayProxyService {
       channelMultiplier,
       globalMultiplier: relayGlobalMultiplier,
       timeMultiplier,
-      balanceChargeMode: "strict",
+      balanceChargeMode: "allow-negative",
       pricingType: selectedRateConfig?.pricingType as "token-based" | "per-request" | undefined,
       fixedPrice: selectedRateConfig?.fixedPrice,
       originalModel,
@@ -2498,16 +2498,14 @@ export class RelayProxyService {
 
             const monthlyPassCoverageAt = new Date();
 
-            if (isStreamRequested) {
-              const hasChargeCoverage = await this.usageChargeService.hasCoverageOrPositiveBalance({
-                userId: relayToken.userId,
-                modelName: selectedModelName,
-                channelId: channel.id,
-                at: monthlyPassCoverageAt,
-              });
+            const hasChargeCoverage = await this.usageChargeService.hasCoverageOrPositiveBalance({
+              userId: relayToken.userId,
+              modelName: selectedModelName,
+              channelId: channel.id,
+              at: monthlyPassCoverageAt,
+            });
 
-              if (!hasChargeCoverage) throw new RelayChannelSkipError("Insufficient balance", "insufficient-balance");
-            }
+            if (!hasChargeCoverage) throw new RelayChannelSkipError("Insufficient balance", "insufficient-balance");
 
             relayGlobalMultiplier = relayConfig.globalMultiplier;
             timeMultiplier = computeMultiplierForTime(
@@ -2943,7 +2941,7 @@ export class RelayProxyService {
               channelMultiplier,
               globalMultiplier: relayGlobalMultiplier,
               timeMultiplier,
-              balanceChargeMode: "strict",
+              balanceChargeMode: "allow-negative",
               pricingType: rateConfig?.pricingType as "token-based" | "per-request" | undefined,
               fixedPrice: rateConfig?.fixedPrice,
               originalModel: relayOriginalRequestedModel,
@@ -3718,8 +3716,15 @@ export class RelayProxyService {
                 fixedPrice: rateConfig?.fixedPrice,
                 originalModel: originalRequestedModel,
               });
-            } catch (err) {
-              console.error("[Relay] Failed to finalize stream usage:", err);
+            } catch (error) {
+              logger.error("Failed to finalize relay stream usage", {
+                relayTokenId: relayToken.id,
+                userId: relayToken.userId,
+                modelName,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              reject(error);
+              return;
             }
 
             resolve({ handled: true, success: true, retryable: false, statusCode: proxyRes.statusCode || 200 });
@@ -3800,7 +3805,8 @@ export class RelayProxyService {
   }
 
   private async finalizeStreamUsage(relayToken: RelayToken, data: any) {
-    if (!data.cost) throw new Error("cost is required for finalizeStreamUsage");
+    if (!Number.isFinite(data.cost) || data.cost < 0)
+      throw new Error("cost must be a non-negative finite number for finalizeStreamUsage");
 
     if (data.inputRate == null || data.outputRate == null)
       throw new Error("inputRate and outputRate are required for finalizeStreamUsage");
@@ -3854,13 +3860,12 @@ export class RelayProxyService {
       channelMultiplier,
       globalMultiplier: relayGlobalMultiplier,
       timeMultiplier,
-      balanceChargeMode: "skip-when-non-positive",
+      balanceChargeMode: "allow-negative",
       pricingType: data.pricingType,
       fixedPrice: data.fixedPrice,
       originalModel: data.originalModel,
     });
 
-    if (!finalizeResult.applied)
-      console.warn(`[Relay] Skip deduction: zero/negative balance for user ${relayToken.userId}`);
+    if (!finalizeResult.applied) throw new BadRequestError("Unable to finalize relay usage");
   }
 }
