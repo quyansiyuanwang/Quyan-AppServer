@@ -262,6 +262,74 @@ describe("RelayChannelService", () => {
     );
   });
 
+  it("projects pooled channel prices from final leaf members instead of its legacy multiplier", async () => {
+    const pool = {
+      ...sampleChannel,
+      id: "pooled-channel",
+      name: "Pooled Channel",
+      channelType: "pooled",
+      multiplier: 99,
+    };
+    const firstLeaf = {
+      ...sampleChannel,
+      id: "first-leaf",
+      name: "First Leaf",
+      multiplier: 1.25,
+      timePeriodMultipliers: [],
+    };
+    const secondLeaf = {
+      ...sampleChannel,
+      id: "second-leaf",
+      name: "Second Leaf",
+      multiplier: 2,
+      timePeriodMultipliers: [],
+    };
+    relayChannelRepository.listActive.mockResolvedValue([pool, firstLeaf, secondLeaf]);
+    relayPoolResolver.resolveChannelCapabilities.mockImplementation(async (channelId: string) =>
+      channelId === pool.id
+        ? [
+            {
+              leafChannelId: firstLeaf.id,
+              catalogModelName: "Catalog Model",
+              requestModelId: "request-model",
+              supportedRequestFormats: ["openai"],
+              modelMapping: {},
+            },
+            {
+              leafChannelId: secondLeaf.id,
+              catalogModelName: "Catalog Model",
+              requestModelId: "request-model",
+              supportedRequestFormats: ["openai"],
+              modelMapping: {},
+            },
+          ]
+        : [],
+    );
+
+    const result = await service.listChannelOptions("actor-user");
+    const option = result.find((item) => item.id === pool.id);
+
+    expect(option?.poolPricing).toEqual({
+      members: [
+        expect.objectContaining({
+          id: firstLeaf.id,
+          name: firstLeaf.name,
+          multiplier: 1.25,
+          timePeriodMultiplier: 1,
+          effectiveMultiplier: 1.25,
+        }),
+        expect.objectContaining({
+          id: secondLeaf.id,
+          name: secondLeaf.name,
+          multiplier: 2,
+          timePeriodMultiplier: 1,
+          effectiveMultiplier: 2,
+        }),
+      ],
+    });
+    expect(option?.poolPricing?.members.map((member) => member.effectiveMultiplier)).not.toContain(99);
+  });
+
   it("projects only safe automatic pool member details and current eligibility", async () => {
     relayChannelRepository.listActive.mockResolvedValue([
       {
@@ -528,6 +596,17 @@ describe("RelayChannelService", () => {
         "actor-user",
       ),
     ).rejects.toThrow("multiplier must be >= 0");
+  });
+
+  it("ignores a submitted multiplier when validating a pooled channel", async () => {
+    const validated = await (service as any).buildValidatedChannelData({
+      name: "Pooled Channel",
+      channelType: "pooled",
+      multiplier: 42,
+      poolMembers: [{ memberChannelId: "member-channel", priority: 1, enabled: true }],
+    });
+
+    expect(validated.multiplier).toBe(1);
   });
 
   it("validates allowedFormats and allowedModels on create", async () => {

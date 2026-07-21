@@ -41,15 +41,26 @@ export class JsonEndpointRepository implements JsonEndpointStore {
   /**
    * 通过 slug 查找端点
    */
-  public async findBySlug(slug: string): Promise<JsonEndpoint | null> {
+  public async findByRootSlug(slug: string): Promise<JsonEndpoint | null> {
     try {
       return await prisma.jsonEndpoint.findUnique({
-        where: { slug, status: MANAGED_STATUS.ENABLED },
+        where: { rootSlug: slug, status: MANAGED_STATUS.ENABLED },
       });
     } catch (error) {
       logger.error(`Failed to find JSON endpoint by slug: ${slug}`, error);
       throw error;
     }
+  }
+
+  public async findByUserAndSlug(username: string, slug: string): Promise<JsonEndpoint | null> {
+    return prisma.jsonEndpoint.findFirst({
+      where: {
+        slug,
+        isRootSlug: false,
+        status: MANAGED_STATUS.ENABLED,
+        user: { username, status: MANAGED_STATUS.ENABLED },
+      },
+    });
   }
 
   /**
@@ -93,6 +104,13 @@ export class JsonEndpointRepository implements JsonEndpointStore {
       logger.error(`Failed to find JSON endpoints for user: ${userId}`, error);
       throw error;
     }
+  }
+
+  public async findAll(): Promise<JsonEndpoint[]> {
+    return prisma.jsonEndpoint.findMany({
+      where: { status: MANAGED_STATUS.ENABLED },
+      orderBy: { createTime: "desc" },
+    });
   }
 
   /**

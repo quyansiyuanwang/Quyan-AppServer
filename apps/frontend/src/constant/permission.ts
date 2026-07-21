@@ -920,6 +920,20 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows deleting JSON endpoints',
     category: 'json_endpoint',
   },
+  [Permission.JSON_ENDPOINT_ROOT_SLUG]: {
+    label: '管理 JSON 根 Slug',
+    labelEn: 'Manage JSON Root Slugs',
+    tooltip: '允许将 JSON 端点发布到全局根路径',
+    tooltipEn: 'Allows publishing JSON endpoints on the global root path',
+    category: 'json_endpoint',
+  },
+  [Permission.JSON_ENDPOINT_MANAGE]: {
+    label: '代管 JSON 端点',
+    labelEn: 'Manage All JSON Endpoints',
+    tooltip: '允许管理其他用户的 JSON 端点并代为创建',
+    tooltipEn: 'Allows managing and creating JSON endpoints for other users',
+    category: 'json_endpoint',
+  },
 
   [Permission.ARTICLE_CREATE]: {
     label: '创建文章',

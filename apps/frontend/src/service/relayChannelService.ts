@@ -12,6 +12,8 @@ import type {
   RelayChannelDto,
   RelayChannelOptionDto,
   RelayChannelExportResponse,
+  PaginatedResponseRelayChannelManagementListItemDto,
+  RelayChannelManagementListItemDto,
 } from '@/client/types.gen'
 import { checkApiResult } from '@/utils/service-utils'
 import { cacheObject } from '@/utils/common'
@@ -35,6 +37,25 @@ class RelayChannelService {
     const result = await relayChannelApi.listChannels({
       params: {
         includeDisabled: options?.includeDisabled,
+      },
+    })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async listManagementChannels(options: {
+    page: number
+    pageSize: number
+    keyword?: string
+    channelType?: RelayChannelManagementListItemDto['channelType']
+    enabled?: boolean
+  }): Promise<PaginatedResponseRelayChannelManagementListItemDto> {
+    const result = await relayChannelApi.listManagementChannels({
+      params: {
+        page: options.page,
+        pageSize: options.pageSize,
+        keyword: options.keyword?.trim() || undefined,
+        channelType: options.channelType,
+        enabled: options.enabled,
       },
     })
     return checkApiResult<any>(result, true).data

@@ -705,7 +705,9 @@
         </el-dialog>
       </el-card>
 
+      <RelayChannelManagementPanel />
       <el-card
+        v-if="false"
         style="margin-top: 16px"
         v-loading="channelLoading"
         class="mobile-card relay-settings-mobile-card"
@@ -1074,6 +1076,7 @@
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
+import RelayChannelManagementPanel from './RelayChannelManagementPanel.vue'
 
 const state = useRelaySettingsManagementContext()
 

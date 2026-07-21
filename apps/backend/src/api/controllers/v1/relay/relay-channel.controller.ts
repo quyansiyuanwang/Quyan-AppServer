@@ -27,8 +27,10 @@ import type {
   ImportRelayChannelsRequest,
   ImportRelayChannelsResponse,
   RelayChannelExportResponse,
+  RelayChannelManagementListItemDto,
   UpdateRelayChannelRequest,
 } from "@/api/dto/relay/relay-channel.dto";
+import type { PaginatedResponse } from "@/api/dto/common/common.dto";
 import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
@@ -40,10 +42,11 @@ import {
   duplicateRelayChannelBodySchema,
   exportRelayChannelsBodySchema,
   importRelayChannelsBodySchema,
+  relayChannelManagementQuerySchema,
   relayChannelIdParamsSchema,
   updateRelayChannelBodySchema,
 } from "@/api/schema/relay/relay-channel.schema";
-import { validateBody, validateParams } from "@/middleware/validation";
+import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { ReplayProtected } from "@/util/replay-protected-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
@@ -62,6 +65,27 @@ export class RelayChannelController extends Controller {
     @Query() includeDisabled?: boolean,
   ): Promise<RelayChannelDto[]> {
     return this.channelService.listChannels(request.user!.userId, includeDisabled === true);
+  }
+
+  @Get("management")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @Middlewares(validateQuery(relayChannelManagementQuerySchema))
+  public async listManagementChannels(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+    @Query() keyword?: string,
+    @Query() channelType?: RelayChannelManagementListItemDto["channelType"],
+    @Query() enabled?: boolean,
+  ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
+    return this.channelService.listManagementChannels(request.user!.userId, {
+      page,
+      pageSize,
+      keyword,
+      channelType,
+      enabled,
+    });
   }
 
   /**

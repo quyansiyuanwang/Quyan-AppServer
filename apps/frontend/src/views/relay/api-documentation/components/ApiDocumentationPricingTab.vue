@@ -117,30 +117,34 @@ const formatChannelMultiplier = (multiplier?: number | null) => {
   return `x${resolvedMultiplier}`
 }
 
+const getPoolLabel = (channel: RelayChannelOptionDto) =>
+  channel.channelType === 'automatic-proxy-pool'
+    ? t('apiDoc.automaticProxyPool')
+    : t('relay.channelTypePooled')
+
+const getPoolMultipliers = (channel: RelayChannelOptionDto) =>
+  (channel.poolPricing?.members ?? [])
+    .filter((member) => member.enabled)
+    .map((member) => member.effectiveMultiplier)
+
 const formatChannelOptionLabel = (channel: RelayChannelOptionDto) => {
-  if (!channel.automaticProxyPool) {
+  if (!channel.poolPricing) {
     return `${channel.name} ${formatChannelMultiplier(channel.multiplier)}`
   }
 
-  const multipliers = channel.automaticProxyPool.members
-    .filter((member) => member.enabled)
-    .map((member) => member.effectiveMultiplier)
+  const multipliers = getPoolMultipliers(channel)
 
   if (multipliers.length === 0) {
-    return `${channel.name} · ${t('apiDoc.automaticProxyPool')}`
+    return `${channel.name} · ${getPoolLabel(channel)}`
   }
 
-  return `${channel.name} · ${t('apiDoc.automaticProxyPool')} ${formatChannelMultiplier(
-    Math.min(...multipliers),
-  )}–${formatChannelMultiplier(Math.max(...multipliers))}`
+  return `${channel.name} · ${getPoolLabel(channel)} ${formatChannelMultiplier(Math.min(...multipliers))}–${formatChannelMultiplier(Math.max(...multipliers))}`
 }
 
 const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
-  if (!channel.automaticProxyPool) return formatChannelMultiplier(channel.multiplier)
+  if (!channel.poolPricing) return formatChannelMultiplier(channel.multiplier)
 
-  const multipliers = channel.automaticProxyPool.members
-    .filter((member) => member.enabled)
-    .map((member) => member.effectiveMultiplier)
+  const multipliers = getPoolMultipliers(channel)
 
   if (multipliers.length === 0) return t('apiDoc.noActivePoolMembers')
   return `${formatChannelMultiplier(Math.min(...multipliers))}–${formatChannelMultiplier(

@@ -112,6 +112,14 @@ export const relayChannelIdParamsSchema = z.object({
   id: z.string().trim().min(1),
 });
 
+export const relayChannelManagementQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  keyword: z.string().trim().max(100).optional(),
+  channelType: relayChannelTypeSchema.optional(),
+  enabled: z.coerce.boolean().optional(),
+});
+
 export const createRelayChannelBodySchema = relayChannelBaseSchema;
 
 export const updateRelayChannelBodySchema = relayChannelBaseSchema.partial();

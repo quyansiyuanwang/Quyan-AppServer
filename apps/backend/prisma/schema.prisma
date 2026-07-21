@@ -1410,7 +1410,9 @@ model JsonEndpoint {
   updateTime   DateTime  @updatedAt
   userId       String
   name         String
-  slug         String    @unique
+  slug         String
+  isRootSlug   Boolean   @default(false)
+  rootSlug     String?   @unique
   description  String?   @db.Text
   jsonContent  Json
   apiKey       String?   @unique
@@ -1422,6 +1424,7 @@ model JsonEndpoint {
 
   @@index([userId])
   @@index([slug])
+  @@unique([userId, slug])
   @@index([apiKey])
   @@map("json_endpoints")
 }

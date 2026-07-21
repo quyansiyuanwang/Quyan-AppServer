@@ -599,22 +599,22 @@
                   <div class="channel-price-header">
                     {{ channel.name }}
                     <el-tag size="small" type="info" effect="plain">
-                      <template v-if="isAutomaticProxyPool(channel)">
-                        {{ t('apiDoc.automaticProxyPool') }}
+                      <template v-if="isPooledChannel(channel)">
+                        {{ getPoolLabel(channel) }}
                       </template>
                       <template v-else>×{{ getTooltipMultiplierLabel(row, channel) }}</template>
                     </el-tag>
                   </div>
-                  <template v-if="isAutomaticProxyPool(channel)">
+                  <template v-if="isPooledChannel(channel)">
                     <div class="channel-price-hint">
                       {{ t('apiDoc.automaticPoolVariablePriceHint') }}
                     </div>
-                    <div class="channel-price-row">
+                    <div v-if="isAutomaticProxyPool(channel)" class="channel-price-row">
                       <span class="channel-price-label">{{ t('apiDoc.routingStrategy') }}:</span>
                       <el-text size="small">{{ getRoutingStrategyLabel(channel) }}</el-text>
                     </div>
                     <div
-                      v-for="member in getAutomaticPoolMembers(channel)"
+                      v-for="member in getPoolPricingMembers(channel)"
                       :key="member.id"
                       class="automatic-pool-member"
                     >
@@ -633,8 +633,7 @@
                         </el-tag>
                       </div>
                       <div class="automatic-pool-member__meta">
-                        {{ t('apiDoc.priority') }} {{ member.priority }} · {{ t('apiDoc.weight') }}
-                        {{ member.weight ?? 1 }} · {{ t('apiDoc.baseMultiplier') }} ×{{
+                        {{ t('apiDoc.baseMultiplier') }} ×{{
                           formatMultiplier(member.multiplier)
                         }}
                         · {{ t('apiDoc.timeMultiplier') }} ×{{
@@ -643,9 +642,6 @@
                         · {{ t('apiDoc.effectiveMultiplier') }} ×{{
                           formatMultiplier(member.effectiveMultiplier)
                         }}
-                      </div>
-                      <div class="automatic-pool-member__meta">
-                        {{ t('apiDoc.supportedFormats') }}: {{ member.allowedFormats }}
                       </div>
                       <template v-if="getAutomaticPoolMemberPrice(row, channel, member.id)">
                         <div
@@ -752,8 +748,8 @@
                 class="channel-tag"
               >
                 {{ channel.name }}
-                <span v-if="isAutomaticProxyPool(channel)" class="channel-multiplier-badge">
-                  {{ t('apiDoc.automaticProxyPool') }}
+                <span v-if="isPooledChannel(channel)" class="channel-multiplier-badge">
+                  {{ getPoolLabel(channel) }}
                 </span>
                 <span v-else-if="channel.multiplier !== 1" class="channel-multiplier-badge">
                   ×{{ formatMultiplier(channel.multiplier) }}
@@ -799,8 +795,8 @@
               <template v-if="getChannelPriceCellValue(row, channel).available">
                 <div class="comparison-multiplier-row">
                   <el-tag size="small" type="info" effect="plain">
-                    <template v-if="getChannelPriceCellValue(row, channel).automaticProxyPool">
-                      {{ t('apiDoc.automaticProxyPool') }} ·
+                    <template v-if="getChannelPriceCellValue(row, channel).pooledChannel">
+                      {{ getPoolLabel(channel) }} ·
                       {{
                         formatMultiplierRange(
                           getChannelPriceCellValue(row, channel).multiplier,
@@ -1029,6 +1025,13 @@ const getTooltipMultiplier = (_item: PricingModelRow, channel: RelayChannelOptio
 const isAutomaticProxyPool = (channel: RelayChannelOptionDto): boolean =>
   Boolean(channel.automaticProxyPool)
 
+const isPooledChannel = (channel: RelayChannelOptionDto): boolean => Boolean(channel.poolPricing)
+
+const getPoolLabel = (channel: RelayChannelOptionDto): string =>
+  channel.channelType === 'automatic-proxy-pool'
+    ? t('apiDoc.automaticProxyPool')
+    : t('relay.channelTypePooled')
+
 const getRoutingStrategyLabel = (channel: RelayChannelOptionDto): string => {
   const strategy = channel.automaticProxyPool?.routingStrategy
   if (!strategy) return '-'
@@ -1045,11 +1048,10 @@ const getRoutingStrategyLabel = (channel: RelayChannelOptionDto): string => {
   return labels[strategy]
 }
 
-const getAutomaticPoolMembers = (channel: RelayChannelOptionDto) => {
-  return [...(channel.automaticProxyPool?.members || [])].sort(
-    (left, right) => left.priority - right.priority || left.name.localeCompare(right.name),
+const getPoolPricingMembers = (channel: RelayChannelOptionDto) =>
+  [...(channel.poolPricing?.members || [])].sort(
+    (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
   )
-}
 
 const getTooltipMultiplierLabel = (
   item: PricingModelRow,

@@ -40,7 +40,7 @@ export type ChannelPriceCell = {
   maximumOutputPrice: number | null
   cacheCreationMultiplier: number | null
   cacheReadMultiplier: number | null
-  automaticProxyPool: boolean
+  pooledChannel: boolean
   members: ChannelPriceMember[]
 }
 
@@ -110,8 +110,8 @@ export const useApiDocumentationPricing = () => {
 
   const visibleChannels = computed(() =>
     channels.value.filter((channel) => {
-      const isAutomaticProxyPool = Boolean(channel.automaticProxyPool)
-      if (isAutomaticProxyPool) return !hideAutomaticProxyPools.value
+      if (channel.channelType === 'automatic-proxy-pool') return !hideAutomaticProxyPools.value
+      if (channel.channelType === 'pooled') return true
       return !hideIndependentChannels.value
     }),
   )
@@ -198,15 +198,19 @@ export const useApiDocumentationPricing = () => {
     )
   }
 
+  const getPoolPricingMembersForModel = (item: PricingModelRow, channel: RelayChannelOptionDto) => {
+    return (channel.poolPricing?.members ?? []).filter(
+      (member) => member.enabled && channelSupportsModel(member, item),
+    )
+  }
+
   const getEffectiveMultipliersForModel = (
     item: PricingModelRow,
     channel: RelayChannelOptionDto,
   ): number[] => {
-    if (!channel.automaticProxyPool) return [channel.multiplier ?? 1]
+    if (!channel.poolPricing) return [channel.multiplier ?? 1]
 
-    return channel.automaticProxyPool.members
-      .filter((member) => member.enabled && channelSupportsModel(member, item))
-      .map((member) => member.effectiveMultiplier)
+    return getPoolPricingMembersForModel(item, channel).map((member) => member.effectiveMultiplier)
   }
 
   const getLowestChannelMultiplierForModel = (
@@ -287,13 +291,13 @@ export const useApiDocumentationPricing = () => {
         maximumOutputPrice: null,
         cacheCreationMultiplier: item.cacheCreationMultiplier ?? null,
         cacheReadMultiplier: item.cacheReadMultiplier ?? null,
-        automaticProxyPool: Boolean(channel.automaticProxyPool),
+        pooledChannel: Boolean(channel.poolPricing),
         members: [],
       }
     }
 
     const memberMultipliers = getEffectiveMultipliersForModel(item, availableChannel)
-    if (availableChannel.automaticProxyPool && memberMultipliers.length === 0) {
+    if (availableChannel.poolPricing && memberMultipliers.length === 0) {
       return {
         available: false,
         channelId: channel.id,
@@ -308,7 +312,7 @@ export const useApiDocumentationPricing = () => {
         maximumOutputPrice: null,
         cacheCreationMultiplier: item.cacheCreationMultiplier ?? null,
         cacheReadMultiplier: item.cacheReadMultiplier ?? null,
-        automaticProxyPool: true,
+        pooledChannel: true,
         members: [],
       }
     }
@@ -318,26 +322,24 @@ export const useApiDocumentationPricing = () => {
     const effectiveMultipliers = multipliers.map((multiplier) => multiplier * customMultiplier)
     const multiplier = Math.min(...effectiveMultipliers)
     const maximumMultiplier = Math.max(...effectiveMultipliers)
-    const members = (availableChannel.automaticProxyPool?.members ?? [])
-      .filter((member) => member.enabled && channelSupportsModel(member, item))
-      .map((member) => {
-        const memberMultiplier = member.effectiveMultiplier * customMultiplier
-        return {
-          id: member.id,
-          name: member.name,
-          multiplier: memberMultiplier,
-          fixedPrice:
-            item.pricingType === 'per-request' ? (item.fixedPrice ?? 0) * memberMultiplier : null,
-          inputPrice:
-            item.pricingType === 'per-request'
-              ? null
-              : ((item.inputPrice ?? 0) * memberMultiplier) / divisor,
-          outputPrice:
-            item.pricingType === 'per-request'
-              ? null
-              : ((item.outputPrice ?? 0) * memberMultiplier) / divisor,
-        }
-      })
+    const members = getPoolPricingMembersForModel(item, availableChannel).map((member) => {
+      const memberMultiplier = member.effectiveMultiplier * customMultiplier
+      return {
+        id: member.id,
+        name: member.name,
+        multiplier: memberMultiplier,
+        fixedPrice:
+          item.pricingType === 'per-request' ? (item.fixedPrice ?? 0) * memberMultiplier : null,
+        inputPrice:
+          item.pricingType === 'per-request'
+            ? null
+            : ((item.inputPrice ?? 0) * memberMultiplier) / divisor,
+        outputPrice:
+          item.pricingType === 'per-request'
+            ? null
+            : ((item.outputPrice ?? 0) * memberMultiplier) / divisor,
+      }
+    })
 
     return {
       available: true,
@@ -364,7 +366,7 @@ export const useApiDocumentationPricing = () => {
           : ((item.outputPrice ?? 0) * maximumMultiplier) / divisor,
       cacheCreationMultiplier: item.cacheCreationMultiplier ?? null,
       cacheReadMultiplier: item.cacheReadMultiplier ?? null,
-      automaticProxyPool: Boolean(availableChannel.automaticProxyPool),
+      pooledChannel: Boolean(availableChannel.poolPricing),
       members,
     }
   }

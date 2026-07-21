@@ -4,6 +4,8 @@ export interface CreateJsonEndpointParams {
   userId: string;
   name: string;
   slug: string;
+  isRootSlug?: boolean;
+  rootSlug?: string | null;
   description?: string;
   jsonContent: any;
   apiKey?: string;
@@ -16,14 +18,18 @@ export interface UpdateJsonEndpointParams {
   jsonContent?: any;
   apiKey?: string;
   isPublic?: boolean;
+  isRootSlug?: boolean;
+  rootSlug?: string | null;
 }
 
 export interface JsonEndpointStore {
   create(params: CreateJsonEndpointParams): Promise<JsonEndpoint>;
-  findBySlug(slug: string): Promise<JsonEndpoint | null>;
+  findByRootSlug(slug: string): Promise<JsonEndpoint | null>;
+  findByUserAndSlug(username: string, slug: string): Promise<JsonEndpoint | null>;
   findByApiKey(apiKey: string): Promise<JsonEndpoint | null>;
   findById(id: string): Promise<JsonEndpoint | null>;
   findByUserId(userId: string): Promise<JsonEndpoint[]>;
+  findAll(): Promise<JsonEndpoint[]>;
   update(id: string, params: UpdateJsonEndpointParams): Promise<JsonEndpoint>;
   incrementAccessCount(id: string): void;
   delete(id: string): Promise<void>;

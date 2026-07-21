@@ -3,7 +3,10 @@ import { HttpStatusCode } from "axios";
 import { JsonEndpointService } from "@/services/json-endpoint/json-endpoint.service";
 import type { PublicJsonData } from "@/api/dto/json-endpoint/json-endpoint.dto";
 import type { ErrorResponse } from "@/api/response";
-import { publicJsonSlugParamsSchema } from "@/api/schema/json-endpoint/json-endpoint.schema";
+import {
+  publicJsonNamespaceParamsSchema,
+  publicJsonSlugParamsSchema,
+} from "@/api/schema/json-endpoint/json-endpoint.schema";
 import { validateParams } from "@/middleware/validation";
 
 @Route("v1/json")
@@ -26,6 +29,20 @@ export class PublicJsonController extends Controller {
     @Path() slug: string,
     @Header("X-Access-Password") password?: string,
   ): Promise<PublicJsonData> {
-    return this.service.accessEndpoint(slug, password);
+    return this.service.accessRootEndpoint(slug, password);
+  }
+
+  @Get("{username}/{slug}")
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
+  @Response<ErrorResponse>(HttpStatusCode.NotFound, "端点不存在")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "需要访问密码")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "密码错误")
+  @Middlewares(validateParams(publicJsonNamespaceParamsSchema))
+  public async accessNamespacedEndpoint(
+    @Path() username: string,
+    @Path() slug: string,
+    @Header("X-Access-Password") password?: string,
+  ): Promise<PublicJsonData> {
+    return this.service.accessNamespacedEndpoint(username, slug, password);
   }
 }

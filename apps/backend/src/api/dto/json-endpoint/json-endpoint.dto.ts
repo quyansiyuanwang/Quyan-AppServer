@@ -26,6 +26,8 @@ export interface CreateJsonEndpointDto {
    * 访问密码 (仅当 isPublic=false 时需要)
    */
   password?: string;
+  ownerUserId?: string;
+  isRootSlug?: boolean;
 }
 
 /**
@@ -48,6 +50,7 @@ export interface UpdateJsonEndpointDto {
    * 更新访问密码 (可选)
    */
   password?: string;
+  isRootSlug?: boolean;
 }
 
 /**
@@ -56,8 +59,11 @@ export interface UpdateJsonEndpointDto {
 export interface JsonEndpointDto {
   id: string;
   userId: string;
+  ownerUsername: string;
   name: string;
   slug: string;
+  isRootSlug: boolean;
+  publicUrl: string;
   description?: string;
   jsonContent: any;
   isPublic: boolean;
@@ -68,6 +74,11 @@ export interface JsonEndpointDto {
   updateTime: string;
 }
 
+export interface JsonEndpointOwnerOptionDto {
+  id: string;
+  username: string;
+}
+
 /**
  * 公开访问的 JSON 数据
  */
@@ -76,6 +87,8 @@ export interface PublicJsonData {
   data: any;
   /** Slug */
   slug: string;
+  ownerUsername: string;
+  publicUrl: string;
   /** 最后更新时间 */
   lastUpdated: string;
 }
