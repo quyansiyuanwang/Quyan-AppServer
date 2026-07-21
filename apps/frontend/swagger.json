@@ -16368,6 +16368,83 @@
 				]
 			}
 		},
+		"/v1/json/{username}/{slug}": {
+			"get": {
+				"operationId": "PublicJsonControllerAccessNamespacedEndpoint",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PublicJsonData"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "需要访问密码",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "密码错误",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "端点不存在",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Public JSON Access"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "username",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "slug",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "header",
+						"name": "X-Access-Password",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/json-endpoints": {
 			"post": {
 				"operationId": "JsonEndpointControllerCreateEndpoint",
@@ -16461,8 +16538,56 @@
 						"jwt": []
 					}
 				],
-				"parameters": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "ownerUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
 				"X-Replay-Protected": true
+			}
+		},
+		"/v1/json-endpoints/owners": {
+			"get": {
+				"operationId": "JsonEndpointControllerListOwnerOptions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/JsonEndpointOwnerOptionDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"JSON Endpoint Management"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/v1/json-endpoints/{id}": {
@@ -22672,6 +22797,8 @@
 					"json_endpoint:read",
 					"json_endpoint:update",
 					"json_endpoint:delete",
+					"json_endpoint:root_slug",
+					"json_endpoint:manage",
 					"article:create",
 					"article:read",
 					"article:update",
@@ -34661,6 +34788,12 @@
 						"type": "string",
 						"description": "Slug"
 					},
+					"ownerUsername": {
+						"type": "string"
+					},
+					"publicUrl": {
+						"type": "string"
+					},
 					"lastUpdated": {
 						"type": "string",
 						"description": "最后更新时间"
@@ -34669,6 +34802,8 @@
 				"required": [
 					"data",
 					"slug",
+					"ownerUsername",
+					"publicUrl",
 					"lastUpdated"
 				],
 				"type": "object",
@@ -34683,10 +34818,19 @@
 					"userId": {
 						"type": "string"
 					},
+					"ownerUsername": {
+						"type": "string"
+					},
 					"name": {
 						"type": "string"
 					},
 					"slug": {
+						"type": "string"
+					},
+					"isRootSlug": {
+						"type": "boolean"
+					},
+					"publicUrl": {
 						"type": "string"
 					},
 					"description": {
@@ -34716,8 +34860,11 @@
 				"required": [
 					"id",
 					"userId",
+					"ownerUsername",
 					"name",
 					"slug",
+					"isRootSlug",
+					"publicUrl",
 					"jsonContent",
 					"isPublic",
 					"hasPassword",
@@ -34753,6 +34900,12 @@
 					"password": {
 						"type": "string",
 						"description": "访问密码 (仅当 isPublic=false 时需要)"
+					},
+					"ownerUserId": {
+						"type": "string"
+					},
+					"isRootSlug": {
+						"type": "boolean"
 					}
 				},
 				"required": [
@@ -34760,6 +34913,22 @@
 					"slug",
 					"jsonContent",
 					"isPublic"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"JsonEndpointOwnerOptionDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"username"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -34785,6 +34954,9 @@
 					"password": {
 						"type": "string",
 						"description": "更新访问密码 (可选)"
+					},
+					"isRootSlug": {
+						"type": "boolean"
 					}
 				},
 				"type": "object",

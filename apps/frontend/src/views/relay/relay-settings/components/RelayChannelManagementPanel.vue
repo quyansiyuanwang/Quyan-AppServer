@@ -9,7 +9,9 @@
           </el-button>
         </PermissionWrapper>
         <PermissionWrapper :require="[Permission.RELAY_CHANNEL_CREATE]">
-          <el-button @click="openChannelImportDialog">{{ i18ns.t('relay.importChannels') }}</el-button>
+          <el-button @click="openChannelImportDialog">{{
+            i18ns.t('relay.importChannels')
+          }}</el-button>
         </PermissionWrapper>
         <PermissionWrapper :require="[Permission.RELAY_CHANNEL_EXPORT]">
           <el-button :loading="channelExporting" @click="exportChannelsAsJson">
@@ -24,7 +26,9 @@
           :placeholder="i18ns.t('relay.channelName')"
           @update:model-value="setChannelKeyword"
         >
-          <template #prefix><el-icon><Search /></el-icon></template>
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
         <el-select
           :model-value="channelFilters.channelType"
@@ -34,7 +38,10 @@
         >
           <el-option :label="i18ns.t('relay.channelTypeStandalone')" value="standalone" />
           <el-option :label="i18ns.t('relay.channelTypePooled')" value="pooled" />
-          <el-option :label="i18ns.t('relay.channelTypeAutomaticProxyPool')" value="automatic-proxy-pool" />
+          <el-option
+            :label="i18ns.t('relay.channelTypeAutomaticProxyPool')"
+            value="automatic-proxy-pool"
+          />
         </el-select>
         <el-select
           :model-value="channelFilters.enabled"
@@ -65,11 +72,21 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="copy">{{ i18ns.t('relay.batchCopyChannels') }}</el-dropdown-item>
-              <el-dropdown-item command="duplicate">{{ i18ns.t('relay.batchDuplicateChannels') }}</el-dropdown-item>
-              <el-dropdown-item command="enable">{{ i18ns.t('relay.batchEnableChannels') }}</el-dropdown-item>
-              <el-dropdown-item command="disable">{{ i18ns.t('relay.batchDisableChannels') }}</el-dropdown-item>
-              <el-dropdown-item divided command="delete">{{ i18ns.t('relay.batchDeleteChannels') }}</el-dropdown-item>
+              <el-dropdown-item command="copy">{{
+                i18ns.t('relay.batchCopyChannels')
+              }}</el-dropdown-item>
+              <el-dropdown-item command="duplicate">{{
+                i18ns.t('relay.batchDuplicateChannels')
+              }}</el-dropdown-item>
+              <el-dropdown-item command="enable">{{
+                i18ns.t('relay.batchEnableChannels')
+              }}</el-dropdown-item>
+              <el-dropdown-item command="disable">{{
+                i18ns.t('relay.batchDisableChannels')
+              }}</el-dropdown-item>
+              <el-dropdown-item divided command="delete">{{
+                i18ns.t('relay.batchDeleteChannels')
+              }}</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -80,38 +97,69 @@
       <el-table :data="channelRows" row-key="id" size="small">
         <el-table-column width="52" align="center">
           <template #default="{ row }">
-            <el-checkbox :model-value="isChannelSelected(row.id)" @change="toggleChannelSelection(row.id, $event)" />
+            <el-checkbox
+              :model-value="isChannelSelected(row.id)"
+              @change="toggleChannelSelection(row.id, $event)"
+            />
           </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.channelName')" min-width="220">
-          <template #default="{ row }"><span class="relay-channel-management__name">{{ row.name }}</span></template>
+          <template #default="{ row }"
+            ><span class="relay-channel-management__name">{{ row.name }}</span></template
+          >
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.channelType')" width="150">
-          <template #default="{ row }"><el-tag size="small">{{ formatChannelTypeLabel(row.channelType) }}</el-tag></template>
+          <template #default="{ row }"
+            ><el-tag size="small">{{ formatChannelTypeLabel(row.channelType) }}</el-tag></template
+          >
         </el-table-column>
         <el-table-column :label="i18ns.t('status')" width="96">
-          <template #default="{ row }"><el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled') }}</el-tag></template>
+          <template #default="{ row }"
+            ><el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
+              row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
+            }}</el-tag></template
+          >
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.visibilityMode')" width="120">
-          <template #default="{ row }">{{ formatVisibilityModeLabel(row.visibilityMode) }}</template>
+          <template #default="{ row }">{{
+            formatVisibilityModeLabel(row.visibilityMode)
+          }}</template>
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.poolMembers')" width="100" align="center">
-          <template #default="{ row }">{{ row.channelType === 'standalone' ? '-' : row.poolMemberCount }}</template>
+          <template #default="{ row }">{{
+            row.channelType === 'standalone' ? '-' : row.poolMemberCount
+          }}</template>
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.updateTime')" width="170">
           <template #default="{ row }">{{ new Date(row.updateTime).toLocaleString() }}</template>
         </el-table-column>
         <el-table-column :label="i18ns.t('actions')" width="150" fixed="right">
           <template #default="{ row }">
-            <el-tooltip :content="i18ns.t('button.viewDetails')"><el-button text circle @click="openChannelDetailDialog(row)"><el-icon><View /></el-icon></el-button></el-tooltip>
-            <el-tooltip :content="i18ns.t('edit')"><el-button text circle @click="openEditChannelDialog(row)"><el-icon><EditPen /></el-icon></el-button></el-tooltip>
+            <el-tooltip :content="i18ns.t('button.viewDetails')"
+              ><el-button text circle @click="openChannelDetailDialog(row)"
+                ><el-icon><View /></el-icon></el-button
+            ></el-tooltip>
+            <el-tooltip :content="i18ns.t('edit')"
+              ><el-button text circle @click="openEditChannelDialog(row)"
+                ><el-icon><EditPen /></el-icon></el-button
+            ></el-tooltip>
             <el-dropdown trigger="click" @command="handleRowCommand($event, row)">
-              <el-button text circle><el-icon><MoreFilled /></el-icon></el-button>
-              <template #dropdown><el-dropdown-menu>
-                <el-dropdown-item command="toggle">{{ row.enabled ? i18ns.t('relay.disable') : i18ns.t('relay.enable') }}</el-dropdown-item>
-                <el-dropdown-item command="duplicate">{{ i18ns.t('relay.duplicateChannel') }}</el-dropdown-item>
-                <el-dropdown-item divided command="delete">{{ i18ns.t('delete') }}</el-dropdown-item>
-              </el-dropdown-menu></template>
+              <el-button text circle
+                ><el-icon><MoreFilled /></el-icon
+              ></el-button>
+              <template #dropdown
+                ><el-dropdown-menu>
+                  <el-dropdown-item command="toggle">{{
+                    row.enabled ? i18ns.t('relay.disable') : i18ns.t('relay.enable')
+                  }}</el-dropdown-item>
+                  <el-dropdown-item command="duplicate">{{
+                    i18ns.t('relay.duplicateChannel')
+                  }}</el-dropdown-item>
+                  <el-dropdown-item divided command="delete">{{
+                    i18ns.t('delete')
+                  }}</el-dropdown-item>
+                </el-dropdown-menu></template
+              >
             </el-dropdown>
           </template>
         </el-table-column>
@@ -119,10 +167,22 @@
     </div>
 
     <div v-else class="relay-channel-management__mobile-list">
-      <button v-for="row in channelRows" :key="row.id" type="button" class="relay-channel-management__mobile-row" @click="openChannelDetailDialog(row)">
-        <el-checkbox :model-value="isChannelSelected(row.id)" @click.stop @change="toggleChannelSelection(row.id, $event)" />
+      <button
+        v-for="row in channelRows"
+        :key="row.id"
+        type="button"
+        class="relay-channel-management__mobile-row"
+        @click="openChannelDetailDialog(row)"
+      >
+        <el-checkbox
+          :model-value="isChannelSelected(row.id)"
+          @click.stop
+          @change="toggleChannelSelection(row.id, $event)"
+        />
         <span class="relay-channel-management__mobile-name">{{ row.name }}</span>
-        <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled') }}</el-tag>
+        <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
+          row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
+        }}</el-tag>
         <el-icon><ArrowRight /></el-icon>
       </button>
       <el-empty v-if="!channelRows.length && !channelLoading" />
@@ -143,19 +203,51 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowDown, ArrowRight, EditPen, MoreFilled, Plus, Search, View } from '@element-plus/icons-vue'
+import {
+  ArrowDown,
+  ArrowRight,
+  EditPen,
+  MoreFilled,
+  Plus,
+  Search,
+  View,
+} from '@element-plus/icons-vue'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
 
 const state = useRelaySettingsManagementContext()
 const {
-  Permission, isDesktop, channelLoading, channelExporting, channelRows, channelFilters, channelPagination,
-  selectedChannelCount, hasChannelSelection, isCurrentPageFullySelected, isChannelSelected, toggleChannelSelection,
-  toggleCurrentPageSelection, clearChannelSelection, setChannelKeyword, updateChannelFilters, updateChannelPagination,
-  formatChannelTypeLabel, formatVisibilityModeLabel, openCreateChannelDialog, openChannelImportDialog,
-  exportChannelsAsJson, copyChannelsAsJson, openChannelDetailDialog, openEditChannelDialog, handleDuplicateChannel,
-  handleToggleChannelStatus, handleDeleteChannel, handleBatchDuplicateChannels, handleBatchSetChannelStatus,
+  Permission,
+  isDesktop,
+  channelLoading,
+  channelExporting,
+  channelRows,
+  channelFilters,
+  channelPagination,
+  selectedChannelCount,
+  hasChannelSelection,
+  isCurrentPageFullySelected,
+  isChannelSelected,
+  toggleChannelSelection,
+  toggleCurrentPageSelection,
+  clearChannelSelection,
+  setChannelKeyword,
+  updateChannelFilters,
+  updateChannelPagination,
+  formatChannelTypeLabel,
+  formatVisibilityModeLabel,
+  openCreateChannelDialog,
+  openChannelImportDialog,
+  exportChannelsAsJson,
+  copyChannelsAsJson,
+  openChannelDetailDialog,
+  openEditChannelDialog,
+  handleDuplicateChannel,
+  handleToggleChannelStatus,
+  handleDeleteChannel,
+  handleBatchDuplicateChannels,
+  handleBatchSetChannelStatus,
   handleBatchDeleteChannels,
 } = state
 

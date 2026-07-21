@@ -161,8 +161,7 @@ export class RelayChannelService {
         channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
         routingStrategy:
           (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
-        visibilityMode:
-          (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
+        visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
         poolMemberCount: channel._count.poolMembers,
         multiplier: Number(channel.multiplier),
         updateTime: channel.updateTime,

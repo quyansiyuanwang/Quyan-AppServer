@@ -174,6 +174,8 @@ export enum Permission {
   JSON_ENDPOINT_READ = 'json_endpoint:read',
   JSON_ENDPOINT_UPDATE = 'json_endpoint:update',
   JSON_ENDPOINT_DELETE = 'json_endpoint:delete',
+  JSON_ENDPOINT_ROOT_SLUG = 'json_endpoint:root_slug',
+  JSON_ENDPOINT_MANAGE = 'json_endpoint:manage',
 
   // 文章管理权限
   ARTICLE_CREATE = 'article:create',

@@ -13,6 +13,7 @@ import {
   Put,
   Delete,
   Middlewares,
+  Query,
 } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
 import { JsonEndpointService } from "@/services/json-endpoint/json-endpoint.service";
@@ -21,8 +22,9 @@ import type {
   CreateJsonEndpointDto,
   UpdateJsonEndpointDto,
   JsonEndpointDto,
+  JsonEndpointOwnerOptionDto,
 } from "@/api/dto/json-endpoint/json-endpoint.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { RequireAnyPermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type { ErrorResponse } from "@/api/response";
@@ -45,7 +47,7 @@ export class JsonEndpointController extends Controller {
    */
   @Post("")
   @Security("jwt")
-  @RequirePermission(Permission.JSON_ENDPOINT_CREATE)
+  @RequireAnyPermission([Permission.JSON_ENDPOINT_CREATE, Permission.JSON_ENDPOINT_MANAGE])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "创建失败")
   @Middlewares(replayProtectionMiddleware, validateBody(createJsonEndpointBodySchema))
@@ -57,17 +59,27 @@ export class JsonEndpointController extends Controller {
     return this.service.createEndpoint(body, userId, request);
   }
 
+  @Get("owners")
+  @Security("jwt")
+  @RequireAnyPermission([Permission.JSON_ENDPOINT_MANAGE])
+  public async listOwnerOptions(@Request() request: TypedRequest): Promise<JsonEndpointOwnerOptionDto[]> {
+    return this.service.listOwnerOptions(request.user!.userId);
+  }
+
   /**
    * 获取用户的所有端点
    */
   @Get("")
   @Security("jwt")
-  @RequirePermission(Permission.JSON_ENDPOINT_READ)
+  @RequireAnyPermission([Permission.JSON_ENDPOINT_READ, Permission.JSON_ENDPOINT_MANAGE])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(replayProtectionMiddleware)
-  public async listEndpoints(@Request() request: TypedRequest): Promise<JsonEndpointDto[]> {
+  public async listEndpoints(
+    @Request() request: TypedRequest,
+    @Query() ownerUserId?: string,
+  ): Promise<JsonEndpointDto[]> {
     const userId = request.user!.userId;
-    return this.service.listEndpoints(userId);
+    return this.service.listEndpoints(userId, ownerUserId);
   }
 
   /**
@@ -75,7 +87,7 @@ export class JsonEndpointController extends Controller {
    */
   @Get("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.JSON_ENDPOINT_READ)
+  @RequireAnyPermission([Permission.JSON_ENDPOINT_READ, Permission.JSON_ENDPOINT_MANAGE])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "端点不存在")
   @Middlewares(validateParams(jsonEndpointIdParamsSchema))
@@ -89,7 +101,7 @@ export class JsonEndpointController extends Controller {
    */
   @Put("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.JSON_ENDPOINT_UPDATE)
+  @RequireAnyPermission([Permission.JSON_ENDPOINT_UPDATE, Permission.JSON_ENDPOINT_MANAGE])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "端点不存在")
   @Middlewares(
@@ -111,7 +123,7 @@ export class JsonEndpointController extends Controller {
    */
   @Delete("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.JSON_ENDPOINT_DELETE)
+  @RequireAnyPermission([Permission.JSON_ENDPOINT_DELETE, Permission.JSON_ENDPOINT_MANAGE])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "端点不存在")
   @Middlewares(replayProtectionMiddleware, validateParams(jsonEndpointIdParamsSchema))

@@ -207,15 +207,16 @@ const normalizePoolMembersForm = (members?: RelayChannelMemberDto[] | null) => {
   return [...members]
     .sort((left, right) => left.priority - right.priority)
     .map((member, index) => ({
-    id: member.id,
-    memberChannelId: member.memberChannelId || '',
-    priority: index + 1,
-    weight: typeof member.weight === 'number' && Number.isFinite(member.weight) ? member.weight : 1,
-    enabled: member.enabled !== false,
-    memberChannelName: member.memberChannelName,
-    memberChannelType: member.memberChannelType,
-    memberChannelEnabled: member.memberChannelEnabled,
-  }))
+      id: member.id,
+      memberChannelId: member.memberChannelId || '',
+      priority: index + 1,
+      weight:
+        typeof member.weight === 'number' && Number.isFinite(member.weight) ? member.weight : 1,
+      enabled: member.enabled !== false,
+      memberChannelName: member.memberChannelName,
+      memberChannelType: member.memberChannelType,
+      memberChannelEnabled: member.memberChannelEnabled,
+    }))
 }
 
 const toFiniteNumber = (value: number | null | undefined): number | undefined => {
@@ -1138,9 +1139,11 @@ export const useRelaySettingsManagement = () => {
 
   const isPoolMemberCandidateEligible = (channel: RelayChannelManagementListItemDto) => {
     if (channel.id === editingChannelId.value) return false
-    if (channelForm.value.poolMembers.some((member) => member.memberChannelId === channel.id)) return false
+    if (channelForm.value.poolMembers.some((member) => member.memberChannelId === channel.id))
+      return false
     return (
-      channelForm.value.channelType !== 'automatic-proxy-pool' || channel.channelType === 'standalone'
+      channelForm.value.channelType !== 'automatic-proxy-pool' ||
+      channel.channelType === 'standalone'
     )
   }
 
@@ -1167,7 +1170,9 @@ export const useRelaySettingsManagement = () => {
   }
 
   const addSelectedPoolMembers = () => {
-    const existingIds = new Set(channelForm.value.poolMembers.map((member) => member.memberChannelId))
+    const existingIds = new Set(
+      channelForm.value.poolMembers.map((member) => member.memberChannelId),
+    )
     const additions = selectedPoolMemberCandidateIds.value
       .map((id) => poolMemberCandidateCache.value[id])
       .filter((item): item is RelayChannelManagementListItemDto => Boolean(item))
@@ -1717,7 +1722,9 @@ export const useRelaySettingsManagement = () => {
     void ensureVisibilityOptionsLoaded()
   }
 
-  const openEditChannelDialog = (row: Pick<RelayChannelManagementListItemDto, 'id'> | RelayChannelDto) => {
+  const openEditChannelDialog = (
+    row: Pick<RelayChannelManagementListItemDto, 'id'> | RelayChannelDto,
+  ) => {
     if ('allowedFormats' in row && 'poolMembers' in row) {
       openChannelEditor(row)
       return

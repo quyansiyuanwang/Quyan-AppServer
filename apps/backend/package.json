@@ -90,6 +90,8 @@
     "--- m_scripts ---------------------": "",
     "relay-token:backfill-used-quota": "bun ./scripts/backfill-relay-token-used-quota.ts",
     "relay-token:backfill-used-quota:apply": "bun ./scripts/backfill-relay-token-used-quota.ts --apply",
+    "json-endpoint:backfill-root-slugs": "bun ./scripts/backfill-json-endpoint-root-slugs.ts",
+    "json-endpoint:backfill-root-slugs:apply": "bun ./scripts/backfill-json-endpoint-root-slugs.ts --apply",
     "relay-history:diagnose-display-snapshots": "bun ./scripts/diagnose-relay-display-channel-snapshots.ts",
     "trusted-device:cleanup-legacy": "bun ./scripts/cleanup-legacy-trusted-device-keys.ts",
     "balance:cleanup-consumption-older-than-month": "bun ./scripts/cleanup-old-consumption-records.ts",
