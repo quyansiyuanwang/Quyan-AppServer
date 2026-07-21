@@ -497,11 +497,10 @@ async function generateEd25519KeyPair() {
 
   generatingKeyPair.value = true
   try {
-    const keyPair = (await window.crypto.subtle.generateKey(
-      { name: 'Ed25519' },
-      true,
-      ['sign', 'verify'],
-    )) as CryptoKeyPair
+    const keyPair = (await window.crypto.subtle.generateKey({ name: 'Ed25519' }, true, [
+      'sign',
+      'verify',
+    ])) as CryptoKeyPair
     const [publicKey, privateKey] = await Promise.all([
       window.crypto.subtle.exportKey('spki', keyPair.publicKey),
       window.crypto.subtle.exportKey('pkcs8', keyPair.privateKey),

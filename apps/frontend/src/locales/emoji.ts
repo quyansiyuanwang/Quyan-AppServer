@@ -3424,7 +3424,8 @@ const emoji: DeepStringify<typeof en> = {
     invalidPublicKey: '⚠️ 请输入有效的 Ed25519 SPKI PEM 公钥',
     keyFingerprint: '🧬 已保存公钥指纹',
     signatureRequest: '✍️ 待签名内容',
-    signatureHeaders: '📩 X-Json-Timestamp、X-Json-Nonce、X-Json-Signature；查询参数排序后以 base64url 传递签名。',
+    signatureHeaders:
+      '📩 X-Json-Timestamp、X-Json-Nonce、X-Json-Signature；查询参数排序后以 base64url 传递签名。',
     jsonContent: '📜 📜',
     access: '📩 🏷️',
     public: '😉',

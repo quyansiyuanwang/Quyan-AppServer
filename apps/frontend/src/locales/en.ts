@@ -3652,7 +3652,8 @@ export default {
     ed25519PublicKey: 'Ed25519 Public Key',
     generateKeyPair: 'Generate a new Ed25519 key pair',
     privateKeyGenerated: 'Save private key',
-    privateKeyOneTime: 'The private key is shown only once. Copy or download it now; it is never stored by the server.',
+    privateKeyOneTime:
+      'The private key is shown only once. Copy or download it now; it is never stored by the server.',
     downloadPrivateKey: 'Download private key',
     keyGenerationUnsupported: 'This browser does not support Ed25519 key generation',
     publicKeyPlaceholder: 'Paste an Ed25519 SPKI PEM public key',
