@@ -599,10 +599,7 @@
       :current-page="poolMemberPickerPagination.page"
       :page-size="poolMemberPickerPagination.pageSize"
       :total="poolMemberPickerPagination.total"
-      @update:current-page="
-        poolMemberPickerPagination.page = $event
-        loadPoolMemberCandidates()
-      "
+      @update:current-page="handlePoolMemberPickerPageChange"
     />
     <template #footer
       ><el-button @click="showPoolMemberPicker = false">{{ i18ns.t('cancel') }}</el-button
@@ -1101,6 +1098,11 @@ const {
   getChannelAllowedModelsMode,
   handleImportChannels,
 } = state
+
+const handlePoolMemberPickerPageChange = (page: number) => {
+  poolMemberPickerPagination.value.page = page
+  void loadPoolMemberCandidates()
+}
 
 const poolMemberSortableRef = ref<HTMLElement>()
 let poolMemberSortable: Sortable | null = null
