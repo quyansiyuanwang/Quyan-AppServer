@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const slugRegex = /^[a-z0-9_-]+$/;
+const accessModeSchema = z.enum(["static-password", "public-key"]);
 
 export const jsonEndpointIdParamsSchema = z.object({
   id: z.string().trim().min(1),
@@ -27,6 +28,8 @@ export const createJsonEndpointBodySchema = z.object({
   jsonContent: z.unknown(),
   isPublic: z.coerce.boolean(),
   password: z.string().min(4).max(100).optional(),
+  accessMode: accessModeSchema.optional(),
+  publicKey: z.string().trim().max(10_000).optional(),
   ownerUserId: z.string().trim().min(1).optional(),
   isRootSlug: z.coerce.boolean().optional(),
 });
@@ -37,5 +40,7 @@ export const updateJsonEndpointBodySchema = z.object({
   jsonContent: z.unknown().optional(),
   isPublic: z.coerce.boolean().optional(),
   password: z.string().min(4).max(100).optional(),
+  accessMode: accessModeSchema.optional(),
+  publicKey: z.string().trim().max(10_000).optional(),
   isRootSlug: z.coerce.boolean().optional(),
 });
