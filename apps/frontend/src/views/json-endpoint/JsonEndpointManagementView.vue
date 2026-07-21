@@ -256,20 +256,41 @@
                       />
                     </el-form-item>
                     <template v-else>
-                      <el-form-item
-                        :label="i18ns.t('jsonEndpoint.ed25519PublicKey')"
+                      <div
                         :class="isDesktop ? 'form-item-span-2' : undefined"
+                        class="json-endpoint-key-editor"
                       >
+                        <div class="json-endpoint-key-editor__header">
+                          <div class="json-endpoint-key-editor__title">
+                            <el-icon><Key /></el-icon>
+                            <span>{{ i18ns.t('jsonEndpoint.ed25519PublicKey') }}</span>
+                            <small>SPKI PEM</small>
+                          </div>
+                          <div class="json-endpoint-key-editor__actions">
+                            <el-tooltip :content="i18ns.t('jsonEndpoint.generateKeyPair')">
+                              <el-button
+                                text
+                                circle
+                                :loading="generatingKeyPair"
+                                @click="generateEd25519KeyPair"
+                              >
+                                <el-icon><RefreshRight /></el-icon>
+                              </el-button>
+                            </el-tooltip>
+                            <el-tag size="small" effect="plain">Ed25519</el-tag>
+                          </div>
+                        </div>
                         <el-input
                           v-model="formData.publicKey"
                           type="textarea"
-                          :rows="6"
+                          :rows="4"
                           :placeholder="i18ns.t('jsonEndpoint.publicKeyPlaceholder')"
                         />
-                        <template #extra
-                          ><span>{{ i18ns.t('jsonEndpoint.publicKeyHint') }}</span></template
-                        >
-                      </el-form-item>
+                        <div class="json-endpoint-key-editor__hint">
+                          <el-icon><Lock /></el-icon>
+                          <span>{{ i18ns.t('jsonEndpoint.publicKeyHint') }}</span>
+                        </div>
+                      </div>
                       <div
                         v-if="savedPublicKeyFingerprint"
                         :class="isDesktop ? 'form-item-span-2' : undefined"
@@ -279,18 +300,25 @@
                         <code>{{ savedPublicKeyFingerprint }}</code>
                         <el-tag size="small" type="info">{{ savedSignatureAlgorithm }}</el-tag>
                       </div>
-                      <div
+                      <el-collapse
                         :class="isDesktop ? 'form-item-span-2' : undefined"
-                        class="json-endpoint-signature-spec"
+                        v-model="signatureGuideOpen"
+                        class="json-endpoint-signature-guide"
                       >
-                        <strong>{{ i18ns.t('jsonEndpoint.signatureRequest') }}</strong>
-                        <code
-                          >GET\n{{
-                            previewPath
-                          }}\n&lt;canonical-query&gt;\n&lt;unix-seconds&gt;\n&lt;nonce&gt;</code
-                        >
-                        <span>{{ i18ns.t('jsonEndpoint.signatureHeaders') }}</span>
-                      </div>
+                        <el-collapse-item name="signature">
+                          <template #title>
+                            <span class="json-endpoint-signature-guide__title">
+                              <el-icon><Document /></el-icon>
+                              {{ i18ns.t('jsonEndpoint.signatureRequest') }}
+                            </span>
+                            <small>Ed25519 / base64url</small>
+                          </template>
+                          <div class="json-endpoint-signature-guide__body">
+                            <code>{{ signaturePayloadExample }}</code>
+                            <p>{{ i18ns.t('jsonEndpoint.signatureHeaders') }}</p>
+                          </div>
+                        </el-collapse-item>
+                      </el-collapse>
                     </template>
                   </template>
                 </div>
@@ -327,6 +355,27 @@
           }}</el-button></template
         ></el-dialog
       >
+
+      <el-dialog
+        v-model="privateKeyDialogVisible"
+        :title="i18ns.t('jsonEndpoint.privateKeyGenerated')"
+        :width="isDesktop ? '640px' : '94%'"
+        class="json-endpoint-private-key-dialog"
+        @closed="generatedPrivateKey = ''"
+      >
+        <p class="json-endpoint-private-key-dialog__notice">
+          {{ i18ns.t('jsonEndpoint.privateKeyOneTime') }}
+        </p>
+        <el-input v-model="generatedPrivateKey" type="textarea" :rows="9" readonly />
+        <template #footer>
+          <el-button :disabled="!generatedPrivateKey" @click="copyText(generatedPrivateKey)">
+            <el-icon><CopyDocument /></el-icon>{{ i18ns.t('copy') }}
+          </el-button>
+          <el-button type="primary" :disabled="!generatedPrivateKey" @click="downloadPrivateKey">
+            <el-icon><Download /></el-icon>{{ i18ns.t('jsonEndpoint.downloadPrivateKey') }}
+          </el-button>
+        </template>
+      </el-dialog>
     </div>
   </div>
 </template>
@@ -336,10 +385,15 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import {
   ArrowRight,
   CopyDocument,
+  Document,
+  Download,
   EditPen,
+  Key,
+  Lock,
   MoreFilled,
   Plus,
   Refresh,
+  RefreshRight,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -368,6 +422,10 @@ const submitting = ref(false)
 const editingEndpointId = ref('')
 const formRef = ref<FormInstance>()
 const editDrawerSections = ref(['basic', 'access', 'content'])
+const signatureGuideOpen = ref<string[]>([])
+const privateKeyDialogVisible = ref(false)
+const generatedPrivateKey = ref('')
+const generatingKeyPair = ref(false)
 const formData = reactive({
   name: '',
   slug: '',
@@ -401,6 +459,9 @@ const previewPath = computed(() =>
     ? `/v1/json/${formData.slug || 'slug'}`
     : `/v1/json/${selectedOwner.value || 'username'}/${formData.slug || 'slug'}`,
 )
+const signaturePayloadExample = computed(
+  () => `GET\n${previewPath.value}\n<canonical-query>\n<unix-seconds>\n<nonce>`,
+)
 const savedPublicKeyFingerprint = ref('')
 const savedSignatureAlgorithm = ref('Ed25519')
 const formRules: FormRules = {
@@ -422,6 +483,51 @@ const copyText = async (value: string) => {
 }
 const copyUrl = (path: string) => copyText(absoluteUrl(path))
 const openUrl = (url: string) => window.open(url, '_blank', 'noopener')
+const pemFromBuffer = (label: string, value: ArrayBuffer) => {
+  const binary = Array.from(new Uint8Array(value), (byte) => String.fromCharCode(byte)).join('')
+  const base64 = btoa(binary)
+  const body = base64.match(/.{1,64}/g)?.join('\n') || ''
+  return `-----BEGIN ${label}-----\n${body}\n-----END ${label}-----`
+}
+async function generateEd25519KeyPair() {
+  if (!window.crypto?.subtle) {
+    ElMessage.error(i18ns.t('jsonEndpoint.keyGenerationUnsupported'))
+    return
+  }
+
+  generatingKeyPair.value = true
+  try {
+    const keyPair = (await window.crypto.subtle.generateKey(
+      { name: 'Ed25519' },
+      true,
+      ['sign', 'verify'],
+    )) as CryptoKeyPair
+    const [publicKey, privateKey] = await Promise.all([
+      window.crypto.subtle.exportKey('spki', keyPair.publicKey),
+      window.crypto.subtle.exportKey('pkcs8', keyPair.privateKey),
+    ])
+    formData.publicKey = pemFromBuffer('PUBLIC KEY', publicKey)
+    savedPublicKeyFingerprint.value = ''
+    generatedPrivateKey.value = pemFromBuffer('PRIVATE KEY', privateKey)
+    privateKeyDialogVisible.value = true
+  } catch {
+    ElMessage.error(i18ns.t('jsonEndpoint.keyGenerationUnsupported'))
+  } finally {
+    generatingKeyPair.value = false
+  }
+}
+function downloadPrivateKey() {
+  if (!generatedPrivateKey.value) return
+  const blob = new Blob([generatedPrivateKey.value], { type: 'application/x-pem-file' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `json-endpoint-${formData.slug || 'key'}.ed25519.pem`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
 async function loadOwners() {
   if (!canManage.value) return
   ownerOptions.value = await jsonEndpointService.getOwnerOptions()
@@ -558,6 +664,8 @@ function resetForm() {
   })
   editingEndpointId.value = ''
   savedPublicKeyFingerprint.value = ''
+  privateKeyDialogVisible.value = false
+  generatedPrivateKey.value = ''
   formRef.value?.resetFields()
 }
 onMounted(async () => {
@@ -781,34 +889,116 @@ onMounted(async () => {
   max-width: 100%;
 }
 
-.json-endpoint-key-status,
-.json-endpoint-signature-spec {
+.json-endpoint-key-editor {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.json-endpoint-key-editor__header,
+.json-endpoint-key-editor__title,
+.json-endpoint-key-editor__hint,
+.json-endpoint-key-status {
+  display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 10px 12px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
-  background: var(--el-fill-color-light);
+}
+
+.json-endpoint-key-editor__header {
+  justify-content: space-between;
+}
+
+.json-endpoint-key-editor__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.json-endpoint-key-editor__title {
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.json-endpoint-key-editor__title small,
+.json-endpoint-key-editor__hint {
   color: var(--el-text-color-secondary);
   font-size: 13px;
 }
 
-.json-endpoint-key-status code,
-.json-endpoint-signature-spec code {
+.json-endpoint-key-editor__hint {
+  align-items: flex-start;
+  line-height: 1.45;
+}
+
+.json-endpoint-key-editor__hint .el-icon {
+  margin-top: 2px;
+}
+
+.json-endpoint-key-status {
+  gap: 10px;
+  padding-top: 2px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.json-endpoint-key-status code {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--el-text-color-primary);
 }
 
-.json-endpoint-signature-spec {
-  align-items: flex-start;
-  flex-direction: column;
+.json-endpoint-signature-guide {
+  border-top: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.json-endpoint-signature-spec code {
+.json-endpoint-edit-sections .json-endpoint-signature-guide :deep(.el-collapse-item) {
+  overflow: visible;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.json-endpoint-edit-sections .json-endpoint-signature-guide :deep(.el-collapse-item__header) {
+  min-height: 42px;
+  border-bottom: none;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.json-endpoint-edit-sections .json-endpoint-signature-guide :deep(.el-collapse-item__wrap) {
+  border-bottom: none;
+  background: transparent;
+}
+
+.json-endpoint-edit-sections .json-endpoint-signature-guide :deep(.el-collapse-item__content) {
+  padding: 0 0 12px;
+}
+
+.json-endpoint-signature-guide__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+}
+
+.json-endpoint-signature-guide__title + small {
+  margin-left: 10px;
+  color: var(--el-text-color-placeholder);
+}
+
+.json-endpoint-signature-guide__body {
+  display: grid;
+  gap: 8px;
+}
+
+.json-endpoint-signature-guide__body code {
   display: block;
   width: 100%;
   padding: 8px 10px;
@@ -817,6 +1007,26 @@ onMounted(async () => {
   background: var(--el-bg-color);
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+.json-endpoint-signature-guide__body p {
+  margin: 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.json-endpoint-private-key-dialog__notice {
+  margin: 0 0 12px;
+  color: var(--el-color-warning);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.json-endpoint-private-key-dialog :deep(.el-dialog__footer) {
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
 }
 
 .json-endpoint-page__json {
