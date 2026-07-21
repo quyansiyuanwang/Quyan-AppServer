@@ -26,6 +26,10 @@ export interface CreateJsonEndpointDto {
    * 访问密码 (仅当 isPublic=false 时需要)
    */
   password?: string;
+  /** 非公开端点的访问模式 */
+  accessMode?: "static-password" | "public-key";
+  /** Ed25519 SPKI PEM 公钥，仅当 accessMode=public-key 时需要 */
+  publicKey?: string;
   ownerUserId?: string;
   isRootSlug?: boolean;
 }
@@ -50,6 +54,10 @@ export interface UpdateJsonEndpointDto {
    * 更新访问密码 (可选)
    */
   password?: string;
+  /** 非公开端点的访问模式 */
+  accessMode?: "static-password" | "public-key";
+  /** Ed25519 SPKI PEM 公钥，仅当 accessMode=public-key 时需要 */
+  publicKey?: string;
   isRootSlug?: boolean;
 }
 
@@ -68,6 +76,11 @@ export interface JsonEndpointDto {
   jsonContent: any;
   isPublic: boolean;
   hasPassword: boolean; // 是否设置了密码
+  hasPublicKey: boolean;
+  accessMode?: "static-password" | "public-key";
+  publicKey?: string;
+  publicKeyFingerprint?: string;
+  signatureAlgorithm?: string;
   accessCount: number;
   lastAccessAt?: string;
   createTime: string;
