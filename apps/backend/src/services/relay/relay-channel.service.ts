@@ -15,6 +15,8 @@ import type {
   RelayChannelImportItemDto,
   RelayChannelAllowedModelsMode,
   RelayAutomaticProxyPoolOptionDto,
+  RelayPoolPricingMemberOptionDto,
+  RelayPoolPricingOptionDto,
   TimePeriodMultiplierRule,
   UpdateRelayChannelRequest,
   RelayChannelMemberDto,
@@ -174,10 +176,9 @@ export class RelayChannelService {
 
   async listChannelOptions(actorUserId: string, targetUserId?: string): Promise<RelayChannelOptionDto[]> {
     const effectiveUserId = await this.resolveOptionsUserId(actorUserId, targetUserId);
-    const accessibleChannels = await this.filterAccessibleChannels(
-      await this.relayChannelRepository.listActive(),
-      effectiveUserId,
-    );
+    const activeChannels = await this.relayChannelRepository.listActive();
+    const accessibleChannels = await this.filterAccessibleChannels(activeChannels, effectiveUserId);
+    const activeChannelsById = new Map(activeChannels.map((channel) => [channel.id, channel]));
     const channels = accessibleChannels.filter(
       (channel) => (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden",
     );
@@ -233,6 +234,9 @@ export class RelayChannelService {
             now,
           );
         }
+        if (isPoolType(option.channelType)) {
+          option.poolPricing = this.toPoolPricingOption(resolvedCapabilities, activeChannelsById, now);
+        }
 
         return option;
       }),
@@ -246,25 +250,7 @@ export class RelayChannelService {
     resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
     now: Date,
   ): RelayAutomaticProxyPoolOptionDto {
-    const capabilitiesByLeafChannelId = new Map<string, RelayChannelOptionDto["modelCapabilities"]>();
-
-    for (const capability of resolvedCapabilities) {
-      const capabilities = capabilitiesByLeafChannelId.get(capability.leafChannelId) ?? [];
-      const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
-      const existing = capabilities.find((item) => `${item.catalogModelName}\u0000${item.requestModelId}` === key);
-      if (existing) {
-        existing.supportedRequestFormats = [
-          ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
-        ];
-      } else {
-        capabilities.push({
-          catalogModelName: capability.catalogModelName,
-          requestModelId: capability.requestModelId,
-          supportedRequestFormats: [...capability.supportedRequestFormats],
-        });
-      }
-      capabilitiesByLeafChannelId.set(capability.leafChannelId, capabilities);
-    }
+    const capabilitiesByLeafChannelId = this.groupCapabilitiesByLeafChannelId(resolvedCapabilities);
 
     const routingConfig = (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined) ?? undefined;
     const { allowedModelsMode: _allowedModelsMode, ...safeRoutingConfig } = routingConfig ?? {};
@@ -305,6 +291,67 @@ export class RelayChannelService {
         })
         .sort((left, right) => left.priority - right.priority || left.name.localeCompare(right.name)),
     };
+  }
+
+  private toPoolPricingOption(
+    resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
+    activeChannelsById: ReadonlyMap<string, RelayChannel>,
+    now: Date,
+  ): RelayPoolPricingOptionDto {
+    const capabilitiesByLeafChannelId = this.groupCapabilitiesByLeafChannelId(resolvedCapabilities);
+    const members: RelayPoolPricingMemberOptionDto[] = [];
+
+    for (const [channelId, modelCapabilities] of capabilitiesByLeafChannelId) {
+      const channel = activeChannelsById.get(channelId);
+      if (!channel) continue;
+      const multiplier = Number(channel.multiplier);
+      const timePeriodMultiplier = computeMultiplierForTime(
+        (channel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
+        now,
+      );
+      members.push({
+        id: channel.id,
+        name: channel.name,
+        enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+        multiplier,
+        timePeriodMultiplier,
+        effectiveMultiplier: multiplier * timePeriodMultiplier,
+        modelCapabilities: modelCapabilities.map((capability) => ({
+          ...capability,
+          supportedRequestFormats: [...capability.supportedRequestFormats],
+        })),
+      });
+    }
+
+    return {
+      members: members.sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)),
+    };
+  }
+
+  private groupCapabilitiesByLeafChannelId(
+    resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
+  ): Map<string, RelayChannelOptionDto["modelCapabilities"]> {
+    const capabilitiesByLeafChannelId = new Map<string, RelayChannelOptionDto["modelCapabilities"]>();
+
+    for (const capability of resolvedCapabilities) {
+      const capabilities = capabilitiesByLeafChannelId.get(capability.leafChannelId) ?? [];
+      const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
+      const existing = capabilities.find((item) => `${item.catalogModelName}\u0000${item.requestModelId}` === key);
+      if (existing) {
+        existing.supportedRequestFormats = [
+          ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
+        ];
+      } else {
+        capabilities.push({
+          catalogModelName: capability.catalogModelName,
+          requestModelId: capability.requestModelId,
+          supportedRequestFormats: [...capability.supportedRequestFormats],
+        });
+      }
+      capabilitiesByLeafChannelId.set(capability.leafChannelId, capabilities);
+    }
+
+    return capabilitiesByLeafChannelId;
   }
 
   private async resolveOptionsUserId(actorUserId: string, targetUserId?: string): Promise<string> {
@@ -742,12 +789,17 @@ export class RelayChannelService {
     const name = (data.name !== undefined ? data.name : existing?.name)?.trim();
     if (!name) throw new BadRequestError(existing ? "Channel name cannot be empty" : "Channel name is required");
 
-    const multiplier = data.multiplier !== undefined ? data.multiplier : Number(existing?.multiplier ?? 1);
-    if (multiplier < 0) throw new BadRequestError("multiplier must be >= 0");
-
     const channelType = (data.channelType ??
       (existing?.channelType as RelayChannelType | undefined) ??
       DEFAULT_CHANNEL_TYPE) as RelayChannelType;
+    // A pool is billed through its resolved standalone leaf. Keep a legacy value only to satisfy
+    // the persisted non-null column; callers cannot override pooled pricing through this field.
+    const multiplier = isPoolType(channelType)
+      ? Number(existing?.multiplier ?? 1)
+      : data.multiplier !== undefined
+        ? data.multiplier
+        : Number(existing?.multiplier ?? 1);
+    if (multiplier < 0) throw new BadRequestError("multiplier must be >= 0");
     const routingStrategy = (data.routingStrategy ??
       (existing?.routingStrategy as RelayChannelRoutingStrategy | undefined) ??
       DEFAULT_ROUTING_STRATEGY) as RelayChannelRoutingStrategy;

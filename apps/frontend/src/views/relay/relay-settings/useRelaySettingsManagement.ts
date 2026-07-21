@@ -1935,7 +1935,7 @@ export const useRelaySettingsManagement = () => {
         openaiUpstreamUrl: isPooledChannel ? '' : channelForm.value.openaiUpstreamUrl,
         anthropicUpstreamUrl: isPooledChannel ? '' : channelForm.value.anthropicUpstreamUrl,
         geminiUpstreamUrl: isPooledChannel ? '' : channelForm.value.geminiUpstreamUrl,
-        multiplier: channelForm.value.multiplier,
+        multiplier: isPooledChannel ? undefined : channelForm.value.multiplier,
         allowedFormats:
           Array.isArray(channelForm.value.allowedFormats) &&
           channelForm.value.allowedFormats.length > 0

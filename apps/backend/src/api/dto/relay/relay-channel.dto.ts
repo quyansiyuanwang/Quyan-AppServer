@@ -96,9 +96,8 @@ export interface RelayChannelDto {
 }
 
 /**
- * Business-facing channel capability. Ordinary channels and pooled channels intentionally exclude
- * routing topology and management configuration. Automatic proxy pools expose a limited routing
- * and member projection so callers can understand their variable pricing.
+ * Business-facing channel capability. Pooled channels expose a flattened, read-only leaf projection
+ * so clients can calculate model-specific prices without receiving upstream configuration.
  */
 export interface RelayChannelOptionDto {
   id: string;
@@ -108,6 +107,8 @@ export interface RelayChannelOptionDto {
   multiplier: number;
   allowedFormats: string;
   modelCapabilities: RelayChannelModelCapabilityDto[];
+  /** Present for pooled and automatic proxy pool channels. Contains final eligible leaf channels. */
+  poolPricing?: RelayPoolPricingOptionDto;
   /** Present only for automatic proxy pools. Excludes upstream URLs, credentials, mappings, and visibility rules. */
   automaticProxyPool?: RelayAutomaticProxyPoolOptionDto;
 }
@@ -116,6 +117,22 @@ export interface RelayChannelModelCapabilityDto {
   catalogModelName: string;
   requestModelId: string;
   supportedRequestFormats: Array<"openai" | "anthropic" | "gemini">;
+}
+
+export interface RelayPoolPricingOptionDto {
+  /** Flattened final channels after nested pools and inherited restrictions are resolved. */
+  members: RelayPoolPricingMemberOptionDto[];
+}
+
+export interface RelayPoolPricingMemberOptionDto {
+  id: string;
+  name: string;
+  enabled: boolean;
+  multiplier: number;
+  timePeriodMultiplier: number;
+  effectiveMultiplier: number;
+  /** Current model/format eligibility after pool constraints are resolved. */
+  modelCapabilities: RelayChannelModelCapabilityDto[];
 }
 
 export interface RelayAutomaticProxyPoolOptionDto {

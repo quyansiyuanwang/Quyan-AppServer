@@ -32423,6 +32423,65 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayPoolPricingMemberOptionDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"timePeriodMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"effectiveMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"modelCapabilities": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelModelCapabilityDto"
+						},
+						"type": "array",
+						"description": "Current model/format eligibility after pool constraints are resolved."
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"enabled",
+					"multiplier",
+					"timePeriodMultiplier",
+					"effectiveMultiplier",
+					"modelCapabilities"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayPoolPricingOptionDto": {
+				"properties": {
+					"members": {
+						"items": {
+							"$ref": "#/components/schemas/RelayPoolPricingMemberOptionDto"
+						},
+						"type": "array",
+						"description": "Flattened final channels after nested pools and inherited restrictions are resolved."
+					}
+				},
+				"required": [
+					"members"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayAutomaticProxyPoolRoutingConfigDto": {
 				"properties": {
 					"maxRetries": {
@@ -32555,7 +32614,7 @@
 				"additionalProperties": false
 			},
 			"RelayChannelOptionDto": {
-				"description": "Business-facing channel capability. Ordinary channels and pooled channels intentionally exclude\nrouting topology and management configuration. Automatic proxy pools expose a limited routing\nand member projection so callers can understand their variable pricing.",
+				"description": "Business-facing channel capability. Pooled channels expose a flattened, read-only leaf projection\nso clients can calculate model-specific prices without receiving upstream configuration.",
 				"properties": {
 					"id": {
 						"type": "string"
@@ -32581,6 +32640,10 @@
 							"$ref": "#/components/schemas/RelayChannelModelCapabilityDto"
 						},
 						"type": "array"
+					},
+					"poolPricing": {
+						"$ref": "#/components/schemas/RelayPoolPricingOptionDto",
+						"description": "Present for pooled and automatic proxy pool channels. Contains final eligible leaf channels."
 					},
 					"automaticProxyPool": {
 						"$ref": "#/components/schemas/RelayAutomaticProxyPoolOptionDto",
