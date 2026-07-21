@@ -2348,6 +2348,8 @@ const emoji: DeepStringify<typeof en> = {
     poolMembers: '🪣 👥',
     poolMembersHelp: '➕ 成员 📡，可设 ↕️、⚖️、✅/⛔。',
     addPoolMember: '➕ 成员 📡',
+    poolMemberInsertTop: '⬆️ 顶部',
+    poolMemberInsertBottom: '⬇️ 底部',
     poolMemberChannel: '成员 📡',
     poolMemberPriority: '优先级',
     poolMemberWeight: '⚖️',

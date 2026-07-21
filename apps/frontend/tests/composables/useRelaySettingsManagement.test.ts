@@ -8,6 +8,7 @@ const {
   createChannelMock,
   updateChannelMock,
   listChannelsMock,
+  listManagementChannelsMock,
   exportChannelsMock,
   batchDuplicateChannelsMock,
   getRelayConfigMock,
@@ -24,6 +25,7 @@ const {
   createChannelMock: vi.fn(),
   updateChannelMock: vi.fn(),
   listChannelsMock: vi.fn(),
+  listManagementChannelsMock: vi.fn(),
   exportChannelsMock: vi.fn(),
   batchDuplicateChannelsMock: vi.fn(),
   getRelayConfigMock: vi.fn(),
@@ -52,6 +54,7 @@ vi.mock('element-plus', () => ({
 vi.mock('@/service/relayChannelService', () => ({
   relayChannelService: {
     listChannels: listChannelsMock,
+    listManagementChannels: listManagementChannelsMock,
     createChannel: createChannelMock,
     updateChannel: updateChannelMock,
     exportChannels: exportChannelsMock,
@@ -196,6 +199,7 @@ describe('useRelaySettingsManagement', () => {
     getSystemRelayConfigMock.mockResolvedValue(createSystemRelayConfigResponse())
     setRelayConfigMock.mockResolvedValue(undefined)
     listChannelsMock.mockResolvedValue([])
+    listManagementChannelsMock.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 25 })
     exportChannelsMock.mockResolvedValue({ channels: [] })
     createChannelMock.mockResolvedValue({ id: 'created-channel' })
     updateChannelMock.mockResolvedValue({ id: 'updated-channel' })
@@ -254,6 +258,60 @@ describe('useRelaySettingsManagement', () => {
     expect(api.channelForm.value.routingConfig.latencyThresholdMs).toBeNull()
     expect(api.channelForm.value.routingConfig.circuitBreakerThreshold).toBeNull()
 
+    wrapper.unmount()
+  })
+
+  it('keeps pool-member priority contiguous while moving and deleting members', async () => {
+    const { api, wrapper } = await mountComposable()
+    api.channelForm.value.poolMembers = [
+      { memberChannelId: 'member-1', priority: 1, weight: 1, enabled: true },
+      { memberChannelId: 'member-2', priority: 2, weight: 1, enabled: true },
+      { memberChannelId: 'member-3', priority: 3, weight: 1, enabled: true },
+    ]
+
+    api.movePoolMember(2, 0)
+    expect(api.channelForm.value.poolMembers.map((member) => member.memberChannelId)).toEqual([
+      'member-3',
+      'member-1',
+      'member-2',
+    ])
+    expect(api.channelForm.value.poolMembers.map((member) => member.priority)).toEqual([1, 2, 3])
+
+    api.removePoolMember(1)
+    expect(api.channelForm.value.poolMembers.map((member) => member.priority)).toEqual([1, 2])
+    wrapper.unmount()
+  })
+
+  it('loads only the requested management page and preserves cross-page selection', async () => {
+    const { api, wrapper } = await mountComposable()
+    listManagementChannelsMock.mockResolvedValue({
+      items: [
+        {
+          id: 'page-2-channel',
+          name: 'Page 2',
+          enabled: true,
+          channelType: 'standalone',
+          routingStrategy: 'priority',
+          visibilityMode: 'public',
+          poolMemberCount: 0,
+          multiplier: 1,
+          updateTime: new Date().toISOString(),
+        },
+      ],
+      total: 26,
+      page: 2,
+      pageSize: 25,
+    })
+
+    api.toggleChannelSelection('selected-on-page-1', true)
+    api.updateChannelPagination(2)
+    await flushPromises()
+
+    expect(listManagementChannelsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 2, pageSize: 25 }),
+    )
+    expect(api.channelRows.value).toHaveLength(1)
+    expect(api.selectedChannelCount.value).toBe(1)
     wrapper.unmount()
   })
 
@@ -366,7 +424,7 @@ describe('useRelaySettingsManagement', () => {
         },
         poolMembers: [
           { memberChannelId: 'member-1', priority: 1, weight: 3, enabled: true },
-          { memberChannelId: 'member-2', priority: 3, weight: 1, enabled: false },
+          { memberChannelId: 'member-2', priority: 2, weight: 1, enabled: false },
         ],
       }),
     )

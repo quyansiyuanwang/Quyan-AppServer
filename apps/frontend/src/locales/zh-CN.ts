@@ -2154,6 +2154,8 @@ const zhCN: DeepStringify<typeof en> = {
     poolMembers: '混池成员',
     poolMembersHelp: '添加要纳入此逻辑渠道的成员渠道，可配置优先级、权重和启用状态。',
     addPoolMember: '添加成员渠道',
+    poolMemberInsertTop: '插入顶部',
+    poolMemberInsertBottom: '插入底部',
     poolMemberChannel: '成员渠道',
     poolMemberPriority: '优先级',
     poolMemberWeight: '权重',

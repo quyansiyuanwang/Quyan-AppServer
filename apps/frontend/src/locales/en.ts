@@ -2221,6 +2221,8 @@ export default {
     poolMembersHelp:
       'Add member channels to this logical channel and configure their priority, weight, and enabled state.',
     addPoolMember: 'Add Member Channel',
+    poolMemberInsertTop: 'Insert at Top',
+    poolMemberInsertBottom: 'Insert at Bottom',
     poolMemberChannel: 'Member Channel',
     poolMemberPriority: 'Priority',
     poolMemberWeight: 'Weight',

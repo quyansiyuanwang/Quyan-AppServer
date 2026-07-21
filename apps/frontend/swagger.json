@@ -13805,6 +13805,75 @@
 				}
 			}
 		},
+		"/v1/relay-channels/management": {
+			"get": {
+				"operationId": "RelayChannelControllerListManagementChannels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PaginatedResponse_RelayChannelManagementListItemDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "channelType",
+						"required": false,
+						"schema": {
+							"$ref": "#/components/schemas/RelayChannelType"
+						}
+					},
+					{
+						"in": "query",
+						"name": "enabled",
+						"required": false,
+						"schema": {
+							"type": "boolean"
+						}
+					}
+				]
+			}
+		},
 		"/v1/relay-channels/options": {
 			"get": {
 				"operationId": "RelayChannelControllerListChannelOptions",
@@ -31957,6 +32026,16 @@
 					},
 					"enabled": {
 						"type": "boolean"
+					},
+					"memberChannelName": {
+						"type": "string",
+						"description": "Display-only member metadata returned with channel details."
+					},
+					"memberChannelType": {
+						"$ref": "#/components/schemas/RelayChannelType"
+					},
+					"memberChannelEnabled": {
+						"type": "boolean"
 					}
 				},
 				"required": [
@@ -32106,6 +32185,85 @@
 					"allowedModels",
 					"createTime",
 					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelManagementListItemDto": {
+				"description": "Lightweight channel projection used by the management list.",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType"
+					},
+					"routingStrategy": {
+						"$ref": "#/components/schemas/RelayChannelRoutingStrategy"
+					},
+					"visibilityMode": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode"
+					},
+					"poolMemberCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"updateTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"enabled",
+					"channelType",
+					"routingStrategy",
+					"visibilityMode",
+					"poolMemberCount",
+					"multiplier",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"PaginatedResponse_RelayChannelManagementListItemDto_": {
+				"description": "分页响应",
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelManagementListItemDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
 				],
 				"type": "object",
 				"additionalProperties": false

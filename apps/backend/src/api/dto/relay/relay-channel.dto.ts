@@ -27,6 +27,23 @@ export interface RelayChannelMemberDto {
   priority: number;
   weight?: number;
   enabled?: boolean;
+  /** Display-only member metadata returned with channel details. */
+  memberChannelName?: string;
+  memberChannelType?: RelayChannelType;
+  memberChannelEnabled?: boolean;
+}
+
+/** Lightweight channel projection used by the management list. */
+export interface RelayChannelManagementListItemDto {
+  id: string;
+  name: string;
+  enabled: boolean;
+  channelType: RelayChannelType;
+  routingStrategy: RelayChannelRoutingStrategy;
+  visibilityMode: RelayChannelVisibilityMode;
+  poolMemberCount: number;
+  multiplier: number;
+  updateTime: Date;
 }
 
 export interface RelayChannelRoutingConfigDto {

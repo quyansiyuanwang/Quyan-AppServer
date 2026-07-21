@@ -1,8 +1,10 @@
 <template>
-  <el-dialog
+  <el-drawer
     v-model="showChannelDialog"
     :title="isEditingChannel ? i18ns.t('relay.editChannel') : i18ns.t('relay.createChannel')"
-    :width="isDesktop ? '60vw' : '650px'"
+    :direction="isDesktop ? 'rtl' : 'btt'"
+    :size="isDesktop ? 'min(1120px, calc(100vw - 64px))' : '100%'"
+    class="relay-channel-editor-drawer"
     destroy-on-close
   >
     <el-form :model="channelForm" label-width="180px" label-position="right">
@@ -31,61 +33,23 @@
 
       <template v-if="['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">
         <el-form-item :label="i18ns.t('relay.poolMembers')" required>
-          <div class="flex flex-col gap-3 w-full">
-            <div class="flex flex-wrap gap-2">
-              <el-button size="small" @click="addPoolMember">{{
-                i18ns.t('relay.addPoolMember')
-              }}</el-button>
+          <div class="relay-pool-member-editor">
+            <div class="relay-pool-member-editor__toolbar">
+              <el-button size="small" type="primary" @click="openPoolMemberPicker">{{ i18ns.t('relay.addPoolMember') }}</el-button>
+              <span>{{ i18ns.t('relay.poolMembersHelp') }}</span>
             </div>
-
-            <el-empty
-              v-if="channelForm.poolMembers.length === 0"
-              :description="i18ns.t('relay.poolMembersHelp')"
-            />
-
-            <div
-              v-for="(member, index) in channelForm.poolMembers"
-              :key="member.id || `${member.memberChannelId}-${index}`"
-              class="border border-[var(--el-border-color-lighter)] rounded-lg p-3 flex flex-col gap-3"
-            >
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <el-form-item :label="i18ns.t('relay.poolMemberChannel')" label-width="auto">
-                  <el-select
-                    v-model="member.memberChannelId"
-                    filterable
-                    :placeholder="i18ns.t('select')"
-                  >
-                    <el-option
-                      v-for="channel in availablePoolMemberChannels"
-                      :key="channel.id"
-                      :label="channel.name"
-                      :value="channel.id"
-                      :disabled="isPoolMemberOptionDisabled(channel.id, index)"
-                    />
-                  </el-select>
-                </el-form-item>
-
-                <el-form-item :label="i18ns.t('relay.poolMemberPriority')" label-width="auto">
-                  <el-input-number v-model="member.priority" :min="1" :step="1" />
-                </el-form-item>
-
-                <el-form-item :label="i18ns.t('relay.poolMemberWeight')" label-width="auto">
-                  <el-input-number v-model="member.weight" :min="0" :step="0.1" :precision="3" />
-                </el-form-item>
-
-                <el-form-item :label="i18ns.t('relay.poolMemberEnabled')" label-width="auto">
-                  <el-switch v-model="member.enabled" />
-                </el-form-item>
+            <div ref="poolMemberSortableRef" class="relay-pool-member-editor__rows">
+              <div v-for="(member, index) in channelForm.poolMembers" :key="member.id || member.memberChannelId" class="relay-pool-member-row" :data-index="index">
+                <el-icon class="relay-pool-member-row__drag"><Rank /></el-icon>
+                <span class="relay-pool-member-row__priority">#{{ index + 1 }}</span>
+                <span class="relay-pool-member-row__name">{{ member.memberChannelName || getChannelNameById(member.memberChannelId) }}</span>
+                <el-input-number v-model="member.weight" :min="0" :step="0.1" :precision="3" size="small" />
+                <el-switch v-model="member.enabled" size="small" />
+                <el-tooltip :content="i18ns.t('relay.poolMemberPriority')"><el-button text circle :disabled="index === 0" @click="movePoolMemberToEdge(index, 'top')"><el-icon><Top /></el-icon></el-button></el-tooltip>
+                <el-tooltip :content="i18ns.t('delete')"><el-button text circle type="danger" @click="removePoolMember(index)"><el-icon><Delete /></el-icon></el-button></el-tooltip>
               </div>
-
-              <div class="flex justify-end">
-                <el-button size="small" type="danger" @click="removePoolMember(index)">{{
-                  i18ns.t('delete')
-                }}</el-button>
-              </div>
+              <el-empty v-if="channelForm.poolMembers.length === 0" :description="i18ns.t('relay.poolMembersHelp')" />
             </div>
-
-            <div class="text-[#909399] text-xs">{{ i18ns.t('relay.poolMembersHelp') }}</div>
           </div>
         </el-form-item>
 
@@ -561,6 +525,24 @@
         {{ i18ns.t('confirm') }}
       </el-button>
     </template>
+  </el-drawer>
+
+  <el-dialog v-model="showPoolMemberPicker" :title="i18ns.t('relay.addPoolMember')" width="720px" append-to-body>
+    <div class="relay-pool-member-picker__toolbar">
+      <el-input v-model="poolMemberPickerKeyword" clearable :placeholder="i18ns.t('relay.channelName')" @change="loadPoolMemberCandidates" />
+      <el-radio-group v-model="poolMemberInsertPosition" size="small">
+        <el-radio-button value="top">{{ i18ns.t('relay.poolMemberInsertTop') }}</el-radio-button>
+        <el-radio-button value="bottom">{{ i18ns.t('relay.poolMemberInsertBottom') }}</el-radio-button>
+      </el-radio-group>
+    </div>
+    <el-table :data="poolMemberPickerRows" max-height="360" size="small">
+      <el-table-column width="48"><template #default="{ row }"><el-checkbox v-model="selectedPoolMemberCandidateIds" :value="row.id" /></template></el-table-column>
+      <el-table-column prop="name" :label="i18ns.t('relay.channelName')" />
+      <el-table-column :label="i18ns.t('relay.channelType')" width="180"><template #default="{ row }">{{ formatChannelTypeLabel(row.channelType) }}</template></el-table-column>
+      <el-table-column :label="i18ns.t('status')" width="100"><template #default="{ row }">{{ row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled') }}</template></el-table-column>
+    </el-table>
+    <el-pagination class="mt-3" small layout="prev, pager, next" :current-page="poolMemberPickerPagination.page" :page-size="poolMemberPickerPagination.pageSize" :total="poolMemberPickerPagination.total" @update:current-page="poolMemberPickerPagination.page = $event; loadPoolMemberCandidates()" />
+    <template #footer><el-button @click="showPoolMemberPicker = false">{{ i18ns.t('cancel') }}</el-button><el-button type="primary" :disabled="!selectedPoolMemberCandidateIds.length" @click="addSelectedPoolMembers">{{ i18ns.t('confirm') }}</el-button></template>
   </el-dialog>
 
   <el-dialog
@@ -990,7 +972,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { Delete, Rank, Top } from '@element-plus/icons-vue'
+import Sortable from 'sortablejs'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
@@ -1014,10 +998,18 @@ const {
   formatModelOptionLabel,
   isModelDisabled,
   computeShowUpstream,
-  availablePoolMemberChannels,
   getChannelNameById,
-  isPoolMemberOptionDisabled,
-  addPoolMember,
+  showPoolMemberPicker,
+  poolMemberPickerRows,
+  poolMemberPickerPagination,
+  poolMemberPickerKeyword,
+  selectedPoolMemberCandidateIds,
+  poolMemberInsertPosition,
+  openPoolMemberPicker,
+  loadPoolMemberCandidates,
+  addSelectedPoolMembers,
+  movePoolMember,
+  movePoolMemberToEdge,
   removePoolMember,
   filteredModelNames,
   openAddTimeRule,
@@ -1039,6 +1031,33 @@ const {
   getChannelAllowedModelsMode,
   handleImportChannels,
 } = state
+
+const poolMemberSortableRef = ref<HTMLElement>()
+let poolMemberSortable: Sortable | null = null
+
+const destroyPoolMemberSortable = () => {
+  poolMemberSortable?.destroy()
+  poolMemberSortable = null
+}
+
+const initPoolMemberSortable = async () => {
+  await nextTick()
+  destroyPoolMemberSortable()
+  if (!poolMemberSortableRef.value) return
+  poolMemberSortable = new Sortable(poolMemberSortableRef.value, {
+    animation: 150,
+    handle: '.relay-pool-member-row__drag',
+    draggable: '.relay-pool-member-row',
+    onEnd: (event) => movePoolMember(event.oldIndex ?? -1, event.newIndex ?? -1),
+  })
+}
+
+watch(showChannelDialog, (visible) => {
+  if (visible) void initPoolMemberSortable()
+  else destroyPoolMemberSortable()
+})
+
+onBeforeUnmount(destroyPoolMemberSortable)
 
 const formatVisibilityUserOption = (user: {
   username: string

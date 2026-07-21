@@ -1,7 +1,12 @@
 import { prisma } from "@/config/database";
 import { RELAY_CHANNEL_STATUS, VISIBLE_RELAY_CHANNEL_STATUSES } from "@/constant/relay-channel";
 import type { RelayChannel, Prisma } from "@prisma/client";
-import type { RelayChannelMemberInput, RelayChannelStore, RelayChannelTransactionClient } from "./relay-channel.store";
+import type {
+  RelayChannelManagementQuery,
+  RelayChannelMemberInput,
+  RelayChannelStore,
+  RelayChannelTransactionClient,
+} from "./relay-channel.store";
 
 const relayChannelInclude = {
   poolMembers: {
@@ -105,6 +110,31 @@ export class RelayChannelRepository implements RelayChannelStore {
       },
       include: relayChannelInclude,
     });
+  }
+
+  async listManagementPage({ where, page, pageSize }: RelayChannelManagementQuery) {
+    const [records, total] = await prisma.$transaction([
+      prisma.relayChannel.findMany({
+        where,
+        orderBy: { createTime: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          channelType: true,
+          routingStrategy: true,
+          visibilityMode: true,
+          multiplier: true,
+          updateTime: true,
+          _count: { select: { poolMembers: true } },
+        },
+      }),
+      prisma.relayChannel.count({ where }),
+    ]);
+
+    return { records, total };
   }
 
   async create(

@@ -11,6 +11,7 @@ import type {
   RelayChannelOptionDto,
   RelayChannelExportItemDto,
   RelayChannelExportResponse,
+  RelayChannelManagementListItemDto,
   RelayChannelImportItemDto,
   RelayChannelAllowedModelsMode,
   RelayAutomaticProxyPoolOptionDto,
@@ -23,6 +24,7 @@ import type {
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
 } from "@/api/dto/relay/relay-channel.dto";
+import type { PaginatedResponse } from "@/api/dto/common/common.dto";
 import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
@@ -116,6 +118,59 @@ export class RelayChannelService {
     const visibleChannels = await this.filterAccessibleChannels(channels, actorUserId);
     const modelCatalog = await this.modelPricingService.getModelPricing();
     return Promise.all(visibleChannels.map((channel) => this.toDto(channel, modelCatalog, includeDisabled)));
+  }
+
+  async listManagementChannels(
+    actorUserId: string,
+    query: {
+      page?: number;
+      pageSize?: number;
+      keyword?: string;
+      channelType?: RelayChannelType;
+      enabled?: boolean;
+    },
+  ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 25;
+    const where: Prisma.RelayChannelWhereInput = {
+      status:
+        query.enabled === undefined
+          ? { in: VISIBLE_RELAY_CHANNEL_STATUSES }
+          : query.enabled
+            ? RELAY_CHANNEL_STATUS.ENABLED
+            : RELAY_CHANNEL_STATUS.DISABLED,
+    };
+
+    if (query.keyword?.trim()) where.name = { contains: query.keyword.trim() };
+    if (query.channelType) where.channelType = query.channelType;
+
+    const visibilityWhere = await this.buildManagementVisibilityWhere(actorUserId);
+    if (visibilityWhere) where.AND = [visibilityWhere];
+
+    const { records, total } = await this.relayChannelRepository.listManagementPage({
+      where,
+      page,
+      pageSize,
+    });
+
+    return {
+      items: records.map((channel) => ({
+        id: channel.id,
+        name: channel.name,
+        enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+        channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
+        routingStrategy:
+          (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
+        visibilityMode:
+          (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
+        poolMemberCount: channel._count.poolMembers,
+        multiplier: Number(channel.multiplier),
+        updateTime: channel.updateTime,
+      })),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async listChannelOptions(actorUserId: string, targetUserId?: string): Promise<RelayChannelOptionDto[]> {
@@ -405,6 +460,42 @@ export class RelayChannelService {
     ]);
   }
 
+  private async buildManagementVisibilityWhere(
+    actorUserId: string,
+  ): Promise<Prisma.RelayChannelWhereInput | undefined> {
+    if (await this.canBypassVisibility(actorUserId)) return undefined;
+
+    const user = await this.userRepository.findByIdWithGroup(actorUserId);
+    const roleBindings = user
+      ? await this.ramRoleRepository.listRoleBindingsForUser(actorUserId, user.groupId ?? null)
+      : [];
+    const roleIds = roleBindings.map((binding) => binding.roleId);
+    const whitelistConditions: Prisma.RelayChannelWhereInput[] = [
+      {
+        visibilityMode: "whitelist",
+        visibilityConfig: { path: "$.userIds", array_contains: actorUserId },
+      },
+    ];
+
+    if (user?.groupId) {
+      whitelistConditions.push({
+        visibilityMode: "whitelist",
+        visibilityConfig: { path: "$.groupIds", array_contains: user.groupId },
+      });
+    }
+
+    for (const roleId of roleIds) {
+      whitelistConditions.push({
+        visibilityMode: "whitelist",
+        visibilityConfig: { path: "$.roleIds", array_contains: roleId },
+      });
+    }
+
+    return {
+      OR: [{ visibilityMode: "public" }, ...whitelistConditions],
+    };
+  }
+
   private normalizeVisibilityConfig(
     visibilityConfig?: RelayChannelVisibilityConfigDto | null,
   ): Required<RelayChannelVisibilityConfigDto> {
@@ -639,6 +730,9 @@ export class RelayChannelService {
       priority: member.priority,
       weight: Number(member.weight),
       enabled: member.enabled,
+      memberChannelName: member.memberChannel?.name,
+      memberChannelType: member.memberChannel?.channelType as RelayChannelType | undefined,
+      memberChannelEnabled: member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
     };
   }
 
