@@ -461,7 +461,16 @@
         </template>
       </el-dialog>
 
-      <RelayChannelManagementPanel />
+      <div class="relay-settings relay-settings-desktop">
+        <el-collapse v-model="desktopSections">
+          <el-collapse-item name="channels">
+            <template #title>
+              <span class="collapse-title">{{ i18ns.t('relay.channelManagement') }}</span>
+            </template>
+            <RelayChannelManagementPanel />
+          </el-collapse-item>
+        </el-collapse>
+      </div>
       <div v-if="false" class="relay-settings relay-settings-desktop" v-loading="channelLoading">
         <el-collapse v-model="desktopSections">
           <el-collapse-item name="channels">
