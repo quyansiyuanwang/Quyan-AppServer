@@ -2354,6 +2354,8 @@ const emoji: DeepStringify<typeof en> = {
     poolMemberPriority: '优先级',
     poolMemberWeight: '⚖️',
     poolMemberEnabled: '✅ 成员',
+    poolMemberChannelDisabled: '📡 已⛔',
+    poolMembersLoading: '⏳ 加载成员...',
     poolMemberCount: '成员',
     noPoolMembers: '🚫 成员',
     poolMembersRequired: '🪣 📡 至少需要 1 个成员 📡',

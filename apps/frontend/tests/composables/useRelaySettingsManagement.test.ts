@@ -1,7 +1,10 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref, shallowRef } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useRelaySettingsManagement, type RelaySettingsManagementState } from '@/views/relay/relay-settings/useRelaySettingsManagement'
+import {
+  useRelaySettingsManagement,
+  type RelaySettingsManagementState,
+} from '@/views/relay/relay-settings/useRelaySettingsManagement'
 import type { RelayChannelDto } from '@/client/types.gen'
 
 const {
@@ -9,6 +12,7 @@ const {
   updateChannelMock,
   listChannelsMock,
   listManagementChannelsMock,
+  getChannelMock,
   exportChannelsMock,
   batchDuplicateChannelsMock,
   getRelayConfigMock,
@@ -26,6 +30,7 @@ const {
   updateChannelMock: vi.fn(),
   listChannelsMock: vi.fn(),
   listManagementChannelsMock: vi.fn(),
+  getChannelMock: vi.fn(),
   exportChannelsMock: vi.fn(),
   batchDuplicateChannelsMock: vi.fn(),
   getRelayConfigMock: vi.fn(),
@@ -55,6 +60,7 @@ vi.mock('@/service/relayChannelService', () => ({
   relayChannelService: {
     listChannels: listChannelsMock,
     listManagementChannels: listManagementChannelsMock,
+    getChannel: getChannelMock,
     createChannel: createChannelMock,
     updateChannel: updateChannelMock,
     exportChannels: exportChannelsMock,
@@ -145,28 +151,27 @@ const createSystemRelayConfigResponse = () => ({
   customKeyCreateLimitMaxCount: 5,
 })
 
-const createChannelRow = (overrides: Partial<RelayChannelDto> = {}): RelayChannelDto =>
-  ({
-    id: 'channel-1',
-    name: 'Test Channel',
-    enabled: true,
-    channelType: 'standalone',
-    routingStrategy: 'priority',
-    visibilityMode: 'public',
-    poolMembers: [],
-    multiplier: 1,
-    allowedFormats: 'openai',
-    allowedModels: [],
-    openaiUpstreamUrl: 'https://example.com/v1',
-    hasOpenaiUpstreamApiKey: true,
-    hasAnthropicUpstreamApiKey: false,
-    hasGeminiUpstreamApiKey: false,
-    inputTokensIncludeCacheRead: false,
-    timePeriodMultipliers: [],
-    createTime: new Date().toISOString(),
-    updateTime: new Date().toISOString(),
-    ...overrides,
-  })
+const createChannelRow = (overrides: Partial<RelayChannelDto> = {}): RelayChannelDto => ({
+  id: 'channel-1',
+  name: 'Test Channel',
+  enabled: true,
+  channelType: 'standalone',
+  routingStrategy: 'priority',
+  visibilityMode: 'public',
+  poolMembers: [],
+  multiplier: 1,
+  allowedFormats: 'openai',
+  allowedModels: [],
+  openaiUpstreamUrl: 'https://example.com/v1',
+  hasOpenaiUpstreamApiKey: true,
+  hasAnthropicUpstreamApiKey: false,
+  hasGeminiUpstreamApiKey: false,
+  inputTokensIncludeCacheRead: false,
+  timePeriodMultipliers: [],
+  createTime: new Date().toISOString(),
+  updateTime: new Date().toISOString(),
+  ...overrides,
+})
 
 const mountComposable = async () => {
   const api = shallowRef<RelaySettingsManagementState | null>(null)
@@ -200,6 +205,7 @@ describe('useRelaySettingsManagement', () => {
     setRelayConfigMock.mockResolvedValue(undefined)
     listChannelsMock.mockResolvedValue([])
     listManagementChannelsMock.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 25 })
+    getChannelMock.mockResolvedValue(createChannelRow())
     exportChannelsMock.mockResolvedValue({ channels: [] })
     createChannelMock.mockResolvedValue({ id: 'created-channel' })
     updateChannelMock.mockResolvedValue({ id: 'updated-channel' })
@@ -226,7 +232,13 @@ describe('useRelaySettingsManagement', () => {
         },
         poolMembers: [
           { memberChannelId: 'member-1', priority: 1, weight: 2, enabled: true },
-          { memberChannelId: 'member-2', priority: 2, weight: 1, enabled: false },
+          {
+            memberChannelId: 'member-2',
+            priority: 2,
+            weight: 1,
+            enabled: false,
+            memberChannelEnabled: false,
+          },
         ],
         visibilityMode: 'whitelist',
         visibilityConfig: { groupIds: ['group-1'] },
@@ -240,6 +252,7 @@ describe('useRelaySettingsManagement', () => {
     expect(api.channelForm.value.routingConfig.latencyThresholdMs).toBeNull()
     expect(api.channelForm.value.routingConfig.circuitBreakerThreshold).toBeNull()
     expect(api.channelForm.value.poolMembers).toHaveLength(2)
+    expect(api.channelForm.value.poolMembers[1]?.memberChannelEnabled).toBe(false)
     expect(api.channelForm.value.visibilityConfig.groupIds).toEqual(['group-1'])
 
     wrapper.unmount()
@@ -312,6 +325,31 @@ describe('useRelaySettingsManagement', () => {
     )
     expect(api.channelRows.value).toHaveLength(1)
     expect(api.selectedChannelCount.value).toBe(1)
+    wrapper.unmount()
+  })
+
+  it('caches pool member tooltip details after loading them once', async () => {
+    const { api, wrapper } = await mountComposable()
+    const channel = createChannelRow({
+      id: 'pooled-channel',
+      channelType: 'pooled',
+      poolMembers: [
+        {
+          memberChannelId: 'member-1',
+          memberChannelName: 'Primary member',
+          priority: 1,
+          weight: 2,
+          enabled: true,
+        },
+      ],
+    })
+    getChannelMock.mockResolvedValue(channel)
+
+    await api.loadPoolMemberTooltip({ id: channel.id })
+    await api.loadPoolMemberTooltip({ id: channel.id })
+
+    expect(getChannelMock).toHaveBeenCalledTimes(1)
+    expect(api.poolMemberTooltipDetails.value[channel.id]).toEqual(channel)
     wrapper.unmount()
   })
 

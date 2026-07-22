@@ -45,13 +45,24 @@
                 v-for="(member, index) in channelForm.poolMembers"
                 :key="member.id || member.memberChannelId"
                 class="relay-pool-member-row"
+                :class="{ 'is-unavailable': member.memberChannelEnabled === false }"
                 :data-index="index"
               >
                 <el-icon class="relay-pool-member-row__drag"><Rank /></el-icon>
                 <span class="relay-pool-member-row__priority">#{{ index + 1 }}</span>
-                <span class="relay-pool-member-row__name">{{
-                  member.memberChannelName || getChannelNameById(member.memberChannelId)
-                }}</span>
+                <span class="relay-pool-member-row__name">
+                  <span class="relay-pool-member-row__name-label">{{
+                    member.memberChannelName || getChannelNameById(member.memberChannelId)
+                  }}</span>
+                  <el-tag
+                    v-if="member.memberChannelEnabled === false"
+                    size="small"
+                    type="danger"
+                    effect="plain"
+                  >
+                    {{ i18ns.t('relay.poolMemberChannelDisabled') }}
+                  </el-tag>
+                </span>
                 <el-input-number
                   v-model="member.weight"
                   :min="0"

@@ -689,6 +689,8 @@ export const useRelaySettingsManagement = () => {
   const editingChannelId = ref('')
   const selectedChannelIds = ref<string[]>([])
   const channelRequestVersion = ref(0)
+  const poolMemberTooltipDetails = ref<Record<string, RelayChannelDto | null>>({})
+  const poolMemberTooltipLoadingIds = ref<string[]>([])
   const showPoolMemberPicker = ref(false)
   const poolMemberPickerRows = ref<RelayChannelManagementListItemDto[]>([])
   const poolMemberPickerPagination = ref({ page: 1, pageSize: 25, total: 0 })
@@ -1680,10 +1682,35 @@ export const useRelaySettingsManagement = () => {
       }
       channelRows.value = response.items
       channelPagination.value.total = response.total
+      poolMemberTooltipDetails.value = {}
     } catch (error: any) {
       ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
     } finally {
       channelLoading.value = false
+    }
+  }
+
+  const loadPoolMemberTooltip = async (row: Pick<RelayChannelManagementListItemDto, 'id'>) => {
+    if (
+      Object.prototype.hasOwnProperty.call(poolMemberTooltipDetails.value, row.id) ||
+      poolMemberTooltipLoadingIds.value.includes(row.id)
+    ) {
+      return
+    }
+
+    poolMemberTooltipLoadingIds.value = [...poolMemberTooltipLoadingIds.value, row.id]
+    try {
+      poolMemberTooltipDetails.value = {
+        ...poolMemberTooltipDetails.value,
+        [row.id]: await relayChannelService.getChannel(row.id),
+      }
+    } catch {
+      // The tooltip is supplementary; failure should not interrupt management-list use.
+      poolMemberTooltipDetails.value = { ...poolMemberTooltipDetails.value, [row.id]: null }
+    } finally {
+      poolMemberTooltipLoadingIds.value = poolMemberTooltipLoadingIds.value.filter(
+        (id) => id !== row.id,
+      )
     }
   }
 
@@ -2123,6 +2150,8 @@ export const useRelaySettingsManagement = () => {
     channelSaving,
     channelExporting,
     togglingChannelId,
+    poolMemberTooltipDetails,
+    poolMemberTooltipLoadingIds,
     showChannelDialog,
     showChannelDetailDialog,
     showChannelImportDialog,
@@ -2170,6 +2199,7 @@ export const useRelaySettingsManagement = () => {
     poolMemberInsertPosition,
     openPoolMemberPicker,
     loadPoolMemberCandidates,
+    loadPoolMemberTooltip,
     addSelectedPoolMembers,
     movePoolMember,
     movePoolMemberToEdge,
