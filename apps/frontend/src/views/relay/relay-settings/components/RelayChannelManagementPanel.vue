@@ -113,6 +113,11 @@
             ><el-tag size="small">{{ formatChannelTypeLabel(row.channelType) }}</el-tag></template
           >
         </el-table-column>
+        <el-table-column :label="i18ns.t('relay.channelMultiplier')" width="112" align="right">
+          <template #default="{ row }">
+            <span class="relay-channel-management__multiplier">{{ row.multiplier }}x</span>
+          </template>
+        </el-table-column>
         <el-table-column :label="i18ns.t('status')" width="96">
           <template #default="{ row }"
             ><el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
@@ -133,25 +138,28 @@
         <el-table-column :label="i18ns.t('relay.updateTime')" width="170">
           <template #default="{ row }">{{ new Date(row.updateTime).toLocaleString() }}</template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('actions')" width="150" fixed="right">
+        <el-table-column :label="i18ns.t('actions')" width="260" fixed="right">
           <template #default="{ row }">
-            <el-tooltip :content="i18ns.t('button.viewDetails')"
-              ><el-button text circle @click="openChannelDetailDialog(row)"
-                ><el-icon><View /></el-icon></el-button
-            ></el-tooltip>
-            <el-tooltip :content="i18ns.t('edit')"
-              ><el-button text circle @click="openEditChannelDialog(row)"
-                ><el-icon><EditPen /></el-icon></el-button
-            ></el-tooltip>
+            <el-button text @click="openChannelDetailDialog(row)">{{
+              i18ns.t('button.viewDetails')
+            }}</el-button>
+            <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
+              <el-button text @click="openEditChannelDialog(row)">{{ i18ns.t('edit') }}</el-button>
+            </PermissionWrapper>
+            <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
+              <el-button
+                text
+                :type="row.enabled ? 'warning' : 'success'"
+                :loading="togglingChannelId === row.id"
+                @click="handleToggleChannelStatus(row)"
+              >
+                {{ row.enabled ? i18ns.t('relay.disable') : i18ns.t('relay.enable') }}
+              </el-button>
+            </PermissionWrapper>
             <el-dropdown trigger="click" @command="handleRowCommand($event, row)">
-              <el-button text circle
-                ><el-icon><MoreFilled /></el-icon
-              ></el-button>
+              <el-button text>{{ i18ns.t('nav.more') }}</el-button>
               <template #dropdown
                 ><el-dropdown-menu>
-                  <el-dropdown-item command="toggle">{{
-                    row.enabled ? i18ns.t('relay.disable') : i18ns.t('relay.enable')
-                  }}</el-dropdown-item>
                   <el-dropdown-item command="duplicate">{{
                     i18ns.t('relay.duplicateChannel')
                   }}</el-dropdown-item>
@@ -180,6 +188,7 @@
           @change="toggleChannelSelection(row.id, $event)"
         />
         <span class="relay-channel-management__mobile-name">{{ row.name }}</span>
+        <span class="relay-channel-management__mobile-multiplier">{{ row.multiplier }}x</span>
         <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
           row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
         }}</el-tag>
@@ -203,15 +212,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  ArrowDown,
-  ArrowRight,
-  EditPen,
-  MoreFilled,
-  Plus,
-  Search,
-  View,
-} from '@element-plus/icons-vue'
+import { ArrowDown, ArrowRight, Plus, Search } from '@element-plus/icons-vue'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
@@ -222,6 +223,7 @@ const {
   isDesktop,
   channelLoading,
   channelExporting,
+  togglingChannelId,
   channelRows,
   channelFilters,
   channelPagination,
@@ -252,7 +254,6 @@ const {
 } = state
 
 const handleRowCommand = (command: string, row: (typeof channelRows.value)[number]) => {
-  if (command === 'toggle') void handleToggleChannelStatus(row)
   if (command === 'duplicate') void handleDuplicateChannel(row)
   if (command === 'delete') void handleDeleteChannel(row)
 }
