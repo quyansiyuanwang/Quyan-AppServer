@@ -324,10 +324,34 @@
   text-underline-offset: 3px;
 }
 
+.el-popper.relay-channel-management__pool-members-tooltip {
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background: var(--el-bg-color-overlay);
+  box-shadow: var(--el-box-shadow-light);
+  color: var(--el-text-color-regular);
+}
+
+.el-popper.relay-channel-management__pool-members-tooltip .el-popper__arrow::before {
+  border-color: var(--el-border-color);
+  background: var(--el-bg-color-overlay);
+}
+
 .relay-channel-management__pool-members-tooltip-content {
   width: min(360px, calc(100vw - 32px));
   max-height: min(360px, calc(100vh - 140px));
   overflow-y: auto;
+  scrollbar-color: var(--el-border-color-dark) transparent;
+}
+
+.relay-channel-management__pool-members-tooltip-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.relay-channel-management__pool-members-tooltip-content::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--el-border-color-dark);
 }
 
 .relay-channel-management__pool-members-tooltip-title {

@@ -140,6 +140,7 @@
             <span v-if="row.channelType === 'standalone'">-</span>
             <el-tooltip
               v-else
+              effect="light"
               placement="bottom-start"
               :show-after="250"
               popper-class="relay-channel-management__pool-members-tooltip"
