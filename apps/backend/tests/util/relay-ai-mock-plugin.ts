@@ -386,6 +386,7 @@ export class RelayAIMockPlugin {
     const [part1, part2] = this.splitContent(content);
 
     return {
+      // Kimi's Anthropic-compatible endpoint emits `data:{...}` without a space.
       streamChunks: [
         this.toSSEData({
           type: "message_start",
@@ -418,12 +419,14 @@ export class RelayAIMockPlugin {
           type: "message_delta",
           delta: { stop_reason: "end_turn", stop_sequence: null },
           usage: {
+            input_tokens: 0,
+            cache_read_input_tokens: this.usage.promptTokens,
             output_tokens: this.usage.completionTokens,
           },
         }),
         this.toSSEData({ type: "message_stop" }),
         "data: [DONE]\n\n",
-      ],
+      ].map((chunk) => (chunk.startsWith("data: ") ? `data:${chunk.slice(6)}` : chunk)),
     };
   }
 

@@ -361,6 +361,26 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     RELAY_LOG_PERSISTENCE_TEST_TIMEOUT_MS,
   );
 
+  it("OpenAI Responses 非流式中转返回 usage", async () => {
+    const beforeCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
+
+    const relayResponse = await request(app)
+      .post("/relay/proxy/v1/responses")
+      .set("Authorization", `Bearer ${openaiRelayTokenValue}`)
+      .send({ model: openaiRelayModelId, input: "请简短回复", max_output_tokens: 16 });
+
+    expect(relayResponse.status).toBe(200);
+    expect(relayResponse.body?.object).toBe("response");
+    expect(relayResponse.body?.usage).toEqual(
+      expect.objectContaining({ input_tokens: 12, output_tokens: 9, total_tokens: 21 }),
+    );
+
+    const usage = await getLatestUsage(openaiRelayTokenId, beforeCount + 1);
+    expect(usage).toEqual(
+      expect.objectContaining({ isStreaming: false, requestTokens: 12, responseTokens: 9, totalTokens: 21 }),
+    );
+  });
+
   it("relay /v1/usage 返回的 legacy 汇总应包含实际聚合消费金额", async () => {
     const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
     const beforeTransactionCount = await prisma.balanceTransaction.count({ where: { userId: testUserId } });
@@ -924,6 +944,24 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     RELAY_LOG_PERSISTENCE_TEST_TIMEOUT_MS,
   );
 
+  it("OpenAI Responses 流式 response.completed 记录 usage", async () => {
+    const beforeCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
+
+    const relayResponse = await request(app)
+      .post("/relay/proxy/v1/responses")
+      .set("Authorization", `Bearer ${openaiRelayTokenValue}`)
+      .send({ model: openaiRelayModelId, input: "请流式简短回复", max_output_tokens: 16, stream: true });
+
+    expect(relayResponse.status).toBe(200);
+    expect(String(relayResponse.headers["content-type"] || "")).toContain("text/event-stream");
+    expect(relayResponse.text).toContain("response.completed");
+
+    const usage = await getLatestUsage(openaiRelayTokenId, beforeCount + 1);
+    expect(usage).toEqual(
+      expect.objectContaining({ isStreaming: true, requestTokens: 12, responseTokens: 9, totalTokens: 21 }),
+    );
+  });
+
   it("OpenAI 流式上游错误会记录 usage 和 0 元消费流水，但不扣减余额", async () => {
     const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
     const beforeTransactionCount = await prisma.balanceTransaction.count({ where: { userId: testUserId } });
@@ -1438,12 +1476,13 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     expect(relayResponse.status).toBe(200);
     expect(String(relayResponse.headers["content-type"] || "")).toContain("text/event-stream");
     expect(relayResponse.text).toContain("message_start");
-    expect(relayResponse.text).toContain("data: [DONE]");
+    expect(relayResponse.text).toContain("data:[DONE]");
 
     const usage = await getLatestUsage(anthropicRelayTokenId, beforeCount + 1);
     expect(usage?.isStreaming).toBe(true);
-    expect(usage?.requestTokens ?? 0).toBeGreaterThan(0);
-    expect(usage?.responseTokens ?? 0).toBeGreaterThan(0);
+    expect(usage).toEqual(
+      expect.objectContaining({ requestTokens: 0, responseTokens: 9, totalTokens: 9, cacheReadTokens: 12 }),
+    );
   });
 
   it("Gemini 非流式 generateContent 请求成功并记录 usage", async () => {

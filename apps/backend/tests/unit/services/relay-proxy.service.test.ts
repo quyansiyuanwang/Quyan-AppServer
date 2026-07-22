@@ -1402,6 +1402,108 @@ describe("RelayProxyService failover", () => {
     }
   });
 
+  it("retries an auto-injected OpenAI stream usage option once after a 400 response", async () => {
+    const relayToken = createRelayToken();
+    const { service, usageChargeService, relayProxyRepository } = createService();
+    const req = new EventEmitter() as any;
+    req.method = "POST";
+    req.path = "/relay/proxy/v1/chat/completions";
+    req.ip = "127.0.0.1";
+    req.connection = { remoteAddress: "127.0.0.1" };
+
+    const res = {
+      headersSent: false,
+      writableEnded: false,
+      finished: false,
+      writeHead: vi.fn(() => {
+        res.headersSent = true;
+      }),
+      write: vi.fn(),
+      end: vi.fn(() => {
+        res.finished = true;
+        res.writableEnded = true;
+      }),
+    };
+
+    const forwardedBodies: any[] = [];
+    let attempt = 0;
+    const requestSpy = vi.spyOn(http, "request").mockImplementation((_options: any, callback: any) => {
+      const proxyReq = new EventEmitter() as any;
+      proxyReq.write = vi.fn((body: Buffer) => forwardedBodies.push(JSON.parse(body.toString("utf8"))));
+      proxyReq.end = vi.fn(() => {
+        const proxyRes = new EventEmitter() as any;
+        proxyRes.headers = { "content-type": attempt === 0 ? "application/json" : "text/event-stream" };
+        proxyRes.statusCode = attempt === 0 ? 400 : 200;
+        attempt += 1;
+        callback(proxyRes);
+        if (proxyRes.statusCode === 400) {
+          proxyRes.emit("data", Buffer.from(JSON.stringify({ error: { message: "stream_options unsupported" } })));
+          proxyRes.emit("end");
+          return;
+        }
+        proxyRes.emit(
+          "data",
+          Buffer.from('data: {"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}\n\n'),
+        );
+        proxyRes.emit("data", Buffer.from("data: [DONE]\n\n"));
+        proxyRes.emit("end");
+      });
+      proxyReq.destroy = vi.fn((err?: Error) => {
+        if (err) proxyReq.emit("error", err);
+      });
+      return proxyReq;
+    });
+
+    try {
+      const result = await (service as any).forwardStreamRequest(
+        relayToken,
+        req,
+        res,
+        "http://primary.example.com/v1/chat/completions",
+        { Authorization: "Bearer test-key" },
+        {
+          pricingType: "token-based",
+          input: 0.000001,
+          output: 0.000002,
+          multiplier: 1,
+          cacheCreationMultiplier: 1.25,
+          cacheReadMultiplier: 0.1,
+        },
+        "gpt-4o-mini",
+        "gpt-4o-mini",
+        1,
+        1,
+        { model: "gpt-4o-mini", stream: true, stream_options: { include_usage: true } },
+        "openai",
+        1,
+        1,
+        "channel-primary",
+        "channel-primary",
+        "Primary",
+        "channel-primary",
+        new Date("2026-01-01T00:00:00.000Z"),
+        30000,
+        false,
+        [],
+        true,
+        undefined,
+        true,
+      );
+
+      expect(result).toEqual(expect.objectContaining({ handled: true, success: true, statusCode: 200 }));
+      expect(forwardedBodies).toEqual([
+        { model: "gpt-4o-mini", stream: true, stream_options: { include_usage: true } },
+        { model: "gpt-4o-mini", stream: true },
+      ]);
+      expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ requestTokens: 10, responseTokens: 5, totalTokens: 15 }),
+      );
+      expect(relayProxyRepository.recordUsageWithZeroChargeTransaction).not.toHaveBeenCalled();
+    } finally {
+      requestSpy.mockRestore();
+    }
+  });
+
   it("does not charge when upstream streaming response is an error", async () => {
     const relayToken = createRelayToken();
     const req = createRequest({
@@ -1842,6 +1944,64 @@ describe("RelayProxyService failover", () => {
 
     expect(result.responseTokens).toBe(9);
     expect(result.totalTokens).toBe(result.requestTokens + 9);
+  });
+
+  it("injects OpenAI Chat stream usage without changing explicit caller options", () => {
+    const { service } = createService();
+
+    const injected = (service as any).addOpenAIStreamUsageOption(
+      { model: "gpt-4o-mini", stream: true, stream_options: { include_logprobs: true } },
+      "openai",
+      "/relay/proxy/v1/chat/completions",
+    );
+    expect(injected).toEqual({
+      autoInjected: true,
+      body: {
+        model: "gpt-4o-mini",
+        stream: true,
+        stream_options: { include_logprobs: true, include_usage: true },
+      },
+    });
+
+    const explicit = (service as any).addOpenAIStreamUsageOption(
+      { model: "gpt-4o-mini", stream: true, stream_options: { include_usage: false } },
+      "openai",
+      "/relay/proxy/v1/chat/completions",
+    );
+    expect(explicit.autoInjected).toBe(false);
+    expect(explicit.body.stream_options).toEqual({ include_usage: false });
+
+    const responses = (service as any).addOpenAIStreamUsageOption(
+      { model: "gpt-4o-mini", stream: true },
+      "openai",
+      "/relay/proxy/v1/responses",
+    );
+    expect(responses).toEqual({ autoInjected: false, body: { model: "gpt-4o-mini", stream: true } });
+  });
+
+  it("does not estimate uncached input when upstream explicitly reports zero input tokens", () => {
+    const { service } = createService();
+
+    const result = service.calculateTokens(
+      { model: "kimi-k3", messages: [{ role: "user", content: "Reply exactly: ok" }] },
+      {
+        usage: {
+          input_tokens: 0,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 90,
+          output_tokens: 16,
+        },
+      },
+      true,
+    );
+
+    expect(result).toEqual({
+      requestTokens: 0,
+      responseTokens: 16,
+      totalTokens: 16,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 90,
+    });
   });
 
   describe("calculateCost with pre-processed requestTokens", () => {
