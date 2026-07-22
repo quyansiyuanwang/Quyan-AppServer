@@ -310,7 +310,10 @@
                 />
               </el-form-item>
 
-              <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
+              <el-form-item
+                v-if="editForm.routingMode === 'ordered'"
+                :class="isDesktop ? 'form-item-span-2' : undefined"
+              >
                 <template #label>
                   <span class="form-label-with-help">
                     <span>{{ i18ns.t('relay.failoverSettings') }}</span>

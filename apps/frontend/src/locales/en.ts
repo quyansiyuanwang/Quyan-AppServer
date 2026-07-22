@@ -2227,6 +2227,8 @@ export default {
     poolMemberPriority: 'Priority',
     poolMemberWeight: 'Weight',
     poolMemberEnabled: 'Member Enabled',
+    poolMemberChannelDisabled: 'Channel disabled',
+    poolMembersLoading: 'Loading members...',
     poolMemberCount: 'members',
     noPoolMembers: 'No members',
     poolMembersRequired: 'A pooled channel must contain at least one member channel',

@@ -543,6 +543,40 @@ describe('RelayTokenManagementView', () => {
     expect(wrapper.text()).not.toContain('无渠道')
   })
 
+  it('hides failover settings in automatic pool mode and preserves them when switching back', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openEditDialog(relayToken)
+    vm.editForm.channelConfigs = [
+      { channelId: 'channel-primary', priority: 0 },
+      { channelId: 'channel-secondary', priority: 1 },
+    ]
+    vm.editForm.failoverConfig.enabled = true
+    vm.editForm.failoverConfig.maxRetries = 0
+    await flushPromises()
+
+    expect(wrapper.find('.failover-config-editor').exists()).toBe(true)
+    expect(wrapper.find('.failover-risk-alert').exists()).toBe(true)
+
+    vm.editForm.routingMode = 'automatic-pool'
+    await flushPromises()
+
+    expect(wrapper.find('.failover-config-editor').exists()).toBe(false)
+    expect(wrapper.find('.failover-risk-alert').exists()).toBe(false)
+
+    vm.editForm.routingMode = 'ordered'
+    await flushPromises()
+
+    expect(wrapper.find('.failover-config-editor').exists()).toBe(true)
+    expect(vm.editForm.failoverConfig).toMatchObject({
+      enabled: true,
+      maxRetries: 0,
+      retryStatusCodes: ['4xx', '/^5(02|03)$/'],
+    })
+  })
+
   it('renders amount quota windows with remaining usage details', async () => {
     getRelayTokensMock.mockResolvedValue({
       items: [
