@@ -53,7 +53,7 @@ import { computeMultiplierForTime, type TimePeriodRule } from "./time-period-mul
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
 import { trackErrorForIp } from "@/middleware/error-tracker";
-import { extractTokenUsageMetrics, normalizeTokenBreakdown } from "@/util/token-usage.util";
+import { extractTokenUsageMetrics, hasTokenValue, normalizeTokenBreakdown } from "@/util/token-usage.util";
 import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";
 import { resolveMappedModel } from "@/util/model-mapping.util";
 import {
@@ -929,6 +929,56 @@ export class RelayProxyService {
     const clonedBody = Array.isArray(requestBody) ? [...requestBody] : { ...requestBody };
     if (requestFormat !== "gemini" || "model" in clonedBody) clonedBody.model = upstreamModelId;
     return clonedBody;
+  }
+
+  private isOpenAIChatCompletionsPath(requestPath: string): boolean {
+    const normalizedPath = requestPath.replace(/^\/relay\/proxy/, "");
+    return /^\/(?:v\d+(?:beta)?\/)?chat\/completions(?:\/|$)/.test(normalizedPath);
+  }
+
+  private addOpenAIStreamUsageOption(
+    requestBody: any,
+    requestFormat: "openai" | "anthropic" | "gemini",
+    requestPath: string,
+  ): { body: any; autoInjected: boolean } {
+    if (
+      requestFormat !== "openai" ||
+      !this.isOpenAIChatCompletionsPath(requestPath) ||
+      !requestBody ||
+      typeof requestBody !== "object" ||
+      Buffer.isBuffer(requestBody) ||
+      requestBody.stream !== true
+    )
+      return { body: requestBody, autoInjected: false };
+
+    const streamOptions = requestBody.stream_options;
+    if (
+      streamOptions !== undefined &&
+      (!streamOptions || typeof streamOptions !== "object" || Array.isArray(streamOptions))
+    )
+      return { body: requestBody, autoInjected: false };
+
+    if (streamOptions && Object.prototype.hasOwnProperty.call(streamOptions, "include_usage"))
+      return { body: requestBody, autoInjected: false };
+
+    return {
+      body: {
+        ...requestBody,
+        stream_options: { ...(streamOptions || {}), include_usage: true },
+      },
+      autoInjected: true,
+    };
+  }
+
+  private removeAutoInjectedOpenAIStreamUsageOption(requestBody: any): any {
+    const streamOptions = requestBody?.stream_options;
+    if (!streamOptions || typeof streamOptions !== "object" || Array.isArray(streamOptions)) return requestBody;
+
+    const { include_usage: _includeUsage, ...remainingStreamOptions } = streamOptions;
+    const body = { ...requestBody };
+    if (Object.keys(remainingStreamOptions).length === 0) delete body.stream_options;
+    else body.stream_options = remainingStreamOptions;
+    return body;
   }
 
   private static getConcurrencyKey(userId: string, scope: RelayConcurrencyScope) {
@@ -2542,7 +2592,9 @@ export class RelayProxyService {
               headers["anthropic-version"] = "2023-06-01";
             }
 
-            const convertedBody = this.buildForwardBody(req.body, requestFormat, selectedModelId);
+            const forwardedBody = this.buildForwardBody(req.body, requestFormat, selectedModelId);
+            const { body: convertedBody, autoInjected: autoInjectedStreamUsageOption } =
+              this.addOpenAIStreamUsageOption(forwardedBody, requestFormat, req.path);
 
             const toolsWithCache = convertedBody?.tools?.filter((t: any) => t.cache_control).length || 0;
             const messagesWithCache = convertedBody?.messages?.filter((m: any) => m.cache_control).length || 0;
@@ -2589,6 +2641,7 @@ export class RelayProxyService {
                 failoverConfig.retryStatusCodes,
                 channel.inputTokensIncludeCacheRead !== false,
                 relayOriginalRequestedModel,
+                autoInjectedStreamUsageOption,
               );
 
               if (!streamResult.handled && hasNextChannel) {
@@ -3228,6 +3281,8 @@ export class RelayProxyService {
       const hasUsageTokens = usage.totalTokens > 0 || usage.inputTokens > 0 || usage.outputTokens > 0;
 
       if (hasUsageTokens) {
+        const hasExplicitInputTokens =
+          hasTokenValue(resBody.usage.prompt_tokens) || hasTokenValue(resBody.usage.input_tokens);
         // Process requestTokens to always represent billing-ready value
         const processedInputTokens = inputTokensIncludeCacheRead
           ? Math.max(0, usage.inputTokens - usage.cacheReadTokens)
@@ -3237,7 +3292,7 @@ export class RelayProxyService {
           processedInputTokens,
           usage.outputTokens,
           usage.totalTokens,
-          requestTokens,
+          hasExplicitInputTokens ? 0 : requestTokens,
         );
 
         return {
@@ -3313,6 +3368,7 @@ export class RelayProxyService {
     retryStatusCodes: string[] = [],
     inputTokensIncludeCacheRead: boolean = true,
     originalRequestedModel?: string,
+    autoInjectedStreamUsageOption: boolean = false,
   ): Promise<StreamForwardResult> {
     const url = new URL(upstreamUrl);
     const isHttps = url.protocol === "https:";
@@ -3327,6 +3383,27 @@ export class RelayProxyService {
     let totalTokens = 0;
     let cacheCreationTokens = 0;
     let cacheReadTokens = 0;
+    let hasExplicitStreamInputTokens = false;
+
+    const applyUsage = (usagePayload: unknown) => {
+      if (!usagePayload || typeof usagePayload !== "object") return;
+
+      const usageData = usagePayload as Record<string, unknown>;
+      const usage = extractTokenUsageMetrics(usageData);
+      const hasInputTokens = hasTokenValue(usageData.prompt_tokens) || hasTokenValue(usageData.input_tokens);
+      const hasOutputTokens = hasTokenValue(usageData.completion_tokens) || hasTokenValue(usageData.output_tokens);
+
+      if (usage.totalTokens > 0) totalTokens = usage.totalTokens;
+      if (hasOutputTokens) responseTokens = usage.outputTokens;
+      if (usage.cacheCreationTokens > 0) cacheCreationTokens = usage.cacheCreationTokens;
+      if (usage.cacheReadTokens > 0) cacheReadTokens = usage.cacheReadTokens;
+      if (hasInputTokens) {
+        hasExplicitStreamInputTokens = true;
+        requestTokens = inputTokensIncludeCacheRead
+          ? Math.max(0, usage.inputTokens - usage.cacheReadTokens)
+          : usage.inputTokens;
+      }
+    };
 
     const cleanHeaders = { ...headers };
     delete cleanHeaders["host"];
@@ -3384,6 +3461,40 @@ export class RelayProxyService {
 
             proxyRes.on("end", async () => {
               streamCompleted = true;
+
+              if (autoInjectedStreamUsageOption && !res.headersSent && [400, 422].includes(streamStatusCode)) {
+                const retryBody = this.removeAutoInjectedOpenAIStreamUsageOption(convertedBody);
+                resolve(
+                  await this.forwardStreamRequest(
+                    relayToken,
+                    req,
+                    res,
+                    upstreamUrl,
+                    headers,
+                    selectedModelRate,
+                    selectedModelName,
+                    selectedModelId,
+                    globalMultiplier,
+                    timeMultiplier,
+                    retryBody,
+                    requestFormat,
+                    relayGlobalMultiplier,
+                    channelMultiplier,
+                    executionChannelId,
+                    displayChannelId,
+                    displayChannelName,
+                    channelId,
+                    monthlyPassCoverageAt,
+                    upstreamStreamTimeout,
+                    allowRetryBeforeResponse,
+                    retryStatusCodes,
+                    inputTokensIncludeCacheRead,
+                    originalRequestedModel,
+                    false,
+                  ),
+                );
+                return;
+              }
 
               // Error tracking
               try {
@@ -3568,52 +3679,17 @@ export class RelayProxyService {
               const trimmedLine = line.trim();
               if (!trimmedLine) continue;
 
-              // Handle SSE format (OpenAI/Anthropic): "data: {...}"
-              if (trimmedLine.startsWith("data: ")) {
-                const data = trimmedLine.slice(6);
+              // SSE permits optional whitespace after the field separator.
+              if (trimmedLine.startsWith("data:")) {
+                const data = trimmedLine.slice("data:".length).trimStart();
                 if (data === "[DONE]") continue;
 
                 try {
                   const json = JSON.parse(data);
-                  // Extract usage information
-                  // Anthropic message_start: input tokens are in json.message.usage
-                  if (json.type === "message_start" && json.message?.usage) {
-                    const usage = extractTokenUsageMetrics(json.message.usage);
-                    if (usage.cacheCreationTokens > 0) cacheCreationTokens = usage.cacheCreationTokens;
-                    if (usage.cacheReadTokens > 0) cacheReadTokens = usage.cacheReadTokens;
-                    if (usage.inputTokens > 0)
-                      // Process requestTokens to always represent billing-ready value
-                      requestTokens = inputTokensIncludeCacheRead
-                        ? Math.max(0, usage.inputTokens - usage.cacheReadTokens)
-                        : usage.inputTokens;
-                  }
-                  // OpenAI usage chunk or Anthropic message_delta usage
-                  if (json.usage) {
-                    const usage = extractTokenUsageMetrics(json.usage);
-                    if (usage.totalTokens > 0) totalTokens = usage.totalTokens;
-                    if (usage.outputTokens > 0) responseTokens = usage.outputTokens;
-                    if (usage.cacheCreationTokens > 0) cacheCreationTokens = usage.cacheCreationTokens;
-                    if (usage.cacheReadTokens > 0) cacheReadTokens = usage.cacheReadTokens;
-                    if (usage.inputTokens > 0)
-                      // Process requestTokens to always represent billing-ready value
-                      requestTokens = inputTokensIncludeCacheRead
-                        ? Math.max(0, usage.inputTokens - usage.cacheReadTokens)
-                        : usage.inputTokens;
-                  }
-
-                  // Codex response.completed format
-                  if (json.type === "response.completed" && json.response?.usage) {
-                    const usage = extractTokenUsageMetrics(json.response.usage);
-                    if (usage.totalTokens > 0) totalTokens = usage.totalTokens;
-                    if (usage.outputTokens > 0) responseTokens = usage.outputTokens;
-                    if (usage.cacheCreationTokens > 0) cacheCreationTokens = usage.cacheCreationTokens;
-                    if (usage.cacheReadTokens > 0) cacheReadTokens = usage.cacheReadTokens;
-                    if (usage.inputTokens > 0)
-                      // Process requestTokens to always represent billing-ready value
-                      requestTokens = inputTokensIncludeCacheRead
-                        ? Math.max(0, usage.inputTokens - usage.cacheReadTokens)
-                        : usage.inputTokens;
-                  }
+                  // Anthropic may expose usage on message_start, message_stop, or other message events.
+                  applyUsage(json.message?.usage);
+                  applyUsage(json.usage);
+                  applyUsage(json.response?.usage);
                 } catch {
                   // Ignore JSON parse errors
                 }
@@ -3646,7 +3722,7 @@ export class RelayProxyService {
               requestTokens,
               responseTokens,
               totalTokens,
-              estimatedRequestTokens,
+              hasExplicitStreamInputTokens ? 0 : estimatedRequestTokens,
             );
             requestTokens = normalizedStreamTokens.requestTokens;
             responseTokens = normalizedStreamTokens.responseTokens;
