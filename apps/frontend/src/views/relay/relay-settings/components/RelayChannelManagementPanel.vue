@@ -115,7 +115,12 @@
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.channelMultiplier')" width="112" align="right">
           <template #default="{ row }">
-            <span class="relay-channel-management__multiplier">{{ row.multiplier }}x</span>
+            <span
+              v-if="row.channelType !== 'automatic-proxy-pool'"
+              class="relay-channel-management__multiplier"
+              >{{ row.multiplier }}x</span
+            >
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('status')" width="96">
@@ -131,9 +136,77 @@
           }}</template>
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.poolMembers')" width="100" align="center">
-          <template #default="{ row }">{{
-            row.channelType === 'standalone' ? '-' : row.poolMemberCount
-          }}</template>
+          <template #default="{ row }">
+            <span v-if="row.channelType === 'standalone'">-</span>
+            <el-tooltip
+              v-else
+              placement="bottom-start"
+              :show-after="250"
+              popper-class="relay-channel-management__pool-members-tooltip"
+              @show="loadPoolMemberTooltip(row)"
+            >
+              <template #content>
+                <div class="relay-channel-management__pool-members-tooltip-content">
+                  <div class="relay-channel-management__pool-members-tooltip-title">
+                    {{ i18ns.t('relay.poolMembers') }}
+                  </div>
+                  <div
+                    v-if="poolMemberTooltipLoadingIds.includes(row.id)"
+                    class="relay-channel-management__pool-members-tooltip-state"
+                  >
+                    {{ i18ns.t('relay.poolMembersLoading') }}
+                  </div>
+                  <div
+                    v-else-if="poolMemberTooltipDetails[row.id] === null"
+                    class="relay-channel-management__pool-members-tooltip-state"
+                  >
+                    {{ i18ns.t('loadFailed') }}
+                  </div>
+                  <template v-else-if="poolMemberTooltipDetails[row.id]">
+                    <div
+                      v-for="member in poolMemberTooltipDetails[row.id]?.poolMembers || []"
+                      :key="member.memberChannelId"
+                      class="relay-channel-management__pool-members-tooltip-row"
+                    >
+                      <span
+                        class="relay-channel-management__pool-members-tooltip-name"
+                        :title="member.memberChannelName || member.memberChannelId"
+                        >{{ member.memberChannelName || member.memberChannelId }}</span
+                      >
+                      <span class="relay-channel-management__pool-members-tooltip-metrics">
+                        #{{ member.priority }} · w={{ member.weight ?? 1 }}
+                      </span>
+                      <div class="relay-channel-management__pool-members-tooltip-tags">
+                        <el-tag size="small" :type="member.enabled === false ? 'info' : 'success'">
+                          {{
+                            member.enabled === false
+                              ? i18ns.t('relay.disabled')
+                              : i18ns.t('relay.enabled')
+                          }}
+                        </el-tag>
+                        <el-tag
+                          v-if="member.memberChannelEnabled === false"
+                          size="small"
+                          type="danger"
+                        >
+                          {{ i18ns.t('relay.poolMemberChannelDisabled') }}
+                        </el-tag>
+                      </div>
+                    </div>
+                    <div
+                      v-if="!(poolMemberTooltipDetails[row.id]?.poolMembers || []).length"
+                      class="relay-channel-management__pool-members-tooltip-state"
+                    >
+                      {{ i18ns.t('relay.noPoolMembers') }}
+                    </div>
+                  </template>
+                </div>
+              </template>
+              <span class="relay-channel-management__pool-members-trigger">
+                {{ row.poolMemberCount }} {{ i18ns.t('relay.poolMemberCount') }}
+              </span>
+            </el-tooltip>
+          </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.updateTime')" width="170">
           <template #default="{ row }">{{ new Date(row.updateTime).toLocaleString() }}</template>
@@ -180,6 +253,10 @@
         :key="row.id"
         type="button"
         class="relay-channel-management__mobile-row"
+        :class="{
+          'relay-channel-management__mobile-row--automatic':
+            row.channelType === 'automatic-proxy-pool',
+        }"
         @click="openChannelDetailDialog(row)"
       >
         <el-checkbox
@@ -188,7 +265,11 @@
           @change="toggleChannelSelection(row.id, $event)"
         />
         <span class="relay-channel-management__mobile-name">{{ row.name }}</span>
-        <span class="relay-channel-management__mobile-multiplier">{{ row.multiplier }}x</span>
+        <span
+          v-if="row.channelType !== 'automatic-proxy-pool'"
+          class="relay-channel-management__mobile-multiplier"
+          >{{ row.multiplier }}x</span
+        >
         <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
           row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
         }}</el-tag>
@@ -224,6 +305,8 @@ const {
   channelLoading,
   channelExporting,
   togglingChannelId,
+  poolMemberTooltipDetails,
+  poolMemberTooltipLoadingIds,
   channelRows,
   channelFilters,
   channelPagination,
@@ -237,6 +320,7 @@ const {
   setChannelKeyword,
   updateChannelFilters,
   updateChannelPagination,
+  loadPoolMemberTooltip,
   formatChannelTypeLabel,
   formatVisibilityModeLabel,
   openCreateChannelDialog,

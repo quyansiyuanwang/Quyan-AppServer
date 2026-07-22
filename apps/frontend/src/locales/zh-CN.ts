@@ -2160,6 +2160,8 @@ const zhCN: DeepStringify<typeof en> = {
     poolMemberPriority: '优先级',
     poolMemberWeight: '权重',
     poolMemberEnabled: '启用成员',
+    poolMemberChannelDisabled: '渠道已禁用',
+    poolMembersLoading: '正在加载成员...',
     poolMemberCount: '个成员',
     noPoolMembers: '无成员',
     poolMembersRequired: '混池渠道至少需要一个成员渠道',

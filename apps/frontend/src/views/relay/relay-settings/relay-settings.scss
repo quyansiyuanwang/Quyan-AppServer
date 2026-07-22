@@ -318,6 +318,57 @@
   white-space: nowrap;
 }
 
+.relay-channel-management__pool-members-trigger {
+  cursor: help;
+  text-decoration: underline dotted var(--el-text-color-secondary);
+  text-underline-offset: 3px;
+}
+
+.relay-channel-management__pool-members-tooltip-content {
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(360px, calc(100vh - 140px));
+  overflow-y: auto;
+}
+
+.relay-channel-management__pool-members-tooltip-title {
+  margin-bottom: 8px;
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+}
+
+.relay-channel-management__pool-members-tooltip-state {
+  padding: 6px 0;
+  color: var(--el-text-color-secondary);
+}
+
+.relay-channel-management__pool-members-tooltip-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.relay-channel-management__pool-members-tooltip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relay-channel-management__pool-members-tooltip-metrics {
+  color: var(--el-text-color-secondary);
+  font-family: var(--el-font-family-mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.relay-channel-management__pool-members-tooltip-tags {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .relay-channel-management__mobile-list {
   display: flex;
   flex-direction: column;
@@ -337,6 +388,10 @@
   background: transparent;
   color: var(--el-text-color-primary);
   text-align: left;
+}
+
+.relay-channel-management__mobile-row--automatic {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
 }
 
 .relay-channel-management__mobile-name {
@@ -387,6 +442,11 @@
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
+.relay-pool-member-row.is-unavailable {
+  background: var(--el-color-danger-light-9);
+  box-shadow: inset 3px 0 0 var(--el-color-danger);
+}
+
 .relay-pool-member-row__drag {
   cursor: grab;
   color: var(--el-text-color-secondary);
@@ -398,9 +458,23 @@
 }
 
 .relay-pool-member-row__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
+  min-width: 0;
+}
+
+.relay-pool-member-row__name-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--el-text-color-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.relay-pool-member-row.is-unavailable .relay-pool-member-row__name-label {
+  color: var(--el-color-danger-dark-2);
 }
 
 .relay-channel-editor-drawer .el-drawer__body {
