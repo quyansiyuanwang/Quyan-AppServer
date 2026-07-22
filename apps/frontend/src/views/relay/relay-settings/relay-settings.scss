@@ -310,6 +310,14 @@
   font-weight: 600;
 }
 
+.relay-channel-management__multiplier,
+.relay-channel-management__mobile-multiplier {
+  color: var(--el-color-warning-dark-2);
+  font-family: var(--el-font-family-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .relay-channel-management__mobile-list {
   display: flex;
   flex-direction: column;
@@ -318,7 +326,7 @@
 
 .relay-channel-management__mobile-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   gap: 10px;
   align-items: center;
   width: 100%;
@@ -397,6 +405,17 @@
 
 .relay-channel-editor-drawer .el-drawer__body {
   overflow: auto;
+}
+
+.relay-channel-editor-drawer .el-drawer__footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.relay-channel-editor-drawer__footer {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
 }
 
 @media (max-width: 767px) {

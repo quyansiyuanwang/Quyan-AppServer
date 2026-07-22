@@ -548,10 +548,12 @@
       </template>
     </el-form>
     <template #footer>
-      <el-button @click="showChannelDialog = false">{{ i18ns.t('cancel') }}</el-button>
-      <el-button type="primary" :loading="channelSaving" @click="handleSaveChannel">
-        {{ i18ns.t('confirm') }}
-      </el-button>
+      <div class="relay-channel-editor-drawer__footer">
+        <el-button @click="showChannelDialog = false">{{ i18ns.t('cancel') }}</el-button>
+        <el-button type="primary" :loading="channelSaving" @click="handleSaveChannel">
+          {{ i18ns.t('save') }}
+        </el-button>
+      </div>
     </template>
   </el-drawer>
 
