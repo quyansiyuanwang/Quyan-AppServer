@@ -1,5 +1,5 @@
 <template>
-  <div :class="isDesktop ? 'desktop-page' : 'mobile-page'">
+  <div :class="[isDesktop ? 'desktop-page' : 'mobile-page', 'json-endpoint-management-page']">
     <div class="json-endpoint-management">
       <el-card class="page-card">
         <template #header>
@@ -28,15 +28,10 @@
                 :any-require="[Permission.JSON_ENDPOINT_CREATE, Permission.JSON_ENDPOINT_MANAGE]"
               >
                 <el-button type="primary" @click="handleCreate">
-                  <el-icon><Plus /></el-icon>
                   {{ i18ns.t('jsonEndpoint.create') }}
                 </el-button>
               </PermissionWrapper>
-              <el-tooltip :content="i18ns.t('refresh')">
-                <el-button circle @click="loadEndpoints">
-                  <el-icon><Refresh /></el-icon>
-                </el-button>
-              </el-tooltip>
+              <el-button @click="loadEndpoints">{{ i18ns.t('refresh') }}</el-button>
             </div>
           </section>
         </template>
@@ -72,11 +67,7 @@
                 <el-link type="primary" @click="openUrl(absoluteUrl(row.publicUrl))">
                   {{ absoluteUrl(row.publicUrl) }}
                 </el-link>
-                <el-tooltip :content="i18ns.t('copy')">
-                  <el-button text circle @click="copyUrl(row.publicUrl)">
-                    <el-icon><CopyDocument /></el-icon>
-                  </el-button>
-                </el-tooltip>
+                <el-button text @click="copyUrl(row.publicUrl)">{{ i18ns.t('copy') }}</el-button>
               </div>
             </template>
           </el-table-column>
@@ -89,28 +80,17 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column :label="i18ns.t('actions')" width="120" fixed="right">
+          <el-table-column :label="i18ns.t('actions')" min-width="220" fixed="right">
             <template #default="{ row }">
-              <el-tooltip :content="i18ns.t('edit')">
-                <el-button text circle @click="handleEdit(row)">
-                  <el-icon><EditPen /></el-icon>
+              <div class="json-endpoint-page__actions">
+                <el-button text @click="handleViewJson(row)">
+                  {{ i18ns.t('jsonEndpoint.viewJson') }}
                 </el-button>
-              </el-tooltip>
-              <el-dropdown @command="handleRowCommand($event, row)">
-                <el-button text circle>
-                  <el-icon><MoreFilled /></el-icon>
+                <el-button text @click="handleEdit(row)">{{ i18ns.t('edit') }}</el-button>
+                <el-button text type="danger" @click="handleDelete(row)">
+                  {{ i18ns.t('delete') }}
                 </el-button>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item command="view">
-                      {{ i18ns.t('jsonEndpoint.viewJson') }}
-                    </el-dropdown-item>
-                    <el-dropdown-item divided command="delete">
-                      {{ i18ns.t('delete') }}
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -267,16 +247,13 @@
                             <small>SPKI PEM</small>
                           </div>
                           <div class="json-endpoint-key-editor__actions">
-                            <el-tooltip :content="i18ns.t('jsonEndpoint.generateKeyPair')">
-                              <el-button
-                                text
-                                circle
-                                :loading="generatingKeyPair"
-                                @click="generateEd25519KeyPair"
-                              >
-                                <el-icon><RefreshRight /></el-icon>
-                              </el-button>
-                            </el-tooltip>
+                            <el-button
+                              text
+                              :loading="generatingKeyPair"
+                              @click="generateEd25519KeyPair"
+                            >
+                              {{ i18ns.t('jsonEndpoint.generateKeyPair') }}
+                            </el-button>
                             <el-tag size="small" effect="plain">Ed25519</el-tag>
                           </div>
                         </div>
@@ -369,10 +346,10 @@
         <el-input v-model="generatedPrivateKey" type="textarea" :rows="9" readonly />
         <template #footer>
           <el-button :disabled="!generatedPrivateKey" @click="copyText(generatedPrivateKey)">
-            <el-icon><CopyDocument /></el-icon>{{ i18ns.t('copy') }}
+            {{ i18ns.t('copy') }}
           </el-button>
           <el-button type="primary" :disabled="!generatedPrivateKey" @click="downloadPrivateKey">
-            <el-icon><Download /></el-icon>{{ i18ns.t('jsonEndpoint.downloadPrivateKey') }}
+            {{ i18ns.t('jsonEndpoint.downloadPrivateKey') }}
           </el-button>
         </template>
       </el-dialog>
@@ -382,19 +359,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import {
-  ArrowRight,
-  CopyDocument,
-  Document,
-  Download,
-  EditPen,
-  Key,
-  Lock,
-  MoreFilled,
-  Plus,
-  Refresh,
-  RefreshRight,
-} from '@element-plus/icons-vue'
+import { ArrowRight, Document, Key, Lock } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { JsonEndpointDto } from '@/client/types.gen'
@@ -579,10 +544,6 @@ async function handleDelete(row: JsonEndpointDto) {
     if (error !== 'cancel') ElMessage.error(error.message || i18ns.t('deleteFailed'))
   }
 }
-function handleRowCommand(command: string, row: JsonEndpointDto) {
-  if (command === 'view') handleViewJson(row)
-  if (command === 'delete') void handleDelete(row)
-}
 async function handleSubmit() {
   if (!formRef.value) return
   try {
@@ -673,6 +634,13 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.json-endpoint-management-page,
+.json-endpoint-management,
+.json-endpoint-management > .page-card {
+  width: 100%;
+  min-width: 0;
+}
+
 .json-endpoint-management .card-header {
   display: flex;
   align-items: center;
@@ -682,7 +650,8 @@ onMounted(async () => {
 
 .json-endpoint-page__heading,
 .json-endpoint-page__toolbar-actions,
-.json-endpoint-page__url {
+.json-endpoint-page__url,
+.json-endpoint-page__actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -700,6 +669,11 @@ onMounted(async () => {
 
 .json-endpoint-page__table {
   width: 100%;
+}
+
+.json-endpoint-page__actions {
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .json-endpoint-page__url .el-link {

@@ -138,7 +138,7 @@
         <el-table-column :label="i18ns.t('relay.updateTime')" width="170">
           <template #default="{ row }">{{ new Date(row.updateTime).toLocaleString() }}</template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('actions')" width="260" fixed="right">
+        <el-table-column :label="i18ns.t('actions')" width="360" fixed="right">
           <template #default="{ row }">
             <el-button text @click="openChannelDetailDialog(row)">{{
               i18ns.t('button.viewDetails')
