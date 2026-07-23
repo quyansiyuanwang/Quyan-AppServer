@@ -143,6 +143,13 @@ export interface DeveloperPushChannelDto {
   updateTime: string;
 }
 
+export interface UpdateDeveloperPushChannelDto {
+  name?: string;
+  endpoint?: string;
+  secretAlias?: string | null;
+  enabled?: boolean;
+}
+
 export interface SendDeveloperPushDto {
   channelIds: string[];
   title: string;

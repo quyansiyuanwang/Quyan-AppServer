@@ -9,6 +9,7 @@ import type {
   CreateDeveloperStatusMonitorDto,
   SetKvValueDto,
   UpdateDeveloperStatusMonitorDto,
+  UpdateDeveloperPushChannelDto,
   UpdateShortLinkDto,
   UpsertDeveloperSecretDto,
 } from '@/client/types.gen'
@@ -156,6 +157,20 @@ export class DeveloperProjectService {
     return checkApiResult(
       await getDeveloperProjectApi().createPushChannel({ path: { projectId }, body: data }),
       true,
+    )
+  }
+
+  async updatePushChannel(projectId: string, id: string, data: UpdateDeveloperPushChannelDto) {
+    return checkApiResult(
+      await getDeveloperProjectApi().updatePushChannel({ path: { projectId, id }, body: data }),
+      true,
+    )
+  }
+
+  async deletePushChannel(projectId: string, id: string) {
+    return checkApiResult(
+      await getDeveloperProjectApi().deletePushChannel({ path: { projectId, id } }),
+      false,
     )
   }
 

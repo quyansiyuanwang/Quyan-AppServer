@@ -31,6 +31,7 @@ import type {
   DeveloperStatusMonitorDto,
   SetKvValueDto,
   UpdateDeveloperStatusMonitorDto,
+  UpdateDeveloperPushChannelDto,
   UpdateShortLinkDto,
   UpsertDeveloperSecretDto,
 } from "@/api/dto/developer/developer.dto";
@@ -46,6 +47,7 @@ import {
   setKvValueBodySchema,
   updateShortLinkBodySchema,
   updateStatusMonitorBodySchema,
+  updatePushChannelBodySchema,
   upsertSecretBodySchema,
 } from "@/api/schema/developer/developer.schema";
 
@@ -301,5 +303,32 @@ export class DeveloperProjectController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DeveloperPushChannelDto> {
     return this.service.createPushChannel(projectId, request.user!.userId, body);
+  }
+
+  @Put("{projectId}/push-channels/{id}")
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateParams(projectIdParamsSchema),
+    validateParams(idParamsSchema),
+    validateBody(updatePushChannelBodySchema),
+  )
+  public async updatePushChannel(
+    @Path() projectId: string,
+    @Path() id: string,
+    @Body() body: UpdateDeveloperPushChannelDto,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperPushChannelDto> {
+    return this.service.updatePushChannel(projectId, id, request.user!.userId, body);
+  }
+
+  @Delete("{projectId}/push-channels/{id}")
+  @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema), validateParams(idParamsSchema))
+  public async deletePushChannel(
+    @Path() projectId: string,
+    @Path() id: string,
+    @Request() request: TypedRequest,
+  ): Promise<{ success: true }> {
+    await this.service.deletePushChannel(projectId, id, request.user!.userId);
+    return { success: true };
   }
 }

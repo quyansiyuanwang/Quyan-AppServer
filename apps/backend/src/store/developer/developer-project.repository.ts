@@ -26,6 +26,7 @@ import type {
   SetKvValueDto,
   UpdateShortLinkDto,
   UpdateDeveloperStatusMonitorDto,
+  UpdateDeveloperPushChannelDto,
   UpsertDeveloperSecretDto,
   VerifyDeveloperCodeDto,
 } from "@/api/dto/developer/developer.dto";
@@ -764,6 +765,34 @@ export class DeveloperProjectRepository {
       orderBy: { createTime: "desc" },
     });
     return channels.map((channel) => this.pushChannelDto(channel));
+  }
+
+  async updatePushChannel(
+    projectId: string,
+    channelId: string,
+    userId: string,
+    body: UpdateDeveloperPushChannelDto,
+  ): Promise<DeveloperPushChannelDto> {
+    await this.assertProjectOwner(projectId, userId);
+    const existing = await prisma.developerPushChannel.findFirst({ where: { id: channelId, projectId } });
+    if (!existing) throw new NotFoundError("推送渠道不存在");
+    const endpoint = body.endpoint ? (await assertSafeOutboundUrl(body.endpoint)).toString() : undefined;
+    const channel = await prisma.developerPushChannel.update({
+      where: { id: channelId },
+      data: {
+        name: body.name,
+        endpoint,
+        secretAlias: body.secretAlias,
+        enabled: body.enabled,
+      },
+    });
+    return this.pushChannelDto(channel);
+  }
+
+  async deletePushChannel(projectId: string, channelId: string, userId: string): Promise<void> {
+    await this.assertProjectOwner(projectId, userId);
+    const result = await prisma.developerPushChannel.deleteMany({ where: { id: channelId, projectId } });
+    if (!result.count) throw new NotFoundError("推送渠道不存在");
   }
 
   async sendPush(projectId: string, body: SendDeveloperPushDto): Promise<DeveloperPushDeliveryDto[]> {

@@ -67,6 +67,12 @@ export const createPushChannelBodySchema = z.object({
   endpoint: z.string().url().max(2_000),
   secretAlias: z.string().trim().regex(alias).optional(),
 });
+export const updatePushChannelBodySchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  endpoint: z.string().url().max(2_000).optional(),
+  secretAlias: z.string().trim().regex(alias).nullable().optional(),
+  enabled: z.boolean().optional(),
+});
 export const sendPushBodySchema = z.object({
   channelIds: z.array(z.string().trim().min(1)).min(1).max(20),
   title: z.string().trim().min(1).max(200),

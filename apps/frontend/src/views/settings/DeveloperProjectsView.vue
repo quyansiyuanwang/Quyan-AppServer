@@ -210,6 +210,21 @@ const createPushChannel = async () => {
   createPushChannelVisible.value = false
 }
 
+const togglePushChannel = async (channel: DeveloperPushChannelDto) => {
+  const updated = await developerProjectService.updatePushChannel(selectedProjectId.value, channel.id, {
+    enabled: !channel.enabled,
+  })
+  pushChannels.value = pushChannels.value.map((item) => (item.id === updated.id ? updated : item))
+}
+
+const deletePushChannel = async (channel: DeveloperPushChannelDto) => {
+  await ElMessageBox.confirm(`删除 ${channel.name} 后将无法继续使用该渠道投递消息。`, '删除推送渠道', {
+    type: 'warning',
+  })
+  await developerProjectService.deletePushChannel(selectedProjectId.value, channel.id)
+  pushChannels.value = pushChannels.value.filter((item) => item.id !== channel.id)
+}
+
 const checkMonitor = async (monitor: DeveloperStatusMonitorDto) => {
   const updated = await developerProjectService.checkMonitor(selectedProjectId.value, monitor.id)
   monitors.value = monitors.value.map((item) => (item.id === updated.id ? updated : item))
@@ -502,6 +517,12 @@ const deleteKv = async (entry: KvListEntry) => {
             <el-table-column label="状态" width="90">
               <template #default="{ row }">
                 <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '启用' : '停用' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column width="130" fixed="right">
+              <template #default="{ row }">
+                <el-button link @click="togglePushChannel(row)">{{ row.enabled ? '暂停' : '恢复' }}</el-button>
+                <el-button link type="danger" @click="deletePushChannel(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
