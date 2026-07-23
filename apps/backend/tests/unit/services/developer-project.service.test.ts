@@ -117,4 +117,27 @@ describe("DeveloperProjectService", () => {
       expect.objectContaining({ data: { consumedAt: expect.any(Date) } }),
     );
   });
+
+  it("exposes recent status checks and calculates public availability", async () => {
+    mocks.prisma.developerProject.findFirst.mockResolvedValue({
+      name: "Example API",
+      slug: "example-api",
+      statusMonitors: [
+        {
+          name: "Health",
+          lastStatus: "up",
+          lastCheckedAt: new Date(),
+          checks: [
+            { checkStatus: "up", statusCode: 200, latencyMs: 42, checkedAt: new Date() },
+            { checkStatus: "down", statusCode: 503, latencyMs: 71, checkedAt: new Date() },
+          ],
+        },
+      ],
+    });
+
+    const page = await DeveloperProjectService.getInstance().getPublicStatusPage("example-api");
+
+    expect(page.statusMonitors[0].availability).toBe(0.5);
+    expect(page.statusMonitors[0].checks).toHaveLength(2);
+  });
 });

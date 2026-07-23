@@ -411,12 +411,30 @@ export class DeveloperProjectRepository {
         slug: true,
         statusMonitors: {
           where: { enabled: true, status: 1 },
-          select: { name: true, lastStatus: true, lastCheckedAt: true },
+          select: {
+            name: true,
+            lastStatus: true,
+            lastCheckedAt: true,
+            checks: {
+              orderBy: { checkedAt: "desc" },
+              take: 30,
+              select: { checkStatus: true, statusCode: true, latencyMs: true, checkedAt: true },
+            },
+          },
         },
       },
     });
     if (!project) throw new NotFoundError("状态页不存在");
-    return project;
+    return {
+      ...project,
+      statusMonitors: project.statusMonitors.map((monitor) => {
+        const successfulChecks = monitor.checks.filter((check) => check.checkStatus === "up").length;
+        return {
+          ...monitor,
+          availability: monitor.checks.length ? successfulChecks / monitor.checks.length : null,
+        };
+      }),
+    };
   }
 
   private getEncryptionKey(): Buffer {
@@ -588,6 +606,9 @@ export class DeveloperProjectRepository {
     method: string;
   }): Promise<DeveloperStatusMonitorDto> {
     let lastStatus = "down";
+    let statusCode: number | null = null;
+    let errorMessage: string | null = null;
+    const startedAt = Date.now();
     try {
       await assertSafeOutboundUrl(monitor.targetUrl);
       const response = await axios.request({
@@ -598,13 +619,23 @@ export class DeveloperProjectRepository {
         maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
         validateStatus: () => true,
       });
+      statusCode = response.status;
       lastStatus = response.status >= 200 && response.status < 400 ? "up" : "down";
-    } catch {
+    } catch (error) {
       lastStatus = "down";
+      errorMessage = error instanceof Error ? error.message.slice(0, 500) : "监控请求失败";
     }
-    const updated = await prisma.developerStatusMonitor.update({
-      where: { id: monitor.id },
-      data: { lastCheckedAt: new Date(), lastStatus },
+    const checkedAt = new Date();
+    const latencyMs = Date.now() - startedAt;
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedMonitor = await tx.developerStatusMonitor.update({
+        where: { id: monitor.id },
+        data: { lastCheckedAt: checkedAt, lastStatus },
+      });
+      await tx.developerStatusCheck.create({
+        data: { monitorId: monitor.id, checkedAt, checkStatus: lastStatus, statusCode, latencyMs, errorMessage },
+      });
+      return updatedMonitor;
     });
     return this.monitorDto(updated);
   }

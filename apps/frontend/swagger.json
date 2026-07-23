@@ -601,9 +601,44 @@
 							"application/json": {
 								"schema": {
 									"properties": {
+										"slug": {
+											"type": "string"
+										},
+										"name": {
+											"type": "string"
+										},
 										"statusMonitors": {
 											"items": {
 												"properties": {
+													"checks": {
+														"items": {
+															"properties": {
+																"latencyMs": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"statusCode": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"checkStatus": {
+																	"type": "string"
+																},
+																"checkedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																}
+															},
+															"required": [
+																"latencyMs",
+																"statusCode",
+																"checkStatus",
+																"checkedAt"
+															],
+															"type": "object"
+														},
+														"type": "array"
+													},
 													"lastStatus": {
 														"type": "string"
 													},
@@ -613,28 +648,28 @@
 													},
 													"name": {
 														"type": "string"
+													},
+													"availability": {
+														"type": "number",
+														"format": "double"
 													}
 												},
 												"required": [
+													"checks",
 													"lastStatus",
 													"lastCheckedAt",
-													"name"
+													"name",
+													"availability"
 												],
 												"type": "object"
 											},
 											"type": "array"
-										},
-										"slug": {
-											"type": "string"
-										},
-										"name": {
-											"type": "string"
 										}
 									},
 									"required": [
-										"statusMonitors",
 										"slug",
-										"name"
+										"name",
+										"statusMonitors"
 									],
 									"type": "object"
 								}

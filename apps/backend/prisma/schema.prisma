@@ -256,9 +256,27 @@ model DeveloperStatusMonitor {
   lastCheckedAt DateTime?
   lastStatus    String?          @db.VarChar(20)
   project       DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  checks        DeveloperStatusCheck[]
 
   @@index([projectId, enabled])
   @@map("developer_status_monitors")
+}
+
+model DeveloperStatusCheck {
+  id           String                 @id @default(cuid())
+  status       Int                    @default(1)
+  createTime   DateTime               @default(now())
+  updateTime   DateTime               @updatedAt
+  monitorId    String
+  checkedAt    DateTime               @default(now())
+  checkStatus  String                 @db.VarChar(20)
+  statusCode   Int?
+  latencyMs    Int
+  errorMessage String?                @db.VarChar(500)
+  monitor      DeveloperStatusMonitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId, checkedAt])
+  @@map("developer_status_checks")
 }
 
 model DeveloperQuotaUsage {
