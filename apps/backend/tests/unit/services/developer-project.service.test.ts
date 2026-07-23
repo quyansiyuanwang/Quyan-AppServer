@@ -142,6 +142,26 @@ describe("DeveloperProjectService", () => {
     expect(mocks.prisma.developerSecret.update).toHaveBeenCalled();
   });
 
+  it("substitutes aliases in nested JSON values without exposing the secret in metadata", async () => {
+    mocks.prisma.developerProject.findFirst.mockResolvedValue({ id: "project-1" });
+    const service = DeveloperProjectService.getInstance();
+    ;(service as any).resolveSecret = vi.fn().mockResolvedValue("secret-value");
+
+    await expect(
+      service.substituteSecretsInJsonValue("project-1", "user-1", {
+        headers: { authorization: "Bearer {{OPENAI_KEY}}" },
+        messages: ["{{OPENAI_KEY}}", "plain"],
+      }),
+    ).resolves.toEqual({
+      headers: { authorization: "Bearer secret-value" },
+      messages: ["secret-value", "plain"],
+    });
+    ;(service as any).resolveSecret.mockRejectedValueOnce(new Error("未定义的密钥别名: MISSING_KEY"));
+    await expect(service.substituteSecretsForProject("project-1", "user-1", "{{MISSING_KEY}}")).rejects.toThrow(
+      "未定义的密钥别名",
+    );
+  });
+
   it("consumes a verification code once and decrements wrong attempts", async () => {
     const record = {
       id: "verification-1",
