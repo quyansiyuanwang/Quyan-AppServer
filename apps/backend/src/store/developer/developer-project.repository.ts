@@ -989,28 +989,61 @@ export class DeveloperProjectRepository {
   }
 
   async sendVerification(projectId: string, body: SendDeveloperVerificationDto, sourceIp?: string): Promise<void> {
-    if (body.channel === "sms") throw new BadRequestError("短信渠道尚未配置");
     const sourceIpHash = sourceIp && isIP(sourceIp) ? hash(sourceIp) : undefined;
     await this.assertVerificationRateLimit(projectId, body, sourceIpHash);
-    const smtp = await this.configService.getSmtpConfig();
-    if (!smtp.host) throw new BadRequestError("SMTP 未配置");
     const code = String(Math.floor(100_000 + Math.random() * 900_000));
     const codeHash = hash(code);
     const expiresAt = new Date(Date.now() + 10 * 60_000);
-    const receipt = await this.consumeQuota(projectId, "verification");
-    const transporter = nodemailer.createTransport({
-      host: smtp.host,
-      port: smtp.port,
-      secure: smtp.secure,
-      auth: { user: smtp.user, pass: smtp.password },
-    });
-    try {
-      await transporter.sendMail({
-        from: `"${smtp.senderName}" <${smtp.senderEmail}>`,
-        to: body.recipient,
-        subject: "验证码",
-        text: `您的验证码是 ${code}，10 分钟内有效。`,
+    let deliver: () => Promise<void>;
+    if (body.channel === "email") {
+      const smtp = await this.configService.getSmtpConfig();
+      if (!smtp.host) throw new BadRequestError("SMTP 未配置");
+      const transporter = nodemailer.createTransport({
+        host: smtp.host,
+        port: smtp.port,
+        secure: smtp.secure,
+        auth: { user: smtp.user, pass: smtp.password },
       });
+      deliver = async () => {
+        await transporter.sendMail({
+          from: `"${smtp.senderName}" <${smtp.senderEmail}>`,
+          to: body.recipient,
+          subject: "验证码",
+          text: `您的验证码是 ${code}，10 分钟内有效。`,
+        });
+      };
+    } else {
+      const config = await this.configService.getMultiple([
+        CONFIG_KEYS.DEVELOPER.SMS_ENDPOINT,
+        CONFIG_KEYS.DEVELOPER.SMS_TOKEN,
+        CONFIG_KEYS.DEVELOPER.SMS_SENDER,
+      ]);
+      const endpoint = config[CONFIG_KEYS.DEVELOPER.SMS_ENDPOINT]?.trim();
+      const token = config[CONFIG_KEYS.DEVELOPER.SMS_TOKEN]?.trim();
+      if (!endpoint || !token)
+        throw new BadRequestError("短信渠道未启用", CustomCode.DEVELOPER_CHANNEL_NOT_ENABLED);
+      const target = await assertSafeOutboundUrl(endpoint);
+      deliver = async () => {
+        await axios.post(
+          target.toString(),
+          {
+            to: body.recipient,
+            code,
+            purpose: body.purpose,
+            sender: config[CONFIG_KEYS.DEVELOPER.SMS_SENDER]?.trim() || undefined,
+          },
+          {
+            timeout: 10_000,
+            maxRedirects: 0,
+            maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+      };
+    }
+    const receipt = await this.consumeQuota(projectId, "verification");
+    try {
+      await deliver();
       await prisma.developerVerification.updateMany({
         where: { projectId, recipient: body.recipient, purpose: body.purpose, consumedAt: null },
         data: { consumedAt: new Date() },
