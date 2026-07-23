@@ -814,6 +814,8 @@ export class DeveloperProjectRepository {
 
   async substituteSecretsForProject(projectId: string, userId: string, value: string): Promise<string> {
     await this.assertProjectOwner(projectId, userId);
+    if (value.includes("{{") && !/\{\{[A-Z][A-Z0-9_]{0,99}\}\}/.test(value))
+      throw new BadRequestError("密钥占位符格式无效");
     const aliases = [...value.matchAll(/\{\{([A-Z][A-Z0-9_]{0,99})\}\}/g)].map((match) => match[1]);
     if (!aliases.length) return value;
 
@@ -823,6 +825,23 @@ export class DeveloperProjectRepository {
       resolved = resolved.replaceAll(`{{${alias}}}`, secret);
     }
     if (resolved.length > 100_000) throw new BadRequestError("密钥替换后的内容超过大小限制");
+    return resolved;
+  }
+
+  async substituteSecretsInJsonValue(projectId: string, userId: string, value: unknown): Promise<unknown> {
+    const replace = async (current: unknown): Promise<unknown> => {
+      if (typeof current === "string") return this.substituteSecretsForProject(projectId, userId, current);
+      if (Array.isArray(current)) return Promise.all(current.map((item) => replace(item)));
+      if (current && typeof current === "object") {
+        const entries = await Promise.all(
+          Object.entries(current as Record<string, unknown>).map(async ([key, item]) => [key, await replace(item)] as const),
+        );
+        return Object.fromEntries(entries);
+      }
+      return current;
+    };
+    const resolved = await replace(value);
+    if (Buffer.byteLength(JSON.stringify(resolved)) > 100_000) throw new BadRequestError("密钥替换后的内容超过大小限制");
     return resolved;
   }
 

@@ -2538,17 +2538,17 @@ export class RelayProxyService {
             const upstreamConfig = this.resolveChannelUpstreamConfig(channel, requestFormat);
             const upstreamUrl = upstreamConfig.upstreamUrl;
             let upstreamApiKey = upstreamConfig.upstreamApiKey;
+            const developerProjectId = String(req.headers?.["x-developer-project"] || "").trim();
             channelMultiplier = upstreamConfig.channelMultiplier;
 
             if (upstreamApiKey.includes("{{")) {
-              const projectId = String(req.headers?.["x-developer-project"] || "").trim();
-              if (!projectId)
+              if (!developerProjectId)
                 throw new RelayChannelSkipError(
                   "Secret alias requires X-Developer-Project",
                   "channel-upstream-missing",
                 );
               upstreamApiKey = await DeveloperProjectService.getInstance().substituteSecretsForProject(
-                projectId,
+                developerProjectId,
                 relayToken.userId,
                 upstreamApiKey,
               );
@@ -2600,6 +2600,20 @@ export class RelayProxyService {
             const headers: any = {};
             for (const key of ALLOWED_HEADERS) if (req.headers[key]) headers[key] = req.headers[key];
 
+            const hasHeaderPlaceholder = Object.values(headers).some(
+              (value) => typeof value === "string" && value.includes("{{"),
+            );
+            if (hasHeaderPlaceholder && !developerProjectId)
+              throw new RelayChannelSkipError("Secret alias requires X-Developer-Project", "channel-upstream-missing");
+            if (developerProjectId)
+              for (const [key, value] of Object.entries(headers))
+                if (typeof value === "string" && value.includes("{{"))
+                  headers[key] = await DeveloperProjectService.getInstance().substituteSecretsForProject(
+                    developerProjectId,
+                    relayToken.userId,
+                    value,
+                  );
+
             if (requestFormat === "gemini") headers["x-goog-api-key"] = upstreamApiKey;
             else if (requestFormat === "openai") headers["Authorization"] = `Bearer ${upstreamApiKey}`;
             else {
@@ -2608,7 +2622,7 @@ export class RelayProxyService {
             }
 
             const forwardedBody = this.buildForwardBody(req.body, requestFormat, selectedModelId);
-            const { body: convertedBody, autoInjected: autoInjectedStreamUsageOption } =
+            let { body: convertedBody, autoInjected: autoInjectedStreamUsageOption } =
               this.addOpenAIStreamUsageOption(forwardedBody, requestFormat, req.path);
 
             const toolsWithCache = convertedBody?.tools?.filter((t: any) => t.cache_control).length || 0;
@@ -2629,6 +2643,17 @@ export class RelayProxyService {
               logger.debug("Final request body to upstream API", {
                 body: JSON.stringify(convertedBody, null, 2),
               });
+
+            const bodyContainsPlaceholder =
+              !Buffer.isBuffer(convertedBody) && JSON.stringify(convertedBody ?? {}).includes("{{");
+            if (bodyContainsPlaceholder && !developerProjectId)
+              throw new RelayChannelSkipError("Secret alias requires X-Developer-Project", "channel-upstream-missing");
+            if (bodyContainsPlaceholder)
+              convertedBody = await DeveloperProjectService.getInstance().substituteSecretsInJsonValue(
+                developerProjectId,
+                relayToken.userId,
+                convertedBody,
+              );
 
             if (isStreamRequested && res) {
               const streamResult = await this.forwardStreamRequest(
