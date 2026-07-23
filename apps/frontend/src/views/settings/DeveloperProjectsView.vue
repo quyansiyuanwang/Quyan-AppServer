@@ -42,7 +42,13 @@ const shortLinkForm = ref({ targetUrl: '', code: '', expiresAt: '', enabled: tru
 const editingShortLinkId = ref('')
 const shortLinkStats = ref<DeveloperShortLinkStatsDto | null>(null)
 const secretForm = ref({ alias: '', value: '' })
-const monitorForm = ref({ name: '', targetUrl: '', method: 'GET' as 'GET' | 'HEAD' })
+const monitorForm = ref({
+  name: '',
+  targetUrl: '',
+  method: 'GET' as 'GET' | 'HEAD',
+  intervalSec: 60,
+  successStatusCodes: '200, 201, 202, 204',
+})
 const pushChannelForm = ref({
   name: '',
   type: 'webhook' as 'webhook' | 'dingtalk' | 'feishu' | 'wechat_work',
@@ -210,12 +216,32 @@ const deleteSecret = async (secret: DeveloperSecretDto) => {
 }
 
 const createMonitor = async () => {
+  const successStatusCodes = monitorForm.value.successStatusCodes
+    .split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value) && value >= 100 && value <= 599)
+  if (!successStatusCodes.length) {
+    ElMessage.warning('请至少填写一个有效成功状态码')
+    return
+  }
   const monitor = await developerProjectService.createMonitor(
     selectedProjectId.value,
-    monitorForm.value,
+    {
+      name: monitorForm.value.name,
+      targetUrl: monitorForm.value.targetUrl,
+      method: monitorForm.value.method,
+      intervalSec: monitorForm.value.intervalSec,
+      successStatusCodes,
+    },
   )
   monitors.value.unshift(monitor)
-  monitorForm.value = { name: '', targetUrl: '', method: 'GET' }
+  monitorForm.value = {
+    name: '',
+    targetUrl: '',
+    method: 'GET',
+    intervalSec: 60,
+    successStatusCodes: '200, 201, 202, 204',
+  }
   createMonitorVisible.value = false
 }
 
@@ -769,6 +795,15 @@ const copyStatusPage = async () => {
             ><el-radio value="GET">GET</el-radio
             ><el-radio value="HEAD">HEAD</el-radio></el-radio-group
           ></el-form-item
+        ><el-form-item label="检查间隔（秒）"
+          ><el-input-number
+            v-model="monitorForm.intervalSec"
+            :min="60"
+            :max="86400"
+            controls-position="right"
+          /></el-form-item
+        ><el-form-item label="成功状态码"
+          ><el-input v-model="monitorForm.successStatusCodes" placeholder="200, 201, 204" /></el-form-item
         ></el-form
       ><template #footer
         ><el-button @click="createMonitorVisible = false">取消</el-button
