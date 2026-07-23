@@ -25,6 +25,7 @@ import type {
   DeveloperApiKeyDto,
   DeveloperKvValueDto,
   DeveloperProjectDto,
+  DeveloperPushChannelDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
   DeveloperStatusMonitorDto,
@@ -281,7 +282,10 @@ export class DeveloperProjectController extends Controller {
 
   @Get("{projectId}/push-channels")
   @Middlewares(validateParams(projectIdParamsSchema))
-  public async listPushChannels(@Path() projectId: string, @Request() request: TypedRequest) {
+  public async listPushChannels(
+    @Path() projectId: string,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperPushChannelDto[]> {
     return this.service.listPushChannels(projectId, request.user!.userId);
   }
 
@@ -295,7 +299,7 @@ export class DeveloperProjectController extends Controller {
     @Path() projectId: string,
     @Body() body: CreateDeveloperPushChannelDto,
     @Request() request: TypedRequest,
-  ) {
+  ): Promise<DeveloperPushChannelDto> {
     return this.service.createPushChannel(projectId, request.user!.userId, body);
   }
 }

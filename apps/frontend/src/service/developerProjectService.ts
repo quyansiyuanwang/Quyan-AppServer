@@ -4,6 +4,7 @@ import { cache } from '@/utils/common'
 import type {
   CreateDeveloperApiKeyDto,
   CreateDeveloperProjectDto,
+  CreateDeveloperPushChannelDto,
   CreateShortLinkDto,
   CreateDeveloperStatusMonitorDto,
   SetKvValueDto,
@@ -141,6 +142,20 @@ export class DeveloperProjectService {
     return checkApiResult(
       await getDeveloperProjectApi().deleteMonitor({ path: { projectId, id } }),
       false,
+    )
+  }
+
+  async listPushChannels(projectId: string) {
+    return checkApiResult(
+      await getDeveloperProjectApi().listPushChannels({ path: { projectId } }),
+      true,
+    )
+  }
+
+  async createPushChannel(projectId: string, data: CreateDeveloperPushChannelDto) {
+    return checkApiResult(
+      await getDeveloperProjectApi().createPushChannel({ path: { projectId }, body: data }),
+      true,
     )
   }
 

@@ -6,6 +6,7 @@ import type {
   DeveloperApiKeyDto,
   DeveloperKvValueDto,
   DeveloperProjectDto,
+  DeveloperPushChannelDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
   DeveloperStatusMonitorDto,
@@ -21,11 +22,13 @@ const kvEntries = ref<KvListEntry[]>([])
 const shortLinks = ref<DeveloperShortLinkDto[]>([])
 const secrets = ref<DeveloperSecretDto[]>([])
 const monitors = ref<DeveloperStatusMonitorDto[]>([])
+const pushChannels = ref<DeveloperPushChannelDto[]>([])
 const createProjectVisible = ref(false)
 const createKeyVisible = ref(false)
 const createShortLinkVisible = ref(false)
 const createSecretVisible = ref(false)
 const createMonitorVisible = ref(false)
+const createPushChannelVisible = ref(false)
 const kvDialogVisible = ref(false)
 const projectForm = ref({ name: '', slug: '', description: '' })
 const keyForm = ref({ name: '', scopes: ['kv:read', 'kv:write'] as string[] })
@@ -33,6 +36,12 @@ const shortLinkForm = ref({ targetUrl: '', code: '', expiresAt: '', enabled: tru
 const editingShortLinkId = ref('')
 const secretForm = ref({ alias: '', value: '' })
 const monitorForm = ref({ name: '', targetUrl: '', method: 'GET' as 'GET' | 'HEAD' })
+const pushChannelForm = ref({
+  name: '',
+  type: 'webhook' as 'webhook' | 'dingtalk' | 'feishu' | 'wechat_work',
+  endpoint: '',
+  secretAlias: '',
+})
 const kvForm = ref({ key: '', value: '{}', ttlSeconds: undefined as number | undefined })
 const editingKvKey = ref('')
 
@@ -51,12 +60,13 @@ const projectKeyScopes = [
 const refreshProjectResources = async () => {
   if (!selectedProjectId.value) return
   const projectId = selectedProjectId.value
-  ;[keys.value, kvEntries.value, shortLinks.value, secrets.value, monitors.value] = await Promise.all([
+  ;[keys.value, kvEntries.value, shortLinks.value, secrets.value, monitors.value, pushChannels.value] = await Promise.all([
     developerProjectService.listKeys(projectId),
     developerProjectService.listKv(projectId),
     developerProjectService.listShortLinks(projectId),
     developerProjectService.listSecrets(projectId),
     developerProjectService.listMonitors(projectId),
+    developerProjectService.listPushChannels(projectId),
   ])
 }
 
@@ -190,6 +200,16 @@ const createMonitor = async () => {
   createMonitorVisible.value = false
 }
 
+const createPushChannel = async () => {
+  const channel = await developerProjectService.createPushChannel(selectedProjectId.value, {
+    ...pushChannelForm.value,
+    secretAlias: pushChannelForm.value.secretAlias || undefined,
+  })
+  pushChannels.value.unshift(channel)
+  pushChannelForm.value = { name: '', type: 'webhook', endpoint: '', secretAlias: '' }
+  createPushChannelVisible.value = false
+}
+
 const checkMonitor = async (monitor: DeveloperStatusMonitorDto) => {
   const updated = await developerProjectService.checkMonitor(selectedProjectId.value, monitor.id)
   monitors.value = monitors.value.map((item) => (item.id === updated.id ? updated : item))
@@ -307,6 +327,9 @@ const deleteKv = async (entry: KvListEntry) => {
         </article>
         <article>
           <Monitor :size="19" /><span>监控目标</span><strong>{{ monitors.length }}</strong>
+        </article>
+        <article>
+          <Service :size="19" /><span>推送渠道</span><strong>{{ pushChannels.length }}</strong>
         </article>
       </section>
 
@@ -463,6 +486,26 @@ const deleteKv = async (entry: KvListEntry) => {
               ></el-table-column
           ></el-table>
         </el-tab-pane>
+
+        <el-tab-pane label="推送渠道">
+          <div class="panel-toolbar">
+            <p>统一投递 Webhook、钉钉、飞书和企业微信消息，凭据只引用托管密钥别名。</p>
+            <el-button :icon="Plus" type="primary" @click="createPushChannelVisible = true">添加渠道</el-button>
+          </div>
+          <el-table :data="pushChannels" empty-text="尚无推送渠道">
+            <el-table-column prop="name" label="名称" min-width="150" />
+            <el-table-column prop="type" label="类型" width="130" />
+            <el-table-column prop="endpoint" label="Webhook 地址" min-width="280" show-overflow-tooltip />
+            <el-table-column label="密钥别名" min-width="140">
+              <template #default="{ row }">{{ row.secretAlias || '未使用' }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '启用' : '停用' }}</el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
       </el-tabs>
     </template>
 
@@ -583,6 +626,34 @@ const deleteKv = async (entry: KvListEntry) => {
         ></template
       ></el-dialog
     >
+    <el-dialog v-model="createPushChannelVisible" title="添加推送渠道" width="500px">
+      <el-form label-position="top">
+        <el-form-item label="名称"><el-input v-model="pushChannelForm.name" /></el-form-item>
+        <el-form-item label="类型">
+          <el-select v-model="pushChannelForm.type" style="width: 100%">
+            <el-option label="通用 Webhook" value="webhook" />
+            <el-option label="钉钉机器人" value="dingtalk" />
+            <el-option label="飞书机器人" value="feishu" />
+            <el-option label="企业微信机器人" value="wechat_work" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="Webhook 地址"><el-input v-model="pushChannelForm.endpoint" /></el-form-item>
+        <el-form-item label="托管密钥别名（可选）">
+          <el-select v-model="pushChannelForm.secretAlias" clearable filterable style="width: 100%">
+            <el-option v-for="secret in secrets" :key="secret.id" :label="secret.alias" :value="secret.alias" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createPushChannelVisible = false">取消</el-button>
+        <el-button
+          type="primary"
+          :disabled="!pushChannelForm.name || !pushChannelForm.endpoint"
+          @click="createPushChannel"
+          >添加</el-button
+        >
+      </template>
+    </el-dialog>
   </main>
 </template>
 
@@ -638,7 +709,7 @@ const deleteKv = async (entry: KvListEntry) => {
 }
 .service-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   border: 1px solid var(--el-border-color-lighter);
   margin-bottom: 24px;
 }

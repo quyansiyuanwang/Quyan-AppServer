@@ -17865,58 +17865,7 @@
 							"application/json": {
 								"schema": {
 									"items": {
-										"properties": {
-											"config": {
-												"$ref": "#/components/schemas/JsonValue"
-											},
-											"secretAlias": {
-												"type": "string"
-											},
-											"endpoint": {
-												"type": "string"
-											},
-											"type": {
-												"type": "string"
-											},
-											"enabled": {
-												"type": "boolean"
-											},
-											"projectId": {
-												"type": "string"
-											},
-											"name": {
-												"type": "string"
-											},
-											"updateTime": {
-												"type": "string",
-												"format": "date-time"
-											},
-											"createTime": {
-												"type": "string",
-												"format": "date-time"
-											},
-											"status": {
-												"type": "number",
-												"format": "double"
-											},
-											"id": {
-												"type": "string"
-											}
-										},
-										"required": [
-											"config",
-											"secretAlias",
-											"endpoint",
-											"type",
-											"enabled",
-											"projectId",
-											"name",
-											"updateTime",
-											"createTime",
-											"status",
-											"id"
-										],
-										"type": "object"
+										"$ref": "#/components/schemas/DeveloperPushChannelDto"
 									},
 									"type": "array"
 								}
@@ -17951,58 +17900,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"properties": {
-										"config": {
-											"$ref": "#/components/schemas/JsonValue"
-										},
-										"secretAlias": {
-											"type": "string"
-										},
-										"endpoint": {
-											"type": "string"
-										},
-										"type": {
-											"type": "string"
-										},
-										"enabled": {
-											"type": "boolean"
-										},
-										"projectId": {
-											"type": "string"
-										},
-										"name": {
-											"type": "string"
-										},
-										"updateTime": {
-											"type": "string",
-											"format": "date-time"
-										},
-										"createTime": {
-											"type": "string",
-											"format": "date-time"
-										},
-										"status": {
-											"type": "number",
-											"format": "double"
-										},
-										"id": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"config",
-										"secretAlias",
-										"endpoint",
-										"type",
-										"enabled",
-										"projectId",
-										"name",
-										"updateTime",
-										"createTime",
-										"status",
-										"id"
-									],
-									"type": "object"
+									"$ref": "#/components/schemas/DeveloperPushChannelDto"
 								}
 							}
 						}
@@ -37087,6 +36985,45 @@
 						"type": "boolean"
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperPushChannelDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string"
+					},
+					"endpoint": {
+						"type": "string"
+					},
+					"secretAlias": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"type",
+					"endpoint",
+					"enabled",
+					"createTime",
+					"updateTime"
+				],
 				"type": "object",
 				"additionalProperties": false
 			},

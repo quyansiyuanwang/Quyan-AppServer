@@ -16,6 +16,7 @@ import type {
   DeveloperApiKeyScope,
   DeveloperKvValueDto,
   DeveloperProjectDto,
+  DeveloperPushChannelDto,
   DeveloperPushDeliveryDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
@@ -697,14 +698,41 @@ export class DeveloperProjectRepository {
     await this.assertProjectOwner(projectId, userId);
     await assertSafeOutboundUrl(body.endpoint);
     if (body.secretAlias) await this.resolveSecret(projectId, body.secretAlias);
-    return prisma.developerPushChannel.create({
+    const channel = await prisma.developerPushChannel.create({
       data: { projectId, name: body.name, type: body.type, endpoint: body.endpoint, secretAlias: body.secretAlias },
     });
+    return this.pushChannelDto(channel);
   }
 
-  async listPushChannels(projectId: string, userId: string) {
+  private pushChannelDto(channel: {
+    id: string;
+    name: string;
+    type: string;
+    endpoint: string | null;
+    secretAlias: string | null;
+    enabled: boolean;
+    createTime: Date;
+    updateTime: Date;
+  }): DeveloperPushChannelDto {
+    return {
+      id: channel.id,
+      name: channel.name,
+      type: channel.type,
+      endpoint: channel.endpoint ?? "",
+      secretAlias: channel.secretAlias ?? undefined,
+      enabled: channel.enabled,
+      createTime: channel.createTime.toISOString(),
+      updateTime: channel.updateTime.toISOString(),
+    };
+  }
+
+  async listPushChannels(projectId: string, userId: string): Promise<DeveloperPushChannelDto[]> {
     await this.assertProjectOwner(projectId, userId);
-    return prisma.developerPushChannel.findMany({ where: { projectId }, orderBy: { createTime: "desc" } });
+    const channels = await prisma.developerPushChannel.findMany({
+      where: { projectId },
+      orderBy: { createTime: "desc" },
+    });
+    return channels.map((channel) => this.pushChannelDto(channel));
   }
 
   async sendPush(projectId: string, body: SendDeveloperPushDto): Promise<DeveloperPushDeliveryDto[]> {
