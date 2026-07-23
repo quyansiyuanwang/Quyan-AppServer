@@ -1,7 +1,6 @@
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
-import { isIP } from "net";
-import { lookup } from "dns/promises";
+import { isIP } from "node:net";
 import nodemailer from "nodemailer";
 import type { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -12,6 +11,7 @@ import { NotificationService } from "@/services/notification/notification.servic
 import { NotificationEvent } from "@/constant/notification-event";
 import { BadRequestError, ForbiddenError, NotFoundError, TooManyRequestsError, UnauthorizedError } from "@/util/errors";
 import { CustomCode } from "@/constant/custom-code";
+import { assertSafeOutboundUrl, isUnsafeOutboundAddress } from "@/util/developer-outbound-url";
 import type {
   CreateDeveloperApiKeyDto,
   CreateDeveloperProjectDto,
@@ -69,35 +69,6 @@ type ProjectKeyRecord = Awaited<ReturnType<typeof prisma.developerProjectApiKey.
 
 const asIso = (value: Date | null | undefined): string | undefined => value?.toISOString();
 const hash = (value: string): string => createHash("sha256").update(value).digest("hex");
-
-function isPrivateAddress(address: string): boolean {
-  if (address === "::1" || address === "0.0.0.0" || address === "::") return true;
-  if (address.startsWith("127.") || address.startsWith("10.") || address.startsWith("192.168.")) return true;
-  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(address)) return true;
-  const normalized = address.toLowerCase();
-  return (
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    normalized.startsWith("fe80:") ||
-    normalized.startsWith("::ffff:127.")
-  );
-}
-
-async function assertSafeOutboundUrl(rawUrl: string): Promise<URL> {
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    throw new BadRequestError("URL 无效");
-  }
-  if (url.protocol !== "https:" && url.protocol !== "http:") throw new BadRequestError("仅允许 HTTP(S) URL");
-  if (url.username || url.password) throw new BadRequestError("URL 不允许包含凭据");
-
-  const host = url.hostname.replace(/^\[|\]$/g, "");
-  const address = isIP(host) ? host : (await lookup(host, { family: 0 })).address;
-  if (isPrivateAddress(address)) throw new ForbiddenError("不允许访问内网地址");
-  return url;
-}
 
 export class DeveloperProjectRepository {
   private static instance: DeveloperProjectRepository;
@@ -584,7 +555,7 @@ export class DeveloperProjectRepository {
     const code = body.code?.trim().toLowerCase() || randomBytes(6).toString("base64url").toLowerCase();
     const expiresAt = body.expiresAt ? new Date(body.expiresAt) : undefined;
     const link = await prisma.developerShortLink.create({
-      data: { projectId, code, targetUrl: target.toString(), expiresAt },
+      data: { projectId, code, targetUrl: target.url.toString(), expiresAt },
     });
     return this.shortLinkDto(link);
   }
@@ -604,7 +575,7 @@ export class DeveloperProjectRepository {
     await this.assertProjectOwner(projectId, userId);
     const existing = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
     if (!existing) throw new NotFoundError("短链接不存在");
-    const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).toString() : undefined;
+    const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).url.toString() : undefined;
     const link = await prisma.developerShortLink.update({
       where: { id: linkId },
       data: {
@@ -858,7 +829,7 @@ export class DeveloperProjectRepository {
       data: {
         projectId,
         name: body.name,
-        targetUrl: target.toString(),
+        targetUrl: target.url.toString(),
         method: body.method ?? "GET",
         intervalSec: body.intervalSec ?? 60,
         successStatusCodes: body.successStatusCodes,
@@ -906,7 +877,7 @@ export class DeveloperProjectRepository {
     await this.assertProjectOwner(projectId, userId);
     const existing = await prisma.developerStatusMonitor.findFirst({ where: { id: monitorId, projectId } });
     if (!existing) throw new NotFoundError("监控目标不存在");
-    const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).toString() : undefined;
+    const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).url.toString() : undefined;
     const monitor = await prisma.developerStatusMonitor.update({
       where: { id: monitorId },
       data: {
@@ -947,13 +918,15 @@ export class DeveloperProjectRepository {
     let errorMessage: string | null = null;
     const startedAt = Date.now();
     try {
-      await assertSafeOutboundUrl(monitor.targetUrl);
+      const target = await assertSafeOutboundUrl(monitor.targetUrl);
       const response = await axios.request({
-        url: monitor.targetUrl,
+        url: target.url.toString(),
         method: monitor.method,
         timeout: 10_000,
         maxRedirects: 0,
         maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
+        httpAgent: target.httpAgent,
+        httpsAgent: target.httpsAgent,
         validateStatus: () => true,
       });
       statusCode = response.status;
@@ -1067,7 +1040,7 @@ export class DeveloperProjectRepository {
       const target = await assertSafeOutboundUrl(endpoint);
       deliver = async () => {
         await axios.post(
-          target.toString(),
+          target.url.toString(),
           {
             to: body.recipient,
             code,
@@ -1078,6 +1051,8 @@ export class DeveloperProjectRepository {
             timeout: 10_000,
             maxRedirects: 0,
             maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
+            httpAgent: target.httpAgent,
+            httpsAgent: target.httpsAgent,
             headers: { Authorization: `Bearer ${token}` },
           },
         );
@@ -1133,18 +1108,27 @@ export class DeveloperProjectRepository {
 
   async lookupIp(projectId: string, requestedIp?: string) {
     const ip = requestedIp?.trim();
-    if (!ip || !isIP(ip) || isPrivateAddress(ip)) throw new BadRequestError("仅支持公网 IP 地址");
-    const receipt = await this.consumeQuota(projectId, "ip");
+    if (!ip || !isIP(ip) || isUnsafeOutboundAddress(ip)) throw new BadRequestError("仅支持公网 IP 地址");
     const cached = this.ipLocationCache.get(ip);
-    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    if (cached && cached.expiresAt > Date.now()) {
+      await this.consumeQuota(projectId, "ip");
+      return cached.value;
+    }
     if (cached) this.ipLocationCache.delete(ip);
     const endpoint = String(process.env.IP_GEOLOCATION_ENDPOINT || "").trim();
     if (!endpoint) throw new BadRequestError("IP 定位服务尚未配置");
     const base = await assertSafeOutboundUrl(endpoint);
+    const receipt = await this.consumeQuota(projectId, "ip");
     try {
       const response = await axios.get(
-        new URL(encodeURIComponent(ip), `${base.toString().replace(/\/$/, "")}/`).toString(),
-        { timeout: 5_000, maxRedirects: 0, maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES },
+        new URL(encodeURIComponent(ip), `${base.url.toString().replace(/\/$/, "")}/`).toString(),
+        {
+          timeout: 5_000,
+          maxRedirects: 0,
+          maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
+          httpAgent: base.httpAgent,
+          httpsAgent: base.httpsAgent,
+        },
       );
       const data = response.data as Record<string, unknown>;
       const result = {
@@ -1214,7 +1198,7 @@ export class DeveloperProjectRepository {
     await this.assertProjectOwner(projectId, userId);
     const existing = await prisma.developerPushChannel.findFirst({ where: { id: channelId, projectId } });
     if (!existing) throw new NotFoundError("推送渠道不存在");
-    const endpoint = body.endpoint ? (await assertSafeOutboundUrl(body.endpoint)).toString() : undefined;
+    const endpoint = body.endpoint ? (await assertSafeOutboundUrl(body.endpoint)).url.toString() : undefined;
     const channel = await prisma.developerPushChannel.update({
       where: { id: channelId },
       data: {
@@ -1272,7 +1256,7 @@ export class DeveloperProjectRepository {
   ): Promise<DeveloperPushDeliveryDto> {
     try {
       if (!channel.enabled || !channel.endpoint) throw new BadRequestError("推送渠道未配置地址或已停用");
-      await assertSafeOutboundUrl(channel.endpoint);
+      const target = await assertSafeOutboundUrl(channel.endpoint);
       const secret = channel.secretAlias ? await this.resolveSecret(delivery.projectId, channel.secretAlias) : undefined;
       const payload =
         channel.type === "dingtalk"
@@ -1280,10 +1264,12 @@ export class DeveloperProjectRepository {
           : channel.type === "feishu"
             ? { msg_type: "text", content: { text: `${delivery.title}\n${delivery.content}` } }
             : { title: delivery.title, content: delivery.content };
-      await axios.post(channel.endpoint, payload, {
+      await axios.post(target.url.toString(), payload, {
         timeout: 10_000,
         maxRedirects: 0,
         maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
+        httpAgent: target.httpAgent,
+        httpsAgent: target.httpsAgent,
         headers: secret ? { Authorization: `Bearer ${secret}` } : undefined,
       });
       const updated = await prisma.developerPushDelivery.update({
@@ -1329,12 +1315,16 @@ export class DeveloperProjectRepository {
         return existing.map((delivery) => this.toPushDeliveryDto(delivery));
       }
     }
+    let receipt: QuotaReceipt | undefined;
+    let deliveriesCreated = false;
+    let hasSuccessfulDelivery = false;
+    let quotaRefunded = false;
     try {
       const channels = await prisma.developerPushChannel.findMany({
         where: { projectId, id: { in: body.channelIds }, enabled: true, status: 1 },
       });
       if (!channels.length) throw new NotFoundError("未找到可用的推送渠道");
-      const receipt = await this.consumeQuota(projectId, "push");
+      receipt = await this.consumeQuota(projectId, "push");
       const deliveries = await Promise.all(
         channels.map((channel) =>
           prisma.developerPushDelivery.create({
@@ -1349,20 +1339,27 @@ export class DeveloperProjectRepository {
           }),
         ),
       );
+      deliveriesCreated = true;
       const results = await Promise.all(
         deliveries.map((delivery) =>
           this.dispatchPushDelivery(delivery, channels.find((channel) => channel.id === delivery.channelId)!),
         ),
       );
-      if (!results.some((result) => result.success)) await this.refundQuota(receipt).catch(() => {});
+      hasSuccessfulDelivery = results.some((result) => result.success);
+      if (!hasSuccessfulDelivery) {
+        await this.refundQuota(receipt).catch(() => {});
+        quotaRefunded = true;
+      }
       if (body.idempotencyKey)
         await prisma.developerPushRequest.update({
           where: { projectId_idempotencyKey: { projectId, idempotencyKey: body.idempotencyKey } },
-          data: { requestStatus: results.some((result) => result.success) ? "success" : "failed" },
+          data: { requestStatus: hasSuccessfulDelivery ? "success" : "failed" },
         });
       return results;
     } catch (error) {
-      if (body.idempotencyKey)
+      if (receipt && !hasSuccessfulDelivery && !quotaRefunded)
+        await this.refundQuota(receipt).catch(() => {});
+      if (body.idempotencyKey && !deliveriesCreated)
         await prisma.developerPushRequest.deleteMany({ where: { projectId, idempotencyKey: body.idempotencyKey } });
       throw error;
     }

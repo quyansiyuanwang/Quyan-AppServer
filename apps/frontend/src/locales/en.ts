@@ -1131,13 +1131,6 @@ export default {
     clearAllWarning:
       'This will clear both LocalStorage and SessionDB data, including login state and personalization settings (theme, language). You will need to log in again. Continue?',
     clearAllSuccess: 'All cache cleared, refreshing page...',
-    notificationTitle: 'Notification Settings',
-    showUnreadBadge: 'Show Unread Badge',
-    showUnreadBadgeHelp: 'Display red numeric badge for unread messages in chat list',
-    enableBrowserNotification: 'Browser Notifications',
-    enableBrowserNotificationHelp: 'Show browser notification when receiving new messages',
-    enableSoundNotification: 'Sound Alert',
-    enableSoundNotificationHelp: 'Play sound when receiving new messages (not implemented yet)',
     registrationTitle: 'Registration Settings',
     allowFreeRegistration: 'Allow Free Registration',
     allowFreeRegistrationHelp:

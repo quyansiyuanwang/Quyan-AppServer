@@ -15,10 +15,22 @@ const mocks = vi.hoisted(() => ({
     developerShortLinkClick: { groupBy: vi.fn(), findMany: vi.fn() },
     developerSecret: { upsert: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     developerVerification: { findFirst: vi.fn(), update: vi.fn() },
+    developerPushChannel: { findMany: vi.fn() },
+    developerPushDelivery: { create: vi.fn(), findMany: vi.fn(), update: vi.fn() },
+    developerPushRequest: { create: vi.fn(), update: vi.fn(), deleteMany: vi.fn() },
+  },
+  axios: {
+    get: vi.fn(),
+    post: vi.fn(),
+    request: vi.fn(),
   },
 }));
 
 vi.mock("../../../src/config/database", () => ({ prisma: mocks.prisma }));
+vi.mock("axios", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("axios")>();
+  return { ...actual, default: { ...actual.default, ...mocks.axios } };
+});
 
 import { DeveloperProjectService } from "../../../src/services/developer/developer-project.service";
 
@@ -30,6 +42,7 @@ describe("DeveloperProjectService", () => {
     mocks.prisma.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback(mocks.prisma));
     (DeveloperProjectService as any).serviceInstance = undefined;
     process.env.DEVELOPER_SECRETS_MASTER_KEY = "d".repeat(64);
+    delete process.env.IP_GEOLOCATION_ENDPOINT;
   });
 
   it("authenticates a project key only when it contains the requested scope", async () => {
@@ -195,6 +208,46 @@ describe("DeveloperProjectService", () => {
     expect(mocks.prisma.developerVerification.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { consumedAt: expect.any(Date) } }),
     );
+  });
+
+  it("does not consume IP quota when the provider is unavailable or the IP is not public", async () => {
+    const service = DeveloperProjectService.getInstance();
+    const consumeQuota = vi.spyOn(service as any, "consumeQuota");
+    process.env.IP_GEOLOCATION_ENDPOINT = "";
+
+    await expect(service.lookupIp("project-1", "8.8.8.8")).rejects.toThrow("IP 定位服务尚未配置");
+    await expect(service.lookupIp("project-1", "169.254.169.254")).rejects.toThrow("仅支持公网 IP 地址");
+    expect(consumeQuota).not.toHaveBeenCalled();
+  });
+
+  it("refunds IP quota when the configured provider request fails", async () => {
+    const service = DeveloperProjectService.getInstance();
+    const receipt = { projectId: "project-1", service: "ip", usageId: "usage-1", userId: "user-1", chargeAmount: 1 };
+    vi.spyOn(service as any, "consumeQuota").mockResolvedValue(receipt);
+    const refundQuota = vi.spyOn(service as any, "refundQuota").mockResolvedValue(undefined);
+    mocks.axios.get.mockRejectedValue(new Error("provider unavailable"));
+    process.env.IP_GEOLOCATION_ENDPOINT = "https://8.8.8.8";
+
+    await expect(service.lookupIp("project-1", "1.1.1.1")).rejects.toThrow("provider unavailable");
+    expect(refundQuota).toHaveBeenCalledWith(receipt);
+  });
+
+  it("refunds push quota when delivery persistence fails before dispatch", async () => {
+    const service = DeveloperProjectService.getInstance();
+    const receipt = { projectId: "project-1", service: "push", usageId: "usage-1", userId: "user-1", chargeAmount: 1 };
+    vi.spyOn(service as any, "consumeQuota").mockResolvedValue(receipt);
+    const refundQuota = vi.spyOn(service as any, "refundQuota").mockResolvedValue(undefined);
+    mocks.prisma.developerPushChannel.findMany.mockResolvedValue([{ id: "channel-1" }]);
+    mocks.prisma.developerPushDelivery.create.mockRejectedValue(new Error("database unavailable"));
+
+    await expect(
+      service.sendPush("project-1", {
+        channelIds: ["channel-1"],
+        title: "Test",
+        content: "Delivery",
+      }),
+    ).rejects.toThrow("database unavailable");
+    expect(refundQuota).toHaveBeenCalledWith(receipt);
   });
 
   it("exposes recent status checks and calculates public availability", async () => {

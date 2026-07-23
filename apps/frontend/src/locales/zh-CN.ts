@@ -1094,13 +1094,6 @@ const zhCN: DeepStringify<typeof en> = {
     clearAllWarning:
       '此操作将同时清除 LocalStorage 与 SessionDB 数据，包括登录状态、个性化设置（主题、语言）等，清理后需要重新登录。确定继续吗？',
     clearAllSuccess: '全部缓存已清理，即将刷新页面',
-    notificationTitle: '通知设置',
-    showUnreadBadge: '显示未读徽章',
-    showUnreadBadgeHelp: '在聊天列表显示未读消息的红色数字徽章',
-    enableBrowserNotification: '浏览器通知',
-    enableBrowserNotificationHelp: '收到新消息时弹出浏览器通知',
-    enableSoundNotification: '声音提示',
-    enableSoundNotificationHelp: '收到新消息时播放提示音（暂未实现）',
     registrationTitle: '注册设置',
     allowFreeRegistration: '允许自由注册',
     allowFreeRegistrationHelp: '开启后用户可以直接注册并登录，关闭后用户注册需要管理员审核',
