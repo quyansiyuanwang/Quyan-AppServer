@@ -82,6 +82,13 @@ export class DeveloperApiController extends Controller {
   public async lookupIp(@Path() ip: string, @Request() request: TypedRequest) {
     return this.service.lookupIp(request.projectApiKey!.projectId, ip);
   }
+  @Get("ip")
+  @Security("project-key", ["ip:lookup"])
+  public async lookupCallerIp(@Request() request: TypedRequest) {
+    const forwarded = request.headers["x-forwarded-for"];
+    const sourceIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : request.ip;
+    return this.service.lookupIp(request.projectApiKey!.projectId, sourceIp);
+  }
   @Post("push")
   @Security("project-key", ["push:send"])
   @Middlewares(validateBody(sendPushBodySchema))

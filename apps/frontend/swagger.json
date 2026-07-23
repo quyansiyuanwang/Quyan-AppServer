@@ -18573,29 +18573,36 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"properties": {
-										"source": {
-											"type": "string"
+									"anyOf": [
+										{
+											"$ref": "#/components/schemas/Record_string.unknown_"
 										},
-										"isp": {},
-										"asn": {},
-										"city": {},
-										"region": {},
-										"country": {},
-										"ip": {
-											"type": "string"
+										{
+											"properties": {
+												"source": {
+													"type": "string"
+												},
+												"isp": {},
+												"asn": {},
+												"city": {},
+												"region": {},
+												"country": {},
+												"ip": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"source",
+												"isp",
+												"asn",
+												"city",
+												"region",
+												"country",
+												"ip"
+											],
+											"type": "object"
 										}
-									},
-									"required": [
-										"source",
-										"isp",
-										"asn",
-										"city",
-										"region",
-										"country",
-										"ip"
-									],
-									"type": "object"
+									]
 								}
 							}
 						}
@@ -18621,6 +18628,63 @@
 						}
 					}
 				]
+			}
+		},
+		"/v1/developer/ip": {
+			"get": {
+				"operationId": "DeveloperApiControllerLookupCallerIp",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"$ref": "#/components/schemas/Record_string.unknown_"
+										},
+										{
+											"properties": {
+												"source": {
+													"type": "string"
+												},
+												"isp": {},
+												"asn": {},
+												"city": {},
+												"region": {},
+												"country": {},
+												"ip": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"source",
+												"isp",
+												"asn",
+												"city",
+												"region",
+												"country",
+												"ip"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Service APIs"
+				],
+				"security": [
+					{
+						"project-key": [
+							"ip:lookup"
+						]
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/v1/developer/push": {

@@ -100,6 +100,7 @@ async function assertSafeOutboundUrl(rawUrl: string): Promise<URL> {
 export class DeveloperProjectRepository {
   private static instance: DeveloperProjectRepository;
   private readonly configService = ConfigService.getInstance();
+  private readonly ipLocationCache = new Map<string, { expiresAt: number; value: Record<string, unknown> }>();
 
   static getInstance(): DeveloperProjectRepository {
     if (!this.instance) this.instance = new DeveloperProjectRepository();
@@ -1044,6 +1045,9 @@ export class DeveloperProjectRepository {
   async lookupIp(projectId: string, requestedIp?: string) {
     const ip = requestedIp?.trim();
     if (!ip || !isIP(ip) || isPrivateAddress(ip)) throw new BadRequestError("仅支持公网 IP 地址");
+    const cached = this.ipLocationCache.get(ip);
+    if (cached && cached.expiresAt > Date.now()) return cached.value;
+    if (cached) this.ipLocationCache.delete(ip);
     const endpoint = String(process.env.IP_GEOLOCATION_ENDPOINT || "").trim();
     if (!endpoint) throw new BadRequestError("IP 定位服务尚未配置");
     const base = await assertSafeOutboundUrl(endpoint);
@@ -1054,7 +1058,7 @@ export class DeveloperProjectRepository {
         { timeout: 5_000, maxRedirects: 0, maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES },
       );
       const data = response.data as Record<string, unknown>;
-      return {
+      const result = {
         ip,
         country: data.country_name ?? data.country ?? null,
         region: data.region ?? data.region_name ?? null,
@@ -1063,6 +1067,8 @@ export class DeveloperProjectRepository {
         isp: data.org ?? data.isp ?? null,
         source: "configured",
       };
+      this.ipLocationCache.set(ip, { expiresAt: Date.now() + 5 * 60_000, value: result });
+      return result;
     } catch (error) {
       await this.refundQuota(receipt).catch(() => {});
       throw error;
