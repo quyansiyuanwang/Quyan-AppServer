@@ -825,6 +825,7 @@ export class DeveloperProjectRepository {
         targetUrl: target.toString(),
         method: body.method ?? "GET",
         intervalSec: body.intervalSec ?? 60,
+        successStatusCodes: body.successStatusCodes,
       },
     });
     return this.monitorDto(monitor);
@@ -836,11 +837,19 @@ export class DeveloperProjectRepository {
     targetUrl: string;
     method: string;
     intervalSec: number;
+    successStatusCodes: unknown;
     enabled: boolean;
     lastCheckedAt: Date | null;
     lastStatus: string | null;
   }): DeveloperStatusMonitorDto {
-    return { ...monitor, lastCheckedAt: asIso(monitor.lastCheckedAt), lastStatus: monitor.lastStatus ?? undefined };
+    return {
+      ...monitor,
+      successStatusCodes: Array.isArray(monitor.successStatusCodes)
+        ? monitor.successStatusCodes.filter((code): code is number => typeof code === "number")
+        : undefined,
+      lastCheckedAt: asIso(monitor.lastCheckedAt),
+      lastStatus: monitor.lastStatus ?? undefined,
+    };
   }
 
   async listStatusMonitors(projectId: string, userId: string): Promise<DeveloperStatusMonitorDto[]> {
@@ -869,6 +878,7 @@ export class DeveloperProjectRepository {
         targetUrl,
         method: body.method,
         intervalSec: body.intervalSec,
+        successStatusCodes: body.successStatusCodes,
         enabled: body.enabled,
       },
     });
@@ -892,6 +902,7 @@ export class DeveloperProjectRepository {
     id: string;
     targetUrl: string;
     method: string;
+    successStatusCodes?: unknown;
   }): Promise<DeveloperStatusMonitorDto> {
     let lastStatus = "down";
     let statusCode: number | null = null;
@@ -908,7 +919,12 @@ export class DeveloperProjectRepository {
         validateStatus: () => true,
       });
       statusCode = response.status;
-      lastStatus = response.status >= 200 && response.status < 400 ? "up" : "down";
+      const configuredCodes = Array.isArray(monitor.successStatusCodes)
+        ? monitor.successStatusCodes.filter((code): code is number => typeof code === "number")
+        : [];
+      lastStatus = (configuredCodes.length ? configuredCodes.includes(response.status) : response.status >= 200 && response.status < 400)
+        ? "up"
+        : "down";
     } catch (error) {
       lastStatus = "down";
       errorMessage = error instanceof Error ? error.message.slice(0, 500) : "监控请求失败";
@@ -935,6 +951,7 @@ export class DeveloperProjectRepository {
       (monitor) => !monitor.lastCheckedAt || now - monitor.lastCheckedAt.getTime() >= monitor.intervalSec * 1000,
     );
     await Promise.allSettled(due.map((monitor) => this.performStatusCheck(monitor)));
+    await prisma.developerStatusCheck.deleteMany({ where: { checkedAt: { lt: new Date(Date.now() - 90 * 24 * 60 * 60_000) } } });
   }
 
   async sendVerification(projectId: string, body: SendDeveloperVerificationDto): Promise<void> {

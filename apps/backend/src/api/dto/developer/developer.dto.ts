@@ -131,6 +131,7 @@ export interface CreateDeveloperStatusMonitorDto {
   targetUrl: string;
   method?: "GET" | "HEAD";
   intervalSec?: number;
+  successStatusCodes?: number[];
 }
 
 export interface UpdateDeveloperStatusMonitorDto {
@@ -138,6 +139,7 @@ export interface UpdateDeveloperStatusMonitorDto {
   targetUrl?: string;
   method?: "GET" | "HEAD";
   intervalSec?: number;
+  successStatusCodes?: number[];
   enabled?: boolean;
 }
 
@@ -147,6 +149,7 @@ export interface DeveloperStatusMonitorDto {
   targetUrl: string;
   method: string;
   intervalSec: number;
+  successStatusCodes?: number[];
   enabled: boolean;
   lastCheckedAt?: string;
   lastStatus?: string;

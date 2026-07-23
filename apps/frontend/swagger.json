@@ -37531,6 +37531,13 @@
 						"type": "number",
 						"format": "double"
 					},
+					"successStatusCodes": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array"
+					},
 					"enabled": {
 						"type": "boolean"
 					},
@@ -37570,6 +37577,13 @@
 					"intervalSec": {
 						"type": "number",
 						"format": "double"
+					},
+					"successStatusCodes": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array"
 					}
 				},
 				"required": [
@@ -37597,6 +37611,13 @@
 					"intervalSec": {
 						"type": "number",
 						"format": "double"
+					},
+					"successStatusCodes": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array"
 					},
 					"enabled": {
 						"type": "boolean"
