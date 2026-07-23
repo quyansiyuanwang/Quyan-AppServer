@@ -7,6 +7,7 @@ import type {
   DeveloperKvValueDto,
   DeveloperProjectDto,
   DeveloperPushChannelDto,
+  DeveloperPushDeliveryDto,
   DeveloperQuotaSummaryDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
@@ -25,6 +26,7 @@ const shortLinks = ref<DeveloperShortLinkDto[]>([])
 const secrets = ref<DeveloperSecretDto[]>([])
 const monitors = ref<DeveloperStatusMonitorDto[]>([])
 const pushChannels = ref<DeveloperPushChannelDto[]>([])
+const pushDeliveries = ref<DeveloperPushDeliveryDto[]>([])
 const quotaSummary = ref<DeveloperQuotaSummaryDto | null>(null)
 const createProjectVisible = ref(false)
 const createKeyVisible = ref(false)
@@ -70,13 +72,14 @@ const quotaServiceLabels: Record<string, string> = {
 const refreshProjectResources = async () => {
   if (!selectedProjectId.value) return
   const projectId = selectedProjectId.value
-  ;[keys.value, kvEntries.value, shortLinks.value, secrets.value, monitors.value, pushChannels.value, quotaSummary.value] = await Promise.all([
+  ;[keys.value, kvEntries.value, shortLinks.value, secrets.value, monitors.value, pushChannels.value, pushDeliveries.value, quotaSummary.value] = await Promise.all([
     developerProjectService.listKeys(projectId),
     developerProjectService.listKv(projectId),
     developerProjectService.listShortLinks(projectId),
     developerProjectService.listSecrets(projectId),
     developerProjectService.listMonitors(projectId),
     developerProjectService.listPushChannels(projectId),
+    developerProjectService.listPushDeliveries(projectId),
     developerProjectService.getUsageSummary(projectId),
   ])
 }
@@ -585,6 +588,27 @@ const copyStatusPage = async () => {
                 <el-button link type="danger" @click="deletePushChannel(row)">删除</el-button>
               </template>
             </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
+        <el-tab-pane label="推送日志">
+          <div class="panel-toolbar">
+            <p>每次投递按渠道记录，失败记录会由调度器自动重试，最多三次。</p>
+            <el-button :icon="Refresh" circle title="刷新投递日志" @click="refreshProjectResources" />
+          </div>
+          <el-table :data="pushDeliveries" empty-text="暂无推送投递记录">
+            <el-table-column prop="channelId" label="渠道" min-width="200" show-overflow-tooltip />
+            <el-table-column label="状态" width="110">
+              <template #default="{ row }">
+                <el-tag :type="row.success ? 'success' : row.status === 'failed' ? 'danger' : 'info'">
+                  {{ row.success ? '成功' : row.status === 'failed' ? '失败' : '处理中' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="attemptCount" label="尝试次数" width="110" />
+            <el-table-column prop="nextRetryAt" label="下次重试" min-width="180" />
+            <el-table-column prop="error" label="错误摘要" min-width="240" show-overflow-tooltip />
+            <el-table-column prop="createTime" label="创建时间" min-width="180" />
           </el-table>
         </el-tab-pane>
       </el-tabs>

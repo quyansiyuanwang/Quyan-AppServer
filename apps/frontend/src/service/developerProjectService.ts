@@ -176,6 +176,13 @@ export class DeveloperProjectService {
     )
   }
 
+  async listPushDeliveries(projectId: string) {
+    return checkApiResult(
+      await getDeveloperProjectApi().listPushDeliveries({ path: { projectId } }),
+      true,
+    )
+  }
+
   async createPushChannel(projectId: string, data: CreateDeveloperPushChannelDto) {
     return checkApiResult(
       await getDeveloperProjectApi().createPushChannel({ path: { projectId }, body: data }),
