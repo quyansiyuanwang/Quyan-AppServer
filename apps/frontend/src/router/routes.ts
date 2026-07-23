@@ -160,8 +160,28 @@ export const routes = [
           },
           {
             path: 'account/developer-projects',
+            redirect: { name: 'developerProjects' },
+          },
+          {
+            path: 'developer/projects',
             name: 'developerProjects',
             component: () => import('@/views/settings/DeveloperProjectsView.vue'),
+          },
+          {
+            path: 'developer/management',
+            name: 'developerServiceManagement',
+            component: () => import('@/views/developer/DeveloperServiceManagementView.vue'),
+            meta: {
+              permission: Permission.DEVELOPER_QUOTA_MANAGE,
+            },
+          },
+          {
+            path: 'developer/config',
+            name: 'developerServiceConfig',
+            component: () => import('@/views/developer/DeveloperServiceConfigView.vue'),
+            meta: {
+              permission: Permission.SYSTEM_CONFIG,
+            },
           },
           {
             path: 'account/oauth-apps',

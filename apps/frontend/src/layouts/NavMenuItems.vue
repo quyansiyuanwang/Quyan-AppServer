@@ -82,6 +82,13 @@
       <el-icon><Tools /></el-icon>
       <template #title>{{ i18ns.t('nav.preferences') }}</template>
     </el-menu-item>
+  </el-sub-menu>
+
+  <el-sub-menu index="developerServices">
+    <template #title>
+      <el-icon><Connection /></el-icon>
+      <span>{{ i18ns.t('nav.developerServices') }}</span>
+    </template>
     <el-menu-item
       index="developerProjects"
       @click="nav('developerProjects', $event)"
@@ -90,6 +97,26 @@
       <el-icon><Connection /></el-icon>
       <template #title>{{ i18ns.t('nav.developerProjects') }}</template>
     </el-menu-item>
+    <PermissionWrapper :require="[Permission.DEVELOPER_QUOTA_MANAGE]">
+      <el-menu-item
+        index="developerServiceManagement"
+        @click="nav('developerServiceManagement', $event)"
+        @contextmenu.prevent="openRouteMenu('developerServiceManagement', $event)"
+      >
+        <el-icon><DataAnalysis /></el-icon>
+        <template #title>{{ i18ns.t('nav.developerServiceManagement') }}</template>
+      </el-menu-item>
+    </PermissionWrapper>
+    <PermissionWrapper :require="[Permission.SYSTEM_CONFIG]">
+      <el-menu-item
+        index="developerServiceConfig"
+        @click="nav('developerServiceConfig', $event)"
+        @contextmenu.prevent="openRouteMenu('developerServiceConfig', $event)"
+      >
+        <el-icon><Tools /></el-icon>
+        <template #title>{{ i18ns.t('nav.developerServiceConfig') }}</template>
+      </el-menu-item>
+    </PermissionWrapper>
   </el-sub-menu>
 
   <el-sub-menu index="productSubscriptions">

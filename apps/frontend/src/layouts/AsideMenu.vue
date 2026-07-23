@@ -656,12 +656,33 @@ const overviewSections = computed<OverviewSection[]>(() => {
           route: 'notificationSettings',
           visible: true,
         },
+      ],
+    },
+    {
+      key: 'developerServices',
+      title: i18ns.t('nav.developerServices'),
+      icon: Connection,
+      items: [
         {
           key: 'developerProjects',
           label: i18ns.t('nav.developerProjects'),
           icon: Connection,
           route: 'developerProjects',
           visible: true,
+        },
+        {
+          key: 'developerServiceManagement',
+          label: i18ns.t('nav.developerServiceManagement'),
+          icon: DataAnalysis,
+          route: 'developerServiceManagement',
+          visible: can(Permission.DEVELOPER_QUOTA_MANAGE),
+        },
+        {
+          key: 'developerServiceConfig',
+          label: i18ns.t('nav.developerServiceConfig'),
+          icon: Tools,
+          route: 'developerServiceConfig',
+          visible: can(Permission.SYSTEM_CONFIG),
         },
       ],
     },
