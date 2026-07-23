@@ -44,6 +44,13 @@ export class DeveloperProjectService {
     )
   }
 
+  async updateStatusPage(projectId: string, published: boolean) {
+    return checkApiResult(
+      await getDeveloperProjectApi().updateStatusPage({ path: { projectId }, body: { published } }),
+      true,
+    )
+  }
+
   async listKeys(projectId: string) {
     return checkApiResult(await getDeveloperProjectApi().listKeys({ path: { projectId } }), true)
   }

@@ -124,6 +124,7 @@ export class DeveloperProjectRepository {
     description: string | null;
     dailyFreeQuota: number;
     overageEnabled: boolean;
+    statusPagePublished: boolean;
     createTime: Date;
     updateTime: Date;
   }): DeveloperProjectDto {
@@ -192,6 +193,19 @@ export class DeveloperProjectRepository {
       orderBy: { createTime: "desc" },
     });
     return projects.map((project) => this.toProjectDto(project));
+  }
+
+  async updateStatusPage(
+    projectId: string,
+    userId: string,
+    body: { published: boolean },
+  ): Promise<DeveloperProjectDto> {
+    await this.assertProjectOwner(projectId, userId);
+    const project = await prisma.developerProject.update({
+      where: { id: projectId },
+      data: { statusPagePublished: body.published },
+    });
+    return this.toProjectDto(project);
   }
 
   async getQuotaSummary(projectId: string, userId: string): Promise<DeveloperQuotaSummaryDto> {
@@ -694,7 +708,7 @@ export class DeveloperProjectRepository {
 
   async getPublicStatusPage(slug: string) {
     const project = await prisma.developerProject.findFirst({
-      where: { slug, status: 1 },
+      where: { slug, status: 1, statusPagePublished: true },
       select: {
         name: true,
         slug: true,

@@ -90,3 +90,7 @@ export const upsertQuotaOverrideBodySchema = z.object({
   dailyFreeQuota: z.number().int().min(0).max(10_000_000),
   expiresAt: z.string().datetime().nullable().optional(),
 });
+
+export const updateStatusPageBodySchema = z.object({
+  published: z.boolean(),
+});

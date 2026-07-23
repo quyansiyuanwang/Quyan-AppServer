@@ -307,6 +307,19 @@ const deleteKv = async (entry: KvListEntry) => {
   await developerProjectService.deleteKv(selectedProjectId.value, entry.key)
   kvEntries.value = kvEntries.value.filter((item) => item.key !== entry.key)
 }
+
+const updateStatusPagePublished = async (published: boolean) => {
+  if (!activeProject.value) return
+  const project = await developerProjectService.updateStatusPage(activeProject.value.id, published)
+  projects.value = projects.value.map((item) => (item.id === project.id ? project : item))
+  ElMessage.success(published ? '状态页已发布' : '状态页已撤回')
+}
+
+const copyStatusPage = async () => {
+  if (!activeProject.value?.statusPagePublished) return
+  await navigator.clipboard.writeText(new URL(`/status/${activeProject.value.slug}`, window.location.origin).toString())
+  ElMessage.success('状态页地址已复制')
+}
 </script>
 
 <template>
@@ -497,13 +510,24 @@ const deleteKv = async (entry: KvListEntry) => {
         <el-tab-pane label="状态监控">
           <div class="panel-toolbar">
             <p>
-              每分钟由单实例调度器检查到期目标；公开状态页路径为
-              <code>/status/{{ activeProject.slug }}</code
-              >。
+              每分钟由单实例调度器检查到期目标；公开状态页发布后可供外部查看。
             </p>
-            <el-button :icon="Plus" type="primary" @click="createMonitorVisible = true"
-              >添加目标</el-button
-            >
+            <div class="status-page-actions">
+              <el-switch
+                :model-value="activeProject.statusPagePublished"
+                active-text="已发布"
+                inactive-text="未发布"
+                @update:model-value="updateStatusPagePublished"
+              />
+              <el-button
+                :icon="CopyDocument"
+                circle
+                title="复制状态页地址"
+                :disabled="!activeProject.statusPagePublished"
+                @click="copyStatusPage"
+              />
+              <el-button :icon="Plus" type="primary" @click="createMonitorVisible = true">添加目标</el-button>
+            </div>
           </div>
           <el-table :data="monitors" empty-text="尚无监控目标"
             ><el-table-column prop="name" label="名称" min-width="160" /><el-table-column
@@ -851,6 +875,12 @@ const deleteKv = async (entry: KvListEntry) => {
   margin: 0;
   color: var(--el-text-color-secondary);
 }
+.status-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
 .scope-tag {
   margin: 2px 4px 2px 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -889,6 +919,10 @@ code {
   }
   .stats-grid {
     grid-template-columns: 1fr;
+  }
+  .status-page-actions {
+    width: 100%;
+    flex-wrap: wrap;
   }
   .service-strip article:nth-child(even) {
     border-right: 0;

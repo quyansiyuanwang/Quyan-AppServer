@@ -35,6 +35,7 @@ import type {
   SetKvValueDto,
   UpdateDeveloperStatusMonitorDto,
   UpdateDeveloperPushChannelDto,
+  UpdateDeveloperStatusPageDto,
   UpdateShortLinkDto,
   UpsertDeveloperSecretDto,
 } from "@/api/dto/developer/developer.dto";
@@ -51,6 +52,7 @@ import {
   updateShortLinkBodySchema,
   updateStatusMonitorBodySchema,
   updatePushChannelBodySchema,
+  updateStatusPageBodySchema,
   upsertSecretBodySchema,
 } from "@/api/schema/developer/developer.schema";
 
@@ -81,6 +83,20 @@ export class DeveloperProjectController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DeveloperQuotaSummaryDto> {
     return this.service.getQuotaSummary(projectId, request.user!.userId);
+  }
+
+  @Put("{projectId}/status-page")
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateParams(projectIdParamsSchema),
+    validateBody(updateStatusPageBodySchema),
+  )
+  public async updateStatusPage(
+    @Path() projectId: string,
+    @Body() body: UpdateDeveloperStatusPageDto,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperProjectDto> {
+    return this.service.updateStatusPage(projectId, request.user!.userId, body);
   }
 
   @Get("{projectId}/keys")

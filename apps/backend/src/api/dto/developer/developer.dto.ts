@@ -25,6 +25,7 @@ export interface DeveloperProjectDto {
   description?: string;
   dailyFreeQuota: number;
   overageEnabled: boolean;
+  statusPagePublished: boolean;
   createTime: string;
   updateTime: string;
 }
@@ -33,6 +34,10 @@ export interface DeveloperQuotaSummaryDto {
   dailyFreeQuota: number;
   overageEnabled: boolean;
   usages: Array<{ service: string; requestCount: number; dailyFreeQuota: number; remainingFree: number }>;
+}
+
+export interface UpdateDeveloperStatusPageDto {
+  published: boolean;
 }
 
 export interface UpsertDeveloperQuotaOverrideDto {

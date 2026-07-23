@@ -99,6 +99,7 @@ model DeveloperProject {
   description    String?                  @db.VarChar(500)
   dailyFreeQuota Int                      @default(1000)
   overageEnabled Boolean                  @default(false)
+  statusPagePublished Boolean              @default(false)
   user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   apiKeys        DeveloperProjectApiKey[]
   kvEntries      DeveloperKvEntry[]
