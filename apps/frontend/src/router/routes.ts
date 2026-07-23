@@ -150,6 +150,11 @@ export const routes = [
             component: () => import('@/views/settings/AccessKeyManagementView.vue'),
           },
           {
+            path: 'account/developer-projects',
+            name: 'developerProjects',
+            component: () => import('@/views/settings/DeveloperProjectsView.vue'),
+          },
+          {
             path: 'account/oauth-apps',
             name: 'oauthClientManagement',
             component: () => import('@/views/settings/OAuthClientManagementView.vue'),

@@ -492,6 +492,7 @@ const zhCN: DeepStringify<typeof en> = {
     analyticsHeatmap: '热力图',
     more: '更多',
     notificationSettings: '事件中心',
+    developerProjects: '开发者项目',
     myTools: 'AI 与工具',
     quickAccess: '快捷入口',
     preferences: '偏好设置',

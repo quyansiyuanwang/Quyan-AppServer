@@ -656,6 +656,13 @@ const overviewSections = computed<OverviewSection[]>(() => {
           route: 'notificationSettings',
           visible: true,
         },
+        {
+          key: 'developerProjects',
+          label: i18ns.t('nav.developerProjects'),
+          icon: Connection,
+          route: 'developerProjects',
+          visible: true,
+        },
       ],
     },
     {

@@ -416,6 +416,7 @@ const emoji: DeepStringify<typeof en> = {
     settings: '🧰',
     settingsProfile: '👤 📇',
     settingsSecurity: '🔐 🛡️',
+    developerProjects: '🧰 🔗',
     debug: '🐞',
     system: '🖥️',
     systemConfigSecurity: '🥵 🔐',

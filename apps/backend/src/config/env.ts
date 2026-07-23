@@ -99,6 +99,26 @@ function assertReplaySigningSecretIsolation(): void {
 
 assertReplaySigningSecretIsolation();
 
+function assertDeveloperSecretsMasterKey(): void {
+  const secret = String(process.env.DEVELOPER_SECRETS_MASTER_KEY || "").trim();
+  if (!secret) return;
+  if (secret.length < 64) throw new Error("DEVELOPER_SECRETS_MASTER_KEY must be at least 64 characters");
+
+  const protectedSecrets = [
+    process.env.JWT_ACCESS_SECRET,
+    process.env.JWT_REFRESH_SECRET,
+    process.env.REPLAY_SIGNING_MASTER_SECRET,
+    process.env.TWO_FACTOR_TRUSTED_DEVICE_SECRET,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  if (protectedSecrets.includes(secret))
+    throw new Error("DEVELOPER_SECRETS_MASTER_KEY must be different from authentication and replay secrets");
+}
+
+assertDeveloperSecretsMasterKey();
+
 let authCenterGeneratedKeyPair: { privateKey: string; publicKey: string } | null = null;
 
 function normalizePemEnv(value: string | undefined): string | undefined {

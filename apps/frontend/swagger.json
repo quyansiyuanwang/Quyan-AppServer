@@ -567,6 +567,97 @@
 				"parameters": []
 			}
 		},
+		"/s/{code}": {
+			"get": {
+				"operationId": "DeveloperShortLinkPublicControllerRedirect",
+				"responses": {
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"Developer Public Short Links"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "code",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/status/{slug}": {
+			"get": {
+				"operationId": "DeveloperStatusPublicControllerStatus",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"statusMonitors": {
+											"items": {
+												"properties": {
+													"lastStatus": {
+														"type": "string"
+													},
+													"lastCheckedAt": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"name": {
+														"type": "string"
+													}
+												},
+												"required": [
+													"lastStatus",
+													"lastCheckedAt",
+													"name"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"slug": {
+											"type": "string"
+										},
+										"name": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"statusMonitors",
+										"slug",
+										"name"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Public Status"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "slug",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v2/relay/tokens/current/quota-summary": {
 			"get": {
 				"operationId": "RelayV2ControllerGetCurrentTokenQuotaSummary",
@@ -16811,6 +16902,1202 @@
 					}
 				],
 				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects": {
+			"get": {
+				"operationId": "DeveloperProjectControllerList",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProjectDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerCreate",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperProjectDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/keys": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListKeys",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperApiKeyDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerCreateKey",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperApiKeyDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperApiKeyDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/keys/{id}": {
+			"delete": {
+				"operationId": "DeveloperProjectControllerRevokeKey",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/short-links": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListShortLinks",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperShortLinkDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerCreateShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateShortLinkDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/short-links/{id}": {
+			"put": {
+				"operationId": "DeveloperProjectControllerUpdateShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateShortLinkDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProjectControllerDeleteShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/secrets": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListSecrets",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperSecretDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerUpsertSecret",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperSecretDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpsertDeveloperSecretDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/secrets/{alias}": {
+			"delete": {
+				"operationId": "DeveloperProjectControllerDeleteSecret",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "alias",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/monitors": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListMonitors",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerCreateMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperStatusMonitorDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/monitors/{id}/check": {
+			"post": {
+				"operationId": "DeveloperProjectControllerCheckMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/push-channels": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListPushChannels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"properties": {
+											"config": {
+												"$ref": "#/components/schemas/JsonValue"
+											},
+											"secretAlias": {
+												"type": "string"
+											},
+											"endpoint": {
+												"type": "string"
+											},
+											"type": {
+												"type": "string"
+											},
+											"enabled": {
+												"type": "boolean"
+											},
+											"projectId": {
+												"type": "string"
+											},
+											"name": {
+												"type": "string"
+											},
+											"updateTime": {
+												"type": "string",
+												"format": "date-time"
+											},
+											"createTime": {
+												"type": "string",
+												"format": "date-time"
+											},
+											"status": {
+												"type": "number",
+												"format": "double"
+											},
+											"id": {
+												"type": "string"
+											}
+										},
+										"required": [
+											"config",
+											"secretAlias",
+											"endpoint",
+											"type",
+											"enabled",
+											"projectId",
+											"name",
+											"updateTime",
+											"createTime",
+											"status",
+											"id"
+										],
+										"type": "object"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerCreatePushChannel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"config": {
+											"$ref": "#/components/schemas/JsonValue"
+										},
+										"secretAlias": {
+											"type": "string"
+										},
+										"endpoint": {
+											"type": "string"
+										},
+										"type": {
+											"type": "string"
+										},
+										"enabled": {
+											"type": "boolean"
+										},
+										"projectId": {
+											"type": "string"
+										},
+										"name": {
+											"type": "string"
+										},
+										"updateTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"createTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"status": {
+											"type": "number",
+											"format": "double"
+										},
+										"id": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"config",
+										"secretAlias",
+										"endpoint",
+										"type",
+										"enabled",
+										"projectId",
+										"name",
+										"updateTime",
+										"createTime",
+										"status",
+										"id"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperPushChannelDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/kv": {
+			"get": {
+				"operationId": "DeveloperKvApiControllerList",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Omit_DeveloperKvValueDto.value_"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer KV"
+				],
+				"security": [
+					{
+						"project-key": [
+							"kv:read"
+						]
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/kv/{key}": {
+			"get": {
+				"operationId": "DeveloperKvApiControllerGet",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer KV"
+				],
+				"security": [
+					{
+						"project-key": [
+							"kv:read"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperKvApiControllerSet",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer KV"
+				],
+				"security": [
+					{
+						"project-key": [
+							"kv:write"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetKvValueDto"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "DeveloperKvApiControllerDelete",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer KV"
+				],
+				"security": [
+					{
+						"project-key": [
+							"kv:write"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/developer/verification/send": {
+			"post": {
+				"operationId": "DeveloperApiControllerSendVerification",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Service APIs"
+				],
+				"security": [
+					{
+						"project-key": [
+							"verification:send"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SendDeveloperVerificationDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/developer/verification/verify": {
+			"post": {
+				"operationId": "DeveloperApiControllerVerifyCode",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"valid": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"valid"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Service APIs"
+				],
+				"security": [
+					{
+						"project-key": [
+							"verification:verify"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/VerifyDeveloperCodeDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/developer/ip/{ip}": {
+			"get": {
+				"operationId": "DeveloperApiControllerLookupIp",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"source": {
+											"type": "string"
+										},
+										"isp": {},
+										"asn": {},
+										"city": {},
+										"region": {},
+										"country": {},
+										"ip": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"source",
+										"isp",
+										"asn",
+										"city",
+										"region",
+										"country",
+										"ip"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Service APIs"
+				],
+				"security": [
+					{
+						"project-key": [
+							"ip:lookup"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "ip",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/developer/push": {
+			"post": {
+				"operationId": "DeveloperApiControllerPush",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperPushDeliveryDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Service APIs"
+				],
+				"security": [
+					{
+						"project-key": [
+							"push:send"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SendDeveloperPushDto"
+							}
+						}
+					}
+				}
 			}
 		},
 		"/v1/chat/conversations": {
@@ -35116,6 +36403,495 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"DeveloperProjectDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"slug",
+					"dailyFreeQuota",
+					"overageEnabled",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperProjectDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"slug"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperApiKeyScope": {
+				"type": "string",
+				"enum": [
+					"kv:read",
+					"kv:write",
+					"verification:send",
+					"verification:verify",
+					"ip:lookup",
+					"push:send"
+				]
+			},
+			"DeveloperApiKeyDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"keyPrefix": {
+						"type": "string"
+					},
+					"scopes": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperApiKeyScope"
+						},
+						"type": "array"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"lastUsedAt": {
+						"type": "string"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"key": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"keyPrefix",
+					"scopes",
+					"requestCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperApiKeyDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"scopes": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperApiKeyScope"
+						},
+						"type": "array"
+					},
+					"expiresAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"scopes"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperShortLinkDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"code": {
+						"type": "string"
+					},
+					"targetUrl": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"clickCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"publicUrl": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"code",
+					"targetUrl",
+					"enabled",
+					"clickCount",
+					"publicUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateShortLinkDto": {
+				"properties": {
+					"targetUrl": {
+						"type": "string"
+					},
+					"code": {
+						"type": "string"
+					},
+					"expiresAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"targetUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateShortLinkDto": {
+				"properties": {
+					"targetUrl": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"expiresAt": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperSecretDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"alias": {
+						"type": "string"
+					},
+					"keyVersion": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastUsedAt": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"alias",
+					"keyVersion",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpsertDeveloperSecretDto": {
+				"properties": {
+					"alias": {
+						"type": "string"
+					},
+					"value": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"alias",
+					"value"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperStatusMonitorDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"targetUrl": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string"
+					},
+					"intervalSec": {
+						"type": "number",
+						"format": "double"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"lastCheckedAt": {
+						"type": "string"
+					},
+					"lastStatus": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"targetUrl",
+					"method",
+					"intervalSec",
+					"enabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperStatusMonitorDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"targetUrl": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string",
+						"enum": [
+							"GET",
+							"HEAD"
+						]
+					},
+					"intervalSec": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"name",
+					"targetUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperPushChannelDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string",
+						"enum": [
+							"webhook",
+							"dingtalk",
+							"feishu",
+							"wechat_work"
+						]
+					},
+					"endpoint": {
+						"type": "string"
+					},
+					"secretAlias": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"type",
+					"endpoint"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Pick_DeveloperKvValueDto.Exclude_keyofDeveloperKvValueDto.value__": {
+				"properties": {},
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"Omit_DeveloperKvValueDto.value_": {
+				"$ref": "#/components/schemas/Pick_DeveloperKvValueDto.Exclude_keyofDeveloperKvValueDto.value__",
+				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"DeveloperKvValueDto": {
+				"properties": {
+					"key": {
+						"type": "string"
+					},
+					"value": {},
+					"version": {
+						"type": "number",
+						"format": "double"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"key",
+					"value",
+					"version",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetKvValueDto": {
+				"properties": {
+					"value": {},
+					"ttlSeconds": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"value"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SendDeveloperVerificationDto": {
+				"properties": {
+					"channel": {
+						"type": "string",
+						"enum": [
+							"email",
+							"sms"
+						]
+					},
+					"recipient": {
+						"type": "string"
+					},
+					"purpose": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channel",
+					"recipient",
+					"purpose"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"VerifyDeveloperCodeDto": {
+				"properties": {
+					"channel": {
+						"type": "string",
+						"enum": [
+							"email",
+							"sms"
+						]
+					},
+					"recipient": {
+						"type": "string"
+					},
+					"purpose": {
+						"type": "string"
+					},
+					"code": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channel",
+					"recipient",
+					"purpose",
+					"code"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperPushDeliveryDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channelId",
+					"success"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SendDeveloperPushDto": {
+				"properties": {
+					"channelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"title": {
+						"type": "string"
+					},
+					"content": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channelIds",
+					"title",
+					"content"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"ConversationResponse": {
 				"properties": {
 					"id": {
@@ -38745,6 +40521,12 @@
 				"name": "Authorization",
 				"in": "header",
 				"description": "Relay Token 认证令牌 (Bearer rlt_...)"
+			},
+			"project-key": {
+				"type": "apiKey",
+				"name": "Authorization",
+				"in": "header",
+				"description": "项目 API Key (Bearer dk_...)"
 			},
 			"local-or-jwt": {
 				"type": "apiKey",

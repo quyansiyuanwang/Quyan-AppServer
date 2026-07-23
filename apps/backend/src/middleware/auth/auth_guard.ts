@@ -260,7 +260,7 @@ export async function authMiddleware(req: TypedRequest, res: Response, next: Nex
   }
 }
 
-export type SecurityScheme = "jwt" | "local-or-jwt" | "relay-token";
+export type SecurityScheme = "jwt" | "local-or-jwt" | "relay-token" | "project-key";
 
 /**
  * tsoa 认证函数：用于 @Security 装饰器
@@ -309,6 +309,27 @@ export async function expressAuthentication(
 
     request.relayToken = relayToken;
     return { relayToken: true };
+  }
+
+  if (securityName === "project-key") {
+    const authHeader = request.headers["authorization"];
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+    if (!token.startsWith("dk_")) throw new UnauthorizedError("Unauthorized: No project API key provided");
+
+    const { DeveloperProjectService } = await import("@/services/developer/developer-project.service");
+    const projectKey = await DeveloperProjectService.getInstance().authenticateProjectKey(token, scopes ?? []);
+    request.projectApiKey = projectKey;
+    const user = await userRepository.findById(projectKey.project.userId);
+    if (!user) throw new UnauthorizedError("用户不存在");
+    validateAccountStatus(user.status, user.id, `ProjectKey ${request.method} ${request.path}`);
+
+    const payload: JWTPayload = {
+      userId: user.id,
+      updatedAt: user.updateTime.toISOString(),
+      status: user.status,
+    };
+    await attachAuthContext(request, payload, user, "project_key");
+    return { projectKey: true };
   }
 
   if (securityName === "jwt") {

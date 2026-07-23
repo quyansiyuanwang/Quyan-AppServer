@@ -77,6 +77,7 @@ import logger from "@/util/logger";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
+import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 
 const PREFIX = "/relay/proxy";
 
@@ -2536,8 +2537,22 @@ export class RelayProxyService {
 
             const upstreamConfig = this.resolveChannelUpstreamConfig(channel, requestFormat);
             const upstreamUrl = upstreamConfig.upstreamUrl;
-            const upstreamApiKey = upstreamConfig.upstreamApiKey;
+            let upstreamApiKey = upstreamConfig.upstreamApiKey;
             channelMultiplier = upstreamConfig.channelMultiplier;
+
+            if (upstreamApiKey.includes("{{")) {
+              const projectId = String(req.headers?.["x-developer-project"] || "").trim();
+              if (!projectId)
+                throw new RelayChannelSkipError(
+                  "Secret alias requires X-Developer-Project",
+                  "channel-upstream-missing",
+                );
+              upstreamApiKey = await DeveloperProjectService.getInstance().substituteSecretsForProject(
+                projectId,
+                relayToken.userId,
+                upstreamApiKey,
+              );
+            }
 
             if (Buffer.isBuffer(req.body) && selectedModelId !== normalizedRequestedModel)
               logger.warn("Multipart relay request keeps original model field because body rewrite is not supported", {

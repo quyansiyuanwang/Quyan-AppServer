@@ -82,6 +82,14 @@
       <el-icon><Tools /></el-icon>
       <template #title>{{ i18ns.t('nav.preferences') }}</template>
     </el-menu-item>
+    <el-menu-item
+      index="developerProjects"
+      @click="nav('developerProjects', $event)"
+      @contextmenu.prevent="openRouteMenu('developerProjects', $event)"
+    >
+      <el-icon><Connection /></el-icon>
+      <template #title>{{ i18ns.t('nav.developerProjects') }}</template>
+    </el-menu-item>
   </el-sub-menu>
 
   <el-sub-menu index="productSubscriptions">

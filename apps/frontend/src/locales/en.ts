@@ -513,6 +513,7 @@ export default {
     analyticsHeatmap: 'Heatmap',
     more: 'More',
     notificationSettings: 'Event Center',
+    developerProjects: 'Developer Projects',
     myTools: 'AI & Tools',
     quickAccess: 'Quick Access',
     preferences: 'Preferences',
