@@ -1004,7 +1004,11 @@ export class DeveloperProjectRepository {
       (monitor) => !monitor.lastCheckedAt || now - monitor.lastCheckedAt.getTime() >= monitor.intervalSec * 1000,
     );
     await Promise.allSettled(due.map((monitor) => this.performStatusCheck(monitor)));
-    await prisma.developerStatusCheck.deleteMany({ where: { checkedAt: { lt: new Date(Date.now() - 90 * 24 * 60 * 60_000) } } });
+    const retentionCutoff = new Date(Date.now() - 90 * 24 * 60 * 60_000);
+    await Promise.all([
+      prisma.developerStatusCheck.deleteMany({ where: { checkedAt: { lt: retentionCutoff } } }),
+      prisma.developerShortLinkClick.deleteMany({ where: { clickedAt: { lt: retentionCutoff } } }),
+    ]);
   }
 
   private async assertVerificationRateLimit(
@@ -1130,13 +1134,13 @@ export class DeveloperProjectRepository {
   async lookupIp(projectId: string, requestedIp?: string) {
     const ip = requestedIp?.trim();
     if (!ip || !isIP(ip) || isPrivateAddress(ip)) throw new BadRequestError("仅支持公网 IP 地址");
+    const receipt = await this.consumeQuota(projectId, "ip");
     const cached = this.ipLocationCache.get(ip);
     if (cached && cached.expiresAt > Date.now()) return cached.value;
     if (cached) this.ipLocationCache.delete(ip);
     const endpoint = String(process.env.IP_GEOLOCATION_ENDPOINT || "").trim();
     if (!endpoint) throw new BadRequestError("IP 定位服务尚未配置");
     const base = await assertSafeOutboundUrl(endpoint);
-    const receipt = await this.consumeQuota(projectId, "ip");
     try {
       const response = await axios.get(
         new URL(encodeURIComponent(ip), `${base.toString().replace(/\/$/, "")}/`).toString(),

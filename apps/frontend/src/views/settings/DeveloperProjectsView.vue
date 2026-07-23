@@ -394,7 +394,7 @@ const copyStatusPage = async () => {
             </el-table-column>
             <el-table-column prop="requestCount" label="今日调用" width="140" />
             <el-table-column label="免费额度" width="140">
-              <template #default>{{ quotaSummary?.dailyFreeQuota ?? 0 }}</template>
+              <template #default="{ row }">{{ row.dailyFreeQuota }}</template>
             </el-table-column>
             <el-table-column prop="remainingFree" label="剩余免费次数" width="160" />
           </el-table>
