@@ -44,4 +44,5 @@ export enum CustomCode {
   QR_LOGIN_SESSION_EXPIRED = 1038, // 扫码登录会话已过期
   QR_LOGIN_SESSION_CONSUMED = 1039, // 扫码登录会话已被处理
   QR_LOGIN_SESSION_PENDING = 1040, // 扫码登录尚未完成
+  DEVELOPER_QUOTA_EXCEEDED = 1041, // 开发者服务免费额度已用尽
 }

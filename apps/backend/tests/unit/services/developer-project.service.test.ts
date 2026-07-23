@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   prisma: {
+    $transaction: vi.fn(),
     developerProject: { findFirst: vi.fn() },
+    developerQuotaUsage: { findMany: vi.fn() },
+    developerQuotaOverride: { findFirst: vi.fn() },
     developerProjectApiKey: { findFirst: vi.fn(), update: vi.fn() },
     developerKvEntry: { findFirst: vi.fn(), delete: vi.fn() },
     developerShortLink: { findFirst: vi.fn() },
@@ -22,6 +25,7 @@ const sha256 = (value: string) => createHash("sha256").update(value).digest("hex
 describe("DeveloperProjectService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.prisma.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback(mocks.prisma));
     (DeveloperProjectService as any).serviceInstance = undefined;
     process.env.DEVELOPER_SECRETS_MASTER_KEY = "d".repeat(64);
   });
@@ -43,6 +47,32 @@ describe("DeveloperProjectService", () => {
       expect.objectContaining({ where: { id: "key-1" } }),
     );
     await expect(service.authenticateProjectKey("dk_test", ["push:send"])).rejects.toThrow("缺少权限");
+  });
+
+  it("prefers project quota overrides over user overrides and defaults", async () => {
+    mocks.prisma.developerProject.findFirst.mockResolvedValue({
+      id: "project-1",
+      userId: "user-1",
+      dailyFreeQuota: 1000,
+      overageEnabled: false,
+    });
+    mocks.prisma.developerQuotaUsage.findMany.mockResolvedValue([
+      { service: "verification", requestCount: 18 },
+      { service: "ip", requestCount: 12 },
+    ]);
+    mocks.prisma.developerQuotaOverride.findFirst.mockImplementation(async ({ where }: any) => {
+      if (where.subjectType === "project" && where.service.in.includes("verification")) return { dailyFreeQuota: 20 };
+      if (where.subjectType === "user") return { dailyFreeQuota: 50 };
+      return null;
+    });
+
+    const summary = await DeveloperProjectService.getInstance().getQuotaSummary("project-1", "user-1");
+
+    expect(summary.usages).toEqual([
+      { service: "verification", requestCount: 18, dailyFreeQuota: 20, remainingFree: 2 },
+      { service: "ip", requestCount: 12, dailyFreeQuota: 50, remainingFree: 38 },
+      { service: "push", requestCount: 0, dailyFreeQuota: 50, remainingFree: 50 },
+    ]);
   });
 
   it("treats expired KV entries as missing and removes them", async () => {

@@ -125,6 +125,9 @@ export enum Permission {
   BALANCE_READ = 'balance:read',
   BALANCE_RECHARGE = 'balance:recharge',
 
+  // 开发者服务管理权限
+  DEVELOPER_QUOTA_MANAGE = 'developer:quota:manage',
+
   // 月卡管理权限
   MONTHLY_PASS_TEMPLATE_READ = 'monthly_pass:template:read',
   MONTHLY_PASS_TEMPLATE_WRITE = 'monthly_pass:template:write',

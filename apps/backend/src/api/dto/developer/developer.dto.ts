@@ -32,7 +32,26 @@ export interface DeveloperProjectDto {
 export interface DeveloperQuotaSummaryDto {
   dailyFreeQuota: number;
   overageEnabled: boolean;
-  usages: Array<{ service: string; requestCount: number; remainingFree: number }>;
+  usages: Array<{ service: string; requestCount: number; dailyFreeQuota: number; remainingFree: number }>;
+}
+
+export interface UpsertDeveloperQuotaOverrideDto {
+  subjectType: "user" | "project";
+  subjectId: string;
+  service?: "verification" | "ip" | "push";
+  dailyFreeQuota: number;
+  expiresAt?: string | null;
+}
+
+export interface DeveloperQuotaOverrideDto {
+  id: string;
+  subjectType: "user" | "project";
+  subjectId: string;
+  service?: "verification" | "ip" | "push";
+  dailyFreeQuota: number;
+  expiresAt?: string;
+  createTime: string;
+  updateTime: string;
 }
 
 export interface DeveloperApiKeyDto {

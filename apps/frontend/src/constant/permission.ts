@@ -661,6 +661,13 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows recharging account balance',
     category: 'balance',
   },
+  [Permission.DEVELOPER_QUOTA_MANAGE]: {
+    label: '管理开发者额度',
+    labelEn: 'Manage Developer Quotas',
+    tooltip: '允许为用户或项目配置开发者服务的每日免费额度',
+    tooltipEn: 'Allows configuring daily free quotas for developer services by user or project',
+    category: 'developer',
+  },
 
   [Permission.MONTHLY_PASS_TEMPLATE_READ]: {
     label: '查看月卡模板',

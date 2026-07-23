@@ -78,3 +78,12 @@ export const sendPushBodySchema = z.object({
   title: z.string().trim().min(1).max(200),
   content: z.string().trim().min(1).max(10_000),
 });
+
+export const quotaOverrideIdParamsSchema = z.object({ id: z.string().trim().min(1) });
+export const upsertQuotaOverrideBodySchema = z.object({
+  subjectType: z.enum(["user", "project"]),
+  subjectId: z.string().trim().min(1).max(191),
+  service: z.enum(["verification", "ip", "push"]).optional(),
+  dailyFreeQuota: z.number().int().min(0).max(10_000_000),
+  expiresAt: z.string().datetime().nullable().optional(),
+});

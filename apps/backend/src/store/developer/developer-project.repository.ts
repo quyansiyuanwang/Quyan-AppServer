@@ -3,9 +3,11 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypt
 import { isIP } from "net";
 import { lookup } from "dns/promises";
 import nodemailer from "nodemailer";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { ConfigService } from "@/services/system/config.service";
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/util/errors";
+import { CustomCode } from "@/constant/custom-code";
 import type {
   CreateDeveloperApiKeyDto,
   CreateDeveloperProjectDto,
@@ -17,6 +19,7 @@ import type {
   DeveloperKvValueDto,
   DeveloperProjectDto,
   DeveloperQuotaSummaryDto,
+  DeveloperQuotaOverrideDto,
   DeveloperPushChannelDto,
   DeveloperPushDeliveryDto,
   DeveloperSecretDto,
@@ -30,6 +33,7 @@ import type {
   UpdateDeveloperStatusMonitorDto,
   UpdateDeveloperPushChannelDto,
   UpsertDeveloperSecretDto,
+  UpsertDeveloperQuotaOverrideDto,
   VerifyDeveloperCodeDto,
 } from "@/api/dto/developer/developer.dto";
 
@@ -45,6 +49,8 @@ const PROJECT_KEY_SCOPES = new Set<DeveloperApiKeyScope>([
   "ip:lookup",
   "push:send",
 ]);
+const QUOTA_SERVICES = ["verification", "ip", "push"] as const;
+type QuotaService = (typeof QUOTA_SERVICES)[number];
 
 type ProjectKeyRecord = Awaited<ReturnType<typeof prisma.developerProjectApiKey.findFirst>> & {
   project: { userId: string };
@@ -182,21 +188,116 @@ export class DeveloperProjectRepository {
     const project = await this.assertProjectOwner(projectId, userId);
     const usageDate = new Date();
     usageDate.setHours(0, 0, 0, 0);
-    const records = await prisma.developerQuotaUsage.findMany({ where: { projectId, usageDate } });
-    const counts = new Map(records.map((record) => [record.service, record.requestCount]));
-    const services = ["verification", "ip", "push"];
+    return prisma.$transaction(async (tx) => {
+      const records = await tx.developerQuotaUsage.findMany({ where: { projectId, usageDate } });
+      const counts = new Map(records.map((record) => [record.service, record.requestCount]));
+      const usages = await Promise.all(
+        QUOTA_SERVICES.map(async (service) => {
+          const requestCount = counts.get(service) ?? 0;
+          const dailyFreeQuota = await this.resolveDailyFreeQuota(tx, project, service);
+          return {
+            service,
+            requestCount,
+            dailyFreeQuota,
+            remainingFree: Math.max(0, dailyFreeQuota - requestCount),
+          };
+        }),
+      );
+      return { dailyFreeQuota: project.dailyFreeQuota, overageEnabled: project.overageEnabled, usages };
+    });
+  }
+
+  private async resolveDailyFreeQuota(
+    tx: Prisma.TransactionClient,
+    project: { id: string; userId: string; dailyFreeQuota: number },
+    service: QuotaService,
+  ): Promise<number> {
+    const projectOverride = await tx.developerQuotaOverride.findFirst({
+      where: {
+        status: 1,
+        subjectType: "project",
+        subjectId: project.id,
+        service: { in: [service, "*"] },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      orderBy: [{ service: "desc" }, { updateTime: "desc" }],
+    });
+    if (projectOverride) return projectOverride.dailyFreeQuota;
+    const userOverride = await tx.developerQuotaOverride.findFirst({
+      where: {
+        status: 1,
+        subjectType: "user",
+        subjectId: project.userId,
+        service: { in: [service, "*"] },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      orderBy: [{ service: "desc" }, { updateTime: "desc" }],
+    });
+    return userOverride?.dailyFreeQuota ?? project.dailyFreeQuota;
+  }
+
+  private toQuotaOverrideDto(override: {
+    id: string;
+    subjectType: string;
+    subjectId: string;
+    service: string;
+    dailyFreeQuota: number;
+    expiresAt: Date | null;
+    createTime: Date;
+    updateTime: Date;
+  }): DeveloperQuotaOverrideDto {
     return {
-      dailyFreeQuota: project.dailyFreeQuota,
-      overageEnabled: project.overageEnabled,
-      usages: services.map((service) => {
-        const requestCount = counts.get(service) ?? 0;
-        return {
-          service,
-          requestCount,
-          remainingFree: Math.max(0, project.dailyFreeQuota - requestCount),
-        };
-      }),
+      id: override.id,
+      subjectType: override.subjectType as DeveloperQuotaOverrideDto["subjectType"],
+      subjectId: override.subjectId,
+      service: override.service === "*" ? undefined : (override.service as DeveloperQuotaOverrideDto["service"]),
+      dailyFreeQuota: override.dailyFreeQuota,
+      expiresAt: asIso(override.expiresAt),
+      createTime: override.createTime.toISOString(),
+      updateTime: override.updateTime.toISOString(),
     };
+  }
+
+  async listQuotaOverrides(): Promise<DeveloperQuotaOverrideDto[]> {
+    const overrides = await prisma.developerQuotaOverride.findMany({
+      where: { status: 1 },
+      orderBy: { updateTime: "desc" },
+    });
+    return overrides.map((override) => this.toQuotaOverrideDto(override));
+  }
+
+  async upsertQuotaOverride(
+    body: UpsertDeveloperQuotaOverrideDto,
+    actorUserId: string,
+  ): Promise<DeveloperQuotaOverrideDto> {
+    if (body.subjectType === "project") {
+      const project = await prisma.developerProject.findFirst({ where: { id: body.subjectId, status: 1 } });
+      if (!project) throw new NotFoundError("项目不存在");
+    } else {
+      const user = await prisma.user.findFirst({ where: { id: body.subjectId, status: 1 } });
+      if (!user) throw new NotFoundError("用户不存在");
+    }
+    const service = body.service ?? "*";
+    const expiresAt = body.expiresAt ? new Date(body.expiresAt) : null;
+    if (expiresAt && expiresAt.getTime() <= Date.now()) throw new BadRequestError("过期时间必须晚于当前时间");
+    const override = await prisma.developerQuotaOverride.upsert({
+      where: { subjectType_subjectId_service: { subjectType: body.subjectType, subjectId: body.subjectId, service } },
+      create: {
+        subjectType: body.subjectType,
+        subjectId: body.subjectId,
+        service,
+        dailyFreeQuota: body.dailyFreeQuota,
+        expiresAt,
+        createdByUserId: actorUserId,
+      },
+      update: { dailyFreeQuota: body.dailyFreeQuota, expiresAt, status: 1, createdByUserId: actorUserId },
+    });
+    return this.toQuotaOverrideDto(override);
+  }
+
+  async deleteQuotaOverride(id: string): Promise<void> {
+    const result = await prisma.developerQuotaOverride.updateMany({ where: { id, status: 1 }, data: { status: -1 } });
+    if (!result.count) throw new NotFoundError("额度覆盖不存在");
   }
 
   async createProjectApiKey(
@@ -256,22 +357,23 @@ export class DeveloperProjectRepository {
     return key as NonNullable<ProjectKeyRecord>;
   }
 
-  private async consumeQuota(projectId: string, service: string): Promise<void> {
+  private async consumeQuota(projectId: string, service: QuotaService): Promise<void> {
     const usageDate = new Date();
     usageDate.setHours(0, 0, 0, 0);
     await prisma.$transaction(async (tx) => {
       const project = await tx.developerProject.findUnique({
         where: { id: projectId },
-        select: { dailyFreeQuota: true, overageEnabled: true },
+        select: { id: true, userId: true, dailyFreeQuota: true, overageEnabled: true },
       });
       if (!project) throw new NotFoundError("项目不存在");
+      const dailyFreeQuota = await this.resolveDailyFreeQuota(tx, project, service);
       const usage = await tx.developerQuotaUsage.upsert({
         where: { projectId_service_usageDate: { projectId, service, usageDate } },
         create: { projectId, service, usageDate, requestCount: 1 },
         update: { requestCount: { increment: 1 } },
       });
-      if (usage.requestCount > project.dailyFreeQuota && !project.overageEnabled)
-        throw new ForbiddenError("今日免费额度已用尽");
+      if (usage.requestCount > dailyFreeQuota && !project.overageEnabled)
+        throw new ForbiddenError("今日免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED);
     });
   }
 

@@ -312,6 +312,23 @@ model DeveloperQuotaUsage {
   @@map("developer_quota_usages")
 }
 
+model DeveloperQuotaOverride {
+  id             String   @id @default(cuid())
+  status         Int      @default(1)
+  createTime     DateTime @default(now())
+  updateTime     DateTime @updatedAt
+  subjectType    String   @db.VarChar(10)
+  subjectId      String   @db.VarChar(191)
+  service        String   @default("*") @db.VarChar(30)
+  dailyFreeQuota Int
+  expiresAt      DateTime?
+  createdByUserId String  @db.VarChar(191)
+
+  @@unique([subjectType, subjectId, service])
+  @@index([subjectType, subjectId, status, expiresAt])
+  @@map("developer_quota_overrides")
+}
+
 model UserExternalIdentity {
   id               String    @id @default(cuid())
   status           Int       @default(1)

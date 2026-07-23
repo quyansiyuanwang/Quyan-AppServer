@@ -16939,6 +16939,118 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/admin/quota-overrides": {
+			"get": {
+				"operationId": "DeveloperQuotaAdminControllerList",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperQuotaOverrideDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Quota Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "DeveloperQuotaAdminControllerUpsert",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperQuotaOverrideDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Quota Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpsertDeveloperQuotaOverrideDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/admin/quota-overrides/{id}": {
+			"delete": {
+				"operationId": "DeveloperQuotaAdminControllerRemove",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Quota Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/developer/projects": {
 			"get": {
 				"operationId": "DeveloperProjectControllerList",
@@ -23182,7 +23294,8 @@
 					1037,
 					1038,
 					1039,
-					1040
+					1040,
+					1041
 				],
 				"type": "number"
 			},
@@ -24509,6 +24622,7 @@
 					"redemption:code:read",
 					"balance:read",
 					"balance:recharge",
+					"developer:quota:manage",
 					"monthly_pass:template:read",
 					"monthly_pass:template:write",
 					"monthly_pass:assignment:read",
@@ -36817,6 +36931,91 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"DeveloperQuotaOverrideDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"subjectType": {
+						"type": "string",
+						"enum": [
+							"user",
+							"project"
+						]
+					},
+					"subjectId": {
+						"type": "string"
+					},
+					"service": {
+						"type": "string",
+						"enum": [
+							"verification",
+							"ip",
+							"push"
+						]
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"subjectType",
+					"subjectId",
+					"dailyFreeQuota",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpsertDeveloperQuotaOverrideDto": {
+				"properties": {
+					"subjectType": {
+						"type": "string",
+						"enum": [
+							"user",
+							"project"
+						]
+					},
+					"subjectId": {
+						"type": "string"
+					},
+					"service": {
+						"type": "string",
+						"enum": [
+							"verification",
+							"ip",
+							"push"
+						]
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"expiresAt": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"required": [
+					"subjectType",
+					"subjectId",
+					"dailyFreeQuota"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"DeveloperProjectDto": {
 				"properties": {
 					"id": {
@@ -36892,6 +37091,10 @@
 									"type": "number",
 									"format": "double"
 								},
+								"dailyFreeQuota": {
+									"type": "number",
+									"format": "double"
+								},
 								"requestCount": {
 									"type": "number",
 									"format": "double"
@@ -36902,6 +37105,7 @@
 							},
 							"required": [
 								"remainingFree",
+								"dailyFreeQuota",
 								"requestCount",
 								"service"
 							],
