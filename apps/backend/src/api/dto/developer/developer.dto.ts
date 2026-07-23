@@ -29,6 +29,12 @@ export interface DeveloperProjectDto {
   updateTime: string;
 }
 
+export interface DeveloperQuotaSummaryDto {
+  dailyFreeQuota: number;
+  overageEnabled: boolean;
+  usages: Array<{ service: string; requestCount: number; remainingFree: number }>;
+}
+
 export interface DeveloperApiKeyDto {
   id: string;
   name: string;

@@ -7,6 +7,7 @@ import type {
   DeveloperKvValueDto,
   DeveloperProjectDto,
   DeveloperPushChannelDto,
+  DeveloperQuotaSummaryDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
   DeveloperShortLinkStatsDto,
@@ -24,6 +25,7 @@ const shortLinks = ref<DeveloperShortLinkDto[]>([])
 const secrets = ref<DeveloperSecretDto[]>([])
 const monitors = ref<DeveloperStatusMonitorDto[]>([])
 const pushChannels = ref<DeveloperPushChannelDto[]>([])
+const quotaSummary = ref<DeveloperQuotaSummaryDto | null>(null)
 const createProjectVisible = ref(false)
 const createKeyVisible = ref(false)
 const createShortLinkVisible = ref(false)
@@ -59,17 +61,23 @@ const projectKeyScopes = [
   'ip:lookup',
   'push:send',
 ]
+const quotaServiceLabels: Record<string, string> = {
+  verification: '验证码',
+  ip: 'IP 定位',
+  push: '推送投递',
+}
 
 const refreshProjectResources = async () => {
   if (!selectedProjectId.value) return
   const projectId = selectedProjectId.value
-  ;[keys.value, kvEntries.value, shortLinks.value, secrets.value, monitors.value, pushChannels.value] = await Promise.all([
+  ;[keys.value, kvEntries.value, shortLinks.value, secrets.value, monitors.value, pushChannels.value, quotaSummary.value] = await Promise.all([
     developerProjectService.listKeys(projectId),
     developerProjectService.listKv(projectId),
     developerProjectService.listShortLinks(projectId),
     developerProjectService.listSecrets(projectId),
     developerProjectService.listMonitors(projectId),
     developerProjectService.listPushChannels(projectId),
+    developerProjectService.getUsageSummary(projectId),
   ])
 }
 
@@ -357,6 +365,25 @@ const deleteKv = async (entry: KvListEntry) => {
       </section>
 
       <el-tabs class="developer-tabs">
+        <el-tab-pane label="今日用量">
+          <div class="panel-toolbar">
+            <p>免费额度按项目和自然日计算，拒绝的超额调用不会计入用量。</p>
+            <el-tag :type="quotaSummary?.overageEnabled ? 'warning' : 'info'">
+              {{ quotaSummary?.overageEnabled ? '超额调用已启用' : '超额调用未启用' }}
+            </el-tag>
+          </div>
+          <el-table :data="quotaSummary?.usages || []" empty-text="暂无按量服务">
+            <el-table-column label="服务" min-width="180">
+              <template #default="{ row }">{{ quotaServiceLabels[row.service] || row.service }}</template>
+            </el-table-column>
+            <el-table-column prop="requestCount" label="今日调用" width="140" />
+            <el-table-column label="免费额度" width="140">
+              <template #default>{{ quotaSummary?.dailyFreeQuota ?? 0 }}</template>
+            </el-table-column>
+            <el-table-column prop="remainingFree" label="剩余免费次数" width="160" />
+          </el-table>
+        </el-tab-pane>
+
         <el-tab-pane label="KV 存储">
           <div class="panel-toolbar">
             <p>在项目边界内保存 JSON 配置与临时数据，值仅在编辑时加载。</p>

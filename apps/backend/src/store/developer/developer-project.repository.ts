@@ -16,6 +16,7 @@ import type {
   DeveloperApiKeyScope,
   DeveloperKvValueDto,
   DeveloperProjectDto,
+  DeveloperQuotaSummaryDto,
   DeveloperPushChannelDto,
   DeveloperPushDeliveryDto,
   DeveloperSecretDto,
@@ -175,6 +176,27 @@ export class DeveloperProjectRepository {
       orderBy: { createTime: "desc" },
     });
     return projects.map((project) => this.toProjectDto(project));
+  }
+
+  async getQuotaSummary(projectId: string, userId: string): Promise<DeveloperQuotaSummaryDto> {
+    const project = await this.assertProjectOwner(projectId, userId);
+    const usageDate = new Date();
+    usageDate.setHours(0, 0, 0, 0);
+    const records = await prisma.developerQuotaUsage.findMany({ where: { projectId, usageDate } });
+    const counts = new Map(records.map((record) => [record.service, record.requestCount]));
+    const services = ["verification", "ip", "push"];
+    return {
+      dailyFreeQuota: project.dailyFreeQuota,
+      overageEnabled: project.overageEnabled,
+      usages: services.map((service) => {
+        const requestCount = counts.get(service) ?? 0;
+        return {
+          service,
+          requestCount,
+          remainingFree: Math.max(0, project.dailyFreeQuota - requestCount),
+        };
+      }),
+    };
   }
 
   async createProjectApiKey(

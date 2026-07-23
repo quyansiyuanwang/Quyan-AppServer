@@ -17003,6 +17003,41 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/usage": {
+			"get": {
+				"operationId": "DeveloperProjectControllerGetUsageSummary",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperQuotaSummaryDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/keys": {
 			"get": {
 				"operationId": "DeveloperProjectControllerListKeys",
@@ -36837,6 +36872,48 @@
 				"required": [
 					"name",
 					"slug"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperQuotaSummaryDto": {
+				"properties": {
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					},
+					"usages": {
+						"items": {
+							"properties": {
+								"remainingFree": {
+									"type": "number",
+									"format": "double"
+								},
+								"requestCount": {
+									"type": "number",
+									"format": "double"
+								},
+								"service": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"remainingFree",
+								"requestCount",
+								"service"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"dailyFreeQuota",
+					"overageEnabled",
+					"usages"
 				],
 				"type": "object",
 				"additionalProperties": false

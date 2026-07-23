@@ -7,6 +7,7 @@ import type {
   CreateDeveloperPushChannelDto,
   CreateShortLinkDto,
   CreateDeveloperStatusMonitorDto,
+  DeveloperQuotaSummaryDto,
   DeveloperShortLinkStatsDto,
   SetKvValueDto,
   UpdateDeveloperStatusMonitorDto,
@@ -34,6 +35,13 @@ export class DeveloperProjectService {
 
   async createProject(data: CreateDeveloperProjectDto) {
     return checkApiResult(await getDeveloperProjectApi().create({ body: data }), true)
+  }
+
+  async getUsageSummary(projectId: string) {
+    return checkApiResult<DeveloperQuotaSummaryDto>(
+      await getDeveloperProjectApi().getUsageSummary({ path: { projectId } }),
+      true,
+    )
   }
 
   async listKeys(projectId: string) {

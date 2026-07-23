@@ -25,6 +25,7 @@ import type {
   DeveloperApiKeyDto,
   DeveloperKvValueDto,
   DeveloperProjectDto,
+  DeveloperQuotaSummaryDto,
   DeveloperPushChannelDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
@@ -70,6 +71,15 @@ export class DeveloperProjectController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DeveloperProjectDto> {
     return this.service.createProject(request.user!.userId, body);
+  }
+
+  @Get("{projectId}/usage")
+  @Middlewares(validateParams(projectIdParamsSchema))
+  public async getUsageSummary(
+    @Path() projectId: string,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperQuotaSummaryDto> {
+    return this.service.getQuotaSummary(projectId, request.user!.userId);
   }
 
   @Get("{projectId}/keys")
