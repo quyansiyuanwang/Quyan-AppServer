@@ -108,6 +108,7 @@ model DeveloperProject {
   verifications  DeveloperVerification[]
   pushChannels   DeveloperPushChannel[]
   pushDeliveries DeveloperPushDelivery[]
+  pushRequests   DeveloperPushRequest[]
   statusMonitors DeveloperStatusMonitor[]
   quotaUsages    DeveloperQuotaUsage[]
 
@@ -267,6 +268,21 @@ model DeveloperPushDelivery {
   @@index([projectId, idempotencyKey])
   @@index([deliveryStatus, nextRetryAt])
   @@map("developer_push_deliveries")
+}
+
+model DeveloperPushRequest {
+  id             String           @id @default(cuid())
+  status         Int              @default(1)
+  createTime     DateTime         @default(now())
+  updateTime     DateTime         @updatedAt
+  projectId      String
+  idempotencyKey String           @db.VarChar(100)
+  requestStatus  String           @default("pending") @db.VarChar(20)
+  project        DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, idempotencyKey])
+  @@index([projectId, createTime])
+  @@map("developer_push_requests")
 }
 
 model DeveloperStatusMonitor {

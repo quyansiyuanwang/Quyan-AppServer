@@ -1243,35 +1243,53 @@ export class DeveloperProjectRepository {
 
   async sendPush(projectId: string, body: SendDeveloperPushDto): Promise<DeveloperPushDeliveryDto[]> {
     if (body.idempotencyKey) {
-      const existing = await prisma.developerPushDelivery.findMany({
-        where: { projectId, idempotencyKey: body.idempotencyKey },
-        orderBy: { createTime: "asc" },
-      });
-      if (existing.length) return existing.map((delivery) => this.toPushDeliveryDto(delivery));
+      try {
+        await prisma.developerPushRequest.create({ data: { projectId, idempotencyKey: body.idempotencyKey } });
+      } catch (error: any) {
+        if (error?.code !== "P2002") throw error;
+        const existing = await prisma.developerPushDelivery.findMany({
+          where: { projectId, idempotencyKey: body.idempotencyKey },
+          orderBy: { createTime: "asc" },
+        });
+        return existing.map((delivery) => this.toPushDeliveryDto(delivery));
+      }
     }
-    const channels = await prisma.developerPushChannel.findMany({
-      where: { projectId, id: { in: body.channelIds }, enabled: true, status: 1 },
-    });
-    if (!channels.length) throw new NotFoundError("未找到可用的推送渠道");
-    const receipt = await this.consumeQuota(projectId, "push");
-    const deliveries = await Promise.all(
-      channels.map((channel) =>
-        prisma.developerPushDelivery.create({
-          data: {
-            projectId,
-            channelId: channel.id,
-            title: body.title,
-            content: body.content,
-            idempotencyKey: body.idempotencyKey,
-            deliveryStatus: "pending",
-          },
-        }),
-      ),
-    );
-    const results = await Promise.all(
-      deliveries.map((delivery) => this.dispatchPushDelivery(delivery, channels.find((channel) => channel.id === delivery.channelId)!)),
-    );
-    if (!results.some((result) => result.success)) await this.refundQuota(receipt).catch(() => {});
-    return results;
+    try {
+      const channels = await prisma.developerPushChannel.findMany({
+        where: { projectId, id: { in: body.channelIds }, enabled: true, status: 1 },
+      });
+      if (!channels.length) throw new NotFoundError("未找到可用的推送渠道");
+      const receipt = await this.consumeQuota(projectId, "push");
+      const deliveries = await Promise.all(
+        channels.map((channel) =>
+          prisma.developerPushDelivery.create({
+            data: {
+              projectId,
+              channelId: channel.id,
+              title: body.title,
+              content: body.content,
+              idempotencyKey: body.idempotencyKey,
+              deliveryStatus: "pending",
+            },
+          }),
+        ),
+      );
+      const results = await Promise.all(
+        deliveries.map((delivery) =>
+          this.dispatchPushDelivery(delivery, channels.find((channel) => channel.id === delivery.channelId)!),
+        ),
+      );
+      if (!results.some((result) => result.success)) await this.refundQuota(receipt).catch(() => {});
+      if (body.idempotencyKey)
+        await prisma.developerPushRequest.update({
+          where: { projectId_idempotencyKey: { projectId, idempotencyKey: body.idempotencyKey } },
+          data: { requestStatus: results.some((result) => result.success) ? "success" : "failed" },
+        });
+      return results;
+    } catch (error) {
+      if (body.idempotencyKey)
+        await prisma.developerPushRequest.deleteMany({ where: { projectId, idempotencyKey: body.idempotencyKey } });
+      throw error;
+    }
   }
 }
