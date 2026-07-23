@@ -568,6 +568,12 @@ export class DeveloperProjectRepository {
     return this.monitorDto(monitor);
   }
 
+  async deleteStatusMonitor(projectId: string, monitorId: string, userId: string): Promise<void> {
+    await this.assertProjectOwner(projectId, userId);
+    const result = await prisma.developerStatusMonitor.deleteMany({ where: { id: monitorId, projectId } });
+    if (!result.count) throw new NotFoundError("监控目标不存在");
+  }
+
   async checkStatusMonitor(projectId: string, monitorId: string, userId: string): Promise<DeveloperStatusMonitorDto> {
     await this.assertProjectOwner(projectId, userId);
     const monitor = await prisma.developerStatusMonitor.findFirst({ where: { id: monitorId, projectId } });

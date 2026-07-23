@@ -137,6 +137,13 @@ export class DeveloperProjectService {
     )
   }
 
+  async deleteMonitor(projectId: string, id: string) {
+    return checkApiResult(
+      await getDeveloperProjectApi().deleteMonitor({ path: { projectId, id } }),
+      false,
+    )
+  }
+
   async checkMonitor(projectId: string, id: string) {
     return checkApiResult(
       await getDeveloperProjectApi().checkMonitor({ path: { projectId, id } }),

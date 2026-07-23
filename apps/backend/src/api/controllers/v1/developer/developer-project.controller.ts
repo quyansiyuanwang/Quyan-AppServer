@@ -258,6 +258,17 @@ export class DeveloperProjectController extends Controller {
     return this.service.updateStatusMonitor(projectId, id, request.user!.userId, body);
   }
 
+  @Delete("{projectId}/monitors/{id}")
+  @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema), validateParams(idParamsSchema))
+  public async deleteMonitor(
+    @Path() projectId: string,
+    @Path() id: string,
+    @Request() request: TypedRequest,
+  ): Promise<{ success: true }> {
+    await this.service.deleteStatusMonitor(projectId, id, request.user!.userId);
+    return { success: true };
+  }
+
   @Post("{projectId}/monitors/{id}/check")
   @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema), validateParams(idParamsSchema))
   public async checkMonitor(

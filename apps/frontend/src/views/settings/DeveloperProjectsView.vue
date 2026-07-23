@@ -202,6 +202,14 @@ const toggleMonitor = async (monitor: DeveloperStatusMonitorDto) => {
   monitors.value = monitors.value.map((item) => (item.id === updated.id ? updated : item))
 }
 
+const deleteMonitor = async (monitor: DeveloperStatusMonitorDto) => {
+  await ElMessageBox.confirm(`删除 ${monitor.name} 后，状态页将不再显示该目标。`, '删除监控目标', {
+    type: 'warning',
+  })
+  await developerProjectService.deleteMonitor(selectedProjectId.value, monitor.id)
+  monitors.value = monitors.value.filter((item) => item.id !== monitor.id)
+}
+
 const revokeKey = async (key: DeveloperApiKeyDto) => {
   await ElMessageBox.confirm(`撤销 ${key.name} 后无法恢复。`, '撤销项目 API Key', {
     type: 'warning',
@@ -442,7 +450,7 @@ const deleteKv = async (entry: KvListEntry) => {
                 ><el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '运行中' : '已暂停' }}</el-tag></template
               ></el-table-column
             ><el-table-column
-              width="160"
+              width="190"
               ><template #default="{ row }"
                 ><el-button
                   :icon="Refresh"
@@ -450,7 +458,8 @@ const deleteKv = async (entry: KvListEntry) => {
                   title="立即检测"
                   :disabled="!row.enabled"
                   @click="checkMonitor(row)"
-                /><el-button link @click="toggleMonitor(row)">{{ row.enabled ? '暂停' : '恢复' }}</el-button></template
+                /><el-button link @click="toggleMonitor(row)">{{ row.enabled ? '暂停' : '恢复' }}</el-button
+                ><el-button link type="danger" @click="deleteMonitor(row)">删除</el-button></template
               ></el-table-column
           ></el-table>
         </el-tab-pane>
