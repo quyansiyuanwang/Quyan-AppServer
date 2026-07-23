@@ -23,7 +23,10 @@ export class DeveloperMonitorSchedulerService {
   private async run(): Promise<void> {
     try {
       await DeveloperProjectRepository.getInstance().runWithSchedulerLock(() =>
-        DeveloperProjectService.getInstance().runScheduledMonitorChecks(),
+        Promise.all([
+          DeveloperProjectService.getInstance().runScheduledMonitorChecks(),
+          DeveloperProjectService.getInstance().retryScheduledPushDeliveries(),
+        ]).then(() => undefined),
       );
     } catch (error) {
       logger.error("Developer monitor scheduler failed", {

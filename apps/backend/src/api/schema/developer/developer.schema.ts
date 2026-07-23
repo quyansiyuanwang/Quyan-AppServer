@@ -77,6 +77,7 @@ export const sendPushBodySchema = z.object({
   channelIds: z.array(z.string().trim().min(1)).min(1).max(20),
   title: z.string().trim().min(1).max(200),
   content: z.string().trim().min(1).max(10_000),
+  idempotencyKey: z.string().trim().min(1).max(100).optional(),
 });
 
 export const quotaOverrideIdParamsSchema = z.object({ id: z.string().trim().min(1) });

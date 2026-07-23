@@ -251,12 +251,18 @@ model DeveloperPushDelivery {
   projectId      String
   channelId      String
   title          String               @db.VarChar(200)
+  content        String               @db.Text
+  idempotencyKey String?              @db.VarChar(100)
   deliveryStatus String               @db.VarChar(20)
+  attemptCount   Int                  @default(0)
+  nextRetryAt    DateTime?
   errorMessage   String?              @db.VarChar(500)
   project        DeveloperProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
   channel        DeveloperPushChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@index([projectId, createTime])
+  @@index([projectId, idempotencyKey])
+  @@index([deliveryStatus, nextRetryAt])
   @@map("developer_push_deliveries")
 }
 

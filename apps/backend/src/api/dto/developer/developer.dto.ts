@@ -191,10 +191,17 @@ export interface SendDeveloperPushDto {
   channelIds: string[];
   title: string;
   content: string;
+  idempotencyKey?: string;
 }
 
 export interface DeveloperPushDeliveryDto {
+  id: string;
   channelId: string;
   success: boolean;
   error?: string;
+  status: string;
+  attemptCount: number;
+  nextRetryAt?: string;
+  createTime: string;
+  updateTime: string;
 }

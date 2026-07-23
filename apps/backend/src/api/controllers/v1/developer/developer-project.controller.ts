@@ -27,6 +27,7 @@ import type {
   DeveloperProjectDto,
   DeveloperQuotaSummaryDto,
   DeveloperPushChannelDto,
+  DeveloperPushDeliveryDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
   DeveloperShortLinkStatsDto,
@@ -310,6 +311,15 @@ export class DeveloperProjectController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DeveloperPushChannelDto[]> {
     return this.service.listPushChannels(projectId, request.user!.userId);
+  }
+
+  @Get("{projectId}/push-deliveries")
+  @Middlewares(validateParams(projectIdParamsSchema))
+  public async listPushDeliveries(
+    @Path() projectId: string,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperPushDeliveryDto[]> {
+    return this.service.listPushDeliveries(projectId, request.user!.userId);
   }
 
   @Post("{projectId}/push-channels")

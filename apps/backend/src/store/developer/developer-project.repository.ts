@@ -1092,48 +1092,118 @@ export class DeveloperProjectRepository {
     if (!result.count) throw new NotFoundError("推送渠道不存在");
   }
 
+  private toPushDeliveryDto(delivery: {
+    id: string;
+    channelId: string;
+    deliveryStatus: string;
+    attemptCount: number;
+    nextRetryAt: Date | null;
+    errorMessage: string | null;
+    createTime: Date;
+    updateTime: Date;
+  }): DeveloperPushDeliveryDto {
+    return {
+      id: delivery.id,
+      channelId: delivery.channelId,
+      success: delivery.deliveryStatus === "success",
+      error: delivery.errorMessage ?? undefined,
+      status: delivery.deliveryStatus,
+      attemptCount: delivery.attemptCount,
+      nextRetryAt: asIso(delivery.nextRetryAt),
+      createTime: delivery.createTime.toISOString(),
+      updateTime: delivery.updateTime.toISOString(),
+    };
+  }
+
+  async listPushDeliveries(projectId: string, userId: string): Promise<DeveloperPushDeliveryDto[]> {
+    await this.assertProjectOwner(projectId, userId);
+    const deliveries = await prisma.developerPushDelivery.findMany({
+      where: { projectId },
+      orderBy: { createTime: "desc" },
+      take: 100,
+    });
+    return deliveries.map((delivery) => this.toPushDeliveryDto(delivery));
+  }
+
+  private async dispatchPushDelivery(
+    delivery: { id: string; projectId: string; channelId: string; title: string; content: string },
+    channel: { endpoint: string | null; secretAlias: string | null; type: string; enabled: boolean },
+  ): Promise<DeveloperPushDeliveryDto> {
+    try {
+      if (!channel.enabled || !channel.endpoint) throw new BadRequestError("推送渠道未配置地址或已停用");
+      await assertSafeOutboundUrl(channel.endpoint);
+      const secret = channel.secretAlias ? await this.resolveSecret(delivery.projectId, channel.secretAlias) : undefined;
+      const payload =
+        channel.type === "dingtalk"
+          ? { msgtype: "text", text: { content: `${delivery.title}\n${delivery.content}` } }
+          : channel.type === "feishu"
+            ? { msg_type: "text", content: { text: `${delivery.title}\n${delivery.content}` } }
+            : { title: delivery.title, content: delivery.content };
+      await axios.post(channel.endpoint, payload, {
+        timeout: 10_000,
+        maxRedirects: 0,
+        maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
+        headers: secret ? { Authorization: `Bearer ${secret}` } : undefined,
+      });
+      const updated = await prisma.developerPushDelivery.update({
+        where: { id: delivery.id },
+        data: { deliveryStatus: "success", attemptCount: { increment: 1 }, nextRetryAt: null, errorMessage: null },
+      });
+      return this.toPushDeliveryDto(updated);
+    } catch (error) {
+      const message = error instanceof Error ? error.message.slice(0, 500) : "推送失败";
+      const updated = await prisma.developerPushDelivery.update({
+        where: { id: delivery.id },
+        data: {
+          deliveryStatus: "failed",
+          attemptCount: { increment: 1 },
+          nextRetryAt: new Date(Date.now() + 60_000),
+          errorMessage: message,
+        },
+      });
+      return this.toPushDeliveryDto(updated);
+    }
+  }
+
+  async retryScheduledPushDeliveries(): Promise<void> {
+    const deliveries = await prisma.developerPushDelivery.findMany({
+      where: { deliveryStatus: "failed", nextRetryAt: { lte: new Date() }, attemptCount: { lt: 3 } },
+      include: { channel: true },
+      orderBy: { nextRetryAt: "asc" },
+      take: 100,
+    });
+    await Promise.allSettled(deliveries.map((delivery) => this.dispatchPushDelivery(delivery, delivery.channel)));
+  }
+
   async sendPush(projectId: string, body: SendDeveloperPushDto): Promise<DeveloperPushDeliveryDto[]> {
+    if (body.idempotencyKey) {
+      const existing = await prisma.developerPushDelivery.findMany({
+        where: { projectId, idempotencyKey: body.idempotencyKey },
+        orderBy: { createTime: "asc" },
+      });
+      if (existing.length) return existing.map((delivery) => this.toPushDeliveryDto(delivery));
+    }
     const channels = await prisma.developerPushChannel.findMany({
       where: { projectId, id: { in: body.channelIds }, enabled: true, status: 1 },
     });
     if (!channels.length) throw new NotFoundError("未找到可用的推送渠道");
     const receipt = await this.consumeQuota(projectId, "push");
+    const deliveries = await Promise.all(
+      channels.map((channel) =>
+        prisma.developerPushDelivery.create({
+          data: {
+            projectId,
+            channelId: channel.id,
+            title: body.title,
+            content: body.content,
+            idempotencyKey: body.idempotencyKey,
+            deliveryStatus: "pending",
+          },
+        }),
+      ),
+    );
     const results = await Promise.all(
-      channels.map(async (channel) => {
-        try {
-          if (!channel.endpoint) throw new BadRequestError("推送渠道未配置地址");
-          await assertSafeOutboundUrl(channel.endpoint);
-          const secret = channel.secretAlias ? await this.resolveSecret(projectId, channel.secretAlias) : undefined;
-          const payload =
-            channel.type === "dingtalk"
-              ? { msgtype: "text", text: { content: `${body.title}\n${body.content}` } }
-              : channel.type === "feishu"
-                ? { msg_type: "text", content: { text: `${body.title}\n${body.content}` } }
-                : { title: body.title, content: body.content };
-          await axios.post(channel.endpoint, payload, {
-            timeout: 10_000,
-            maxRedirects: 0,
-            maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
-            headers: secret ? { Authorization: `Bearer ${secret}` } : undefined,
-          });
-          await prisma.developerPushDelivery.create({
-            data: { projectId, channelId: channel.id, title: body.title, deliveryStatus: "success" },
-          });
-          return { channelId: channel.id, success: true };
-        } catch (error) {
-          const message = error instanceof Error ? error.message.slice(0, 500) : "推送失败";
-          await prisma.developerPushDelivery.create({
-            data: {
-              projectId,
-              channelId: channel.id,
-              title: body.title,
-              deliveryStatus: "failed",
-              errorMessage: message,
-            },
-          });
-          return { channelId: channel.id, success: false, error: message };
-        }
-      }),
+      deliveries.map((delivery) => this.dispatchPushDelivery(delivery, channels.find((channel) => channel.id === delivery.channelId)!)),
     );
     if (!results.some((result) => result.success)) await this.refundQuota(receipt).catch(() => {});
     return results;

@@ -18162,6 +18162,44 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/push-deliveries": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListPushDeliveries",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperPushDeliveryDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/push-channels/{id}": {
 			"put": {
 				"operationId": "DeveloperProjectControllerUpdatePushChannel",
@@ -23295,7 +23333,8 @@
 					1038,
 					1039,
 					1040,
-					1041
+					1041,
+					1042
 				],
 				"type": "number"
 			},
@@ -37605,6 +37644,49 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"DeveloperPushDeliveryDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					},
+					"attemptCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"nextRetryAt": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"channelId",
+					"success",
+					"status",
+					"attemptCount",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"CreateDeveloperPushChannelDto": {
 				"properties": {
 					"name": {
@@ -37705,25 +37787,6 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"DeveloperPushDeliveryDto": {
-				"properties": {
-					"channelId": {
-						"type": "string"
-					},
-					"success": {
-						"type": "boolean"
-					},
-					"error": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"channelId",
-					"success"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
 			"SendDeveloperPushDto": {
 				"properties": {
 					"channelIds": {
@@ -37736,6 +37799,9 @@
 						"type": "string"
 					},
 					"content": {
+						"type": "string"
+					},
+					"idempotencyKey": {
 						"type": "string"
 					}
 				},
