@@ -75,6 +75,18 @@ export interface DeveloperShortLinkDto {
   publicUrl: string;
 }
 
+export interface DeveloperShortLinkStatsDto {
+  linkId: string;
+  code: string;
+  totalClicks: number;
+  periodStart: string;
+  periodEnd: string;
+  clicksByDay: Array<{ date: string; count: number }>;
+  sources: Array<{ sourceHost?: string; count: number }>;
+  countries: Array<{ country?: string; count: number }>;
+  recentClicks: Array<{ clickedAt: string; sourceHost?: string; country?: string; userAgent?: string }>;
+}
+
 export interface UpsertDeveloperSecretDto {
   alias: string;
   value: string;

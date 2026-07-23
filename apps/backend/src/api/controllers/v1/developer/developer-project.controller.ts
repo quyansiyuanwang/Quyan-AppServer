@@ -28,6 +28,7 @@ import type {
   DeveloperPushChannelDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
+  DeveloperShortLinkStatsDto,
   DeveloperStatusMonitorDto,
   SetKvValueDto,
   UpdateDeveloperStatusMonitorDto,
@@ -193,6 +194,16 @@ export class DeveloperProjectController extends Controller {
   ): Promise<{ success: true }> {
     await this.service.deleteShortLink(projectId, id, request.user!.userId);
     return { success: true };
+  }
+
+  @Get("{projectId}/short-links/{id}/stats")
+  @Middlewares(validateParams(projectIdParamsSchema), validateParams(idParamsSchema))
+  public async getShortLinkStats(
+    @Path() projectId: string,
+    @Path() id: string,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperShortLinkStatsDto> {
+    return this.service.getShortLinkStats(projectId, id, request.user!.userId);
   }
 
   @Get("{projectId}/secrets")

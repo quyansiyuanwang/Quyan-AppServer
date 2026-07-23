@@ -17518,6 +17518,49 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/short-links/{id}/stats": {
+			"get": {
+				"operationId": "DeveloperProjectControllerGetShortLinkStats",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkStatsDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/secrets": {
 			"get": {
 				"operationId": "DeveloperProjectControllerListSecrets",
@@ -36988,6 +37031,117 @@
 						"nullable": true
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperShortLinkStatsDto": {
+				"properties": {
+					"linkId": {
+						"type": "string"
+					},
+					"code": {
+						"type": "string"
+					},
+					"totalClicks": {
+						"type": "number",
+						"format": "double"
+					},
+					"periodStart": {
+						"type": "string"
+					},
+					"periodEnd": {
+						"type": "string"
+					},
+					"clicksByDay": {
+						"items": {
+							"properties": {
+								"count": {
+									"type": "number",
+									"format": "double"
+								},
+								"date": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"count",
+								"date"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"sources": {
+						"items": {
+							"properties": {
+								"count": {
+									"type": "number",
+									"format": "double"
+								},
+								"sourceHost": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"count"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"countries": {
+						"items": {
+							"properties": {
+								"count": {
+									"type": "number",
+									"format": "double"
+								},
+								"country": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"count"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"recentClicks": {
+						"items": {
+							"properties": {
+								"userAgent": {
+									"type": "string"
+								},
+								"country": {
+									"type": "string"
+								},
+								"sourceHost": {
+									"type": "string"
+								},
+								"clickedAt": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"clickedAt"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"linkId",
+					"code",
+					"totalClicks",
+					"periodStart",
+					"periodEnd",
+					"clicksByDay",
+					"sources",
+					"countries",
+					"recentClicks"
+				],
 				"type": "object",
 				"additionalProperties": false
 			},

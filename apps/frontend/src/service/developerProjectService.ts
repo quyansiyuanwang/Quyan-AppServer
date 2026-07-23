@@ -7,6 +7,7 @@ import type {
   CreateDeveloperPushChannelDto,
   CreateShortLinkDto,
   CreateDeveloperStatusMonitorDto,
+  DeveloperShortLinkStatsDto,
   SetKvValueDto,
   UpdateDeveloperStatusMonitorDto,
   UpdateDeveloperPushChannelDto,
@@ -97,6 +98,13 @@ export class DeveloperProjectService {
     return checkApiResult(
       await getDeveloperProjectApi().deleteShortLink({ path: { projectId, id } }),
       false,
+    )
+  }
+
+  async getShortLinkStats(projectId: string, id: string) {
+    return checkApiResult<DeveloperShortLinkStatsDto>(
+      await getDeveloperProjectApi().getShortLinkStats({ path: { projectId, id } }),
+      true,
     )
   }
 

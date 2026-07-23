@@ -8,7 +8,11 @@ import { skipResponseWrapper } from "@/util/response-wrapper";
 export class DeveloperShortLinkPublicController extends Controller {
   @Get("{code}")
   public async redirect(@Path() code: string, @Request() request: TypedRequest): Promise<void> {
-    const target = await DeveloperProjectService.getInstance().resolveShortLink(code);
+    const target = await DeveloperProjectService.getInstance().resolveShortLink(code, {
+      referrer: request.get("referer"),
+      userAgent: request.get("user-agent"),
+      country: request.get("cf-ipcountry") || request.get("x-vercel-ip-country"),
+    });
     skipResponseWrapper(request);
     request.res.redirect(302, target);
   }

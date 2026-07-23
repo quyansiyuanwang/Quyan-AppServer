@@ -163,9 +163,27 @@ model DeveloperShortLink {
   expiresAt  DateTime?
   clickCount Int              @default(0)
   project    DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clicks     DeveloperShortLinkClick[]
 
   @@index([projectId, createTime])
   @@map("developer_short_links")
+}
+
+model DeveloperShortLinkClick {
+  id          String             @id @default(cuid())
+  status      Int                @default(1)
+  createTime  DateTime           @default(now())
+  updateTime  DateTime           @updatedAt
+  shortLinkId String
+  clickedAt   DateTime           @default(now())
+  sourceHost  String?            @db.VarChar(255)
+  userAgent   String?            @db.VarChar(255)
+  country     String?            @db.VarChar(8)
+  shortLink   DeveloperShortLink @relation(fields: [shortLinkId], references: [id], onDelete: Cascade)
+
+  @@index([shortLinkId, clickedAt])
+  @@index([country, clickedAt])
+  @@map("developer_short_link_clicks")
 }
 
 model DeveloperSecret {

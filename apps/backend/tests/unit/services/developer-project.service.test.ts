@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
     developerProject: { findFirst: vi.fn() },
     developerProjectApiKey: { findFirst: vi.fn(), update: vi.fn() },
     developerKvEntry: { findFirst: vi.fn(), delete: vi.fn() },
+    developerShortLink: { findFirst: vi.fn() },
+    developerShortLinkClick: { groupBy: vi.fn(), findMany: vi.fn() },
     developerSecret: { upsert: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     developerVerification: { findFirst: vi.fn(), update: vi.fn() },
   },
@@ -139,5 +141,35 @@ describe("DeveloperProjectService", () => {
 
     expect(page.statusMonitors[0].availability).toBe(0.5);
     expect(page.statusMonitors[0].checks).toHaveLength(2);
+  });
+
+  it("aggregates short-link clicks by day, source and country without IP data", async () => {
+    mocks.prisma.developerProject.findFirst.mockResolvedValue({ id: "project-1" });
+    mocks.prisma.developerShortLink.findFirst.mockResolvedValue({ id: "link-1", code: "docs", clickCount: 8 });
+    mocks.prisma.developerShortLinkClick.groupBy
+      .mockResolvedValueOnce([{ sourceHost: "example.com", _count: { id: 3 } }])
+      .mockResolvedValueOnce([{ country: "CN", _count: { id: 2 } }]);
+    mocks.prisma.developerShortLinkClick.findMany.mockResolvedValue([
+      {
+        clickedAt: new Date("2026-07-23T08:00:00.000Z"),
+        sourceHost: "example.com",
+        country: "CN",
+        userAgent: "Test Browser",
+      },
+      {
+        clickedAt: new Date("2026-07-23T10:00:00.000Z"),
+        sourceHost: null,
+        country: null,
+        userAgent: null,
+      },
+    ]);
+
+    const stats = await DeveloperProjectService.getInstance().getShortLinkStats("project-1", "link-1", "user-1");
+
+    expect(stats.totalClicks).toBe(8);
+    expect(stats.clicksByDay).toEqual([{ date: "2026-07-23", count: 2 }]);
+    expect(stats.sources).toEqual([{ sourceHost: "example.com", count: 3 }]);
+    expect(stats.countries).toEqual([{ country: "CN", count: 2 }]);
+    expect(stats.recentClicks[1]).not.toHaveProperty("ipAddress");
   });
 });

@@ -9,6 +9,7 @@ import type {
   DeveloperPushChannelDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
+  DeveloperShortLinkStatsDto,
   DeveloperStatusMonitorDto,
 } from '@/client/types.gen'
 import { developerProjectService } from '@/service/developerProjectService'
@@ -26,6 +27,7 @@ const pushChannels = ref<DeveloperPushChannelDto[]>([])
 const createProjectVisible = ref(false)
 const createKeyVisible = ref(false)
 const createShortLinkVisible = ref(false)
+const shortLinkStatsVisible = ref(false)
 const createSecretVisible = ref(false)
 const createMonitorVisible = ref(false)
 const createPushChannelVisible = ref(false)
@@ -34,6 +36,7 @@ const projectForm = ref({ name: '', slug: '', description: '' })
 const keyForm = ref({ name: '', scopes: ['kv:read', 'kv:write'] as string[] })
 const shortLinkForm = ref({ targetUrl: '', code: '', expiresAt: '', enabled: true })
 const editingShortLinkId = ref('')
+const shortLinkStats = ref<DeveloperShortLinkStatsDto | null>(null)
 const secretForm = ref({ alias: '', value: '' })
 const monitorForm = ref({ name: '', targetUrl: '', method: 'GET' as 'GET' | 'HEAD' })
 const pushChannelForm = ref({
@@ -170,6 +173,11 @@ const copyShortLink = async (link: DeveloperShortLinkDto) => {
   } catch {
     ElMessage.error('无法复制短链接')
   }
+}
+
+const showShortLinkStats = async (link: DeveloperShortLinkDto) => {
+  shortLinkStats.value = await developerProjectService.getShortLinkStats(selectedProjectId.value, link.id)
+  shortLinkStatsVisible.value = true
 }
 
 const saveSecret = async () => {
@@ -429,6 +437,7 @@ const deleteKv = async (entry: KvListEntry) => {
                   title="复制短链接"
                   @click="copyShortLink(row)"
                 />
+                <el-button link type="primary" @click="showShortLinkStats(row)">统计</el-button>
                 <el-button link type="primary" @click="openEditShortLink(row)">编辑</el-button>
                 <el-button link @click="toggleShortLink(row)">{{ row.enabled ? '停用' : '启用' }}</el-button>
                 <el-button link type="danger" @click="deleteShortLink(row)">删除</el-button>
@@ -608,6 +617,55 @@ const deleteKv = async (entry: KvListEntry) => {
         ></template
       ></el-dialog
     >
+    <el-dialog v-model="shortLinkStatsVisible" title="短链接统计" width="760px">
+      <template v-if="shortLinkStats">
+        <el-descriptions :column="3" border class="short-link-summary">
+          <el-descriptions-item label="短码">{{ shortLinkStats.code }}</el-descriptions-item>
+          <el-descriptions-item label="累计点击">{{ shortLinkStats.totalClicks }}</el-descriptions-item>
+          <el-descriptions-item label="统计周期">近 30 天</el-descriptions-item>
+        </el-descriptions>
+        <section class="stats-section">
+          <h3>每日点击</h3>
+          <el-table :data="shortLinkStats.clicksByDay" max-height="180" empty-text="统计周期内暂无点击">
+            <el-table-column prop="date" label="日期" />
+            <el-table-column prop="count" label="点击数" width="120" />
+          </el-table>
+        </section>
+        <section class="stats-grid">
+          <div>
+            <h3>来源域名</h3>
+            <el-table :data="shortLinkStats.sources" max-height="180" empty-text="暂无来源信息">
+              <el-table-column label="来源">
+                <template #default="{ row }">{{ row.sourceHost || '直接访问' }}</template>
+              </el-table-column>
+              <el-table-column prop="count" label="点击" width="80" />
+            </el-table>
+          </div>
+          <div>
+            <h3>国家/地区</h3>
+            <el-table :data="shortLinkStats.countries" max-height="180" empty-text="暂无地区信息">
+              <el-table-column label="地区">
+                <template #default="{ row }">{{ row.country || '未知' }}</template>
+              </el-table-column>
+              <el-table-column prop="count" label="点击" width="80" />
+            </el-table>
+          </div>
+        </section>
+        <section class="stats-section">
+          <h3>最近点击</h3>
+          <el-table :data="shortLinkStats.recentClicks" max-height="220" empty-text="暂无点击记录">
+            <el-table-column prop="clickedAt" label="时间" min-width="180" />
+            <el-table-column label="来源" min-width="150">
+              <template #default="{ row }">{{ row.sourceHost || '直接访问' }}</template>
+            </el-table-column>
+            <el-table-column label="地区" width="90">
+              <template #default="{ row }">{{ row.country || '未知' }}</template>
+            </el-table-column>
+            <el-table-column prop="userAgent" label="客户端" min-width="180" show-overflow-tooltip />
+          </el-table>
+        </section>
+      </template>
+    </el-dialog>
     <el-dialog v-model="createSecretVisible" title="新增托管密钥" width="480px"
       ><el-form label-position="top"
         ><el-form-item label="别名"
@@ -770,6 +828,23 @@ const deleteKv = async (entry: KvListEntry) => {
   margin: 2px 4px 2px 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+.short-link-summary {
+  margin-bottom: 20px;
+}
+.stats-section {
+  margin-top: 20px;
+}
+.stats-section h3,
+.stats-grid h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 20px;
+}
 code {
   color: var(--el-color-primary);
 }
@@ -784,6 +859,9 @@ code {
   }
   .service-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stats-grid {
+    grid-template-columns: 1fr;
   }
   .service-strip article:nth-child(even) {
     border-right: 0;

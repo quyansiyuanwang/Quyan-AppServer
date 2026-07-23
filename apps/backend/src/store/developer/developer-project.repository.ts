@@ -20,6 +20,7 @@ import type {
   DeveloperPushDeliveryDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
+  DeveloperShortLinkStatsDto,
   DeveloperStatusMonitorDto,
   SendDeveloperPushDto,
   SendDeveloperVerificationDto,
@@ -234,20 +235,22 @@ export class DeveloperProjectRepository {
   }
 
   private async consumeQuota(projectId: string, service: string): Promise<void> {
-    const project = await prisma.developerProject.findUnique({
-      where: { id: projectId },
-      select: { dailyFreeQuota: true, overageEnabled: true },
-    });
-    if (!project) throw new NotFoundError("项目不存在");
     const usageDate = new Date();
     usageDate.setHours(0, 0, 0, 0);
-    const usage = await prisma.developerQuotaUsage.upsert({
-      where: { projectId_service_usageDate: { projectId, service, usageDate } },
-      create: { projectId, service, usageDate, requestCount: 1 },
-      update: { requestCount: { increment: 1 } },
+    await prisma.$transaction(async (tx) => {
+      const project = await tx.developerProject.findUnique({
+        where: { id: projectId },
+        select: { dailyFreeQuota: true, overageEnabled: true },
+      });
+      if (!project) throw new NotFoundError("项目不存在");
+      const usage = await tx.developerQuotaUsage.upsert({
+        where: { projectId_service_usageDate: { projectId, service, usageDate } },
+        create: { projectId, service, usageDate, requestCount: 1 },
+        update: { requestCount: { increment: 1 } },
+      });
+      if (usage.requestCount > project.dailyFreeQuota && !project.overageEnabled)
+        throw new ForbiddenError("今日免费额度已用尽");
     });
-    if (usage.requestCount > project.dailyFreeQuota && !project.overageEnabled)
-      throw new ForbiddenError("今日免费额度已用尽");
   }
 
   async getKv(projectId: string, key: string): Promise<DeveloperKvValueDto> {
@@ -396,12 +399,90 @@ export class DeveloperProjectRepository {
     if (!result.count) throw new NotFoundError("短链接不存在");
   }
 
-  async resolveShortLink(code: string): Promise<string> {
+  async resolveShortLink(
+    code: string,
+    context?: { referrer?: string; userAgent?: string; country?: string },
+  ): Promise<string> {
     const link = await prisma.developerShortLink.findFirst({ where: { code, status: 1, enabled: true } });
     if (!link || (link.expiresAt && link.expiresAt.getTime() <= Date.now()))
       throw new NotFoundError("短链接不存在或已过期");
-    void prisma.developerShortLink.update({ where: { id: link.id }, data: { clickCount: { increment: 1 } } });
+    let sourceHost: string | undefined;
+    if (context?.referrer) {
+      try {
+        sourceHost = new URL(context.referrer).hostname.slice(0, 255) || undefined;
+      } catch {
+        sourceHost = undefined;
+      }
+    }
+    const country = context?.country?.trim().toUpperCase().slice(0, 8) || undefined;
+    const userAgent = context?.userAgent?.trim().slice(0, 255) || undefined;
+    void prisma
+      .$transaction([
+        prisma.developerShortLink.update({ where: { id: link.id }, data: { clickCount: { increment: 1 } } }),
+        prisma.developerShortLinkClick.create({ data: { shortLinkId: link.id, sourceHost, userAgent, country } }),
+      ])
+      .catch(() => undefined);
     return link.targetUrl;
+  }
+
+  async getShortLinkStats(
+    projectId: string,
+    linkId: string,
+    userId: string,
+  ): Promise<DeveloperShortLinkStatsDto> {
+    await this.assertProjectOwner(projectId, userId);
+    const link = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
+    if (!link) throw new NotFoundError("短链接不存在");
+
+    const periodEnd = new Date();
+    const periodStart = new Date(periodEnd);
+    periodStart.setDate(periodStart.getDate() - 29);
+    periodStart.setHours(0, 0, 0, 0);
+    const where = { shortLinkId: link.id, clickedAt: { gte: periodStart, lte: periodEnd } };
+    const [sourceGroups, countryGroups, recentClicks] = await Promise.all([
+      prisma.developerShortLinkClick.groupBy({
+        by: ["sourceHost"],
+        where,
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+        take: 10,
+      }),
+      prisma.developerShortLinkClick.groupBy({
+        by: ["country"],
+        where,
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+        take: 10,
+      }),
+      prisma.developerShortLinkClick.findMany({
+        where,
+        orderBy: { clickedAt: "desc" },
+        take: 500,
+        select: { clickedAt: true, sourceHost: true, country: true, userAgent: true },
+      }),
+    ]);
+    const dailyCounts = new Map<string, number>();
+    for (const click of recentClicks) {
+      const day = click.clickedAt.toISOString().slice(0, 10);
+      dailyCounts.set(day, (dailyCounts.get(day) ?? 0) + 1);
+    }
+
+    return {
+      linkId: link.id,
+      code: link.code,
+      totalClicks: link.clickCount,
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+      clicksByDay: [...dailyCounts.entries()].map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date)),
+      sources: sourceGroups.map((group) => ({ sourceHost: group.sourceHost ?? undefined, count: group._count.id })),
+      countries: countryGroups.map((group) => ({ country: group.country ?? undefined, count: group._count.id })),
+      recentClicks: recentClicks.map((click) => ({
+        clickedAt: click.clickedAt.toISOString(),
+        sourceHost: click.sourceHost ?? undefined,
+        country: click.country ?? undefined,
+        userAgent: click.userAgent ?? undefined,
+      })),
+    };
   }
 
   async getPublicStatusPage(slug: string) {
