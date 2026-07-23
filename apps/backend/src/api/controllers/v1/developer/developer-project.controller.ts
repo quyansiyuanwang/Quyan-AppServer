@@ -23,10 +23,12 @@ import type {
   CreateDeveloperStatusMonitorDto,
   CreateShortLinkDto,
   DeveloperApiKeyDto,
+  DeveloperKvValueDto,
   DeveloperProjectDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
   DeveloperStatusMonitorDto,
+  SetKvValueDto,
   UpdateShortLinkDto,
   UpsertDeveloperSecretDto,
 } from "@/api/dto/developer/developer.dto";
@@ -37,7 +39,9 @@ import {
   createShortLinkBodySchema,
   createStatusMonitorBodySchema,
   idParamsSchema,
+  kvKeyParamsSchema,
   projectIdParamsSchema,
+  setKvValueBodySchema,
   updateShortLinkBodySchema,
   upsertSecretBodySchema,
 } from "@/api/schema/developer/developer.schema";
@@ -90,6 +94,49 @@ export class DeveloperProjectController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<{ success: true }> {
     await this.service.revokeProjectApiKey(projectId, id, request.user!.userId);
+    return { success: true };
+  }
+
+  @Get("{projectId}/kv")
+  @Middlewares(validateParams(projectIdParamsSchema))
+  public async listKv(@Path() projectId: string, @Request() request: TypedRequest) {
+    return this.service.listProjectKv(projectId, request.user!.userId);
+  }
+
+  @Get("{projectId}/kv/{key}")
+  @Middlewares(validateParams(projectIdParamsSchema), validateParams(kvKeyParamsSchema))
+  public async getKv(
+    @Path() projectId: string,
+    @Path() key: string,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperKvValueDto> {
+    return this.service.getProjectKv(projectId, request.user!.userId, key);
+  }
+
+  @Post("{projectId}/kv/{key}")
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateParams(projectIdParamsSchema),
+    validateParams(kvKeyParamsSchema),
+    validateBody(setKvValueBodySchema),
+  )
+  public async setKv(
+    @Path() projectId: string,
+    @Path() key: string,
+    @Body() body: SetKvValueDto,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperKvValueDto> {
+    return this.service.setProjectKv(projectId, request.user!.userId, key, body);
+  }
+
+  @Delete("{projectId}/kv/{key}")
+  @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema), validateParams(kvKeyParamsSchema))
+  public async deleteKv(
+    @Path() projectId: string,
+    @Path() key: string,
+    @Request() request: TypedRequest,
+  ): Promise<{ success: true }> {
+    await this.service.deleteProjectKv(projectId, request.user!.userId, key);
     return { success: true };
   }
 

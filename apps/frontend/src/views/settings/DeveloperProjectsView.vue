@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Key, Link, Monitor, Plus, Refresh, Service } from '@element-plus/icons-vue'
 import type {
   DeveloperApiKeyDto,
@@ -16,6 +16,8 @@ const loading = ref(false)
 const projects = ref<DeveloperProjectDto[]>([])
 const selectedProjectId = ref('')
 const keys = ref<DeveloperApiKeyDto[]>([])
+type KvListEntry = Omit<DeveloperKvValueDto, 'value'>
+const kvEntries = ref<KvListEntry[]>([])
 const shortLinks = ref<DeveloperShortLinkDto[]>([])
 const secrets = ref<DeveloperSecretDto[]>([])
 const monitors = ref<DeveloperStatusMonitorDto[]>([])
@@ -24,11 +26,14 @@ const createKeyVisible = ref(false)
 const createShortLinkVisible = ref(false)
 const createSecretVisible = ref(false)
 const createMonitorVisible = ref(false)
+const kvDialogVisible = ref(false)
 const projectForm = ref({ name: '', slug: '', description: '' })
 const keyForm = ref({ name: '', scopes: ['kv:read', 'kv:write'] as string[] })
 const shortLinkForm = ref({ targetUrl: '', code: '' })
 const secretForm = ref({ alias: '', value: '' })
 const monitorForm = ref({ name: '', targetUrl: '', method: 'GET' as 'GET' | 'HEAD' })
+const kvForm = ref({ key: '', value: '{}', ttlSeconds: undefined as number | undefined })
+const editingKvKey = ref('')
 
 const activeProject = computed(() =>
   projects.value.find((project) => project.id === selectedProjectId.value),
@@ -45,8 +50,9 @@ const projectKeyScopes = [
 const refreshProjectResources = async () => {
   if (!selectedProjectId.value) return
   const projectId = selectedProjectId.value
-  ;[keys.value, shortLinks.value, secrets.value, monitors.value] = await Promise.all([
+  ;[keys.value, kvEntries.value, shortLinks.value, secrets.value, monitors.value] = await Promise.all([
     developerProjectService.listKeys(projectId),
+    developerProjectService.listKv(projectId),
     developerProjectService.listShortLinks(projectId),
     developerProjectService.listSecrets(projectId),
     developerProjectService.listMonitors(projectId),
@@ -132,6 +138,45 @@ const revokeKey = async (key: DeveloperApiKeyDto) => {
   await developerProjectService.revokeKey(selectedProjectId.value, key.id)
   keys.value = keys.value.filter((item) => item.id !== key.id)
 }
+
+const openCreateKv = () => {
+  editingKvKey.value = ''
+  kvForm.value = { key: '', value: '{}', ttlSeconds: undefined }
+  kvDialogVisible.value = true
+}
+
+const editKv = async (entry: KvListEntry) => {
+  const value = await developerProjectService.getKv(selectedProjectId.value, entry.key)
+  editingKvKey.value = entry.key
+  kvForm.value = {
+    key: value.key,
+    value: JSON.stringify(value.value, null, 2),
+    ttlSeconds: undefined,
+  }
+  kvDialogVisible.value = true
+}
+
+const saveKv = async () => {
+  let value: unknown
+  try {
+    value = JSON.parse(kvForm.value.value)
+  } catch {
+    ElMessage.error('值必须是合法 JSON')
+    return
+  }
+  await developerProjectService.setKv(selectedProjectId.value, kvForm.value.key, {
+    value,
+    ttlSeconds: kvForm.value.ttlSeconds,
+  })
+  kvDialogVisible.value = false
+  await refreshProjectResources()
+}
+
+const deleteKv = async (entry: KvListEntry) => {
+  await ElMessageBox.confirm(`删除 ${entry.key} 后无法恢复。`, '删除 KV', { type: 'warning' })
+  await developerProjectService.deleteKv(selectedProjectId.value, entry.key)
+  kvEntries.value = kvEntries.value.filter((item) => item.key !== entry.key)
+}
 </script>
 
 <template>
@@ -170,6 +215,9 @@ const revokeKey = async (key: DeveloperApiKeyDto) => {
     <template v-else>
       <section class="service-strip">
         <article>
+          <Service :size="19" /><span>KV 条目</span><strong>{{ kvEntries.length }}</strong>
+        </article>
+        <article>
           <Key :size="19" /><span>API Key</span><strong>{{ keys.length }}</strong>
         </article>
         <article>
@@ -184,6 +232,27 @@ const revokeKey = async (key: DeveloperApiKeyDto) => {
       </section>
 
       <el-tabs class="developer-tabs">
+        <el-tab-pane label="KV 存储">
+          <div class="panel-toolbar">
+            <p>在项目边界内保存 JSON 配置与临时数据，值仅在编辑时加载。</p>
+            <el-button :icon="Plus" type="primary" @click="openCreateKv">新建 KV</el-button>
+          </div>
+          <el-table :data="kvEntries" empty-text="尚无 KV 条目">
+            <el-table-column prop="key" label="键名" min-width="220" />
+            <el-table-column prop="version" label="版本" width="90" />
+            <el-table-column prop="expiresAt" label="过期时间" min-width="180">
+              <template #default="{ row }">{{ row.expiresAt || '永久' }}</template>
+            </el-table-column>
+            <el-table-column prop="updateTime" label="最后更新" min-width="180" />
+            <el-table-column width="130" fixed="right">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="editKv(row)">编辑</el-button>
+                <el-button link type="danger" @click="deleteKv(row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
         <el-tab-pane label="API Key">
           <div class="panel-toolbar">
             <p>用于 KV、验证码、IP 定位和推送接口的服务端调用。</p>
@@ -309,6 +378,23 @@ const revokeKey = async (key: DeveloperApiKeyDto) => {
         ></template
       ></el-dialog
     >
+    <el-dialog v-model="kvDialogVisible" :title="editingKvKey ? '编辑 KV' : '新建 KV'" width="560px">
+      <el-form label-position="top">
+        <el-form-item label="键名">
+          <el-input v-model="kvForm.key" :disabled="Boolean(editingKvKey)" placeholder="app.config" />
+        </el-form-item>
+        <el-form-item label="JSON 值">
+          <el-input v-model="kvForm.value" type="textarea" :rows="8" spellcheck="false" />
+        </el-form-item>
+        <el-form-item label="TTL（秒，可选）">
+          <el-input-number v-model="kvForm.ttlSeconds" :min="1" :max="2592000" controls-position="right" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="kvDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!kvForm.key || !kvForm.value" @click="saveKv">保存</el-button>
+      </template>
+    </el-dialog>
     <el-dialog v-model="createKeyVisible" title="创建项目 API Key" width="480px"
       ><el-form label-position="top"
         ><el-form-item label="名称"><el-input v-model="keyForm.name" /></el-form-item
@@ -435,7 +521,7 @@ const revokeKey = async (key: DeveloperApiKeyDto) => {
 }
 .service-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   border: 1px solid var(--el-border-color-lighter);
   margin-bottom: 24px;
 }
@@ -490,10 +576,10 @@ code {
   .service-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .service-strip article:nth-child(2) {
+  .service-strip article:nth-child(even) {
     border-right: 0;
   }
-  .service-strip article:nth-child(-n + 2) {
+  .service-strip article:not(:last-child) {
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
 }

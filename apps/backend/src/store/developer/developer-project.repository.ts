@@ -305,6 +305,31 @@ export class DeveloperProjectRepository {
     if (!result.count) throw new NotFoundError("KV 键不存在");
   }
 
+  async getProjectKv(projectId: string, userId: string, key: string): Promise<DeveloperKvValueDto> {
+    await this.assertProjectOwner(projectId, userId);
+    return this.getKv(projectId, key);
+  }
+
+  async listProjectKv(projectId: string, userId: string): Promise<Array<Omit<DeveloperKvValueDto, "value">>> {
+    await this.assertProjectOwner(projectId, userId);
+    return this.listKv(projectId);
+  }
+
+  async setProjectKv(
+    projectId: string,
+    userId: string,
+    key: string,
+    body: SetKvValueDto,
+  ): Promise<DeveloperKvValueDto> {
+    await this.assertProjectOwner(projectId, userId);
+    return this.setKv(projectId, key, body);
+  }
+
+  async deleteProjectKv(projectId: string, userId: string, key: string): Promise<void> {
+    await this.assertProjectOwner(projectId, userId);
+    await this.deleteKv(projectId, key);
+  }
+
   private shortLinkDto(link: {
     id: string;
     code: string;

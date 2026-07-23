@@ -6,6 +6,7 @@ import type {
   CreateDeveloperProjectDto,
   CreateShortLinkDto,
   CreateDeveloperStatusMonitorDto,
+  SetKvValueDto,
   UpsertDeveloperSecretDto,
 } from '@/client/types.gen'
 import { createDeveloperProjectControllerApi } from '@/client/services/developer-project-controller.gen'
@@ -46,6 +47,25 @@ export class DeveloperProjectService {
       await getDeveloperProjectApi().revokeKey({ path: { projectId, id } }),
       false,
     )
+  }
+
+  async listKv(projectId: string) {
+    return checkApiResult(await getDeveloperProjectApi().listKv({ path: { projectId } }), true)
+  }
+
+  async getKv(projectId: string, key: string) {
+    return checkApiResult(await getDeveloperProjectApi().getKv({ path: { projectId, key } }), true)
+  }
+
+  async setKv(projectId: string, key: string, data: SetKvValueDto) {
+    return checkApiResult(
+      await getDeveloperProjectApi().setKv({ path: { projectId, key }, body: data }),
+      true,
+    )
+  }
+
+  async deleteKv(projectId: string, key: string) {
+    return checkApiResult(await getDeveloperProjectApi().deleteKv({ path: { projectId, key } }), false)
   }
 
   async listShortLinks(projectId: string) {

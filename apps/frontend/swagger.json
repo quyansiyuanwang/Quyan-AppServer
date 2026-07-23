@@ -17106,6 +17106,193 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/kv": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Omit_DeveloperKvValueDto.value_"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/developer/projects/{projectId}/kv/{key}": {
+			"get": {
+				"operationId": "DeveloperProjectControllerGetKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerSetKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetKvValueDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProjectControllerDeleteKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/developer/projects/{projectId}/short-links": {
 			"get": {
 				"operationId": "DeveloperProjectControllerListShortLinks",
@@ -36536,6 +36723,55 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"Pick_DeveloperKvValueDto.Exclude_keyofDeveloperKvValueDto.value__": {
+				"properties": {},
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"Omit_DeveloperKvValueDto.value_": {
+				"$ref": "#/components/schemas/Pick_DeveloperKvValueDto.Exclude_keyofDeveloperKvValueDto.value__",
+				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"DeveloperKvValueDto": {
+				"properties": {
+					"key": {
+						"type": "string"
+					},
+					"value": {},
+					"version": {
+						"type": "number",
+						"format": "double"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"key",
+					"value",
+					"version",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetKvValueDto": {
+				"properties": {
+					"value": {},
+					"ttlSeconds": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"value"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"DeveloperShortLinkDto": {
 				"properties": {
 					"id": {
@@ -36745,55 +36981,6 @@
 					"name",
 					"type",
 					"endpoint"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"Pick_DeveloperKvValueDto.Exclude_keyofDeveloperKvValueDto.value__": {
-				"properties": {},
-				"type": "object",
-				"description": "From T, pick a set of properties whose keys are in the union K"
-			},
-			"Omit_DeveloperKvValueDto.value_": {
-				"$ref": "#/components/schemas/Pick_DeveloperKvValueDto.Exclude_keyofDeveloperKvValueDto.value__",
-				"description": "Construct a type with the properties of T except for those in type K."
-			},
-			"DeveloperKvValueDto": {
-				"properties": {
-					"key": {
-						"type": "string"
-					},
-					"value": {},
-					"version": {
-						"type": "number",
-						"format": "double"
-					},
-					"expiresAt": {
-						"type": "string"
-					},
-					"updateTime": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"key",
-					"value",
-					"version",
-					"updateTime"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"SetKvValueDto": {
-				"properties": {
-					"value": {},
-					"ttlSeconds": {
-						"type": "number",
-						"format": "double"
-					}
-				},
-				"required": [
-					"value"
 				],
 				"type": "object",
 				"additionalProperties": false
