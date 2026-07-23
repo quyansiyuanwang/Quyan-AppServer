@@ -213,6 +213,7 @@ model DeveloperVerification {
   channel        String           @db.VarChar(20)
   recipient      String           @db.VarChar(320)
   purpose        String           @db.VarChar(100)
+  sourceIpHash   String?          @db.Char(64)
   codeHash       String           @db.Char(64)
   expiresAt      DateTime
   remainingTries Int              @default(5)
@@ -220,6 +221,7 @@ model DeveloperVerification {
   project        DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, recipient, purpose, expiresAt])
+  @@index([projectId, sourceIpHash, createTime])
   @@map("developer_verifications")
 }
 

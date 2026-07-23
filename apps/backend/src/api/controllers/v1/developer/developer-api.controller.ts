@@ -63,7 +63,9 @@ export class DeveloperApiController extends Controller {
     @Body() body: SendDeveloperVerificationDto,
     @Request() request: TypedRequest,
   ): Promise<{ success: true }> {
-    await this.service.sendVerification(request.projectApiKey!.projectId, body);
+    const forwarded = request.headers["x-forwarded-for"];
+    const sourceIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : request.ip;
+    await this.service.sendVerification(request.projectApiKey!.projectId, body, sourceIp);
     return { success: true };
   }
   @Post("verification/verify")

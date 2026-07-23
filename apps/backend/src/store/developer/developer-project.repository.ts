@@ -8,7 +8,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "@/config/database";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { ConfigService } from "@/services/system/config.service";
-import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/util/errors";
+import { BadRequestError, ForbiddenError, NotFoundError, TooManyRequestsError, UnauthorizedError } from "@/util/errors";
 import { CustomCode } from "@/constant/custom-code";
 import type {
   CreateDeveloperApiKeyDto,
@@ -954,8 +954,29 @@ export class DeveloperProjectRepository {
     await prisma.developerStatusCheck.deleteMany({ where: { checkedAt: { lt: new Date(Date.now() - 90 * 24 * 60 * 60_000) } } });
   }
 
-  async sendVerification(projectId: string, body: SendDeveloperVerificationDto): Promise<void> {
+  private async assertVerificationRateLimit(
+    projectId: string,
+    body: SendDeveloperVerificationDto,
+    sourceIpHash?: string,
+  ): Promise<void> {
+    const since = new Date(Date.now() - 10 * 60_000);
+    const [projectCount, recipientCount, ipCount] = await Promise.all([
+      prisma.developerVerification.count({ where: { projectId, createTime: { gte: since } } }),
+      prisma.developerVerification.count({
+        where: { projectId, recipient: body.recipient, purpose: body.purpose, createTime: { gte: since } },
+      }),
+      sourceIpHash
+        ? prisma.developerVerification.count({ where: { projectId, sourceIpHash, createTime: { gte: since } } })
+        : Promise.resolve(0),
+    ]);
+    if (projectCount >= 20 || recipientCount >= 3 || ipCount >= 10)
+      throw new TooManyRequestsError("验证码发送过于频繁，请稍后再试");
+  }
+
+  async sendVerification(projectId: string, body: SendDeveloperVerificationDto, sourceIp?: string): Promise<void> {
     if (body.channel === "sms") throw new BadRequestError("短信渠道尚未配置");
+    const sourceIpHash = sourceIp && isIP(sourceIp) ? hash(sourceIp) : undefined;
+    await this.assertVerificationRateLimit(projectId, body, sourceIpHash);
     const smtp = await this.configService.getSmtpConfig();
     if (!smtp.host) throw new BadRequestError("SMTP 未配置");
     const code = String(Math.floor(100_000 + Math.random() * 900_000));
@@ -980,7 +1001,15 @@ export class DeveloperProjectRepository {
         data: { consumedAt: new Date() },
       });
       await prisma.developerVerification.create({
-        data: { projectId, channel: body.channel, recipient: body.recipient, purpose: body.purpose, codeHash, expiresAt },
+        data: {
+          projectId,
+          channel: body.channel,
+          recipient: body.recipient,
+          purpose: body.purpose,
+          sourceIpHash,
+          codeHash,
+          expiresAt,
+        },
       });
     } catch (error) {
       await this.refundQuota(receipt).catch(() => {});
