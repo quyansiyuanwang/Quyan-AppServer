@@ -108,6 +108,13 @@ export class DeveloperProjectService {
     )
   }
 
+  async deleteSecret(projectId: string, alias: string) {
+    return checkApiResult(
+      await getDeveloperProjectApi().deleteSecret({ path: { projectId, alias } }),
+      false,
+    )
+  }
+
   async listMonitors(projectId: string) {
     return checkApiResult(
       await getDeveloperProjectApi().listMonitors({ path: { projectId } }),

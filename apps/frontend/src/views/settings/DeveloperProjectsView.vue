@@ -172,6 +172,14 @@ const saveSecret = async () => {
   createSecretVisible.value = false
 }
 
+const deleteSecret = async (secret: DeveloperSecretDto) => {
+  await ElMessageBox.confirm(`删除 ${secret.alias} 后，所有引用该别名的请求都会失败。`, '删除托管密钥', {
+    type: 'warning',
+  })
+  await developerProjectService.deleteSecret(selectedProjectId.value, secret.alias)
+  secrets.value = secrets.value.filter((item) => item.alias !== secret.alias)
+}
+
 const createMonitor = async () => {
   const monitor = await developerProjectService.createMonitor(
     selectedProjectId.value,
@@ -390,7 +398,11 @@ const deleteKv = async (entry: KvListEntry) => {
               prop="keyVersion"
               label="版本"
               width="90" /><el-table-column prop="lastUsedAt" label="最后使用" min-width="180"
-          /></el-table>
+          /><el-table-column width="80" fixed="right"
+            ><template #default="{ row }"
+              ><el-button link type="danger" @click="deleteSecret(row)">删除</el-button></template
+            ></el-table-column
+          ></el-table>
         </el-tab-pane>
 
         <el-tab-pane label="状态监控">
