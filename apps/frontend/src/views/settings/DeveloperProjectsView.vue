@@ -17,6 +17,9 @@ import type {
 import { developerProjectService } from '@/service/developerProjectService'
 
 const loading = ref(false)
+const resourcesLoading = ref(false)
+const loadError = ref('')
+const resourceError = ref('')
 const projects = ref<DeveloperProjectDto[]>([])
 const selectedProjectId = ref('')
 const keys = ref<DeveloperApiKeyDto[]>([])
@@ -57,6 +60,7 @@ const pushChannelForm = ref({
 })
 const kvForm = ref({ key: '', value: '{}', ttlSeconds: undefined as number | undefined })
 const editingKvKey = ref('')
+let resourceRequestId = 0
 
 const activeProject = computed(() =>
   projects.value.find((project) => project.id === selectedProjectId.value),
@@ -75,34 +79,89 @@ const quotaServiceLabels: Record<string, string> = {
   push: '推送投递',
 }
 
+const withTimeout = <T>(promise: Promise<T>, timeoutMs = 15_000): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error('请求超时')), timeoutMs)
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeout)
+        resolve(value)
+      },
+      (error) => {
+        window.clearTimeout(timeout)
+        reject(error)
+      },
+    )
+  })
+
+const clearProjectResources = () => {
+  keys.value = []
+  kvEntries.value = []
+  shortLinks.value = []
+  secrets.value = []
+  monitors.value = []
+  pushChannels.value = []
+  pushDeliveries.value = []
+  quotaSummary.value = null
+}
+
 const refreshProjectResources = async () => {
-  if (!selectedProjectId.value) return
   const projectId = selectedProjectId.value
-  ;[keys.value, kvEntries.value, shortLinks.value, secrets.value, monitors.value, pushChannels.value, pushDeliveries.value, quotaSummary.value] = await Promise.all([
-    developerProjectService.listKeys(projectId),
-    developerProjectService.listKv(projectId),
-    developerProjectService.listShortLinks(projectId),
-    developerProjectService.listSecrets(projectId),
-    developerProjectService.listMonitors(projectId),
-    developerProjectService.listPushChannels(projectId),
-    developerProjectService.listPushDeliveries(projectId),
-    developerProjectService.getUsageSummary(projectId),
+  if (!projectId) {
+    clearProjectResources()
+    return
+  }
+  const requestId = ++resourceRequestId
+  resourcesLoading.value = true
+  resourceError.value = ''
+  const results = await Promise.allSettled([
+    withTimeout(developerProjectService.listKeys(projectId)),
+    withTimeout(developerProjectService.listKv(projectId)),
+    withTimeout(developerProjectService.listShortLinks(projectId)),
+    withTimeout(developerProjectService.listSecrets(projectId)),
+    withTimeout(developerProjectService.listMonitors(projectId)),
+    withTimeout(developerProjectService.listPushChannels(projectId)),
+    withTimeout(developerProjectService.listPushDeliveries(projectId)),
+    withTimeout(developerProjectService.getUsageSummary(projectId)),
   ])
+  if (requestId !== resourceRequestId || projectId !== selectedProjectId.value) return
+
+  const [keysResult, kvResult, linksResult, secretsResult, monitorsResult, channelsResult, deliveriesResult, quotaResult] = results
+  keys.value = keysResult.status === 'fulfilled' ? keysResult.value : []
+  kvEntries.value = kvResult.status === 'fulfilled' ? (kvResult.value as KvListEntry[]) : []
+  shortLinks.value = linksResult.status === 'fulfilled' ? linksResult.value : []
+  secrets.value = secretsResult.status === 'fulfilled' ? secretsResult.value : []
+  monitors.value = monitorsResult.status === 'fulfilled' ? monitorsResult.value : []
+  pushChannels.value = channelsResult.status === 'fulfilled' ? channelsResult.value : []
+  pushDeliveries.value = deliveriesResult.status === 'fulfilled' ? deliveriesResult.value : []
+  quotaSummary.value = quotaResult.status === 'fulfilled' ? quotaResult.value : null
+
+  if (results.some((result) => result.status === 'rejected')) {
+    resourceError.value = '部分项目资源暂时无法加载，请重试。'
+  }
+  resourcesLoading.value = false
 }
 
 const load = async () => {
   loading.value = true
+  loadError.value = ''
   try {
-    projects.value = await developerProjectService.listProjects()
-    if (!selectedProjectId.value && projects.value[0])
-      selectedProjectId.value = projects.value[0].id
-    await refreshProjectResources()
+    projects.value = await withTimeout(developerProjectService.listProjects())
+    const selectedExists = projects.value.some((project) => project.id === selectedProjectId.value)
+    if (!selectedExists) selectedProjectId.value = projects.value[0]?.id ?? ''
+  } catch {
+    projects.value = []
+    selectedProjectId.value = ''
+    clearProjectResources()
+    loadError.value = '开发者项目暂时无法加载，请检查登录状态后重试。'
   } finally {
     loading.value = false
   }
 }
 
-watch(selectedProjectId, () => void refreshProjectResources())
+watch(selectedProjectId, (projectId, previousProjectId) => {
+  if (projectId !== previousProjectId) void refreshProjectResources()
+})
 onMounted(() => void load())
 
 const createProject = async () => {
@@ -382,9 +441,16 @@ const copyStatusPage = async () => {
       </template>
     </section>
 
-    <el-empty v-if="!activeProject" description="创建第一个项目后即可生成项目 API Key" />
+    <el-alert v-if="loadError" class="load-alert" type="error" :closable="false" show-icon>
+      <template #default>
+        <span>{{ loadError }}</span>
+        <el-button link type="primary" @click="load">重试</el-button>
+      </template>
+    </el-alert>
 
-    <template v-else>
+    <el-empty v-else-if="!activeProject" description="创建第一个项目后即可生成项目 API Key" />
+
+    <template v-else-if="activeProject">
       <section class="service-strip">
         <article>
           <Service :size="19" /><span>KV 条目</span><strong>{{ kvEntries.length }}</strong>
@@ -406,6 +472,21 @@ const copyStatusPage = async () => {
         </article>
       </section>
 
+      <el-alert
+        v-if="resourceError"
+        class="load-alert"
+        type="warning"
+        :closable="true"
+        show-icon
+        @close="resourceError = ''"
+      >
+        <template #default>
+          <span>{{ resourceError }}</span>
+          <el-button link type="primary" @click="refreshProjectResources">重试</el-button>
+        </template>
+      </el-alert>
+
+      <div v-loading="resourcesLoading" class="developer-resource-surface">
       <el-tabs class="developer-tabs">
         <el-tab-pane label="今日用量">
           <div class="panel-toolbar">
@@ -477,6 +558,52 @@ const copyStatusPage = async () => {
           </el-table>
         </el-tab-pane>
 
+        <el-tab-pane label="验证码 API">
+          <div class="panel-toolbar">
+            <p>使用项目 API Key 发送和校验邮箱或短信验证码，成功投递后才计入当天额度。</p>
+            <el-tag type="info">{{ quotaSummary?.usages?.find((item) => item.service === 'verification')?.remainingFree ?? '-' }} 次免费额度</el-tag>
+          </div>
+          <el-descriptions :column="1" border class="api-reference">
+            <el-descriptions-item label="发送验证码">
+              <code>POST /v1/developer/verification/send</code>
+              <el-tag class="scope-tag" effect="plain">verification:send</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="校验验证码">
+              <code>POST /v1/developer/verification/verify</code>
+              <el-tag class="scope-tag" effect="plain">verification:verify</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="请求字段">
+              <code>channel</code>、<code>recipient</code>、<code>purpose</code>；校验时额外传入 <code>code</code>
+            </el-descriptions-item>
+          </el-descriptions>
+          <pre class="api-example"><code>curl -X POST /v1/developer/verification/send \
+  -H "Authorization: Bearer dk_..." \
+  -H "Content-Type: application/json" \
+  -d '{"channel":"email","recipient":"user@example.com","purpose":"login"}'</code></pre>
+        </el-tab-pane>
+
+        <el-tab-pane label="IP 定位 API">
+          <div class="panel-toolbar">
+            <p>查询指定公网 IP，或省略路径参数以定位调用方 IP。私网和保留地址会被直接拒绝且不计费。</p>
+            <el-tag type="info">{{ quotaSummary?.usages?.find((item) => item.service === 'ip')?.remainingFree ?? '-' }} 次免费额度</el-tag>
+          </div>
+          <el-descriptions :column="1" border class="api-reference">
+            <el-descriptions-item label="指定 IP">
+              <code>GET /v1/developer/ip/{ip}</code>
+              <el-tag class="scope-tag" effect="plain">ip:lookup</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="调用方 IP">
+              <code>GET /v1/developer/ip</code>
+              <el-tag class="scope-tag" effect="plain">ip:lookup</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="响应字段">
+              <code>country</code>、<code>region</code>、<code>city</code>、<code>asn</code>、<code>isp</code>
+            </el-descriptions-item>
+          </el-descriptions>
+          <pre class="api-example"><code>curl -H "Authorization: Bearer dk_..." \
+  /v1/developer/ip/8.8.8.8</code></pre>
+        </el-tab-pane>
+
         <el-tab-pane label="短链接">
           <div class="panel-toolbar">
             <p>公开跳转路径为 <code>/s/{code}</code>，点击数直接在项目内汇总。</p>
@@ -543,7 +670,7 @@ const copyStatusPage = async () => {
             </p>
             <div class="status-page-actions">
               <el-switch
-                :model-value="activeProject.statusPagePublished"
+                :model-value="activeProject?.statusPagePublished ?? false"
                 active-text="已发布"
                 inactive-text="未发布"
                 @update:model-value="updateStatusPagePublished"
@@ -552,7 +679,7 @@ const copyStatusPage = async () => {
                 :icon="CopyDocument"
                 circle
                 title="复制状态页地址"
-                :disabled="!activeProject.statusPagePublished"
+                :disabled="!activeProject?.statusPagePublished"
                 @click="copyStatusPage"
               />
               <el-button :icon="Plus" type="primary" @click="createMonitorVisible = true">添加目标</el-button>
@@ -617,6 +744,29 @@ const copyStatusPage = async () => {
           </el-table>
         </el-tab-pane>
 
+        <el-tab-pane label="推送 API">
+          <div class="panel-toolbar">
+            <p>选择已配置的渠道进行一次或多次投递；单渠道失败不会影响其他渠道，并可在推送日志中查看结果。</p>
+            <el-tag type="info">{{ quotaSummary?.usages?.find((item) => item.service === 'push')?.remainingFree ?? '-' }} 次免费额度</el-tag>
+          </div>
+          <el-descriptions :column="1" border class="api-reference">
+            <el-descriptions-item label="发送消息">
+              <code>POST /v1/developer/push</code>
+              <el-tag class="scope-tag" effect="plain">push:send</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="请求字段">
+              <code>channelIds</code>、<code>title</code>、<code>content</code>；可选 <code>idempotencyKey</code>
+            </el-descriptions-item>
+            <el-descriptions-item label="投递历史">
+              在“推送日志”页签中查看每个渠道的状态、重试次数和错误摘要。
+            </el-descriptions-item>
+          </el-descriptions>
+          <pre class="api-example"><code>curl -X POST /v1/developer/push \
+  -H "Authorization: Bearer dk_..." \
+  -H "Content-Type: application/json" \
+  -d '{"channelIds":["channel-id"],"title":"Deploy","content":"Deployment completed"}'</code></pre>
+        </el-tab-pane>
+
         <el-tab-pane label="推送日志">
           <div class="panel-toolbar">
             <p>每次投递按渠道记录，失败记录会由调度器自动重试，最多三次。</p>
@@ -638,6 +788,7 @@ const copyStatusPage = async () => {
           </el-table>
         </el-tab-pane>
       </el-tabs>
+      </div>
     </template>
 
     <el-dialog v-model="createProjectVisible" title="新建开发者项目" width="440px"
@@ -892,6 +1043,15 @@ const copyStatusPage = async () => {
   margin-left: 12px;
   color: var(--el-text-color-secondary);
 }
+.load-alert {
+  margin-bottom: 16px;
+}
+.load-alert :deep(.el-alert__content) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .project-slug {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--el-text-color-secondary);
@@ -923,6 +1083,9 @@ const copyStatusPage = async () => {
 .developer-tabs :deep(.el-tabs__content) {
   padding-top: 18px;
 }
+.developer-resource-surface {
+  min-height: 260px;
+}
 .panel-toolbar {
   display: flex;
   justify-content: space-between;
@@ -943,6 +1106,23 @@ const copyStatusPage = async () => {
 .scope-tag {
   margin: 2px 4px 2px 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.api-reference {
+  max-width: 860px;
+}
+.api-example {
+  max-width: 860px;
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-lighter);
+  color: var(--el-text-color-regular);
+  font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre;
+}
+.api-example code {
+  color: inherit;
 }
 .short-link-summary {
   margin-bottom: 20px;
@@ -982,6 +1162,9 @@ code {
   .status-page-actions {
     width: 100%;
     flex-wrap: wrap;
+  }
+  .api-example {
+    max-width: 100%;
   }
   .service-strip article:nth-child(even) {
     border-right: 0;

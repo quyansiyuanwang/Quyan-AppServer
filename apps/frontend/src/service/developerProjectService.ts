@@ -29,36 +29,37 @@ export class DeveloperProjectService {
     return this.instance
   }
 
+  private unwrap<T>(response: { data?: T }): T {
+    return (checkApiResult(response, true) as { data: T }).data
+  }
+
   async listProjects() {
-    return checkApiResult(await getDeveloperProjectApi().list({}), true)
+    return this.unwrap(await getDeveloperProjectApi().list({}))
   }
 
   async createProject(data: CreateDeveloperProjectDto) {
-    return checkApiResult(await getDeveloperProjectApi().create({ body: data }), true)
+    return this.unwrap(await getDeveloperProjectApi().create({ body: data }))
   }
 
   async getUsageSummary(projectId: string) {
-    return checkApiResult<DeveloperQuotaSummaryDto>(
+    return this.unwrap<DeveloperQuotaSummaryDto>(
       await getDeveloperProjectApi().getUsageSummary({ path: { projectId } }),
-      true,
     )
   }
 
   async updateStatusPage(projectId: string, published: boolean) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().updateStatusPage({ path: { projectId }, body: { published } }),
-      true,
     )
   }
 
   async listKeys(projectId: string) {
-    return checkApiResult(await getDeveloperProjectApi().listKeys({ path: { projectId } }), true)
+    return this.unwrap(await getDeveloperProjectApi().listKeys({ path: { projectId } }))
   }
 
   async createKey(projectId: string, data: CreateDeveloperApiKeyDto) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().createKey({ path: { projectId }, body: data }),
-      true,
     )
   }
 
@@ -70,17 +71,16 @@ export class DeveloperProjectService {
   }
 
   async listKv(projectId: string) {
-    return checkApiResult(await getDeveloperProjectApi().listKv({ path: { projectId } }), true)
+    return this.unwrap(await getDeveloperProjectApi().listKv({ path: { projectId } }))
   }
 
   async getKv(projectId: string, key: string) {
-    return checkApiResult(await getDeveloperProjectApi().getKv({ path: { projectId, key } }), true)
+    return this.unwrap(await getDeveloperProjectApi().getKv({ path: { projectId, key } }))
   }
 
   async setKv(projectId: string, key: string, data: SetKvValueDto) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().setKv({ path: { projectId, key }, body: data }),
-      true,
     )
   }
 
@@ -89,23 +89,20 @@ export class DeveloperProjectService {
   }
 
   async listShortLinks(projectId: string) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().listShortLinks({ path: { projectId } }),
-      true,
     )
   }
 
   async createShortLink(projectId: string, data: CreateShortLinkDto) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().createShortLink({ path: { projectId }, body: data }),
-      true,
     )
   }
 
   async updateShortLink(projectId: string, id: string, data: UpdateShortLinkDto) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().updateShortLink({ path: { projectId, id }, body: data }),
-      true,
     )
   }
 
@@ -117,20 +114,18 @@ export class DeveloperProjectService {
   }
 
   async getShortLinkStats(projectId: string, id: string) {
-    return checkApiResult<DeveloperShortLinkStatsDto>(
+    return this.unwrap<DeveloperShortLinkStatsDto>(
       await getDeveloperProjectApi().getShortLinkStats({ path: { projectId, id } }),
-      true,
     )
   }
 
   async listSecrets(projectId: string) {
-    return checkApiResult(await getDeveloperProjectApi().listSecrets({ path: { projectId } }), true)
+    return this.unwrap(await getDeveloperProjectApi().listSecrets({ path: { projectId } }))
   }
 
   async upsertSecret(projectId: string, data: UpsertDeveloperSecretDto) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().upsertSecret({ path: { projectId }, body: data }),
-      true,
     )
   }
 
@@ -142,23 +137,20 @@ export class DeveloperProjectService {
   }
 
   async listMonitors(projectId: string) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().listMonitors({ path: { projectId } }),
-      true,
     )
   }
 
   async createMonitor(projectId: string, data: CreateDeveloperStatusMonitorDto) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().createMonitor({ path: { projectId }, body: data }),
-      true,
     )
   }
 
   async updateMonitor(projectId: string, id: string, data: UpdateDeveloperStatusMonitorDto) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().updateMonitor({ path: { projectId, id }, body: data }),
-      true,
     )
   }
 
@@ -170,30 +162,26 @@ export class DeveloperProjectService {
   }
 
   async listPushChannels(projectId: string) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().listPushChannels({ path: { projectId } }),
-      true,
     )
   }
 
   async listPushDeliveries(projectId: string) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().listPushDeliveries({ path: { projectId } }),
-      true,
     )
   }
 
   async createPushChannel(projectId: string, data: CreateDeveloperPushChannelDto) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().createPushChannel({ path: { projectId }, body: data }),
-      true,
     )
   }
 
   async updatePushChannel(projectId: string, id: string, data: UpdateDeveloperPushChannelDto) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().updatePushChannel({ path: { projectId, id }, body: data }),
-      true,
     )
   }
 
@@ -205,9 +193,8 @@ export class DeveloperProjectService {
   }
 
   async checkMonitor(projectId: string, id: string) {
-    return checkApiResult(
+    return this.unwrap(
       await getDeveloperProjectApi().checkMonitor({ path: { projectId, id } }),
-      true,
     )
   }
 }
