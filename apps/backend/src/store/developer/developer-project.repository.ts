@@ -4,7 +4,9 @@ import { isIP } from "net";
 import { lookup } from "dns/promises";
 import nodemailer from "nodemailer";
 import type { Prisma } from "@prisma/client";
+import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "@/config/database";
+import { CONFIG_KEYS } from "@/constant/config-keys";
 import { ConfigService } from "@/services/system/config.service";
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/util/errors";
 import { CustomCode } from "@/constant/custom-code";
@@ -51,6 +53,13 @@ const PROJECT_KEY_SCOPES = new Set<DeveloperApiKeyScope>([
 ]);
 const QUOTA_SERVICES = ["verification", "ip", "push"] as const;
 type QuotaService = (typeof QUOTA_SERVICES)[number];
+type QuotaReceipt = {
+  projectId: string;
+  service: QuotaService;
+  usageId: string;
+  userId: string;
+  chargeAmount: number;
+};
 
 type ProjectKeyRecord = Awaited<ReturnType<typeof prisma.developerProjectApiKey.findFirst>> & {
   project: { userId: string };
@@ -357,10 +366,23 @@ export class DeveloperProjectRepository {
     return key as NonNullable<ProjectKeyRecord>;
   }
 
-  private async consumeQuota(projectId: string, service: QuotaService): Promise<void> {
+  private async getOveragePrice(service: QuotaService): Promise<number> {
+    const configKey =
+      service === "verification"
+        ? CONFIG_KEYS.DEVELOPER.VERIFICATION_OVERAGE_PRICE
+        : service === "ip"
+          ? CONFIG_KEYS.DEVELOPER.IP_OVERAGE_PRICE
+          : CONFIG_KEYS.DEVELOPER.PUSH_OVERAGE_PRICE;
+    const value = Number(await this.configService.get(configKey));
+    if (!Number.isFinite(value) || value <= 0) return 0;
+    return Math.round(value * 10_000) / 10_000;
+  }
+
+  private async consumeQuota(projectId: string, service: QuotaService): Promise<QuotaReceipt> {
     const usageDate = new Date();
     usageDate.setHours(0, 0, 0, 0);
-    await prisma.$transaction(async (tx) => {
+    const overagePrice = await this.getOveragePrice(service);
+    return prisma.$transaction(async (tx) => {
       const project = await tx.developerProject.findUnique({
         where: { id: projectId },
         select: { id: true, userId: true, dailyFreeQuota: true, overageEnabled: true },
@@ -374,6 +396,66 @@ export class DeveloperProjectRepository {
       });
       if (usage.requestCount > dailyFreeQuota && !project.overageEnabled)
         throw new ForbiddenError("今日免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED);
+      let chargeAmount = 0;
+      if (usage.requestCount > dailyFreeQuota && overagePrice > 0) {
+        const account = await tx.balanceAccount.findUnique({ where: { userId: project.userId } });
+        const balanceBefore = Number(account?.balance ?? 0);
+        const charged = await tx.balanceAccount.updateMany({
+          where: { userId: project.userId, status: 1, balance: { gte: new Decimal(overagePrice) } },
+          data: { balance: { decrement: new Decimal(overagePrice) }, totalUsed: { increment: new Decimal(overagePrice) } },
+        });
+        if (!charged.count)
+          throw new ForbiddenError("余额不足，无法执行超额调用", CustomCode.DEVELOPER_BALANCE_INSUFFICIENT);
+        const balanceAfter = Math.round((balanceBefore - overagePrice) * 10_000) / 10_000;
+        await tx.balanceTransaction.create({
+          data: {
+            userId: project.userId,
+            type: "developer_overage",
+            amount: new Decimal(-overagePrice),
+            balanceBefore: new Decimal(balanceBefore),
+            balanceAfter: new Decimal(balanceAfter),
+            relatedId: usage.id,
+            model: `developer:${service}`,
+            description: `开发者服务 ${service} 超额调用`,
+            fixedPrice: new Decimal(overagePrice),
+          },
+        });
+        chargeAmount = overagePrice;
+      }
+      return { projectId, service, usageId: usage.id, userId: project.userId, chargeAmount };
+    });
+  }
+
+  private async refundQuota(receipt: QuotaReceipt): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      await tx.developerQuotaUsage.update({
+        where: { id: receipt.usageId },
+        data: { requestCount: { decrement: 1 } },
+      });
+      if (!receipt.chargeAmount) return;
+      const account = await tx.balanceAccount.findUnique({ where: { userId: receipt.userId } });
+      if (!account) return;
+      const balanceBefore = Number(account.balance);
+      const updated = await tx.balanceAccount.update({
+        where: { userId: receipt.userId },
+        data: {
+          balance: { increment: new Decimal(receipt.chargeAmount) },
+          totalUsed: { decrement: new Decimal(receipt.chargeAmount) },
+        },
+      });
+      await tx.balanceTransaction.create({
+        data: {
+          userId: receipt.userId,
+          type: "developer_overage_refund",
+          amount: new Decimal(receipt.chargeAmount),
+          balanceBefore: new Decimal(balanceBefore),
+          balanceAfter: updated.balance,
+          relatedId: receipt.usageId,
+          model: `developer:${receipt.service}`,
+          description: `开发者服务 ${receipt.service} 调用失败退款`,
+          fixedPrice: new Decimal(receipt.chargeAmount),
+        },
+      });
     });
   }
 
@@ -856,32 +938,37 @@ export class DeveloperProjectRepository {
   }
 
   async sendVerification(projectId: string, body: SendDeveloperVerificationDto): Promise<void> {
-    await this.consumeQuota(projectId, "verification");
     if (body.channel === "sms") throw new BadRequestError("短信渠道尚未配置");
+    const smtp = await this.configService.getSmtpConfig();
+    if (!smtp.host) throw new BadRequestError("SMTP 未配置");
     const code = String(Math.floor(100_000 + Math.random() * 900_000));
     const codeHash = hash(code);
     const expiresAt = new Date(Date.now() + 10 * 60_000);
-    await prisma.developerVerification.updateMany({
-      where: { projectId, recipient: body.recipient, purpose: body.purpose, consumedAt: null },
-      data: { consumedAt: new Date() },
-    });
-    await prisma.developerVerification.create({
-      data: { projectId, channel: body.channel, recipient: body.recipient, purpose: body.purpose, codeHash, expiresAt },
-    });
-    const smtp = await this.configService.getSmtpConfig();
-    if (!smtp.host) throw new BadRequestError("SMTP 未配置");
+    const receipt = await this.consumeQuota(projectId, "verification");
     const transporter = nodemailer.createTransport({
       host: smtp.host,
       port: smtp.port,
       secure: smtp.secure,
       auth: { user: smtp.user, pass: smtp.password },
     });
-    await transporter.sendMail({
-      from: `"${smtp.senderName}" <${smtp.senderEmail}>`,
-      to: body.recipient,
-      subject: "验证码",
-      text: `您的验证码是 ${code}，10 分钟内有效。`,
-    });
+    try {
+      await transporter.sendMail({
+        from: `"${smtp.senderName}" <${smtp.senderEmail}>`,
+        to: body.recipient,
+        subject: "验证码",
+        text: `您的验证码是 ${code}，10 分钟内有效。`,
+      });
+      await prisma.developerVerification.updateMany({
+        where: { projectId, recipient: body.recipient, purpose: body.purpose, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+      await prisma.developerVerification.create({
+        data: { projectId, channel: body.channel, recipient: body.recipient, purpose: body.purpose, codeHash, expiresAt },
+      });
+    } catch (error) {
+      await this.refundQuota(receipt).catch(() => {});
+      throw error;
+    }
   }
 
   async verifyCode(projectId: string, body: VerifyDeveloperCodeDto): Promise<boolean> {
@@ -909,26 +996,31 @@ export class DeveloperProjectRepository {
   }
 
   async lookupIp(projectId: string, requestedIp?: string) {
-    await this.consumeQuota(projectId, "ip");
     const ip = requestedIp?.trim();
     if (!ip || !isIP(ip) || isPrivateAddress(ip)) throw new BadRequestError("仅支持公网 IP 地址");
     const endpoint = String(process.env.IP_GEOLOCATION_ENDPOINT || "").trim();
     if (!endpoint) throw new BadRequestError("IP 定位服务尚未配置");
     const base = await assertSafeOutboundUrl(endpoint);
-    const response = await axios.get(
-      new URL(encodeURIComponent(ip), `${base.toString().replace(/\/$/, "")}/`).toString(),
-      { timeout: 5_000, maxRedirects: 0, maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES },
-    );
-    const data = response.data as Record<string, unknown>;
-    return {
-      ip,
-      country: data.country_name ?? data.country ?? null,
-      region: data.region ?? data.region_name ?? null,
-      city: data.city ?? null,
-      asn: data.asn ?? null,
-      isp: data.org ?? data.isp ?? null,
-      source: "configured",
-    };
+    const receipt = await this.consumeQuota(projectId, "ip");
+    try {
+      const response = await axios.get(
+        new URL(encodeURIComponent(ip), `${base.toString().replace(/\/$/, "")}/`).toString(),
+        { timeout: 5_000, maxRedirects: 0, maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES },
+      );
+      const data = response.data as Record<string, unknown>;
+      return {
+        ip,
+        country: data.country_name ?? data.country ?? null,
+        region: data.region ?? data.region_name ?? null,
+        city: data.city ?? null,
+        asn: data.asn ?? null,
+        isp: data.org ?? data.isp ?? null,
+        source: "configured",
+      };
+    } catch (error) {
+      await this.refundQuota(receipt).catch(() => {});
+      throw error;
+    }
   }
 
   async createPushChannel(projectId: string, userId: string, body: CreateDeveloperPushChannelDto) {
@@ -1001,11 +1093,12 @@ export class DeveloperProjectRepository {
   }
 
   async sendPush(projectId: string, body: SendDeveloperPushDto): Promise<DeveloperPushDeliveryDto[]> {
-    await this.consumeQuota(projectId, "push");
     const channels = await prisma.developerPushChannel.findMany({
       where: { projectId, id: { in: body.channelIds }, enabled: true, status: 1 },
     });
-    return Promise.all(
+    if (!channels.length) throw new NotFoundError("未找到可用的推送渠道");
+    const receipt = await this.consumeQuota(projectId, "push");
+    const results = await Promise.all(
       channels.map(async (channel) => {
         try {
           if (!channel.endpoint) throw new BadRequestError("推送渠道未配置地址");
@@ -1042,5 +1135,7 @@ export class DeveloperProjectRepository {
         }
       }),
     );
+    if (!results.some((result) => result.success)) await this.refundQuota(receipt).catch(() => {});
+    return results;
   }
 }

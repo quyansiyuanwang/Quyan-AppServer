@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   prisma: {
     $transaction: vi.fn(),
-    developerProject: { findFirst: vi.fn() },
-    developerQuotaUsage: { findMany: vi.fn() },
+    developerProject: { findFirst: vi.fn(), findUnique: vi.fn() },
+    developerQuotaUsage: { findMany: vi.fn(), upsert: vi.fn(), update: vi.fn() },
     developerQuotaOverride: { findFirst: vi.fn() },
+    balanceAccount: { findUnique: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
+    balanceTransaction: { create: vi.fn() },
     developerProjectApiKey: { findFirst: vi.fn(), update: vi.fn() },
     developerKvEntry: { findFirst: vi.fn(), delete: vi.fn() },
     developerShortLink: { findFirst: vi.fn() },
@@ -73,6 +75,31 @@ describe("DeveloperProjectService", () => {
       { service: "ip", requestCount: 12, dailyFreeQuota: 50, remainingFree: 38 },
       { service: "push", requestCount: 0, dailyFreeQuota: 50, remainingFree: 50 },
     ]);
+  });
+
+  it("charges an overage atomically and records a balance transaction", async () => {
+    mocks.prisma.developerProject.findUnique.mockResolvedValue({
+      id: "project-1",
+      userId: "user-1",
+      dailyFreeQuota: 2,
+      overageEnabled: true,
+    });
+    mocks.prisma.developerQuotaOverride.findFirst.mockResolvedValue(null);
+    mocks.prisma.developerQuotaUsage.upsert.mockResolvedValue({ id: "usage-1", requestCount: 3 });
+    mocks.prisma.balanceAccount.findUnique.mockResolvedValue({ balance: 5 });
+    mocks.prisma.balanceAccount.updateMany.mockResolvedValue({ count: 1 });
+
+    const service = DeveloperProjectService.getInstance();
+    ;(service as any).configService = { get: vi.fn().mockResolvedValue("0.5") };
+    const receipt = await (service as any).consumeQuota("project-1", "ip");
+
+    expect(receipt).toMatchObject({ usageId: "usage-1", userId: "user-1", chargeAmount: 0.5 });
+    expect(mocks.prisma.balanceAccount.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ userId: "user-1" }) }),
+    );
+    expect(mocks.prisma.balanceTransaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ type: "developer_overage", model: "developer:ip" }) }),
+    );
   });
 
   it("treats expired KV entries as missing and removes them", async () => {
