@@ -17703,6 +17703,60 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/monitors/{id}": {
+			"put": {
+				"operationId": "DeveloperProjectControllerUpdateMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperStatusMonitorDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/developer/projects/{projectId}/monitors/{id}/check": {
 			"post": {
 				"operationId": "DeveloperProjectControllerCheckMonitor",
@@ -36953,6 +37007,32 @@
 					"name",
 					"targetUrl"
 				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateDeveloperStatusMonitorDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"targetUrl": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string",
+						"enum": [
+							"GET",
+							"HEAD"
+						]
+					},
+					"intervalSec": {
+						"type": "number",
+						"format": "double"
+					},
+					"enabled": {
+						"type": "boolean"
+					}
+				},
 				"type": "object",
 				"additionalProperties": false
 			},

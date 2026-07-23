@@ -29,6 +29,7 @@ import type {
   DeveloperShortLinkDto,
   DeveloperStatusMonitorDto,
   SetKvValueDto,
+  UpdateDeveloperStatusMonitorDto,
   UpdateShortLinkDto,
   UpsertDeveloperSecretDto,
 } from "@/api/dto/developer/developer.dto";
@@ -43,6 +44,7 @@ import {
   projectIdParamsSchema,
   setKvValueBodySchema,
   updateShortLinkBodySchema,
+  updateStatusMonitorBodySchema,
   upsertSecretBodySchema,
 } from "@/api/schema/developer/developer.schema";
 
@@ -238,6 +240,22 @@ export class DeveloperProjectController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DeveloperStatusMonitorDto> {
     return this.service.createStatusMonitor(projectId, request.user!.userId, body);
+  }
+
+  @Put("{projectId}/monitors/{id}")
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateParams(projectIdParamsSchema),
+    validateParams(idParamsSchema),
+    validateBody(updateStatusMonitorBodySchema),
+  )
+  public async updateMonitor(
+    @Path() projectId: string,
+    @Path() id: string,
+    @Body() body: UpdateDeveloperStatusMonitorDto,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperStatusMonitorDto> {
+    return this.service.updateStatusMonitor(projectId, id, request.user!.userId, body);
   }
 
   @Post("{projectId}/monitors/{id}/check")

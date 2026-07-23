@@ -43,6 +43,13 @@ export const createStatusMonitorBodySchema = z.object({
   method: z.enum(["GET", "HEAD"]).optional(),
   intervalSec: z.number().int().min(60).max(86_400).optional(),
 });
+export const updateStatusMonitorBodySchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  targetUrl: z.string().url().max(2_000).optional(),
+  method: z.enum(["GET", "HEAD"]).optional(),
+  intervalSec: z.number().int().min(60).max(86_400).optional(),
+  enabled: z.boolean().optional(),
+});
 export const sendVerificationBodySchema = z.object({
   channel: z.enum(["email", "sms"]),
   recipient: z.string().trim().min(3).max(320),

@@ -24,6 +24,7 @@ import type {
   SendDeveloperVerificationDto,
   SetKvValueDto,
   UpdateShortLinkDto,
+  UpdateDeveloperStatusMonitorDto,
   UpsertDeveloperSecretDto,
   VerifyDeveloperCodeDto,
 } from "@/api/dto/developer/developer.dto";
@@ -542,6 +543,29 @@ export class DeveloperProjectRepository {
       orderBy: { createTime: "desc" },
     });
     return monitors.map((monitor) => this.monitorDto(monitor));
+  }
+
+  async updateStatusMonitor(
+    projectId: string,
+    monitorId: string,
+    userId: string,
+    body: UpdateDeveloperStatusMonitorDto,
+  ): Promise<DeveloperStatusMonitorDto> {
+    await this.assertProjectOwner(projectId, userId);
+    const existing = await prisma.developerStatusMonitor.findFirst({ where: { id: monitorId, projectId } });
+    if (!existing) throw new NotFoundError("监控目标不存在");
+    const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).toString() : undefined;
+    const monitor = await prisma.developerStatusMonitor.update({
+      where: { id: monitorId },
+      data: {
+        name: body.name,
+        targetUrl,
+        method: body.method,
+        intervalSec: body.intervalSec,
+        enabled: body.enabled,
+      },
+    });
+    return this.monitorDto(monitor);
   }
 
   async checkStatusMonitor(projectId: string, monitorId: string, userId: string): Promise<DeveloperStatusMonitorDto> {

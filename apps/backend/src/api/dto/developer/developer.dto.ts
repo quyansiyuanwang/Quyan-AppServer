@@ -96,6 +96,14 @@ export interface CreateDeveloperStatusMonitorDto {
   intervalSec?: number;
 }
 
+export interface UpdateDeveloperStatusMonitorDto {
+  name?: string;
+  targetUrl?: string;
+  method?: "GET" | "HEAD";
+  intervalSec?: number;
+  enabled?: boolean;
+}
+
 export interface DeveloperStatusMonitorDto {
   id: string;
   name: string;

@@ -7,6 +7,7 @@ import type {
   CreateShortLinkDto,
   CreateDeveloperStatusMonitorDto,
   SetKvValueDto,
+  UpdateDeveloperStatusMonitorDto,
   UpdateShortLinkDto,
   UpsertDeveloperSecretDto,
 } from '@/client/types.gen'
@@ -125,6 +126,13 @@ export class DeveloperProjectService {
   async createMonitor(projectId: string, data: CreateDeveloperStatusMonitorDto) {
     return checkApiResult(
       await getDeveloperProjectApi().createMonitor({ path: { projectId }, body: data }),
+      true,
+    )
+  }
+
+  async updateMonitor(projectId: string, id: string, data: UpdateDeveloperStatusMonitorDto) {
+    return checkApiResult(
+      await getDeveloperProjectApi().updateMonitor({ path: { projectId, id }, body: data }),
       true,
     )
   }

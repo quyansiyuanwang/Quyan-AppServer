@@ -195,6 +195,13 @@ const checkMonitor = async (monitor: DeveloperStatusMonitorDto) => {
   monitors.value = monitors.value.map((item) => (item.id === updated.id ? updated : item))
 }
 
+const toggleMonitor = async (monitor: DeveloperStatusMonitorDto) => {
+  const updated = await developerProjectService.updateMonitor(selectedProjectId.value, monitor.id, {
+    enabled: !monitor.enabled,
+  })
+  monitors.value = monitors.value.map((item) => (item.id === updated.id ? updated : item))
+}
+
 const revokeKey = async (key: DeveloperApiKeyDto) => {
   await ElMessageBox.confirm(`撤销 ${key.name} 后无法恢复。`, '撤销项目 API Key', {
     type: 'warning',
@@ -429,13 +436,22 @@ const deleteKv = async (entry: KvListEntry) => {
                 ></template
               ></el-table-column
             ><el-table-column prop="lastCheckedAt" label="最近检测" width="180" /><el-table-column
+              label="调度"
               width="90"
+              ><template #default="{ row }"
+                ><el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '运行中' : '已暂停' }}</el-tag></template
+              ></el-table-column
+            ><el-table-column
+              width="160"
               ><template #default="{ row }"
                 ><el-button
                   :icon="Refresh"
                   circle
                   title="立即检测"
-                  @click="checkMonitor(row)" /></template></el-table-column
+                  :disabled="!row.enabled"
+                  @click="checkMonitor(row)"
+                /><el-button link @click="toggleMonitor(row)">{{ row.enabled ? '暂停' : '恢复' }}</el-button></template
+              ></el-table-column
           ></el-table>
         </el-tab-pane>
       </el-tabs>
