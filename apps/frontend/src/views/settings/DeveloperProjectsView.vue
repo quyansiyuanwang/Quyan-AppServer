@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Key, Link, Monitor, Plus, Refresh, Service } from '@element-plus/icons-vue'
+import { CopyDocument, Key, Link, Monitor, Plus, Refresh, Service } from '@element-plus/icons-vue'
 import type {
   DeveloperApiKeyDto,
   DeveloperKvValueDto,
@@ -29,7 +29,8 @@ const createMonitorVisible = ref(false)
 const kvDialogVisible = ref(false)
 const projectForm = ref({ name: '', slug: '', description: '' })
 const keyForm = ref({ name: '', scopes: ['kv:read', 'kv:write'] as string[] })
-const shortLinkForm = ref({ targetUrl: '', code: '' })
+const shortLinkForm = ref({ targetUrl: '', code: '', expiresAt: '', enabled: true })
+const editingShortLinkId = ref('')
 const secretForm = ref({ alias: '', value: '' })
 const monitorForm = ref({ name: '', targetUrl: '', method: 'GET' as 'GET' | 'HEAD' })
 const kvForm = ref({ key: '', value: '{}', ttlSeconds: undefined as number | undefined })
@@ -100,10 +101,65 @@ const createShortLink = async () => {
   const link = await developerProjectService.createShortLink(selectedProjectId.value, {
     targetUrl: shortLinkForm.value.targetUrl,
     code: shortLinkForm.value.code || undefined,
+    expiresAt: shortLinkForm.value.expiresAt || undefined,
   })
   shortLinks.value.unshift(link)
-  shortLinkForm.value = { targetUrl: '', code: '' }
+  shortLinkForm.value = { targetUrl: '', code: '', expiresAt: '', enabled: true }
   createShortLinkVisible.value = false
+}
+
+const openCreateShortLink = () => {
+  editingShortLinkId.value = ''
+  shortLinkForm.value = { targetUrl: '', code: '', expiresAt: '', enabled: true }
+  createShortLinkVisible.value = true
+}
+
+const openEditShortLink = (link: DeveloperShortLinkDto) => {
+  editingShortLinkId.value = link.id
+  shortLinkForm.value = {
+    targetUrl: link.targetUrl,
+    code: link.code,
+    expiresAt: link.expiresAt || '',
+    enabled: link.enabled,
+  }
+  createShortLinkVisible.value = true
+}
+
+const saveShortLink = async () => {
+  if (!editingShortLinkId.value) return createShortLink()
+  const updated = await developerProjectService.updateShortLink(
+    selectedProjectId.value,
+    editingShortLinkId.value,
+    {
+      targetUrl: shortLinkForm.value.targetUrl,
+      enabled: shortLinkForm.value.enabled,
+      expiresAt: shortLinkForm.value.expiresAt || null,
+    },
+  )
+  shortLinks.value = shortLinks.value.map((link) => (link.id === updated.id ? updated : link))
+  createShortLinkVisible.value = false
+}
+
+const toggleShortLink = async (link: DeveloperShortLinkDto) => {
+  const updated = await developerProjectService.updateShortLink(selectedProjectId.value, link.id, {
+    enabled: !link.enabled,
+  })
+  shortLinks.value = shortLinks.value.map((item) => (item.id === updated.id ? updated : item))
+}
+
+const deleteShortLink = async (link: DeveloperShortLinkDto) => {
+  await ElMessageBox.confirm(`删除 /s/${link.code} 后无法恢复。`, '删除短链接', { type: 'warning' })
+  await developerProjectService.deleteShortLink(selectedProjectId.value, link.id)
+  shortLinks.value = shortLinks.value.filter((item) => item.id !== link.id)
+}
+
+const copyShortLink = async (link: DeveloperShortLinkDto) => {
+  try {
+    await navigator.clipboard.writeText(new URL(link.publicUrl, window.location.origin).toString())
+    ElMessage.success('短链接已复制')
+  } catch {
+    ElMessage.error('无法复制短链接')
+  }
 }
 
 const saveSecret = async () => {
@@ -286,7 +342,7 @@ const deleteKv = async (entry: KvListEntry) => {
         <el-tab-pane label="短链接">
           <div class="panel-toolbar">
             <p>公开跳转路径为 <code>/s/{code}</code>，点击数直接在项目内汇总。</p>
-            <el-button :icon="Plus" type="primary" @click="createShortLinkVisible = true"
+            <el-button :icon="Plus" type="primary" @click="openCreateShortLink"
               >创建短链</el-button
             >
           </div>
@@ -304,7 +360,19 @@ const deleteKv = async (entry: KvListEntry) => {
                   row.enabled ? '启用' : '停用'
                 }}</el-tag></template
               ></el-table-column
-            ></el-table
+            ><el-table-column width="220" fixed="right">
+              <template #default="{ row }">
+                <el-button
+                  :icon="CopyDocument"
+                  circle
+                  title="复制短链接"
+                  @click="copyShortLink(row)"
+                />
+                <el-button link type="primary" @click="openEditShortLink(row)">编辑</el-button>
+                <el-button link @click="toggleShortLink(row)">{{ row.enabled ? '停用' : '启用' }}</el-button>
+                <el-button link type="danger" @click="deleteShortLink(row)">删除</el-button>
+              </template>
+            </el-table-column></el-table
           >
         </el-tab-pane>
 
@@ -415,15 +483,27 @@ const deleteKv = async (entry: KvListEntry) => {
         ></template
       ></el-dialog
     >
-    <el-dialog v-model="createShortLinkVisible" title="创建短链接" width="480px"
+    <el-dialog
+      v-model="createShortLinkVisible"
+      :title="editingShortLinkId ? '编辑短链接' : '创建短链接'"
+      width="480px"
       ><el-form label-position="top"
         ><el-form-item label="目标 URL"><el-input v-model="shortLinkForm.targetUrl" /></el-form-item
         ><el-form-item label="自定义代码（可选）"
-          ><el-input v-model="shortLinkForm.code" /></el-form-item></el-form
+          ><el-input v-model="shortLinkForm.code" :disabled="Boolean(editingShortLinkId)" /></el-form-item
+        ><el-form-item label="过期时间（可选）"
+          ><el-date-picker
+            v-model="shortLinkForm.expiresAt"
+            type="datetime"
+            value-format="YYYY-MM-DDTHH:mm:ss.SSS[Z]"
+            style="width: 100%" /></el-form-item
+        ><el-form-item v-if="editingShortLinkId" label="状态"
+          ><el-switch v-model="shortLinkForm.enabled" active-text="启用" inactive-text="停用" /></el-form-item
+        ></el-form
       ><template #footer
         ><el-button @click="createShortLinkVisible = false">取消</el-button
-        ><el-button type="primary" :disabled="!shortLinkForm.targetUrl" @click="createShortLink"
-          >创建</el-button
+        ><el-button type="primary" :disabled="!shortLinkForm.targetUrl" @click="saveShortLink"
+          >{{ editingShortLinkId ? '保存' : '创建' }}</el-button
         ></template
       ></el-dialog
     >
