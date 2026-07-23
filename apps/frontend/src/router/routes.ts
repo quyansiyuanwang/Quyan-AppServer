@@ -82,6 +82,15 @@ export const routes = [
         component: () => import('@/views/auth/CaptchaVerificationView.vue'),
       },
       {
+        path: '/status/:slug',
+        name: 'publicStatus',
+        component: () => import('@/views/public/PublicStatusView.vue'),
+        meta: {
+          isAuthEntry: true,
+          publicStatus: true,
+        },
+      },
+      {
         path: '/workspace/suggestions',
         name: 'workspaceSuggestions',
         component: () => import('@/views/workspace/WorkspaceTicketView.vue'),
