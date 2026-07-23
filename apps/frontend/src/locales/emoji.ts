@@ -3720,6 +3720,8 @@ const emoji: DeepStringify<typeof en> = {
     monthly_pass_daily_limit: '📅',
     relay_token_quota_low: '🔑',
     relay_token_exhausted: '🔑🪫',
+    developer_monitor_down: '📉',
+    developer_monitor_recovered: '📈',
     ticket_pending_review: '🎫⏳',
     ticket_status_updated: '🎫🔄',
     ticket_public_reply: '🎫💬',

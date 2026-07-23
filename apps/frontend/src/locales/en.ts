@@ -3974,6 +3974,8 @@ export default {
     monthly_pass_daily_limit: 'Monthly Pass Daily Limit Alert',
     relay_token_quota_low: 'Relay Token Quota Low',
     relay_token_exhausted: 'Relay Token Quota Exhausted',
+    developer_monitor_down: 'Developer Monitor Down',
+    developer_monitor_recovered: 'Developer Monitor Recovered',
     ticket_pending_review: 'New Ticket Pending Review',
     ticket_status_updated: 'Ticket Status Updated',
     ticket_public_reply: 'Ticket Reply Received',

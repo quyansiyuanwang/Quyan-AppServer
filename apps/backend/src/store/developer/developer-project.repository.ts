@@ -8,6 +8,8 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "@/config/database";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { ConfigService } from "@/services/system/config.service";
+import { NotificationService } from "@/services/notification/notification.service";
+import { NotificationEvent } from "@/constant/notification-event";
 import { BadRequestError, ForbiddenError, NotFoundError, TooManyRequestsError, UnauthorizedError } from "@/util/errors";
 import { CustomCode } from "@/constant/custom-code";
 import type {
@@ -937,6 +939,8 @@ export class DeveloperProjectRepository {
     targetUrl: string;
     method: string;
     successStatusCodes?: unknown;
+    lastStatus?: string | null;
+    project?: { userId: string };
   }): Promise<DeveloperStatusMonitorDto> {
     let lastStatus = "down";
     let statusCode: number | null = null;
@@ -975,11 +979,26 @@ export class DeveloperProjectRepository {
       });
       return updatedMonitor;
     });
+    if (monitor.lastStatus && monitor.lastStatus !== lastStatus && monitor.project?.userId) {
+      const recovered = lastStatus === "up";
+      void NotificationService.getInstance().dispatch(
+        monitor.project.userId,
+        recovered ? NotificationEvent.DEVELOPER_MONITOR_RECOVERED : NotificationEvent.DEVELOPER_MONITOR_DOWN,
+        {
+          title: recovered ? "监控服务已恢复" : "监控服务异常",
+          content: `监控目标已${recovered ? "恢复可用" : "不可用"}`,
+          data: { monitorId: monitor.id, previousStatus: monitor.lastStatus, currentStatus: lastStatus, statusCode },
+        },
+      );
+    }
     return this.monitorDto(updated);
   }
 
   async runScheduledMonitorChecks(): Promise<void> {
-    const monitors = await prisma.developerStatusMonitor.findMany({ where: { enabled: true, status: 1 } });
+    const monitors = await prisma.developerStatusMonitor.findMany({
+      where: { enabled: true, status: 1 },
+      include: { project: { select: { userId: true } } },
+    });
     const now = Date.now();
     const due = monitors.filter(
       (monitor) => !monitor.lastCheckedAt || now - monitor.lastCheckedAt.getTime() >= monitor.intervalSec * 1000,

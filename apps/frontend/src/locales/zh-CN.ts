@@ -3822,6 +3822,8 @@ const zhCN: DeepStringify<typeof en> = {
     monthly_pass_daily_limit: '月卡日限额提醒',
     relay_token_quota_low: '中转令牌额度不足',
     relay_token_exhausted: '中转令牌额度耗尽',
+    developer_monitor_down: '开发者监控异常',
+    developer_monitor_recovered: '开发者监控已恢复',
     ticket_pending_review: '新工单待分诊',
     ticket_status_updated: '工单状态更新',
     ticket_public_reply: '工单收到回复',
