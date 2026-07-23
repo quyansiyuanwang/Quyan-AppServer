@@ -27,10 +27,6 @@
         </div>
       </template>
 
-      <div v-if="!canView" class="permission-empty">
-        <el-empty :description="'TODO'" />
-      </div>
-
       <el-tabs v-model="activeTabName">
         <el-tab-pane :label="i18ns.t('monthlyPass.viewMyPasses')" name="myPasses">
           <template #header>
@@ -187,7 +183,6 @@ import { monthlyPassService } from '@/service/monthlyPassService'
 import type { MonthlyPassTemplateDto, UserMonthlyPassDto } from '@/client/types.gen'
 import MonthlyPassPurchaseView from '@/views/relay/MonthlyPassPurchaseView.vue'
 import { useRoute } from 'vue-router'
-import { usePermissionStore } from '@/stores/permissionStore'
 import { Refresh } from '@element-plus/icons-vue'
 import { balanceService } from '@/service/balanceService'
 import { useApiDocumentationPricing } from '@/composables/useApiDocumentationPricing'
@@ -196,7 +191,6 @@ type PassStatusFilter = 'all' | 'active' | 'pending' | 'expired' | 'disabled'
 type QuotaUnit = 'amount' | 'request' | 'token'
 type MonthlyPassTab = 'myPasses' | 'purchase'
 
-const permissionStore = usePermissionStore()
 const { isDesktop } = usePageDevice()
 const route = useRoute()
 const monthlyPassLoadError = ref('')
@@ -210,8 +204,6 @@ const records = ref<UserMonthlyPassDto[]>([])
 const viewStatus = ref<PassStatusFilter>('all')
 const activeTabName = ref<MonthlyPassTab>('myPasses')
 const loadingMonthlyPassBalance = ref(false)
-
-const canView = computed(() => Boolean(permissionStore))
 
 const resolveTabFromRoute = (): MonthlyPassTab =>
   route.query.tab === 'purchase' ? 'purchase' : 'myPasses'
