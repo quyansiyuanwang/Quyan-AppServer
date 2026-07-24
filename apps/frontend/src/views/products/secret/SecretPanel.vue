@@ -54,7 +54,13 @@
       ><el-alert v-if="formError" type="error" :title="formError" :closable="false" /><el-form
         label-position="top"
         ><el-form-item :label="t('productResources.key')"
-          ><el-input v-model="form.alias" :disabled="rotating" /></el-form-item
+          ><el-input
+            v-model="form.alias"
+            :disabled="rotating"
+            maxlength="100"
+            placeholder="OPENAI_KEY"
+            @input="normalizeAlias"
+          /><p class="field-hint">{{ t('productResources.secretAliasHint') }}</p></el-form-item
         ><el-form-item :label="t('productResources.secretValue')"
           ><el-input v-model="form.value" type="password" show-password /></el-form-item></el-form
       ><template #footer
@@ -123,10 +129,17 @@ const rotate = (alias: string) => {
   formError.value = ''
   dialog.value = true
 }
+const normalizeAlias = (value: string) => {
+  form.value.alias = value.toUpperCase()
+}
 const save = async () => {
   if (!props.instance || submitting.value) return
   if (!form.value.alias.trim() || !form.value.value) {
     formError.value = t('required')
+    return
+  }
+  if (!/^[A-Z][A-Z0-9_]{0,99}$/.test(form.value.alias.trim())) {
+    formError.value = t('productResources.invalidSecretAlias')
     return
   }
   submitting.value = true
@@ -163,6 +176,14 @@ const remove = async (alias: string) => {
 }
 watch(() => [props.instance?.id, canRead.value], load, { immediate: true })
 </script>
+<style scoped>
+.field-hint {
+  margin: 6px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+</style>
 <style scoped>
 .toolbar {
   display: flex;

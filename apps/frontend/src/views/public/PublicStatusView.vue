@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { CircleCheckFilled, CircleCloseFilled, Refresh } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
 import type { PublicStatusPage } from '@/service/publicStatusService'
@@ -19,6 +19,13 @@ const formatAvailability = (value: number) => `${(value * 100).toFixed(1)}%`
 const formatDate = (value?: string) => (value ? new Date(value).toLocaleString() : '尚未检测')
 
 const load = async () => {
+  if (!slug.value) {
+    page.value = null
+    error.value = '状态页地址无效。'
+    loading.value = false
+    return
+  }
+
   loading.value = true
   error.value = ''
   try {
@@ -30,7 +37,7 @@ const load = async () => {
   }
 }
 
-onMounted(() => void load())
+watch(slug, () => void load(), { immediate: true })
 </script>
 
 <template>
@@ -98,7 +105,9 @@ onMounted(() => void load())
 
 <style scoped>
 .public-status-page {
+  height: 100%;
   min-height: 100vh;
+  overflow: auto;
   background: #f4f7f5;
   color: #17221e;
 }

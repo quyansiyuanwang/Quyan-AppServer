@@ -100,6 +100,32 @@
       />
     </template>
 
+    <ProductApiTestCard
+      v-if="canSend"
+      v-model:api-key="testApiKey"
+      :title="t('productResources.pushTestTitle')"
+      :description="t('productResources.pushTestDescription')"
+      :error="testError"
+      :result="testResult"
+    >
+      <el-form-item :label="t('productResources.testChannels')">
+        <el-select v-model="testForm.channelIds" multiple filterable allow-create style="width: 100%">
+          <el-option v-for="channel in channels" :key="channel.id" :label="channel.name" :value="channel.id" />
+        </el-select>
+      </el-form-item>
+      <el-form-item :label="t('productResources.testTitle')">
+        <el-input v-model="testForm.title" />
+      </el-form-item>
+      <el-form-item :label="t('productResources.testContent')">
+        <el-input v-model="testForm.content" type="textarea" :rows="3" />
+      </el-form-item>
+      <template #actions>
+        <el-button type="primary" :loading="testSubmitting" @click="sendTest">{{
+          t('productResources.sendTestRequest')
+        }}</el-button>
+      </template>
+    </ProductApiTestCard>
+
     <el-dialog
       v-model="dialog"
       :title="editing ? t('productResources.edit') : t('productResources.addChannel')"
@@ -151,6 +177,7 @@ import { developerProductService } from '@/service/developerProductService'
 import { i18ns } from '@/locales'
 import { getErrorMessage } from '@/utils/error-utils'
 import { pushChannelTypeLabel } from '@/views/products/developer-product-ui'
+import ProductApiTestCard from '@/views/products/components/ProductApiTestCard.vue'
 
 const { t } = i18ns
 const props = defineProps<{
@@ -167,6 +194,11 @@ const channels = ref<DeveloperPushChannelDto[]>([])
 const deliveries = ref<DeveloperPushDeliveryDto[]>([])
 const dialog = ref(false)
 const editing = ref<DeveloperPushChannelDto>()
+const testApiKey = ref('')
+const testError = ref('')
+const testResult = ref<unknown>()
+const testSubmitting = ref(false)
+const testForm = ref({ channelIds: [] as string[], title: '', content: '' })
 const form = ref({
   name: '',
   type: 'webhook' as 'webhook' | 'dingtalk' | 'feishu' | 'wechat_work',
@@ -180,6 +212,7 @@ const canManageChannels = computed(() =>
   props.hasPermission(Permission.PRODUCT_PUSH_CHANNEL_MANAGE),
 )
 const canReadDeliveries = computed(() => props.hasPermission(Permission.PRODUCT_PUSH_DELIVERY_READ))
+const canSend = computed(() => props.hasPermission(Permission.PRODUCT_PUSH_SEND))
 
 const loadChannels = async () => {
   if (!props.instance || !canManageChannels.value) {
@@ -311,6 +344,41 @@ const remove = async (row: DeveloperPushChannelDto) => {
       ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
   } finally {
     submitting.value = false
+  }
+}
+const sendTest = async () => {
+  if (testSubmitting.value) return
+  if (
+    !testApiKey.value.trim() ||
+    !testForm.value.channelIds.length ||
+    !testForm.value.title.trim() ||
+    !testForm.value.content.trim()
+  ) {
+    testError.value = t('productResources.invalidTestRequest')
+    return
+  }
+  testSubmitting.value = true
+  testError.value = ''
+  testResult.value = undefined
+  try {
+    testResult.value = await developerProductService.requestProductApi(
+      '/v1/products/push/send',
+      testApiKey.value,
+      'POST',
+      {
+        channelIds: testForm.value.channelIds,
+        title: testForm.value.title.trim(),
+        content: testForm.value.content.trim(),
+        idempotencyKey: `console-test-${crypto.randomUUID()}`,
+      },
+    )
+    await loadDeliveries()
+    ElMessage.success(t('productResources.testRequestSucceeded'))
+  } catch (cause) {
+    testError.value = getErrorMessage(cause, t('productFeedback.operationFailed'))
+    ElMessage.error(testError.value)
+  } finally {
+    testSubmitting.value = false
   }
 }
 

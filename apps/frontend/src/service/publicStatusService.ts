@@ -37,10 +37,12 @@ export class PublicStatusService {
   }
 
   async getStatus(slug: string): Promise<PublicStatusPage> {
-    return checkApiResult<PublicStatusPage>(
+    const result = checkApiResult<{ data: PublicStatusPage }>(
       await getPublicStatusApi().status({ path: { slug } }),
       true,
     )
+
+    return result.data
   }
 }
 

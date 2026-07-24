@@ -87,6 +87,7 @@ export const routes = [
         component: () => import('@/views/public/PublicStatusView.vue'),
         meta: {
           isAuthEntry: true,
+          allowGuest: true,
           publicStatus: true,
         },
       },

@@ -15,6 +15,7 @@ import { createDeveloperProductResourceControllerApi } from '@/client/services/d
 import { useRequestStore } from '@/stores/request'
 import { cache } from '@/utils/common'
 import { checkApiResult } from '@/utils/service-utils'
+import { toServiceError } from '@/utils/error-utils'
 
 const selfApi = cache(() => createDeveloperProductSelfControllerApi(useRequestStore().getAxios()))
 const adminApi = cache(() => createDeveloperProductAdminControllerApi(useRequestStore().getAxios()))
@@ -32,6 +33,29 @@ export class DeveloperProductService {
 
   private unwrap<T>(response: { data?: T }): T {
     return (checkApiResult(response, true) as { data: T }).data
+  }
+
+  async requestProductApi<T>(
+    path: string,
+    apiKey: string,
+    method: 'GET' | 'POST',
+    body?: unknown,
+  ): Promise<T> {
+    const baseUrl = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, '') || ''
+    const response = await fetch(`${baseUrl}${path}`, {
+      method,
+      credentials: 'omit',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${apiKey.trim()}`,
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+    const payload: unknown = await response.json().catch(() => undefined)
+    if (!response.ok)
+      throw toServiceError(payload ?? new Error(`Request failed: ${response.status}`))
+    return (checkApiResult(payload, true) as { data: T }).data
   }
 
   async catalog() {

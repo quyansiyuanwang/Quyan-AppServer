@@ -22,7 +22,7 @@ export function responseWrapperMiddleware(req: Request, res: Response, next: Nex
       return originalJson(body);
 
     // 如果响应体已经包含 code 字段，说明已被包装，尝试本地化 message 后直接返回
-    if (body && typeof body === "object" && "code" in body) {
+    if (body && typeof body === "object" && "code" in body && typeof body.code === "number") {
       if (typeof body.message === "string")
         body.message = translateKnownMessage(body.message, res.locals.locale ?? req.locale ?? DEFAULT_BACKEND_LOCALE);
       return originalJson(body);
