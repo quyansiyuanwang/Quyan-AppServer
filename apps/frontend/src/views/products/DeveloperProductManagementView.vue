@@ -187,8 +187,10 @@ onMounted(load)
 
 <style scoped lang="scss">
 .product-management {
-  max-width: 1440px;
-  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  box-sizing: border-box;
   padding: 28px;
 }
 .page-header,

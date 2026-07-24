@@ -124,8 +124,10 @@ onMounted(load)
 
 <style scoped lang="scss">
 .product-config {
-  max-width: 1100px;
-  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  box-sizing: border-box;
   padding: 28px;
 }
 .page-header {
