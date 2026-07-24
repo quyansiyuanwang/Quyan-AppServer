@@ -97,48 +97,46 @@
       <el-icon><Connection /></el-icon>
       <template #title>{{ i18ns.t('nav.developerProducts') }}</template>
     </el-menu-item>
-    <el-menu-item
-      index="product-kv"
-      @click="nav('product-kv', $event)"
-      @contextmenu.prevent="openRouteMenu('product-kv', $event)"
-      ><el-icon><Connection /></el-icon><template #title>KV 存储</template></el-menu-item
+    <el-sub-menu
+      v-for="product in developerProducts"
+      :key="product.code"
+      :index="`developer-product-${product.code}`"
     >
-    <el-menu-item
-      index="product-short_link"
-      @click="nav('product-short_link', $event)"
-      @contextmenu.prevent="openRouteMenu('product-short_link', $event)"
-      ><el-icon><Link /></el-icon><template #title>短链接</template></el-menu-item
-    >
-    <el-menu-item
-      index="product-secret"
-      @click="nav('product-secret', $event)"
-      @contextmenu.prevent="openRouteMenu('product-secret', $event)"
-      ><el-icon><Lock /></el-icon><template #title>密钥托管</template></el-menu-item
-    >
-    <el-menu-item
-      index="product-status"
-      @click="nav('product-status', $event)"
-      @contextmenu.prevent="openRouteMenu('product-status', $event)"
-      ><el-icon><Monitor /></el-icon><template #title>状态监控</template></el-menu-item
-    >
-    <el-menu-item
-      index="product-verification"
-      @click="nav('product-verification', $event)"
-      @contextmenu.prevent="openRouteMenu('product-verification', $event)"
-      ><el-icon><Key /></el-icon><template #title>验证码</template></el-menu-item
-    >
-    <el-menu-item
-      index="product-ip_geolocation"
-      @click="nav('product-ip_geolocation', $event)"
-      @contextmenu.prevent="openRouteMenu('product-ip_geolocation', $event)"
-      ><el-icon><Connection /></el-icon><template #title>IP 定位</template></el-menu-item
-    >
-    <el-menu-item
-      index="product-push"
-      @click="nav('product-push', $event)"
-      @contextmenu.prevent="openRouteMenu('product-push', $event)"
-      ><el-icon><Bell /></el-icon><template #title>推送聚合</template></el-menu-item
-    >
+      <template #title>
+        <el-icon><component :is="product.icon" /></el-icon>
+        <span>{{ i18ns.t(product.labelKey as any) }}</span>
+      </template>
+      <el-menu-item
+        :index="developerProductUserRoute(product.code)"
+        @click="nav(developerProductUserRoute(product.code), $event)"
+        @contextmenu.prevent="openRouteMenu(developerProductUserRoute(product.code), $event)"
+      >
+        <el-icon><User /></el-icon>
+        <template #title>{{ i18ns.t('nav.productUserPage') }}</template>
+      </el-menu-item>
+      <PermissionWrapper :require="[Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE]">
+        <el-menu-item
+          :index="developerProductManagementRoute(product.code)"
+          @click="nav(developerProductManagementRoute(product.code), $event)"
+          @contextmenu.prevent="
+            openRouteMenu(developerProductManagementRoute(product.code), $event)
+          "
+        >
+          <el-icon><DataAnalysis /></el-icon>
+          <template #title>{{ i18ns.t('nav.productManagementPage') }}</template>
+        </el-menu-item>
+      </PermissionWrapper>
+      <PermissionWrapper :require="[Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE]">
+        <el-menu-item
+          :index="developerProductConfigRoute(product.code)"
+          @click="nav(developerProductConfigRoute(product.code), $event)"
+          @contextmenu.prevent="openRouteMenu(developerProductConfigRoute(product.code), $event)"
+        >
+          <el-icon><Tools /></el-icon>
+          <template #title>{{ i18ns.t('nav.productConfigPage') }}</template>
+        </el-menu-item>
+      </PermissionWrapper>
+    </el-sub-menu>
   </el-sub-menu>
 
   <el-sub-menu index="productSubscriptions">
@@ -841,6 +839,12 @@ import { authorizationService } from '@/service/authorizationService'
 import LogoutIcon from '@/components/icons/LogoutIcon.vue'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { Permission } from '@/constant/permission'
+import {
+  DEVELOPER_PRODUCT_NAVIGATION,
+  developerProductConfigRoute,
+  developerProductManagementRoute,
+  developerProductUserRoute,
+} from '@/constant/developer-product-navigation'
 import router from '@/router'
 import type { RouteName } from '@/types/route-types.gen'
 import { computed, useSlots } from 'vue'
@@ -862,6 +866,7 @@ const props = withDefaults(
 
 const slots = useSlots()
 const hasPinnedSlot = computed(() => Boolean(slots.pinned))
+const developerProducts = DEVELOPER_PRODUCT_NAVIGATION
 
 const nav = (name: RouteName, event?: MouseEvent) => {
   props.onRouteNavigate?.(name, event)

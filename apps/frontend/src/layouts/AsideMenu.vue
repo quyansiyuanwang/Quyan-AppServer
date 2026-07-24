@@ -443,6 +443,12 @@ import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import { useThemeToggleStore } from '@/stores/themeToggleStore'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { Permission } from '@/constant/permission'
+import {
+  DEVELOPER_PRODUCT_NAVIGATION,
+  developerProductConfigRoute,
+  developerProductManagementRoute,
+  developerProductUserRoute,
+} from '@/constant/developer-product-navigation'
 import type { RouteName } from '@/types/route-types.gen'
 import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
 
@@ -670,6 +676,29 @@ const overviewSections = computed<OverviewSection[]>(() => {
           route: 'developerProducts',
           visible: true,
         },
+        ...DEVELOPER_PRODUCT_NAVIGATION.flatMap((product) => [
+          {
+            key: `product-${product.code}-user`,
+            label: `${i18ns.t(product.labelKey as any)} · ${i18ns.t('nav.productUserPage')}`,
+            icon: product.icon,
+            route: developerProductUserRoute(product.code),
+            visible: true,
+          },
+          {
+            key: `product-${product.code}-management`,
+            label: `${i18ns.t(product.labelKey as any)} · ${i18ns.t('nav.productManagementPage')}`,
+            icon: DataAnalysis,
+            route: developerProductManagementRoute(product.code),
+            visible: can(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE),
+          },
+          {
+            key: `product-${product.code}-config`,
+            label: `${i18ns.t(product.labelKey as any)} · ${i18ns.t('nav.productConfigPage')}`,
+            icon: Tools,
+            route: developerProductConfigRoute(product.code),
+            visible: can(Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE),
+          },
+        ]),
       ],
     },
     {
