@@ -163,6 +163,7 @@ export class ChatController extends Controller {
           path: req.path,
           method: req.method,
           ipAddress: req.ip || req.connection?.remoteAddress || "unknown",
+          requestId: String(req.headers["x-request-id"] || "").trim() || undefined,
         },
       ))
         this.sseService.sendChunk(res, chunk);

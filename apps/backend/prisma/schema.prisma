@@ -937,6 +937,7 @@ model RelayToken {
   quotaWindows              RelayTokenQuotaWindow[]
   switchLogs                RelayChannelSwitchLog[]
   relayUsages               RelayUsage[]
+  logicalRequests           RelayLogicalRequest[]
   conversations             Conversation[]
 
   @@index([userId])
@@ -1037,6 +1038,7 @@ model RelayUsage {
   createTime          DateTime @default(now())
   updateTime          DateTime @updatedAt
   relayTokenId        String
+  logicalRequestId    String?
   executionChannelId  String?
   displayChannelId    String?
   displayChannelName  String?  @db.Text
@@ -1054,13 +1056,31 @@ model RelayUsage {
   isStreaming         Boolean  @default(false)
 
   relayToken RelayToken @relation(fields: [relayTokenId], references: [id])
+  logicalRequest RelayLogicalRequest? @relation(fields: [logicalRequestId], references: [id], onDelete: SetNull)
 
   @@index([relayTokenId])
   @@index([createTime])
   @@index([relayTokenId, createTime])
+  @@index([logicalRequestId])
   @@index([executionChannelId])
   @@index([displayChannelId])
   @@map("relay_usages")
+}
+
+model RelayLogicalRequest {
+  id           String   @id @default(cuid())
+  createTime   DateTime @default(now())
+  updateTime   DateTime @updatedAt
+  relayTokenId String
+  requestId    String   @db.VarChar(64)
+  countedAt    DateTime?
+
+  relayToken RelayToken   @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
+  relayUsages RelayUsage[]
+
+  @@unique([relayTokenId, requestId])
+  @@index([relayTokenId, countedAt, createTime])
+  @@map("relay_logical_requests")
 }
 
 model AccessKey {

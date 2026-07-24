@@ -300,6 +300,7 @@ export class RelayProxyService {
     await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
       userId: relayToken.userId,
       relayTokenId: relayToken.id,
+      requestId: this.getLogicalRequestId(req),
       requestTokens: 0,
       responseTokens: 0,
       totalTokens: 0,
@@ -1524,7 +1525,10 @@ export class RelayProxyService {
     return candidates.filter((channel): channel is RelayChannelWithPool => {
       if (!channel?.id || seen.has(channel.id)) return false;
       seen.add(channel.id);
-      return channel.status === RELAY_CHANNEL_STATUS.ENABLED;
+      return (
+        channel.status === RELAY_CHANNEL_STATUS.ENABLED &&
+        channel.channelType !== "automatic-proxy-pool"
+      );
     });
   }
 
@@ -1868,6 +1872,10 @@ export class RelayProxyService {
     return undefined;
   }
 
+  private getLogicalRequestId(req: any): string {
+    return this.getHeaderValue(req?.headers, "x-request-id") || randomUUID();
+  }
+
   private withRequestIdHeader(req: any, headers: Record<string, unknown> = {}): Record<string, unknown> {
     const mergedHeaders = { ...headers };
     const siteRequestId = this.getHeaderValue(req?.headers, "x-request-id");
@@ -2032,6 +2040,7 @@ export class RelayProxyService {
     const finalizeResult = await this.usageChargeService.chargeUsage({
       userId: relayToken.userId,
       relayTokenId: relayToken.id,
+      requestId: this.getLogicalRequestId(req),
       requestTokens: tokenBreakdown.requestTokens,
       responseTokens: tokenBreakdown.responseTokens,
       totalTokens: tokenBreakdown.totalTokens,
@@ -2169,6 +2178,7 @@ export class RelayProxyService {
       await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
         userId: relayToken.userId,
         relayTokenId: relayToken.id,
+        requestId: this.getLogicalRequestId(req),
         requestTokens: 0,
         responseTokens: 0,
         totalTokens: 0,
@@ -2639,7 +2649,7 @@ export class RelayProxyService {
               systemHasCache,
             });
 
-            if (process.env.NODE_ENV === "development")
+            if (EnvSpace.isDevelopment)
               logger.debug("Final request body to upstream API", {
                 body: JSON.stringify(convertedBody, null, 2),
               });
@@ -2915,6 +2925,7 @@ export class RelayProxyService {
               await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
                 userId: relayToken.userId,
                 relayTokenId: relayToken.id,
+                requestId: this.getLogicalRequestId(req),
                 requestTokens: 0,
                 responseTokens: 0,
                 totalTokens: 0,
@@ -3006,6 +3017,7 @@ export class RelayProxyService {
             const finalizeResult = await this.usageChargeService.chargeUsage({
               userId: relayToken.userId,
               relayTokenId: relayToken.id,
+              requestId: this.getLogicalRequestId(req),
               requestTokens,
               responseTokens,
               totalTokens,
@@ -3625,6 +3637,7 @@ export class RelayProxyService {
               await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
                 userId: relayToken.userId,
                 relayTokenId: relayToken.id,
+                requestId: this.getLogicalRequestId(req),
                 requestTokens: 0,
                 responseTokens: 0,
                 totalTokens: 0,
@@ -3802,6 +3815,7 @@ export class RelayProxyService {
 
             try {
               await this.finalizeStreamUsage(relayToken, {
+                requestId: this.getLogicalRequestId(req),
                 requestTokens,
                 responseTokens,
                 totalTokens,
@@ -3948,6 +3962,7 @@ export class RelayProxyService {
     const finalizeResult = await this.usageChargeService.chargeUsage({
       userId: relayToken.userId,
       relayTokenId: relayToken.id,
+      requestId: data.requestId,
       requestTokens: data.requestTokens,
       responseTokens: data.responseTokens,
       totalTokens: data.totalTokens,

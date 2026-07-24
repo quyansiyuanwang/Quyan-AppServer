@@ -36,7 +36,7 @@ export enum LogLevel {
   SILLY = "silly",
 }
 
-const isDev = EnvSpace.isDevelopment ?? process.env.NODE_ENV === "development";
+const isDev = EnvSpace.isDevelopment;
 const logConfig = EnvSpace.logConfig ?? {
   disableConsoleLog: false,
   enableFileLogging: false,

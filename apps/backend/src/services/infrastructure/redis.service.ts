@@ -1,28 +1,13 @@
 import Redis from "ioredis";
 import { createRedisClient } from "@/config/redis";
 import { getLogger, LogCategory } from "@/util/logger";
+import { EnvSpace } from "@/config/env";
 
 const logger = getLogger("RedisService", LogCategory.REDIS);
 const REDIS_SCAN_COUNT = 200;
 const REDIS_SCAN_COUNT_MAX = 1000;
-const DEFAULT_REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
-const DEFAULT_REDIS_CIRCUIT_BREAKER_OPEN_MS = 30_000;
-
-const parsePositiveInt = (value: string | undefined, fallback: number): number => {
-  const parsed = Number.parseInt(String(value || "").trim(), 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return parsed;
-};
-
-const REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD = parsePositiveInt(
-  process.env.REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD,
-  DEFAULT_REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD,
-);
-
-const REDIS_CIRCUIT_BREAKER_OPEN_MS = parsePositiveInt(
-  process.env.REDIS_CIRCUIT_BREAKER_OPEN_MS,
-  DEFAULT_REDIS_CIRCUIT_BREAKER_OPEN_MS,
-);
+const REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD = EnvSpace.redisConfig.circuitBreakerFailureThreshold;
+const REDIS_CIRCUIT_BREAKER_OPEN_MS = EnvSpace.redisConfig.circuitBreakerOpenMs;
 
 const resolveScanCount = (maxResults?: number): number => {
   if (typeof maxResults !== "number" || !Number.isFinite(maxResults) || maxResults <= 0) return REDIS_SCAN_COUNT;

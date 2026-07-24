@@ -45,11 +45,36 @@ export class RelayProxyRepository implements RelayProxyStore {
     return prisma.balanceAccount.findUnique({ where: { userId } });
   }
 
+  private async ensureLogicalRequest(
+    tx: Prisma.TransactionClient,
+    relayTokenId: string,
+    requestId: string,
+  ): Promise<string> {
+    const logicalRequest = await tx.relayLogicalRequest.upsert({
+      where: { relayTokenId_requestId: { relayTokenId, requestId } },
+      create: { relayTokenId, requestId },
+      update: {},
+      select: { id: true },
+    });
+    const claimed = await tx.relayLogicalRequest.updateMany({
+      where: { id: logicalRequest.id, countedAt: null },
+      data: { countedAt: new Date() },
+    });
+    if (claimed.count)
+      await tx.relayToken.update({
+        where: { id: relayTokenId },
+        data: { requestCount: { increment: 1 }, lastUsedAt: new Date() },
+      });
+    return logicalRequest.id;
+  }
+
   async recordUsageWithoutCharge(data: RelayUsageRecordInput): Promise<void> {
     await prisma.$transaction(async (tx) => {
+      const logicalRequestId = await this.ensureLogicalRequest(tx, data.relayTokenId, data.requestId);
       await tx.relayUsage.create({
         data: {
           relayTokenId: data.relayTokenId,
+          logicalRequestId,
           executionChannelId: data.executionChannelId || null,
           displayChannelId: data.displayChannelId || null,
           displayChannelName: data.displayChannelName || null,
@@ -68,21 +93,16 @@ export class RelayProxyRepository implements RelayProxyStore {
         },
       });
 
-      await tx.relayToken.update({
-        where: { id: data.relayTokenId },
-        data: {
-          requestCount: { increment: 1 },
-          lastUsedAt: new Date(),
-        },
-      });
     });
   }
 
   async recordUsageWithZeroChargeTransaction(data: RelayZeroChargeUsageInput): Promise<void> {
     await prisma.$transaction(async (tx) => {
+      const logicalRequestId = await this.ensureLogicalRequest(tx, data.relayTokenId, data.requestId);
       const usageRecord = await tx.relayUsage.create({
         data: {
           relayTokenId: data.relayTokenId,
+          logicalRequestId,
           executionChannelId: data.executionChannelId || null,
           displayChannelId: data.displayChannelId || null,
           displayChannelName: data.displayChannelName || null,
@@ -138,13 +158,6 @@ export class RelayProxyRepository implements RelayProxyStore {
         },
       });
 
-      await tx.relayToken.update({
-        where: { id: data.relayTokenId },
-        data: {
-          requestCount: { increment: 1 },
-          lastUsedAt: new Date(),
-        },
-      });
     });
   }
 
@@ -152,6 +165,7 @@ export class RelayProxyRepository implements RelayProxyStore {
     try {
       const txResult = await prisma.$transaction(
         async (tx) => {
+          const logicalRequestId = await this.ensureLogicalRequest(tx, data.relayTokenId, data.requestId);
           let remainingCost = round4(Math.max(0, data.cost));
           let coveredByMonthlyPass = 0;
           const balanceChargeMode = resolveBalanceChargeMode(data.balanceChargeMode);
@@ -327,6 +341,7 @@ export class RelayProxyRepository implements RelayProxyStore {
           const usageRecord = await tx.relayUsage.create({
             data: {
               relayTokenId: data.relayTokenId,
+              logicalRequestId,
               executionChannelId: data.executionChannelId || data.channelId,
               displayChannelId: data.displayChannelId || null,
               displayChannelName: data.displayChannelName || null,
@@ -477,7 +492,6 @@ export class RelayProxyRepository implements RelayProxyStore {
             where: { id: data.relayTokenId },
             data: {
               totalTokens: { increment: data.totalTokens },
-              requestCount: { increment: 1 },
               usedQuota: { increment: new Decimal(usedQuotaIncrement) },
               lastUsedAt: new Date(),
             },

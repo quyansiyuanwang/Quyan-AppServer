@@ -5,6 +5,7 @@ import nodemailer from "nodemailer";
 import type { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "@/config/database";
+import { EnvSpace } from "@/config/env";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { ConfigService } from "@/services/system/config.service";
 import { NotificationService } from "@/services/notification/notification.service";
@@ -765,7 +766,7 @@ export class DeveloperProjectRepository {
   }
 
   private getEncryptionKey(): Buffer {
-    const secret = String(process.env.DEVELOPER_SECRETS_MASTER_KEY || "").trim();
+    const secret = EnvSpace.developerProductConfig.secretsMasterKey;
     if (secret.length < 64) throw new BadRequestError("密钥托管未配置");
     return createHash("sha256").update(secret).digest();
   }
@@ -1177,7 +1178,7 @@ export class DeveloperProjectRepository {
       return cached.value;
     }
     if (cached) this.ipLocationCache.delete(ip);
-    const endpoint = String(process.env.IP_GEOLOCATION_ENDPOINT || "").trim();
+    const endpoint = EnvSpace.developerProductConfig.ipGeolocationEndpoint;
     if (!endpoint) throw new BadRequestError("IP 定位服务尚未配置");
     const base = await assertSafeOutboundUrl(endpoint);
     const receipt = options?.skipQuota ? undefined : await this.consumeQuota(projectId, "ip");

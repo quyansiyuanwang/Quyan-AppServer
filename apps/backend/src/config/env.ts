@@ -197,6 +197,14 @@ function isTest(): boolean {
   return process.env.NODE_ENV === "test";
 }
 
+function nodeEnv(): string {
+  return String(process.env.NODE_ENV || "unknown");
+}
+
+function trustedDeviceSecret(): string {
+  return String(process.env.TWO_FACTOR_TRUSTED_DEVICE_SECRET || "").trim();
+}
+
 function getPort(): number {
   const port = process.env.PORT;
   if (!port) throw new Error("PORT is not defined in environment variables");
@@ -238,6 +246,16 @@ function getDatabaseParams(): string {
   if (queryIndex === -1) return "—"; // No query params
 
   return url.slice(queryIndex + 1);
+}
+
+function getDatabaseUrl(): string {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not defined in environment variables");
+  return url;
+}
+
+function corsAllowedOrigins(): string {
+  return String(process.env.CORS_ALLOWED_ORIGINS || "");
 }
 
 function getProtectedGroupName(): string | undefined {
@@ -310,6 +328,38 @@ function redisConfig() {
     port: parseInt(process.env.REDIS_PORT || "6379", 10),
     password: process.env.REDIS_PASSWORD,
     db: parseInt(process.env.REDIS_DB || "0", 10),
+    circuitBreakerFailureThreshold: sanitizeInt(process.env.REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD, 5, 1, 100),
+    circuitBreakerOpenMs: sanitizeInt(process.env.REDIS_CIRCUIT_BREAKER_OPEN_MS, 30000, 1000, 3600000),
+  };
+}
+
+function anthropicConfig() {
+  return {
+    apiKey: String(process.env.ANTHROPIC_API_KEY || "").trim(),
+    baseUrl: String(process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").trim().replace(/\/+$/, ""),
+  };
+}
+
+function developerProductConfig() {
+  return {
+    secretsMasterKey: String(process.env.DEVELOPER_SECRETS_MASTER_KEY || "").trim(),
+    ipGeolocationEndpoint: String(process.env.IP_GEOLOCATION_ENDPOINT || "").trim(),
+  };
+}
+
+function remoteTerminalConfig() {
+  return {
+    installTokenSecret: String(process.env.RTM_INSTALL_TOKEN_SECRET || "").trim(),
+  };
+}
+
+function monthlyPassConfig() {
+  return {
+    defaultPageSize: sanitizeInt(process.env.MONTHLY_PASS_DEFAULT_PAGE_SIZE, 20, 1, 1000),
+    defaultQuotaWindowHours: sanitizeInt(process.env.MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS, 24, 1, 8760),
+    maxQuotaWindowHours: sanitizeInt(process.env.MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS, 720, 1, 8760),
+    maxAmountQuota: Number(process.env.MONTHLY_PASS_MAX_AMOUNT_QUOTA || "999999.9999"),
+    maxIntegerQuota: sanitizeInt(process.env.MONTHLY_PASS_MAX_INTEGER_QUOTA, 999999, 1, 2147483647),
   };
 }
 
@@ -530,17 +580,25 @@ export const EnvSpace = {
   isProduction: noUndefined(isProduction),
   isDevelopment: noUndefined(isDevelopment),
   isTest: noUndefined(isTest),
+  nodeEnv: noUndefined(nodeEnv),
   port: noUndefined(getPort),
   accessTokenSecret: noUndefined(() => getJwtSecret("access")),
   refreshTokenSecret: noUndefined(() => getJwtSecret("refresh")),
+  trustedDeviceSecret: noUndefined(trustedDeviceSecret),
   accessTokenExpiresIn: noUndefined(() => getJwtExpiresIn("access")),
   refreshTokenExpiresIn: noUndefined(() => getJwtExpiresIn("refresh")),
   hiddenDatabase: noUndefined(getHiddenDatabase),
+  databaseUrl: noUndefined(getDatabaseUrl),
   databaseParams: noUndefined(getDatabaseParams),
+  corsAllowedOrigins: noUndefined(corsAllowedOrigins),
   protectedGroupName: noUndefined(getProtectedGroupName),
   superAdminGroupUsername: noUndefined(getSuperAdminGroupUsername),
   rateLimitConfig: noUndefined(rateLimitConfig),
   redisConfig: noUndefined(redisConfig),
+  anthropicConfig: noUndefined(anthropicConfig),
+  developerProductConfig: noUndefined(developerProductConfig),
+  remoteTerminalConfig: noUndefined(remoteTerminalConfig),
+  monthlyPassConfig: noUndefined(monthlyPassConfig),
   webAuthnConfig: noUndefined(webAuthnConfig),
   recaptchaConfig: noUndefined(recaptchaConfig),
   turnstileConfig: noUndefined(turnstileConfig),

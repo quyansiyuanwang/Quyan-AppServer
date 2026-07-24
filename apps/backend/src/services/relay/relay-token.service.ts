@@ -903,11 +903,14 @@ export class RelayTokenService {
     endDate?: Date,
     targetUserId?: string,
   ): Promise<RelayUsageStatsDto> {
-    await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
+    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
 
-    const usages = await this.relayUsageRepo.findByRelayTokenId(tokenId, startDate, endDate);
+    const [usages, aggregates] = await Promise.all([
+      this.relayUsageRepo.findByRelayTokenId(tokenId, startDate, endDate),
+      this.relayUsageRepo.aggregateByRelayTokenIds([tokenId], startDate, endDate),
+    ]);
     const totalTokens = usages.reduce((sum, u) => sum + u.totalTokens, 0);
-    const requestCount = usages.length;
+    const requestCount = startDate || endDate ? (aggregates[0]?.requestCount || 0) : token.requestCount;
     return {
       totalTokens,
       requestCount,
@@ -1025,6 +1028,7 @@ export class RelayTokenService {
     const allTimeSummary = this.buildUsageSummaryDto(relayToken, allTimeAggregate, {
       rangeMode: "lifetime",
       rangeLabel: "lifetime",
+      usePersistedRequestCount: true,
     });
     const quotaWindowUsageMap = await this.buildQuotaWindowUsageMap([relayToken]);
     const balanceAccount = await this.balanceRepo.findAccountByUserId(relayToken.userId);
@@ -1051,6 +1055,7 @@ export class RelayTokenService {
     const summary = this.buildUsageSummaryDto(relayToken, aggregateRows[0], {
       rangeMode: "lifetime",
       rangeLabel: "lifetime",
+      usePersistedRequestCount: true,
     });
 
     return {
@@ -1272,6 +1277,7 @@ export class RelayTokenService {
     },
     options?: {
       usePersistedQuota?: boolean;
+      usePersistedRequestCount?: boolean;
       rangeMode?: UsageRangeMode;
       rangeLabel?: string;
       rangeStartAt?: Date;
@@ -1300,7 +1306,9 @@ export class RelayTokenService {
       rangeLabel: options?.rangeLabel,
       rangeStartAt: options?.rangeStartAt,
       rangeEndAt: options?.rangeEndAt,
-      requestCount: aggregate?.requestCount ?? (hasExplicitRange ? 0 : (token.requestCount ?? 0)),
+      requestCount: options?.usePersistedRequestCount
+        ? (token.requestCount ?? 0)
+        : (aggregate?.requestCount ?? (hasExplicitRange ? 0 : (token.requestCount ?? 0))),
       requestTokens: aggregate?.requestTokens ?? 0,
       responseTokens: aggregate?.responseTokens ?? 0,
       totalTokens: aggregate?.totalTokens ?? (hasExplicitRange ? 0 : (token.totalTokens ?? 0)),
@@ -1687,6 +1695,14 @@ export class RelayTokenService {
       const missingIds = uniqueChannelIds.filter((id) => !foundIds.has(id));
       throw new BadRequestError(`Relay channel not found or disabled: ${missingIds.join(", ")}`);
     }
+
+    const automaticPoolIds = channels
+      .filter((channel) => channel.channelType === "automatic-proxy-pool")
+      .map((channel) => channel.id);
+    if (automaticPoolIds.length)
+      throw new BadRequestError(
+        `Automatic proxy pools can only be configured in automatic routing mode: ${automaticPoolIds.join(", ")}`,
+      );
 
     await Promise.all(
       uniqueChannelIds.map((channelId) =>

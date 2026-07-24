@@ -89,8 +89,20 @@ export class RelayUsageRepository implements RelayUsageStore {
     if (relayTokenIds.length === 0) return [];
 
     const where = this.buildRelayUsageWhere(relayTokenIds, startDate, endDate);
+    const logicalRequestWhere = {
+      relayTokenId: { in: relayTokenIds },
+      countedAt: { not: null },
+      ...(startDate || endDate
+        ? {
+            createTime: {
+              ...(startDate ? { gte: startDate } : {}),
+              ...(endDate ? { lte: endDate } : {}),
+            },
+          }
+        : {}),
+    };
 
-    const [aggregateRows, usageReferences] = await Promise.all([
+    const [aggregateRows, usageReferences, logicalRequestRows] = await Promise.all([
       prisma.relayUsage.groupBy({
         by: ["relayTokenId"],
         where,
@@ -115,11 +127,19 @@ export class RelayUsageRepository implements RelayUsageStore {
           relayTokenId: true,
         },
       }),
+      prisma.relayLogicalRequest.groupBy({
+        by: ["relayTokenId"],
+        where: logicalRequestWhere,
+        _count: { _all: true },
+      }),
     ]);
 
     if (aggregateRows.length === 0) return [];
 
     const billingMap = await this.buildBillingAmountMap(usageReferences.map((usage) => usage.id));
+    const logicalRequestCountByRelayTokenId = new Map(
+      logicalRequestRows.map((row) => [row.relayTokenId, Number(row._count._all || 0)]),
+    );
     const billingTotalsByRelayTokenId = new Map<string, { chargedAmount: number; coveredAmount: number }>();
 
     for (const usage of usageReferences) {
@@ -133,7 +153,7 @@ export class RelayUsageRepository implements RelayUsageStore {
 
     return aggregateRows.map((row) => ({
       relayTokenId: row.relayTokenId,
-      requestCount: Number(row._count?._all || 0),
+      requestCount: logicalRequestCountByRelayTokenId.get(row.relayTokenId) || 0,
       requestTokens: Number(row._sum.requestTokens || 0),
       responseTokens: Number(row._sum.responseTokens || 0),
       totalTokens: Number(row._sum.totalTokens || 0),

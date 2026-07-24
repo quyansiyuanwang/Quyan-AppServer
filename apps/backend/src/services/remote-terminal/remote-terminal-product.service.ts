@@ -19,6 +19,7 @@ import type {
   UpdateRemoteTerminalProductTemplateRequest,
 } from "@/api/dto/remote-terminal/remote-terminal.dto";
 import { issueInstallToken as buildInstallToken } from "@/modules/remote-terminal/install-token";
+import { EnvSpace } from "@/config/env";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { MANAGED_STATUS } from "@/constant/status";
 import type { RemoteTerminalHostSnapshot } from "@/modules/remote-terminal/protocol";
@@ -1391,7 +1392,7 @@ export class RemoteTerminalProductService {
       throw new ForbiddenError("You can only issue install tokens for your own entitlement");
     if (!this.canIssueRegistrationToken(entitlement.deviceLimit))
       throw new BadRequestError("Registration token is unavailable when deviceLimit is 0");
-    const secret = String(process.env.RTM_INSTALL_TOKEN_SECRET || "").trim();
+    const secret = EnvSpace.remoteTerminalConfig.installTokenSecret;
     if (!secret || secret.length < 64) throw new Error("RTM_INSTALL_TOKEN_SECRET must be at least 64 characters");
     return buildInstallToken(entitlementId, secret);
   }

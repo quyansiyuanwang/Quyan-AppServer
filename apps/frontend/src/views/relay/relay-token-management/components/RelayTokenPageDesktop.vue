@@ -155,7 +155,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('relay.orderedChannels')" min-width="180">
+        <el-table-column :label="i18ns.t('relay.routingMode')" min-width="180">
           <template #default="{ row }">
             <el-tooltip
               v-if="state.isAutomaticPoolToken(row)"

@@ -5,6 +5,7 @@ import type { RelayFinalizeChargeInput } from "../../../src/store/relay/relay-pr
 const createChargeInput = (overrides: Partial<RelayFinalizeChargeInput> = {}): RelayFinalizeChargeInput => ({
   userId: "user-1",
   relayTokenId: "token-1",
+  requestId: "request-1",
   requestTokens: 10,
   responseTokens: 20,
   totalTokens: 30,

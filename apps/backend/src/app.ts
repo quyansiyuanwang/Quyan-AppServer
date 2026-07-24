@@ -39,7 +39,7 @@ export function createApp() {
   const app = express();
   const requestSizeLimitConfig = EnvSpace.requestSizeLimitConfig;
 
-  const corsAllowedOrigins = createCorsOriginAllowlist(String(process.env.CORS_ALLOWED_ORIGINS || ""));
+  const corsAllowedOrigins = createCorsOriginAllowlist(EnvSpace.corsAllowedOrigins);
 
   // 允许前端跨域访问
   app.use(

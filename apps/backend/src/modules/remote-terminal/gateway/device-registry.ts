@@ -14,6 +14,7 @@ import { RemoteTerminalProductRepository } from "@/store/remote-terminal-product
 import type { RemoteTerminalDeviceBindingWithRelations } from "@/store/remote-terminal-product/remote-terminal-product.store";
 import { ConfigService } from "@/services/system/config.service";
 import type { Prisma } from "@prisma/client";
+import { EnvSpace } from "@/config/env";
 
 interface RemoteTerminalDeviceRecord {
   deviceId: string;
@@ -52,7 +53,7 @@ export class RemoteTerminalDeviceRegistry {
     const now = new Date();
     let entitlement: RemoteTerminalActiveEntitlementTokenRecord | null;
     if (isInstallToken(payload.registrationToken)) {
-      const secret = String(process.env.RTM_INSTALL_TOKEN_SECRET || "").trim();
+      const secret = EnvSpace.remoteTerminalConfig.installTokenSecret;
       if (!secret) throw new Error("RTM_INSTALL_TOKEN_SECRET is not configured");
       const verified = verifyInstallToken(payload.registrationToken, secret);
       if (!verified) throw new Error("Invalid or expired install token.");
