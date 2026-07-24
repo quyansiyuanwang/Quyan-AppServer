@@ -125,7 +125,7 @@ onMounted(load)
 .usage strong {
   font-size: 20px;
 }
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .usage {
     grid-template-columns: 1fr;
   }

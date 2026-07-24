@@ -1,5 +1,5 @@
 <template>
-  <main class="product-config desktop-page">
+  <main :class="['product-config', isDesktop ? 'desktop-page' : 'mobile-page']">
     <header class="page-header">
       <div>
         <p class="eyebrow">PLATFORM CONFIGURATION</p>
@@ -62,9 +62,11 @@ import type { DeveloperProductCode } from '@/client/types.gen'
 import { developerProductService } from '@/service/developerProductService'
 import { productName } from './developer-product-ui'
 import { i18ns } from '@/locales'
+import { usePageDevice } from '@/composables/usePageDevice'
 import { getErrorMessage } from '@/utils/error-utils'
 const props = defineProps<{ product: DeveloperProductCode }>()
 const { t } = i18ns
+const { isDesktop } = usePageDevice()
 const product = computed(() => props.product)
 const loading = ref(false)
 const saving = ref(false)
@@ -178,7 +180,7 @@ onMounted(load)
   justify-content: flex-end;
   margin-top: 20px;
 }
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .product-config {
     padding: 16px;
   }

@@ -1,5 +1,5 @@
 <template>
-  <main class="product-management desktop-page">
+  <main :class="['product-management', isDesktop ? 'desktop-page' : 'mobile-page']">
     <header class="page-header">
       <div>
         <p class="eyebrow">PRODUCT OPERATIONS</p>
@@ -77,14 +77,16 @@
         >
       </el-table>
       <el-pagination
-        v-if="total > pageSize"
+        v-if="total > 0"
         class="pagination"
         background
-        layout="prev, pager, next"
+        layout="total, sizes, prev, pager, next"
         :current-page="page"
         :page-size="pageSize"
+        :page-sizes="[10, 20, 50, 100]"
         :total="total"
         @current-change="changePage"
+        @size-change="changePageSize"
       />
     </section>
 
@@ -218,10 +220,12 @@ import type {
 import { developerProductService } from '@/service/developerProductService'
 import { productName } from './developer-product-ui'
 import { i18ns } from '@/locales'
+import { usePageDevice } from '@/composables/usePageDevice'
 import { getErrorMessage } from '@/utils/error-utils'
 
 const props = defineProps<{ product: DeveloperProductCode }>()
 const { t } = i18ns
+const { isDesktop } = usePageDevice()
 const product = computed(() => props.product)
 const loading = ref(false)
 const saving = ref(false)
@@ -230,7 +234,7 @@ const error = ref('')
 const detailError = ref('')
 const keyword = ref('')
 const page = ref(1)
-const pageSize = 20
+const pageSize = ref(20)
 const total = ref(0)
 const accounts = ref<DeveloperProductManagedAccountDto[]>([])
 const selected = ref<DeveloperProductManagedAccountDto>()
@@ -261,7 +265,7 @@ const load = async () => {
     const [result, configs] = await Promise.all([
       developerProductService.listManagedAccounts(product.value, {
         page: page.value,
-        pageSize,
+        pageSize: pageSize.value,
         keyword: keyword.value || undefined,
       }),
       developerProductService.listConfigs(),
@@ -358,6 +362,11 @@ const changePage = (value: number) => {
   page.value = value
   void load()
 }
+const changePageSize = (value: number) => {
+  pageSize.value = value
+  page.value = 1
+  void load()
+}
 watch(product, () => {
   page.value = 1
   clearSelected()
@@ -451,7 +460,7 @@ onMounted(load)
 .usage strong {
   font-size: 20px;
 }
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .product-management {
     padding: 16px;
   }

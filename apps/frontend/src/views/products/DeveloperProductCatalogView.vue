@@ -1,5 +1,5 @@
 <template>
-  <main class="product-catalog desktop-page">
+  <main :class="['product-catalog', isDesktop ? 'desktop-page' : 'mobile-page']">
     <header class="catalog-header">
       <div>
         <p class="eyebrow">Developer platform</p>
@@ -75,6 +75,7 @@ import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { DEVELOPER_PRODUCT_NAVIGATION } from '@/constant/developer-product-navigation'
 import { i18ns } from '@/locales'
+import { usePageDevice } from '@/composables/usePageDevice'
 import {
   configRoute,
   managementRoute,
@@ -85,6 +86,7 @@ import {
 
 const router = useRouter()
 const { t } = i18ns
+const { isDesktop } = usePageDevice()
 const permissionStore = usePermissionStore()
 const canManage = computed(() =>
   permissionStore.hasPermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE),
@@ -206,7 +208,7 @@ dd {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .product-catalog {
     padding: 16px;
   }

@@ -512,7 +512,7 @@ export class DeveloperProductPlatformService {
   ): Promise<any> {
     await this.assertProductPermission(actorUserId, productCode, permission);
     const instance = await prisma.developerProductInstance.findFirst({
-      where: { id: instanceId, status: 1, enabled: true, entitlement: { productCode, status: 1 } },
+      where: { id: instanceId, status: 1, entitlement: { productCode, status: 1 } },
       include: { entitlement: true },
     });
     if (!instance) throw new NotFoundError("产品实例不存在");
@@ -522,6 +522,8 @@ export class DeveloperProductPlatformService {
     });
     if (!user || instance.entitlement.accountOwnerId !== this.accountOwnerId(user))
       throw new NotFoundError("产品实例不存在");
+    if (!instance.enabled)
+      throw new ForbiddenError("产品实例已停用", CustomCode.DEVELOPER_PRODUCT_INSTANCE_DISABLED);
     return instance;
   }
 
@@ -645,7 +647,9 @@ export class DeveloperProductPlatformService {
         subjectUser: { select: { id: true, status: true, accountOwnerId: true } },
       },
     });
-    if (!key || !key.instance.enabled || key.instance.status !== 1) throw new UnauthorizedError("产品 API Key 无效");
+    if (!key || key.instance.status !== 1) throw new UnauthorizedError("产品 API Key 无效");
+    if (!key.instance.enabled)
+      throw new ForbiddenError("产品实例已停用", CustomCode.DEVELOPER_PRODUCT_INSTANCE_DISABLED);
     if (key.expiresAt && key.expiresAt <= new Date()) throw new UnauthorizedError("产品 API Key 已过期");
     const productCode = key.instance.entitlement.productCode;
     if (!isDeveloperProductCode(productCode)) throw new UnauthorizedError("产品 API Key 产品无效");

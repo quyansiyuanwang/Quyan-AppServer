@@ -1,5 +1,5 @@
 <template>
-  <main class="product-console desktop-page">
+  <main :class="['product-console', isDesktop ? 'desktop-page' : 'mobile-page']">
     <header class="page-header">
       <div>
         <p class="eyebrow">{{ product }}</p>
@@ -307,6 +307,7 @@ import { resolveDocsUrl } from '@/config/docs'
 import { getErrorMessage } from '@/utils/error-utils'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { productActionLabel } from '@/views/products/developer-product-ui'
+import { usePageDevice } from '@/composables/usePageDevice'
 const props = defineProps<{
   product: DeveloperProductCode
   title: string
@@ -314,6 +315,7 @@ const props = defineProps<{
   actions: string[]
 }>()
 const { t } = i18ns
+const { isDesktop } = usePageDevice()
 const permissionStore = usePermissionStore()
 const loading = ref(false),
   keysLoading = ref(false),
@@ -673,7 +675,7 @@ onMounted(load)
 .action-tag {
   margin: 0 4px 4px 0;
 }
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .product-console {
     padding: 16px;
   }
