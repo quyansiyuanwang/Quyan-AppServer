@@ -330,6 +330,7 @@ const emoji: DeepStringify<typeof en> = {
     resume: '▶️',
     publish: '🌐 🚦',
     unpublish: '🌐 🚦 🚫',
+    openStatusPage: '🌐 ↗️',
     pushTitle: '📣 📺',
     pushDescription: '🔐 🪪 🚫 👀',
     addChannel: '➕ 📺',

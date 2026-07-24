@@ -5,7 +5,14 @@
         <h2>{{ t('productResources.statusTitle') }}</h2>
         <p>{{ t('productResources.statusDescription') }}</p>
       </div>
-      <div>
+      <div class="toolbar-actions">
+        <el-button
+          v-if="published && statusPageSlug"
+          :icon="TopRight"
+          @click="openPublicStatusPage"
+        >
+          {{ t('productResources.openStatusPage') }}
+        </el-button>
         <el-button v-if="canPublish" plain :loading="submitting" @click="togglePublished">{{
           published ? t('productResources.unpublish') : t('productResources.publish')
         }}</el-button>
@@ -100,6 +107,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { TopRight } from '@element-plus/icons-vue'
 import type {
   CreateDeveloperStatusMonitorDto,
   DeveloperProductInstanceDto,
@@ -124,6 +132,7 @@ const monitors = ref<DeveloperStatusMonitorDto[]>([])
 const dialog = ref(false)
 const editing = ref<DeveloperStatusMonitorDto>()
 const published = ref(false)
+const statusPageSlug = ref('')
 const form = ref({
   name: '',
   targetUrl: '',
@@ -142,6 +151,7 @@ const load = async () => {
   if (!props.instance) {
     monitors.value = []
     published.value = false
+    statusPageSlug.value = ''
     return
   }
   const instanceId = props.instance.id
@@ -160,6 +170,7 @@ const load = async () => {
     if (current !== sequence || props.instance?.id !== instanceId) return
     monitors.value = nextMonitors
     published.value = Boolean(page?.statusPagePublished)
+    statusPageSlug.value = page?.slug || ''
   } catch (cause) {
     if (current === sequence) {
       error.value = getErrorMessage(cause, t('productFeedback.loadFailed'))
@@ -299,6 +310,10 @@ const togglePublished = async () => {
     submitting.value = false
   }
 }
+const openPublicStatusPage = () => {
+  if (!statusPageSlug.value) return
+  window.open(`/status/${encodeURIComponent(statusPageSlug.value)}`, '_blank', 'noopener,noreferrer')
+}
 
 watch(() => [props.instance?.id, canRead.value, canPublish.value], load, { immediate: true })
 </script>
@@ -318,5 +333,10 @@ watch(() => [props.instance?.id, canRead.value, canPublish.value], load, { immed
 .toolbar p {
   margin: 0;
   color: var(--el-text-color-secondary);
+}
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 </style>

@@ -348,6 +348,7 @@ export default {
     resume: 'Resume',
     publish: 'Publish status page',
     unpublish: 'Unpublish status page',
+    openStatusPage: 'Open status page',
     pushTitle: 'Push channels',
     pushDescription: 'Credentials reference a secret alias and are never displayed.',
     addChannel: 'Add channel',

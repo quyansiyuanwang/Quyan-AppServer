@@ -336,6 +336,7 @@ const zhCN: DeepStringify<typeof en> = {
     resume: '恢复',
     publish: '发布状态页',
     unpublish: '取消发布状态页',
+    openStatusPage: '打开状态页',
     pushTitle: '推送渠道',
     pushDescription: '渠道凭据引用密钥别名，不显示真实凭据。',
     addChannel: '添加渠道',
