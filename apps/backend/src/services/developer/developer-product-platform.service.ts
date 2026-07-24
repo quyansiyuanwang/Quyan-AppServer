@@ -16,11 +16,11 @@ import type {
   DeveloperProductApiKeyDto,
   DeveloperProductConfigDto,
   DeveloperProductCallLogDto,
-  DeveloperProductEntitlementDto,
+  DeveloperProductAccountDto,
   DeveloperProductInstanceDto,
   DeveloperProductUsageDto,
+  UpdateDeveloperProductInstanceDto,
   UpdateDeveloperProductConfigDto,
-  UpsertDeveloperProductEntitlementDto,
 } from "@/api/dto/developer/product-platform.dto";
 
 const PRODUCT_KEY_PREFIX = "dpk_";
@@ -121,20 +121,16 @@ export class DeveloperProductPlatformService {
     };
   }
 
-  private entitlementDto(entitlement: any): DeveloperProductEntitlementDto {
+  private accountDto(accountProduct: any): DeveloperProductAccountDto {
     return {
-      id: entitlement.id,
-      accountOwnerId: entitlement.accountOwnerId,
-      productCode: entitlement.productCode as DeveloperProductCode,
-      enabled: entitlement.enabled,
-      dailyFreeQuota: entitlement.dailyFreeQuota ?? undefined,
-      overageEnabled: entitlement.overageEnabled,
-      instanceLimit: entitlement.instanceLimit,
-      startsAt: asIso(entitlement.startsAt),
-      expiresAt: asIso(entitlement.expiresAt),
-      ownerPolicyId: entitlement.ownerPolicyId ?? undefined,
-      createTime: entitlement.createTime.toISOString(),
-      updateTime: entitlement.updateTime.toISOString(),
+      id: accountProduct.id,
+      accountOwnerId: accountProduct.accountOwnerId,
+      productCode: accountProduct.productCode as DeveloperProductCode,
+      dailyFreeQuota: accountProduct.dailyFreeQuota ?? undefined,
+      overageEnabled: accountProduct.overageEnabled,
+      instanceLimit: accountProduct.instanceLimit,
+      createTime: accountProduct.createTime.toISOString(),
+      updateTime: accountProduct.updateTime.toISOString(),
     };
   }
 
@@ -142,7 +138,7 @@ export class DeveloperProductPlatformService {
     return {
       id: instance.id,
       productCode: instance.entitlement.productCode as DeveloperProductCode,
-      entitlementId: instance.entitlementId,
+      accountProductId: instance.entitlementId,
       name: instance.name,
       slug: instance.slug,
       enabled: instance.enabled,
@@ -174,16 +170,41 @@ export class DeveloperProductPlatformService {
       : [];
   }
 
-  private async getActiveEntitlement(accountOwnerId: string, productCode: DeveloperProductCode): Promise<any> {
-    const entitlement = await prisma.developerProductEntitlement.findUnique({
+  /**
+   * Product records are account-scoped usage ledgers, not access grants.
+   * Provisioning is deliberately lazy so a valid RAM permission is enough to
+   * start using a product without a separate distribution workflow.
+   */
+  private async getAccountProduct(accountOwnerId: string, productCode: DeveloperProductCode): Promise<any> {
+    await this.ensureConfigs();
+    const config = await prisma.developerProductConfig.findUnique({ where: { productCode } });
+    return prisma.developerProductEntitlement.upsert({
       where: { accountOwnerId_productCode: { accountOwnerId, productCode } },
+      update: { status: 1 },
+      create: {
+        accountOwnerId,
+        productCode,
+        enabled: true,
+        dailyFreeQuota: null,
+        overageEnabled: false,
+        instanceLimit: config?.defaultInstanceLimit ?? 1,
+        startsAt: null,
+        expiresAt: null,
+        issuedByUserId: accountOwnerId,
+      },
     });
-    if (!entitlement || entitlement.status !== 1 || !entitlement.enabled)
-      throw new ForbiddenError("产品尚未分发给该账号");
-    const now = new Date();
-    if ((entitlement.startsAt && entitlement.startsAt > now) || (entitlement.expiresAt && entitlement.expiresAt <= now))
-      throw new ForbiddenError("产品授权当前不可用");
-    return entitlement;
+  }
+
+  private async assertProductAccess(actorUserId: string, productCode: DeveloperProductCode): Promise<any> {
+    const permissions = await this.permissionService.getUserFullPermissions(actorUserId);
+    if (!permissions || !this.productPermissions(productCode).some((permission) => permissions.effectivePermissions.includes(permission)))
+      throw new ForbiddenError("RAM 权限不足，无法访问该产品");
+    const user = await prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { id: true, accountOwnerId: true },
+    });
+    if (!user) throw new UnauthorizedError("用户不存在");
+    return user;
   }
 
   private async assertProductPermission(
@@ -198,7 +219,7 @@ export class DeveloperProductPlatformService {
       select: { id: true, accountOwnerId: true },
     });
     if (!user) throw new UnauthorizedError("用户不存在");
-    await this.getActiveEntitlement(this.accountOwnerId(user), productCode);
+    return;
   }
 
   async listConfigs(): Promise<DeveloperProductConfigDto[]> {
@@ -232,111 +253,17 @@ export class DeveloperProductPlatformService {
     return this.configDto(config);
   }
 
-  async listEntitlements(productCode?: DeveloperProductCode): Promise<DeveloperProductEntitlementDto[]> {
-    const entitlements = await prisma.developerProductEntitlement.findMany({
+  async listAccounts(productCode?: DeveloperProductCode): Promise<DeveloperProductAccountDto[]> {
+    const accountProducts = await prisma.developerProductEntitlement.findMany({
       where: productCode ? { productCode } : undefined,
       orderBy: { updateTime: "desc" },
     });
-    return entitlements.map((entitlement) => this.entitlementDto(entitlement));
-  }
-
-  async upsertEntitlement(
-    productCode: DeveloperProductCode,
-    body: UpsertDeveloperProductEntitlementDto,
-    issuedByUserId: string,
-  ): Promise<DeveloperProductEntitlementDto> {
-    const owner = await prisma.user.findUnique({
-      where: { id: body.accountOwnerId },
-      select: { id: true, accountOwnerId: true },
-    });
-    if (!owner || owner.accountOwnerId) throw new NotFoundError("主账号不存在");
-    const startsAt = body.startsAt ? new Date(body.startsAt) : null;
-    const expiresAt = body.expiresAt ? new Date(body.expiresAt) : null;
-    if (startsAt && expiresAt && startsAt >= expiresAt) throw new BadRequestError("授权结束时间必须晚于开始时间");
-    const permissions = this.productPermissions(productCode);
-    const policyName = `system-product-${productCode}-owner`;
-    const policy = await prisma.ramPolicy.upsert({
-      where: { accountOwnerId_activeName: { accountOwnerId: owner.id, activeName: policyName } },
-      create: {
-        accountOwnerId: owner.id,
-        name: policyName,
-        activeName: policyName,
-        description: `系统托管：${productCode} 产品所有者权限`,
-        permissions,
-        type: "managed_product_owner",
-      },
-      update: {
-        permissions,
-        description: `系统托管：${productCode} 产品所有者权限`,
-        type: "managed_product_owner",
-        status: 1,
-      },
-    });
-    await prisma.ramPolicyAttachment.upsert({
-      where: {
-        accountOwnerId_policyId_targetType_targetId: {
-          accountOwnerId: owner.id,
-          policyId: policy.id,
-          targetType: "user",
-          targetId: owner.id,
-        },
-      },
-      create: { accountOwnerId: owner.id, policyId: policy.id, targetType: "user", targetId: owner.id },
-      update: { status: 1 },
-    });
-    const entitlement = await prisma.developerProductEntitlement.upsert({
-      where: { accountOwnerId_productCode: { accountOwnerId: owner.id, productCode } },
-      create: {
-        accountOwnerId: owner.id,
-        productCode,
-        enabled: body.enabled ?? true,
-        dailyFreeQuota: body.dailyFreeQuota ?? null,
-        overageEnabled: body.overageEnabled ?? false,
-        instanceLimit: body.instanceLimit ?? 1,
-        startsAt,
-        expiresAt,
-        issuedByUserId,
-        ownerPolicyId: policy.id,
-      },
-      update: {
-        enabled: body.enabled,
-        dailyFreeQuota: body.dailyFreeQuota,
-        overageEnabled: body.overageEnabled,
-        instanceLimit: body.instanceLimit,
-        startsAt,
-        expiresAt,
-        issuedByUserId,
-        ownerPolicyId: policy.id,
-        status: 1,
-      },
-    });
-    return this.entitlementDto(entitlement);
-  }
-
-  async listOwnEntitlements(actorUserId: string): Promise<DeveloperProductEntitlementDto[]> {
-    const user = await prisma.user.findUnique({
-      where: { id: actorUserId },
-      select: { id: true, accountOwnerId: true },
-    });
-    if (!user) throw new UnauthorizedError("用户不存在");
-    return this.listEntitlementsForOwner(this.accountOwnerId(user));
-  }
-
-  private async listEntitlementsForOwner(accountOwnerId: string): Promise<DeveloperProductEntitlementDto[]> {
-    const entitlements = await prisma.developerProductEntitlement.findMany({
-      where: { accountOwnerId, status: 1 },
-      orderBy: { productCode: "asc" },
-    });
-    return entitlements.map((entitlement) => this.entitlementDto(entitlement));
+    return accountProducts.map((accountProduct) => this.accountDto(accountProduct));
   }
 
   async listInstances(actorUserId: string, productCode: DeveloperProductCode): Promise<DeveloperProductInstanceDto[]> {
-    await this.assertProductPermission(actorUserId, productCode, this.productPermissions(productCode).at(-1)!);
-    const user = await prisma.user.findUnique({
-      where: { id: actorUserId },
-      select: { id: true, accountOwnerId: true },
-    });
-    const entitlement = await this.getActiveEntitlement(this.accountOwnerId(user!), productCode);
+    const user = await this.assertProductAccess(actorUserId, productCode);
+    const entitlement = await this.getAccountProduct(this.accountOwnerId(user), productCode);
     const instances = await prisma.developerProductInstance.findMany({
       where: { entitlementId: entitlement.id, status: 1 },
       include: { entitlement: { select: { productCode: true } } },
@@ -356,7 +283,7 @@ export class DeveloperProductPlatformService {
       select: { id: true, accountOwnerId: true },
     });
     const ownerId = this.accountOwnerId(user!);
-    const entitlement = await this.getActiveEntitlement(ownerId, productCode);
+    const entitlement = await this.getAccountProduct(ownerId, productCode);
     const activeCount = await prisma.developerProductInstance.count({
       where: { entitlementId: entitlement.id, status: 1 },
     });
@@ -381,6 +308,58 @@ export class DeveloperProductPlatformService {
     return this.instanceDto(instance);
   }
 
+  private async getOwnedInstance(
+    actorUserId: string,
+    productCode: DeveloperProductCode,
+    instanceId: string,
+    requireEnabled: boolean,
+  ): Promise<any> {
+    await this.assertProductPermission(actorUserId, productCode, this.productPermissions(productCode).at(-1)!);
+    const instance = await prisma.developerProductInstance.findFirst({
+      where: {
+        id: instanceId,
+        status: 1,
+        ...(requireEnabled ? { enabled: true } : {}),
+        entitlement: { productCode, status: 1 },
+      },
+      include: { entitlement: { select: { accountOwnerId: true, productCode: true } } },
+    });
+    if (!instance) throw new NotFoundError("产品实例不存在");
+    const user = await prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { id: true, accountOwnerId: true },
+    });
+    if (!user || instance.entitlement.accountOwnerId !== this.accountOwnerId(user))
+      throw new NotFoundError("产品实例不存在");
+    return instance;
+  }
+
+  async updateInstance(
+    actorUserId: string,
+    productCode: DeveloperProductCode,
+    instanceId: string,
+    body: UpdateDeveloperProductInstanceDto,
+  ): Promise<DeveloperProductInstanceDto> {
+    await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
+    const instance = await prisma.developerProductInstance.update({
+      where: { id: instanceId },
+      data: { enabled: body.enabled },
+      include: { entitlement: { select: { productCode: true } } },
+    });
+    return this.instanceDto(instance);
+  }
+
+  async deleteInstance(actorUserId: string, productCode: DeveloperProductCode, instanceId: string): Promise<void> {
+    const instance = await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
+    await prisma.$transaction(async (tx) => {
+      await tx.developerProductApiKey.updateMany({
+        where: { instanceId: instance.id, status: 1 },
+        data: { status: -1 },
+      });
+      await tx.developerProject.delete({ where: { id: instance.backingProjectId } });
+    });
+  }
+
   private async getAuthorizedInstance(
     actorUserId: string,
     productCode: DeveloperProductCode,
@@ -399,7 +378,6 @@ export class DeveloperProductPlatformService {
     });
     if (!user || instance.entitlement.accountOwnerId !== this.accountOwnerId(user))
       throw new NotFoundError("产品实例不存在");
-    await this.getActiveEntitlement(instance.entitlement.accountOwnerId, productCode);
     return instance;
   }
 
@@ -418,12 +396,7 @@ export class DeveloperProductPlatformService {
     productCode: DeveloperProductCode,
     instanceId: string,
   ): Promise<DeveloperProductApiKeyDto[]> {
-    await this.getAuthorizedInstance(
-      actorUserId,
-      productCode,
-      instanceId,
-      this.productPermissions(productCode).at(-1)!,
-    );
+    await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
     const keys = await prisma.developerProductApiKey.findMany({
       where: { instanceId, status: 1 },
       orderBy: { createTime: "desc" },
@@ -457,12 +430,7 @@ export class DeveloperProductPlatformService {
     instanceId: string,
     body: CreateDeveloperProductApiKeyDto,
   ): Promise<DeveloperProductApiKeyDto> {
-    const instance = await this.getAuthorizedInstance(
-      actorUserId,
-      productCode,
-      instanceId,
-      this.productPermissions(productCode).at(-1)!,
-    );
+    const instance = await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
     const subject = await prisma.user.findUnique({
       where: { id: body.subjectUserId },
       select: { id: true, accountOwnerId: true },
@@ -497,12 +465,7 @@ export class DeveloperProductPlatformService {
     instanceId: string,
     keyId: string,
   ): Promise<void> {
-    await this.getAuthorizedInstance(
-      actorUserId,
-      productCode,
-      instanceId,
-      this.productPermissions(productCode).at(-1)!,
-    );
+    await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
     const result = await prisma.developerProductApiKey.updateMany({
       where: { id: keyId, instanceId, status: 1 },
       data: { status: -1 },
@@ -523,12 +486,11 @@ export class DeveloperProductPlatformService {
     if (key.expiresAt && key.expiresAt <= new Date()) throw new UnauthorizedError("产品 API Key 已过期");
     const productCode = key.instance.entitlement.productCode;
     if (!isDeveloperProductCode(productCode)) throw new UnauthorizedError("产品 API Key 产品无效");
-    const entitlement = await this.getActiveEntitlement(key.instance.entitlement.accountOwnerId, productCode);
     const config = await prisma.developerProductConfig.findUnique({ where: { productCode } });
     if (!config?.enabled) throw new ForbiddenError("产品当前未启用");
     if (key.subjectUser.status !== 1) throw new UnauthorizedError("RAM 主体已禁用");
     const ownerId = this.accountOwnerId(key.subjectUser);
-    if (ownerId !== entitlement.accountOwnerId) throw new UnauthorizedError("RAM 主体不属于产品账号");
+    if (ownerId !== key.instance.entitlement.accountOwnerId) throw new UnauthorizedError("RAM 主体不属于产品账号");
     const actions = this.readActions(key.actions);
     if (requiredActions.some((action) => !actions.includes(action)))
       throw new ForbiddenError("产品 API Key 未授权该动作");
@@ -543,7 +505,7 @@ export class DeveloperProductPlatformService {
       keyId: key.id,
       instanceId: key.instanceId,
       backingProjectId: key.instance.backingProjectId,
-      entitlementId: entitlement.id,
+      entitlementId: key.instance.entitlementId,
       productCode,
       subjectUserId: key.subjectUserId,
       accountOwnerId: ownerId,
@@ -570,6 +532,12 @@ export class DeveloperProductPlatformService {
       remainingFree: Math.max(0, dailyFreeQuota - requestCount),
       overageEnabled: entitlement.overageEnabled,
     };
+  }
+
+  async getUsageForActor(actorUserId: string, productCode: DeveloperProductCode): Promise<DeveloperProductUsageDto> {
+    const user = await this.assertProductAccess(actorUserId, productCode);
+    const accountProduct = await this.getAccountProduct(this.accountOwnerId(user), productCode);
+    return this.getUsage(accountProduct.id);
   }
 
   async getUsageForProduct(
@@ -604,6 +572,12 @@ export class DeveloperProductPlatformService {
       chargeAmount: Number(log.chargeAmount),
       createTime: log.createTime.toISOString(),
     }));
+  }
+
+  async listCallLogsForActor(actorUserId: string, productCode: DeveloperProductCode): Promise<DeveloperProductCallLogDto[]> {
+    const user = await this.assertProductAccess(actorUserId, productCode);
+    const accountProduct = await this.getAccountProduct(this.accountOwnerId(user), productCode);
+    return this.listCallLogs(productCode, accountProduct.id);
   }
 
   private async consumeQuota(context: ProductKeyContext): Promise<ProductQuotaReceipt> {

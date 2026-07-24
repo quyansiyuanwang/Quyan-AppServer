@@ -18374,6 +18374,9 @@
 											"name": {
 												"type": "string"
 											},
+											"urlSlug": {
+												"type": "string"
+											},
 											"code": {
 												"type": "string",
 												"enum": [
@@ -18393,39 +18396,11 @@
 										"required": [
 											"supportsExternalApi",
 											"name",
+											"urlSlug",
 											"code",
 											"config"
 										],
 										"type": "object"
-									},
-									"type": "array"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Developer Products"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": []
-			}
-		},
-		"/v1/products/entitlements": {
-			"get": {
-				"operationId": "DeveloperProductSelfControllerListEntitlements",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"items": {
-										"$ref": "#/components/schemas/DeveloperProductEntitlementDto"
 									},
 									"type": "array"
 								}
@@ -18523,6 +18498,187 @@
 						}
 					}
 				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/{product}/usage": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerGetUsage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductUsageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/{product}/calls": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerListCallLogs",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductCallLogDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/{product}/instances/{instanceId}": {
+			"put": {
+				"operationId": "DeveloperProductSelfControllerUpdateInstance",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductInstanceDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperProductInstanceDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProductSelfControllerDeleteInstance",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
 				"X-Replay-Protected": true
 			}
 		},
@@ -19562,6 +19718,39 @@
 					}
 				},
 				"X-Replay-Protected": true
+			},
+			"get": {
+				"operationId": "DeveloperProductResourceControllerGetStatusPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/products/push/instances/{instanceId}/channels": {
@@ -20230,9 +20419,9 @@
 				"X-Replay-Protected": true
 			}
 		},
-		"/v1/admin/products/entitlements": {
+		"/v1/admin/products/accounts": {
 			"get": {
-				"operationId": "DeveloperProductAdminControllerListEntitlements",
+				"operationId": "DeveloperProductAdminControllerListAccounts",
 				"responses": {
 					"200": {
 						"description": "Ok",
@@ -20240,7 +20429,7 @@
 							"application/json": {
 								"schema": {
 									"items": {
-										"$ref": "#/components/schemas/DeveloperProductEntitlementDto"
+										"$ref": "#/components/schemas/DeveloperProductAccountDto"
 									},
 									"type": "array"
 								}
@@ -20259,9 +20448,9 @@
 				"parameters": []
 			}
 		},
-		"/v1/admin/products/{product}/entitlements": {
+		"/v1/admin/products/{product}/accounts": {
 			"get": {
-				"operationId": "DeveloperProductAdminControllerListProductEntitlements",
+				"operationId": "DeveloperProductAdminControllerListProductAccounts",
 				"responses": {
 					"200": {
 						"description": "Ok",
@@ -20269,7 +20458,7 @@
 							"application/json": {
 								"schema": {
 									"items": {
-										"$ref": "#/components/schemas/DeveloperProductEntitlementDto"
+										"$ref": "#/components/schemas/DeveloperProductAccountDto"
 									},
 									"type": "array"
 								}
@@ -20295,53 +20484,9 @@
 						}
 					}
 				]
-			},
-			"post": {
-				"operationId": "DeveloperProductAdminControllerUpsertEntitlement",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/DeveloperProductEntitlementDto"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Developer Product Administration"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "product",
-						"required": true,
-						"schema": {
-							"$ref": "#/components/schemas/DeveloperProductCode"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/UpsertDeveloperProductEntitlementDto"
-							}
-						}
-					}
-				},
-				"X-Replay-Protected": true
 			}
 		},
-		"/v1/admin/products/{product}/entitlements/{entitlementId}/usage": {
+		"/v1/admin/products/{product}/accounts/{accountId}/usage": {
 			"get": {
 				"operationId": "DeveloperProductAdminControllerGetUsage",
 				"responses": {
@@ -20375,7 +20520,7 @@
 					},
 					{
 						"in": "path",
-						"name": "entitlementId",
+						"name": "accountId",
 						"required": true,
 						"schema": {
 							"type": "string"
@@ -20384,7 +20529,7 @@
 				]
 			}
 		},
-		"/v1/admin/products/{product}/entitlements/{entitlementId}/calls": {
+		"/v1/admin/products/{product}/accounts/{accountId}/calls": {
 			"get": {
 				"operationId": "DeveloperProductAdminControllerListCallLogs",
 				"responses": {
@@ -20421,7 +20566,7 @@
 					},
 					{
 						"in": "path",
-						"name": "entitlementId",
+						"name": "accountId",
 						"required": true,
 						"schema": {
 							"type": "string"
@@ -40041,60 +40186,6 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"DeveloperProductEntitlementDto": {
-				"properties": {
-					"id": {
-						"type": "string"
-					},
-					"accountOwnerId": {
-						"type": "string"
-					},
-					"productCode": {
-						"$ref": "#/components/schemas/DeveloperProductCode"
-					},
-					"enabled": {
-						"type": "boolean"
-					},
-					"dailyFreeQuota": {
-						"type": "number",
-						"format": "double"
-					},
-					"overageEnabled": {
-						"type": "boolean"
-					},
-					"instanceLimit": {
-						"type": "number",
-						"format": "double"
-					},
-					"startsAt": {
-						"type": "string"
-					},
-					"expiresAt": {
-						"type": "string"
-					},
-					"ownerPolicyId": {
-						"type": "string"
-					},
-					"createTime": {
-						"type": "string"
-					},
-					"updateTime": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"id",
-					"accountOwnerId",
-					"productCode",
-					"enabled",
-					"overageEnabled",
-					"instanceLimit",
-					"createTime",
-					"updateTime"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
 			"DeveloperProductInstanceDto": {
 				"properties": {
 					"id": {
@@ -40103,7 +40194,7 @@
 					"productCode": {
 						"$ref": "#/components/schemas/DeveloperProductCode"
 					},
-					"entitlementId": {
+					"accountProductId": {
 						"type": "string"
 					},
 					"name": {
@@ -40125,12 +40216,93 @@
 				"required": [
 					"id",
 					"productCode",
-					"entitlementId",
+					"accountProductId",
 					"name",
 					"slug",
 					"enabled",
 					"createTime",
 					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductUsageDto": {
+				"properties": {
+					"entitlementId": {
+						"type": "string"
+					},
+					"productCode": {
+						"$ref": "#/components/schemas/DeveloperProductCode"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"remainingFree": {
+						"type": "number",
+						"format": "double"
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"entitlementId",
+					"productCode",
+					"requestCount",
+					"dailyFreeQuota",
+					"remainingFree",
+					"overageEnabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductCallLogDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"entitlementId": {
+						"type": "string"
+					},
+					"instanceId": {
+						"type": "string"
+					},
+					"keyId": {
+						"type": "string"
+					},
+					"subjectUserId": {
+						"type": "string"
+					},
+					"action": {
+						"type": "string"
+					},
+					"success": {
+						"type": "boolean"
+					},
+					"errorCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"chargeAmount": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"entitlementId",
+					"action",
+					"success",
+					"chargeAmount",
+					"createTime"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -40147,6 +40319,18 @@
 				"required": [
 					"name",
 					"slug"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateDeveloperProductInstanceDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"enabled"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -40357,137 +40541,27 @@
 				"type": "object",
 				"description": "From T, pick a set of properties whose keys are in the union K"
 			},
-			"UpdateDeveloperProductConfigDto": {
-				"properties": {
-					"enabled": {
-						"type": "boolean"
-					},
-					"defaultDailyQuota": {
-						"type": "number",
-						"format": "double"
-					},
-					"overagePrice": {
-						"type": "number",
-						"format": "double"
-					},
-					"defaultInstanceLimit": {
-						"type": "number",
-						"format": "double"
-					},
-					"retentionDays": {
-						"type": "number",
-						"format": "double"
-					},
-					"resourceLimits": {
-						"$ref": "#/components/schemas/Record_string.unknown_"
-					},
-					"settings": {
-						"$ref": "#/components/schemas/Record_string.unknown_"
-					}
-				},
-				"required": [
-					"enabled",
-					"defaultDailyQuota",
-					"overagePrice",
-					"defaultInstanceLimit",
-					"retentionDays"
-				],
-				"type": "object",
-				"additionalProperties": false
+			"Omit_DeveloperProductConfigDto.productCode_": {
+				"$ref": "#/components/schemas/Pick_DeveloperProductConfigDto.Exclude_keyofDeveloperProductConfigDto.productCode__",
+				"description": "Construct a type with the properties of T except for those in type K."
 			},
-			"DeveloperProductUsageDto": {
+			"UpdateDeveloperProductConfigDto": {
+				"$ref": "#/components/schemas/Omit_DeveloperProductConfigDto.productCode_"
+			},
+			"DeveloperProductAccountDto": {
 				"properties": {
-					"entitlementId": {
+					"id": {
+						"type": "string"
+					},
+					"accountOwnerId": {
 						"type": "string"
 					},
 					"productCode": {
 						"$ref": "#/components/schemas/DeveloperProductCode"
 					},
-					"requestCount": {
-						"type": "number",
-						"format": "double"
-					},
 					"dailyFreeQuota": {
 						"type": "number",
 						"format": "double"
-					},
-					"remainingFree": {
-						"type": "number",
-						"format": "double"
-					},
-					"overageEnabled": {
-						"type": "boolean"
-					}
-				},
-				"required": [
-					"entitlementId",
-					"productCode",
-					"requestCount",
-					"dailyFreeQuota",
-					"remainingFree",
-					"overageEnabled"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"DeveloperProductCallLogDto": {
-				"properties": {
-					"id": {
-						"type": "string"
-					},
-					"entitlementId": {
-						"type": "string"
-					},
-					"instanceId": {
-						"type": "string"
-					},
-					"keyId": {
-						"type": "string"
-					},
-					"subjectUserId": {
-						"type": "string"
-					},
-					"action": {
-						"type": "string"
-					},
-					"success": {
-						"type": "boolean"
-					},
-					"errorCode": {
-						"type": "number",
-						"format": "double"
-					},
-					"chargeAmount": {
-						"type": "number",
-						"format": "double"
-					},
-					"createTime": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"id",
-					"entitlementId",
-					"action",
-					"success",
-					"chargeAmount",
-					"createTime"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"UpsertDeveloperProductEntitlementDto": {
-				"properties": {
-					"accountOwnerId": {
-						"type": "string"
-					},
-					"enabled": {
-						"type": "boolean"
-					},
-					"dailyFreeQuota": {
-						"type": "number",
-						"format": "double",
-						"nullable": true
 					},
 					"overageEnabled": {
 						"type": "boolean"
@@ -40496,17 +40570,21 @@
 						"type": "number",
 						"format": "double"
 					},
-					"startsAt": {
-						"type": "string",
-						"nullable": true
+					"createTime": {
+						"type": "string"
 					},
-					"expiresAt": {
-						"type": "string",
-						"nullable": true
+					"updateTime": {
+						"type": "string"
 					}
 				},
 				"required": [
-					"accountOwnerId"
+					"id",
+					"accountOwnerId",
+					"productCode",
+					"overageEnabled",
+					"instanceLimit",
+					"createTime",
+					"updateTime"
 				],
 				"type": "object",
 				"additionalProperties": false

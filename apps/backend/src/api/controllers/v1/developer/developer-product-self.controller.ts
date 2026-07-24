@@ -1,13 +1,15 @@
-import { Body, Controller, Delete, Get, Middlewares, Path, Post, Request, Route, Security, Tags } from "@tsoa/runtime";
+import { Body, Controller, Delete, Get, Middlewares, Path, Post, Put, Request, Route, Security, Tags } from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express";
 import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
 import type {
   CreateDeveloperProductApiKeyDto,
   CreateDeveloperProductInstanceDto,
   DeveloperProductApiKeyDto,
-  DeveloperProductEntitlementDto,
   DeveloperProductInstanceDto,
   DeveloperProductSubjectDto,
+  DeveloperProductUsageDto,
+  DeveloperProductCallLogDto,
+  UpdateDeveloperProductInstanceDto,
 } from "@/api/dto/developer/product-platform.dto";
 import {
   createProductInstanceBodySchema,
@@ -15,6 +17,7 @@ import {
   productCodeParamsSchema,
   productInstanceParamsSchema,
   productKeyParamsSchema,
+  updateProductInstanceBodySchema,
 } from "@/api/schema/developer/product-platform.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams } from "@/middleware/validation";
@@ -35,11 +38,6 @@ export class DeveloperProductSelfController extends Controller {
     }));
   }
 
-  @Get("entitlements")
-  public async listEntitlements(@Request() request: TypedRequest): Promise<DeveloperProductEntitlementDto[]> {
-    return this.service.listOwnEntitlements(request.user!.userId);
-  }
-
   @Get("{product}/instances")
   @Middlewares(validateParams(productCodeParamsSchema))
   public async listInstances(
@@ -47,6 +45,24 @@ export class DeveloperProductSelfController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DeveloperProductInstanceDto[]> {
     return this.service.listInstances(request.user!.userId, product);
+  }
+
+  @Get("{product}/usage")
+  @Middlewares(validateParams(productCodeParamsSchema))
+  public async getUsage(
+    @Path() product: DeveloperProductCode,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperProductUsageDto> {
+    return this.service.getUsageForActor(request.user!.userId, product);
+  }
+
+  @Get("{product}/calls")
+  @Middlewares(validateParams(productCodeParamsSchema))
+  public async listCallLogs(
+    @Path() product: DeveloperProductCode,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperProductCallLogDto[]> {
+    return this.service.listCallLogsForActor(request.user!.userId, product);
   }
 
   @Post("{product}/instances")
@@ -61,6 +77,32 @@ export class DeveloperProductSelfController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DeveloperProductInstanceDto> {
     return this.service.createInstance(request.user!.userId, product, body);
+  }
+
+  @Put("{product}/instances/{instanceId}")
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateParams(productInstanceParamsSchema),
+    validateBody(updateProductInstanceBodySchema),
+  )
+  public async updateInstance(
+    @Path() product: DeveloperProductCode,
+    @Path() instanceId: string,
+    @Body() body: UpdateDeveloperProductInstanceDto,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperProductInstanceDto> {
+    return this.service.updateInstance(request.user!.userId, product, instanceId, body);
+  }
+
+  @Delete("{product}/instances/{instanceId}")
+  @Middlewares(replayProtectionMiddleware, validateParams(productInstanceParamsSchema))
+  public async deleteInstance(
+    @Path() product: DeveloperProductCode,
+    @Path() instanceId: string,
+    @Request() request: TypedRequest,
+  ): Promise<{ success: true }> {
+    await this.service.deleteInstance(request.user!.userId, product, instanceId);
+    return { success: true };
   }
 
   @Get("{product}/subjects")

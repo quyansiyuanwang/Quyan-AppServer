@@ -314,6 +314,13 @@ export class DeveloperProductResourceController extends Controller {
     return this.projects.updateStatusPage(context.backingProjectId, context.accountOwnerId, body);
   }
 
+  @Get("status/instances/{instanceId}/page")
+  @Middlewares(validateParams(productResourceInstanceParamsSchema))
+  public async getStatusPage(@Path() instanceId: string, @Request() request: TypedRequest): Promise<DeveloperProjectDto> {
+    const context = await this.context(request, "status", instanceId, Permission.PRODUCT_STATUS_PUBLISH);
+    return this.projects.getProject(context.backingProjectId, context.accountOwnerId);
+  }
+
   @Get("push/instances/{instanceId}/channels")
   @Middlewares(validateParams(productResourceInstanceParamsSchema))
   public async listPushChannels(

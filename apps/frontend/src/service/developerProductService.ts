@@ -3,7 +3,6 @@ import type {
   CreateDeveloperProductInstanceDto,
   DeveloperProductCode,
   UpdateDeveloperProductConfigDto,
-  UpsertDeveloperProductEntitlementDto,
 } from '@/client/types.gen'
 import { createDeveloperProductAdminControllerApi } from '@/client/services/developer-product-admin-controller.gen'
 import { createDeveloperProductSelfControllerApi } from '@/client/services/developer-product-self-controller.gen'
@@ -34,12 +33,16 @@ export class DeveloperProductService {
     return this.unwrap(await selfApi().catalog({}))
   }
 
-  async listOwnEntitlements() {
-    return this.unwrap(await selfApi().listEntitlements({}))
-  }
-
   async listInstances(product: DeveloperProductCode) {
     return this.unwrap(await selfApi().listInstances({ path: { product } }))
+  }
+
+  async getUsage(product: DeveloperProductCode) {
+    return this.unwrap(await selfApi().getUsage({ path: { product } }))
+  }
+
+  async listCallLogs(product: DeveloperProductCode) {
+    return this.unwrap(await selfApi().listCallLogs({ path: { product } }))
   }
 
   async listSubjects(product: DeveloperProductCode) {
@@ -48,6 +51,14 @@ export class DeveloperProductService {
 
   async createInstance(product: DeveloperProductCode, body: CreateDeveloperProductInstanceDto) {
     return this.unwrap(await selfApi().createInstance({ path: { product }, body }))
+  }
+
+  async updateInstance(product: DeveloperProductCode, instanceId: string, enabled: boolean) {
+    return this.unwrap(await selfApi().updateInstance({ path: { product, instanceId }, body: { enabled } }))
+  }
+
+  async deleteInstance(product: DeveloperProductCode, instanceId: string) {
+    return checkApiResult(await selfApi().deleteInstance({ path: { product, instanceId } }), false)
   }
 
   async listKeys(product: DeveloperProductCode, instanceId: string) {
@@ -72,6 +83,9 @@ export class DeveloperProductService {
   async listKvResources(instanceId: string) {
     return this.unwrap(await resourceApi().listKv({ path: { instanceId } }))
   }
+  async getKvResource(instanceId: string, key: string) {
+    return this.unwrap(await resourceApi().getKv({ path: { instanceId, key } }))
+  }
   async setKvResource(
     instanceId: string,
     key: string,
@@ -91,11 +105,23 @@ export class DeveloperProductService {
   ) {
     return this.unwrap(await resourceApi().createShortLink({ path: { instanceId }, body }))
   }
+  async updateShortLinkResource(instanceId: string, id: string, body: Record<string, unknown>) {
+    return this.unwrap(await resourceApi().updateShortLink({ path: { instanceId, id }, body: body as any }))
+  }
+  async deleteShortLinkResource(instanceId: string, id: string) {
+    return checkApiResult(await resourceApi().deleteShortLink({ path: { instanceId, id } }), false)
+  }
+  async shortLinkStats(instanceId: string, id: string) {
+    return this.unwrap(await resourceApi().shortLinkStats({ path: { instanceId, id } }))
+  }
   async listSecretResources(instanceId: string) {
     return this.unwrap(await resourceApi().listSecrets({ path: { instanceId } }))
   }
   async upsertSecretResource(instanceId: string, body: { alias: string; value: string }) {
     return this.unwrap(await resourceApi().upsertSecret({ path: { instanceId }, body }))
+  }
+  async deleteSecretResource(instanceId: string, alias: string) {
+    return checkApiResult(await resourceApi().deleteSecret({ path: { instanceId, alias } }), false)
   }
   async listMonitorResources(instanceId: string) {
     return this.unwrap(await resourceApi().listMonitors({ path: { instanceId } }))
@@ -112,6 +138,21 @@ export class DeveloperProductService {
   ) {
     return this.unwrap(await resourceApi().createMonitor({ path: { instanceId }, body }))
   }
+  async updateMonitorResource(instanceId: string, id: string, body: Record<string, unknown>) {
+    return this.unwrap(await resourceApi().updateMonitor({ path: { instanceId, id }, body: body as any }))
+  }
+  async deleteMonitorResource(instanceId: string, id: string) {
+    return checkApiResult(await resourceApi().deleteMonitor({ path: { instanceId, id } }), false)
+  }
+  async checkMonitorResource(instanceId: string, id: string) {
+    return this.unwrap(await resourceApi().checkMonitor({ path: { instanceId, id } }))
+  }
+  async updateStatusPageResource(instanceId: string, body: Record<string, unknown>) {
+    return this.unwrap(await resourceApi().updateStatusPage({ path: { instanceId }, body: body as any }))
+  }
+  async getStatusPageResource(instanceId: string) {
+    return this.unwrap(await resourceApi().getStatusPage({ path: { instanceId } }))
+  }
   async listPushChannelResources(instanceId: string) {
     return this.unwrap(await resourceApi().listPushChannels({ path: { instanceId } }))
   }
@@ -126,6 +167,12 @@ export class DeveloperProductService {
   ) {
     return this.unwrap(await resourceApi().createPushChannel({ path: { instanceId }, body }))
   }
+  async updatePushChannelResource(instanceId: string, id: string, body: Record<string, unknown>) {
+    return this.unwrap(await resourceApi().updatePushChannel({ path: { instanceId, id }, body: body as any }))
+  }
+  async deletePushChannelResource(instanceId: string, id: string) {
+    return checkApiResult(await resourceApi().deletePushChannel({ path: { instanceId, id } }), false)
+  }
   async listPushDeliveryResources(instanceId: string) {
     return this.unwrap(await resourceApi().listPushDeliveries({ path: { instanceId } }))
   }
@@ -138,17 +185,11 @@ export class DeveloperProductService {
     return this.unwrap(await adminApi().updateConfig({ path: { product }, body }))
   }
 
-  async listEntitlements(product?: DeveloperProductCode) {
-    if (product) return this.unwrap(await adminApi().listProductEntitlements({ path: { product } }))
-    return this.unwrap(await adminApi().listEntitlements({}))
+  async listAccounts(product?: DeveloperProductCode) {
+    if (product) return this.unwrap(await adminApi().listProductAccounts({ path: { product } }))
+    return this.unwrap(await adminApi().listAccounts({}))
   }
 
-  async upsertEntitlement(
-    product: DeveloperProductCode,
-    body: UpsertDeveloperProductEntitlementDto,
-  ) {
-    return this.unwrap(await adminApi().upsertEntitlement({ path: { product }, body }))
-  }
 }
 
 export const developerProductService = DeveloperProductService.getInstance()

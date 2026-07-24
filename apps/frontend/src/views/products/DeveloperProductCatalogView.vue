@@ -17,8 +17,8 @@
             <p class="product-code">{{ product.code }}</p>
             <h2>{{ productName(product.code) }}</h2>
           </div>
-          <el-tag :type="entitlementMap[product.code]?.enabled ? 'success' : 'info'">
-            {{ entitlementMap[product.code]?.enabled ? '已分发' : '待分发' }}
+          <el-tag :type="productState(product.code).type">
+            {{ productState(product.code).label }}
           </el-tag>
         </div>
         <p>{{ PRODUCT_COPY[product.code].description }}</p>
@@ -30,11 +30,7 @@
           <div>
             <dt>额度</dt>
             <dd>
-              {{
-                entitlementMap[product.code]?.dailyFreeQuota ??
-                product.config?.defaultDailyQuota ??
-                0
-              }}
+              {{ product.config?.defaultDailyQuota ?? 0 }}
               / 日
             </dd>
           </div>
@@ -43,6 +39,7 @@
           <el-button
             type="primary"
             plain
+            :disabled="!hasProductAccess(product.code)"
             @click="router.push({ name: userRoute(product.code) } as any)"
             >进入产品</el-button
           >
@@ -53,7 +50,7 @@
                 ><el-dropdown-item
                   v-if="canManage"
                   @click="router.push({ name: managementRoute(product.code) } as any)"
-                  >授权管理</el-dropdown-item
+                  >运营管理</el-dropdown-item
                 ><el-dropdown-item
                   v-if="canConfigure"
                   @click="router.push({ name: configRoute(product.code) } as any)"
@@ -76,6 +73,7 @@ import type { DeveloperProductCode } from '@/client/types.gen'
 import { developerProductService } from '@/service/developerProductService'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
+import { DEVELOPER_PRODUCT_NAVIGATION } from '@/constant/developer-product-navigation'
 import {
   PRODUCT_COPY,
   configRoute,
@@ -95,24 +93,22 @@ const canConfigure = computed(() =>
 const loading = ref(false)
 const error = ref('')
 const products = ref<Awaited<ReturnType<typeof developerProductService.catalog>>>([])
-const entitlements = ref<Awaited<ReturnType<typeof developerProductService.listOwnEntitlements>>>(
-  [],
-)
-const entitlementMap = computed(
-  () =>
-    Object.fromEntries(entitlements.value.map((item) => [item.productCode, item])) as Partial<
-      Record<DeveloperProductCode, (typeof entitlements.value)[number]>
-    >,
-)
+const hasProductAccess = (productCode: DeveloperProductCode) => {
+  const definition = DEVELOPER_PRODUCT_NAVIGATION.find((item) => item.code === productCode)
+  return definition ? permissionStore.hasAnyPermission(...definition.permissions) : false
+}
+const productState = (productCode: DeveloperProductCode) => {
+  const product = products.value.find((item) => item.code === productCode)
+  if (!hasProductAccess(productCode)) return { type: 'info' as const, label: '无权限' }
+  if (!product?.config?.enabled) return { type: 'warning' as const, label: '服务停用' }
+  return { type: 'success' as const, label: '可访问' }
+}
 
 const load = async () => {
   loading.value = true
   error.value = ''
   try {
-    ;[products.value, entitlements.value] = await Promise.all([
-      developerProductService.catalog(),
-      developerProductService.listOwnEntitlements(),
-    ])
+    products.value = await developerProductService.catalog()
   } catch {
     error.value = '产品目录暂时无法加载，请刷新后重试。'
   } finally {

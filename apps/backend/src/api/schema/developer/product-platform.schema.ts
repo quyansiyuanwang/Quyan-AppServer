@@ -7,9 +7,9 @@ const slug = /^[a-z0-9-]+$/;
 export const productCodeParamsSchema = z.object({ product: productCode });
 export const productInstanceParamsSchema = z.object({ product: productCode, instanceId: z.string().trim().min(1) });
 export const productResourceInstanceParamsSchema = z.object({ instanceId: z.string().trim().min(1) });
-export const productEntitlementParamsSchema = z.object({
+export const productAccountParamsSchema = z.object({
   product: productCode,
-  entitlementId: z.string().trim().min(1),
+  accountId: z.string().trim().min(1),
 });
 export const productKeyParamsSchema = z.object({
   product: productCode,
@@ -27,19 +27,13 @@ export const updateProductConfigBodySchema = z.object({
   settings: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const upsertProductEntitlementBodySchema = z.object({
-  accountOwnerId: z.string().trim().min(1).max(191),
-  enabled: z.boolean().optional(),
-  dailyFreeQuota: z.number().int().min(0).max(10_000_000).nullable().optional(),
-  overageEnabled: z.boolean().optional(),
-  instanceLimit: z.number().int().min(1).max(1_000).optional(),
-  startsAt: z.string().datetime().nullable().optional(),
-  expiresAt: z.string().datetime().nullable().optional(),
-});
-
 export const createProductInstanceBodySchema = z.object({
   name: z.string().trim().min(1).max(100),
   slug: z.string().trim().min(3).max(80).regex(slug),
+});
+
+export const updateProductInstanceBodySchema = z.object({
+  enabled: z.boolean(),
 });
 
 export const createProductKeyBodySchema = z.object({

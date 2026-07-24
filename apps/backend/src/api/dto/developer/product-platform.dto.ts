@@ -13,35 +13,21 @@ export interface DeveloperProductConfigDto {
 
 export type UpdateDeveloperProductConfigDto = Omit<DeveloperProductConfigDto, "productCode">;
 
-export interface DeveloperProductEntitlementDto {
+export interface DeveloperProductAccountDto {
   id: string;
   accountOwnerId: string;
   productCode: DeveloperProductCode;
-  enabled: boolean;
   dailyFreeQuota?: number;
   overageEnabled: boolean;
   instanceLimit: number;
-  startsAt?: string;
-  expiresAt?: string;
-  ownerPolicyId?: string;
   createTime: string;
   updateTime: string;
-}
-
-export interface UpsertDeveloperProductEntitlementDto {
-  accountOwnerId: string;
-  enabled?: boolean;
-  dailyFreeQuota?: number | null;
-  overageEnabled?: boolean;
-  instanceLimit?: number;
-  startsAt?: string | null;
-  expiresAt?: string | null;
 }
 
 export interface DeveloperProductInstanceDto {
   id: string;
   productCode: DeveloperProductCode;
-  entitlementId: string;
+  accountProductId: string;
   name: string;
   slug: string;
   enabled: boolean;
@@ -52,6 +38,10 @@ export interface DeveloperProductInstanceDto {
 export interface CreateDeveloperProductInstanceDto {
   name: string;
   slug: string;
+}
+
+export interface UpdateDeveloperProductInstanceDto {
+  enabled: boolean;
 }
 
 export interface DeveloperProductApiKeyDto {

@@ -1,19 +1,16 @@
-import { Body, Controller, Get, Middlewares, Path, Post, Put, Request, Route, Security, Tags } from "@tsoa/runtime";
-import type { TypedRequest } from "@/types/express";
+import { Body, Controller, Get, Middlewares, Path, Put, Route, Security, Tags } from "@tsoa/runtime";
 import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
 import type {
   DeveloperProductCallLogDto,
   DeveloperProductConfigDto,
-  DeveloperProductEntitlementDto,
+  DeveloperProductAccountDto,
   DeveloperProductUsageDto,
   UpdateDeveloperProductConfigDto,
-  UpsertDeveloperProductEntitlementDto,
 } from "@/api/dto/developer/product-platform.dto";
 import {
   productCodeParamsSchema,
-  productEntitlementParamsSchema,
+  productAccountParamsSchema,
   updateProductConfigBodySchema,
-  upsertProductEntitlementBodySchema,
 } from "@/api/schema/developer/product-platform.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams } from "@/middleware/validation";
@@ -47,53 +44,39 @@ export class DeveloperProductAdminController extends Controller {
     return this.service.updateConfig(product, body);
   }
 
-  @Get("entitlements")
+  @Get("accounts")
   @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  public async listEntitlements(): Promise<DeveloperProductEntitlementDto[]> {
-    return this.service.listEntitlements();
+  public async listAccounts(): Promise<DeveloperProductAccountDto[]> {
+    return this.service.listAccounts();
   }
 
-  @Get("{product}/entitlements")
+  @Get("{product}/accounts")
   @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
   @Middlewares(validateParams(productCodeParamsSchema))
-  public async listProductEntitlements(
+  public async listProductAccounts(
     @Path() product: DeveloperProductCode,
-  ): Promise<DeveloperProductEntitlementDto[]> {
-    return this.service.listEntitlements(product);
+  ): Promise<DeveloperProductAccountDto[]> {
+    return this.service.listAccounts(product);
   }
 
-  @Get("{product}/entitlements/{entitlementId}/usage")
+  @Get("{product}/accounts/{accountId}/usage")
   @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productEntitlementParamsSchema))
+  @Middlewares(validateParams(productAccountParamsSchema))
   public async getUsage(
     @Path() product: DeveloperProductCode,
-    @Path() entitlementId: string,
+    @Path() accountId: string,
   ): Promise<DeveloperProductUsageDto> {
-    return this.service.getUsageForProduct(product, entitlementId);
+    return this.service.getUsageForProduct(product, accountId);
   }
 
-  @Get("{product}/entitlements/{entitlementId}/calls")
+  @Get("{product}/accounts/{accountId}/calls")
   @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productEntitlementParamsSchema))
+  @Middlewares(validateParams(productAccountParamsSchema))
   public async listCallLogs(
     @Path() product: DeveloperProductCode,
-    @Path() entitlementId: string,
+    @Path() accountId: string,
   ): Promise<DeveloperProductCallLogDto[]> {
-    return this.service.listCallLogs(product, entitlementId);
+    return this.service.listCallLogs(product, accountId);
   }
 
-  @Post("{product}/entitlements")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(
-    replayProtectionMiddleware,
-    validateParams(productCodeParamsSchema),
-    validateBody(upsertProductEntitlementBodySchema),
-  )
-  public async upsertEntitlement(
-    @Path() product: DeveloperProductCode,
-    @Body() body: UpsertDeveloperProductEntitlementDto,
-    @Request() request: TypedRequest,
-  ): Promise<DeveloperProductEntitlementDto> {
-    return this.service.upsertEntitlement(product, body, request.user!.userId);
-  }
 }

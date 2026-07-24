@@ -676,10 +676,10 @@ export const PERMISSION_META: PermissionMetaMap = {
     category: 'developer',
   },
   [Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE]: {
-    label: '分发产品授权',
-    labelEn: 'Manage Product Entitlements',
-    tooltip: '允许向主账号分发开发者产品',
-    tooltipEn: 'Allows distributing developer products to account owners',
+    label: '管理产品运营',
+    labelEn: 'Manage Product Operations',
+    tooltip: '允许查看产品账号、用量、调用审计及执行运营操作',
+    tooltipEn: 'Allows viewing product accounts, usage, call audits, and operational controls',
     category: 'developer',
   },
   [Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE]: {

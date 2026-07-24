@@ -170,6 +170,10 @@ export class DeveloperProjectRepository {
     return projects.map((project) => this.toProjectDto(project));
   }
 
+  async getProject(projectId: string, userId: string): Promise<DeveloperProjectDto> {
+    return this.toProjectDto(await this.assertProjectOwner(projectId, userId));
+  }
+
   async updateStatusPage(
     projectId: string,
     userId: string,
@@ -612,7 +616,7 @@ export class DeveloperProjectRepository {
             is: {
               status: 1,
               enabled: true,
-              entitlement: { is: { status: 1, enabled: true, productCode: "short_link" } },
+              entitlement: { is: { status: 1, productCode: "short_link" } },
             },
           },
         },
@@ -625,18 +629,6 @@ export class DeveloperProjectRepository {
       select: { enabled: true },
     });
     if (!productConfig?.enabled) throw new NotFoundError("短链接不存在或已过期");
-    const instance = await prisma.developerProductInstance.findUnique({
-      where: { backingProjectId: link.projectId },
-      select: { entitlement: { select: { startsAt: true, expiresAt: true } } },
-    });
-    const now = new Date();
-    if (
-      !instance ||
-      (instance.entitlement.startsAt && instance.entitlement.startsAt > now) ||
-      (instance.entitlement.expiresAt && instance.entitlement.expiresAt <= now)
-    ) {
-      throw new NotFoundError("短链接不存在或已过期");
-    }
     let sourceHost: string | undefined;
     if (context?.referrer) {
       try {
@@ -722,11 +714,9 @@ export class DeveloperProjectRepository {
         slug: true,
         productInstance: {
           select: {
-            enabled: true,
-            status: true,
-            entitlement: {
-              select: { enabled: true, status: true, productCode: true, startsAt: true, expiresAt: true },
-            },
+          enabled: true,
+          status: true,
+          entitlement: { select: { status: true, productCode: true } },
           },
         },
         statusMonitors: {
@@ -746,17 +736,13 @@ export class DeveloperProjectRepository {
     });
     if (!project) throw new NotFoundError("状态页不存在");
     const entitlement = project.productInstance?.entitlement;
-    const now = new Date();
     if (
       !project.productInstance ||
       !project.productInstance.enabled ||
       project.productInstance.status !== 1 ||
       !entitlement ||
       entitlement.productCode !== "status" ||
-      !entitlement.enabled ||
-      entitlement.status !== 1 ||
-      (entitlement.startsAt && entitlement.startsAt > now) ||
-      (entitlement.expiresAt && entitlement.expiresAt <= now)
+      entitlement.status !== 1
     ) {
       throw new NotFoundError("状态页不存在");
     }
