@@ -100,8 +100,31 @@ export class DeveloperProductService {
   async listMonitorResources(instanceId: string) {
     return this.unwrap(await resourceApi().listMonitors({ path: { instanceId } }))
   }
+  async createMonitorResource(
+    instanceId: string,
+    body: {
+      name: string
+      targetUrl: string
+      method?: 'GET' | 'HEAD'
+      intervalSec?: number
+      successStatusCodes?: number[]
+    },
+  ) {
+    return this.unwrap(await resourceApi().createMonitor({ path: { instanceId }, body }))
+  }
   async listPushChannelResources(instanceId: string) {
     return this.unwrap(await resourceApi().listPushChannels({ path: { instanceId } }))
+  }
+  async createPushChannelResource(
+    instanceId: string,
+    body: {
+      name: string
+      type: 'webhook' | 'dingtalk' | 'feishu' | 'wechat_work'
+      endpoint: string
+      secretAlias?: string
+    },
+  ) {
+    return this.unwrap(await resourceApi().createPushChannel({ path: { instanceId }, body }))
   }
   async listPushDeliveryResources(instanceId: string) {
     return this.unwrap(await resourceApi().listPushDeliveries({ path: { instanceId } }))
