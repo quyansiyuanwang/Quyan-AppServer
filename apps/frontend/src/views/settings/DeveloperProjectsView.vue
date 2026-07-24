@@ -999,7 +999,6 @@ const copyStatusPage = async () => {
 
 <style scoped>
 .developer-projects-page {
-  max-width: 1320px;
   padding: 28px 32px 48px;
 }
 .workspace-header {
