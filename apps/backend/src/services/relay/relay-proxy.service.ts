@@ -78,6 +78,8 @@ import BusinessLogService from "@/services/system/businesslog.service";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
+import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
+import { Permission } from "@/constant/permission";
 
 const PREFIX = "/relay/proxy";
 
@@ -1525,10 +1527,7 @@ export class RelayProxyService {
     return candidates.filter((channel): channel is RelayChannelWithPool => {
       if (!channel?.id || seen.has(channel.id)) return false;
       seen.add(channel.id);
-      return (
-        channel.status === RELAY_CHANNEL_STATUS.ENABLED &&
-        channel.channelType !== "automatic-proxy-pool"
-      );
+      return channel.status === RELAY_CHANNEL_STATUS.ENABLED && channel.channelType !== "automatic-proxy-pool";
     });
   }
 
@@ -2433,6 +2432,19 @@ export class RelayProxyService {
     try {
       let lastError: unknown = new BadRequestError("No available relay channel");
       const attemptIssues: RelayAttemptIssue[] = [];
+      const developerProjectId = String(req.headers?.["x-developer-project"] || "").trim();
+      let developerSecretUsageMetered = false;
+      const meterSecretUsage = async <T>(callback: () => Promise<T>): Promise<T> => {
+        if (developerSecretUsageMetered) return callback();
+        const result = await DeveloperProductPlatformService.getInstance().executeMeteredForBackingProject(
+          developerProjectId,
+          "secret",
+          Permission.PRODUCT_SECRET_USE,
+          callback,
+        );
+        developerSecretUsageMetered = true;
+        return result;
+      };
 
       for (let attemptIndex = 0; attemptIndex < attemptChannels.length; attemptIndex++) {
         const candidate = attemptChannels[attemptIndex];
@@ -2548,7 +2560,6 @@ export class RelayProxyService {
             const upstreamConfig = this.resolveChannelUpstreamConfig(channel, requestFormat);
             const upstreamUrl = upstreamConfig.upstreamUrl;
             let upstreamApiKey = upstreamConfig.upstreamApiKey;
-            const developerProjectId = String(req.headers?.["x-developer-project"] || "").trim();
             channelMultiplier = upstreamConfig.channelMultiplier;
 
             if (upstreamApiKey.includes("{{")) {
@@ -2557,10 +2568,12 @@ export class RelayProxyService {
                   "Secret alias requires X-Developer-Project",
                   "channel-upstream-missing",
                 );
-              upstreamApiKey = await DeveloperProjectService.getInstance().substituteSecretsForProject(
-                developerProjectId,
-                relayToken.userId,
-                upstreamApiKey,
+              upstreamApiKey = await meterSecretUsage(() =>
+                DeveloperProjectService.getInstance().substituteSecretsForProject(
+                  developerProjectId,
+                  relayToken.userId,
+                  upstreamApiKey,
+                ),
               );
             }
 
@@ -2618,10 +2631,12 @@ export class RelayProxyService {
             if (developerProjectId)
               for (const [key, value] of Object.entries(headers))
                 if (typeof value === "string" && value.includes("{{"))
-                  headers[key] = await DeveloperProjectService.getInstance().substituteSecretsForProject(
-                    developerProjectId,
-                    relayToken.userId,
-                    value,
+                  headers[key] = await meterSecretUsage(() =>
+                    DeveloperProjectService.getInstance().substituteSecretsForProject(
+                      developerProjectId,
+                      relayToken.userId,
+                      value,
+                    ),
                   );
 
             if (requestFormat === "gemini") headers["x-goog-api-key"] = upstreamApiKey;
@@ -2632,8 +2647,11 @@ export class RelayProxyService {
             }
 
             const forwardedBody = this.buildForwardBody(req.body, requestFormat, selectedModelId);
-            let { body: convertedBody, autoInjected: autoInjectedStreamUsageOption } =
-              this.addOpenAIStreamUsageOption(forwardedBody, requestFormat, req.path);
+            let { body: convertedBody, autoInjected: autoInjectedStreamUsageOption } = this.addOpenAIStreamUsageOption(
+              forwardedBody,
+              requestFormat,
+              req.path,
+            );
 
             const toolsWithCache = convertedBody?.tools?.filter((t: any) => t.cache_control).length || 0;
             const messagesWithCache = convertedBody?.messages?.filter((m: any) => m.cache_control).length || 0;
@@ -2659,10 +2677,12 @@ export class RelayProxyService {
             if (bodyContainsPlaceholder && !developerProjectId)
               throw new RelayChannelSkipError("Secret alias requires X-Developer-Project", "channel-upstream-missing");
             if (bodyContainsPlaceholder)
-              convertedBody = await DeveloperProjectService.getInstance().substituteSecretsInJsonValue(
-                developerProjectId,
-                relayToken.userId,
-                convertedBody,
+              convertedBody = await meterSecretUsage(() =>
+                DeveloperProjectService.getInstance().substituteSecretsInJsonValue(
+                  developerProjectId,
+                  relayToken.userId,
+                  convertedBody,
+                ),
               );
 
             if (isStreamRequested && res) {

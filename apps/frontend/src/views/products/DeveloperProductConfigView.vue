@@ -32,16 +32,15 @@
         <el-divider />
         <div class="form-grid">
           <el-form-item :label="t('productConfig.dailyQuota')"
+            ><el-tag v-if="form.overagePrice === 0" type="success">∞</el-tag
             ><el-input-number
+              v-else
               v-model="form.defaultDailyQuota"
               :min="0"
               :max="10000000" /></el-form-item
           ><el-form-item :label="t('productConfig.overagePrice')"
-            ><el-input-number
-              v-model="form.overagePrice"
-              :min="0"
-              :precision="6"
-              :step="0.01" /></el-form-item
+            ><el-input-number v-model="form.overagePrice" :min="0" :precision="6" :step="0.01" />
+            <p class="field-hint">{{ t('productConfig.freeUnlimitedHint') }}</p></el-form-item
           ><el-form-item :label="t('productConfig.instanceLimit')"
             ><el-input-number v-model="form.defaultInstanceLimit" :min="1" :max="1000"
           /></el-form-item>
@@ -179,6 +178,12 @@ onMounted(load)
   display: flex;
   justify-content: flex-end;
   margin-top: 20px;
+}
+.field-hint {
+  margin: 6px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 @media (max-width: 768px) {
   .product-config {

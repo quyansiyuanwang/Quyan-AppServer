@@ -29,16 +29,18 @@ export class DeveloperProductKvApiController extends Controller {
   @Get("entries")
   @Security("product-key", [Permission.PRODUCT_KV_READ])
   public async list(@Request() request: TypedRequest) {
-    const result = await this.project.listKv(request.productApiKey!.backingProjectId);
-    await this.products.recordCall(request.productApiKey!, Permission.PRODUCT_KV_READ, true);
-    return result;
+    return this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_KV_READ, () =>
+      this.project.listKv(request.productApiKey!.backingProjectId),
+    );
   }
 
   @Get("entries/{key}")
   @Security("product-key", [Permission.PRODUCT_KV_READ])
   @Middlewares(validateParams(kvKeyParamsSchema))
   public async get(@Path() key: string, @Request() request: TypedRequest): Promise<DeveloperKvValueDto> {
-    return this.project.getKv(request.productApiKey!.backingProjectId, key);
+    return this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_KV_READ, () =>
+      this.project.getKv(request.productApiKey!.backingProjectId, key),
+    );
   }
 
   @Post("entries/{key}")
@@ -49,15 +51,19 @@ export class DeveloperProductKvApiController extends Controller {
     @Body() body: SetKvValueDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperKvValueDto> {
-    return this.project.setKv(request.productApiKey!.backingProjectId, key, body);
+    return this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_KV_WRITE, () =>
+      this.project.setKv(request.productApiKey!.backingProjectId, key, body),
+    );
   }
 
   @Delete("entries/{key}")
   @Security("product-key", [Permission.PRODUCT_KV_WRITE])
   @Middlewares(validateParams(kvKeyParamsSchema))
   public async delete(@Path() key: string, @Request() request: TypedRequest): Promise<{ success: true }> {
-    await this.project.deleteKv(request.productApiKey!.backingProjectId, key);
-    return { success: true };
+    return this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_KV_WRITE, async () => {
+      await this.project.deleteKv(request.productApiKey!.backingProjectId, key);
+      return { success: true };
+    });
   }
 }
 

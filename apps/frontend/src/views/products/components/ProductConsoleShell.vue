@@ -34,7 +34,7 @@
       <span>{{ t('productConsole.instanceCount') }}</span
       ><strong>{{ instances.length }} / {{ config?.defaultInstanceLimit ?? '-' }}</strong
       ><span>{{ t('productConsole.dailyQuota') }}</span
-      ><strong>{{ config?.defaultDailyQuota ?? '-' }}</strong>
+      ><strong>{{ config?.overagePrice === 0 ? '∞' : (config?.defaultDailyQuota ?? '-') }}</strong>
     </section>
     <section class="instances-panel" v-loading="loading">
       <div class="section-title">

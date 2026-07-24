@@ -284,7 +284,9 @@ export class DeveloperProductResourceController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DeveloperStatusMonitorDto> {
     const context = await this.context(request, "status", instanceId, Permission.PRODUCT_STATUS_WRITE);
-    return this.projects.checkStatusMonitor(context.backingProjectId, id, context.accountOwnerId);
+    return this.products.executeMeteredForInstance(instanceId, "status", Permission.PRODUCT_STATUS_WRITE, () =>
+      this.projects.checkStatusMonitor(context.backingProjectId, id, context.accountOwnerId),
+    );
   }
 
   @Put("status/instances/{instanceId}/page")

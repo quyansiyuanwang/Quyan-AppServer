@@ -240,6 +240,7 @@ const zhCN: DeepStringify<typeof en> = {
     serviceSwitchDescription: '关闭后所有新的外部调用会立即拒绝，既有数据保持不变。',
     dailyQuota: '默认每日免费额度',
     overagePrice: '超额单价',
+    freeUnlimitedHint: '超额单价为 0 时，该产品免费且每日额度不限。',
     instanceLimit: '默认实例上限',
     loadError: '产品配置暂时无法加载。',
     saved: '产品配置已保存',

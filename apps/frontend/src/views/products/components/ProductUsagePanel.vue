@@ -18,7 +18,7 @@
       </div>
       <div>
         <span>{{ t('productResources.remainingQuota') }}</span
-        ><strong>{{ usage.remainingFree }}</strong>
+        ><strong>{{ usage.unlimited ? '∞' : usage.remainingFree }}</strong>
       </div>
       <div>
         <span>{{ t('productResources.overage') }}</span

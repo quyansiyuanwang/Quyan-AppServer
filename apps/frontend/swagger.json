@@ -40577,6 +40577,9 @@
 						"type": "number",
 						"format": "double"
 					},
+					"unlimited": {
+						"type": "boolean"
+					},
 					"overageEnabled": {
 						"type": "boolean"
 					}
@@ -40587,6 +40590,7 @@
 					"requestCount",
 					"dailyFreeQuota",
 					"remainingFree",
+					"unlimited",
 					"overageEnabled"
 				],
 				"type": "object",

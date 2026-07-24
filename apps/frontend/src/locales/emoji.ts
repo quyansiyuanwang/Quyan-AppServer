@@ -239,6 +239,7 @@ const emoji: DeepStringify<typeof en> = {
     serviceSwitchDescription: '⏸️ ➜ 🌐 📞 🚫；📦 ✅',
     dailyQuota: '📅 🎁',
     overagePrice: '➕ 💰',
+    freeUnlimitedHint: '0 💰 ➜ 🆓 ♾️ 📅',
     instanceLimit: '📦 🔢',
     loadError: '⚙️ 📥 💥',
     saved: '⚙️ 💾 ✅',

@@ -25,12 +25,18 @@
         <dl>
           <div>
             <dt>{{ t('productCatalog.api') }}</dt>
-            <dd>{{ product.supportsExternalApi ? product.apiPath : t('productCatalog.managedService') }}</dd>
+            <dd>
+              {{
+                product.supportsExternalApi ? product.apiPath : t('productCatalog.managedService')
+              }}
+            </dd>
           </div>
           <div>
             <dt>{{ t('productCatalog.quota') }}</dt>
             <dd>
-              {{ product.config?.defaultDailyQuota ?? 0 }}
+              {{
+                product.config?.overagePrice === 0 ? '∞' : (product.config?.defaultDailyQuota ?? 0)
+              }}
               {{ t('productCatalog.perDay') }}
             </dd>
           </div>
@@ -103,8 +109,10 @@ const hasProductAccess = (productCode: DeveloperProductCode) => {
 }
 const productState = (productCode: DeveloperProductCode) => {
   const product = products.value.find((item) => item.code === productCode)
-  if (!hasProductAccess(productCode)) return { type: 'info' as const, label: t('productCatalog.noAccess') }
-  if (!product?.config?.enabled) return { type: 'warning' as const, label: t('productCatalog.disabled') }
+  if (!hasProductAccess(productCode))
+    return { type: 'info' as const, label: t('productCatalog.noAccess') }
+  if (!product?.config?.enabled)
+    return { type: 'warning' as const, label: t('productCatalog.disabled') }
   return { type: 'success' as const, label: t('productCatalog.available') }
 }
 

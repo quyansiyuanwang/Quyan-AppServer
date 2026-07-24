@@ -2,6 +2,8 @@ import cron from "node-cron";
 import { getLogger, LogCategory } from "@/util/logger";
 import { DeveloperProjectService } from "./developer-project.service";
 import { DeveloperProjectRepository } from "@/store/developer/developer-project.repository";
+import { DeveloperProductPlatformService } from "./developer-product-platform.service";
+import { Permission } from "@/constant/permission";
 
 const logger = getLogger("DeveloperMonitorScheduler", LogCategory.SYSTEM);
 
@@ -26,7 +28,14 @@ export class DeveloperMonitorSchedulerService {
     try {
       await DeveloperProjectRepository.getInstance().runWithSchedulerLock(() =>
         Promise.all([
-          DeveloperProjectService.getInstance().runScheduledMonitorChecks(),
+          DeveloperProjectService.getInstance().runScheduledMonitorChecks((projectId, callback) =>
+            DeveloperProductPlatformService.getInstance().executeMeteredForBackingProject(
+              projectId,
+              "status",
+              Permission.PRODUCT_STATUS_WRITE,
+              callback,
+            ),
+          ),
           DeveloperProjectService.getInstance().retryScheduledPushDeliveries(),
         ]).then(() => undefined),
       );

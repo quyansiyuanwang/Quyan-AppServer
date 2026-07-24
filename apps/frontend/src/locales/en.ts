@@ -247,6 +247,7 @@ export default {
       'When disabled, new external calls are rejected immediately while existing data remains unchanged.',
     dailyQuota: 'Default daily free quota',
     overagePrice: 'Overage unit price',
+    freeUnlimitedHint: 'An overage price of 0 makes this product free with unlimited daily quota.',
     instanceLimit: 'Default instance limit',
     loadError: 'Product configuration could not be loaded.',
     saved: 'Product configuration saved',

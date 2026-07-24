@@ -98,6 +98,7 @@ export interface DeveloperProductUsageDto {
   requestCount: number;
   dailyFreeQuota: number;
   remainingFree: number;
+  unlimited: boolean;
   overageEnabled: boolean;
 }
 

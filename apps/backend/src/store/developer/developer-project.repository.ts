@@ -612,10 +612,7 @@ export class DeveloperProjectRepository {
     if (!result.count) throw new NotFoundError("短链接不存在");
   }
 
-  async resolveShortLink(
-    code: string,
-    context?: { referrer?: string; userAgent?: string; country?: string; ipAddress?: string },
-  ): Promise<string> {
+  async resolveShortLink(code: string): Promise<{ targetUrl: string; instanceId: string; linkId: string }> {
     const link = await prisma.developerShortLink.findFirst({
       where: {
         code,
@@ -631,6 +628,12 @@ export class DeveloperProjectRepository {
           },
         },
       },
+      select: {
+        id: true,
+        targetUrl: true,
+        expiresAt: true,
+        project: { select: { productInstance: { select: { id: true } } } },
+      },
     });
     if (!link || (link.expiresAt && link.expiresAt.getTime() <= Date.now()))
       throw new NotFoundError("短链接不存在或已过期");
@@ -639,6 +642,14 @@ export class DeveloperProjectRepository {
       select: { enabled: true },
     });
     if (!productConfig?.enabled) throw new NotFoundError("短链接不存在或已过期");
+    if (!link.project.productInstance) throw new NotFoundError("短链接不存在或已过期");
+    return { targetUrl: link.targetUrl, instanceId: link.project.productInstance.id, linkId: link.id };
+  }
+
+  async recordShortLinkClick(
+    linkId: string,
+    context?: { referrer?: string; userAgent?: string; country?: string; ipAddress?: string },
+  ): Promise<void> {
     let sourceHost: string | undefined;
     if (context?.referrer) {
       try {
@@ -650,15 +661,12 @@ export class DeveloperProjectRepository {
     const country = context?.country?.trim().toUpperCase().slice(0, 8) || undefined;
     const userAgent = context?.userAgent?.trim().slice(0, 255) || undefined;
     const ipAddress = context?.ipAddress?.trim().slice(0, 45) || undefined;
-    void prisma
-      .$transaction([
-        prisma.developerShortLink.update({ where: { id: link.id }, data: { clickCount: { increment: 1 } } }),
-        prisma.developerShortLinkClick.create({
-          data: { shortLinkId: link.id, ipAddress, sourceHost, userAgent, country },
-        }),
-      ])
-      .catch(() => undefined);
-    return link.targetUrl;
+    await prisma.$transaction([
+      prisma.developerShortLink.update({ where: { id: linkId }, data: { clickCount: { increment: 1 } } }),
+      prisma.developerShortLinkClick.create({
+        data: { shortLinkId: linkId, ipAddress, sourceHost, userAgent, country },
+      }),
+    ]);
   }
 
   async getShortLinkStats(
@@ -1089,7 +1097,12 @@ export class DeveloperProjectRepository {
     return this.monitorDto(updated);
   }
 
-  async runScheduledMonitorChecks(): Promise<void> {
+  async runScheduledMonitorChecks(
+    meterCheck?: (
+      projectId: string,
+      callback: () => Promise<DeveloperStatusMonitorDto>,
+    ) => Promise<DeveloperStatusMonitorDto>,
+  ): Promise<void> {
     const monitors = await prisma.developerStatusMonitor.findMany({
       where: { enabled: true, status: 1 },
       include: { project: { select: { userId: true } } },
@@ -1098,7 +1111,13 @@ export class DeveloperProjectRepository {
     const due = monitors.filter(
       (monitor) => !monitor.lastCheckedAt || now - monitor.lastCheckedAt.getTime() >= monitor.intervalSec * 1000,
     );
-    await Promise.allSettled(due.map((monitor) => this.performStatusCheck(monitor)));
+    await Promise.allSettled(
+      due.map((monitor) =>
+        meterCheck
+          ? meterCheck(monitor.projectId, () => this.performStatusCheck(monitor))
+          : this.performStatusCheck(monitor),
+      ),
+    );
     const retentionCutoff = new Date(Date.now() - 90 * 24 * 60 * 60_000);
     await Promise.all([
       prisma.developerStatusCheck.deleteMany({ where: { checkedAt: { lt: retentionCutoff } } }),

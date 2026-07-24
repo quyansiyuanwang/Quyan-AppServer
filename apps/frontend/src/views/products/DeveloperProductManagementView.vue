@@ -51,7 +51,9 @@
         >
         <el-table-column :label="t('productOperations.quota')" width="160"
           ><template #default="{ row }">{{
-            row.account?.dailyFreeQuota ?? t('productOperations.useDefaultQuota')
+            isFreeProduct
+              ? '∞'
+              : (row.account?.dailyFreeQuota ?? t('productOperations.useDefaultQuota'))
           }}</template></el-table-column
         >
         <el-table-column :label="t('productResources.overage')" width="130"
@@ -118,15 +120,17 @@
           >
           <el-form label-position="top">
             <el-form-item :label="t('productOperations.quota')"
-              ><el-checkbox v-model="useDefaultQuota">{{
-                t('productOperations.useDefaultQuota')
-              }}</el-checkbox
-              ><el-input-number
-                v-model="form.dailyFreeQuota"
-                :min="0"
-                :max="10000000"
-                :disabled="useDefaultQuota"
-            /></el-form-item>
+              ><el-tag v-if="isFreeProduct" type="success">∞</el-tag
+              ><template v-else
+                ><el-checkbox v-model="useDefaultQuota">{{
+                  t('productOperations.useDefaultQuota')
+                }}</el-checkbox
+                ><el-input-number
+                  v-model="form.dailyFreeQuota"
+                  :min="0"
+                  :max="10000000"
+                  :disabled="useDefaultQuota" /></template
+            ></el-form-item>
             <el-form-item :label="t('productResources.overage')"
               ><el-switch
                 v-model="form.overageEnabled"
@@ -172,7 +176,7 @@
             </div>
             <div>
               <span>{{ t('productResources.remainingQuota') }}</span
-              ><strong>{{ usage.remainingFree }}</strong>
+              ><strong>{{ usage.unlimited ? '∞' : usage.remainingFree }}</strong>
             </div>
           </div>
         </section>
@@ -245,6 +249,7 @@ const usage = ref<DeveloperProductUsageDto>()
 const logs = ref<DeveloperProductCallLogDto[]>([])
 const useDefaultQuota = ref(true)
 const form = ref({ dailyFreeQuota: 0, overageEnabled: false, instanceLimit: 1 })
+const isFreeProduct = computed(() => config.value?.overagePrice === 0)
 let loadSequence = 0
 let detailSequence = 0
 

@@ -74,6 +74,12 @@ export interface ProductKeyContext {
   actions: Permission[];
 }
 
+type ProductMeteringContext = Omit<ProductKeyContext, "keyId" | "subjectUserId" | "actions"> & {
+  keyId?: string;
+  subjectUserId?: string;
+  actions: Permission[];
+};
+
 type ProductQuotaReceipt = {
   usageId: string;
   entitlementId: string;
@@ -522,8 +528,7 @@ export class DeveloperProductPlatformService {
     });
     if (!user || instance.entitlement.accountOwnerId !== this.accountOwnerId(user))
       throw new NotFoundError("产品实例不存在");
-    if (!instance.enabled)
-      throw new ForbiddenError("产品实例已停用", CustomCode.DEVELOPER_PRODUCT_INSTANCE_DISABLED);
+    if (!instance.enabled) throw new ForbiddenError("产品实例已停用", CustomCode.DEVELOPER_PRODUCT_INSTANCE_DISABLED);
     return instance;
   }
 
@@ -691,12 +696,14 @@ export class DeveloperProductPlatformService {
     });
     const dailyFreeQuota = entitlement.dailyFreeQuota ?? config?.defaultDailyQuota ?? 0;
     const requestCount = usage?.requestCount ?? 0;
+    const unlimited = Number(config?.overagePrice ?? 0) <= 0;
     return {
       entitlementId,
       productCode: entitlement.productCode,
       requestCount,
       dailyFreeQuota,
-      remainingFree: Math.max(0, dailyFreeQuota - requestCount),
+      remainingFree: unlimited ? 0 : Math.max(0, dailyFreeQuota - requestCount),
+      unlimited,
       overageEnabled: entitlement.overageEnabled,
     };
   }
@@ -750,7 +757,7 @@ export class DeveloperProductPlatformService {
     return this.listCallLogs(productCode, accountProduct.id);
   }
 
-  private async consumeQuota(context: ProductKeyContext): Promise<ProductQuotaReceipt> {
+  private async consumeQuota(context: ProductMeteringContext): Promise<ProductQuotaReceipt> {
     const usageDate = new Date();
     usageDate.setHours(0, 0, 0, 0);
     return prisma.$transaction(async (tx) => {
@@ -762,6 +769,16 @@ export class DeveloperProductPlatformService {
         create: { entitlementId: entitlement.id, usageDate, requestCount: 1 },
         update: { requestCount: { increment: 1 } },
       });
+      const chargeAmount = Number(config.overagePrice);
+      // A zero price deliberately represents a free, unlimited product. We still
+      // retain usage for capacity planning and audit, but never block on quota.
+      if (chargeAmount <= 0)
+        return {
+          usageId: usage.id,
+          entitlementId: entitlement.id,
+          accountOwnerId: entitlement.accountOwnerId,
+          chargeAmount: 0,
+        };
       const freeQuota = entitlement.dailyFreeQuota ?? config.defaultDailyQuota;
       if (usage.requestCount <= freeQuota)
         return {
@@ -772,14 +789,6 @@ export class DeveloperProductPlatformService {
         };
       if (!entitlement.overageEnabled)
         throw new ForbiddenError("今日产品免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED);
-      const chargeAmount = Number(config.overagePrice);
-      if (!chargeAmount)
-        return {
-          usageId: usage.id,
-          entitlementId: entitlement.id,
-          accountOwnerId: entitlement.accountOwnerId,
-          chargeAmount: 0,
-        };
       const account = await tx.balanceAccount.findUnique({ where: { userId: entitlement.accountOwnerId } });
       const balanceBefore = Number(account?.balance ?? 0);
       const charged = await tx.balanceAccount.updateMany({
@@ -847,7 +856,7 @@ export class DeveloperProductPlatformService {
     });
   }
 
-  async executeMetered<T>(context: ProductKeyContext, action: string, callback: () => Promise<T>): Promise<T> {
+  async executeMetered<T>(context: ProductMeteringContext, action: string, callback: () => Promise<T>): Promise<T> {
     const receipt = await this.consumeQuota(context);
     try {
       const result = await callback();
@@ -882,7 +891,55 @@ export class DeveloperProductPlatformService {
     }
   }
 
-  async recordCall(context: ProductKeyContext, action: string, success: boolean): Promise<void> {
+  private async getInstanceMeteringContext(
+    productCode: DeveloperProductCode,
+    where: { id?: string; backingProjectId?: string },
+  ): Promise<ProductMeteringContext | undefined> {
+    const instance = await prisma.developerProductInstance.findFirst({
+      where: {
+        ...where,
+        status: 1,
+        enabled: true,
+        entitlement: { productCode, status: 1, enabled: true },
+      },
+      include: { entitlement: true },
+    });
+    if (!instance) return undefined;
+    const config = await prisma.developerProductConfig.findUnique({ where: { productCode } });
+    if (!config?.enabled) throw new ForbiddenError("产品当前未启用");
+    return {
+      instanceId: instance.id,
+      backingProjectId: instance.backingProjectId,
+      entitlementId: instance.entitlementId,
+      productCode,
+      accountOwnerId: instance.entitlement.accountOwnerId,
+      actions: [],
+    };
+  }
+
+  async executeMeteredForInstance<T>(
+    instanceId: string,
+    productCode: DeveloperProductCode,
+    action: string,
+    callback: () => Promise<T>,
+  ): Promise<T> {
+    const context = await this.getInstanceMeteringContext(productCode, { id: instanceId });
+    if (!context) throw new NotFoundError("产品实例不存在");
+    return this.executeMetered(context, action, callback);
+  }
+
+  /** Legacy projects do not participate in product billing. */
+  async executeMeteredForBackingProject<T>(
+    backingProjectId: string,
+    productCode: DeveloperProductCode,
+    action: string,
+    callback: () => Promise<T>,
+  ): Promise<T> {
+    const context = await this.getInstanceMeteringContext(productCode, { backingProjectId });
+    return context ? this.executeMetered(context, action, callback) : callback();
+  }
+
+  async recordCall(context: ProductMeteringContext, action: string, success: boolean): Promise<void> {
     await prisma.developerProductCallLog.create({
       data: {
         entitlementId: context.entitlementId,
