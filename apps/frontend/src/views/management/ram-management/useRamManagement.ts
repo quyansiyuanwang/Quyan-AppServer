@@ -1,4 +1,5 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { getPermissionLabel, getPermissionTooltip } from '@/constant/permission'
@@ -20,6 +21,7 @@ import { usePermissionStore } from '@/stores/permissionStore'
 import { buildGrantablePermissionTree, filterGrantablePermissions } from '../ram-permission-tree'
 
 export function useRamManagement() {
+  const route = useRoute()
   const activeTab = ref('users')
   const permissionStore = usePermissionStore()
   const users = ref<RamUserDto[]>([])
@@ -96,6 +98,41 @@ export function useRamManagement() {
   })
 
   const policyForm = reactive({ name: '', description: '', permissions: [] as string[] })
+  const productTemplates: Record<string, Permission[]> = {
+    kv: [Permission.PRODUCT_KV_READ, Permission.PRODUCT_KV_WRITE, Permission.PRODUCT_KV_MANAGE],
+    short_link: [
+      Permission.PRODUCT_SHORT_LINK_READ,
+      Permission.PRODUCT_SHORT_LINK_WRITE,
+      Permission.PRODUCT_SHORT_LINK_MANAGE,
+    ],
+    secret: [
+      Permission.PRODUCT_SECRET_READ,
+      Permission.PRODUCT_SECRET_WRITE,
+      Permission.PRODUCT_SECRET_USE,
+      Permission.PRODUCT_SECRET_MANAGE,
+    ],
+    status: [
+      Permission.PRODUCT_STATUS_READ,
+      Permission.PRODUCT_STATUS_WRITE,
+      Permission.PRODUCT_STATUS_PUBLISH,
+      Permission.PRODUCT_STATUS_MANAGE,
+    ],
+    verification: [
+      Permission.PRODUCT_VERIFICATION_SEND,
+      Permission.PRODUCT_VERIFICATION_VERIFY,
+      Permission.PRODUCT_VERIFICATION_MANAGE,
+    ],
+    ip_geolocation: [
+      Permission.PRODUCT_IP_GEOLOCATION_LOOKUP,
+      Permission.PRODUCT_IP_GEOLOCATION_MANAGE,
+    ],
+    push: [
+      Permission.PRODUCT_PUSH_SEND,
+      Permission.PRODUCT_PUSH_CHANNEL_MANAGE,
+      Permission.PRODUCT_PUSH_DELIVERY_READ,
+      Permission.PRODUCT_PUSH_MANAGE,
+    ],
+  }
   const grantablePermissions = computed(() => new Set<string>(permissionStore.effectivePermissions))
 
   const permissionTree = computed(() =>
@@ -693,6 +730,12 @@ export function useRamManagement() {
       })
     } else {
       resetPolicyForm()
+      const template = productTemplates[String(route.query.product ?? '')]
+      if (template) {
+        policyForm.name = `product-${String(route.query.product)}-access`
+        policyForm.description = `产品 ${String(route.query.product)} 的 RAM 授权策略`
+        policyForm.permissions = filterGrantablePermissions(template, grantablePermissions.value)
+      }
     }
     policyDialogVisible.value = true
     nextTick(() => {

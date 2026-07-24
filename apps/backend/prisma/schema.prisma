@@ -78,6 +78,8 @@ model User {
   ownedRamPolicies             RamPolicy[]                     @relation("RamPolicyOwner")
   ramPolicyAttachmentOwners    RamPolicyAttachment[]           @relation("RamPolicyAttachmentOwner")
   developerProjects            DeveloperProject[]
+  developerProductEntitlements DeveloperProductEntitlement[]   @relation("DeveloperProductEntitlementOwner")
+  developerProductKeys         DeveloperProductApiKey[]        @relation("DeveloperProductKeySubject")
 
   @@unique([accountOwnerId, ramUsername])
   @@index([username])
@@ -111,10 +113,134 @@ model DeveloperProject {
   pushRequests   DeveloperPushRequest[]
   statusMonitors DeveloperStatusMonitor[]
   quotaUsages    DeveloperQuotaUsage[]
+  productInstance DeveloperProductInstance? @relation("DeveloperProductInstanceBackingProject")
 
   @@unique([userId, name])
   @@index([userId, status])
   @@map("developer_projects")
+}
+
+model DeveloperProductConfig {
+  id                 String   @id @default(cuid())
+  status             Int      @default(1)
+  createTime         DateTime @default(now())
+  updateTime         DateTime @updatedAt
+  productCode        String   @unique @db.VarChar(40)
+  enabled            Boolean  @default(false)
+  defaultDailyQuota  Int      @default(0)
+  overagePrice       Decimal  @default(0) @db.Decimal(18, 6)
+  defaultInstanceLimit Int    @default(1)
+  resourceLimits     Json?
+  retentionDays      Int      @default(30)
+  settings           Json?
+
+  @@map("developer_product_configs")
+}
+
+model DeveloperProductEntitlement {
+  id              String   @id @default(cuid())
+  status          Int      @default(1)
+  createTime      DateTime @default(now())
+  updateTime      DateTime @updatedAt
+  accountOwnerId  String
+  productCode     String   @db.VarChar(40)
+  enabled         Boolean  @default(true)
+  dailyFreeQuota  Int?
+  overageEnabled  Boolean  @default(false)
+  instanceLimit   Int      @default(1)
+  startsAt        DateTime?
+  expiresAt       DateTime?
+  issuedByUserId  String   @db.VarChar(191)
+  ownerPolicyId   String?  @unique
+
+  accountOwner User                       @relation("DeveloperProductEntitlementOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
+  instances    DeveloperProductInstance[]
+  quotaUsages  DeveloperProductQuotaUsage[]
+  callLogs     DeveloperProductCallLog[]
+
+  @@unique([accountOwnerId, productCode])
+  @@index([productCode, enabled, expiresAt])
+  @@map("developer_product_entitlements")
+}
+
+model DeveloperProductInstance {
+  id               String   @id @default(cuid())
+  status           Int      @default(1)
+  createTime       DateTime @default(now())
+  updateTime       DateTime @updatedAt
+  entitlementId    String
+  name             String   @db.VarChar(100)
+  slug             String   @db.VarChar(80)
+  enabled          Boolean  @default(true)
+  backingProjectId String   @unique
+
+  entitlement    DeveloperProductEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+  backingProject DeveloperProject             @relation("DeveloperProductInstanceBackingProject", fields: [backingProjectId], references: [id], onDelete: Cascade)
+  apiKeys        DeveloperProductApiKey[]
+
+  @@unique([entitlementId, slug])
+  @@index([entitlementId, enabled])
+  @@map("developer_product_instances")
+}
+
+model DeveloperProductApiKey {
+  id            String   @id @default(cuid())
+  status        Int      @default(1)
+  createTime    DateTime @default(now())
+  updateTime    DateTime @updatedAt
+  instanceId    String
+  subjectUserId String
+  name          String   @db.VarChar(100)
+  keyHash       String   @unique @db.Char(64)
+  keyPrefix     String   @db.VarChar(20)
+  actions       Json
+  expiresAt     DateTime?
+  lastUsedAt    DateTime?
+  requestCount  Int      @default(0)
+
+  instance    DeveloperProductInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  subjectUser User                     @relation("DeveloperProductKeySubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId, status])
+  @@index([subjectUserId, status])
+  @@map("developer_product_api_keys")
+}
+
+model DeveloperProductQuotaUsage {
+  id            String   @id @default(cuid())
+  status        Int      @default(1)
+  createTime    DateTime @default(now())
+  updateTime    DateTime @updatedAt
+  entitlementId String
+  usageDate     DateTime @db.Date
+  requestCount  Int      @default(0)
+
+  entitlement DeveloperProductEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+
+  @@unique([entitlementId, usageDate])
+  @@map("developer_product_quota_usages")
+}
+
+model DeveloperProductCallLog {
+  id            String   @id @default(cuid())
+  status        Int      @default(1)
+  createTime    DateTime @default(now())
+  updateTime    DateTime @updatedAt
+  entitlementId String
+  instanceId    String?
+  keyId         String?
+  subjectUserId String?
+  action        String   @db.VarChar(100)
+  success       Boolean
+  errorCode     Int?
+  chargeAmount  Decimal  @default(0) @db.Decimal(18, 6)
+  details       Json?
+
+  entitlement DeveloperProductEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+
+  @@index([entitlementId, createTime])
+  @@index([instanceId, createTime])
+  @@map("developer_product_call_logs")
 }
 
 model DeveloperProjectApiKey {

@@ -22,6 +22,10 @@ const PERMISSION_CATEGORY_TRANSLATIONS = {
     label: 'RamManagement.permissionCategoryLabels.ram',
     tooltip: 'RamManagement.permissionCategoryTooltips.ram',
   },
+  product: {
+    label: 'RamManagement.permissionCategoryLabels.product',
+    tooltip: 'RamManagement.permissionCategoryTooltips.product',
+  },
   system: {
     label: 'RamManagement.permissionCategoryLabels.system',
     tooltip: 'RamManagement.permissionCategoryTooltips.system',

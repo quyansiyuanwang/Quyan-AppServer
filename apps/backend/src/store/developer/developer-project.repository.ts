@@ -81,7 +81,9 @@ export class DeveloperProjectRepository {
   }
 
   async runWithSchedulerLock<T>(callback: () => Promise<T>): Promise<T | undefined> {
-    const lockRows = await prisma.$queryRaw<Array<{ acquired: number }>>`SELECT GET_LOCK(${"appserver:developer-monitor-scheduler"}, 0) AS acquired`;
+    const lockRows = await prisma.$queryRaw<
+      Array<{ acquired: number }>
+    >`SELECT GET_LOCK(${"appserver:developer-monitor-scheduler"}, 0) AS acquired`;
     if (lockRows[0]?.acquired !== 1) return undefined;
     try {
       return await callback();
@@ -390,7 +392,10 @@ export class DeveloperProjectRepository {
         const balanceBefore = Number(account?.balance ?? 0);
         const charged = await tx.balanceAccount.updateMany({
           where: { userId: project.userId, status: 1, balance: { gte: new Decimal(overagePrice) } },
-          data: { balance: { decrement: new Decimal(overagePrice) }, totalUsed: { increment: new Decimal(overagePrice) } },
+          data: {
+            balance: { decrement: new Decimal(overagePrice) },
+            totalUsed: { increment: new Decimal(overagePrice) },
+          },
         });
         if (!charged.count)
           throw new ForbiddenError("余额不足，无法执行超额调用", CustomCode.DEVELOPER_BALANCE_INSUFFICIENT);
@@ -597,9 +602,41 @@ export class DeveloperProjectRepository {
     code: string,
     context?: { referrer?: string; userAgent?: string; country?: string },
   ): Promise<string> {
-    const link = await prisma.developerShortLink.findFirst({ where: { code, status: 1, enabled: true } });
+    const link = await prisma.developerShortLink.findFirst({
+      where: {
+        code,
+        status: 1,
+        enabled: true,
+        project: {
+          productInstance: {
+            is: {
+              status: 1,
+              enabled: true,
+              entitlement: { is: { status: 1, enabled: true, productCode: "short_link" } },
+            },
+          },
+        },
+      },
+    });
     if (!link || (link.expiresAt && link.expiresAt.getTime() <= Date.now()))
       throw new NotFoundError("短链接不存在或已过期");
+    const productConfig = await prisma.developerProductConfig.findUnique({
+      where: { productCode: "short_link" },
+      select: { enabled: true },
+    });
+    if (!productConfig?.enabled) throw new NotFoundError("短链接不存在或已过期");
+    const instance = await prisma.developerProductInstance.findUnique({
+      where: { backingProjectId: link.projectId },
+      select: { entitlement: { select: { startsAt: true, expiresAt: true } } },
+    });
+    const now = new Date();
+    if (
+      !instance ||
+      (instance.entitlement.startsAt && instance.entitlement.startsAt > now) ||
+      (instance.entitlement.expiresAt && instance.entitlement.expiresAt <= now)
+    ) {
+      throw new NotFoundError("短链接不存在或已过期");
+    }
     let sourceHost: string | undefined;
     if (context?.referrer) {
       try {
@@ -619,11 +656,7 @@ export class DeveloperProjectRepository {
     return link.targetUrl;
   }
 
-  async getShortLinkStats(
-    projectId: string,
-    linkId: string,
-    userId: string,
-  ): Promise<DeveloperShortLinkStatsDto> {
+  async getShortLinkStats(projectId: string, linkId: string, userId: string): Promise<DeveloperShortLinkStatsDto> {
     await this.assertProjectOwner(projectId, userId);
     const link = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
     if (!link) throw new NotFoundError("短链接不存在");
@@ -667,7 +700,9 @@ export class DeveloperProjectRepository {
       totalClicks: link.clickCount,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
-      clicksByDay: [...dailyCounts.entries()].map(([date, count]) => ({ date, count })).sort((a, b) => a.date.localeCompare(b.date)),
+      clicksByDay: [...dailyCounts.entries()]
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
       sources: sourceGroups.map((group) => ({ sourceHost: group.sourceHost ?? undefined, count: group._count.id })),
       countries: countryGroups.map((group) => ({ country: group.country ?? undefined, count: group._count.id })),
       recentClicks: recentClicks.map((click) => ({
@@ -685,6 +720,15 @@ export class DeveloperProjectRepository {
       select: {
         name: true,
         slug: true,
+        productInstance: {
+          select: {
+            enabled: true,
+            status: true,
+            entitlement: {
+              select: { enabled: true, status: true, productCode: true, startsAt: true, expiresAt: true },
+            },
+          },
+        },
         statusMonitors: {
           where: { enabled: true, status: 1 },
           select: {
@@ -701,9 +745,30 @@ export class DeveloperProjectRepository {
       },
     });
     if (!project) throw new NotFoundError("状态页不存在");
+    const entitlement = project.productInstance?.entitlement;
+    const now = new Date();
+    if (
+      !project.productInstance ||
+      !project.productInstance.enabled ||
+      project.productInstance.status !== 1 ||
+      !entitlement ||
+      entitlement.productCode !== "status" ||
+      !entitlement.enabled ||
+      entitlement.status !== 1 ||
+      (entitlement.startsAt && entitlement.startsAt > now) ||
+      (entitlement.expiresAt && entitlement.expiresAt <= now)
+    ) {
+      throw new NotFoundError("状态页不存在");
+    }
+    const config = await prisma.developerProductConfig.findUnique({
+      where: { productCode: "status" },
+      select: { enabled: true },
+    });
+    if (!config?.enabled) throw new NotFoundError("状态页不存在");
+    const { productInstance: _productInstance, ...publicProject } = project;
     return {
-      ...project,
-      statusMonitors: project.statusMonitors.map((monitor) => {
+      ...publicProject,
+      statusMonitors: publicProject.statusMonitors.map((monitor) => {
         const successfulChecks = monitor.checks.filter((check) => check.checkStatus === "up").length;
         return {
           ...monitor,
@@ -807,14 +872,17 @@ export class DeveloperProjectRepository {
       if (Array.isArray(current)) return Promise.all(current.map((item) => replace(item)));
       if (current && typeof current === "object") {
         const entries = await Promise.all(
-          Object.entries(current as Record<string, unknown>).map(async ([key, item]) => [key, await replace(item)] as const),
+          Object.entries(current as Record<string, unknown>).map(
+            async ([key, item]) => [key, await replace(item)] as const,
+          ),
         );
         return Object.fromEntries(entries);
       }
       return current;
     };
     const resolved = await replace(value);
-    if (Buffer.byteLength(JSON.stringify(resolved)) > 100_000) throw new BadRequestError("密钥替换后的内容超过大小限制");
+    if (Buffer.byteLength(JSON.stringify(resolved)) > 100_000)
+      throw new BadRequestError("密钥替换后的内容超过大小限制");
     return resolved;
   }
 
@@ -933,7 +1001,11 @@ export class DeveloperProjectRepository {
       const configuredCodes = Array.isArray(monitor.successStatusCodes)
         ? monitor.successStatusCodes.filter((code): code is number => typeof code === "number")
         : [];
-      lastStatus = (configuredCodes.length ? configuredCodes.includes(response.status) : response.status >= 200 && response.status < 400)
+      lastStatus = (
+        configuredCodes.length
+          ? configuredCodes.includes(response.status)
+          : response.status >= 200 && response.status < 400
+      )
         ? "up"
         : "down";
     } catch (error) {
@@ -1003,7 +1075,12 @@ export class DeveloperProjectRepository {
       throw new TooManyRequestsError("验证码发送过于频繁，请稍后再试");
   }
 
-  async sendVerification(projectId: string, body: SendDeveloperVerificationDto, sourceIp?: string): Promise<void> {
+  async sendVerification(
+    projectId: string,
+    body: SendDeveloperVerificationDto,
+    sourceIp?: string,
+    options?: { skipQuota?: boolean },
+  ): Promise<void> {
     const sourceIpHash = sourceIp && isIP(sourceIp) ? hash(sourceIp) : undefined;
     await this.assertVerificationRateLimit(projectId, body, sourceIpHash);
     const code = String(Math.floor(100_000 + Math.random() * 900_000));
@@ -1035,8 +1112,7 @@ export class DeveloperProjectRepository {
       ]);
       const endpoint = config[CONFIG_KEYS.DEVELOPER.SMS_ENDPOINT]?.trim();
       const token = config[CONFIG_KEYS.DEVELOPER.SMS_TOKEN]?.trim();
-      if (!endpoint || !token)
-        throw new BadRequestError("短信渠道未启用", CustomCode.DEVELOPER_CHANNEL_NOT_ENABLED);
+      if (!endpoint || !token) throw new BadRequestError("短信渠道未启用", CustomCode.DEVELOPER_CHANNEL_NOT_ENABLED);
       const target = await assertSafeOutboundUrl(endpoint);
       deliver = async () => {
         await axios.post(
@@ -1058,7 +1134,7 @@ export class DeveloperProjectRepository {
         );
       };
     }
-    const receipt = await this.consumeQuota(projectId, "verification");
+    const receipt = options?.skipQuota ? undefined : await this.consumeQuota(projectId, "verification");
     try {
       await deliver();
       await prisma.developerVerification.updateMany({
@@ -1077,7 +1153,7 @@ export class DeveloperProjectRepository {
         },
       });
     } catch (error) {
-      await this.refundQuota(receipt).catch(() => {});
+      if (receipt) await this.refundQuota(receipt).catch(() => {});
       throw error;
     }
   }
@@ -1106,19 +1182,19 @@ export class DeveloperProjectRepository {
     return true;
   }
 
-  async lookupIp(projectId: string, requestedIp?: string) {
+  async lookupIp(projectId: string, requestedIp?: string, options?: { skipQuota?: boolean }) {
     const ip = requestedIp?.trim();
     if (!ip || !isIP(ip) || isUnsafeOutboundAddress(ip)) throw new BadRequestError("仅支持公网 IP 地址");
     const cached = this.ipLocationCache.get(ip);
     if (cached && cached.expiresAt > Date.now()) {
-      await this.consumeQuota(projectId, "ip");
+      if (!options?.skipQuota) await this.consumeQuota(projectId, "ip");
       return cached.value;
     }
     if (cached) this.ipLocationCache.delete(ip);
     const endpoint = String(process.env.IP_GEOLOCATION_ENDPOINT || "").trim();
     if (!endpoint) throw new BadRequestError("IP 定位服务尚未配置");
     const base = await assertSafeOutboundUrl(endpoint);
-    const receipt = await this.consumeQuota(projectId, "ip");
+    const receipt = options?.skipQuota ? undefined : await this.consumeQuota(projectId, "ip");
     try {
       const response = await axios.get(
         new URL(encodeURIComponent(ip), `${base.url.toString().replace(/\/$/, "")}/`).toString(),
@@ -1143,7 +1219,7 @@ export class DeveloperProjectRepository {
       this.ipLocationCache.set(ip, { expiresAt: Date.now() + 5 * 60_000, value: result });
       return result;
     } catch (error) {
-      await this.refundQuota(receipt).catch(() => {});
+      if (receipt) await this.refundQuota(receipt).catch(() => {});
       throw error;
     }
   }
@@ -1257,7 +1333,9 @@ export class DeveloperProjectRepository {
     try {
       if (!channel.enabled || !channel.endpoint) throw new BadRequestError("推送渠道未配置地址或已停用");
       const target = await assertSafeOutboundUrl(channel.endpoint);
-      const secret = channel.secretAlias ? await this.resolveSecret(delivery.projectId, channel.secretAlias) : undefined;
+      const secret = channel.secretAlias
+        ? await this.resolveSecret(delivery.projectId, channel.secretAlias)
+        : undefined;
       const payload =
         channel.type === "dingtalk"
           ? { msgtype: "text", text: { content: `${delivery.title}\n${delivery.content}` } }
@@ -1302,7 +1380,11 @@ export class DeveloperProjectRepository {
     await Promise.allSettled(deliveries.map((delivery) => this.dispatchPushDelivery(delivery, delivery.channel)));
   }
 
-  async sendPush(projectId: string, body: SendDeveloperPushDto): Promise<DeveloperPushDeliveryDto[]> {
+  async sendPush(
+    projectId: string,
+    body: SendDeveloperPushDto,
+    options?: { skipQuota?: boolean },
+  ): Promise<DeveloperPushDeliveryDto[]> {
     if (body.idempotencyKey) {
       try {
         await prisma.developerPushRequest.create({ data: { projectId, idempotencyKey: body.idempotencyKey } });
@@ -1324,7 +1406,7 @@ export class DeveloperProjectRepository {
         where: { projectId, id: { in: body.channelIds }, enabled: true, status: 1 },
       });
       if (!channels.length) throw new NotFoundError("未找到可用的推送渠道");
-      receipt = await this.consumeQuota(projectId, "push");
+      if (!options?.skipQuota) receipt = await this.consumeQuota(projectId, "push");
       const deliveries = await Promise.all(
         channels.map((channel) =>
           prisma.developerPushDelivery.create({
@@ -1346,7 +1428,7 @@ export class DeveloperProjectRepository {
         ),
       );
       hasSuccessfulDelivery = results.some((result) => result.success);
-      if (!hasSuccessfulDelivery) {
+      if (!hasSuccessfulDelivery && receipt) {
         await this.refundQuota(receipt).catch(() => {});
         quotaRefunded = true;
       }
@@ -1357,8 +1439,7 @@ export class DeveloperProjectRepository {
         });
       return results;
     } catch (error) {
-      if (receipt && !hasSuccessfulDelivery && !quotaRefunded)
-        await this.refundQuota(receipt).catch(() => {});
+      if (receipt && !hasSuccessfulDelivery && !quotaRefunded) await this.refundQuota(receipt).catch(() => {});
       if (body.idempotencyKey && !deliveriesCreated)
         await prisma.developerPushRequest.deleteMany({ where: { projectId, idempotencyKey: body.idempotencyKey } });
       throw error;

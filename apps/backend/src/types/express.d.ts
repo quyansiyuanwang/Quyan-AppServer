@@ -4,6 +4,7 @@ import { SuccessResponse, ErrorResponse } from "../api/response";
 import type { PermissionCheckResult } from "@/services/users/permission.service";
 import type { AccessKeyDto } from "@prisma/client";
 import type { DeveloperProjectApiKey } from "@prisma/client";
+import type { ProductKeyContext } from "@/services/developer/developer-product-platform.service";
 import type { RelayTokenWithChannel } from "@/store/relay/relay-token.repository";
 import { JWTPayload } from "@/util/auth";
 import type { BackendLocale, MessageDescriptor } from "@/locales";
@@ -30,7 +31,16 @@ export interface TypedRequest<T = undefined> extends Request {
   authContext?: {
     principalUserId: string;
     accountOwnerId: string;
-    subjectType: "root" | "sub_user" | "service" | "oauth" | "relay" | "access_key" | "project_key" | "impersonation";
+    subjectType:
+      | "root"
+      | "sub_user"
+      | "service"
+      | "oauth"
+      | "relay"
+      | "access_key"
+      | "project_key"
+      | "product_key"
+      | "impersonation";
     assumedRoleId?: string;
     roleSessionId?: string;
   };
@@ -38,6 +48,7 @@ export interface TypedRequest<T = undefined> extends Request {
   relayToken?: RelayTokenWithChannel; // 添加 relayToken 属性
   accessKey?: AccessKeyDto; // 可选的 accessKey 属性
   projectApiKey?: DeveloperProjectApiKey;
+  productApiKey?: ProductKeyContext;
   oauthAccessToken?: {
     id: string;
     oauthClientId: string;

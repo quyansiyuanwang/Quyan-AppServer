@@ -22,6 +22,7 @@ import { RedisService } from "./services/infrastructure/redis.service";
 import { getLogger, LogCategory } from "./util/logger";
 import { DEFAULT_BACKEND_LOCALE, translateMessage } from "./locales";
 import { createCorsOriginAllowlist, isCorsOriginAllowed } from "./util/cors-origin-matcher";
+import { ForbiddenError } from "./util/errors";
 
 const logger = getLogger("App", LogCategory.APPLICATION);
 const LARGE_REQUEST_LOG_THRESHOLD_BYTES = 1024 * 1024;
@@ -155,6 +156,25 @@ export function createApp() {
 
   // 流式响应中间件 - 拦截并处理 stream=true 的请求
   app.use(streamingMiddleware);
+
+  // The former DeveloperProject surface has been replaced by independently distributed products.
+  app.use((req, _res, next) => {
+    if (
+      req.path === "/v1/kv" ||
+      req.path.startsWith("/v1/kv/") ||
+      req.path === "/v1/developer" ||
+      req.path.startsWith("/v1/developer/")
+    ) {
+      next(
+        new ForbiddenError(
+          "旧 DeveloperProject API 已停用，请迁移至 /v1/products",
+          CustomCode.DEVELOPER_PRODUCT_LEGACY_DISABLED,
+        ),
+      );
+      return;
+    }
+    next();
+  });
 
   // 注册所有 TSOA 生成的路由（包括 auth, user, docs/openapi.json 等）
   // 必须在 Swagger UI 之前注册，以便 /docs/openapi.json 能正常工作

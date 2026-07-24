@@ -18354,6 +18354,2082 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/products/catalog": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerCatalog",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"properties": {
+											"supportsExternalApi": {
+												"type": "boolean"
+											},
+											"apiPath": {
+												"type": "string"
+											},
+											"name": {
+												"type": "string"
+											},
+											"code": {
+												"type": "string",
+												"enum": [
+													"push",
+													"status",
+													"kv",
+													"short_link",
+													"secret",
+													"verification",
+													"ip_geolocation"
+												]
+											},
+											"config": {
+												"$ref": "#/components/schemas/DeveloperProductConfigDto"
+											}
+										},
+										"required": [
+											"supportsExternalApi",
+											"name",
+											"code",
+											"config"
+										],
+										"type": "object"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/products/entitlements": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerListEntitlements",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductEntitlementDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/products/{product}/instances": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerListInstances",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductInstanceDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductSelfControllerCreateInstance",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductInstanceDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperProductInstanceDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/{product}/subjects": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerListSubjects",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductSubjectDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/{product}/instances/{instanceId}/keys": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerListKeys",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductApiKeyDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductSelfControllerCreateKey",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductApiKeyDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperProductApiKeyDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/{product}/instances/{instanceId}/keys/{keyId}": {
+			"delete": {
+				"operationId": "DeveloperProductSelfControllerRevokeKey",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "keyId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/kv/instances/{instanceId}/entries": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Omit_DeveloperKvValueDto.value_"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/kv/instances/{instanceId}/entries/{key}": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerGetKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerSetKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetKvValueDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProductResourceControllerDeleteKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/short_link/instances/{instanceId}/links": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListShortLinks",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperShortLinkDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerCreateShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateShortLinkDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/short_link/instances/{instanceId}/links/{id}": {
+			"put": {
+				"operationId": "DeveloperProductResourceControllerUpdateShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateShortLinkDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProductResourceControllerDeleteShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/short_link/instances/{instanceId}/links/{id}/stats": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerShortLinkStats",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkStatsDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/secret/instances/{instanceId}/secrets": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListSecrets",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperSecretDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerUpsertSecret",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperSecretDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpsertDeveloperSecretDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/secret/instances/{instanceId}/secrets/{alias}": {
+			"delete": {
+				"operationId": "DeveloperProductResourceControllerDeleteSecret",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "alias",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/status/instances/{instanceId}/monitors": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListMonitors",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerCreateMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperStatusMonitorDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/status/instances/{instanceId}/monitors/{id}": {
+			"put": {
+				"operationId": "DeveloperProductResourceControllerUpdateMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperStatusMonitorDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProductResourceControllerDeleteMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/status/instances/{instanceId}/monitors/{id}/check": {
+			"post": {
+				"operationId": "DeveloperProductResourceControllerCheckMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/status/instances/{instanceId}/page": {
+			"put": {
+				"operationId": "DeveloperProductResourceControllerUpdateStatusPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperStatusPageDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/push/instances/{instanceId}/channels": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListPushChannels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperPushChannelDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerCreatePushChannel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperPushChannelDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperPushChannelDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/push/instances/{instanceId}/deliveries": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListPushDeliveries",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperPushDeliveryDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/push/instances/{instanceId}/channels/{id}": {
+			"put": {
+				"operationId": "DeveloperProductResourceControllerUpdatePushChannel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperPushChannelDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperPushChannelDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProductResourceControllerDeletePushChannel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/kv/entries": {
+			"get": {
+				"operationId": "DeveloperProductKvApiControllerList",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Omit_DeveloperKvValueDto.value_"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"KV Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:kv:read"
+						]
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/products/kv/entries/{key}": {
+			"get": {
+				"operationId": "DeveloperProductKvApiControllerGet",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"KV Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:kv:read"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductKvApiControllerSet",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"KV Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:kv:write"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetKvValueDto"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "DeveloperProductKvApiControllerDelete",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"KV Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:kv:write"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/verification/send": {
+			"post": {
+				"operationId": "DeveloperProductVerificationApiControllerSend",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Verification Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:verification:send"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SendDeveloperVerificationDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/products/verification/verify": {
+			"post": {
+				"operationId": "DeveloperProductVerificationApiControllerVerify",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"valid": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"valid"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Verification Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:verification:verify"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/VerifyDeveloperCodeDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/products/ip-geolocation/{ip}": {
+			"get": {
+				"operationId": "DeveloperProductIpApiControllerLookup",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"$ref": "#/components/schemas/Record_string.unknown_"
+										},
+										{
+											"properties": {
+												"source": {
+													"type": "string"
+												},
+												"isp": {},
+												"asn": {},
+												"city": {},
+												"region": {},
+												"country": {},
+												"ip": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"source",
+												"isp",
+												"asn",
+												"city",
+												"region",
+												"country",
+												"ip"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IP Geolocation Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:ip_geolocation:lookup"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "ip",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/push/send": {
+			"post": {
+				"operationId": "DeveloperProductPushApiControllerSend",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperPushDeliveryDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Push Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:push:send"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SendDeveloperPushDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/admin/products/configs": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListConfigs",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductConfigDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/admin/products/{product}/config": {
+			"put": {
+				"operationId": "DeveloperProductAdminControllerUpdateConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductConfigDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperProductConfigDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/admin/products/entitlements": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListEntitlements",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductEntitlementDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/admin/products/{product}/entitlements": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListProductEntitlements",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductEntitlementDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductAdminControllerUpsertEntitlement",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductEntitlementDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpsertDeveloperProductEntitlementDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/admin/products/{product}/entitlements/{entitlementId}/usage": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerGetUsage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductUsageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "entitlementId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/admin/products/{product}/entitlements/{entitlementId}/calls": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListCallLogs",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductCallLogDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "entitlementId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/kv": {
 			"get": {
 				"operationId": "DeveloperKvApiControllerList",
@@ -23444,7 +25520,10 @@
 					1039,
 					1040,
 					1041,
-					1042
+					1042,
+					1043,
+					1044,
+					1045
 				],
 				"type": "number"
 			},
@@ -24772,6 +26851,32 @@
 					"balance:read",
 					"balance:recharge",
 					"developer:quota:manage",
+					"developer:product:catalog:manage",
+					"developer:product:entitlement:manage",
+					"developer:product:config:manage",
+					"product:kv:read",
+					"product:kv:write",
+					"product:kv:manage",
+					"product:short_link:read",
+					"product:short_link:write",
+					"product:short_link:manage",
+					"product:secret:read",
+					"product:secret:write",
+					"product:secret:use",
+					"product:secret:manage",
+					"product:status:read",
+					"product:status:write",
+					"product:status:publish",
+					"product:status:manage",
+					"product:verification:send",
+					"product:verification:verify",
+					"product:verification:manage",
+					"product:ip_geolocation:lookup",
+					"product:ip_geolocation:manage",
+					"product:push:send",
+					"product:push:channel:manage",
+					"product:push:delivery:read",
+					"product:push:manage",
 					"monthly_pass:template:read",
 					"monthly_pass:template:write",
 					"monthly_pass:assignment:read",
@@ -37882,6 +39987,260 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"DeveloperProductCode": {
+				"type": "string",
+				"enum": [
+					"push",
+					"status",
+					"kv",
+					"short_link",
+					"secret",
+					"verification",
+					"ip_geolocation"
+				]
+			},
+			"DeveloperProductConfigDto": {
+				"properties": {
+					"productCode": {
+						"$ref": "#/components/schemas/DeveloperProductCode"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"defaultDailyQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"overagePrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"defaultInstanceLimit": {
+						"type": "number",
+						"format": "double"
+					},
+					"retentionDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"resourceLimits": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"settings": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					}
+				},
+				"required": [
+					"productCode",
+					"enabled",
+					"defaultDailyQuota",
+					"overagePrice",
+					"defaultInstanceLimit",
+					"retentionDays"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductEntitlementDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"accountOwnerId": {
+						"type": "string"
+					},
+					"productCode": {
+						"$ref": "#/components/schemas/DeveloperProductCode"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					},
+					"instanceLimit": {
+						"type": "number",
+						"format": "double"
+					},
+					"startsAt": {
+						"type": "string"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"ownerPolicyId": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"accountOwnerId",
+					"productCode",
+					"enabled",
+					"overageEnabled",
+					"instanceLimit",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductInstanceDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"productCode": {
+						"$ref": "#/components/schemas/DeveloperProductCode"
+					},
+					"entitlementId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"productCode",
+					"entitlementId",
+					"name",
+					"slug",
+					"enabled",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperProductInstanceDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"slug"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductSubjectDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"displayName": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"username"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductApiKeyDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"keyPrefix": {
+						"type": "string"
+					},
+					"subjectUserId": {
+						"type": "string"
+					},
+					"actions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"lastUsedAt": {
+						"type": "string"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"key": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"keyPrefix",
+					"subjectUserId",
+					"actions",
+					"requestCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperProductApiKeyDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"subjectUserId": {
+						"type": "string"
+					},
+					"actions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"expiresAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"subjectUserId",
+					"actions"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"SendDeveloperVerificationDto": {
 				"properties": {
 					"channel": {
@@ -37956,6 +40315,198 @@
 					"channelIds",
 					"title",
 					"content"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Pick_DeveloperProductConfigDto.Exclude_keyofDeveloperProductConfigDto.productCode__": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"defaultDailyQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"overagePrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"defaultInstanceLimit": {
+						"type": "number",
+						"format": "double"
+					},
+					"retentionDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"resourceLimits": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"settings": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					}
+				},
+				"required": [
+					"enabled",
+					"defaultDailyQuota",
+					"overagePrice",
+					"defaultInstanceLimit",
+					"retentionDays"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"UpdateDeveloperProductConfigDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"defaultDailyQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"overagePrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"defaultInstanceLimit": {
+						"type": "number",
+						"format": "double"
+					},
+					"retentionDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"resourceLimits": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"settings": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					}
+				},
+				"required": [
+					"enabled",
+					"defaultDailyQuota",
+					"overagePrice",
+					"defaultInstanceLimit",
+					"retentionDays"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductUsageDto": {
+				"properties": {
+					"entitlementId": {
+						"type": "string"
+					},
+					"productCode": {
+						"$ref": "#/components/schemas/DeveloperProductCode"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"remainingFree": {
+						"type": "number",
+						"format": "double"
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"entitlementId",
+					"productCode",
+					"requestCount",
+					"dailyFreeQuota",
+					"remainingFree",
+					"overageEnabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductCallLogDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"entitlementId": {
+						"type": "string"
+					},
+					"instanceId": {
+						"type": "string"
+					},
+					"keyId": {
+						"type": "string"
+					},
+					"subjectUserId": {
+						"type": "string"
+					},
+					"action": {
+						"type": "string"
+					},
+					"success": {
+						"type": "boolean"
+					},
+					"errorCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"chargeAmount": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"entitlementId",
+					"action",
+					"success",
+					"chargeAmount",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpsertDeveloperProductEntitlementDto": {
+				"properties": {
+					"accountOwnerId": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					},
+					"instanceLimit": {
+						"type": "number",
+						"format": "double"
+					},
+					"startsAt": {
+						"type": "string",
+						"nullable": true
+					},
+					"expiresAt": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"required": [
+					"accountOwnerId"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -41595,6 +44146,12 @@
 				"name": "Authorization",
 				"in": "header",
 				"description": "项目 API Key (Bearer dk_...)"
+			},
+			"product-key": {
+				"type": "apiKey",
+				"name": "Authorization",
+				"in": "header",
+				"description": "产品 API Key (Bearer dpk_...)"
 			},
 			"local-or-jwt": {
 				"type": "apiKey",

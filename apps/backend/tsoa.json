@@ -36,6 +36,12 @@
             "in": "header",
             "description": "项目 API Key (Bearer dk_...)"
           },
+          "product-key": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "产品 API Key (Bearer dpk_...)"
+          },
           "local-or-jwt": {
             "type": "apiKey",
             "name": "Authorization",
