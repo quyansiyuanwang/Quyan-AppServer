@@ -1639,6 +1639,9 @@ const zhCN: DeepStringify<typeof en> = {
     updateFailed: '更新用户组失败',
     deleteFailed: '删除用户组失败',
     permissionSaveFailed: '保存权限失败',
+    permissionLoadFailed: '加载用户组权限失败，请重试。',
+    permissionAssignmentHint:
+      '权限按功能和资源分组。新增与移除会分别按你拥有的权限校验，保存前仅会提交允许的变更。',
     usernameRequired: '标识为必填项',
     levelRequired: '级别为必填项',
     cannotDeleteWithUsers: '无法删除仍有用户的组',
@@ -1686,6 +1689,9 @@ const zhCN: DeepStringify<typeof en> = {
     searchPlaceholder: '搜索权限...',
     selectAll: '全选',
     clearAll: '清空',
+    expandAll: '全部展开',
+    collapseAll: '全部收起',
+    expandNextLevel: '展开下一级',
     noMatchingPermissions: '没有找到匹配的权限',
   },
   UserPermissionDialog: {

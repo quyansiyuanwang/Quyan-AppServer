@@ -350,7 +350,8 @@ export default {
     unpublish: 'Unpublish status page',
     openStatusPage: 'Open status page',
     testApiKey: 'API key for testing',
-    testApiKeyHint: 'Kept only in this page memory and cleared when the instance drawer closes. Test requests use real permissions and quota.',
+    testApiKeyHint:
+      'Kept only in this page memory and cleared when the instance drawer closes. Test requests use real permissions and quota.',
     testResult: 'Response',
     invalidTestRequest: 'Enter the API key and all required request fields.',
     testRequestSucceeded: 'The test request completed successfully.',
@@ -378,8 +379,10 @@ export default {
     pushDescription: 'Credentials reference a secret alias and are never displayed.',
     addChannel: 'Add channel',
     secretAlias: 'Secret alias (optional)',
-    secretAliasHint: 'Start with an uppercase letter; use uppercase letters, digits, and underscores only.',
-    invalidSecretAlias: 'The secret alias must start with an uppercase letter and contain only uppercase letters, digits, and underscores.',
+    secretAliasHint:
+      'Start with an uppercase letter; use uppercase letters, digits, and underscores only.',
+    invalidSecretAlias:
+      'The secret alias must start with an uppercase letter and contain only uppercase letters, digits, and underscores.',
     deliveryLogs: 'Delivery logs',
     attempts: 'Attempts',
     error: 'Error',
@@ -1700,6 +1703,9 @@ export default {
     updateFailed: 'Failed to update group',
     deleteFailed: 'Failed to delete group',
     permissionSaveFailed: 'Failed to save permissions',
+    permissionLoadFailed: 'Failed to load group permissions. Please try again.',
+    permissionAssignmentHint:
+      'Permissions are grouped by capability and resource. Additions and removals are checked separately against your own permissions before saving.',
     usernameRequired: 'Identifier is required',
     levelRequired: 'Level is required',
     cannotDeleteWithUsers: 'Cannot delete group that still has users',
@@ -1747,6 +1753,9 @@ export default {
     searchPlaceholder: 'Search permissions...',
     selectAll: 'Select All',
     clearAll: 'Clear All',
+    expandAll: 'Expand All',
+    collapseAll: 'Collapse All',
+    expandNextLevel: 'Expand Next Level',
     noMatchingPermissions: 'No matching permissions found',
   },
   UserPermissionDialog: {

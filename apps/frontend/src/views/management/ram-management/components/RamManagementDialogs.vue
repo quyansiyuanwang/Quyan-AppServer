@@ -248,27 +248,14 @@
       </el-form-item>
       <el-form-item :label="i18ns.t('RamManagement.permissions')" prop="permissions">
         <div class="permission-tree-container">
-          <el-tree
+          <PermissionTreeSelector
             v-if="permissionTree.length > 0"
-            ref="policyPermTreeRef"
+            v-model="policyForm.permissions"
             :data="permissionTree"
-            show-checkbox
-            node-key="value"
-            @check="onPolicyTreeCheck"
-          >
-            <template #default="{ data }">
-              <el-tooltip
-                v-if="data.tooltip"
-                :content="data.tooltip"
-                placement="right"
-                :show-after="300"
-              >
-                <span>{{ data.label }}</span>
-                <code class="perm-source">{{ data.value }}</code>
-              </el-tooltip>
-              <span v-else>{{ data.label }}</span>
-            </template>
-          </el-tree>
+            :search-placeholder="i18ns.t('PermissionSelector.searchPlaceholder')"
+            :empty-text="i18ns.t('RamManagement.noGrantablePermissions')"
+            filterable
+          />
           <el-empty v-else :description="i18ns.t('RamManagement.noGrantablePermissions')" />
         </div>
       </el-form-item>
@@ -359,6 +346,7 @@
 
 <script setup lang="ts">
 import { Plus } from '@element-plus/icons-vue'
+import PermissionTreeSelector from '@/components/permission/PermissionTreeSelector.vue'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
 
@@ -385,14 +373,12 @@ const {
   editingUser,
   groups,
   loading,
-  onPolicyTreeCheck,
   passwordDialogVisible,
   permissionTree,
   policyAttachments,
   policyDialogVisible,
   policyForm,
   policyFormRef,
-  policyPermTreeRef,
   policyRules,
   resetPolicyForm,
   resetRoleForm,

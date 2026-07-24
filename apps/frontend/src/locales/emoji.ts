@@ -1822,6 +1822,8 @@ const emoji: DeepStringify<typeof en> = {
     updateFailed: '💥 ➡️ 🆙 🚮',
     deleteFailed: '💥 ➡️ 🗑️ 🚮',
     permissionSaveFailed: '💥 ➡️ 💾 🛂',
+    permissionLoadFailed: '💥 📥 👥 🛂 🔁',
+    permissionAssignmentHint: '🛂 🗂️ ⚙️ 📦 · ➕ ➖ 🔐 ✅ 💾',
     usernameRequired: '🚮 ⚖️ ❗',
     levelRequired: '🛂 ⚖️ ❗',
     cannotDeleteWithUsers: '😉 🗑️ 🚮 👉 📰 ✒️ 👤',
@@ -1869,6 +1871,9 @@ const emoji: DeepStringify<typeof en> = {
     searchPlaceholder: '🔍 🛂',
     selectAll: '👆 🌌',
     clearAll: '🧽 🌌',
+    expandAll: '⏬ 🌌',
+    collapseAll: '⏫ 🌌',
+    expandNextLevel: '⏬ 1️⃣',
     noMatchingPermissions: '👎 💜 🛂 👺',
   },
   UserPermissionDialog: {

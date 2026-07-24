@@ -23,7 +23,7 @@
           <el-icon v-if="option.disabled && isInRight(option.value)" class="lock-icon">
             <Lock />
           </el-icon>
-          <span class="permission-name">{{ getPermissionDisplayName(option.value) }}</span>
+          <span class="permission-name">{{ getPermissionLabel(option.value, i18ns.locale) }}</span>
           <el-tag size="small" :type="getTagType(option)" effect="light" style="flex-shrink: 0">
             {{ getTagText(option) }}
           </el-tag>
@@ -60,8 +60,12 @@
 import { computed } from 'vue'
 import { InfoFilled, Lock } from '@element-plus/icons-vue'
 import type { Permission } from '@/client/types.gen'
-import { getPermissionDisplayName } from '@/constant/permission'
+import { getPermissionLabel } from '@/constant/permission'
 import { i18ns } from '@/locales'
+import {
+  getPermissionCategoryId,
+  getPermissionCategoryTranslationKey,
+} from '@/views/management/permission-tree'
 
 interface PermissionItem {
   category: string
@@ -103,9 +107,9 @@ const disabledSet = computed(() => new Set(props.disabledPermissions))
 const transferData = computed<TransferDataItem[]>(() =>
   props.allPermissions.map((perm) => ({
     value: perm.value,
-    label: `${perm.name} (${perm.value})`,
-    name: perm.name,
-    category: perm.category,
+    label: `${getPermissionLabel(perm.value, i18ns.locale)} (${perm.value})`,
+    name: getPermissionLabel(perm.value, i18ns.locale),
+    category: getPermissionCategoryId(perm.value),
     disabled: disabledSet.value.has(perm.value),
   })),
 )
@@ -136,7 +140,7 @@ const getTagText = (option: TransferDataItem) => {
   if (inRight && option.disabled) return i18ns.t('UserPermissionDialog.groupTag')
   if (inRight && !option.disabled) return i18ns.t('UserPermissionDialog.customTag')
   if (!inRight && option.disabled) return i18ns.t('UserPermissionDialog.removedTag')
-  return option.category
+  return i18ns.t(getPermissionCategoryTranslationKey(option.category, 'label'))
 }
 
 const getItemClass = (option: TransferDataItem) => ({

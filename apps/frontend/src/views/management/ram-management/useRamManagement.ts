@@ -1,4 +1,4 @@
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
@@ -63,7 +63,6 @@ export function useRamManagement() {
   const userFormRef = ref<FormInstance>()
   const roleFormRef = ref<FormInstance>()
   const policyFormRef = ref<FormInstance>()
-  const policyPermTreeRef = ref<any>()
 
   const userSearch = ref('')
   const roleSearch = ref('')
@@ -738,24 +737,13 @@ export function useRamManagement() {
       }
     }
     policyDialogVisible.value = true
-    nextTick(() => {
-      policyPermTreeRef.value?.setCheckedKeys(policyForm.permissions)
-      policyFormRef.value?.clearValidate()
-    })
+    policyFormRef.value?.clearValidate()
   }
 
   const resetPolicyForm = () => {
     editingPolicy.value = null
     Object.assign(policyForm, { name: '', description: '', permissions: [] })
-    policyPermTreeRef.value?.setCheckedKeys([])
     policyFormRef.value?.clearValidate()
-  }
-
-  const onPolicyTreeCheck = () => {
-    policyForm.permissions = filterGrantablePermissions(
-      policyPermTreeRef.value?.getCheckedKeys() ?? [],
-      grantablePermissions.value,
-    )
   }
 
   const getGrantablePolicyPermissions = () =>
@@ -942,7 +930,6 @@ export function useRamManagement() {
     loadPolicyAttachments,
     loadSessions,
     loading,
-    onPolicyTreeCheck,
     openBindDialog,
     openPolicyAttachments,
     openPolicyDialog,
@@ -956,7 +943,6 @@ export function useRamManagement() {
     policyDialogVisible,
     policyForm,
     policyFormRef,
-    policyPermTreeRef,
     policyRules,
     policySearch,
     resetPolicyForm,
