@@ -7,6 +7,7 @@ import type {
   UpdateDeveloperStatusPageDto,
   UpdateShortLinkDto,
   UpdateDeveloperProductConfigDto,
+  UpdateDeveloperProductAccountDto,
 } from '@/client/types.gen'
 import { createDeveloperProductAdminControllerApi } from '@/client/services/developer-product-admin-controller.gen'
 import { createDeveloperProductSelfControllerApi } from '@/client/services/developer-product-self-controller.gen'
@@ -205,6 +206,33 @@ export class DeveloperProductService {
   async listAccounts(product?: DeveloperProductCode) {
     if (product) return this.unwrap(await adminApi().listProductAccounts({ path: { product } }))
     return this.unwrap(await adminApi().listAccounts({}))
+  }
+
+  async listManagedAccounts(
+    product: DeveloperProductCode,
+    params: { page?: number; pageSize?: number; keyword?: string } = {},
+  ) {
+    return this.unwrap(await adminApi().listManagedAccounts({ path: { product }, params }))
+  }
+
+  async updateManagedAccount(
+    product: DeveloperProductCode,
+    userId: string,
+    body: UpdateDeveloperProductAccountDto,
+  ) {
+    return this.unwrap(await adminApi().updateManagedAccount({ path: { product, userId }, body }))
+  }
+
+  async listManagedInstances(product: DeveloperProductCode, userId: string) {
+    return this.unwrap(await adminApi().listManagedInstances({ path: { product, userId } }))
+  }
+
+  async getManagedUsage(product: DeveloperProductCode, userId: string) {
+    return this.unwrap(await adminApi().getManagedUsage({ path: { product, userId } }))
+  }
+
+  async listManagedCallLogs(product: DeveloperProductCode, userId: string) {
+    return this.unwrap(await adminApi().listManagedCallLogs({ path: { product, userId } }))
   }
 }
 

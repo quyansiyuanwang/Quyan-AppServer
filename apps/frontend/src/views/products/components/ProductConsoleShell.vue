@@ -137,6 +137,16 @@
               ><template #default="{ row }"
                 ><code>{{ row.keyPrefix }}...</code></template
               ></el-table-column
+            ><el-table-column :label="t('productConsole.keyActions')" min-width="180"
+              ><template #default="{ row }"
+                ><el-tag
+                  v-for="action in row.actions"
+                  :key="action"
+                  class="action-tag"
+                  size="small"
+                  >{{ productActionLabel(action) }}</el-tag
+                ></template
+              ></el-table-column
             ><el-table-column :label="t('productConsole.expiresAt')" min-width="150"
               ><template #default="{ row }">{{
                 formatDate(row.expiresAt)
@@ -198,41 +208,89 @@
       :title="t('productConsole.createKey')"
       width="520px"
       destroy-on-close
-      ><el-alert v-if="keyFormError" type="error" :title="keyFormError" :closable="false" /><el-form
-        label-position="top"
-        ><el-form-item :label="t('productConsole.keyName')"
-          ><el-input v-model="keyForm.name" /></el-form-item
-        ><el-form-item :label="t('productConsole.keySubject')"
-          ><el-select v-model="keyForm.subjectUserId" filterable style="width: 100%"
-            ><el-option
+    >
+      <el-alert v-if="keyFormError" type="error" :title="keyFormError" :closable="false" />
+      <el-form label-position="top">
+        <el-form-item :label="t('productConsole.keyName')"
+          ><el-input v-model="keyForm.name"
+        /></el-form-item>
+        <el-form-item
+          :label="
+            canDelegateKeySubject
+              ? t('productConsole.keySubject')
+              : t('productConsole.keyCurrentSubject')
+          "
+        >
+          <el-select
+            v-if="canDelegateKeySubject"
+            v-model="keyForm.subjectUserId"
+            filterable
+            style="width: 100%"
+            @change="syncKeyActions"
+          >
+            <el-option
               v-for="subject in subjects"
               :key="subject.id"
               :value="subject.id"
-              :label="userLabel(subject)" /></el-select></el-form-item
-        ><el-form-item :label="t('productConsole.keyActions')"
-          ><el-checkbox-group v-model="keyForm.actions"
-            ><el-checkbox v-for="action in actions" :key="action" :value="action">{{
-              action
-            }}</el-checkbox></el-checkbox-group
-          ></el-form-item
-        ><el-form-item :label="t('productConsole.expiresAtOptional')"
-          ><el-date-picker
-            v-model="keyForm.expiresAt"
-            type="datetime"
-            style="width: 100%" /></el-form-item></el-form
-      ><template #footer
+              :label="userLabel(subject)"
+            />
+          </el-select>
+          <el-input
+            v-else
+            :model-value="selectedSubject ? userLabel(selectedSubject) : ''"
+            disabled
+          />
+          <p class="field-hint">{{ t('productConsole.keySubjectHint') }}</p>
+        </el-form-item>
+        <el-form-item :label="t('productConsole.keyActions')">
+          <el-checkbox-group v-model="keyForm.actions">
+            <el-checkbox v-for="action in availableKeyActions" :key="action" :value="action">{{
+              productActionLabel(action)
+            }}</el-checkbox>
+          </el-checkbox-group>
+        </el-form-item>
+        <el-form-item :label="t('productConsole.expiresAtOptional')"
+          ><el-date-picker v-model="keyForm.expiresAt" type="datetime" style="width: 100%"
+        /></el-form-item>
+      </el-form>
+      <template #footer
         ><el-button @click="keyDialog = false">{{ t('cancel') }}</el-button
         ><el-button type="primary" :loading="keySubmitting" @click="createKey">{{
           t('create')
         }}</el-button></template
-      ></el-dialog
+      >
+    </el-dialog>
+    <el-dialog
+      v-model="createdKeyDialog"
+      :title="t('productConsole.saveKeyTitle')"
+      width="560px"
+      :show-close="false"
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
+      :before-close="() => undefined"
     >
+      <el-input :model-value="createdKey" readonly>
+        <template #append
+          ><el-button
+            :icon="DocumentCopy"
+            :aria-label="t('productConsole.copyKey')"
+            @click="copyCreatedKey"
+            >{{ t('productConsole.copyKey') }}</el-button
+          ></template
+        >
+      </el-input>
+      <template #footer
+        ><el-button type="primary" @click="clearCreatedKey">{{
+          t('productConsole.savedKey')
+        }}</el-button></template
+      >
+    </el-dialog>
   </main>
 </template>
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Key, Plus, Refresh } from '@element-plus/icons-vue'
+import { DocumentCopy, Key, Plus, Refresh } from '@element-plus/icons-vue'
 import type {
   DeveloperProductCode,
   DeveloperProductInstanceDto,
@@ -247,6 +305,8 @@ import {
 import { i18ns } from '@/locales'
 import { resolveDocsUrl } from '@/config/docs'
 import { getErrorMessage } from '@/utils/error-utils'
+import { copyTextWithFallback } from '@/utils/clipboard'
+import { productActionLabel } from '@/views/products/developer-product-ui'
 const props = defineProps<{
   product: DeveloperProductCode
   title: string
@@ -273,6 +333,8 @@ const instances = ref<DeveloperProductInstanceDto[]>([]),
   config = ref<Awaited<ReturnType<typeof developerProductService.listConfigs>>[number]>(),
   instanceDialog = ref(false),
   keyDialog = ref(false),
+  createdKeyDialog = ref(false),
+  createdKey = ref(''),
   instanceForm = ref({ name: '', slug: '' }),
   keyForm = ref({
     name: '',
@@ -294,11 +356,20 @@ const canManage = computed(() =>
 )
 const hasPermission = (permission: string) => permissionStore.hasPermission(permission)
 const userLabel = (subject: DeveloperProductSubjectDto) => subject.displayName || subject.username
+const selectedSubject = computed(() =>
+  subjects.value.find((subject) => subject.id === keyForm.value.subjectUserId),
+)
+const availableKeyActions = computed(() => selectedSubject.value?.allowedActions || [])
+const canDelegateKeySubject = computed(() => subjects.value.length > 1)
 const formatDate = (value?: string | null) =>
   value ? new Date(value).toLocaleString() : t('productConsole.neverExpires')
 const resetKeyForm = () => {
   keyForm.value = { name: '', subjectUserId: '', actions: [], expiresAt: null }
   keyFormError.value = ''
+}
+const syncKeyActions = () => {
+  const allowed = new Set(availableKeyActions.value)
+  keyForm.value.actions = keyForm.value.actions.filter((action) => allowed.has(action))
 }
 const clearSelection = () => {
   selectedInstance.value = undefined
@@ -327,6 +398,8 @@ const openInstanceDialog = () => {
 }
 const openKeyDialog = () => {
   resetKeyForm()
+  const [subject] = subjects.value
+  if (subjects.value.length === 1 && subject) keyForm.value.subjectUserId = subject.id
   keyDialog.value = true
 }
 const loadKeys = async () => {
@@ -362,6 +435,7 @@ const load = async () => {
     config.value = configs.find((item) => item.code === props.product)?.config
     instances.value = nextInstances
     subjects.value = nextSubjects
+    if (keyForm.value.subjectUserId) syncKeyActions()
     if (selectedInstance.value) {
       selectedInstance.value = nextInstances.find((item) => item.id === selectedInstance.value?.id)
       if (!selectedInstance.value) drawerOpen.value = false
@@ -420,15 +494,23 @@ const createKey = async () => {
     )
     await loadKeys()
     keyDialog.value = false
-    await ElMessageBox.alert(result.key || '', t('productConsole.saveKeyTitle'), {
-      confirmButtonText: t('productConsole.savedKey'),
-    })
+    createdKey.value = result.key || ''
+    createdKeyDialog.value = Boolean(createdKey.value)
   } catch (cause) {
     keyFormError.value = getErrorMessage(cause, t('productFeedback.operationFailed'))
     ElMessage.error(keyFormError.value)
   } finally {
     keySubmitting.value = false
   }
+}
+const copyCreatedKey = async () => {
+  if (!createdKey.value) return
+  if (await copyTextWithFallback(createdKey.value)) ElMessage.success(t('productConsole.keyCopied'))
+  else ElMessage.error(t('message.error.copyFailed'))
+}
+const clearCreatedKey = () => {
+  createdKey.value = ''
+  createdKeyDialog.value = false
 }
 const revokeKey = async (keyId: string) => {
   if (!selectedInstance.value || keyActionLoading.value) return
@@ -581,6 +663,15 @@ onMounted(load)
 }
 .resource-section {
   min-height: 180px;
+}
+.field-hint {
+  margin: 6px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.action-tag {
+  margin: 0 4px 4px 0;
 }
 @media (max-width: 720px) {
   .product-console {

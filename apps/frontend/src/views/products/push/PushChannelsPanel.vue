@@ -19,7 +19,9 @@
     </el-alert>
     <el-table v-if="canManageChannels" v-loading="channelsLoading" :data="channels">
       <el-table-column prop="name" :label="t('productResources.name')" min-width="140" />
-      <el-table-column prop="type" :label="t('productResources.type')" width="110" />
+      <el-table-column :label="t('productResources.type')" width="140">
+        <template #default="{ row }">{{ pushChannelTypeLabel(row.type) }}</template>
+      </el-table-column>
       <el-table-column
         prop="endpoint"
         :label="t('productResources.endpoint')"
@@ -111,10 +113,12 @@
         /></el-form-item>
         <el-form-item v-if="!editing" :label="t('productResources.type')"
           ><el-select v-model="form.type"
-            ><el-option label="Webhook" value="webhook" /><el-option
-              label="DingTalk"
-              value="dingtalk" /><el-option label="Feishu" value="feishu" /><el-option
-              label="WeCom"
+            ><el-option :label="pushChannelTypeLabel('webhook')" value="webhook" /><el-option
+              :label="pushChannelTypeLabel('dingtalk')"
+              value="dingtalk" /><el-option
+              :label="pushChannelTypeLabel('feishu')"
+              value="feishu" /><el-option
+              :label="pushChannelTypeLabel('wechat_work')"
               value="wechat_work" /></el-select
         ></el-form-item>
         <el-form-item :label="t('productResources.endpoint')"
@@ -146,6 +150,7 @@ import { Permission } from '@/constant/permission'
 import { developerProductService } from '@/service/developerProductService'
 import { i18ns } from '@/locales'
 import { getErrorMessage } from '@/utils/error-utils'
+import { pushChannelTypeLabel } from '@/views/products/developer-product-ui'
 
 const { t } = i18ns
 const props = defineProps<{

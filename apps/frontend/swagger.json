@@ -20486,6 +20486,256 @@
 				]
 			}
 		},
+		"/v1/admin/products/{product}/users": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListManagedAccounts",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductManagedAccountsDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/admin/products/{product}/users/{userId}/account": {
+			"put": {
+				"operationId": "DeveloperProductAdminControllerUpdateManagedAccount",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductManagedAccountDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperProductAccountDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/admin/products/{product}/users/{userId}/instances": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListManagedInstances",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductInstanceDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/admin/products/{product}/users/{userId}/usage": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerGetManagedUsage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductUsageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/admin/products/{product}/users/{userId}/calls": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListManagedCallLogs",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductCallLogDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/admin/products/{product}/accounts/{accountId}/usage": {
 			"get": {
 				"operationId": "DeveloperProductAdminControllerGetUsage",
@@ -40345,11 +40595,18 @@
 					},
 					"displayName": {
 						"type": "string"
+					},
+					"allowedActions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
 					}
 				},
 				"required": [
 					"id",
-					"username"
+					"username",
+					"allowedActions"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -40556,6 +40813,12 @@
 					"accountOwnerId": {
 						"type": "string"
 					},
+					"accountOwnerUsername": {
+						"type": "string"
+					},
+					"accountOwnerDisplayName": {
+						"type": "string"
+					},
 					"productCode": {
 						"$ref": "#/components/schemas/DeveloperProductCode"
 					},
@@ -40585,6 +40848,81 @@
 					"instanceLimit",
 					"createTime",
 					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductManagedAccountDto": {
+				"properties": {
+					"userId": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"displayName": {
+						"type": "string"
+					},
+					"account": {
+						"$ref": "#/components/schemas/DeveloperProductAccountDto"
+					}
+				},
+				"required": [
+					"userId",
+					"username"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductManagedAccountsDto": {
+				"properties": {
+					"records": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperProductManagedAccountDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"records",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateDeveloperProductAccountDto": {
+				"properties": {
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					},
+					"instanceLimit": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"dailyFreeQuota",
+					"overageEnabled",
+					"instanceLimit"
 				],
 				"type": "object",
 				"additionalProperties": false

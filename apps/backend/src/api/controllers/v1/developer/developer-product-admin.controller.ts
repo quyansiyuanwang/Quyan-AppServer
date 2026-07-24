@@ -1,19 +1,27 @@
-import { Body, Controller, Get, Middlewares, Path, Put, Route, Security, Tags } from "@tsoa/runtime";
+import { Body, Controller, Get, Middlewares, Path, Put, Query, Request, Route, Security, Tags } from "@tsoa/runtime";
+import type { TypedRequest } from "@/types/express";
 import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
 import type {
   DeveloperProductCallLogDto,
   DeveloperProductConfigDto,
   DeveloperProductAccountDto,
+  DeveloperProductManagedAccountDto,
+  DeveloperProductManagedAccountsDto,
+  DeveloperProductInstanceDto,
   DeveloperProductUsageDto,
+  UpdateDeveloperProductAccountDto,
   UpdateDeveloperProductConfigDto,
 } from "@/api/dto/developer/product-platform.dto";
 import {
   productCodeParamsSchema,
   productAccountParamsSchema,
   updateProductConfigBodySchema,
+  productUserParamsSchema,
+  managedProductAccountsQuerySchema,
+  updateProductAccountBodySchema,
 } from "@/api/schema/developer/product-platform.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
-import { validateBody, validateParams } from "@/middleware/validation";
+import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { DeveloperProductCode } from "@appserver/shared";
@@ -53,10 +61,66 @@ export class DeveloperProductAdminController extends Controller {
   @Get("{product}/accounts")
   @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
   @Middlewares(validateParams(productCodeParamsSchema))
-  public async listProductAccounts(
-    @Path() product: DeveloperProductCode,
-  ): Promise<DeveloperProductAccountDto[]> {
+  public async listProductAccounts(@Path() product: DeveloperProductCode): Promise<DeveloperProductAccountDto[]> {
     return this.service.listAccounts(product);
+  }
+
+  @Get("{product}/users")
+  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
+  @Middlewares(validateParams(productCodeParamsSchema), validateQuery(managedProductAccountsQuerySchema))
+  public async listManagedAccounts(
+    @Path() product: DeveloperProductCode,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+    @Query() keyword?: string,
+  ): Promise<DeveloperProductManagedAccountsDto> {
+    return this.service.listManagedAccounts(product, page ?? 1, pageSize ?? 20, keyword);
+  }
+
+  @Put("{product}/users/{userId}/account")
+  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateParams(productUserParamsSchema),
+    validateBody(updateProductAccountBodySchema),
+  )
+  public async updateManagedAccount(
+    @Path() product: DeveloperProductCode,
+    @Path() userId: string,
+    @Body() body: UpdateDeveloperProductAccountDto,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperProductManagedAccountDto> {
+    return this.service.updateManagedAccount(request.user!.userId, product, userId, body);
+  }
+
+  @Get("{product}/users/{userId}/instances")
+  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
+  @Middlewares(validateParams(productUserParamsSchema))
+  public async listManagedInstances(
+    @Path() product: DeveloperProductCode,
+    @Path() userId: string,
+  ): Promise<DeveloperProductInstanceDto[]> {
+    return this.service.listManagedInstances(product, userId);
+  }
+
+  @Get("{product}/users/{userId}/usage")
+  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
+  @Middlewares(validateParams(productUserParamsSchema))
+  public async getManagedUsage(
+    @Path() product: DeveloperProductCode,
+    @Path() userId: string,
+  ): Promise<DeveloperProductUsageDto> {
+    return this.service.getManagedUsage(product, userId);
+  }
+
+  @Get("{product}/users/{userId}/calls")
+  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
+  @Middlewares(validateParams(productUserParamsSchema))
+  public async listManagedCallLogs(
+    @Path() product: DeveloperProductCode,
+    @Path() userId: string,
+  ): Promise<DeveloperProductCallLogDto[]> {
+    return this.service.listManagedCallLogs(product, userId);
   }
 
   @Get("{product}/accounts/{accountId}/usage")
@@ -78,5 +142,4 @@ export class DeveloperProductAdminController extends Controller {
   ): Promise<DeveloperProductCallLogDto[]> {
     return this.service.listCallLogs(product, accountId);
   }
-
 }

@@ -40,8 +40,6 @@ import {
   createPushChannelBodySchema,
   createShortLinkBodySchema,
   createStatusMonitorBodySchema,
-  idParamsSchema,
-  kvKeyParamsSchema,
   setKvValueBodySchema,
   updatePushChannelBodySchema,
   updateShortLinkBodySchema,
@@ -49,7 +47,12 @@ import {
   updateStatusPageBodySchema,
   upsertSecretBodySchema,
 } from "@/api/schema/developer/developer.schema";
-import { productResourceInstanceParamsSchema } from "@/api/schema/developer/product-platform.schema";
+import {
+  productResourceAliasParamsSchema,
+  productResourceIdParamsSchema,
+  productResourceInstanceParamsSchema,
+  productResourceKvParamsSchema,
+} from "@/api/schema/developer/product-platform.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams } from "@/middleware/validation";
 
@@ -77,7 +80,7 @@ export class DeveloperProductResourceController extends Controller {
   }
 
   @Get("kv/instances/{instanceId}/entries/{key}")
-  @Middlewares(validateParams(productResourceInstanceParamsSchema), validateParams(kvKeyParamsSchema))
+  @Middlewares(validateParams(productResourceKvParamsSchema))
   public async getKv(
     @Path() instanceId: string,
     @Path() key: string,
@@ -90,8 +93,7 @@ export class DeveloperProductResourceController extends Controller {
   @Post("kv/instances/{instanceId}/entries/{key}")
   @Middlewares(
     replayProtectionMiddleware,
-    validateParams(productResourceInstanceParamsSchema),
-    validateParams(kvKeyParamsSchema),
+    validateParams(productResourceKvParamsSchema),
     validateBody(setKvValueBodySchema),
   )
   public async setKv(
@@ -105,11 +107,7 @@ export class DeveloperProductResourceController extends Controller {
   }
 
   @Delete("kv/instances/{instanceId}/entries/{key}")
-  @Middlewares(
-    replayProtectionMiddleware,
-    validateParams(productResourceInstanceParamsSchema),
-    validateParams(kvKeyParamsSchema),
-  )
+  @Middlewares(replayProtectionMiddleware, validateParams(productResourceKvParamsSchema))
   public async deleteKv(
     @Path() instanceId: string,
     @Path() key: string,
@@ -148,8 +146,7 @@ export class DeveloperProductResourceController extends Controller {
   @Put("short_link/instances/{instanceId}/links/{id}")
   @Middlewares(
     replayProtectionMiddleware,
-    validateParams(productResourceInstanceParamsSchema),
-    validateParams(idParamsSchema),
+    validateParams(productResourceIdParamsSchema),
     validateBody(updateShortLinkBodySchema),
   )
   public async updateShortLink(
@@ -163,11 +160,7 @@ export class DeveloperProductResourceController extends Controller {
   }
 
   @Delete("short_link/instances/{instanceId}/links/{id}")
-  @Middlewares(
-    replayProtectionMiddleware,
-    validateParams(productResourceInstanceParamsSchema),
-    validateParams(idParamsSchema),
-  )
+  @Middlewares(replayProtectionMiddleware, validateParams(productResourceIdParamsSchema))
   public async deleteShortLink(
     @Path() instanceId: string,
     @Path() id: string,
@@ -179,7 +172,7 @@ export class DeveloperProductResourceController extends Controller {
   }
 
   @Get("short_link/instances/{instanceId}/links/{id}/stats")
-  @Middlewares(validateParams(productResourceInstanceParamsSchema), validateParams(idParamsSchema))
+  @Middlewares(validateParams(productResourceIdParamsSchema))
   public async shortLinkStats(
     @Path() instanceId: string,
     @Path() id: string,
@@ -215,7 +208,7 @@ export class DeveloperProductResourceController extends Controller {
   }
 
   @Delete("secret/instances/{instanceId}/secrets/{alias}")
-  @Middlewares(replayProtectionMiddleware, validateParams(productResourceInstanceParamsSchema))
+  @Middlewares(replayProtectionMiddleware, validateParams(productResourceAliasParamsSchema))
   public async deleteSecret(
     @Path() instanceId: string,
     @Path() alias: string,
@@ -254,8 +247,7 @@ export class DeveloperProductResourceController extends Controller {
   @Put("status/instances/{instanceId}/monitors/{id}")
   @Middlewares(
     replayProtectionMiddleware,
-    validateParams(productResourceInstanceParamsSchema),
-    validateParams(idParamsSchema),
+    validateParams(productResourceIdParamsSchema),
     validateBody(updateStatusMonitorBodySchema),
   )
   public async updateMonitor(
@@ -269,11 +261,7 @@ export class DeveloperProductResourceController extends Controller {
   }
 
   @Delete("status/instances/{instanceId}/monitors/{id}")
-  @Middlewares(
-    replayProtectionMiddleware,
-    validateParams(productResourceInstanceParamsSchema),
-    validateParams(idParamsSchema),
-  )
+  @Middlewares(replayProtectionMiddleware, validateParams(productResourceIdParamsSchema))
   public async deleteMonitor(
     @Path() instanceId: string,
     @Path() id: string,
@@ -285,11 +273,7 @@ export class DeveloperProductResourceController extends Controller {
   }
 
   @Post("status/instances/{instanceId}/monitors/{id}/check")
-  @Middlewares(
-    replayProtectionMiddleware,
-    validateParams(productResourceInstanceParamsSchema),
-    validateParams(idParamsSchema),
-  )
+  @Middlewares(replayProtectionMiddleware, validateParams(productResourceIdParamsSchema))
   public async checkMonitor(
     @Path() instanceId: string,
     @Path() id: string,
@@ -316,7 +300,10 @@ export class DeveloperProductResourceController extends Controller {
 
   @Get("status/instances/{instanceId}/page")
   @Middlewares(validateParams(productResourceInstanceParamsSchema))
-  public async getStatusPage(@Path() instanceId: string, @Request() request: TypedRequest): Promise<DeveloperProjectDto> {
+  public async getStatusPage(
+    @Path() instanceId: string,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperProjectDto> {
     const context = await this.context(request, "status", instanceId, Permission.PRODUCT_STATUS_PUBLISH);
     return this.projects.getProject(context.backingProjectId, context.accountOwnerId);
   }
@@ -359,8 +346,7 @@ export class DeveloperProductResourceController extends Controller {
   @Put("push/instances/{instanceId}/channels/{id}")
   @Middlewares(
     replayProtectionMiddleware,
-    validateParams(productResourceInstanceParamsSchema),
-    validateParams(idParamsSchema),
+    validateParams(productResourceIdParamsSchema),
     validateBody(updatePushChannelBodySchema),
   )
   public async updatePushChannel(
@@ -374,11 +360,7 @@ export class DeveloperProductResourceController extends Controller {
   }
 
   @Delete("push/instances/{instanceId}/channels/{id}")
-  @Middlewares(
-    replayProtectionMiddleware,
-    validateParams(productResourceInstanceParamsSchema),
-    validateParams(idParamsSchema),
-  )
+  @Middlewares(replayProtectionMiddleware, validateParams(productResourceIdParamsSchema))
   public async deletePushChannel(
     @Path() instanceId: string,
     @Path() id: string,

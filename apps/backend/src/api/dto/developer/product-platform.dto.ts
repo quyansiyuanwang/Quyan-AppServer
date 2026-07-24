@@ -16,12 +16,34 @@ export type UpdateDeveloperProductConfigDto = Omit<DeveloperProductConfigDto, "p
 export interface DeveloperProductAccountDto {
   id: string;
   accountOwnerId: string;
+  accountOwnerUsername?: string;
+  accountOwnerDisplayName?: string;
   productCode: DeveloperProductCode;
   dailyFreeQuota?: number;
   overageEnabled: boolean;
   instanceLimit: number;
   createTime: string;
   updateTime: string;
+}
+
+export interface DeveloperProductManagedAccountDto {
+  userId: string;
+  username: string;
+  displayName?: string;
+  account?: DeveloperProductAccountDto;
+}
+
+export interface DeveloperProductManagedAccountsDto {
+  records: DeveloperProductManagedAccountDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface UpdateDeveloperProductAccountDto {
+  dailyFreeQuota: number | null;
+  overageEnabled: boolean;
+  instanceLimit: number;
 }
 
 export interface DeveloperProductInstanceDto {
@@ -67,6 +89,7 @@ export interface DeveloperProductSubjectDto {
   id: string;
   username: string;
   displayName?: string;
+  allowedActions: string[];
 }
 
 export interface DeveloperProductUsageDto {

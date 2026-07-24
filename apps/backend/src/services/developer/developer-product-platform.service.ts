@@ -17,8 +17,11 @@ import type {
   DeveloperProductConfigDto,
   DeveloperProductCallLogDto,
   DeveloperProductAccountDto,
+  DeveloperProductManagedAccountDto,
+  DeveloperProductManagedAccountsDto,
   DeveloperProductInstanceDto,
   DeveloperProductUsageDto,
+  UpdateDeveloperProductAccountDto,
   UpdateDeveloperProductInstanceDto,
   UpdateDeveloperProductConfigDto,
 } from "@/api/dto/developer/product-platform.dto";
@@ -78,6 +81,10 @@ type ProductQuotaReceipt = {
   chargeAmount: number;
 };
 
+type ProductAccountRecord = Prisma.DeveloperProductEntitlementGetPayload<{
+  include: { accountOwner: { select: { username: true; displayName: true } } };
+}>;
+
 export class DeveloperProductPlatformService {
   private static instance: DeveloperProductPlatformService;
   private readonly projectService = DeveloperProjectService.getInstance();
@@ -121,10 +128,12 @@ export class DeveloperProductPlatformService {
     };
   }
 
-  private accountDto(accountProduct: any): DeveloperProductAccountDto {
+  private accountDto(accountProduct: ProductAccountRecord): DeveloperProductAccountDto {
     return {
       id: accountProduct.id,
       accountOwnerId: accountProduct.accountOwnerId,
+      accountOwnerUsername: accountProduct.accountOwner?.username,
+      accountOwnerDisplayName: accountProduct.accountOwner?.displayName ?? undefined,
       productCode: accountProduct.productCode as DeveloperProductCode,
       dailyFreeQuota: accountProduct.dailyFreeQuota ?? undefined,
       overageEnabled: accountProduct.overageEnabled,
@@ -197,7 +206,10 @@ export class DeveloperProductPlatformService {
 
   private async assertProductAccess(actorUserId: string, productCode: DeveloperProductCode): Promise<any> {
     const permissions = await this.permissionService.getUserFullPermissions(actorUserId);
-    if (!permissions || !this.productPermissions(productCode).some((permission) => permissions.effectivePermissions.includes(permission)))
+    if (
+      !permissions ||
+      !this.productPermissions(productCode).some((permission) => permissions.effectivePermissions.includes(permission))
+    )
       throw new ForbiddenError("RAM 权限不足，无法访问该产品");
     const user = await prisma.user.findUnique({
       where: { id: actorUserId },
@@ -257,8 +269,140 @@ export class DeveloperProductPlatformService {
     const accountProducts = await prisma.developerProductEntitlement.findMany({
       where: productCode ? { productCode } : undefined,
       orderBy: { updateTime: "desc" },
+      include: { accountOwner: { select: { username: true, displayName: true } } },
     });
     return accountProducts.map((accountProduct) => this.accountDto(accountProduct));
+  }
+
+  private async getPrimaryAccountUser(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true, displayName: true, accountOwnerId: true, userType: true },
+    });
+    if (!user || user.userType !== "root" || (user.accountOwnerId && user.accountOwnerId !== user.id))
+      throw new BadRequestError("只能管理主账号产品记录");
+    return user;
+  }
+
+  private managedAccountDto(
+    user: { id: string; username: string; displayName: string | null },
+    account?: ProductAccountRecord,
+  ): DeveloperProductManagedAccountDto {
+    return {
+      userId: user.id,
+      username: user.username,
+      displayName: user.displayName ?? undefined,
+      account: account ? this.accountDto(account) : undefined,
+    };
+  }
+
+  async listManagedAccounts(
+    productCode: DeveloperProductCode,
+    page = 1,
+    pageSize = 20,
+    keyword?: string,
+  ): Promise<DeveloperProductManagedAccountsDto> {
+    const normalizedKeyword = keyword?.trim();
+    const where: Prisma.UserWhereInput = {
+      userType: "root",
+      ...(normalizedKeyword
+        ? {
+            OR: [
+              { id: { contains: normalizedKeyword } },
+              { username: { contains: normalizedKeyword } },
+              { displayName: { contains: normalizedKeyword } },
+            ],
+          }
+        : {}),
+    };
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: { id: true, username: true, displayName: true },
+        orderBy: [{ createTime: "desc" }, { id: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.user.count({ where }),
+    ]);
+    const userIds = users.map((user) => user.id);
+    const accounts = await prisma.developerProductEntitlement.findMany({
+      where: { productCode, accountOwnerId: { in: userIds }, status: 1 },
+      include: { accountOwner: { select: { username: true, displayName: true } } },
+    });
+    const accountsByOwnerId = new Map(accounts.map((account) => [account.accountOwnerId, account]));
+    return {
+      records: users.map((user) => this.managedAccountDto(user, accountsByOwnerId.get(user.id))),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  async updateManagedAccount(
+    actorUserId: string,
+    productCode: DeveloperProductCode,
+    userId: string,
+    body: UpdateDeveloperProductAccountDto,
+  ): Promise<DeveloperProductManagedAccountDto> {
+    const user = await this.getPrimaryAccountUser(userId);
+    await this.ensureConfigs();
+    const config = await prisma.developerProductConfig.findUnique({ where: { productCode } });
+    const account = await prisma.developerProductEntitlement.upsert({
+      where: { accountOwnerId_productCode: { accountOwnerId: user.id, productCode } },
+      create: {
+        accountOwnerId: user.id,
+        productCode,
+        enabled: true,
+        dailyFreeQuota: body.dailyFreeQuota,
+        overageEnabled: body.overageEnabled,
+        instanceLimit: body.instanceLimit,
+        startsAt: null,
+        expiresAt: null,
+        issuedByUserId: actorUserId,
+      },
+      update: {
+        status: 1,
+        dailyFreeQuota: body.dailyFreeQuota,
+        overageEnabled: body.overageEnabled,
+        instanceLimit: body.instanceLimit,
+      },
+      include: { accountOwner: { select: { username: true, displayName: true } } },
+    });
+    if (!config) throw new NotFoundError("产品配置不存在");
+    return this.managedAccountDto(user, account);
+  }
+
+  private async managedEntitlement(productCode: DeveloperProductCode, userId: string) {
+    const user = await this.getPrimaryAccountUser(userId);
+    const entitlement = await prisma.developerProductEntitlement.findFirst({
+      where: { accountOwnerId: user.id, productCode, status: 1 },
+    });
+    if (!entitlement) throw new NotFoundError("该用户尚未启用产品运营记录");
+    return entitlement;
+  }
+
+  async getManagedUsage(productCode: DeveloperProductCode, userId: string): Promise<DeveloperProductUsageDto> {
+    const entitlement = await this.managedEntitlement(productCode, userId);
+    return this.getUsageForProduct(productCode, entitlement.id);
+  }
+
+  async listManagedCallLogs(productCode: DeveloperProductCode, userId: string): Promise<DeveloperProductCallLogDto[]> {
+    const entitlement = await this.managedEntitlement(productCode, userId);
+    return this.listCallLogs(productCode, entitlement.id);
+  }
+
+  async listManagedInstances(
+    productCode: DeveloperProductCode,
+    userId: string,
+  ): Promise<DeveloperProductInstanceDto[]> {
+    const entitlement = await this.managedEntitlement(productCode, userId);
+    const instances = await prisma.developerProductInstance.findMany({
+      where: { entitlementId: entitlement.id, status: 1 },
+      include: { entitlement: { select: { productCode: true } } },
+      orderBy: { createTime: "desc" },
+    });
+    return instances.map((instance) => this.instanceDto(instance));
   }
 
   async listInstances(actorUserId: string, productCode: DeveloperProductCode): Promise<DeveloperProductInstanceDto[]> {
@@ -412,16 +556,27 @@ export class DeveloperProductPlatformService {
     });
     if (!user) throw new UnauthorizedError("用户不存在");
     const accountOwnerId = this.accountOwnerId(user);
+    const isAccountOwner = user.id === accountOwnerId;
     const subjects = await prisma.user.findMany({
-      where: { status: 1, OR: [{ id: accountOwnerId }, { accountOwnerId }] },
+      where: isAccountOwner
+        ? { status: 1, OR: [{ id: accountOwnerId }, { accountOwnerId }] }
+        : { id: user.id, status: 1 },
       select: { id: true, username: true, displayName: true },
       orderBy: { createTime: "asc" },
     });
-    return subjects.map((subject) => ({
-      id: subject.id,
-      username: subject.username,
-      displayName: subject.displayName ?? undefined,
-    }));
+    const allowed = this.productPermissions(productCode);
+    const subjectDtos = await Promise.all(
+      subjects.map(async (subject) => {
+        const permissions = await this.permissionService.getUserFullPermissions(subject.id);
+        return {
+          id: subject.id,
+          username: subject.username,
+          displayName: subject.displayName ?? undefined,
+          allowedActions: allowed.filter((action) => Boolean(permissions?.effectivePermissions.includes(action))),
+        };
+      }),
+    );
+    return subjectDtos.filter((subject) => subject.allowedActions.length > 0);
   }
 
   async createKey(
@@ -431,6 +586,14 @@ export class DeveloperProductPlatformService {
     body: CreateDeveloperProductApiKeyDto,
   ): Promise<DeveloperProductApiKeyDto> {
     const instance = await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
+    const actor = await prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { id: true, accountOwnerId: true },
+    });
+    if (!actor) throw new UnauthorizedError("用户不存在");
+    const accountOwnerId = this.accountOwnerId(actor);
+    if (actor.id !== accountOwnerId && body.subjectUserId !== actor.id)
+      throw new ForbiddenError("RAM 用户只能创建绑定自身的产品 API Key");
     const subject = await prisma.user.findUnique({
       where: { id: body.subjectUserId },
       select: { id: true, accountOwnerId: true },
@@ -574,7 +737,10 @@ export class DeveloperProductPlatformService {
     }));
   }
 
-  async listCallLogsForActor(actorUserId: string, productCode: DeveloperProductCode): Promise<DeveloperProductCallLogDto[]> {
+  async listCallLogsForActor(
+    actorUserId: string,
+    productCode: DeveloperProductCode,
+  ): Promise<DeveloperProductCallLogDto[]> {
     const user = await this.assertProductAccess(actorUserId, productCode);
     const accountProduct = await this.getAccountProduct(this.accountOwnerId(user), productCode);
     return this.listCallLogs(productCode, accountProduct.id);

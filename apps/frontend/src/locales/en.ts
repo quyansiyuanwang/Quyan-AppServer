@@ -213,6 +213,8 @@ export default {
     keyName: 'Name',
     keyPrefix: 'Prefix',
     keySubject: 'RAM principal',
+    keyCurrentSubject: 'Current RAM principal',
+    keySubjectHint: 'The API key is authorized in real time by its bound RAM principal.',
     keyActions: 'Allowed actions',
     expiresAt: 'Expires at',
     expiresAtOptional: 'Expiry (optional)',
@@ -223,6 +225,8 @@ export default {
     instanceCreated: 'Instance created',
     saveKeyTitle: 'Save your API key now',
     savedKey: 'Saved',
+    copyKey: 'Copy key',
+    keyCopied: 'API key copied',
     revokeKeyConfirm: 'This API key cannot be restored after revocation.',
     revokeKeyTitle: 'Revoke API key',
     keyRevoked: 'API key revoked',
@@ -248,6 +252,26 @@ export default {
     saved: 'Product configuration saved',
   },
 
+  productOperations: {
+    titleSuffix: 'Operations',
+    description:
+      'Manage a primary account’s quota, overage billing, and instance limit without changing RAM product permissions.',
+    searchPlaceholder: 'Search username, display name, or account ID',
+    user: 'User',
+    userId: 'Account ID',
+    quota: 'Daily free quota',
+    useDefaultQuota: 'Use product default quota',
+    overageEnabled: 'Allow overage billing',
+    instanceLimit: 'Instance limit',
+    manageUser: 'Manage user',
+    accountNotConfigured: 'No operations record',
+    accountSettings: 'Operations settings',
+    instances: 'Instances',
+    usage: 'Usage',
+    audit: 'Call audit',
+    saveSuccess: 'Operations settings saved',
+  },
+
   developerProducts: {
     kvDescription:
       'Store JSON configuration, counters, and temporary state for lightweight applications.',
@@ -265,6 +289,12 @@ export default {
   productResources: {
     name: 'Name',
     type: 'Type',
+    pushChannelTypes: {
+      webhook: 'Webhook',
+      dingtalk: 'DingTalk bot',
+      feishu: 'Feishu bot',
+      wechat_work: 'WeCom bot',
+    },
     endpoint: 'Endpoint',
     key: 'Key',
     version: 'Version',
