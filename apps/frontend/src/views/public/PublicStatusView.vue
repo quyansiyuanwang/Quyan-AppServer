@@ -12,7 +12,9 @@ const error = ref('')
 const page = ref<PublicStatusPage | null>(null)
 
 const isOperational = computed(
-  () => Boolean(page.value?.statusMonitors.length) && page.value!.statusMonitors.every((item) => item.lastStatus === 'up'),
+  () =>
+    Boolean(page.value?.statusMonitors.length) &&
+    page.value!.statusMonitors.every((item) => item.lastStatus === 'up'),
 )
 
 const formatAvailability = (value: number) => `${(value * 100).toFixed(1)}%`
@@ -58,7 +60,10 @@ watch(slug, () => void load(), { immediate: true })
           <p class="status-kicker">SERVICE STATUS</p>
           <h1>{{ page.name }}</h1>
           <div class="overall-state">
-            <component :is="isOperational ? CircleCheckFilled : CircleCloseFilled" :size="24" />
+            <el-icon :size="22" class="overall-state-icon">
+              <CircleCheckFilled v-if="isOperational" />
+              <CircleCloseFilled v-else />
+            </el-icon>
             <strong>{{ isOperational ? '所有服务运行正常' : '部分服务异常' }}</strong>
           </div>
         </div>
@@ -97,6 +102,20 @@ watch(slug, () => void load(), { immediate: true })
             />
             <span v-if="!monitor.checks.length" class="history-empty">尚无检测记录</span>
           </div>
+          <div v-if="monitor.checks.length" class="check-history" aria-label="最近检测详情">
+            <div
+              v-for="check in [...monitor.checks.slice(0, 5)].reverse()"
+              :key="check.checkedAt"
+              class="check-row"
+            >
+              <span class="check-result" :class="check.checkStatus === 'up' ? 'is-up' : 'is-down'">
+                {{ check.checkStatus === 'up' ? '正常' : '异常' }}
+              </span>
+              <time>{{ formatDate(check.checkedAt) }}</time>
+              <span>HTTP {{ check.statusCode ?? '-' }}</span>
+              <span>{{ check.latencyMs }} ms</span>
+            </div>
+          </div>
         </article>
       </section>
     </template>
@@ -125,7 +144,11 @@ watch(slug, () => void load(), { immediate: true })
 }
 .status-kicker {
   margin: 0 0 12px;
-  font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    600 12px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
   letter-spacing: 1px;
   opacity: 0.78;
 }
@@ -141,6 +164,16 @@ watch(slug, () => void load(), { immediate: true })
   gap: 10px;
   margin-top: 22px;
   font-size: 17px;
+}
+.overall-state-icon {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  overflow: hidden;
+}
+.overall-state-icon :deep(svg) {
+  width: 100%;
+  height: 100%;
 }
 .monitor-list {
   display: grid;
@@ -212,6 +245,49 @@ watch(slug, () => void load(), { immediate: true })
   height: 8px;
   border-radius: 2px;
 }
+.check-history {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.check-row {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #e4ebe7;
+  border-radius: 4px;
+  color: #607069;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.check-row time {
+  overflow: hidden;
+  color: #35443d;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.check-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  font-weight: 600;
+}
+.check-result::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
+}
+.check-result.is-up {
+  color: #157752;
+}
+.check-result.is-down {
+  color: #ad3830;
+}
 .status-error {
   display: grid;
   place-items: start;
@@ -241,6 +317,9 @@ watch(slug, () => void load(), { immediate: true })
     justify-content: space-between;
     text-align: left;
     gap: 8px;
+  }
+  .check-history {
+    grid-template-columns: 1fr;
   }
 }
 </style>

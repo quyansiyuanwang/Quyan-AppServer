@@ -142,8 +142,10 @@ export class DeveloperProductService {
   async deleteShortLinkResource(instanceId: string, id: string) {
     return checkApiResult(await resourceApi().deleteShortLink({ path: { instanceId, id } }), false)
   }
-  async shortLinkStats(instanceId: string, id: string) {
-    return this.unwrap(await resourceApi().shortLinkStats({ path: { instanceId, id } }))
+  async shortLinkStats(instanceId: string, id: string, page = 1, pageSize = 25) {
+    return this.unwrap(
+      await resourceApi().shortLinkStats({ path: { instanceId, id }, params: { page, pageSize } }),
+    )
   }
   async listSecretResources(instanceId: string) {
     return this.unwrap(await resourceApi().listSecrets({ path: { instanceId } }))

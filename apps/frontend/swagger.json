@@ -19298,6 +19298,24 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
 					}
 				]
 			}
@@ -39993,6 +40011,10 @@
 						"type": "number",
 						"format": "double"
 					},
+					"uniqueVisitors": {
+						"type": "number",
+						"format": "double"
+					},
 					"periodStart": {
 						"type": "string"
 					},
@@ -40013,6 +40035,25 @@
 							"required": [
 								"count",
 								"date"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"clicksByHour": {
+						"items": {
+							"properties": {
+								"count": {
+									"type": "number",
+									"format": "double"
+								},
+								"hour": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"count",
+								"hour"
 							],
 							"type": "object"
 						},
@@ -40054,6 +40095,24 @@
 						},
 						"type": "array"
 					},
+					"ipAddresses": {
+						"items": {
+							"properties": {
+								"count": {
+									"type": "number",
+									"format": "double"
+								},
+								"ipAddress": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"count"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
 					"recentClicks": {
 						"items": {
 							"properties": {
@@ -40066,6 +40125,9 @@
 								"sourceHost": {
 									"type": "string"
 								},
+								"ipAddress": {
+									"type": "string"
+								},
 								"clickedAt": {
 									"type": "string"
 								}
@@ -40076,18 +40138,36 @@
 							"type": "object"
 						},
 						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalRecords": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
 					"linkId",
 					"code",
 					"totalClicks",
+					"uniqueVisitors",
 					"periodStart",
 					"periodEnd",
 					"clicksByDay",
+					"clicksByHour",
 					"sources",
 					"countries",
-					"recentClicks"
+					"ipAddresses",
+					"recentClicks",
+					"page",
+					"pageSize",
+					"totalRecords"
 				],
 				"type": "object",
 				"additionalProperties": false

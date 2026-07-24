@@ -36,7 +36,7 @@
       ><el-table-column :label="t('productResources.actions')" width="260" fixed="right"
         ><template #default="{ row }"
           ><el-button link @click="copyUrl(row.publicUrl)">{{ t('copy') }}</el-button
-          ><el-button link @click="showStats(row)">{{ t('productResources.statistics') }}</el-button
+          ><el-button link @click="openAnalytics(row)">{{ t('productResources.statistics') }}</el-button
           ><template v-if="canWrite"
             ><el-button link @click="edit(row)">{{ t('productResources.edit') }}</el-button
             ><el-button link :loading="submitting" @click="toggle(row)">{{
@@ -77,32 +77,23 @@
         ><el-button type="primary" :loading="submitting" @click="save">{{
           t('productResources.save')
         }}</el-button></template
-      ></el-dialog
-    ><el-dialog v-model="statsDialog" :title="t('productResources.statistics')" width="640px"
-      ><template v-if="stats"
-        ><p>
-          {{ t('productResources.totalClicks') }}: <strong>{{ stats.totalClicks }}</strong>
-        </p>
-        <el-table :data="stats.clicksByDay"
-          ><el-table-column prop="date" :label="t('productResources.date')" /><el-table-column
-            prop="count"
-            :label="t('productResources.clicks')" /></el-table></template
-    ></el-dialog>
+      ></el-dialog>
   </section>
 </template>
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
 import type {
   DeveloperProductInstanceDto,
   DeveloperShortLinkDto,
-  DeveloperShortLinkStatsDto,
 } from '@/client/types.gen'
 import { Permission } from '@/constant/permission'
 import { developerProductService } from '@/service/developerProductService'
 import { i18ns } from '@/locales'
 import { getErrorMessage } from '@/utils/error-utils'
 const { t } = i18ns
+const router = useRouter()
 const props = defineProps<{
   instance?: DeveloperProductInstanceDto
   hasPermission: (permission: string) => boolean
@@ -114,8 +105,6 @@ const loading = ref(false),
   links = ref<DeveloperShortLinkDto[]>([]),
   dialog = ref(false),
   editing = ref<DeveloperShortLinkDto>(),
-  statsDialog = ref(false),
-  stats = ref<DeveloperShortLinkStatsDto>(),
   form = ref({ targetUrl: '', code: '', expiresAt: null as Date | null })
 let sequence = 0
 const canRead = computed(() => props.hasPermission(Permission.PRODUCT_SHORT_LINK_READ)),
@@ -232,14 +221,12 @@ const copyUrl = async (value: string) => {
   await copy(import.meta.env.VITE_BACKEND_URL + value)
 }
 
-const showStats = async (row: DeveloperShortLinkDto) => {
+const openAnalytics = (row: DeveloperShortLinkDto) => {
   if (!props.instance || !canRead.value) return
-  try {
-    stats.value = await developerProductService.shortLinkStats(props.instance.id, row.id)
-    statsDialog.value = true
-  } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
-  }
+  void router.push({
+    name: 'product-short_link-analytics',
+    params: { instanceId: props.instance.id, linkId: row.id },
+  })
 }
 watch(() => [props.instance?.id, canRead.value], load, { immediate: true })
 </script>

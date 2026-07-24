@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   prisma: {
     $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
     developerProject: { findFirst: vi.fn(), findUnique: vi.fn() },
     developerQuotaUsage: { findMany: vi.fn(), upsert: vi.fn(), update: vi.fn() },
     developerQuotaOverride: { findFirst: vi.fn() },
@@ -12,7 +13,7 @@ const mocks = vi.hoisted(() => ({
     developerProjectApiKey: { findFirst: vi.fn(), update: vi.fn() },
     developerKvEntry: { findFirst: vi.fn(), delete: vi.fn() },
     developerShortLink: { findFirst: vi.fn() },
-    developerShortLinkClick: { groupBy: vi.fn(), findMany: vi.fn() },
+    developerShortLinkClick: { groupBy: vi.fn(), count: vi.fn(), findMany: vi.fn() },
     developerSecret: { upsert: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
     developerVerification: { findFirst: vi.fn(), update: vi.fn() },
     developerPushChannel: { findMany: vi.fn() },
@@ -103,7 +104,7 @@ describe("DeveloperProjectService", () => {
     mocks.prisma.balanceAccount.updateMany.mockResolvedValue({ count: 1 });
 
     const service = DeveloperProjectService.getInstance();
-    ;(service as any).configService = { get: vi.fn().mockResolvedValue("0.5") };
+    (service as any).configService = { get: vi.fn().mockResolvedValue("0.5") };
     const receipt = await (service as any).consumeQuota("project-1", "ip");
 
     expect(receipt).toMatchObject({ usageId: "usage-1", userId: "user-1", chargeAmount: 0.5 });
@@ -119,9 +120,7 @@ describe("DeveloperProjectService", () => {
     const expired = { id: "kv-1", expiresAt: new Date(Date.now() - 1) };
     mocks.prisma.developerKvEntry.findFirst.mockResolvedValue(expired);
 
-    await expect(DeveloperProjectService.getInstance().getKv("project-1", "config")).rejects.toThrow(
-      "KV 键不存在",
-    );
+    await expect(DeveloperProjectService.getInstance().getKv("project-1", "config")).rejects.toThrow("KV 键不存在");
     expect(mocks.prisma.developerKvEntry.delete).toHaveBeenCalledWith({ where: { id: "kv-1" } });
   });
 
@@ -158,7 +157,7 @@ describe("DeveloperProjectService", () => {
   it("substitutes aliases in nested JSON values without exposing the secret in metadata", async () => {
     mocks.prisma.developerProject.findFirst.mockResolvedValue({ id: "project-1" });
     const service = DeveloperProjectService.getInstance();
-    ;(service as any).resolveSecret = vi.fn().mockResolvedValue("secret-value");
+    (service as any).resolveSecret = vi.fn().mockResolvedValue("secret-value");
 
     await expect(
       service.substituteSecretsInJsonValue("project-1", "user-1", {
@@ -169,7 +168,7 @@ describe("DeveloperProjectService", () => {
       headers: { authorization: "Bearer secret-value" },
       messages: ["secret-value", "plain"],
     });
-    ;(service as any).resolveSecret.mockRejectedValueOnce(new Error("未定义的密钥别名: MISSING_KEY"));
+    (service as any).resolveSecret.mockRejectedValueOnce(new Error("未定义的密钥别名: MISSING_KEY"));
     await expect(service.substituteSecretsForProject("project-1", "user-1", "{{MISSING_KEY}}")).rejects.toThrow(
       "未定义的密钥别名",
     );
@@ -273,33 +272,50 @@ describe("DeveloperProjectService", () => {
     expect(page.statusMonitors[0].checks).toHaveLength(2);
   });
 
-  it("aggregates short-link clicks by day, source and country without IP data", async () => {
+  it("aggregates short-link visits by IP and returns a paginated detail list", async () => {
     mocks.prisma.developerProject.findFirst.mockResolvedValue({ id: "project-1" });
     mocks.prisma.developerShortLink.findFirst.mockResolvedValue({ id: "link-1", code: "docs", clickCount: 8 });
     mocks.prisma.developerShortLinkClick.groupBy
       .mockResolvedValueOnce([{ sourceHost: "example.com", _count: { id: 3 } }])
-      .mockResolvedValueOnce([{ country: "CN", _count: { id: 2 } }]);
+      .mockResolvedValueOnce([{ country: "CN", _count: { id: 2 } }])
+      .mockResolvedValueOnce([{ ipAddress: "203.0.113.7", _count: { id: 2 } }]);
+    mocks.prisma.developerShortLinkClick.count.mockResolvedValue(3);
+    mocks.prisma.$queryRaw
+      .mockResolvedValueOnce([{ count: 2n }])
+      .mockResolvedValueOnce([{ bucket: "2026-07-23", count: 3n }])
+      .mockResolvedValueOnce([{ bucket: "08:00", count: 2n }]);
     mocks.prisma.developerShortLinkClick.findMany.mockResolvedValue([
       {
         clickedAt: new Date("2026-07-23T08:00:00.000Z"),
+        ipAddress: "203.0.113.7",
         sourceHost: "example.com",
         country: "CN",
         userAgent: "Test Browser",
       },
       {
         clickedAt: new Date("2026-07-23T10:00:00.000Z"),
+        ipAddress: "198.51.100.8",
         sourceHost: null,
         country: null,
         userAgent: null,
       },
     ]);
 
-    const stats = await DeveloperProjectService.getInstance().getShortLinkStats("project-1", "link-1", "user-1");
+    const stats = await DeveloperProjectService.getInstance().getShortLinkStats("project-1", "link-1", "user-1", 2, 25);
 
     expect(stats.totalClicks).toBe(8);
-    expect(stats.clicksByDay).toEqual([{ date: "2026-07-23", count: 2 }]);
+    expect(stats.uniqueVisitors).toBe(2);
+    expect(stats.totalRecords).toBe(3);
+    expect(stats.page).toBe(2);
+    expect(stats.pageSize).toBe(25);
+    expect(stats.clicksByDay).toEqual([{ date: "2026-07-23", count: 3 }]);
+    expect(stats.clicksByHour).toEqual([{ hour: "08:00", count: 2 }]);
     expect(stats.sources).toEqual([{ sourceHost: "example.com", count: 3 }]);
     expect(stats.countries).toEqual([{ country: "CN", count: 2 }]);
-    expect(stats.recentClicks[1]).not.toHaveProperty("ipAddress");
+    expect(stats.ipAddresses).toEqual([{ ipAddress: "203.0.113.7", count: 2 }]);
+    expect(stats.recentClicks[1].ipAddress).toBe("198.51.100.8");
+    expect(mocks.prisma.developerShortLinkClick.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 25, take: 25 }),
+    );
   });
 });

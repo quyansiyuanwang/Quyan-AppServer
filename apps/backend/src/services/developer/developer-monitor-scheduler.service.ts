@@ -18,6 +18,8 @@ export class DeveloperMonitorSchedulerService {
     if (this.started) return;
     this.started = true;
     cron.schedule("* * * * *", () => void this.run());
+    // A restart must not leave enabled monitors stale until the next minute boundary.
+    void this.run();
   }
 
   private async run(): Promise<void> {

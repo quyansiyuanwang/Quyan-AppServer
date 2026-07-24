@@ -7,6 +7,7 @@ import {
   Path,
   Post,
   Put,
+  Query,
   Request,
   Route,
   Security,
@@ -52,9 +53,10 @@ import {
   productResourceIdParamsSchema,
   productResourceInstanceParamsSchema,
   productResourceKvParamsSchema,
+  shortLinkStatsQuerySchema,
 } from "@/api/schema/developer/product-platform.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
-import { validateBody, validateParams } from "@/middleware/validation";
+import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 
 @Route("v1/products")
 @Tags("Developer Product Resources")
@@ -172,14 +174,16 @@ export class DeveloperProductResourceController extends Controller {
   }
 
   @Get("short_link/instances/{instanceId}/links/{id}/stats")
-  @Middlewares(validateParams(productResourceIdParamsSchema))
+  @Middlewares(validateParams(productResourceIdParamsSchema), validateQuery(shortLinkStatsQuerySchema))
   public async shortLinkStats(
     @Path() instanceId: string,
     @Path() id: string,
     @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
   ): Promise<DeveloperShortLinkStatsDto> {
     const context = await this.context(request, "short_link", instanceId, Permission.PRODUCT_SHORT_LINK_READ);
-    return this.projects.getShortLinkStats(context.backingProjectId, id, context.accountOwnerId);
+    return this.projects.getShortLinkStats(context.backingProjectId, id, context.accountOwnerId, page, pageSize);
   }
 
   @Get("secret/instances/{instanceId}/secrets")

@@ -109,12 +109,18 @@ export interface DeveloperShortLinkStatsDto {
   linkId: string;
   code: string;
   totalClicks: number;
+  uniqueVisitors: number;
   periodStart: string;
   periodEnd: string;
   clicksByDay: Array<{ date: string; count: number }>;
+  clicksByHour: Array<{ hour: string; count: number }>;
   sources: Array<{ sourceHost?: string; count: number }>;
   countries: Array<{ country?: string; count: number }>;
-  recentClicks: Array<{ clickedAt: string; sourceHost?: string; country?: string; userAgent?: string }>;
+  ipAddresses: Array<{ ipAddress?: string; count: number }>;
+  recentClicks: Array<{ clickedAt: string; ipAddress?: string; sourceHost?: string; country?: string; userAgent?: string }>;
+  page: number;
+  pageSize: number;
+  totalRecords: number;
 }
 
 export interface UpsertDeveloperSecretDto {

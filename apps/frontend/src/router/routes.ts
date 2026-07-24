@@ -331,6 +331,12 @@ export const routes = [
                 props: { product: 'short_link' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
+              {
+                path: 'analytics/:instanceId/:linkId',
+                name: 'product-short_link-analytics',
+                component: () => import('@/views/products/short-link/ShortLinkAnalyticsPage.vue'),
+                meta: { permission: Permission.PRODUCT_SHORT_LINK_READ },
+              },
             ],
           },
           {

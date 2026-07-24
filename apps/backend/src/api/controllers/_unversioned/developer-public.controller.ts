@@ -2,6 +2,7 @@ import { Controller, Get, Path, Request, Route, Tags } from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import { skipResponseWrapper } from "@/util/response-wrapper";
+import { extractClientIp } from "@/util/ip-extractor";
 
 @Route("s")
 @Tags("Developer Public Short Links")
@@ -12,6 +13,7 @@ export class DeveloperShortLinkPublicController extends Controller {
       referrer: request.get("referer"),
       userAgent: request.get("user-agent"),
       country: request.get("cf-ipcountry") || request.get("x-vercel-ip-country"),
+      ipAddress: extractClientIp(request),
     });
     skipResponseWrapper(request);
     request.res.redirect(302, target);

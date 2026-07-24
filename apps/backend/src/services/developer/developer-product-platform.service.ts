@@ -109,7 +109,7 @@ export class DeveloperProductPlatformService {
         prisma.developerProductConfig.upsert({
           where: { productCode },
           update: {},
-          create: { productCode, enabled: false, defaultDailyQuota: 0, defaultInstanceLimit: 1, retentionDays: 30 },
+          create: { productCode, enabled: true, defaultDailyQuota: 0, defaultInstanceLimit: 1, retentionDays: 30 },
         }),
       ),
     );

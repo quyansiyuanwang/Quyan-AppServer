@@ -2,7 +2,8 @@ import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import { isIP } from "node:net";
 import nodemailer from "nodemailer";
-import type { Prisma } from "@prisma/client";
+import { createConnection } from "mysql2/promise";
+import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "@/config/database";
 import { EnvSpace } from "@/config/env";
@@ -82,14 +83,22 @@ export class DeveloperProjectRepository {
   }
 
   async runWithSchedulerLock<T>(callback: () => Promise<T>): Promise<T | undefined> {
-    const lockRows = await prisma.$queryRaw<
-      Array<{ acquired: number }>
-    >`SELECT GET_LOCK(${"appserver:developer-monitor-scheduler"}, 0) AS acquired`;
-    if (lockRows[0]?.acquired !== 1) return undefined;
+    // MySQL named locks are scoped to one physical connection. Prisma's pool may route the
+    // acquire and release queries to different connections, leaving the lock stuck and causing
+    // every subsequent scheduler tick to be skipped.
+    const connection = await createConnection(EnvSpace.databaseUrl);
+    const lockKey = "appserver:developer-monitor-scheduler";
     try {
+      const [lockRows] = await connection.query("SELECT GET_LOCK(?, 0) AS acquired", [lockKey]);
+      const acquired = Array.isArray(lockRows)
+        ? Number((lockRows[0] as { acquired?: unknown } | undefined)?.acquired)
+        : 0;
+      if (acquired !== 1) return undefined;
+
       return await callback();
     } finally {
-      await prisma.$queryRaw`SELECT RELEASE_LOCK(${"appserver:developer-monitor-scheduler"})`;
+      await connection.query("SELECT RELEASE_LOCK(?)", [lockKey]).catch(() => undefined);
+      await connection.end();
     }
   }
 
@@ -605,7 +614,7 @@ export class DeveloperProjectRepository {
 
   async resolveShortLink(
     code: string,
-    context?: { referrer?: string; userAgent?: string; country?: string },
+    context?: { referrer?: string; userAgent?: string; country?: string; ipAddress?: string },
   ): Promise<string> {
     const link = await prisma.developerShortLink.findFirst({
       where: {
@@ -640,16 +649,25 @@ export class DeveloperProjectRepository {
     }
     const country = context?.country?.trim().toUpperCase().slice(0, 8) || undefined;
     const userAgent = context?.userAgent?.trim().slice(0, 255) || undefined;
+    const ipAddress = context?.ipAddress?.trim().slice(0, 45) || undefined;
     void prisma
       .$transaction([
         prisma.developerShortLink.update({ where: { id: link.id }, data: { clickCount: { increment: 1 } } }),
-        prisma.developerShortLinkClick.create({ data: { shortLinkId: link.id, sourceHost, userAgent, country } }),
+        prisma.developerShortLinkClick.create({
+          data: { shortLinkId: link.id, ipAddress, sourceHost, userAgent, country },
+        }),
       ])
       .catch(() => undefined);
     return link.targetUrl;
   }
 
-  async getShortLinkStats(projectId: string, linkId: string, userId: string): Promise<DeveloperShortLinkStatsDto> {
+  async getShortLinkStats(
+    projectId: string,
+    linkId: string,
+    userId: string,
+    page = 1,
+    pageSize = 50,
+  ): Promise<DeveloperShortLinkStatsDto> {
     await this.assertProjectOwner(projectId, userId);
     const link = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
     if (!link) throw new NotFoundError("短链接不存在");
@@ -658,8 +676,19 @@ export class DeveloperProjectRepository {
     const periodStart = new Date(periodEnd);
     periodStart.setDate(periodStart.getDate() - 29);
     periodStart.setHours(0, 0, 0, 0);
+    const normalizedPage = Math.max(1, Math.floor(page));
+    const normalizedPageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
     const where = { shortLinkId: link.id, clickedAt: { gte: periodStart, lte: periodEnd } };
-    const [sourceGroups, countryGroups, recentClicks] = await Promise.all([
+    const [
+      sourceGroups,
+      countryGroups,
+      ipGroups,
+      totalRecords,
+      uniqueVisitorResult,
+      dailyBuckets,
+      hourlyBuckets,
+      recentClicks,
+    ] = await Promise.all([
       prisma.developerShortLinkClick.groupBy({
         by: ["sourceHost"],
         where,
@@ -674,36 +703,70 @@ export class DeveloperProjectRepository {
         orderBy: { _count: { id: "desc" } },
         take: 10,
       }),
+      prisma.developerShortLinkClick.groupBy({
+        by: ["ipAddress"],
+        where,
+        _count: { id: true },
+        orderBy: { _count: { id: "desc" } },
+        take: 20,
+      }),
+      prisma.developerShortLinkClick.count({ where }),
+      prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+        SELECT COUNT(DISTINCT \`ipAddress\`) AS count
+        FROM \`developer_short_link_clicks\`
+        WHERE \`shortLinkId\` = ${link.id}
+          AND \`clickedAt\` >= ${periodStart}
+          AND \`clickedAt\` <= ${periodEnd}
+      `),
+      prisma.$queryRaw<Array<{ bucket: string; count: bigint }>>(Prisma.sql`
+        SELECT DATE_FORMAT(\`clickedAt\`, '%Y-%m-%d') AS bucket, COUNT(*) AS count
+        FROM \`developer_short_link_clicks\`
+        WHERE \`shortLinkId\` = ${link.id}
+          AND \`clickedAt\` >= ${periodStart}
+          AND \`clickedAt\` <= ${periodEnd}
+        GROUP BY DATE_FORMAT(\`clickedAt\`, '%Y-%m-%d')
+        ORDER BY bucket ASC
+      `),
+      prisma.$queryRaw<Array<{ bucket: string; count: bigint }>>(Prisma.sql`
+        SELECT DATE_FORMAT(\`clickedAt\`, '%H:00') AS bucket, COUNT(*) AS count
+        FROM \`developer_short_link_clicks\`
+        WHERE \`shortLinkId\` = ${link.id}
+          AND \`clickedAt\` >= ${periodStart}
+          AND \`clickedAt\` <= ${periodEnd}
+        GROUP BY DATE_FORMAT(\`clickedAt\`, '%H:00')
+        ORDER BY bucket ASC
+      `),
       prisma.developerShortLinkClick.findMany({
         where,
         orderBy: { clickedAt: "desc" },
-        take: 500,
-        select: { clickedAt: true, sourceHost: true, country: true, userAgent: true },
+        skip: (normalizedPage - 1) * normalizedPageSize,
+        take: normalizedPageSize,
+        select: { clickedAt: true, ipAddress: true, sourceHost: true, country: true, userAgent: true },
       }),
     ]);
-    const dailyCounts = new Map<string, number>();
-    for (const click of recentClicks) {
-      const day = click.clickedAt.toISOString().slice(0, 10);
-      dailyCounts.set(day, (dailyCounts.get(day) ?? 0) + 1);
-    }
 
     return {
       linkId: link.id,
       code: link.code,
       totalClicks: link.clickCount,
+      uniqueVisitors: Number(uniqueVisitorResult[0]?.count ?? 0),
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
-      clicksByDay: [...dailyCounts.entries()]
-        .map(([date, count]) => ({ date, count }))
-        .sort((a, b) => a.date.localeCompare(b.date)),
+      clicksByDay: dailyBuckets.map((bucket) => ({ date: bucket.bucket, count: Number(bucket.count) })),
+      clicksByHour: hourlyBuckets.map((bucket) => ({ hour: bucket.bucket, count: Number(bucket.count) })),
       sources: sourceGroups.map((group) => ({ sourceHost: group.sourceHost ?? undefined, count: group._count.id })),
       countries: countryGroups.map((group) => ({ country: group.country ?? undefined, count: group._count.id })),
+      ipAddresses: ipGroups.map((group) => ({ ipAddress: group.ipAddress ?? undefined, count: group._count.id })),
       recentClicks: recentClicks.map((click) => ({
         clickedAt: click.clickedAt.toISOString(),
+        ipAddress: click.ipAddress ?? undefined,
         sourceHost: click.sourceHost ?? undefined,
         country: click.country ?? undefined,
         userAgent: click.userAgent ?? undefined,
       })),
+      page: normalizedPage,
+      pageSize: normalizedPageSize,
+      totalRecords,
     };
   }
 
@@ -715,9 +778,9 @@ export class DeveloperProjectRepository {
         slug: true,
         productInstance: {
           select: {
-          enabled: true,
-          status: true,
-          entitlement: { select: { status: true, productCode: true } },
+            enabled: true,
+            status: true,
+            entitlement: { select: { status: true, productCode: true } },
           },
         },
         statusMonitors: {

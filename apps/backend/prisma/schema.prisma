@@ -304,12 +304,14 @@ model DeveloperShortLinkClick {
   updateTime  DateTime           @updatedAt
   shortLinkId String
   clickedAt   DateTime           @default(now())
+  ipAddress   String?            @db.VarChar(45)
   sourceHost  String?            @db.VarChar(255)
   userAgent   String?            @db.VarChar(255)
   country     String?            @db.VarChar(8)
   shortLink   DeveloperShortLink @relation(fields: [shortLinkId], references: [id], onDelete: Cascade)
 
   @@index([shortLinkId, clickedAt])
+  @@index([shortLinkId, ipAddress])
   @@index([country, clickedAt])
   @@map("developer_short_link_clicks")
 }
