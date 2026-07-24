@@ -44,6 +44,34 @@ describe('ram permission tree security filtering', () => {
     expect(tree[0]?.children?.map((child) => child.value)).toEqual([Permission.USER_READ])
   })
 
+  it('maps title-cased metadata categories to their own translation keys', () => {
+    const tree = buildGrantablePermissionTree({
+      allPermissions: [
+        Permission.USER_READ,
+        Permission.RAM_POLICY_CREATE,
+        Permission.PRODUCT_KV_READ,
+        Permission.REMOTE_TERMINAL_DEVICE_READ,
+      ],
+      effectivePermissions: [
+        Permission.USER_READ,
+        Permission.RAM_POLICY_CREATE,
+        Permission.PRODUCT_KV_READ,
+        Permission.REMOTE_TERMINAL_DEVICE_READ,
+      ],
+      locale: 'en',
+      translateCategory,
+    })
+
+    expect(tree.map((node) => node.label)).toEqual(
+      expect.arrayContaining([
+        'RamManagement.permissionCategoryLabels.user',
+        'RamManagement.permissionCategoryLabels.ram',
+        'RamManagement.permissionCategoryLabels.product',
+        'RamManagement.permissionCategoryLabels.remote_terminal',
+      ]),
+    )
+  })
+
   it('filters policy form permissions before submission', () => {
     const filtered = filterGrantablePermissions(
       [Permission.USER_READ, Permission.USER_DELETE, Permission.RAM_POLICY_CREATE],

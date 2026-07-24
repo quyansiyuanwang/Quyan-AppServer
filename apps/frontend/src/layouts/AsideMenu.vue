@@ -683,21 +683,21 @@ const overviewSections = computed<OverviewSection[]>(() => {
         ...DEVELOPER_PRODUCT_NAVIGATION.flatMap((product) => [
           {
             key: `product-${product.code}-user`,
-            label: `${i18ns.t(product.labelKey as any)} · ${i18ns.t('nav.productUserPage')}`,
+            label: `${i18ns.t('nav.developerProducts')} / ${i18ns.t(product.labelKey as any)} / ${i18ns.t('nav.productUserPage')}`,
             icon: product.icon,
             route: developerProductUserRoute(product.code),
             visible: canAny(...product.permissions),
           },
           {
             key: `product-${product.code}-management`,
-            label: `${i18ns.t(product.labelKey as any)} · ${i18ns.t('nav.productManagementPage')}`,
+            label: `${i18ns.t('nav.developerProducts')} / ${i18ns.t(product.labelKey as any)} / ${i18ns.t('nav.productManagementPage')}`,
             icon: DataAnalysis,
             route: developerProductManagementRoute(product.code),
             visible: can(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE),
           },
           {
             key: `product-${product.code}-config`,
-            label: `${i18ns.t(product.labelKey as any)} · ${i18ns.t('nav.productConfigPage')}`,
+            label: `${i18ns.t('nav.developerProducts')} / ${i18ns.t(product.labelKey as any)} / ${i18ns.t('nav.productConfigPage')}`,
             icon: Tools,
             route: developerProductConfigRoute(product.code),
             visible: can(Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE),

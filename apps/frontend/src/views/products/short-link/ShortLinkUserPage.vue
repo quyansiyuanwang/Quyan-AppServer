@@ -3,7 +3,7 @@
 <script setup lang="ts">
 import ProductConsoleShell from '@/views/products/components/ProductConsoleShell.vue'
 import ShortLinkPanel from './ShortLinkPanel.vue'
-import { PRODUCT_COPY } from '@/views/products/developer-product-ui'
-const copy = PRODUCT_COPY.short_link
+import { productCopy } from '@/views/products/developer-product-ui'
+const copy = productCopy('short_link')
 defineOptions({ name: 'ShortLinkUserPage' })
 </script>

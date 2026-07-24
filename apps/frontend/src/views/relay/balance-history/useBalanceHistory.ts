@@ -19,6 +19,7 @@ type HistoryRangeCacheEntry = {
 const BALANCE_HISTORY_PAGE_SIZE = 100
 const DAY_MS = 24 * 60 * 60 * 1000
 const BALANCE_HISTORY_PREVIEW_LIMIT = 100
+const BALANCE_HISTORY_MAX_SYNC_WINDOW_MS = 30 * DAY_MS - 1
 const DEFAULT_HISTORY_RANGE_LEVEL = 0
 const BALANCE_HISTORY_ALL_COMPLETE_META_KEY = 'balance-history:all-complete'
 
@@ -48,6 +49,7 @@ export function useBalanceHistory() {
   const historyRangeLevel = ref(DEFAULT_HISTORY_RANGE_LEVEL)
 
   let historyLoadToken = 0
+  let incrementalSyncPromise: Promise<BalanceTransactionResponse[]> | null = null
   const historyRangeCache: Record<HistoryRangeKey, HistoryRangeCacheEntry> = {
     '1d': { records: [], complete: false },
     '7d': { records: [], complete: false },
@@ -127,7 +129,10 @@ export function useBalanceHistory() {
   }
 
   const sortByCreateTimeDesc = (records: BalanceTransactionResponse[]) =>
-    [...records].sort((a, b) => getTransactionTimestamp(b) - getTransactionTimestamp(a))
+    [...records].sort((a, b) => {
+      const timestampDifference = getTransactionTimestamp(b) - getTransactionTimestamp(a)
+      return timestampDifference || a.id.localeCompare(b.id)
+    })
 
   const filterTransactionsByRange = (
     records: BalanceTransactionResponse[],
@@ -282,7 +287,9 @@ export function useBalanceHistory() {
       if (
         !fallbackRecord ||
         (preferredRecord &&
-          getTransactionTimestamp(preferredRecord) >= getTransactionTimestamp(fallbackRecord))
+          (getTransactionTimestamp(preferredRecord) > getTransactionTimestamp(fallbackRecord) ||
+            (getTransactionTimestamp(preferredRecord) === getTransactionTimestamp(fallbackRecord) &&
+              preferredRecord.id.localeCompare(fallbackRecord.id) <= 0)))
       ) {
         pushIfNeeded(preferredRecord)
         preferredIndex += 1
@@ -354,6 +361,58 @@ export function useBalanceHistory() {
     }
 
     return records
+  }
+
+  const deduplicateTransactions = (records: BalanceTransactionResponse[]) => {
+    const byId = new Map<string, BalanceTransactionResponse>()
+    records.forEach((record) => byId.set(record.id, record))
+    return sortByCreateTimeDesc([...byId.values()])
+  }
+
+  /**
+   * IndexedDB, rather than the currently displayed range, is the durable sync cursor.
+   * Windows are inclusive at the API boundary and records are deduplicated by id afterwards.
+   */
+  const syncTransactionsSinceLatestCachedRecord = async (): Promise<BalanceTransactionResponse[]> => {
+    if (incrementalSyncPromise) return incrementalSyncPromise
+
+    incrementalSyncPromise = (async () => {
+      const [latestCachedRecord] = await sessionDB.getRecent<BalanceTransactionResponse>(
+        STORE_NAMES.BALANCE_TRANSACTIONS,
+        1,
+      )
+      if (!latestCachedRecord) return []
+
+      const latestTimestamp = getTransactionTimestamp(latestCachedRecord)
+      if (!latestTimestamp) return []
+
+      const now = Date.now()
+      const fetchedRecords: BalanceTransactionResponse[] = []
+      let windowStart = latestTimestamp
+
+      while (windowStart <= now) {
+        const windowEnd = Math.min(windowStart + BALANCE_HISTORY_MAX_SYNC_WINDOW_MS, now)
+        fetchedRecords.push(
+          ...(await fetchAllTransactions({
+            startTime: new Date(windowStart).toISOString(),
+            endTime: new Date(windowEnd).toISOString(),
+          })),
+        )
+        windowStart = windowEnd + 1
+      }
+
+      const mergedRecords = deduplicateTransactions(fetchedRecords)
+      if (mergedRecords.length > 0) {
+        await sessionDB.save(STORE_NAMES.BALANCE_TRANSACTIONS, mergedRecords)
+      }
+      return mergedRecords
+    })()
+
+    try {
+      return await incrementalSyncPromise
+    } finally {
+      incrementalSyncPromise = null
+    }
   }
 
   const getCachedTransactionPreview = async (
@@ -566,22 +625,13 @@ export function useBalanceHistory() {
     const rangeKey = options?.rangeKey ?? activeHistoryRangeKey.value
     const loadToken = options?.loadToken
 
-    if (!lastLoadTime.value || allTransactions.value.length === 0) {
-      return loadTransactionsByRange(rangeKey)
-    }
-
     try {
-      const latestTime = allTransactions.value[0]?.createTime
-      if (!latestTime) return
-
-      const newRecords = await fetchAllTransactions({
-        startTime: latestTime,
-      })
+      const newRecords = await syncTransactionsSinceLatestCachedRecord()
       if (newRecords.length > 0) {
         const existingIds = new Set(allTransactions.value.map((record) => record.id))
         const uniqueNew = newRecords.filter((record) => !existingIds.has(record.id))
-        if (uniqueNew.length > 0) {
-          const filteredUniqueNew = filterTransactionsByRange(uniqueNew, rangeKey)
+        const filteredUniqueNew = filterTransactionsByRange(uniqueNew, rangeKey)
+        if (filteredUniqueNew.length > 0) {
           if (loadToken != null && !isHistoryLoadCurrent(rangeKey, loadToken)) return
 
           const sortedUniqueNew = sortByCreateTimeDesc(filteredUniqueNew)
@@ -591,10 +641,9 @@ export function useBalanceHistory() {
           )
           lastLoadTime.value = allTransactions.value[0]?.createTime || lastLoadTime.value
           setRangeCache(rangeKey, allTransactions.value, historyRangeCache[rangeKey].complete)
-          mergeRecordsIntoCache(uniqueNew)
-          syncHistoryRangeLevelFromCache()
-          await sessionDB.save(STORE_NAMES.BALANCE_TRANSACTIONS, uniqueNew)
         }
+        mergeRecordsIntoCache(newRecords)
+        syncHistoryRangeLevelFromCache()
       }
     } catch (error: any) {
       console.error('Failed to update transactions:', error)

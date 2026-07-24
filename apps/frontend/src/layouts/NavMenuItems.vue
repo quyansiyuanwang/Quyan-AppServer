@@ -385,29 +385,25 @@
         </el-sub-menu>
       </PermissionWrapper>
       <PermissionWrapper :any-require="developerProductPlatformPermissions">
-        <el-menu-item
-          index="developerProducts"
-          @click="nav('developerProducts', $event)"
-          @contextmenu.prevent="openRouteMenu('developerProducts', $event)"
-        >
-          <el-icon><Connection /></el-icon>
-          <template #title>{{ i18ns.t('nav.developerProducts') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper
-        v-for="product in developerProducts"
-        :key="product.code"
-        :any-require="[
-          ...product.permissions,
-          Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
-          Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
-        ]"
-      >
-        <el-sub-menu :index="`developer-product-${product.code}`">
+        <el-sub-menu index="developerProductCatalog">
           <template #title>
-            <el-icon><component :is="product.icon" /></el-icon>
-            <span>{{ i18ns.t(product.labelKey as any) }}</span>
+            <el-icon><Connection /></el-icon>
+            <span>{{ i18ns.t('nav.developerProducts') }}</span>
           </template>
+          <el-menu-item index="developerProducts" @click="nav('developerProducts', $event)" @contextmenu.prevent="openRouteMenu('developerProducts', $event)">
+            <el-icon><Connection /></el-icon>
+            <template #title>{{ i18ns.t('nav.productCatalog') }}</template>
+          </el-menu-item>
+          <PermissionWrapper
+            v-for="product in developerProducts"
+            :key="product.code"
+            :any-require="[...product.permissions, Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE, Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE]"
+          >
+            <el-sub-menu :index="`developer-product-${product.code}`">
+              <template #title>
+                <el-icon><component :is="product.icon" /></el-icon>
+                <span>{{ i18ns.t(product.labelKey as any) }}</span>
+              </template>
           <PermissionWrapper :any-require="product.permissions">
             <el-menu-item
               :index="developerProductUserRoute(product.code)"
@@ -441,6 +437,8 @@
               <el-icon><Tools /></el-icon>
               <template #title>{{ i18ns.t('nav.productConfigPage') }}</template>
             </el-menu-item>
+          </PermissionWrapper>
+            </el-sub-menu>
           </PermissionWrapper>
         </el-sub-menu>
       </PermissionWrapper>

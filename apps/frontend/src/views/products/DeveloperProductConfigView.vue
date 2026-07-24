@@ -3,56 +3,43 @@
     <header class="page-header">
       <div>
         <p class="eyebrow">PLATFORM CONFIGURATION</p>
-        <h1>{{ productName(product) }} 产品配置</h1>
-        <p>配置全局启停、默认配额、超额定价、资源限制与数据保留期。</p>
+        <h1>{{ productName(product) }} {{ t('productConfig.titleSuffix') }}</h1>
+        <p>{{ t('productConfig.description') }}</p>
       </div>
-      <el-button :icon="Refresh" circle aria-label="刷新" @click="load" />
+      <el-button :icon="Refresh" circle :aria-label="t('productConsole.refresh')" @click="load" />
     </header>
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
     <section class="config-panel" v-loading="loading">
       <el-form label-position="top"
         ><div class="config-section">
           <div>
-            <h2>服务开关</h2>
-            <p>关闭后所有新调用立即拒绝，已存在资源保留至重新启用或保留期清理。</p>
+            <h2>{{ t('productConfig.serviceSwitch') }}</h2>
+            <p>{{ t('productConfig.serviceSwitchDescription') }}</p>
           </div>
-          <el-switch v-model="form.enabled" active-text="已启用" inactive-text="已停用" />
+          <el-switch v-model="form.enabled" :active-text="t('productConsole.enabled')" :inactive-text="t('productConsole.disabled')" />
         </div>
         <el-divider />
         <div class="form-grid">
-          <el-form-item label="默认每日免费额度"
+          <el-form-item :label="t('productConfig.dailyQuota')"
             ><el-input-number
               v-model="form.defaultDailyQuota"
               :min="0"
               :max="10000000" /></el-form-item
-          ><el-form-item label="超额单价"
+          ><el-form-item :label="t('productConfig.overagePrice')"
             ><el-input-number
               v-model="form.overagePrice"
               :min="0"
               :precision="6"
               :step="0.01" /></el-form-item
-          ><el-form-item label="默认实例上限"
+          ><el-form-item :label="t('productConfig.instanceLimit')"
             ><el-input-number
               v-model="form.defaultInstanceLimit"
               :min="1"
-              :max="1000" /></el-form-item
-          ><el-form-item label="数据保留天数"
-            ><el-input-number v-model="form.retentionDays" :min="1" :max="3650"
-          /></el-form-item>
+              :max="1000" /></el-form-item>
         </div>
-        <ProductSettingsEditor
-          v-model="resourceLimits"
-          label="资源限制"
-          description="以独立配置项设置各项资源上限。"
-        />
-        <ProductSettingsEditor
-          v-model="settings"
-          label="供应商与产品设置"
-          description="以独立配置项设置供应商开关、缓存和重试策略。"
-        />
       ></el-form>
       <div class="footer">
-        <el-button type="primary" :loading="saving" @click="save">保存配置</el-button>
+        <el-button type="primary" :loading="saving" @click="save">{{ t('save') }}</el-button>
       </div>
     </section>
   </main>
@@ -65,14 +52,13 @@ import { Refresh } from '@element-plus/icons-vue'
 import type { DeveloperProductCode } from '@/client/types.gen'
 import { developerProductService } from '@/service/developerProductService'
 import { productName } from './developer-product-ui'
-import ProductSettingsEditor from './components/ProductSettingsEditor.vue'
+import { i18ns } from '@/locales'
 const props = defineProps<{ product: DeveloperProductCode }>()
+const { t } = i18ns
 const product = computed(() => props.product)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
-const resourceLimits = ref<Record<string, unknown>>({})
-const settings = ref<Record<string, unknown>>({})
 const form = ref({
   enabled: false,
   defaultDailyQuota: 0,
@@ -95,10 +81,8 @@ const load = async () => {
       defaultInstanceLimit: config.defaultInstanceLimit,
       retentionDays: config.retentionDays,
     }
-    resourceLimits.value = config.resourceLimits || {}
-    settings.value = config.settings || {}
   } catch {
-    error.value = '产品配置暂时无法加载。'
+    error.value = t('productConfig.loadError')
   } finally {
     loading.value = false
   }
@@ -108,10 +92,11 @@ const save = async () => {
   try {
     await developerProductService.updateConfig(product.value, {
       ...form.value,
-      resourceLimits: resourceLimits.value,
-      settings: settings.value,
+      // These fields remain in the API contract but have no runtime consumer yet.
+      resourceLimits: {},
+      settings: {},
     })
-    ElMessage.success('产品配置已保存')
+    ElMessage.success(t('productConfig.saved'))
   } finally {
     saving.value = false
   }

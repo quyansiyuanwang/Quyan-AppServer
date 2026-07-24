@@ -3,7 +3,7 @@
 <script setup lang="ts">
 import ProductConsoleShell from '@/views/products/components/ProductConsoleShell.vue'
 import KvEntriesPanel from './KvEntriesPanel.vue'
-import { PRODUCT_COPY } from '@/views/products/developer-product-ui'
-const copy = PRODUCT_COPY.kv
+import { productCopy } from '@/views/products/developer-product-ui'
+const copy = productCopy('kv')
 defineOptions({ name: 'KvUserPage' })
 </script>

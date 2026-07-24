@@ -180,7 +180,8 @@ export const buildGrantablePermissionTree = ({
   const categories = new Map<string, PermissionTreeNode[]>()
 
   for (const permission of allPermissions.filter((item) => grantablePermissions.has(item))) {
-    const category = getPermissionCategory(permission)
+    // Permission metadata is title-cased for legacy management views; this tree uses locale keys.
+    const category = getPermissionCategory(permission).toLowerCase()
     if (!categories.has(category)) categories.set(category, [])
     categories.get(category)!.push({
       label: getPermissionLabel(permission, locale),

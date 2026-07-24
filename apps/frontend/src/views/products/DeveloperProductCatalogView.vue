@@ -3,10 +3,10 @@
     <header class="catalog-header">
       <div>
         <p class="eyebrow">Developer platform</p>
-        <h1>产品目录</h1>
-        <p>每项服务拥有独立实例、API Key、RAM 授权和调用配额。</p>
+        <h1>{{ t('productCatalog.title') }}</h1>
+        <p>{{ t('productCatalog.description') }}</p>
       </div>
-      <el-button :icon="Refresh" circle aria-label="刷新产品目录" @click="load" />
+      <el-button :icon="Refresh" circle :aria-label="t('productCatalog.refresh')" @click="load" />
     </header>
 
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
@@ -21,17 +21,17 @@
             {{ productState(product.code).label }}
           </el-tag>
         </div>
-        <p>{{ PRODUCT_COPY[product.code].description }}</p>
+        <p>{{ productCopy(product.code).description }}</p>
         <dl>
           <div>
-            <dt>API</dt>
-            <dd>{{ product.supportsExternalApi ? product.apiPath : '管理型服务' }}</dd>
+            <dt>{{ t('productCatalog.api') }}</dt>
+            <dd>{{ product.supportsExternalApi ? product.apiPath : t('productCatalog.managedService') }}</dd>
           </div>
           <div>
-            <dt>额度</dt>
+            <dt>{{ t('productCatalog.quota') }}</dt>
             <dd>
               {{ product.config?.defaultDailyQuota ?? 0 }}
-              / 日
+              {{ t('productCatalog.perDay') }}
             </dd>
           </div>
         </dl>
@@ -41,20 +41,20 @@
             plain
             :disabled="!hasProductAccess(product.code)"
             @click="router.push({ name: userRoute(product.code) } as any)"
-            >进入产品</el-button
+            >{{ t('productCatalog.enter') }}</el-button
           >
           <el-dropdown v-if="canManage || canConfigure" trigger="click">
-            <el-button :icon="MoreFilled" circle aria-label="产品管理操作" />
+            <el-button :icon="MoreFilled" circle :aria-label="t('productCatalog.actions')" />
             <template #dropdown
               ><el-dropdown-menu
                 ><el-dropdown-item
                   v-if="canManage"
                   @click="router.push({ name: managementRoute(product.code) } as any)"
-                  >运营管理</el-dropdown-item
+                  >{{ t('nav.productManagementPage') }}</el-dropdown-item
                 ><el-dropdown-item
                   v-if="canConfigure"
                   @click="router.push({ name: configRoute(product.code) } as any)"
-                  >产品配置</el-dropdown-item
+                  >{{ t('nav.productConfigPage') }}</el-dropdown-item
                 ></el-dropdown-menu
               ></template
             >
@@ -74,15 +74,17 @@ import { developerProductService } from '@/service/developerProductService'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { DEVELOPER_PRODUCT_NAVIGATION } from '@/constant/developer-product-navigation'
+import { i18ns } from '@/locales'
 import {
-  PRODUCT_COPY,
   configRoute,
   managementRoute,
+  productCopy,
   productName,
   userRoute,
 } from './developer-product-ui'
 
 const router = useRouter()
+const { t } = i18ns
 const permissionStore = usePermissionStore()
 const canManage = computed(() =>
   permissionStore.hasPermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE),
@@ -99,9 +101,9 @@ const hasProductAccess = (productCode: DeveloperProductCode) => {
 }
 const productState = (productCode: DeveloperProductCode) => {
   const product = products.value.find((item) => item.code === productCode)
-  if (!hasProductAccess(productCode)) return { type: 'info' as const, label: '无权限' }
-  if (!product?.config?.enabled) return { type: 'warning' as const, label: '服务停用' }
-  return { type: 'success' as const, label: '可访问' }
+  if (!hasProductAccess(productCode)) return { type: 'info' as const, label: t('productCatalog.noAccess') }
+  if (!product?.config?.enabled) return { type: 'warning' as const, label: t('productCatalog.disabled') }
+  return { type: 'success' as const, label: t('productCatalog.available') }
 }
 
 const load = async () => {
@@ -110,7 +112,7 @@ const load = async () => {
   try {
     products.value = await developerProductService.catalog()
   } catch {
-    error.value = '产品目录暂时无法加载，请刷新后重试。'
+    error.value = t('productCatalog.loadError')
   } finally {
     loading.value = false
   }

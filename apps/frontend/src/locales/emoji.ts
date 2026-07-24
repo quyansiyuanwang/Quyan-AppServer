@@ -181,6 +181,26 @@ const emoji: DeepStringify<typeof en> = {
     noPermission: '🚫 🔐',
   },
 
+  productConsole: {
+    refresh: '♻️', documentation: '📖', createInstance: '➕ 📦', instanceCount: '📦', dailyQuota: '📅 🎁', instances: '📦', instancesDescription: '📦 🔐 🔑 🧩', emptyInstances: '🈚 📦', instanceName: '🏷️', instanceSlug: '🆔', status: '🚥', actions: '⚙️', enabled: '✅', disabled: '⏸️', manage: '🛠️', view: '👀', instanceManagement: '🛠️ 📦', disableInstance: '⏸️ 📦', restoreInstance: '▶️ 📦', deleteInstance: '🗑️ 📦', apiKeys: '🔑', apiKeysDescription: '🔑 👀 1️⃣', createKey: '➕ 🔑', keyName: '🏷️', keyPrefix: '🔤', keySubject: 'RAM 👤', keyActions: '✅ ⚙️', expiresAt: '⌛', expiresAtOptional: '⌛ ❓', neverExpires: '♾️', revoke: '🚫', emptyKeys: '🈚 🔑', loadError: '📥 💥，♻️ 🔁', instanceCreated: '📦 ✅', saveKeyTitle: '💾 🔑', savedKey: '💾 ✅', revokeKeyConfirm: '🚫 🔑 🚫 ↩️', revokeKeyTitle: '🚫 🔑', keyRevoked: '🔑 🚫', instanceDisabled: '📦 ⏸️', instanceRestored: '📦 ▶️', deleteInstanceConfirm: '🗑️ “{name}” ➜ 🔑 🧩 📜 🗑️', deleteInstanceTitle: '🗑️ 📦', instanceDeleted: '📦 🗑️',
+  },
+
+  productConfig: {
+    titleSuffix: '⚙️', description: '🚦 🎁 💰', serviceSwitch: '🚦', serviceSwitchDescription: '⏸️ ➜ 🌐 📞 🚫；📦 ✅', dailyQuota: '📅 🎁', overagePrice: '➕ 💰', instanceLimit: '📦 🔢', loadError: '⚙️ 📥 💥', saved: '⚙️ 💾 ✅',
+  },
+
+  developerProducts: {
+    kvDescription: '🗃️ JSON ⚙️ 🔢 ⏳', shortLinkDescription: '🔗 ↪️ 📊', secretDescription: '🔐 🪪 🛡️ ↗️', statusDescription: '📡 ✅ 🌐 🚦', verificationDescription: '📧 📱 🔢 API', ipGeolocationDescription: '🌍 IP 🧭 ASN', pushDescription: '📣 Webhook / DingTalk / Feishu / WeCom',
+  },
+
+  productResources: {
+    name: '🏷️', type: '🏷️', endpoint: '🔗', key: '🔑', version: '🔢', targetUrl: '🎯 URL', status: '🚥', enabled: '✅', disabled: '⏸️', actions: '⚙️', edit: '✏️', delete: '🗑️', save: '💾', cancel: '🚫', empty: '🈚 📋', expiresAt: '⌛', neverExpires: '♾️', latestStatus: '🕐 🚥', intervalSeconds: '⏲️（秒）', method: '🧭', successStatusCodes: '✅ HTTP', invalidStatusCodes: '⚠️ HTTP 🔢', kvTitle: '🗃️', kvDescription: '📦 🔐；JSON 🚫 展开', newKv: '➕ 🗃️', jsonValue: 'JSON', ttlSeconds: 'TTL（秒）', ttlHint: '⬜ ➜ ♾️', kvSaved: '🗃️ 💾 ✅', kvInvalid: 'JSON 💥', shortLinkTitle: '🔗', shortLinkDescription: '🌐 /s/{code}', createShortLink: '➕ 🔗', shortCode: '🔤', customShortCode: '🔤 ❓', clicks: '👆', statistics: '📊', totalClicks: '🌐 👆', date: '📅', secretTitle: '🔐 🪪', secretDescription: '🔐 ➡️ 🚫 👀', writeSecret: '✍️ 🔐', secretValue: '🔐', lastUsed: '🕐 👆', neverUsed: '🚫 👆', rotate: '🔄', statusTitle: '📡 🎯', statusDescription: 'HTTP(S) 🛡️ SSRF', addTarget: '➕ 🎯', runCheck: '🔎', pause: '⏸️', resume: '▶️', publish: '🌐 🚦', unpublish: '🌐 🚦 🚫', pushTitle: '📣 📺', pushDescription: '🔐 🪪 🚫 👀', addChannel: '➕ 📺', secretAlias: '🔐 🪪 ❓', deliveryLogs: '📜', attempts: '🔁', error: '❌', time: '🕐', usageTitle: '📈 📜', todayRequests: '📅 📞', remainingQuota: '🎁 ⏳', overage: '➕', enabledOverage: '✅', disabledOverage: '🚫', result: '📋', charge: '💰', success: '✅', failed: '❌', auditEmpty: '🈚 📜',
+  },
+
+  productUsage: { verificationTitle: '🔢 📞', verificationDescription: '🔑 📧 📱', ipTitle: '🌍 📞', ipDescription: '🌐 IP ➜ 📊；🚫 IP 🚫 💰' },
+
+  productCatalog: { title: '📚', description: '🧩 📦 🔑 RAM 📊', refresh: '♻️ 📚', api: 'API', managedService: '🛠️', quota: '🎁', perDay: '/ 📅', enter: '➡️ 🧩', actions: '🧩 ⚙️', noAccess: '🚫', disabled: '⏸️', available: '✅', loadError: '📚 📥 💥，♻️ 🔁' },
+
   localeName: {
     zhCN: '🇨🇳🔤',
     en: '🇺🇸🔤',
@@ -418,6 +438,7 @@ const emoji: DeepStringify<typeof en> = {
     settingsSecurity: '🔐 🛡️',
     developerProjects: '🧰 🔗',
     developerProducts: '🧰 📚',
+    productCatalog: '📚 👀',
     developerServices: '🧑‍💻 🧰',
     productKv: '🗃️ KV',
     productShortLink: '🔗',
