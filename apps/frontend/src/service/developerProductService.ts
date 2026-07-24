@@ -2,6 +2,10 @@ import type {
   CreateDeveloperProductApiKeyDto,
   CreateDeveloperProductInstanceDto,
   DeveloperProductCode,
+  UpdateDeveloperPushChannelDto,
+  UpdateDeveloperStatusMonitorDto,
+  UpdateDeveloperStatusPageDto,
+  UpdateShortLinkDto,
   UpdateDeveloperProductConfigDto,
 } from '@/client/types.gen'
 import { createDeveloperProductAdminControllerApi } from '@/client/services/developer-product-admin-controller.gen'
@@ -54,7 +58,9 @@ export class DeveloperProductService {
   }
 
   async updateInstance(product: DeveloperProductCode, instanceId: string, enabled: boolean) {
-    return this.unwrap(await selfApi().updateInstance({ path: { product, instanceId }, body: { enabled } }))
+    return this.unwrap(
+      await selfApi().updateInstance({ path: { product, instanceId }, body: { enabled } }),
+    )
   }
 
   async deleteInstance(product: DeveloperProductCode, instanceId: string) {
@@ -105,8 +111,8 @@ export class DeveloperProductService {
   ) {
     return this.unwrap(await resourceApi().createShortLink({ path: { instanceId }, body }))
   }
-  async updateShortLinkResource(instanceId: string, id: string, body: Record<string, unknown>) {
-    return this.unwrap(await resourceApi().updateShortLink({ path: { instanceId, id }, body: body as any }))
+  async updateShortLinkResource(instanceId: string, id: string, body: UpdateShortLinkDto) {
+    return this.unwrap(await resourceApi().updateShortLink({ path: { instanceId, id }, body }))
   }
   async deleteShortLinkResource(instanceId: string, id: string) {
     return checkApiResult(await resourceApi().deleteShortLink({ path: { instanceId, id } }), false)
@@ -138,8 +144,12 @@ export class DeveloperProductService {
   ) {
     return this.unwrap(await resourceApi().createMonitor({ path: { instanceId }, body }))
   }
-  async updateMonitorResource(instanceId: string, id: string, body: Record<string, unknown>) {
-    return this.unwrap(await resourceApi().updateMonitor({ path: { instanceId, id }, body: body as any }))
+  async updateMonitorResource(
+    instanceId: string,
+    id: string,
+    body: UpdateDeveloperStatusMonitorDto,
+  ) {
+    return this.unwrap(await resourceApi().updateMonitor({ path: { instanceId, id }, body }))
   }
   async deleteMonitorResource(instanceId: string, id: string) {
     return checkApiResult(await resourceApi().deleteMonitor({ path: { instanceId, id } }), false)
@@ -147,8 +157,8 @@ export class DeveloperProductService {
   async checkMonitorResource(instanceId: string, id: string) {
     return this.unwrap(await resourceApi().checkMonitor({ path: { instanceId, id } }))
   }
-  async updateStatusPageResource(instanceId: string, body: Record<string, unknown>) {
-    return this.unwrap(await resourceApi().updateStatusPage({ path: { instanceId }, body: body as any }))
+  async updateStatusPageResource(instanceId: string, body: UpdateDeveloperStatusPageDto) {
+    return this.unwrap(await resourceApi().updateStatusPage({ path: { instanceId }, body }))
   }
   async getStatusPageResource(instanceId: string) {
     return this.unwrap(await resourceApi().getStatusPage({ path: { instanceId } }))
@@ -167,11 +177,18 @@ export class DeveloperProductService {
   ) {
     return this.unwrap(await resourceApi().createPushChannel({ path: { instanceId }, body }))
   }
-  async updatePushChannelResource(instanceId: string, id: string, body: Record<string, unknown>) {
-    return this.unwrap(await resourceApi().updatePushChannel({ path: { instanceId, id }, body: body as any }))
+  async updatePushChannelResource(
+    instanceId: string,
+    id: string,
+    body: UpdateDeveloperPushChannelDto,
+  ) {
+    return this.unwrap(await resourceApi().updatePushChannel({ path: { instanceId, id }, body }))
   }
   async deletePushChannelResource(instanceId: string, id: string) {
-    return checkApiResult(await resourceApi().deletePushChannel({ path: { instanceId, id } }), false)
+    return checkApiResult(
+      await resourceApi().deletePushChannel({ path: { instanceId, id } }),
+      false,
+    )
   }
   async listPushDeliveryResources(instanceId: string) {
     return this.unwrap(await resourceApi().listPushDeliveries({ path: { instanceId } }))
@@ -189,7 +206,6 @@ export class DeveloperProductService {
     if (product) return this.unwrap(await adminApi().listProductAccounts({ path: { product } }))
     return this.unwrap(await adminApi().listAccounts({}))
   }
-
 }
 
 export const developerProductService = DeveloperProductService.getInstance()

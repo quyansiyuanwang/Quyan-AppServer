@@ -8,13 +8,20 @@
       </div>
       <el-button :icon="Refresh" circle aria-label="刷新" @click="load" />
     </header>
-    <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+    <el-alert v-if="error" :title="error" type="error" show-icon :closable="false">
+      <template #default
+        ><el-button link type="primary" @click="load">{{
+          t('productFeedback.retry')
+        }}</el-button></template
+      >
+    </el-alert>
     <section class="admin-summary">
       <div>
         <span>账户产品记录</span><strong>{{ accounts.length }}</strong>
       </div>
       <div>
-        <span>实例上限合计</span><strong>{{ accounts.reduce((sum, item) => sum + item.instanceLimit, 0) }}</strong>
+        <span>实例上限合计</span
+        ><strong>{{ accounts.reduce((sum, item) => sum + item.instanceLimit, 0) }}</strong>
       </div>
       <div>
         <span>默认实例上限</span><strong>{{ config?.defaultInstanceLimit ?? '-' }}</strong>
@@ -43,11 +50,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import type { DeveloperProductCode, DeveloperProductAccountDto } from '@/client/types.gen'
 import { developerProductService } from '@/service/developerProductService'
 import { productName } from './developer-product-ui'
+import { i18ns } from '@/locales'
+import { getErrorMessage } from '@/utils/error-utils'
 
 const props = defineProps<{ product: DeveloperProductCode }>()
+const { t } = i18ns
 const product = computed(() => props.product)
 const loading = ref(false)
 const error = ref('')
@@ -63,8 +74,9 @@ const load = async () => {
     ])
     accounts.value = nextAccounts
     config.value = configs.find((item) => item.productCode === product.value)
-  } catch {
-    error.value = '账户产品记录暂时无法加载。'
+  } catch (cause) {
+    error.value = getErrorMessage(cause, t('productFeedback.loadFailed'))
+    ElMessage.error(error.value)
   } finally {
     loading.value = false
   }

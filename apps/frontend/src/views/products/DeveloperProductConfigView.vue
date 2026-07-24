@@ -8,15 +8,26 @@
       </div>
       <el-button :icon="Refresh" circle :aria-label="t('productConsole.refresh')" @click="load" />
     </header>
-    <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+    <el-alert v-if="error" :title="error" type="error" show-icon :closable="false">
+      <template #default
+        ><el-button link type="primary" @click="load">{{
+          t('productFeedback.retry')
+        }}</el-button></template
+      >
+    </el-alert>
     <section class="config-panel" v-loading="loading">
+      <el-alert v-if="saveError" :title="saveError" type="error" show-icon :closable="false" />
       <el-form label-position="top"
         ><div class="config-section">
           <div>
             <h2>{{ t('productConfig.serviceSwitch') }}</h2>
             <p>{{ t('productConfig.serviceSwitchDescription') }}</p>
           </div>
-          <el-switch v-model="form.enabled" :active-text="t('productConsole.enabled')" :inactive-text="t('productConsole.disabled')" />
+          <el-switch
+            v-model="form.enabled"
+            :active-text="t('productConsole.enabled')"
+            :inactive-text="t('productConsole.disabled')"
+          />
         </div>
         <el-divider />
         <div class="form-grid">
@@ -32,12 +43,10 @@
               :precision="6"
               :step="0.01" /></el-form-item
           ><el-form-item :label="t('productConfig.instanceLimit')"
-            ><el-input-number
-              v-model="form.defaultInstanceLimit"
-              :min="1"
-              :max="1000" /></el-form-item>
+            ><el-input-number v-model="form.defaultInstanceLimit" :min="1" :max="1000"
+          /></el-form-item>
         </div>
-      ></el-form>
+      </el-form>
       <div class="footer">
         <el-button type="primary" :loading="saving" @click="save">{{ t('save') }}</el-button>
       </div>
@@ -53,12 +62,14 @@ import type { DeveloperProductCode } from '@/client/types.gen'
 import { developerProductService } from '@/service/developerProductService'
 import { productName } from './developer-product-ui'
 import { i18ns } from '@/locales'
+import { getErrorMessage } from '@/utils/error-utils'
 const props = defineProps<{ product: DeveloperProductCode }>()
 const { t } = i18ns
 const product = computed(() => props.product)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
+const saveError = ref('')
 const form = ref({
   enabled: false,
   defaultDailyQuota: 0,
@@ -81,14 +92,17 @@ const load = async () => {
       defaultInstanceLimit: config.defaultInstanceLimit,
       retentionDays: config.retentionDays,
     }
-  } catch {
-    error.value = t('productConfig.loadError')
+  } catch (cause) {
+    error.value = getErrorMessage(cause, t('productConfig.loadError'))
+    ElMessage.error(error.value)
   } finally {
     loading.value = false
   }
 }
 const save = async () => {
+  if (saving.value) return
   saving.value = true
+  saveError.value = ''
   try {
     await developerProductService.updateConfig(product.value, {
       ...form.value,
@@ -97,6 +111,9 @@ const save = async () => {
       settings: {},
     })
     ElMessage.success(t('productConfig.saved'))
+  } catch (cause) {
+    saveError.value = getErrorMessage(cause, t('productFeedback.operationFailed'))
+    ElMessage.error(saveError.value)
   } finally {
     saving.value = false
   }
