@@ -18,6 +18,7 @@ describe("database runtime config", () => {
     vi.doMock("../../../src/config/env", () => ({
       EnvSpace: {
         isTest: true,
+        databaseUrl: "mysql://root:password@localhost:3306/runtime_test",
       },
     }));
 
@@ -46,6 +47,7 @@ describe("database runtime config", () => {
     vi.doMock("../../../src/config/env", () => ({
       EnvSpace: {
         isTest: false,
+        databaseUrl: "mysql://root:password@localhost:3306/runtime_dev",
       },
     }));
 

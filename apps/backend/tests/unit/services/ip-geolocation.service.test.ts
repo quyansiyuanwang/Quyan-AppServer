@@ -5,6 +5,10 @@ import { RedisService } from "../../../src/services/infrastructure/redis.service
 
 vi.mock("../../../src/config/env", () => ({
   EnvSpace: {
+    redisConfig: {
+      circuitBreakerFailureThreshold: 5,
+      circuitBreakerOpenMs: 30000,
+    },
     baiduMapConfig: {
       ipLocationAk: "test-ak",
     },
@@ -93,7 +97,7 @@ describe("IpGeolocationService", () => {
       const result = await service.getLocation("14.215.177.38");
 
       expect(result).toBe("广东省深圳市");
-      expect(redisMock.set).toHaveBeenCalledWith("ip:geo:14.215.177.38", "广东省深圳市", 7 * 24 * 60 * 60);
+      expect(redisMock.set).toHaveBeenCalledWith("ip:geo:14.215.177.38", "广东省深圳市", 24 * 60 * 60);
     });
 
     it("API status 非 '0' 时应返回 '未知地区'", async () => {

@@ -4,7 +4,6 @@ import { NotificationManagementService } from "../../../src/services/notificatio
 import { NotificationEvent } from "../../../src/constant/notification-event";
 import { NotFoundError } from "../../../src/util/errors";
 import type { TypedRequest } from "../../../src/types/express";
-import { Permission } from "../../../src/constant/permission";
 
 vi.mock("../../../src/services/notification/notification-management.service");
 
@@ -15,11 +14,11 @@ vi.mock("../../../src/services/users/permission.service", () => ({
       checkUserPermissions: vi.fn().mockResolvedValue({
         hasPermission: true,
         missingPermissions: [],
-        checkedPermissions: [Permission.NOTIFICATION_MANAGE],
+        checkedPermissions: ["notification:manage"],
       }),
       hasPermission: vi.fn().mockResolvedValue(true),
       getUserFullPermissions: vi.fn().mockResolvedValue({
-        effectivePermissions: [Permission.NOTIFICATION_MANAGE],
+        effectivePermissions: ["notification:manage"],
       }),
     }),
   },

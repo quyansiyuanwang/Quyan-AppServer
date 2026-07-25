@@ -17,6 +17,8 @@ describe("TwoFactorService security hardening", () => {
   const originalEnv = { ...process.env };
   const originalTwoFactorConfig = { ...EnvSpace.twoFactorConfig };
   const originalTrustWindowMinutes = EnvSpace.twoFactorTrustWindowMinutes;
+  const originalTrustedDeviceSecret = EnvSpace.trustedDeviceSecret;
+  const originalAccessTokenSecret = EnvSpace.accessTokenSecret;
   const trustedDeviceSecret = "a".repeat(64);
 
   beforeEach(() => {
@@ -30,6 +32,8 @@ describe("TwoFactorService security hardening", () => {
     process.env = { ...originalEnv };
     (EnvSpace as any).twoFactorConfig = { ...originalTwoFactorConfig };
     (EnvSpace as any).twoFactorTrustWindowMinutes = originalTrustWindowMinutes;
+    (EnvSpace as any).trustedDeviceSecret = originalTrustedDeviceSecret;
+    (EnvSpace as any).accessTokenSecret = originalAccessTokenSecret;
   });
 
   const createService = () => {
@@ -427,12 +431,12 @@ describe("TwoFactorService security hardening", () => {
 
     const oldSecret = "a".repeat(64);
     const rotatedSecret = "b".repeat(64);
-    process.env.TWO_FACTOR_TRUSTED_DEVICE_SECRET = oldSecret;
+    (EnvSpace as any).trustedDeviceSecret = oldSecret;
 
     const deviceId = service.generateTrustedDeviceId();
     const token = service.createTrustedDeviceToken("user-1", deviceId);
 
-    process.env.TWO_FACTOR_TRUSTED_DEVICE_SECRET = rotatedSecret;
+    (EnvSpace as any).trustedDeviceSecret = rotatedSecret;
 
     expect(service.verifyTrustedDeviceToken("user-1", token)).toBeNull();
   });
@@ -604,7 +608,7 @@ describe("TwoFactorService security hardening", () => {
 
   it("requires TWO_FACTOR_TRUSTED_DEVICE_SECRET to be configured", () => {
     const { service } = createService();
-    process.env.TWO_FACTOR_TRUSTED_DEVICE_SECRET = "";
+    (EnvSpace as any).trustedDeviceSecret = "";
 
     const deviceId = service.generateTrustedDeviceId();
     expect(() => service.createTrustedDeviceToken("user-1", deviceId)).toThrow(
@@ -614,7 +618,7 @@ describe("TwoFactorService security hardening", () => {
 
   it("requires TWO_FACTOR_TRUSTED_DEVICE_SECRET to be strong enough", () => {
     const { service } = createService();
-    process.env.TWO_FACTOR_TRUSTED_DEVICE_SECRET = "short-secret";
+    (EnvSpace as any).trustedDeviceSecret = "short-secret";
 
     const deviceId = service.generateTrustedDeviceId();
     expect(() => service.createTrustedDeviceToken("user-1", deviceId)).toThrow(
@@ -624,8 +628,8 @@ describe("TwoFactorService security hardening", () => {
 
   it("requires TWO_FACTOR_TRUSTED_DEVICE_SECRET to be different from JWT_ACCESS_SECRET", () => {
     const { service } = createService();
-    process.env.JWT_ACCESS_SECRET = trustedDeviceSecret;
-    process.env.TWO_FACTOR_TRUSTED_DEVICE_SECRET = trustedDeviceSecret;
+    (EnvSpace as any).accessTokenSecret = trustedDeviceSecret;
+    (EnvSpace as any).trustedDeviceSecret = trustedDeviceSecret;
 
     const deviceId = service.generateTrustedDeviceId();
     expect(() => service.createTrustedDeviceToken("user-1", deviceId)).toThrow(
