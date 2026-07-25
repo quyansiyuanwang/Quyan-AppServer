@@ -454,6 +454,10 @@ export const useRelayTokenManagement = () => {
     channels.value.filter((channel) => channel.channelType !== 'automatic-proxy-pool'),
   )
 
+  const automaticProxyPoolChannelIdSet = computed(
+    () => new Set(automaticProxyPoolChannelOptions.value.map((channel) => channel.id)),
+  )
+
   const selectedChannelConfigKeys = ref<string[]>([])
   const tokenChannelBatchAddIds = ref<string[]>([])
   const showTokenChannelImportDialog = ref(false)
@@ -1355,8 +1359,14 @@ export const useRelayTokenManagement = () => {
     showEditDialog.value = true
   }
 
-  const getSortedChannelConfigs = (row: RelayTokenDto): RelayTokenChannelConfigDto[] =>
-    [...(row.channelConfigs || [])].sort((a, b) => a.priority - b.priority)
+  const getSortedChannelConfigs = (row: RelayTokenDto): RelayTokenChannelConfigDto[] => {
+    const configs = [...(row.channelConfigs || [])]
+    if (!isAutomaticPoolToken(row))
+      return configs
+        .filter((config) => !automaticProxyPoolChannelIdSet.value.has(config.channelId))
+        .sort((a, b) => a.priority - b.priority)
+    return configs.sort((a, b) => a.priority - b.priority)
+  }
 
   const isAutomaticPoolToken = (row: RelayTokenDto) =>
     (row as RelayTokenWithRouting).routingMode === 'automatic-pool'
@@ -1599,7 +1609,9 @@ export const useRelayTokenManagement = () => {
       throw new Error(i18ns.t('relay.duplicateChannels'))
     }
 
-    const automaticPoolIds = new Set(automaticProxyPoolChannelOptions.value.map((channel) => channel.id))
+    const automaticPoolIds = new Set(
+      automaticProxyPoolChannelOptions.value.map((channel) => channel.id),
+    )
     if (trimmedConfigs.some((config) => automaticPoolIds.has(config.channelId))) {
       throw new Error(i18ns.t('relay.channelRequired'))
     }

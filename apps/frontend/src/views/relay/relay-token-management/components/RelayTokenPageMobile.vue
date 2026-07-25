@@ -183,7 +183,17 @@
                     ? i18ns.t('relay.automaticProxyPoolChannel')
                     : i18ns.t('relay.orderedChannels')
                 }}</span>
-                <span class="value">{{ state.formatChannelSummary(row) }}</span>
+                <span class="value">
+                  <el-tag
+                    v-if="row.hasInvalidOrderedChannels"
+                    size="small"
+                    type="warning"
+                    effect="plain"
+                  >
+                    {{ i18ns.t('relay.invalidOrderedAutomaticPool') }}
+                  </el-tag>
+                  <template v-else>{{ state.formatChannelSummary(row) }}</template>
+                </span>
                 <span class="hint">{{ state.formatMobileChannelMeta(row) }}</span>
               </div>
               <div class="token-mobile-field">

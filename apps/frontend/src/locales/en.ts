@@ -2634,6 +2634,8 @@ export default {
     automaticProxyPoolChannel: 'Automatic Proxy Pool Channel',
     automaticProxyPoolChannelPlaceholder: 'Select an automatic proxy pool channel',
     automaticProxyPoolChannelRequired: 'Select an automatic proxy pool channel',
+    invalidOrderedAutomaticPool:
+      'Ordered channels contain an automatic proxy pool; reconfigure this token',
     unavailableChannelsWarningTitle: 'This token contains unavailable channels',
     unavailableChannelsWarningDesc:
       'The following channels no longer exist or have been disabled: {channels}. Remove or replace them before saving.',

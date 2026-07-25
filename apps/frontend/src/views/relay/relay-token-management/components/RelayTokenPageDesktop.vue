@@ -228,6 +228,14 @@
                 </div>
               </template>
               <div class="channel-config-list">
+                <el-tag
+                  v-if="row.hasInvalidOrderedChannels"
+                  size="small"
+                  type="warning"
+                  effect="plain"
+                >
+                  {{ i18ns.t('relay.invalidOrderedAutomaticPool') }}
+                </el-tag>
                 <div v-if="state.getSortedChannelConfigs(row).length" class="channel-config-list">
                   <div
                     v-for="config in state.getVisibleChannelConfigs(row)"

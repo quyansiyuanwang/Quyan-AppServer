@@ -35052,6 +35052,10 @@
 						},
 						"type": "array"
 					},
+					"hasInvalidOrderedChannels": {
+						"type": "boolean",
+						"description": "True when legacy ordered configuration still references an automatic pool."
+					},
 					"failoverConfig": {
 						"$ref": "#/components/schemas/RelayTokenFailoverConfigDto"
 					}

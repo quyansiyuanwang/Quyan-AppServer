@@ -230,6 +230,7 @@ class RelayChannelSkipError extends BadRequestError {
 
 export class RelayProxyService {
   private static instance: RelayProxyService;
+  private readonly logicalRequestIds = new WeakMap<object, string>();
 
   constructor(
     private readonly relayTokenRepo: RelayTokenStore = RelayTokenRepository.getInstance(),
@@ -1872,7 +1873,15 @@ export class RelayProxyService {
   }
 
   private getLogicalRequestId(req: any): string {
-    return this.getHeaderValue(req?.headers, "x-request-id") || randomUUID();
+    if (!req || (typeof req !== "object" && typeof req !== "function")) return randomUUID();
+
+    const requestObject = req as object;
+    const existing = this.logicalRequestIds.get(requestObject);
+    if (existing) return existing;
+
+    const logicalRequestId = randomUUID();
+    this.logicalRequestIds.set(requestObject, logicalRequestId);
+    return logicalRequestId;
   }
 
   private withRequestIdHeader(req: any, headers: Record<string, unknown> = {}): Record<string, unknown> {

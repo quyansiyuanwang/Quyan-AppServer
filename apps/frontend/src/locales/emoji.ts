@@ -2712,6 +2712,7 @@ const emoji: DeepStringify<typeof en> = {
     automaticProxyPoolChannel: '🤖 代理 🏊 📡',
     automaticProxyPoolChannelPlaceholder: '选择 🤖 代理 🏊 📡',
     automaticProxyPoolChannelRequired: '请选择 🤖 代理 🏊 📡',
+    invalidOrderedAutomaticPool: '⚠️ 有序 📡 包含 🤖 代理 🏊，请重新配置',
     unavailableChannelsWarningTitle: '⚠️ 🪙 📡 ❌',
     unavailableChannelsWarningDesc: '🔍 ❌/⏸️ 📡: {channels}。💾 ⬅️ 🙅，请先替换或删除。',
     unavailableChannelsWarningToast: '⚠️ ❌/⏸️ 📡: {channels}',

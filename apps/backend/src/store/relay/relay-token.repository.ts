@@ -337,27 +337,6 @@ export class RelayTokenRepository implements RelayTokenStore {
     });
   }
 
-  async incrementUsageStats(id: string, totalTokens: number): Promise<RelayToken> {
-    return prisma.relayToken.update({
-      where: { id },
-      data: {
-        totalTokens: { increment: totalTokens },
-        requestCount: { increment: 1 },
-        lastUsedAt: new Date(),
-      },
-    });
-  }
-
-  async touchRequest(id: string): Promise<RelayToken> {
-    return prisma.relayToken.update({
-      where: { id },
-      data: {
-        requestCount: { increment: 1 },
-        lastUsedAt: new Date(),
-      },
-    });
-  }
-
   async update(id: string, data: RelayTokenUpdateInput): Promise<RelayToken> {
     const {
       failoverConfig,
