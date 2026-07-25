@@ -18,7 +18,11 @@ export const DEVELOPER_PRODUCT_NAVIGATION: readonly DeveloperProductNavigationIt
     urlSlug: 'kv',
     labelKey: 'nav.productKv',
     icon: Connection,
-    permissions: [Permission.PRODUCT_KV_READ, Permission.PRODUCT_KV_WRITE, Permission.PRODUCT_KV_MANAGE],
+    permissions: [
+      Permission.PRODUCT_KV_READ,
+      Permission.PRODUCT_KV_WRITE,
+      Permission.PRODUCT_KV_MANAGE,
+    ],
   },
   {
     code: 'short_link',
@@ -71,7 +75,10 @@ export const DEVELOPER_PRODUCT_NAVIGATION: readonly DeveloperProductNavigationIt
     urlSlug: 'ip-geolocation',
     labelKey: 'nav.productIpGeolocation',
     icon: Connection,
-    permissions: [Permission.PRODUCT_IP_GEOLOCATION_LOOKUP, Permission.PRODUCT_IP_GEOLOCATION_MANAGE],
+    permissions: [
+      Permission.PRODUCT_IP_GEOLOCATION_LOOKUP,
+      Permission.PRODUCT_IP_GEOLOCATION_MANAGE,
+    ],
   },
   {
     code: 'push',

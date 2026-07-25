@@ -85,13 +85,14 @@ export class DeveloperProjectService {
   }
 
   async deleteKv(projectId: string, key: string) {
-    return checkApiResult(await getDeveloperProjectApi().deleteKv({ path: { projectId, key } }), false)
+    return checkApiResult(
+      await getDeveloperProjectApi().deleteKv({ path: { projectId, key } }),
+      false,
+    )
   }
 
   async listShortLinks(projectId: string) {
-    return this.unwrap(
-      await getDeveloperProjectApi().listShortLinks({ path: { projectId } }),
-    )
+    return this.unwrap(await getDeveloperProjectApi().listShortLinks({ path: { projectId } }))
   }
 
   async createShortLink(projectId: string, data: CreateShortLinkDto) {
@@ -137,9 +138,7 @@ export class DeveloperProjectService {
   }
 
   async listMonitors(projectId: string) {
-    return this.unwrap(
-      await getDeveloperProjectApi().listMonitors({ path: { projectId } }),
-    )
+    return this.unwrap(await getDeveloperProjectApi().listMonitors({ path: { projectId } }))
   }
 
   async createMonitor(projectId: string, data: CreateDeveloperStatusMonitorDto) {
@@ -162,15 +161,11 @@ export class DeveloperProjectService {
   }
 
   async listPushChannels(projectId: string) {
-    return this.unwrap(
-      await getDeveloperProjectApi().listPushChannels({ path: { projectId } }),
-    )
+    return this.unwrap(await getDeveloperProjectApi().listPushChannels({ path: { projectId } }))
   }
 
   async listPushDeliveries(projectId: string) {
-    return this.unwrap(
-      await getDeveloperProjectApi().listPushDeliveries({ path: { projectId } }),
-    )
+    return this.unwrap(await getDeveloperProjectApi().listPushDeliveries({ path: { projectId } }))
   }
 
   async createPushChannel(projectId: string, data: CreateDeveloperPushChannelDto) {
@@ -193,9 +188,7 @@ export class DeveloperProjectService {
   }
 
   async checkMonitor(projectId: string, id: string) {
-    return this.unwrap(
-      await getDeveloperProjectApi().checkMonitor({ path: { projectId, id } }),
-    )
+    return this.unwrap(await getDeveloperProjectApi().checkMonitor({ path: { projectId, id } }))
   }
 }
 

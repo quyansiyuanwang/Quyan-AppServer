@@ -312,7 +312,11 @@ const togglePublished = async () => {
 }
 const openPublicStatusPage = () => {
   if (!statusPageSlug.value) return
-  window.open(`/status/${encodeURIComponent(statusPageSlug.value)}`, '_blank', 'noopener,noreferrer')
+  window.open(
+    `/status/${encodeURIComponent(statusPageSlug.value)}`,
+    '_blank',
+    'noopener,noreferrer',
+  )
 }
 
 watch(() => [props.instance?.id, canRead.value, canPublish.value], load, { immediate: true })

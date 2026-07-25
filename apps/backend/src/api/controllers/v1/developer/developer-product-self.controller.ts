@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, Get, Middlewares, Path, Post, Put, Request, Route, Security, Tags } from "@tsoa/runtime";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Middlewares,
+  Path,
+  Post,
+  Put,
+  Request,
+  Route,
+  Security,
+  Tags,
+} from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express";
 import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
 import type {

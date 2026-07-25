@@ -79,7 +79,7 @@ const quotaServiceLabels: Record<string, string> = {
   push: '推送投递',
 }
 
-const withTimeout = <T>(promise: Promise<T>, timeoutMs = 15_000): Promise<T> =>
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs = 15_000): Promise<T> =>
   new Promise<T>((resolve, reject) => {
     const timeout = window.setTimeout(() => reject(new Error('请求超时')), timeoutMs)
     promise.then(
@@ -126,7 +126,16 @@ const refreshProjectResources = async () => {
   ])
   if (requestId !== resourceRequestId || projectId !== selectedProjectId.value) return
 
-  const [keysResult, kvResult, linksResult, secretsResult, monitorsResult, channelsResult, deliveriesResult, quotaResult] = results
+  const [
+    keysResult,
+    kvResult,
+    linksResult,
+    secretsResult,
+    monitorsResult,
+    channelsResult,
+    deliveriesResult,
+    quotaResult,
+  ] = results
   keys.value = keysResult.status === 'fulfilled' ? keysResult.value : []
   kvEntries.value = kvResult.status === 'fulfilled' ? (kvResult.value as KvListEntry[]) : []
   shortLinks.value = linksResult.status === 'fulfilled' ? linksResult.value : []
@@ -252,7 +261,10 @@ const copyShortLink = async (link: DeveloperShortLinkDto) => {
 }
 
 const showShortLinkStats = async (link: DeveloperShortLinkDto) => {
-  shortLinkStats.value = await developerProjectService.getShortLinkStats(selectedProjectId.value, link.id)
+  shortLinkStats.value = await developerProjectService.getShortLinkStats(
+    selectedProjectId.value,
+    link.id,
+  )
   shortLinkStatsVisible.value = true
 }
 
@@ -267,9 +279,13 @@ const saveSecret = async () => {
 }
 
 const deleteSecret = async (secret: DeveloperSecretDto) => {
-  await ElMessageBox.confirm(`删除 ${secret.alias} 后，所有引用该别名的请求都会失败。`, '删除托管密钥', {
-    type: 'warning',
-  })
+  await ElMessageBox.confirm(
+    `删除 ${secret.alias} 后，所有引用该别名的请求都会失败。`,
+    '删除托管密钥',
+    {
+      type: 'warning',
+    },
+  )
   await developerProjectService.deleteSecret(selectedProjectId.value, secret.alias)
   secrets.value = secrets.value.filter((item) => item.alias !== secret.alias)
 }
@@ -283,16 +299,13 @@ const createMonitor = async () => {
     ElMessage.warning('请至少填写一个有效成功状态码')
     return
   }
-  const monitor = await developerProjectService.createMonitor(
-    selectedProjectId.value,
-    {
-      name: monitorForm.value.name,
-      targetUrl: monitorForm.value.targetUrl,
-      method: monitorForm.value.method,
-      intervalSec: monitorForm.value.intervalSec,
-      successStatusCodes,
-    },
-  )
+  const monitor = await developerProjectService.createMonitor(selectedProjectId.value, {
+    name: monitorForm.value.name,
+    targetUrl: monitorForm.value.targetUrl,
+    method: monitorForm.value.method,
+    intervalSec: monitorForm.value.intervalSec,
+    successStatusCodes,
+  })
   monitors.value.unshift(monitor)
   monitorForm.value = {
     name: '',
@@ -316,16 +329,24 @@ const createPushChannel = async () => {
 }
 
 const togglePushChannel = async (channel: DeveloperPushChannelDto) => {
-  const updated = await developerProjectService.updatePushChannel(selectedProjectId.value, channel.id, {
-    enabled: !channel.enabled,
-  })
+  const updated = await developerProjectService.updatePushChannel(
+    selectedProjectId.value,
+    channel.id,
+    {
+      enabled: !channel.enabled,
+    },
+  )
   pushChannels.value = pushChannels.value.map((item) => (item.id === updated.id ? updated : item))
 }
 
 const deletePushChannel = async (channel: DeveloperPushChannelDto) => {
-  await ElMessageBox.confirm(`删除 ${channel.name} 后将无法继续使用该渠道投递消息。`, '删除推送渠道', {
-    type: 'warning',
-  })
+  await ElMessageBox.confirm(
+    `删除 ${channel.name} 后将无法继续使用该渠道投递消息。`,
+    '删除推送渠道',
+    {
+      type: 'warning',
+    },
+  )
   await developerProjectService.deletePushChannel(selectedProjectId.value, channel.id)
   pushChannels.value = pushChannels.value.filter((item) => item.id !== channel.id)
 }
@@ -406,7 +427,9 @@ const updateStatusPagePublished = async (published: boolean) => {
 
 const copyStatusPage = async () => {
   if (!activeProject.value?.statusPagePublished) return
-  await navigator.clipboard.writeText(new URL(`/status/${activeProject.value.slug}`, window.location.origin).toString())
+  await navigator.clipboard.writeText(
+    new URL(`/status/${activeProject.value.slug}`, window.location.origin).toString(),
+  )
   ElMessage.success('状态页地址已复制')
 }
 </script>
@@ -488,307 +511,377 @@ const copyStatusPage = async () => {
       </el-alert>
 
       <div v-loading="resourcesLoading" class="developer-resource-surface">
-      <el-tabs class="developer-tabs">
-        <el-tab-pane label="今日用量">
-          <div class="panel-toolbar">
-            <p>免费额度按项目和自然日计算，拒绝的超额调用不会计入用量。</p>
-            <el-tag :type="quotaSummary?.overageEnabled ? 'warning' : 'info'">
-              {{ quotaSummary?.overageEnabled ? '超额调用已启用' : '超额调用未启用' }}
-            </el-tag>
-          </div>
-          <el-table :data="quotaSummary?.usages || []" empty-text="暂无按量服务">
-            <el-table-column label="服务" min-width="180">
-              <template #default="{ row }">{{ quotaServiceLabels[row.service] || row.service }}</template>
-            </el-table-column>
-            <el-table-column prop="requestCount" label="今日调用" width="140" />
-            <el-table-column label="免费额度" width="140">
-              <template #default="{ row }">{{ row.dailyFreeQuota }}</template>
-            </el-table-column>
-            <el-table-column prop="remainingFree" label="剩余免费次数" width="160" />
-          </el-table>
-        </el-tab-pane>
+        <el-tabs class="developer-tabs">
+          <el-tab-pane label="今日用量">
+            <div class="panel-toolbar">
+              <p>免费额度按项目和自然日计算，拒绝的超额调用不会计入用量。</p>
+              <el-tag :type="quotaSummary?.overageEnabled ? 'warning' : 'info'">
+                {{ quotaSummary?.overageEnabled ? '超额调用已启用' : '超额调用未启用' }}
+              </el-tag>
+            </div>
+            <el-table :data="quotaSummary?.usages || []" empty-text="暂无按量服务">
+              <el-table-column label="服务" min-width="180">
+                <template #default="{ row }">{{
+                  quotaServiceLabels[row.service] || row.service
+                }}</template>
+              </el-table-column>
+              <el-table-column prop="requestCount" label="今日调用" width="140" />
+              <el-table-column label="免费额度" width="140">
+                <template #default="{ row }">{{ row.dailyFreeQuota }}</template>
+              </el-table-column>
+              <el-table-column prop="remainingFree" label="剩余免费次数" width="160" />
+            </el-table>
+          </el-tab-pane>
 
-        <el-tab-pane label="KV 存储">
-          <div class="panel-toolbar">
-            <p>在项目边界内保存 JSON 配置与临时数据，值仅在编辑时加载。</p>
-            <el-button :icon="Plus" type="primary" @click="openCreateKv">新建 KV</el-button>
-          </div>
-          <el-table :data="kvEntries" empty-text="尚无 KV 条目">
-            <el-table-column prop="key" label="键名" min-width="220" />
-            <el-table-column prop="version" label="版本" width="90" />
-            <el-table-column prop="expiresAt" label="过期时间" min-width="180">
-              <template #default="{ row }">{{ row.expiresAt || '永久' }}</template>
-            </el-table-column>
-            <el-table-column prop="updateTime" label="最后更新" min-width="180" />
-            <el-table-column width="130" fixed="right">
-              <template #default="{ row }">
-                <el-button link type="primary" @click="editKv(row)">编辑</el-button>
-                <el-button link type="danger" @click="deleteKv(row)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-tab-pane>
+          <el-tab-pane label="KV 存储">
+            <div class="panel-toolbar">
+              <p>在项目边界内保存 JSON 配置与临时数据，值仅在编辑时加载。</p>
+              <el-button :icon="Plus" type="primary" @click="openCreateKv">新建 KV</el-button>
+            </div>
+            <el-table :data="kvEntries" empty-text="尚无 KV 条目">
+              <el-table-column prop="key" label="键名" min-width="220" />
+              <el-table-column prop="version" label="版本" width="90" />
+              <el-table-column prop="expiresAt" label="过期时间" min-width="180">
+                <template #default="{ row }">{{ row.expiresAt || '永久' }}</template>
+              </el-table-column>
+              <el-table-column prop="updateTime" label="最后更新" min-width="180" />
+              <el-table-column width="130" fixed="right">
+                <template #default="{ row }">
+                  <el-button link type="primary" @click="editKv(row)">编辑</el-button>
+                  <el-button link type="danger" @click="deleteKv(row)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
 
-        <el-tab-pane label="API Key">
-          <div class="panel-toolbar">
-            <p>用于 KV、验证码、IP 定位和推送接口的服务端调用。</p>
-            <el-button :icon="Plus" type="primary" @click="createKeyVisible = true"
-              >创建 Key</el-button
-            >
-          </div>
-          <el-table :data="keys" empty-text="尚无项目 API Key">
-            <el-table-column prop="name" label="名称" min-width="160" />
-            <el-table-column prop="keyPrefix" label="前缀" min-width="120" />
-            <el-table-column label="权限" min-width="280"
-              ><template #default="{ row }"
-                ><el-tag
-                  v-for="scope in row.scopes"
-                  :key="scope"
-                  class="scope-tag"
-                  effect="plain"
-                  >{{ scope }}</el-tag
-                ></template
-              ></el-table-column
-            >
-            <el-table-column prop="requestCount" label="调用次数" width="110" />
-            <el-table-column width="80" fixed="right"
-              ><template #default="{ row }"
-                ><el-button link type="danger" @click="revokeKey(row)">撤销</el-button></template
-              ></el-table-column
-            >
-          </el-table>
-        </el-tab-pane>
+          <el-tab-pane label="API Key">
+            <div class="panel-toolbar">
+              <p>用于 KV、验证码、IP 定位和推送接口的服务端调用。</p>
+              <el-button :icon="Plus" type="primary" @click="createKeyVisible = true"
+                >创建 Key</el-button
+              >
+            </div>
+            <el-table :data="keys" empty-text="尚无项目 API Key">
+              <el-table-column prop="name" label="名称" min-width="160" />
+              <el-table-column prop="keyPrefix" label="前缀" min-width="120" />
+              <el-table-column label="权限" min-width="280"
+                ><template #default="{ row }"
+                  ><el-tag
+                    v-for="scope in row.scopes"
+                    :key="scope"
+                    class="scope-tag"
+                    effect="plain"
+                    >{{ scope }}</el-tag
+                  ></template
+                ></el-table-column
+              >
+              <el-table-column prop="requestCount" label="调用次数" width="110" />
+              <el-table-column width="80" fixed="right"
+                ><template #default="{ row }"
+                  ><el-button link type="danger" @click="revokeKey(row)">撤销</el-button></template
+                ></el-table-column
+              >
+            </el-table>
+          </el-tab-pane>
 
-        <el-tab-pane label="验证码 API">
-          <div class="panel-toolbar">
-            <p>使用项目 API Key 发送和校验邮箱或短信验证码，成功投递后才计入当天额度。</p>
-            <el-tag type="info">{{ quotaSummary?.usages?.find((item) => item.service === 'verification')?.remainingFree ?? '-' }} 次免费额度</el-tag>
-          </div>
-          <el-descriptions :column="1" border class="api-reference">
-            <el-descriptions-item label="发送验证码">
-              <code>POST /v1/developer/verification/send</code>
-              <el-tag class="scope-tag" effect="plain">verification:send</el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="校验验证码">
-              <code>POST /v1/developer/verification/verify</code>
-              <el-tag class="scope-tag" effect="plain">verification:verify</el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="请求字段">
-              <code>channel</code>、<code>recipient</code>、<code>purpose</code>；校验时额外传入 <code>code</code>
-            </el-descriptions-item>
-          </el-descriptions>
-          <pre class="api-example"><code>curl -X POST /v1/developer/verification/send \
+          <el-tab-pane label="验证码 API">
+            <div class="panel-toolbar">
+              <p>使用项目 API Key 发送和校验邮箱或短信验证码，成功投递后才计入当天额度。</p>
+              <el-tag type="info"
+                >{{
+                  quotaSummary?.usages?.find((item) => item.service === 'verification')
+                    ?.remainingFree ?? '-'
+                }}
+                次免费额度</el-tag
+              >
+            </div>
+            <el-descriptions :column="1" border class="api-reference">
+              <el-descriptions-item label="发送验证码">
+                <code>POST /v1/developer/verification/send</code>
+                <el-tag class="scope-tag" effect="plain">verification:send</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="校验验证码">
+                <code>POST /v1/developer/verification/verify</code>
+                <el-tag class="scope-tag" effect="plain">verification:verify</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="请求字段">
+                <code>channel</code>、<code>recipient</code>、<code>purpose</code>；校验时额外传入
+                <code>code</code>
+              </el-descriptions-item>
+            </el-descriptions>
+            <pre class="api-example"><code>curl -X POST /v1/developer/verification/send \
   -H "Authorization: Bearer dk_..." \
   -H "Content-Type: application/json" \
   -d '{"channel":"email","recipient":"user@example.com","purpose":"login"}'</code></pre>
-        </el-tab-pane>
+          </el-tab-pane>
 
-        <el-tab-pane label="IP 定位 API">
-          <div class="panel-toolbar">
-            <p>查询指定公网 IP，或省略路径参数以定位调用方 IP。私网和保留地址会被直接拒绝且不计费。</p>
-            <el-tag type="info">{{ quotaSummary?.usages?.find((item) => item.service === 'ip')?.remainingFree ?? '-' }} 次免费额度</el-tag>
-          </div>
-          <el-descriptions :column="1" border class="api-reference">
-            <el-descriptions-item label="指定 IP">
-              <code>GET /v1/developer/ip/{ip}</code>
-              <el-tag class="scope-tag" effect="plain">ip:lookup</el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="调用方 IP">
-              <code>GET /v1/developer/ip</code>
-              <el-tag class="scope-tag" effect="plain">ip:lookup</el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="响应字段">
-              <code>country</code>、<code>region</code>、<code>city</code>、<code>asn</code>、<code>isp</code>
-            </el-descriptions-item>
-          </el-descriptions>
-          <pre class="api-example"><code>curl -H "Authorization: Bearer dk_..." \
+          <el-tab-pane label="IP 定位 API">
+            <div class="panel-toolbar">
+              <p>
+                查询指定公网 IP，或省略路径参数以定位调用方 IP。私网和保留地址会被直接拒绝且不计费。
+              </p>
+              <el-tag type="info"
+                >{{
+                  quotaSummary?.usages?.find((item) => item.service === 'ip')?.remainingFree ?? '-'
+                }}
+                次免费额度</el-tag
+              >
+            </div>
+            <el-descriptions :column="1" border class="api-reference">
+              <el-descriptions-item label="指定 IP">
+                <code>GET /v1/developer/ip/{ip}</code>
+                <el-tag class="scope-tag" effect="plain">ip:lookup</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="调用方 IP">
+                <code>GET /v1/developer/ip</code>
+                <el-tag class="scope-tag" effect="plain">ip:lookup</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="响应字段">
+                <code>country</code
+                >、<code>region</code>、<code>city</code>、<code>asn</code>、<code>isp</code>
+              </el-descriptions-item>
+            </el-descriptions>
+            <pre class="api-example"><code>curl -H "Authorization: Bearer dk_..." \
   /v1/developer/ip/8.8.8.8</code></pre>
-        </el-tab-pane>
+          </el-tab-pane>
 
-        <el-tab-pane label="短链接">
-          <div class="panel-toolbar">
-            <p>公开跳转路径为 <code>/s/{code}</code>，点击数直接在项目内汇总。</p>
-            <el-button :icon="Plus" type="primary" @click="openCreateShortLink"
-              >创建短链</el-button
+          <el-tab-pane label="短链接">
+            <div class="panel-toolbar">
+              <p>公开跳转路径为 <code>/s/{code}</code>，点击数直接在项目内汇总。</p>
+              <el-button :icon="Plus" type="primary" @click="openCreateShortLink"
+                >创建短链</el-button
+              >
+            </div>
+            <el-table :data="shortLinks" empty-text="尚无短链接"
+              ><el-table-column prop="code" label="代码" width="160" /><el-table-column
+                prop="targetUrl"
+                label="目标地址"
+                min-width="320"
+                show-overflow-tooltip
+              /><el-table-column prop="clickCount" label="点击" width="100" /><el-table-column
+                label="状态"
+                width="100"
+                ><template #default="{ row }"
+                  ><el-tag :type="row.enabled ? 'success' : 'info'">{{
+                    row.enabled ? '启用' : '停用'
+                  }}</el-tag></template
+                ></el-table-column
+              ><el-table-column width="220" fixed="right">
+                <template #default="{ row }">
+                  <el-button
+                    :icon="CopyDocument"
+                    circle
+                    title="复制短链接"
+                    @click="copyShortLink(row)"
+                  />
+                  <el-button link type="primary" @click="showShortLinkStats(row)">统计</el-button>
+                  <el-button link type="primary" @click="openEditShortLink(row)">编辑</el-button>
+                  <el-button link @click="toggleShortLink(row)">{{
+                    row.enabled ? '停用' : '启用'
+                  }}</el-button>
+                  <el-button link type="danger" @click="deleteShortLink(row)">删除</el-button>
+                </template>
+              </el-table-column></el-table
             >
-          </div>
-          <el-table :data="shortLinks" empty-text="尚无短链接"
-            ><el-table-column prop="code" label="代码" width="160" /><el-table-column
-              prop="targetUrl"
-              label="目标地址"
-              min-width="320"
-              show-overflow-tooltip
-            /><el-table-column prop="clickCount" label="点击" width="100" /><el-table-column
-              label="状态"
-              width="100"
-              ><template #default="{ row }"
-                ><el-tag :type="row.enabled ? 'success' : 'info'">{{
-                  row.enabled ? '启用' : '停用'
-                }}</el-tag></template
-              ></el-table-column
-            ><el-table-column width="220" fixed="right">
-              <template #default="{ row }">
+          </el-tab-pane>
+
+          <el-tab-pane label="密钥托管">
+            <div class="panel-toolbar">
+              <p>
+                值仅在写入时可见；在 API 转发中使用 <code v-pre>{{ ALIAS }}</code> 引用。
+              </p>
+              <el-button :icon="Plus" type="primary" @click="createSecretVisible = true"
+                >新增密钥</el-button
+              >
+            </div>
+            <el-table :data="secrets" empty-text="尚无托管密钥"
+              ><el-table-column prop="alias" label="别名" min-width="220" /><el-table-column
+                prop="keyVersion"
+                label="版本"
+                width="90"
+              /><el-table-column
+                prop="lastUsedAt"
+                label="最后使用"
+                min-width="180"
+              /><el-table-column width="80" fixed="right"
+                ><template #default="{ row }"
+                  ><el-button link type="danger" @click="deleteSecret(row)"
+                    >删除</el-button
+                  ></template
+                ></el-table-column
+              ></el-table
+            >
+          </el-tab-pane>
+
+          <el-tab-pane label="状态监控">
+            <div class="panel-toolbar">
+              <p>每分钟由单实例调度器检查到期目标；公开状态页发布后可供外部查看。</p>
+              <div class="status-page-actions">
+                <el-switch
+                  :model-value="activeProject?.statusPagePublished ?? false"
+                  active-text="已发布"
+                  inactive-text="未发布"
+                  @update:model-value="updateStatusPagePublished"
+                />
                 <el-button
                   :icon="CopyDocument"
                   circle
-                  title="复制短链接"
-                  @click="copyShortLink(row)"
+                  title="复制状态页地址"
+                  :disabled="!activeProject?.statusPagePublished"
+                  @click="copyStatusPage"
                 />
-                <el-button link type="primary" @click="showShortLinkStats(row)">统计</el-button>
-                <el-button link type="primary" @click="openEditShortLink(row)">编辑</el-button>
-                <el-button link @click="toggleShortLink(row)">{{ row.enabled ? '停用' : '启用' }}</el-button>
-                <el-button link type="danger" @click="deleteShortLink(row)">删除</el-button>
-              </template>
-            </el-table-column></el-table
-          >
-        </el-tab-pane>
-
-        <el-tab-pane label="密钥托管">
-          <div class="panel-toolbar">
-            <p>
-              值仅在写入时可见；在 API 转发中使用 <code v-pre>{{ ALIAS }}</code> 引用。
-            </p>
-            <el-button :icon="Plus" type="primary" @click="createSecretVisible = true"
-              >新增密钥</el-button
-            >
-          </div>
-          <el-table :data="secrets" empty-text="尚无托管密钥"
-            ><el-table-column prop="alias" label="别名" min-width="220" /><el-table-column
-              prop="keyVersion"
-              label="版本"
-              width="90" /><el-table-column prop="lastUsedAt" label="最后使用" min-width="180"
-          /><el-table-column width="80" fixed="right"
-            ><template #default="{ row }"
-              ><el-button link type="danger" @click="deleteSecret(row)">删除</el-button></template
-            ></el-table-column
-          ></el-table>
-        </el-tab-pane>
-
-        <el-tab-pane label="状态监控">
-          <div class="panel-toolbar">
-            <p>
-              每分钟由单实例调度器检查到期目标；公开状态页发布后可供外部查看。
-            </p>
-            <div class="status-page-actions">
-              <el-switch
-                :model-value="activeProject?.statusPagePublished ?? false"
-                active-text="已发布"
-                inactive-text="未发布"
-                @update:model-value="updateStatusPagePublished"
-              />
-              <el-button
-                :icon="CopyDocument"
-                circle
-                title="复制状态页地址"
-                :disabled="!activeProject?.statusPagePublished"
-                @click="copyStatusPage"
-              />
-              <el-button :icon="Plus" type="primary" @click="createMonitorVisible = true">添加目标</el-button>
+                <el-button :icon="Plus" type="primary" @click="createMonitorVisible = true"
+                  >添加目标</el-button
+                >
+              </div>
             </div>
-          </div>
-          <el-table :data="monitors" empty-text="尚无监控目标"
-            ><el-table-column prop="name" label="名称" min-width="160" /><el-table-column
-              prop="targetUrl"
-              label="地址"
-              min-width="300"
-              show-overflow-tooltip /><el-table-column label="状态" width="100"
-              ><template #default="{ row }"
-                ><el-tag
-                  :type="row.lastStatus === 'up' ? 'success' : row.lastStatus ? 'danger' : 'info'"
-                  >{{ row.lastStatus || '未检测' }}</el-tag
-                ></template
-              ></el-table-column
-            ><el-table-column prop="lastCheckedAt" label="最近检测" width="180" /><el-table-column
-              label="调度"
-              width="90"
-              ><template #default="{ row }"
-                ><el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '运行中' : '已暂停' }}</el-tag></template
-              ></el-table-column
-            ><el-table-column
-              width="190"
-              ><template #default="{ row }"
-                ><el-button
-                  :icon="Refresh"
-                  circle
-                  title="立即检测"
-                  :disabled="!row.enabled"
-                  @click="checkMonitor(row)"
-                /><el-button link @click="toggleMonitor(row)">{{ row.enabled ? '暂停' : '恢复' }}</el-button
-                ><el-button link type="danger" @click="deleteMonitor(row)">删除</el-button></template
-              ></el-table-column
-          ></el-table>
-        </el-tab-pane>
+            <el-table :data="monitors" empty-text="尚无监控目标"
+              ><el-table-column prop="name" label="名称" min-width="160" /><el-table-column
+                prop="targetUrl"
+                label="地址"
+                min-width="300"
+                show-overflow-tooltip
+              /><el-table-column label="状态" width="100"
+                ><template #default="{ row }"
+                  ><el-tag
+                    :type="row.lastStatus === 'up' ? 'success' : row.lastStatus ? 'danger' : 'info'"
+                    >{{ row.lastStatus || '未检测' }}</el-tag
+                  ></template
+                ></el-table-column
+              ><el-table-column prop="lastCheckedAt" label="最近检测" width="180" /><el-table-column
+                label="调度"
+                width="90"
+                ><template #default="{ row }"
+                  ><el-tag :type="row.enabled ? 'success' : 'info'">{{
+                    row.enabled ? '运行中' : '已暂停'
+                  }}</el-tag></template
+                ></el-table-column
+              ><el-table-column width="190"
+                ><template #default="{ row }"
+                  ><el-button
+                    :icon="Refresh"
+                    circle
+                    title="立即检测"
+                    :disabled="!row.enabled"
+                    @click="checkMonitor(row)"
+                  /><el-button link @click="toggleMonitor(row)">{{
+                    row.enabled ? '暂停' : '恢复'
+                  }}</el-button
+                  ><el-button link type="danger" @click="deleteMonitor(row)"
+                    >删除</el-button
+                  ></template
+                ></el-table-column
+              ></el-table
+            >
+          </el-tab-pane>
 
-        <el-tab-pane label="推送渠道">
-          <div class="panel-toolbar">
-            <p>统一投递 Webhook、钉钉、飞书和企业微信消息，凭据只引用托管密钥别名。</p>
-            <el-button :icon="Plus" type="primary" @click="createPushChannelVisible = true">添加渠道</el-button>
-          </div>
-          <el-table :data="pushChannels" empty-text="尚无推送渠道">
-            <el-table-column prop="name" label="名称" min-width="150" />
-            <el-table-column prop="type" label="类型" width="130" />
-            <el-table-column prop="endpoint" label="Webhook 地址" min-width="280" show-overflow-tooltip />
-            <el-table-column label="密钥别名" min-width="140">
-              <template #default="{ row }">{{ row.secretAlias || '未使用' }}</template>
-            </el-table-column>
-            <el-table-column label="状态" width="90">
-              <template #default="{ row }">
-                <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? '启用' : '停用' }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column width="130" fixed="right">
-              <template #default="{ row }">
-                <el-button link @click="togglePushChannel(row)">{{ row.enabled ? '暂停' : '恢复' }}</el-button>
-                <el-button link type="danger" @click="deletePushChannel(row)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-tab-pane>
+          <el-tab-pane label="推送渠道">
+            <div class="panel-toolbar">
+              <p>统一投递 Webhook、钉钉、飞书和企业微信消息，凭据只引用托管密钥别名。</p>
+              <el-button :icon="Plus" type="primary" @click="createPushChannelVisible = true"
+                >添加渠道</el-button
+              >
+            </div>
+            <el-table :data="pushChannels" empty-text="尚无推送渠道">
+              <el-table-column prop="name" label="名称" min-width="150" />
+              <el-table-column prop="type" label="类型" width="130" />
+              <el-table-column
+                prop="endpoint"
+                label="Webhook 地址"
+                min-width="280"
+                show-overflow-tooltip
+              />
+              <el-table-column label="密钥别名" min-width="140">
+                <template #default="{ row }">{{ row.secretAlias || '未使用' }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="90">
+                <template #default="{ row }">
+                  <el-tag :type="row.enabled ? 'success' : 'info'">{{
+                    row.enabled ? '启用' : '停用'
+                  }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column width="130" fixed="right">
+                <template #default="{ row }">
+                  <el-button link @click="togglePushChannel(row)">{{
+                    row.enabled ? '暂停' : '恢复'
+                  }}</el-button>
+                  <el-button link type="danger" @click="deletePushChannel(row)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
 
-        <el-tab-pane label="推送 API">
-          <div class="panel-toolbar">
-            <p>选择已配置的渠道进行一次或多次投递；单渠道失败不会影响其他渠道，并可在推送日志中查看结果。</p>
-            <el-tag type="info">{{ quotaSummary?.usages?.find((item) => item.service === 'push')?.remainingFree ?? '-' }} 次免费额度</el-tag>
-          </div>
-          <el-descriptions :column="1" border class="api-reference">
-            <el-descriptions-item label="发送消息">
-              <code>POST /v1/developer/push</code>
-              <el-tag class="scope-tag" effect="plain">push:send</el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="请求字段">
-              <code>channelIds</code>、<code>title</code>、<code>content</code>；可选 <code>idempotencyKey</code>
-            </el-descriptions-item>
-            <el-descriptions-item label="投递历史">
-              在“推送日志”页签中查看每个渠道的状态、重试次数和错误摘要。
-            </el-descriptions-item>
-          </el-descriptions>
-          <pre class="api-example"><code>curl -X POST /v1/developer/push \
+          <el-tab-pane label="推送 API">
+            <div class="panel-toolbar">
+              <p>
+                选择已配置的渠道进行一次或多次投递；单渠道失败不会影响其他渠道，并可在推送日志中查看结果。
+              </p>
+              <el-tag type="info"
+                >{{
+                  quotaSummary?.usages?.find((item) => item.service === 'push')?.remainingFree ??
+                  '-'
+                }}
+                次免费额度</el-tag
+              >
+            </div>
+            <el-descriptions :column="1" border class="api-reference">
+              <el-descriptions-item label="发送消息">
+                <code>POST /v1/developer/push</code>
+                <el-tag class="scope-tag" effect="plain">push:send</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="请求字段">
+                <code>channelIds</code>、<code>title</code>、<code>content</code>；可选
+                <code>idempotencyKey</code>
+              </el-descriptions-item>
+              <el-descriptions-item label="投递历史">
+                在“推送日志”页签中查看每个渠道的状态、重试次数和错误摘要。
+              </el-descriptions-item>
+            </el-descriptions>
+            <pre class="api-example"><code>curl -X POST /v1/developer/push \
   -H "Authorization: Bearer dk_..." \
   -H "Content-Type: application/json" \
   -d '{"channelIds":["channel-id"],"title":"Deploy","content":"Deployment completed"}'</code></pre>
-        </el-tab-pane>
+          </el-tab-pane>
 
-        <el-tab-pane label="推送日志">
-          <div class="panel-toolbar">
-            <p>每次投递按渠道记录，失败记录会由调度器自动重试，最多三次。</p>
-            <el-button :icon="Refresh" circle title="刷新投递日志" @click="refreshProjectResources" />
-          </div>
-          <el-table :data="pushDeliveries" empty-text="暂无推送投递记录">
-            <el-table-column prop="channelId" label="渠道" min-width="200" show-overflow-tooltip />
-            <el-table-column label="状态" width="110">
-              <template #default="{ row }">
-                <el-tag :type="row.success ? 'success' : row.status === 'failed' ? 'danger' : 'info'">
-                  {{ row.success ? '成功' : row.status === 'failed' ? '失败' : '处理中' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="attemptCount" label="尝试次数" width="110" />
-            <el-table-column prop="nextRetryAt" label="下次重试" min-width="180" />
-            <el-table-column prop="error" label="错误摘要" min-width="240" show-overflow-tooltip />
-            <el-table-column prop="createTime" label="创建时间" min-width="180" />
-          </el-table>
-        </el-tab-pane>
-      </el-tabs>
+          <el-tab-pane label="推送日志">
+            <div class="panel-toolbar">
+              <p>每次投递按渠道记录，失败记录会由调度器自动重试，最多三次。</p>
+              <el-button
+                :icon="Refresh"
+                circle
+                title="刷新投递日志"
+                @click="refreshProjectResources"
+              />
+            </div>
+            <el-table :data="pushDeliveries" empty-text="暂无推送投递记录">
+              <el-table-column
+                prop="channelId"
+                label="渠道"
+                min-width="200"
+                show-overflow-tooltip
+              />
+              <el-table-column label="状态" width="110">
+                <template #default="{ row }">
+                  <el-tag
+                    :type="row.success ? 'success' : row.status === 'failed' ? 'danger' : 'info'"
+                  >
+                    {{ row.success ? '成功' : row.status === 'failed' ? '失败' : '处理中' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="attemptCount" label="尝试次数" width="110" />
+              <el-table-column prop="nextRetryAt" label="下次重试" min-width="180" />
+              <el-table-column
+                prop="error"
+                label="错误摘要"
+                min-width="240"
+                show-overflow-tooltip
+              />
+              <el-table-column prop="createTime" label="创建时间" min-width="180" />
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
       </div>
     </template>
 
@@ -809,21 +902,36 @@ const copyStatusPage = async () => {
         ></template
       ></el-dialog
     >
-    <el-dialog v-model="kvDialogVisible" :title="editingKvKey ? '编辑 KV' : '新建 KV'" width="560px">
+    <el-dialog
+      v-model="kvDialogVisible"
+      :title="editingKvKey ? '编辑 KV' : '新建 KV'"
+      width="560px"
+    >
       <el-form label-position="top">
         <el-form-item label="键名">
-          <el-input v-model="kvForm.key" :disabled="Boolean(editingKvKey)" placeholder="app.config" />
+          <el-input
+            v-model="kvForm.key"
+            :disabled="Boolean(editingKvKey)"
+            placeholder="app.config"
+          />
         </el-form-item>
         <el-form-item label="JSON 值">
           <el-input v-model="kvForm.value" type="textarea" :rows="8" spellcheck="false" />
         </el-form-item>
         <el-form-item label="TTL（秒，可选）">
-          <el-input-number v-model="kvForm.ttlSeconds" :min="1" :max="2592000" controls-position="right" />
+          <el-input-number
+            v-model="kvForm.ttlSeconds"
+            :min="1"
+            :max="2592000"
+            controls-position="right"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="kvDialogVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!kvForm.key || !kvForm.value" @click="saveKv">保存</el-button>
+        <el-button type="primary" :disabled="!kvForm.key || !kvForm.value" @click="saveKv"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
     <el-dialog v-model="createKeyVisible" title="创建项目 API Key" width="480px"
@@ -853,7 +961,9 @@ const copyStatusPage = async () => {
       ><el-form label-position="top"
         ><el-form-item label="目标 URL"><el-input v-model="shortLinkForm.targetUrl" /></el-form-item
         ><el-form-item label="自定义代码（可选）"
-          ><el-input v-model="shortLinkForm.code" :disabled="Boolean(editingShortLinkId)" /></el-form-item
+          ><el-input
+            v-model="shortLinkForm.code"
+            :disabled="Boolean(editingShortLinkId)" /></el-form-item
         ><el-form-item label="过期时间（可选）"
           ><el-date-picker
             v-model="shortLinkForm.expiresAt"
@@ -861,25 +971,33 @@ const copyStatusPage = async () => {
             value-format="YYYY-MM-DDTHH:mm:ss.SSS[Z]"
             style="width: 100%" /></el-form-item
         ><el-form-item v-if="editingShortLinkId" label="状态"
-          ><el-switch v-model="shortLinkForm.enabled" active-text="启用" inactive-text="停用" /></el-form-item
-        ></el-form
+          ><el-switch
+            v-model="shortLinkForm.enabled"
+            active-text="启用"
+            inactive-text="停用" /></el-form-item></el-form
       ><template #footer
         ><el-button @click="createShortLinkVisible = false">取消</el-button
-        ><el-button type="primary" :disabled="!shortLinkForm.targetUrl" @click="saveShortLink"
-          >{{ editingShortLinkId ? '保存' : '创建' }}</el-button
-        ></template
+        ><el-button type="primary" :disabled="!shortLinkForm.targetUrl" @click="saveShortLink">{{
+          editingShortLinkId ? '保存' : '创建'
+        }}</el-button></template
       ></el-dialog
     >
     <el-dialog v-model="shortLinkStatsVisible" title="短链接统计" width="760px">
       <template v-if="shortLinkStats">
         <el-descriptions :column="3" border class="short-link-summary">
           <el-descriptions-item label="短码">{{ shortLinkStats.code }}</el-descriptions-item>
-          <el-descriptions-item label="累计点击">{{ shortLinkStats.totalClicks }}</el-descriptions-item>
+          <el-descriptions-item label="累计点击">{{
+            shortLinkStats.totalClicks
+          }}</el-descriptions-item>
           <el-descriptions-item label="统计周期">近 30 天</el-descriptions-item>
         </el-descriptions>
         <section class="stats-section">
           <h3>每日点击</h3>
-          <el-table :data="shortLinkStats.clicksByDay" max-height="180" empty-text="统计周期内暂无点击">
+          <el-table
+            :data="shortLinkStats.clicksByDay"
+            max-height="180"
+            empty-text="统计周期内暂无点击"
+          >
             <el-table-column prop="date" label="日期" />
             <el-table-column prop="count" label="点击数" width="120" />
           </el-table>
@@ -914,7 +1032,12 @@ const copyStatusPage = async () => {
             <el-table-column label="地区" width="90">
               <template #default="{ row }">{{ row.country || '未知' }}</template>
             </el-table-column>
-            <el-table-column prop="userAgent" label="客户端" min-width="180" show-overflow-tooltip />
+            <el-table-column
+              prop="userAgent"
+              label="客户端"
+              min-width="180"
+              show-overflow-tooltip
+            />
           </el-table>
         </section>
       </template>
@@ -952,11 +1075,11 @@ const copyStatusPage = async () => {
             v-model="monitorForm.intervalSec"
             :min="60"
             :max="86400"
-            controls-position="right"
-          /></el-form-item
+            controls-position="right" /></el-form-item
         ><el-form-item label="成功状态码"
-          ><el-input v-model="monitorForm.successStatusCodes" placeholder="200, 201, 204" /></el-form-item
-        ></el-form
+          ><el-input
+            v-model="monitorForm.successStatusCodes"
+            placeholder="200, 201, 204" /></el-form-item></el-form
       ><template #footer
         ><el-button @click="createMonitorVisible = false">取消</el-button
         ><el-button
@@ -978,10 +1101,17 @@ const copyStatusPage = async () => {
             <el-option label="企业微信机器人" value="wechat_work" />
           </el-select>
         </el-form-item>
-        <el-form-item label="Webhook 地址"><el-input v-model="pushChannelForm.endpoint" /></el-form-item>
+        <el-form-item label="Webhook 地址"
+          ><el-input v-model="pushChannelForm.endpoint"
+        /></el-form-item>
         <el-form-item label="托管密钥别名（可选）">
           <el-select v-model="pushChannelForm.secretAlias" clearable filterable style="width: 100%">
-            <el-option v-for="secret in secrets" :key="secret.id" :label="secret.alias" :value="secret.alias" />
+            <el-option
+              v-for="secret in secrets"
+              :key="secret.id"
+              :label="secret.alias"
+              :value="secret.alias"
+            />
           </el-select>
         </el-form-item>
       </el-form>
@@ -1118,7 +1248,11 @@ const copyStatusPage = async () => {
   border: 1px solid var(--el-border-color-lighter);
   background: var(--el-fill-color-lighter);
   color: var(--el-text-color-regular);
-  font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font:
+    13px/1.65 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
   white-space: pre;
 }
 .api-example code {

@@ -45,7 +45,9 @@
               :disabled="isPermissionDisabled(perm.value)"
               class="permission-checkbox"
             >
-              <span class="permission-label">{{ getPermissionLabel(perm.value, i18ns.locale) }}</span>
+              <span class="permission-label">{{
+                getPermissionLabel(perm.value, i18ns.locale)
+              }}</span>
               <span class="permission-value">({{ perm.value }})</span>
             </el-checkbox>
           </el-checkbox-group>

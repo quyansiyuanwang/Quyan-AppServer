@@ -401,54 +401,64 @@
             <el-icon><Connection /></el-icon>
             <span>{{ i18ns.t('nav.developerProducts') }}</span>
           </template>
-          <el-menu-item index="developerProducts" @click="nav('developerProducts', $event)" @contextmenu.prevent="openRouteMenu('developerProducts', $event)">
+          <el-menu-item
+            index="developerProducts"
+            @click="nav('developerProducts', $event)"
+            @contextmenu.prevent="openRouteMenu('developerProducts', $event)"
+          >
             <el-icon><Connection /></el-icon>
             <template #title>{{ i18ns.t('nav.productCatalog') }}</template>
           </el-menu-item>
           <PermissionWrapper
             v-for="product in developerProducts"
             :key="product.code"
-            :any-require="[...product.permissions, Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE, Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE]"
+            :any-require="[
+              ...product.permissions,
+              Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
+              Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
+            ]"
           >
             <el-sub-menu :index="`developer-product-${product.code}`">
               <template #title>
                 <el-icon><component :is="product.icon" /></el-icon>
                 <span>{{ i18ns.t(product.labelKey as any) }}</span>
               </template>
-          <PermissionWrapper :any-require="product.permissions">
-            <el-menu-item
-              :index="developerProductUserRoute(product.code)"
-              @click="nav(developerProductUserRoute(product.code), $event)"
-              @contextmenu.prevent="openRouteMenu(developerProductUserRoute(product.code), $event)"
-            >
-              <el-icon><User /></el-icon>
-              <template #title>{{ i18ns.t('nav.productUserPage') }}</template>
-            </el-menu-item>
-          </PermissionWrapper>
-          <PermissionWrapper :require="[Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE]">
-            <el-menu-item
-              :index="developerProductManagementRoute(product.code)"
-              @click="nav(developerProductManagementRoute(product.code), $event)"
-              @contextmenu.prevent="
-                openRouteMenu(developerProductManagementRoute(product.code), $event)
-              "
-            >
-              <el-icon><DataAnalysis /></el-icon>
-              <template #title>{{ i18ns.t('nav.productManagementPage') }}</template>
-            </el-menu-item>
-          </PermissionWrapper>
-          <PermissionWrapper :require="[Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE]">
-            <el-menu-item
-              :index="developerProductConfigRoute(product.code)"
-              @click="nav(developerProductConfigRoute(product.code), $event)"
-              @contextmenu.prevent="
-                openRouteMenu(developerProductConfigRoute(product.code), $event)
-              "
-            >
-              <el-icon><Tools /></el-icon>
-              <template #title>{{ i18ns.t('nav.productConfigPage') }}</template>
-            </el-menu-item>
-          </PermissionWrapper>
+              <PermissionWrapper :any-require="product.permissions">
+                <el-menu-item
+                  :index="developerProductUserRoute(product.code)"
+                  @click="nav(developerProductUserRoute(product.code), $event)"
+                  @contextmenu.prevent="
+                    openRouteMenu(developerProductUserRoute(product.code), $event)
+                  "
+                >
+                  <el-icon><User /></el-icon>
+                  <template #title>{{ i18ns.t('nav.productUserPage') }}</template>
+                </el-menu-item>
+              </PermissionWrapper>
+              <PermissionWrapper :require="[Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE]">
+                <el-menu-item
+                  :index="developerProductManagementRoute(product.code)"
+                  @click="nav(developerProductManagementRoute(product.code), $event)"
+                  @contextmenu.prevent="
+                    openRouteMenu(developerProductManagementRoute(product.code), $event)
+                  "
+                >
+                  <el-icon><DataAnalysis /></el-icon>
+                  <template #title>{{ i18ns.t('nav.productManagementPage') }}</template>
+                </el-menu-item>
+              </PermissionWrapper>
+              <PermissionWrapper :require="[Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE]">
+                <el-menu-item
+                  :index="developerProductConfigRoute(product.code)"
+                  @click="nav(developerProductConfigRoute(product.code), $event)"
+                  @contextmenu.prevent="
+                    openRouteMenu(developerProductConfigRoute(product.code), $event)
+                  "
+                >
+                  <el-icon><Tools /></el-icon>
+                  <template #title>{{ i18ns.t('nav.productConfigPage') }}</template>
+                </el-menu-item>
+              </PermissionWrapper>
             </el-sub-menu>
           </PermissionWrapper>
         </el-sub-menu>

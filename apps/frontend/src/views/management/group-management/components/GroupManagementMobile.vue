@@ -69,7 +69,10 @@
                   </el-button>
                 </PermissionWrapper>
                 <PermissionWrapper
-                  :any-require="[Permission.GROUP_PERMISSION_ADD, Permission.GROUP_PERMISSION_REMOVE]"
+                  :any-require="[
+                    Permission.GROUP_PERMISSION_ADD,
+                    Permission.GROUP_PERMISSION_REMOVE,
+                  ]"
                   mode="disabled"
                 >
                   <el-button

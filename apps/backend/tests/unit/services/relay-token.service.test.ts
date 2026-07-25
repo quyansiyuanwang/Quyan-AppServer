@@ -1053,9 +1053,7 @@ describe("RelayTokenService", () => {
         createTime: now,
       },
     ]);
-    relayUsageRepository.aggregateByRelayTokenIds.mockResolvedValue([
-      { relayTokenId: "token-1", requestCount: 1 },
-    ]);
+    relayUsageRepository.aggregateByRelayTokenIds.mockResolvedValue([{ relayTokenId: "token-1", requestCount: 1 }]);
 
     const result = await service.getUsageStats("token-1", "user-1");
 

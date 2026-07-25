@@ -213,44 +213,42 @@
           <div class="ml-3 text-[#909399] text-xs">
             {{ i18ns.t('relay.routingConfigOptionalThresholdsHelp') }}
           </div>
+        </el-form-item>
+      </template>
+
+      <template v-if="channelForm.channelType === 'standalone'">
+        <el-divider content-position="left">{{ i18ns.t('relay.healthTrackingMode') }}</el-divider>
+        <el-form-item :label="i18ns.t('relay.healthTrackingMode')">
+          <el-radio-group v-model="channelForm.routingConfig.healthTrackingMode">
+            <el-radio value="automatic">{{ i18ns.t('relay.healthTrackingAutomatic') }}</el-radio>
+            <el-radio value="manual">{{ i18ns.t('relay.healthTrackingManual') }}</el-radio>
+            <el-radio value="disabled">{{ i18ns.t('relay.healthTrackingDisabled') }}</el-radio>
+          </el-radio-group>
+          <div class="ml-3 text-[#909399] text-xs">
+            {{ i18ns.t('relay.healthTrackingHelp') }}
+          </div>
+        </el-form-item>
+        <template v-if="channelForm.routingConfig.healthTrackingMode === 'manual'">
+          <el-form-item :label="i18ns.t('relay.healthManualAvailability')">
+            <el-input-number
+              v-model="channelForm.routingConfig.manualAvailability"
+              :min="0"
+              :max="1"
+              :step="0.01"
+              :precision="2"
+            />
+          </el-form-item>
+          <el-form-item :label="i18ns.t('relay.healthManualLatency')">
+            <el-input-number
+              v-model="channelForm.routingConfig.manualLatencyMs"
+              :min="0"
+              :step="10"
+            />
           </el-form-item>
         </template>
+      </template>
 
-        <template v-if="channelForm.channelType === 'standalone'">
-          <el-divider content-position="left">{{ i18ns.t('relay.healthTrackingMode') }}</el-divider>
-          <el-form-item :label="i18ns.t('relay.healthTrackingMode')">
-            <el-radio-group v-model="channelForm.routingConfig.healthTrackingMode">
-              <el-radio value="automatic">{{
-                i18ns.t('relay.healthTrackingAutomatic')
-              }}</el-radio>
-              <el-radio value="manual">{{ i18ns.t('relay.healthTrackingManual') }}</el-radio>
-              <el-radio value="disabled">{{ i18ns.t('relay.healthTrackingDisabled') }}</el-radio>
-            </el-radio-group>
-            <div class="ml-3 text-[#909399] text-xs">
-              {{ i18ns.t('relay.healthTrackingHelp') }}
-            </div>
-          </el-form-item>
-          <template v-if="channelForm.routingConfig.healthTrackingMode === 'manual'">
-            <el-form-item :label="i18ns.t('relay.healthManualAvailability')">
-              <el-input-number
-                v-model="channelForm.routingConfig.manualAvailability"
-                :min="0"
-                :max="1"
-                :step="0.01"
-                :precision="2"
-              />
-            </el-form-item>
-            <el-form-item :label="i18ns.t('relay.healthManualLatency')">
-              <el-input-number
-                v-model="channelForm.routingConfig.manualLatencyMs"
-                :min="0"
-                :step="10"
-              />
-            </el-form-item>
-          </template>
-        </template>
-
-        <el-divider content-position="left">{{ i18ns.t('relay.visibilityMode') }}</el-divider>
+      <el-divider content-position="left">{{ i18ns.t('relay.visibilityMode') }}</el-divider>
       <el-form-item :label="i18ns.t('relay.visibilityMode')">
         <el-select v-model="channelForm.visibilityMode" style="width: 100%">
           <el-option :label="i18ns.t('relay.visibilityModePublic')" value="public" />

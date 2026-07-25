@@ -373,7 +373,9 @@ export function useBalanceHistory() {
    * IndexedDB, rather than the currently displayed range, is the durable sync cursor.
    * Windows are inclusive at the API boundary and records are deduplicated by id afterwards.
    */
-  const syncTransactionsSinceLatestCachedRecord = async (): Promise<BalanceTransactionResponse[]> => {
+  const syncTransactionsSinceLatestCachedRecord = async (): Promise<
+    BalanceTransactionResponse[]
+  > => {
     if (incrementalSyncPromise) return incrementalSyncPromise
 
     incrementalSyncPromise = (async () => {

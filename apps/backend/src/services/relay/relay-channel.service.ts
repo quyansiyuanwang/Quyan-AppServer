@@ -508,9 +508,7 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<BatchRelayChannelsResultDto> {
-    const channels = await Promise.all(
-      data.ids.map((id) => this.assertChannelAccessibleById(id, actorUserId)),
-    );
+    const channels = await Promise.all(data.ids.map((id) => this.assertChannelAccessibleById(id, actorUserId)));
     if (channels.some((channel) => channel.channelType !== "standalone"))
       throw new BadRequestError("Health tracking can only be configured for standalone channels");
 
@@ -524,9 +522,13 @@ export class RelayChannelService {
             manualAvailability: data.healthTrackingMode === "manual" ? Number(data.manualAvailability) : null,
             manualLatencyMs: data.healthTrackingMode === "manual" ? Number(data.manualLatencyMs) : null,
           };
-          return this.relayChannelRepository.updateById(channel.id, {
-            routingConfig: nextConfig as Prisma.InputJsonValue,
-          }, tx);
+          return this.relayChannelRepository.updateById(
+            channel.id,
+            {
+              routingConfig: nextConfig as Prisma.InputJsonValue,
+            },
+            tx,
+          );
         }),
       ),
     );
@@ -571,7 +573,9 @@ export class RelayChannelService {
     const channels = await Promise.all(ids.map((id) => this.assertChannelAccessibleById(id, actorUserId)));
     if (channels.some((channel) => channel.channelType !== "standalone"))
       throw new BadRequestError("Health statistics only exist for standalone channels");
-    const results = await Promise.all(channels.map((channel) => this.relayChannelHealthService.clearHealth(channel.id)));
+    const results = await Promise.all(
+      channels.map((channel) => this.relayChannelHealthService.clearHealth(channel.id)),
+    );
     if (results.some((cleared) => !cleared))
       throw new BadRequestError("Channel health storage is temporarily unavailable");
 

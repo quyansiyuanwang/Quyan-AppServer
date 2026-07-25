@@ -225,7 +225,10 @@ const humanize = (value: string) =>
 export const getPermissionCategoryId = (permission: string) =>
   getPermissionCategory(permission).toLowerCase()
 
-export const getPermissionResourceId = (permission: string, category = getPermissionCategoryId(permission)) => {
+export const getPermissionResourceId = (
+  permission: string,
+  category = getPermissionCategoryId(permission),
+) => {
   const [, resource] = permission.split(':')
   if (!resource) return 'general'
   if (!RESOURCE_GROUPED_CATEGORIES.has(category)) return 'general'

@@ -36,7 +36,9 @@ const scheduleAfterLoad = (task: () => void, delay: number, timeout: number) => 
 }
 
 const shouldSkipDeferredStartupWork = () =>
-  router.resolve(window.location.pathname).matched.some((record) => record.meta.isAuthEntry === true)
+  router
+    .resolve(window.location.pathname)
+    .matched.some((record) => record.meta.isAuthEntry === true)
 
 export const bootstrapApp = async () => {
   try {

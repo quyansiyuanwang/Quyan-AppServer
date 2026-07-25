@@ -1,7 +1,10 @@
 import { EnvSpace } from "@/config/env";
 
 export const MONTHLY_PASS_MAX_PAGE_SIZE = 100;
-export const MONTHLY_PASS_DEFAULT_PAGE_SIZE = Math.min(EnvSpace.monthlyPassConfig.defaultPageSize, MONTHLY_PASS_MAX_PAGE_SIZE);
+export const MONTHLY_PASS_DEFAULT_PAGE_SIZE = Math.min(
+  EnvSpace.monthlyPassConfig.defaultPageSize,
+  MONTHLY_PASS_MAX_PAGE_SIZE,
+);
 
 // Quota fields are persisted with @db.Decimal(10, 4).
 export const MONTHLY_PASS_DECIMAL_SCALE = 4;

@@ -282,7 +282,11 @@ export const routes = [
                 component: () => import('@/views/products/kv/KvUserPage.vue'),
                 props: { product: 'kv' },
                 meta: {
-                  anyPermissions: [Permission.PRODUCT_KV_READ, Permission.PRODUCT_KV_WRITE, Permission.PRODUCT_KV_MANAGE],
+                  anyPermissions: [
+                    Permission.PRODUCT_KV_READ,
+                    Permission.PRODUCT_KV_WRITE,
+                    Permission.PRODUCT_KV_MANAGE,
+                  ],
                 },
               },
               {
@@ -424,7 +428,8 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-verification',
-                component: () => import('@/views/products/verification/VerificationManagementPage.vue'),
+                component: () =>
+                  import('@/views/products/verification/VerificationManagementPage.vue'),
                 props: { product: 'verification' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
@@ -443,7 +448,8 @@ export const routes = [
               {
                 path: '',
                 name: 'product-ip_geolocation',
-                component: () => import('@/views/products/ip-geolocation/IpGeolocationUserPage.vue'),
+                component: () =>
+                  import('@/views/products/ip-geolocation/IpGeolocationUserPage.vue'),
                 props: { product: 'ip_geolocation' },
                 meta: {
                   anyPermissions: [
@@ -455,14 +461,16 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-ip_geolocation',
-                component: () => import('@/views/products/ip-geolocation/IpGeolocationManagementPage.vue'),
+                component: () =>
+                  import('@/views/products/ip-geolocation/IpGeolocationManagementPage.vue'),
                 props: { product: 'ip_geolocation' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'config',
                 name: 'product-config-ip_geolocation',
-                component: () => import('@/views/products/ip-geolocation/IpGeolocationConfigPage.vue'),
+                component: () =>
+                  import('@/views/products/ip-geolocation/IpGeolocationConfigPage.vue'),
                 props: { product: 'ip_geolocation' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },

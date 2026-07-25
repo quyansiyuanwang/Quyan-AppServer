@@ -21,7 +21,9 @@
       <DocsQuickLink />
     </template>
   </OverLay>
-  <FloatingWorkspaceManager v-if="isDesktop && !floatingOverlayHidden && !isEmbeddedShell && !isPublicStatus" />
+  <FloatingWorkspaceManager
+    v-if="isDesktop && !floatingOverlayHidden && !isEmbeddedShell && !isPublicStatus"
+  />
   <WaterMark v-if="!isEmbeddedShell && !isPublicStatus" :text="text" />
 </template>
 

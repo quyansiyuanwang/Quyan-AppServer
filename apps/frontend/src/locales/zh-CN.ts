@@ -2501,7 +2501,8 @@ const zhCN: DeepStringify<typeof en> = {
     healthBatchEdit: '批量编辑追踪',
     healthBatchEditTitle: '批量编辑渠道健康追踪',
     healthBatchClear: '批量清空统计',
-    healthBatchClearConfirm: '将清空所选渠道最近一小时的 Redis 健康统计，此操作不可恢复。是否继续？',
+    healthBatchClearConfirm:
+      '将清空所选渠道最近一小时的 Redis 健康统计，此操作不可恢复。是否继续？',
     healthBatchSaveSuccess: '已更新 {count} 个渠道的健康追踪设置',
     healthBatchClearSuccess: '已清空 {count} 个渠道的健康统计',
     healthSelectFirst: '请先选择至少一个渠道',

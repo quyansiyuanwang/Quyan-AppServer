@@ -36,7 +36,9 @@
       ><el-table-column :label="t('productResources.actions')" width="260" fixed="right"
         ><template #default="{ row }"
           ><el-button link @click="copyUrl(row.publicUrl)">{{ t('copy') }}</el-button
-          ><el-button link @click="openAnalytics(row)">{{ t('productResources.statistics') }}</el-button
+          ><el-button link @click="openAnalytics(row)">{{
+            t('productResources.statistics')
+          }}</el-button
           ><template v-if="canWrite"
             ><el-button link @click="edit(row)">{{ t('productResources.edit') }}</el-button
             ><el-button link :loading="submitting" @click="toggle(row)">{{
@@ -77,17 +79,15 @@
         ><el-button type="primary" :loading="submitting" @click="save">{{
           t('productResources.save')
         }}</el-button></template
-      ></el-dialog>
+      ></el-dialog
+    >
   </section>
 </template>
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
-import type {
-  DeveloperProductInstanceDto,
-  DeveloperShortLinkDto,
-} from '@/client/types.gen'
+import type { DeveloperProductInstanceDto, DeveloperShortLinkDto } from '@/client/types.gen'
 import { Permission } from '@/constant/permission'
 import { developerProductService } from '@/service/developerProductService'
 import { i18ns } from '@/locales'

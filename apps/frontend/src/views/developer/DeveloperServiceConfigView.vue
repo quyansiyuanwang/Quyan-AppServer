@@ -37,14 +37,24 @@
       </div>
       <el-form label-position="top" class="sms-grid">
         <el-form-item label="服务地址">
-          <el-input v-model.trim="form.smsEndpoint" placeholder="https://sms-provider.example/send" />
+          <el-input
+            v-model.trim="form.smsEndpoint"
+            placeholder="https://sms-provider.example/send"
+          />
         </el-form-item>
         <el-form-item label="发送方">
           <el-input v-model.trim="form.smsSender" placeholder="AppServer" />
         </el-form-item>
         <el-form-item label="访问令牌">
-          <el-input v-model="form.smsToken" type="password" show-password placeholder="输入新令牌以更新" />
-          <div class="field-hint">{{ smsTokenConfigured ? '当前已配置令牌' : '当前尚未配置令牌' }}</div>
+          <el-input
+            v-model="form.smsToken"
+            type="password"
+            show-password
+            placeholder="输入新令牌以更新"
+          />
+          <div class="field-hint">
+            {{ smsTokenConfigured ? '当前已配置令牌' : '当前尚未配置令牌' }}
+          </div>
         </el-form-item>
       </el-form>
     </section>

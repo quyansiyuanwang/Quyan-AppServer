@@ -44,13 +44,21 @@
       </el-table>
     </section>
 
-    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑额度覆盖' : '新增额度覆盖'" width="min(520px, calc(100vw - 32px))">
+    <el-dialog
+      v-model="dialogVisible"
+      :title="editingId ? '编辑额度覆盖' : '新增额度覆盖'"
+      width="min(520px, calc(100vw - 32px))"
+    >
       <el-form label-position="top" @submit.prevent="save">
         <el-form-item label="对象类型" required>
           <el-segmented v-model="form.subjectType" :options="subjectTypeOptions" block />
         </el-form-item>
         <el-form-item :label="form.subjectType === 'project' ? '项目 ID' : '用户 ID'" required>
-          <el-input v-model.trim="form.subjectId" placeholder="输入 CUID" :disabled="Boolean(editingId)" />
+          <el-input
+            v-model.trim="form.subjectId"
+            placeholder="输入 CUID"
+            :disabled="Boolean(editingId)"
+          />
         </el-form-item>
         <el-form-item label="服务范围">
           <el-select v-model="form.service" class="full-width">
@@ -61,7 +69,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="每日免费额度" required>
-          <el-input-number v-model="form.dailyFreeQuota" :min="0" :max="10000000" class="full-width" />
+          <el-input-number
+            v-model="form.dailyFreeQuota"
+            :min="0"
+            :max="10000000"
+            class="full-width"
+          />
         </el-form-item>
         <el-form-item label="失效时间">
           <el-date-picker
@@ -188,7 +201,8 @@ const removeOverride = async (override: DeveloperQuotaOverrideDto) => {
     ElMessage.success('额度覆盖已删除')
     await load()
   } catch (error: any) {
-    if (error !== 'cancel' && error !== 'close') ElMessage.error(error?.message || '额度覆盖删除失败')
+    if (error !== 'cancel' && error !== 'close')
+      ElMessage.error(error?.message || '额度覆盖删除失败')
   }
 }
 

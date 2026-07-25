@@ -12,8 +12,7 @@ export interface SafeOutboundUrl {
 
 function isPrivateIpv4(address: string): boolean {
   const octets = address.split(".").map(Number);
-  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255))
-    return true;
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return true;
   const [first, second] = octets;
   if (first === 0 || first === 10 || first === 127 || first >= 224) return true;
   if (first === 100 && second >= 64 && second <= 127) return true;
@@ -51,13 +50,25 @@ export function isUnsafeOutboundAddress(address: string): boolean {
   const mappedIpv4 = ipv4FromMappedIpv6(normalized);
   if (mappedIpv4) return isPrivateIpv4(mappedIpv4);
   if (normalized === "::" || normalized === "::1") return true;
-  if (normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe8") || normalized.startsWith("fe9") || normalized.startsWith("fea") || normalized.startsWith("feb")) return true;
+  if (
+    normalized.startsWith("fc") ||
+    normalized.startsWith("fd") ||
+    normalized.startsWith("fe8") ||
+    normalized.startsWith("fe9") ||
+    normalized.startsWith("fea") ||
+    normalized.startsWith("feb")
+  )
+    return true;
   if (normalized.startsWith("ff")) return true;
   return normalized.startsWith("2001:db8:");
 }
 
 function createPinnedLookup(address: string, family: 4 | 6): LookupFunction {
-  return ((_: string, __: unknown, callback: (error: Error | null, resolvedAddress: string, resolvedFamily: 4 | 6) => void) => {
+  return ((
+    _: string,
+    __: unknown,
+    callback: (error: Error | null, resolvedAddress: string, resolvedFamily: 4 | 6) => void,
+  ) => {
     callback(null, address, family);
   }) as LookupFunction;
 }

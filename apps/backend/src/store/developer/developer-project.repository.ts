@@ -97,9 +97,7 @@ const mysqlConnectionUrl = (databaseUrl: string): string => {
   const url = new URL(databaseUrl);
   // These are Prisma engine pool parameters, not mysql2 createConnection options.
   // Passing them through causes noisy warnings and will become an error in mysql2.
-  ["connection_limit", "pool_timeout", "connect_timeout"].forEach((parameter) =>
-    url.searchParams.delete(parameter),
-  );
+  ["connection_limit", "pool_timeout", "connect_timeout"].forEach((parameter) => url.searchParams.delete(parameter));
   return url.toString();
 };
 

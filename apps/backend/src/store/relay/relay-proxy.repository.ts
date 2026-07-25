@@ -92,7 +92,6 @@ export class RelayProxyRepository implements RelayProxyStore {
           isStreaming: data.isStreaming,
         },
       });
-
     });
   }
 
@@ -157,7 +156,6 @@ export class RelayProxyRepository implements RelayProxyStore {
           fixedPrice: data.fixedPrice != null ? new Decimal(data.fixedPrice) : null,
         },
       });
-
     });
   }
 

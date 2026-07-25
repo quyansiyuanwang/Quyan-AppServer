@@ -60,7 +60,8 @@
             maxlength="100"
             placeholder="OPENAI_KEY"
             @input="normalizeAlias"
-          /><p class="field-hint">{{ t('productResources.secretAliasHint') }}</p></el-form-item
+          />
+          <p class="field-hint">{{ t('productResources.secretAliasHint') }}</p></el-form-item
         ><el-form-item :label="t('productResources.secretValue')"
           ><el-input v-model="form.value" type="password" show-password /></el-form-item></el-form
       ><template #footer
