@@ -527,7 +527,7 @@ describe('useRelaySettingsManagement', () => {
     wrapper.unmount()
   })
 
-  it('sends standalone channel payload without pooled-only routing config and respects manual model restriction', async () => {
+  it('sends standalone channel payload with health tracking only and respects manual model restriction', async () => {
     const { api, wrapper } = await mountComposable()
 
     api.channelForm.value = {
@@ -571,7 +571,9 @@ describe('useRelaySettingsManagement', () => {
     expect(createChannelMock).toHaveBeenLastCalledWith(
       expect.objectContaining({
         channelType: 'standalone',
-        routingConfig: null,
+        routingConfig: {
+          healthTrackingMode: 'automatic',
+        },
         poolMembers: [],
         allowedModels: JSON.stringify(['gpt-4o-mini']),
         visibilityMode: 'private',

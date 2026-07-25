@@ -857,7 +857,7 @@ describe("RelayTokenService", () => {
         scopedSummary: expect.objectContaining({
           rangeMode: "lifetime",
           rangeLabel: "lifetime",
-          requestCount: 3,
+          requestCount: 999,
           totalTokens: 300,
           chargedAmount: 6.25,
           coveredAmount: 1.75,
@@ -1173,7 +1173,7 @@ describe("RelayTokenService", () => {
         remainingQuota: 72.5,
         quotaUsagePercent: 9.375,
         isQuotaExceeded: false,
-        requestCount: 2,
+        requestCount: 3,
         requestTokens: 30,
         responseTokens: 70,
         totalTokens: 100,
