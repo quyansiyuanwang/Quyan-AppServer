@@ -42,6 +42,7 @@ const routingStrategySchema = z.enum([
   "latency-priority",
 ]);
 const allowedModelsModeSchema = z.enum(["all", "manual", "auto"]);
+const automaticPoolRankingModeSchema = z.enum(["price-first", "stability-first"]);
 const visibilityModeSchema = z.enum(["public", "private", "whitelist", "hidden"]);
 
 const relayChannelMemberSchema = z.object({
@@ -66,6 +67,7 @@ const routingConfigSchema = z
     allowedModelsMode: allowedModelsModeSchema.optional(),
     stickyByModel: z.coerce.boolean().optional(),
     stickyByFormat: z.coerce.boolean().optional(),
+    rankingMode: automaticPoolRankingModeSchema.optional(),
   })
   .nullable()
   .optional();

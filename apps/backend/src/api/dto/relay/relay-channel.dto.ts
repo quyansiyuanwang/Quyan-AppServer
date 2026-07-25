@@ -20,6 +20,7 @@ export type RelayChannelRoutingStrategy =
 export type RelayChannelVisibilityMode = "public" | "private" | "whitelist" | "hidden";
 
 export type RelayChannelAllowedModelsMode = "all" | "manual" | "auto";
+export type RelayAutomaticPoolRankingMode = "price-first" | "stability-first";
 
 export interface RelayChannelMemberDto {
   id?: string;
@@ -57,6 +58,8 @@ export interface RelayChannelRoutingConfigDto {
   allowedModelsMode?: RelayChannelAllowedModelsMode;
   stickyByModel?: boolean;
   stickyByFormat?: boolean;
+  /** Dynamic ordering mode for automatic proxy pools. */
+  rankingMode?: RelayAutomaticPoolRankingMode;
 }
 
 export interface RelayChannelVisibilityConfigDto {
@@ -151,6 +154,44 @@ export interface RelayAutomaticProxyPoolRoutingConfigDto {
   circuitBreakerThreshold?: number | null;
   stickyByModel?: boolean;
   stickyByFormat?: boolean;
+  rankingMode?: RelayAutomaticPoolRankingMode;
+}
+
+export interface RelayChannelHealthDto {
+  channelId: string;
+  windowStartAt: Date;
+  windowEndAt: Date;
+  sampleCount: number;
+  successCount: number;
+  failureCount: number;
+  availability: number;
+  averageLatencyMs: number;
+  status2xxCount: number;
+  status3xxCount: number;
+  status4xxCount: number;
+  status5xxCount: number;
+  statusOtherCount: number;
+  lastSeenAt?: Date;
+  lastSuccessAt?: Date;
+}
+
+export interface RelayAutomaticPoolHealthMemberDto extends RelayChannelHealthDto {
+  name: string;
+  enabled: boolean;
+  priority: number;
+  weight: number;
+  effectivePrice: number;
+  score: number;
+  rank: number;
+}
+
+export interface RelayAutomaticPoolHealthDto {
+  channelId: string;
+  name: string;
+  rankingMode: RelayAutomaticPoolRankingMode;
+  windowStartAt: Date;
+  windowEndAt: Date;
+  members: RelayAutomaticPoolHealthMemberDto[];
 }
 
 export interface RelayAutomaticProxyPoolMemberOptionDto {

@@ -19,11 +19,14 @@ import {
 import type {
   ModelPricingItemDto,
   RelayChannelDto,
+  RelayChannelHealthDto,
+  RelayAutomaticPoolHealthDto,
   RelayChannelManagementListItemDto,
   RelayChannelImportItemDto,
   RelayChannelMemberDto,
   RelayChannelRoutingConfigDto,
   RelayChannelRoutingStrategy,
+  RelayAutomaticPoolRankingMode,
   RelayChannelType,
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
@@ -123,6 +126,7 @@ const recommendedRoutingConfigForm = () => ({
   circuitBreakerThreshold: null as number | null,
   stickyByModel: false,
   stickyByFormat: false,
+  rankingMode: 'price-first' as RelayAutomaticPoolRankingMode,
 })
 
 const defaultRoutingConfigForm = () => recommendedRoutingConfigForm()
@@ -193,6 +197,10 @@ const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigFormDto | 
     typeof config?.stickyByFormat === 'boolean'
       ? config.stickyByFormat
       : defaultRoutingConfigForm().stickyByFormat,
+  rankingMode:
+    config?.rankingMode === 'stability-first'
+      ? 'stability-first'
+      : defaultRoutingConfigForm().rankingMode,
 })
 
 const normalizeVisibilityConfigForm = (config?: RelayChannelVisibilityConfigDto | null) => ({
@@ -709,6 +717,8 @@ export const useRelaySettingsManagement = () => {
   const hasLoadedVisibilityRoles = ref(false)
   const showChannelDetailDialog = ref(false)
   const currentChannelDetail = ref<RelayChannelDto | null>(null)
+  const channelHealth = ref<RelayChannelHealthDto | RelayAutomaticPoolHealthDto | null>(null)
+  const channelHealthLoading = ref(false)
 
   const hasChannelSelection = computed(() => selectedChannelIds.value.length > 0)
   const selectedChannelCount = computed(() => selectedChannelIds.value.length)
@@ -1319,6 +1329,10 @@ export const useRelaySettingsManagement = () => {
 
     if (config.stickyByModel === true) payload.stickyByModel = true
     if (config.stickyByFormat === true) payload.stickyByFormat = true
+    if (channelForm.value.channelType === 'automatic-proxy-pool') {
+      payload.rankingMode =
+        config.rankingMode === 'stability-first' ? 'stability-first' : 'price-first'
+    }
 
     return Object.keys(payload).length > 0 ? (payload as RelayChannelRoutingConfigDto) : null
   }
@@ -1824,6 +1838,7 @@ export const useRelaySettingsManagement = () => {
     try {
       currentChannelDetail.value = await relayChannelService.getChannel(row.id)
       showChannelDetailDialog.value = true
+      void loadChannelHealth(row.id)
     } catch (error: any) {
       ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
     } finally {
@@ -1834,6 +1849,19 @@ export const useRelaySettingsManagement = () => {
   const closeChannelDetailDialog = () => {
     showChannelDetailDialog.value = false
     currentChannelDetail.value = null
+    channelHealth.value = null
+  }
+
+  const loadChannelHealth = async (channelId: string) => {
+    channelHealthLoading.value = true
+    try {
+      channelHealth.value = await relayChannelService.getChannelHealth(channelId)
+    } catch (error: any) {
+      channelHealth.value = null
+      ElMessage.error(error.message || i18ns.t('relay.healthLoadFailed'))
+    } finally {
+      channelHealthLoading.value = false
+    }
   }
 
   const handleSaveChannel = async () => {
@@ -2158,6 +2186,8 @@ export const useRelaySettingsManagement = () => {
     channelImportText,
     isEditingChannel,
     currentChannelDetail,
+    channelHealth,
+    channelHealthLoading,
     selectedChannelCount,
     selectedChannels: legacySelectedChannels,
     hasChannelSelection,
@@ -2228,6 +2258,7 @@ export const useRelaySettingsManagement = () => {
     openChannelImportDialog,
     openChannelDetailDialog,
     closeChannelDetailDialog,
+    loadChannelHealth,
     handleVisibilityUserSearch,
     handleImportChannels,
     handleDuplicateChannel,

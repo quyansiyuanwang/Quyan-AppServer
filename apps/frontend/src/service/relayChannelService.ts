@@ -12,6 +12,8 @@ import type {
   RelayChannelDto,
   RelayChannelOptionDto,
   RelayChannelExportResponse,
+  RelayChannelHealthDto,
+  RelayAutomaticPoolHealthDto,
   PaginatedResponseRelayChannelManagementListItemDto,
   RelayChannelManagementListItemDto,
 } from '@/client/types.gen'
@@ -70,6 +72,13 @@ class RelayChannelService {
 
   async getChannel(id: string): Promise<RelayChannelDto> {
     const result = await relayChannelApi.getChannel({
+      path: { id },
+    })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async getChannelHealth(id: string): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
+    const result = await relayChannelApi.getChannelHealth({
       path: { id },
     })
     return checkApiResult<any>(result, true).data

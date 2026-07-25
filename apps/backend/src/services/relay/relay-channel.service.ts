@@ -15,6 +15,9 @@ import type {
   RelayChannelImportItemDto,
   RelayChannelAllowedModelsMode,
   RelayAutomaticProxyPoolOptionDto,
+  RelayAutomaticPoolHealthDto,
+  RelayAutomaticPoolHealthMemberDto,
+  RelayChannelHealthDto,
   RelayPoolPricingMemberOptionDto,
   RelayPoolPricingOptionDto,
   TimePeriodMultiplierRule,
@@ -52,6 +55,7 @@ import type { Request } from "express";
 import { ModelPricingService } from "./model-pricing.service";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
+import { RelayChannelHealthService } from "./relay-channel-health.service";
 
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
@@ -84,6 +88,7 @@ interface ValidatedRelayChannelData {
 const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
 const DEFAULT_ROUTING_STRATEGY: RelayChannelRoutingStrategy = "priority";
 const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
+const DEFAULT_AUTOMATIC_POOL_RANKING_MODE = "price-first" as const;
 
 type RelayChannelWithMembers = RelayChannel & {
   poolMembers?: Array<{
@@ -106,6 +111,7 @@ export class RelayChannelService {
     private readonly permissionService: PermissionService = PermissionService.getInstance(),
     private readonly modelPricingService: ModelPricingService = ModelPricingService.getInstance(),
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
+    private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -372,6 +378,62 @@ export class RelayChannelService {
     if (!channel) throw new NotFoundError("Relay channel not found");
     await this.assertChannelAccessible(channel, actorUserId);
     return this.toDto(channel);
+  }
+
+  async getChannelHealth(
+    id: string,
+    actorUserId: string,
+  ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
+    const channel = await this.assertChannelAccessibleById(id, actorUserId);
+    if (channel.channelType !== "automatic-proxy-pool") return this.relayChannelHealthService.getHealth(channel.id);
+
+    const now = new Date();
+    const poolMembers = (channel as RelayChannelWithMembers).poolMembers ?? [];
+    const rankingMode =
+      (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)?.rankingMode === "stability-first"
+        ? "stability-first"
+        : DEFAULT_AUTOMATIC_POOL_RANKING_MODE;
+    const rankedMembers = await this.relayChannelHealthService.rankMembers(
+      poolMembers.map((member) => {
+        const memberChannel = member.memberChannel;
+        const effectivePrice =
+          Number(memberChannel?.multiplier ?? 1) *
+          computeMultiplierForTime(
+            (memberChannel?.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
+            now,
+          );
+        return {
+          id: member.memberChannelId,
+          name: memberChannel?.name ?? member.memberChannelId,
+          enabled: member.enabled !== false && memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+          priority: member.priority,
+          weight: Number(member.weight),
+          effectivePrice,
+        };
+      }),
+      rankingMode,
+      now,
+    );
+    const window = rankedMembers[0]?.health ?? (await this.relayChannelHealthService.getHealth(channel.id, now));
+    const members: RelayAutomaticPoolHealthMemberDto[] = rankedMembers.map((member, index) => ({
+      ...member.health,
+      name: member.name,
+      enabled: member.enabled,
+      priority: member.priority,
+      weight: member.weight,
+      effectivePrice: member.effectivePrice,
+      score: member.score,
+      rank: index + 1,
+    }));
+
+    return {
+      channelId: channel.id,
+      name: channel.name,
+      rankingMode,
+      windowStartAt: window.windowStartAt,
+      windowEndAt: window.windowEndAt,
+      members,
+    };
   }
 
   async assertChannelAccessibleById(id: string, actorUserId: string): Promise<RelayChannel> {
@@ -671,6 +733,9 @@ export class RelayChannelService {
     if (rawAllowedModelsMode && !POOLED_ALLOWED_MODE_VALUES.has(rawAllowedModelsMode as "all" | "manual" | "auto"))
       throw new BadRequestError(`Invalid allowedModelsMode '${rawAllowedModelsMode}'`);
 
+    if (channelType !== "automatic-proxy-pool") delete normalized.rankingMode;
+    else normalized.rankingMode = normalized.rankingMode ?? DEFAULT_AUTOMATIC_POOL_RANKING_MODE;
+
     if (!isPoolType(channelType)) {
       delete normalized.allowedModelsMode;
       return normalized;
@@ -822,6 +887,8 @@ export class RelayChannelService {
     const isCreate = !existing;
     const wasPooled = isPoolType((existing?.channelType as RelayChannelType | undefined) ?? "standalone");
     const normalizedRoutingConfig = this.normalizeRoutingConfig(routingConfig, channelType);
+    if (channelType !== "automatic-proxy-pool" && data.routingConfig?.rankingMode)
+      throw new BadRequestError("rankingMode can only be configured for automatic proxy pools");
 
     const openaiUpstreamUrl =
       data.openaiUpstreamUrl !== undefined ? data.openaiUpstreamUrl : existing?.openaiUpstreamUrl || undefined;

@@ -28,6 +28,8 @@ import type {
   ImportRelayChannelsResponse,
   RelayChannelExportResponse,
   RelayChannelManagementListItemDto,
+  RelayChannelHealthDto,
+  RelayAutomaticPoolHealthDto,
   UpdateRelayChannelRequest,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
@@ -109,6 +111,17 @@ export class RelayChannelController extends Controller {
     @Query() targetUserId?: string,
   ): Promise<RelayChannelOptionDto[]> {
     return this.channelService.listChannelOptions(request.user!.userId, targetUserId);
+  }
+
+  @Get("{id}/health")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @Middlewares(validateParams(relayChannelIdParamsSchema))
+  public async getChannelHealth(
+    @Path() id: string,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
+    return this.channelService.getChannelHealth(id, request.user!.userId);
   }
 
   @Get("{id}")

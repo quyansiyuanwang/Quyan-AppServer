@@ -14039,6 +14039,48 @@
 				]
 			}
 		},
+		"/v1/relay-channels/{id}/health": {
+			"get": {
+				"operationId": "RelayChannelControllerGetChannelHealth",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"$ref": "#/components/schemas/RelayChannelHealthDto"
+										},
+										{
+											"$ref": "#/components/schemas/RelayAutomaticPoolHealthDto"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/relay-channels/{id}": {
 			"get": {
 				"operationId": "RelayChannelControllerGetChannel",
@@ -36580,6 +36622,13 @@
 					"auto"
 				]
 			},
+			"RelayAutomaticPoolRankingMode": {
+				"type": "string",
+				"enum": [
+					"price-first",
+					"stability-first"
+				]
+			},
 			"RelayChannelRoutingConfigDto": {
 				"properties": {
 					"maxRetries": {
@@ -36631,6 +36680,10 @@
 					},
 					"stickyByFormat": {
 						"type": "boolean"
+					},
+					"rankingMode": {
+						"$ref": "#/components/schemas/RelayAutomaticPoolRankingMode",
+						"description": "Dynamic ordering mode for automatic proxy pools."
 					}
 				},
 				"type": "object",
@@ -37064,6 +37117,9 @@
 					},
 					"stickyByFormat": {
 						"type": "boolean"
+					},
+					"rankingMode": {
+						"$ref": "#/components/schemas/RelayAutomaticPoolRankingMode"
 					}
 				},
 				"type": "object",
@@ -37192,6 +37248,236 @@
 					"multiplier",
 					"allowedFormats",
 					"modelCapabilities"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelHealthDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"windowStartAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"windowEndAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"successCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"failureCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"availability": {
+						"type": "number",
+						"format": "double"
+					},
+					"averageLatencyMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"status2xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status3xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status4xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status5xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"statusOtherCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastSeenAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"lastSuccessAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"channelId",
+					"windowStartAt",
+					"windowEndAt",
+					"sampleCount",
+					"successCount",
+					"failureCount",
+					"availability",
+					"averageLatencyMs",
+					"status2xxCount",
+					"status3xxCount",
+					"status4xxCount",
+					"status5xxCount",
+					"statusOtherCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayAutomaticPoolHealthMemberDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"windowStartAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"windowEndAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"successCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"failureCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"availability": {
+						"type": "number",
+						"format": "double"
+					},
+					"averageLatencyMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"status2xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status3xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status4xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status5xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"statusOtherCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastSeenAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"lastSuccessAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"priority": {
+						"type": "number",
+						"format": "double"
+					},
+					"weight": {
+						"type": "number",
+						"format": "double"
+					},
+					"effectivePrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"score": {
+						"type": "number",
+						"format": "double"
+					},
+					"rank": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"channelId",
+					"windowStartAt",
+					"windowEndAt",
+					"sampleCount",
+					"successCount",
+					"failureCount",
+					"availability",
+					"averageLatencyMs",
+					"status2xxCount",
+					"status3xxCount",
+					"status4xxCount",
+					"status5xxCount",
+					"statusOtherCount",
+					"name",
+					"enabled",
+					"priority",
+					"weight",
+					"effectivePrice",
+					"score",
+					"rank"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayAutomaticPoolHealthDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"rankingMode": {
+						"$ref": "#/components/schemas/RelayAutomaticPoolRankingMode"
+					},
+					"windowStartAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"windowEndAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"members": {
+						"items": {
+							"$ref": "#/components/schemas/RelayAutomaticPoolHealthMemberDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"channelId",
+					"name",
+					"rankingMode",
+					"windowStartAt",
+					"windowEndAt",
+					"members"
 				],
 				"type": "object",
 				"additionalProperties": false

@@ -124,6 +124,25 @@
             </el-button>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+            <el-form-item
+              v-if="channelForm.channelType === 'automatic-proxy-pool'"
+              :label="i18ns.t('relay.automaticPoolRankingMode')"
+              label-width="auto"
+            >
+              <el-select v-model="channelForm.routingConfig.rankingMode">
+                <el-option
+                  :label="i18ns.t('relay.automaticPoolRankingPriceFirst')"
+                  value="price-first"
+                />
+                <el-option
+                  :label="i18ns.t('relay.automaticPoolRankingStabilityFirst')"
+                  value="stability-first"
+                />
+              </el-select>
+              <div class="text-[#909399] text-xs mt-1">
+                {{ i18ns.t('relay.automaticPoolRankingHelp') }}
+              </div>
+            </el-form-item>
             <el-form-item :label="i18ns.t('relay.maxRetries')" label-width="auto">
               <el-input-number v-model="channelForm.routingConfig.maxRetries" :min="0" :step="1" />
             </el-form-item>
@@ -763,6 +782,21 @@
               {{ i18ns.t('relay.routingConfig') }}
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div
+                v-if="currentChannelDetail.channelType === 'automatic-proxy-pool'"
+                class="rounded border border-[var(--el-border-color-lighter)] p-3"
+              >
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+                  {{ i18ns.t('relay.automaticPoolRankingMode') }}
+                </div>
+                <div>
+                  {{
+                    currentChannelDetail.routingConfig?.rankingMode === 'stability-first'
+                      ? i18ns.t('relay.automaticPoolRankingStabilityFirst')
+                      : i18ns.t('relay.automaticPoolRankingPriceFirst')
+                  }}
+                </div>
+              </div>
               <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
                 <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
                   {{ i18ns.t('relay.maxRetries') }}
@@ -922,6 +956,65 @@
       </div>
 
       <div>
+        <div class="flex items-center justify-between gap-3 mb-2">
+          <el-divider content-position="left" class="flex-1">{{
+            i18ns.t('relay.channelHealth')
+          }}</el-divider>
+          <el-button
+            text
+            :loading="channelHealthLoading"
+            :disabled="!currentChannelDetail"
+            @click="refreshChannelHealth"
+          >
+            {{ i18ns.t('refresh') }}
+          </el-button>
+        </div>
+        <el-skeleton v-if="channelHealthLoading && !channelHealth" :rows="3" animated />
+        <el-table
+          v-else-if="automaticPoolHealth"
+          :data="automaticPoolHealth.members"
+          size="small"
+          max-height="300"
+        >
+          <el-table-column :label="i18ns.t('relay.channelName')" min-width="140" prop="name" />
+          <el-table-column :label="i18ns.t('relay.healthRank')" width="82" prop="rank" />
+          <el-table-column :label="i18ns.t('relay.healthAvailability')" width="110">
+            <template #default="{ row }">{{ formatAvailability(row.availability) }}</template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('relay.healthSamples')" width="88" prop="sampleCount" />
+          <el-table-column :label="i18ns.t('relay.healthLatency')" width="105">
+            <template #default="{ row }">{{ formatLatency(row.averageLatencyMs) }}</template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('relay.healthEffectivePrice')" width="105">
+            <template #default="{ row }">{{ Number(row.effectivePrice).toFixed(4) }}x</template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('relay.healthScore')" width="100">
+            <template #default="{ row }">{{ Number(row.score).toFixed(4) }}</template>
+          </el-table-column>
+        </el-table>
+        <el-descriptions
+          v-else-if="standardChannelHealth"
+          :column="isDesktop ? 3 : 1"
+          border
+          size="small"
+        >
+          <el-descriptions-item :label="i18ns.t('relay.healthAvailability')">
+            {{ formatAvailability(standardChannelHealth.availability) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('relay.healthSamples')">
+            {{ standardChannelHealth.sampleCount }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('relay.healthLatency')">
+            {{ formatLatency(standardChannelHealth.averageLatencyMs) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('relay.healthLastSeen')">
+            {{ formatDateTime(standardChannelHealth.lastSeenAt) }}
+          </el-descriptions-item>
+        </el-descriptions>
+        <el-empty v-else :description="i18ns.t('relay.healthEmpty')" :image-size="64" />
+      </div>
+
+      <div>
         <el-divider content-position="left">{{ i18ns.t('relay.upstreamConfig') }}</el-divider>
         <div
           v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)"
@@ -1068,6 +1161,8 @@ const {
   channelForm,
   showChannelDetailDialog,
   currentChannelDetail,
+  channelHealth,
+  channelHealthLoading,
   visibilityUserOptions,
   visibilityGroupOptions,
   visibilityRoleOptions,
@@ -1107,6 +1202,7 @@ const {
   channelImportText,
   channelImportPlaceholder,
   closeChannelDetailDialog,
+  loadChannelHealth,
   handleVisibilityUserSearch,
   getChannelAllowedModelsMode,
   handleImportChannels,
@@ -1170,6 +1266,20 @@ const channelDetailDialogTitle = computed(() => {
   return `${i18ns.t('relay.channelDetailsTitle')} · ${currentChannelDetail.value.name}`
 })
 
+const automaticPoolHealth = computed(() => {
+  const health = channelHealth.value
+  return health && 'members' in health ? health : null
+})
+
+const standardChannelHealth = computed(() => {
+  const health = channelHealth.value
+  return health && !('members' in health) ? health : null
+})
+
+const refreshChannelHealth = () => {
+  if (currentChannelDetail.value) void loadChannelHealth(currentChannelDetail.value.id)
+}
+
 const formatDateTime = (value?: string | null) => {
   if (!value) return '-'
   const date = new Date(value)
@@ -1181,6 +1291,11 @@ const formatNullableValue = (value: number | string | null | undefined) => {
   if (value === null || value === undefined || value === '') return '-'
   return String(value)
 }
+
+const formatAvailability = (value: number) =>
+  `${(Math.max(0, Math.min(1, Number(value) || 0)) * 100).toFixed(1)}%`
+
+const formatLatency = (value: number) => `${Math.max(0, Number(value) || 0).toFixed(0)} ms`
 
 const formatStringList = (value: unknown) => {
   if (!Array.isArray(value) || value.length === 0) return '-'
