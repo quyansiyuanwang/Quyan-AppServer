@@ -36,12 +36,14 @@
         </div>
       </div>
 
-      <!-- 穿梭框 -->
+      <!-- Inherited permissions remain editable: unchecking one records a user-level removal. -->
       <div class="permission-section">
-        <PermissionTransfer
+        <PermissionTreeSelector
           v-model="effectivePermissions"
-          :all-permissions="allPermissionsTyped"
-          :disabled-permissions="userPermissions.groupPermissions"
+          :data="permissionTree"
+          :search-placeholder="i18ns.t('PermissionSelector.searchPlaceholder')"
+          :empty-text="i18ns.t('PermissionSelector.noMatchingPermissions')"
+          filterable
         />
       </div>
     </div>
@@ -68,12 +70,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UserDto, UserFullPermissionsDto, Permission } from '@/client/types.gen'
+import { ALL_PERMISSIONS } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
-import PermissionTransfer from './PermissionTransfer.vue'
+import PermissionTreeSelector from './PermissionTreeSelector.vue'
 import { i18ns } from '@/locales'
+import { buildGrantablePermissionTree } from '@/views/management/permission-tree'
 
 interface Props {
   modelValue: boolean
@@ -93,18 +97,16 @@ const loading = ref(false)
 const saving = ref(false)
 
 // 用户的有效权限（组权限 + 额外添加 - 移除的）
-const effectivePermissions = ref<Permission[]>([])
+const effectivePermissions = ref<string[]>([])
 
-// 转换权限列表为正确的类型
-const allPermissionsTyped = computed(() => {
-  return permissionStore.allPermissions.map(
-    (perm: { category: string; name: string; value: string }) => ({
-      category: perm.category,
-      name: perm.name,
-      value: perm.value as Permission,
-    }),
-  )
-})
+const permissionTree = computed(() =>
+  buildGrantablePermissionTree({
+    allPermissions: ALL_PERMISSIONS,
+    effectivePermissions: ALL_PERMISSIONS,
+    locale: String(i18ns.refer.value),
+    translateCategory: (key) => i18ns.t(key),
+  }),
+)
 
 // 检查是否有自定义权限
 const hasCustomPermissions = computed(() => {
@@ -135,7 +137,9 @@ watch(
 
 // 计算统计数据（实时响应编辑）
 const groupPermsCount = computed(() => props.userPermissions?.groupPermissions?.length ?? 0)
-const groupPermsSet = computed(() => new Set(props.userPermissions?.groupPermissions ?? []))
+const groupPermsSet = computed(
+  () => new Set<string>(props.userPermissions?.groupPermissions ?? []),
+)
 const customAddedCount = computed(
   () => effectivePermissions.value.filter((p) => !groupPermsSet.value.has(p)).length,
 )
@@ -185,18 +189,18 @@ const handleSave = async () => {
     saving.value = true
 
     // 计算需要添加和移除的权限
-    const groupPermsSet = new Set(props.userPermissions.groupPermissions || [])
-    const effectivePermsSet = new Set(effectivePermissions.value)
+    const groupPermsSet = new Set<string>(props.userPermissions.groupPermissions || [])
+    const effectivePermsSet = new Set<string>(effectivePermissions.value)
 
     // 额外添加的权限：在有效权限中但不在组权限中
     const additionalPermissions = effectivePermissions.value.filter(
-      (perm: Permission) => !groupPermsSet.has(perm),
-    )
+      (perm) => !groupPermsSet.has(perm),
+    ) as Permission[]
 
     // 要移除的权限：在组权限中但不在有效权限中
     const removedPermissions = (props.userPermissions.groupPermissions || []).filter(
       (perm: Permission) => !effectivePermsSet.has(perm),
-    )
+    ) as Permission[]
 
     // 完整设置用户权限
     const success = await permissionStore.setUserPermissions(

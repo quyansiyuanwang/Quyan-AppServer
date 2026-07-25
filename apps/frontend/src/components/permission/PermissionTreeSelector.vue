@@ -38,6 +38,8 @@
       :props="treeProps"
       show-checkbox
       node-key="value"
+      check-on-click-node
+      :expand-on-click-node="false"
       :filter-node-method="filterNode"
       @check="emitCheckedPermissions"
       @node-expand="rememberExpandedNode"
@@ -220,8 +222,10 @@ const syncCheckedKeys = async () => {
 const emitCheckedPermissions = () => {
   const checked = treeRef.value?.getCheckedKeys(true) ?? []
   const permissions = checked.map(String)
-  lastTreeEmission = normalizeKeys(permissions)
-  emit('update:modelValue', permissions)
+  // Element Plus updates a parent branch asynchronously. Reuse the same explicit
+  // synchronization path as the toolbar actions so the visual check state cannot
+  // drift from the v-model value after a leaf is clicked.
+  void updateSelectedPermissions(permissions)
 }
 
 watch(keyword, (value) => treeRef.value?.filter(value))
@@ -229,7 +233,6 @@ watch(() => props.modelValue, syncCheckedKeys, { deep: true, immediate: true })
 watch(
   () => props.data,
   () => {
-    expandedNodeKeys.value.clear()
     void syncCheckedKeys()
   },
   { deep: true },
@@ -270,5 +273,25 @@ watch(displayTree, () => void restoreExpandedNodes(), { flush: 'post' })
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   font-weight: 400;
+}
+
+/* A partial selection is a distinct state, rather than a less legible blue checked box. */
+:deep(.el-checkbox__input.is-indeterminate .el-checkbox__inner) {
+  background-color: var(--el-color-warning);
+  border-color: var(--el-color-warning-dark-2);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--el-color-warning) 35%, transparent);
+}
+
+:deep(.el-checkbox__input.is-indeterminate .el-checkbox__inner::before) {
+  height: 3px;
+  background-color: var(--el-color-black);
+}
+
+:deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
+  border-color: var(--el-color-primary);
+}
+
+:deep(.el-tree-node__content) {
+  min-height: 30px;
 }
 </style>
