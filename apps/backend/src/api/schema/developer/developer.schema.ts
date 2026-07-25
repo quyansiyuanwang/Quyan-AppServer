@@ -67,12 +67,23 @@ export const createPushChannelBodySchema = z.object({
   name: z.string().trim().min(1).max(100),
   type: z.enum(["webhook", "dingtalk", "feishu", "wechat_work"]),
   endpoint: z.string().url().max(2_000),
-  secretAlias: z.string().trim().regex(alias).optional(),
+  secretReference: z
+    .object({
+      secretInstanceId: z.string().trim().min(1),
+      alias: z.string().trim().regex(alias),
+    })
+    .optional(),
 });
 export const updatePushChannelBodySchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   endpoint: z.string().url().max(2_000).optional(),
-  secretAlias: z.string().trim().regex(alias).nullable().optional(),
+  secretReference: z
+    .object({
+      secretInstanceId: z.string().trim().min(1),
+      alias: z.string().trim().regex(alias),
+    })
+    .nullable()
+    .optional(),
   enabled: z.boolean().optional(),
 });
 export const sendPushBodySchema = z.object({

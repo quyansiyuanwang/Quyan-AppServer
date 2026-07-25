@@ -28,6 +28,7 @@ import type {
   DeveloperQuotaOverrideDto,
   DeveloperPushChannelDto,
   DeveloperPushDeliveryDto,
+  DeveloperPushSecretReferenceDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
   DeveloperShortLinkStatsDto,
@@ -63,6 +64,11 @@ type QuotaReceipt = {
   usageId: string;
   userId: string;
   chargeAmount: number;
+};
+
+type StoredPushSecretReference = {
+  secretInstanceId: string;
+  secretProjectId: string;
 };
 
 type ProjectKeyRecord = Awaited<ReturnType<typeof prisma.developerProjectApiKey.findFirst>> & {
@@ -1293,12 +1299,70 @@ export class DeveloperProjectRepository {
     }
   }
 
+  private readPushSecretReference(config: unknown): StoredPushSecretReference | undefined {
+    if (!config || typeof config !== "object" || Array.isArray(config)) return undefined;
+    const value = config as Record<string, unknown>;
+    if (typeof value.secretInstanceId !== "string" || typeof value.secretProjectId !== "string") return undefined;
+    return { secretInstanceId: value.secretInstanceId, secretProjectId: value.secretProjectId };
+  }
+
+  private async resolvePushSecretReference(
+    userId: string,
+    reference: DeveloperPushSecretReferenceDto,
+  ): Promise<StoredPushSecretReference> {
+    const instance = await prisma.developerProductInstance.findFirst({
+      where: {
+        id: reference.secretInstanceId,
+        status: 1,
+        enabled: true,
+        entitlement: { productCode: "secret", status: 1, accountOwnerId: userId },
+      },
+      select: { id: true, backingProjectId: true },
+    });
+    if (!instance) throw new BadRequestError("选择的密钥托管项目不可用");
+    await this.resolveSecret(instance.backingProjectId, reference.alias);
+    return { secretInstanceId: instance.id, secretProjectId: instance.backingProjectId };
+  }
+
+  private pushChannelSecretReferenceDto(channel: {
+    secretAlias: string | null;
+    config: Prisma.JsonValue | null;
+  }): DeveloperPushSecretReferenceDto | undefined {
+    const reference = this.readPushSecretReference(channel.config);
+    if (!reference || !channel.secretAlias) return undefined;
+    return { secretInstanceId: reference.secretInstanceId, alias: channel.secretAlias };
+  }
+
+  private async resolveStoredPushSecret(reference: StoredPushSecretReference, alias: string): Promise<string> {
+    const instance = await prisma.developerProductInstance.findFirst({
+      where: {
+        id: reference.secretInstanceId,
+        backingProjectId: reference.secretProjectId,
+        status: 1,
+        enabled: true,
+        entitlement: { productCode: "secret", status: 1 },
+      },
+      select: { backingProjectId: true },
+    });
+    if (!instance) throw new BadRequestError("引用的密钥托管项目不可用");
+    return this.resolveSecret(instance.backingProjectId, alias);
+  }
+
   async createPushChannel(projectId: string, userId: string, body: CreateDeveloperPushChannelDto) {
     await this.assertProjectOwner(projectId, userId);
     await assertSafeOutboundUrl(body.endpoint);
-    if (body.secretAlias) await this.resolveSecret(projectId, body.secretAlias);
+    const secretReference = body.secretReference
+      ? await this.resolvePushSecretReference(userId, body.secretReference)
+      : undefined;
     const channel = await prisma.developerPushChannel.create({
-      data: { projectId, name: body.name, type: body.type, endpoint: body.endpoint, secretAlias: body.secretAlias },
+      data: {
+        projectId,
+        name: body.name,
+        type: body.type,
+        endpoint: body.endpoint,
+        secretAlias: body.secretReference?.alias,
+        config: secretReference as Prisma.InputJsonValue | undefined,
+      },
     });
     return this.pushChannelDto(channel);
   }
@@ -1309,6 +1373,7 @@ export class DeveloperProjectRepository {
     type: string;
     endpoint: string | null;
     secretAlias: string | null;
+    config: Prisma.JsonValue | null;
     enabled: boolean;
     createTime: Date;
     updateTime: Date;
@@ -1318,6 +1383,7 @@ export class DeveloperProjectRepository {
       name: channel.name,
       type: channel.type,
       endpoint: channel.endpoint ?? "",
+      secretReference: this.pushChannelSecretReferenceDto(channel),
       secretAlias: channel.secretAlias ?? undefined,
       enabled: channel.enabled,
       createTime: channel.createTime.toISOString(),
@@ -1334,6 +1400,20 @@ export class DeveloperProjectRepository {
     return channels.map((channel) => this.pushChannelDto(channel));
   }
 
+  async getPushChannelSecretReference(
+    projectId: string,
+    channelId: string,
+    userId: string,
+  ): Promise<DeveloperPushSecretReferenceDto | undefined> {
+    await this.assertProjectOwner(projectId, userId);
+    const channel = await prisma.developerPushChannel.findFirst({
+      where: { id: channelId, projectId },
+      select: { secretAlias: true, config: true },
+    });
+    if (!channel) throw new NotFoundError("推送渠道不存在");
+    return this.pushChannelSecretReferenceDto(channel);
+  }
+
   async updatePushChannel(
     projectId: string,
     channelId: string,
@@ -1344,12 +1424,25 @@ export class DeveloperProjectRepository {
     const existing = await prisma.developerPushChannel.findFirst({ where: { id: channelId, projectId } });
     if (!existing) throw new NotFoundError("推送渠道不存在");
     const endpoint = body.endpoint ? (await assertSafeOutboundUrl(body.endpoint)).url.toString() : undefined;
+    const selectedReference =
+      body.secretReference === undefined
+        ? this.readPushSecretReference(existing.config)
+        : body.secretReference
+          ? await this.resolvePushSecretReference(userId, body.secretReference)
+          : undefined;
+    const existingConfig =
+      existing.config && typeof existing.config === "object" && !Array.isArray(existing.config)
+        ? { ...(existing.config as Record<string, unknown>) }
+        : {};
+    delete existingConfig.secretInstanceId;
+    delete existingConfig.secretProjectId;
     const channel = await prisma.developerPushChannel.update({
       where: { id: channelId },
       data: {
         name: body.name,
         endpoint,
-        secretAlias: body.secretAlias,
+        secretAlias: body.secretReference === undefined ? existing.secretAlias : (body.secretReference?.alias ?? null),
+        config: { ...existingConfig, ...(selectedReference ?? {}) } as Prisma.InputJsonValue,
         enabled: body.enabled,
       },
     });
@@ -1397,14 +1490,23 @@ export class DeveloperProjectRepository {
 
   private async dispatchPushDelivery(
     delivery: { id: string; projectId: string; channelId: string; title: string; content: string },
-    channel: { endpoint: string | null; secretAlias: string | null; type: string; enabled: boolean },
+    channel: {
+      endpoint: string | null;
+      secretAlias: string | null;
+      config: Prisma.JsonValue | null;
+      type: string;
+      enabled: boolean;
+    },
   ): Promise<DeveloperPushDeliveryDto> {
     try {
       if (!channel.enabled || !channel.endpoint) throw new BadRequestError("推送渠道未配置地址或已停用");
       const target = await assertSafeOutboundUrl(channel.endpoint);
-      const secret = channel.secretAlias
-        ? await this.resolveSecret(delivery.projectId, channel.secretAlias)
-        : undefined;
+      const secretReference = this.readPushSecretReference(channel.config);
+      if (channel.secretAlias && !secretReference) throw new BadRequestError("推送渠道凭据必须重新选择密钥托管项目");
+      const secret =
+        secretReference && channel.secretAlias
+          ? await this.resolveStoredPushSecret(secretReference, channel.secretAlias)
+          : undefined;
       const payload =
         channel.type === "dingtalk"
           ? { msgtype: "text", text: { content: `${delivery.title}\n${delivery.content}` } }

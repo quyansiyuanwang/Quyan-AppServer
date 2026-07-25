@@ -380,25 +380,31 @@ export default {
     pushDescription: 'Credentials reference a secret alias and are never displayed.',
     addChannel: 'Add channel',
     secretAlias: 'Secret alias (optional)',
+    secretProject: 'Secret Management project (optional)',
+    secretProjectPlaceholder: 'Choose the Secret Management project that stores this credential',
+    secretProjectHint:
+      'Credentials always live in Secret Management. The push channel stores only a project and alias reference, never plaintext.',
+    secretReferenceIncomplete:
+      'Choose both a Secret Management project and secret alias, or leave both empty.',
     secretAliasHint:
       'Start with an uppercase letter; use uppercase letters, digits, and underscores only.',
     pushCredentialAliasPlaceholder: 'Leave empty when Bearer authentication is not needed',
     pushCredentialAliasHint:
-      'Select a securely stored alias. The credential value is never shown here.',
+      'Select a secret from the chosen Secret Management project. The credential value is never shown here.',
     pushCredentialPurposeTitle: 'When is a secret alias needed?',
     pushCredentialPurpose:
       'When selected, the platform sends Authorization: Bearer <secret value> with each delivery.',
     pushCredentialEndpointHint:
       'DingTalk, Feishu, and WeCom robot tokens are usually part of the Webhook URL, so this can normally remain empty.',
-    pushCredentialWriteTitle: 'Securely save a new channel credential',
+    pushCredentialWriteTitle: 'Quickly create a managed credential',
     pushCredentialWriteHint:
-      'The value is written only to encrypted storage. After saving, it can only be referenced by alias and cannot be viewed again.',
+      'The value is written to the selected Secret Management project and selected automatically. Plaintext cannot be viewed again.',
     pushCredentialWriteAction: 'Save credential securely',
     pushCredentialWriteCancel: 'Collapse',
     pushCredentialAliasName: 'New secret alias',
     pushCredentialValue: 'Credential value',
     pushCredentialSaved: 'Credential saved securely and selected',
-    pushCredentialLoadFailed: 'Failed to load push credential aliases',
+    pushCredentialLoadFailed: 'Failed to load Secret Management projects or credentials',
     invalidSecretAlias:
       'The secret alias must start with an uppercase letter and contain only uppercase letters, digits, and underscores.',
     deliveryLogs: 'Delivery logs',

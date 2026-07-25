@@ -413,7 +413,28 @@ export class DeveloperProductPlatformService {
 
   async listInstances(actorUserId: string, productCode: DeveloperProductCode): Promise<DeveloperProductInstanceDto[]> {
     const user = await this.assertProductAccess(actorUserId, productCode);
-    const entitlement = await this.getAccountProduct(this.accountOwnerId(user), productCode);
+    return this.listInstancesForAccountOwner(this.accountOwnerId(user), productCode);
+  }
+
+  async listInstancesWithPermission(
+    actorUserId: string,
+    productCode: DeveloperProductCode,
+    permission: Permission,
+  ): Promise<DeveloperProductInstanceDto[]> {
+    await this.assertProductPermission(actorUserId, productCode, permission);
+    const user = await prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { id: true, accountOwnerId: true },
+    });
+    if (!user) throw new UnauthorizedError("用户不存在");
+    return this.listInstancesForAccountOwner(this.accountOwnerId(user), productCode);
+  }
+
+  private async listInstancesForAccountOwner(
+    accountOwnerId: string,
+    productCode: DeveloperProductCode,
+  ): Promise<DeveloperProductInstanceDto[]> {
+    const entitlement = await this.getAccountProduct(accountOwnerId, productCode);
     const instances = await prisma.developerProductInstance.findMany({
       where: { entitlementId: entitlement.id, status: 1 },
       include: { entitlement: { select: { productCode: true } } },

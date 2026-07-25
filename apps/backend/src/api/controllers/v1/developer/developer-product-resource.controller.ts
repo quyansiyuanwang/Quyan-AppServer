@@ -36,6 +36,7 @@ import type {
   UpdateShortLinkDto,
   UpsertDeveloperSecretDto,
 } from "@/api/dto/developer/developer.dto";
+import type { DeveloperProductInstanceDto } from "@/api/dto/developer/product-platform.dto";
 import type { DeveloperProductCode } from "@appserver/shared";
 import {
   createPushChannelBodySchema,
@@ -53,6 +54,7 @@ import {
   productResourceIdParamsSchema,
   productResourceInstanceParamsSchema,
   productResourceKvParamsSchema,
+  productPushSecretInstanceParamsSchema,
   shortLinkStatsQuerySchema,
 } from "@/api/schema/developer/product-platform.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
@@ -72,6 +74,15 @@ export class DeveloperProductResourceController extends Controller {
     permission: Permission,
   ) {
     return this.products.getManagementContext(request.user!.userId, product, instanceId, permission);
+  }
+
+  private async assertPushSecretReference(
+    request: TypedRequest,
+    secretReference: { secretInstanceId: string; alias: string } | null | undefined,
+  ): Promise<void> {
+    if (!secretReference) return;
+    await this.context(request, "secret", secretReference.secretInstanceId, Permission.PRODUCT_SECRET_READ);
+    await this.context(request, "secret", secretReference.secretInstanceId, Permission.PRODUCT_SECRET_USE);
   }
 
   @Get("kv/instances/{instanceId}/entries")
@@ -324,31 +335,46 @@ export class DeveloperProductResourceController extends Controller {
     return this.projects.listPushChannels(context.backingProjectId, context.accountOwnerId);
   }
 
-  /** Lists encrypted credential aliases available to this push instance. Values are never returned. */
-  @Get("push/instances/{instanceId}/credential-aliases")
+  /** Lists selectable Secret Management instances for a push channel. */
+  @Get("push/instances/{instanceId}/secret-projects")
   @Middlewares(validateParams(productResourceInstanceParamsSchema))
-  public async listPushCredentialAliases(
+  public async listPushSecretProjects(
     @Path() instanceId: string,
     @Request() request: TypedRequest,
-  ): Promise<DeveloperSecretDto[]> {
-    const context = await this.context(request, "push", instanceId, Permission.PRODUCT_PUSH_CHANNEL_MANAGE);
-    return this.projects.listSecrets(context.backingProjectId, context.accountOwnerId);
+  ): Promise<DeveloperProductInstanceDto[]> {
+    await this.context(request, "push", instanceId, Permission.PRODUCT_PUSH_CHANNEL_MANAGE);
+    return this.products.listInstancesWithPermission(request.user!.userId, "secret", Permission.PRODUCT_SECRET_READ);
   }
 
-  /** Writes or rotates an encrypted credential alias for this push instance. Values are write-only. */
-  @Post("push/instances/{instanceId}/credential-aliases")
+  /** Lists metadata for write-only credentials within a selected Secret Management instance. */
+  @Get("push/instances/{instanceId}/secret-projects/{secretInstanceId}/secrets")
+  @Middlewares(validateParams(productPushSecretInstanceParamsSchema))
+  public async listPushSecretProjectSecrets(
+    @Path() instanceId: string,
+    @Path() secretInstanceId: string,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperSecretDto[]> {
+    await this.context(request, "push", instanceId, Permission.PRODUCT_PUSH_CHANNEL_MANAGE);
+    const secretContext = await this.context(request, "secret", secretInstanceId, Permission.PRODUCT_SECRET_READ);
+    return this.projects.listSecrets(secretContext.backingProjectId, secretContext.accountOwnerId);
+  }
+
+  /** Quickly creates or rotates a write-only credential in the selected Secret Management instance. */
+  @Post("push/instances/{instanceId}/secret-projects/{secretInstanceId}/secrets")
   @Middlewares(
     replayProtectionMiddleware,
-    validateParams(productResourceInstanceParamsSchema),
+    validateParams(productPushSecretInstanceParamsSchema),
     validateBody(upsertSecretBodySchema),
   )
-  public async upsertPushCredentialAlias(
+  public async upsertPushSecretProjectSecret(
     @Path() instanceId: string,
+    @Path() secretInstanceId: string,
     @Body() body: UpsertDeveloperSecretDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperSecretDto> {
-    const context = await this.context(request, "push", instanceId, Permission.PRODUCT_PUSH_CHANNEL_MANAGE);
-    return this.projects.upsertSecret(context.backingProjectId, context.accountOwnerId, body);
+    await this.context(request, "push", instanceId, Permission.PRODUCT_PUSH_CHANNEL_MANAGE);
+    const secretContext = await this.context(request, "secret", secretInstanceId, Permission.PRODUCT_SECRET_WRITE);
+    return this.projects.upsertSecret(secretContext.backingProjectId, secretContext.accountOwnerId, body);
   }
 
   @Get("push/instances/{instanceId}/deliveries")
@@ -373,6 +399,7 @@ export class DeveloperProductResourceController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DeveloperPushChannelDto> {
     const context = await this.context(request, "push", instanceId, Permission.PRODUCT_PUSH_CHANNEL_MANAGE);
+    await this.assertPushSecretReference(request, body.secretReference);
     return this.projects.createPushChannel(context.backingProjectId, context.accountOwnerId, body);
   }
 
@@ -389,6 +416,11 @@ export class DeveloperProductResourceController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DeveloperPushChannelDto> {
     const context = await this.context(request, "push", instanceId, Permission.PRODUCT_PUSH_CHANNEL_MANAGE);
+    const effectiveSecretReference =
+      body.secretReference === undefined
+        ? await this.projects.getPushChannelSecretReference(context.backingProjectId, id, context.accountOwnerId)
+        : body.secretReference;
+    await this.assertPushSecretReference(request, effectiveSecretReference);
     return this.projects.updatePushChannel(context.backingProjectId, id, context.accountOwnerId, body);
   }
 

@@ -20023,9 +20023,9 @@
 				"X-Replay-Protected": true
 			}
 		},
-		"/v1/products/push/instances/{instanceId}/credential-aliases": {
+		"/v1/products/push/instances/{instanceId}/secret-projects": {
 			"get": {
-				"operationId": "DeveloperProductResourceControllerListPushCredentialAliases",
+				"operationId": "DeveloperProductResourceControllerListPushSecretProjects",
 				"responses": {
 					"200": {
 						"description": "Ok",
@@ -20033,7 +20033,7 @@
 							"application/json": {
 								"schema": {
 									"items": {
-										"$ref": "#/components/schemas/DeveloperSecretDto"
+										"$ref": "#/components/schemas/DeveloperProductInstanceDto"
 									},
 									"type": "array"
 								}
@@ -20041,7 +20041,7 @@
 						}
 					}
 				},
-				"description": "Lists encrypted credential aliases available to this push instance. Values are never returned.",
+				"description": "Lists selectable Secret Management instances for a push channel.",
 				"tags": [
 					"Developer Product Resources"
 				],
@@ -20060,22 +20060,27 @@
 						}
 					}
 				]
-			},
-			"post": {
-				"operationId": "DeveloperProductResourceControllerUpsertPushCredentialAlias",
+			}
+		},
+		"/v1/products/push/instances/{instanceId}/secret-projects/{secretInstanceId}/secrets": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListPushSecretProjectSecrets",
 				"responses": {
 					"200": {
 						"description": "Ok",
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/DeveloperSecretDto"
+									"items": {
+										"$ref": "#/components/schemas/DeveloperSecretDto"
+									},
+									"type": "array"
 								}
 							}
 						}
 					}
 				},
-				"description": "Writes or rotates an encrypted credential alias for this push instance. Values are write-only.",
+				"description": "Lists metadata for write-only credentials within a selected Secret Management instance.",
 				"tags": [
 					"Developer Product Resources"
 				],
@@ -20088,6 +20093,56 @@
 					{
 						"in": "path",
 						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "secretInstanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerUpsertPushSecretProjectSecret",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperSecretDto"
+								}
+							}
+						}
+					}
+				},
+				"description": "Quickly creates or rotates a write-only credential in the selected Secret Management instance.",
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "secretInstanceId",
 						"required": true,
 						"schema": {
 							"type": "string"
@@ -41060,6 +41115,23 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"DeveloperPushSecretReferenceDto": {
+				"description": "A write-only credential stored by a selected Secret Management instance.",
+				"properties": {
+					"secretInstanceId": {
+						"type": "string"
+					},
+					"alias": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"secretInstanceId",
+					"alias"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"DeveloperPushChannelDto": {
 				"properties": {
 					"id": {
@@ -41074,8 +41146,12 @@
 					"endpoint": {
 						"type": "string"
 					},
+					"secretReference": {
+						"$ref": "#/components/schemas/DeveloperPushSecretReferenceDto"
+					},
 					"secretAlias": {
-						"type": "string"
+						"type": "string",
+						"description": "Alias retained for concise table display; values are always stored in Secret Management."
 					},
 					"enabled": {
 						"type": "boolean"
@@ -41159,8 +41235,8 @@
 					"endpoint": {
 						"type": "string"
 					},
-					"secretAlias": {
-						"type": "string"
+					"secretReference": {
+						"$ref": "#/components/schemas/DeveloperPushSecretReferenceDto"
 					}
 				},
 				"required": [
@@ -41179,8 +41255,12 @@
 					"endpoint": {
 						"type": "string"
 					},
-					"secretAlias": {
-						"type": "string",
+					"secretReference": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/DeveloperPushSecretReferenceDto"
+							}
+						],
 						"nullable": true
 					},
 					"enabled": {

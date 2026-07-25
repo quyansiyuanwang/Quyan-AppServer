@@ -117,7 +117,13 @@ export interface DeveloperShortLinkStatsDto {
   sources: Array<{ sourceHost?: string; count: number }>;
   countries: Array<{ country?: string; count: number }>;
   ipAddresses: Array<{ ipAddress?: string; count: number }>;
-  recentClicks: Array<{ clickedAt: string; ipAddress?: string; sourceHost?: string; country?: string; userAgent?: string }>;
+  recentClicks: Array<{
+    clickedAt: string;
+    ipAddress?: string;
+    sourceHost?: string;
+    country?: string;
+    userAgent?: string;
+  }>;
   page: number;
   pageSize: number;
   totalRecords: number;
@@ -180,7 +186,13 @@ export interface CreateDeveloperPushChannelDto {
   name: string;
   type: "webhook" | "dingtalk" | "feishu" | "wechat_work";
   endpoint: string;
-  secretAlias?: string;
+  secretReference?: DeveloperPushSecretReferenceDto;
+}
+
+/** A write-only credential stored by a selected Secret Management instance. */
+export interface DeveloperPushSecretReferenceDto {
+  secretInstanceId: string;
+  alias: string;
 }
 
 export interface DeveloperPushChannelDto {
@@ -188,6 +200,8 @@ export interface DeveloperPushChannelDto {
   name: string;
   type: string;
   endpoint: string;
+  secretReference?: DeveloperPushSecretReferenceDto;
+  /** Alias retained for concise table display; values are always stored in Secret Management. */
   secretAlias?: string;
   enabled: boolean;
   createTime: string;
@@ -197,7 +211,7 @@ export interface DeveloperPushChannelDto {
 export interface UpdateDeveloperPushChannelDto {
   name?: string;
   endpoint?: string;
-  secretAlias?: string | null;
+  secretReference?: DeveloperPushSecretReferenceDto | null;
   enabled?: boolean;
 }
 

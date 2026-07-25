@@ -16,6 +16,9 @@ export const productResourceIdParamsSchema = productResourceInstanceParamsSchema
 export const productResourceAliasParamsSchema = productResourceInstanceParamsSchema.extend({
   alias: z.string().trim().min(1).max(100),
 });
+export const productPushSecretInstanceParamsSchema = productResourceInstanceParamsSchema.extend({
+  secretInstanceId: z.string().trim().min(1),
+});
 export const productAccountParamsSchema = z.object({
   product: productCode,
   accountId: z.string().trim().min(1),

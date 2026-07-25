@@ -32,7 +32,15 @@
         prop="secretAlias"
         :label="t('productResources.secretAlias')"
         min-width="130"
-      />
+      >
+        <template #default="{ row }">
+          <span v-if="row.secretReference" class="secret-reference-cell">
+            <span>{{ secretProjectName(row.secretReference.secretInstanceId) }}</span>
+            <code>{{ row.secretReference.alias }}</code>
+          </span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column :label="t('productResources.status')" width="90">
         <template #default="{ row }"
           ><el-tag :type="row.enabled ? 'success' : 'info'">{{
@@ -161,17 +169,42 @@
         <el-form-item :label="t('productResources.endpoint')"
           ><el-input v-model="form.endpoint"
         /></el-form-item>
+        <el-form-item :label="t('productResources.secretProject')">
+          <el-select
+            v-model="form.secretInstanceId"
+            clearable
+            filterable
+            :loading="secretProjectsLoading"
+            :placeholder="t('productResources.secretProjectPlaceholder')"
+            style="width: 100%"
+            @change="onSecretProjectChange"
+          >
+            <el-option
+              v-for="project in secretProjects"
+              :key="project.id"
+              :label="project.name"
+              :value="project.id"
+            >
+              <div class="credential-option">
+                <span>{{ project.name }}</span
+                ><code>{{ project.slug }}</code>
+              </div>
+            </el-option>
+          </el-select>
+          <p class="field-hint">{{ t('productResources.secretProjectHint') }}</p>
+        </el-form-item>
         <el-form-item :label="t('productResources.secretAlias')">
           <el-select
             v-model="form.secretAlias"
             clearable
             filterable
-            :loading="credentialAliasesLoading"
+            :disabled="!form.secretInstanceId"
+            :loading="secretsLoading"
             :placeholder="t('productResources.pushCredentialAliasPlaceholder')"
             style="width: 100%"
           >
             <el-option
-              v-for="secret in credentialAliases"
+              v-for="secret in secrets"
               :key="secret.alias"
               :label="secret.alias"
               :value="secret.alias"
@@ -201,11 +234,17 @@
               </div>
               <div class="field-hint">{{ t('productResources.pushCredentialWriteHint') }}</div>
             </div>
-            <el-button text type="primary" @click="toggleCredentialWriter">{{
-              showCredentialWriter
-                ? t('productResources.pushCredentialWriteCancel')
-                : t('productResources.pushCredentialWriteAction')
-            }}</el-button>
+            <el-button
+              text
+              type="primary"
+              :disabled="!form.secretInstanceId"
+              @click="toggleCredentialWriter"
+              >{{
+                showCredentialWriter
+                  ? t('productResources.pushCredentialWriteCancel')
+                  : t('productResources.pushCredentialWriteAction')
+              }}</el-button
+            >
           </div>
           <el-collapse-transition>
             <div v-if="showCredentialWriter" class="credential-writer__form">
@@ -266,8 +305,10 @@ const deliveryError = ref('')
 const formError = ref('')
 const channels = ref<DeveloperPushChannelDto[]>([])
 const deliveries = ref<DeveloperPushDeliveryDto[]>([])
-const credentialAliases = ref<DeveloperSecretDto[]>([])
-const credentialAliasesLoading = ref(false)
+const secretProjects = ref<DeveloperProductInstanceDto[]>([])
+const secrets = ref<DeveloperSecretDto[]>([])
+const secretProjectsLoading = ref(false)
+const secretsLoading = ref(false)
 const credentialSaving = ref(false)
 const showCredentialWriter = ref(false)
 const credentialDraft = ref({ alias: '', value: '' })
@@ -282,17 +323,21 @@ const form = ref({
   name: '',
   type: 'webhook' as 'webhook' | 'dingtalk' | 'feishu' | 'wechat_work',
   endpoint: '',
+  secretInstanceId: '',
   secretAlias: '',
 })
 let channelSequence = 0
 let deliverySequence = 0
-let credentialAliasesSequence = 0
+let secretProjectsSequence = 0
+let secretsSequence = 0
 
 const canManageChannels = computed(() =>
   props.hasPermission(Permission.PRODUCT_PUSH_CHANNEL_MANAGE),
 )
 const canReadDeliveries = computed(() => props.hasPermission(Permission.PRODUCT_PUSH_DELIVERY_READ))
 const canSend = computed(() => props.hasPermission(Permission.PRODUCT_PUSH_SEND))
+const secretProjectName = (secretInstanceId: string) =>
+  secretProjects.value.find((project) => project.id === secretInstanceId)?.name || secretInstanceId
 
 const loadChannels = async () => {
   if (!props.instance || !canManageChannels.value) {
@@ -341,33 +386,66 @@ const loadDeliveries = async () => {
 }
 
 const load = () => Promise.all([loadChannels(), loadDeliveries()])
-const loadCredentialAliases = async () => {
+const loadSecretProjects = async () => {
   if (!props.instance || !canManageChannels.value) {
-    credentialAliases.value = []
+    secretProjects.value = []
     return
   }
   const instanceId = props.instance.id
-  const sequence = ++credentialAliasesSequence
-  credentialAliasesLoading.value = true
+  const sequence = ++secretProjectsSequence
+  secretProjectsLoading.value = true
   try {
-    const aliases = await developerProductService.listPushCredentialAliases(instanceId)
-    if (sequence === credentialAliasesSequence && props.instance?.id === instanceId)
-      credentialAliases.value = aliases
+    const projects = await developerProductService.listPushSecretProjects(instanceId)
+    if (sequence === secretProjectsSequence && props.instance?.id === instanceId)
+      secretProjects.value = projects
   } catch (cause) {
-    if (sequence === credentialAliasesSequence)
+    if (sequence === secretProjectsSequence)
       ElMessage.error(getErrorMessage(cause, t('productResources.pushCredentialLoadFailed')))
   } finally {
-    if (sequence === credentialAliasesSequence) credentialAliasesLoading.value = false
+    if (sequence === secretProjectsSequence) secretProjectsLoading.value = false
   }
+}
+
+const loadSecrets = async (secretInstanceId = form.value.secretInstanceId) => {
+  if (!props.instance || !canManageChannels.value || !secretInstanceId) {
+    secrets.value = []
+    return
+  }
+  const pushInstanceId = props.instance.id
+  const sequence = ++secretsSequence
+  secretsLoading.value = true
+  try {
+    const nextSecrets = await developerProductService.listPushSecretProjectSecrets(
+      pushInstanceId,
+      secretInstanceId,
+    )
+    if (
+      sequence === secretsSequence &&
+      props.instance?.id === pushInstanceId &&
+      form.value.secretInstanceId === secretInstanceId
+    )
+      secrets.value = nextSecrets
+  } catch (cause) {
+    if (sequence === secretsSequence)
+      ElMessage.error(getErrorMessage(cause, t('productResources.pushCredentialLoadFailed')))
+  } finally {
+    if (sequence === secretsSequence) secretsLoading.value = false
+  }
+}
+
+const onSecretProjectChange = () => {
+  form.value.secretAlias = ''
+  credentialDraft.value = { alias: '', value: '' }
+  void loadSecrets()
 }
 const openCreate = () => {
   editing.value = undefined
-  form.value = { name: '', type: 'webhook', endpoint: '', secretAlias: '' }
+  form.value = { name: '', type: 'webhook', endpoint: '', secretInstanceId: '', secretAlias: '' }
   credentialDraft.value = { alias: '', value: '' }
   showCredentialWriter.value = false
   formError.value = ''
   dialog.value = true
-  void loadCredentialAliases()
+  void loadSecretProjects()
 }
 const edit = (row: DeveloperPushChannelDto) => {
   editing.value = row
@@ -375,13 +453,15 @@ const edit = (row: DeveloperPushChannelDto) => {
     name: row.name,
     type: row.type as typeof form.value.type,
     endpoint: row.endpoint,
-    secretAlias: row.secretAlias || '',
+    secretInstanceId: row.secretReference?.secretInstanceId || '',
+    secretAlias: row.secretReference?.alias || '',
   }
   credentialDraft.value = { alias: row.secretAlias || '', value: '' }
   showCredentialWriter.value = false
   formError.value = ''
   dialog.value = true
-  void loadCredentialAliases()
+  void loadSecretProjects()
+  if (form.value.secretInstanceId) void loadSecrets(form.value.secretInstanceId)
 }
 const normalizeCredentialAlias = (value: string) => {
   credentialDraft.value.alias = value.toUpperCase()
@@ -392,7 +472,7 @@ const toggleCredentialWriter = () => {
     credentialDraft.value.alias = form.value.secretAlias || ''
 }
 const saveCredential = async () => {
-  if (!props.instance || credentialSaving.value) return
+  if (!props.instance || credentialSaving.value || !form.value.secretInstanceId) return
   const alias = credentialDraft.value.alias.trim()
   if (!/^[A-Z][A-Z0-9_]{0,99}$/.test(alias) || !credentialDraft.value.value) {
     formError.value = t('productResources.invalidSecretAlias')
@@ -400,14 +480,15 @@ const saveCredential = async () => {
   }
   credentialSaving.value = true
   try {
-    const saved = await developerProductService.upsertPushCredentialAlias(props.instance.id, {
-      alias,
-      value: credentialDraft.value.value,
-    })
-    credentialAliases.value = [
-      saved,
-      ...credentialAliases.value.filter((candidate) => candidate.alias !== saved.alias),
-    ]
+    const saved = await developerProductService.upsertPushSecretProjectSecret(
+      props.instance.id,
+      form.value.secretInstanceId,
+      {
+        alias,
+        value: credentialDraft.value.value,
+      },
+    )
+    secrets.value = [saved, ...secrets.value.filter((candidate) => candidate.alias !== saved.alias)]
     form.value.secretAlias = saved.alias
     credentialDraft.value.value = ''
     showCredentialWriter.value = false
@@ -423,6 +504,8 @@ const saveCredential = async () => {
 const validForm = () => {
   if (!form.value.name.trim()) return t('required')
   if (!/^https?:\/\//i.test(form.value.endpoint.trim())) return t('productResources.invalidUrl')
+  if (Boolean(form.value.secretInstanceId) !== Boolean(form.value.secretAlias.trim()))
+    return t('productResources.secretReferenceIncomplete')
   return ''
 }
 const save = async () => {
@@ -435,14 +518,26 @@ const save = async () => {
       await developerProductService.updatePushChannelResource(props.instance.id, editing.value.id, {
         name: form.value.name.trim(),
         endpoint: form.value.endpoint.trim(),
-        secretAlias: form.value.secretAlias.trim() || null,
+        secretReference:
+          form.value.secretInstanceId && form.value.secretAlias.trim()
+            ? {
+                secretInstanceId: form.value.secretInstanceId,
+                alias: form.value.secretAlias.trim(),
+              }
+            : null,
       })
     } else {
       await developerProductService.createPushChannelResource(props.instance.id, {
-        ...form.value,
         name: form.value.name.trim(),
+        type: form.value.type,
         endpoint: form.value.endpoint.trim(),
-        secretAlias: form.value.secretAlias.trim() || undefined,
+        secretReference:
+          form.value.secretInstanceId && form.value.secretAlias.trim()
+            ? {
+                secretInstanceId: form.value.secretInstanceId,
+                alias: form.value.secretAlias.trim(),
+              }
+            : undefined,
       })
     }
     dialog.value = false
@@ -528,7 +623,7 @@ watch(
   () => [props.instance?.id, canManageChannels.value, canReadDeliveries.value],
   () => {
     void load()
-    void loadCredentialAliases()
+    void loadSecretProjects()
   },
   { immediate: true },
 )
@@ -562,6 +657,12 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+.secret-reference-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 .credential-option span {
   color: var(--el-text-color-secondary);

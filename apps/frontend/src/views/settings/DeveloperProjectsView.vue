@@ -306,8 +306,9 @@ const createMonitor = async () => {
 
 const createPushChannel = async () => {
   const channel = await developerProjectService.createPushChannel(selectedProjectId.value, {
-    ...pushChannelForm.value,
-    secretAlias: pushChannelForm.value.secretAlias || undefined,
+    name: pushChannelForm.value.name,
+    type: pushChannelForm.value.type,
+    endpoint: pushChannelForm.value.endpoint,
   })
   pushChannels.value.unshift(channel)
   pushChannelForm.value = { name: '', type: 'webhook', endpoint: '', secretAlias: '' }

@@ -193,12 +193,26 @@ export class DeveloperProductService {
   async listPushChannelResources(instanceId: string) {
     return this.unwrap(await resourceApi().listPushChannels({ path: { instanceId } }))
   }
-  async listPushCredentialAliases(instanceId: string) {
-    return this.unwrap(await resourceApi().listPushCredentialAliases({ path: { instanceId } }))
+  async listPushSecretProjects(instanceId: string) {
+    return this.unwrap(await resourceApi().listPushSecretProjects({ path: { instanceId } }))
   }
-  async upsertPushCredentialAlias(instanceId: string, body: { alias: string; value: string }) {
+  async listPushSecretProjectSecrets(instanceId: string, secretInstanceId: string) {
     return this.unwrap(
-      await resourceApi().upsertPushCredentialAlias({ path: { instanceId }, body }),
+      await resourceApi().listPushSecretProjectSecrets({
+        path: { instanceId, secretInstanceId },
+      }),
+    )
+  }
+  async upsertPushSecretProjectSecret(
+    instanceId: string,
+    secretInstanceId: string,
+    body: { alias: string; value: string },
+  ) {
+    return this.unwrap(
+      await resourceApi().upsertPushSecretProjectSecret({
+        path: { instanceId, secretInstanceId },
+        body,
+      }),
     )
   }
   async createPushChannelResource(
@@ -207,7 +221,7 @@ export class DeveloperProductService {
       name: string
       type: 'webhook' | 'dingtalk' | 'feishu' | 'wechat_work'
       endpoint: string
-      secretAlias?: string
+      secretReference?: { secretInstanceId: string; alias: string }
     },
   ) {
     return this.unwrap(await resourceApi().createPushChannel({ path: { instanceId }, body }))
