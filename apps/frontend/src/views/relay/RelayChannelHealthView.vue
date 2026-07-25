@@ -56,6 +56,25 @@
           <el-option value="enabled" :label="i18ns.t('relay.healthEnabled')" />
           <el-option value="disabled" :label="i18ns.t('relay.healthDisabled')" />
         </el-select>
+        <el-button
+          v-if="canUpdate"
+          type="primary"
+          plain
+          :disabled="selectedChannelIds.length === 0"
+          @click="openBatchEditor"
+        >
+          {{ i18ns.t('relay.healthBatchEdit') }}
+        </el-button>
+        <el-button
+          v-if="canUpdate"
+          type="danger"
+          plain
+          :disabled="selectedChannelIds.length === 0"
+          :loading="batchClearing"
+          @click="confirmBatchClear"
+        >
+          {{ i18ns.t('relay.healthBatchClear') }}
+        </el-button>
       </div>
 
       <el-table
@@ -63,7 +82,9 @@
         :data="filteredChannels"
         class="health-table"
         row-key="channelId"
+        @selection-change="onSelectionChange"
       >
+        <el-table-column type="selection" width="46" :selectable="() => canUpdate" />
         <el-table-column prop="name" :label="i18ns.t('relay.channelName')" min-width="180" />
         <el-table-column :label="i18ns.t('status')" width="105">
           <template #default="{ row }"
@@ -120,6 +141,43 @@
         /></template>
       </el-table>
     </section>
+
+    <el-dialog
+      v-model="batchEditorOpen"
+      :title="i18ns.t('relay.healthBatchEditTitle')"
+      width="min(480px, calc(100vw - 32px))"
+      destroy-on-close
+    >
+      <el-form label-position="top" @submit.prevent="saveBatchConfig">
+        <el-form-item :label="i18ns.t('relay.healthTrackingMode')">
+          <el-radio-group v-model="batchMode">
+            <el-radio value="automatic">{{ i18ns.t('relay.healthTrackingAutomatic') }}</el-radio>
+            <el-radio value="manual">{{ i18ns.t('relay.healthTrackingManual') }}</el-radio>
+            <el-radio value="disabled">{{ i18ns.t('relay.healthTrackingDisabled') }}</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <template v-if="batchMode === 'manual'">
+          <el-form-item :label="i18ns.t('relay.healthManualAvailability')">
+            <el-input-number
+              v-model="batchManualAvailability"
+              :min="0"
+              :max="1"
+              :step="0.01"
+              :precision="2"
+            />
+          </el-form-item>
+          <el-form-item :label="i18ns.t('relay.healthManualLatency')">
+            <el-input-number v-model="batchManualLatencyMs" :min="0" :step="10" />
+          </el-form-item>
+        </template>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchEditorOpen = false">{{ i18ns.t('cancel') }}</el-button>
+        <el-button type="primary" :loading="batchSaving" @click="saveBatchConfig">{{
+          i18ns.t('save')
+        }}</el-button>
+      </template>
+    </el-dialog>
 
     <el-drawer
       v-model="drawerOpen"
@@ -212,6 +270,13 @@ const manualAvailability = ref(1)
 const manualLatencyMs = ref(0)
 const saving = ref(false)
 const clearingId = ref<string | null>(null)
+const selectedChannelIds = ref<string[]>([])
+const batchEditorOpen = ref(false)
+const batchMode = ref<RelayChannelHealthTrackingMode>('automatic')
+const batchManualAvailability = ref(1)
+const batchManualLatencyMs = ref(0)
+const batchSaving = ref(false)
+const batchClearing = ref(false)
 let latestRequest = 0
 
 const canUpdate = computed(() => permissionStore.hasPermission(Permission.RELAY_CHANNEL_UPDATE))
@@ -261,6 +326,7 @@ const loadOverview = async () => {
     const result = await relayChannelService.getChannelHealthOverview()
     if (requestId !== latestRequest) return
     channels.value = result.channels
+    selectedChannelIds.value = []
   } catch (cause) {
     if (requestId !== latestRequest) return
     error.value = getErrorMessage(cause, i18ns.t('relay.healthLoadFailed'))
@@ -268,6 +334,10 @@ const loadOverview = async () => {
   } finally {
     if (requestId === latestRequest) loading.value = false
   }
+}
+
+const onSelectionChange = (rows: RelayChannelHealthOverviewItemDto[]) => {
+  selectedChannelIds.value = rows.map((row) => row.channelId)
 }
 
 const openDrawer = (item: RelayChannelHealthOverviewItemDto) => {
@@ -321,6 +391,62 @@ const confirmClear = async (item: RelayChannelHealthOverviewItemDto) => {
     ElMessage.error(getErrorMessage(cause, i18ns.t('operationFailed')))
   } finally {
     clearingId.value = null
+  }
+}
+
+const openBatchEditor = () => {
+  if (!selectedChannelIds.value.length) {
+    ElMessage.warning(i18ns.t('relay.healthSelectFirst'))
+    return
+  }
+  batchMode.value = 'automatic'
+  batchManualAvailability.value = 1
+  batchManualLatencyMs.value = 0
+  batchEditorOpen.value = true
+}
+
+const saveBatchConfig = async () => {
+  if (!selectedChannelIds.value.length || batchSaving.value) return
+  batchSaving.value = true
+  try {
+    const result = await relayChannelService.batchUpdateChannelHealthConfig({
+      ids: selectedChannelIds.value,
+      healthTrackingMode: batchMode.value,
+      ...(batchMode.value === 'manual'
+        ? {
+            manualAvailability: batchManualAvailability.value,
+            manualLatencyMs: batchManualLatencyMs.value,
+          }
+        : {}),
+    })
+    batchEditorOpen.value = false
+    ElMessage.success(i18ns.t('relay.healthBatchSaveSuccess', { count: result.affected }))
+    await loadOverview()
+  } catch (cause) {
+    ElMessage.error(getErrorMessage(cause, i18ns.t('operationFailed')))
+  } finally {
+    batchSaving.value = false
+  }
+}
+
+const confirmBatchClear = async () => {
+  if (!selectedChannelIds.value.length || batchClearing.value) return
+  try {
+    await ElMessageBox.confirm(i18ns.t('relay.healthBatchClearConfirm'), i18ns.t('warning'), {
+      type: 'warning',
+    })
+  } catch {
+    return
+  }
+  batchClearing.value = true
+  try {
+    const result = await relayChannelService.batchClearChannelHealth(selectedChannelIds.value)
+    ElMessage.success(i18ns.t('relay.healthBatchClearSuccess', { count: result.affected }))
+    await loadOverview()
+  } catch (cause) {
+    ElMessage.error(getErrorMessage(cause, i18ns.t('operationFailed')))
+  } finally {
+    batchClearing.value = false
   }
 }
 

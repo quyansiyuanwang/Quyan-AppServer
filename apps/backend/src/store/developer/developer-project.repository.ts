@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "@/config/database";
 import { EnvSpace } from "@/config/env";
+import { GEO_CACHE_TTL_SECONDS } from "@/constant/ip-geolocation";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { ConfigService } from "@/services/system/config.service";
 import { NotificationService } from "@/services/notification/notification.service";
@@ -48,6 +49,8 @@ const KEY_PREFIX = "dk_";
 const MAX_KV_ENTRIES = 1_000;
 const MAX_KV_VALUE_BYTES = 64 * 1024;
 const MAX_OUTBOUND_RESPONSE_BYTES = 1_024 * 1_024;
+const IP_LOCATION_CACHE_TTL_MS = GEO_CACHE_TTL_SECONDS * 1_000;
+const MAX_IP_LOCATION_CACHE_ENTRIES = 50_000;
 const PROJECT_KEY_SCOPES = new Set<DeveloperApiKeyScope>([
   "kv:read",
   "kv:write",
@@ -78,6 +81,16 @@ type ProjectKeyRecord = Awaited<ReturnType<typeof prisma.developerProjectApiKey.
 const asIso = (value: Date | null | undefined): string | undefined => value?.toISOString();
 const hash = (value: string): string => createHash("sha256").update(value).digest("hex");
 
+const mysqlConnectionUrl = (databaseUrl: string): string => {
+  const url = new URL(databaseUrl);
+  // These are Prisma engine pool parameters, not mysql2 createConnection options.
+  // Passing them through causes noisy warnings and will become an error in mysql2.
+  ["connection_limit", "pool_timeout", "connect_timeout"].forEach((parameter) =>
+    url.searchParams.delete(parameter),
+  );
+  return url.toString();
+};
+
 export class DeveloperProjectRepository {
   private static instance: DeveloperProjectRepository;
   private readonly configService = ConfigService.getInstance();
@@ -92,7 +105,7 @@ export class DeveloperProjectRepository {
     // MySQL named locks are scoped to one physical connection. Prisma's pool may route the
     // acquire and release queries to different connections, leaving the lock stuck and causing
     // every subsequent scheduler tick to be skipped.
-    const connection = await createConnection(EnvSpace.databaseUrl);
+    const connection = await createConnection(mysqlConnectionUrl(EnvSpace.databaseUrl));
     const lockKey = "appserver:developer-monitor-scheduler";
     try {
       const [lockRows] = await connection.query("SELECT GET_LOCK(?, 0) AS acquired", [lockKey]);
@@ -1291,7 +1304,18 @@ export class DeveloperProjectRepository {
         isp: data.org ?? data.isp ?? null,
         source: "configured",
       };
-      this.ipLocationCache.set(ip, { expiresAt: Date.now() + 5 * 60_000, value: result });
+      if (this.ipLocationCache.size >= MAX_IP_LOCATION_CACHE_ENTRIES) {
+        const now = Date.now();
+        for (const [cacheKey, cacheValue] of this.ipLocationCache) {
+          if (cacheValue.expiresAt <= now) this.ipLocationCache.delete(cacheKey);
+        }
+        while (this.ipLocationCache.size >= MAX_IP_LOCATION_CACHE_ENTRIES) {
+          const oldestKey = this.ipLocationCache.keys().next().value;
+          if (!oldestKey) break;
+          this.ipLocationCache.delete(oldestKey);
+        }
+      }
+      this.ipLocationCache.set(ip, { expiresAt: Date.now() + IP_LOCATION_CACHE_TTL_MS, value: result });
       return result;
     } catch (error) {
       if (receipt) await this.refundQuota(receipt).catch(() => {});

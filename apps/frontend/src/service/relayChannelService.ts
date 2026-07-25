@@ -16,6 +16,7 @@ import type {
   RelayAutomaticPoolHealthDto,
   RelayChannelHealthOverviewDto,
   UpdateRelayChannelHealthConfigRequest,
+  BatchUpdateRelayChannelHealthConfigRequest,
   PaginatedResponseRelayChannelManagementListItemDto,
   RelayChannelManagementListItemDto,
 } from '@/client/types.gen'
@@ -102,6 +103,18 @@ class RelayChannelService {
   async clearChannelHealth(id: string): Promise<void> {
     const result = await relayChannelApi.clearChannelHealth({ path: { id } })
     checkApiResult(result, false)
+  }
+
+  async batchUpdateChannelHealthConfig(
+    data: BatchUpdateRelayChannelHealthConfigRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    const result = await relayChannelApi.batchUpdateChannelHealthConfig({ body: data })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async batchClearChannelHealth(ids: string[]): Promise<BatchRelayChannelsResultDto> {
+    const result = await relayChannelApi.batchClearChannelHealth({ body: { ids } })
+    return checkApiResult<any>(result, true).data
   }
 
   async createChannel(data: CreateRelayChannelRequest): Promise<RelayChannelDto> {

@@ -785,11 +785,23 @@ export class DeveloperProductPlatformService {
       const entitlement = await tx.developerProductEntitlement.findUnique({ where: { id: context.entitlementId } });
       const config = await tx.developerProductConfig.findUnique({ where: { productCode: context.productCode } });
       if (!entitlement || !config) throw new NotFoundError("产品授权或配置不存在");
-      const usage = await tx.developerProductQuotaUsage.upsert({
-        where: { entitlementId_usageDate: { entitlementId: entitlement.id, usageDate } },
-        create: { entitlementId: entitlement.id, usageDate, requestCount: 1 },
-        update: { requestCount: { increment: 1 } },
-      });
+      let usage;
+      try {
+        usage = await tx.developerProductQuotaUsage.upsert({
+          where: { entitlementId_usageDate: { entitlementId: entitlement.id, usageDate } },
+          create: { entitlementId: entitlement.id, usageDate, requestCount: 1 },
+          update: { requestCount: { increment: 1 } },
+        });
+      } catch (error) {
+        // MySQL can race Prisma's multi-statement upsert across PM2 workers on
+        // the first request of a day. Once the competing create commits, an
+        // atomic increment preserves both requests instead of surfacing P2002.
+        if (!(typeof error === "object" && error !== null && "code" in error && error.code === "P2002")) throw error;
+        usage = await tx.developerProductQuotaUsage.update({
+          where: { entitlementId_usageDate: { entitlementId: entitlement.id, usageDate } },
+          data: { requestCount: { increment: 1 } },
+        });
+      }
       const chargeAmount = Number(config.overagePrice);
       // A zero price deliberately represents a free, unlimited product. We still
       // retain usage for capacity planning and audit, but never block on quota.

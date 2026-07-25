@@ -154,6 +154,31 @@ export const updateRelayChannelHealthConfigBodySchema = z
     }
   });
 
+export const batchUpdateRelayChannelHealthConfigBodySchema = z
+  .object({
+    ids: relayChannelIdsSchema,
+    healthTrackingMode: healthTrackingModeSchema,
+    manualAvailability: z.coerce.number().min(0).max(1).nullable().optional(),
+    manualLatencyMs: z.coerce.number().int().min(0).max(600000).nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.healthTrackingMode !== "manual") return;
+    if (value.manualAvailability === undefined || value.manualAvailability === null) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["manualAvailability"],
+        message: "Required for manual tracking",
+      });
+    }
+    if (value.manualLatencyMs === undefined || value.manualLatencyMs === null) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["manualLatencyMs"],
+        message: "Required for manual tracking",
+      });
+    }
+  });
+
 export const duplicateRelayChannelBodySchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
 });

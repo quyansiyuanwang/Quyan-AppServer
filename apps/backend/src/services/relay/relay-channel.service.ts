@@ -2,6 +2,7 @@ import type {
   BatchDeleteRelayChannelsRequest,
   BatchRelayChannelsResultDto,
   BatchSetRelayChannelStatusRequest,
+  BatchUpdateRelayChannelHealthConfigRequest,
   CreateRelayChannelRequest,
   DuplicateRelayChannelRequest,
   ExportRelayChannelsRequest,
@@ -502,6 +503,48 @@ export class RelayChannelService {
     return this.toHealthDto(updated, await this.relayChannelHealthService.getHealth(updated.id));
   }
 
+  async batchUpdateChannelHealthConfig(
+    data: BatchUpdateRelayChannelHealthConfigRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchRelayChannelsResultDto> {
+    const channels = await Promise.all(
+      data.ids.map((id) => this.assertChannelAccessibleById(id, actorUserId)),
+    );
+    if (channels.some((channel) => channel.channelType !== "standalone"))
+      throw new BadRequestError("Health tracking can only be configured for standalone channels");
+
+    const updated = await this.relayChannelRepository.withTransaction((tx) =>
+      Promise.all(
+        channels.map((channel) => {
+          const routingConfig = (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined) ?? {};
+          const nextConfig: RelayChannelRoutingConfigDto = {
+            ...routingConfig,
+            healthTrackingMode: data.healthTrackingMode,
+            manualAvailability: data.healthTrackingMode === "manual" ? Number(data.manualAvailability) : null,
+            manualLatencyMs: data.healthTrackingMode === "manual" ? Number(data.manualLatencyMs) : null,
+          };
+          return this.relayChannelRepository.updateById(channel.id, {
+            routingConfig: nextConfig as Prisma.InputJsonValue,
+          }, tx);
+        }),
+      ),
+    );
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `批量更新了 ${updated.length} 个中转渠道的健康追踪设置`,
+      metadata: { ids: data.ids, healthTrackingMode: data.healthTrackingMode },
+      changes: maskSensitiveData(data),
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return { total: data.ids.length, affected: updated.length };
+  }
+
   async clearChannelHealth(id: string, actorUserId: string, request?: Request): Promise<void> {
     const channel = await this.assertChannelAccessibleById(id, actorUserId);
     if (channel.channelType !== "standalone")
@@ -518,6 +561,31 @@ export class RelayChannelService {
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
+  }
+
+  async batchClearChannelHealth(
+    ids: string[],
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchRelayChannelsResultDto> {
+    const channels = await Promise.all(ids.map((id) => this.assertChannelAccessibleById(id, actorUserId)));
+    if (channels.some((channel) => channel.channelType !== "standalone"))
+      throw new BadRequestError("Health statistics only exist for standalone channels");
+    const results = await Promise.all(channels.map((channel) => this.relayChannelHealthService.clearHealth(channel.id)));
+    if (results.some((cleared) => !cleared))
+      throw new BadRequestError("Channel health storage is temporarily unavailable");
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `批量清空了 ${channels.length} 个中转渠道的健康统计`,
+      metadata: { ids },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return { total: ids.length, affected: channels.length };
   }
 
   async assertChannelAccessibleById(id: string, actorUserId: string): Promise<RelayChannel> {

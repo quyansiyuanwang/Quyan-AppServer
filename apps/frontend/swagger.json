@@ -14209,6 +14209,90 @@
 				}
 			}
 		},
+		"/v1/relay-channels/health/batch-config": {
+			"patch": {
+				"operationId": "RelayChannelControllerBatchUpdateChannelHealthConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BatchRelayChannelsResultDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BatchUpdateRelayChannelHealthConfigRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channels/health/batch-clear": {
+			"post": {
+				"operationId": "RelayChannelControllerBatchClearChannelHealth",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BatchRelayChannelsResultDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BatchDeleteRelayChannelsRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/relay-channels/{id}": {
 			"get": {
 				"operationId": "RelayChannelControllerGetChannel",
@@ -37974,6 +38058,69 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"BatchRelayChannelsResultDto": {
+				"properties": {
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"affected": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"total",
+					"affected"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchUpdateRelayChannelHealthConfigRequest": {
+				"description": "Applies one health-tracking configuration to multiple standalone channels.",
+				"properties": {
+					"healthTrackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode"
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"ids": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"healthTrackingMode",
+					"ids"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchDeleteRelayChannelsRequest": {
+				"properties": {
+					"ids": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"ids"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayChannelExportItemDto": {
 				"properties": {
 					"name": {
@@ -38534,24 +38681,6 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"BatchRelayChannelsResultDto": {
-				"properties": {
-					"total": {
-						"type": "number",
-						"format": "double"
-					},
-					"affected": {
-						"type": "number",
-						"format": "double"
-					}
-				},
-				"required": [
-					"total",
-					"affected"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
 			"BatchSetRelayChannelStatusRequest": {
 				"properties": {
 					"ids": {
@@ -38567,21 +38696,6 @@
 				"required": [
 					"ids",
 					"enabled"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"BatchDeleteRelayChannelsRequest": {
-				"properties": {
-					"ids": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array"
-					}
-				},
-				"required": [
-					"ids"
 				],
 				"type": "object",
 				"additionalProperties": false

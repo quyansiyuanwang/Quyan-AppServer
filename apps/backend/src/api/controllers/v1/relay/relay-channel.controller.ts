@@ -19,6 +19,7 @@ import type {
   BatchDeleteRelayChannelsRequest,
   BatchRelayChannelsResultDto,
   BatchSetRelayChannelStatusRequest,
+  BatchUpdateRelayChannelHealthConfigRequest,
   RelayChannelDto,
   RelayChannelOptionDto,
   CreateRelayChannelRequest,
@@ -42,6 +43,7 @@ import {
   batchDeleteRelayChannelsBodySchema,
   batchDuplicateRelayChannelsBodySchema,
   batchSetRelayChannelStatusBodySchema,
+  batchUpdateRelayChannelHealthConfigBodySchema,
   createRelayChannelBodySchema,
   duplicateRelayChannelBodySchema,
   exportRelayChannelsBodySchema,
@@ -152,6 +154,22 @@ export class RelayChannelController extends Controller {
     return this.channelService.updateChannelHealthConfig(id, body, request.user!.userId, request);
   }
 
+  @Patch("health/batch-config")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(batchUpdateRelayChannelHealthConfigBodySchema),
+  )
+  public async batchUpdateChannelHealthConfig(
+    @Body() body: BatchUpdateRelayChannelHealthConfigRequest,
+    @Request() request: TypedRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    return this.channelService.batchUpdateChannelHealthConfig(body, request.user!.userId, request);
+  }
+
   @Delete("{id}/health")
   @Security("jwt")
   @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
@@ -164,6 +182,22 @@ export class RelayChannelController extends Controller {
   public async clearChannelHealth(@Path() id: string, @Request() request: TypedRequest): Promise<{ cleared: true }> {
     await this.channelService.clearChannelHealth(id, request.user!.userId, request);
     return { cleared: true };
+  }
+
+  @Post("health/batch-clear")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(batchDeleteRelayChannelsBodySchema),
+  )
+  public async batchClearChannelHealth(
+    @Body() body: BatchDeleteRelayChannelsRequest,
+    @Request() request: TypedRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    return this.channelService.batchClearChannelHealth(body.ids, request.user!.userId, request);
   }
 
   @Get("{id}")

@@ -224,6 +224,11 @@ export interface UpdateRelayChannelHealthConfigRequest {
   manualLatencyMs?: number | null;
 }
 
+/** Applies one health-tracking configuration to multiple standalone channels. */
+export interface BatchUpdateRelayChannelHealthConfigRequest extends UpdateRelayChannelHealthConfigRequest {
+  ids: string[];
+}
+
 export interface RelayAutomaticProxyPoolMemberOptionDto {
   id: string;
   name: string;

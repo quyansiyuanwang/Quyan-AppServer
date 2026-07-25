@@ -699,20 +699,22 @@
   <el-dialog
     v-model="showChannelDetailDialog"
     :title="channelDetailDialogTitle"
-    :width="isDesktop ? '66vw' : '92vw'"
+    :width="isDesktop ? 'min(1440px, calc(100vw - 64px))' : '92vw'"
+    :top="isDesktop ? '4vh' : '8vh'"
+    class="relay-channel-detail-dialog"
     append-to-body
     destroy-on-close
     @closed="closeChannelDetailDialog"
   >
-    <div v-if="currentChannelDetail" class="flex flex-col gap-5">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+    <div v-if="currentChannelDetail" class="flex flex-col gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2">
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-2.5">
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
             {{ i18ns.t('relay.channelName') }}
           </div>
           <div class="font-medium break-all">{{ currentChannelDetail.name || '-' }}</div>
         </div>
-        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-2.5">
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
             {{ i18ns.t('status') }}
           </div>
@@ -722,13 +724,13 @@
             }}
           </el-tag>
         </div>
-        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-2.5">
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
             {{ i18ns.t('relay.channelType') }}
           </div>
           <div>{{ formatChannelTypeLabel(currentChannelDetail.channelType) }}</div>
         </div>
-        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-2.5">
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
             {{ i18ns.t('relay.visibilityMode') }}
           </div>
@@ -736,7 +738,7 @@
         </div>
         <div
           v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)"
-          class="rounded border border-[var(--el-border-color-lighter)] p-3"
+          class="rounded border border-[var(--el-border-color-lighter)] p-2.5"
         >
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
             {{ i18ns.t('relay.channelMultiplier') }}
@@ -745,7 +747,7 @@
         </div>
         <div
           v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)"
-          class="rounded border border-[var(--el-border-color-lighter)] p-3"
+          class="rounded border border-[var(--el-border-color-lighter)] p-2.5"
         >
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
             {{ i18ns.t('relay.inputTokensIncludeCacheRead') }}
@@ -754,13 +756,13 @@
             {{ currentChannelDetail.inputTokensIncludeCacheRead ? i18ns.t('yes') : i18ns.t('no') }}
           </div>
         </div>
-        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-2.5">
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
             {{ i18ns.t('relay.createTime') }}
           </div>
           <div>{{ formatDateTime(currentChannelDetail.createTime) }}</div>
         </div>
-        <div class="rounded border border-[var(--el-border-color-lighter)] p-3">
+        <div class="rounded border border-[var(--el-border-color-lighter)] p-2.5">
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
             {{ i18ns.t('relay.updateTime') }}
           </div>
@@ -1052,11 +1054,11 @@
         <el-divider content-position="left">{{ i18ns.t('relay.upstreamConfig') }}</el-divider>
         <div
           v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)"
-          class="grid grid-cols-1 gap-3"
+          class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2"
         >
           <div
             v-if="computeShowUpstream(currentChannelDetail.allowedFormats, 'openai')"
-            class="rounded border border-[var(--el-border-color-lighter)] p-3"
+            class="rounded border border-[var(--el-border-color-lighter)] p-2.5"
           >
             <div class="flex items-center gap-2 mb-2">
               <el-tag type="success" size="small">OpenAI</el-tag>
@@ -1076,7 +1078,7 @@
           </div>
           <div
             v-if="computeShowUpstream(currentChannelDetail.allowedFormats, 'anthropic')"
-            class="rounded border border-[var(--el-border-color-lighter)] p-3"
+            class="rounded border border-[var(--el-border-color-lighter)] p-2.5"
           >
             <div class="flex items-center gap-2 mb-2">
               <el-tag type="warning" size="small">Anthropic</el-tag>
@@ -1096,7 +1098,7 @@
           </div>
           <div
             v-if="computeShowUpstream(currentChannelDetail.allowedFormats, 'gemini')"
-            class="rounded border border-[var(--el-border-color-lighter)] p-3"
+            class="rounded border border-[var(--el-border-color-lighter)] p-2.5"
           >
             <div class="flex items-center gap-2 mb-2">
               <el-tag type="primary" size="small">Gemini</el-tag>
@@ -1355,3 +1357,18 @@ const getModelMappingEntries = (value: unknown): Array<[string, string]> => {
   )
 }
 </script>
+
+<style scoped>
+:global(.relay-channel-detail-dialog .el-dialog__body) {
+  max-height: calc(92vh - 132px);
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+@media (max-width: 767px) {
+  :global(.relay-channel-detail-dialog .el-dialog__body) {
+    max-height: calc(84vh - 120px);
+    padding: 14px;
+  }
+}
+</style>
