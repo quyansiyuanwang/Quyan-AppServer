@@ -7,7 +7,7 @@ import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "@/config/database";
 import { EnvSpace } from "@/config/env";
-import { GEO_CACHE_TTL_SECONDS } from "@/constant/ip-geolocation";
+import { BAIDU_GEO_API, GEO_CACHE_TTL_SECONDS, REQUEST_TIMEOUT_MS } from "@/constant/ip-geolocation";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { ConfigService } from "@/services/system/config.service";
 import { NotificationService } from "@/services/notification/notification.service";
@@ -72,6 +72,18 @@ type QuotaReceipt = {
 type StoredPushSecretReference = {
   secretInstanceId: string;
   secretProjectId: string;
+};
+
+type BaiduIpLocationResponse = {
+  status?: number;
+  content?: {
+    address?: string;
+    address_detail?: {
+      province?: string;
+      city?: string;
+      district?: string;
+    };
+  };
 };
 
 type ProjectKeyRecord = Awaited<ReturnType<typeof prisma.developerProjectApiKey.findFirst>> & {
@@ -1280,30 +1292,14 @@ export class DeveloperProjectRepository {
     }
     if (cached) this.ipLocationCache.delete(ip);
     const endpoint = EnvSpace.developerProductConfig.ipGeolocationEndpoint;
-    if (!endpoint) throw new BadRequestError("IP 定位服务尚未配置");
-    const base = await assertSafeOutboundUrl(endpoint);
+    const baiduAk = EnvSpace.baiduMapConfig.ipLocationAk;
+    if (!endpoint && !baiduAk) throw new BadRequestError("IP 定位服务尚未配置");
+    const base = endpoint ? await assertSafeOutboundUrl(endpoint) : undefined;
     const receipt = options?.skipQuota ? undefined : await this.consumeQuota(projectId, "ip");
     try {
-      const response = await axios.get(
-        new URL(encodeURIComponent(ip), `${base.url.toString().replace(/\/$/, "")}/`).toString(),
-        {
-          timeout: 5_000,
-          maxRedirects: 0,
-          maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
-          httpAgent: base.httpAgent,
-          httpsAgent: base.httpsAgent,
-        },
-      );
-      const data = response.data as Record<string, unknown>;
-      const result = {
-        ip,
-        country: data.country_name ?? data.country ?? null,
-        region: data.region ?? data.region_name ?? null,
-        city: data.city ?? null,
-        asn: data.asn ?? null,
-        isp: data.org ?? data.isp ?? null,
-        source: "configured",
-      };
+      const result = base
+        ? await this.lookupIpFromConfiguredProvider(ip, base)
+        : await this.lookupIpFromBaidu(ip, baiduAk);
       if (this.ipLocationCache.size >= MAX_IP_LOCATION_CACHE_ENTRIES) {
         const now = Date.now();
         for (const [cacheKey, cacheValue] of this.ipLocationCache) {
@@ -1321,6 +1317,54 @@ export class DeveloperProjectRepository {
       if (receipt) await this.refundQuota(receipt).catch(() => {});
       throw error;
     }
+  }
+
+  private async lookupIpFromConfiguredProvider(
+    ip: string,
+    provider: Awaited<ReturnType<typeof assertSafeOutboundUrl>>,
+  ): Promise<Record<string, unknown>> {
+    const response = await axios.get(
+      new URL(encodeURIComponent(ip), `${provider.url.toString().replace(/\/$/, "")}/`).toString(),
+      {
+        timeout: 5_000,
+        maxRedirects: 0,
+        maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
+        httpAgent: provider.httpAgent,
+        httpsAgent: provider.httpsAgent,
+      },
+    );
+    const data = response.data as Record<string, unknown>;
+    return {
+      ip,
+      country: data.country_name ?? data.country ?? null,
+      region: data.region ?? data.region_name ?? null,
+      city: data.city ?? null,
+      asn: data.asn ?? null,
+      isp: data.org ?? data.isp ?? null,
+      source: "configured",
+    };
+  }
+
+  private async lookupIpFromBaidu(ip: string, ak: string): Promise<Record<string, unknown>> {
+    const response = await axios.get<BaiduIpLocationResponse>(BAIDU_GEO_API, {
+      params: { ip, coor: "bd09ll", ak },
+      timeout: REQUEST_TIMEOUT_MS,
+      maxRedirects: 0,
+      maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
+    });
+    if (response.data?.status !== 0) throw new BadRequestError("百度 IP 定位查询失败");
+    const detail = response.data.content?.address_detail;
+    const address = response.data.content?.address?.trim();
+    return {
+      ip,
+      country: "中国",
+      region: detail?.province?.trim() || null,
+      city: detail?.city?.trim() || null,
+      asn: null,
+      isp: null,
+      address: address || [detail?.province, detail?.city, detail?.district].filter(Boolean).join(" ") || null,
+      source: "baidu",
+    };
   }
 
   private readPushSecretReference(config: unknown): StoredPushSecretReference | undefined {
