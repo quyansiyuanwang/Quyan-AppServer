@@ -143,6 +143,12 @@ export const createRelayTokenBodySchema = z
         message: "automatic pool mode cannot include ordered channels",
         path: ["channelConfigs"],
       });
+    if (value.routingMode !== "automatic-pool" && value.automaticProxyPoolChannelId)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "automaticProxyPoolChannelId can only be used in automatic pool mode",
+        path: ["automaticProxyPoolChannelId"],
+      });
 
     if (value.channelConfigs) {
       const channelIdSet = new Set<string>();
@@ -212,6 +218,12 @@ export const updateRelayTokenBodySchema = z
         code: z.ZodIssueCode.custom,
         message: "automatic pool mode cannot include ordered channels",
         path: ["channelConfigs"],
+      });
+    if (value.routingMode !== "automatic-pool" && value.automaticProxyPoolChannelId)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "automaticProxyPoolChannelId can only be used in automatic pool mode",
+        path: ["automaticProxyPoolChannelId"],
       });
     if (value.channelConfigs) {
       const channelIdSet = new Set<string>();
@@ -307,6 +319,12 @@ const relayTokenImportItemSchema = z
         code: z.ZodIssueCode.custom,
         message: "automatic pool mode cannot include ordered channels",
         path: ["channelConfigs"],
+      });
+    if (value.routingMode !== "automatic-pool" && value.automaticProxyPoolChannelId)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "automaticProxyPoolChannelId can only be used in automatic pool mode",
+        path: ["automaticProxyPoolChannelId"],
       });
 
     if (value.channelConfigs) {

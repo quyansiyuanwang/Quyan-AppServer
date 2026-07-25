@@ -443,6 +443,12 @@ import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import { useThemeToggleStore } from '@/stores/themeToggleStore'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { Permission } from '@/constant/permission'
+import {
+  DEVELOPER_PRODUCT_NAVIGATION,
+  developerProductConfigRoute,
+  developerProductManagementRoute,
+  developerProductUserRoute,
+} from '@/constant/developer-product-navigation'
 import type { RouteName } from '@/types/route-types.gen'
 import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
 
@@ -659,6 +665,112 @@ const overviewSections = computed<OverviewSection[]>(() => {
       ],
     },
     {
+      key: 'products',
+      title: i18ns.t('nav.products'),
+      icon: Cpu,
+      items: [
+        {
+          key: 'developerProducts',
+          label: i18ns.t('nav.developerProducts'),
+          icon: Connection,
+          route: 'developerProducts',
+          visible: canAny(
+            ...DEVELOPER_PRODUCT_NAVIGATION.flatMap((product) => product.permissions),
+            Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
+            Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
+          ),
+        },
+        ...DEVELOPER_PRODUCT_NAVIGATION.flatMap((product) => [
+          {
+            key: `product-${product.code}-user`,
+            label: `${i18ns.t('nav.developerProducts')} / ${i18ns.t(product.labelKey as any)} / ${i18ns.t('nav.productUserPage')}`,
+            icon: product.icon,
+            route: developerProductUserRoute(product.code),
+            visible: canAny(...product.permissions),
+          },
+          {
+            key: `product-${product.code}-management`,
+            label: `${i18ns.t('nav.developerProducts')} / ${i18ns.t(product.labelKey as any)} / ${i18ns.t('nav.productManagementPage')}`,
+            icon: DataAnalysis,
+            route: developerProductManagementRoute(product.code),
+            visible: can(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE),
+          },
+          {
+            key: `product-${product.code}-config`,
+            label: `${i18ns.t('nav.developerProducts')} / ${i18ns.t(product.labelKey as any)} / ${i18ns.t('nav.productConfigPage')}`,
+            icon: Tools,
+            route: developerProductConfigRoute(product.code),
+            visible: can(Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE),
+          },
+        ]),
+        {
+          key: 'remoteTerminal',
+          label: i18ns.t('nav.remoteTerminal'),
+          icon: Monitor,
+          route: 'remoteTerminal',
+          visible: canAny(
+            Permission.REMOTE_TERMINAL_DEVICE_READ,
+            Permission.REMOTE_TERMINAL_SESSION_READ,
+            Permission.REMOTE_TERMINAL_SESSION_CREATE,
+          ),
+        },
+        {
+          key: 'remoteTerminalProductManagement',
+          label: i18ns.t('nav.remoteTerminalProductManagement'),
+          icon: Setting,
+          route: 'remoteTerminalProductManagement',
+          visible: canAny(
+            Permission.REMOTE_TERMINAL_PRODUCT_READ,
+            Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
+            Permission.REMOTE_TERMINAL_REGISTRATION_TOKEN_READ,
+            Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
+          ),
+        },
+        {
+          key: 'relaySettings',
+          label: i18ns.t('nav.relaySettings'),
+          icon: Tools,
+          route: 'relaySettings',
+          visible: can(Permission.MODEL_PRICING_UPDATE),
+        },
+        {
+          key: 'relayChannelHealth',
+          label: i18ns.t('nav.relayChannelHealth'),
+          icon: Monitor,
+          route: 'relayChannelHealth',
+          visible: can(Permission.RELAY_CHANNEL_READ),
+        },
+        {
+          key: 'upstreamStatus',
+          label: i18ns.t('nav.upstreamStatus'),
+          icon: Connection,
+          route: 'upstreamStatus',
+          visible: can(Permission.UPSTREAM_STATUS_READ),
+        },
+        {
+          key: 'ojAPIKeyManagement',
+          label: i18ns.t('nav.ojAPIKeyManagement'),
+          icon: Key,
+          route: 'ojAPIKeyManagement',
+          visible: can(Permission.OJ_APIKEY_READ),
+        },
+        {
+          key: 'ojUsageStatistics',
+          label: i18ns.t('nav.ojUsageStatistics'),
+          icon: Histogram,
+          route: 'ojUsageStatistics',
+          visible: can(Permission.OJ_USAGE_READ),
+        },
+        {
+          key: 'ojPricingManagement',
+          label: i18ns.t('nav.ojPricingManagement'),
+          icon: TrendCharts,
+          route: 'ojPricingManagement',
+          visible: can(Permission.OJ_PRICING_READ),
+        },
+      ],
+    },
+    {
       key: 'productSubscriptions',
       title: i18ns.t('nav.productSubscriptions'),
       icon: Box,
@@ -792,85 +904,6 @@ const overviewSections = computed<OverviewSection[]>(() => {
           icon: Postcard,
           route: 'redemptionCodes',
           visible: can(Permission.REDEMPTION_CODE_READ),
-        },
-      ],
-    },
-    {
-      key: 'apiRelay',
-      title: i18ns.t('nav.relay'),
-      icon: Connection,
-      items: [
-        {
-          key: 'relaySettings',
-          label: i18ns.t('nav.relaySettings'),
-          icon: Tools,
-          route: 'relaySettings',
-          visible: can(Permission.MODEL_PRICING_UPDATE),
-        },
-        {
-          key: 'upstreamStatus',
-          label: i18ns.t('nav.upstreamStatus'),
-          icon: Connection,
-          route: 'upstreamStatus',
-          visible: can(Permission.UPSTREAM_STATUS_READ),
-        },
-      ],
-    },
-    {
-      key: 'remoteTerminalProducts',
-      title: i18ns.t('nav.remoteTerminal'),
-      icon: Monitor,
-      items: [
-        {
-          key: 'remoteTerminal',
-          label: i18ns.t('nav.remoteTerminal'),
-          icon: Monitor,
-          route: 'remoteTerminal',
-          visible: canAny(
-            Permission.REMOTE_TERMINAL_DEVICE_READ,
-            Permission.REMOTE_TERMINAL_SESSION_READ,
-            Permission.REMOTE_TERMINAL_SESSION_CREATE,
-          ),
-        },
-        {
-          key: 'remoteTerminalProductManagement',
-          label: i18ns.t('nav.remoteTerminalProductManagement'),
-          icon: Setting,
-          route: 'remoteTerminalProductManagement',
-          visible: canAny(
-            Permission.REMOTE_TERMINAL_PRODUCT_READ,
-            Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
-            Permission.REMOTE_TERMINAL_REGISTRATION_TOKEN_READ,
-            Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
-          ),
-        },
-      ],
-    },
-    {
-      key: 'ojSubmitter',
-      title: i18ns.t('nav.ojSubmitter'),
-      icon: Cpu,
-      items: [
-        {
-          key: 'ojAPIKeyManagement',
-          label: i18ns.t('nav.ojAPIKeyManagement'),
-          icon: Key,
-          route: 'ojAPIKeyManagement',
-          visible: can(Permission.OJ_APIKEY_READ),
-        },
-        {
-          key: 'ojUsageStatistics',
-          label: i18ns.t('nav.ojUsageStatistics'),
-          icon: Histogram,
-          route: 'ojUsageStatistics',
-          visible: can(Permission.OJ_USAGE_READ),
-        },
-        {
-          key: 'ojPricingManagement',
-          label: i18ns.t('nav.ojPricingManagement'),
-          icon: TrendCharts,
-          route: 'ojPricingManagement',
-          visible: can(Permission.OJ_PRICING_READ),
         },
       ],
     },

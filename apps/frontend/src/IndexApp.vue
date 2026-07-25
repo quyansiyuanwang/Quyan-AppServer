@@ -5,7 +5,7 @@
     </Transition>
   </RouterView>
   <TopLoadingProgress />
-  <OverLay v-if="!isEmbeddedShell">
+  <OverLay v-if="!isEmbeddedShell && !isPublicStatus">
     <template v-if="isDesktop && !floatingOverlayHidden" #bottom-right>
       <el-tooltip :content="themeButtonTitle" placement="top" :show-after="250">
         <el-button
@@ -21,8 +21,10 @@
       <DocsQuickLink />
     </template>
   </OverLay>
-  <FloatingWorkspaceManager v-if="isDesktop && !floatingOverlayHidden && !isEmbeddedShell" />
-  <WaterMark v-if="!isEmbeddedShell" :text="text" />
+  <FloatingWorkspaceManager
+    v-if="isDesktop && !floatingOverlayHidden && !isEmbeddedShell && !isPublicStatus"
+  />
+  <WaterMark v-if="!isEmbeddedShell && !isPublicStatus" :text="text" />
 </template>
 
 <script setup lang="ts">
@@ -50,6 +52,7 @@ const route = useRoute()
 const { isDesktop } = usePageDevice()
 const { isHidden: floatingOverlayHidden } = useFloatingOverlayVisibility()
 const isEmbeddedShell = computed(() => route.query.embed === '1')
+const isPublicStatus = computed(() => route.meta.publicStatus === true)
 
 const isDark = themeToggleStore.useIsDark()
 const toggleDark = () => themeToggleStore.toggleTheme()

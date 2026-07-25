@@ -4,12 +4,9 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { groupService } from '@/service/groupService'
-import {
-  Permission,
-  ALL_PERMISSIONS,
-  getPermissionCategory,
-  getPermissionDisplayName,
-} from '@/constant/permission'
+import { usePermissionStore } from '@/stores/permissionStore'
+import { Permission, ALL_PERMISSIONS } from '@/constant/permission'
+import { buildGrantablePermissionTree } from '../permission-tree'
 
 export interface GroupItem {
   id: string
@@ -20,13 +17,9 @@ export interface GroupItem {
   description?: string | null
 }
 
-export interface PermissionCategory {
-  name: string
-  permissions: string[]
-}
-
 export const useGroupManagement = () => {
   const { isDesktop } = usePageDevice()
+  const permissionStore = usePermissionStore()
 
   const groupList = ref<GroupItem[]>([])
   const loading = ref(false)
@@ -45,73 +38,40 @@ export const useGroupManagement = () => {
   const permSaving = ref(false)
   const editingPermGroupId = ref('')
   const selectedPermissions = ref<string[]>([])
-  const permSearch = ref('')
+  const originalPermissions = ref<string[]>([])
+  const permissionTree = computed(() =>
+    buildGrantablePermissionTree({
+      allPermissions: ALL_PERMISSIONS,
+      effectivePermissions: ALL_PERMISSIONS,
+      locale: String(i18ns.refer.value),
+      translateCategory: (key) => i18ns.t(key),
+    }),
+  )
 
-  const permissionCategories = computed<PermissionCategory[]>(() => {
-    const map = new Map<string, string[]>()
-    for (const perm of ALL_PERMISSIONS) {
-      const category = getPermissionCategory(perm)
-      if (!map.has(category)) {
-        map.set(category, [])
-      }
-      map.get(category)!.push(perm)
+  const canAddGroupPermissions = computed(() =>
+    permissionStore.hasPermission(Permission.GROUP_PERMISSION_ADD),
+  )
+  const canRemoveGroupPermissions = computed(() =>
+    permissionStore.hasPermission(Permission.GROUP_PERMISSION_REMOVE),
+  )
+  const permissionChanges = computed(() => {
+    const original = new Set(originalPermissions.value)
+    const selected = new Set(selectedPermissions.value)
+    return {
+      added: selectedPermissions.value.filter((permission) => !original.has(permission)),
+      removed: originalPermissions.value.filter((permission) => !selected.has(permission)),
     }
-    return Array.from(map.entries()).map(([name, permissions]) => ({ name, permissions }))
   })
-
-  const filteredPermissionCategories = computed(() => {
-    const keywordValue = permSearch.value.toLowerCase().trim()
-    if (!keywordValue) {
-      return permissionCategories.value
-    }
-
-    return permissionCategories.value
-      .map((category) => ({
-        ...category,
-        permissions: category.permissions.filter(
-          (perm) =>
-            perm.toLowerCase().includes(keywordValue) ||
-            getPermissionDisplayName(perm).toLowerCase().includes(keywordValue) ||
-            category.name.toLowerCase().includes(keywordValue),
-        ),
-      }))
-      .filter((category) => category.permissions.length > 0)
-  })
-
-  const getCategorySelectedCount = (category: Pick<PermissionCategory, 'permissions'>) =>
-    category.permissions.filter((permission) => selectedPermissions.value.includes(permission))
-      .length
-
-  const togglePermission = (permission: string) => {
-    const index = selectedPermissions.value.indexOf(permission)
-    if (index >= 0) {
-      selectedPermissions.value.splice(index, 1)
-      return
-    }
-    selectedPermissions.value.push(permission)
-  }
-
-  const selectAllPermissions = () => {
-    selectedPermissions.value = [...ALL_PERMISSIONS]
-  }
-
-  const clearAllPermissions = () => {
-    selectedPermissions.value = []
-  }
-
-  const selectCategory = (category: Pick<PermissionCategory, 'permissions'>) => {
-    const toAdd = category.permissions.filter(
-      (permission) => !selectedPermissions.value.includes(permission),
-    )
-    selectedPermissions.value = [...selectedPermissions.value, ...toAdd]
-  }
-
-  const clearCategory = (category: Pick<PermissionCategory, 'permissions'>) => {
-    const permissionSet = new Set(category.permissions)
-    selectedPermissions.value = selectedPermissions.value.filter(
-      (permission) => !permissionSet.has(permission),
-    )
-  }
+  const canSavePermissions = computed(
+    () =>
+      (permissionChanges.value.added.length === 0 || canAddGroupPermissions.value) &&
+      (permissionChanges.value.removed.length === 0 || canRemoveGroupPermissions.value) &&
+      (permissionChanges.value.added.length > 0 || permissionChanges.value.removed.length > 0),
+  )
+  const isPermissionDisabled = (permission: string) =>
+    selectedPermissions.value.includes(permission)
+      ? !canRemoveGroupPermissions.value
+      : !canAddGroupPermissions.value
 
   const formData = reactive({
     username: '',
@@ -190,15 +150,17 @@ export const useGroupManagement = () => {
   const handleEditPermissions = async (row: GroupItem) => {
     editingPermGroupId.value = row.id
     try {
-      selectedPermissions.value = (await groupService.getGroupPermissions(row.id)).permissions
-    } catch (error) {
-      selectedPermissions.value = [...(row.permissions || [])]
-      throw error
+      const permissions = (await groupService.getGroupPermissions(row.id)).permissions
+      selectedPermissions.value = [...permissions]
+      originalPermissions.value = [...permissions]
+      permDialogVisible.value = true
+    } catch (_error) {
+      ElMessage.error(i18ns.t('GroupManagement.permissionLoadFailed'))
     }
-    permDialogVisible.value = true
   }
 
   const handleSavePermissions = async () => {
+    if (!canSavePermissions.value) return
     permSaving.value = true
     try {
       await groupService.setGroupPermissions(
@@ -207,13 +169,18 @@ export const useGroupManagement = () => {
       )
       ElMessage.success(i18ns.t('message.information.saveSuccess'))
       permDialogVisible.value = false
-      void loadGroups()
-    } catch (error) {
+      await loadGroups()
+    } catch (_error) {
       ElMessage.error(i18ns.t('GroupManagement.permissionSaveFailed'))
-      throw error
     } finally {
       permSaving.value = false
     }
+  }
+
+  const resetPermissionDialog = () => {
+    editingPermGroupId.value = ''
+    selectedPermissions.value = []
+    originalPermissions.value = []
   }
 
   const handleSubmit = async () => {
@@ -308,24 +275,21 @@ export const useGroupManagement = () => {
     permSaving,
     editingPermGroupId,
     selectedPermissions,
-    permSearch,
-    permissionCategories,
-    filteredPermissionCategories,
+    originalPermissions,
+    permissionTree,
     formData,
     formRules,
-    getCategorySelectedCount,
-    togglePermission,
-    selectAllPermissions,
-    clearAllPermissions,
-    selectCategory,
-    clearCategory,
-    getPermissionDisplayName,
+    canAddGroupPermissions,
+    canRemoveGroupPermissions,
+    canSavePermissions,
+    isPermissionDisabled,
     loadGroups,
     handleCreate,
     handleEdit,
     handleDelete,
     handleEditPermissions,
     handleSavePermissions,
+    resetPermissionDialog,
     handleSubmit,
     resetForm,
     handleRefresh,

@@ -8,7 +8,7 @@ const prisma = new PrismaClient({
   // Connection pool configuration to prevent connection exhaustion
   datasources: {
     db: {
-      url: process.env.DATABASE_URL,
+      url: EnvSpace.databaseUrl,
     },
   },
 });

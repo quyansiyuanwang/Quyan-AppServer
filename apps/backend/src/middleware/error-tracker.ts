@@ -3,10 +3,12 @@ import { RedisService } from "@/services/infrastructure/redis.service";
 import { IPBlackListService } from "@/services/system/ipblacklist.service";
 import { IPWhiteListService } from "@/services/system/ipwhitelist.service";
 import { ConfigService } from "@/services/system/config.service";
+import { CustomCode } from "@/constant/custom-code";
 import { extractClientIp } from "@/util/ip-extractor";
 import { getLogger, LogCategory } from "@/util/logger";
 
 const logger = getLogger("ErrorTrackerMiddleware", LogCategory.MIDDLEWARE);
+const NON_PENALIZED_CUSTOM_CODES = new Set<number>([CustomCode.DEVELOPER_PRODUCT_INSTANCE_DISABLED]);
 
 /**
  * 追踪单次错误请求的权重并在必要时触发封禁
@@ -33,6 +35,11 @@ export async function trackErrorForIp(req: Request, statusCode: number, body?: a
 
   let weight = 1;
   const customCode = body?.code;
+  const numericCustomCode = Number(customCode);
+  if (Number.isInteger(numericCustomCode) && NON_PENALIZED_CUSTOM_CODES.has(numericCustomCode)) {
+    logger.debug(`Skipping error tracking for expected product state (status=${statusCode}, code=${customCode})`);
+    return;
+  }
   const customCodeStr = customCode?.toString();
   if (customCodeStr && customCodeStr in errorWeights.customCodeWeights)
     weight = errorWeights.customCodeWeights[customCodeStr];

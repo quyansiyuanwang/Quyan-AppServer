@@ -12,6 +12,11 @@ import type {
   RelayChannelDto,
   RelayChannelOptionDto,
   RelayChannelExportResponse,
+  RelayChannelHealthDto,
+  RelayAutomaticPoolHealthDto,
+  RelayChannelHealthOverviewDto,
+  UpdateRelayChannelHealthConfigRequest,
+  BatchUpdateRelayChannelHealthConfigRequest,
   PaginatedResponseRelayChannelManagementListItemDto,
   RelayChannelManagementListItemDto,
 } from '@/client/types.gen'
@@ -72,6 +77,43 @@ class RelayChannelService {
     const result = await relayChannelApi.getChannel({
       path: { id },
     })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async getChannelHealth(id: string): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
+    const result = await relayChannelApi.getChannelHealth({
+      path: { id },
+    })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async getChannelHealthOverview(): Promise<RelayChannelHealthOverviewDto> {
+    const result = await relayChannelApi.getChannelHealthOverview()
+    return checkApiResult<any>(result, true).data
+  }
+
+  async updateChannelHealthConfig(
+    id: string,
+    data: UpdateRelayChannelHealthConfigRequest,
+  ): Promise<RelayChannelHealthDto> {
+    const result = await relayChannelApi.updateChannelHealthConfig({ path: { id }, body: data })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async clearChannelHealth(id: string): Promise<void> {
+    const result = await relayChannelApi.clearChannelHealth({ path: { id } })
+    checkApiResult(result, false)
+  }
+
+  async batchUpdateChannelHealthConfig(
+    data: BatchUpdateRelayChannelHealthConfigRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    const result = await relayChannelApi.batchUpdateChannelHealthConfig({ body: data })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async batchClearChannelHealth(ids: string[]): Promise<BatchRelayChannelsResultDto> {
+    const result = await relayChannelApi.batchClearChannelHealth({ body: { ids } })
     return checkApiResult<any>(result, true).data
   }
 

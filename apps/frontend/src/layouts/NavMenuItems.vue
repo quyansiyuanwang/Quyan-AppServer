@@ -278,20 +278,7 @@
   </PermissionWrapper>
 
   <!-- Products -->
-  <PermissionWrapper
-    :any-require="[
-      Permission.OJ_APIKEY_READ,
-      Permission.OJ_USAGE_READ,
-      Permission.OJ_PRICING_READ,
-      Permission.MODEL_PRICING_UPDATE,
-      Permission.UPSTREAM_STATUS_READ,
-      Permission.REMOTE_TERMINAL_DEVICE_READ,
-      Permission.REMOTE_TERMINAL_PRODUCT_READ,
-      Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
-      Permission.REMOTE_TERMINAL_SESSION_READ,
-      Permission.REMOTE_TERMINAL_SESSION_CREATE,
-    ]"
-  >
+  <PermissionWrapper :any-require="productsMenuPermissions">
     <el-sub-menu index="products">
       <template #title>
         <el-icon><Cpu /></el-icon>
@@ -350,6 +337,7 @@
           Permission.MODEL_PRICING_UPDATE,
           Permission.UPSTREAM_STATUS_READ,
           Permission.RELAY_TOKEN_READ,
+          Permission.RELAY_CHANNEL_READ,
         ]"
       >
         <el-sub-menu index="relay">
@@ -385,6 +373,16 @@
               <template #title>{{ i18ns.t('nav.relaySettings') }}</template>
             </el-menu-item>
           </PermissionWrapper>
+          <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
+            <el-menu-item
+              index="relayChannelHealth"
+              @click="nav('relayChannelHealth', $event)"
+              @contextmenu.prevent="openRouteMenu('relayChannelHealth', $event)"
+            >
+              <el-icon><Monitor /></el-icon>
+              <template #title>{{ i18ns.t('nav.relayChannelHealth') }}</template>
+            </el-menu-item>
+          </PermissionWrapper>
           <PermissionWrapper :require="[Permission.UPSTREAM_STATUS_READ]">
             <el-menu-item
               index="upstreamStatus"
@@ -394,6 +392,74 @@
               <el-icon><Connection /></el-icon>
               <template #title>{{ i18ns.t('nav.upstreamStatus') }}</template>
             </el-menu-item>
+          </PermissionWrapper>
+        </el-sub-menu>
+      </PermissionWrapper>
+      <PermissionWrapper :any-require="developerProductPlatformPermissions">
+        <el-sub-menu index="developerProductCatalog">
+          <template #title>
+            <el-icon><Connection /></el-icon>
+            <span>{{ i18ns.t('nav.developerProducts') }}</span>
+          </template>
+          <el-menu-item
+            index="developerProducts"
+            @click="nav('developerProducts', $event)"
+            @contextmenu.prevent="openRouteMenu('developerProducts', $event)"
+          >
+            <el-icon><Connection /></el-icon>
+            <template #title>{{ i18ns.t('nav.productCatalog') }}</template>
+          </el-menu-item>
+          <PermissionWrapper
+            v-for="product in developerProducts"
+            :key="product.code"
+            :any-require="[
+              ...product.permissions,
+              Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
+              Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
+            ]"
+          >
+            <el-sub-menu :index="`developer-product-${product.code}`">
+              <template #title>
+                <el-icon><component :is="product.icon" /></el-icon>
+                <span>{{ i18ns.t(product.labelKey as any) }}</span>
+              </template>
+              <PermissionWrapper :any-require="product.permissions">
+                <el-menu-item
+                  :index="developerProductUserRoute(product.code)"
+                  @click="nav(developerProductUserRoute(product.code), $event)"
+                  @contextmenu.prevent="
+                    openRouteMenu(developerProductUserRoute(product.code), $event)
+                  "
+                >
+                  <el-icon><User /></el-icon>
+                  <template #title>{{ i18ns.t('nav.productUserPage') }}</template>
+                </el-menu-item>
+              </PermissionWrapper>
+              <PermissionWrapper :require="[Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE]">
+                <el-menu-item
+                  :index="developerProductManagementRoute(product.code)"
+                  @click="nav(developerProductManagementRoute(product.code), $event)"
+                  @contextmenu.prevent="
+                    openRouteMenu(developerProductManagementRoute(product.code), $event)
+                  "
+                >
+                  <el-icon><DataAnalysis /></el-icon>
+                  <template #title>{{ i18ns.t('nav.productManagementPage') }}</template>
+                </el-menu-item>
+              </PermissionWrapper>
+              <PermissionWrapper :require="[Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE]">
+                <el-menu-item
+                  :index="developerProductConfigRoute(product.code)"
+                  @click="nav(developerProductConfigRoute(product.code), $event)"
+                  @contextmenu.prevent="
+                    openRouteMenu(developerProductConfigRoute(product.code), $event)
+                  "
+                >
+                  <el-icon><Tools /></el-icon>
+                  <template #title>{{ i18ns.t('nav.productConfigPage') }}</template>
+                </el-menu-item>
+              </PermissionWrapper>
+            </el-sub-menu>
           </PermissionWrapper>
         </el-sub-menu>
       </PermissionWrapper>
@@ -784,6 +850,12 @@ import { authorizationService } from '@/service/authorizationService'
 import LogoutIcon from '@/components/icons/LogoutIcon.vue'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { Permission } from '@/constant/permission'
+import {
+  DEVELOPER_PRODUCT_NAVIGATION,
+  developerProductConfigRoute,
+  developerProductManagementRoute,
+  developerProductUserRoute,
+} from '@/constant/developer-product-navigation'
 import router from '@/router'
 import type { RouteName } from '@/types/route-types.gen'
 import { computed, useSlots } from 'vue'
@@ -805,6 +877,26 @@ const props = withDefaults(
 
 const slots = useSlots()
 const hasPinnedSlot = computed(() => Boolean(slots.pinned))
+const developerProducts = DEVELOPER_PRODUCT_NAVIGATION
+const developerProductPermissions = developerProducts.flatMap((product) => product.permissions)
+const developerProductPlatformPermissions = [
+  ...developerProductPermissions,
+  Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
+  Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
+]
+const productsMenuPermissions = [
+  ...developerProductPlatformPermissions,
+  Permission.OJ_APIKEY_READ,
+  Permission.OJ_USAGE_READ,
+  Permission.OJ_PRICING_READ,
+  Permission.MODEL_PRICING_UPDATE,
+  Permission.UPSTREAM_STATUS_READ,
+  Permission.REMOTE_TERMINAL_DEVICE_READ,
+  Permission.REMOTE_TERMINAL_PRODUCT_READ,
+  Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
+  Permission.REMOTE_TERMINAL_SESSION_READ,
+  Permission.REMOTE_TERMINAL_SESSION_CREATE,
+]
 
 const nav = (name: RouteName, event?: MouseEvent) => {
   props.onRouteNavigate?.(name, event)

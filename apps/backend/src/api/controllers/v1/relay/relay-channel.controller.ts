@@ -19,6 +19,7 @@ import type {
   BatchDeleteRelayChannelsRequest,
   BatchRelayChannelsResultDto,
   BatchSetRelayChannelStatusRequest,
+  BatchUpdateRelayChannelHealthConfigRequest,
   RelayChannelDto,
   RelayChannelOptionDto,
   CreateRelayChannelRequest,
@@ -28,6 +29,10 @@ import type {
   ImportRelayChannelsResponse,
   RelayChannelExportResponse,
   RelayChannelManagementListItemDto,
+  RelayChannelHealthDto,
+  RelayChannelHealthOverviewDto,
+  RelayAutomaticPoolHealthDto,
+  UpdateRelayChannelHealthConfigRequest,
   UpdateRelayChannelRequest,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
@@ -38,12 +43,14 @@ import {
   batchDeleteRelayChannelsBodySchema,
   batchDuplicateRelayChannelsBodySchema,
   batchSetRelayChannelStatusBodySchema,
+  batchUpdateRelayChannelHealthConfigBodySchema,
   createRelayChannelBodySchema,
   duplicateRelayChannelBodySchema,
   exportRelayChannelsBodySchema,
   importRelayChannelsBodySchema,
   relayChannelManagementQuerySchema,
   relayChannelIdParamsSchema,
+  updateRelayChannelHealthConfigBodySchema,
   updateRelayChannelBodySchema,
 } from "@/api/schema/relay/relay-channel.schema";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
@@ -109,6 +116,88 @@ export class RelayChannelController extends Controller {
     @Query() targetUserId?: string,
   ): Promise<RelayChannelOptionDto[]> {
     return this.channelService.listChannelOptions(request.user!.userId, targetUserId);
+  }
+
+  @Get("health/overview")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  public async getChannelHealthOverview(@Request() request: TypedRequest): Promise<RelayChannelHealthOverviewDto> {
+    return this.channelService.getChannelHealthOverview(request.user!.userId);
+  }
+
+  @Get("{id}/health")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @Middlewares(validateParams(relayChannelIdParamsSchema))
+  public async getChannelHealth(
+    @Path() id: string,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
+    return this.channelService.getChannelHealth(id, request.user!.userId);
+  }
+
+  @Patch("{id}/health-config")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(relayChannelIdParamsSchema),
+    validateBody(updateRelayChannelHealthConfigBodySchema),
+  )
+  public async updateChannelHealthConfig(
+    @Path() id: string,
+    @Body() body: UpdateRelayChannelHealthConfigRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelHealthDto> {
+    return this.channelService.updateChannelHealthConfig(id, body, request.user!.userId, request);
+  }
+
+  @Patch("health/batch-config")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(batchUpdateRelayChannelHealthConfigBodySchema),
+  )
+  public async batchUpdateChannelHealthConfig(
+    @Body() body: BatchUpdateRelayChannelHealthConfigRequest,
+    @Request() request: TypedRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    return this.channelService.batchUpdateChannelHealthConfig(body, request.user!.userId, request);
+  }
+
+  @Delete("{id}/health")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(relayChannelIdParamsSchema),
+  )
+  public async clearChannelHealth(@Path() id: string, @Request() request: TypedRequest): Promise<{ cleared: true }> {
+    await this.channelService.clearChannelHealth(id, request.user!.userId, request);
+    return { cleared: true };
+  }
+
+  @Post("health/batch-clear")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(batchDeleteRelayChannelsBodySchema),
+  )
+  public async batchClearChannelHealth(
+    @Body() body: BatchDeleteRelayChannelsRequest,
+    @Request() request: TypedRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    return this.channelService.batchClearChannelHealth(body.ids, request.user!.userId, request);
   }
 
   @Get("{id}")

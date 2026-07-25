@@ -562,7 +562,7 @@ export class ConfigService {
     const weightsJson = await this.get(CONFIG_KEYS.IP_BAN.ERROR_WEIGHTS);
     const defaultWeights: ErrorWeights = {
       statusCodeWeights: { "400": 1, "401": 0, "403": 2, "404": 0.3, "422": 1, "429": 0, "500": 3 },
-      customCodeWeights: { "1012": 5, "1013": 0, "1014": 2 },
+      customCodeWeights: { "1012": 5, "1013": 0, "1014": 2, "1046": 0 },
     };
 
     if (!weightsJson) {

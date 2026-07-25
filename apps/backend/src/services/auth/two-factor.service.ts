@@ -909,14 +909,14 @@ export class TwoFactorService {
   }
 
   private getTrustedDeviceSecret(): string {
-    const configured = String(process.env.TWO_FACTOR_TRUSTED_DEVICE_SECRET || "").trim();
+    const configured = EnvSpace.trustedDeviceSecret;
     if (!configured) throw new Error("TWO_FACTOR_TRUSTED_DEVICE_SECRET must be configured");
     if (configured.length < TRUSTED_DEVICE_SECRET_MIN_LENGTH)
       throw new Error(
         `TWO_FACTOR_TRUSTED_DEVICE_SECRET must be at least ${TRUSTED_DEVICE_SECRET_MIN_LENGTH} characters`,
       );
 
-    const accessSecret = String(process.env.JWT_ACCESS_SECRET || "").trim();
+    const accessSecret = EnvSpace.accessTokenSecret;
     if (accessSecret && configured === accessSecret)
       throw new Error("TWO_FACTOR_TRUSTED_DEVICE_SECRET must be different from JWT_ACCESS_SECRET");
 

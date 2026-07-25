@@ -14,13 +14,6 @@ a,
   }
 }
 
-@media (min-width: 1024px) {
-  body {
-    display: flex;
-    place-items: center;
-  }
-}
-
 /* reCAPTCHA badge styling - hide badge completely */
 .grecaptcha-badge {
   visibility: hidden !important;

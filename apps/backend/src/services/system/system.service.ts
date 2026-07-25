@@ -534,7 +534,7 @@ export class SystemService {
       permissionCount,
 
       config: {
-        nodeEnv: process.env.NODE_ENV || "unknown",
+        nodeEnv: EnvSpace.nodeEnv,
         port: EnvSpace.port,
         database: EnvSpace.databaseParams,
         redisHost: EnvSpace.redisConfig.host || "localhost",
@@ -545,7 +545,7 @@ export class SystemService {
         captchaFallbackProvider: captchaConfig.fallbackProvider,
         jwtAccessExpiresIn: EnvSpace.accessTokenExpiresIn,
         jwtRefreshExpiresIn: EnvSpace.refreshTokenExpiresIn,
-        corsAllowedOrigins: process.env.CORS_ALLOWED_ORIGINS || "*",
+        corsAllowedOrigins: EnvSpace.corsAllowedOrigins || "*",
       },
 
       // backward compatibility

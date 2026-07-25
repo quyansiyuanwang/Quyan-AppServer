@@ -125,6 +125,37 @@ export enum Permission {
   BALANCE_READ = 'balance:read',
   BALANCE_RECHARGE = 'balance:recharge',
 
+  // 开发者服务管理权限
+  DEVELOPER_QUOTA_MANAGE = 'developer:quota:manage',
+  DEVELOPER_PRODUCT_CATALOG_MANAGE = 'developer:product:catalog:manage',
+  DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE = 'developer:product:entitlement:manage',
+  DEVELOPER_PRODUCT_CONFIG_MANAGE = 'developer:product:config:manage',
+
+  // 开发者产品权限（可由 RAM 策略授予）
+  PRODUCT_KV_READ = 'product:kv:read',
+  PRODUCT_KV_WRITE = 'product:kv:write',
+  PRODUCT_KV_MANAGE = 'product:kv:manage',
+  PRODUCT_SHORT_LINK_READ = 'product:short_link:read',
+  PRODUCT_SHORT_LINK_WRITE = 'product:short_link:write',
+  PRODUCT_SHORT_LINK_MANAGE = 'product:short_link:manage',
+  PRODUCT_SECRET_READ = 'product:secret:read',
+  PRODUCT_SECRET_WRITE = 'product:secret:write',
+  PRODUCT_SECRET_USE = 'product:secret:use',
+  PRODUCT_SECRET_MANAGE = 'product:secret:manage',
+  PRODUCT_STATUS_READ = 'product:status:read',
+  PRODUCT_STATUS_WRITE = 'product:status:write',
+  PRODUCT_STATUS_PUBLISH = 'product:status:publish',
+  PRODUCT_STATUS_MANAGE = 'product:status:manage',
+  PRODUCT_VERIFICATION_SEND = 'product:verification:send',
+  PRODUCT_VERIFICATION_VERIFY = 'product:verification:verify',
+  PRODUCT_VERIFICATION_MANAGE = 'product:verification:manage',
+  PRODUCT_IP_GEOLOCATION_LOOKUP = 'product:ip_geolocation:lookup',
+  PRODUCT_IP_GEOLOCATION_MANAGE = 'product:ip_geolocation:manage',
+  PRODUCT_PUSH_SEND = 'product:push:send',
+  PRODUCT_PUSH_CHANNEL_MANAGE = 'product:push:channel:manage',
+  PRODUCT_PUSH_DELIVERY_READ = 'product:push:delivery:read',
+  PRODUCT_PUSH_MANAGE = 'product:push:manage',
+
   // 月卡管理权限
   MONTHLY_PASS_TEMPLATE_READ = 'monthly_pass:template:read',
   MONTHLY_PASS_TEMPLATE_WRITE = 'monthly_pass:template:write',
@@ -214,7 +245,7 @@ export enum Permission {
 /**
  * 获取所有权限列表
  */
-export const ALL_PERMISSIONS = Object.values(Permission);
+export const ALL_PERMISSIONS = Object.values(Permission)
 
 /**
  * 获取权限所属分类
@@ -222,6 +253,6 @@ export const ALL_PERMISSIONS = Object.values(Permission);
  * @returns 权限分类名称
  */
 export function getPermissionCategory(permission: Permission | string): string {
-  const prefix = permission.split(':')[0] ?? '';
-  return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+  const prefix = permission.split(':')[0] ?? ''
+  return prefix.charAt(0).toUpperCase() + prefix.slice(1)
 }

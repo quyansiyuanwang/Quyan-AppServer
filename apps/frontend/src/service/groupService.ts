@@ -5,9 +5,6 @@ import type { Permission as ClientPermission } from '@/client/types.gen'
 import { toServiceError } from '@/utils/error-utils'
 import { cacheObject } from '@/utils/common'
 import { createGroupControllerApi } from '@/client/services/group-controller.gen'
-import { createPermissionControllerApi } from '@/client/services/permission-controller.gen'
-
-const permissionApi = cacheObject(() => createPermissionControllerApi(useRequestStore().getAxios()))
 
 const groupApi = cacheObject(() => createGroupControllerApi(useRequestStore().getAxios()))
 
@@ -93,17 +90,21 @@ export class GroupService {
   }
 
   async getGroupPermissions(groupId: string) {
-    const result = await permissionApi.getGroupPermissions({
+    const result = await groupApi.getGroupPermissions({
       path: { groupId },
     })
     if (result && result.code === CustomCode.OK && result.data) {
-      return result.data
+      return {
+        permissions: Array.isArray(result.data)
+          ? result.data
+          : ((result.data as { permissions?: Permission[] }).permissions ?? []),
+      }
     }
     throw toServiceError(result)
   }
 
   async setGroupPermissions(groupId: string, permissions: Permission[]) {
-    const result = await permissionApi.setGroupPermissions({
+    const result = await groupApi.setGroupPermissions({
       path: { groupId },
       body: { permissions: permissions as ClientPermission[] },
     })

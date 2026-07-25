@@ -522,7 +522,7 @@ export class AuthService {
 
     // 登录频率限制：per-IP + per-account
     // 测试环境下跳过频率限制
-    if (this.redisService.isRedisAvailable() && process.env.NODE_ENV !== "test") {
+    if (this.redisService.isRedisAvailable() && !EnvSpace.isTest) {
       const rateLimitCheck = await this.rateLimiterService.checkNamedRedisWindowRateLimit("login", {
         ipAddress,
         username,

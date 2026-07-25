@@ -190,8 +190,6 @@ export interface RelayTokenStore {
   findUsageSummaryTargets(tokenIds?: string[], userId?: string): Promise<RelayTokenUsageSummaryTarget[]>;
   countCustomKeyTokensByUserId(userId: string): Promise<number>;
   countCustomKeyTokensCreatedSince(userId: string, since: Date): Promise<number>;
-  incrementUsageStats(id: string, totalTokens: number): Promise<RelayToken>;
-  touchRequest(id: string): Promise<RelayToken>;
   update(id: string, data: RelayTokenUpdateInput): Promise<RelayToken>;
   updateStatus(id: string, status: number): Promise<RelayToken>;
   updateStatusByIds(userId: string, ids: string[], status: number): Promise<number>;

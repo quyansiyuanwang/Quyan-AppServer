@@ -77,6 +77,10 @@ import logger from "@/util/logger";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
+import { DeveloperProjectService } from "@/services/developer/developer-project.service";
+import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
+import { RelayChannelHealthService } from "./relay-channel-health.service";
+import { Permission } from "@/constant/permission";
 
 const PREFIX = "/relay/proxy";
 
@@ -227,6 +231,7 @@ class RelayChannelSkipError extends BadRequestError {
 
 export class RelayProxyService {
   private static instance: RelayProxyService;
+  private readonly logicalRequestIds = new WeakMap<object, string>();
 
   constructor(
     private readonly relayTokenRepo: RelayTokenStore = RelayTokenRepository.getInstance(),
@@ -238,6 +243,7 @@ export class RelayProxyService {
     private readonly redis: RedisService = RedisService.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
+    private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
   ) {}
 
   static getInstance(): RelayProxyService {
@@ -299,6 +305,7 @@ export class RelayProxyService {
     await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
       userId: relayToken.userId,
       relayTokenId: relayToken.id,
+      requestId: this.getLogicalRequestId(req),
       requestTokens: 0,
       responseTokens: 0,
       totalTokens: 0,
@@ -1523,7 +1530,7 @@ export class RelayProxyService {
     return candidates.filter((channel): channel is RelayChannelWithPool => {
       if (!channel?.id || seen.has(channel.id)) return false;
       seen.add(channel.id);
-      return channel.status === RELAY_CHANNEL_STATUS.ENABLED;
+      return channel.status === RELAY_CHANNEL_STATUS.ENABLED && channel.channelType !== "automatic-proxy-pool";
     });
   }
 
@@ -1538,7 +1545,39 @@ export class RelayProxyService {
     if (orderedPoolMembers.length === 0) return [];
 
     let orderedMembers = orderedPoolMembers;
-    if (strategy === "random") orderedMembers = this.shuffleItems(orderedPoolMembers);
+    if (channel.channelType === "automatic-proxy-pool") {
+      const rankingMode = routingConfig?.rankingMode === "stability-first" ? "stability-first" : "price-first";
+      const ranked = await this.relayChannelHealthService.rankMembers(
+        orderedPoolMembers.map((member) => ({
+          id: member.memberChannelId,
+          name: member.memberChannel?.name ?? member.memberChannelId,
+          enabled: member.enabled && member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+          priority: member.priority,
+          weight: Number(member.weight),
+          effectivePrice:
+            Number(member.memberChannel?.multiplier ?? 1) *
+            computeMultiplierForTime(
+              ((member.memberChannel as RelayChannel & { timePeriodMultipliers?: TimePeriodRule[] })
+                ?.timePeriodMultipliers ?? []) as TimePeriodRule[],
+              new Date(),
+            ),
+          healthTrackingMode:
+            ((member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+              ?.healthTrackingMode as "automatic" | "manual" | "disabled" | undefined) ?? "automatic",
+          manualAvailability: (member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+            ?.manualAvailability,
+          manualLatencyMs: (member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+            ?.manualLatencyMs,
+        })),
+        rankingMode,
+      );
+      const byId = new Map(ranked.map((member, index) => [member.id, { index, member }]));
+      orderedMembers = [...orderedPoolMembers].sort((left, right) => {
+        const leftRank = byId.get(left.memberChannelId)?.index ?? Number.MAX_SAFE_INTEGER;
+        const rightRank = byId.get(right.memberChannelId)?.index ?? Number.MAX_SAFE_INTEGER;
+        return leftRank - rightRank;
+      });
+    } else if (strategy === "random") orderedMembers = this.shuffleItems(orderedPoolMembers);
     else if (strategy === "weighted-random") orderedMembers = this.weightedShuffleMembers(orderedPoolMembers);
     else if (strategy === "round-robin") {
       const counter = (await this.redis.increment(this.getPoolRoundRobinKey(channel), 0, 1)) ?? 1;
@@ -1811,11 +1850,37 @@ export class RelayProxyService {
     });
   }
 
-  private async recordChannelAttempt(relayTokenId: string, channelId: string, success: boolean): Promise<void> {
+  private async recordChannelAttempt(
+    relayTokenId: string,
+    channelId: string,
+    success: boolean,
+    health?: {
+      request?: any;
+      latencyMs?: number;
+      statusCode?: number;
+      attemptedUpstream?: boolean;
+      channel?: RelayChannel;
+    },
+  ): Promise<void> {
     try {
       await this.relayTokenRepo.updateChannelConfigUsage({ relayTokenId, channelId, success });
     } catch (error) {
       logger.warn("Failed to update relay channel usage stats", { relayTokenId, channelId, success, error });
+    }
+
+    const trackingMode =
+      (health?.channel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)?.healthTrackingMode ??
+      "automatic";
+    if (trackingMode === "automatic" && health?.attemptedUpstream !== false && health?.request) {
+      void this.relayChannelHealthService
+        .recordAttempt({
+          channelId,
+          requestId: this.getLogicalRequestId(health.request),
+          success,
+          latencyMs: health.latencyMs,
+          statusCode: health.statusCode,
+        })
+        .catch((error) => logger.debug("Failed to enqueue relay channel health sample", { channelId, error }));
     }
   }
 
@@ -1865,6 +1930,18 @@ export class RelayProxyService {
     }
 
     return undefined;
+  }
+
+  private getLogicalRequestId(req: any): string {
+    if (!req || (typeof req !== "object" && typeof req !== "function")) return randomUUID();
+
+    const requestObject = req as object;
+    const existing = this.logicalRequestIds.get(requestObject);
+    if (existing) return existing;
+
+    const logicalRequestId = randomUUID();
+    this.logicalRequestIds.set(requestObject, logicalRequestId);
+    return logicalRequestId;
   }
 
   private withRequestIdHeader(req: any, headers: Record<string, unknown> = {}): Record<string, unknown> {
@@ -2031,6 +2108,7 @@ export class RelayProxyService {
     const finalizeResult = await this.usageChargeService.chargeUsage({
       userId: relayToken.userId,
       relayTokenId: relayToken.id,
+      requestId: this.getLogicalRequestId(req),
       requestTokens: tokenBreakdown.requestTokens,
       responseTokens: tokenBreakdown.responseTokens,
       totalTokens: tokenBreakdown.totalTokens,
@@ -2168,6 +2246,7 @@ export class RelayProxyService {
       await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
         userId: relayToken.userId,
         relayTokenId: relayToken.id,
+        requestId: this.getLogicalRequestId(req),
         requestTokens: 0,
         responseTokens: 0,
         totalTokens: 0,
@@ -2422,6 +2501,19 @@ export class RelayProxyService {
     try {
       let lastError: unknown = new BadRequestError("No available relay channel");
       const attemptIssues: RelayAttemptIssue[] = [];
+      const developerProjectId = String(req.headers?.["x-developer-project"] || "").trim();
+      let developerSecretUsageMetered = false;
+      const meterSecretUsage = async <T>(callback: () => Promise<T>): Promise<T> => {
+        if (developerSecretUsageMetered) return callback();
+        const result = await DeveloperProductPlatformService.getInstance().executeMeteredForBackingProject(
+          developerProjectId,
+          "secret",
+          Permission.PRODUCT_SECRET_USE,
+          callback,
+        );
+        developerSecretUsageMetered = true;
+        return result;
+      };
 
       for (let attemptIndex = 0; attemptIndex < attemptChannels.length; attemptIndex++) {
         const candidate = attemptChannels[attemptIndex];
@@ -2454,6 +2546,8 @@ export class RelayProxyService {
           let relayOriginalRequestedModel: string | undefined;
           let timeMultiplier = 1;
           let upstreamResponseSucceeded = false;
+          let upstreamRequestStarted = false;
+          let upstreamRequestStartedAt: number | null = null;
 
           try {
             // Resolve the model config for this specific channel
@@ -2536,8 +2630,23 @@ export class RelayProxyService {
 
             const upstreamConfig = this.resolveChannelUpstreamConfig(channel, requestFormat);
             const upstreamUrl = upstreamConfig.upstreamUrl;
-            const upstreamApiKey = upstreamConfig.upstreamApiKey;
+            let upstreamApiKey = upstreamConfig.upstreamApiKey;
             channelMultiplier = upstreamConfig.channelMultiplier;
+
+            if (upstreamApiKey.includes("{{")) {
+              if (!developerProjectId)
+                throw new RelayChannelSkipError(
+                  "Secret alias requires X-Developer-Project",
+                  "channel-upstream-missing",
+                );
+              upstreamApiKey = await meterSecretUsage(() =>
+                DeveloperProjectService.getInstance().substituteSecretsForProject(
+                  developerProjectId,
+                  relayToken.userId,
+                  upstreamApiKey,
+                ),
+              );
+            }
 
             if (Buffer.isBuffer(req.body) && selectedModelId !== normalizedRequestedModel)
               logger.warn("Multipart relay request keeps original model field because body rewrite is not supported", {
@@ -2585,6 +2694,22 @@ export class RelayProxyService {
             const headers: any = {};
             for (const key of ALLOWED_HEADERS) if (req.headers[key]) headers[key] = req.headers[key];
 
+            const hasHeaderPlaceholder = Object.values(headers).some(
+              (value) => typeof value === "string" && value.includes("{{"),
+            );
+            if (hasHeaderPlaceholder && !developerProjectId)
+              throw new RelayChannelSkipError("Secret alias requires X-Developer-Project", "channel-upstream-missing");
+            if (developerProjectId)
+              for (const [key, value] of Object.entries(headers))
+                if (typeof value === "string" && value.includes("{{"))
+                  headers[key] = await meterSecretUsage(() =>
+                    DeveloperProjectService.getInstance().substituteSecretsForProject(
+                      developerProjectId,
+                      relayToken.userId,
+                      value,
+                    ),
+                  );
+
             if (requestFormat === "gemini") headers["x-goog-api-key"] = upstreamApiKey;
             else if (requestFormat === "openai") headers["Authorization"] = `Bearer ${upstreamApiKey}`;
             else {
@@ -2593,8 +2718,11 @@ export class RelayProxyService {
             }
 
             const forwardedBody = this.buildForwardBody(req.body, requestFormat, selectedModelId);
-            const { body: convertedBody, autoInjected: autoInjectedStreamUsageOption } =
-              this.addOpenAIStreamUsageOption(forwardedBody, requestFormat, req.path);
+            let { body: convertedBody, autoInjected: autoInjectedStreamUsageOption } = this.addOpenAIStreamUsageOption(
+              forwardedBody,
+              requestFormat,
+              req.path,
+            );
 
             const toolsWithCache = convertedBody?.tools?.filter((t: any) => t.cache_control).length || 0;
             const messagesWithCache = convertedBody?.messages?.filter((m: any) => m.cache_control).length || 0;
@@ -2610,12 +2738,27 @@ export class RelayProxyService {
               systemHasCache,
             });
 
-            if (process.env.NODE_ENV === "development")
+            if (EnvSpace.isDevelopment)
               logger.debug("Final request body to upstream API", {
                 body: JSON.stringify(convertedBody, null, 2),
               });
 
+            const bodyContainsPlaceholder =
+              !Buffer.isBuffer(convertedBody) && JSON.stringify(convertedBody ?? {}).includes("{{");
+            if (bodyContainsPlaceholder && !developerProjectId)
+              throw new RelayChannelSkipError("Secret alias requires X-Developer-Project", "channel-upstream-missing");
+            if (bodyContainsPlaceholder)
+              convertedBody = await meterSecretUsage(() =>
+                DeveloperProjectService.getInstance().substituteSecretsInJsonValue(
+                  developerProjectId,
+                  relayToken.userId,
+                  convertedBody,
+                ),
+              );
+
             if (isStreamRequested && res) {
+              upstreamRequestStarted = true;
+              upstreamRequestStartedAt = Date.now();
               const streamResult = await this.forwardStreamRequest(
                 relayToken,
                 req,
@@ -2653,7 +2796,12 @@ export class RelayProxyService {
                   continue;
                 }
                 // Threshold exhausted — record failure and switch to next channel
-                await this.recordChannelAttempt(relayToken.id, channel.id, false);
+                await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
+                  request: req,
+                  latencyMs: Date.now() - requestStartTime,
+                  statusCode: streamResult.statusCode ?? (streamResult.success ? 200 : undefined),
+                });
                 this.appendAttemptIssue(
                   attemptIssues,
                   displayChannel,
@@ -2683,7 +2831,12 @@ export class RelayProxyService {
                 break;
               }
 
-              await this.recordChannelAttempt(relayToken.id, channel.id, streamResult.success);
+              await this.recordChannelAttempt(relayToken.id, channel.id, streamResult.success, {
+                channel,
+                request: req,
+                latencyMs: Date.now() - requestStartTime,
+                statusCode: streamResult.statusCode ?? (streamResult.success ? 200 : undefined),
+              });
 
               return { status: streamResult.statusCode || 200, headers: {}, data: {} };
             }
@@ -2693,6 +2846,8 @@ export class RelayProxyService {
             // 对图片请求使用流式响应，避免将大图片完整读入内存
             const isImageRequest = this.isImageRequest(req, requestFormat);
             if (isImageRequest && res) {
+              upstreamRequestStarted = true;
+              upstreamRequestStartedAt = Date.now();
               const imageResult = await this.forwardImageRequest(
                 relayToken,
                 req,
@@ -2733,7 +2888,12 @@ export class RelayProxyService {
                   imageResult.triggerError || `HTTP ${imageResult.statusCode || 502}`,
                   imageResult.statusCode,
                 );
-                await this.recordChannelAttempt(relayToken.id, channel.id, false);
+                await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
+                  request: req,
+                  latencyMs: Date.now() - requestStartTime,
+                  statusCode: imageResult.statusCode ?? (imageResult.success ? 200 : undefined),
+                });
                 await this.recordChannelSwitch({
                   relayTokenId: relayToken.id,
                   fromChannelId: channel.id,
@@ -2756,7 +2916,12 @@ export class RelayProxyService {
                 break;
               }
 
-              await this.recordChannelAttempt(relayToken.id, channel.id, imageResult.success);
+              await this.recordChannelAttempt(relayToken.id, channel.id, imageResult.success, {
+                channel,
+                request: req,
+                latencyMs: Date.now() - requestStartTime,
+                statusCode: imageResult.statusCode ?? (imageResult.success ? 200 : undefined),
+              });
 
               return {
                 status: imageResult.statusCode || 200,
@@ -2768,6 +2933,8 @@ export class RelayProxyService {
             const maxBodyLimitBytes = Buffer.isBuffer(convertedBody)
               ? resourceGuard.multipartBodyLimitMb * 1024 * 1024
               : 5 * 1024 * 1024;
+            upstreamRequestStarted = true;
+            upstreamRequestStartedAt = Date.now();
             const response = await axios({
               method: req.method,
               url: fullUpstreamUrl,
@@ -2815,7 +2982,12 @@ export class RelayProxyService {
 
               // Threshold exhausted — record failure and switch to next channel
 
-              await this.recordChannelAttempt(relayToken.id, channel.id, false);
+              await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                channel,
+                request: req,
+                latencyMs: Date.now() - startTime,
+                statusCode: response.status,
+              });
 
               this.appendAttemptIssue(
                 attemptIssues,
@@ -2871,10 +3043,16 @@ export class RelayProxyService {
             });
 
             if (isErrorResponse) {
-              await this.recordChannelAttempt(relayToken.id, channel.id, false);
+              await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                channel,
+                request: req,
+                latencyMs: Date.now() - startTime,
+                statusCode: response.status,
+              });
               await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
                 userId: relayToken.userId,
                 relayTokenId: relayToken.id,
+                requestId: this.getLogicalRequestId(req),
                 requestTokens: 0,
                 responseTokens: 0,
                 totalTokens: 0,
@@ -2966,6 +3144,7 @@ export class RelayProxyService {
             const finalizeResult = await this.usageChargeService.chargeUsage({
               userId: relayToken.userId,
               relayTokenId: relayToken.id,
+              requestId: this.getLogicalRequestId(req),
               requestTokens,
               responseTokens,
               totalTokens,
@@ -3002,7 +3181,12 @@ export class RelayProxyService {
 
             if (!finalizeResult.applied) throw new BadRequestError("Insufficient balance for this request");
 
-            await this.recordChannelAttempt(relayToken.id, channel.id, true);
+            await this.recordChannelAttempt(relayToken.id, channel.id, true, {
+              channel,
+              request: req,
+              latencyMs: totalOutputTime,
+              statusCode: response.status,
+            });
 
             await this.logRelayBusinessOperation({
               relayToken,
@@ -3050,7 +3234,13 @@ export class RelayProxyService {
               });
 
               this.appendAttemptIssue(attemptIssues, displayChannel, attemptIndex + 1, error.message);
-              if (!upstreamResponseSucceeded) await this.recordChannelAttempt(relayToken.id, channel.id, false);
+              if (!upstreamResponseSucceeded)
+                await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
+                  request: req,
+                  attemptedUpstream: upstreamRequestStarted,
+                  latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,
+                });
               await this.recordChannelSwitch({
                 relayTokenId: relayToken.id,
                 fromChannelId: channel.id,
@@ -3095,7 +3285,13 @@ export class RelayProxyService {
                 attemptIndex + 1,
                 error instanceof Error ? error.message : "Upstream request failed",
               );
-              if (!upstreamResponseSucceeded) await this.recordChannelAttempt(relayToken.id, channel.id, false);
+              if (!upstreamResponseSucceeded)
+                await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
+                  request: req,
+                  attemptedUpstream: upstreamRequestStarted,
+                  latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,
+                });
               await this.recordChannelSwitch({
                 relayTokenId: relayToken.id,
                 fromChannelId: channel.id,
@@ -3124,7 +3320,13 @@ export class RelayProxyService {
                 attemptIndex + 1,
                 error instanceof Error ? error.message : "Upstream request failed",
               );
-              if (!upstreamResponseSucceeded) await this.recordChannelAttempt(relayToken.id, channel.id, false);
+              if (!upstreamResponseSucceeded)
+                await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
+                  request: req,
+                  attemptedUpstream: upstreamRequestStarted,
+                  latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,
+                });
               throw this.buildAttemptExhaustedError(
                 normalizedRequestedModel,
                 failoverConfig.maxRetries,
@@ -3134,7 +3336,13 @@ export class RelayProxyService {
             }
 
             if (isStreamRequested && res && this.shouldFailoverOnError(error)) {
-              if (!upstreamResponseSucceeded) await this.recordChannelAttempt(relayToken.id, channel.id, false);
+              if (!upstreamResponseSucceeded)
+                await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
+                  request: req,
+                  attemptedUpstream: upstreamRequestStarted,
+                  latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,
+                });
               this.sendStreamTransportError(res, error);
               return { status: error instanceof GatewayTimeoutError ? 504 : 502, headers: {}, data: {} };
             }
@@ -3585,6 +3793,7 @@ export class RelayProxyService {
               await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
                 userId: relayToken.userId,
                 relayTokenId: relayToken.id,
+                requestId: this.getLogicalRequestId(req),
                 requestTokens: 0,
                 responseTokens: 0,
                 totalTokens: 0,
@@ -3762,6 +3971,7 @@ export class RelayProxyService {
 
             try {
               await this.finalizeStreamUsage(relayToken, {
+                requestId: this.getLogicalRequestId(req),
                 requestTokens,
                 responseTokens,
                 totalTokens,
@@ -3908,6 +4118,7 @@ export class RelayProxyService {
     const finalizeResult = await this.usageChargeService.chargeUsage({
       userId: relayToken.userId,
       relayTokenId: relayToken.id,
+      requestId: data.requestId,
       requestTokens: data.requestTokens,
       responseTokens: data.responseTokens,
       totalTokens: data.totalTokens,
