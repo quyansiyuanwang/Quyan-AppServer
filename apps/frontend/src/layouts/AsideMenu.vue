@@ -734,6 +734,13 @@ const overviewSections = computed<OverviewSection[]>(() => {
           visible: can(Permission.MODEL_PRICING_UPDATE),
         },
         {
+          key: 'relayChannelHealth',
+          label: i18ns.t('nav.relayChannelHealth'),
+          icon: Monitor,
+          route: 'relayChannelHealth',
+          visible: can(Permission.RELAY_CHANNEL_READ),
+        },
+        {
           key: 'upstreamStatus',
           label: i18ns.t('nav.upstreamStatus'),
           icon: Connection,

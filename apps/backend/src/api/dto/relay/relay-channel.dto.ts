@@ -21,6 +21,8 @@ export type RelayChannelVisibilityMode = "public" | "private" | "whitelist" | "h
 
 export type RelayChannelAllowedModelsMode = "all" | "manual" | "auto";
 export type RelayAutomaticPoolRankingMode = "price-first" | "stability-first";
+/** Controls whether a standalone channel contributes health samples to automatic proxy pools. */
+export type RelayChannelHealthTrackingMode = "automatic" | "manual" | "disabled";
 
 export interface RelayChannelMemberDto {
   id?: string;
@@ -60,6 +62,12 @@ export interface RelayChannelRoutingConfigDto {
   stickyByFormat?: boolean;
   /** Dynamic ordering mode for automatic proxy pools. */
   rankingMode?: RelayAutomaticPoolRankingMode;
+  /** Standalone channels: collect live Redis samples, use administrator values, or keep priority unchanged. */
+  healthTrackingMode?: RelayChannelHealthTrackingMode;
+  /** Administrator-maintained availability for manual health tracking, from 0 to 1. */
+  manualAvailability?: number | null;
+  /** Administrator-maintained latency in milliseconds for manual health tracking. */
+  manualLatencyMs?: number | null;
 }
 
 export interface RelayChannelVisibilityConfigDto {
@@ -173,6 +181,11 @@ export interface RelayChannelHealthDto {
   statusOtherCount: number;
   lastSeenAt?: Date;
   lastSuccessAt?: Date;
+  trackingMode: RelayChannelHealthTrackingMode;
+  /** Whether the displayed availability is live Redis data, an administrator value, or disabled. */
+  source: "redis" | "manual" | "disabled";
+  manualAvailability?: number;
+  manualLatencyMs?: number;
 }
 
 export interface RelayAutomaticPoolHealthMemberDto extends RelayChannelHealthDto {
@@ -192,6 +205,23 @@ export interface RelayAutomaticPoolHealthDto {
   windowStartAt: Date;
   windowEndAt: Date;
   members: RelayAutomaticPoolHealthMemberDto[];
+}
+
+export interface RelayChannelHealthOverviewItemDto extends RelayChannelHealthDto {
+  name: string;
+  enabled: boolean;
+  channelType: RelayChannelType;
+}
+
+export interface RelayChannelHealthOverviewDto {
+  windowMinutes: number;
+  channels: RelayChannelHealthOverviewItemDto[];
+}
+
+export interface UpdateRelayChannelHealthConfigRequest {
+  healthTrackingMode: RelayChannelHealthTrackingMode;
+  manualAvailability?: number | null;
+  manualLatencyMs?: number | null;
 }
 
 export interface RelayAutomaticProxyPoolMemberOptionDto {

@@ -337,6 +337,7 @@
           Permission.MODEL_PRICING_UPDATE,
           Permission.UPSTREAM_STATUS_READ,
           Permission.RELAY_TOKEN_READ,
+          Permission.RELAY_CHANNEL_READ,
         ]"
       >
         <el-sub-menu index="relay">
@@ -370,6 +371,16 @@
             >
               <el-icon><Tools /></el-icon>
               <template #title>{{ i18ns.t('nav.relaySettings') }}</template>
+            </el-menu-item>
+          </PermissionWrapper>
+          <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
+            <el-menu-item
+              index="relayChannelHealth"
+              @click="nav('relayChannelHealth', $event)"
+              @contextmenu.prevent="openRouteMenu('relayChannelHealth', $event)"
+            >
+              <el-icon><Monitor /></el-icon>
+              <template #title>{{ i18ns.t('nav.relayChannelHealth') }}</template>
             </el-menu-item>
           </PermissionWrapper>
           <PermissionWrapper :require="[Permission.UPSTREAM_STATUS_READ]">

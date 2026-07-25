@@ -1561,6 +1561,13 @@ export class RelayProxyService {
                 ?.timePeriodMultipliers ?? []) as TimePeriodRule[],
               new Date(),
             ),
+          healthTrackingMode:
+            ((member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+              ?.healthTrackingMode as "automatic" | "manual" | "disabled" | undefined) ?? "automatic",
+          manualAvailability: (member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+            ?.manualAvailability,
+          manualLatencyMs: (member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+            ?.manualLatencyMs,
         })),
         rankingMode,
       );
@@ -1852,6 +1859,7 @@ export class RelayProxyService {
       latencyMs?: number;
       statusCode?: number;
       attemptedUpstream?: boolean;
+      channel?: RelayChannel;
     },
   ): Promise<void> {
     try {
@@ -1860,7 +1868,10 @@ export class RelayProxyService {
       logger.warn("Failed to update relay channel usage stats", { relayTokenId, channelId, success, error });
     }
 
-    if (health?.attemptedUpstream !== false && health?.request) {
+    const trackingMode =
+      (health?.channel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)?.healthTrackingMode ??
+      "automatic";
+    if (trackingMode === "automatic" && health?.attemptedUpstream !== false && health?.request) {
       void this.relayChannelHealthService
         .recordAttempt({
           channelId,
@@ -2786,6 +2797,7 @@ export class RelayProxyService {
                 }
                 // Threshold exhausted — record failure and switch to next channel
                 await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
                   request: req,
                   latencyMs: Date.now() - requestStartTime,
                   statusCode: streamResult.statusCode ?? (streamResult.success ? 200 : undefined),
@@ -2820,6 +2832,7 @@ export class RelayProxyService {
               }
 
               await this.recordChannelAttempt(relayToken.id, channel.id, streamResult.success, {
+                channel,
                 request: req,
                 latencyMs: Date.now() - requestStartTime,
                 statusCode: streamResult.statusCode ?? (streamResult.success ? 200 : undefined),
@@ -2876,6 +2889,7 @@ export class RelayProxyService {
                   imageResult.statusCode,
                 );
                 await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
                   request: req,
                   latencyMs: Date.now() - requestStartTime,
                   statusCode: imageResult.statusCode ?? (imageResult.success ? 200 : undefined),
@@ -2903,6 +2917,7 @@ export class RelayProxyService {
               }
 
               await this.recordChannelAttempt(relayToken.id, channel.id, imageResult.success, {
+                channel,
                 request: req,
                 latencyMs: Date.now() - requestStartTime,
                 statusCode: imageResult.statusCode ?? (imageResult.success ? 200 : undefined),
@@ -2968,6 +2983,7 @@ export class RelayProxyService {
               // Threshold exhausted — record failure and switch to next channel
 
               await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                channel,
                 request: req,
                 latencyMs: Date.now() - startTime,
                 statusCode: response.status,
@@ -3028,6 +3044,7 @@ export class RelayProxyService {
 
             if (isErrorResponse) {
               await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                channel,
                 request: req,
                 latencyMs: Date.now() - startTime,
                 statusCode: response.status,
@@ -3165,6 +3182,7 @@ export class RelayProxyService {
             if (!finalizeResult.applied) throw new BadRequestError("Insufficient balance for this request");
 
             await this.recordChannelAttempt(relayToken.id, channel.id, true, {
+              channel,
               request: req,
               latencyMs: totalOutputTime,
               statusCode: response.status,
@@ -3218,6 +3236,7 @@ export class RelayProxyService {
               this.appendAttemptIssue(attemptIssues, displayChannel, attemptIndex + 1, error.message);
               if (!upstreamResponseSucceeded)
                 await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
                   request: req,
                   attemptedUpstream: upstreamRequestStarted,
                   latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,
@@ -3268,6 +3287,7 @@ export class RelayProxyService {
               );
               if (!upstreamResponseSucceeded)
                 await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
                   request: req,
                   attemptedUpstream: upstreamRequestStarted,
                   latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,
@@ -3302,6 +3322,7 @@ export class RelayProxyService {
               );
               if (!upstreamResponseSucceeded)
                 await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
                   request: req,
                   attemptedUpstream: upstreamRequestStarted,
                   latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,
@@ -3317,6 +3338,7 @@ export class RelayProxyService {
             if (isStreamRequested && res && this.shouldFailoverOnError(error)) {
               if (!upstreamResponseSucceeded)
                 await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
                   request: req,
                   attemptedUpstream: upstreamRequestStarted,
                   latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,

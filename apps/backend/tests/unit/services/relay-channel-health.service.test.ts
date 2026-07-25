@@ -29,6 +29,10 @@ const createRedis = () => {
     hGetAllMany: vi.fn(async (keys: string[]) =>
       Object.fromEntries(keys.filter((key) => hashes.has(key)).map((key) => [key, hashes.get(key)!])),
     ),
+    deleteMany: vi.fn(async (keys: string[]) => {
+      for (const key of keys) hashes.delete(key);
+      return keys.length;
+    }),
   };
 };
 
@@ -103,5 +107,75 @@ describe("RelayChannelHealthService", () => {
       "stability-first",
     );
     expect(ranked.map((member) => member.id)).toEqual(["first", "later"]);
+  });
+
+  it("uses administrator health values for manual channels without Redis samples", async () => {
+    const service = new HealthServiceCtor(createRedis());
+    const ranked = await service.rankMembers(
+      [
+        {
+          id: "automatic",
+          name: "Automatic",
+          enabled: true,
+          priority: 1,
+          weight: 1,
+          effectivePrice: 1,
+          healthTrackingMode: "automatic",
+        },
+        {
+          id: "manual",
+          name: "Manual",
+          enabled: true,
+          priority: 2,
+          weight: 1,
+          effectivePrice: 2,
+          healthTrackingMode: "manual",
+          manualAvailability: 1,
+          manualLatencyMs: 20,
+        },
+      ],
+      "stability-first",
+    );
+    expect(ranked[0]?.id).toBe("manual");
+    expect(ranked[0]?.source).toBe("manual");
+    expect(ranked[0]?.health.averageLatencyMs).toBe(20);
+  });
+
+  it("keeps disabled channels in their configured priority slot and clears bucket data", async () => {
+    const redis = createRedis();
+    const service = new HealthServiceCtor(redis);
+    const now = new Date("2026-07-25T12:00:00.000Z");
+    await service.recordAttempt({ channelId: "tracked", requestId: "one", success: true, observedAt: now });
+    const ranked = await service.rankMembers(
+      [
+        { id: "tracked", name: "Tracked", enabled: true, priority: 1, weight: 1, effectivePrice: 1 },
+        {
+          id: "disabled",
+          name: "Disabled",
+          enabled: true,
+          priority: 2,
+          weight: 1,
+          effectivePrice: 1,
+          healthTrackingMode: "disabled",
+        },
+        {
+          id: "manual",
+          name: "Manual",
+          enabled: true,
+          priority: 3,
+          weight: 1,
+          effectivePrice: 1,
+          healthTrackingMode: "manual",
+          manualAvailability: 1,
+          manualLatencyMs: 1,
+        },
+      ],
+      "stability-first",
+      now,
+    );
+    expect(ranked[1]?.id).toBe("disabled");
+    expect(ranked[1]?.source).toBe("disabled");
+    await expect(service.clearHealth("tracked", now)).resolves.toBe(true);
+    expect(redis.deleteMany).toHaveBeenCalledOnce();
   });
 });

@@ -1,6 +1,6 @@
 import { RedisService } from "@/services/infrastructure/redis.service";
 import logger from "@/util/logger";
-import type { RelayAutomaticPoolRankingMode } from "@/api/dto/relay/relay-channel.dto";
+import type { RelayAutomaticPoolRankingMode, RelayChannelHealthTrackingMode } from "@/api/dto/relay/relay-channel.dto";
 
 const BUCKET_SECONDS = 60;
 const WINDOW_MINUTES = 15;
@@ -42,11 +42,15 @@ export interface RelayChannelHealthRankingMemberInput {
   priority: number;
   weight: number;
   effectivePrice: number;
+  healthTrackingMode?: RelayChannelHealthTrackingMode;
+  manualAvailability?: number | null;
+  manualLatencyMs?: number | null;
 }
 
 export interface RelayChannelHealthRankingMember extends RelayChannelHealthRankingMemberInput {
   health: RelayChannelHealthSnapshot;
   score: number;
+  source: "redis" | "manual" | "disabled";
 }
 
 type HealthTotals = Omit<
@@ -126,6 +130,26 @@ export class RelayChannelHealthService {
     return (await this.getHealthMapWithAvailability(channelIds, now)).healthMap;
   }
 
+  async clearHealth(channelId: string, now = new Date()): Promise<boolean> {
+    const normalizedChannelId = channelId.trim();
+    if (!normalizedChannelId) return false;
+
+    try {
+      const currentBucket = this.getBucket(now.getTime());
+      const buckets = Array.from(
+        { length: Math.ceil(RETENTION_SECONDS / BUCKET_SECONDS) },
+        (_, index) => currentBucket - index * BUCKET_SECONDS,
+      );
+      const result = await this.redis.deleteMany(
+        buckets.map((bucket) => this.getBucketKey(normalizedChannelId, bucket)),
+      );
+      return result !== null;
+    } catch (error) {
+      logger.warn("Failed to clear relay channel health", { channelId: normalizedChannelId, error });
+      return false;
+    }
+  }
+
   private async getHealthMapWithAvailability(
     channelIds: string[],
     now: Date,
@@ -164,37 +188,68 @@ export class RelayChannelHealthService {
       members.map((member) => member.id),
       now,
     );
-    if (!available) {
-      return [...members]
-        .sort(
-          (left, right) =>
-            left.priority - right.priority || left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
-        )
-        .map((member) => ({
-          ...member,
-          health: healthMap.get(member.id) ?? this.emptySnapshot(member.id, now),
-          score: 0,
-        }));
-    }
-    const ranked = members.map((member) => {
-      const health = healthMap.get(member.id) ?? this.emptySnapshot(member.id, now);
-      const availability = health.sampleCount < MIN_SAMPLES_FOR_CONFIDENCE ? 0.5 : health.availability;
+    const ranked: RelayChannelHealthRankingMember[] = members.map((member) => {
+      const trackingMode = member.healthTrackingMode ?? "automatic";
+      const baseHealth = healthMap.get(member.id) ?? this.emptySnapshot(member.id, now);
+      const health =
+        trackingMode === "manual"
+          ? {
+              ...baseHealth,
+              availability: this.clampAvailability(member.manualAvailability),
+              averageLatencyMs: this.normalizeLatency(member.manualLatencyMs),
+            }
+          : baseHealth;
+      const availability =
+        trackingMode === "disabled"
+          ? 0
+          : trackingMode === "automatic" && (!available || health.sampleCount < MIN_SAMPLES_FOR_CONFIDENCE)
+            ? 0.5
+            : health.availability;
       const weight = Math.max(Number(member.weight) || 0, 0.01);
       const price = Math.max(Number(member.effectivePrice) || 0, 0.01);
       const score = rankingMode === "stability-first" ? availability * weight : price / weight;
-      return { ...member, health, score };
+      const source: RelayChannelHealthRankingMember["source"] =
+        trackingMode === "manual" ? "manual" : trackingMode === "disabled" ? "disabled" : "redis";
+      return {
+        ...member,
+        healthTrackingMode: trackingMode,
+        health,
+        score,
+        source,
+      };
     });
 
-    ranked.sort((left, right) => {
+    const priorityOrder = (left: RelayChannelHealthRankingMember, right: RelayChannelHealthRankingMember): number =>
+      left.priority - right.priority || left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
+    const dynamic = ranked.filter((member) => member.healthTrackingMode !== "disabled");
+    dynamic.sort((left, right) => {
+      if (!available && left.healthTrackingMode === "automatic" && right.healthTrackingMode === "automatic") {
+        return priorityOrder(left, right);
+      }
       const scoreOrder = rankingMode === "stability-first" ? right.score - left.score : left.score - right.score;
       if (Math.abs(scoreOrder) > 1e-9) return scoreOrder;
       const availabilityOrder = right.health.availability - left.health.availability;
       if (Math.abs(availabilityOrder) > 1e-9) return availabilityOrder;
       const priceOrder = left.effectivePrice - right.effectivePrice;
       if (Math.abs(priceOrder) > 1e-9) return priceOrder;
-      return left.priority - right.priority || left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
+      return priorityOrder(left, right);
     });
-    return ranked;
+
+    // Disabled entries retain their original priority slot; only tracked entries are dynamically reordered.
+    const dynamicIterator = dynamic.values();
+    return [...ranked]
+      .sort(priorityOrder)
+      .map((member) => (member.healthTrackingMode === "disabled" ? member : dynamicIterator.next().value!));
+  }
+
+  private clampAvailability(value: number | null | undefined): number {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.min(1, Math.max(0, numeric)) : 0.5;
+  }
+
+  private normalizeLatency(value: number | null | undefined): number {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
   }
 
   private getBuckets(timestampMs: number): number[] {

@@ -143,6 +143,46 @@
                 {{ i18ns.t('relay.automaticPoolRankingHelp') }}
               </div>
             </el-form-item>
+            <el-form-item
+              v-if="channelForm.channelType === 'standalone'"
+              :label="i18ns.t('relay.healthTrackingMode')"
+              label-width="auto"
+              class="md:col-span-2"
+            >
+              <el-radio-group v-model="channelForm.routingConfig.healthTrackingMode">
+                <el-radio value="automatic">{{
+                  i18ns.t('relay.healthTrackingAutomatic')
+                }}</el-radio>
+                <el-radio value="manual">{{ i18ns.t('relay.healthTrackingManual') }}</el-radio>
+                <el-radio value="disabled">{{ i18ns.t('relay.healthTrackingDisabled') }}</el-radio>
+              </el-radio-group>
+              <div class="text-[#909399] text-xs mt-1">
+                {{ i18ns.t('relay.healthTrackingHelp') }}
+              </div>
+            </el-form-item>
+            <template
+              v-if="
+                channelForm.channelType === 'standalone' &&
+                channelForm.routingConfig.healthTrackingMode === 'manual'
+              "
+            >
+              <el-form-item :label="i18ns.t('relay.healthManualAvailability')" label-width="auto">
+                <el-input-number
+                  v-model="channelForm.routingConfig.manualAvailability"
+                  :min="0"
+                  :max="1"
+                  :step="0.01"
+                  :precision="2"
+                />
+              </el-form-item>
+              <el-form-item :label="i18ns.t('relay.healthManualLatency')" label-width="auto">
+                <el-input-number
+                  v-model="channelForm.routingConfig.manualLatencyMs"
+                  :min="0"
+                  :step="10"
+                />
+              </el-form-item>
+            </template>
             <el-form-item :label="i18ns.t('relay.maxRetries')" label-width="auto">
               <el-input-number v-model="channelForm.routingConfig.maxRetries" :min="0" :step="1" />
             </el-form-item>

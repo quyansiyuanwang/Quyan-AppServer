@@ -14039,6 +14039,32 @@
 				]
 			}
 		},
+		"/v1/relay-channels/health/overview": {
+			"get": {
+				"operationId": "RelayChannelControllerGetChannelHealthOverview",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelHealthOverviewDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/v1/relay-channels/{id}/health": {
 			"get": {
 				"operationId": "RelayChannelControllerGetChannelHealth",
@@ -14079,6 +14105,108 @@
 						}
 					}
 				]
+			},
+			"delete": {
+				"operationId": "RelayChannelControllerClearChannelHealth",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"cleared": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"cleared"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channels/{id}/health-config": {
+			"patch": {
+				"operationId": "RelayChannelControllerUpdateChannelHealthConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelHealthDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateRelayChannelHealthConfigRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/relay-channels/{id}": {
@@ -36713,6 +36841,15 @@
 					"stability-first"
 				]
 			},
+			"RelayChannelHealthTrackingMode": {
+				"type": "string",
+				"enum": [
+					"automatic",
+					"manual",
+					"disabled"
+				],
+				"description": "Controls whether a standalone channel contributes health samples to automatic proxy pools."
+			},
 			"RelayChannelRoutingConfigDto": {
 				"properties": {
 					"maxRetries": {
@@ -36768,6 +36905,22 @@
 					"rankingMode": {
 						"$ref": "#/components/schemas/RelayAutomaticPoolRankingMode",
 						"description": "Dynamic ordering mode for automatic proxy pools."
+					},
+					"healthTrackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode",
+						"description": "Standalone channels: collect live Redis samples, use administrator values, or keep priority unchanged."
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double",
+						"nullable": true,
+						"description": "Administrator-maintained availability for manual health tracking, from 0 to 1."
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double",
+						"nullable": true,
+						"description": "Administrator-maintained latency in milliseconds for manual health tracking."
 					}
 				},
 				"type": "object",
@@ -37336,6 +37489,140 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayChannelHealthOverviewItemDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"windowStartAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"windowEndAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"successCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"failureCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"availability": {
+						"type": "number",
+						"format": "double"
+					},
+					"averageLatencyMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"status2xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status3xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status4xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status5xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"statusOtherCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastSeenAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"lastSuccessAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"trackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode"
+					},
+					"source": {
+						"type": "string",
+						"enum": [
+							"redis",
+							"manual",
+							"disabled"
+						],
+						"description": "Whether the displayed availability is live Redis data, an administrator value, or disabled."
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double"
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType"
+					}
+				},
+				"required": [
+					"channelId",
+					"windowStartAt",
+					"windowEndAt",
+					"sampleCount",
+					"successCount",
+					"failureCount",
+					"availability",
+					"averageLatencyMs",
+					"status2xxCount",
+					"status3xxCount",
+					"status4xxCount",
+					"status5xxCount",
+					"statusOtherCount",
+					"trackingMode",
+					"source",
+					"name",
+					"enabled",
+					"channelType"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelHealthOverviewDto": {
+				"properties": {
+					"windowMinutes": {
+						"type": "number",
+						"format": "double"
+					},
+					"channels": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelHealthOverviewItemDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"windowMinutes",
+					"channels"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayChannelHealthDto": {
 				"properties": {
 					"channelId": {
@@ -37396,6 +37683,26 @@
 					"lastSuccessAt": {
 						"type": "string",
 						"format": "date-time"
+					},
+					"trackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode"
+					},
+					"source": {
+						"type": "string",
+						"enum": [
+							"redis",
+							"manual",
+							"disabled"
+						],
+						"description": "Whether the displayed availability is live Redis data, an administrator value, or disabled."
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double"
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
@@ -37411,7 +37718,9 @@
 					"status3xxCount",
 					"status4xxCount",
 					"status5xxCount",
-					"statusOtherCount"
+					"statusOtherCount",
+					"trackingMode",
+					"source"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -37477,6 +37786,26 @@
 						"type": "string",
 						"format": "date-time"
 					},
+					"trackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode"
+					},
+					"source": {
+						"type": "string",
+						"enum": [
+							"redis",
+							"manual",
+							"disabled"
+						],
+						"description": "Whether the displayed availability is live Redis data, an administrator value, or disabled."
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double"
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double"
+					},
 					"name": {
 						"type": "string"
 					},
@@ -37518,6 +37847,8 @@
 					"status4xxCount",
 					"status5xxCount",
 					"statusOtherCount",
+					"trackingMode",
+					"source",
 					"name",
 					"enabled",
 					"priority",
@@ -37562,6 +37893,28 @@
 					"windowStartAt",
 					"windowEndAt",
 					"members"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateRelayChannelHealthConfigRequest": {
+				"properties": {
+					"healthTrackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode"
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					}
+				},
+				"required": [
+					"healthTrackingMode"
 				],
 				"type": "object",
 				"additionalProperties": false

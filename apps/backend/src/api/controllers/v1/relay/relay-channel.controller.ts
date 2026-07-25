@@ -29,7 +29,9 @@ import type {
   RelayChannelExportResponse,
   RelayChannelManagementListItemDto,
   RelayChannelHealthDto,
+  RelayChannelHealthOverviewDto,
   RelayAutomaticPoolHealthDto,
+  UpdateRelayChannelHealthConfigRequest,
   UpdateRelayChannelRequest,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
@@ -46,6 +48,7 @@ import {
   importRelayChannelsBodySchema,
   relayChannelManagementQuerySchema,
   relayChannelIdParamsSchema,
+  updateRelayChannelHealthConfigBodySchema,
   updateRelayChannelBodySchema,
 } from "@/api/schema/relay/relay-channel.schema";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
@@ -113,6 +116,13 @@ export class RelayChannelController extends Controller {
     return this.channelService.listChannelOptions(request.user!.userId, targetUserId);
   }
 
+  @Get("health/overview")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  public async getChannelHealthOverview(@Request() request: TypedRequest): Promise<RelayChannelHealthOverviewDto> {
+    return this.channelService.getChannelHealthOverview(request.user!.userId);
+  }
+
   @Get("{id}/health")
   @Security("jwt")
   @RequirePermission(Permission.RELAY_CHANNEL_READ)
@@ -122,6 +132,38 @@ export class RelayChannelController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
     return this.channelService.getChannelHealth(id, request.user!.userId);
+  }
+
+  @Patch("{id}/health-config")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(relayChannelIdParamsSchema),
+    validateBody(updateRelayChannelHealthConfigBodySchema),
+  )
+  public async updateChannelHealthConfig(
+    @Path() id: string,
+    @Body() body: UpdateRelayChannelHealthConfigRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelHealthDto> {
+    return this.channelService.updateChannelHealthConfig(id, body, request.user!.userId, request);
+  }
+
+  @Delete("{id}/health")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(relayChannelIdParamsSchema),
+  )
+  public async clearChannelHealth(@Path() id: string, @Request() request: TypedRequest): Promise<{ cleared: true }> {
+    await this.channelService.clearChannelHealth(id, request.user!.userId, request);
+    return { cleared: true };
   }
 
   @Get("{id}")

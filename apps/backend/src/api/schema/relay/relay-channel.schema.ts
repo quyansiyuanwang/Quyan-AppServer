@@ -43,6 +43,7 @@ const routingStrategySchema = z.enum([
 ]);
 const allowedModelsModeSchema = z.enum(["all", "manual", "auto"]);
 const automaticPoolRankingModeSchema = z.enum(["price-first", "stability-first"]);
+const healthTrackingModeSchema = z.enum(["automatic", "manual", "disabled"]);
 const visibilityModeSchema = z.enum(["public", "private", "whitelist", "hidden"]);
 
 const relayChannelMemberSchema = z.object({
@@ -68,6 +69,9 @@ const routingConfigSchema = z
     stickyByModel: z.coerce.boolean().optional(),
     stickyByFormat: z.coerce.boolean().optional(),
     rankingMode: automaticPoolRankingModeSchema.optional(),
+    healthTrackingMode: healthTrackingModeSchema.optional(),
+    manualAvailability: z.coerce.number().min(0).max(1).nullable().optional(),
+    manualLatencyMs: z.coerce.number().int().min(0).max(600000).nullable().optional(),
   })
   .nullable()
   .optional();
@@ -125,6 +129,30 @@ export const relayChannelManagementQuerySchema = z.object({
 export const createRelayChannelBodySchema = relayChannelBaseSchema;
 
 export const updateRelayChannelBodySchema = relayChannelBaseSchema.partial();
+
+export const updateRelayChannelHealthConfigBodySchema = z
+  .object({
+    healthTrackingMode: healthTrackingModeSchema,
+    manualAvailability: z.coerce.number().min(0).max(1).nullable().optional(),
+    manualLatencyMs: z.coerce.number().int().min(0).max(600000).nullable().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.healthTrackingMode !== "manual") return;
+    if (value.manualAvailability === undefined || value.manualAvailability === null) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["manualAvailability"],
+        message: "Required for manual tracking",
+      });
+    }
+    if (value.manualLatencyMs === undefined || value.manualLatencyMs === null) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["manualLatencyMs"],
+        message: "Required for manual tracking",
+      });
+    }
+  });
 
 export const duplicateRelayChannelBodySchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),

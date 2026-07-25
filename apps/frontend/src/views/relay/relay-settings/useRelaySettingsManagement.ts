@@ -27,6 +27,7 @@ import type {
   RelayChannelRoutingConfigDto,
   RelayChannelRoutingStrategy,
   RelayAutomaticPoolRankingMode,
+  RelayChannelHealthTrackingMode,
   RelayChannelType,
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
@@ -127,6 +128,9 @@ const recommendedRoutingConfigForm = () => ({
   stickyByModel: false,
   stickyByFormat: false,
   rankingMode: 'price-first' as RelayAutomaticPoolRankingMode,
+  healthTrackingMode: 'automatic' as RelayChannelHealthTrackingMode,
+  manualAvailability: 1,
+  manualLatencyMs: 0,
 })
 
 const defaultRoutingConfigForm = () => recommendedRoutingConfigForm()
@@ -201,6 +205,18 @@ const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigFormDto | 
     config?.rankingMode === 'stability-first'
       ? 'stability-first'
       : defaultRoutingConfigForm().rankingMode,
+  healthTrackingMode:
+    config?.healthTrackingMode === 'manual' || config?.healthTrackingMode === 'disabled'
+      ? config.healthTrackingMode
+      : defaultRoutingConfigForm().healthTrackingMode,
+  manualAvailability:
+    typeof config?.manualAvailability === 'number' && Number.isFinite(config.manualAvailability)
+      ? config.manualAvailability
+      : defaultRoutingConfigForm().manualAvailability,
+  manualLatencyMs:
+    typeof config?.manualLatencyMs === 'number' && Number.isFinite(config.manualLatencyMs)
+      ? config.manualLatencyMs
+      : defaultRoutingConfigForm().manualLatencyMs,
 })
 
 const normalizeVisibilityConfigForm = (config?: RelayChannelVisibilityConfigDto | null) => ({
@@ -1332,6 +1348,19 @@ export const useRelaySettingsManagement = () => {
     if (channelForm.value.channelType === 'automatic-proxy-pool') {
       payload.rankingMode =
         config.rankingMode === 'stability-first' ? 'stability-first' : 'price-first'
+    }
+    if (channelForm.value.channelType === 'standalone') {
+      payload.healthTrackingMode =
+        config.healthTrackingMode === 'manual' || config.healthTrackingMode === 'disabled'
+          ? config.healthTrackingMode
+          : 'automatic'
+      if (payload.healthTrackingMode === 'manual') {
+        payload.manualAvailability = Math.min(
+          1,
+          Math.max(0, Number(config.manualAvailability) || 0),
+        )
+        payload.manualLatencyMs = Math.max(0, Math.floor(Number(config.manualLatencyMs) || 0))
+      }
     }
 
     return Object.keys(payload).length > 0 ? (payload as RelayChannelRoutingConfigDto) : null

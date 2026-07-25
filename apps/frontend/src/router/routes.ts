@@ -739,6 +739,14 @@ export const routes = [
             },
           },
           {
+            path: 'relay/channel-health',
+            name: 'relayChannelHealth',
+            component: () => import('@/views/relay/RelayChannelHealthView.vue'),
+            meta: {
+              permission: Permission.RELAY_CHANNEL_READ,
+            },
+          },
+          {
             path: 'relay/upstream-status',
             name: 'upstreamStatus',
             component: () => import('@/views/relay/UpstreamStatusView.vue'),
