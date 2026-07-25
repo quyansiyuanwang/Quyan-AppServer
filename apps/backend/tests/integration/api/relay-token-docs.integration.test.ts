@@ -126,6 +126,13 @@ describe("Relay Token Docs Helper Integration", () => {
     });
     relayUsageIds.push(staleUsage.id);
 
+    await prisma.relayLogicalRequest.createMany({
+      data: [
+        { relayTokenId, requestId: `docs-recent-one-${shortSuffix}`, countedAt: new Date() },
+        { relayTokenId, requestId: `docs-recent-two-${shortSuffix}`, countedAt: new Date() },
+      ],
+    });
+
     await prisma.balanceTransaction.createMany({
       data: [
         {

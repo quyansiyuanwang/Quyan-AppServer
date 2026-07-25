@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import axios from "axios";
 import { BadRequestError } from "@/util/errors";
 import { AnthropicUpstreamClient, type AnthropicMessagesRequest } from "@/util/anthropic-upstream.client";
+import { EnvSpace } from "@/config/env";
 
 vi.mock("axios", async (importOriginal) => {
   const actual = await importOriginal<typeof import("axios")>();
@@ -17,6 +18,7 @@ vi.mock("axios", async (importOriginal) => {
 
 describe("AnthropicUpstreamClient", () => {
   const mockedPost = vi.mocked(axios.post);
+  const originalAnthropicConfig = EnvSpace.anthropicConfig;
 
   const requestBody: AnthropicMessagesRequest = {
     model: "claude-3-5-sonnet",
@@ -28,6 +30,7 @@ describe("AnthropicUpstreamClient", () => {
     vi.clearAllMocks();
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_BASE_URL;
+    (EnvSpace as any).anthropicConfig = originalAnthropicConfig;
   });
 
   it("builds request from resolved upstream config and returns upstream response", async () => {
@@ -76,7 +79,10 @@ describe("AnthropicUpstreamClient", () => {
   });
 
   it("uses the default Anthropic base URL with an environment API key", async () => {
-    process.env.ANTHROPIC_API_KEY = "env-key";
+    (EnvSpace as any).anthropicConfig = {
+      ...originalAnthropicConfig,
+      apiKey: "env-key",
+    };
     mockedPost.mockResolvedValue({ status: 200, data: { content: [], usage: {} } } as any);
 
     const client = new AnthropicUpstreamClient();

@@ -43,11 +43,11 @@ if (process.env.NODE_ENV === "test")
     override: true,
   });
 
-type EnvSnapshot = Record<string, string | undefined>;
+type EnvSnapshot = Readonly<Record<string, string | undefined>>;
 
 // Capture the environment once after dotenv has finished. Runtime configuration
 // accessors read this private snapshot instead of consulting process.env.
-const envSnapshot: EnvSnapshot = { ...process.env };
+let envSnapshot: EnvSnapshot = Object.freeze({ ...process.env });
 
 function redactDatabaseUrl(value: string): string {
   return value.replace(/(\/\/[^:]+:)[^@]+@/, "$1****@");
@@ -628,7 +628,7 @@ function environmentDiagnostics() {
   });
 }
 
-export const EnvSpace = Object.freeze({
+const resolvedEnvSpace = {
   isProduction: noUndefined(isProduction),
   isDevelopment: noUndefined(isDevelopment),
   isTest: noUndefined(isTest),
@@ -676,8 +676,13 @@ export const EnvSpace = Object.freeze({
   authCenterConfig: noUndefined(authCenterConfig),
   environmentDiagnostics: noUndefined(environmentDiagnostics),
   cwd: noUndefined(cwd),
-});
+};
 
-// All EnvSpace values are eagerly resolved by noUndefined above. Drop the
-// generic raw dictionary so it cannot be retained by the module after startup.
-for (const key of Object.keys(envSnapshot)) delete envSnapshot[key];
+// Production configuration is immutable after startup. Tests deliberately keep
+// the resolved surface mutable so they can inject isolated values without
+// reintroducing direct process.env reads into runtime modules.
+export const EnvSpace = isTest() ? resolvedEnvSpace : Object.freeze(resolvedEnvSpace);
+
+// All EnvSpace values are eagerly resolved above. Replace the raw snapshot so
+// the module no longer retains a general-purpose environment dictionary.
+envSnapshot = Object.freeze({});

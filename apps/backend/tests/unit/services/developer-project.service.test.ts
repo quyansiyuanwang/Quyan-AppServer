@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
     developerProject: { findFirst: vi.fn(), findUnique: vi.fn() },
+    developerProductConfig: { findUnique: vi.fn() },
     developerQuotaUsage: { findMany: vi.fn(), upsert: vi.fn(), update: vi.fn() },
     developerQuotaOverride: { findFirst: vi.fn() },
     balanceAccount: { findUnique: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
@@ -34,16 +35,28 @@ vi.mock("axios", async (importOriginal) => {
 });
 
 import { DeveloperProjectService } from "../../../src/services/developer/developer-project.service";
+import { EnvSpace } from "../../../src/config/env";
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
 describe("DeveloperProjectService", () => {
+  const originalDeveloperProductConfig = EnvSpace.developerProductConfig;
+  const originalBaiduMapConfig = EnvSpace.baiduMapConfig;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.prisma.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback(mocks.prisma));
     (DeveloperProjectService as any).serviceInstance = undefined;
     process.env.DEVELOPER_SECRETS_MASTER_KEY = "d".repeat(64);
     delete process.env.IP_GEOLOCATION_ENDPOINT;
+    (EnvSpace as any).developerProductConfig = {
+      ...originalDeveloperProductConfig,
+      ipGeolocationEndpoint: "",
+    };
+    (EnvSpace as any).baiduMapConfig = {
+      ...originalBaiduMapConfig,
+      ipLocationAk: "",
+    };
   });
 
   it("authenticates a project key only when it contains the requested scope", async () => {
@@ -212,8 +225,6 @@ describe("DeveloperProjectService", () => {
   it("does not consume IP quota when the provider is unavailable or the IP is not public", async () => {
     const service = DeveloperProjectService.getInstance();
     const consumeQuota = vi.spyOn(service as any, "consumeQuota");
-    process.env.IP_GEOLOCATION_ENDPOINT = "";
-
     await expect(service.lookupIp("project-1", "8.8.8.8")).rejects.toThrow("IP 定位服务尚未配置");
     await expect(service.lookupIp("project-1", "169.254.169.254")).rejects.toThrow("仅支持公网 IP 地址");
     expect(consumeQuota).not.toHaveBeenCalled();
@@ -225,7 +236,10 @@ describe("DeveloperProjectService", () => {
     vi.spyOn(service as any, "consumeQuota").mockResolvedValue(receipt);
     const refundQuota = vi.spyOn(service as any, "refundQuota").mockResolvedValue(undefined);
     mocks.axios.get.mockRejectedValue(new Error("provider unavailable"));
-    process.env.IP_GEOLOCATION_ENDPOINT = "https://8.8.8.8";
+    (EnvSpace as any).developerProductConfig = {
+      ...originalDeveloperProductConfig,
+      ipGeolocationEndpoint: "https://8.8.8.8",
+    };
 
     await expect(service.lookupIp("project-1", "1.1.1.1")).rejects.toThrow("provider unavailable");
     expect(refundQuota).toHaveBeenCalledWith(receipt);
@@ -250,9 +264,15 @@ describe("DeveloperProjectService", () => {
   });
 
   it("exposes recent status checks and calculates public availability", async () => {
+    mocks.prisma.developerProductConfig.findUnique.mockResolvedValue({ enabled: true });
     mocks.prisma.developerProject.findFirst.mockResolvedValue({
       name: "Example API",
       slug: "example-api",
+      productInstance: {
+        enabled: true,
+        status: 1,
+        entitlement: { productCode: "status", status: 1 },
+      },
       statusMonitors: [
         {
           name: "Health",
