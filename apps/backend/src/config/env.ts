@@ -129,12 +129,29 @@ function assertDeveloperSecretsMasterKey(): void {
     throw new Error("DEVELOPER_SECRETS_MASTER_KEY must be different from authentication and replay secrets");
 }
 
+function assertRelayChannelProbeMasterKey(): void {
+  const secret = String(envSnapshot.RELAY_CHANNEL_PROBE_MASTER_KEY || "").trim();
+  if (!secret) return;
+  if (secret.length < 64) throw new Error("RELAY_CHANNEL_PROBE_MASTER_KEY must be at least 64 characters");
+
+  const protectedSecrets = [
+    envSnapshot.JWT_ACCESS_SECRET,
+    envSnapshot.JWT_REFRESH_SECRET,
+    envSnapshot.REPLAY_SIGNING_MASTER_SECRET,
+    envSnapshot.TWO_FACTOR_TRUSTED_DEVICE_SECRET,
+    envSnapshot.DEVELOPER_SECRETS_MASTER_KEY,
+  ].map((value) => String(value || "").trim());
+  if (protectedSecrets.includes(secret))
+    throw new Error("RELAY_CHANNEL_PROBE_MASTER_KEY must be different from authentication and platform secrets");
+}
+
 function assertEnvironment(): void {
   const checks = [
     assertTestModeDatabaseSafety,
     assertTrustedDeviceSecretIsolation,
     assertReplaySigningSecretIsolation,
     assertDeveloperSecretsMasterKey,
+    assertRelayChannelProbeMasterKey,
   ];
   const failures: string[] = [];
 
@@ -381,6 +398,12 @@ function developerProductConfig() {
   };
 }
 
+function relayChannelProbeConfig() {
+  return {
+    masterKey: String(envSnapshot.RELAY_CHANNEL_PROBE_MASTER_KEY || "").trim(),
+  };
+}
+
 function remoteTerminalConfig() {
   return {
     installTokenSecret: String(envSnapshot.RTM_INSTALL_TOKEN_SECRET || "").trim(),
@@ -617,6 +640,7 @@ function environmentDiagnostics() {
     "REPLAY_SIGNING_MASTER_SECRET",
     "TWO_FACTOR_TRUSTED_DEVICE_SECRET",
     "DEVELOPER_SECRETS_MASTER_KEY",
+    "RELAY_CHANNEL_PROBE_MASTER_KEY",
     "REDIS_PASSWORD",
     "ANTHROPIC_API_KEY",
   ] as const;
@@ -649,6 +673,7 @@ const resolvedEnvSpace = {
   redisConfig: noUndefined(redisConfig),
   anthropicConfig: noUndefined(anthropicConfig),
   developerProductConfig: noUndefined(developerProductConfig),
+  relayChannelProbeConfig: noUndefined(relayChannelProbeConfig),
   remoteTerminalConfig: noUndefined(remoteTerminalConfig),
   monthlyPassConfig: noUndefined(monthlyPassConfig),
   webAuthnConfig: noUndefined(webAuthnConfig),

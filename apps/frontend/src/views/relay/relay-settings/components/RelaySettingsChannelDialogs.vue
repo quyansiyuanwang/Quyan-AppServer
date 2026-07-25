@@ -744,6 +744,17 @@
           <div>{{ currentChannelDetail.multiplier }}x</div>
         </div>
         <div
+          v-if="currentChannelDetail.channelType === 'standalone'"
+          class="rounded border border-[var(--el-border-color-lighter)] p-2.5"
+        >
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+            {{ i18ns.t('relay.channelProbeTitle') }}
+          </div>
+          <el-button link type="primary" @click="openChannelProbePage">
+            {{ i18ns.t('relay.channelProbeManage') }}
+          </el-button>
+        </div>
+        <div
           v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)"
           class="rounded border border-[var(--el-border-color-lighter)] p-2.5"
         >
@@ -1180,6 +1191,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Delete, Rank, Top } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
@@ -1187,6 +1199,7 @@ import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
 
 const state = useRelaySettingsManagementContext()
+const router = useRouter()
 
 const {
   isDesktop,
@@ -1241,6 +1254,11 @@ const {
   getChannelAllowedModelsMode,
   handleImportChannels,
 } = state
+
+const openChannelProbePage = () => {
+  showChannelDetailDialog.value = false
+  void router.push({ name: 'relayChannelProbes' })
+}
 
 const handlePoolMemberPickerPageChange = (page: number) => {
   poolMemberPickerPagination.value.page = page
