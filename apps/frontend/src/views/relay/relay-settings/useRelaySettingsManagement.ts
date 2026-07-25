@@ -1366,6 +1366,22 @@ export const useRelaySettingsManagement = () => {
     return Object.keys(payload).length > 0 ? (payload as RelayChannelRoutingConfigDto) : null
   }
 
+  const buildStandaloneHealthTrackingPayload = (): RelayChannelRoutingConfigDto => {
+    const config = channelForm.value.routingConfig
+    const healthTrackingMode =
+      config.healthTrackingMode === 'manual' || config.healthTrackingMode === 'disabled'
+        ? config.healthTrackingMode
+        : 'automatic'
+
+    if (healthTrackingMode !== 'manual') return { healthTrackingMode }
+
+    return {
+      healthTrackingMode,
+      manualAvailability: Math.min(1, Math.max(0, Number(config.manualAvailability) || 0)),
+      manualLatencyMs: Math.max(0, Math.floor(Number(config.manualLatencyMs) || 0)),
+    }
+  }
+
   const buildVisibilityConfigPayload = (): RelayChannelVisibilityConfigDto | null => {
     const config = channelForm.value.visibilityConfig
     const payload: RelayChannelVisibilityConfigDto = {}
@@ -2003,7 +2019,9 @@ export const useRelaySettingsManagement = () => {
 
     channelSaving.value = true
     try {
-      const routingConfig = buildRoutingConfigPayload()
+      const routingConfig = isPooledChannel
+        ? buildRoutingConfigPayload()
+        : buildStandaloneHealthTrackingPayload()
       const visibilityConfig =
         channelForm.value.visibilityMode === 'hidden' ? null : buildVisibilityConfigPayload()
       const poolMembers = isPooledChannel ? buildPoolMembersPayload() : []
@@ -2012,7 +2030,7 @@ export const useRelaySettingsManagement = () => {
         name: channelForm.value.name,
         channelType: channelForm.value.channelType,
         routingStrategy: channelForm.value.routingStrategy,
-        routingConfig: isPooledChannel ? routingConfig : null,
+        routingConfig,
         visibilityMode: channelForm.value.visibilityMode,
         visibilityConfig,
         poolMembers: isPooledChannel ? poolMembers : [],

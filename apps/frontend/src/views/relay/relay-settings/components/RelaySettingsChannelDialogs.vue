@@ -143,46 +143,6 @@
                 {{ i18ns.t('relay.automaticPoolRankingHelp') }}
               </div>
             </el-form-item>
-            <el-form-item
-              v-if="channelForm.channelType === 'standalone'"
-              :label="i18ns.t('relay.healthTrackingMode')"
-              label-width="auto"
-              class="md:col-span-2"
-            >
-              <el-radio-group v-model="channelForm.routingConfig.healthTrackingMode">
-                <el-radio value="automatic">{{
-                  i18ns.t('relay.healthTrackingAutomatic')
-                }}</el-radio>
-                <el-radio value="manual">{{ i18ns.t('relay.healthTrackingManual') }}</el-radio>
-                <el-radio value="disabled">{{ i18ns.t('relay.healthTrackingDisabled') }}</el-radio>
-              </el-radio-group>
-              <div class="text-[#909399] text-xs mt-1">
-                {{ i18ns.t('relay.healthTrackingHelp') }}
-              </div>
-            </el-form-item>
-            <template
-              v-if="
-                channelForm.channelType === 'standalone' &&
-                channelForm.routingConfig.healthTrackingMode === 'manual'
-              "
-            >
-              <el-form-item :label="i18ns.t('relay.healthManualAvailability')" label-width="auto">
-                <el-input-number
-                  v-model="channelForm.routingConfig.manualAvailability"
-                  :min="0"
-                  :max="1"
-                  :step="0.01"
-                  :precision="2"
-                />
-              </el-form-item>
-              <el-form-item :label="i18ns.t('relay.healthManualLatency')" label-width="auto">
-                <el-input-number
-                  v-model="channelForm.routingConfig.manualLatencyMs"
-                  :min="0"
-                  :step="10"
-                />
-              </el-form-item>
-            </template>
             <el-form-item :label="i18ns.t('relay.maxRetries')" label-width="auto">
               <el-input-number v-model="channelForm.routingConfig.maxRetries" :min="0" :step="1" />
             </el-form-item>
@@ -253,10 +213,44 @@
           <div class="ml-3 text-[#909399] text-xs">
             {{ i18ns.t('relay.routingConfigOptionalThresholdsHelp') }}
           </div>
-        </el-form-item>
-      </template>
+          </el-form-item>
+        </template>
 
-      <el-divider content-position="left">{{ i18ns.t('relay.visibilityMode') }}</el-divider>
+        <template v-if="channelForm.channelType === 'standalone'">
+          <el-divider content-position="left">{{ i18ns.t('relay.healthTrackingMode') }}</el-divider>
+          <el-form-item :label="i18ns.t('relay.healthTrackingMode')">
+            <el-radio-group v-model="channelForm.routingConfig.healthTrackingMode">
+              <el-radio value="automatic">{{
+                i18ns.t('relay.healthTrackingAutomatic')
+              }}</el-radio>
+              <el-radio value="manual">{{ i18ns.t('relay.healthTrackingManual') }}</el-radio>
+              <el-radio value="disabled">{{ i18ns.t('relay.healthTrackingDisabled') }}</el-radio>
+            </el-radio-group>
+            <div class="ml-3 text-[#909399] text-xs">
+              {{ i18ns.t('relay.healthTrackingHelp') }}
+            </div>
+          </el-form-item>
+          <template v-if="channelForm.routingConfig.healthTrackingMode === 'manual'">
+            <el-form-item :label="i18ns.t('relay.healthManualAvailability')">
+              <el-input-number
+                v-model="channelForm.routingConfig.manualAvailability"
+                :min="0"
+                :max="1"
+                :step="0.01"
+                :precision="2"
+              />
+            </el-form-item>
+            <el-form-item :label="i18ns.t('relay.healthManualLatency')">
+              <el-input-number
+                v-model="channelForm.routingConfig.manualLatencyMs"
+                :min="0"
+                :step="10"
+              />
+            </el-form-item>
+          </template>
+        </template>
+
+        <el-divider content-position="left">{{ i18ns.t('relay.visibilityMode') }}</el-divider>
       <el-form-item :label="i18ns.t('relay.visibilityMode')">
         <el-select v-model="channelForm.visibilityMode" style="width: 100%">
           <el-option :label="i18ns.t('relay.visibilityModePublic')" value="public" />
@@ -705,7 +699,7 @@
   <el-dialog
     v-model="showChannelDetailDialog"
     :title="channelDetailDialogTitle"
-    :width="isDesktop ? '760px' : '92vw'"
+    :width="isDesktop ? '66vw' : '92vw'"
     append-to-body
     destroy-on-close
     @closed="closeChannelDetailDialog"

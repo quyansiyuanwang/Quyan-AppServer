@@ -100,7 +100,7 @@
         <el-table-column :label="i18ns.t('relay.healthLastSeen')" min-width="170">
           <template #default="{ row }">{{ formatTime(row.lastSeenAt) }}</template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('actions')" width="150" fixed="right">
+        <el-table-column :label="i18ns.t('actions')" width="180" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDrawer(row)">{{
               i18ns.t('relay.healthManage')
