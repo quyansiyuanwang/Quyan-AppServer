@@ -324,6 +324,33 @@ export class DeveloperProductResourceController extends Controller {
     return this.projects.listPushChannels(context.backingProjectId, context.accountOwnerId);
   }
 
+  /** Lists encrypted credential aliases available to this push instance. Values are never returned. */
+  @Get("push/instances/{instanceId}/credential-aliases")
+  @Middlewares(validateParams(productResourceInstanceParamsSchema))
+  public async listPushCredentialAliases(
+    @Path() instanceId: string,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperSecretDto[]> {
+    const context = await this.context(request, "push", instanceId, Permission.PRODUCT_PUSH_CHANNEL_MANAGE);
+    return this.projects.listSecrets(context.backingProjectId, context.accountOwnerId);
+  }
+
+  /** Writes or rotates an encrypted credential alias for this push instance. Values are write-only. */
+  @Post("push/instances/{instanceId}/credential-aliases")
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateParams(productResourceInstanceParamsSchema),
+    validateBody(upsertSecretBodySchema),
+  )
+  public async upsertPushCredentialAlias(
+    @Path() instanceId: string,
+    @Body() body: UpsertDeveloperSecretDto,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperSecretDto> {
+    const context = await this.context(request, "push", instanceId, Permission.PRODUCT_PUSH_CHANNEL_MANAGE);
+    return this.projects.upsertSecret(context.backingProjectId, context.accountOwnerId, body);
+  }
+
   @Get("push/instances/{instanceId}/deliveries")
   @Middlewares(validateParams(productResourceInstanceParamsSchema))
   public async listPushDeliveries(

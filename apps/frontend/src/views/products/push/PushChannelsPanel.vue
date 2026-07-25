@@ -109,8 +109,19 @@
       :result="testResult"
     >
       <el-form-item :label="t('productResources.testChannels')">
-        <el-select v-model="testForm.channelIds" multiple filterable allow-create style="width: 100%">
-          <el-option v-for="channel in channels" :key="channel.id" :label="channel.name" :value="channel.id" />
+        <el-select
+          v-model="testForm.channelIds"
+          multiple
+          filterable
+          allow-create
+          style="width: 100%"
+        >
+          <el-option
+            v-for="channel in channels"
+            :key="channel.id"
+            :label="channel.name"
+            :value="channel.id"
+          />
         </el-select>
       </el-form-item>
       <el-form-item :label="t('productResources.testTitle')">
@@ -150,9 +161,71 @@
         <el-form-item :label="t('productResources.endpoint')"
           ><el-input v-model="form.endpoint"
         /></el-form-item>
-        <el-form-item :label="t('productResources.secretAlias')"
-          ><el-input v-model="form.secretAlias"
-        /></el-form-item>
+        <el-form-item :label="t('productResources.secretAlias')">
+          <el-select
+            v-model="form.secretAlias"
+            clearable
+            filterable
+            :loading="credentialAliasesLoading"
+            :placeholder="t('productResources.pushCredentialAliasPlaceholder')"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="secret in credentialAliases"
+              :key="secret.alias"
+              :label="secret.alias"
+              :value="secret.alias"
+            >
+              <div class="credential-option">
+                <code>{{ secret.alias }}</code>
+                <span>{{
+                  secret.lastUsedAt
+                    ? t('productResources.lastUsed')
+                    : t('productResources.neverUsed')
+                }}</span>
+              </div>
+            </el-option>
+          </el-select>
+          <p class="field-hint">{{ t('productResources.pushCredentialAliasHint') }}</p>
+        </el-form-item>
+        <el-alert type="info" :closable="false" class="credential-explanation">
+          <template #title>{{ t('productResources.pushCredentialPurposeTitle') }}</template>
+          <p>{{ t('productResources.pushCredentialPurpose') }}</p>
+          <p>{{ t('productResources.pushCredentialEndpointHint') }}</p>
+        </el-alert>
+        <div class="credential-writer">
+          <div class="credential-writer__header">
+            <div>
+              <div class="credential-writer__title">
+                {{ t('productResources.pushCredentialWriteTitle') }}
+              </div>
+              <div class="field-hint">{{ t('productResources.pushCredentialWriteHint') }}</div>
+            </div>
+            <el-button text type="primary" @click="toggleCredentialWriter">{{
+              showCredentialWriter
+                ? t('productResources.pushCredentialWriteCancel')
+                : t('productResources.pushCredentialWriteAction')
+            }}</el-button>
+          </div>
+          <el-collapse-transition>
+            <div v-if="showCredentialWriter" class="credential-writer__form">
+              <el-form-item :label="t('productResources.pushCredentialAliasName')">
+                <el-input
+                  v-model="credentialDraft.alias"
+                  maxlength="100"
+                  placeholder="PUSH_BEARER_TOKEN"
+                  @input="normalizeCredentialAlias"
+                />
+              </el-form-item>
+              <el-form-item :label="t('productResources.pushCredentialValue')">
+                <el-input v-model="credentialDraft.value" type="password" show-password />
+              </el-form-item>
+              <el-button type="primary" :loading="credentialSaving" @click="saveCredential">{{
+                t('productResources.pushCredentialWriteAction')
+              }}</el-button>
+            </div>
+          </el-collapse-transition>
+        </div>
       </el-form>
       <template #footer
         ><el-button @click="dialog = false">{{ t('cancel') }}</el-button
@@ -171,6 +244,7 @@ import type {
   DeveloperProductInstanceDto,
   DeveloperPushChannelDto,
   DeveloperPushDeliveryDto,
+  DeveloperSecretDto,
 } from '@/client/types.gen'
 import { Permission } from '@/constant/permission'
 import { developerProductService } from '@/service/developerProductService'
@@ -192,6 +266,11 @@ const deliveryError = ref('')
 const formError = ref('')
 const channels = ref<DeveloperPushChannelDto[]>([])
 const deliveries = ref<DeveloperPushDeliveryDto[]>([])
+const credentialAliases = ref<DeveloperSecretDto[]>([])
+const credentialAliasesLoading = ref(false)
+const credentialSaving = ref(false)
+const showCredentialWriter = ref(false)
+const credentialDraft = ref({ alias: '', value: '' })
 const dialog = ref(false)
 const editing = ref<DeveloperPushChannelDto>()
 const testApiKey = ref('')
@@ -207,6 +286,7 @@ const form = ref({
 })
 let channelSequence = 0
 let deliverySequence = 0
+let credentialAliasesSequence = 0
 
 const canManageChannels = computed(() =>
   props.hasPermission(Permission.PRODUCT_PUSH_CHANNEL_MANAGE),
@@ -261,11 +341,33 @@ const loadDeliveries = async () => {
 }
 
 const load = () => Promise.all([loadChannels(), loadDeliveries()])
+const loadCredentialAliases = async () => {
+  if (!props.instance || !canManageChannels.value) {
+    credentialAliases.value = []
+    return
+  }
+  const instanceId = props.instance.id
+  const sequence = ++credentialAliasesSequence
+  credentialAliasesLoading.value = true
+  try {
+    const aliases = await developerProductService.listPushCredentialAliases(instanceId)
+    if (sequence === credentialAliasesSequence && props.instance?.id === instanceId)
+      credentialAliases.value = aliases
+  } catch (cause) {
+    if (sequence === credentialAliasesSequence)
+      ElMessage.error(getErrorMessage(cause, t('productResources.pushCredentialLoadFailed')))
+  } finally {
+    if (sequence === credentialAliasesSequence) credentialAliasesLoading.value = false
+  }
+}
 const openCreate = () => {
   editing.value = undefined
   form.value = { name: '', type: 'webhook', endpoint: '', secretAlias: '' }
+  credentialDraft.value = { alias: '', value: '' }
+  showCredentialWriter.value = false
   formError.value = ''
   dialog.value = true
+  void loadCredentialAliases()
 }
 const edit = (row: DeveloperPushChannelDto) => {
   editing.value = row
@@ -275,8 +377,48 @@ const edit = (row: DeveloperPushChannelDto) => {
     endpoint: row.endpoint,
     secretAlias: row.secretAlias || '',
   }
+  credentialDraft.value = { alias: row.secretAlias || '', value: '' }
+  showCredentialWriter.value = false
   formError.value = ''
   dialog.value = true
+  void loadCredentialAliases()
+}
+const normalizeCredentialAlias = (value: string) => {
+  credentialDraft.value.alias = value.toUpperCase()
+}
+const toggleCredentialWriter = () => {
+  showCredentialWriter.value = !showCredentialWriter.value
+  if (showCredentialWriter.value && !credentialDraft.value.alias)
+    credentialDraft.value.alias = form.value.secretAlias || ''
+}
+const saveCredential = async () => {
+  if (!props.instance || credentialSaving.value) return
+  const alias = credentialDraft.value.alias.trim()
+  if (!/^[A-Z][A-Z0-9_]{0,99}$/.test(alias) || !credentialDraft.value.value) {
+    formError.value = t('productResources.invalidSecretAlias')
+    return
+  }
+  credentialSaving.value = true
+  try {
+    const saved = await developerProductService.upsertPushCredentialAlias(props.instance.id, {
+      alias,
+      value: credentialDraft.value.value,
+    })
+    credentialAliases.value = [
+      saved,
+      ...credentialAliases.value.filter((candidate) => candidate.alias !== saved.alias),
+    ]
+    form.value.secretAlias = saved.alias
+    credentialDraft.value.value = ''
+    showCredentialWriter.value = false
+    formError.value = ''
+    ElMessage.success(t('productResources.pushCredentialSaved'))
+  } catch (cause) {
+    formError.value = getErrorMessage(cause, t('productFeedback.operationFailed'))
+    ElMessage.error(formError.value)
+  } finally {
+    credentialSaving.value = false
+  }
 }
 const validForm = () => {
   if (!form.value.name.trim()) return t('required')
@@ -382,9 +524,14 @@ const sendTest = async () => {
   }
 }
 
-watch(() => [props.instance?.id, canManageChannels.value, canReadDeliveries.value], load, {
-  immediate: true,
-})
+watch(
+  () => [props.instance?.id, canManageChannels.value, canReadDeliveries.value],
+  () => {
+    void load()
+    void loadCredentialAliases()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
@@ -402,5 +549,40 @@ watch(() => [props.instance?.id, canManageChannels.value, canReadDeliveries.valu
 .toolbar p {
   margin: 0;
   color: var(--el-text-color-secondary);
+}
+.field-hint {
+  margin: 6px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.credential-option,
+.credential-writer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.credential-option span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.credential-explanation {
+  margin: -2px 0 16px;
+}
+.credential-explanation p {
+  margin: 4px 0 0;
+  line-height: 1.55;
+}
+.credential-writer {
+  border-top: 1px solid var(--el-border-color-lighter);
+  padding-top: 12px;
+}
+.credential-writer__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.credential-writer__form {
+  padding-top: 12px;
 }
 </style>

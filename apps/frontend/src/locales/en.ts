@@ -382,6 +382,23 @@ export default {
     secretAlias: 'Secret alias (optional)',
     secretAliasHint:
       'Start with an uppercase letter; use uppercase letters, digits, and underscores only.',
+    pushCredentialAliasPlaceholder: 'Leave empty when Bearer authentication is not needed',
+    pushCredentialAliasHint:
+      'Select a securely stored alias. The credential value is never shown here.',
+    pushCredentialPurposeTitle: 'When is a secret alias needed?',
+    pushCredentialPurpose:
+      'When selected, the platform sends Authorization: Bearer <secret value> with each delivery.',
+    pushCredentialEndpointHint:
+      'DingTalk, Feishu, and WeCom robot tokens are usually part of the Webhook URL, so this can normally remain empty.',
+    pushCredentialWriteTitle: 'Securely save a new channel credential',
+    pushCredentialWriteHint:
+      'The value is written only to encrypted storage. After saving, it can only be referenced by alias and cannot be viewed again.',
+    pushCredentialWriteAction: 'Save credential securely',
+    pushCredentialWriteCancel: 'Collapse',
+    pushCredentialAliasName: 'New secret alias',
+    pushCredentialValue: 'Credential value',
+    pushCredentialSaved: 'Credential saved securely and selected',
+    pushCredentialLoadFailed: 'Failed to load push credential aliases',
     invalidSecretAlias:
       'The secret alias must start with an uppercase letter and contain only uppercase letters, digits, and underscores.',
     deliveryLogs: 'Delivery logs',

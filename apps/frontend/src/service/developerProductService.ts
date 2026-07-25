@@ -193,6 +193,14 @@ export class DeveloperProductService {
   async listPushChannelResources(instanceId: string) {
     return this.unwrap(await resourceApi().listPushChannels({ path: { instanceId } }))
   }
+  async listPushCredentialAliases(instanceId: string) {
+    return this.unwrap(await resourceApi().listPushCredentialAliases({ path: { instanceId } }))
+  }
+  async upsertPushCredentialAlias(instanceId: string, body: { alias: string; value: string }) {
+    return this.unwrap(
+      await resourceApi().upsertPushCredentialAlias({ path: { instanceId }, body }),
+    )
+  }
   async createPushChannelResource(
     instanceId: string,
     body: {

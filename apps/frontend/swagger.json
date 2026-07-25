@@ -19895,6 +19895,90 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/products/push/instances/{instanceId}/credential-aliases": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListPushCredentialAliases",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperSecretDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Lists encrypted credential aliases available to this push instance. Values are never returned.",
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerUpsertPushCredentialAlias",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperSecretDto"
+								}
+							}
+						}
+					}
+				},
+				"description": "Writes or rotates an encrypted credential alias for this push instance. Values are write-only.",
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpsertDeveloperSecretDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/products/push/instances/{instanceId}/deliveries": {
 			"get": {
 				"operationId": "DeveloperProductResourceControllerListPushDeliveries",
