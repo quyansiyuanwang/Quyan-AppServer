@@ -1023,15 +1023,35 @@
             />
           </template>
         </el-table-column>
-        <el-table-column
-          :label="i18ns.t('relay.channelProbeMultiplierChange')"
-          width="138"
-          align="right"
-        >
+        <el-table-column :label="i18ns.t('relay.channelProbeMultiplierChange')" min-width="238">
           <template #default="{ row }">
-            <span :class="multiplierChangeClass(row)">{{
-              formatMultiplierChange(row) + ' · ' + formatMultiplierChangePercent(row)
-            }}</span>
+            <div class="multiplier-change-cell">
+              <span :class="multiplierChangeClass(row)">{{
+                formatMultiplierChange(row) + ' · ' + formatMultiplierChangePercent(row)
+              }}</span>
+              <div
+                class="multiplier-direction-bar"
+                :aria-label="multiplierDirectionLabel(row.currentMultiplier, row.targetMultiplier)"
+                role="img"
+              >
+                <span class="multiplier-direction-label multiplier-direction-label-left">{{
+                  i18ns.t('relay.channelProbePriceDecrease')
+                }}</span>
+                <span class="multiplier-direction-label multiplier-direction-label-center">{{
+                  i18ns.t('relay.channelProbeCurrentMultiplier')
+                }}</span>
+                <span class="multiplier-direction-label multiplier-direction-label-right">{{
+                  i18ns.t('relay.channelProbePriceIncrease')
+                }}</span>
+                <span class="multiplier-direction-track" />
+                <span class="multiplier-direction-zero" />
+                <span
+                  class="multiplier-direction-fill"
+                  :class="multiplierDirectionClass(row.currentMultiplier, row.targetMultiplier)"
+                  :style="multiplierDirectionStyle(row.currentMultiplier, row.targetMultiplier)"
+                />
+              </div>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -1103,9 +1123,9 @@
         >
           <template #default="{ row }">{{ row.targetMultiplier }}x</template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('relay.channelProbeMultiplierChange')" min-width="200">
+        <el-table-column :label="i18ns.t('relay.channelProbeMultiplierChange')" min-width="238">
           <template #default="{ row }">
-            <div class="change-bar-cell">
+            <div class="multiplier-change-cell">
               <span
                 :class="
                   row.change > 0
@@ -1118,11 +1138,28 @@
                   formatChangeValue(row.change) + ' · ' + row.changePercent.toFixed(2) + '%'
                 }}</span
               >
-              <el-progress
-                :percentage="changeBarPercent(row)"
-                :show-text="false"
-                :stroke-width="6"
-              />
+              <div
+                class="multiplier-direction-bar"
+                :aria-label="multiplierDirectionLabel(row.sourceMultiplier, row.targetMultiplier)"
+                role="img"
+              >
+                <span class="multiplier-direction-label multiplier-direction-label-left">{{
+                  i18ns.t('relay.channelProbePriceDecrease')
+                }}</span>
+                <span class="multiplier-direction-label multiplier-direction-label-center">{{
+                  i18ns.t('relay.channelProbeCurrentMultiplier')
+                }}</span>
+                <span class="multiplier-direction-label multiplier-direction-label-right">{{
+                  i18ns.t('relay.channelProbePriceIncrease')
+                }}</span>
+                <span class="multiplier-direction-track" />
+                <span class="multiplier-direction-zero" />
+                <span
+                  class="multiplier-direction-fill"
+                  :class="multiplierDirectionClass(row.sourceMultiplier, row.targetMultiplier)"
+                  :style="multiplierDirectionStyle(row.sourceMultiplier, row.targetMultiplier)"
+                />
+              </div>
             </div>
           </template>
         </el-table-column>
@@ -1808,17 +1845,40 @@ function multiplierChangeClass(draft: ApplyMultiplierDraft) {
   const value = multiplierChange(draft)
   return value > 0 ? 'multiplier-change-up' : value < 0 ? 'multiplier-change-down' : ''
 }
+function multiplierDirectionClass(currentMultiplier: number, targetMultiplier: number) {
+  if (targetMultiplier > currentMultiplier) return 'multiplier-direction-fill-increase'
+  if (targetMultiplier < currentMultiplier) return 'multiplier-direction-fill-decrease'
+  return 'multiplier-direction-fill-neutral'
+}
+function multiplierDirectionStyle(currentMultiplier: number, targetMultiplier: number) {
+  const delta = targetMultiplier - currentMultiplier
+  const relativeChange = currentMultiplier
+    ? Math.abs(delta / currentMultiplier)
+    : delta === 0
+      ? 0
+      : 1
+  const halfWidth = Math.min(relativeChange, 1) * 50
+  return {
+    width: String(halfWidth) + '%',
+    left: String(delta < 0 ? 50 - halfWidth : 50) + '%',
+  }
+}
+function multiplierDirectionLabel(currentMultiplier: number, targetMultiplier: number) {
+  const direction =
+    targetMultiplier > currentMultiplier
+      ? i18ns.t('relay.channelProbePriceIncrease')
+      : targetMultiplier < currentMultiplier
+        ? i18ns.t('relay.channelProbePriceDecrease')
+        : i18ns.t('relay.channelProbeCurrentMultiplier')
+  return [
+    direction,
+    formatNumber(currentMultiplier) + 'x',
+    '->',
+    formatNumber(targetMultiplier) + 'x',
+  ].join(' ')
+}
 function formatChangeValue(value: number) {
   return (value > 0 ? '+' : '') + formatNumber(value) + 'x'
-}
-function changeBarPercent(row: MultiplierChangeRow) {
-  const maximum = multiplierChangeRows.value.reduce(
-    (current, item) =>
-      Math.max(current, Number.isFinite(item.changePercent) ? item.changePercent : 0),
-    0,
-  )
-  if (!maximum || !Number.isFinite(row.changePercent)) return row.changePercent ? 100 : 0
-  return Math.max(2, Math.min(100, (row.changePercent / maximum) * 100))
 }
 function onApplySelectionChange(rows: ApplyMultiplierDraft[]) {
   selectedApplyRunIds.value = rows.map((row) => row.run.id)
@@ -2700,10 +2760,84 @@ onBeforeUnmount(stopPolling)
 .change-analysis-toolbar .el-input-number {
   width: 112px;
 }
-.change-bar-cell {
+.multiplier-change-cell {
   display: grid;
-  min-width: 150px;
+  min-width: 196px;
   gap: 6px;
+}
+.multiplier-direction-bar {
+  position: relative;
+  display: grid;
+  min-width: 196px;
+  height: 26px;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  line-height: 1;
+}
+.multiplier-direction-label {
+  z-index: 2;
+}
+.multiplier-direction-label-left {
+  text-align: left;
+}
+.multiplier-direction-label-center {
+  padding: 0 6px;
+  color: var(--el-text-color-regular);
+  font-weight: 600;
+}
+.multiplier-direction-label-right {
+  text-align: right;
+}
+.multiplier-direction-track,
+.multiplier-direction-fill,
+.multiplier-direction-zero {
+  position: absolute;
+  top: 17px;
+  height: 6px;
+}
+.multiplier-direction-track {
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--el-fill-color-light);
+}
+.multiplier-direction-track::before,
+.multiplier-direction-track::after {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  content: '';
+}
+.multiplier-direction-track::before {
+  left: 0;
+  background: var(--el-color-success-light-8);
+}
+.multiplier-direction-track::after {
+  right: 0;
+  background: var(--el-color-danger-light-8);
+}
+.multiplier-direction-zero {
+  z-index: 2;
+  left: calc(50% - 1px);
+  width: 2px;
+  background: var(--el-text-color-primary);
+}
+.multiplier-direction-fill {
+  z-index: 1;
+  border-radius: 1px;
+}
+.multiplier-direction-fill-decrease {
+  background: var(--el-color-success);
+}
+.multiplier-direction-fill-increase {
+  background: var(--el-color-danger);
+}
+.multiplier-direction-fill-neutral {
+  background: var(--el-color-info);
 }
 .multiplier-change-up {
   color: var(--el-color-success);
