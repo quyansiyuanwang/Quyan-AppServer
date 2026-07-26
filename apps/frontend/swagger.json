@@ -14845,6 +14845,38 @@
 						}
 					}
 				}
+			},
+			"delete": {
+				"operationId": "RelayChannelProbeControllerClearProfile",
+				"responses": {
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/relay-channel-probes/{channelId}/runs": {
@@ -14947,6 +14979,82 @@
 						}
 					}
 				]
+			}
+		},
+		"/v1/relay-channel-probes/{channelId}/runs/reset": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerResetRunState",
+				"responses": {
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channel-probes/runs/batch": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerCreateRuns",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreateRelayChannelProbeRunsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateRelayChannelProbeRunsRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
 			}
 		},
 		"/v1/relay-channel-probes/runs/apply": {
@@ -38934,6 +39042,14 @@
 					"localCurrency": {
 						"type": "string"
 					},
+					"upstreamBalanceDivisor": {
+						"type": "number",
+						"format": "double"
+					},
+					"probeGroup": {
+						"type": "string",
+						"description": "Channels in the same non-empty probe group are calibrated serially."
+					},
 					"distributionMultiplier": {
 						"type": "number",
 						"format": "double"
@@ -38968,6 +39084,7 @@
 					"probePayload",
 					"upstreamCurrency",
 					"localCurrency",
+					"upstreamBalanceDivisor",
 					"distributionMultiplier",
 					"workflow",
 					"credentialNames",
@@ -39092,7 +39209,6 @@
 				"required": [
 					"id",
 					"relayChannelId",
-					"profileId",
 					"status",
 					"queuedAt",
 					"distributionMultiplier",
@@ -39118,6 +39234,20 @@
 						"type": "number",
 						"format": "double"
 					},
+					"allowedProbeFormats": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeFormat"
+						},
+						"type": "array",
+						"description": "Formats that can be used for the minimal AI request on this channel."
+					},
+					"allowedProbeModels": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Explicit model allow-list for the channel. Empty means no channel-level model allow-list."
+					},
 					"profile": {
 						"$ref": "#/components/schemas/RelayChannelProbeProfileDto"
 					},
@@ -39129,7 +39259,9 @@
 					"channelId",
 					"channelName",
 					"enabled",
-					"multiplier"
+					"multiplier",
+					"allowedProbeFormats",
+					"allowedProbeModels"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -39153,6 +39285,15 @@
 					},
 					"localCurrency": {
 						"type": "string"
+					},
+					"upstreamBalanceDivisor": {
+						"type": "number",
+						"format": "double",
+						"description": "Divides the numeric balance extracted from the upstream response before calculating deltas."
+					},
+					"probeGroup": {
+						"type": "string",
+						"description": "Channels in the same non-empty probe group are calibrated serially. Empty clears the group."
 					},
 					"distributionMultiplier": {
 						"type": "number",
@@ -39185,6 +39326,60 @@
 						"format": "double"
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateRelayChannelProbeRunsResponse": {
+				"properties": {
+					"queued": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+						},
+						"type": "array"
+					},
+					"rejected": {
+						"items": {
+							"properties": {
+								"reason": {
+									"type": "string"
+								},
+								"channelId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"reason",
+								"channelId"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"queued",
+					"rejected"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateRelayChannelProbeRunsRequest": {
+				"description": "Queues one probe per standalone channel. Individual channels may be rejected without cancelling the batch.",
+				"properties": {
+					"channelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"distributionMultiplier": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"channelIds"
+				],
 				"type": "object",
 				"additionalProperties": false
 			},

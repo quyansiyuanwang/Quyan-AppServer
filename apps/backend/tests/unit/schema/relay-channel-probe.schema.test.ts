@@ -14,7 +14,21 @@ const validProfile = {
 
 describe("relay channel probe schemas", () => {
   it("accepts a bounded workflow with exactly one balance field", () => {
-    expect(upsertRelayChannelProbeProfileBodySchema.safeParse(validProfile).success).toBe(true);
+    const result = upsertRelayChannelProbeProfileBodySchema.safeParse({
+      ...validProfile,
+      upstreamBalanceDivisor: 1_000_000,
+      probeGroup: "codeflow-main",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.upstreamBalanceDivisor).toBe(1_000_000);
+      expect(result.data.probeGroup).toBe("codeflow-main");
+    }
+  });
+
+  it("rejects an invalid balance divisor or oversized probe group", () => {
+    expect(upsertRelayChannelProbeProfileBodySchema.safeParse({ ...validProfile, upstreamBalanceDivisor: 0 }).success).toBe(false);
+    expect(upsertRelayChannelProbeProfileBodySchema.safeParse({ ...validProfile, probeGroup: "x".repeat(81) }).success).toBe(false);
   });
 
   it("rejects profiles without exactly one balance field", () => {

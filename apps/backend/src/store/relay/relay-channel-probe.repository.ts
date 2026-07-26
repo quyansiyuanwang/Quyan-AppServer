@@ -44,6 +44,10 @@ export class RelayChannelProbeRepository {
     return prisma.relayChannelProbeProfile.upsert(data);
   }
 
+  public deleteProfile(channelId: string) {
+    return prisma.relayChannelProbeProfile.delete({ where: { relayChannelId: channelId } });
+  }
+
   public findActiveRun(channelId: string) {
     return prisma.relayChannelProbeRun.findFirst({
       where: { relayChannelId: channelId, status: { in: ["queued", "running"] } },
@@ -122,8 +126,36 @@ export class RelayChannelProbeRepository {
     });
   }
 
-  public completeRun(runId: string, data: Prisma.RelayChannelProbeRunUpdateInput) {
-    return prisma.relayChannelProbeRun.update({ where: { id: runId }, data });
+  /**
+   * Finalization is ownership-bound so a manually reset task cannot later be
+   * overwritten by an already-running worker.
+   */
+  public completeClaimedRun(runId: string, owner: string, data: Prisma.RelayChannelProbeRunUpdateInput) {
+    return prisma.relayChannelProbeRun.updateMany({
+      where: { id: runId, status: "running", leaseOwner: owner },
+      data,
+    });
+  }
+
+  public async cancelActiveRuns(channelId: string, message: string): Promise<string[]> {
+    return prisma.$transaction(async (tx) => {
+      const active = await tx.relayChannelProbeRun.findMany({
+        where: { relayChannelId: channelId, status: { in: ["queued", "running"] } },
+        select: { id: true },
+      });
+      if (!active.length) return [];
+      await tx.relayChannelProbeRun.updateMany({
+        where: { id: { in: active.map((run) => run.id) }, status: { in: ["queued", "running"] } },
+        data: {
+          status: "cancelled",
+          finishedAt: new Date(),
+          leaseOwner: null,
+          leaseExpiresAt: null,
+          errorMessage: message,
+        },
+      });
+      return active.map((run) => run.id);
+    });
   }
 
   public deleteRunsBefore(before: Date) {

@@ -1,4 +1,18 @@
-import { Body, Controller, Get, Middlewares, Path, Post, Put, Query, Request, Route, Security, Tags } from "@tsoa/runtime";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Middlewares,
+  Path,
+  Post,
+  Put,
+  Query,
+  Request,
+  Route,
+  Security,
+  Tags,
+} from "@tsoa/runtime";
 import { RelayChannelProbeService } from "@/services/relay/relay-channel-probe.service";
 import { Permission } from "@/constant/permission";
 import { RequirePermission } from "@/util/permission/permission-decorator";
@@ -10,6 +24,7 @@ import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/uti
 import {
   applyRelayChannelProbeRunsBodySchema,
   createRelayChannelProbeRunBodySchema,
+  createRelayChannelProbeRunsBodySchema,
   relayChannelProbeChannelParamsSchema,
   relayChannelProbeRunsQuerySchema,
   upsertRelayChannelProbeProfileBodySchema,
@@ -18,6 +33,8 @@ import type {
   ApplyRelayChannelProbeRunsRequest,
   ApplyRelayChannelProbeRunsResponse,
   CreateRelayChannelProbeRunRequest,
+  CreateRelayChannelProbeRunsRequest,
+  CreateRelayChannelProbeRunsResponse,
   RelayChannelProbeOverviewItemDto,
   RelayChannelProbeProfileDto,
   RelayChannelProbeRunDto,
@@ -50,9 +67,33 @@ export class RelayChannelProbeController extends Controller {
   @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
-  @Middlewares(twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }), validateParams(relayChannelProbeChannelParamsSchema), replayProtectionMiddleware, validateBody(upsertRelayChannelProbeProfileBodySchema))
-  public upsertProfile(@Path() channelId: string, @Body() body: UpsertRelayChannelProbeProfileRequest, @Request() request: TypedRequest): Promise<RelayChannelProbeProfileDto> {
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    validateParams(relayChannelProbeChannelParamsSchema),
+    replayProtectionMiddleware,
+    validateBody(upsertRelayChannelProbeProfileBodySchema),
+  )
+  public upsertProfile(
+    @Path() channelId: string,
+    @Body() body: UpsertRelayChannelProbeProfileRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelProbeProfileDto> {
     return this.service.upsertProfile(channelId, body, request.user!.userId);
+  }
+
+  @Delete("{channelId}/profile")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    validateParams(relayChannelProbeChannelParamsSchema),
+    replayProtectionMiddleware,
+  )
+  public async clearProfile(@Path() channelId: string, @Request() request: TypedRequest): Promise<void> {
+    await this.service.clearProfile(channelId, request.user!.userId);
+    this.setStatus(204);
   }
 
   @Post("{channelId}/runs")
@@ -60,17 +101,64 @@ export class RelayChannelProbeController extends Controller {
   @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
-  @Middlewares(twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }), validateParams(relayChannelProbeChannelParamsSchema), replayProtectionMiddleware, validateBody(createRelayChannelProbeRunBodySchema))
-  public async createRun(@Path() channelId: string, @Body() body: CreateRelayChannelProbeRunRequest, @Request() request: TypedRequest): Promise<RelayChannelProbeRunDto> {
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    validateParams(relayChannelProbeChannelParamsSchema),
+    replayProtectionMiddleware,
+    validateBody(createRelayChannelProbeRunBodySchema),
+  )
+  public async createRun(
+    @Path() channelId: string,
+    @Body() body: CreateRelayChannelProbeRunRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelProbeRunDto> {
     this.setStatus(202);
     return this.service.createRun(channelId, body, request.user!.userId);
+  }
+
+  @Post("{channelId}/runs/reset")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    validateParams(relayChannelProbeChannelParamsSchema),
+    replayProtectionMiddleware,
+  )
+  public async resetRunState(@Path() channelId: string, @Request() request: TypedRequest): Promise<void> {
+    await this.service.resetRunState(channelId, request.user!.userId);
+    this.setStatus(204);
+  }
+
+  @Post("runs/batch")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(createRelayChannelProbeRunsBodySchema),
+  )
+  public async createRuns(
+    @Body() body: CreateRelayChannelProbeRunsRequest,
+    @Request() request: TypedRequest,
+  ): Promise<CreateRelayChannelProbeRunsResponse> {
+    this.setStatus(202);
+    return this.service.createRuns(body, request.user!.userId);
   }
 
   @Get("{channelId}/runs")
   @Security("jwt")
   @RequirePermission(Permission.RELAY_CHANNEL_PROBE_READ)
   @Middlewares(validateParams(relayChannelProbeChannelParamsSchema), validateQuery(relayChannelProbeRunsQuerySchema))
-  public listRuns(@Path() channelId: string, @Request() request: TypedRequest, @Query() page?: number, @Query() pageSize?: number): Promise<RelayChannelProbeRunPageDto> {
+  public listRuns(
+    @Path() channelId: string,
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RelayChannelProbeRunPageDto> {
     return this.service.listRuns(channelId, request.user!.userId, page, pageSize);
   }
 
@@ -79,8 +167,15 @@ export class RelayChannelProbeController extends Controller {
   @RequirePermission(Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
-  @Middlewares(twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }), replayProtectionMiddleware, validateBody(applyRelayChannelProbeRunsBodySchema))
-  public applyRuns(@Body() body: ApplyRelayChannelProbeRunsRequest, @Request() request: TypedRequest): Promise<ApplyRelayChannelProbeRunsResponse> {
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(applyRelayChannelProbeRunsBodySchema),
+  )
+  public applyRuns(
+    @Body() body: ApplyRelayChannelProbeRunsRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ApplyRelayChannelProbeRunsResponse> {
     return this.service.applyRuns(body, request.user!.userId);
   }
 }

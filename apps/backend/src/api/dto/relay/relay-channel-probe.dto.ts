@@ -21,6 +21,9 @@ export interface RelayChannelProbeProfileDto {
   probePayload: Record<string, unknown>;
   upstreamCurrency: string;
   localCurrency: string;
+  upstreamBalanceDivisor: number;
+  /** Channels in the same non-empty probe group are calibrated serially. */
+  probeGroup?: string;
   distributionMultiplier: number;
   workflow: RelayChannelProbeWorkflowStepDto[];
   credentialNames: string[];
@@ -35,6 +38,10 @@ export interface UpsertRelayChannelProbeProfileRequest {
   probePayload: Record<string, unknown>;
   upstreamCurrency?: string;
   localCurrency?: string;
+  /** Divides the numeric balance extracted from the upstream response before calculating deltas. */
+  upstreamBalanceDivisor?: number;
+  /** Channels in the same non-empty probe group are calibrated serially. Empty clears the group. */
+  probeGroup?: string;
   distributionMultiplier?: number;
   workflow: RelayChannelProbeWorkflowStepDto[];
   credentials?: Record<string, string>;
@@ -44,10 +51,21 @@ export interface CreateRelayChannelProbeRunRequest {
   distributionMultiplier?: number;
 }
 
+/** Queues one probe per standalone channel. Individual channels may be rejected without cancelling the batch. */
+export interface CreateRelayChannelProbeRunsRequest {
+  channelIds: string[];
+  distributionMultiplier?: number;
+}
+
+export interface CreateRelayChannelProbeRunsResponse {
+  queued: RelayChannelProbeRunDto[];
+  rejected: Array<{ channelId: string; reason: string }>;
+}
+
 export interface RelayChannelProbeRunDto {
   id: string;
   relayChannelId: string;
-  profileId: string;
+  profileId?: string;
   status: RelayChannelProbeRunStatus;
   queuedAt: Date;
   startedAt?: Date;
@@ -85,6 +103,10 @@ export interface RelayChannelProbeOverviewItemDto {
   channelName: string;
   enabled: boolean;
   multiplier: number;
+  /** Formats that can be used for the minimal AI request on this channel. */
+  allowedProbeFormats: RelayChannelProbeFormat[];
+  /** Explicit model allow-list for the channel. Empty means no channel-level model allow-list. */
+  allowedProbeModels: string[];
   profile?: RelayChannelProbeProfileDto;
   latestRun?: RelayChannelProbeRunDto;
 }
