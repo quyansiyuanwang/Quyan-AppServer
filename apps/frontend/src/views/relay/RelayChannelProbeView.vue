@@ -843,7 +843,7 @@
     <el-dialog
       v-model="applyDialogOpen"
       :title="i18ns.t('relay.channelProbeApplyDialogTitle')"
-      width="min(980px, 94vw)"
+      width="min(70vw, 94vw)"
       append-to-body
       :close-on-click-modal="false"
     >
@@ -860,9 +860,52 @@
         <el-button plain @click="roundDraftMultipliers">{{
           i18ns.t('relay.channelProbeRoundAll')
         }}</el-button>
+        <span class="calibration-toolbar-divider" />
+        <span>{{ i18ns.t('relay.channelProbeSelectionTolerance') }}</span>
+        <el-input-number
+          v-model="selectionTolerancePercent"
+          :min="0"
+          :max="100"
+          :step="0.1"
+          :precision="2"
+        />
+        <span>%</span>
+        <el-select v-model="selectionDirection" class="selection-direction">
+          <el-option value="all" :label="i18ns.t('relay.channelProbeSelectionAll')" />
+          <el-option value="increase" :label="i18ns.t('relay.channelProbeSelectionIncrease')" />
+          <el-option value="decrease" :label="i18ns.t('relay.channelProbeSelectionDecrease')" />
+        </el-select>
+        <el-button type="primary" plain @click="selectEligibleDrafts">{{
+          i18ns.t('relay.channelProbeSelectEligible')
+        }}</el-button>
+        <el-button link @click="clearDraftSelection">{{
+          i18ns.t('relay.channelProbeClearSelection')
+        }}</el-button>
+        <span class="selected-draft-summary">{{
+          i18ns.t('relay.channelProbeSelected', { count: selectedApplyRunIds.length })
+        }}</span>
       </div>
-      <el-table :data="applyDrafts" max-height="420" class="w-full">
+      <el-table
+        ref="applyTableRef"
+        :data="applyDrafts"
+        row-key="run.id"
+        max-height="440"
+        class="w-full"
+        @selection-change="onApplySelectionChange"
+      >
+        <el-table-column type="selection" width="46" reserve-selection />
         <el-table-column prop="channelName" :label="i18ns.t('relay.channelName')" min-width="140" />
+        <el-table-column
+          :label="i18ns.t('relay.channelProbeCostFactors')"
+          width="148"
+          align="right"
+        >
+          <template #default="{ row }">{{
+            formatNumber(row.run.upstreamRateMultiplier) +
+            ' × ' +
+            formatNumber(row.run.distributionMultiplier)
+          }}</template>
+        </el-table-column>
         <el-table-column :label="i18ns.t('relay.channelMultiplier')" width="126" align="right">
           <template #default="{ row }">{{ row.currentMultiplier }}x</template>
         </el-table-column>
@@ -875,6 +918,9 @@
           align="right"
         >
           <template #default="{ row }">{{ formatNumber(row.run.upstreamBalanceDelta) }}</template>
+        </el-table-column>
+        <el-table-column :label="i18ns.t('relay.channelProbeTargetCost')" width="142" align="right">
+          <template #default="{ row }">{{ formatNumber(targetLocalCost(row.run)) }}</template>
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.channelProbeBaseCost')" width="132" align="right">
           <template #default="{ row }">{{ formatNumber(row.run.baseLocalCost) }}</template>
@@ -892,12 +938,29 @@
             />
           </template>
         </el-table-column>
+        <el-table-column
+          :label="i18ns.t('relay.channelProbeMultiplierChange')"
+          width="138"
+          align="right"
+        >
+          <template #default="{ row }">
+            <span :class="multiplierChangeClass(row)">{{
+              formatMultiplierChange(row) + ' · ' + formatMultiplierChangePercent(row)
+            }}</span>
+          </template>
+        </el-table-column>
       </el-table>
       <template #footer>
         <el-button @click="applyDialogOpen = false">{{ i18ns.t('cancel') }}</el-button>
-        <el-button type="primary" :loading="applying" @click="submitApplyMultipliers">{{
-          i18ns.t('relay.channelProbeApply')
-        }}</el-button>
+        <el-button
+          type="primary"
+          :disabled="selectedApplyRunIds.length === 0"
+          :loading="applying"
+          @click="submitApplyMultipliers"
+          >{{
+            i18ns.t('relay.channelProbeApplySelected', { count: selectedApplyRunIds.length })
+          }}</el-button
+        >
       </template>
     </el-dialog>
   </main>
@@ -984,6 +1047,10 @@ const applying = ref(false)
 const applyDialogOpen = ref(false)
 const roundingDigits = ref(6)
 const applyDrafts = ref<ApplyMultiplierDraft[]>([])
+const applyTableRef = ref<TableInstance>()
+const selectedApplyRunIds = ref<string[]>([])
+const selectionTolerancePercent = ref(1)
+const selectionDirection = ref<'all' | 'increase' | 'decrease'>('all')
 const batchRunning = ref(false)
 const runsLoading = ref(false)
 const runningId = ref('')
@@ -1423,6 +1490,53 @@ function roundDraftMultipliers() {
   for (const draft of applyDrafts.value)
     draft.targetMultiplier = Math.ceil((draft.targetMultiplier - Number.EPSILON) * factor) / factor
 }
+function targetLocalCost(run: RelayChannelProbeRunDto) {
+  const delta = Number(run.upstreamBalanceDelta ?? 0)
+  const upstreamRate = Number(run.upstreamRateMultiplier ?? 1)
+  const distribution = Number(run.distributionMultiplier ?? 1)
+  const result = delta * upstreamRate * distribution
+  return Number.isFinite(result) ? result : undefined
+}
+function multiplierChange(draft: ApplyMultiplierDraft) {
+  return draft.targetMultiplier - draft.currentMultiplier
+}
+function multiplierChangePercent(draft: ApplyMultiplierDraft) {
+  if (!draft.currentMultiplier) return multiplierChange(draft) === 0 ? 0 : Number.POSITIVE_INFINITY
+  return (Math.abs(multiplierChange(draft)) / Math.abs(draft.currentMultiplier)) * 100
+}
+function formatMultiplierChange(draft: ApplyMultiplierDraft) {
+  const value = multiplierChange(draft)
+  return (value > 0 ? '+' : '') + formatNumber(value) + 'x'
+}
+function formatMultiplierChangePercent(draft: ApplyMultiplierDraft) {
+  const value = multiplierChangePercent(draft)
+  return Number.isFinite(value) ? value.toFixed(2) + '%' : '∞'
+}
+function multiplierChangeClass(draft: ApplyMultiplierDraft) {
+  const value = multiplierChange(draft)
+  return value > 0 ? 'multiplier-change-up' : value < 0 ? 'multiplier-change-down' : ''
+}
+function onApplySelectionChange(rows: ApplyMultiplierDraft[]) {
+  selectedApplyRunIds.value = rows.map((row) => row.run.id)
+}
+function clearDraftSelection() {
+  applyTableRef.value?.clearSelection()
+  selectedApplyRunIds.value = []
+}
+function isEligibleDraft(draft: ApplyMultiplierDraft) {
+  const change = multiplierChange(draft)
+  const directionMatches =
+    selectionDirection.value === 'all' ||
+    (selectionDirection.value === 'increase' && change > 0) ||
+    (selectionDirection.value === 'decrease' && change < 0)
+  return directionMatches && multiplierChangePercent(draft) > selectionTolerancePercent.value
+}
+async function selectEligibleDrafts() {
+  clearDraftSelection()
+  await nextTick()
+  for (const draft of applyDrafts.value)
+    if (isEligibleDraft(draft)) applyTableRef.value?.toggleRowSelection(draft, true)
+}
 function parseObject(value: string, label: string): Record<string, unknown> {
   try {
     const parsed: unknown = JSON.parse(value || '{}')
@@ -1794,11 +1908,17 @@ async function confirmApply(runIds: string[]) {
   if (!drafts.length) return ElMessage.warning(i18ns.t('relay.channelProbeApplyUnavailable'))
   applyDrafts.value = drafts
   applyDialogOpen.value = true
+  await nextTick()
+  await selectEligibleDrafts()
 }
 async function submitApplyMultipliers() {
-  if (!applyDrafts.value.length || applying.value) return
+  const selectedDrafts = applyDrafts.value.filter((draft) =>
+    selectedApplyRunIds.value.includes(draft.run.id),
+  )
+  if (!selectedDrafts.length || applying.value)
+    return ElMessage.warning(i18ns.t('relay.channelProbeSelectionRequired'))
   if (
-    applyDrafts.value.some(
+    selectedDrafts.some(
       (draft) =>
         !Number.isFinite(draft.targetMultiplier) ||
         draft.targetMultiplier < 0.000001 ||
@@ -1806,15 +1926,15 @@ async function submitApplyMultipliers() {
     )
   )
     return ElMessage.warning(i18ns.t('relay.channelProbeTargetMultiplierInvalid'))
-  const runIds = applyDrafts.value.map((draft) => draft.run.id)
+  const runIds = selectedDrafts.map((draft) => draft.run.id)
   const targetMultiplierByRunId = new Map(
-    applyDrafts.value.map((draft) => [draft.run.id, draft.targetMultiplier]),
+    selectedDrafts.map((draft) => [draft.run.id, draft.targetMultiplier]),
   )
   applying.value = true
   try {
     const result = await relayChannelProbeService.applyRuns({
       runIds,
-      overrides: applyDrafts.value.map((draft) => ({
+      overrides: selectedDrafts.map((draft) => ({
         runId: draft.run.id,
         multiplier: draft.targetMultiplier,
       })),
@@ -1844,11 +1964,18 @@ async function submitApplyMultipliers() {
     }
     if (selected.value && appliedRunIds.some((runId) => runs.value.some((run) => run.id === runId)))
       await loadRuns()
-    if (rejectedRunIds.size) {
-      applyDrafts.value = applyDrafts.value.filter((draft) => rejectedRunIds.has(draft.run.id))
+    const remainingDrafts = applyDrafts.value.filter(
+      (draft) => !appliedRunIds.includes(draft.run.id),
+    )
+    if (remainingDrafts.length) {
+      applyDrafts.value = remainingDrafts
+      selectedApplyRunIds.value = remainingDrafts
+        .filter((draft) => rejectedRunIds.has(draft.run.id))
+        .map((draft) => draft.run.id)
     } else {
       applyDialogOpen.value = false
       applyDrafts.value = []
+      selectedApplyRunIds.value = []
       clearSelection()
     }
   } catch (error) {
@@ -2195,6 +2322,27 @@ onBeforeUnmount(stopPolling)
 .calibration-toolbar .el-input-number {
   width: 112px;
 }
+.selection-direction {
+  width: 128px;
+}
+.calibration-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  margin: 0 2px;
+  background: var(--el-border-color);
+}
+.selected-draft-summary {
+  margin-left: auto;
+  color: var(--el-color-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.multiplier-change-up {
+  color: var(--el-color-success);
+}
+.multiplier-change-down {
+  color: var(--el-color-danger);
+}
 .workflow-step-title {
   display: flex;
   min-width: 0;
@@ -2358,6 +2506,10 @@ onBeforeUnmount(stopPolling)
   }
   .calibration-toolbar {
     justify-content: flex-start;
+  }
+  .selected-draft-summary {
+    width: 100%;
+    margin-left: 0;
   }
   .section-heading {
     grid-template-columns: 1fr;
