@@ -5,9 +5,14 @@
         <h1>{{ i18ns.t('relay.channelProbeTitle') }}</h1>
         <p>{{ i18ns.t('relay.channelProbeDescription') }}</p>
       </div>
-      <el-button :icon="Refresh" :loading="loading" @click="loadOverview">{{
-        i18ns.t('refresh')
-      }}</el-button>
+      <div class="page-header-actions">
+        <el-button plain @click="changeDialogOpen = true">{{
+          i18ns.t('relay.channelProbeChangeAnalysis')
+        }}</el-button>
+        <el-button :icon="Refresh" :loading="loading" @click="loadOverview">{{
+          i18ns.t('refresh')
+        }}</el-button>
+      </div>
     </header>
 
     <el-alert
@@ -963,6 +968,107 @@
         >
       </template>
     </el-dialog>
+    <el-dialog
+      v-model="changeDialogOpen"
+      :title="i18ns.t('relay.channelProbeChangeAnalysis')"
+      width="min(1180px, 94vw)"
+      append-to-body
+    >
+      <div class="change-analysis-toolbar">
+        <el-select v-model="changeSort">
+          <el-option value="largest" :label="i18ns.t('relay.channelProbeChangeLargest')" />
+          <el-option value="smallest" :label="i18ns.t('relay.channelProbeChangeSmallest')" />
+          <el-option value="recent" :label="i18ns.t('relay.channelProbeChangeRecent')" />
+        </el-select>
+        <el-select v-model="changeDirection">
+          <el-option value="all" :label="i18ns.t('relay.channelProbeSelectionAll')" />
+          <el-option value="increase" :label="i18ns.t('relay.channelProbeSelectionIncrease')" />
+          <el-option value="decrease" :label="i18ns.t('relay.channelProbeSelectionDecrease')" />
+        </el-select>
+        <span>{{ i18ns.t('relay.channelProbeSelectionTolerance') }}</span>
+        <el-input-number
+          v-model="changeMinimumPercent"
+          :min="0"
+          :max="100000"
+          :step="0.1"
+          :precision="2"
+        />
+        <span>%</span>
+        <span class="selected-draft-summary">{{
+          i18ns.t('relay.channelProbeChangeCount', { count: multiplierChangeRows.length })
+        }}</span>
+      </div>
+      <el-table :data="pagedMultiplierChangeRows" max-height="500" class="w-full">
+        <el-table-column prop="channelName" :label="i18ns.t('relay.channelName')" min-width="150" />
+        <el-table-column :label="i18ns.t('relay.channelProbeChangeType')" width="108">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.applied ? 'success' : 'warning'">{{
+              row.applied
+                ? i18ns.t('relay.channelProbeSuggestionApplied')
+                : i18ns.t('relay.channelProbeSuggestion')
+            }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column
+          :label="i18ns.t('relay.channelProbeChangeBefore')"
+          width="118"
+          align="right"
+        >
+          <template #default="{ row }">{{ row.sourceMultiplier }}x</template>
+        </el-table-column>
+        <el-table-column
+          :label="i18ns.t('relay.channelProbeChangeAfter')"
+          width="118"
+          align="right"
+        >
+          <template #default="{ row }">{{ row.targetMultiplier }}x</template>
+        </el-table-column>
+        <el-table-column :label="i18ns.t('relay.channelProbeMultiplierChange')" min-width="200">
+          <template #default="{ row }">
+            <div class="change-bar-cell">
+              <span
+                :class="
+                  row.change > 0
+                    ? 'multiplier-change-up'
+                    : row.change < 0
+                      ? 'multiplier-change-down'
+                      : ''
+                "
+                >{{
+                  formatChangeValue(row.change) + ' · ' + row.changePercent.toFixed(2) + '%'
+                }}</span
+              >
+              <el-progress
+                :percentage="changeBarPercent(row)"
+                :show-text="false"
+                :stroke-width="6"
+              />
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column
+          :label="i18ns.t('relay.channelProbeCostFactors')"
+          width="148"
+          align="right"
+        >
+          <template #default="{ row }">{{ row.costFactors }}</template>
+        </el-table-column>
+        <el-table-column :label="i18ns.t('relay.channelProbeTargetCost')" width="138" align="right">
+          <template #default="{ row }">{{ formatNumber(row.targetCost) }}</template>
+        </el-table-column>
+        <el-table-column :label="i18ns.t('relay.channelProbeChangeTime')" width="168">
+          <template #default="{ row }">{{ formatDate(row.time) }}</template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        v-model:current-page="changePage"
+        v-model:page-size="changePageSize"
+        class="mt-4 justify-end"
+        layout="total, sizes, prev, pager, next"
+        :page-sizes="[20, 50, 100]"
+        :total="multiplierChangeRows.length"
+      />
+    </el-dialog>
   </main>
 </template>
 
@@ -1019,6 +1125,18 @@ interface ApplyMultiplierDraft {
   currentMultiplier: number
   targetMultiplier: number
 }
+interface MultiplierChangeRow {
+  channelId: string
+  channelName: string
+  sourceMultiplier: number
+  targetMultiplier: number
+  change: number
+  changePercent: number
+  applied: boolean
+  costFactors: string
+  targetCost?: number
+  time: string | Date
+}
 interface ProbeProfileExport {
   version: 1
   type: 'relay-channel-probe-profile'
@@ -1051,6 +1169,12 @@ const applyTableRef = ref<TableInstance>()
 const selectedApplyRunIds = ref<string[]>([])
 const selectionTolerancePercent = ref(1)
 const selectionDirection = ref<'all' | 'increase' | 'decrease'>('all')
+const changeDialogOpen = ref(false)
+const changeSort = ref<'largest' | 'smallest' | 'recent'>('largest')
+const changeDirection = ref<'all' | 'increase' | 'decrease'>('all')
+const changeMinimumPercent = ref(0)
+const changePage = ref(1)
+const changePageSize = ref(50)
 const batchRunning = ref(false)
 const runsLoading = ref(false)
 const runningId = ref('')
@@ -1103,6 +1227,49 @@ const filteredItems = computed(() =>
     return matchKeyword && matchProfile && matchEnabled && matchRun && matchSuggestion
   }),
 )
+const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
+  const rows = items.value.flatMap((item) => {
+    const run = item.latestRun
+    const sourceMultiplier = Number(run?.sourceChannelMultiplier)
+    const targetMultiplier = Number(run?.appliedMultiplier ?? run?.suggestedMultiplier)
+    if (!run || !Number.isFinite(sourceMultiplier) || !Number.isFinite(targetMultiplier)) return []
+    const change = targetMultiplier - sourceMultiplier
+    const changePercent = sourceMultiplier
+      ? (Math.abs(change) / Math.abs(sourceMultiplier)) * 100
+      : change === 0
+        ? 0
+        : Number.POSITIVE_INFINITY
+    const matchesDirection =
+      changeDirection.value === 'all' ||
+      (changeDirection.value === 'increase' && change > 0) ||
+      (changeDirection.value === 'decrease' && change < 0)
+    if (!matchesDirection || changePercent <= changeMinimumPercent.value) return []
+    return [
+      {
+        channelId: item.channelId,
+        channelName: item.channelName,
+        sourceMultiplier,
+        targetMultiplier,
+        change,
+        changePercent,
+        applied: Boolean(run.appliedAt),
+        costFactors:
+          formatNumber(run.upstreamRateMultiplier) + ' × ' + formatNumber(run.distributionMultiplier),
+        targetCost: targetLocalCost(run),
+        time: run.appliedAt ?? run.finishedAt ?? run.createTime,
+      },
+    ]
+  })
+  return rows.sort((left, right) => {
+    if (changeSort.value === 'largest') return right.changePercent - left.changePercent
+    if (changeSort.value === 'smallest') return left.changePercent - right.changePercent
+    return new Date(right.time).getTime() - new Date(left.time).getTime()
+  })
+})
+const pagedMultiplierChangeRows = computed(() => {
+  const start = (changePage.value - 1) * changePageSize.value
+  return multiplierChangeRows.value.slice(start, start + changePageSize.value)
+})
 const selectedRuns = computed(() =>
   selectedRows.value.flatMap((row) => (isApplicable(row.latestRun) ? [row.latestRun!.id] : [])),
 )
@@ -1515,6 +1682,18 @@ function formatMultiplierChangePercent(draft: ApplyMultiplierDraft) {
 function multiplierChangeClass(draft: ApplyMultiplierDraft) {
   const value = multiplierChange(draft)
   return value > 0 ? 'multiplier-change-up' : value < 0 ? 'multiplier-change-down' : ''
+}
+function formatChangeValue(value: number) {
+  return (value > 0 ? '+' : '') + formatNumber(value) + 'x'
+}
+function changeBarPercent(row: MultiplierChangeRow) {
+  const maximum = multiplierChangeRows.value.reduce(
+    (current, item) =>
+      Math.max(current, Number.isFinite(item.changePercent) ? item.changePercent : 0),
+    0,
+  )
+  if (!maximum || !Number.isFinite(row.changePercent)) return row.changePercent ? 100 : 0
+  return Math.max(2, Math.min(100, (row.changePercent / maximum) * 100))
 }
 function onApplySelectionChange(rows: ApplyMultiplierDraft[]) {
   selectedApplyRunIds.value = rows.map((row) => row.run.id)
@@ -1997,6 +2176,9 @@ function stopPolling() {
   pollTimer = undefined
 }
 watch([keyword, profileFilter, enabledFilter, runStatusFilter, suggestionFilter], clearSelection)
+watch([changeSort, changeDirection, changeMinimumPercent, changePageSize], () => {
+  changePage.value = 1
+})
 onMounted(loadOverview)
 onBeforeUnmount(stopPolling)
 </script>
@@ -2022,6 +2204,11 @@ onBeforeUnmount(stopPolling)
 .page-header p {
   margin: 6px 0 0;
   color: var(--el-text-color-secondary);
+}
+.page-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
 }
 .probe-filters {
   display: grid;
@@ -2337,6 +2524,26 @@ onBeforeUnmount(stopPolling)
   font-size: 12px;
   font-weight: 600;
 }
+.change-analysis-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+.change-analysis-toolbar .el-select {
+  width: 132px;
+}
+.change-analysis-toolbar .el-input-number {
+  width: 112px;
+}
+.change-bar-cell {
+  display: grid;
+  min-width: 150px;
+  gap: 6px;
+}
 .multiplier-change-up {
   color: var(--el-color-success);
 }
@@ -2485,6 +2692,9 @@ onBeforeUnmount(stopPolling)
   }
   .page-header {
     flex-direction: column;
+  }
+  .page-header-actions {
+    width: 100%;
   }
   .probe-filters,
   .request-config-grid,

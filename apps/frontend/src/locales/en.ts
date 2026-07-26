@@ -2571,6 +2571,15 @@ export default {
     channelHealthManagementDescription:
       'Review live health statistics and choose automatic tracking, manual scoring, or no health ranking.',
     channelProbeTitle: 'Standalone Channel Balance Probes',
+    channelProbeChangeAnalysis: 'Multiplier changes',
+    channelProbeChangeLargest: 'Largest changes',
+    channelProbeChangeSmallest: 'Smallest changes',
+    channelProbeChangeRecent: 'Most recent',
+    channelProbeChangeCount: '{count} matching changes',
+    channelProbeChangeType: 'Change type',
+    channelProbeChangeBefore: 'Before',
+    channelProbeChangeAfter: 'After',
+    channelProbeChangeTime: 'Change time',
     channelProbeDescription:
       'Read upstream balances and run a minimal request to calculate a channel multiplier.',
     channelProbeQueueNotice:
