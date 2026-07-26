@@ -1627,8 +1627,9 @@ function suggestionUnavailableReason(run: RelayChannelProbeRunDto) {
       local: profile.localCurrency,
     })
   if (!run.totalTokens) return i18ns.t('relay.channelProbeSuggestionMissingUsage')
-  if (!run.upstreamBalanceDelta || run.upstreamBalanceDelta <= 0)
+  if (run.upstreamBalanceDelta == null || run.upstreamBalanceDelta === 0)
     return i18ns.t('relay.channelProbeSuggestionNoDelta')
+  if (run.upstreamBalanceDelta < 0) return i18ns.t('relay.channelProbeSuggestionBalanceIncreased')
   if (!run.baseLocalCost || run.baseLocalCost <= 0)
     return i18ns.t('relay.channelProbeSuggestionNoBaseCost')
   return i18ns.t('relay.channelProbeSuggestionUnavailable')
