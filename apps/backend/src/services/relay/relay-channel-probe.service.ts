@@ -580,7 +580,9 @@ export class RelayChannelProbeService {
         this.activeRunIds.add(candidate.id);
         this.activeSchedulingScopes.add(scope);
         void this.executeRun(candidate.id, owner)
-          .catch((error) => logger.error("Relay channel probe worker crashed", { runId: candidate.id, error: this.safeError(error) }))
+          .catch((error) =>
+            logger.error("Relay channel probe worker crashed", { runId: candidate.id, error: this.safeError(error) }),
+          )
           .finally(() => {
             this.activeRunIds.delete(candidate.id);
             this.activeSchedulingScopes.delete(scope);
