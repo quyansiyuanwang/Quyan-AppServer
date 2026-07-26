@@ -10,62 +10,6 @@ type StorageLikeKey = DeepValues<typeof StorageKey> | string
  */
 export class TypedLocalStorage {
   /**
-   * 递归检查两个值是否具有相同的类型结构
-   * @param nowValue 当前值
-   * @param defaultValue 默认值
-   * @returns 如果类型结构匹配返回 true, 否则返回 false
-   */
-  private static checkTypesMatch(nowValue: any, defaultValue: any): boolean {
-    // 处理 null 和 undefined
-    if (defaultValue === null) {
-      return nowValue === null || typeof nowValue === 'object'
-    } else if (defaultValue === undefined) {
-      return true
-    } else if (nowValue === null || nowValue === undefined) {
-      return false
-    }
-
-    // 基本类型比较
-    if (typeof nowValue !== typeof defaultValue) {
-      return false
-    }
-
-    // 如果是基本类型且类型相同, 则通过
-    if (typeof nowValue !== 'object') {
-      return true
-    }
-
-    // 数组处理
-    if (Array.isArray(nowValue) || Array.isArray(defaultValue)) {
-      if (!Array.isArray(nowValue) || !Array.isArray(defaultValue)) {
-        return false
-      }
-      // 对于空数组, 无法检查元素类型, 假设类型匹配
-      if (nowValue.length === 0 || defaultValue.length === 0) {
-        return true
-      }
-      // 检查数组元素类型是否匹配
-      return this.checkTypesMatch(nowValue[0], defaultValue[0])
-    }
-
-    // 对象处理
-    const keys1 = Object.keys(nowValue)
-    const keys2 = Object.keys(defaultValue)
-
-    // 检查所有键是否相同且对应的值类型匹配
-    for (const key of keys2) {
-      if (!keys1.includes(key)) {
-        return false // 如果 value2 里存在键但 value1 中不存在, 则不匹配; 反之则为可选参数
-      }
-      if (!this.checkTypesMatch(nowValue[key], defaultValue[key])) {
-        return false
-      }
-    }
-
-    return true
-  }
-
-  /**
    * 深拷贝对象
    * 需要存到 localStorage 中的值, 不存在循环引用
    */

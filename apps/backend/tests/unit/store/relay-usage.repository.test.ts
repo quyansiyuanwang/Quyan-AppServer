@@ -6,6 +6,9 @@ const prismaMock = vi.hoisted(() => ({
     findMany: vi.fn(),
     count: vi.fn(),
   },
+  relayLogicalRequest: {
+    groupBy: vi.fn(),
+  },
   balanceTransaction: {
     groupBy: vi.fn(),
     findMany: vi.fn(),
@@ -62,6 +65,10 @@ describe("RelayUsageRepository", () => {
       { id: "usage-2", relayTokenId: "token-1" },
       { id: "usage-3", relayTokenId: "token-2" },
     ]);
+    prismaMock.relayLogicalRequest.groupBy.mockResolvedValue([
+      { relayTokenId: "token-1", _count: { _all: 1 } },
+      { relayTokenId: "token-2", _count: { _all: 1 } },
+    ]);
     prismaMock.balanceTransaction.groupBy.mockResolvedValue([
       { relatedId: "usage-1", _sum: { amount: -3 } },
       { relatedId: "usage-2", _sum: { amount: -2 } },
@@ -75,11 +82,12 @@ describe("RelayUsageRepository", () => {
     const result = await repository.aggregateByRelayTokenIds(["token-1", "token-2"]);
 
     expect(prismaMock.relayUsage.groupBy).toHaveBeenCalledTimes(1);
+    expect(prismaMock.relayLogicalRequest.groupBy).toHaveBeenCalledTimes(1);
     expect(prismaMock.relayUsage.findMany).toHaveBeenCalledTimes(1);
     expect(result).toEqual([
       {
         relayTokenId: "token-1",
-        requestCount: 2,
+        requestCount: 1,
         requestTokens: 15,
         responseTokens: 35,
         totalTokens: 50,

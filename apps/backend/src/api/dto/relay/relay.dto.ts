@@ -250,6 +250,8 @@ export interface RelayTokenDto {
   ipWhitelist?: string;
   modelMapping?: Record<string, string>;
   channelConfigs: RelayTokenChannelConfigDto[];
+  /** True when legacy ordered configuration still references an automatic pool. */
+  hasInvalidOrderedChannels?: boolean;
   failoverConfig?: RelayTokenFailoverConfigDto;
 }
 

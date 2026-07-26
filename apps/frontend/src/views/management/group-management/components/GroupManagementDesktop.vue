@@ -71,7 +71,10 @@
                   i18ns.t('edit')
                 }}</el-button>
               </PermissionWrapper>
-              <PermissionWrapper :require="[Permission.GROUP_PERMISSION_ADD]" mode="disabled">
+              <PermissionWrapper
+                :any-require="[Permission.GROUP_PERMISSION_ADD, Permission.GROUP_PERMISSION_REMOVE]"
+                mode="disabled"
+              >
                 <el-button link type="primary" @click="handleEditPermissions(row)">
                   {{ i18ns.t('GroupManagement.permissions') }}
                 </el-button>

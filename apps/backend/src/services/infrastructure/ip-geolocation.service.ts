@@ -21,7 +21,7 @@ interface BaiduGeoResponse {
 }
 
 /**
- * IP geolocation lookup with Redis caching (7-day TTL).
+ * IP geolocation lookup with Redis caching (24-hour TTL).
  * Uses Baidu open data API. Falls back to "未知地区" on any error.
  */
 export class IpGeolocationService {
@@ -36,7 +36,7 @@ export class IpGeolocationService {
 
   /**
    * Returns a human-readable location string for the given IP.
-   * Result is cached in Redis for 7 days.
+   * Result is cached in Redis for 24 hours.
    */
   async getLocation(ip: string): Promise<string> {
     if (!ip || ip === "127.0.0.1" || ip === "::1" || ip.startsWith("192.168.") || ip.startsWith("10."))

@@ -447,8 +447,8 @@ const featureSwitch = ref(localStorage.getItem(LS.featureSwitch) !== '0')
 const previewMode = ref(localStorage.getItem(LS.previewMode) === '1')
 const runMode = ref<AprilRunMode>(loadRunMode())
 const passiveEggs = ref<PassiveEggConfig[]>(loadPassiveConfig(runMode.value))
-const isPreviewMode = computed(() => previewMode.value)
-const isEnvEnabled = computed(() => (import.meta.env.VITE_APRIL_FOOL_ENABLED ?? 'true') !== 'false')
+const isPreviewMode = computed(() => import.meta.env.DEV && isDebugRoute.value && previewMode.value)
+const isEnvEnabled = computed(() => import.meta.env.VITE_APRIL_FOOL_ENABLED === 'true')
 const isInSafeRoute = computed(
   () =>
     !String(route.name || '')

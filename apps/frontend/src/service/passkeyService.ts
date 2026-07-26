@@ -16,7 +16,7 @@ interface PasskeyTwoFactorChallenge {
 
 interface PasskeyAuthSuccessPayload {
   access_token: string
-  refresh_token: string
+  refresh_token?: string
 }
 
 export class PasskeyService {
@@ -58,7 +58,7 @@ export class PasskeyService {
   }
 
   isAuthSuccessPayload(data: unknown): data is PasskeyAuthSuccessPayload {
-    return !!data && typeof data === 'object' && 'access_token' in data && 'refresh_token' in data
+    return !!data && typeof data === 'object' && 'access_token' in data
   }
 
   async verifyAuth(

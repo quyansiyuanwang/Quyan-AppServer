@@ -2,6 +2,7 @@ import type {
   BatchDeleteRelayChannelsRequest,
   BatchRelayChannelsResultDto,
   BatchSetRelayChannelStatusRequest,
+  BatchUpdateRelayChannelHealthConfigRequest,
   CreateRelayChannelRequest,
   DuplicateRelayChannelRequest,
   ExportRelayChannelsRequest,
@@ -15,10 +16,17 @@ import type {
   RelayChannelImportItemDto,
   RelayChannelAllowedModelsMode,
   RelayAutomaticProxyPoolOptionDto,
+  RelayAutomaticPoolHealthDto,
+  RelayAutomaticPoolHealthMemberDto,
+  RelayChannelHealthDto,
+  RelayChannelHealthOverviewDto,
+  RelayChannelHealthOverviewItemDto,
+  RelayChannelHealthTrackingMode,
   RelayPoolPricingMemberOptionDto,
   RelayPoolPricingOptionDto,
   TimePeriodMultiplierRule,
   UpdateRelayChannelRequest,
+  UpdateRelayChannelHealthConfigRequest,
   RelayChannelMemberDto,
   RelayChannelRoutingConfigDto,
   RelayChannelRoutingStrategy,
@@ -52,6 +60,7 @@ import type { Request } from "express";
 import { ModelPricingService } from "./model-pricing.service";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
+import { RelayChannelHealthService, type RelayChannelHealthSnapshot } from "./relay-channel-health.service";
 
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
@@ -84,6 +93,7 @@ interface ValidatedRelayChannelData {
 const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
 const DEFAULT_ROUTING_STRATEGY: RelayChannelRoutingStrategy = "priority";
 const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
+const DEFAULT_AUTOMATIC_POOL_RANKING_MODE = "price-first" as const;
 
 type RelayChannelWithMembers = RelayChannel & {
   poolMembers?: Array<{
@@ -106,6 +116,7 @@ export class RelayChannelService {
     private readonly permissionService: PermissionService = PermissionService.getInstance(),
     private readonly modelPricingService: ModelPricingService = ModelPricingService.getInstance(),
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
+    private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -372,6 +383,213 @@ export class RelayChannelService {
     if (!channel) throw new NotFoundError("Relay channel not found");
     await this.assertChannelAccessible(channel, actorUserId);
     return this.toDto(channel);
+  }
+
+  async getChannelHealth(
+    id: string,
+    actorUserId: string,
+  ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
+    const channel = await this.assertChannelAccessibleById(id, actorUserId);
+    if (channel.channelType !== "automatic-proxy-pool") {
+      const snapshot = await this.relayChannelHealthService.getHealth(channel.id);
+      return this.toHealthDto(channel, snapshot);
+    }
+
+    const now = new Date();
+    const poolMembers = (channel as RelayChannelWithMembers).poolMembers ?? [];
+    const rankingMode =
+      (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)?.rankingMode === "stability-first"
+        ? "stability-first"
+        : DEFAULT_AUTOMATIC_POOL_RANKING_MODE;
+    const rankedMembers = await this.relayChannelHealthService.rankMembers(
+      poolMembers.map((member) => {
+        const memberChannel = member.memberChannel;
+        const effectivePrice =
+          Number(memberChannel?.multiplier ?? 1) *
+          computeMultiplierForTime(
+            (memberChannel?.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
+            now,
+          );
+        return {
+          id: member.memberChannelId,
+          name: memberChannel?.name ?? member.memberChannelId,
+          enabled: member.enabled !== false && memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+          priority: member.priority,
+          weight: Number(member.weight),
+          effectivePrice,
+          ...this.getHealthTrackingConfig(memberChannel),
+        };
+      }),
+      rankingMode,
+      now,
+    );
+    const window = rankedMembers[0]?.health ?? (await this.relayChannelHealthService.getHealth(channel.id, now));
+    const members: RelayAutomaticPoolHealthMemberDto[] = rankedMembers.map((member, index) => ({
+      ...member.health,
+      name: member.name,
+      enabled: member.enabled,
+      priority: member.priority,
+      weight: member.weight,
+      effectivePrice: member.effectivePrice,
+      score: member.score,
+      rank: index + 1,
+      trackingMode: member.healthTrackingMode ?? "automatic",
+      source: member.source,
+      manualAvailability:
+        member.healthTrackingMode === "manual" ? this.toOptionalFiniteNumber(member.manualAvailability) : undefined,
+      manualLatencyMs:
+        member.healthTrackingMode === "manual" ? this.toOptionalFiniteNumber(member.manualLatencyMs) : undefined,
+    }));
+
+    return {
+      channelId: channel.id,
+      name: channel.name,
+      rankingMode,
+      windowStartAt: window.windowStartAt,
+      windowEndAt: window.windowEndAt,
+      members,
+    };
+  }
+
+  async getChannelHealthOverview(actorUserId: string): Promise<RelayChannelHealthOverviewDto> {
+    const channels = await this.filterAccessibleChannels(await this.relayChannelRepository.listVisible(), actorUserId);
+    const standaloneChannels = channels.filter((channel) => channel.channelType === "standalone");
+    const healthMap = await this.relayChannelHealthService.getHealthMap(
+      standaloneChannels.map((channel) => channel.id),
+    );
+    const items: RelayChannelHealthOverviewItemDto[] = standaloneChannels
+      .map((channel) => ({
+        ...this.toHealthDto(channel, healthMap.get(channel.id)),
+        name: channel.name,
+        enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+        channelType: "standalone" as const,
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name) || left.channelId.localeCompare(right.channelId));
+
+    return { windowMinutes: RelayChannelHealthService.constants.windowMinutes, channels: items };
+  }
+
+  async updateChannelHealthConfig(
+    id: string,
+    data: UpdateRelayChannelHealthConfigRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelHealthDto> {
+    const channel = await this.assertChannelAccessibleById(id, actorUserId);
+    if (channel.channelType !== "standalone")
+      throw new BadRequestError("Health tracking can only be configured for standalone channels");
+
+    const routingConfig = (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined) ?? {};
+    const nextConfig: RelayChannelRoutingConfigDto = {
+      ...routingConfig,
+      healthTrackingMode: data.healthTrackingMode,
+      manualAvailability: data.healthTrackingMode === "manual" ? Number(data.manualAvailability) : null,
+      manualLatencyMs: data.healthTrackingMode === "manual" ? Number(data.manualLatencyMs) : null,
+    };
+    const updated = await this.relayChannelRepository.updateById(id, {
+      routingConfig: nextConfig as Prisma.InputJsonValue,
+    });
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: updated.id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `更新了中转渠道 '${updated.name}' 的健康追踪设置`,
+      changes: maskSensitiveData(data),
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return this.toHealthDto(updated, await this.relayChannelHealthService.getHealth(updated.id));
+  }
+
+  async batchUpdateChannelHealthConfig(
+    data: BatchUpdateRelayChannelHealthConfigRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchRelayChannelsResultDto> {
+    const channels = await Promise.all(data.ids.map((id) => this.assertChannelAccessibleById(id, actorUserId)));
+    if (channels.some((channel) => channel.channelType !== "standalone"))
+      throw new BadRequestError("Health tracking can only be configured for standalone channels");
+
+    const updated = await this.relayChannelRepository.withTransaction((tx) =>
+      Promise.all(
+        channels.map((channel) => {
+          const routingConfig = (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined) ?? {};
+          const nextConfig: RelayChannelRoutingConfigDto = {
+            ...routingConfig,
+            healthTrackingMode: data.healthTrackingMode,
+            manualAvailability: data.healthTrackingMode === "manual" ? Number(data.manualAvailability) : null,
+            manualLatencyMs: data.healthTrackingMode === "manual" ? Number(data.manualLatencyMs) : null,
+          };
+          return this.relayChannelRepository.updateById(
+            channel.id,
+            {
+              routingConfig: nextConfig as Prisma.InputJsonValue,
+            },
+            tx,
+          );
+        }),
+      ),
+    );
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `批量更新了 ${updated.length} 个中转渠道的健康追踪设置`,
+      metadata: { ids: data.ids, healthTrackingMode: data.healthTrackingMode },
+      changes: maskSensitiveData(data),
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return { total: data.ids.length, affected: updated.length };
+  }
+
+  async clearChannelHealth(id: string, actorUserId: string, request?: Request): Promise<void> {
+    const channel = await this.assertChannelAccessibleById(id, actorUserId);
+    if (channel.channelType !== "standalone")
+      throw new BadRequestError("Health statistics only exist for standalone channels");
+    const cleared = await this.relayChannelHealthService.clearHealth(channel.id);
+    if (!cleared) throw new BadRequestError("Channel health storage is temporarily unavailable");
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: channel.id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `清空了中转渠道 '${channel.name}' 的健康统计`,
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+  }
+
+  async batchClearChannelHealth(
+    ids: string[],
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchRelayChannelsResultDto> {
+    const channels = await Promise.all(ids.map((id) => this.assertChannelAccessibleById(id, actorUserId)));
+    if (channels.some((channel) => channel.channelType !== "standalone"))
+      throw new BadRequestError("Health statistics only exist for standalone channels");
+    const results = await Promise.all(
+      channels.map((channel) => this.relayChannelHealthService.clearHealth(channel.id)),
+    );
+    if (results.some((cleared) => !cleared))
+      throw new BadRequestError("Channel health storage is temporarily unavailable");
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `批量清空了 ${channels.length} 个中转渠道的健康统计`,
+      metadata: { ids },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return { total: ids.length, affected: channels.length };
   }
 
   async assertChannelAccessibleById(id: string, actorUserId: string): Promise<RelayChannel> {
@@ -653,6 +871,38 @@ export class RelayChannelService {
 
     const normalized: RelayChannelRoutingConfigDto = { ...routingConfig };
 
+    const hasHealthTrackingConfig =
+      Object.prototype.hasOwnProperty.call(normalized, "healthTrackingMode") ||
+      Object.prototype.hasOwnProperty.call(normalized, "manualAvailability") ||
+      Object.prototype.hasOwnProperty.call(normalized, "manualLatencyMs");
+    if (channelType !== "standalone" && hasHealthTrackingConfig) {
+      // Channel forms retain routing config while changing type. Health state has no meaning on pools,
+      // so remove it rather than preventing a valid standalone-to-pool conversion.
+      delete normalized.healthTrackingMode;
+      delete normalized.manualAvailability;
+      delete normalized.manualLatencyMs;
+    }
+
+    if (channelType === "standalone") {
+      const mode = normalized.healthTrackingMode ?? "automatic";
+      if (mode !== "automatic" && mode !== "manual" && mode !== "disabled")
+        throw new BadRequestError(`Invalid healthTrackingMode '${String(mode)}'`);
+      normalized.healthTrackingMode = mode;
+      if (mode === "manual") {
+        const availability = Number(normalized.manualAvailability);
+        const latencyMs = Number(normalized.manualLatencyMs);
+        if (!Number.isFinite(availability) || availability < 0 || availability > 1)
+          throw new BadRequestError("manualAvailability must be between 0 and 1 for manual health tracking");
+        if (!Number.isFinite(latencyMs) || latencyMs < 0)
+          throw new BadRequestError("manualLatencyMs must be >= 0 for manual health tracking");
+        normalized.manualAvailability = availability;
+        normalized.manualLatencyMs = Math.floor(latencyMs);
+      } else {
+        normalized.manualAvailability = null;
+        normalized.manualLatencyMs = null;
+      }
+    }
+
     if (Object.prototype.hasOwnProperty.call(normalized, "healthScoreThreshold")) {
       normalized.healthScoreThreshold =
         normalized.healthScoreThreshold === null ? null : Number(normalized.healthScoreThreshold);
@@ -671,6 +921,9 @@ export class RelayChannelService {
     if (rawAllowedModelsMode && !POOLED_ALLOWED_MODE_VALUES.has(rawAllowedModelsMode as "all" | "manual" | "auto"))
       throw new BadRequestError(`Invalid allowedModelsMode '${rawAllowedModelsMode}'`);
 
+    if (channelType !== "automatic-proxy-pool") delete normalized.rankingMode;
+    else normalized.rankingMode = normalized.rankingMode ?? DEFAULT_AUTOMATIC_POOL_RANKING_MODE;
+
     if (!isPoolType(channelType)) {
       delete normalized.allowedModelsMode;
       return normalized;
@@ -678,6 +931,64 @@ export class RelayChannelService {
 
     if (rawAllowedModelsMode) normalized.allowedModelsMode = rawAllowedModelsMode as RelayChannelAllowedModelsMode;
     return normalized;
+  }
+
+  private getHealthTrackingConfig(channel?: RelayChannel | null): {
+    healthTrackingMode: RelayChannelHealthTrackingMode;
+    manualAvailability?: number;
+    manualLatencyMs?: number;
+  } {
+    const routingConfig = channel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined;
+    const trackingMode: RelayChannelHealthTrackingMode =
+      routingConfig?.healthTrackingMode === "manual" || routingConfig?.healthTrackingMode === "disabled"
+        ? routingConfig.healthTrackingMode
+        : "automatic";
+    return {
+      healthTrackingMode: trackingMode,
+      manualAvailability:
+        trackingMode === "manual" ? this.toOptionalFiniteNumber(routingConfig?.manualAvailability) : undefined,
+      manualLatencyMs:
+        trackingMode === "manual" ? this.toOptionalFiniteNumber(routingConfig?.manualLatencyMs) : undefined,
+    };
+  }
+
+  private toOptionalFiniteNumber(value: unknown): number | undefined {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : undefined;
+  }
+
+  private toHealthDto(channel: RelayChannel, snapshot?: RelayChannelHealthSnapshot): RelayChannelHealthDto {
+    const health = snapshot ?? {
+      channelId: channel.id,
+      windowStartAt: new Date(),
+      windowEndAt: new Date(),
+      sampleCount: 0,
+      successCount: 0,
+      failureCount: 0,
+      availability: 1,
+      averageLatencyMs: 0,
+      status2xxCount: 0,
+      status3xxCount: 0,
+      status4xxCount: 0,
+      status5xxCount: 0,
+      statusOtherCount: 0,
+    };
+    const tracking = this.getHealthTrackingConfig(channel);
+    if (tracking.healthTrackingMode === "manual") {
+      return {
+        ...health,
+        availability: tracking.manualAvailability ?? 0.5,
+        averageLatencyMs: tracking.manualLatencyMs ?? 0,
+        trackingMode: "manual",
+        source: "manual",
+        manualAvailability: tracking.manualAvailability,
+        manualLatencyMs: tracking.manualLatencyMs,
+      };
+    }
+    if (tracking.healthTrackingMode === "disabled") {
+      return { ...health, trackingMode: "disabled", source: "disabled" };
+    }
+    return { ...health, trackingMode: "automatic", source: "redis" };
   }
 
   private assertNoSelfReference(channelId: string | undefined, members?: RelayChannelMemberDto[] | null): void {
@@ -822,6 +1133,8 @@ export class RelayChannelService {
     const isCreate = !existing;
     const wasPooled = isPoolType((existing?.channelType as RelayChannelType | undefined) ?? "standalone");
     const normalizedRoutingConfig = this.normalizeRoutingConfig(routingConfig, channelType);
+    if (channelType !== "automatic-proxy-pool" && data.routingConfig?.rankingMode)
+      throw new BadRequestError("rankingMode can only be configured for automatic proxy pools");
 
     const openaiUpstreamUrl =
       data.openaiUpstreamUrl !== undefined ? data.openaiUpstreamUrl : existing?.openaiUpstreamUrl || undefined;

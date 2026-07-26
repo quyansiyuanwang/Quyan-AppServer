@@ -97,6 +97,7 @@ import { AprilFoolsService } from '@/service/aprilFoolsService'
 import { House, ArrowLeft } from '@element-plus/icons-vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 
 const APRIL_PREVIEW_MODE_KEY = 'AprilFools-preview-mode'
 
@@ -115,7 +116,7 @@ const targetY = ref(30)
 let timer: number | undefined
 
 const showAprilMiniGame = computed(() => {
-  const preview = localStorage.getItem(APRIL_PREVIEW_MODE_KEY) === '1'
+  const preview = TypedLocalStorage.get(APRIL_PREVIEW_MODE_KEY) === '1'
   const now = new Date()
   return preview || (now.getMonth() === 3 && now.getDate() === 1)
 })

@@ -17,6 +17,7 @@ import {
 } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
 import { GroupService } from "@/services/users/group.service";
+import { permissionService } from "@/services/users/permission.service";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type {
   CreateGroupDto,
@@ -198,7 +199,6 @@ export class GroupController extends Controller {
 
   @Put("{groupId}/permissions")
   @Security("jwt")
-  @RequirePermission(Permission.GROUP_PERMISSION_ADD)
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -216,6 +216,27 @@ export class GroupController extends Controller {
     const isAdmin = await this.userService.isAdmin(currentUserId);
     const targetGroup = await this.groupService.getGroupById(groupId);
     if (!targetGroup) throw new ForbiddenError("用户组不存在", undefined, { messageKey: "group.notFound" });
+
+    const currentPermissions = await this.groupService.getGroupPermissions(groupId);
+    const requestedPermissions = new Set(body.permissions);
+    const currentPermissionsSet = new Set(currentPermissions);
+    const hasAddedPermissions = body.permissions.some((permission) => !currentPermissionsSet.has(permission));
+    const hasRemovedPermissions = currentPermissions.some((permission) => !requestedPermissions.has(permission));
+    const [canAddPermissions, canRemovePermissions] = await Promise.all([
+      permissionService.hasPermission(currentUserId, Permission.GROUP_PERMISSION_ADD),
+      permissionService.hasPermission(currentUserId, Permission.GROUP_PERMISSION_REMOVE),
+    ]);
+
+    if ((hasAddedPermissions && !canAddPermissions) || (hasRemovedPermissions && !canRemovePermissions)) {
+      throw new ForbiddenError("权限不足，无法更新用户组权限", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    }
+    if (!canAddPermissions && !canRemovePermissions) {
+      throw new ForbiddenError("权限不足，无法更新用户组权限", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    }
 
     if (!isAdmin) {
       const actorLevel = await this.userService.getUserGroupLevel(currentUserId);

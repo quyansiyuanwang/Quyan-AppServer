@@ -205,7 +205,7 @@
                   <el-option
                     v-for="perm in allPermissions"
                     :key="perm"
-                    :label="perm"
+                    :label="permissionOptionLabel(perm)"
                     :value="perm"
                   />
                 </el-select>
@@ -413,7 +413,12 @@
               :placeholder="i18ns.t('article.requirePermissionHint')"
               style="width: 100%"
             >
-              <el-option v-for="perm in allPermissions" :key="perm" :label="perm" :value="perm" />
+              <el-option
+                v-for="perm in allPermissions"
+                :key="perm"
+                :label="permissionOptionLabel(perm)"
+                :value="perm"
+              />
             </el-select>
           </el-form-item>
           <el-form-item :label="i18ns.t('article.summary')" prop="summary">
@@ -459,7 +464,7 @@ import type { FormInstance, FormRules, InputInstance } from 'element-plus'
 import { Plus, Refresh, Star, StarFilled } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import { i18ns } from '@/locales'
-import { Permission, ALL_PERMISSIONS } from '@/constant/permission'
+import { Permission, ALL_PERMISSIONS, getPermissionLabel } from '@/constant/permission'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
 import { articleService } from '@/service/articleService'
@@ -478,6 +483,8 @@ const textareaRef = ref<InputInstance>()
 const previewPaneRef = ref<HTMLDivElement>()
 const tableRef = ref<any>()
 const allPermissions = ALL_PERMISSIONS
+const permissionOptionLabel = (permission: Permission) =>
+  `${getPermissionLabel(permission, i18ns.locale)} (${permission})`
 let sortableInstance: Sortable | null = null
 
 function initSortable() {

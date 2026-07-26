@@ -4,6 +4,7 @@ export type RelayBalanceChargeMode = "strict" | "allow-negative" | "skip-when-no
 
 export interface RelayUsageRecordInput {
   relayTokenId: string;
+  requestId: string;
   executionChannelId?: string | null;
   displayChannelId?: string | null;
   displayChannelName?: string | null;

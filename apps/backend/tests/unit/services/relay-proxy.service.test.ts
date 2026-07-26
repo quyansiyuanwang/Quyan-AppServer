@@ -324,6 +324,29 @@ describe("RelayProxyService failover", () => {
     axiosMock.mockReset();
   });
 
+  it("uses one server-side logical request id for all attempts of an inbound request", () => {
+    const { service } = createService();
+    const request = createRequest();
+
+    const first = (service as any).getLogicalRequestId(request);
+    const second = (service as any).getLogicalRequestId(request);
+    const separateRequest = (service as any).getLogicalRequestId(createRequest());
+
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(second).toBe(first);
+    expect(separateRequest).not.toBe(first);
+  });
+
+  it("does not merge distinct requests that reuse a client request id", () => {
+    const { service } = createService();
+    const firstRequest = createRequest({ headers: { "x-request-id": "client-reused" } });
+    const secondRequest = createRequest({ headers: { "x-request-id": "client-reused" } });
+
+    expect((service as any).getLogicalRequestId(firstRequest)).not.toBe(
+      (service as any).getLogicalRequestId(secondRequest),
+    );
+  });
+
   it("treats /images/variations as OpenAI image traffic", () => {
     const { service } = createService();
 

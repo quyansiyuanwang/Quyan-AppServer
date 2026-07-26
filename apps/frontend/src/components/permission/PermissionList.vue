@@ -6,7 +6,7 @@
     <template v-else>
       <!-- 按分类显示 -->
       <div v-for="category in categories" :key="category" class="permission-category">
-        <h4 class="category-title">{{ category }}</h4>
+        <h4 class="category-title">{{ getCategoryLabel(category) }}</h4>
         <div class="permission-tags">
           <el-tag
             v-for="perm in getPermissionsByCategory(category)"
@@ -18,7 +18,7 @@
             <el-icon v-if="showIcon" style="margin-right: 4px">
               <Lock />
             </el-icon>
-            {{ getPermissionDisplayName(perm) }}
+            {{ getPermissionLabel(perm, i18ns.locale) }}
             <span class="permission-value">({{ perm }})</span>
           </el-tag>
         </div>
@@ -31,8 +31,12 @@
 import { computed } from 'vue'
 import { Lock } from '@element-plus/icons-vue'
 import type { Permission } from '@/client/types.gen'
-import { getPermissionCategory, getPermissionDisplayName } from '@/constant/permission'
+import { getPermissionLabel } from '@/constant/permission'
 import { i18ns } from '@/locales'
+import {
+  getPermissionCategoryId,
+  getPermissionCategoryTranslationKey,
+} from '@/views/management/permission-tree'
 
 interface Props {
   permissions: Permission[]
@@ -51,15 +55,18 @@ const props = withDefaults(defineProps<Props>(), {
 const categories = computed(() => {
   const categorySet = new Set<string>()
   props.permissions.forEach((perm) => {
-    categorySet.add(getPermissionCategory(perm))
+    categorySet.add(getPermissionCategoryId(perm))
   })
   return Array.from(categorySet).sort()
 })
 
 // 根据分类获取权限
 const getPermissionsByCategory = (category: string) => {
-  return props.permissions.filter((perm) => getPermissionCategory(perm) === category)
+  return props.permissions.filter((perm) => getPermissionCategoryId(perm) === category)
 }
+
+const getCategoryLabel = (category: string) =>
+  i18ns.t(getPermissionCategoryTranslationKey(category, 'label'))
 </script>
 
 <style scoped lang="scss">

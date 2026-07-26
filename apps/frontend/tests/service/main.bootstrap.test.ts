@@ -29,7 +29,10 @@ vi.mock('@/App.vue', () => ({
 }))
 
 vi.mock('@/router', () => ({
-  default: { __router: true },
+  default: {
+    __router: true,
+    resolve: vi.fn(() => ({ matched: [] })),
+  },
 }))
 
 vi.mock('@/router/preload', () => ({
@@ -124,6 +127,6 @@ describe('main bootstrap impersonation restore', () => {
     await Promise.resolve()
 
     expect(bootstrapSessionMock).toHaveBeenCalledTimes(1)
-    expect(queueBusinessRoutePreloadMock).toHaveBeenCalledWith({ __router: true })
+    expect(queueBusinessRoutePreloadMock).toHaveBeenCalledWith(expect.objectContaining({ __router: true }))
   })
 })

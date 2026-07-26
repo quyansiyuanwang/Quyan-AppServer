@@ -9,7 +9,16 @@ export interface JWTPayload {
   status?: number; // 用户状态，用于验证账号是否被禁用
   principalUserId?: string;
   accountOwnerId?: string;
-  subjectType?: "root" | "sub_user" | "service" | "oauth" | "relay" | "access_key" | "impersonation";
+  subjectType?:
+    | "root"
+    | "sub_user"
+    | "service"
+    | "oauth"
+    | "relay"
+    | "access_key"
+    | "project_key"
+    | "product_key"
+    | "impersonation";
   assumedRoleId?: string;
   roleSessionId?: string;
   jti?: string; // JWT ID

@@ -21,6 +21,8 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   [NotificationEvent.MONTHLY_PASS_DAILY_LIMIT]: "月卡即将达到日限额",
   [NotificationEvent.RELAY_TOKEN_QUOTA_LOW]: "中转令牌即将限额",
   [NotificationEvent.RELAY_TOKEN_EXHAUSTED]: "中转令牌额度耗尽",
+  [NotificationEvent.DEVELOPER_MONITOR_DOWN]: "开发者监控异常",
+  [NotificationEvent.DEVELOPER_MONITOR_RECOVERED]: "开发者监控已恢复",
   [NotificationEvent.TICKET_PENDING_REVIEW]: "新工单待分诊",
   [NotificationEvent.TICKET_STATUS_UPDATED]: "工单状态更新",
   [NotificationEvent.TICKET_PUBLIC_REPLY]: "工单收到回复",

@@ -59,6 +59,13 @@ const docsRouteToSlug = {
   ojAPIKeyManagement: 'oj-api-key-management',
   ojUsageStatistics: 'oj-usage-statistics',
   ojPricingManagement: 'oj-pricing-management',
+  'product-kv': 'developer-product-kv',
+  'product-short_link': 'developer-product-short-link',
+  'product-secret': 'developer-product-secret',
+  'product-status': 'developer-product-status',
+  'product-verification': 'developer-product-verification',
+  'product-ip_geolocation': 'developer-product-ip-geolocation',
+  'product-push': 'developer-product-push',
 } as const
 
 export const normalizeDocsLocale = (locale?: string | null): DocsLocale => {

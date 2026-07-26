@@ -82,6 +82,16 @@ export const routes = [
         component: () => import('@/views/auth/CaptchaVerificationView.vue'),
       },
       {
+        path: '/status/:slug',
+        name: 'publicStatus',
+        component: () => import('@/views/public/PublicStatusView.vue'),
+        meta: {
+          isAuthEntry: true,
+          allowGuest: true,
+          publicStatus: true,
+        },
+      },
+      {
         path: '/workspace/suggestions',
         name: 'workspaceSuggestions',
         component: () => import('@/views/workspace/WorkspaceTicketView.vue'),
@@ -148,6 +158,36 @@ export const routes = [
             path: 'account/access-keys',
             name: 'accesskeyManagement',
             component: () => import('@/views/settings/AccessKeyManagementView.vue'),
+          },
+          {
+            path: 'account/developer-projects',
+            redirect: { name: 'developerProducts' },
+          },
+          {
+            path: 'developer/projects',
+            name: 'developerProjects',
+            redirect: { name: 'developerProducts' },
+          },
+          {
+            path: 'products',
+            name: 'developerProducts',
+            component: () => import('@/views/products/DeveloperProductCatalogView.vue'),
+          },
+          {
+            path: 'developer/management',
+            name: 'developerServiceManagement',
+            component: () => import('@/views/developer/DeveloperServiceManagementView.vue'),
+            meta: {
+              permission: Permission.DEVELOPER_QUOTA_MANAGE,
+            },
+          },
+          {
+            path: 'developer/config',
+            name: 'developerServiceConfig',
+            component: () => import('@/views/developer/DeveloperServiceConfigView.vue'),
+            meta: {
+              permission: Permission.SYSTEM_CONFIG,
+            },
           },
           {
             path: 'account/oauth-apps',
@@ -232,6 +272,326 @@ export const routes = [
                 Permission.RAM_SESSION_READ,
               ],
             },
+          },
+          {
+            path: 'kv',
+            children: [
+              {
+                path: '',
+                name: 'product-kv',
+                component: () => import('@/views/products/kv/KvUserPage.vue'),
+                props: { product: 'kv' },
+                meta: {
+                  anyPermissions: [
+                    Permission.PRODUCT_KV_READ,
+                    Permission.PRODUCT_KV_WRITE,
+                    Permission.PRODUCT_KV_MANAGE,
+                  ],
+                },
+              },
+              {
+                path: 'management',
+                name: 'product-management-kv',
+                component: () => import('@/views/products/kv/KvManagementPage.vue'),
+                props: { product: 'kv' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
+              },
+              {
+                path: 'config',
+                name: 'product-config-kv',
+                component: () => import('@/views/products/kv/KvConfigPage.vue'),
+                props: { product: 'kv' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
+              },
+            ],
+          },
+          {
+            path: 'short-link',
+            children: [
+              {
+                path: '',
+                name: 'product-short_link',
+                component: () => import('@/views/products/short-link/ShortLinkUserPage.vue'),
+                props: { product: 'short_link' },
+                meta: {
+                  anyPermissions: [
+                    Permission.PRODUCT_SHORT_LINK_READ,
+                    Permission.PRODUCT_SHORT_LINK_WRITE,
+                    Permission.PRODUCT_SHORT_LINK_MANAGE,
+                  ],
+                },
+              },
+              {
+                path: 'management',
+                name: 'product-management-short_link',
+                component: () => import('@/views/products/short-link/ShortLinkManagementPage.vue'),
+                props: { product: 'short_link' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
+              },
+              {
+                path: 'config',
+                name: 'product-config-short_link',
+                component: () => import('@/views/products/short-link/ShortLinkConfigPage.vue'),
+                props: { product: 'short_link' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
+              },
+              {
+                path: 'analytics/:instanceId/:linkId',
+                name: 'product-short_link-analytics',
+                component: () => import('@/views/products/short-link/ShortLinkAnalyticsPage.vue'),
+                meta: { permission: Permission.PRODUCT_SHORT_LINK_READ },
+              },
+            ],
+          },
+          {
+            path: 'secret',
+            children: [
+              {
+                path: '',
+                name: 'product-secret',
+                component: () => import('@/views/products/secret/SecretUserPage.vue'),
+                props: { product: 'secret' },
+                meta: {
+                  anyPermissions: [
+                    Permission.PRODUCT_SECRET_READ,
+                    Permission.PRODUCT_SECRET_WRITE,
+                    Permission.PRODUCT_SECRET_USE,
+                    Permission.PRODUCT_SECRET_MANAGE,
+                  ],
+                },
+              },
+              {
+                path: 'management',
+                name: 'product-management-secret',
+                component: () => import('@/views/products/secret/SecretManagementPage.vue'),
+                props: { product: 'secret' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
+              },
+              {
+                path: 'config',
+                name: 'product-config-secret',
+                component: () => import('@/views/products/secret/SecretConfigPage.vue'),
+                props: { product: 'secret' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
+              },
+            ],
+          },
+          {
+            path: 'status',
+            children: [
+              {
+                path: '',
+                name: 'product-status',
+                component: () => import('@/views/products/status/StatusUserPage.vue'),
+                props: { product: 'status' },
+                meta: {
+                  anyPermissions: [
+                    Permission.PRODUCT_STATUS_READ,
+                    Permission.PRODUCT_STATUS_WRITE,
+                    Permission.PRODUCT_STATUS_PUBLISH,
+                    Permission.PRODUCT_STATUS_MANAGE,
+                  ],
+                },
+              },
+              {
+                path: 'management',
+                name: 'product-management-status',
+                component: () => import('@/views/products/status/StatusManagementPage.vue'),
+                props: { product: 'status' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
+              },
+              {
+                path: 'config',
+                name: 'product-config-status',
+                component: () => import('@/views/products/status/StatusConfigPage.vue'),
+                props: { product: 'status' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
+              },
+            ],
+          },
+          {
+            path: 'verification',
+            children: [
+              {
+                path: '',
+                name: 'product-verification',
+                component: () => import('@/views/products/verification/VerificationUserPage.vue'),
+                props: { product: 'verification' },
+                meta: {
+                  anyPermissions: [
+                    Permission.PRODUCT_VERIFICATION_SEND,
+                    Permission.PRODUCT_VERIFICATION_VERIFY,
+                    Permission.PRODUCT_VERIFICATION_MANAGE,
+                  ],
+                },
+              },
+              {
+                path: 'management',
+                name: 'product-management-verification',
+                component: () =>
+                  import('@/views/products/verification/VerificationManagementPage.vue'),
+                props: { product: 'verification' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
+              },
+              {
+                path: 'config',
+                name: 'product-config-verification',
+                component: () => import('@/views/products/verification/VerificationConfigPage.vue'),
+                props: { product: 'verification' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
+              },
+            ],
+          },
+          {
+            path: 'ip-geolocation',
+            children: [
+              {
+                path: '',
+                name: 'product-ip_geolocation',
+                component: () =>
+                  import('@/views/products/ip-geolocation/IpGeolocationUserPage.vue'),
+                props: { product: 'ip_geolocation' },
+                meta: {
+                  anyPermissions: [
+                    Permission.PRODUCT_IP_GEOLOCATION_LOOKUP,
+                    Permission.PRODUCT_IP_GEOLOCATION_MANAGE,
+                  ],
+                },
+              },
+              {
+                path: 'management',
+                name: 'product-management-ip_geolocation',
+                component: () =>
+                  import('@/views/products/ip-geolocation/IpGeolocationManagementPage.vue'),
+                props: { product: 'ip_geolocation' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
+              },
+              {
+                path: 'config',
+                name: 'product-config-ip_geolocation',
+                component: () =>
+                  import('@/views/products/ip-geolocation/IpGeolocationConfigPage.vue'),
+                props: { product: 'ip_geolocation' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
+              },
+            ],
+          },
+          {
+            path: 'push',
+            children: [
+              {
+                path: '',
+                name: 'product-push',
+                component: () => import('@/views/products/push/PushUserPage.vue'),
+                props: { product: 'push' },
+                meta: {
+                  anyPermissions: [
+                    Permission.PRODUCT_PUSH_SEND,
+                    Permission.PRODUCT_PUSH_CHANNEL_MANAGE,
+                    Permission.PRODUCT_PUSH_DELIVERY_READ,
+                    Permission.PRODUCT_PUSH_MANAGE,
+                  ],
+                },
+              },
+              {
+                path: 'management',
+                name: 'product-management-push',
+                component: () => import('@/views/products/push/PushManagementPage.vue'),
+                props: { product: 'push' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
+              },
+              {
+                path: 'config',
+                name: 'product-config-push',
+                component: () => import('@/views/products/push/PushConfigPage.vue'),
+                props: { product: 'push' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
+              },
+            ],
+          },
+          {
+            path: 'products/kv',
+            redirect: { name: 'product-kv' },
+          },
+          {
+            path: 'products/short_link',
+            redirect: { name: 'product-short_link' },
+          },
+          {
+            path: 'products/secret',
+            redirect: { name: 'product-secret' },
+          },
+          {
+            path: 'products/status',
+            redirect: { name: 'product-status' },
+          },
+          {
+            path: 'products/verification',
+            redirect: { name: 'product-verification' },
+          },
+          {
+            path: 'products/ip_geolocation',
+            redirect: { name: 'product-ip_geolocation' },
+          },
+          {
+            path: 'products/push',
+            redirect: { name: 'product-push' },
+          },
+          {
+            path: 'management/products/kv',
+            redirect: { name: 'product-management-kv' },
+          },
+          {
+            path: 'management/products/short_link',
+            redirect: { name: 'product-management-short_link' },
+          },
+          {
+            path: 'management/products/secret',
+            redirect: { name: 'product-management-secret' },
+          },
+          {
+            path: 'management/products/status',
+            redirect: { name: 'product-management-status' },
+          },
+          {
+            path: 'management/products/verification',
+            redirect: { name: 'product-management-verification' },
+          },
+          {
+            path: 'management/products/ip_geolocation',
+            redirect: { name: 'product-management-ip_geolocation' },
+          },
+          {
+            path: 'management/products/push',
+            redirect: { name: 'product-management-push' },
+          },
+          {
+            path: 'system/products/kv',
+            redirect: { name: 'product-config-kv' },
+          },
+          {
+            path: 'system/products/short_link',
+            redirect: { name: 'product-config-short_link' },
+          },
+          {
+            path: 'system/products/secret',
+            redirect: { name: 'product-config-secret' },
+          },
+          {
+            path: 'system/products/status',
+            redirect: { name: 'product-config-status' },
+          },
+          {
+            path: 'system/products/verification',
+            redirect: { name: 'product-config-verification' },
+          },
+          {
+            path: 'system/products/ip_geolocation',
+            redirect: { name: 'product-config-ip_geolocation' },
+          },
+          {
+            path: 'system/products/push',
+            redirect: { name: 'product-config-push' },
           },
           {
             path: 'management/balance',
@@ -384,6 +744,22 @@ export const routes = [
             component: () => import('@/views/relay/RelaySettingsView.vue'),
             meta: {
               permission: Permission.MODEL_PRICING_UPDATE,
+            },
+          },
+          {
+            path: 'relay/channel-health',
+            name: 'relayChannelHealth',
+            component: () => import('@/views/relay/RelayChannelHealthView.vue'),
+            meta: {
+              permission: Permission.RELAY_CHANNEL_READ,
+            },
+          },
+          {
+            path: 'relay/channel-probes',
+            name: 'relayChannelProbes',
+            component: () => import('@/views/relay/RelayChannelProbeView.vue'),
+            meta: {
+              permission: Permission.RELAY_CHANNEL_PROBE_READ,
             },
           },
           {

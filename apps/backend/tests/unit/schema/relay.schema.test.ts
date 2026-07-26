@@ -90,4 +90,33 @@ describe("relay token import schema", () => {
       "automaticProxyPoolChannelId is required",
     );
   });
+
+  it("rejects automatic pool fields in ordered routing", () => {
+    expect(() =>
+      createRelayTokenBodySchema.parse({
+        routingMode: "ordered",
+        automaticProxyPoolChannelId: "automatic-pool-1",
+        channelId: "channel-1",
+      }),
+    ).toThrow("automaticProxyPoolChannelId can only be used in automatic pool mode");
+
+    expect(() =>
+      updateRelayTokenBodySchema.parse({
+        routingMode: "ordered",
+        automaticProxyPoolChannelId: "automatic-pool-1",
+      }),
+    ).toThrow("automaticProxyPoolChannelId can only be used in automatic pool mode");
+
+    expect(() =>
+      importRelayTokensBodySchema.parse({
+        tokens: [
+          {
+            routingMode: "ordered",
+            automaticProxyPoolChannelId: "automatic-pool-1",
+            channelId: "channel-1",
+          },
+        ],
+      }),
+    ).toThrow("automaticProxyPoolChannelId can only be used in automatic pool mode");
+  });
 });

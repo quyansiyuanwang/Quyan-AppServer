@@ -19,6 +19,7 @@ import { RedisService } from "@/services/infrastructure/redis.service";
 import { buildForceOfflineAuthSessionKey, extractAuthSessionId } from "@/util/auth-session";
 import { DEFAULT_BACKEND_LOCALE, translateKnownMessage } from "@/locales";
 import { OAuthAuthorizationRepository } from "@/store/oauth/oauth-authorization.repository";
+import { Permission } from "@/constant/permission";
 
 const logger = getLogger("AuthGuard", LogCategory.SYSTEM);
 const userRepository = UserRepository.getInstance();
@@ -260,7 +261,7 @@ export async function authMiddleware(req: TypedRequest, res: Response, next: Nex
   }
 }
 
-export type SecurityScheme = "jwt" | "local-or-jwt" | "relay-token";
+export type SecurityScheme = "jwt" | "local-or-jwt" | "relay-token" | "project-key" | "product-key";
 
 /**
  * tsoa 认证函数：用于 @Security 装饰器
@@ -309,6 +310,37 @@ export async function expressAuthentication(
 
     request.relayToken = relayToken;
     return { relayToken: true };
+  }
+
+  if (securityName === "project-key") {
+    const authHeader = request.headers["authorization"];
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+    if (token.startsWith("dk_"))
+      throw new ForbiddenError(
+        "旧 DeveloperProject API 已停用，请创建产品 API Key",
+        CustomCode.DEVELOPER_PRODUCT_LEGACY_DISABLED,
+      );
+    throw new UnauthorizedError("Unauthorized: No product API key provided");
+  }
+
+  if (securityName === "product-key") {
+    const authHeader = request.headers["authorization"];
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+    const { DeveloperProductPlatformService } = await import("@/services/developer/developer-product-platform.service");
+    const requiredPermissions = (scopes ?? []).filter((scope): scope is Permission =>
+      Object.values(Permission).includes(scope as Permission),
+    );
+    const productKey = await DeveloperProductPlatformService.getInstance().authenticateProductKey(
+      token,
+      requiredPermissions,
+    );
+    const user = await userRepository.findById(productKey.subjectUserId);
+    if (!user) throw new UnauthorizedError("用户不存在");
+    validateAccountStatus(user.status, user.id, `ProductKey ${request.method} ${request.path}`);
+    request.productApiKey = productKey;
+    const payload: JWTPayload = { userId: user.id, updatedAt: user.updateTime.toISOString(), status: user.status };
+    await attachAuthContext(request, payload, user, "product_key");
+    return { productKey: true };
   }
 
   if (securityName === "jwt") {

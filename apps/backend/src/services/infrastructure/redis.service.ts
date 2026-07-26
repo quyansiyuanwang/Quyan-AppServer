@@ -1,28 +1,13 @@
 import Redis from "ioredis";
 import { createRedisClient } from "@/config/redis";
 import { getLogger, LogCategory } from "@/util/logger";
+import { EnvSpace } from "@/config/env";
 
 const logger = getLogger("RedisService", LogCategory.REDIS);
 const REDIS_SCAN_COUNT = 200;
 const REDIS_SCAN_COUNT_MAX = 1000;
-const DEFAULT_REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5;
-const DEFAULT_REDIS_CIRCUIT_BREAKER_OPEN_MS = 30_000;
-
-const parsePositiveInt = (value: string | undefined, fallback: number): number => {
-  const parsed = Number.parseInt(String(value || "").trim(), 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return parsed;
-};
-
-const REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD = parsePositiveInt(
-  process.env.REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD,
-  DEFAULT_REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD,
-);
-
-const REDIS_CIRCUIT_BREAKER_OPEN_MS = parsePositiveInt(
-  process.env.REDIS_CIRCUIT_BREAKER_OPEN_MS,
-  DEFAULT_REDIS_CIRCUIT_BREAKER_OPEN_MS,
-);
+const REDIS_CIRCUIT_BREAKER_FAILURE_THRESHOLD = EnvSpace.redisConfig.circuitBreakerFailureThreshold;
+const REDIS_CIRCUIT_BREAKER_OPEN_MS = EnvSpace.redisConfig.circuitBreakerOpenMs;
 
 const resolveScanCount = (maxResults?: number): number => {
   if (typeof maxResults !== "number" || !Number.isFinite(maxResults) || maxResults <= 0) return REDIS_SCAN_COUNT;
@@ -301,6 +286,56 @@ export class RedisService {
     });
   }
 
+  /** Atomically increments multiple hash fields and refreshes the hash TTL. */
+  public async hIncrByFloatFieldsWithTtl(
+    key: string,
+    fields: Record<string, number>,
+    ttlSeconds: number,
+  ): Promise<boolean | null> {
+    const entries = Object.entries(fields).filter(([, value]) => Number.isFinite(value));
+    if (entries.length === 0) return false;
+
+    return this.executeWithCircuit("hIncrByFloatFieldsWithTtl", null, async () => {
+      const script = `
+        local ttl = tonumber(ARGV[1]) or 0
+        for index = 2, #ARGV, 2 do
+          redis.call('HINCRBYFLOAT', KEYS[1], ARGV[index], ARGV[index + 1])
+        end
+        if ttl > 0 then redis.call('EXPIRE', KEYS[1], ttl) end
+        return 1
+      `;
+      const args = [String(Math.max(0, Math.floor(ttlSeconds)))];
+      for (const [field, value] of entries) args.push(field, String(value));
+      await this.client!.eval(script, 1, key, ...args);
+      return true;
+    });
+  }
+
+  /** Sets hash fields and refreshes the hash TTL in one Redis round trip. */
+  public async hSetFieldsWithTtl(
+    key: string,
+    fields: Record<string, string | number>,
+    ttlSeconds: number,
+  ): Promise<boolean | null> {
+    const entries = Object.entries(fields);
+    if (entries.length === 0) return false;
+
+    return this.executeWithCircuit("hSetFieldsWithTtl", null, async () => {
+      const script = `
+        local ttl = tonumber(ARGV[1]) or 0
+        for index = 2, #ARGV, 2 do
+          redis.call('HSET', KEYS[1], ARGV[index], ARGV[index + 1])
+        end
+        if ttl > 0 then redis.call('EXPIRE', KEYS[1], ttl) end
+        return 1
+      `;
+      const args = [String(Math.max(0, Math.floor(ttlSeconds)))];
+      for (const [field, value] of entries) args.push(field, String(value));
+      await this.client!.eval(script, 1, key, ...args);
+      return true;
+    });
+  }
+
   /**
    * Get all fields and values from a hash
    * @param key Redis hash key
@@ -310,6 +345,25 @@ export class RedisService {
     return this.executeWithCircuit("hGetAll", null, async () => {
       const result = await this.client!.hgetall(key);
       return result && Object.keys(result).length > 0 ? result : null;
+    });
+  }
+
+  /** Reads multiple hashes in one Redis round trip. */
+  public async hGetAllMany(keys: string[]): Promise<Record<string, Record<string, string>>> {
+    const uniqueKeys = [...new Set(keys.filter(Boolean))];
+    if (uniqueKeys.length === 0) return {};
+
+    return this.executeWithCircuit("hGetAllMany", {}, async () => {
+      const pipeline = this.client!.pipeline();
+      for (const key of uniqueKeys) pipeline.hgetall(key);
+      const results = await pipeline.exec();
+      const output: Record<string, Record<string, string>> = {};
+      for (let index = 0; index < uniqueKeys.length; index += 1) {
+        const result = results?.[index]?.[1];
+        if (result && typeof result === "object" && Object.keys(result).length > 0)
+          output[uniqueKeys[index]] = result as Record<string, string>;
+      }
+      return output;
     });
   }
 
@@ -621,6 +675,31 @@ export class RedisService {
     });
   }
 
+  /** Atomically replace an owned value while preserving a bounded lease. */
+  public async replaceIfValueMatches(
+    key: string,
+    expectedValue: string,
+    nextValue: string,
+    ttlMs: number,
+  ): Promise<boolean | null> {
+    return this.executeWithCircuit("replaceIfValueMatches", null, async () => {
+      const script = `
+        if redis.call('get', KEYS[1]) ~= ARGV[1] then return 0 end
+        redis.call('set', KEYS[1], ARGV[2], 'PX', ARGV[3])
+        return 1
+      `;
+      const result = await this.client!.eval(
+        script,
+        1,
+        key,
+        expectedValue,
+        nextValue,
+        String(Math.max(1, Math.floor(ttlMs))),
+      );
+      return Number(result) === 1;
+    });
+  }
+
   /**
    * Extend a key TTL only when the current value matches the expected owner token.
    * @returns true when TTL extended, false when key missing or token mismatch, null when Redis is unavailable.
@@ -633,6 +712,167 @@ export class RedisService {
         "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end";
       const result = await this.client!.eval(script, 1, key, expectedValue, String(Math.floor(ttlMs)));
       return Number(result) === 1;
+    });
+  }
+
+  /**
+   * Attempt to acquire a fair shared lock. A queued exclusive waiter blocks
+   * later readers, so balance probes cannot be starved by relay traffic.
+   *
+   * Reader and writer leases are represented by expiring sorted-set members.
+   * The Lua scripts remove expired members before every decision, which keeps
+   * a crashed process from permanently blocking a channel.
+   */
+  public async tryAcquireFairReadLock(baseKey: string, ownerToken: string, ttlMs: number): Promise<boolean | null> {
+    return this.executeWithCircuit("tryAcquireFairReadLock", null, async () => {
+      const script = `
+        local readersKey = KEYS[1]
+        local writersKey = KEYS[2]
+        local activeWriterKey = KEYS[3]
+        local owner = ARGV[1]
+        local now = tonumber(ARGV[2])
+        local expiresAt = tonumber(ARGV[3])
+        redis.call('zremrangebyscore', readersKey, '-inf', now)
+        local queued = redis.call('zrange', writersKey, 0, -1)
+        for _, writer in ipairs(queued) do
+          if redis.call('exists', ARGV[4] .. writer) == 0 then redis.call('zrem', writersKey, writer) end
+        end
+        if redis.call('exists', activeWriterKey) == 1 or redis.call('zcard', writersKey) > 0 then return 0 end
+        redis.call('zadd', readersKey, expiresAt, owner)
+        redis.call('pexpire', readersKey, math.max(1, expiresAt - now + 1000))
+        return 1
+      `;
+      const now = Date.now();
+      const result = await this.client!.eval(
+        script,
+        3,
+        `${baseKey}:readers`,
+        `${baseKey}:writers`,
+        `${baseKey}:writer`,
+        ownerToken,
+        String(now),
+        String(now + Math.max(1, Math.floor(ttlMs))),
+        `${baseKey}:writer-expiry:`,
+      );
+      return Number(result) === 1;
+    });
+  }
+
+  /** Queue an exclusive lock request once. Queue score preserves writer FIFO order. */
+  public async reserveFairWriteLock(baseKey: string, ownerToken: string, ttlMs: number): Promise<boolean | null> {
+    return this.executeWithCircuit("reserveFairWriteLock", null, async () => {
+      const script = `
+        local writersKey = KEYS[1]
+        local sequenceKey = KEYS[2]
+        local owner = ARGV[1]
+        local expiresAt = tonumber(ARGV[2])
+        local now = tonumber(ARGV[3])
+        redis.call('zremrangebyscore', writersKey, '-inf', now)
+        if redis.call('zscore', writersKey, owner) then return 1 end
+        local seq = redis.call('incr', sequenceKey)
+        redis.call('zadd', writersKey, seq, owner)
+        redis.call('pexpire', writersKey, math.max(1, expiresAt - now))
+        redis.call('set', KEYS[3] .. owner, expiresAt, 'PX', math.max(1, expiresAt - now))
+        return 1
+      `;
+      const now = Date.now();
+      const expiresAt = now + Math.max(1, Math.floor(ttlMs));
+      const result = await this.client!.eval(
+        script,
+        3,
+        `${baseKey}:writers`,
+        `${baseKey}:writer-sequence`,
+        `${baseKey}:writer-expiry:`,
+        ownerToken,
+        String(expiresAt),
+        String(now),
+      );
+      return Number(result) === 1;
+    });
+  }
+
+  /** Try to promote the first queued writer when all readers have drained. */
+  public async tryAcquireFairWriteLock(
+    baseKey: string,
+    ownerToken: string,
+    ttlMs: number,
+  ): Promise<"acquired" | "wait" | "stale" | null> {
+    return this.executeWithCircuit("tryAcquireFairWriteLock", null, async () => {
+      const script = `
+        local readersKey = KEYS[1]
+        local writersKey = KEYS[2]
+        local activeWriterKey = KEYS[3]
+        local owner = ARGV[1]
+        local now = tonumber(ARGV[2])
+        local ttlMs = tonumber(ARGV[3])
+        redis.call('zremrangebyscore', readersKey, '-inf', now)
+        local first = redis.call('zrange', writersKey, 0, 0)[1]
+        while first and redis.call('exists', ARGV[4] .. first) == 0 do
+          redis.call('zrem', writersKey, first)
+          first = redis.call('zrange', writersKey, 0, 0)[1]
+        end
+        if not first or redis.call('zscore', writersKey, owner) == false then return 'STALE' end
+        if first ~= owner or redis.call('exists', activeWriterKey) == 1 or redis.call('zcard', readersKey) > 0 then return 'WAIT' end
+        redis.call('zrem', writersKey, owner)
+        redis.call('set', activeWriterKey, owner, 'PX', ttlMs)
+        return 'ACQUIRED'
+      `;
+      const result = await this.client!.eval(
+        script,
+        3,
+        `${baseKey}:readers`,
+        `${baseKey}:writers`,
+        `${baseKey}:writer`,
+        ownerToken,
+        String(Date.now()),
+        String(Math.max(1, Math.floor(ttlMs))),
+        `${baseKey}:writer-expiry:`,
+      );
+      const normalized = String(result).toLowerCase();
+      if (normalized === "acquired") return "acquired";
+      if (normalized === "stale") return "stale";
+      return "wait";
+    });
+  }
+
+  public async releaseFairReadLock(baseKey: string, ownerToken: string): Promise<boolean | null> {
+    return this.executeWithCircuit("releaseFairReadLock", null, async () => {
+      const result = await this.client!.zrem(`${baseKey}:readers`, ownerToken);
+      return Number(result) === 1;
+    });
+  }
+
+  public async releaseFairWriteLock(baseKey: string, ownerToken: string): Promise<boolean | null> {
+    return this.executeWithCircuit("releaseFairWriteLock", null, async () => {
+      const script = `
+        local activeWriterKey = KEYS[1]
+        local writersKey = KEYS[2]
+        local expiryKey = KEYS[3]
+        local owner = ARGV[1]
+        if redis.call('get', activeWriterKey) == owner then redis.call('del', activeWriterKey) end
+        redis.call('zrem', writersKey, owner)
+        redis.call('del', expiryKey)
+        return 1
+      `;
+      const result = await this.client!.eval(
+        script,
+        3,
+        `${baseKey}:writer`,
+        `${baseKey}:writers`,
+        `${baseKey}:writer-expiry:${ownerToken}`,
+        ownerToken,
+      );
+      return Number(result) === 1;
+    });
+  }
+
+  public async extendFairReadLock(baseKey: string, ownerToken: string, ttlMs: number): Promise<boolean | null> {
+    return this.executeWithCircuit("extendFairReadLock", null, async () => {
+      const now = Date.now();
+      const score = await this.client!.zscore(`${baseKey}:readers`, ownerToken);
+      if (score == null) return false;
+      await this.client!.zadd(`${baseKey}:readers`, now + Math.max(1, Math.floor(ttlMs)), ownerToken);
+      return true;
     });
   }
 

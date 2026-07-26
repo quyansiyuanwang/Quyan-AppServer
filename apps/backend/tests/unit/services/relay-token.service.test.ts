@@ -300,6 +300,21 @@ describe("RelayTokenService", () => {
     ).rejects.toThrow("Automatic proxy pool not found or unavailable");
   });
 
+  it("rejects an automatic proxy pool in ordered channel configuration", async () => {
+    relayChannelRepository.listActiveByIds.mockResolvedValue([
+      { id: "automatic-pool", channelType: "automatic-proxy-pool" },
+    ]);
+
+    await expect(
+      service.generateToken("user-1", {
+        name: "Ordered Token",
+        channelConfigs: [{ channelId: "automatic-pool", priority: 0 }],
+      } as any),
+    ).rejects.toThrow("Automatic proxy pools can only be configured in automatic routing mode");
+
+    expect(relayChannelService.assertChannelBusinessSelectableById).not.toHaveBeenCalled();
+  });
+
   it("preserves multi-channel routing on metadata-only updates", async () => {
     const token = createToken({
       channelConfigs: [
@@ -842,7 +857,7 @@ describe("RelayTokenService", () => {
         scopedSummary: expect.objectContaining({
           rangeMode: "lifetime",
           rangeLabel: "lifetime",
-          requestCount: 3,
+          requestCount: 999,
           totalTokens: 300,
           chargedAmount: 6.25,
           coveredAmount: 1.75,
@@ -1005,7 +1020,9 @@ describe("RelayTokenService", () => {
   });
 
   it("includes cache token fields in usage stats", async () => {
-    relayTokenRepository.findByIdWithRelations.mockResolvedValue(createToken({ id: "token-1", userId: "user-1" }));
+    relayTokenRepository.findByIdWithRelations.mockResolvedValue(
+      createToken({ id: "token-1", userId: "user-1", requestCount: 1 }),
+    );
     relayUsageRepository.findByRelayTokenId.mockResolvedValue([
       {
         id: "usage-1",
@@ -1036,12 +1053,13 @@ describe("RelayTokenService", () => {
         createTime: now,
       },
     ]);
+    relayUsageRepository.aggregateByRelayTokenIds.mockResolvedValue([{ relayTokenId: "token-1", requestCount: 1 }]);
 
     const result = await service.getUsageStats("token-1", "user-1");
 
     expect(result.totalTokens).toBe(150);
-    expect(result.requestCount).toBe(2);
-    expect(result.avgTokensPerRequest).toBe(75);
+    expect(result.requestCount).toBe(1);
+    expect(result.avgTokensPerRequest).toBe(150);
     expect(result.usages).toEqual([
       expect.objectContaining({ cacheCreationTokens: 8, cacheReadTokens: 2 }),
       expect.objectContaining({ cacheCreationTokens: 4, cacheReadTokens: 1 }),
@@ -1155,7 +1173,7 @@ describe("RelayTokenService", () => {
         remainingQuota: 72.5,
         quotaUsagePercent: 9.375,
         isQuotaExceeded: false,
-        requestCount: 2,
+        requestCount: 3,
         requestTokens: 30,
         responseTokens: 70,
         totalTokens: 100,

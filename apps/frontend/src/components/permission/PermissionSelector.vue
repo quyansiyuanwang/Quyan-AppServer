@@ -28,7 +28,7 @@
             :indeterminate="isCategoryPartiallySelected(category)"
             @change="handleCategoryToggle(category, $event)"
           >
-            <span class="category-name">{{ category }}</span>
+            <span class="category-name">{{ getCategoryLabel(category) }}</span>
             <el-tag size="small" type="info" style="margin-left: 8px">
               {{ getSelectedCountInCategory(category) }} /
               {{ getCategoryPermissions(category).length }}
@@ -45,7 +45,9 @@
               :disabled="isPermissionDisabled(perm.value)"
               class="permission-checkbox"
             >
-              <span class="permission-label">{{ perm.name }}</span>
+              <span class="permission-label">{{
+                getPermissionLabel(perm.value, i18ns.locale)
+              }}</span>
               <span class="permission-value">({{ perm.value }})</span>
             </el-checkbox>
           </el-checkbox-group>
@@ -64,7 +66,12 @@
 import { ref, computed, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import type { Permission } from '@/client/types.gen'
+import { getPermissionLabel } from '@/constant/permission'
 import { i18ns } from '@/locales'
+import {
+  getPermissionCategoryId,
+  getPermissionCategoryTranslationKey,
+} from '@/views/management/permission-tree'
 
 interface PermissionItem {
   category: string
@@ -111,7 +118,7 @@ watch(
 // 获取所有分类
 const allCategories = computed(() => {
   const categorySet = new Set<string>()
-  props.allPermissions.forEach((perm) => categorySet.add(perm.category))
+  props.allPermissions.forEach((perm) => categorySet.add(getPermissionCategoryId(perm.value)))
   return Array.from(categorySet).sort()
 })
 
@@ -121,29 +128,37 @@ const filteredCategories = computed(() => {
 
   const keyword = searchKeyword.value.toLowerCase()
   return allCategories.value.filter((category) => {
-    const categoryPerms = props.allPermissions.filter((p) => p.category === category)
+    const categoryPerms = props.allPermissions.filter(
+      (permission) => getPermissionCategoryId(permission.value) === category,
+    )
     return categoryPerms.some(
-      (perm) =>
-        perm.name.toLowerCase().includes(keyword) ||
-        perm.value.toLowerCase().includes(keyword) ||
-        category.toLowerCase().includes(keyword),
+      (permission) =>
+        getPermissionLabel(permission.value, i18ns.locale).toLowerCase().includes(keyword) ||
+        permission.value.toLowerCase().includes(keyword) ||
+        getCategoryLabel(category).toLowerCase().includes(keyword),
     )
   })
 })
 
 // 获取分类下的权限
 const getCategoryPermissions = (category: string) => {
-  const perms = props.allPermissions.filter((p) => p.category === category)
+  const perms = props.allPermissions.filter(
+    (permission) => getPermissionCategoryId(permission.value) === category,
+  )
 
   // 如果有搜索关键词，过滤权限
   if (!searchKeyword.value) return perms
 
   const keyword = searchKeyword.value.toLowerCase()
   return perms.filter(
-    (perm) =>
-      perm.name.toLowerCase().includes(keyword) || perm.value.toLowerCase().includes(keyword),
+    (permission) =>
+      getPermissionLabel(permission.value, i18ns.locale).toLowerCase().includes(keyword) ||
+      permission.value.toLowerCase().includes(keyword),
   )
 }
+
+const getCategoryLabel = (category: string) =>
+  i18ns.t(getPermissionCategoryTranslationKey(category, 'label'))
 
 // 检查权限是否被禁用
 const isPermissionDisabled = (permission: Permission) => {

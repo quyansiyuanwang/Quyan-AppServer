@@ -5,16 +5,15 @@ import { EnvSpace } from "./env";
 // Prisma 会自动使用 DATABASE_URL 环境变量
 const prisma = new PrismaClient({
   log: EnvSpace.isTest ? [] : ["warn", "error"], // 测试环境下关闭日志
-  // Connection pool configuration to prevent connection exhaustion
   datasources: {
     db: {
-      url: process.env.DATABASE_URL,
+      url: EnvSpace.databaseUrl,
     },
   },
 });
 
-// Configure connection pool limits via DATABASE_URL query parameters
-// Example: mysql://user:pass@host:3306/db?connection_limit=10&pool_timeout=20
+// Do not put connection_limit, pool_timeout, or connect_timeout in DATABASE_URL.
+// They are not mysql2 connection options and produce runtime warnings.
 
 export { prisma };
 

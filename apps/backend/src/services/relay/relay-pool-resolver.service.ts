@@ -12,6 +12,7 @@ export interface RelayPoolMemberGraph {
   priority: number;
   weight: Prisma.Decimal | number;
   enabled: boolean;
+  memberChannel?: RelayChannel | null;
 }
 
 export type RelayPoolMemberOrderer = (
@@ -216,7 +217,12 @@ export class RelayPoolResolverService {
         {
           ...channel,
           poolMembers: Array.isArray((channel as RelayChannel & { poolMembers?: RelayPoolMemberGraph[] }).poolMembers)
-            ? ((channel as RelayChannel & { poolMembers?: RelayPoolMemberGraph[] }).poolMembers ?? [])
+            ? ((channel as RelayChannel & { poolMembers?: RelayPoolMemberGraph[] }).poolMembers ?? []).map(
+                (member) => ({
+                  ...member,
+                  memberChannel: member.memberChannel ?? null,
+                }),
+              )
             : [],
         },
       ]),

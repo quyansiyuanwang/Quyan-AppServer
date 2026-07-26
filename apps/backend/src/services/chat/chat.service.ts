@@ -31,11 +31,13 @@ import {
   type RelayResolvedChannelCandidate,
 } from "@/services/relay/relay-pool-resolver.service";
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
+import { randomUUID } from "crypto";
 
 interface ChatRequestMeta {
   path?: string;
   method?: string;
   ipAddress?: string;
+  requestId?: string;
 }
 
 export class ChatService {
@@ -270,6 +272,7 @@ export class ChatService {
     const usagePath = requestMeta?.path || "/chat/conversations/:conversationId/messages";
     const usageMethod = requestMeta?.method || "POST";
     const usageIpAddress = requestMeta?.ipAddress || "unknown";
+    const usageRequestId = requestMeta?.requestId || randomUUID();
 
     try {
       for await (const chunk of this.aiProvider.streamChat(
@@ -373,6 +376,7 @@ export class ChatService {
     const finalizeResult = await this.usageChargeService.chargeUsage({
       userId,
       relayTokenId: token.id,
+      requestId: usageRequestId,
       requestTokens: inputTokens,
       responseTokens: outputTokens,
       totalTokens,

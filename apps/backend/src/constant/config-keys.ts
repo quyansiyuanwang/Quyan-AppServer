@@ -15,6 +15,14 @@ export const CONFIG_KEYS = {
   BILLING: {
     RECHARGE_RATIO: "billing.rechargeRatio",
   },
+  DEVELOPER: {
+    VERIFICATION_OVERAGE_PRICE: "developer.pricing.verification",
+    IP_OVERAGE_PRICE: "developer.pricing.ip",
+    PUSH_OVERAGE_PRICE: "developer.pricing.push",
+    SMS_ENDPOINT: "developer.sms.endpoint",
+    SMS_TOKEN: "developer.sms.token",
+    SMS_SENDER: "developer.sms.sender",
+  },
   CAPTCHA: {
     PROVIDER: "captcha.provider",
     FALLBACK_PROVIDER: "captcha.fallbackProvider",

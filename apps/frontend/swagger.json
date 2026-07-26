@@ -567,6 +567,132 @@
 				"parameters": []
 			}
 		},
+		"/s/{code}": {
+			"get": {
+				"operationId": "DeveloperShortLinkPublicControllerRedirect",
+				"responses": {
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"Developer Public Short Links"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "code",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/status/{slug}": {
+			"get": {
+				"operationId": "DeveloperStatusPublicControllerStatus",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"slug": {
+											"type": "string"
+										},
+										"name": {
+											"type": "string"
+										},
+										"statusMonitors": {
+											"items": {
+												"properties": {
+													"checks": {
+														"items": {
+															"properties": {
+																"latencyMs": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"statusCode": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"checkStatus": {
+																	"type": "string"
+																},
+																"checkedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																}
+															},
+															"required": [
+																"latencyMs",
+																"statusCode",
+																"checkStatus",
+																"checkedAt"
+															],
+															"type": "object"
+														},
+														"type": "array"
+													},
+													"lastStatus": {
+														"type": "string"
+													},
+													"lastCheckedAt": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"name": {
+														"type": "string"
+													},
+													"availability": {
+														"type": "number",
+														"format": "double"
+													}
+												},
+												"required": [
+													"checks",
+													"lastStatus",
+													"lastCheckedAt",
+													"name",
+													"availability"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										}
+									},
+									"required": [
+										"slug",
+										"name",
+										"statusMonitors"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Public Status"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "slug",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v2/relay/tokens/current/quota-summary": {
 			"get": {
 				"operationId": "RelayV2ControllerGetCurrentTokenQuotaSummary",
@@ -13913,6 +14039,260 @@
 				]
 			}
 		},
+		"/v1/relay-channels/health/overview": {
+			"get": {
+				"operationId": "RelayChannelControllerGetChannelHealthOverview",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelHealthOverviewDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/relay-channels/{id}/health": {
+			"get": {
+				"operationId": "RelayChannelControllerGetChannelHealth",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"$ref": "#/components/schemas/RelayChannelHealthDto"
+										},
+										{
+											"$ref": "#/components/schemas/RelayAutomaticPoolHealthDto"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"delete": {
+				"operationId": "RelayChannelControllerClearChannelHealth",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"cleared": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"cleared"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channels/{id}/health-config": {
+			"patch": {
+				"operationId": "RelayChannelControllerUpdateChannelHealthConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelHealthDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateRelayChannelHealthConfigRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channels/health/batch-config": {
+			"patch": {
+				"operationId": "RelayChannelControllerBatchUpdateChannelHealthConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BatchRelayChannelsResultDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BatchUpdateRelayChannelHealthConfigRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channels/health/batch-clear": {
+			"post": {
+				"operationId": "RelayChannelControllerBatchClearChannelHealth",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BatchRelayChannelsResultDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BatchDeleteRelayChannelsRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/relay-channels/{id}": {
 			"get": {
 				"operationId": "RelayChannelControllerGetChannel",
@@ -14357,6 +14737,400 @@
 					"required": true,
 					"purpose": "stepup",
 					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channel-probes": {
+			"get": {
+				"operationId": "RelayChannelProbeControllerListOverview",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RelayChannelProbeOverviewItemDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/relay-channel-probes/{channelId}/profile": {
+			"get": {
+				"operationId": "RelayChannelProbeControllerGetProfile",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelProbeProfileDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"put": {
+				"operationId": "RelayChannelProbeControllerUpsertProfile",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelProbeProfileDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpsertRelayChannelProbeProfileRequest"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "RelayChannelProbeControllerClearProfile",
+				"responses": {
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channel-probes/{channelId}/runs": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerCreateRun",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateRelayChannelProbeRunRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			},
+			"get": {
+				"operationId": "RelayChannelProbeControllerListRuns",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelProbeRunPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"delete": {
+				"operationId": "RelayChannelProbeControllerClearRunHistory",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ClearRelayChannelProbeRunHistoryResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "scope",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/RelayChannelProbeRunHistoryScope"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay-channel-probes/{channelId}/runs/reset": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerResetRunState",
+				"responses": {
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channel-probes/runs/batch": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerCreateRuns",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreateRelayChannelProbeRunsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateRelayChannelProbeRunsRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channel-probes/runs/apply": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerApplyRuns",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApplyRelayChannelProbeRunsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ApplyRelayChannelProbeRunsRequest"
+							}
+						}
+					}
 				}
 			}
 		},
@@ -16811,6 +17585,4382 @@
 					}
 				],
 				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/admin/quota-overrides": {
+			"get": {
+				"operationId": "DeveloperQuotaAdminControllerList",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperQuotaOverrideDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Quota Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "DeveloperQuotaAdminControllerUpsert",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperQuotaOverrideDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Quota Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpsertDeveloperQuotaOverrideDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/admin/quota-overrides/{id}": {
+			"delete": {
+				"operationId": "DeveloperQuotaAdminControllerRemove",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Quota Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects": {
+			"get": {
+				"operationId": "DeveloperProjectControllerList",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProjectDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerCreate",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperProjectDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/usage": {
+			"get": {
+				"operationId": "DeveloperProjectControllerGetUsageSummary",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperQuotaSummaryDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/developer/projects/{projectId}/status-page": {
+			"put": {
+				"operationId": "DeveloperProjectControllerUpdateStatusPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperStatusPageDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/keys": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListKeys",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperApiKeyDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerCreateKey",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperApiKeyDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperApiKeyDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/keys/{id}": {
+			"delete": {
+				"operationId": "DeveloperProjectControllerRevokeKey",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/kv": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Omit_DeveloperKvValueDto.value_"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/developer/projects/{projectId}/kv/{key}": {
+			"get": {
+				"operationId": "DeveloperProjectControllerGetKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerSetKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetKvValueDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProjectControllerDeleteKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/short-links": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListShortLinks",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperShortLinkDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerCreateShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateShortLinkDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/short-links/{id}": {
+			"put": {
+				"operationId": "DeveloperProjectControllerUpdateShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateShortLinkDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProjectControllerDeleteShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/short-links/{id}/stats": {
+			"get": {
+				"operationId": "DeveloperProjectControllerGetShortLinkStats",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkStatsDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/developer/projects/{projectId}/secrets": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListSecrets",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperSecretDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerUpsertSecret",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperSecretDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpsertDeveloperSecretDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/secrets/{alias}": {
+			"delete": {
+				"operationId": "DeveloperProjectControllerDeleteSecret",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "alias",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/monitors": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListMonitors",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerCreateMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperStatusMonitorDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/monitors/{id}": {
+			"put": {
+				"operationId": "DeveloperProjectControllerUpdateMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperStatusMonitorDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProjectControllerDeleteMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/monitors/{id}/check": {
+			"post": {
+				"operationId": "DeveloperProjectControllerCheckMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/push-channels": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListPushChannels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperPushChannelDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProjectControllerCreatePushChannel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperPushChannelDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperPushChannelDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/developer/projects/{projectId}/push-deliveries": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListPushDeliveries",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperPushDeliveryDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/developer/projects/{projectId}/push-channels/{id}": {
+			"put": {
+				"operationId": "DeveloperProjectControllerUpdatePushChannel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperPushChannelDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperPushChannelDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProjectControllerDeletePushChannel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/catalog": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerCatalog",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"properties": {
+											"supportsExternalApi": {
+												"type": "boolean"
+											},
+											"apiPath": {
+												"type": "string"
+											},
+											"name": {
+												"type": "string"
+											},
+											"urlSlug": {
+												"type": "string"
+											},
+											"code": {
+												"type": "string",
+												"enum": [
+													"push",
+													"status",
+													"kv",
+													"short_link",
+													"secret",
+													"verification",
+													"ip_geolocation"
+												]
+											},
+											"config": {
+												"$ref": "#/components/schemas/DeveloperProductConfigDto"
+											}
+										},
+										"required": [
+											"supportsExternalApi",
+											"name",
+											"urlSlug",
+											"code",
+											"config"
+										],
+										"type": "object"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/products/{product}/instances": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerListInstances",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductInstanceDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductSelfControllerCreateInstance",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductInstanceDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperProductInstanceDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/{product}/usage": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerGetUsage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductUsageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/{product}/calls": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerListCallLogs",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductCallLogDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/{product}/instances/{instanceId}": {
+			"put": {
+				"operationId": "DeveloperProductSelfControllerUpdateInstance",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductInstanceDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperProductInstanceDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProductSelfControllerDeleteInstance",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/{product}/subjects": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerListSubjects",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductSubjectDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/{product}/instances/{instanceId}/keys": {
+			"get": {
+				"operationId": "DeveloperProductSelfControllerListKeys",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductApiKeyDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductSelfControllerCreateKey",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductApiKeyDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperProductApiKeyDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/{product}/instances/{instanceId}/keys/{keyId}": {
+			"delete": {
+				"operationId": "DeveloperProductSelfControllerRevokeKey",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Products"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "keyId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/kv/instances/{instanceId}/entries": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Omit_DeveloperKvValueDto.value_"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/kv/instances/{instanceId}/entries/{key}": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerGetKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerSetKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetKvValueDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProductResourceControllerDeleteKv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/short_link/instances/{instanceId}/links": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListShortLinks",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperShortLinkDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerCreateShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateShortLinkDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/short_link/instances/{instanceId}/links/{id}": {
+			"put": {
+				"operationId": "DeveloperProductResourceControllerUpdateShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateShortLinkDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProductResourceControllerDeleteShortLink",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/short_link/instances/{instanceId}/links/{id}/stats": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerShortLinkStats",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperShortLinkStatsDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/secret/instances/{instanceId}/secrets": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListSecrets",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperSecretDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerUpsertSecret",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperSecretDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpsertDeveloperSecretDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/secret/instances/{instanceId}/secrets/{alias}": {
+			"delete": {
+				"operationId": "DeveloperProductResourceControllerDeleteSecret",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "alias",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/status/instances/{instanceId}/monitors": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListMonitors",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerCreateMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperStatusMonitorDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/status/instances/{instanceId}/monitors/{id}": {
+			"put": {
+				"operationId": "DeveloperProductResourceControllerUpdateMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperStatusMonitorDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProductResourceControllerDeleteMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/status/instances/{instanceId}/monitors/{id}/check": {
+			"post": {
+				"operationId": "DeveloperProductResourceControllerCheckMonitor",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/status/instances/{instanceId}/page": {
+			"put": {
+				"operationId": "DeveloperProductResourceControllerUpdateStatusPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperStatusPageDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"get": {
+				"operationId": "DeveloperProductResourceControllerGetStatusPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/push/instances/{instanceId}/channels": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListPushChannels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperPushChannelDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerCreatePushChannel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperPushChannelDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDeveloperPushChannelDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/push/instances/{instanceId}/secret-projects": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListPushSecretProjects",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductInstanceDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Lists selectable Secret Management instances for a push channel.",
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/push/instances/{instanceId}/secret-projects/{secretInstanceId}/secrets": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListPushSecretProjectSecrets",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperSecretDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Lists metadata for write-only credentials within a selected Secret Management instance.",
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "secretInstanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductResourceControllerUpsertPushSecretProjectSecret",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperSecretDto"
+								}
+							}
+						}
+					}
+				},
+				"description": "Quickly creates or rotates a write-only credential in the selected Secret Management instance.",
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "secretInstanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpsertDeveloperSecretDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/push/instances/{instanceId}/deliveries": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerListPushDeliveries",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperPushDeliveryDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/push/instances/{instanceId}/channels/{id}": {
+			"put": {
+				"operationId": "DeveloperProductResourceControllerUpdatePushChannel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperPushChannelDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperPushChannelDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "DeveloperProductResourceControllerDeletePushChannel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/kv/entries": {
+			"get": {
+				"operationId": "DeveloperProductKvApiControllerList",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Omit_DeveloperKvValueDto.value_"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"KV Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:kv:read"
+						]
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/products/kv/entries/{key}": {
+			"get": {
+				"operationId": "DeveloperProductKvApiControllerGet",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"KV Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:kv:read"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperProductKvApiControllerSet",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"KV Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:kv:write"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetKvValueDto"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "DeveloperProductKvApiControllerDelete",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"KV Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:kv:write"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/verification/send": {
+			"post": {
+				"operationId": "DeveloperProductVerificationApiControllerSend",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Verification Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:verification:send"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SendDeveloperVerificationDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/products/verification/verify": {
+			"post": {
+				"operationId": "DeveloperProductVerificationApiControllerVerify",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"valid": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"valid"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Verification Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:verification:verify"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/VerifyDeveloperCodeDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/products/ip-geolocation/{ip}": {
+			"get": {
+				"operationId": "DeveloperProductIpApiControllerLookup",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Record_string.unknown_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IP Geolocation Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:ip_geolocation:lookup"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "ip",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/products/push/send": {
+			"post": {
+				"operationId": "DeveloperProductPushApiControllerSend",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperPushDeliveryDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Push Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:push:send"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SendDeveloperPushDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/admin/products/configs": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListConfigs",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductConfigDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/admin/products/{product}/config": {
+			"put": {
+				"operationId": "DeveloperProductAdminControllerUpdateConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductConfigDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperProductConfigDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/admin/products/accounts": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListAccounts",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductAccountDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/admin/products/{product}/accounts": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListProductAccounts",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductAccountDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					}
+				]
+			}
+		},
+		"/v1/admin/products/{product}/users": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListManagedAccounts",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductManagedAccountsDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/admin/products/{product}/users/{userId}/account": {
+			"put": {
+				"operationId": "DeveloperProductAdminControllerUpdateManagedAccount",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductManagedAccountDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperProductAccountDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/admin/products/{product}/users/{userId}/instances": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListManagedInstances",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductInstanceDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/admin/products/{product}/users/{userId}/usage": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerGetManagedUsage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductUsageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/admin/products/{product}/users/{userId}/calls": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListManagedCallLogs",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductCallLogDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/admin/products/{product}/accounts/{accountId}/usage": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerGetUsage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProductUsageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "accountId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/admin/products/{product}/accounts/{accountId}/calls": {
+			"get": {
+				"operationId": "DeveloperProductAdminControllerListCallLogs",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperProductCallLogDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Administration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "product",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/DeveloperProductCode"
+						}
+					},
+					{
+						"in": "path",
+						"name": "accountId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/kv": {
+			"get": {
+				"operationId": "DeveloperKvApiControllerList",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/Omit_DeveloperKvValueDto.value_"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer KV"
+				],
+				"security": [
+					{
+						"project-key": [
+							"kv:read"
+						]
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/kv/{key}": {
+			"get": {
+				"operationId": "DeveloperKvApiControllerGet",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer KV"
+				],
+				"security": [
+					{
+						"project-key": [
+							"kv:read"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "DeveloperKvApiControllerSet",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer KV"
+				],
+				"security": [
+					{
+						"project-key": [
+							"kv:write"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetKvValueDto"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "DeveloperKvApiControllerDelete",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer KV"
+				],
+				"security": [
+					{
+						"project-key": [
+							"kv:write"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "key",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/developer/verification/send": {
+			"post": {
+				"operationId": "DeveloperApiControllerSendVerification",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Service APIs"
+				],
+				"security": [
+					{
+						"project-key": [
+							"verification:send"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SendDeveloperVerificationDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/developer/verification/verify": {
+			"post": {
+				"operationId": "DeveloperApiControllerVerifyCode",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"valid": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"valid"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Service APIs"
+				],
+				"security": [
+					{
+						"project-key": [
+							"verification:verify"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/VerifyDeveloperCodeDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/developer/ip/{ip}": {
+			"get": {
+				"operationId": "DeveloperApiControllerLookupIp",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Record_string.unknown_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Service APIs"
+				],
+				"security": [
+					{
+						"project-key": [
+							"ip:lookup"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "ip",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/developer/ip": {
+			"get": {
+				"operationId": "DeveloperApiControllerLookupCallerIp",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Record_string.unknown_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Service APIs"
+				],
+				"security": [
+					{
+						"project-key": [
+							"ip:lookup"
+						]
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/developer/push": {
+			"post": {
+				"operationId": "DeveloperApiControllerPush",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DeveloperPushDeliveryDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Service APIs"
+				],
+				"security": [
+					{
+						"project-key": [
+							"push:send"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SendDeveloperPushDto"
+							}
+						}
+					}
+				}
 			}
 		},
 		"/v1/chat/conversations": {
@@ -21481,7 +26631,13 @@
 					1037,
 					1038,
 					1039,
-					1040
+					1040,
+					1041,
+					1042,
+					1043,
+					1044,
+					1045,
+					1046
 				],
 				"type": "number"
 			},
@@ -22788,6 +27944,9 @@
 					"relay:channel:update",
 					"relay:channel:delete",
 					"relay:channel:export",
+					"relay:channel:probe:read",
+					"relay:channel:probe:execute",
+					"relay:channel:multiplier:adjust",
 					"accesskey:create",
 					"accesskey:read",
 					"accesskey:delete",
@@ -22808,6 +27967,33 @@
 					"redemption:code:read",
 					"balance:read",
 					"balance:recharge",
+					"developer:quota:manage",
+					"developer:product:catalog:manage",
+					"developer:product:entitlement:manage",
+					"developer:product:config:manage",
+					"product:kv:read",
+					"product:kv:write",
+					"product:kv:manage",
+					"product:short_link:read",
+					"product:short_link:write",
+					"product:short_link:manage",
+					"product:secret:read",
+					"product:secret:write",
+					"product:secret:use",
+					"product:secret:manage",
+					"product:status:read",
+					"product:status:write",
+					"product:status:publish",
+					"product:status:manage",
+					"product:verification:send",
+					"product:verification:verify",
+					"product:verification:manage",
+					"product:ip_geolocation:lookup",
+					"product:ip_geolocation:manage",
+					"product:push:send",
+					"product:push:channel:manage",
+					"product:push:delivery:read",
+					"product:push:manage",
 					"monthly_pass:template:read",
 					"monthly_pass:template:write",
 					"monthly_pass:assignment:read",
@@ -30569,6 +35755,10 @@
 						},
 						"type": "array"
 					},
+					"hasInvalidOrderedChannels": {
+						"type": "boolean",
+						"description": "True when legacy ordered configuration still references an automatic pool."
+					},
 					"failoverConfig": {
 						"$ref": "#/components/schemas/RelayTokenFailoverConfigDto"
 					}
@@ -32093,6 +37283,22 @@
 					"auto"
 				]
 			},
+			"RelayAutomaticPoolRankingMode": {
+				"type": "string",
+				"enum": [
+					"price-first",
+					"stability-first"
+				]
+			},
+			"RelayChannelHealthTrackingMode": {
+				"type": "string",
+				"enum": [
+					"automatic",
+					"manual",
+					"disabled"
+				],
+				"description": "Controls whether a standalone channel contributes health samples to automatic proxy pools."
+			},
 			"RelayChannelRoutingConfigDto": {
 				"properties": {
 					"maxRetries": {
@@ -32144,6 +37350,26 @@
 					},
 					"stickyByFormat": {
 						"type": "boolean"
+					},
+					"rankingMode": {
+						"$ref": "#/components/schemas/RelayAutomaticPoolRankingMode",
+						"description": "Dynamic ordering mode for automatic proxy pools."
+					},
+					"healthTrackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode",
+						"description": "Standalone channels: collect live Redis samples, use administrator values, or keep priority unchanged."
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double",
+						"nullable": true,
+						"description": "Administrator-maintained availability for manual health tracking, from 0 to 1."
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double",
+						"nullable": true,
+						"description": "Administrator-maintained latency in milliseconds for manual health tracking."
 					}
 				},
 				"type": "object",
@@ -32577,6 +37803,9 @@
 					},
 					"stickyByFormat": {
 						"type": "boolean"
+					},
+					"rankingMode": {
+						"$ref": "#/components/schemas/RelayAutomaticPoolRankingMode"
 					}
 				},
 				"type": "object",
@@ -32705,6 +37934,499 @@
 					"multiplier",
 					"allowedFormats",
 					"modelCapabilities"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelHealthOverviewItemDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"windowStartAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"windowEndAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"successCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"failureCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"availability": {
+						"type": "number",
+						"format": "double"
+					},
+					"averageLatencyMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"status2xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status3xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status4xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status5xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"statusOtherCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastSeenAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"lastSuccessAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"trackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode"
+					},
+					"source": {
+						"type": "string",
+						"enum": [
+							"redis",
+							"manual",
+							"disabled"
+						],
+						"description": "Whether the displayed availability is live Redis data, an administrator value, or disabled."
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double"
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType"
+					}
+				},
+				"required": [
+					"channelId",
+					"windowStartAt",
+					"windowEndAt",
+					"sampleCount",
+					"successCount",
+					"failureCount",
+					"availability",
+					"averageLatencyMs",
+					"status2xxCount",
+					"status3xxCount",
+					"status4xxCount",
+					"status5xxCount",
+					"statusOtherCount",
+					"trackingMode",
+					"source",
+					"name",
+					"enabled",
+					"channelType"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelHealthOverviewDto": {
+				"properties": {
+					"windowMinutes": {
+						"type": "number",
+						"format": "double"
+					},
+					"channels": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelHealthOverviewItemDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"windowMinutes",
+					"channels"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelHealthDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"windowStartAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"windowEndAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"successCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"failureCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"availability": {
+						"type": "number",
+						"format": "double"
+					},
+					"averageLatencyMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"status2xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status3xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status4xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status5xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"statusOtherCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastSeenAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"lastSuccessAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"trackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode"
+					},
+					"source": {
+						"type": "string",
+						"enum": [
+							"redis",
+							"manual",
+							"disabled"
+						],
+						"description": "Whether the displayed availability is live Redis data, an administrator value, or disabled."
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double"
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"channelId",
+					"windowStartAt",
+					"windowEndAt",
+					"sampleCount",
+					"successCount",
+					"failureCount",
+					"availability",
+					"averageLatencyMs",
+					"status2xxCount",
+					"status3xxCount",
+					"status4xxCount",
+					"status5xxCount",
+					"statusOtherCount",
+					"trackingMode",
+					"source"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayAutomaticPoolHealthMemberDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"windowStartAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"windowEndAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"successCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"failureCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"availability": {
+						"type": "number",
+						"format": "double"
+					},
+					"averageLatencyMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"status2xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status3xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status4xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"status5xxCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"statusOtherCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastSeenAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"lastSuccessAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"trackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode"
+					},
+					"source": {
+						"type": "string",
+						"enum": [
+							"redis",
+							"manual",
+							"disabled"
+						],
+						"description": "Whether the displayed availability is live Redis data, an administrator value, or disabled."
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double"
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"priority": {
+						"type": "number",
+						"format": "double"
+					},
+					"weight": {
+						"type": "number",
+						"format": "double"
+					},
+					"effectivePrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"score": {
+						"type": "number",
+						"format": "double"
+					},
+					"rank": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"channelId",
+					"windowStartAt",
+					"windowEndAt",
+					"sampleCount",
+					"successCount",
+					"failureCount",
+					"availability",
+					"averageLatencyMs",
+					"status2xxCount",
+					"status3xxCount",
+					"status4xxCount",
+					"status5xxCount",
+					"statusOtherCount",
+					"trackingMode",
+					"source",
+					"name",
+					"enabled",
+					"priority",
+					"weight",
+					"effectivePrice",
+					"score",
+					"rank"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayAutomaticPoolHealthDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"rankingMode": {
+						"$ref": "#/components/schemas/RelayAutomaticPoolRankingMode"
+					},
+					"windowStartAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"windowEndAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"members": {
+						"items": {
+							"$ref": "#/components/schemas/RelayAutomaticPoolHealthMemberDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"channelId",
+					"name",
+					"rankingMode",
+					"windowStartAt",
+					"windowEndAt",
+					"members"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateRelayChannelHealthConfigRequest": {
+				"properties": {
+					"healthTrackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode"
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					}
+				},
+				"required": [
+					"healthTrackingMode"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchRelayChannelsResultDto": {
+				"properties": {
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"affected": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"total",
+					"affected"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchUpdateRelayChannelHealthConfigRequest": {
+				"description": "Applies one health-tracking configuration to multiple standalone channels.",
+				"properties": {
+					"healthTrackingMode": {
+						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode"
+					},
+					"manualAvailability": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"manualLatencyMs": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"ids": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"healthTrackingMode",
+					"ids"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchDeleteRelayChannelsRequest": {
+				"properties": {
+					"ids": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"ids"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -33269,24 +38991,6 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"BatchRelayChannelsResultDto": {
-				"properties": {
-					"total": {
-						"type": "number",
-						"format": "double"
-					},
-					"affected": {
-						"type": "number",
-						"format": "double"
-					}
-				},
-				"required": [
-					"total",
-					"affected"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
 			"BatchSetRelayChannelStatusRequest": {
 				"properties": {
 					"ids": {
@@ -33306,17 +39010,548 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"BatchDeleteRelayChannelsRequest": {
+			"RelayChannelProbeFormat": {
+				"type": "string",
+				"enum": [
+					"openai",
+					"anthropic",
+					"gemini"
+				]
+			},
+			"RelayChannelProbeWorkflowStepDto": {
 				"properties": {
-					"ids": {
+					"name": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string",
+						"enum": [
+							"GET",
+							"POST"
+						]
+					},
+					"url": {
+						"type": "string"
+					},
+					"headers": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"query": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"body": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"extract": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"balancePath": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"method",
+					"url"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeProfileDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"relayChannelId": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"probeFormat": {
+						"$ref": "#/components/schemas/RelayChannelProbeFormat"
+					},
+					"probeModel": {
+						"type": "string"
+					},
+					"probePayload": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"upstreamCurrency": {
+						"type": "string"
+					},
+					"localCurrency": {
+						"type": "string"
+					},
+					"upstreamBalanceDivisor": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamRateMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"probeGroup": {
+						"type": "string",
+						"description": "Channels in the same non-empty probe group are calibrated serially."
+					},
+					"distributionMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"workflow": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeWorkflowStepDto"
+						},
+						"type": "array"
+					},
+					"credentialNames": {
 						"items": {
 							"type": "string"
+						},
+						"type": "array"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updateTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"relayChannelId",
+					"enabled",
+					"probeFormat",
+					"probeModel",
+					"probePayload",
+					"upstreamCurrency",
+					"localCurrency",
+					"upstreamBalanceDivisor",
+					"upstreamRateMultiplier",
+					"distributionMultiplier",
+					"workflow",
+					"credentialNames",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeRunStatus": {
+				"type": "string",
+				"enum": [
+					"queued",
+					"running",
+					"succeeded",
+					"failed",
+					"timed_out",
+					"cancelled"
+				]
+			},
+			"RelayChannelProbeRunDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"relayChannelId": {
+						"type": "string"
+					},
+					"profileId": {
+						"type": "string"
+					},
+					"status": {
+						"$ref": "#/components/schemas/RelayChannelProbeRunStatus"
+					},
+					"queuedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"startedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"finishedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"distributionMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamBalanceBefore": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamBalanceAfter": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamBalanceDelta": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamRateMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"localBalanceBefore": {
+						"type": "number",
+						"format": "double"
+					},
+					"localBalanceAfter": {
+						"type": "number",
+						"format": "double"
+					},
+					"localBalanceDelta": {
+						"type": "number",
+						"format": "double"
+					},
+					"baseLocalCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"requestTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"responseTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"suggestedMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"sourceChannelMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"appliedMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"appliedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"errorMessage": {
+						"type": "string"
+					},
+					"requestedByUserId": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updateTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"relayChannelId",
+					"status",
+					"queuedAt",
+					"distributionMultiplier",
+					"upstreamRateMultiplier",
+					"requestedByUserId",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeOverviewItemDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"allowedProbeFormats": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeFormat"
+						},
+						"type": "array",
+						"description": "Formats that can be used for the minimal AI request on this channel."
+					},
+					"allowedProbeModels": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Explicit model allow-list for the channel. Empty means no channel-level model allow-list."
+					},
+					"profile": {
+						"$ref": "#/components/schemas/RelayChannelProbeProfileDto"
+					},
+					"latestRun": {
+						"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+					}
+				},
+				"required": [
+					"channelId",
+					"channelName",
+					"enabled",
+					"multiplier",
+					"allowedProbeFormats",
+					"allowedProbeModels"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpsertRelayChannelProbeProfileRequest": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"probeFormat": {
+						"$ref": "#/components/schemas/RelayChannelProbeFormat"
+					},
+					"probeModel": {
+						"type": "string"
+					},
+					"probePayload": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"upstreamCurrency": {
+						"type": "string"
+					},
+					"localCurrency": {
+						"type": "string"
+					},
+					"upstreamBalanceDivisor": {
+						"type": "number",
+						"format": "double",
+						"description": "Divides the numeric balance extracted from the upstream response before calculating deltas."
+					},
+					"upstreamRateMultiplier": {
+						"type": "number",
+						"format": "double",
+						"description": "Converts a normalized upstream balance unit to the local cost basis before distribution markup."
+					},
+					"probeGroup": {
+						"type": "string",
+						"description": "Channels in the same non-empty probe group are calibrated serially. Empty clears the group."
+					},
+					"distributionMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"workflow": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeWorkflowStepDto"
+						},
+						"type": "array"
+					},
+					"credentials": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					}
+				},
+				"required": [
+					"enabled",
+					"probeFormat",
+					"probeModel",
+					"probePayload",
+					"workflow"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateRelayChannelProbeRunRequest": {
+				"properties": {
+					"distributionMultiplier": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateRelayChannelProbeRunsResponse": {
+				"properties": {
+					"queued": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+						},
+						"type": "array"
+					},
+					"rejected": {
+						"items": {
+							"properties": {
+								"reason": {
+									"type": "string"
+								},
+								"channelId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"reason",
+								"channelId"
+							],
+							"type": "object"
 						},
 						"type": "array"
 					}
 				},
 				"required": [
-					"ids"
+					"queued",
+					"rejected"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateRelayChannelProbeRunsRequest": {
+				"description": "Queues one probe per standalone channel. Individual channels may be rejected without cancelling the batch.",
+				"properties": {
+					"channelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"distributionMultiplier": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"channelIds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeRunPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ClearRelayChannelProbeRunHistoryResponse": {
+				"properties": {
+					"deleted": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"deleted"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeRunHistoryScope": {
+				"type": "string",
+				"enum": [
+					"all",
+					"failed"
+				]
+			},
+			"ApplyRelayChannelProbeRunsResponse": {
+				"properties": {
+					"applied": {
+						"type": "number",
+						"format": "double"
+					},
+					"rejected": {
+						"items": {
+							"properties": {
+								"reason": {
+									"type": "string"
+								},
+								"runId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"reason",
+								"runId"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"applied",
+					"rejected"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApplyRelayChannelProbeRunsRequest": {
+				"properties": {
+					"runIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"overrides": {
+						"items": {
+							"properties": {
+								"multiplier": {
+									"type": "number",
+									"format": "double"
+								},
+								"runId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"multiplier",
+								"runId"
+							],
+							"type": "object"
+						},
+						"type": "array",
+						"description": "Optional operator-confirmed values, used for rounding or a deliberate calibration adjustment."
+					}
+				},
+				"required": [
+					"runIds"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -35113,6 +41348,1444 @@
 						"type": "boolean"
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperQuotaOverrideDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"subjectType": {
+						"type": "string",
+						"enum": [
+							"user",
+							"project"
+						]
+					},
+					"subjectId": {
+						"type": "string"
+					},
+					"service": {
+						"type": "string",
+						"enum": [
+							"verification",
+							"ip",
+							"push"
+						]
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"subjectType",
+					"subjectId",
+					"dailyFreeQuota",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpsertDeveloperQuotaOverrideDto": {
+				"properties": {
+					"subjectType": {
+						"type": "string",
+						"enum": [
+							"user",
+							"project"
+						]
+					},
+					"subjectId": {
+						"type": "string"
+					},
+					"service": {
+						"type": "string",
+						"enum": [
+							"verification",
+							"ip",
+							"push"
+						]
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"expiresAt": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"required": [
+					"subjectType",
+					"subjectId",
+					"dailyFreeQuota"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProjectDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					},
+					"statusPagePublished": {
+						"type": "boolean"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"slug",
+					"dailyFreeQuota",
+					"overageEnabled",
+					"statusPagePublished",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperProjectDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"slug"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperQuotaSummaryDto": {
+				"properties": {
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					},
+					"usages": {
+						"items": {
+							"properties": {
+								"remainingFree": {
+									"type": "number",
+									"format": "double"
+								},
+								"dailyFreeQuota": {
+									"type": "number",
+									"format": "double"
+								},
+								"requestCount": {
+									"type": "number",
+									"format": "double"
+								},
+								"service": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"remainingFree",
+								"dailyFreeQuota",
+								"requestCount",
+								"service"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"dailyFreeQuota",
+					"overageEnabled",
+					"usages"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateDeveloperStatusPageDto": {
+				"properties": {
+					"published": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"published"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperApiKeyScope": {
+				"type": "string",
+				"enum": [
+					"kv:read",
+					"kv:write",
+					"verification:send",
+					"verification:verify",
+					"ip:lookup",
+					"push:send"
+				]
+			},
+			"DeveloperApiKeyDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"keyPrefix": {
+						"type": "string"
+					},
+					"scopes": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperApiKeyScope"
+						},
+						"type": "array"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"lastUsedAt": {
+						"type": "string"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"key": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"keyPrefix",
+					"scopes",
+					"requestCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperApiKeyDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"scopes": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperApiKeyScope"
+						},
+						"type": "array"
+					},
+					"expiresAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"scopes"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Pick_DeveloperKvValueDto.Exclude_keyofDeveloperKvValueDto.value__": {
+				"properties": {},
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"Omit_DeveloperKvValueDto.value_": {
+				"$ref": "#/components/schemas/Pick_DeveloperKvValueDto.Exclude_keyofDeveloperKvValueDto.value__",
+				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"DeveloperKvValueDto": {
+				"properties": {
+					"key": {
+						"type": "string"
+					},
+					"value": {},
+					"version": {
+						"type": "number",
+						"format": "double"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"key",
+					"value",
+					"version",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetKvValueDto": {
+				"properties": {
+					"value": {},
+					"ttlSeconds": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"value"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperShortLinkDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"code": {
+						"type": "string"
+					},
+					"targetUrl": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"clickCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"publicUrl": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"code",
+					"targetUrl",
+					"enabled",
+					"clickCount",
+					"publicUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateShortLinkDto": {
+				"properties": {
+					"targetUrl": {
+						"type": "string"
+					},
+					"code": {
+						"type": "string"
+					},
+					"expiresAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"targetUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateShortLinkDto": {
+				"properties": {
+					"targetUrl": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"expiresAt": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperShortLinkStatsDto": {
+				"properties": {
+					"linkId": {
+						"type": "string"
+					},
+					"code": {
+						"type": "string"
+					},
+					"totalClicks": {
+						"type": "number",
+						"format": "double"
+					},
+					"uniqueVisitors": {
+						"type": "number",
+						"format": "double"
+					},
+					"periodStart": {
+						"type": "string"
+					},
+					"periodEnd": {
+						"type": "string"
+					},
+					"clicksByDay": {
+						"items": {
+							"properties": {
+								"count": {
+									"type": "number",
+									"format": "double"
+								},
+								"date": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"count",
+								"date"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"clicksByHour": {
+						"items": {
+							"properties": {
+								"count": {
+									"type": "number",
+									"format": "double"
+								},
+								"hour": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"count",
+								"hour"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"sources": {
+						"items": {
+							"properties": {
+								"count": {
+									"type": "number",
+									"format": "double"
+								},
+								"sourceHost": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"count"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"countries": {
+						"items": {
+							"properties": {
+								"count": {
+									"type": "number",
+									"format": "double"
+								},
+								"country": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"count"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"ipAddresses": {
+						"items": {
+							"properties": {
+								"count": {
+									"type": "number",
+									"format": "double"
+								},
+								"ipAddress": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"count"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"recentClicks": {
+						"items": {
+							"properties": {
+								"userAgent": {
+									"type": "string"
+								},
+								"country": {
+									"type": "string"
+								},
+								"sourceHost": {
+									"type": "string"
+								},
+								"ipAddress": {
+									"type": "string"
+								},
+								"clickedAt": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"clickedAt"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalRecords": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"linkId",
+					"code",
+					"totalClicks",
+					"uniqueVisitors",
+					"periodStart",
+					"periodEnd",
+					"clicksByDay",
+					"clicksByHour",
+					"sources",
+					"countries",
+					"ipAddresses",
+					"recentClicks",
+					"page",
+					"pageSize",
+					"totalRecords"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperSecretDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"alias": {
+						"type": "string"
+					},
+					"keyVersion": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastUsedAt": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"alias",
+					"keyVersion",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpsertDeveloperSecretDto": {
+				"properties": {
+					"alias": {
+						"type": "string"
+					},
+					"value": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"alias",
+					"value"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperStatusMonitorDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"targetUrl": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string"
+					},
+					"intervalSec": {
+						"type": "number",
+						"format": "double"
+					},
+					"successStatusCodes": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"lastCheckedAt": {
+						"type": "string"
+					},
+					"lastStatus": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"targetUrl",
+					"method",
+					"intervalSec",
+					"enabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperStatusMonitorDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"targetUrl": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string",
+						"enum": [
+							"GET",
+							"HEAD"
+						]
+					},
+					"intervalSec": {
+						"type": "number",
+						"format": "double"
+					},
+					"successStatusCodes": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"name",
+					"targetUrl"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateDeveloperStatusMonitorDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"targetUrl": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string",
+						"enum": [
+							"GET",
+							"HEAD"
+						]
+					},
+					"intervalSec": {
+						"type": "number",
+						"format": "double"
+					},
+					"successStatusCodes": {
+						"items": {
+							"type": "number",
+							"format": "double"
+						},
+						"type": "array"
+					},
+					"enabled": {
+						"type": "boolean"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperPushSecretReferenceDto": {
+				"description": "A write-only credential stored by a selected Secret Management instance.",
+				"properties": {
+					"secretInstanceId": {
+						"type": "string"
+					},
+					"alias": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"secretInstanceId",
+					"alias"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperPushChannelDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string"
+					},
+					"endpoint": {
+						"type": "string"
+					},
+					"secretReference": {
+						"$ref": "#/components/schemas/DeveloperPushSecretReferenceDto"
+					},
+					"secretAlias": {
+						"type": "string",
+						"description": "Alias retained for concise table display; values are always stored in Secret Management."
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"type",
+					"endpoint",
+					"enabled",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperPushDeliveryDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"success": {
+						"type": "boolean"
+					},
+					"error": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					},
+					"attemptCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"nextRetryAt": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"channelId",
+					"success",
+					"status",
+					"attemptCount",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperPushChannelDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string",
+						"enum": [
+							"webhook",
+							"dingtalk",
+							"feishu",
+							"wechat_work"
+						]
+					},
+					"endpoint": {
+						"type": "string"
+					},
+					"secretReference": {
+						"$ref": "#/components/schemas/DeveloperPushSecretReferenceDto"
+					}
+				},
+				"required": [
+					"name",
+					"type",
+					"endpoint"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateDeveloperPushChannelDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"endpoint": {
+						"type": "string"
+					},
+					"secretReference": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/DeveloperPushSecretReferenceDto"
+							}
+						],
+						"nullable": true
+					},
+					"enabled": {
+						"type": "boolean"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductCode": {
+				"type": "string",
+				"enum": [
+					"push",
+					"status",
+					"kv",
+					"short_link",
+					"secret",
+					"verification",
+					"ip_geolocation"
+				]
+			},
+			"DeveloperProductConfigDto": {
+				"properties": {
+					"productCode": {
+						"$ref": "#/components/schemas/DeveloperProductCode"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"defaultDailyQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"overagePrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"defaultInstanceLimit": {
+						"type": "number",
+						"format": "double"
+					},
+					"retentionDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"resourceLimits": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"settings": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					}
+				},
+				"required": [
+					"productCode",
+					"enabled",
+					"defaultDailyQuota",
+					"overagePrice",
+					"defaultInstanceLimit",
+					"retentionDays"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductInstanceDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"productCode": {
+						"$ref": "#/components/schemas/DeveloperProductCode"
+					},
+					"accountProductId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"productCode",
+					"accountProductId",
+					"name",
+					"slug",
+					"enabled",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductUsageDto": {
+				"properties": {
+					"entitlementId": {
+						"type": "string"
+					},
+					"productCode": {
+						"$ref": "#/components/schemas/DeveloperProductCode"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"remainingFree": {
+						"type": "number",
+						"format": "double"
+					},
+					"unlimited": {
+						"type": "boolean"
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"entitlementId",
+					"productCode",
+					"requestCount",
+					"dailyFreeQuota",
+					"remainingFree",
+					"unlimited",
+					"overageEnabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductCallLogDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"entitlementId": {
+						"type": "string"
+					},
+					"instanceId": {
+						"type": "string"
+					},
+					"keyId": {
+						"type": "string"
+					},
+					"subjectUserId": {
+						"type": "string"
+					},
+					"action": {
+						"type": "string"
+					},
+					"success": {
+						"type": "boolean"
+					},
+					"errorCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"chargeAmount": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"entitlementId",
+					"action",
+					"success",
+					"chargeAmount",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperProductInstanceDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"slug"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateDeveloperProductInstanceDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"enabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductSubjectDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"displayName": {
+						"type": "string"
+					},
+					"allowedActions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"username",
+					"allowedActions"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductApiKeyDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"keyPrefix": {
+						"type": "string"
+					},
+					"subjectUserId": {
+						"type": "string"
+					},
+					"actions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"lastUsedAt": {
+						"type": "string"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"key": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"keyPrefix",
+					"subjectUserId",
+					"actions",
+					"requestCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateDeveloperProductApiKeyDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"subjectUserId": {
+						"type": "string"
+					},
+					"actions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"expiresAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"subjectUserId",
+					"actions"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SendDeveloperVerificationDto": {
+				"properties": {
+					"channel": {
+						"type": "string",
+						"enum": [
+							"email",
+							"sms"
+						]
+					},
+					"recipient": {
+						"type": "string"
+					},
+					"purpose": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channel",
+					"recipient",
+					"purpose"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"VerifyDeveloperCodeDto": {
+				"properties": {
+					"channel": {
+						"type": "string",
+						"enum": [
+							"email",
+							"sms"
+						]
+					},
+					"recipient": {
+						"type": "string"
+					},
+					"purpose": {
+						"type": "string"
+					},
+					"code": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channel",
+					"recipient",
+					"purpose",
+					"code"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SendDeveloperPushDto": {
+				"properties": {
+					"channelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"title": {
+						"type": "string"
+					},
+					"content": {
+						"type": "string"
+					},
+					"idempotencyKey": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channelIds",
+					"title",
+					"content"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Pick_DeveloperProductConfigDto.Exclude_keyofDeveloperProductConfigDto.productCode__": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"defaultDailyQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"overagePrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"defaultInstanceLimit": {
+						"type": "number",
+						"format": "double"
+					},
+					"retentionDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"resourceLimits": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"settings": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					}
+				},
+				"required": [
+					"enabled",
+					"defaultDailyQuota",
+					"overagePrice",
+					"defaultInstanceLimit",
+					"retentionDays"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"Omit_DeveloperProductConfigDto.productCode_": {
+				"$ref": "#/components/schemas/Pick_DeveloperProductConfigDto.Exclude_keyofDeveloperProductConfigDto.productCode__",
+				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"UpdateDeveloperProductConfigDto": {
+				"$ref": "#/components/schemas/Omit_DeveloperProductConfigDto.productCode_"
+			},
+			"DeveloperProductAccountDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"accountOwnerId": {
+						"type": "string"
+					},
+					"accountOwnerUsername": {
+						"type": "string"
+					},
+					"accountOwnerDisplayName": {
+						"type": "string"
+					},
+					"productCode": {
+						"$ref": "#/components/schemas/DeveloperProductCode"
+					},
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					},
+					"instanceLimit": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"accountOwnerId",
+					"productCode",
+					"overageEnabled",
+					"instanceLimit",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductManagedAccountDto": {
+				"properties": {
+					"userId": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"displayName": {
+						"type": "string"
+					},
+					"account": {
+						"$ref": "#/components/schemas/DeveloperProductAccountDto"
+					}
+				},
+				"required": [
+					"userId",
+					"username"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProductManagedAccountsDto": {
+				"properties": {
+					"records": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperProductManagedAccountDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"records",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateDeveloperProductAccountDto": {
+				"properties": {
+					"dailyFreeQuota": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"overageEnabled": {
+						"type": "boolean"
+					},
+					"instanceLimit": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"dailyFreeQuota",
+					"overageEnabled",
+					"instanceLimit"
+				],
 				"type": "object",
 				"additionalProperties": false
 			},
@@ -38745,6 +46418,18 @@
 				"name": "Authorization",
 				"in": "header",
 				"description": "Relay Token 认证令牌 (Bearer rlt_...)"
+			},
+			"project-key": {
+				"type": "apiKey",
+				"name": "Authorization",
+				"in": "header",
+				"description": "项目 API Key (Bearer dk_...)"
+			},
+			"product-key": {
+				"type": "apiKey",
+				"name": "Authorization",
+				"in": "header",
+				"description": "产品 API Key (Bearer dpk_...)"
 			},
 			"local-or-jwt": {
 				"type": "apiKey",

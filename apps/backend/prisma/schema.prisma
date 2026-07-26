@@ -29,7 +29,7 @@ model User {
   displayName              String?
   forcePasswordChange      Boolean  @default(false)
 
-  group                        Group?                           @relation(fields: [groupId], references: [id])
+  group                        Group?                          @relation(fields: [groupId], references: [id])
   accountOwner                 User?                           @relation("RamAccountUsers", fields: [accountOwnerId], references: [id], onDelete: SetNull)
   accountUsers                 User[]                          @relation("RamAccountUsers")
   ownedRamGroups               Group[]                         @relation("RamGroupOwner")
@@ -77,6 +77,9 @@ model User {
   authCenterClientsReviewed    AuthCenterClient[]              @relation("AuthCenterClientReviewedBy")
   ownedRamPolicies             RamPolicy[]                     @relation("RamPolicyOwner")
   ramPolicyAttachmentOwners    RamPolicyAttachment[]           @relation("RamPolicyAttachmentOwner")
+  developerProjects            DeveloperProject[]
+  developerProductEntitlements DeveloperProductEntitlement[]   @relation("DeveloperProductEntitlementOwner")
+  developerProductKeys         DeveloperProductApiKey[]        @relation("DeveloperProductKeySubject")
 
   @@unique([accountOwnerId, ramUsername])
   @@index([username])
@@ -85,6 +88,399 @@ model User {
   @@index([parentUserId])
   @@index([accountOwnerId, userType])
   @@map("users")
+}
+
+model DeveloperProject {
+  id             String                   @id @default(cuid())
+  status         Int                      @default(1)
+  createTime     DateTime                 @default(now())
+  updateTime     DateTime                 @updatedAt
+  userId         String
+  name           String                   @db.VarChar(100)
+  slug           String                   @unique @db.VarChar(80)
+  description    String?                  @db.VarChar(500)
+  dailyFreeQuota Int                      @default(1000)
+  overageEnabled Boolean                  @default(false)
+  statusPagePublished Boolean              @default(false)
+  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKeys        DeveloperProjectApiKey[]
+  kvEntries      DeveloperKvEntry[]
+  shortLinks     DeveloperShortLink[]
+  secrets        DeveloperSecret[]
+  verifications  DeveloperVerification[]
+  pushChannels   DeveloperPushChannel[]
+  pushDeliveries DeveloperPushDelivery[]
+  pushRequests   DeveloperPushRequest[]
+  statusMonitors DeveloperStatusMonitor[]
+  quotaUsages    DeveloperQuotaUsage[]
+  productInstance DeveloperProductInstance? @relation("DeveloperProductInstanceBackingProject")
+
+  @@unique([userId, name])
+  @@index([userId, status])
+  @@map("developer_projects")
+}
+
+model DeveloperProductConfig {
+  id                 String   @id @default(cuid())
+  status             Int      @default(1)
+  createTime         DateTime @default(now())
+  updateTime         DateTime @updatedAt
+  productCode        String   @unique @db.VarChar(40)
+  enabled            Boolean  @default(false)
+  defaultDailyQuota  Int      @default(0)
+  overagePrice       Decimal  @default(0) @db.Decimal(18, 6)
+  defaultInstanceLimit Int    @default(1)
+  resourceLimits     Json?
+  retentionDays      Int      @default(30)
+  settings           Json?
+
+  @@map("developer_product_configs")
+}
+
+model DeveloperProductEntitlement {
+  id              String   @id @default(cuid())
+  status          Int      @default(1)
+  createTime      DateTime @default(now())
+  updateTime      DateTime @updatedAt
+  accountOwnerId  String
+  productCode     String   @db.VarChar(40)
+  enabled         Boolean  @default(true)
+  dailyFreeQuota  Int?
+  overageEnabled  Boolean  @default(false)
+  instanceLimit   Int      @default(1)
+  startsAt        DateTime?
+  expiresAt       DateTime?
+  issuedByUserId  String   @db.VarChar(191)
+  ownerPolicyId   String?  @unique
+
+  accountOwner User                       @relation("DeveloperProductEntitlementOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
+  instances    DeveloperProductInstance[]
+  quotaUsages  DeveloperProductQuotaUsage[]
+  callLogs     DeveloperProductCallLog[]
+
+  @@unique([accountOwnerId, productCode])
+  @@index([productCode, enabled, expiresAt])
+  @@map("developer_product_entitlements")
+}
+
+model DeveloperProductInstance {
+  id               String   @id @default(cuid())
+  status           Int      @default(1)
+  createTime       DateTime @default(now())
+  updateTime       DateTime @updatedAt
+  entitlementId    String
+  name             String   @db.VarChar(100)
+  slug             String   @db.VarChar(80)
+  enabled          Boolean  @default(true)
+  backingProjectId String   @unique
+
+  entitlement    DeveloperProductEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+  backingProject DeveloperProject             @relation("DeveloperProductInstanceBackingProject", fields: [backingProjectId], references: [id], onDelete: Cascade)
+  apiKeys        DeveloperProductApiKey[]
+
+  @@unique([entitlementId, slug])
+  @@index([entitlementId, enabled])
+  @@map("developer_product_instances")
+}
+
+model DeveloperProductApiKey {
+  id            String   @id @default(cuid())
+  status        Int      @default(1)
+  createTime    DateTime @default(now())
+  updateTime    DateTime @updatedAt
+  instanceId    String
+  subjectUserId String
+  name          String   @db.VarChar(100)
+  keyHash       String   @unique @db.Char(64)
+  keyPrefix     String   @db.VarChar(20)
+  actions       Json
+  expiresAt     DateTime?
+  lastUsedAt    DateTime?
+  requestCount  Int      @default(0)
+
+  instance    DeveloperProductInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  subjectUser User                     @relation("DeveloperProductKeySubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId, status])
+  @@index([subjectUserId, status])
+  @@map("developer_product_api_keys")
+}
+
+model DeveloperProductQuotaUsage {
+  id            String   @id @default(cuid())
+  status        Int      @default(1)
+  createTime    DateTime @default(now())
+  updateTime    DateTime @updatedAt
+  entitlementId String
+  usageDate     DateTime @db.Date
+  requestCount  Int      @default(0)
+
+  entitlement DeveloperProductEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+
+  @@unique([entitlementId, usageDate])
+  @@map("developer_product_quota_usages")
+}
+
+model DeveloperProductCallLog {
+  id            String   @id @default(cuid())
+  status        Int      @default(1)
+  createTime    DateTime @default(now())
+  updateTime    DateTime @updatedAt
+  entitlementId String
+  instanceId    String?
+  keyId         String?
+  subjectUserId String?
+  action        String   @db.VarChar(100)
+  success       Boolean
+  errorCode     Int?
+  chargeAmount  Decimal  @default(0) @db.Decimal(18, 6)
+  details       Json?
+
+  entitlement DeveloperProductEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
+
+  @@index([entitlementId, createTime])
+  @@index([instanceId, createTime])
+  @@map("developer_product_call_logs")
+}
+
+model DeveloperProjectApiKey {
+  id           String           @id @default(cuid())
+  status       Int              @default(1)
+  createTime   DateTime         @default(now())
+  updateTime   DateTime         @updatedAt
+  projectId    String
+  name         String           @db.VarChar(100)
+  keyHash      String           @unique @db.Char(64)
+  keyPrefix    String           @db.VarChar(20)
+  scopes       Json
+  expiresAt    DateTime?
+  lastUsedAt   DateTime?
+  requestCount Int              @default(0)
+  project      DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@map("developer_project_api_keys")
+}
+
+model DeveloperKvEntry {
+  id         String           @id @default(cuid())
+  status     Int              @default(1)
+  createTime DateTime         @default(now())
+  updateTime DateTime         @updatedAt
+  projectId  String
+  key        String           @db.VarChar(191)
+  value      Json
+  version    Int              @default(1)
+  expiresAt  DateTime?
+  project    DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, key])
+  @@index([projectId, expiresAt])
+  @@map("developer_kv_entries")
+}
+
+model DeveloperShortLink {
+  id         String           @id @default(cuid())
+  status     Int              @default(1)
+  createTime DateTime         @default(now())
+  updateTime DateTime         @updatedAt
+  projectId  String
+  code       String           @unique @db.VarChar(80)
+  targetUrl  String           @db.Text
+  enabled    Boolean          @default(true)
+  expiresAt  DateTime?
+  clickCount Int              @default(0)
+  project    DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clicks     DeveloperShortLinkClick[]
+
+  @@index([projectId, createTime])
+  @@map("developer_short_links")
+}
+
+model DeveloperShortLinkClick {
+  id          String             @id @default(cuid())
+  status      Int                @default(1)
+  createTime  DateTime           @default(now())
+  updateTime  DateTime           @updatedAt
+  shortLinkId String
+  clickedAt   DateTime           @default(now())
+  ipAddress   String?            @db.VarChar(45)
+  sourceHost  String?            @db.VarChar(255)
+  userAgent   String?            @db.VarChar(255)
+  country     String?            @db.VarChar(8)
+  shortLink   DeveloperShortLink @relation(fields: [shortLinkId], references: [id], onDelete: Cascade)
+
+  @@index([shortLinkId, clickedAt])
+  @@index([shortLinkId, ipAddress])
+  @@index([country, clickedAt])
+  @@map("developer_short_link_clicks")
+}
+
+model DeveloperSecret {
+  id         String           @id @default(cuid())
+  status     Int              @default(1)
+  createTime DateTime         @default(now())
+  updateTime DateTime         @updatedAt
+  projectId  String
+  alias      String           @db.VarChar(100)
+  ciphertext String           @db.Text
+  iv         String           @db.VarChar(64)
+  authTag    String           @db.VarChar(64)
+  keyVersion Int              @default(1)
+  lastUsedAt DateTime?
+  project    DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, alias])
+  @@map("developer_secrets")
+}
+
+model DeveloperVerification {
+  id             String           @id @default(cuid())
+  status         Int              @default(1)
+  createTime     DateTime         @default(now())
+  updateTime     DateTime         @updatedAt
+  projectId      String
+  channel        String           @db.VarChar(20)
+  recipient      String           @db.VarChar(320)
+  purpose        String           @db.VarChar(100)
+  sourceIpHash   String?          @db.Char(64)
+  codeHash       String           @db.Char(64)
+  expiresAt      DateTime
+  remainingTries Int              @default(5)
+  consumedAt     DateTime?
+  project        DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, recipient, purpose, expiresAt])
+  @@index([projectId, sourceIpHash, createTime])
+  @@map("developer_verifications")
+}
+
+model DeveloperPushChannel {
+  id          String                  @id @default(cuid())
+  status      Int                     @default(1)
+  createTime  DateTime                @default(now())
+  updateTime  DateTime                @updatedAt
+  projectId   String
+  name        String                  @db.VarChar(100)
+  type        String                  @db.VarChar(30)
+  endpoint    String?                 @db.Text
+  secretAlias String?                 @db.VarChar(100)
+  config      Json?
+  enabled     Boolean                 @default(true)
+  project     DeveloperProject        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliveries  DeveloperPushDelivery[]
+
+  @@unique([projectId, name])
+  @@index([projectId, enabled])
+  @@map("developer_push_channels")
+}
+
+model DeveloperPushDelivery {
+  id             String               @id @default(cuid())
+  status         Int                  @default(1)
+  createTime     DateTime             @default(now())
+  updateTime     DateTime             @updatedAt
+  projectId      String
+  channelId      String
+  title          String               @db.VarChar(200)
+  content        String               @db.Text
+  idempotencyKey String?              @db.VarChar(100)
+  deliveryStatus String               @db.VarChar(20)
+  attemptCount   Int                  @default(0)
+  nextRetryAt    DateTime?
+  errorMessage   String?              @db.VarChar(500)
+  project        DeveloperProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  channel        DeveloperPushChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createTime])
+  @@index([projectId, idempotencyKey])
+  @@index([deliveryStatus, nextRetryAt])
+  @@map("developer_push_deliveries")
+}
+
+model DeveloperPushRequest {
+  id             String           @id @default(cuid())
+  status         Int              @default(1)
+  createTime     DateTime         @default(now())
+  updateTime     DateTime         @updatedAt
+  projectId      String
+  idempotencyKey String           @db.VarChar(100)
+  requestStatus  String           @default("pending") @db.VarChar(20)
+  project        DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, idempotencyKey])
+  @@index([projectId, createTime])
+  @@map("developer_push_requests")
+}
+
+model DeveloperStatusMonitor {
+  id            String           @id @default(cuid())
+  status        Int              @default(1)
+  createTime    DateTime         @default(now())
+  updateTime    DateTime         @updatedAt
+  projectId     String
+  name          String           @db.VarChar(100)
+  targetUrl     String           @db.Text
+  method        String           @default("GET") @db.VarChar(10)
+  successStatusCodes Json?
+  intervalSec   Int              @default(60)
+  enabled       Boolean          @default(true)
+  lastCheckedAt DateTime?
+  lastStatus    String?          @db.VarChar(20)
+  project       DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  checks        DeveloperStatusCheck[]
+
+  @@index([projectId, enabled])
+  @@map("developer_status_monitors")
+}
+
+model DeveloperStatusCheck {
+  id           String                 @id @default(cuid())
+  status       Int                    @default(1)
+  createTime   DateTime               @default(now())
+  updateTime   DateTime               @updatedAt
+  monitorId    String
+  checkedAt    DateTime               @default(now())
+  checkStatus  String                 @db.VarChar(20)
+  statusCode   Int?
+  latencyMs    Int
+  errorMessage String?                @db.VarChar(500)
+  monitor      DeveloperStatusMonitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+
+  @@index([monitorId, checkedAt])
+  @@map("developer_status_checks")
+}
+
+model DeveloperQuotaUsage {
+  id           String           @id @default(cuid())
+  status       Int              @default(1)
+  createTime   DateTime         @default(now())
+  updateTime   DateTime         @updatedAt
+  projectId    String
+  service      String           @db.VarChar(30)
+  usageDate    DateTime         @db.Date
+  requestCount Int              @default(0)
+  project      DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, service, usageDate])
+  @@map("developer_quota_usages")
+}
+
+model DeveloperQuotaOverride {
+  id             String   @id @default(cuid())
+  status         Int      @default(1)
+  createTime     DateTime @default(now())
+  updateTime     DateTime @updatedAt
+  subjectType    String   @db.VarChar(10)
+  subjectId      String   @db.VarChar(191)
+  service        String   @default("*") @db.VarChar(30)
+  dailyFreeQuota Int
+  expiresAt      DateTime?
+  createdByUserId String  @db.VarChar(191)
+
+  @@unique([subjectType, subjectId, service])
+  @@index([subjectType, subjectId, status, expiresAt])
+  @@map("developer_quota_overrides")
 }
 
 model UserExternalIdentity {
@@ -235,7 +631,7 @@ model RamPolicy {
   permissions    Json
   type           String   @default("custom") @db.VarChar(20)
 
-  accountOwner      User                   @relation("RamPolicyOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
+  accountOwner      User                  @relation("RamPolicyOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
   policyAttachments RamPolicyAttachment[]
 
   @@unique([accountOwnerId, activeName])
@@ -253,7 +649,7 @@ model RamPolicyAttachment {
   targetType     String   @db.VarChar(20)
   targetId       String
 
-  accountOwner User     @relation("RamPolicyAttachmentOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
+  accountOwner User      @relation("RamPolicyAttachmentOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
   policy       RamPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
   @@unique([accountOwnerId, policyId, targetType, targetId])
@@ -462,8 +858,8 @@ model RelayChannel {
   channelType                 String   @default("standalone") @db.VarChar(30)
   routingStrategy             String   @default("priority") @db.VarChar(30)
   routingConfig               Json?
-  visibilityMode             String   @default("public") @db.VarChar(30)
-  visibilityConfig           Json?
+  visibilityMode              String   @default("public") @db.VarChar(30)
+  visibilityConfig            Json?
   openaiUpstreamUrl           String?  @db.Text
   openaiUpstreamApiKey        String?  @db.Text
   anthropicUpstreamUrl        String?  @db.Text
@@ -478,23 +874,95 @@ model RelayChannel {
   modelMapping                Json?
   timePeriodMultipliers       Json?    @default("[]")
 
-  relayTokens    RelayToken[]             @relation("RelayTokenPrimaryChannel")
-  automaticRouteTokens RelayToken[]       @relation("RelayTokenAutomaticProxyPool")
-  tokenConfigs   RelayTokenChannelConfig[]
-  poolMembers    RelayChannelMember[]     @relation("RelayChannelPool")
-  memberOfPools  RelayChannelMember[]     @relation("RelayChannelPoolMember")
-  fromSwitchLogs RelayChannelSwitchLog[]   @relation("RelaySwitchLogFromChannel")
-  toSwitchLogs   RelayChannelSwitchLog[]   @relation("RelaySwitchLogToChannel")
-  ojApiKeys      OJAPIKey[]
+  relayTokens          RelayToken[]              @relation("RelayTokenPrimaryChannel")
+  automaticRouteTokens RelayToken[]              @relation("RelayTokenAutomaticProxyPool")
+  tokenConfigs         RelayTokenChannelConfig[]
+  poolMembers          RelayChannelMember[]      @relation("RelayChannelPool")
+  memberOfPools        RelayChannelMember[]      @relation("RelayChannelPoolMember")
+  fromSwitchLogs       RelayChannelSwitchLog[]   @relation("RelaySwitchLogFromChannel")
+  toSwitchLogs         RelayChannelSwitchLog[]   @relation("RelaySwitchLogToChannel")
+  ojApiKeys            OJAPIKey[]
+  probeProfile         RelayChannelProbeProfile?
+  probeRuns            RelayChannelProbeRun[]
 
   @@index([status])
   @@map("relay_channels")
 }
 
+model RelayChannelProbeProfile {
+  id                    String   @id @default(cuid())
+  relayChannelId        String   @unique
+  enabled               Boolean  @default(true)
+  probeFormat           String   @default("openai") @db.VarChar(20)
+  probeModel            String   @db.VarChar(200)
+  probePayload          Json
+  upstreamCurrency      String   @default("CNY") @db.VarChar(12)
+  localCurrency         String   @default("CNY") @db.VarChar(12)
+  upstreamBalanceDivisor Decimal @default(1.0) @db.Decimal(18, 6)
+  upstreamRateMultiplier Decimal @default(1.0) @db.Decimal(10, 6)
+  probeGroup            String?  @db.VarChar(80)
+  distributionMultiplier Decimal @default(1.0) @db.Decimal(10, 6)
+  workflow              Json
+  encryptedCredentials  String?  @db.LongText
+  credentialIv          String?  @db.VarChar(128)
+  credentialAuthTag     String?  @db.VarChar(128)
+  credentialKeyVersion  Int      @default(1)
+  createTime            DateTime @default(now())
+  updateTime            DateTime @updatedAt
+
+  relayChannel RelayChannel          @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
+  runs         RelayChannelProbeRun[]
+
+  @@index([enabled])
+  @@map("relay_channel_probe_profiles")
+}
+
+model RelayChannelProbeRun {
+  id                       String   @id @default(cuid())
+  relayChannelId           String
+  profileId                String?
+  requestedByUserId        String
+  status                   String   @default("queued") @db.VarChar(20)
+  queuedAt                 DateTime @default(now())
+  startedAt                DateTime?
+  finishedAt               DateTime?
+  leaseOwner               String?  @db.VarChar(100)
+  leaseExpiresAt           DateTime?
+  distributionMultiplier   Decimal  @db.Decimal(10, 6)
+  upstreamBalanceBefore    Decimal? @db.Decimal(18, 6)
+  upstreamBalanceAfter     Decimal? @db.Decimal(18, 6)
+  upstreamBalanceDelta     Decimal? @db.Decimal(18, 6)
+  upstreamRateMultiplier   Decimal  @default(1.0) @db.Decimal(10, 6)
+  localBalanceBefore       Decimal? @db.Decimal(18, 6)
+  localBalanceAfter        Decimal? @db.Decimal(18, 6)
+  localBalanceDelta        Decimal? @db.Decimal(18, 6)
+  baseLocalCost            Decimal? @db.Decimal(18, 6)
+  requestTokens            Int?
+  responseTokens           Int?
+  totalTokens              Int?
+  suggestedMultiplier      Decimal? @db.Decimal(10, 6)
+  sourceChannelMultiplier  Decimal? @db.Decimal(10, 6)
+  appliedMultiplier        Decimal? @db.Decimal(10, 6)
+  appliedAt                DateTime?
+  appliedByUserId          String?
+  errorMessage             String?  @db.Text
+  createTime               DateTime @default(now())
+  updateTime               DateTime @updatedAt
+
+  relayChannel RelayChannel             @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
+  profile      RelayChannelProbeProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+
+  @@index([relayChannelId, status])
+  @@index([profileId, createTime])
+  @@index([status, leaseExpiresAt])
+  @@index([createTime])
+  @@map("relay_channel_probe_runs")
+}
+
 model RelayChannelMember {
   id              String   @id @default(cuid())
-  relayChannelId   String
-  memberChannelId  String
+  relayChannelId  String
+  memberChannelId String
   priority        Int
   weight          Decimal  @default(1.0) @db.Decimal(10, 6)
   enabled         Boolean  @default(true)
@@ -512,38 +980,39 @@ model RelayChannelMember {
 }
 
 model RelayToken {
-  id             String    @id @default(cuid())
-  status         Int       @default(1)
-  createTime     DateTime  @default(now())
-  updateTime     DateTime  @updatedAt
-  userId         String
-  name           String?
-  token          String    @unique
-  upstreamUrl    String?   @db.Text
-  upstreamApiKey String?   @db.Text
-  channelId      String?
-  routingMode    String    @default("ordered") @db.VarChar(30)
+  id                          String    @id @default(cuid())
+  status                      Int       @default(1)
+  createTime                  DateTime  @default(now())
+  updateTime                  DateTime  @updatedAt
+  userId                      String
+  name                        String?
+  token                       String    @unique
+  upstreamUrl                 String?   @db.Text
+  upstreamApiKey              String?   @db.Text
+  channelId                   String?
+  routingMode                 String    @default("ordered") @db.VarChar(30)
   automaticProxyPoolChannelId String?
-  totalTokens    Int       @default(0)
-  requestCount   Int       @default(0)
-  usedQuota      Decimal   @default(0) @db.Decimal(10, 4)
-  expiresAt      DateTime?
-  lastUsedAt     DateTime?
-  quotaLimit     Decimal?  @db.Decimal(10, 2)
-  allowedModels  String?   @db.Text
-  ipWhitelist    String?   @db.Text
-  modelMapping   Json?
-  isCustomKey    Boolean   @default(false)
+  totalTokens                 Int       @default(0)
+  requestCount                Int       @default(0)
+  usedQuota                   Decimal   @default(0) @db.Decimal(10, 4)
+  expiresAt                   DateTime?
+  lastUsedAt                  DateTime?
+  quotaLimit                  Decimal?  @db.Decimal(10, 2)
+  allowedModels               String?   @db.Text
+  ipWhitelist                 String?   @db.Text
+  modelMapping                Json?
+  isCustomKey                 Boolean   @default(false)
 
-  user           User                      @relation(fields: [userId], references: [id])
-  channel        RelayChannel?             @relation("RelayTokenPrimaryChannel", fields: [channelId], references: [id])
-  automaticProxyPoolChannel RelayChannel?  @relation("RelayTokenAutomaticProxyPool", fields: [automaticProxyPoolChannelId], references: [id])
-  failoverConfig RelayTokenFailoverConfig?
-  channelConfigs RelayTokenChannelConfig[]
-  quotaWindows   RelayTokenQuotaWindow[]
-  switchLogs     RelayChannelSwitchLog[]
-  relayUsages    RelayUsage[]
-  conversations  Conversation[]
+  user                      User                      @relation(fields: [userId], references: [id])
+  channel                   RelayChannel?             @relation("RelayTokenPrimaryChannel", fields: [channelId], references: [id])
+  automaticProxyPoolChannel RelayChannel?             @relation("RelayTokenAutomaticProxyPool", fields: [automaticProxyPoolChannelId], references: [id])
+  failoverConfig            RelayTokenFailoverConfig?
+  channelConfigs            RelayTokenChannelConfig[]
+  quotaWindows              RelayTokenQuotaWindow[]
+  switchLogs                RelayChannelSwitchLog[]
+  relayUsages               RelayUsage[]
+  logicalRequests           RelayLogicalRequest[]
+  conversations             Conversation[]
 
   @@index([userId])
   @@index([token])
@@ -570,15 +1039,15 @@ model RelayTokenQuotaWindow {
 }
 
 model RelayTokenFailoverConfig {
-  id                String   @id @default(cuid())
-  relayTokenId      String   @unique
-  enabled           Boolean  @default(false)
-  maxRetries        Int      @default(0)
-  retryStatusCodes  Json?
-  failoverThreshold Int      @default(0)
-  failbackCooldownMinutes Int @default(0)
-  createTime        DateTime @default(now())
-  updateTime        DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  relayTokenId            String   @unique
+  enabled                 Boolean  @default(false)
+  maxRetries              Int      @default(0)
+  retryStatusCodes        Json?
+  failoverThreshold       Int      @default(0)
+  failbackCooldownMinutes Int      @default(0)
+  createTime              DateTime @default(now())
+  updateTime              DateTime @updatedAt
 
   relayToken RelayToken @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
 
@@ -643,6 +1112,7 @@ model RelayUsage {
   createTime          DateTime @default(now())
   updateTime          DateTime @updatedAt
   relayTokenId        String
+  logicalRequestId    String?
   executionChannelId  String?
   displayChannelId    String?
   displayChannelName  String?  @db.Text
@@ -660,13 +1130,31 @@ model RelayUsage {
   isStreaming         Boolean  @default(false)
 
   relayToken RelayToken @relation(fields: [relayTokenId], references: [id])
+  logicalRequest RelayLogicalRequest? @relation(fields: [logicalRequestId], references: [id], onDelete: SetNull)
 
   @@index([relayTokenId])
   @@index([createTime])
   @@index([relayTokenId, createTime])
+  @@index([logicalRequestId])
   @@index([executionChannelId])
   @@index([displayChannelId])
   @@map("relay_usages")
+}
+
+model RelayLogicalRequest {
+  id           String   @id @default(cuid())
+  createTime   DateTime @default(now())
+  updateTime   DateTime @updatedAt
+  relayTokenId String
+  requestId    String   @db.VarChar(64)
+  countedAt    DateTime?
+
+  relayToken RelayToken   @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
+  relayUsages RelayUsage[]
+
+  @@unique([relayTokenId, requestId])
+  @@index([relayTokenId, countedAt, createTime])
+  @@map("relay_logical_requests")
 }
 
 model AccessKey {
@@ -1404,31 +1892,31 @@ model OJUsageRecord {
 }
 
 model JsonEndpoint {
-  id           String    @id @default(cuid())
-  status       Int       @default(1)
-  createTime   DateTime  @default(now())
-  updateTime   DateTime  @updatedAt
-  userId       String
-  name         String
-  slug         String
-  isRootSlug   Boolean   @default(false)
-  rootSlug     String?   @unique
-  description  String?   @db.Text
-  jsonContent  Json
-  apiKey       String?   @unique
-  isPublic     Boolean   @default(true)
-  accessMode   String?   @db.VarChar(30)
-  publicKey    String?   @db.Text
-  publicKeyFingerprint String? @db.VarChar(64)
-  signatureAlgorithm   String? @db.VarChar(30)
-  accessCount  Int       @default(0)
-  lastAccessAt DateTime?
+  id                   String    @id @default(cuid())
+  status               Int       @default(1)
+  createTime           DateTime  @default(now())
+  updateTime           DateTime  @updatedAt
+  userId               String
+  name                 String
+  slug                 String
+  isRootSlug           Boolean   @default(false)
+  rootSlug             String?   @unique
+  description          String?   @db.Text
+  jsonContent          Json
+  apiKey               String?   @unique
+  isPublic             Boolean   @default(true)
+  accessMode           String?   @db.VarChar(30)
+  publicKey            String?   @db.Text
+  publicKeyFingerprint String?   @db.VarChar(64)
+  signatureAlgorithm   String?   @db.VarChar(30)
+  accessCount          Int       @default(0)
+  lastAccessAt         DateTime?
 
   user User @relation(fields: [userId], references: [id])
 
+  @@unique([userId, slug])
   @@index([userId])
   @@index([slug])
-  @@unique([userId, slug])
   @@index([apiKey])
   @@map("json_endpoints")
 }
@@ -1741,7 +2229,7 @@ model TrackEvent {
   userId     String?
   clientTime BigInt
   serverTime BigInt
-  ua         String?  @db.Text
+  ua         String? @db.Text
   screenW    Int?
   screenH    Int?
   language   String?
@@ -1758,16 +2246,16 @@ model TrackEvent {
 }
 
 model HeatmapPoint {
-  id          String   @id @default(cuid())
-  status      Int      @default(1)
-  createTime  DateTime @default(now())
-  updateTime  DateTime @updatedAt
+  id         String   @id @default(cuid())
+  status     Int      @default(1)
+  createTime DateTime @default(now())
+  updateTime DateTime @updatedAt
 
   pointType   String
   page        String
-  xRatio      Decimal  @db.Decimal(8, 6)
-  yRatio      Decimal  @db.Decimal(8, 6)
-  scrollDepth Int      @default(0)
+  xRatio      Decimal @db.Decimal(8, 6)
+  yRatio      Decimal @db.Decimal(8, 6)
+  scrollDepth Int     @default(0)
   viewportW   Int?
   viewportH   Int?
   sessionId   String?

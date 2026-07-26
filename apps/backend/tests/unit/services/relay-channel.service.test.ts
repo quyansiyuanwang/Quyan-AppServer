@@ -954,7 +954,7 @@ describe("RelayChannelService", () => {
     expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
   });
 
-  it("preserves explicit null routing thresholds on update and strips pooled-only mode for standalone channel", async () => {
+  it("preserves explicit null routing thresholds and standalone health tracking on update", async () => {
     relayChannelRepository.findVisibleById.mockResolvedValue({
       ...sampleChannel,
       routingConfig: {
@@ -979,6 +979,9 @@ describe("RelayChannelService", () => {
           healthScoreThreshold: null,
           latencyThresholdMs: null,
           circuitBreakerThreshold: null,
+          healthTrackingMode: "automatic",
+          manualAvailability: null,
+          manualLatencyMs: null,
           allowedModelsMode: "auto",
         },
       },
@@ -992,6 +995,9 @@ describe("RelayChannelService", () => {
           healthScoreThreshold: null,
           latencyThresholdMs: null,
           circuitBreakerThreshold: null,
+          healthTrackingMode: "automatic",
+          manualAvailability: null,
+          manualLatencyMs: null,
         },
       }),
       transactionClient,
