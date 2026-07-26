@@ -94,6 +94,9 @@ export enum Permission {
   RELAY_CHANNEL_UPDATE = 'relay:channel:update',
   RELAY_CHANNEL_DELETE = 'relay:channel:delete',
   RELAY_CHANNEL_EXPORT = 'relay:channel:export',
+  RELAY_CHANNEL_PROBE_READ = 'relay:channel:probe:read',
+  RELAY_CHANNEL_PROBE_EXECUTE = 'relay:channel:probe:execute',
+  RELAY_CHANNEL_MULTIPLIER_ADJUST = 'relay:channel:multiplier:adjust',
 
   // AccessKey权限
   ACCESSKEY_CREATE = 'accesskey:create',

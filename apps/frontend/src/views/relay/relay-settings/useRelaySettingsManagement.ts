@@ -700,7 +700,7 @@ export const useRelaySettingsManagement = () => {
     keyword: string
     channelType?: RelayChannelType
     enabled?: boolean
-  }>({ keyword: '' })
+  }>({ keyword: '', enabled: true })
   const channelPagination = ref({ page: 1, pageSize: 25, total: 0 })
   const channelLoading = ref(false)
   const channelSaving = ref(false)

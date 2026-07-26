@@ -383,6 +383,16 @@
               <template #title>{{ i18ns.t('nav.relayChannelHealth') }}</template>
             </el-menu-item>
           </PermissionWrapper>
+          <PermissionWrapper :require="[Permission.RELAY_CHANNEL_PROBE_READ]">
+            <el-menu-item
+              index="relayChannelProbes"
+              @click="nav('relayChannelProbes', $event)"
+              @contextmenu.prevent="openRouteMenu('relayChannelProbes', $event)"
+            >
+              <el-icon><Monitor /></el-icon>
+              <template #title>{{ i18ns.t('nav.relayChannelProbes') }}</template>
+            </el-menu-item>
+          </PermissionWrapper>
           <PermissionWrapper :require="[Permission.UPSTREAM_STATUS_READ]">
             <el-menu-item
               index="upstreamStatus"

@@ -8,6 +8,10 @@ import { toServiceError } from '@/utils/error-utils'
  * @returns 如果成功或需要 2FA，返回 result；否则抛出错误
  */
 export function checkApiResult<T = any>(result: any, requireData: boolean = false): T {
+  // HTTP 204 deliberately has no response body. The generated client resolves
+  // it as undefined after Axios has already confirmed the successful status.
+  if (!requireData && (result === undefined || result === null || result === '')) return result as T
+
   // 特殊处理：如果是 2FA 要求，不抛出错误（2FA 流程会自动处理）
   if (result && result.code === CustomCode.TWO_FACTOR_REQUIRED) {
     return result as T

@@ -80,6 +80,7 @@ import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
 import { RelayChannelHealthService } from "./relay-channel-health.service";
+import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
 import { Permission } from "@/constant/permission";
 
 const PREFIX = "/relay/proxy";
@@ -244,6 +245,7 @@ export class RelayProxyService {
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
     private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
+    private readonly relayChannelProbeLockService: RelayChannelProbeLockService = RelayChannelProbeLockService.getInstance(),
   ) {}
 
   static getInstance(): RelayProxyService {
@@ -2759,32 +2761,34 @@ export class RelayProxyService {
             if (isStreamRequested && res) {
               upstreamRequestStarted = true;
               upstreamRequestStartedAt = Date.now();
-              const streamResult = await this.forwardStreamRequest(
-                relayToken,
-                req,
-                res,
-                fullUpstreamUrl,
-                headers,
-                selectedRateConfig,
-                selectedModelName,
-                selectedModelId,
-                globalMultiplier,
-                timeMultiplier,
-                convertedBody,
-                requestFormat,
-                relayGlobalMultiplier,
-                channelMultiplier,
-                channel.id,
-                displayChannel.id,
-                displayChannel.name || null,
-                channel.id,
-                monthlyPassCoverageAt,
-                relayConfig.upstreamStreamTimeout,
-                hasNextChannel && failoverConfig.enabled,
-                failoverConfig.retryStatusCodes,
-                channel.inputTokensIncludeCacheRead !== false,
-                relayOriginalRequestedModel,
-                autoInjectedStreamUsageOption,
+              const streamResult = await this.relayChannelProbeLockService.withRead(channel.id, () =>
+                this.forwardStreamRequest(
+                  relayToken,
+                  req,
+                  res,
+                  fullUpstreamUrl,
+                  headers,
+                  selectedRateConfig,
+                  selectedModelName,
+                  selectedModelId,
+                  globalMultiplier,
+                  timeMultiplier,
+                  convertedBody,
+                  requestFormat,
+                  relayGlobalMultiplier,
+                  channelMultiplier,
+                  channel.id,
+                  displayChannel.id,
+                  displayChannel.name || null,
+                  channel.id,
+                  monthlyPassCoverageAt,
+                  relayConfig.upstreamStreamTimeout,
+                  hasNextChannel && failoverConfig.enabled,
+                  failoverConfig.retryStatusCodes,
+                  channel.inputTokensIncludeCacheRead !== false,
+                  relayOriginalRequestedModel,
+                  autoInjectedStreamUsageOption,
+                ),
               );
 
               if (!streamResult.handled && hasNextChannel) {
@@ -2848,31 +2852,33 @@ export class RelayProxyService {
             if (isImageRequest && res) {
               upstreamRequestStarted = true;
               upstreamRequestStartedAt = Date.now();
-              const imageResult = await this.forwardImageRequest(
-                relayToken,
-                req,
-                res,
-                fullUpstreamUrl,
-                headers,
-                selectedRateConfig!,
-                selectedModelName,
-                selectedModelId,
-                globalMultiplier,
-                timeMultiplier,
-                convertedBody,
-                relayGlobalMultiplier,
-                channelMultiplier,
-                channel.id,
-                displayChannel.id,
-                displayChannel.name || null,
-                channel.id,
-                monthlyPassCoverageAt,
-                resourceGuard.nonStreamUpstreamTimeoutMs,
-                resourceGuard.imageResponseBodyLimitMb * 1024 * 1024,
-                hasNextChannel && failoverConfig.enabled,
-                failoverConfig.retryStatusCodes,
-                channel.inputTokensIncludeCacheRead !== false,
-                relayOriginalRequestedModel,
+              const imageResult = await this.relayChannelProbeLockService.withRead(channel.id, () =>
+                this.forwardImageRequest(
+                  relayToken,
+                  req,
+                  res,
+                  fullUpstreamUrl,
+                  headers,
+                  selectedRateConfig!,
+                  selectedModelName,
+                  selectedModelId,
+                  globalMultiplier,
+                  timeMultiplier,
+                  convertedBody,
+                  relayGlobalMultiplier,
+                  channelMultiplier,
+                  channel.id,
+                  displayChannel.id,
+                  displayChannel.name || null,
+                  channel.id,
+                  monthlyPassCoverageAt,
+                  resourceGuard.nonStreamUpstreamTimeoutMs,
+                  resourceGuard.imageResponseBodyLimitMb * 1024 * 1024,
+                  hasNextChannel && failoverConfig.enabled,
+                  failoverConfig.retryStatusCodes,
+                  channel.inputTokensIncludeCacheRead !== false,
+                  relayOriginalRequestedModel,
+                ),
               );
 
               if (!imageResult.handled && hasNextChannel) {
@@ -2935,21 +2941,23 @@ export class RelayProxyService {
               : 5 * 1024 * 1024;
             upstreamRequestStarted = true;
             upstreamRequestStartedAt = Date.now();
-            const response = await axios({
-              method: req.method,
-              url: fullUpstreamUrl,
-              headers,
-              data: convertedBody,
-              params: req.query,
-              timeout: resourceGuard.nonStreamUpstreamTimeoutMs,
-              maxBodyLength: maxBodyLimitBytes,
-              maxContentLength: isImageRequest
-                ? resourceGuard.imageResponseBodyLimitMb * 1024 * 1024
-                : resourceGuard.maxUpstreamResponseBodyMb * 1024 * 1024,
-              validateStatus: () => true,
-              httpAgent,
-              httpsAgent,
-            });
+            const response = await this.relayChannelProbeLockService.withRead(channel.id, () =>
+              axios({
+                method: req.method,
+                url: fullUpstreamUrl,
+                headers,
+                data: convertedBody,
+                params: req.query,
+                timeout: resourceGuard.nonStreamUpstreamTimeoutMs,
+                maxBodyLength: maxBodyLimitBytes,
+                maxContentLength: isImageRequest
+                  ? resourceGuard.imageResponseBodyLimitMb * 1024 * 1024
+                  : resourceGuard.maxUpstreamResponseBodyMb * 1024 * 1024,
+                validateStatus: () => true,
+                httpAgent,
+                httpsAgent,
+              }),
+            );
             const firstByteTime = Date.now();
             const isErrorResponse = response.status >= 400;
 
