@@ -30,6 +30,7 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       docs-site: ${{ steps.filter.outputs.docs-site }}
       shared: ${{ steps.filter.outputs.shared }}
+      api: ${{ steps.filter.outputs.api }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v4
@@ -51,6 +52,8 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'tsconfig*.json'
+            api:
+              - 'apps/backend/src/api/**'
 
   backend-quality:
     needs: changes
@@ -87,8 +90,10 @@ jobs:
     if: |
       !contains(github.event.pull_request.title, '[skip ci]') &&
       !contains(github.event.pull_request.title, '[skip cicd]') &&
-      (github.event_name == 'workflow_dispatch' && inputs['check-frontend'] ||
-       needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true')
+       (github.event_name == 'workflow_dispatch' && inputs['check-frontend'] ||
+       needs.changes.outputs.frontend == 'true' ||
+       needs.changes.outputs.shared == 'true' ||
+       needs.changes.outputs.api == 'true')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -103,8 +108,13 @@ jobs:
           bun-version: 1.3.13
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # The OpenAPI SDK and its swagger input are generated artifacts and are
+      # ignored by Git, so this independent runner must create both first.
       - name: Generate frontend prerequisites
         run: |
+          pnpm --filter @appserver/backend run build:info:stub
+          pnpm --filter @appserver/backend run openapi:generate
+          node scripts/sync-swagger-to-frontend.mjs
           pnpm --filter @appserver/frontend run openapi:generate
           pnpm --filter @appserver/frontend run type:generate
       - name: Check frontend in parallel
