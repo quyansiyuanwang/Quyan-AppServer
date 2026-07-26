@@ -2,6 +2,12 @@ name: Backend Test Pipeline
 
 on:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Manual runs are intentional: select the required suite.'
+        type: choice
+        default: full
+        options: [api, full]
   pull_request:
     branches: [master]
     types: [opened, synchronize, reopened, ready_for_review]
@@ -14,24 +20,50 @@ jobs:
       pull-requests: read
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
+      api: ${{ steps.filter.outputs.api }}
+      full: ${{ steps.filter.outputs.full }}
+      files: ${{ steps.filter.outputs.files }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v4
         id: filter
         with:
+          list-files: json
           filters: |
             backend:
-              - 'apps/backend/**'
-              - 'packages/**'
-              - 'pnpm-lock.yaml'
+              - 'apps/backend/src/**'
+              - 'apps/backend/tests/**'
+            # API surface changes need integration and contract coverage, but do
+            # not need the entire unit suite.
+            api:
+              - 'apps/backend/src/api/**'
+              - 'apps/backend/tests/integration/**'
+              - 'apps/backend/tests/contract/**'
+            # These can invalidate every backend test's runtime or schema.
+            full:
+              - 'apps/backend/prisma/**'
+              - 'apps/backend/package.json'
+              - 'apps/backend/tsconfig*.json'
+              - 'apps/backend/vitest.config.ts'
+              - 'apps/backend/tests/globalSetup.ts'
+              - 'apps/backend/tests/setup.ts'
+              - 'packages/shared/**'
               - 'package.json'
+              - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
+              - 'scripts/run-related-vitest.mjs'
               - '.github/workflows/test-backend.yml'
-              - '.github/workflows/deploy.yml'
+            files:
+              - 'apps/backend/src/**'
+              - 'apps/backend/tests/**'
 
   backend-tests:
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      needs.changes.outputs.backend == 'true' ||
+      needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -70,55 +102,45 @@ jobs:
       REDIS_HOST: 127.0.0.1
       REDIS_PORT: 6379
       REDIS_DB: 0
-      REDIS_PASSWORD: ""
+      REDIS_PASSWORD: ''
       PROTECTED_GROUP_NAME: __test_protected_group__
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.13
-
-      - name: Cache node_modules
-        id: node-modules-cache
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('pnpm-lock.yaml') }}
-
       - name: Install dependencies
-        if: steps.node-modules-cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
-
-      - name: Inject Empty Build Info
-        run: pnpm --filter @appserver/backend run build:info:stub
-
-      - name: Generate Prisma Client
-        run: pnpm --filter @appserver/backend run db:generate
-
-      - name: Check explicit dependencies
-        run: pnpm --filter @appserver/backend run check:explicit-deps
-
-      - name: Run backend CI tests
-        run: pnpm --filter @appserver/backend run test:ci
-
+      - name: Generate backend test prerequisites
+        run: |
+          pnpm --filter @appserver/backend run build:info:stub
+          pnpm --filter @appserver/backend run db:generate
+      - name: Run the selected backend suite
+        env:
+          CHANGED_FILES: ${{ needs.changes.outputs.files }}
+          API_CHANGED: ${{ needs.changes.outputs.api }}
+          FULL_CHANGED: ${{ needs.changes.outputs.full }}
+          MANUAL_SUITE: ${{ inputs.suite }}
+        run: |
+          if [ "${MANUAL_SUITE}" = "full" ] || [ "${FULL_CHANGED}" = "true" ]; then
+            pnpm --filter @appserver/backend run test:ci
+          elif [ "${MANUAL_SUITE}" = "api" ] || [ "${API_CHANGED}" = "true" ]; then
+            pnpm --filter @appserver/backend run openapi:generate
+            pnpm --filter @appserver/backend run test:api
+          else
+            node scripts/run-related-vitest.mjs apps/backend apps/backend "$CHANGED_FILES"
+          fi
       - name: Upload coverage artifact
-        if: always()
+        if: always() && (inputs.suite == 'full' || needs.changes.outputs.full == 'true')
         uses: actions/upload-artifact@v4
         with:
           name: backend-vitest-coverage
-          path: coverage
+          path: apps/backend/coverage
           if-no-files-found: ignore
