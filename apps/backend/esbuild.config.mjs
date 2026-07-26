@@ -31,6 +31,9 @@ await esbuild.build({
     // 原生模块
     "sharp",
     "bcrypt",
+    // node-cron resolves its worker daemon relative to __filename. Bundling its
+    // ESM entry into this CJS output makes import.meta.url undefined at runtime.
+    "node-cron",
     // 可选依赖
     "proxy-agent",
     "socks",
