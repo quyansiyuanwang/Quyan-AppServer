@@ -2496,8 +2496,10 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeQueued: '探针任务已加入队列',
     channelProbeClearFailures: '清除失败记录',
     channelProbeClearHistory: '清除全部历史',
-    channelProbeClearFailuresConfirm: '将永久删除失败、超时和已取消的探针记录，正在排队或执行的任务不会受影响，是否继续？',
-    channelProbeClearHistoryConfirm: '将永久删除该渠道全部已完成的探针历史，正在排队或执行的任务不会受影响，是否继续？',
+    channelProbeClearFailuresConfirm:
+      '将永久删除失败、超时和已取消的探针记录，正在排队或执行的任务不会受影响，是否继续？',
+    channelProbeClearHistoryConfirm:
+      '将永久删除该渠道全部已完成的探针历史，正在排队或执行的任务不会受影响，是否继续？',
     channelProbeHistoryCleared: '已清除 {count} 条探针记录',
     channelProbeResetState: '重置任务状态',
     channelProbeResetStateConfirm:
@@ -2539,8 +2541,8 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeApplyDialogTitle: '确认渠道倍率校准',
     channelProbeApplyDialogNotice:
       '请核对建议倍率和目标倍率。修改后的目标值会直接写入渠道倍率，仍会校验探针时的渠道倍率未发生变化。',
-    channelProbeRoundDigits: '统一保留小数位',
-    channelProbeRoundAll: '一键四舍五入',
+    channelProbeRoundDigits: '统一向上保留小数位',
+    channelProbeRoundAll: '一键向上取整',
     channelProbeTargetMultiplier: '目标倍率',
     channelProbeTargetMultiplierInvalid: '目标倍率必须在 0.000001 到 1000 之间',
     channelProbeApplyUnavailable: '没有可应用的探针倍率建议',
@@ -2551,6 +2553,10 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeNoRuns: '暂无探针执行记录',
     channelProbePayloadHelp: '填写一次最小、可计量的模型请求体；模型字段会由系统填充。',
     channelProbePayloadAdvanced: '高级请求负载 JSON（可选）',
+    channelProbeRequestSpec: '最小模型请求',
+    channelProbeRequestSpecHelp: '使用渠道已保存的上游地址和认证信息发送一次最小可计量请求。',
+    channelProbeCalibration: '成本校准参数',
+    channelProbeCalibrationHelp: '先标准化上游余额，再按结算比率和分销倍率推导渠道倍率。',
     channelProbeGuide: '配置助手',
     channelProbeGuideDescription:
       '先选择请求格式和模型，再加载安全的最小请求预设。只有上游需要额外字段时才展开高级 JSON。',
@@ -2566,8 +2572,7 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeCheckNeeded: '待处理',
     channelProbeModelCheck: '模型必须与当前渠道已配置的请求格式和模型映射一致。',
     channelProbeBalancePathCheck: '工作流中必须且只能有一个余额字段路径。',
-    channelProbeCurrencyCheck:
-      '余额除数换算后的上游币种必须与本币相同，才会生成可应用的倍率建议。',
+    channelProbeCurrencyCheck: '余额除数换算后的上游币种必须与本币相同，才会生成可应用的倍率建议。',
     channelProbeCurrencyManual: '仅记录',
     channelProbeSuggestionCurrencyMismatch:
       '建议未生成：换算后的上游币种为 {upstream}，本币为 {local}。余额除数只换算数值；将上游币种设为 {local} 后重新执行，才可校准倍率。',
@@ -2576,6 +2581,8 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeSuggestionNoBaseCost: '建议未生成：本地定价没有计算出有效基准成本。',
     channelProbeSuggestionUnavailable: '建议未生成：当前记录不满足倍率校准条件。',
     channelProbeDivisorCheck: '上游响应中的原始余额会先除以 {divisor}，再记录余额变化并计算倍率。',
+    channelProbeUpstreamRateCheck:
+      '标准化余额会先乘上游结算比率 {rate}，再乘分销倍率 {distribution}。',
     channelProbeGroup: '探针分组',
     channelProbeGroupPlaceholder: '例如 codeflow-main；留空表示独立执行',
     channelProbeGrouped: '串行执行',
@@ -2649,7 +2656,9 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeUpstreamCurrency: '换算后上游币种',
     channelProbeLocalCurrency: '本地币种',
     channelProbeBalanceDivisor: '原始余额换算除数',
+    channelProbeUpstreamRate: '上游结算比率',
     channelProbeInvalidBalanceDivisor: '上游余额换算除数必须介于 0.000001 和 1000000000 之间',
+    channelProbeInvalidUpstreamRate: '上游结算比率必须在 0.000001 到 1000 之间',
     channelProbeAddCredential: '新增凭据',
     channelProbeCredentialName: '变量名',
     channelProbeCredentialValue: '密钥或密码',
@@ -2660,7 +2669,8 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeBalanceAfter: '上游余额（后）',
     channelProbeBaseCost: '基准本地成本',
     channelProbeTokens: '实际用量',
-    channelProbeFormula: '建议倍率 = ({delta} × {distribution}) ÷ {base} = {suggested}',
+    channelProbeFormula:
+      '建议倍率 = ({delta} × 上游比率 {upstreamRate} × 分销倍率 {distribution}) ÷ {base} = {suggested}',
     healthTrackingMode: '健康追踪模式',
     healthTrackingAutomatic: '自动追踪',
     healthTrackingManual: '手动管理',

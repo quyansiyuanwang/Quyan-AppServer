@@ -39087,6 +39087,10 @@
 						"type": "number",
 						"format": "double"
 					},
+					"upstreamRateMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
 					"probeGroup": {
 						"type": "string",
 						"description": "Channels in the same non-empty probe group are calibrated serially."
@@ -39126,6 +39130,7 @@
 					"upstreamCurrency",
 					"localCurrency",
 					"upstreamBalanceDivisor",
+					"upstreamRateMultiplier",
 					"distributionMultiplier",
 					"workflow",
 					"credentialNames",
@@ -39185,6 +39190,10 @@
 						"format": "double"
 					},
 					"upstreamBalanceDelta": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamRateMultiplier": {
 						"type": "number",
 						"format": "double"
 					},
@@ -39253,6 +39262,7 @@
 					"status",
 					"queuedAt",
 					"distributionMultiplier",
+					"upstreamRateMultiplier",
 					"requestedByUserId",
 					"createTime",
 					"updateTime"
@@ -39331,6 +39341,11 @@
 						"type": "number",
 						"format": "double",
 						"description": "Divides the numeric balance extracted from the upstream response before calculating deltas."
+					},
+					"upstreamRateMultiplier": {
+						"type": "number",
+						"format": "double",
+						"description": "Converts a normalized upstream balance unit to the local cost basis before distribution markup."
 					},
 					"probeGroup": {
 						"type": "string",

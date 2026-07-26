@@ -2631,8 +2631,8 @@ export default {
     channelProbeApplyDialogTitle: 'Confirm channel multiplier calibration',
     channelProbeApplyDialogNotice:
       'Review the suggested and target multipliers. A changed target is written directly to the channel after its probe-time multiplier is revalidated.',
-    channelProbeRoundDigits: 'Decimal places',
-    channelProbeRoundAll: 'Round all',
+    channelProbeRoundDigits: 'Round up to decimal places',
+    channelProbeRoundAll: 'Round all up',
     channelProbeTargetMultiplier: 'Target multiplier',
     channelProbeTargetMultiplierInvalid: 'The target multiplier must be between 0.000001 and 1000',
     channelProbeApplyUnavailable: 'No applicable probe multiplier suggestion is available',
@@ -2644,6 +2644,12 @@ export default {
     channelProbePayloadHelp:
       'Provide a minimal billable model request. The system supplies the model field.',
     channelProbePayloadAdvanced: 'Advanced request payload JSON (optional)',
+    channelProbeRequestSpec: 'Minimal model request',
+    channelProbeRequestSpecHelp:
+      "Sends one minimal billable request with this channel's saved upstream address and credential.",
+    channelProbeCalibration: 'Cost calibration',
+    channelProbeCalibrationHelp:
+      'Normalize the upstream balance, then apply the settlement and distribution rates to derive the channel multiplier.',
     channelProbeGuide: 'Configuration assistant',
     channelProbeGuideDescription:
       'Choose the request format and model, then load a safe minimal preset. Open advanced JSON only when the upstream requires extra fields.',
@@ -2665,14 +2671,20 @@ export default {
     channelProbeCurrencyManual: 'Record only',
     channelProbeSuggestionCurrencyMismatch:
       'No suggestion: the normalized upstream currency is {upstream}, while the local currency is {local}. The balance divisor only converts the numeric value; set the upstream currency to {local} and run again to calibrate a multiplier.',
-    channelProbeSuggestionMissingUsage: 'No suggestion: the minimal model request returned no billable usage.',
-    channelProbeSuggestionNoDelta: 'No suggestion: the upstream balance did not decrease comparably.',
+    channelProbeSuggestionMissingUsage:
+      'No suggestion: the minimal model request returned no billable usage.',
+    channelProbeSuggestionNoDelta:
+      'No suggestion: the upstream balance did not decrease comparably.',
     channelProbeSuggestionNoBaseCost: 'No suggestion: local pricing produced no valid base cost.',
-    channelProbeSuggestionUnavailable: 'No suggestion: this run does not meet the calibration conditions.',
+    channelProbeSuggestionUnavailable:
+      'No suggestion: this run does not meet the calibration conditions.',
     channelProbeDivisorCheck:
       'The raw upstream balance is divided by {divisor} before its delta and multiplier are calculated.',
+    channelProbeUpstreamRateCheck:
+      'The normalized balance is multiplied by upstream settlement rate {rate}, then distribution multiplier {distribution}.',
     channelProbeGroup: 'Probe group',
-    channelProbeGroupPlaceholder: 'For example codeflow-main; leave empty for independent execution',
+    channelProbeGroupPlaceholder:
+      'For example codeflow-main; leave empty for independent execution',
     channelProbeGrouped: 'Runs serially',
     channelProbeUngrouped: 'Runs independently',
     channelProbeGroupCheck:
@@ -2741,15 +2753,19 @@ export default {
     channelProbeBody: 'JSON request body',
     channelProbeExtract: 'Response variable extraction',
     channelProbeBalancePath: 'Balance field path',
-    channelProbeBalancePathHint: 'Must resolve to a numeric response field, for example data.balance.',
+    channelProbeBalancePathHint:
+      'Must resolve to a numeric response field, for example data.balance.',
     channelProbeBalancePathRequired: 'Exactly one balance field path is required',
     channelProbeInvalidStep: 'Provide a valid step name and HTTP(S) URL',
     channelProbeInvalidJson: 'must be a JSON object',
     channelProbeUpstreamCurrency: 'Converted upstream currency',
     channelProbeLocalCurrency: 'Local currency',
     channelProbeBalanceDivisor: 'Raw balance divisor',
+    channelProbeUpstreamRate: 'Upstream settlement rate',
     channelProbeInvalidBalanceDivisor:
       'The upstream balance divisor must be between 0.000001 and 1000000000',
+    channelProbeInvalidUpstreamRate:
+      'The upstream settlement rate must be between 0.000001 and 1000',
     channelProbeAddCredential: 'Add credential',
     channelProbeCredentialName: 'Variable name',
     channelProbeCredentialValue: 'Secret or password',
@@ -2760,7 +2776,8 @@ export default {
     channelProbeBalanceAfter: 'Upstream balance after',
     channelProbeBaseCost: 'Base local cost',
     channelProbeTokens: 'Actual usage',
-    channelProbeFormula: 'Suggested multiplier = ({delta} × {distribution}) ÷ {base} = {suggested}',
+    channelProbeFormula:
+      'Suggested multiplier = ({delta} × upstream rate {upstreamRate} × distribution multiplier {distribution}) ÷ {base} = {suggested}',
     healthTrackingMode: 'Health Tracking Mode',
     healthTrackingAutomatic: 'Automatic tracking',
     healthTrackingManual: 'Manual management',

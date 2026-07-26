@@ -53,6 +53,7 @@ export const upsertRelayChannelProbeProfileBodySchema = z
       .regex(/^[A-Z]{3,12}$/)
       .optional(),
     upstreamBalanceDivisor: z.coerce.number().finite().min(0.000001).max(1_000_000_000).optional(),
+    upstreamRateMultiplier: z.coerce.number().finite().min(0.000001).max(1000).optional(),
     probeGroup: z.string().trim().max(80).optional(),
     distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
     workflow: z.array(workflowStepSchema).min(1).max(3),

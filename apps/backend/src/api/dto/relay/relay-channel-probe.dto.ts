@@ -22,6 +22,7 @@ export interface RelayChannelProbeProfileDto {
   upstreamCurrency: string;
   localCurrency: string;
   upstreamBalanceDivisor: number;
+  upstreamRateMultiplier: number;
   /** Channels in the same non-empty probe group are calibrated serially. */
   probeGroup?: string;
   distributionMultiplier: number;
@@ -40,6 +41,8 @@ export interface UpsertRelayChannelProbeProfileRequest {
   localCurrency?: string;
   /** Divides the numeric balance extracted from the upstream response before calculating deltas. */
   upstreamBalanceDivisor?: number;
+  /** Converts a normalized upstream balance unit to the local cost basis before distribution markup. */
+  upstreamRateMultiplier?: number;
   /** Channels in the same non-empty probe group are calibrated serially. Empty clears the group. */
   probeGroup?: string;
   distributionMultiplier?: number;
@@ -80,6 +83,7 @@ export interface RelayChannelProbeRunDto {
   upstreamBalanceBefore?: number;
   upstreamBalanceAfter?: number;
   upstreamBalanceDelta?: number;
+  upstreamRateMultiplier: number;
   localBalanceBefore?: number;
   localBalanceAfter?: number;
   localBalanceDelta?: number;

@@ -20,9 +20,11 @@ describe("relay channel probe helpers", () => {
   });
 
   it("rounds valid suggestions and rejects non-comparable values", () => {
-    expect(calculateSuggestedProbeMultiplier(0.5, 2, 0.3)).toBe(3.333333);
-    expect(calculateSuggestedProbeMultiplier(0, 2, 0.3)).toBeUndefined();
-    expect(calculateSuggestedProbeMultiplier(1, 1, 0)).toBeUndefined();
+    expect(calculateSuggestedProbeMultiplier(0.5, 1.5, 2, 0.3)).toBe(5);
+    expect(calculateSuggestedProbeMultiplier(1, 1, 1, 3)).toBe(0.333334);
+    expect(calculateSuggestedProbeMultiplier(0, 1.5, 2, 0.3)).toBeUndefined();
+    expect(calculateSuggestedProbeMultiplier(1, 0, 1, 0.3)).toBeUndefined();
+    expect(calculateSuggestedProbeMultiplier(1, 1, 1, 0)).toBeUndefined();
   });
 
   it("builds the expected model endpoint from root and versioned upstream base URLs", () => {

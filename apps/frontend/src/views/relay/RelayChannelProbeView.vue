@@ -223,6 +223,8 @@
               selected.profile.upstreamCurrency +
               ' / ' +
               formatNumber(selected.profile.upstreamBalanceDivisor) +
+              ' × ' +
+              formatNumber(selected.profile.upstreamRateMultiplier) +
               ' -> ' +
               selected.profile.localCurrency
             }}</strong>
@@ -240,91 +242,123 @@
           <el-form label-position="top" class="profile-form" @submit.prevent="saveProfile">
             <div class="profile-editor-layout">
               <div class="profile-editor-main">
-                <div class="form-grid">
-                  <el-form-item :label="i18ns.t('productConsole.enabled')"
-                    ><el-switch v-model="form.enabled" :disabled="!canExecute"
-                  /></el-form-item>
-                  <el-form-item :label="i18ns.t('relay.channelProbeFormat')"
-                    ><el-select v-model="form.probeFormat" :disabled="!canExecute"
-                      ><el-option
-                        value="openai"
-                        label="OpenAI"
-                        :disabled="!isProbeFormatAvailable('openai')" /><el-option
-                        value="anthropic"
-                        label="Anthropic"
-                        :disabled="!isProbeFormatAvailable('anthropic')" /><el-option
-                        value="gemini"
-                        label="Gemini"
-                        :disabled="!isProbeFormatAvailable('gemini')" /></el-select
-                  ></el-form-item>
-                  <el-form-item :label="i18ns.t('relay.channelProbeModel')"
-                    ><el-select
-                      v-model="form.probeModel"
-                      filterable
-                      :allow-create="selectedProbeModels.length === 0"
+                <section class="profile-section">
+                  <header class="profile-section-header">
+                    <div>
+                      <strong>{{ i18ns.t('relay.channelProbeRequestSpec') }}</strong>
+                      <span>{{ i18ns.t('relay.channelProbeRequestSpecHelp') }}</span>
+                    </div>
+                    <el-switch
+                      v-model="form.enabled"
                       :disabled="!canExecute"
-                      :placeholder="i18ns.t('relay.channelProbeModelPlaceholder')"
-                      ><el-option
-                        v-for="model in selectedProbeModels"
-                        :key="model"
-                        :value="model"
-                        :label="model" /></el-select
-                  ></el-form-item>
-                  <el-form-item :label="i18ns.t('relay.channelProbeDistribution')"
-                    ><el-input-number
-                      v-model="form.distributionMultiplier"
-                      :min="0.000001"
-                      :max="1000"
-                      :step="0.000001"
-                      :precision="6"
-                      :disabled="!canExecute"
-                  /></el-form-item>
-                  <el-form-item :label="i18ns.t('relay.channelProbeUpstreamCurrency')"
-                    ><el-input
-                      v-model.trim="form.upstreamCurrency"
-                      maxlength="12"
-                      :disabled="!canExecute"
-                  /></el-form-item>
-                  <el-form-item :label="i18ns.t('relay.channelProbeBalanceDivisor')"
-                    ><el-input-number
-                      v-model="form.upstreamBalanceDivisor"
-                      :min="0.000001"
-                      :max="1000000000"
-                      :step="0.000001"
-                      :precision="6"
-                      :disabled="!canExecute"
-                  /></el-form-item>
-                  <el-form-item :label="i18ns.t('relay.channelProbeGroup')"
-                    ><el-input
-                      v-model.trim="form.probeGroup"
-                      clearable
-                      maxlength="80"
-                      :disabled="!canExecute"
-                      :placeholder="i18ns.t('relay.channelProbeGroupPlaceholder')"
-                  /></el-form-item>
-                  <el-form-item :label="i18ns.t('relay.channelProbeLocalCurrency')"
-                    ><el-input
-                      v-model.trim="form.localCurrency"
-                      maxlength="12"
-                      :disabled="!canExecute"
-                  /></el-form-item>
-                </div>
-                <el-collapse class="advanced-payload">
-                  <el-collapse-item
-                    :title="i18ns.t('relay.channelProbePayloadAdvanced')"
-                    name="payload"
-                  >
-                    <el-form-item :label="i18ns.t('relay.channelProbePayload')">
-                      <el-input
-                        v-model="payloadText"
-                        type="textarea"
-                        :rows="7"
+                      :active-text="i18ns.t('productConsole.enabled')"
+                    />
+                  </header>
+                  <div class="request-config-grid">
+                    <el-form-item :label="i18ns.t('relay.channelProbeFormat')"
+                      ><el-select v-model="form.probeFormat" :disabled="!canExecute"
+                        ><el-option
+                          value="openai"
+                          label="OpenAI"
+                          :disabled="!isProbeFormatAvailable('openai')" /><el-option
+                          value="anthropic"
+                          label="Anthropic"
+                          :disabled="!isProbeFormatAvailable('anthropic')" /><el-option
+                          value="gemini"
+                          label="Gemini"
+                          :disabled="!isProbeFormatAvailable('gemini')" /></el-select
+                    ></el-form-item>
+                    <el-form-item
+                      class="request-model-field"
+                      :label="i18ns.t('relay.channelProbeModel')"
+                      ><el-select
+                        v-model="form.probeModel"
+                        filterable
+                        :allow-create="selectedProbeModels.length === 0"
                         :disabled="!canExecute"
-                        :placeholder="i18ns.t('relay.channelProbePayloadHelp')"
-                      />
-                    </el-form-item>
-                  </el-collapse-item>
-                </el-collapse>
+                        :placeholder="i18ns.t('relay.channelProbeModelPlaceholder')"
+                        ><el-option
+                          v-for="model in selectedProbeModels"
+                          :key="model"
+                          :value="model"
+                          :label="model" /></el-select
+                    ></el-form-item>
+                  </div>
+                  <el-collapse class="advanced-payload">
+                    <el-collapse-item
+                      :title="i18ns.t('relay.channelProbePayloadAdvanced')"
+                      name="payload"
+                    >
+                      <el-form-item :label="i18ns.t('relay.channelProbePayload')">
+                        <el-input
+                          v-model="payloadText"
+                          type="textarea"
+                          :rows="7"
+                          :disabled="!canExecute"
+                          :placeholder="i18ns.t('relay.channelProbePayloadHelp')"
+                        />
+                      </el-form-item>
+                    </el-collapse-item>
+                  </el-collapse>
+                </section>
+
+                <section class="profile-section">
+                  <header class="profile-section-header">
+                    <div>
+                      <strong>{{ i18ns.t('relay.channelProbeCalibration') }}</strong>
+                      <span>{{ i18ns.t('relay.channelProbeCalibrationHelp') }}</span>
+                    </div>
+                  </header>
+                  <div class="calibration-config-grid">
+                    <el-form-item :label="i18ns.t('relay.channelProbeUpstreamCurrency')"
+                      ><el-input
+                        v-model.trim="form.upstreamCurrency"
+                        maxlength="12"
+                        :disabled="!canExecute"
+                    /></el-form-item>
+                    <el-form-item :label="i18ns.t('relay.channelProbeLocalCurrency')"
+                      ><el-input
+                        v-model.trim="form.localCurrency"
+                        maxlength="12"
+                        :disabled="!canExecute"
+                    /></el-form-item>
+                    <el-form-item :label="i18ns.t('relay.channelProbeBalanceDivisor')"
+                      ><el-input-number
+                        v-model="form.upstreamBalanceDivisor"
+                        :min="0.000001"
+                        :max="1000000000"
+                        :step="0.000001"
+                        :precision="6"
+                        :disabled="!canExecute"
+                    /></el-form-item>
+                    <el-form-item :label="i18ns.t('relay.channelProbeUpstreamRate')"
+                      ><el-input-number
+                        v-model="form.upstreamRateMultiplier"
+                        :min="0.000001"
+                        :max="1000"
+                        :step="0.000001"
+                        :precision="6"
+                        :disabled="!canExecute"
+                    /></el-form-item>
+                    <el-form-item :label="i18ns.t('relay.channelProbeDistribution')"
+                      ><el-input-number
+                        v-model="form.distributionMultiplier"
+                        :min="0.000001"
+                        :max="1000"
+                        :step="0.000001"
+                        :precision="6"
+                        :disabled="!canExecute"
+                    /></el-form-item>
+                    <el-form-item :label="i18ns.t('relay.channelProbeGroup')"
+                      ><el-input
+                        v-model.trim="form.probeGroup"
+                        clearable
+                        maxlength="80"
+                        :disabled="!canExecute"
+                        :placeholder="i18ns.t('relay.channelProbeGroupPlaceholder')"
+                    /></el-form-item>
+                  </div>
+                </section>
 
                 <div class="section-heading">
                   <strong>{{ i18ns.t('relay.channelProbeWorkflow') }}</strong
@@ -579,6 +613,15 @@
                     }}</span>
                   </div>
                   <div class="checklist-item">
+                    <el-tag type="info" size="small">×</el-tag>
+                    <span>{{
+                      i18ns.t('relay.channelProbeUpstreamRateCheck', {
+                        rate: formatNumber(form.upstreamRateMultiplier),
+                        distribution: formatNumber(form.distributionMultiplier),
+                      })
+                    }}</span>
+                  </div>
+                  <div class="checklist-item">
                     <el-tag :type="form.probeGroup.trim() ? 'info' : 'success'" size="small">
                       {{
                         i18ns.t(
@@ -721,6 +764,9 @@
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeBaseCost')">{{
                 formatNumber(runItem.baseLocalCost)
               }}</el-descriptions-item
+              ><el-descriptions-item :label="i18ns.t('relay.channelProbeUpstreamRate')">{{
+                formatNumber(runItem.upstreamRateMultiplier)
+              }}</el-descriptions-item
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeTokens')">{{
                 runItem.totalTokens ?? '-'
               }}</el-descriptions-item
@@ -732,6 +778,7 @@
               {{
                 i18ns.t('relay.channelProbeFormula', {
                   delta: formatNumber(runItem.upstreamBalanceDelta),
+                  upstreamRate: formatNumber(runItem.upstreamRateMultiplier),
                   distribution: runItem.distributionMultiplier,
                   base: formatNumber(runItem.baseLocalCost),
                   suggested: runItem.suggestedMultiplier,
@@ -900,6 +947,7 @@ interface ProbeForm {
   upstreamCurrency: string
   localCurrency: string
   upstreamBalanceDivisor: number
+  upstreamRateMultiplier: number
   probeGroup: string
 }
 interface ApplyMultiplierDraft {
@@ -1087,6 +1135,7 @@ function emptyForm(): ProbeForm {
     upstreamCurrency: 'CNY',
     localCurrency: 'CNY',
     upstreamBalanceDivisor: 1,
+    upstreamRateMultiplier: 1,
     probeGroup: '',
   }
 }
@@ -1234,6 +1283,7 @@ function parseImportedProfile(): ProbeProfileExport['profile'] {
         typeof source.upstreamCurrency === 'string' ? source.upstreamCurrency : 'CNY',
       localCurrency: typeof source.localCurrency === 'string' ? source.localCurrency : 'CNY',
       upstreamBalanceDivisor: validBalanceDivisor(source.upstreamBalanceDivisor),
+      upstreamRateMultiplier: validUpstreamRateMultiplier(source.upstreamRateMultiplier),
       probeGroup: typeof source.probeGroup === 'string' ? source.probeGroup.trim() : '',
       probePayload: source.probePayload as Record<string, unknown>,
       workflow: source.workflow as RelayChannelProbeWorkflowStepDto[],
@@ -1249,6 +1299,13 @@ function validBalanceDivisor(value: unknown): number {
     throw new Error(i18ns.t('relay.channelProbeInvalidBalanceDivisor'))
   return divisor
 }
+function validUpstreamRateMultiplier(value: unknown): number {
+  if (value == null) return 1
+  const multiplier = Number(value)
+  if (!Number.isFinite(multiplier) || multiplier < 0.000001 || multiplier > 1000)
+    throw new Error(i18ns.t('relay.channelProbeInvalidUpstreamRate'))
+  return multiplier
+}
 function applyImportedConfiguration() {
   try {
     const imported = parseImportedProfile()
@@ -1260,6 +1317,7 @@ function applyImportedConfiguration() {
       upstreamCurrency: imported.upstreamCurrency,
       localCurrency: imported.localCurrency,
       upstreamBalanceDivisor: imported.upstreamBalanceDivisor,
+      upstreamRateMultiplier: imported.upstreamRateMultiplier,
       probeGroup: imported.probeGroup,
     }
     payloadText.value = JSON.stringify(imported.probePayload, null, 2)
@@ -1363,7 +1421,7 @@ function getApplicableRuns(runIds: string[]) {
 function roundDraftMultipliers() {
   const factor = 10 ** roundingDigits.value
   for (const draft of applyDrafts.value)
-    draft.targetMultiplier = Math.round((draft.targetMultiplier + Number.EPSILON) * factor) / factor
+    draft.targetMultiplier = Math.ceil((draft.targetMultiplier - Number.EPSILON) * factor) / factor
 }
 function parseObject(value: string, label: string): Record<string, unknown> {
   try {
@@ -1502,6 +1560,7 @@ async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
         upstreamCurrency: profile.upstreamCurrency,
         localCurrency: profile.localCurrency,
         upstreamBalanceDivisor: profile.upstreamBalanceDivisor,
+        upstreamRateMultiplier: profile.upstreamRateMultiplier,
         probeGroup: profile.probeGroup ?? '',
       }
     : {
@@ -1929,12 +1988,47 @@ onBeforeUnmount(stopPolling)
   color: var(--el-text-color-secondary);
   font-size: 13px;
 }
-.form-grid,
+.request-config-grid,
+.calibration-config-grid,
 .workflow-route-grid,
 .workflow-request-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 14px;
+}
+.request-config-grid {
+  grid-template-columns: minmax(180px, 0.7fr) minmax(260px, 1.3fr);
+}
+.request-model-field {
+  min-width: 0;
+}
+.calibration-config-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.profile-section {
+  margin: 0 0 18px;
+  padding: 16px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-bg-color);
+}
+.profile-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 14px;
+}
+.profile-section-header > div {
+  display: grid;
+  gap: 4px;
+}
+.profile-section-header strong {
+  font-size: 15px;
+}
+.profile-section-header span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .profile-editor-layout {
   display: grid;
@@ -2245,7 +2339,8 @@ onBeforeUnmount(stopPolling)
     flex-direction: column;
   }
   .probe-filters,
-  .form-grid,
+  .request-config-grid,
+  .calibration-config-grid,
   .workflow-route-grid,
   .workflow-request-grid,
   .probe-helper-panel {

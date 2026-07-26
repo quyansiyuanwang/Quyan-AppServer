@@ -80,13 +80,22 @@ export function interpolateProbeVariables(value: unknown, variables: Record<stri
 
 export function calculateSuggestedProbeMultiplier(
   upstreamBalanceDelta: number,
+  upstreamRateMultiplier: number,
   distributionMultiplier: number,
   baseLocalCost: number,
 ): number | undefined {
-  const value = (upstreamBalanceDelta * distributionMultiplier) / baseLocalCost;
-  if (!Number.isFinite(value) || upstreamBalanceDelta <= 0 || baseLocalCost <= 0 || value < 0 || value > 1000)
+  const value = (upstreamBalanceDelta * upstreamRateMultiplier * distributionMultiplier) / baseLocalCost;
+  if (
+    !Number.isFinite(value) ||
+    upstreamBalanceDelta <= 0 ||
+    upstreamRateMultiplier <= 0 ||
+    baseLocalCost <= 0 ||
+    value < 0 ||
+    value > 1000
+  )
     return undefined;
-  return Math.round(value * 1_000_000) / 1_000_000;
+  // A channel multiplier must never be rounded below the measured upstream cost.
+  return Math.ceil((value - Number.EPSILON) * 1_000_000) / 1_000_000;
 }
 
 type ProbeUsage = {
@@ -256,6 +265,7 @@ export class RelayChannelProbeService {
         upstreamCurrency: body.upstreamCurrency || "CNY",
         localCurrency: body.localCurrency || "CNY",
         upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
+        upstreamRateMultiplier: body.upstreamRateMultiplier ?? 1,
         probeGroup: this.normalizeProbeGroup(body.probeGroup),
         distributionMultiplier: body.distributionMultiplier ?? 1,
         workflow: body.workflow as unknown as Prisma.InputJsonValue,
@@ -271,6 +281,7 @@ export class RelayChannelProbeService {
         upstreamCurrency: body.upstreamCurrency || "CNY",
         localCurrency: body.localCurrency || "CNY",
         upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
+        upstreamRateMultiplier: body.upstreamRateMultiplier ?? 1,
         probeGroup: this.normalizeProbeGroup(body.probeGroup),
         distributionMultiplier: body.distributionMultiplier ?? 1,
         workflow: body.workflow as unknown as Prisma.InputJsonValue,
@@ -497,6 +508,7 @@ export class RelayChannelProbeService {
       if (!Number.isFinite(normalizedBefore) || !Number.isFinite(normalizedAfter))
         throw new BadRequestError("上游余额换算结果无效");
       const upstreamDelta = normalizedBefore - normalizedAfter;
+      const upstreamRateMultiplier = Number(profile.upstreamRateMultiplier);
       const baseCost = await this.calculateBaseCost(profile, usage);
       const comparable =
         profile.upstreamCurrency === profile.localCurrency &&
@@ -504,7 +516,12 @@ export class RelayChannelProbeService {
         baseCost > 0 &&
         usage.totalTokens > 0;
       const suggested = comparable
-        ? calculateSuggestedProbeMultiplier(upstreamDelta, Number(run.distributionMultiplier), baseCost)
+        ? calculateSuggestedProbeMultiplier(
+            upstreamDelta,
+            upstreamRateMultiplier,
+            Number(run.distributionMultiplier),
+            baseCost,
+          )
         : undefined;
       await this.repository.completeClaimedRun(runId, owner, {
         status: "succeeded",
@@ -514,9 +531,14 @@ export class RelayChannelProbeService {
         upstreamBalanceBefore: normalizedBefore,
         upstreamBalanceAfter: normalizedAfter,
         upstreamBalanceDelta: upstreamDelta,
+        upstreamRateMultiplier,
         localBalanceBefore: 0,
-        localBalanceAfter: comparable ? -(upstreamDelta * Number(run.distributionMultiplier)) : 0,
-        localBalanceDelta: comparable ? upstreamDelta * Number(run.distributionMultiplier) : 0,
+        localBalanceAfter: comparable
+          ? -(upstreamDelta * upstreamRateMultiplier * Number(run.distributionMultiplier))
+          : 0,
+        localBalanceDelta: comparable
+          ? upstreamDelta * upstreamRateMultiplier * Number(run.distributionMultiplier)
+          : 0,
         baseLocalCost: baseCost,
         requestTokens: usage.requestTokens,
         responseTokens: usage.responseTokens,
@@ -717,6 +739,7 @@ export class RelayChannelProbeService {
       upstreamCurrency: profile.upstreamCurrency,
       localCurrency: profile.localCurrency,
       upstreamBalanceDivisor: Number(profile.upstreamBalanceDivisor),
+      upstreamRateMultiplier: Number(profile.upstreamRateMultiplier),
       probeGroup: profile.probeGroup || undefined,
       distributionMultiplier: Number(profile.distributionMultiplier),
       workflow: profile.workflow as RelayChannelProbeWorkflowStepDto[],
@@ -739,6 +762,7 @@ export class RelayChannelProbeService {
       upstreamBalanceBefore: n(run.upstreamBalanceBefore),
       upstreamBalanceAfter: n(run.upstreamBalanceAfter),
       upstreamBalanceDelta: n(run.upstreamBalanceDelta),
+      upstreamRateMultiplier: Number(run.upstreamRateMultiplier),
       localBalanceBefore: n(run.localBalanceBefore),
       localBalanceAfter: n(run.localBalanceAfter),
       localBalanceDelta: n(run.localBalanceDelta),
