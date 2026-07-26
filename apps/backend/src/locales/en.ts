@@ -123,6 +123,7 @@ const en = {
     customKeyLimitReached: "Custom token limit reached ({{limit}}). Please delete unused custom tokens first.",
     customKeyCreateRateLimitReached:
       "Custom token creation is too frequent (max {{limit}} within {{windowMinutes}} minutes). Please try again later.",
+    probeVariableMissing: "Probe variable {{variable}} is not configured",
   },
   ram: {
     actorNotFound: "Operator user does not exist",

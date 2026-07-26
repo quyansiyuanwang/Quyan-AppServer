@@ -78,6 +78,37 @@ export function interpolateProbeVariables(value: unknown, variables: Record<stri
   return value;
 }
 
+/**
+ * Probe workflows contain credentials and extracted values. Unlike the generic
+ * interpolation helper, never turn an absent value into an empty upstream
+ * header, query parameter, or request body field.
+ */
+export function interpolateRequiredProbeVariables(value: unknown, variables: Record<string, string>): unknown {
+  if (typeof value === "string")
+    return value.replace(/\{\{([A-Za-z][A-Za-z0-9_.]*)\}\}/g, (_, key) => {
+      const resolved = variables[key];
+      if (!resolved?.trim())
+        throw new BadRequestError(`PROBE_VARIABLE_MISSING:${key}`, undefined, {
+          messageKey: "relay.probeVariableMissing",
+          messageParams: { variable: key },
+        });
+      return resolved;
+    });
+  if (Array.isArray(value)) return value.map((item) => interpolateRequiredProbeVariables(item, variables));
+  if (value && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+        key,
+        interpolateRequiredProbeVariables(item, variables),
+      ]),
+    );
+  return value;
+}
+
+export function normalizeProbeNetworkError(message: string): string {
+  return /invalid ip address:\s*undefined/i.test(message) ? "PROBE_NETWORK_CONFIGURATION_INVALID" : message;
+}
+
 export function calculateSuggestedProbeMultiplier(
   upstreamBalanceDelta: number,
   upstreamRateMultiplier: number,
@@ -568,16 +599,20 @@ export class RelayChannelProbeService {
   ): Promise<number> {
     let balance: number | undefined;
     for (const step of workflow) {
-      const rawUrl = interpolateProbeVariables(step.url, variables) as string;
+      const rawUrl = interpolateRequiredProbeVariables(step.url, variables) as string;
       const safe = await assertSafeOutboundUrl(rawUrl);
       const response = await axios.request({
         method: step.method,
         url: safe.url.toString(),
-        headers: interpolateProbeVariables(step.headers || {}, variables) as Record<string, string>,
-        params: interpolateProbeVariables(step.query || {}, variables),
-        data: interpolateProbeVariables(step.body || {}, variables),
+        headers: interpolateRequiredProbeVariables(step.headers || {}, variables) as Record<string, string>,
+        params: interpolateRequiredProbeVariables(step.query || {}, variables),
+        data: interpolateRequiredProbeVariables(step.body || {}, variables),
         httpAgent: safe.httpAgent,
         httpsAgent: safe.httpsAgent,
+        // A probe must use the validated and DNS-pinned target directly. Letting
+        // Axios inherit HTTP(S)_PROXY bypasses that boundary and can turn a bad
+        // deployment proxy into an opaque "Invalid IP address" probe failure.
+        proxy: false,
         timeout: PROBE_TIMEOUT_MS,
         maxRedirects: 0,
         maxContentLength: MAX_RESPONSE_BYTES,
@@ -617,7 +652,7 @@ export class RelayChannelProbeService {
           : channel.openaiUpstreamApiKey;
     if (!upstreamUrl || !apiKey) throw new BadRequestError("渠道缺少对应格式的上游配置");
     const base = await assertSafeOutboundUrl(upstreamUrl);
-    const payload = interpolateProbeVariables(
+    const payload = interpolateRequiredProbeVariables(
       { ...(profile.probePayload as Record<string, unknown>), model: profile.probeModel },
       variables,
     ) as Record<string, unknown>;
@@ -631,6 +666,7 @@ export class RelayChannelProbeService {
       headers,
       httpAgent: base.httpAgent,
       httpsAgent: base.httpsAgent,
+      proxy: false,
       timeout: PROBE_TIMEOUT_MS,
       maxRedirects: 0,
       maxContentLength: MAX_RESPONSE_BYTES,
@@ -784,10 +820,10 @@ export class RelayChannelProbeService {
     if (axios.isAxiosError(error)) {
       if (error.response)
         return formatProbeUpstreamError(error.response.status, error.config?.url, error.response.data);
-      return redactProbeErrorText(error.message) || "上游请求失败";
+      return normalizeProbeNetworkError(redactProbeErrorText(error.message) || "上游请求失败");
     }
     const message = error instanceof Error ? error.message : "探针执行失败";
-    return redactProbeErrorText(message) || "探针执行失败";
+    return normalizeProbeNetworkError(redactProbeErrorText(message) || "探针执行失败");
   }
 
   private async runProbePhase<T>(phase: string, operation: () => Promise<T>): Promise<T> {

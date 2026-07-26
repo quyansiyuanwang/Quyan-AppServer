@@ -125,6 +125,7 @@ const zhCN: DeepStringify<typeof en> = {
     customKeyDisabled: "自定义中转令牌当前已关闭",
     customKeyLimitReached: "自定义令牌数量已达上限 ({{limit}})，请先删除不用的自定义令牌",
     customKeyCreateRateLimitReached: "自定义令牌创建过于频繁（{{windowMinutes}} 分钟内最多 {{limit}} 个），请稍后再试",
+    probeVariableMissing: "探针变量 {{variable}} 未配置",
   },
   ram: {
     actorNotFound: "操作者用户不存在",

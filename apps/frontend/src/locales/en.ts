@@ -2716,6 +2716,13 @@ export default {
     channelProbeCredentialSavedStatus: 'Saved',
     channelProbeCredentialDraftStatus: 'Will save',
     channelProbeCredentialMissingStatus: 'Enter value',
+    channelProbeErrorVariableMissing:
+      'Probe credential or response variable {variable} is not configured',
+    channelProbeErrorNetworkConfiguration:
+      'Server outbound network configuration is invalid. Check the server proxy or DNS configuration and retry.',
+    channelProbePhaseBeforeBalanceFailed: 'Balance read before request failed: {reason}',
+    channelProbePhaseModelRequestFailed: 'Minimal model request failed: {reason}',
+    channelProbePhaseAfterBalanceFailed: 'Balance read after request failed: {reason}',
     channelProbeClearProfile: 'Clear probe profile',
     channelProbeClearProfileConfirm:
       'This deletes the probe workflow, test payload, group, and encrypted credentials. Run history and multiplier audit records are retained. Continue?',
