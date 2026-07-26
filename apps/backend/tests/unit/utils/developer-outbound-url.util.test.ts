@@ -26,6 +26,23 @@ describe("developer outbound URL guard", () => {
     target.httpsAgent.destroy();
   });
 
+  it("returns an address array when Node requests all DNS families", async () => {
+    const target = await assertSafeOutboundUrl("https://8.8.8.8/health");
+    const lookup = target.httpsAgent.options.lookup;
+    expect(lookup).toBeTypeOf("function");
+
+    const resolved = await new Promise<Array<{ address: string; family: number }>>((resolve, reject) => {
+      lookup!("example.test", { all: true }, (error, addresses) => {
+        if (error) reject(error);
+        else resolve(addresses as Array<{ address: string; family: number }>);
+      });
+    });
+
+    expect(resolved).toEqual([{ address: "8.8.8.8", family: 4 }]);
+    target.httpAgent.destroy();
+    target.httpsAgent.destroy();
+  });
+
   it("rejects unsupported protocols and URLs with embedded credentials", async () => {
     await expect(assertSafeOutboundUrl("file:///etc/passwd")).rejects.toThrow("仅允许 HTTP(S) URL");
     await expect(assertSafeOutboundUrl("https://user:pass@example.com")).rejects.toThrow("URL 不允许包含凭据");

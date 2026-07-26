@@ -66,9 +66,21 @@ export function isUnsafeOutboundAddress(address: string): boolean {
 function createPinnedLookup(address: string, family: 4 | 6): LookupFunction {
   return ((
     _: string,
-    __: unknown,
-    callback: (error: Error | null, resolvedAddress: string, resolvedFamily: 4 | 6) => void,
+    options: { all?: boolean } | undefined,
+    callback: (
+      error: Error | null,
+      resolvedAddress: string | Array<{ address: string; family: number }>,
+      resolvedFamily?: 4 | 6,
+    ) => void,
   ) => {
+    // Node 20 enables autoSelectFamily for outbound sockets. In that mode it calls
+    // custom lookup functions with `{ all: true }` and expects an address array.
+    // Returning the single-address callback shape in that branch makes Node attempt
+    // to connect to `undefined` (ERR_INVALID_IP_ADDRESS), even though DNS succeeded.
+    if (options?.all) {
+      callback(null, [{ address, family }]);
+      return;
+    }
     callback(null, address, family);
   }) as LookupFunction;
 }
