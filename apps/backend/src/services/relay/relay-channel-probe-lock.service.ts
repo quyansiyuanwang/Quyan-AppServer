@@ -27,7 +27,19 @@ export class RelayChannelProbeLockService {
   }
 
   public async withRead<T>(channelId: string, operation: () => Promise<T>, timeoutMs = 30_000): Promise<T> {
-    const lock = await this.acquire(channelId, "read", timeoutMs);
+    // Probe coordination must never turn a Redis outage into a relay outage.
+    // A probe cannot safely start without the lock backend (withWrite remains
+    // fail-closed), but ordinary user traffic can continue without contention.
+    if (!this.redis.isRedisAvailable()) return operation();
+
+    let lock: ProbeChannelLock;
+    try {
+      lock = await this.acquire(channelId, "read", timeoutMs);
+    } catch (error) {
+      if (error instanceof LockBackendUnavailableError) return operation();
+      throw error;
+    }
+
     try {
       return await operation();
     } finally {
