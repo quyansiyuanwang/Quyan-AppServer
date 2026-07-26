@@ -5,11 +5,13 @@ import {
   calculateSuggestedProbeMultiplier,
   formatProbeUpstreamError,
   getProbeSchedulingScope,
+  getProbeWorkflowHeaders,
   getProbeWorkflowRequestBody,
   interpolateRequiredProbeVariables,
   interpolateProbeVariables,
   normalizeProbeNetworkError,
   readProbeJsonPath,
+  resolveProbeModelPricing,
   waitForProbeSettlement,
 } from "../../src/services/relay/relay-channel-probe.service";
 
@@ -36,11 +38,37 @@ describe("relay channel probe helpers", () => {
     expect(getProbeWorkflowRequestBody("POST", { grant_type: "password" })).toEqual({ grant_type: "password" });
   });
 
+  it("removes stale body transport headers from GET balance workflow steps", () => {
+    expect(
+      getProbeWorkflowHeaders("GET", {
+        Authorization: "Bearer token",
+        "Content-Length": "2",
+        "transfer-encoding": "chunked",
+      }),
+    ).toEqual({ Authorization: "Bearer token" });
+    expect(getProbeWorkflowHeaders("POST", { "Content-Length": "2" })).toEqual({ "Content-Length": "2" });
+  });
+
   it("uses the group as the scheduling scope while leaving ungrouped channels independent", () => {
-    expect(getProbeSchedulingScope("channel-a", "provider-a")).toBe("group:provider-a");
+    expect(getProbeSchedulingScope("channel-a", "Provider-A")).toBe("group:provider-a");
     expect(getProbeSchedulingScope("channel-b", "provider-a")).toBe("group:provider-a");
     expect(getProbeSchedulingScope("channel-a", undefined)).toBe("channel:channel-a");
     expect(getProbeSchedulingScope("channel-b", "")).toBe("channel:channel-b");
+  });
+
+  it("uses a mapped model's upstream model ID for the probe request and pricing", () => {
+    expect(
+      resolveProbeModelPricing("public-model", { "public-*": "billing-model" }, [
+        {
+          model: "billing-model",
+          modelId: "provider-model-id",
+          inputPrice: 1,
+          outputPrice: 1,
+          cacheCreationMultiplier: 1,
+          cacheReadMultiplier: 1,
+        },
+      ]),
+    ).toMatchObject({ upstreamModelId: "provider-model-id", rate: { model: "billing-model" } });
   });
 
   it("normalizes a malformed deployment proxy address without exposing its raw error", () => {

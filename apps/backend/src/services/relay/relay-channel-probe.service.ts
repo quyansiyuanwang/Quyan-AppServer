@@ -4,8 +4,9 @@ import type { Prisma } from "@prisma/client";
 import { EnvSpace } from "@/config/env";
 import { assertSafeOutboundUrl } from "@/util/developer-outbound-url";
 import { BadRequestError, ConflictError, LockBackendUnavailableError, NotFoundError } from "@/util/errors";
+import { resolveMappedModel } from "@/util/model-mapping.util";
+import { resolveModelId } from "@/util/model-resolution.util";
 import { RelayChannelService } from "./relay-channel.service";
-import { ModelPricingService } from "./model-pricing.service";
 import { RelayConfigService } from "./relay-config.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
@@ -38,6 +39,7 @@ import type {
   RelayChannelProbeWorkflowStepDto,
   UpsertRelayChannelProbeProfileRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
+import type { ModelPricingItemDto } from "@/api/dto/relay/relay-config.dto";
 
 const PROBE_TIMEOUT_MS = 30_000;
 const MAX_RESPONSE_BYTES = 256 * 1024;
@@ -154,10 +156,36 @@ export function getProbeWorkflowRequestBody(method: string, body: unknown): unkn
   return body;
 }
 
+/** GET/HEAD balance reads must not retain stale body transport headers from imported templates. */
+export function getProbeWorkflowHeaders(method: string, headers: Record<string, string>): Record<string, string> {
+  if (method.toUpperCase() !== "GET" && method.toUpperCase() !== "HEAD") return headers;
+  return Object.fromEntries(
+    Object.entries(headers).filter(([name]) => !["content-length", "transfer-encoding"].includes(name.toLowerCase())),
+  );
+}
+
 /** An ungrouped channel is its own scheduling scope; grouped channels serialize by group. */
 export function getProbeSchedulingScope(channelId: string, probeGroup: string | null | undefined): string {
-  const normalizedGroup = probeGroup?.trim();
+  const normalizedGroup = probeGroup?.trim().toLocaleLowerCase();
   return normalizedGroup ? `group:${normalizedGroup}` : `channel:${channelId}`;
+}
+
+/**
+ * Probe traffic must resolve models in the same way as relay traffic: the
+ * configured model name selects local pricing, while its modelId is what the
+ * upstream receives. This matters for channel-level aliases and mappings.
+ */
+export function resolveProbeModelPricing(
+  probeModel: string,
+  channelModelMapping: Record<string, string> | null | undefined,
+  modelRates: ModelPricingItemDto[],
+): { rate: ModelPricingItemDto; upstreamModelId: string } {
+  const pricingModel = resolveMappedModel(probeModel.trim(), channelModelMapping);
+  const rate = modelRates.find((item) => item.model === pricingModel);
+  if (!rate) throw new BadRequestError("探针模型没有本地定价配置");
+  const upstreamModelId = rate.modelId?.trim() || resolveModelId(rate).trim();
+  if (!upstreamModelId) throw new BadRequestError("探针模型缺少上游模型标识");
+  return { rate, upstreamModelId };
 }
 
 type ProbeUsage = {
@@ -616,6 +644,7 @@ export class RelayChannelProbeService {
     leaseHeartbeat.unref();
     try {
       const profile = run.profile;
+      const pricing = await this.resolveProbeModelPricing(profile);
       const executeProbe = () =>
         this.channelLockService.withWrite(profile.relayChannelId, async () => {
           const variables = this.decryptCredentials(profile);
@@ -623,7 +652,7 @@ export class RelayChannelProbeService {
           const beforeBalance = await this.runProbePhase("读取请求前余额", () => this.runWorkflow(workflow, variables));
           await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
           const upstreamResponse = await this.runProbePhase("最小模型请求", () =>
-            this.callUpstream(profile, variables),
+            this.callUpstream(profile, variables, pricing.upstreamModelId),
           );
           const usage = this.extractUsage(upstreamResponse);
           assertProbeUsage(usage);
@@ -646,7 +675,7 @@ export class RelayChannelProbeService {
         throw new BadRequestError("上游余额换算结果无效");
       const upstreamDelta = normalizedBefore - normalizedAfter;
       const upstreamRateMultiplier = Number(profile.upstreamRateMultiplier);
-      const baseCost = await this.calculateBaseCost(profile, usage);
+      const baseCost = await this.calculateBaseCost(profile, usage, pricing.rate);
       const comparable =
         profile.upstreamCurrency === profile.localCurrency &&
         upstreamDelta > 0 &&
@@ -706,10 +735,14 @@ export class RelayChannelProbeService {
       const rawUrl = interpolateRequiredProbeVariables(step.url, variables) as string;
       const safe = await assertSafeOutboundUrl(rawUrl);
       const body = interpolateRequiredProbeVariables(step.body || {}, variables);
+      const headers = getProbeWorkflowHeaders(
+        step.method,
+        interpolateRequiredProbeVariables(step.headers || {}, variables) as Record<string, string>,
+      );
       const response = await axios.request({
         method: step.method,
         url: safe.url.toString(),
-        headers: interpolateRequiredProbeVariables(step.headers || {}, variables) as Record<string, string>,
+        headers,
         params: interpolateRequiredProbeVariables(step.query || {}, variables),
         data: getProbeWorkflowRequestBody(step.method, body),
         httpAgent: safe.httpAgent,
@@ -740,6 +773,7 @@ export class RelayChannelProbeService {
   private async callUpstream(
     profile: ProbeProfileRecord,
     variables: Record<string, string>,
+    upstreamModelId: string,
   ): Promise<Record<string, unknown>> {
     const channel = profile.relayChannel;
     const format = profile.probeFormat as "openai" | "anthropic" | "gemini";
@@ -758,14 +792,14 @@ export class RelayChannelProbeService {
     if (!upstreamUrl || !apiKey) throw new BadRequestError("渠道缺少对应格式的上游配置");
     const base = await assertSafeOutboundUrl(upstreamUrl);
     const payload = interpolateRequiredProbeVariables(
-      { ...(profile.probePayload as Record<string, unknown>), model: profile.probeModel },
+      { ...(profile.probePayload as Record<string, unknown>), model: upstreamModelId },
       variables,
     ) as Record<string, unknown>;
     const headers: Record<string, string> =
       format === "anthropic"
         ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
         : { Authorization: `Bearer ${apiKey}` };
-    const endpointUrl = new URL(buildProbeUpstreamEndpoint(base.url.toString(), format, profile.probeModel));
+    const endpointUrl = new URL(buildProbeUpstreamEndpoint(base.url.toString(), format, upstreamModelId));
     if (format === "gemini") endpointUrl.searchParams.set("key", apiKey);
     const response = await axios.post(endpointUrl.toString(), payload, {
       headers,
@@ -809,12 +843,8 @@ export class RelayChannelProbeService {
       cacheCreationTokens: number;
       cacheReadTokens: number;
     },
+    rate: ModelPricingItemDto,
   ) {
-    const mappedModel =
-      ((profile.relayChannel.modelMapping as Record<string, string> | null) || {})[profile.probeModel] ||
-      profile.probeModel;
-    const rate = (await ModelPricingService.getInstance().getModelPricing()).find((item) => item.model === mappedModel);
-    if (!rate) throw new BadRequestError("探针模型没有本地定价配置");
     const relayConfig = await RelayConfigService.getInstance().getRelayConfig();
     const timeMultiplier = computeMultiplierForTime(
       (profile.relayChannel.timePeriodMultipliers as any[]) || [],
@@ -827,7 +857,7 @@ export class RelayChannelProbeService {
     const inputRate = Number(rate.inputPrice || 0) / TOKEN_PRICE_DIVISOR;
     const outputRate = Number(rate.outputPrice || 0) / TOKEN_PRICE_DIVISOR;
     const billableInputTokens =
-      profile.relayChannel.inputTokensIncludeCacheRead !== false
+      profile.relayChannel.inputTokensIncludeCacheRead === true
         ? Math.max(0, usage.requestTokens - usage.cacheReadTokens)
         : usage.requestTokens;
     const cacheCreationMultiplier = Number(rate.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER);
@@ -839,6 +869,15 @@ export class RelayChannelProbeService {
         usage.responseTokens * outputRate) *
       multiplier;
     return Number.isFinite(rawCost) ? Math.max(0, Math.ceil(rawCost * 10_000) / 10_000) : 0;
+  }
+
+  private async resolveProbeModelPricing(profile: ProbeProfileRecord) {
+    const relayConfig = await RelayConfigService.getInstance().getRelayConfig();
+    return resolveProbeModelPricing(
+      profile.probeModel,
+      profile.relayChannel.modelMapping as Record<string, string> | null | undefined,
+      relayConfig.modelRates,
+    );
   }
 
   private getEncryptionKey(): Buffer {
@@ -957,7 +996,7 @@ export class RelayChannelProbeService {
   }
 
   private getProbeGroupLockId(group: string): string {
-    const fingerprint = createHash("sha256").update(group).digest("hex").slice(0, 32);
+    const fingerprint = createHash("sha256").update(group.trim().toLocaleLowerCase()).digest("hex").slice(0, 32);
     return `probe-group:${fingerprint}`;
   }
 
