@@ -141,6 +141,18 @@ export function waitForProbeSettlement(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+/**
+ * Axios treats an explicitly supplied empty object as a JSON request body. A
+ * balance workflow normally uses GET and several upstreams reject even that
+ * empty body (for example with HTTP 413). Omit it entirely unless the step is
+ * a body-capable request with actual fields to send.
+ */
+export function getProbeWorkflowRequestBody(method: string, body: unknown): unknown {
+  if (method.toUpperCase() === "GET" || method.toUpperCase() === "HEAD") return undefined;
+  if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length === 0) return undefined;
+  return body;
+}
+
 type ProbeUsage = {
   requestTokens: number;
   responseTokens: number;
@@ -664,12 +676,13 @@ export class RelayChannelProbeService {
     for (const step of workflow) {
       const rawUrl = interpolateRequiredProbeVariables(step.url, variables) as string;
       const safe = await assertSafeOutboundUrl(rawUrl);
+      const body = interpolateRequiredProbeVariables(step.body || {}, variables);
       const response = await axios.request({
         method: step.method,
         url: safe.url.toString(),
         headers: interpolateRequiredProbeVariables(step.headers || {}, variables) as Record<string, string>,
         params: interpolateRequiredProbeVariables(step.query || {}, variables),
-        data: interpolateRequiredProbeVariables(step.body || {}, variables),
+        data: getProbeWorkflowRequestBody(step.method, body),
         httpAgent: safe.httpAgent,
         httpsAgent: safe.httpsAgent,
         // A probe must use the validated and DNS-pinned target directly. Letting
