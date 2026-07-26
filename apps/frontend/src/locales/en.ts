@@ -2812,7 +2812,10 @@ export default {
     channelProbeCredentialIncomplete: 'Each credential needs both a variable name and value',
     channelProbeBalanceBefore: 'Upstream balance before',
     channelProbeBalanceAfter: 'Upstream balance after',
-    channelProbeBaseCost: 'Base local cost',
+    channelProbeBaseCost: 'Base local cost (excluding channel multiplier)',
+    channelProbeEstimatedCurrentCharge: 'Estimated cost at current channel multiplier',
+    channelProbeEstimatedCurrentChargeFormula:
+      'Estimated cost = base local cost {base} × current channel multiplier {multiplier} = {estimated}. This is a probe-only estimate and does not charge a user balance.',
     channelProbeTokens: 'Actual usage',
     channelProbeFormula:
       'Suggested multiplier = ({delta} × upstream rate {upstreamRate} × distribution multiplier {distribution}) ÷ {base} = {suggested}',

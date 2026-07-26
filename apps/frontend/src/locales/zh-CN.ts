@@ -2704,7 +2704,10 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeCredentialIncomplete: '每项凭据都需要变量名和对应值',
     channelProbeBalanceBefore: '上游余额（前）',
     channelProbeBalanceAfter: '上游余额（后）',
-    channelProbeBaseCost: '基准本地成本',
+    channelProbeBaseCost: '基准本地成本（不含渠道倍率）',
+    channelProbeEstimatedCurrentCharge: '按当前渠道倍率预估本地计费',
+    channelProbeEstimatedCurrentChargeFormula:
+      '预估计费 = 基准本地成本 {base} × 当前渠道倍率 {multiplier} = {estimated}。这是探针的虚拟计费推算，不会扣除任何用户余额。',
     channelProbeTokens: '实际用量',
     channelProbeFormula:
       '建议倍率 = ({delta} × 上游比率 {upstreamRate} × 分销倍率 {distribution}) ÷ {base} = {suggested}',

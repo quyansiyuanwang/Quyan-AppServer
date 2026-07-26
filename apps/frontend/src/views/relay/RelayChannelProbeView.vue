@@ -837,6 +837,9 @@
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeBaseCost')">{{
                 formatNumber(runItem.baseLocalCost)
               }}</el-descriptions-item
+              ><el-descriptions-item :label="i18ns.t('relay.channelProbeEstimatedCurrentCharge')">{{
+                formatNumber(estimatedCurrentCharge(runItem))
+              }}</el-descriptions-item
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeUpstreamRate')">{{
                 formatNumber(runItem.upstreamRateMultiplier)
               }}</el-descriptions-item
@@ -855,6 +858,15 @@
                   distribution: runItem.distributionMultiplier,
                   base: formatNumber(runItem.baseLocalCost),
                   suggested: runItem.suggestedMultiplier,
+                })
+              }}
+            </p>
+            <p v-if="estimatedCurrentCharge(runItem) != null" class="formula">
+              {{
+                i18ns.t('relay.channelProbeEstimatedCurrentChargeFormula', {
+                  base: formatNumber(runItem.baseLocalCost),
+                  multiplier: formatNumber(currentChannelMultiplier(runItem)),
+                  estimated: formatNumber(estimatedCurrentCharge(runItem)),
                 })
               }}
             </p>
@@ -1760,6 +1772,19 @@ function targetLocalCost(run: RelayChannelProbeRunDto) {
   const upstreamRate = Number(run.upstreamRateMultiplier ?? 1)
   const distribution = Number(run.distributionMultiplier ?? 1)
   const result = delta * upstreamRate * distribution
+  return Number.isFinite(result) ? result : undefined
+}
+function currentChannelMultiplier(run: RelayChannelProbeRunDto) {
+  const current = Number(selected.value?.multiplier)
+  if (Number.isFinite(current) && current >= 0) return current
+  const recorded = Number(run.sourceChannelMultiplier)
+  return Number.isFinite(recorded) && recorded >= 0 ? recorded : undefined
+}
+function estimatedCurrentCharge(run: RelayChannelProbeRunDto) {
+  const base = Number(run.baseLocalCost)
+  const multiplier = currentChannelMultiplier(run)
+  if (!Number.isFinite(base) || base < 0 || multiplier == null) return undefined
+  const result = base * multiplier
   return Number.isFinite(result) ? result : undefined
 }
 function multiplierChange(draft: ApplyMultiplierDraft) {
