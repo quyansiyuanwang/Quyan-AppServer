@@ -15098,6 +15098,42 @@
 				}
 			}
 		},
+		"/v1/relay-channel-probes/profiles/batch-copy": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerCopyProfile",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CopyRelayChannelProbeProfileResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CopyRelayChannelProbeProfileRequest"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/relay-channel-probes/runs/apply": {
 			"post": {
 				"operationId": "RelayChannelProbeControllerApplyRuns",
@@ -39435,6 +39471,64 @@
 				},
 				"required": [
 					"channelIds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CopyRelayChannelProbeProfileResponse": {
+				"properties": {
+					"copied": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeProfileDto"
+						},
+						"type": "array"
+					},
+					"rejected": {
+						"items": {
+							"properties": {
+								"reason": {
+									"type": "string"
+								},
+								"channelId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"reason",
+								"channelId"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"copied",
+					"rejected"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CopyRelayChannelProbeProfileRequest": {
+				"description": "Copies a saved probe profile, including its encrypted workflow credentials, to standalone channels.",
+				"properties": {
+					"sourceChannelId": {
+						"type": "string"
+					},
+					"targetChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"overwriteExisting": {
+						"type": "boolean",
+						"description": "Existing target profiles are preserved unless an operator explicitly enables replacement."
+					}
+				},
+				"required": [
+					"sourceChannelId",
+					"targetChannelIds"
 				],
 				"type": "object",
 				"additionalProperties": false

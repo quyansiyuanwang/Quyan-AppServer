@@ -25,6 +25,8 @@ import { extractTokenUsageMetrics, hasTokenValue, normalizeTokenBreakdown } from
 import type {
   ApplyRelayChannelProbeRunsRequest,
   ApplyRelayChannelProbeRunsResponse,
+  CopyRelayChannelProbeProfileRequest,
+  CopyRelayChannelProbeProfileResponse,
   CreateRelayChannelProbeRunRequest,
   CreateRelayChannelProbeRunsRequest,
   CreateRelayChannelProbeRunsResponse,
@@ -137,6 +139,18 @@ export function calculateSuggestedProbeMultiplier(
 
 export function waitForProbeSettlement(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+/**
+ * Axios treats an explicitly supplied empty object as a JSON request body. A
+ * balance workflow normally uses GET and several upstreams reject even that
+ * empty body (for example with HTTP 413). Omit it entirely unless the step is
+ * a body-capable request with actual fields to send.
+ */
+export function getProbeWorkflowRequestBody(method: string, body: unknown): unknown {
+  if (method.toUpperCase() === "GET" || method.toUpperCase() === "HEAD") return undefined;
+  if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length === 0) return undefined;
+  return body;
 }
 
 type ProbeUsage = {
@@ -424,6 +438,55 @@ export class RelayChannelProbeService {
     return { queued, rejected };
   }
 
+  /**
+   * Copies a profile entirely within the server. In particular, encrypted
+   * workflow credentials never need to be decrypted or exposed to the UI.
+   * Targets are handled independently so one incompatible channel does not
+   * prevent the operator from configuring the rest of the selected set.
+   */
+  async copyProfile(
+    body: CopyRelayChannelProbeProfileRequest,
+    actorUserId: string,
+  ): Promise<CopyRelayChannelProbeProfileResponse> {
+    const channelService = RelayChannelService.getInstance();
+    const sourceChannel = await channelService.getChannel(body.sourceChannelId, actorUserId);
+    if (sourceChannel.channelType !== "standalone") throw new BadRequestError("仅独立渠道支持余额探针");
+    const sourceProfile = await this.repository.findProfileWithChannel(body.sourceChannelId);
+    if (!sourceProfile) throw new NotFoundError("来源渠道尚未配置探针档案");
+
+    const copied: RelayChannelProbeProfileDto[] = [];
+    const rejected: Array<{ channelId: string; reason: string }> = [];
+    for (const channelId of body.targetChannelIds) {
+      try {
+        const targetChannel = await channelService.getChannel(channelId, actorUserId);
+        if (targetChannel.channelType !== "standalone") {
+          rejected.push({ channelId, reason: "仅独立渠道支持余额探针" });
+          continue;
+        }
+        this.assertProbeChannelCompatibility(targetChannel, sourceProfile.probeFormat, sourceProfile.probeModel);
+        const [existing, activeRun] = await Promise.all([
+          this.repository.findProfile(channelId),
+          this.repository.findActiveRun(channelId),
+        ]);
+        if (activeRun) {
+          rejected.push({ channelId, reason: "渠道存在排队或运行中的探针，暂时不能覆盖档案" });
+          continue;
+        }
+        if (existing && !body.overwriteExisting) {
+          rejected.push({ channelId, reason: "目标渠道已有探针档案，未选择覆盖" });
+          continue;
+        }
+        copied.push(this.toProfileDto(await this.repository.copyProfile(sourceProfile, channelId)));
+      } catch (error) {
+        rejected.push({
+          channelId,
+          reason: error instanceof Error ? this.safeError(error) : "无法复制探针档案",
+        });
+      }
+    }
+    return { copied, rejected };
+  }
+
   async listRuns(channelId: string, actorUserId: string, page = 1, pageSize = 20) {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     const result = await this.repository.listRuns(channelId, page, pageSize);
@@ -613,12 +676,13 @@ export class RelayChannelProbeService {
     for (const step of workflow) {
       const rawUrl = interpolateRequiredProbeVariables(step.url, variables) as string;
       const safe = await assertSafeOutboundUrl(rawUrl);
+      const body = interpolateRequiredProbeVariables(step.body || {}, variables);
       const response = await axios.request({
         method: step.method,
         url: safe.url.toString(),
         headers: interpolateRequiredProbeVariables(step.headers || {}, variables) as Record<string, string>,
         params: interpolateRequiredProbeVariables(step.query || {}, variables),
-        data: interpolateRequiredProbeVariables(step.body || {}, variables),
+        data: getProbeWorkflowRequestBody(step.method, body),
         httpAgent: safe.httpAgent,
         httpsAgent: safe.httpsAgent,
         // A probe must use the validated and DNS-pinned target directly. Letting

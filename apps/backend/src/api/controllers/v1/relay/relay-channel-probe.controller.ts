@@ -24,6 +24,7 @@ import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/uti
 import {
   applyRelayChannelProbeRunsBodySchema,
   clearRelayChannelProbeRunHistoryQuerySchema,
+  copyRelayChannelProbeProfileBodySchema,
   createRelayChannelProbeRunBodySchema,
   createRelayChannelProbeRunsBodySchema,
   relayChannelProbeChannelParamsSchema,
@@ -33,6 +34,8 @@ import {
 import type {
   ApplyRelayChannelProbeRunsRequest,
   ApplyRelayChannelProbeRunsResponse,
+  CopyRelayChannelProbeProfileRequest,
+  CopyRelayChannelProbeProfileResponse,
   ClearRelayChannelProbeRunHistoryResponse,
   CreateRelayChannelProbeRunRequest,
   CreateRelayChannelProbeRunsRequest,
@@ -150,6 +153,23 @@ export class RelayChannelProbeController extends Controller {
   ): Promise<CreateRelayChannelProbeRunsResponse> {
     this.setStatus(202);
     return this.service.createRuns(body, request.user!.userId);
+  }
+
+  @Post("profiles/batch-copy")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(copyRelayChannelProbeProfileBodySchema),
+  )
+  public copyProfile(
+    @Body() body: CopyRelayChannelProbeProfileRequest,
+    @Request() request: TypedRequest,
+  ): Promise<CopyRelayChannelProbeProfileResponse> {
+    return this.service.copyProfile(body, request.user!.userId);
   }
 
   @Get("{channelId}/runs")

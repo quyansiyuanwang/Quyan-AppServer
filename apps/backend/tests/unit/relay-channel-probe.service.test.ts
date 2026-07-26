@@ -4,6 +4,7 @@ import {
   buildProbeUpstreamEndpoint,
   calculateSuggestedProbeMultiplier,
   formatProbeUpstreamError,
+  getProbeWorkflowRequestBody,
   interpolateRequiredProbeVariables,
   interpolateProbeVariables,
   normalizeProbeNetworkError,
@@ -25,6 +26,13 @@ describe("relay channel probe helpers", () => {
     expect(() => interpolateRequiredProbeVariables({ headers: { Authorization: "Bearer {{API_TOKEN}}" } }, {})).toThrow(
       "PROBE_VARIABLE_MISSING:API_TOKEN",
     );
+  });
+
+  it("omits an empty balance workflow body for GET requests", () => {
+    expect(getProbeWorkflowRequestBody("GET", {})).toBeUndefined();
+    expect(getProbeWorkflowRequestBody("HEAD", { ignored: true })).toBeUndefined();
+    expect(getProbeWorkflowRequestBody("POST", {})).toBeUndefined();
+    expect(getProbeWorkflowRequestBody("POST", { grant_type: "password" })).toEqual({ grant_type: "password" });
   });
 
   it("normalizes a malformed deployment proxy address without exposing its raw error", () => {

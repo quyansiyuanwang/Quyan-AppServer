@@ -2622,6 +2622,15 @@ export default {
     channelProbeManage: 'Manage probe',
     channelProbeBatchApply: 'Apply selected suggestions',
     channelProbeBatchRun: 'Run selected probes',
+    channelProbeBatchConfigure: 'Configure selected profiles',
+    channelProbeBatchConfigureTitle: 'Copy probe profile to selected channels',
+    channelProbeBatchConfigureHelp:
+      'The source profile workflow and encrypted credentials are copied inside the server and are never revealed in this dialog. Target formats and models are validated individually.',
+    channelProbeBatchSource: 'Source profile',
+    channelProbeBatchOverwrite: 'Replace existing target profiles, including saved credentials',
+    channelProbeBatchWillCreate: 'Create profile',
+    channelProbeBatchWillOverwrite: 'Existing profile',
+    channelProbeBatchConfigured: 'Configured {count} probe profiles',
     channelProbeBatchRunConfirm: 'Queue probes for {count} channels? They will run in order.',
     channelProbeBatchQueued: 'Queued probes for {count} channels',
     channelProbeSelected: '{count} channels selected',
@@ -2803,7 +2812,10 @@ export default {
     channelProbeCredentialIncomplete: 'Each credential needs both a variable name and value',
     channelProbeBalanceBefore: 'Upstream balance before',
     channelProbeBalanceAfter: 'Upstream balance after',
-    channelProbeBaseCost: 'Base local cost',
+    channelProbeBaseCost: 'Base local cost (excluding channel multiplier)',
+    channelProbeEstimatedCurrentCharge: 'Estimated cost at current channel multiplier',
+    channelProbeEstimatedCurrentChargeFormula:
+      'Estimated cost = base local cost {base} × current channel multiplier {multiplier} = {estimated}. This is a probe-only estimate and does not charge a user balance.',
     channelProbeTokens: 'Actual usage',
     channelProbeFormula:
       'Suggested multiplier = ({delta} × upstream rate {upstreamRate} × distribution multiplier {distribution}) ÷ {base} = {suggested}',

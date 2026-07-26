@@ -74,6 +74,24 @@ export const createRelayChannelProbeRunsBodySchema = z.object({
     .refine((ids) => new Set(ids).size === ids.length),
   distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
 });
+export const copyRelayChannelProbeProfileBodySchema = z
+  .object({
+    sourceChannelId: z.string().trim().min(1),
+    targetChannelIds: z
+      .array(z.string().trim().min(1))
+      .min(1)
+      .max(100)
+      .refine((ids) => new Set(ids).size === ids.length),
+    overwriteExisting: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.targetChannelIds.includes(value.sourceChannelId))
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["targetChannelIds"],
+        message: "Source channel cannot also be a target",
+      });
+  });
 export const applyRelayChannelProbeRunsBodySchema = z
   .object({
     runIds: z

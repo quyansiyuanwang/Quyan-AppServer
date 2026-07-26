@@ -2532,6 +2532,15 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeManage: '管理探针',
     channelProbeBatchApply: '批量应用建议',
     channelProbeBatchRun: '批量执行探针',
+    channelProbeBatchConfigure: '批量配置档案',
+    channelProbeBatchConfigureTitle: '向已选渠道复制探针档案',
+    channelProbeBatchConfigureHelp:
+      '来源档案的工作流和加密凭据仅在服务端内部复制，不会在此对话框中显示。系统会逐个校验目标渠道的请求格式和模型。',
+    channelProbeBatchSource: '来源档案',
+    channelProbeBatchOverwrite: '覆盖目标渠道已有档案及已保存凭据',
+    channelProbeBatchWillCreate: '将新建档案',
+    channelProbeBatchWillOverwrite: '已有档案',
+    channelProbeBatchConfigured: '已配置 {count} 个探针档案',
     channelProbeBatchRunConfirm: '将为 {count} 个渠道创建探针任务，任务将依次排队执行，是否继续？',
     channelProbeBatchQueued: '已为 {count} 个渠道创建探针任务',
     channelProbeSelected: '已选择 {count} 个渠道',
@@ -2695,7 +2704,10 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeCredentialIncomplete: '每项凭据都需要变量名和对应值',
     channelProbeBalanceBefore: '上游余额（前）',
     channelProbeBalanceAfter: '上游余额（后）',
-    channelProbeBaseCost: '基准本地成本',
+    channelProbeBaseCost: '基准本地成本（不含渠道倍率）',
+    channelProbeEstimatedCurrentCharge: '按当前渠道倍率预估本地计费',
+    channelProbeEstimatedCurrentChargeFormula:
+      '预估计费 = 基准本地成本 {base} × 当前渠道倍率 {multiplier} = {estimated}。这是探针的虚拟计费推算，不会扣除任何用户余额。',
     channelProbeTokens: '实际用量',
     channelProbeFormula:
       '建议倍率 = ({delta} × 上游比率 {upstreamRate} × 分销倍率 {distribution}) ÷ {base} = {suggested}',
