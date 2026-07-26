@@ -71,6 +71,19 @@ export interface CreateRelayChannelProbeRunsResponse {
   rejected: Array<{ channelId: string; reason: string }>;
 }
 
+/** Copies a saved probe profile, including its encrypted workflow credentials, to standalone channels. */
+export interface CopyRelayChannelProbeProfileRequest {
+  sourceChannelId: string;
+  targetChannelIds: string[];
+  /** Existing target profiles are preserved unless an operator explicitly enables replacement. */
+  overwriteExisting?: boolean;
+}
+
+export interface CopyRelayChannelProbeProfileResponse {
+  copied: RelayChannelProbeProfileDto[];
+  rejected: Array<{ channelId: string; reason: string }>;
+}
+
 export interface RelayChannelProbeRunDto {
   id: string;
   relayChannelId: string;

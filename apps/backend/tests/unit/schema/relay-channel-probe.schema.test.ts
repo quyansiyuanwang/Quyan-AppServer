@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyRelayChannelProbeRunsBodySchema,
+  copyRelayChannelProbeProfileBodySchema,
   upsertRelayChannelProbeProfileBodySchema,
 } from "../../../src/api/schema/relay/relay-channel-probe.schema";
 
@@ -49,5 +50,21 @@ describe("relay channel probe schemas", () => {
 
   it("rejects duplicate run applications", () => {
     expect(applyRelayChannelProbeRunsBodySchema.safeParse({ runIds: ["run-1", "run-1"] }).success).toBe(false);
+  });
+
+  it("accepts bounded profile copy targets but rejects copying onto the source", () => {
+    expect(
+      copyRelayChannelProbeProfileBodySchema.safeParse({
+        sourceChannelId: "source",
+        targetChannelIds: ["target-a", "target-b"],
+        overwriteExisting: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      copyRelayChannelProbeProfileBodySchema.safeParse({
+        sourceChannelId: "source",
+        targetChannelIds: ["source"],
+      }).success,
+    ).toBe(false);
   });
 });
