@@ -4,7 +4,9 @@ import {
   buildProbeUpstreamEndpoint,
   calculateSuggestedProbeMultiplier,
   formatProbeUpstreamError,
+  interpolateRequiredProbeVariables,
   interpolateProbeVariables,
+  normalizeProbeNetworkError,
   readProbeJsonPath,
 } from "../../src/services/relay/relay-channel-probe.service";
 
@@ -16,6 +18,16 @@ describe("relay channel probe helpers", () => {
         { token: "secret", user: "alice" },
       ),
     ).toEqual({ headers: { Authorization: "Bearer secret" }, items: ["alice", 1] });
+  });
+
+  it("rejects an unresolved workflow variable before an upstream request is sent", () => {
+    expect(() => interpolateRequiredProbeVariables({ headers: { Authorization: "Bearer {{API_TOKEN}}" } }, {})).toThrow(
+      "PROBE_VARIABLE_MISSING:API_TOKEN",
+    );
+  });
+
+  it("normalizes a malformed deployment proxy address without exposing its raw error", () => {
+    expect(normalizeProbeNetworkError("Invalid IP address: undefined")).toBe("PROBE_NETWORK_CONFIGURATION_INVALID");
   });
 
   it("reads common JSONPath forms", () => {

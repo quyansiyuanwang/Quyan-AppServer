@@ -801,7 +801,7 @@
               v-if="runItem.errorMessage"
               type="error"
               :closable="false"
-              :title="runItem.errorMessage"
+              :title="formatProbeError(runItem.errorMessage)"
               class="mt-2"
             />
           </section>
@@ -1577,6 +1577,22 @@ function statusLabel(status: string) {
       } as Record<string, string>
     )[status] || status
   )
+}
+function formatProbeError(message: string) {
+  const missingVariable = message.match(/PROBE_VARIABLE_MISSING:([A-Za-z][A-Za-z0-9_.]*)/)
+  const reason = missingVariable
+    ? i18ns.t('relay.channelProbeErrorVariableMissing', { variable: missingVariable[1] })
+    : message.includes('PROBE_NETWORK_CONFIGURATION_INVALID') ||
+        /invalid ip address:\s*undefined/i.test(message)
+      ? i18ns.t('relay.channelProbeErrorNetworkConfiguration')
+      : message
+  if (message.startsWith('读取请求前余额失败：'))
+    return i18ns.t('relay.channelProbePhaseBeforeBalanceFailed', { reason })
+  if (message.startsWith('最小模型请求失败：'))
+    return i18ns.t('relay.channelProbePhaseModelRequestFailed', { reason })
+  if (message.startsWith('读取请求后余额失败：'))
+    return i18ns.t('relay.channelProbePhaseAfterBalanceFailed', { reason })
+  return reason
 }
 function statusType(status: string): 'info' | 'warning' | 'success' | 'danger' {
   return status === 'succeeded'

@@ -77,11 +77,8 @@ import logger from "@/util/logger";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
-import { DeveloperProjectService } from "@/services/developer/developer-project.service";
-import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
 import { RelayChannelHealthService } from "./relay-channel-health.service";
 import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
-import { Permission } from "@/constant/permission";
 
 const PREFIX = "/relay/proxy";
 
@@ -2503,20 +2500,6 @@ export class RelayProxyService {
     try {
       let lastError: unknown = new BadRequestError("No available relay channel");
       const attemptIssues: RelayAttemptIssue[] = [];
-      const developerProjectId = String(req.headers?.["x-developer-project"] || "").trim();
-      let developerSecretUsageMetered = false;
-      const meterSecretUsage = async <T>(callback: () => Promise<T>): Promise<T> => {
-        if (developerSecretUsageMetered) return callback();
-        const result = await DeveloperProductPlatformService.getInstance().executeMeteredForBackingProject(
-          developerProjectId,
-          "secret",
-          Permission.PRODUCT_SECRET_USE,
-          callback,
-        );
-        developerSecretUsageMetered = true;
-        return result;
-      };
-
       for (let attemptIndex = 0; attemptIndex < attemptChannels.length; attemptIndex++) {
         const candidate = attemptChannels[attemptIndex];
         const nextCandidate = attemptChannels[attemptIndex + 1];
@@ -2635,21 +2618,6 @@ export class RelayProxyService {
             let upstreamApiKey = upstreamConfig.upstreamApiKey;
             channelMultiplier = upstreamConfig.channelMultiplier;
 
-            if (upstreamApiKey.includes("{{")) {
-              if (!developerProjectId)
-                throw new RelayChannelSkipError(
-                  "Secret alias requires X-Developer-Project",
-                  "channel-upstream-missing",
-                );
-              upstreamApiKey = await meterSecretUsage(() =>
-                DeveloperProjectService.getInstance().substituteSecretsForProject(
-                  developerProjectId,
-                  relayToken.userId,
-                  upstreamApiKey,
-                ),
-              );
-            }
-
             if (Buffer.isBuffer(req.body) && selectedModelId !== normalizedRequestedModel)
               logger.warn("Multipart relay request keeps original model field because body rewrite is not supported", {
                 requestedModel: normalizedRequestedModel,
@@ -2696,22 +2664,6 @@ export class RelayProxyService {
             const headers: any = {};
             for (const key of ALLOWED_HEADERS) if (req.headers[key]) headers[key] = req.headers[key];
 
-            const hasHeaderPlaceholder = Object.values(headers).some(
-              (value) => typeof value === "string" && value.includes("{{"),
-            );
-            if (hasHeaderPlaceholder && !developerProjectId)
-              throw new RelayChannelSkipError("Secret alias requires X-Developer-Project", "channel-upstream-missing");
-            if (developerProjectId)
-              for (const [key, value] of Object.entries(headers))
-                if (typeof value === "string" && value.includes("{{"))
-                  headers[key] = await meterSecretUsage(() =>
-                    DeveloperProjectService.getInstance().substituteSecretsForProject(
-                      developerProjectId,
-                      relayToken.userId,
-                      value,
-                    ),
-                  );
-
             if (requestFormat === "gemini") headers["x-goog-api-key"] = upstreamApiKey;
             else if (requestFormat === "openai") headers["Authorization"] = `Bearer ${upstreamApiKey}`;
             else {
@@ -2744,19 +2696,6 @@ export class RelayProxyService {
               logger.debug("Final request body to upstream API", {
                 body: JSON.stringify(convertedBody, null, 2),
               });
-
-            const bodyContainsPlaceholder =
-              !Buffer.isBuffer(convertedBody) && JSON.stringify(convertedBody ?? {}).includes("{{");
-            if (bodyContainsPlaceholder && !developerProjectId)
-              throw new RelayChannelSkipError("Secret alias requires X-Developer-Project", "channel-upstream-missing");
-            if (bodyContainsPlaceholder)
-              convertedBody = await meterSecretUsage(() =>
-                DeveloperProjectService.getInstance().substituteSecretsInJsonValue(
-                  developerProjectId,
-                  relayToken.userId,
-                  convertedBody,
-                ),
-              );
 
             if (isStreamRequested && res) {
               upstreamRequestStarted = true;
