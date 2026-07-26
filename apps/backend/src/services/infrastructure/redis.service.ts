@@ -792,7 +792,11 @@ export class RedisService {
   }
 
   /** Try to promote the first queued writer when all readers have drained. */
-  public async tryAcquireFairWriteLock(baseKey: string, ownerToken: string, ttlMs: number): Promise<"acquired" | "wait" | "stale" | null> {
+  public async tryAcquireFairWriteLock(
+    baseKey: string,
+    ownerToken: string,
+    ttlMs: number,
+  ): Promise<"acquired" | "wait" | "stale" | null> {
     return this.executeWithCircuit("tryAcquireFairWriteLock", null, async () => {
       const script = `
         local readersKey = KEYS[1]

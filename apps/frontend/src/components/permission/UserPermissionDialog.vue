@@ -137,9 +137,7 @@ watch(
 
 // 计算统计数据（实时响应编辑）
 const groupPermsCount = computed(() => props.userPermissions?.groupPermissions?.length ?? 0)
-const groupPermsSet = computed(
-  () => new Set<string>(props.userPermissions?.groupPermissions ?? []),
-)
+const groupPermsSet = computed(() => new Set<string>(props.userPermissions?.groupPermissions ?? []))
 const customAddedCount = computed(
   () => effectivePermissions.value.filter((p) => !groupPermsSet.value.has(p)).length,
 )

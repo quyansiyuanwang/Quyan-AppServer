@@ -1254,7 +1254,9 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
         changePercent,
         applied: Boolean(run.appliedAt),
         costFactors:
-          formatNumber(run.upstreamRateMultiplier) + ' × ' + formatNumber(run.distributionMultiplier),
+          formatNumber(run.upstreamRateMultiplier) +
+          ' × ' +
+          formatNumber(run.distributionMultiplier),
         targetCost: targetLocalCost(run),
         time: run.appliedAt ?? run.finishedAt ?? run.createTime,
       },

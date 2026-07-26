@@ -37,7 +37,10 @@ export class RelayChannelProbeRepository {
   }
 
   public findProfileWithChannel(channelId: string): Promise<RelayChannelProbeProfileRecord | null> {
-    return prisma.relayChannelProbeProfile.findUnique({ where: { relayChannelId: channelId }, include: { relayChannel: true } });
+    return prisma.relayChannelProbeProfile.findUnique({
+      where: { relayChannelId: channelId },
+      include: { relayChannel: true },
+    });
   }
 
   public upsertProfile(data: Prisma.RelayChannelProbeProfileUpsertArgs) {
@@ -100,7 +103,11 @@ export class RelayChannelProbeRepository {
       if (!changed.count) return false;
       const applied = await tx.relayChannelProbeRun.updateMany({
         where: { id: params.runId, appliedAt: null },
-        data: { appliedMultiplier: params.suggestedMultiplier, appliedAt: new Date(), appliedByUserId: params.actorUserId },
+        data: {
+          appliedMultiplier: params.suggestedMultiplier,
+          appliedAt: new Date(),
+          appliedByUserId: params.actorUserId,
+        },
       });
       if (applied.count) return true;
       throw new Error("Probe run was already applied");
@@ -121,7 +128,11 @@ export class RelayChannelProbeRepository {
     });
   }
 
-  public findRunWithProfile(runId: string): Promise<(Prisma.RelayChannelProbeRunGetPayload<{ include: { profile: { include: { relayChannel: true } } } }>) | null> {
+  public findRunWithProfile(
+    runId: string,
+  ): Promise<Prisma.RelayChannelProbeRunGetPayload<{
+    include: { profile: { include: { relayChannel: true } } };
+  }> | null> {
     return prisma.relayChannelProbeRun.findUnique({
       where: { id: runId },
       include: { profile: { include: { relayChannel: true } } },

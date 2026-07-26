@@ -517,16 +517,25 @@ export const PERMISSION_META: PermissionMetaMap = {
     category: 'relay',
   },
   [Permission.RELAY_CHANNEL_PROBE_READ]: {
-    label: '查看渠道余额探针', labelEn: 'View Channel Balance Probes',
-    tooltip: '允许查看独立渠道的余额探针配置和执行记录', tooltipEn: 'Allows viewing standalone channel probe profiles and runs', category: 'relay',
+    label: '查看渠道余额探针',
+    labelEn: 'View Channel Balance Probes',
+    tooltip: '允许查看独立渠道的余额探针配置和执行记录',
+    tooltipEn: 'Allows viewing standalone channel probe profiles and runs',
+    category: 'relay',
   },
   [Permission.RELAY_CHANNEL_PROBE_EXECUTE]: {
-    label: '执行渠道余额探针', labelEn: 'Execute Channel Balance Probes',
-    tooltip: '允许配置凭据和执行独立渠道余额探针', tooltipEn: 'Allows configuring credentials and executing standalone channel probes', category: 'relay',
+    label: '执行渠道余额探针',
+    labelEn: 'Execute Channel Balance Probes',
+    tooltip: '允许配置凭据和执行独立渠道余额探针',
+    tooltipEn: 'Allows configuring credentials and executing standalone channel probes',
+    category: 'relay',
   },
   [Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST]: {
-    label: '调整渠道倍率', labelEn: 'Adjust Channel Multipliers',
-    tooltip: '允许应用余额探针计算的渠道价格倍率', tooltipEn: 'Allows applying channel price multipliers calculated by probes', category: 'relay',
+    label: '调整渠道倍率',
+    labelEn: 'Adjust Channel Multipliers',
+    tooltip: '允许应用余额探针计算的渠道价格倍率',
+    tooltipEn: 'Allows applying channel price multipliers calculated by probes',
+    category: 'relay',
   },
 
   [Permission.ACCESSKEY_CREATE]: {

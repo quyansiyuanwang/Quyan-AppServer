@@ -136,9 +136,7 @@ export function buildProbeUpstreamEndpoint(
 
 export function assertProbeUsage(usage: ProbeUsage): void {
   if (usage.totalTokens > 0) return;
-  throw new BadRequestError(
-    "最小模型请求未返回可计费用量；请确认上游地址包含正确 API 版本、请求格式和模型。",
-  );
+  throw new BadRequestError("最小模型请求未返回可计费用量；请确认上游地址包含正确 API 版本、请求格式和模型。");
 }
 
 function redactProbeErrorText(value: string): string {
@@ -311,7 +309,9 @@ export class RelayChannelProbeService {
   async resetRunState(channelId: string, actorUserId: string): Promise<void> {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     const runIds = await this.repository.cancelActiveRuns(channelId, "探针任务已由操作人员重置");
-    await Promise.all(runIds.map((runId) => this.redis.deleteIfValueMatches(this.getRunQueueSlotKey(channelId), runId)));
+    await Promise.all(
+      runIds.map((runId) => this.redis.deleteIfValueMatches(this.getRunQueueSlotKey(channelId), runId)),
+    );
     // A process restart can leave only the Redis reservation behind. At this point
     // all persisted active runs have been cancelled, so force-release the exact
     // channel slot even when there was no matching database row.
@@ -483,16 +483,19 @@ export class RelayChannelProbeService {
     leaseHeartbeat.unref();
     try {
       const profile = run.profile;
-      const executeProbe = () => this.channelLockService.withWrite(profile.relayChannelId, async () => {
-        const variables = this.decryptCredentials(profile);
-        const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
-        const beforeBalance = await this.runProbePhase("读取请求前余额", () => this.runWorkflow(workflow, variables));
-        const upstreamResponse = await this.runProbePhase("最小模型请求", () => this.callUpstream(profile, variables));
-        const usage = this.extractUsage(upstreamResponse);
-        assertProbeUsage(usage);
-        const afterBalance = await this.runProbePhase("读取请求后余额", () => this.runWorkflow(workflow, variables));
-        return { before: beforeBalance, after: afterBalance, usage };
-      });
+      const executeProbe = () =>
+        this.channelLockService.withWrite(profile.relayChannelId, async () => {
+          const variables = this.decryptCredentials(profile);
+          const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
+          const beforeBalance = await this.runProbePhase("读取请求前余额", () => this.runWorkflow(workflow, variables));
+          const upstreamResponse = await this.runProbePhase("最小模型请求", () =>
+            this.callUpstream(profile, variables),
+          );
+          const usage = this.extractUsage(upstreamResponse);
+          assertProbeUsage(usage);
+          const afterBalance = await this.runProbePhase("读取请求后余额", () => this.runWorkflow(workflow, variables));
+          return { before: beforeBalance, after: afterBalance, usage };
+        });
       const { before, usage, after } = profile.probeGroup
         ? await this.channelLockService.withWrite(
             this.getProbeGroupLockId(profile.probeGroup),
@@ -501,8 +504,7 @@ export class RelayChannelProbeService {
           )
         : await executeProbe();
       const balanceDivisor = Number(profile.upstreamBalanceDivisor);
-      if (!Number.isFinite(balanceDivisor) || balanceDivisor <= 0)
-        throw new BadRequestError("上游余额换算除数无效");
+      if (!Number.isFinite(balanceDivisor) || balanceDivisor <= 0) throw new BadRequestError("上游余额换算除数无效");
       const normalizedBefore = before / balanceDivisor;
       const normalizedAfter = after / balanceDivisor;
       if (!Number.isFinite(normalizedBefore) || !Number.isFinite(normalizedAfter))
@@ -536,9 +538,7 @@ export class RelayChannelProbeService {
         localBalanceAfter: comparable
           ? -(upstreamDelta * upstreamRateMultiplier * Number(run.distributionMultiplier))
           : 0,
-        localBalanceDelta: comparable
-          ? upstreamDelta * upstreamRateMultiplier * Number(run.distributionMultiplier)
-          : 0,
+        localBalanceDelta: comparable ? upstreamDelta * upstreamRateMultiplier * Number(run.distributionMultiplier) : 0,
         baseLocalCost: baseCost,
         requestTokens: usage.requestTokens,
         responseTokens: usage.responseTokens,
@@ -807,10 +807,12 @@ export class RelayChannelProbeService {
     const values = value
       .split(",")
       .map((item) => item.trim().toLowerCase())
-      .filter((item): item is "openai" | "anthropic" | "gemini" =>
-        ["openai", "anthropic", "gemini"].includes(item),
-      );
-    return values.length || value.trim().toLowerCase() === "all" ? values.length ? values : ["openai", "anthropic", "gemini"] : [];
+      .filter((item): item is "openai" | "anthropic" | "gemini" => ["openai", "anthropic", "gemini"].includes(item));
+    return values.length || value.trim().toLowerCase() === "all"
+      ? values.length
+        ? values
+        : ["openai", "anthropic", "gemini"]
+      : [];
   }
 
   private getProbeGroupLockId(group: string): string {

@@ -10,7 +10,12 @@ import {
 
 describe("relay channel probe helpers", () => {
   it("interpolates nested request values without changing other primitives", () => {
-    expect(interpolateProbeVariables({ headers: { Authorization: "Bearer {{token}}" }, items: ["{{user}}", 1] }, { token: "secret", user: "alice" })).toEqual({ headers: { Authorization: "Bearer secret" }, items: ["alice", 1] });
+    expect(
+      interpolateProbeVariables(
+        { headers: { Authorization: "Bearer {{token}}" }, items: ["{{user}}", 1] },
+        { token: "secret", user: "alice" },
+      ),
+    ).toEqual({ headers: { Authorization: "Bearer secret" }, items: ["alice", 1] });
   });
 
   it("reads common JSONPath forms", () => {
@@ -61,11 +66,9 @@ describe("relay channel probe helpers", () => {
   });
 
   it("returns useful but redacted upstream authorization diagnostics", () => {
-    const message = formatProbeUpstreamError(
-      403,
-      "https://api.example.com/v1/chat/completions?key=secret-value",
-      { error: { message: "Invalid API key: sk_secret-value" } },
-    );
+    const message = formatProbeUpstreamError(403, "https://api.example.com/v1/chat/completions?key=secret-value", {
+      error: { message: "Invalid API key: sk_secret-value" },
+    });
     expect(message).toContain("HTTP 403（/v1/chat/completions）");
     expect(message).toContain("Invalid API key: [REDACTED]");
     expect(message).toContain("余额工作流凭据不会替代渠道上游 Key");

@@ -74,28 +74,30 @@ export const createRelayChannelProbeRunsBodySchema = z.object({
     .refine((ids) => new Set(ids).size === ids.length),
   distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
 });
-export const applyRelayChannelProbeRunsBodySchema = z.object({
-  runIds: z
-    .array(z.string().trim().min(1))
-    .min(1)
-    .max(100)
-    .refine((ids) => new Set(ids).size === ids.length),
-  overrides: z
-    .array(
-      z.object({
-        runId: z.string().trim().min(1),
-        multiplier: z.coerce.number().finite().min(0.000001).max(1000),
-      }),
-    )
-    .max(100)
-    .optional(),
-}).superRefine((value, ctx) => {
-  const seen = new Set<string>();
-  for (const [index, override] of (value.overrides || []).entries()) {
-    if (!value.runIds.includes(override.runId))
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["overrides", index, "runId"], message: "Unknown runId" });
-    if (seen.has(override.runId))
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["overrides", index, "runId"], message: "Duplicate runId" });
-    seen.add(override.runId);
-  }
-});
+export const applyRelayChannelProbeRunsBodySchema = z
+  .object({
+    runIds: z
+      .array(z.string().trim().min(1))
+      .min(1)
+      .max(100)
+      .refine((ids) => new Set(ids).size === ids.length),
+    overrides: z
+      .array(
+        z.object({
+          runId: z.string().trim().min(1),
+          multiplier: z.coerce.number().finite().min(0.000001).max(1000),
+        }),
+      )
+      .max(100)
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    const seen = new Set<string>();
+    for (const [index, override] of (value.overrides || []).entries()) {
+      if (!value.runIds.includes(override.runId))
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["overrides", index, "runId"], message: "Unknown runId" });
+      if (seen.has(override.runId))
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["overrides", index, "runId"], message: "Duplicate runId" });
+      seen.add(override.runId);
+    }
+  });

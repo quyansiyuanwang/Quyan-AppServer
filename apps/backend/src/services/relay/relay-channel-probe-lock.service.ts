@@ -55,16 +55,19 @@ export class RelayChannelProbeLockService {
 
     if (mode === "write") {
       const queued = await this.redis.reserveFairWriteLock(baseKey, owner, Math.max(LOCK_TTL_MS, timeoutMs + 5_000));
-      if (queued === null) throw new LockBackendUnavailableError("Relay channel probe coordination backend unavailable");
+      if (queued === null)
+        throw new LockBackendUnavailableError("Relay channel probe coordination backend unavailable");
       writeQueued = true;
     }
 
     try {
       while (Date.now() < deadline) {
-        const acquired = mode === "read"
-          ? await this.redis.tryAcquireFairReadLock(baseKey, owner, LOCK_TTL_MS)
-          : await this.redis.tryAcquireFairWriteLock(baseKey, owner, LOCK_TTL_MS);
-        if (acquired === null) throw new LockBackendUnavailableError("Relay channel probe coordination backend unavailable");
+        const acquired =
+          mode === "read"
+            ? await this.redis.tryAcquireFairReadLock(baseKey, owner, LOCK_TTL_MS)
+            : await this.redis.tryAcquireFairWriteLock(baseKey, owner, LOCK_TTL_MS);
+        if (acquired === null)
+          throw new LockBackendUnavailableError("Relay channel probe coordination backend unavailable");
         if (acquired === true || acquired === "acquired") return this.createLease(baseKey, owner, mode);
         if (acquired === "stale") break;
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -81,16 +84,20 @@ export class RelayChannelProbeLockService {
   private createLease(baseKey: string, owner: string, mode: LockMode): ProbeChannelLock {
     let released = false;
     let refreshing = false;
-    const heartbeat = setInterval(() => {
-      if (released || refreshing) return;
-      refreshing = true;
-      const refresh = mode === "read"
-        ? this.redis.extendFairReadLock(baseKey, owner, LOCK_TTL_MS)
-        : this.redis.extendIfValueMatches(`${baseKey}:writer`, owner, LOCK_TTL_MS);
-      void refresh.finally(() => {
-        refreshing = false;
-      });
-    }, Math.floor(LOCK_TTL_MS / 3));
+    const heartbeat = setInterval(
+      () => {
+        if (released || refreshing) return;
+        refreshing = true;
+        const refresh =
+          mode === "read"
+            ? this.redis.extendFairReadLock(baseKey, owner, LOCK_TTL_MS)
+            : this.redis.extendIfValueMatches(`${baseKey}:writer`, owner, LOCK_TTL_MS);
+        void refresh.finally(() => {
+          refreshing = false;
+        });
+      },
+      Math.floor(LOCK_TTL_MS / 3),
+    );
     heartbeat.unref();
 
     return {
