@@ -45,6 +45,12 @@ const RUN_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const RUN_QUEUE_SLOT_TTL_MS = 2 * 60 * 60 * 1000;
 const RUN_QUEUE_SLOT_PREFIX = "relay:channel-probe-run:v1";
 const GROUP_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+// Upstream billing ledgers are commonly eventually consistent. Keep both
+// snapshots outside the actual model request by a small, deterministic window
+// while the channel write lock is held, so an in-app request cannot distort a
+// calibration run between its two balance reads.
+const PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS = 1_000;
+const PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS = 5_000;
 
 type ProbeProfileRecord = RelayChannelProbeProfileRecord;
 type ProbeRunRecord = RelayChannelProbeRunRecord;
@@ -127,6 +133,10 @@ export function calculateSuggestedProbeMultiplier(
     return undefined;
   // A channel multiplier must never be rounded below the measured upstream cost.
   return Math.ceil((value - Number.EPSILON) * 1_000_000) / 1_000_000;
+}
+
+export function waitForProbeSettlement(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 type ProbeUsage = {
@@ -519,11 +529,13 @@ export class RelayChannelProbeService {
           const variables = this.decryptCredentials(profile);
           const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
           const beforeBalance = await this.runProbePhase("读取请求前余额", () => this.runWorkflow(workflow, variables));
+          await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
           const upstreamResponse = await this.runProbePhase("最小模型请求", () =>
             this.callUpstream(profile, variables),
           );
           const usage = this.extractUsage(upstreamResponse);
           assertProbeUsage(usage);
+          await waitForProbeSettlement(PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS);
           const afterBalance = await this.runProbePhase("读取请求后余额", () => this.runWorkflow(workflow, variables));
           return { before: beforeBalance, after: afterBalance, usage };
         });

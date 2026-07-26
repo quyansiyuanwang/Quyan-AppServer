@@ -29,6 +29,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docs-site: ${{ steps.filter.outputs.docs-site }}
+      shared: ${{ steps.filter.outputs.shared }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v4
@@ -37,112 +38,98 @@ jobs:
           filters: |
             backend:
               - 'apps/backend/**'
-              - 'packages/**'
+              - '.github/workflows/quality-check.yml'
             frontend:
               - 'apps/frontend/**'
-              - 'packages/**'
+              - '.github/workflows/quality-check.yml'
             docs-site:
               - 'apps/docs-site/**'
+              - '.github/workflows/quality-check.yml'
+            shared:
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'tsconfig*.json'
 
-  quality:
+  backend-quality:
     needs: changes
     if: |
-      ( github.event_name == 'workflow_dispatch' ||
-        github.event.inputs.check-backend == 'true' || needs.changes.outputs.backend == 'true' || github.event.inputs.check-frontend == 'true' || needs.changes.outputs.frontend == 'true' ||
-        github.event.inputs.check-docs-site == 'true' || needs.changes.outputs.docs-site == 'true' ) &&
       !contains(github.event.pull_request.title, '[skip ci]') &&
-      !contains(github.event.pull_request.title, '[skip cicd]')
+      !contains(github.event.pull_request.title, '[skip cicd]') &&
+      (github.event_name == 'workflow_dispatch' && inputs['check-backend'] ||
+       needs.changes.outputs.backend == 'true' || needs.changes.outputs.shared == 'true')
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: '22'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.13
-
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        id: cache
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('pnpm-lock.yaml') }}
-
       - name: Install dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
+      - name: Generate backend prerequisites
+        run: |
+          pnpm --filter @appserver/backend run build:info:stub
+          pnpm --filter @appserver/backend run openapi:generate
+          pnpm --filter @appserver/backend run db:generate
+          pnpm --filter @appserver/backend run check:explicit-deps
+      - name: Check backend in parallel
+        run: pnpm run check:backend
 
-      # ── Backend ─────────────────────────────────────────────────
-      - name: Check explicit dependencies (backend)
-        if: github.event.inputs.check-backend == 'true' || needs.changes.outputs.backend == 'true'
-        run: pnpm --filter @appserver/backend run check:explicit-deps
+  frontend-quality:
+    needs: changes
+    if: |
+      !contains(github.event.pull_request.title, '[skip ci]') &&
+      !contains(github.event.pull_request.title, '[skip cicd]') &&
+      (github.event_name == 'workflow_dispatch' && inputs['check-frontend'] ||
+       needs.changes.outputs.frontend == 'true' || needs.changes.outputs.shared == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate frontend prerequisites
+        run: |
+          pnpm --filter @appserver/frontend run openapi:generate
+          pnpm --filter @appserver/frontend run type:generate
+      - name: Check frontend in parallel
+        run: pnpm run check:frontend
 
-      - name: Inject Empty Build Info (backend)
-        if: github.event.inputs.check-backend == 'true' || needs.changes.outputs.backend == 'true'
-        run: pnpm --filter @appserver/backend run build:info:stub
-
-      - name: Generate TSOA Routes (backend)
-        if: github.event.inputs.check-backend == 'true' || needs.changes.outputs.backend == 'true'
-        run: pnpm --filter @appserver/backend run openapi:generate
-
-      - name: Generate Prisma Client (backend)
-        if: github.event.inputs.check-backend == 'true' || needs.changes.outputs.backend == 'true'
-        run: pnpm --filter @appserver/backend run db:generate
-
-      - name: Lint (backend)
-        if: github.event.inputs.check-backend == 'true' || needs.changes.outputs.backend == 'true'
-        run: pnpm --filter @appserver/backend run lint:check
-
-      - name: Format check (backend)
-        if: github.event.inputs.check-backend == 'true' || needs.changes.outputs.backend == 'true'
-        run: pnpm --filter @appserver/backend run format:check
-
-      - name: Type check (backend)
-        if: github.event.inputs.check-backend == 'true' || needs.changes.outputs.backend == 'true'
-        run: pnpm --filter @appserver/backend run type-check
-
-      # ── Frontend ───────────────────────────────────────────────
-      - name: Generate API Client (frontend)
-        if: github.event.inputs.check-frontend == 'true' || needs.changes.outputs.frontend == 'true'
-        run: pnpm --filter @appserver/frontend run openapi:generate
-
-      - name: Generate Route Types (frontend)
-        if: github.event.inputs.check-frontend == 'true' || needs.changes.outputs.frontend == 'true'
-        run: pnpm --filter @appserver/frontend run type:generate
-
-      - name: Lint (frontend)
-        if: github.event.inputs.check-frontend == 'true' || needs.changes.outputs.frontend == 'true'
-        run: pnpm --filter @appserver/frontend run lint:check
-
-      - name: Format check (frontend)
-        if: github.event.inputs.check-frontend == 'true' || needs.changes.outputs.frontend == 'true'
-        run: pnpm --filter @appserver/frontend run format:check
-
-      - name: Type check (frontend)
-        if: github.event.inputs.check-frontend == 'true' || needs.changes.outputs.frontend == 'true'
-        run: pnpm --filter @appserver/frontend run type-check
-
-      # ── Docs Site ──────────────────────────────────────────────
-      - name: Lint (docs-site)
-        if: github.event.inputs.check-docs-site == 'true' || needs.changes.outputs.docs-site == 'true'
-        run: pnpm --filter @appserver/docs-site run lint:check
-
-      - name: Format check (docs-site)
-        if: github.event.inputs.check-docs-site == 'true' || needs.changes.outputs.docs-site == 'true'
-        run: pnpm --filter @appserver/docs-site run format:check
-
-      - name: Type check (docs-site)
-        if: github.event.inputs.check-docs-site == 'true' || needs.changes.outputs.docs-site == 'true'
-        run: pnpm --filter @appserver/docs-site run type-check
+  docs-quality:
+    needs: changes
+    if: |
+      !contains(github.event.pull_request.title, '[skip ci]') &&
+      !contains(github.event.pull_request.title, '[skip cicd]') &&
+      (github.event_name == 'workflow_dispatch' && inputs['check-docs-site'] ||
+       needs.changes.outputs.docs-site == 'true' || needs.changes.outputs.shared == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check docs site in parallel
+        run: pnpm run check:docs

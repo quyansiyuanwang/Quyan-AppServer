@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   assertProbeUsage,
   buildProbeUpstreamEndpoint,
@@ -8,6 +8,7 @@ import {
   interpolateProbeVariables,
   normalizeProbeNetworkError,
   readProbeJsonPath,
+  waitForProbeSettlement,
 } from "../../src/services/relay/relay-channel-probe.service";
 
 describe("relay channel probe helpers", () => {
@@ -28,6 +29,23 @@ describe("relay channel probe helpers", () => {
 
   it("normalizes a malformed deployment proxy address without exposing its raw error", () => {
     expect(normalizeProbeNetworkError("Invalid IP address: undefined")).toBe("PROBE_NETWORK_CONFIGURATION_INVALID");
+  });
+
+  it("waits for the configured upstream settlement window", async () => {
+    vi.useFakeTimers();
+    try {
+      let completed = false;
+      const waiting = waitForProbeSettlement(1_000).then(() => {
+        completed = true;
+      });
+      await vi.advanceTimersByTimeAsync(999);
+      expect(completed).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await waiting;
+      expect(completed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("reads common JSONPath forms", () => {
