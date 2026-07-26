@@ -106,7 +106,9 @@ export const extractTokenUsageMetrics = (usage: unknown): TokenUsageMetrics => {
     : hasOutputTokens
       ? parseNumericTokenValue(usageData.output_tokens)
       : 0;
-  const rawTotalTokens = hasTotalTokens ? parseNumericTokenValue(usageData.total_tokens ?? usageData.totalTokenCount) : 0;
+  const rawTotalTokens = hasTotalTokens
+    ? parseNumericTokenValue(usageData.total_tokens ?? usageData.totalTokenCount)
+    : 0;
 
   const normalizedTokens = normalizeTokenBreakdown(rawInputTokens, rawOutputTokens, rawTotalTokens);
 
