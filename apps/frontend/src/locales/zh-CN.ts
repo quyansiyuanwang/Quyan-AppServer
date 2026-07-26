@@ -2615,6 +2615,12 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeCredentialSavedStatus: '已保存',
     channelProbeCredentialDraftStatus: '本次待保存',
     channelProbeCredentialMissingStatus: '待填写',
+    channelProbeErrorVariableMissing: '探针凭据或响应变量 {variable} 未配置',
+    channelProbeErrorNetworkConfiguration:
+      '服务器出站网络配置无效，请检查服务器代理或 DNS 配置后重试',
+    channelProbePhaseBeforeBalanceFailed: '读取请求前余额失败：{reason}',
+    channelProbePhaseModelRequestFailed: '最小模型请求失败：{reason}',
+    channelProbePhaseAfterBalanceFailed: '读取请求后余额失败：{reason}',
     channelProbeClearProfile: '清空探针档案',
     channelProbeClearProfileConfirm:
       '将删除探针工作流、测试负载、分组和已加密凭据。历史执行记录与倍率审计会保留，是否继续？',
