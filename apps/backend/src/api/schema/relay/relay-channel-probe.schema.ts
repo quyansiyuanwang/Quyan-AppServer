@@ -31,6 +31,9 @@ export const relayChannelProbeRunsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10_000).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
 });
+export const clearRelayChannelProbeRunHistoryQuerySchema = z.object({
+  scope: z.enum(["all", "failed"]),
+});
 export const upsertRelayChannelProbeProfileBodySchema = z
   .object({
     enabled: z.boolean(),
@@ -76,4 +79,22 @@ export const applyRelayChannelProbeRunsBodySchema = z.object({
     .min(1)
     .max(100)
     .refine((ids) => new Set(ids).size === ids.length),
+  overrides: z
+    .array(
+      z.object({
+        runId: z.string().trim().min(1),
+        multiplier: z.coerce.number().finite().min(0.000001).max(1000),
+      }),
+    )
+    .max(100)
+    .optional(),
+}).superRefine((value, ctx) => {
+  const seen = new Set<string>();
+  for (const [index, override] of (value.overrides || []).entries()) {
+    if (!value.runIds.includes(override.runId))
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["overrides", index, "runId"], message: "Unknown runId" });
+    if (seen.has(override.runId))
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["overrides", index, "runId"], message: "Duplicate runId" });
+    seen.add(override.runId);
+  }
 });

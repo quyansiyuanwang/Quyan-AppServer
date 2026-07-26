@@ -72,6 +72,15 @@ export class RelayChannelProbeRepository {
     return { total, items };
   }
 
+  /** Never removes queued/running work; emergency state reset owns those states. */
+  public clearRunHistory(channelId: string, scope: "all" | "failed"): Promise<{ count: number }> {
+    const statuses =
+      scope === "failed" ? ["failed", "timed_out", "cancelled"] : ["succeeded", "failed", "timed_out", "cancelled"];
+    return prisma.relayChannelProbeRun.deleteMany({
+      where: { relayChannelId: channelId, status: { in: statuses } },
+    });
+  }
+
   public findRunsWithChannels(runIds: string[]): Promise<RelayChannelProbeRunWithChannelRecord[]> {
     return prisma.relayChannelProbeRun.findMany({ where: { id: { in: runIds } }, include: { relayChannel: true } });
   }

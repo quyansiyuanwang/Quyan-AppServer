@@ -28,9 +28,11 @@ import type {
   CreateRelayChannelProbeRunRequest,
   CreateRelayChannelProbeRunsRequest,
   CreateRelayChannelProbeRunsResponse,
+  ClearRelayChannelProbeRunHistoryResponse,
   RelayChannelProbeOverviewItemDto,
   RelayChannelProbeProfileDto,
   RelayChannelProbeRunDto,
+  RelayChannelProbeRunHistoryScope,
   RelayChannelProbeWorkflowStepDto,
   UpsertRelayChannelProbeProfileRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
@@ -376,11 +378,22 @@ export class RelayChannelProbeService {
     return { items: result.items.map((record) => this.toRunDto(record)), total: result.total, page, pageSize };
   }
 
+  async clearRunHistory(
+    channelId: string,
+    scope: RelayChannelProbeRunHistoryScope,
+    actorUserId: string,
+  ): Promise<ClearRelayChannelProbeRunHistoryResponse> {
+    await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
+    const result = await this.repository.clearRunHistory(channelId, scope);
+    return { deleted: result.count };
+  }
+
   async applyRuns(
     body: ApplyRelayChannelProbeRunsRequest,
     actorUserId: string,
   ): Promise<ApplyRelayChannelProbeRunsResponse> {
     const runs = await this.repository.findRunsWithChannels(body.runIds);
+    const overrides = new Map((body.overrides || []).map((item) => [item.runId, item.multiplier]));
     const rejected: Array<{ runId: string; reason: string }> = [];
     let applied = 0;
     for (const run of runs) {
@@ -395,11 +408,12 @@ export class RelayChannelProbeService {
           Number(run.relayChannel.multiplier) !== Number(run.sourceChannelMultiplier)
         )
           throw new ConflictError("渠道倍率已变更，请重新探针");
+        const targetMultiplier = overrides.get(run.id) ?? Number(run.suggestedMultiplier);
         const appliedRun = await this.repository.applySuggestedMultiplier({
           runId: run.id,
           channelId: run.relayChannelId,
           expectedMultiplier: run.sourceChannelMultiplier,
-          suggestedMultiplier: run.suggestedMultiplier,
+          suggestedMultiplier: targetMultiplier,
           actorUserId,
         });
         if (!appliedRun) throw new ConflictError("渠道倍率已变更，请重新探针");

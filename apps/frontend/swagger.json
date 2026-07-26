@@ -14979,6 +14979,47 @@
 						}
 					}
 				]
+			},
+			"delete": {
+				"operationId": "RelayChannelProbeControllerClearRunHistory",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ClearRelayChannelProbeRunHistoryResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "channelId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "scope",
+						"required": true,
+						"schema": {
+							"$ref": "#/components/schemas/RelayChannelProbeRunHistoryScope"
+						}
+					}
+				]
 			}
 		},
 		"/v1/relay-channel-probes/{channelId}/runs/reset": {
@@ -39413,6 +39454,26 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"ClearRelayChannelProbeRunHistoryResponse": {
+				"properties": {
+					"deleted": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"deleted"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeRunHistoryScope": {
+				"type": "string",
+				"enum": [
+					"all",
+					"failed"
+				]
+			},
 			"ApplyRelayChannelProbeRunsResponse": {
 				"properties": {
 					"applied": {
@@ -39452,6 +39513,26 @@
 							"type": "string"
 						},
 						"type": "array"
+					},
+					"overrides": {
+						"items": {
+							"properties": {
+								"multiplier": {
+									"type": "number",
+									"format": "double"
+								},
+								"runId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"multiplier",
+								"runId"
+							],
+							"type": "object"
+						},
+						"type": "array",
+						"description": "Optional operator-confirmed values, used for rounding or a deliberate calibration adjustment."
 					}
 				},
 				"required": [

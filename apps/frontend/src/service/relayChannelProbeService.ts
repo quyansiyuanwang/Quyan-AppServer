@@ -47,6 +47,10 @@ class RelayChannelProbeService {
     ).data
   }
 
+  async clearRunHistory(channelId: string, scope: 'all' | 'failed') {
+    return checkApiResult<any>(await api.clearRunHistory({ path: { channelId }, params: { scope } }), true).data
+  }
+
   async applyRuns(body: ApplyRelayChannelProbeRunsRequest) {
     return checkApiResult<any>(await api.applyRuns({ body }), true).data
   }

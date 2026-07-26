@@ -111,12 +111,12 @@
           }}</el-tag></template
         ></el-table-column
       >
-      <el-table-column :label="i18ns.t('relay.channelProbeLatest')" min-width="132"
+      <el-table-column :label="i18ns.t('relay.channelProbeLatest')" width="120"
         ><template #default="{ row }">{{
           row.latestRun ? statusLabel(row.latestRun.status) : '-'
         }}</template></el-table-column
       >
-      <el-table-column :label="i18ns.t('relay.channelProbeSuggestion')" width="80" align="right"
+      <el-table-column :label="i18ns.t('relay.channelProbeSuggestion')" width="100" align="right"
         ><template #default="{ row }">{{
           row.latestRun?.suggestedMultiplier == null ? '-' : `${row.latestRun.suggestedMultiplier}x`
         }}</template></el-table-column
@@ -167,6 +167,74 @@
       destroy-on-close
       @closed="resetDrawer"
     >
+      <section v-if="selected" class="probe-drawer-summary">
+        <div class="probe-summary-heading">
+          <div>
+            <span class="eyebrow">{{ i18ns.t('relay.channelProbeTitle') }}</span>
+            <strong>{{ selected.channelName }}</strong>
+          </div>
+          <div class="summary-state-tags">
+            <el-tag :type="selected.enabled ? 'success' : 'info'" effect="plain">{{
+              selected.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
+            }}</el-tag>
+            <el-tag :type="selected.profile ? 'success' : 'warning'" effect="plain">{{
+              selected.profile ? i18ns.t('relay.channelProbeConfigured') : i18ns.t('no')
+            }}</el-tag>
+          </div>
+        </div>
+        <div class="probe-summary-grid">
+          <div class="probe-summary-item">
+            <span>{{ i18ns.t('relay.channelMultiplier') }}</span>
+            <strong>{{ selected.multiplier }}x</strong>
+          </div>
+          <div class="probe-summary-item">
+            <span>{{ i18ns.t('relay.channelProbeLatest') }}</span>
+            <div v-if="selected.latestRun" class="summary-run-state">
+              <el-tag size="small" :type="statusType(selected.latestRun.status)">{{
+                statusLabel(selected.latestRun.status)
+              }}</el-tag>
+              <small>{{
+                formatDate(selected.latestRun.finishedAt ?? selected.latestRun.createTime)
+              }}</small>
+            </div>
+            <strong v-else>-</strong>
+          </div>
+          <div class="probe-summary-item">
+            <span>{{ i18ns.t('relay.channelProbeFormat') }}</span>
+            <strong>{{ selected.profile?.probeFormat ?? '-' }}</strong>
+            <small>{{
+              selected.profile?.probeModel ?? i18ns.t('relay.channelProbeNoProfile')
+            }}</small>
+          </div>
+          <div class="probe-summary-item">
+            <span>{{ i18ns.t('relay.channelProbeSuggestion') }}</span>
+            <strong>{{
+              selected.latestRun?.suggestedMultiplier == null
+                ? '-'
+                : selected.latestRun.suggestedMultiplier + 'x'
+            }}</strong>
+            <small v-if="selected.latestRun?.appliedAt">{{
+              i18ns.t('relay.channelProbeSuggestionApplied')
+            }}</small>
+          </div>
+          <div class="probe-summary-item probe-summary-wide">
+            <span>{{ i18ns.t('relay.channelProbeBalanceDivisor') }}</span>
+            <strong v-if="selected.profile">{{
+              selected.profile.upstreamCurrency +
+              ' / ' +
+              formatNumber(selected.profile.upstreamBalanceDivisor) +
+              ' -> ' +
+              selected.profile.localCurrency
+            }}</strong>
+            <strong v-else>-</strong>
+            <small>{{
+              selected.profile?.probeGroup
+                ? i18ns.t('relay.channelProbeGroup') + ': ' + selected.profile.probeGroup
+                : i18ns.t('relay.channelProbeUngrouped')
+            }}</small>
+          </div>
+        </div>
+      </section>
       <el-tabs v-model="tab">
         <el-tab-pane :label="i18ns.t('relay.channelProbeProfile')" name="profile">
           <el-form label-position="top" class="profile-form" @submit.prevent="saveProfile">
@@ -181,16 +249,13 @@
                       ><el-option
                         value="openai"
                         label="OpenAI"
-                        :disabled="!isProbeFormatAvailable('openai')"
-                      /><el-option
+                        :disabled="!isProbeFormatAvailable('openai')" /><el-option
                         value="anthropic"
                         label="Anthropic"
-                        :disabled="!isProbeFormatAvailable('anthropic')"
-                      /><el-option
+                        :disabled="!isProbeFormatAvailable('anthropic')" /><el-option
                         value="gemini"
                         label="Gemini"
-                        :disabled="!isProbeFormatAvailable('gemini')"
-                      /></el-select
+                        :disabled="!isProbeFormatAvailable('gemini')" /></el-select
                   ></el-form-item>
                   <el-form-item :label="i18ns.t('relay.channelProbeModel')"
                     ><el-select
@@ -203,8 +268,7 @@
                         v-for="model in selectedProbeModels"
                         :key="model"
                         :value="model"
-                        :label="model"
-                    /></el-select
+                        :label="model" /></el-select
                   ></el-form-item>
                   <el-form-item :label="i18ns.t('relay.channelProbeDistribution')"
                     ><el-input-number
@@ -287,7 +351,9 @@
                   <header class="workflow-step-header">
                     <div class="workflow-step-title">
                       <span class="workflow-step-number">{{ index + 1 }}</span>
-                      <strong>{{ i18ns.t('relay.channelProbeWorkflowStep', { index: index + 1 }) }}</strong>
+                      <strong>{{
+                        i18ns.t('relay.channelProbeWorkflowStep', { index: index + 1 })
+                      }}</strong>
                       <el-tag effect="plain" size="small">{{ step.method }}</el-tag>
                     </div>
                     <el-button
@@ -309,7 +375,9 @@
                           value="POST"
                           label="POST" /></el-select
                     ></el-form-item>
-                    <el-form-item class="workflow-url-field" :label="i18ns.t('relay.channelProbeUrl')"
+                    <el-form-item
+                      class="workflow-url-field"
+                      :label="i18ns.t('relay.channelProbeUrl')"
                       ><el-input
                         v-model.trim="step.url"
                         :disabled="!canExecute"
@@ -318,11 +386,11 @@
                   </div>
                   <div class="workflow-balance-row">
                     <el-form-item :label="i18ns.t('relay.channelProbeBalancePath')"
-                    ><el-input
-                      v-model.trim="step.balancePath"
-                      :disabled="!canExecute"
-                      placeholder="data.balance"
-                  /></el-form-item>
+                      ><el-input
+                        v-model.trim="step.balancePath"
+                        :disabled="!canExecute"
+                        placeholder="data.balance"
+                    /></el-form-item>
                     <p>{{ i18ns.t('relay.channelProbeBalancePathHint') }}</p>
                   </div>
                   <el-collapse v-model="step.openSections" class="workflow-collapse">
@@ -544,7 +612,8 @@
                         link
                         type="primary"
                         @click="addCredential(credential.name)"
-                      >{{ i18ns.t('relay.channelProbeAddCredential') }}</el-button>
+                        >{{ i18ns.t('relay.channelProbeAddCredential') }}</el-button
+                      >
                     </div>
                   </div>
                 </section>
@@ -587,8 +656,8 @@
         </el-tab-pane>
         <el-tab-pane :label="i18ns.t('relay.channelProbeRuns')" name="runs">
           <div class="runs-toolbar">
-            <el-button :loading="runsLoading" @click="loadRuns">{{ i18ns.t('refresh') }}</el-button
-            ><el-button
+            <el-button :loading="runsLoading" @click="loadRuns">{{ i18ns.t('refresh') }}</el-button>
+            <el-button
               v-if="canExecute"
               type="primary"
               :disabled="!selected?.profile"
@@ -603,6 +672,23 @@
               :loading="resettingChannelId === selected?.channelId"
               @click="selected && confirmResetRunState(selected)"
               >{{ i18ns.t('relay.channelProbeResetState') }}</el-button
+            >
+            <el-button
+              v-if="canExecute"
+              type="danger"
+              plain
+              :disabled="runs.length === 0"
+              :loading="clearingHistoryScope === 'failed'"
+              @click="confirmClearRunHistory('failed')"
+              >{{ i18ns.t('relay.channelProbeClearFailures') }}</el-button
+            >
+            <el-button
+              v-if="canExecute"
+              type="danger"
+              :disabled="runs.length === 0"
+              :loading="clearingHistoryScope === 'all'"
+              @click="confirmClearRunHistory('all')"
+              >{{ i18ns.t('relay.channelProbeClearHistory') }}</el-button
             >
           </div>
           <el-empty
@@ -653,6 +739,13 @@
               }}
             </p>
             <el-alert
+              v-else-if="suggestionUnavailableReason(runItem)"
+              type="warning"
+              :closable="false"
+              :title="suggestionUnavailableReason(runItem)"
+              class="mt-2"
+            />
+            <el-alert
               v-if="runItem.errorMessage"
               type="error"
               :closable="false"
@@ -700,6 +793,66 @@
         </template>
       </el-dialog>
     </el-drawer>
+    <el-dialog
+      v-model="applyDialogOpen"
+      :title="i18ns.t('relay.channelProbeApplyDialogTitle')"
+      width="min(980px, 94vw)"
+      append-to-body
+      :close-on-click-modal="false"
+    >
+      <el-alert
+        type="warning"
+        :closable="false"
+        show-icon
+        :title="i18ns.t('relay.channelProbeApplyDialogNotice')"
+        class="mb-3"
+      />
+      <div class="calibration-toolbar">
+        <span>{{ i18ns.t('relay.channelProbeRoundDigits') }}</span>
+        <el-input-number v-model="roundingDigits" :min="0" :max="6" :step="1" :precision="0" />
+        <el-button plain @click="roundDraftMultipliers">{{
+          i18ns.t('relay.channelProbeRoundAll')
+        }}</el-button>
+      </div>
+      <el-table :data="applyDrafts" max-height="420" class="w-full">
+        <el-table-column prop="channelName" :label="i18ns.t('relay.channelName')" min-width="140" />
+        <el-table-column :label="i18ns.t('relay.channelMultiplier')" width="126" align="right">
+          <template #default="{ row }">{{ row.currentMultiplier }}x</template>
+        </el-table-column>
+        <el-table-column :label="i18ns.t('relay.channelProbeSuggestion')" width="132" align="right">
+          <template #default="{ row }">{{ row.run.suggestedMultiplier }}x</template>
+        </el-table-column>
+        <el-table-column
+          :label="i18ns.t('relay.channelProbeUpstreamDelta')"
+          width="142"
+          align="right"
+        >
+          <template #default="{ row }">{{ formatNumber(row.run.upstreamBalanceDelta) }}</template>
+        </el-table-column>
+        <el-table-column :label="i18ns.t('relay.channelProbeBaseCost')" width="132" align="right">
+          <template #default="{ row }">{{ formatNumber(row.run.baseLocalCost) }}</template>
+        </el-table-column>
+        <el-table-column :label="i18ns.t('relay.channelProbeTargetMultiplier')" min-width="180">
+          <template #default="{ row }">
+            <el-input-number
+              v-model="row.targetMultiplier"
+              :min="0.000001"
+              :max="1000"
+              :step="0.000001"
+              :precision="6"
+              controls-position="right"
+              class="w-full"
+            />
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="applyDialogOpen = false">{{ i18ns.t('cancel') }}</el-button>
+        <el-button type="primary" :loading="applying" @click="submitApplyMultipliers">{{
+          i18ns.t('relay.channelProbeApply')
+        }}</el-button>
+      </template>
+    </el-dialog>
   </main>
 </template>
 
@@ -749,6 +902,12 @@ interface ProbeForm {
   upstreamBalanceDivisor: number
   probeGroup: string
 }
+interface ApplyMultiplierDraft {
+  run: RelayChannelProbeRunDto
+  channelName: string
+  currentMultiplier: number
+  targetMultiplier: number
+}
 interface ProbeProfileExport {
   version: 1
   type: 'relay-channel-probe-profile'
@@ -774,10 +933,14 @@ const loading = ref(false)
 const saving = ref(false)
 const clearingProfile = ref(false)
 const applying = ref(false)
+const applyDialogOpen = ref(false)
+const roundingDigits = ref(6)
+const applyDrafts = ref<ApplyMultiplierDraft[]>([])
 const batchRunning = ref(false)
 const runsLoading = ref(false)
 const runningId = ref('')
 const resettingChannelId = ref('')
+const clearingHistoryScope = ref<'' | 'all' | 'failed'>('')
 const pageError = ref('')
 const items = ref<RelayChannelProbeOverviewItemDto[]>([])
 const selected = ref<RelayChannelProbeOverviewItemDto | null>(null)
@@ -844,13 +1007,13 @@ const importFileInput = ref<HTMLInputElement>()
 const balancePathCount = computed(
   () => workflowSteps.value.filter((step) => Boolean(step.balancePath.trim())).length,
 )
-const currenciesMatch = computed(
-  () =>
-    Boolean(
-      form.value.upstreamCurrency.trim() &&
-        form.value.localCurrency.trim() &&
-        form.value.upstreamCurrency.trim().toUpperCase() === form.value.localCurrency.trim().toUpperCase(),
-    ),
+const currenciesMatch = computed(() =>
+  Boolean(
+    form.value.upstreamCurrency.trim() &&
+      form.value.localCurrency.trim() &&
+      form.value.upstreamCurrency.trim().toUpperCase() ===
+        form.value.localCurrency.trim().toUpperCase(),
+  ),
 )
 const extractedVariableNames = computed(
   () =>
@@ -870,7 +1033,9 @@ const requiredCredentialStates = computed<CredentialRequirement[]>(() => {
   }
   const saved = new Set(credentialNames.value)
   const draft = new Set(
-    credentials.value.filter((credential) => Boolean(credential.value)).map((credential) => credential.name.trim()),
+    credentials.value
+      .filter((credential) => Boolean(credential.value))
+      .map((credential) => credential.name.trim()),
   )
   return Array.from(referenced)
     .filter((name) => !extractedVariableNames.value.has(name))
@@ -950,7 +1115,11 @@ function removeWorkflowStep(index: number) {
 }
 function addCredential(name = '') {
   const normalizedName = name.trim()
-  if (normalizedName && credentials.value.some((credential) => credential.name.trim() === normalizedName)) return
+  if (
+    normalizedName &&
+    credentials.value.some((credential) => credential.name.trim() === normalizedName)
+  )
+    return
   credentials.value.push({ id: crypto.randomUUID(), name: normalizedName, value: '' })
 }
 function variableTemplate(name: string) {
@@ -1088,10 +1257,10 @@ function applyImportedConfiguration() {
       probeFormat: imported.probeFormat,
       probeModel: imported.probeModel,
       distributionMultiplier: imported.distributionMultiplier,
-    upstreamCurrency: imported.upstreamCurrency,
-    localCurrency: imported.localCurrency,
-    upstreamBalanceDivisor: imported.upstreamBalanceDivisor,
-    probeGroup: imported.probeGroup,
+      upstreamCurrency: imported.upstreamCurrency,
+      localCurrency: imported.localCurrency,
+      upstreamBalanceDivisor: imported.upstreamBalanceDivisor,
+      probeGroup: imported.probeGroup,
     }
     payloadText.value = JSON.stringify(imported.probePayload, null, 2)
     workflowSteps.value = imported.workflow.map(toWorkflowForm)
@@ -1139,6 +1308,21 @@ function isApplicable(run?: RelayChannelProbeRunDto) {
     run && run.status === 'succeeded' && run.suggestedMultiplier != null && !run.appliedAt,
   )
 }
+function suggestionUnavailableReason(run: RelayChannelProbeRunDto) {
+  if (run.suggestedMultiplier != null) return ''
+  const profile = selected.value?.profile
+  if (profile && profile.upstreamCurrency !== profile.localCurrency)
+    return i18ns.t('relay.channelProbeSuggestionCurrencyMismatch', {
+      upstream: profile.upstreamCurrency,
+      local: profile.localCurrency,
+    })
+  if (!run.totalTokens) return i18ns.t('relay.channelProbeSuggestionMissingUsage')
+  if (!run.upstreamBalanceDelta || run.upstreamBalanceDelta <= 0)
+    return i18ns.t('relay.channelProbeSuggestionNoDelta')
+  if (!run.baseLocalCost || run.baseLocalCost <= 0)
+    return i18ns.t('relay.channelProbeSuggestionNoBaseCost')
+  return i18ns.t('relay.channelProbeSuggestionUnavailable')
+}
 function isRunnable(row: RelayChannelProbeOverviewItemDto) {
   return Boolean(row.enabled && row.profile?.enabled)
 }
@@ -1153,6 +1337,33 @@ function onSelectionChange(rows: RelayChannelProbeOverviewItemDto[]) {
 function clearSelection() {
   selectedRows.value = []
   tableRef.value?.clearSelection()
+}
+function getApplicableRuns(runIds: string[]) {
+  const channelById = new Map(items.value.map((item) => [item.channelId, item]))
+  const runsById = new Map(
+    [...items.value.map((item) => item.latestRun), ...runs.value]
+      .filter((run): run is RelayChannelProbeRunDto => Boolean(run?.suggestedMultiplier != null))
+      .map((run) => [run.id, run]),
+  )
+  return runIds.flatMap((runId) => {
+    const run = runsById.get(runId)
+    const channel = run ? channelById.get(run.relayChannelId) : undefined
+    return run && channel && run.suggestedMultiplier != null
+      ? [
+          {
+            run,
+            channelName: channel.channelName,
+            currentMultiplier: channel.multiplier,
+            targetMultiplier: run.suggestedMultiplier,
+          },
+        ]
+      : []
+  })
+}
+function roundDraftMultipliers() {
+  const factor = 10 ** roundingDigits.value
+  for (const draft of applyDrafts.value)
+    draft.targetMultiplier = Math.round((draft.targetMultiplier + Number.EPSILON) * factor) / factor
 }
 function parseObject(value: string, label: string): Record<string, unknown> {
   try {
@@ -1258,6 +1469,21 @@ async function loadOverview() {
     if (requestId === overviewRequest) loading.value = false
   }
 }
+function updateChannelItem(
+  channelId: string,
+  update: (item: RelayChannelProbeOverviewItemDto) => RelayChannelProbeOverviewItemDto,
+) {
+  const index = items.value.findIndex((item) => item.channelId === channelId)
+  if (index < 0) return
+  const next = update(items.value[index]!)
+  items.value.splice(index, 1, next)
+  if (selected.value?.channelId === channelId) selected.value = next
+}
+function syncSelectedLatestRun() {
+  const channelId = selected.value?.channelId
+  if (!channelId) return
+  updateChannelItem(channelId, (item) => ({ ...item, latestRun: runs.value[0] }))
+}
 async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
   // Complete the drawer render before starting any remote request. A slow or stalled
   // run-history request must never delay the management surface becoming usable.
@@ -1296,7 +1522,9 @@ function toWorkflowForm(step: RelayChannelProbeWorkflowStepDto): WorkflowFormSte
     name: step.name,
     method: step.method,
     openSections: [
-      ...((Object.keys(step.headers || {}).length || Object.keys(step.query || {}).length || Object.keys(step.body || {}).length)
+      ...(Object.keys(step.headers || {}).length ||
+      Object.keys(step.query || {}).length ||
+      Object.keys(step.body || {}).length
         ? ['request']
         : []),
       ...(Object.keys(step.extract || {}).length ? ['response'] : []),
@@ -1323,7 +1551,10 @@ async function loadRuns() {
   runsLoading.value = true
   try {
     const result = await relayChannelProbeService.listRuns(selected.value.channelId)
-    if (requestId === runsRequest) runs.value = result.items
+    if (requestId === runsRequest) {
+      runs.value = result.items
+      syncSelectedLatestRun()
+    }
   } catch (error) {
     if (requestId === runsRequest)
       ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
@@ -1343,7 +1574,7 @@ async function saveProfile() {
     return ElMessage.warning(i18ns.t('relay.channelProbeCredentialIncomplete'))
   saving.value = true
   try {
-    await relayChannelProbeService.saveProfile(selected.value.channelId, {
+    const profile = await relayChannelProbeService.saveProfile(selected.value.channelId, {
       ...form.value,
       upstreamCurrency: form.value.upstreamCurrency.toUpperCase(),
       localCurrency: form.value.localCurrency.toUpperCase(),
@@ -1352,9 +1583,9 @@ async function saveProfile() {
       ...(Object.keys(credentialMap).length ? { credentials: credentialMap } : {}),
     })
     ElMessage.success(i18ns.t('success'))
-    await loadOverview()
-    const updated = items.value.find((item) => item.channelId === selected.value?.channelId)
-    if (updated) await openDrawer(updated)
+    updateChannelItem(selected.value.channelId, (item) => ({ ...item, profile }))
+    credentialNames.value = profile.credentialNames
+    credentials.value = []
   } catch (error) {
     ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
   } finally {
@@ -1381,9 +1612,9 @@ async function confirmClearProfile() {
   try {
     await relayChannelProbeService.clearProfile(channelId)
     ElMessage.success(i18ns.t('relay.channelProbeProfileCleared'))
-    await loadOverview()
-    const updated = items.value.find((item) => item.channelId === channelId)
-    if (updated) await openDrawer(updated)
+    updateChannelItem(channelId, (item) => ({ ...item, profile: undefined }))
+    credentialNames.value = []
+    credentials.value = []
   } catch (error) {
     ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
   } finally {
@@ -1394,12 +1625,10 @@ async function run(row: RelayChannelProbeOverviewItemDto) {
   if (runningId.value) return
   runningId.value = row.channelId
   try {
-    await relayChannelProbeService.createRun(row.channelId)
+    const queued = await relayChannelProbeService.createRun(row.channelId)
     ElMessage.success(i18ns.t('relay.channelProbeQueued'))
-    await Promise.all([
-      loadOverview(),
-      selected.value?.channelId === row.channelId ? loadRuns() : Promise.resolve(),
-    ])
+    updateChannelItem(row.channelId, (item) => ({ ...item, latestRun: queued }))
+    if (selected.value?.channelId === row.channelId) await loadRuns()
     startPolling()
   } catch (error) {
     ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
@@ -1410,8 +1639,35 @@ async function run(row: RelayChannelProbeOverviewItemDto) {
 async function confirmResetRunState(row: RelayChannelProbeOverviewItemDto) {
   if (resettingChannelId.value) return
   try {
+    await ElMessageBox.confirm(i18ns.t('relay.channelProbeResetStateConfirm'), i18ns.t('warning'), {
+      type: 'warning',
+      confirmButtonText: i18ns.t('confirm'),
+      cancelButtonText: i18ns.t('cancel'),
+    })
+  } catch {
+    return
+  }
+  resettingChannelId.value = row.channelId
+  try {
+    await relayChannelProbeService.resetRunState(row.channelId)
+    ElMessage.success(i18ns.t('relay.channelProbeStateReset'))
+    if (selected.value?.channelId === row.channelId) await loadRuns()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+  } finally {
+    resettingChannelId.value = ''
+  }
+}
+async function confirmClearRunHistory(scope: 'all' | 'failed') {
+  const channelId = selected.value?.channelId
+  if (!channelId || clearingHistoryScope.value) return
+  try {
     await ElMessageBox.confirm(
-      i18ns.t('relay.channelProbeResetStateConfirm'),
+      i18ns.t(
+        scope === 'all'
+          ? 'relay.channelProbeClearHistoryConfirm'
+          : 'relay.channelProbeClearFailuresConfirm',
+      ),
       i18ns.t('warning'),
       {
         type: 'warning',
@@ -1422,18 +1678,15 @@ async function confirmResetRunState(row: RelayChannelProbeOverviewItemDto) {
   } catch {
     return
   }
-  resettingChannelId.value = row.channelId
+  clearingHistoryScope.value = scope
   try {
-    await relayChannelProbeService.resetRunState(row.channelId)
-    ElMessage.success(i18ns.t('relay.channelProbeStateReset'))
-    await loadOverview()
-    const updated = items.value.find((item) => item.channelId === row.channelId)
-    if (selected.value?.channelId === row.channelId && updated) selected.value = updated
-    if (selected.value?.channelId === row.channelId) await loadRuns()
+    const result = await relayChannelProbeService.clearRunHistory(channelId, scope)
+    ElMessage.success(i18ns.t('relay.channelProbeHistoryCleared', { count: result.deleted }))
+    await loadRuns()
   } catch (error) {
     ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
   } finally {
-    resettingChannelId.value = ''
+    clearingHistoryScope.value = ''
   }
 }
 async function confirmBatchRun() {
@@ -1460,7 +1713,15 @@ async function confirmBatchRun() {
     if (result.rejected.length)
       ElMessage.warning(result.rejected.map((item: { reason: string }) => item.reason).join('；'))
     clearSelection()
-    await Promise.all([loadOverview(), selected.value ? loadRuns() : Promise.resolve()])
+    for (const run of result.queued)
+      updateChannelItem(run.relayChannelId, (item) => ({ ...item, latestRun: run }))
+    if (
+      selected.value &&
+      result.queued.some(
+        (run: { relayChannelId: string }) => run.relayChannelId === selected.value?.channelId,
+      )
+    )
+      await loadRuns()
     startPolling()
   } catch (error) {
     ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
@@ -1470,28 +1731,67 @@ async function confirmBatchRun() {
 }
 async function confirmApply(runIds: string[]) {
   if (!runIds.length || applying.value) return
-  try {
-    await ElMessageBox.confirm(
-      i18ns.t('relay.channelProbeApplyConfirm', { count: runIds.length }),
-      i18ns.t('warning'),
-      {
-        type: 'warning',
-        confirmButtonText: i18ns.t('confirm'),
-        cancelButtonText: i18ns.t('cancel'),
-      },
+  const drafts = getApplicableRuns(runIds)
+  if (!drafts.length) return ElMessage.warning(i18ns.t('relay.channelProbeApplyUnavailable'))
+  applyDrafts.value = drafts
+  applyDialogOpen.value = true
+}
+async function submitApplyMultipliers() {
+  if (!applyDrafts.value.length || applying.value) return
+  if (
+    applyDrafts.value.some(
+      (draft) =>
+        !Number.isFinite(draft.targetMultiplier) ||
+        draft.targetMultiplier < 0.000001 ||
+        draft.targetMultiplier > 1000,
     )
-  } catch {
-    return
-  }
+  )
+    return ElMessage.warning(i18ns.t('relay.channelProbeTargetMultiplierInvalid'))
+  const runIds = applyDrafts.value.map((draft) => draft.run.id)
+  const targetMultiplierByRunId = new Map(
+    applyDrafts.value.map((draft) => [draft.run.id, draft.targetMultiplier]),
+  )
   applying.value = true
   try {
-    const result = await relayChannelProbeService.applyRuns({ runIds })
+    const result = await relayChannelProbeService.applyRuns({
+      runIds,
+      overrides: applyDrafts.value.map((draft) => ({
+        runId: draft.run.id,
+        multiplier: draft.targetMultiplier,
+      })),
+    })
     if (result.applied)
       ElMessage.success(i18ns.t('relay.channelProbeApplied', { count: result.applied }))
     if (result.rejected.length)
       ElMessage.warning(result.rejected.map((item: { reason: string }) => item.reason).join('；'))
-    clearSelection()
-    await Promise.all([loadOverview(), loadRuns()])
+    const rejectedRunIds = new Set(result.rejected.map((item: { runId: string }) => item.runId))
+    const appliedRunIds = runIds.filter((runId) => !rejectedRunIds.has(runId))
+    for (const runId of appliedRunIds) {
+      const draft = applyDrafts.value.find((item) => item.run.id === runId)
+      const targetMultiplier = targetMultiplierByRunId.get(runId)
+      if (!draft || targetMultiplier == null) continue
+      updateChannelItem(draft.run.relayChannelId, (item) => ({
+        ...item,
+        multiplier: targetMultiplier,
+        latestRun:
+          item.latestRun?.id === runId
+            ? {
+                ...item.latestRun,
+                appliedMultiplier: targetMultiplier,
+                appliedAt: new Date().toISOString(),
+              }
+            : item.latestRun,
+      }))
+    }
+    if (selected.value && appliedRunIds.some((runId) => runs.value.some((run) => run.id === runId)))
+      await loadRuns()
+    if (rejectedRunIds.size) {
+      applyDrafts.value = applyDrafts.value.filter((draft) => rejectedRunIds.has(draft.run.id))
+    } else {
+      applyDialogOpen.value = false
+      applyDrafts.value = []
+      clearSelection()
+    }
   } catch (error) {
     ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
   } finally {
@@ -1503,7 +1803,6 @@ function startPolling() {
   pollTimer = setInterval(() => {
     if (runs.value.some((run) => run.status === 'queued' || run.status === 'running')) {
       void loadRuns()
-      void loadOverview()
     }
   }, 3000)
 }
@@ -1551,6 +1850,79 @@ onBeforeUnmount(stopPolling)
   justify-content: flex-end;
   gap: 8px;
   margin: 0 0 12px;
+}
+.probe-drawer-summary {
+  margin: 0 0 18px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-top: 3px solid var(--el-color-primary);
+  background: var(--el-fill-color-extra-light);
+}
+.probe-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.probe-summary-heading > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.probe-summary-heading strong {
+  overflow: hidden;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eyebrow {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.summary-state-tags {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.probe-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.probe-summary-item {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  padding: 12px 16px;
+  border-right: 1px solid var(--el-border-color-lighter);
+}
+.probe-summary-item:last-child {
+  border-right: 0;
+}
+.probe-summary-item > span,
+.probe-summary-item small {
+  overflow: hidden;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.probe-summary-item > strong {
+  overflow: hidden;
+  color: var(--el-text-color-primary);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.probe-summary-wide {
+  grid-column: span 2;
+}
+.summary-run-state {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
 }
 .selection-summary {
   margin-right: auto;
@@ -1701,13 +2073,33 @@ onBeforeUnmount(stopPolling)
   background: var(--el-bg-color);
 }
 .workflow-step-header,
-.run-title,
-.runs-toolbar {
+.run-title {
   display: flex;
   gap: 10px;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+}
+.runs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 12px;
+}
+.calibration-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+.calibration-toolbar .el-input-number {
+  width: 112px;
 }
 .workflow-step-title {
   display: flex;
@@ -1805,6 +2197,15 @@ onBeforeUnmount(stopPolling)
   word-break: break-word;
 }
 @media (max-width: 1000px) {
+  .probe-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .probe-summary-item:nth-child(2) {
+    border-right: 0;
+  }
+  .probe-summary-item:nth-child(n + 3) {
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
   .probe-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1817,6 +2218,26 @@ onBeforeUnmount(stopPolling)
   }
 }
 @media (max-width: 768px) {
+  .probe-summary-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .summary-state-tags {
+    justify-content: flex-start;
+  }
+  .probe-summary-grid {
+    grid-template-columns: 1fr;
+  }
+  .probe-summary-item,
+  .probe-summary-item:nth-child(2) {
+    border-right: 0;
+  }
+  .probe-summary-item:not(:first-child) {
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
+  .probe-summary-wide {
+    grid-column: auto;
+  }
   .channel-probe-page {
     padding: 16px;
   }
@@ -1839,6 +2260,9 @@ onBeforeUnmount(stopPolling)
   }
   .probe-toolbar {
     flex-wrap: wrap;
+  }
+  .calibration-toolbar {
+    justify-content: flex-start;
   }
   .section-heading {
     grid-template-columns: 1fr;

@@ -51,6 +51,12 @@ export interface CreateRelayChannelProbeRunRequest {
   distributionMultiplier?: number;
 }
 
+export type RelayChannelProbeRunHistoryScope = "all" | "failed";
+
+export interface ClearRelayChannelProbeRunHistoryResponse {
+  deleted: number;
+}
+
 /** Queues one probe per standalone channel. Individual channels may be rejected without cancelling the batch. */
 export interface CreateRelayChannelProbeRunsRequest {
   channelIds: string[];
@@ -113,6 +119,8 @@ export interface RelayChannelProbeOverviewItemDto {
 
 export interface ApplyRelayChannelProbeRunsRequest {
   runIds: string[];
+  /** Optional operator-confirmed values, used for rounding or a deliberate calibration adjustment. */
+  overrides?: Array<{ runId: string; multiplier: number }>;
 }
 
 export interface ApplyRelayChannelProbeRunsResponse {

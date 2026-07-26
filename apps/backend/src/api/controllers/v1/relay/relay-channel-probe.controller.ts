@@ -23,6 +23,7 @@ import { validateBody, validateParams, validateQuery } from "@/middleware/valida
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import {
   applyRelayChannelProbeRunsBodySchema,
+  clearRelayChannelProbeRunHistoryQuerySchema,
   createRelayChannelProbeRunBodySchema,
   createRelayChannelProbeRunsBodySchema,
   relayChannelProbeChannelParamsSchema,
@@ -32,12 +33,14 @@ import {
 import type {
   ApplyRelayChannelProbeRunsRequest,
   ApplyRelayChannelProbeRunsResponse,
+  ClearRelayChannelProbeRunHistoryResponse,
   CreateRelayChannelProbeRunRequest,
   CreateRelayChannelProbeRunsRequest,
   CreateRelayChannelProbeRunsResponse,
   RelayChannelProbeOverviewItemDto,
   RelayChannelProbeProfileDto,
   RelayChannelProbeRunDto,
+  RelayChannelProbeRunHistoryScope,
   RelayChannelProbeRunPageDto,
   UpsertRelayChannelProbeProfileRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
@@ -160,6 +163,25 @@ export class RelayChannelProbeController extends Controller {
     @Query() pageSize?: number,
   ): Promise<RelayChannelProbeRunPageDto> {
     return this.service.listRuns(channelId, request.user!.userId, page, pageSize);
+  }
+
+  @Delete("{channelId}/runs")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    validateParams(relayChannelProbeChannelParamsSchema),
+    validateQuery(clearRelayChannelProbeRunHistoryQuerySchema),
+    replayProtectionMiddleware,
+  )
+  public clearRunHistory(
+    @Path() channelId: string,
+    @Query() scope: RelayChannelProbeRunHistoryScope,
+    @Request() request: TypedRequest,
+  ): Promise<ClearRelayChannelProbeRunHistoryResponse> {
+    return this.service.clearRunHistory(channelId, scope, request.user!.userId);
   }
 
   @Post("runs/apply")

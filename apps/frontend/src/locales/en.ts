@@ -2583,6 +2583,13 @@ export default {
     channelProbeRun: 'Run probe',
     channelProbeApply: 'Apply multiplier',
     channelProbeQueued: 'Probe job queued',
+    channelProbeClearFailures: 'Clear failed runs',
+    channelProbeClearHistory: 'Clear all history',
+    channelProbeClearFailuresConfirm:
+      'Permanently delete failed, timed-out, and cancelled probe runs? Queued and running tasks are not affected.',
+    channelProbeClearHistoryConfirm:
+      'Permanently delete all completed probe history for this channel? Queued and running tasks are not affected.',
+    channelProbeHistoryCleared: 'Cleared {count} probe runs',
     channelProbeResetState: 'Reset task state',
     channelProbeResetStateConfirm:
       'Cancel all queued or running probes for this channel and release its queue slot? An already-started upstream request may finish, but its result will be ignored.',
@@ -2621,8 +2628,18 @@ export default {
     channelProbeFilterNotApplicable: 'Not applicable',
     channelProbeApplyConfirm:
       'Apply {count} unexpired multiplier suggestions? This changes standalone channel multipliers.',
+    channelProbeApplyDialogTitle: 'Confirm channel multiplier calibration',
+    channelProbeApplyDialogNotice:
+      'Review the suggested and target multipliers. A changed target is written directly to the channel after its probe-time multiplier is revalidated.',
+    channelProbeRoundDigits: 'Decimal places',
+    channelProbeRoundAll: 'Round all',
+    channelProbeTargetMultiplier: 'Target multiplier',
+    channelProbeTargetMultiplierInvalid: 'The target multiplier must be between 0.000001 and 1000',
+    channelProbeApplyUnavailable: 'No applicable probe multiplier suggestion is available',
     channelProbeApplied: 'Applied {count} multiplier suggestions',
+    channelProbeSuggestionApplied: 'Applied to channel',
     channelProbeNoStandalone: 'No standalone channels are available for probes',
+    channelProbeNoProfile: 'No probe profile configured',
     channelProbeNoRuns: 'No probe runs yet',
     channelProbePayloadHelp:
       'Provide a minimal billable model request. The system supplies the model field.',
@@ -2644,8 +2661,14 @@ export default {
       'The model must match a request format and model mapping configured on this channel.',
     channelProbeBalancePathCheck: 'The workflow must contain exactly one balance field path.',
     channelProbeCurrencyCheck:
-      'The currencies must match before a multiplier suggestion can be applied.',
+      'The upstream currency after applying the balance divisor must match the local currency to generate an applicable multiplier suggestion.',
     channelProbeCurrencyManual: 'Record only',
+    channelProbeSuggestionCurrencyMismatch:
+      'No suggestion: the normalized upstream currency is {upstream}, while the local currency is {local}. The balance divisor only converts the numeric value; set the upstream currency to {local} and run again to calibrate a multiplier.',
+    channelProbeSuggestionMissingUsage: 'No suggestion: the minimal model request returned no billable usage.',
+    channelProbeSuggestionNoDelta: 'No suggestion: the upstream balance did not decrease comparably.',
+    channelProbeSuggestionNoBaseCost: 'No suggestion: local pricing produced no valid base cost.',
+    channelProbeSuggestionUnavailable: 'No suggestion: this run does not meet the calibration conditions.',
     channelProbeDivisorCheck:
       'The raw upstream balance is divided by {divisor} before its delta and multiplier are calculated.',
     channelProbeGroup: 'Probe group',
@@ -2722,9 +2745,9 @@ export default {
     channelProbeBalancePathRequired: 'Exactly one balance field path is required',
     channelProbeInvalidStep: 'Provide a valid step name and HTTP(S) URL',
     channelProbeInvalidJson: 'must be a JSON object',
-    channelProbeUpstreamCurrency: 'Upstream currency',
+    channelProbeUpstreamCurrency: 'Converted upstream currency',
     channelProbeLocalCurrency: 'Local currency',
-    channelProbeBalanceDivisor: 'Upstream balance divisor',
+    channelProbeBalanceDivisor: 'Raw balance divisor',
     channelProbeInvalidBalanceDivisor:
       'The upstream balance divisor must be between 0.000001 and 1000000000',
     channelProbeAddCredential: 'Add credential',
