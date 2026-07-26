@@ -128,9 +128,7 @@ export class RelayChannelProbeRepository {
     });
   }
 
-  public findRunWithProfile(
-    runId: string,
-  ): Promise<Prisma.RelayChannelProbeRunGetPayload<{
+  public findRunWithProfile(runId: string): Promise<Prisma.RelayChannelProbeRunGetPayload<{
     include: { profile: { include: { relayChannel: true } } };
   }> | null> {
     return prisma.relayChannelProbeRun.findUnique({
