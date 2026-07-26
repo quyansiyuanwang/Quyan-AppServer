@@ -571,7 +571,7 @@
                 <div class="section-heading">
                   <strong>{{ i18ns.t('relay.channelProbeCredentials') }}</strong
                   ><span>{{ i18ns.t('relay.channelProbeCredentialsHelp') }}</span
-                  ><el-button v-if="canExecute" link type="primary" @click="addCredential">{{
+                  ><el-button v-if="canExecute" link type="primary" @click="addCredential()">{{
                     i18ns.t('relay.channelProbeAddCredential')
                   }}</el-button>
                 </div>
