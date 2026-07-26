@@ -1048,7 +1048,13 @@
                 <span
                   class="multiplier-direction-fill"
                   :class="multiplierDirectionClass(row.currentMultiplier, row.targetMultiplier)"
-                  :style="multiplierDirectionStyle(row.currentMultiplier, row.targetMultiplier)"
+                  :style="
+                    multiplierDirectionStyle(
+                      row.currentMultiplier,
+                      row.targetMultiplier,
+                      applyDirectionMaximumPercent,
+                    )
+                  "
                 />
               </div>
             </div>
@@ -1071,7 +1077,7 @@
     <el-dialog
       v-model="changeDialogOpen"
       :title="i18ns.t('relay.channelProbeChangeAnalysis')"
-      width="min(1180px, 94vw)"
+      width="min(1420px, 96vw)"
       append-to-body
     >
       <div class="change-analysis-toolbar">
@@ -1097,8 +1103,15 @@
         <span class="selected-draft-summary">{{
           i18ns.t('relay.channelProbeChangeCount', { count: multiplierChangeRows.length })
         }}</span>
+        <el-button
+          :icon="Download"
+          plain
+          :disabled="multiplierChangeRows.length === 0"
+          @click="exportMultiplierChangeChart"
+          >{{ i18ns.t('relay.channelProbeExportChangeChart') }}</el-button
+        >
       </div>
-      <el-table :data="pagedMultiplierChangeRows" max-height="500" class="w-full">
+      <el-table :data="pagedMultiplierChangeRows" max-height="60vh" class="w-full">
         <el-table-column prop="channelName" :label="i18ns.t('relay.channelName')" min-width="150" />
         <el-table-column :label="i18ns.t('relay.channelProbeChangeType')" width="108">
           <template #default="{ row }">
@@ -1123,7 +1136,7 @@
         >
           <template #default="{ row }">{{ row.targetMultiplier }}x</template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('relay.channelProbeMultiplierChange')" min-width="238">
+        <el-table-column :label="i18ns.t('relay.channelProbeMultiplierChange')" min-width="286">
           <template #default="{ row }">
             <div class="multiplier-change-cell">
               <span
@@ -1157,7 +1170,13 @@
                 <span
                   class="multiplier-direction-fill"
                   :class="multiplierDirectionClass(row.sourceMultiplier, row.targetMultiplier)"
-                  :style="multiplierDirectionStyle(row.sourceMultiplier, row.targetMultiplier)"
+                  :style="
+                    multiplierDirectionStyle(
+                      row.sourceMultiplier,
+                      row.targetMultiplier,
+                      analysisDirectionMaximumPercent,
+                    )
+                  "
                 />
               </div>
             </div>
@@ -1389,6 +1408,16 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
     return new Date(right.time).getTime() - new Date(left.time).getTime()
   })
 })
+const applyDirectionMaximumPercent = computed(() =>
+  maximumMultiplierRelativeChange(
+    applyDrafts.value.map((draft) => [draft.currentMultiplier, draft.targetMultiplier] as const),
+  ),
+)
+const analysisDirectionMaximumPercent = computed(() =>
+  maximumMultiplierRelativeChange(
+    multiplierChangeRows.value.map((row) => [row.sourceMultiplier, row.targetMultiplier] as const),
+  ),
+)
 const pagedMultiplierChangeRows = computed(() => {
   const start = (changePage.value - 1) * changePageSize.value
   return multiplierChangeRows.value.slice(start, start + changePageSize.value)
@@ -1830,8 +1859,7 @@ function multiplierChange(draft: ApplyMultiplierDraft) {
   return draft.targetMultiplier - draft.currentMultiplier
 }
 function multiplierChangePercent(draft: ApplyMultiplierDraft) {
-  if (!draft.currentMultiplier) return multiplierChange(draft) === 0 ? 0 : Number.POSITIVE_INFINITY
-  return (Math.abs(multiplierChange(draft)) / Math.abs(draft.currentMultiplier)) * 100
+  return multiplierRelativeChangePercent(draft.currentMultiplier, draft.targetMultiplier)
 }
 function formatMultiplierChange(draft: ApplyMultiplierDraft) {
   const value = multiplierChange(draft)
@@ -1850,14 +1878,29 @@ function multiplierDirectionClass(currentMultiplier: number, targetMultiplier: n
   if (targetMultiplier < currentMultiplier) return 'multiplier-direction-fill-decrease'
   return 'multiplier-direction-fill-neutral'
 }
-function multiplierDirectionStyle(currentMultiplier: number, targetMultiplier: number) {
+function multiplierRelativeChangePercent(currentMultiplier: number, targetMultiplier: number) {
+  if (!currentMultiplier)
+    return targetMultiplier === currentMultiplier ? 0 : Number.POSITIVE_INFINITY
+  return (Math.abs(targetMultiplier - currentMultiplier) / Math.abs(currentMultiplier)) * 100
+}
+function maximumMultiplierRelativeChange(values: ReadonlyArray<readonly [number, number]>) {
+  return values.reduce((maximum, [currentMultiplier, targetMultiplier]) => {
+    const relativeChange = multiplierRelativeChangePercent(currentMultiplier, targetMultiplier)
+    return Number.isFinite(relativeChange) ? Math.max(maximum, relativeChange) : maximum
+  }, 0)
+}
+function multiplierDirectionStyle(
+  currentMultiplier: number,
+  targetMultiplier: number,
+  maximumRelativeChange: number,
+) {
   const delta = targetMultiplier - currentMultiplier
-  const relativeChange = currentMultiplier
-    ? Math.abs(delta / currentMultiplier)
-    : delta === 0
-      ? 0
-      : 1
-  const halfWidth = Math.min(relativeChange, 1) * 50
+  const relativeChange = multiplierRelativeChangePercent(currentMultiplier, targetMultiplier)
+  const halfWidth = !Number.isFinite(relativeChange)
+    ? 50
+    : maximumRelativeChange > 0
+      ? Math.min(relativeChange / maximumRelativeChange, 1) * 50
+      : 0
   return {
     width: String(halfWidth) + '%',
     left: String(delta < 0 ? 50 - halfWidth : 50) + '%',
@@ -1876,6 +1919,135 @@ function multiplierDirectionLabel(currentMultiplier: number, targetMultiplier: n
     '->',
     formatNumber(targetMultiplier) + 'x',
   ].join(' ')
+}
+function exportMultiplierChangeChart() {
+  const rows = multiplierChangeRows.value.slice(0, 20)
+  if (!rows.length) {
+    ElMessage.warning(i18ns.t('relay.channelProbeExportChangeChartEmpty'))
+    return
+  }
+
+  const canvas = document.createElement('canvas')
+  const chartWidth = 1600
+  const rowHeight = 66
+  const chartHeight = 180 + rows.length * rowHeight
+  canvas.width = chartWidth
+  canvas.height = chartHeight
+  const context = canvas.getContext('2d')
+  if (!context) {
+    ElMessage.error(i18ns.t('operationFailed'))
+    return
+  }
+
+  const rootStyle = getComputedStyle(document.documentElement)
+  const color = (name: string, fallback: string) =>
+    rootStyle.getPropertyValue(name).trim() || fallback
+  const textPrimary = color('--el-text-color-primary', '#1f2937')
+  const textSecondary = color('--el-text-color-secondary', '#667085')
+  const line = color('--el-border-color-lighter', '#e4e7ed')
+  const decrease = color('--el-color-success', '#16a34a')
+  const decreaseMuted = color('--el-color-success-light-8', '#dcfce7')
+  const increase = color('--el-color-danger', '#dc2626')
+  const increaseMuted = color('--el-color-danger-light-8', '#fee2e2')
+  const neutral = color('--el-fill-color-light', '#f3f4f6')
+  const maximum = analysisDirectionMaximumPercent.value
+  const axisStart = 610
+  const axisWidth = 720
+  const axisCenter = axisStart + axisWidth / 2
+
+  context.fillStyle = color('--el-bg-color', '#ffffff')
+  context.fillRect(0, 0, chartWidth, chartHeight)
+  context.fillStyle = textPrimary
+  context.font = '700 34px Microsoft YaHei, sans-serif'
+  context.fillText(i18ns.t('relay.channelProbeExportChangeChartTitle'), 72, 68)
+  context.fillStyle = textSecondary
+  context.font = '20px Microsoft YaHei, sans-serif'
+  context.fillText(i18ns.t('relay.channelProbeExportChangeChartSubtitle'), 72, 106)
+  context.fillText(new Date().toLocaleString(), chartWidth - 300, 106)
+
+  context.font = '600 18px Microsoft YaHei, sans-serif'
+  context.fillStyle = decrease
+  context.fillText(i18ns.t('relay.channelProbePriceDecrease'), axisStart, 146)
+  context.fillStyle = textSecondary
+  context.textAlign = 'center'
+  context.fillText(i18ns.t('relay.channelProbeCurrentMultiplier'), axisCenter, 146)
+  context.fillStyle = increase
+  context.textAlign = 'right'
+  context.fillText(i18ns.t('relay.channelProbePriceIncrease'), axisStart + axisWidth, 146)
+  context.textAlign = 'left'
+
+  rows.forEach((row, index) => {
+    const top = 180 + index * rowHeight
+    const changePercent = multiplierRelativeChangePercent(
+      row.sourceMultiplier,
+      row.targetMultiplier,
+    )
+    const isDecrease = row.targetMultiplier < row.sourceMultiplier
+    const isIncrease = row.targetMultiplier > row.sourceMultiplier
+    const relativeWidth = !Number.isFinite(changePercent)
+      ? axisWidth / 2
+      : maximum > 0
+        ? Math.min(changePercent / maximum, 1) * (axisWidth / 2)
+        : 0
+    const fillStart = isDecrease ? axisCenter - relativeWidth : axisCenter
+    const label = isDecrease
+      ? i18ns.t('relay.channelProbePriceDecrease')
+      : isIncrease
+        ? i18ns.t('relay.channelProbePriceIncrease')
+        : i18ns.t('relay.channelProbeCurrentMultiplier')
+
+    context.strokeStyle = line
+    context.lineWidth = 1
+    context.beginPath()
+    context.moveTo(72, top + rowHeight - 8)
+    context.lineTo(chartWidth - 72, top + rowHeight - 8)
+    context.stroke()
+    context.fillStyle = textPrimary
+    context.font = '600 21px Microsoft YaHei, sans-serif'
+    context.fillText(row.channelName.slice(0, 32), 72, top + 24)
+    context.fillStyle = textSecondary
+    context.font = '18px Microsoft YaHei, sans-serif'
+    context.fillText(
+      formatNumber(row.sourceMultiplier) + 'x  ->  ' + formatNumber(row.targetMultiplier) + 'x',
+      72,
+      top + 50,
+    )
+
+    context.fillStyle = decreaseMuted
+    context.fillRect(axisStart, top + 25, axisWidth / 2, 12)
+    context.fillStyle = neutral
+    context.fillRect(axisCenter - 2, top + 25, 4, 12)
+    context.fillStyle = increaseMuted
+    context.fillRect(axisCenter, top + 25, axisWidth / 2, 12)
+    context.fillStyle = isDecrease ? decrease : isIncrease ? increase : textSecondary
+    context.fillRect(fillStart, top + 25, relativeWidth, 12)
+    context.fillStyle = textPrimary
+    context.fillRect(axisCenter - 2, top + 21, 4, 20)
+
+    context.fillStyle = isDecrease ? decrease : isIncrease ? increase : textSecondary
+    context.font = '600 19px Microsoft YaHei, sans-serif'
+    context.textAlign = 'right'
+    context.fillText(
+      label + ' ' + (Number.isFinite(changePercent) ? changePercent.toFixed(2) + '%' : '∞'),
+      chartWidth - 72,
+      top + 38,
+    )
+    context.textAlign = 'left'
+  })
+
+  canvas.toBlob((blob) => {
+    if (!blob) {
+      ElMessage.error(i18ns.t('operationFailed'))
+      return
+    }
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'service-price-adjustments-' + new Date().toISOString().slice(0, 10) + '.png'
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+    ElMessage.success(i18ns.t('relay.channelProbeExportChangeCharted'))
+  }, 'image/png')
 }
 function formatChangeValue(value: number) {
   return (value > 0 ? '+' : '') + formatNumber(value) + 'x'
@@ -2760,15 +2932,18 @@ onBeforeUnmount(stopPolling)
 .change-analysis-toolbar .el-input-number {
   width: 112px;
 }
+.change-analysis-toolbar .el-button {
+  margin-left: auto;
+}
 .multiplier-change-cell {
   display: grid;
-  min-width: 196px;
+  min-width: 244px;
   gap: 6px;
 }
 .multiplier-direction-bar {
   position: relative;
   display: grid;
-  min-width: 196px;
+  min-width: 244px;
   height: 26px;
   grid-template-columns: 1fr auto 1fr;
   align-items: start;

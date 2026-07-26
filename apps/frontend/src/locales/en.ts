@@ -2580,6 +2580,11 @@ export default {
     channelProbeChangeBefore: 'Before',
     channelProbeChangeAfter: 'After',
     channelProbeChangeTime: 'Change time',
+    channelProbeExportChangeChart: 'Export customer notice',
+    channelProbeExportChangeChartEmpty: 'There are no multiplier changes to export',
+    channelProbeExportChangeCharted: 'Multiplier change chart exported',
+    channelProbeExportChangeChartTitle: 'Service pricing update',
+    channelProbeExportChangeChartSubtitle: 'The following services will use updated pricing',
     channelProbeDescription:
       'Read upstream balances and run a minimal request to calculate a channel multiplier.',
     channelProbeQueueNotice:
