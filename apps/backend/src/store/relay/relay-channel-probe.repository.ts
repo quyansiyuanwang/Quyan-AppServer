@@ -47,6 +47,31 @@ export class RelayChannelProbeRepository {
     return prisma.relayChannelProbeProfile.upsert(data);
   }
 
+  /** Copies an already encrypted profile without ever decrypting its credentials for a caller. */
+  public copyProfile(source: RelayChannelProbeProfileRecord, targetChannelId: string) {
+    const data = {
+      enabled: source.enabled,
+      probeFormat: source.probeFormat,
+      probeModel: source.probeModel,
+      probePayload: source.probePayload as Prisma.InputJsonValue,
+      upstreamCurrency: source.upstreamCurrency,
+      localCurrency: source.localCurrency,
+      upstreamBalanceDivisor: source.upstreamBalanceDivisor,
+      upstreamRateMultiplier: source.upstreamRateMultiplier,
+      probeGroup: source.probeGroup,
+      distributionMultiplier: source.distributionMultiplier,
+      workflow: source.workflow as Prisma.InputJsonValue,
+      encryptedCredentials: source.encryptedCredentials,
+      credentialIv: source.credentialIv,
+      credentialAuthTag: source.credentialAuthTag,
+    };
+    return prisma.relayChannelProbeProfile.upsert({
+      where: { relayChannelId: targetChannelId },
+      create: { relayChannelId: targetChannelId, ...data },
+      update: data,
+    });
+  }
+
   public deleteProfile(channelId: string) {
     return prisma.relayChannelProbeProfile.delete({ where: { relayChannelId: channelId } });
   }

@@ -74,6 +74,14 @@
         v-if="canExecute"
         type="primary"
         plain
+        :disabled="!canBatchCopyProfile"
+        @click="openBatchProfileDialog"
+        >{{ i18ns.t('relay.channelProbeBatchConfigure') }}</el-button
+      >
+      <el-button
+        v-if="canExecute"
+        type="primary"
+        plain
         :disabled="runnableChannelIds.length === 0"
         :loading="batchRunning"
         @click="confirmBatchRun"
@@ -162,6 +170,66 @@
         ><el-empty :description="i18ns.t('relay.channelProbeNoStandalone')" :image-size="88"
       /></template>
     </el-table>
+
+    <el-dialog
+      v-model="batchProfileDialogOpen"
+      :title="i18ns.t('relay.channelProbeBatchConfigureTitle')"
+      width="min(720px, 94vw)"
+      append-to-body
+      destroy-on-close
+      @closed="resetBatchProfileDialog"
+    >
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        :title="i18ns.t('relay.channelProbeBatchConfigureHelp')"
+      />
+      <el-form label-position="top" class="mt-4">
+        <el-form-item :label="i18ns.t('relay.channelProbeBatchSource')">
+          <el-select v-model="batchProfileSourceChannelId" class="w-full">
+            <el-option
+              v-for="item in batchProfileSources"
+              :key="item.channelId"
+              :label="item.channelName"
+              :value="item.channelId"
+            >
+              <span>{{ item.channelName }}</span>
+              <span class="ml-2 text-xs text-[#909399]">{{
+                item.profile?.probeFormat + ' / ' + item.profile?.probeModel
+              }}</span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-checkbox v-model="batchProfileOverwriteExisting">{{
+            i18ns.t('relay.channelProbeBatchOverwrite')
+          }}</el-checkbox>
+        </el-form-item>
+      </el-form>
+      <el-table :data="batchProfileTargets" max-height="320" class="w-full">
+        <el-table-column prop="channelName" :label="i18ns.t('relay.channelName')" min-width="180" />
+        <el-table-column :label="i18ns.t('relay.channelProbeConfigured')" width="128">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.profile ? 'warning' : 'success'">{{
+              row.profile
+                ? i18ns.t('relay.channelProbeBatchWillOverwrite')
+                : i18ns.t('relay.channelProbeBatchWillCreate')
+            }}</el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="batchProfileDialogOpen = false">{{ i18ns.t('cancel') }}</el-button>
+        <el-button
+          type="primary"
+          :disabled="!batchProfileSourceChannelId || batchProfileTargets.length === 0"
+          :loading="batchProfileSaving"
+          @click="submitBatchProfileCopy"
+          >{{ i18ns.t('confirm') }}</el-button
+        >
+      </template>
+    </el-dialog>
 
     <el-drawer
       v-model="drawerOpen"
@@ -503,7 +571,7 @@
                 <div class="section-heading">
                   <strong>{{ i18ns.t('relay.channelProbeCredentials') }}</strong
                   ><span>{{ i18ns.t('relay.channelProbeCredentialsHelp') }}</span
-                  ><el-button v-if="canExecute" link type="primary" @click="addCredential">{{
+                  ><el-button v-if="canExecute" link type="primary" @click="addCredential()">{{
                     i18ns.t('relay.channelProbeAddCredential')
                   }}</el-button>
                 </div>
@@ -769,6 +837,9 @@
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeBaseCost')">{{
                 formatNumber(runItem.baseLocalCost)
               }}</el-descriptions-item
+              ><el-descriptions-item :label="i18ns.t('relay.channelProbeEstimatedCurrentCharge')">{{
+                formatNumber(estimatedCurrentCharge(runItem))
+              }}</el-descriptions-item
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeUpstreamRate')">{{
                 formatNumber(runItem.upstreamRateMultiplier)
               }}</el-descriptions-item
@@ -787,6 +858,15 @@
                   distribution: runItem.distributionMultiplier,
                   base: formatNumber(runItem.baseLocalCost),
                   suggested: runItem.suggestedMultiplier,
+                })
+              }}
+            </p>
+            <p v-if="estimatedCurrentCharge(runItem) != null" class="formula">
+              {{
+                i18ns.t('relay.channelProbeEstimatedCurrentChargeFormula', {
+                  base: formatNumber(runItem.baseLocalCost),
+                  multiplier: formatNumber(currentChannelMultiplier(runItem)),
+                  estimated: formatNumber(estimatedCurrentCharge(runItem)),
                 })
               }}
             </p>
@@ -1176,6 +1256,10 @@ const changeMinimumPercent = ref(0)
 const changePage = ref(1)
 const changePageSize = ref(50)
 const batchRunning = ref(false)
+const batchProfileDialogOpen = ref(false)
+const batchProfileSaving = ref(false)
+const batchProfileSourceChannelId = ref('')
+const batchProfileOverwriteExisting = ref(false)
 const runsLoading = ref(false)
 const runningId = ref('')
 const resettingChannelId = ref('')
@@ -1279,6 +1363,13 @@ const selectedProbeFormats = computed(() => selected.value?.allowedProbeFormats 
 const selectedProbeModels = computed(() => selected.value?.allowedProbeModels ?? [])
 const runnableChannelIds = computed(() =>
   selectedRows.value.flatMap((row) => (isRunnable(row) ? [row.channelId] : [])),
+)
+const batchProfileSources = computed(() => selectedRows.value.filter((row) => Boolean(row.profile)))
+const batchProfileTargets = computed(() =>
+  selectedRows.value.filter((row) => row.channelId !== batchProfileSourceChannelId.value),
+)
+const canBatchCopyProfile = computed(
+  () => selectedRows.value.length >= 2 && batchProfileSources.value.length > 0,
 )
 const form = ref<ProbeForm>(emptyForm())
 const payloadText = ref('{}')
@@ -1579,19 +1670,21 @@ function statusLabel(status: string) {
   )
 }
 function formatProbeError(message: string) {
-  const missingVariable = message.match(/PROBE_VARIABLE_MISSING:([A-Za-z][A-Za-z0-9_.]*)/)
+  const phases = [
+    ['读取请求前余额失败：', 'relay.channelProbePhaseBeforeBalanceFailed'],
+    ['最小模型请求失败：', 'relay.channelProbePhaseModelRequestFailed'],
+    ['读取请求后余额失败：', 'relay.channelProbePhaseAfterBalanceFailed'],
+  ] as const
+  const phase = phases.find(([prefix]) => message.startsWith(prefix))
+  const phaseReason = phase ? message.slice(phase[0].length).trimStart() : message
+  const missingVariable = phaseReason.match(/PROBE_VARIABLE_MISSING:([A-Za-z][A-Za-z0-9_.]*)/)
   const reason = missingVariable
     ? i18ns.t('relay.channelProbeErrorVariableMissing', { variable: missingVariable[1] })
-    : message.includes('PROBE_NETWORK_CONFIGURATION_INVALID') ||
-        /invalid ip address:\s*undefined/i.test(message)
+    : phaseReason.includes('PROBE_NETWORK_CONFIGURATION_INVALID') ||
+        /invalid ip address:\s*undefined/i.test(phaseReason)
       ? i18ns.t('relay.channelProbeErrorNetworkConfiguration')
-      : message
-  if (message.startsWith('读取请求前余额失败：'))
-    return i18ns.t('relay.channelProbePhaseBeforeBalanceFailed', { reason })
-  if (message.startsWith('最小模型请求失败：'))
-    return i18ns.t('relay.channelProbePhaseModelRequestFailed', { reason })
-  if (message.startsWith('读取请求后余额失败：'))
-    return i18ns.t('relay.channelProbePhaseAfterBalanceFailed', { reason })
+      : phaseReason
+  if (phase) return i18ns.t(phase[1], { reason })
   return reason
 }
 function statusType(status: string): 'info' | 'warning' | 'success' | 'danger' {
@@ -1639,7 +1732,7 @@ function isRunnable(row: RelayChannelProbeOverviewItemDto) {
 }
 function canSelectRow(row: RelayChannelProbeOverviewItemDto) {
   return Boolean(
-    (canExecute.value && isRunnable(row)) || (canAdjust.value && isApplicable(row.latestRun)),
+    (canExecute.value && row.enabled) || (canAdjust.value && isApplicable(row.latestRun)),
   )
 }
 function onSelectionChange(rows: RelayChannelProbeOverviewItemDto[]) {
@@ -1681,6 +1774,19 @@ function targetLocalCost(run: RelayChannelProbeRunDto) {
   const upstreamRate = Number(run.upstreamRateMultiplier ?? 1)
   const distribution = Number(run.distributionMultiplier ?? 1)
   const result = delta * upstreamRate * distribution
+  return Number.isFinite(result) ? result : undefined
+}
+function currentChannelMultiplier(run: RelayChannelProbeRunDto) {
+  const current = Number(selected.value?.multiplier)
+  if (Number.isFinite(current) && current >= 0) return current
+  const recorded = Number(run.sourceChannelMultiplier)
+  return Number.isFinite(recorded) && recorded >= 0 ? recorded : undefined
+}
+function estimatedCurrentCharge(run: RelayChannelProbeRunDto) {
+  const base = Number(run.baseLocalCost)
+  const multiplier = currentChannelMultiplier(run)
+  if (!Number.isFinite(base) || base < 0 || multiplier == null) return undefined
+  const result = base * multiplier
   return Number.isFinite(result) ? result : undefined
 }
 function multiplierChange(draft: ApplyMultiplierDraft) {
@@ -2098,6 +2204,42 @@ async function confirmBatchRun() {
     ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
   } finally {
     batchRunning.value = false
+  }
+}
+function openBatchProfileDialog() {
+  batchProfileSourceChannelId.value = batchProfileSources.value[0]?.channelId ?? ''
+  batchProfileOverwriteExisting.value = false
+  batchProfileDialogOpen.value = true
+}
+function resetBatchProfileDialog() {
+  batchProfileSourceChannelId.value = ''
+  batchProfileOverwriteExisting.value = false
+  batchProfileSaving.value = false
+}
+async function submitBatchProfileCopy() {
+  const sourceChannelId = batchProfileSourceChannelId.value
+  const targetChannelIds = batchProfileTargets.value.map((row) => row.channelId)
+  if (!sourceChannelId || !targetChannelIds.length || batchProfileSaving.value) return
+  batchProfileSaving.value = true
+  try {
+    const result = await relayChannelProbeService.copyProfile({
+      sourceChannelId,
+      targetChannelIds,
+      overwriteExisting: batchProfileOverwriteExisting.value,
+    })
+    for (const profile of result.copied)
+      updateChannelItem(profile.relayChannelId, (item) => ({ ...item, profile }))
+    if (result.copied.length)
+      ElMessage.success(
+        i18ns.t('relay.channelProbeBatchConfigured', { count: result.copied.length }),
+      )
+    if (result.rejected.length)
+      ElMessage.warning(result.rejected.map((item: { reason: string }) => item.reason).join('；'))
+    if (!result.rejected.length) batchProfileDialogOpen.value = false
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+  } finally {
+    batchProfileSaving.value = false
   }
 }
 async function confirmApply(runIds: string[]) {

@@ -40,6 +40,14 @@ class RelayChannelProbeService {
     return checkApiResult<any>(await api.createRuns({ body }), true).data
   }
 
+  async copyProfile(body: {
+    sourceChannelId: string
+    targetChannelIds: string[]
+    overwriteExisting: boolean
+  }) {
+    return checkApiResult<any>(await api.copyProfile({ body }), true).data
+  }
+
   async listRuns(channelId: string, page = 1, pageSize = 20) {
     return checkApiResult<any>(
       await api.listRuns({ path: { channelId }, params: { page, pageSize } }),
