@@ -5,6 +5,9 @@ export type RelayChannelProbeProfileRecord = Prisma.RelayChannelProbeProfileGetP
   include: { relayChannel: true };
 }>;
 export type RelayChannelProbeRunRecord = Prisma.RelayChannelProbeRunGetPayload<Record<string, never>>;
+export type RelayChannelProbeClaimCandidate = Prisma.RelayChannelProbeRunGetPayload<{
+  include: { profile: { select: { probeGroup: true } } };
+}>;
 export type RelayChannelProbeRunWithChannelRecord = Prisma.RelayChannelProbeRunGetPayload<{
   include: { relayChannel: true };
 }>;
@@ -139,10 +142,12 @@ export class RelayChannelProbeRepository {
     });
   }
 
-  public findClaimableRun(now: Date) {
-    return prisma.relayChannelProbeRun.findFirst({
+  public findClaimableRuns(now: Date, take: number): Promise<RelayChannelProbeClaimCandidate[]> {
+    return prisma.relayChannelProbeRun.findMany({
       where: { OR: [{ status: "queued" }, { status: "running", leaseExpiresAt: { lt: now } }] },
       orderBy: { queuedAt: "asc" },
+      take,
+      include: { profile: { select: { probeGroup: true } } },
     });
   }
 

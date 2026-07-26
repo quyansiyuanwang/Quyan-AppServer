@@ -4,6 +4,7 @@ import {
   buildProbeUpstreamEndpoint,
   calculateSuggestedProbeMultiplier,
   formatProbeUpstreamError,
+  getProbeSchedulingScope,
   getProbeWorkflowRequestBody,
   interpolateRequiredProbeVariables,
   interpolateProbeVariables,
@@ -33,6 +34,13 @@ describe("relay channel probe helpers", () => {
     expect(getProbeWorkflowRequestBody("HEAD", { ignored: true })).toBeUndefined();
     expect(getProbeWorkflowRequestBody("POST", {})).toBeUndefined();
     expect(getProbeWorkflowRequestBody("POST", { grant_type: "password" })).toEqual({ grant_type: "password" });
+  });
+
+  it("uses the group as the scheduling scope while leaving ungrouped channels independent", () => {
+    expect(getProbeSchedulingScope("channel-a", "provider-a")).toBe("group:provider-a");
+    expect(getProbeSchedulingScope("channel-b", "provider-a")).toBe("group:provider-a");
+    expect(getProbeSchedulingScope("channel-a", undefined)).toBe("channel:channel-a");
+    expect(getProbeSchedulingScope("channel-b", "")).toBe("channel:channel-b");
   });
 
   it("normalizes a malformed deployment proxy address without exposing its raw error", () => {

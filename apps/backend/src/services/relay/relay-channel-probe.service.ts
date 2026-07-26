@@ -47,6 +47,7 @@ const RUN_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const RUN_QUEUE_SLOT_TTL_MS = 2 * 60 * 60 * 1000;
 const RUN_QUEUE_SLOT_PREFIX = "relay:channel-probe-run:v1";
 const GROUP_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+const MAX_CONCURRENT_PROBE_RUNS = 4;
 // Upstream billing ledgers are commonly eventually consistent. Keep both
 // snapshots outside the actual model request by a small, deterministic window
 // while the channel write lock is held, so an in-app request cannot distort a
@@ -151,6 +152,12 @@ export function getProbeWorkflowRequestBody(method: string, body: unknown): unkn
   if (method.toUpperCase() === "GET" || method.toUpperCase() === "HEAD") return undefined;
   if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length === 0) return undefined;
   return body;
+}
+
+/** An ungrouped channel is its own scheduling scope; grouped channels serialize by group. */
+export function getProbeSchedulingScope(channelId: string, probeGroup: string | null | undefined): string {
+  const normalizedGroup = probeGroup?.trim();
+  return normalizedGroup ? `group:${normalizedGroup}` : `channel:${channelId}`;
 }
 
 type ProbeUsage = {
@@ -260,7 +267,9 @@ function toNumber(value: unknown): number | undefined {
 
 export class RelayChannelProbeService {
   private static instance: RelayChannelProbeService;
-  private running = false;
+  private scheduling = false;
+  private readonly activeRunIds = new Set<string>();
+  private readonly activeSchedulingScopes = new Set<string>();
   private lastCleanupAt = 0;
   private readonly channelLockService = RelayChannelProbeLockService.getInstance();
   private readonly repository = RelayChannelProbeRepository.getInstance();
@@ -543,25 +552,43 @@ export class RelayChannelProbeService {
   }
 
   start(): void {
-    setInterval(() => void this.processNext(), 5_000).unref();
+    setInterval(() => void this.schedulePendingRuns(), 5_000).unref();
     setInterval(() => void this.cleanupExpiredRuns(), 60 * 60 * 1000).unref();
-    void this.processNext();
+    void this.schedulePendingRuns();
     void this.cleanupExpiredRuns();
   }
 
-  private async processNext(): Promise<void> {
-    if (this.running) return;
-    this.running = true;
+  private async schedulePendingRuns(): Promise<void> {
+    if (this.scheduling) return;
+    this.scheduling = true;
     try {
-      const owner = randomUUID();
+      const availableSlots = MAX_CONCURRENT_PROBE_RUNS - this.activeRunIds.size;
+      if (availableSlots <= 0) return;
       const now = new Date();
-      const candidate = await this.repository.findClaimableRun(now);
-      if (!candidate) return;
-      const claimed = await this.repository.claimRun(candidate.id, owner, now, new Date(Date.now() + RUN_LEASE_MS));
-      if (!claimed.count) return;
-      await this.executeRun(candidate.id, owner);
+      // Inspect more than the immediate capacity so a queued job in an active
+      // group never prevents an independent group from starting.
+      const candidates = await this.repository.findClaimableRuns(now, availableSlots * 8);
+      for (const candidate of candidates) {
+        if (this.activeRunIds.size >= MAX_CONCURRENT_PROBE_RUNS) break;
+        const scope = getProbeSchedulingScope(candidate.relayChannelId, candidate.profile?.probeGroup);
+        if (this.activeRunIds.has(candidate.id) || this.activeSchedulingScopes.has(scope)) continue;
+
+        const owner = randomUUID();
+        const claimed = await this.repository.claimRun(candidate.id, owner, now, new Date(Date.now() + RUN_LEASE_MS));
+        if (!claimed.count) continue;
+
+        this.activeRunIds.add(candidate.id);
+        this.activeSchedulingScopes.add(scope);
+        void this.executeRun(candidate.id, owner)
+          .catch((error) => logger.error("Relay channel probe worker crashed", { runId: candidate.id, error: this.safeError(error) }))
+          .finally(() => {
+            this.activeRunIds.delete(candidate.id);
+            this.activeSchedulingScopes.delete(scope);
+            void this.schedulePendingRuns();
+          });
+      }
     } finally {
-      this.running = false;
+      this.scheduling = false;
     }
   }
 
