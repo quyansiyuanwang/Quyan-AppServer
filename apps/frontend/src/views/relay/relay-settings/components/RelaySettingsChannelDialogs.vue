@@ -432,12 +432,25 @@
             />
           </el-form-item>
           <el-form-item :label="i18ns.t('ServerConfigView.openaiUpstreamApiKey')">
-            <el-input
-              v-model="channelForm.openaiUpstreamApiKey"
-              type="password"
-              show-password
-              @update:model-value="channelForm.openaiUpstreamApiKeyTouched = true"
-            />
+            <div class="w-full flex flex-col gap-2">
+              <el-input
+                v-model="channelForm.openaiUpstreamApiKey"
+                type="password"
+                show-password
+                :placeholder="
+                  channelForm.hasOpenaiUpstreamApiKey
+                    ? i18ns.t('relay.apiKeyReplacePlaceholder')
+                    : i18ns.t('relay.apiKeyNewPlaceholder')
+                "
+                @update:model-value="channelForm.openaiUpstreamApiKeyTouched = true"
+              />
+              <el-alert
+                v-if="channelForm.hasOpenaiUpstreamApiKey"
+                type="info"
+                :closable="false"
+                :title="i18ns.t('relay.apiKeyReplaceHelp')"
+              />
+            </div>
           </el-form-item>
         </template>
 
@@ -455,12 +468,25 @@
             />
           </el-form-item>
           <el-form-item :label="i18ns.t('ServerConfigView.anthropicUpstreamApiKey')">
-            <el-input
-              v-model="channelForm.anthropicUpstreamApiKey"
-              type="password"
-              show-password
-              @update:model-value="channelForm.anthropicUpstreamApiKeyTouched = true"
-            />
+            <div class="w-full flex flex-col gap-2">
+              <el-input
+                v-model="channelForm.anthropicUpstreamApiKey"
+                type="password"
+                show-password
+                :placeholder="
+                  channelForm.hasAnthropicUpstreamApiKey
+                    ? i18ns.t('relay.apiKeyReplacePlaceholder')
+                    : i18ns.t('relay.apiKeyNewPlaceholder')
+                "
+                @update:model-value="channelForm.anthropicUpstreamApiKeyTouched = true"
+              />
+              <el-alert
+                v-if="channelForm.hasAnthropicUpstreamApiKey"
+                type="info"
+                :closable="false"
+                :title="i18ns.t('relay.apiKeyReplaceHelp')"
+              />
+            </div>
           </el-form-item>
         </template>
 
@@ -478,12 +504,25 @@
             />
           </el-form-item>
           <el-form-item :label="i18ns.t('ServerConfigView.geminiUpstreamApiKey')">
-            <el-input
-              v-model="channelForm.geminiUpstreamApiKey"
-              type="password"
-              show-password
-              @update:model-value="channelForm.geminiUpstreamApiKeyTouched = true"
-            />
+            <div class="w-full flex flex-col gap-2">
+              <el-input
+                v-model="channelForm.geminiUpstreamApiKey"
+                type="password"
+                show-password
+                :placeholder="
+                  channelForm.hasGeminiUpstreamApiKey
+                    ? i18ns.t('relay.apiKeyReplacePlaceholder')
+                    : i18ns.t('relay.apiKeyNewPlaceholder')
+                "
+                @update:model-value="channelForm.geminiUpstreamApiKeyTouched = true"
+              />
+              <el-alert
+                v-if="channelForm.hasGeminiUpstreamApiKey"
+                type="info"
+                :closable="false"
+                :title="i18ns.t('relay.apiKeyReplaceHelp')"
+              />
+            </div>
           </el-form-item>
         </template>
       </template>
@@ -510,13 +549,18 @@
         }}</span>
       </el-form-item>
       <el-form-item
-        v-if="isDesktop && !['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)"
+        v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)"
         :label="i18ns.t('relay.inputTokensIncludeCacheRead')"
       >
-        <el-switch v-model="channelForm.inputTokensIncludeCacheRead" />
-        <span class="ml-3 text-[#909399] text-xs">{{
-          i18ns.t('relay.inputTokensIncludeCacheReadHelp')
-        }}</span>
+        <div class="w-full flex flex-col gap-2">
+          <el-radio-group v-model="channelForm.inputTokensIncludeCacheRead">
+            <el-radio :value="true">{{ i18ns.t('relay.inputTokensContainsCacheRead') }}</el-radio>
+            <el-radio :value="false">{{ i18ns.t('relay.inputTokensExcludesCacheRead') }}</el-radio>
+          </el-radio-group>
+          <span class="text-[#909399] text-xs">{{
+            i18ns.t('relay.inputTokensIncludeCacheReadHelp')
+          }}</span>
+        </div>
       </el-form-item>
 
       <el-divider content-position="left">{{ i18ns.t('relay.modelMappingSection') }}</el-divider>

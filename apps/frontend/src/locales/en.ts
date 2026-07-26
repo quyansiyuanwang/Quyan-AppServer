@@ -2695,6 +2695,8 @@ export default {
       'No suggestion: the minimal model request returned no billable usage.',
     channelProbeSuggestionNoDelta:
       'No suggestion: the upstream balance did not decrease comparably.',
+    channelProbeSuggestionBalanceIncreased:
+      'No suggestion: the upstream balance increased during this probe. This usually means an unrelated top-up, refund, or delayed settlement changed the shared upstream balance; run it again after the balance stabilizes.',
     channelProbeSuggestionNoBaseCost: 'No suggestion: local pricing produced no valid base cost.',
     channelProbeSuggestionUnavailable:
       'No suggestion: this run does not meet the calibration conditions.',
@@ -2891,9 +2893,15 @@ export default {
     channelMultiplier: 'Channel Multiplier',
     channelMultiplierHelp: 'Price multiplier for this channel, stacked with global multiplier',
     channelSettings: 'Channel Settings',
-    inputTokensIncludeCacheRead: 'Input Tokens Include Cache Read',
+    inputTokensIncludeCacheRead: 'input_tokens and Cache Read Relationship',
+    inputTokensContainsCacheRead: 'input_tokens already includes cache_read_tokens',
+    inputTokensExcludesCacheRead: 'input_tokens excludes cache_read_tokens',
     inputTokensIncludeCacheReadHelp:
       'Some upstreams include cache_read_tokens in input_tokens. Enable to subtract cache read tokens to avoid double charging. Disable to use upstream input_tokens directly.',
+    apiKeyNewPlaceholder: 'Enter upstream API Key',
+    apiKeyReplacePlaceholder: 'Enter a new API Key to replace the current value',
+    apiKeyReplaceHelp:
+      'The current API Key is saved but never shown. Leave this field empty to keep it, or save a new value to replace it.',
     modelMapping: 'Model Mapping',
     modelMappingSection: 'Model Mapping Settings',
     modelMappingHelp:

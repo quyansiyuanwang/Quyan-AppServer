@@ -2598,6 +2598,8 @@ const zhCN: DeepStringify<typeof en> = {
       '建议未生成：换算后的上游币种为 {upstream}，本币为 {local}。余额除数只换算数值；将上游币种设为 {local} 后重新执行，才可校准倍率。',
     channelProbeSuggestionMissingUsage: '建议未生成：最小模型请求没有可计费用量。',
     channelProbeSuggestionNoDelta: '建议未生成：上游余额没有可比较的减少。',
+    channelProbeSuggestionBalanceIncreased:
+      '建议未生成：本次探针期间上游余额增加。这通常表示共享上游账户发生了充值、退款或延迟结算变动；请在余额稳定后重新执行。',
     channelProbeSuggestionNoBaseCost: '建议未生成：本地定价没有计算出有效基准成本。',
     channelProbeSuggestionUnavailable: '建议未生成：当前记录不满足倍率校准条件。',
     channelProbeDivisorCheck: '上游响应中的原始余额会先除以 {divisor}，再记录余额变化并计算倍率。',
@@ -2778,9 +2780,14 @@ const zhCN: DeepStringify<typeof en> = {
     channelMultiplier: '渠道倍率',
     channelMultiplierHelp: '该渠道的价格倍率，与全局倍率叠加',
     channelSettings: '渠道参数',
-    inputTokensIncludeCacheRead: '输入 Token 包含缓存读取',
+    inputTokensIncludeCacheRead: 'input_tokens 与缓存读取的关系',
+    inputTokensContainsCacheRead: 'input_tokens 已包含 cache_read_tokens',
+    inputTokensExcludesCacheRead: 'input_tokens 不包含 cache_read_tokens',
     inputTokensIncludeCacheReadHelp:
       '某些上游返回的 input_tokens 已包含 cache_read_tokens，开启后会自动扣减避免重复计费。关闭则直接使用上游返回的 input_tokens 计费。',
+    apiKeyNewPlaceholder: '输入上游 API Key',
+    apiKeyReplacePlaceholder: '输入新的 API Key 以覆盖当前值',
+    apiKeyReplaceHelp: '当前 API Key 已保存且不会回显；留空会保留当前值，输入新值并保存即可覆盖。',
     modelMapping: '模型映射',
     modelMappingSection: '模型映射设置',
     modelMappingHelp:
