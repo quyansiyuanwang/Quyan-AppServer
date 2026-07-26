@@ -82,6 +82,14 @@ jobs:
           bun-version: 1.3.13
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      # src/client is intentionally ignored by Git. Every frontend test needs
+      # the generated SDK, even when the changed UI code has no API impact.
+      - name: Generate frontend SDK test prerequisite
+        run: |
+          pnpm --filter @appserver/backend run build:info:stub
+          pnpm --filter @appserver/backend run openapi:generate
+          node scripts/sync-swagger-to-frontend.mjs
+          pnpm --filter @appserver/frontend run openapi:generate
       - name: Run the selected frontend suite
         env:
           CHANGED_FILES: ${{ needs.changes.outputs.files }}
@@ -92,10 +100,6 @@ jobs:
           if [ "${MANUAL_SUITE}" = "full" ] || [ "${FULL_CHANGED}" = "true" ]; then
             pnpm --filter @appserver/frontend run test
           elif [ "${MANUAL_SUITE}" = "api" ] || [ "${API_CHANGED}" = "true" ]; then
-            pnpm --filter @appserver/backend run build:info:stub
-            pnpm --filter @appserver/backend run openapi:generate
-            node scripts/sync-swagger-to-frontend.mjs
-            pnpm --filter @appserver/frontend run openapi:generate
             pnpm --filter @appserver/frontend run test
           else
             node scripts/run-related-vitest.mjs apps/frontend apps/frontend "$CHANGED_FILES"
