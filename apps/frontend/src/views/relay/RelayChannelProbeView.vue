@@ -1093,6 +1093,11 @@
           <el-option value="increase" :label="i18ns.t('relay.channelProbeSelectionIncrease')" />
           <el-option value="decrease" :label="i18ns.t('relay.channelProbeSelectionDecrease')" />
         </el-select>
+        <el-select v-model="changeTypeFilter">
+          <el-option value="all" :label="i18ns.t('relay.channelProbeChangeTypeAll')" />
+          <el-option value="suggested" :label="i18ns.t('relay.channelProbeChangeTypeSuggested')" />
+          <el-option value="applied" :label="i18ns.t('relay.channelProbeChangeTypeApplied')" />
+        </el-select>
         <span>{{ i18ns.t('relay.channelProbeSelectionTolerance') }}</span>
         <el-input-number
           v-model="changeMinimumPercent"
@@ -1333,6 +1338,7 @@ const selectionDirection = ref<'all' | 'increase' | 'decrease'>('all')
 const changeDialogOpen = ref(false)
 const changeSort = ref<'largest' | 'smallest' | 'recent'>('largest')
 const changeDirection = ref<'all' | 'increase' | 'decrease'>('all')
+const changeTypeFilter = ref<'all' | 'suggested' | 'applied'>('all')
 const changeMinimumPercent = ref(0)
 const changeDisplayDigits = ref(4)
 const changeDisplayRoundingMode = ref<'ceil' | 'nearest'>('nearest')
@@ -1411,7 +1417,12 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
       changeDirection.value === 'all' ||
       (changeDirection.value === 'increase' && change > 0) ||
       (changeDirection.value === 'decrease' && change < 0)
-    if (!matchesDirection || changePercent <= changeMinimumPercent.value) return []
+    const applied = Boolean(run.appliedAt)
+    const matchesType =
+      changeTypeFilter.value === 'all' ||
+      (changeTypeFilter.value === 'applied' && applied) ||
+      (changeTypeFilter.value === 'suggested' && !applied)
+    if (!matchesDirection || !matchesType || changePercent <= changeMinimumPercent.value) return []
     return [
       {
         channelId: item.channelId,
@@ -1421,7 +1432,7 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
         targetMultiplier,
         change,
         changePercent,
-        applied: Boolean(run.appliedAt),
+        applied,
         costFactors:
           formatNumber(run.upstreamRateMultiplier) +
           ' × ' +
@@ -2699,6 +2710,7 @@ watch(
   [
     changeSort,
     changeDirection,
+    changeTypeFilter,
     changeMinimumPercent,
     changeDisplayDigits,
     changeDisplayRoundingMode,
