@@ -24,6 +24,7 @@ import type {
   RelayChannelHealthTrackingMode,
   RelayPoolPricingMemberOptionDto,
   RelayPoolPricingOptionDto,
+  ContextLengthMultiplierRule,
   TimePeriodMultiplierRule,
   UpdateRelayChannelRequest,
   UpdateRelayChannelHealthConfigRequest,
@@ -88,6 +89,7 @@ interface ValidatedRelayChannelData {
   inputTokensIncludeCacheRead: boolean;
   modelMapping?: Record<string, string> | null;
   timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
 }
 
 const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
@@ -226,6 +228,9 @@ export class RelayChannelService {
           channelType:
             (channel.channelType as RelayChannelOptionDto["channelType"] | undefined) ?? DEFAULT_CHANNEL_TYPE,
           multiplier: Number(channel.multiplier),
+          contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
+            | ContextLengthMultiplierRule[]
+            | undefined,
           allowedFormats: isPoolType((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE)
             ? formatRelayRequestFormats([
                 ...new Set([...modelCapabilities.values()].flatMap((item) => item.supportedRequestFormats)),
@@ -296,6 +301,9 @@ export class RelayChannelService {
             multiplier,
             timePeriodMultiplier,
             effectiveMultiplier: multiplier * timePeriodMultiplier,
+            contextLengthMultipliers: memberChannel?.contextLengthMultipliers as
+              | ContextLengthMultiplierRule[]
+              | undefined,
             allowedFormats: memberChannel?.allowedFormats ?? "none",
             modelCapabilities,
           };
@@ -327,6 +335,9 @@ export class RelayChannelService {
         multiplier,
         timePeriodMultiplier,
         effectiveMultiplier: multiplier * timePeriodMultiplier,
+        contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
+          | ContextLengthMultiplierRule[]
+          | undefined,
         modelCapabilities: modelCapabilities.map((capability) => ({
           ...capability,
           supportedRequestFormats: [...capability.supportedRequestFormats],
@@ -1191,6 +1202,10 @@ export class RelayChannelService {
       data.timePeriodMultipliers !== undefined
         ? data.timePeriodMultipliers
         : (existing?.timePeriodMultipliers as TimePeriodMultiplierRule[] | undefined);
+    const contextLengthMultipliers =
+      data.contextLengthMultipliers !== undefined
+        ? data.contextLengthMultipliers
+        : (existing?.contextLengthMultipliers as ContextLengthMultiplierRule[] | undefined);
 
     if (allowedModels !== undefined && allowedModels !== null)
       try {
@@ -1264,6 +1279,9 @@ export class RelayChannelService {
       inputTokensIncludeCacheRead,
       modelMapping,
       timePeriodMultipliers,
+      contextLengthMultipliers: contextLengthMultipliers
+        ? [...contextLengthMultipliers].sort((left, right) => left.minTokens - right.minTokens)
+        : undefined,
     };
   }
 
@@ -1289,6 +1307,7 @@ export class RelayChannelService {
       inputTokensIncludeCacheRead: data.inputTokensIncludeCacheRead,
       modelMapping: data.modelMapping as Prisma.InputJsonValue | undefined,
       timePeriodMultipliers: data.timePeriodMultipliers as Prisma.InputJsonValue | undefined,
+      contextLengthMultipliers: data.contextLengthMultipliers as Prisma.InputJsonValue | undefined,
     };
   }
 
@@ -1329,6 +1348,9 @@ export class RelayChannelService {
       inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true,
       modelMapping: channel.modelMapping as Record<string, string> | undefined,
       timePeriodMultipliers: channel.timePeriodMultipliers as unknown as TimePeriodMultiplierRule[] | undefined,
+      contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
+        | ContextLengthMultiplierRule[]
+        | undefined,
       enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
     };
   }
@@ -1757,6 +1779,9 @@ export class RelayChannelService {
       inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true, // Default to false
       modelMapping: channel.modelMapping as Record<string, string> | undefined,
       timePeriodMultipliers: channel.timePeriodMultipliers as unknown as TimePeriodMultiplierRule[] | undefined,
+      contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
+        | ContextLengthMultiplierRule[]
+        | undefined,
       channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
       routingStrategy: (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
       routingConfig: channel.routingConfig as RelayChannelRoutingConfigDto | undefined,

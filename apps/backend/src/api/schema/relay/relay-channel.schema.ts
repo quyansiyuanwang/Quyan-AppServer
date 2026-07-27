@@ -32,6 +32,13 @@ const timePeriodRuleSchema = z.object({
   multiplier: z.number().min(0.01).max(100),
 });
 
+const contextLengthRuleSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  enabled: z.boolean(),
+  minTokens: z.coerce.number().int().min(0).max(10_000_000),
+  multiplier: z.coerce.number().min(0.01).max(100),
+});
+
 const relayChannelTypeSchema = z.enum(["standalone", "pooled", "automatic-proxy-pool"]);
 const routingStrategySchema = z.enum([
   "priority",
@@ -106,6 +113,15 @@ const relayChannelBaseSchema = z.object({
   inputTokensIncludeCacheRead: z.coerce.boolean().optional(),
   modelMapping: z.record(z.string(), z.string()).nullable().optional(),
   timePeriodMultipliers: z.array(timePeriodRuleSchema).nullable().optional(),
+  contextLengthMultipliers: z
+    .array(contextLengthRuleSchema)
+    .max(100)
+    .refine(
+      (rules) => new Set(rules.map((rule) => rule.minTokens)).size === rules.length,
+      "contextLengthMultipliers must have unique minTokens",
+    )
+    .nullable()
+    .optional(),
 });
 
 const relayChannelIdsSchema = z

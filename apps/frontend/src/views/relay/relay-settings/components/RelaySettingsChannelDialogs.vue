@@ -665,6 +665,66 @@
           </div>
         </el-form-item>
       </template>
+
+      <template v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">
+        <el-divider content-position="left">{{ i18ns.t('relay.contextRules') }}</el-divider>
+        <el-form-item label="">
+          <div class="flex flex-col gap-2 w-full">
+            <el-button
+              size="small"
+              @click="
+                channelForm.contextLengthMultipliers.push({
+                  name: '',
+                  enabled: true,
+                  minTokens: 0,
+                  multiplier: 1,
+                })
+              "
+              >{{ i18ns.t('relay.contextRuleAdd') }}</el-button
+            >
+            <el-table :data="channelForm.contextLengthMultipliers" size="small" max-height="260">
+              <el-table-column :label="i18ns.t('relay.contextRuleName')" min-width="140">
+                <template #default="{ row }"><el-input v-model="row.name" size="small" /></template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('relay.contextRuleMinTokens')" min-width="150">
+                <template #default="{ row }"
+                  ><el-input-number
+                    v-model="row.minTokens"
+                    :min="0"
+                    :step="1000"
+                    :precision="0"
+                    size="small"
+                /></template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('relay.contextRuleMultiplier')" min-width="120">
+                <template #default="{ row }"
+                  ><el-input-number
+                    v-model="row.multiplier"
+                    :min="0.01"
+                    :step="0.01"
+                    :precision="6"
+                    size="small"
+                /></template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('relay.timeRuleEnabled')" width="76">
+                <template #default="{ row }"
+                  ><el-switch v-model="row.enabled" size="small"
+                /></template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('actions')" width="72" fixed="right">
+                <template #default="{ $index }"
+                  ><el-button
+                    size="small"
+                    type="danger"
+                    @click="channelForm.contextLengthMultipliers.splice($index, 1)"
+                    >{{ i18ns.t('delete') }}</el-button
+                  ></template
+                >
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-form-item>
+      </template>
     </el-form>
     <template #footer>
       <div class="relay-channel-editor-drawer__footer">
@@ -1253,6 +1313,33 @@
           </div>
         </div>
         <el-empty v-else :description="i18ns.t('relay.timeRulesEmpty')" />
+      </div>
+      <div v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)">
+        <el-divider content-position="left">{{ i18ns.t('relay.contextRules') }}</el-divider>
+        <div
+          v-if="(currentChannelDetail.contextLengthMultipliers || []).length"
+          class="flex flex-col gap-2"
+        >
+          <div
+            v-for="(rule, index) in currentChannelDetail.contextLengthMultipliers || []"
+            :key="`${rule.name}-${index}`"
+            class="rounded border border-[var(--el-border-color-lighter)] p-3"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div class="font-medium break-all">{{ rule.name }}</div>
+              <el-tag :type="rule.multiplier >= 1 ? 'warning' : 'success'" size="small"
+                >{{ rule.multiplier }}x</el-tag
+              >
+            </div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+              {{ i18ns.t('relay.contextRuleMinTokens') }}: {{ rule.minTokens.toLocaleString() }}
+            </div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+              {{ rule.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled') }}
+            </div>
+          </div>
+        </div>
+        <el-empty v-else :description="i18ns.t('relay.contextRulesEmpty')" />
       </div>
     </div>
     <template #footer>

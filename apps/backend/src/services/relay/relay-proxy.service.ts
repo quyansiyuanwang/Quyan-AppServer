@@ -29,7 +29,11 @@ const httpAgent = new http.Agent({
 import { RelayUsageRepository } from "@/store/relay/relay-usage.repository";
 import { RelayProxyRepository } from "@/store/relay/relay-proxy.repository";
 import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
-import type { RelayChannelRoutingConfigDto, RelayChannelRoutingStrategy } from "@/api/dto/relay/relay-channel.dto";
+import type {
+  ContextLengthMultiplierRule,
+  RelayChannelRoutingConfigDto,
+  RelayChannelRoutingStrategy,
+} from "@/api/dto/relay/relay-channel.dto";
 import type { RelayTokenStore } from "@/store/relay/relay-token.store";
 import type { RelayUsageStore } from "@/store/relay/relay-usage.store";
 import type { RelayProxyStore } from "@/store/relay/relay-proxy.store";
@@ -50,6 +54,7 @@ import {
   type RelayResolvedChannelCandidate,
 } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime, type TimePeriodRule } from "./time-period-multiplier.service";
+import { resolveContextLengthMultiplier } from "./context-length-multiplier.service";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
 import { trackErrorForIp } from "@/middleware/error-tracker";
@@ -467,6 +472,18 @@ export class RelayProxyService {
   /** Returns true when the rate config uses a flat per-request fee rather than token-based billing. */
   private isPerRequestPricingConfig(rateConfig: any): boolean {
     return rateConfig != null && typeof rateConfig === "object" && rateConfig.pricingType === "per-request";
+  }
+
+  private resolveContextMultiplier(
+    rules: ContextLengthMultiplierRule[] | null | undefined,
+    requestTokens: number,
+    cacheCreationTokens: number,
+    cacheReadTokens: number,
+  ) {
+    return resolveContextLengthMultiplier(
+      rules,
+      Math.max(0, requestTokens) + Math.max(0, cacheCreationTokens) + Math.max(0, cacheReadTokens),
+    );
   }
 
   private isMultipartRequest(req: any): boolean {
@@ -2046,6 +2063,7 @@ export class RelayProxyService {
     channelId: string;
     monthlyPassCoverageAt: Date;
     inputTokensIncludeCacheRead: boolean;
+    contextLengthMultipliers?: ContextLengthMultiplierRule[];
     timeMultiplier?: number;
     originalModel?: string;
   }): Promise<void> {
@@ -2091,13 +2109,19 @@ export class RelayProxyService {
       { __relayForwardedResponseByteLength: responseBytes },
       inputTokensIncludeCacheRead,
     );
+    const contextMatch = this.resolveContextMultiplier(
+      params.contextLengthMultipliers,
+      tokenBreakdown.requestTokens,
+      tokenBreakdown.cacheCreationTokens,
+      tokenBreakdown.cacheReadTokens,
+    );
 
     const costResult = this.calculateCost(
       tokenBreakdown.requestTokens,
       tokenBreakdown.responseTokens,
       tokenBreakdown.totalTokens,
       selectedRateConfig,
-      globalMultiplier,
+      globalMultiplier * contextMatch.multiplier,
       tokenBreakdown.cacheCreationTokens,
       tokenBreakdown.cacheReadTokens,
       cacheCreationMult,
@@ -2136,6 +2160,9 @@ export class RelayProxyService {
       channelMultiplier,
       globalMultiplier: relayGlobalMultiplier,
       timeMultiplier,
+      contextTokens: contextMatch.contextTokens,
+      contextMultiplier: contextMatch.multiplier,
+      contextRuleName: contextMatch.ruleName,
       balanceChargeMode: "allow-negative",
       pricingType: selectedRateConfig?.pricingType as "token-based" | "per-request" | undefined,
       fixedPrice: selectedRateConfig?.fixedPrice,
@@ -2156,6 +2183,7 @@ export class RelayProxyService {
     selectedModelId: string,
     globalMultiplier: number,
     timeMultiplier: number,
+    contextLengthMultipliers: ContextLengthMultiplierRule[] | undefined,
     convertedBody: any,
     relayGlobalMultiplier: number,
     channelMultiplier: number,
@@ -2345,6 +2373,7 @@ export class RelayProxyService {
         channelId,
         monthlyPassCoverageAt,
         inputTokensIncludeCacheRead,
+        contextLengthMultipliers,
         timeMultiplier,
         originalModel: originalRequestedModel,
       });
@@ -2708,6 +2737,7 @@ export class RelayProxyService {
                   selectedModelId,
                   globalMultiplier,
                   timeMultiplier,
+                  channel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
                   convertedBody,
                   requestFormat,
                   relayGlobalMultiplier,
@@ -2799,6 +2829,7 @@ export class RelayProxyService {
                   selectedModelId,
                   globalMultiplier,
                   timeMultiplier,
+                  channel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
                   convertedBody,
                   relayGlobalMultiplier,
                   channelMultiplier,
@@ -3069,12 +3100,19 @@ export class RelayProxyService {
               rawUsage: response.data?.usage,
             });
 
+            const contextMatch = this.resolveContextMultiplier(
+              channel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
+              requestTokens,
+              cacheCreationTokens,
+              cacheReadTokens,
+            );
+
             const { cost, inputRate, outputRate } = this.calculateCost(
               requestTokens,
               responseTokens,
               totalTokens,
               rateConfig,
-              globalMultiplier,
+              globalMultiplier * contextMatch.multiplier,
               cacheCreationTokens,
               cacheReadTokens,
               cacheCreationMult,
@@ -3116,6 +3154,9 @@ export class RelayProxyService {
               channelMultiplier,
               globalMultiplier: relayGlobalMultiplier,
               timeMultiplier,
+              contextTokens: contextMatch.contextTokens,
+              contextMultiplier: contextMatch.multiplier,
+              contextRuleName: contextMatch.ruleName,
               balanceChargeMode: "allow-negative",
               pricingType: rateConfig?.pricingType as "token-based" | "per-request" | undefined,
               fixedPrice: rateConfig?.fixedPrice,
@@ -3505,6 +3546,7 @@ export class RelayProxyService {
     selectedModelId: string,
     globalMultiplier: number,
     timeMultiplier: number,
+    contextLengthMultipliers: ContextLengthMultiplierRule[] | undefined,
     convertedBody: any,
     requestFormat: "openai" | "anthropic" | "gemini",
     relayGlobalMultiplier: number = globalMultiplier,
@@ -3627,6 +3669,7 @@ export class RelayProxyService {
                     selectedModelId,
                     globalMultiplier,
                     timeMultiplier,
+                    contextLengthMultipliers,
                     retryBody,
                     requestFormat,
                     relayGlobalMultiplier,
@@ -3897,12 +3940,19 @@ export class RelayProxyService {
                 ? Number(rateConfig.cacheReadMultiplier)
                 : DEFAULT_CACHE_READ_MULTIPLIER;
 
+            const contextMatch = this.resolveContextMultiplier(
+              contextLengthMultipliers,
+              requestTokens,
+              cacheCreationTokens,
+              cacheReadTokens,
+            );
+
             const costResult = this.calculateCost(
               requestTokens,
               responseTokens,
               totalTokens,
               rateConfig,
-              globalMultiplier,
+              globalMultiplier * contextMatch.multiplier,
               cacheCreationTokens,
               cacheReadTokens,
               cacheCreationMult,
@@ -3932,6 +3982,9 @@ export class RelayProxyService {
                 channelId,
                 channelMultiplier,
                 relayGlobalMultiplier,
+                contextTokens: contextMatch.contextTokens,
+                contextMultiplier: contextMatch.multiplier,
+                contextRuleName: contextMatch.ruleName,
                 monthlyPassCoverageAt,
                 path: req.path.replace(/^\/relay\/proxy/, ""),
                 method: req.method,
@@ -4057,6 +4110,9 @@ export class RelayProxyService {
     const channelMultiplier = data.channelMultiplier ?? 1;
     const relayGlobalMultiplier = data.relayGlobalMultiplier ?? 1;
     const timeMultiplier = data.timeMultiplier;
+    const contextTokens = data.contextTokens;
+    const contextMultiplier = data.contextMultiplier;
+    const contextRuleName = data.contextRuleName;
 
     const finalizeResult = await this.usageChargeService.chargeUsage({
       userId: relayToken.userId,
@@ -4090,6 +4146,9 @@ export class RelayProxyService {
       channelMultiplier,
       globalMultiplier: relayGlobalMultiplier,
       timeMultiplier,
+      contextTokens,
+      contextMultiplier,
+      contextRuleName,
       balanceChargeMode: "allow-negative",
       pricingType: data.pricingType,
       fixedPrice: data.fixedPrice,

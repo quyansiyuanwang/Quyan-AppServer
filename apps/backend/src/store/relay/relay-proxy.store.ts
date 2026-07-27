@@ -33,6 +33,9 @@ export interface RelayZeroChargeUsageInput extends RelayUsageRecordInput {
   channelMultiplier: number;
   globalMultiplier: number;
   timeMultiplier?: number;
+  contextTokens?: number;
+  contextMultiplier?: number;
+  contextRuleName?: string;
   description?: string;
   pricingType?: "token-based" | "per-request";
   fixedPrice?: number;
@@ -56,6 +59,9 @@ export interface RelayFinalizeChargeInput extends RelayUsageRecordInput {
   channelMultiplier: number;
   globalMultiplier: number;
   timeMultiplier?: number;
+  contextTokens?: number;
+  contextMultiplier?: number;
+  contextRuleName?: string;
   balanceChargeMode?: RelayBalanceChargeMode;
   pricingType?: "token-based" | "per-request";
   fixedPrice?: number;
