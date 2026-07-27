@@ -384,7 +384,11 @@
             </el-menu-item>
           </PermissionWrapper>
           <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
-            <el-menu-item index="relayRequestDiagnostics" @click="nav('relayRequestDiagnostics', $event)" @contextmenu.prevent="openRouteMenu('relayRequestDiagnostics', $event)">
+            <el-menu-item
+              index="relayRequestDiagnostics"
+              @click="nav('relayRequestDiagnostics', $event)"
+              @contextmenu.prevent="openRouteMenu('relayRequestDiagnostics', $event)"
+            >
               <el-icon><Monitor /></el-icon>
               <template #title>{{ i18ns.t('nav.relayRequestDiagnostics') }}</template>
             </el-menu-item>

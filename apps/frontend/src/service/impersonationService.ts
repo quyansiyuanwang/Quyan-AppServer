@@ -74,7 +74,9 @@ export class ImpersonationService {
   }
 
   private restoreOriginalSession(): boolean {
-    const originalAccessToken = TypedLocalStorage.getItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN)
+    const originalAccessToken = TypedLocalStorage.getItem(
+      StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN,
+    )
     const originalRefreshToken = TypedLocalStorage.getItem(
       StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN,
     )

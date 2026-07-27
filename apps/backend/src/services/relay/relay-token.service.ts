@@ -932,11 +932,50 @@ export class RelayTokenService {
     };
   }
 
-  async getRequestDiagnostics(query: { page?: number; pageSize?: number; requestId?: string; keyword?: string; channelId?: string; outcome?: string; startDate?: string; endDate?: string }) {
+  async getRequestDiagnostics(query: {
+    page?: number;
+    pageSize?: number;
+    requestId?: string;
+    keyword?: string;
+    channelId?: string;
+    outcome?: string;
+    startDate?: string;
+    endDate?: string;
+  }) {
     const page = query.page || 1;
     const pageSize = query.pageSize || 20;
-    const result = await this.relayUsageRepo.findRequestDiagnostics({ ...query, page, pageSize, startDate: query.startDate ? new Date(query.startDate) : undefined, endDate: query.endDate ? new Date(query.endDate) : undefined });
-    return { total: result.total, page, pageSize, records: result.records.map((record: any) => ({ requestId: record.requestId, relayTokenId: record.relayToken.id, relayTokenName: record.relayToken.name || undefined, userId: record.relayToken.userId, username: record.relayToken.user?.username, createTime: record.createTime, attempts: record.relayUsages.map((usage: any) => ({ id: usage.id, executionChannelId: usage.executionChannelId || undefined, executionChannelName: usage.executionChannelName, statusCode: usage.statusCode, method: usage.method, path: usage.path, totalTokens: usage.totalTokens, timeToFirstByte: usage.timeToFirstByte || undefined, totalOutputTime: usage.totalOutputTime || undefined, createTime: usage.createTime })) })) };
+    const result = await this.relayUsageRepo.findRequestDiagnostics({
+      ...query,
+      page,
+      pageSize,
+      startDate: query.startDate ? new Date(query.startDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined,
+    });
+    return {
+      total: result.total,
+      page,
+      pageSize,
+      records: result.records.map((record: any) => ({
+        requestId: record.requestId,
+        relayTokenId: record.relayToken.id,
+        relayTokenName: record.relayToken.name || undefined,
+        userId: record.relayToken.userId,
+        username: record.relayToken.user?.username,
+        createTime: record.createTime,
+        attempts: record.relayUsages.map((usage: any) => ({
+          id: usage.id,
+          executionChannelId: usage.executionChannelId || undefined,
+          executionChannelName: usage.executionChannelName,
+          statusCode: usage.statusCode,
+          method: usage.method,
+          path: usage.path,
+          totalTokens: usage.totalTokens,
+          timeToFirstByte: usage.timeToFirstByte || undefined,
+          totalOutputTime: usage.totalOutputTime || undefined,
+          createTime: usage.createTime,
+        })),
+      })),
+    };
   }
 
   async getUsageSummaries(

@@ -377,7 +377,16 @@ export class RelayController extends Controller {
     @Query() startDate?: string,
     @Query() endDate?: string,
   ): Promise<RelayRequestDiagnosticsPageDto> {
-    return this.relayTokenService.getRequestDiagnostics({ page, pageSize, requestId, keyword, channelId, outcome, startDate, endDate });
+    return this.relayTokenService.getRequestDiagnostics({
+      page,
+      pageSize,
+      requestId,
+      keyword,
+      channelId,
+      outcome,
+      startDate,
+      endDate,
+    });
   }
 
   @Get("available-models")

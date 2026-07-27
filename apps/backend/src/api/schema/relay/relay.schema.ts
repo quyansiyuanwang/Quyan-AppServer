@@ -486,6 +486,14 @@ export const relayRequestDiagnosticsQuerySchema = z.object({
   keyword: z.string().trim().max(100).optional(),
   channelId: z.string().trim().max(50).optional(),
   outcome: z.enum(["success", "client-error", "server-error"]).optional(),
-  startDate: z.string().max(40).refine((value) => validDateString(value), "startDate must be a valid date string").optional(),
-  endDate: z.string().max(40).refine((value) => validDateString(value), "endDate must be a valid date string").optional(),
+  startDate: z
+    .string()
+    .max(40)
+    .refine((value) => validDateString(value), "startDate must be a valid date string")
+    .optional(),
+  endDate: z
+    .string()
+    .max(40)
+    .refine((value) => validDateString(value), "endDate must be a valid date string")
+    .optional(),
 });

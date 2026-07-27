@@ -337,7 +337,10 @@ export class AuthorizationService {
       createdAt: Date.now(),
     }
 
-    TypedSessionStorage.setItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE, JSON.stringify(payload))
+    TypedSessionStorage.setItem(
+      StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE,
+      JSON.stringify(payload),
+    )
   }
 
   getPendingTwoFactorChallenge(): PendingTwoFactorChallenge | null {

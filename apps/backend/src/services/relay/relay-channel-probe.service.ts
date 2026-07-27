@@ -742,20 +742,28 @@ export class RelayChannelProbeService {
       const profile = run.profile;
       const pricing = await this.resolveProbeModelPricing(profile);
       const executeProbe = () =>
-        this.channelLockService.withWrite(profile.relayChannelId, async () => {
-          const variables = this.decryptCredentials(profile);
-          const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
-          const beforeBalance = await this.runProbePhase("读取请求前余额", () => this.runWorkflow(workflow, variables));
-          await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
-          const upstreamResponse = await this.runProbePhase("最小模型请求", () =>
-            this.callUpstream(profile, variables, pricing.upstreamModelId),
-          );
-          const usage = this.extractUsage(upstreamResponse);
-          assertProbeUsage(usage);
-          await waitForProbeSettlement(PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS);
-          const afterBalance = await this.runProbePhase("读取请求后余额", () => this.runWorkflow(workflow, variables));
-          return { before: beforeBalance, after: afterBalance, usage };
-        }, PROBE_LOCK_ACQUIRE_TIMEOUT_MS);
+        this.channelLockService.withWrite(
+          profile.relayChannelId,
+          async () => {
+            const variables = this.decryptCredentials(profile);
+            const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
+            const beforeBalance = await this.runProbePhase("读取请求前余额", () =>
+              this.runWorkflow(workflow, variables),
+            );
+            await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
+            const upstreamResponse = await this.runProbePhase("最小模型请求", () =>
+              this.callUpstream(profile, variables, pricing.upstreamModelId),
+            );
+            const usage = this.extractUsage(upstreamResponse);
+            assertProbeUsage(usage);
+            await waitForProbeSettlement(PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS);
+            const afterBalance = await this.runProbePhase("读取请求后余额", () =>
+              this.runWorkflow(workflow, variables),
+            );
+            return { before: beforeBalance, after: afterBalance, usage };
+          },
+          PROBE_LOCK_ACQUIRE_TIMEOUT_MS,
+        );
       const { before, usage, after } = profile.probeGroup
         ? await this.channelLockService.withWrite(
             this.getProbeGroupLockId(profile.probeGroup),

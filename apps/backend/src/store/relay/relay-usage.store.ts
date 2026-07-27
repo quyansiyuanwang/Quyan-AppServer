@@ -76,5 +76,14 @@ export interface RelayUsageStore {
     limit?: number,
     offset?: number,
   ): Promise<RelayUsageDetailPage>;
-  findRequestDiagnostics(query: { page: number; pageSize: number; requestId?: string; keyword?: string; channelId?: string; outcome?: string; startDate?: Date; endDate?: Date }): Promise<{ total: number; records: Array<any> }>;
+  findRequestDiagnostics(query: {
+    page: number;
+    pageSize: number;
+    requestId?: string;
+    keyword?: string;
+    channelId?: string;
+    outcome?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{ total: number; records: Array<any> }>;
 }

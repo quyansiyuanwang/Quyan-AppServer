@@ -1934,7 +1934,13 @@ watch([roundingDigits, roundingMode], () => {
     roundDraftMultipliers()
 })
 watch(
-  [rememberApplySettings, roundingDigits, roundingMode, selectionTolerancePercent, selectionDirection],
+  [
+    rememberApplySettings,
+    roundingDigits,
+    roundingMode,
+    selectionTolerancePercent,
+    selectionDirection,
+  ],
   () => {
     if (!rememberApplySettings.value) {
       TypedLocalStorage.removeItem(APPLY_SETTINGS_STORAGE_KEY)
@@ -2754,10 +2760,26 @@ onMounted(() => {
     const saved = TypedLocalStorage.getItem(APPLY_SETTINGS_STORAGE_KEY)
     if (saved) {
       const settings = JSON.parse(saved) as Partial<RememberedApplySettings>
-      if (settings.roundingMode === 'ceil' || settings.roundingMode === 'nearest') roundingMode.value = settings.roundingMode
-      if (Number.isInteger(settings.roundingDigits) && settings.roundingDigits! >= 0 && settings.roundingDigits! <= 6) roundingDigits.value = settings.roundingDigits!
-      if (Number.isFinite(settings.selectionTolerancePercent) && settings.selectionTolerancePercent! >= 0 && settings.selectionTolerancePercent! <= 100) selectionTolerancePercent.value = settings.selectionTolerancePercent!
-      if (settings.selectionDirection === 'all' || settings.selectionDirection === 'increase' || settings.selectionDirection === 'decrease') selectionDirection.value = settings.selectionDirection
+      if (settings.roundingMode === 'ceil' || settings.roundingMode === 'nearest')
+        roundingMode.value = settings.roundingMode
+      if (
+        Number.isInteger(settings.roundingDigits) &&
+        settings.roundingDigits! >= 0 &&
+        settings.roundingDigits! <= 6
+      )
+        roundingDigits.value = settings.roundingDigits!
+      if (
+        Number.isFinite(settings.selectionTolerancePercent) &&
+        settings.selectionTolerancePercent! >= 0 &&
+        settings.selectionTolerancePercent! <= 100
+      )
+        selectionTolerancePercent.value = settings.selectionTolerancePercent!
+      if (
+        settings.selectionDirection === 'all' ||
+        settings.selectionDirection === 'increase' ||
+        settings.selectionDirection === 'decrease'
+      )
+        selectionDirection.value = settings.selectionDirection
       rememberApplySettings.value = true
     }
   } catch {
