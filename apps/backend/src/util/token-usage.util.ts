@@ -89,23 +89,26 @@ export const extractTokenUsageMetrics = (usage: unknown): TokenUsageMetrics => {
   const promptTokenDetails = isRecord(usageData.prompt_tokens_details) ? usageData.prompt_tokens_details : {};
   const inputTokenDetails = isRecord(usageData.input_tokens_details) ? usageData.input_tokens_details : {};
 
-  const hasPromptTokens = hasTokenValue(usageData.prompt_tokens);
+  const hasPromptTokens = hasTokenValue(usageData.prompt_tokens) || hasTokenValue(usageData.promptTokenCount);
   const hasInputTokens = hasTokenValue(usageData.input_tokens);
-  const hasCompletionTokens = hasTokenValue(usageData.completion_tokens);
+  const hasCompletionTokens =
+    hasTokenValue(usageData.completion_tokens) || hasTokenValue(usageData.candidatesTokenCount);
   const hasOutputTokens = hasTokenValue(usageData.output_tokens);
-  const hasTotalTokens = hasTokenValue(usageData.total_tokens);
+  const hasTotalTokens = hasTokenValue(usageData.total_tokens) || hasTokenValue(usageData.totalTokenCount);
 
   const rawInputTokens = hasPromptTokens
-    ? parseNumericTokenValue(usageData.prompt_tokens)
+    ? parseNumericTokenValue(usageData.prompt_tokens ?? usageData.promptTokenCount)
     : hasInputTokens
       ? parseNumericTokenValue(usageData.input_tokens)
       : 0;
   const rawOutputTokens = hasCompletionTokens
-    ? parseNumericTokenValue(usageData.completion_tokens)
+    ? parseNumericTokenValue(usageData.completion_tokens ?? usageData.candidatesTokenCount)
     : hasOutputTokens
       ? parseNumericTokenValue(usageData.output_tokens)
       : 0;
-  const rawTotalTokens = hasTotalTokens ? parseNumericTokenValue(usageData.total_tokens) : 0;
+  const rawTotalTokens = hasTotalTokens
+    ? parseNumericTokenValue(usageData.total_tokens ?? usageData.totalTokenCount)
+    : 0;
 
   const normalizedTokens = normalizeTokenBreakdown(rawInputTokens, rawOutputTokens, rawTotalTokens);
 
@@ -139,6 +142,7 @@ export const extractTokenUsageMetrics = (usage: unknown): TokenUsageMetrics => {
     inputTokenDetails.cached_tokens,
     usageData.cached_tokens,
     usageData.prompt_cache_hit_tokens,
+    usageData.cachedContentTokenCount,
   );
   const cacheReadTokens = maxNonNegativeTokenValues(
     cacheReadAliasTokens,

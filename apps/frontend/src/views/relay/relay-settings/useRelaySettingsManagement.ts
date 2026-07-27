@@ -128,6 +128,7 @@ const recommendedRoutingConfigForm = () => ({
   stickyByModel: false,
   stickyByFormat: false,
   rankingMode: 'price-first' as RelayAutomaticPoolRankingMode,
+  dynamicMemberRankingEnabled: true,
   healthTrackingMode: 'automatic' as RelayChannelHealthTrackingMode,
   manualAvailability: 1,
   manualLatencyMs: 0,
@@ -205,6 +206,10 @@ const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigFormDto | 
     config?.rankingMode === 'stability-first'
       ? 'stability-first'
       : defaultRoutingConfigForm().rankingMode,
+  dynamicMemberRankingEnabled:
+    typeof config?.dynamicMemberRankingEnabled === 'boolean'
+      ? config.dynamicMemberRankingEnabled
+      : defaultRoutingConfigForm().dynamicMemberRankingEnabled,
   healthTrackingMode:
     config?.healthTrackingMode === 'manual' || config?.healthTrackingMode === 'disabled'
       ? config.healthTrackingMode
@@ -1348,6 +1353,7 @@ export const useRelaySettingsManagement = () => {
     if (channelForm.value.channelType === 'automatic-proxy-pool') {
       payload.rankingMode =
         config.rankingMode === 'stability-first' ? 'stability-first' : 'price-first'
+      payload.dynamicMemberRankingEnabled = config.dynamicMemberRankingEnabled !== false
     }
     if (channelForm.value.channelType === 'standalone') {
       payload.healthTrackingMode =

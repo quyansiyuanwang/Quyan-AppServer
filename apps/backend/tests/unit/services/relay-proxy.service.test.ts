@@ -739,6 +739,28 @@ describe("RelayProxyService failover", () => {
     );
   });
 
+  it("keeps configured member priority when automatic pool dynamic ranking is disabled", async () => {
+    const firstMember = createChannel("member-first", "First", "first.example.com", { multiplier: 9 });
+    const secondMember = createChannel("member-second", "Second", "second.example.com", { multiplier: 1 });
+    const poolMembers = [
+      { memberChannelId: firstMember.id, priority: 0, weight: 1, enabled: true, memberChannel: firstMember },
+      { memberChannelId: secondMember.id, priority: 1, weight: 1, enabled: true, memberChannel: secondMember },
+    ];
+    const pool = createChannel("automatic-pool", "Automatic pool", "pool.example.com", {
+      channelType: "automatic-proxy-pool",
+      routingConfig: { dynamicMemberRankingEnabled: false, rankingMode: "price-first" },
+      poolMembers,
+    });
+    const { service } = createService();
+
+    const ordered = await (service as any).orderPooledMemberChannels(pool, poolMembers);
+
+    expect(ordered.map((member: { memberChannelId: string }) => member.memberChannelId)).toEqual([
+      "member-first",
+      "member-second",
+    ]);
+  });
+
   it("infers the same available models for automatic and directly configured pools", async () => {
     const directToken = createRelayTokenWithPooledChannel();
     const automaticToken = createRelayTokenWithPooledChannel();
