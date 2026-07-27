@@ -382,7 +382,9 @@
   </div>
 </template>
 
-<script lang="ts" setup>
+<script setup lang="ts">
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
+import StorageKey from '@/constant/storagekey'
 import {
   Expand,
   Fold,
@@ -488,7 +490,7 @@ const routeContextMenu = ref<{
   routeName: null,
 })
 
-const PINNED_ROUTE_STORAGE_KEY = 'appserver.sidebar.pinnedRoutes'
+const PINNED_ROUTE_STORAGE_KEY = StorageKey.Navigation.PINNED_ROUTES
 const PINNED_ROUTE_SELECTOR = '[data-route-name]'
 
 let desktopPinnedSortable: Sortable | null = null
@@ -738,6 +740,13 @@ const overviewSections = computed<OverviewSection[]>(() => {
           label: i18ns.t('nav.relayChannelHealth'),
           icon: Monitor,
           route: 'relayChannelHealth',
+          visible: can(Permission.RELAY_CHANNEL_READ),
+        },
+        {
+          key: 'relayRequestDiagnostics',
+          label: i18ns.t('nav.relayRequestDiagnostics'),
+          icon: Monitor,
+          route: 'relayRequestDiagnostics',
           visible: can(Permission.RELAY_CHANNEL_READ),
         },
         {
@@ -1270,7 +1279,7 @@ const syncPinnedRoutes = () => {
 
 const loadPinnedRoutes = () => {
   try {
-    const rawValue = window.localStorage.getItem(PINNED_ROUTE_STORAGE_KEY)
+    const rawValue = TypedLocalStorage.getItem(PINNED_ROUTE_STORAGE_KEY)
     if (!rawValue) {
       return
     }
@@ -1364,7 +1373,7 @@ watch(
       return
     }
 
-    window.localStorage.setItem(PINNED_ROUTE_STORAGE_KEY, JSON.stringify(value))
+    TypedLocalStorage.setItem(PINNED_ROUTE_STORAGE_KEY, JSON.stringify(value))
   },
   { deep: true },
 )

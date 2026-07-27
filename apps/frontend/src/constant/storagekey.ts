@@ -14,6 +14,7 @@ const StorageKey = {
     PENDING_POLICY_CONSENT_CHALLENGE: 'Authentication-PendingPolicyConsentChallenge',
     LEGAL_POLICY_CONSENT: 'Authentication-LegalPolicyConsent',
     REPLAY_SIGNING_SESSION: 'Authentication-ReplaySigningSession',
+    ONE_TIME_TOKEN: 'oneTimeToken',
   },
   // Util
   Util: {
@@ -47,6 +48,22 @@ const StorageKey = {
   // Relay
   Relay: {
     BALANCE_SCRIPT_SETTINGS: 'Relay-BalanceScriptSettings',
+    CHANNEL_PROBE_APPLY_SETTINGS: 'relay-channel-probe:apply-multiplier-settings:v1',
+  },
+  Tracking: {
+    SESSION_ID: 'track_session_id',
+  },
+  Navigation: {
+    PINNED_ROUTES: 'appserver.sidebar.pinnedRoutes',
+  },
+  Easter: {
+    FEATURE_SWITCH: 'AprilFools-feature-switch',
+    PREVIEW_MODE: 'AprilFools-preview-mode',
+    MASTER_DISABLED: 'AprilFools-master-disabled-2026',
+    USER_DISMISS_BY_DAY: 'AprilFools-user-dismiss-day',
+    TRIGGERED_BY_DAY: 'AprilFools-triggered-by-day',
+    RUN_MODE: 'AprilFools-run-mode',
+    PASSIVE_CONFIG_PREFIX: 'AprilFools-passive-config',
   },
   // Impersonation
   Impersonation: {
@@ -58,5 +75,8 @@ const StorageKey = {
     SESSION_INFO: 'Impersonation-SessionInfo',
   },
 } as const
+
+export const getAprilFoolsPassiveConfigStorageKey = (mode: string): string =>
+  `${StorageKey.Easter.PASSIVE_CONFIG_PREFIX}-${mode}`
 
 export default StorageKey

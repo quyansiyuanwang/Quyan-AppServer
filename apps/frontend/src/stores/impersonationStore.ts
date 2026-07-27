@@ -1,3 +1,4 @@
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import StorageKey from '@/constant/storagekey'
@@ -18,7 +19,7 @@ export const useImpersonationStore = defineStore('impersonation', () => {
 
   const hydrate = () => {
     try {
-      const raw = localStorage.getItem(StorageKey.Impersonation.SESSION_INFO)
+      const raw = TypedLocalStorage.getItem(StorageKey.Impersonation.SESSION_INFO)
       if (raw) {
         sessionInfo.value = JSON.parse(raw) as ImpersonationSessionInfo
       }
@@ -29,12 +30,12 @@ export const useImpersonationStore = defineStore('impersonation', () => {
 
   const setSession = (info: ImpersonationSessionInfo) => {
     sessionInfo.value = info
-    localStorage.setItem(StorageKey.Impersonation.SESSION_INFO, JSON.stringify(info))
+    TypedLocalStorage.setItem(StorageKey.Impersonation.SESSION_INFO, JSON.stringify(info))
   }
 
   const clearSession = () => {
     sessionInfo.value = null
-    localStorage.removeItem(StorageKey.Impersonation.SESSION_INFO)
+    TypedLocalStorage.removeItem(StorageKey.Impersonation.SESSION_INFO)
   }
 
   return {

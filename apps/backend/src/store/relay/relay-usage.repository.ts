@@ -46,7 +46,7 @@ export class RelayUsageRepository implements RelayUsageStore {
     if (ids.length === 0) return [];
 
     const uniqueIds = [...new Set(ids)];
-    const usages: Array<Omit<RelayUsageWithTokenName, "monthlyPassUsages">> = [];
+    const usages: Array<Omit<RelayUsageWithTokenName, "monthlyPassUsages" | "hasHiddenExecutionChannel">> = [];
     const monthlyPassUsagesByRelayUsageId = new Map<string, Array<{ channelName: string | null }>>();
 
     for (let index = 0; index < uniqueIds.length; index += RelayUsageRepository.BILLING_QUERY_CHUNK_SIZE) {
@@ -56,8 +56,13 @@ export class RelayUsageRepository implements RelayUsageStore {
           where: { id: { in: idChunk } },
           include: {
             relayToken: {
-              select: { name: true },
+              select: {
+                name: true,
+                routingMode: true,
+                automaticProxyPoolChannel: { select: { name: true } },
+              },
             },
+            logicalRequest: { select: { requestId: true } },
           },
         }),
         prisma.monthlyPassUsage.findMany({
@@ -75,8 +80,26 @@ export class RelayUsageRepository implements RelayUsageStore {
       }
     }
 
+    const referencedChannelIds = [
+      ...new Set(
+        usages.flatMap((usage) =>
+          [usage.executionChannelId, usage.displayChannelId].filter((id): id is string => Boolean(id)),
+        ),
+      ),
+    ];
+    const hiddenChannelIds = new Set(
+      (
+        await prisma.relayChannel.findMany({
+          where: { id: { in: referencedChannelIds }, visibilityMode: "hidden" },
+          select: { id: true },
+        })
+      ).map((channel) => channel.id),
+    );
+
     return usages.map((usage) => ({
       ...usage,
+      hasHiddenExecutionChannel:
+        hiddenChannelIds.has(usage.executionChannelId || "") || hiddenChannelIds.has(usage.displayChannelId || ""),
       monthlyPassUsages: monthlyPassUsagesByRelayUsageId.get(usage.id) || [],
     }));
   }
@@ -200,6 +223,69 @@ export class RelayUsageRepository implements RelayUsageStore {
     return {
       total,
       usages: usageRows,
+    };
+  }
+
+  async findRequestDiagnostics(query: {
+    page: number;
+    pageSize: number;
+    requestId?: string;
+    keyword?: string;
+    channelId?: string;
+    outcome?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }) {
+    const where: any = { ...(query.requestId ? { requestId: { contains: query.requestId } } : {}) };
+    if (query.startDate || query.endDate)
+      where.createTime = {
+        ...(query.startDate ? { gte: query.startDate } : {}),
+        ...(query.endDate ? { lte: query.endDate } : {}),
+      };
+    if (query.keyword)
+      where.relayToken = {
+        OR: [{ name: { contains: query.keyword } }, { user: { username: { contains: query.keyword } } }],
+      };
+    const attemptWhere: any = { ...(query.channelId ? { executionChannelId: query.channelId } : {}) };
+    if (query.outcome === "success") attemptWhere.statusCode = { gte: 200, lt: 400 };
+    if (query.outcome === "client-error") attemptWhere.statusCode = { gte: 400, lt: 500 };
+    if (query.outcome === "server-error") attemptWhere.statusCode = { gte: 500 };
+    if (Object.keys(attemptWhere).length) where.relayUsages = { some: attemptWhere };
+    const [total, records] = await prisma.$transaction([
+      prisma.relayLogicalRequest.count({ where }),
+      prisma.relayLogicalRequest.findMany({
+        where,
+        orderBy: { createTime: "desc" },
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+        include: {
+          relayToken: { select: { id: true, name: true, userId: true, user: { select: { username: true } } } },
+          relayUsages: { orderBy: { createTime: "asc" } },
+        },
+      }),
+    ]);
+    const channelIds = [
+      ...new Set(
+        records.flatMap((record) => record.relayUsages.map((usage) => usage.executionChannelId).filter(Boolean)),
+      ),
+    ];
+    const channelNames = new Map(
+      (
+        await prisma.relayChannel.findMany({
+          where: { id: { in: channelIds as string[] } },
+          select: { id: true, name: true },
+        })
+      ).map((channel) => [channel.id, channel.name]),
+    );
+    return {
+      total,
+      records: records.map((record) => ({
+        ...record,
+        relayUsages: record.relayUsages.map((usage) => ({
+          ...usage,
+          executionChannelName: usage.executionChannelId ? channelNames.get(usage.executionChannelId) : undefined,
+        })),
+      })),
     };
   }
 

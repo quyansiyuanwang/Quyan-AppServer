@@ -45,9 +45,12 @@ import type {
 import type { RelayChannelDto, RelayChannelMemberDto, RelayChannelType } from "@/api/dto/relay/relay-channel.dto";
 import type { ModelPricingItemDto } from "@/api/dto/relay/relay-config.dto";
 
-const PROBE_TIMEOUT_MS = 30_000;
+// Upstream authentication, balance ledgers, and low-priority probe requests
+// can legitimately be slow. This is a per-request timeout, not a retry delay.
+const PROBE_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_RESPONSE_BYTES = 256 * 1024;
-const RUN_LEASE_MS = 90_000;
+const PROBE_LOCK_ACQUIRE_TIMEOUT_MS = 5 * 60 * 1000;
+const RUN_LEASE_MS = 6 * 60 * 1000;
 const SUGGESTION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const RUN_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const RUN_QUEUE_SLOT_TTL_MS = 2 * 60 * 60 * 1000;
@@ -739,20 +742,28 @@ export class RelayChannelProbeService {
       const profile = run.profile;
       const pricing = await this.resolveProbeModelPricing(profile);
       const executeProbe = () =>
-        this.channelLockService.withWrite(profile.relayChannelId, async () => {
-          const variables = this.decryptCredentials(profile);
-          const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
-          const beforeBalance = await this.runProbePhase("读取请求前余额", () => this.runWorkflow(workflow, variables));
-          await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
-          const upstreamResponse = await this.runProbePhase("最小模型请求", () =>
-            this.callUpstream(profile, variables, pricing.upstreamModelId),
-          );
-          const usage = this.extractUsage(upstreamResponse);
-          assertProbeUsage(usage);
-          await waitForProbeSettlement(PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS);
-          const afterBalance = await this.runProbePhase("读取请求后余额", () => this.runWorkflow(workflow, variables));
-          return { before: beforeBalance, after: afterBalance, usage };
-        });
+        this.channelLockService.withWrite(
+          profile.relayChannelId,
+          async () => {
+            const variables = this.decryptCredentials(profile);
+            const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
+            const beforeBalance = await this.runProbePhase("读取请求前余额", () =>
+              this.runWorkflow(workflow, variables),
+            );
+            await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
+            const upstreamResponse = await this.runProbePhase("最小模型请求", () =>
+              this.callUpstream(profile, variables, pricing.upstreamModelId),
+            );
+            const usage = this.extractUsage(upstreamResponse);
+            assertProbeUsage(usage);
+            await waitForProbeSettlement(PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS);
+            const afterBalance = await this.runProbePhase("读取请求后余额", () =>
+              this.runWorkflow(workflow, variables),
+            );
+            return { before: beforeBalance, after: afterBalance, usage };
+          },
+          PROBE_LOCK_ACQUIRE_TIMEOUT_MS,
+        );
       const { before, usage, after } = profile.probeGroup
         ? await this.channelLockService.withWrite(
             this.getProbeGroupLockId(profile.probeGroup),

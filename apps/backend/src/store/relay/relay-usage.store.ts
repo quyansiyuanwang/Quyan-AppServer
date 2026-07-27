@@ -3,7 +3,15 @@ import type { RelayUsage } from "@prisma/client";
 export type RelayUsageWithTokenName = RelayUsage & {
   relayToken: {
     name: string | null;
+    routingMode: string;
+    automaticProxyPoolChannel: {
+      name: string;
+    } | null;
   } | null;
+  logicalRequest: {
+    requestId: string;
+  } | null;
+  hasHiddenExecutionChannel: boolean;
   monthlyPassUsages: Array<{
     channelName: string | null;
   }>;
@@ -68,4 +76,14 @@ export interface RelayUsageStore {
     limit?: number,
     offset?: number,
   ): Promise<RelayUsageDetailPage>;
+  findRequestDiagnostics(query: {
+    page: number;
+    pageSize: number;
+    requestId?: string;
+    keyword?: string;
+    channelId?: string;
+    outcome?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{ total: number; records: Array<any> }>;
 }

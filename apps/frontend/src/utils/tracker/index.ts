@@ -1,3 +1,5 @@
+import { TypedSessionStorage } from '@/utils/typedSessionStorage'
+import StorageKey from '@/constant/storagekey'
 import { HttpClient } from '../http-client'
 
 interface TrackDeviceInfo {
@@ -53,11 +55,10 @@ class Tracker {
   }
 
   private getOrCreateSession(): string {
-    const key = 'track_session_id'
-    let id = sessionStorage.getItem(key)
+    let id = TypedSessionStorage.getItem(StorageKey.Tracking.SESSION_ID)
     if (!id) {
       id = Math.random().toString(36).slice(2) + Date.now().toString(36)
-      sessionStorage.setItem(key, id)
+      TypedSessionStorage.setItem(StorageKey.Tracking.SESSION_ID, id)
     }
     return id
   }

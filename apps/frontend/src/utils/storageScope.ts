@@ -1,3 +1,4 @@
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import StorageKey from '@/constant/storagekey'
 
 const DEFAULT_STORAGE_SCOPE = 'guest'
@@ -43,13 +44,13 @@ const parseTokenPayload = <T = Record<string, unknown>>(token: string): TokenPay
 }
 
 export const getCurrentStorageScope = (): string => {
-  const currentScope = localStorage.getItem(StorageKey.Scope.CURRENT)
+  const currentScope = TypedLocalStorage.getItem(StorageKey.Scope.CURRENT)
   return currentScope?.trim() || DEFAULT_STORAGE_SCOPE
 }
 
 export const setCurrentStorageScope = (scope?: string | null): string => {
   const normalized = scope?.trim() || DEFAULT_STORAGE_SCOPE
-  localStorage.setItem(StorageKey.Scope.CURRENT, normalized)
+  TypedLocalStorage.setItem(StorageKey.Scope.CURRENT, normalized)
   return normalized
 }
 

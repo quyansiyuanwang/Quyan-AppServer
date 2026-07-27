@@ -170,6 +170,8 @@
 </template>
 
 <script setup lang="ts">
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
+import StorageKey, { getAprilFoolsPassiveConfigStorageKey } from '@/constant/storagekey'
 import '@/assets/april-fools.css'
 
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -252,13 +254,12 @@ type TrailPoint = {
 }
 
 const LS = {
-  featureSwitch: 'AprilFools-feature-switch',
-  previewMode: 'AprilFools-preview-mode',
-  masterDisabled: 'AprilFools-master-disabled-2026',
-  userDismissByDay: 'AprilFools-user-dismiss-day',
-  triggeredByDay: 'AprilFools-triggered-by-day',
-  runMode: 'AprilFools-run-mode',
-  passiveConfigPrefix: 'AprilFools-passive-config',
+  featureSwitch: StorageKey.Easter.FEATURE_SWITCH,
+  previewMode: StorageKey.Easter.PREVIEW_MODE,
+  masterDisabled: StorageKey.Easter.MASTER_DISABLED,
+  userDismissByDay: StorageKey.Easter.USER_DISMISS_BY_DAY,
+  triggeredByDay: StorageKey.Easter.TRIGGERED_BY_DAY,
+  runMode: StorageKey.Easter.RUN_MODE,
 } as const
 
 const route = useRoute()
@@ -413,15 +414,15 @@ const defaultPassiveEggs: PassiveEggConfig[] = [
 ]
 
 const loadRunMode = (): AprilRunMode => {
-  const saved = localStorage.getItem(LS.runMode)
+  const saved = TypedLocalStorage.getItem(LS.runMode)
   if (saved === 'light' || saved === 'medium' || saved === 'intense') return saved
   return 'medium'
 }
 
-const passiveConfigKey = (mode: AprilRunMode) => `${LS.passiveConfigPrefix}-${mode}`
+const passiveConfigKey = (mode: AprilRunMode) => getAprilFoolsPassiveConfigStorageKey(mode)
 
 const loadPassiveConfig = (mode: AprilRunMode): PassiveEggConfig[] => {
-  const raw = localStorage.getItem(passiveConfigKey(mode))
+  const raw = TypedLocalStorage.getItem(passiveConfigKey(mode))
   if (!raw) return defaultPassiveEggs.map((item) => ({ ...item }))
 
   try {
@@ -443,8 +444,8 @@ const isAprDay = computed(() => {
   return now.getMonth() === 3 && now.getDate() === 1
 })
 
-const featureSwitch = ref(localStorage.getItem(LS.featureSwitch) !== '0')
-const previewMode = ref(localStorage.getItem(LS.previewMode) === '1')
+const featureSwitch = ref(TypedLocalStorage.getItem(LS.featureSwitch) !== '0')
+const previewMode = ref(TypedLocalStorage.getItem(LS.previewMode) === '1')
 const runMode = ref<AprilRunMode>(loadRunMode())
 const passiveEggs = ref<PassiveEggConfig[]>(loadPassiveConfig(runMode.value))
 const isPreviewMode = computed(() => import.meta.env.DEV && isDebugRoute.value && previewMode.value)
@@ -468,8 +469,8 @@ const todayKey = () => {
   return `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
 }
 
-const masterDisabled = ref(localStorage.getItem(LS.masterDisabled) === '1')
-const userDismissedToday = ref(localStorage.getItem(LS.userDismissByDay) === todayKey())
+const masterDisabled = ref(TypedLocalStorage.getItem(LS.masterDisabled) === '1')
+const userDismissedToday = ref(TypedLocalStorage.getItem(LS.userDismissByDay) === todayKey())
 
 const eggTitleMap = computed(() => {
   const map = {} as Record<number, string>
@@ -521,11 +522,11 @@ const isShellVisible = computed(() => {
 
 const toggleFeatureSwitch = () => {
   featureSwitch.value = !featureSwitch.value
-  localStorage.setItem(LS.featureSwitch, featureSwitch.value ? '1' : '0')
+  TypedLocalStorage.setItem(LS.featureSwitch, featureSwitch.value ? '1' : '0')
 }
 
 const persistRunMode = () => {
-  localStorage.setItem(LS.runMode, runMode.value)
+  TypedLocalStorage.setItem(LS.runMode, runMode.value)
 }
 
 const onRunModeChange = () => {
@@ -534,7 +535,7 @@ const onRunModeChange = () => {
 }
 
 const persistPassiveConfig = () => {
-  localStorage.setItem(passiveConfigKey(runMode.value), JSON.stringify(passiveEggs.value))
+  TypedLocalStorage.setItem(passiveConfigKey(runMode.value), JSON.stringify(passiveEggs.value))
 }
 
 const resetPassiveProbabilities = () => {
@@ -545,12 +546,12 @@ const resetPassiveProbabilities = () => {
 const toggleMasterDisabled = () => {
   masterDisabled.value = !masterDisabled.value
   if (masterDisabled.value) {
-    localStorage.setItem(LS.masterDisabled, '1')
-    localStorage.setItem(LS.userDismissByDay, todayKey())
+    TypedLocalStorage.setItem(LS.masterDisabled, '1')
+    TypedLocalStorage.setItem(LS.userDismissByDay, todayKey())
     userDismissedToday.value = true
   } else {
-    localStorage.removeItem(LS.masterDisabled)
-    localStorage.removeItem(LS.userDismissByDay)
+    TypedLocalStorage.removeItem(LS.masterDisabled)
+    TypedLocalStorage.removeItem(LS.userDismissByDay)
     userDismissedToday.value = false
   }
 }
@@ -559,8 +560,8 @@ const toggleAprilEffectsForToday = () => {
   showPanel.value = false
 
   if (userDismissedToday.value) {
-    localStorage.removeItem(LS.masterDisabled)
-    localStorage.removeItem(LS.userDismissByDay)
+    TypedLocalStorage.removeItem(LS.masterDisabled)
+    TypedLocalStorage.removeItem(LS.userDismissByDay)
     userDismissedToday.value = false
     syncLocalSwitches()
     syncPassiveTicker()
@@ -570,9 +571,9 @@ const toggleAprilEffectsForToday = () => {
 
   previewMode.value = false
   masterDisabled.value = false
-  localStorage.setItem(LS.previewMode, '0')
-  localStorage.removeItem(LS.masterDisabled)
-  localStorage.setItem(LS.userDismissByDay, todayKey())
+  TypedLocalStorage.setItem(LS.previewMode, '0')
+  TypedLocalStorage.removeItem(LS.masterDisabled)
+  TypedLocalStorage.setItem(LS.userDismissByDay, todayKey())
   userDismissedToday.value = true
 
   syncLocalSwitches()
@@ -1157,9 +1158,9 @@ const clearAllAprilEffects = () => {
 }
 
 const syncLocalSwitches = () => {
-  featureSwitch.value = localStorage.getItem(LS.featureSwitch) !== '0'
-  previewMode.value = localStorage.getItem(LS.previewMode) === '1'
-  userDismissedToday.value = localStorage.getItem(LS.userDismissByDay) === todayKey()
+  featureSwitch.value = TypedLocalStorage.getItem(LS.featureSwitch) !== '0'
+  previewMode.value = TypedLocalStorage.getItem(LS.previewMode) === '1'
+  userDismissedToday.value = TypedLocalStorage.getItem(LS.userDismissByDay) === todayKey()
   runMode.value = loadRunMode()
   passiveEggs.value = loadPassiveConfig(runMode.value)
 }
@@ -1219,8 +1220,8 @@ onMounted(() => {
   disposeAprilFoolsBus = setupAprilFoolsBus()
 
   const triggeredKey = `${todayKey()}-${String(route.name || 'unknown')}`
-  if (isFeatureReachable.value && localStorage.getItem(LS.triggeredByDay) !== triggeredKey) {
-    localStorage.setItem(LS.triggeredByDay, triggeredKey)
+  if (isFeatureReachable.value && TypedLocalStorage.getItem(LS.triggeredByDay) !== triggeredKey) {
+    TypedLocalStorage.setItem(LS.triggeredByDay, triggeredKey)
     window.setTimeout(() => runAutoSequence(), 1000)
   }
 })

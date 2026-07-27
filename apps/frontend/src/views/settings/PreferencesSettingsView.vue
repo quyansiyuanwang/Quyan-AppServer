@@ -102,6 +102,7 @@
 </template>
 
 <script setup lang="ts">
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { computed, ref } from 'vue'
 import { i18ns } from '@/locales'
@@ -344,7 +345,7 @@ const refreshSizeMap = () => {
   const map = new Map<string, number>()
   const scanGroup = (keys: Record<string, string>) => {
     Object.values(keys).forEach((key) => {
-      const value = localStorage.getItem(key)
+      const value = TypedLocalStorage.getItem(key)
       if (value !== null) map.set(`ls:${key}`, new Blob([value]).size)
     })
   }
@@ -358,8 +359,10 @@ const refreshSizeMap = () => {
   scanGroup(StorageKey.Overlay)
   scanGroup(StorageKey.Chat)
   scanGroup(StorageKey.Relay)
-  const pinned = localStorage.getItem('appserver.sidebar.pinnedRoutes')
-  if (pinned !== null) map.set('ls:appserver.sidebar.pinnedRoutes', new Blob([pinned]).size)
+  const pinned = TypedLocalStorage.getItem(StorageKey.Navigation.PINNED_ROUTES)
+  if (pinned !== null) {
+    map.set(`ls:${StorageKey.Navigation.PINNED_ROUTES}`, new Blob([pinned]).size)
+  }
   nodeSizeMap.value = map
 }
 
@@ -422,7 +425,7 @@ const handleClearSelected = async () => {
   try {
     for (const node of actionable) {
       if (node.lsKey) {
-        localStorage.removeItem(node.lsKey)
+        TypedLocalStorage.removeItem(node.lsKey)
         if (node.requiresSignOut) needsSignOut = true
         if (node.requiresReload) needsReload = true
       } else if (node.dbStore) {

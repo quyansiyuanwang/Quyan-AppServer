@@ -176,6 +176,8 @@
 </template>
 
 <script setup lang="ts">
+import { TypedSessionStorage } from '@/utils/typedSessionStorage'
+import StorageKey from '@/constant/storagekey'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
@@ -513,7 +515,7 @@ const handleSubmitChallenge = async () => {
 
       // 保存一次性令牌（用于高危接口的单次重试）
       if ((authData as any).oneTimeToken) {
-        sessionStorage.setItem('oneTimeToken', (authData as any).oneTimeToken)
+        TypedSessionStorage.setItem(StorageKey.Auth.ONE_TIME_TOKEN, (authData as any).oneTimeToken)
         console.log('[2FA Stepup] One-time token saved')
       }
 

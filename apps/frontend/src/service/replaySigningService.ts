@@ -1,3 +1,4 @@
+import { TypedSessionStorage } from '@/utils/typedSessionStorage'
 import StorageKey from '@/constant/storagekey'
 import { CustomCode } from '@/constant/custom-code'
 import { getOrCreateClientFingerprint } from '@/utils/client-fingerprint'
@@ -47,7 +48,7 @@ export class ReplaySigningService {
 
   getStoredSigningMaterial(): ReplaySigningMaterial | null {
     try {
-      const raw = sessionStorage.getItem(StorageKey.Auth.REPLAY_SIGNING_SESSION)
+      const raw = TypedSessionStorage.getItem(StorageKey.Auth.REPLAY_SIGNING_SESSION)
       if (!raw) return null
 
       const parsed: unknown = JSON.parse(raw)
@@ -69,11 +70,11 @@ export class ReplaySigningService {
   }
 
   setStoredSigningMaterial(material: ReplaySigningMaterial): void {
-    sessionStorage.setItem(StorageKey.Auth.REPLAY_SIGNING_SESSION, JSON.stringify(material))
+    TypedSessionStorage.setItem(StorageKey.Auth.REPLAY_SIGNING_SESSION, JSON.stringify(material))
   }
 
   clearSigningMaterial(): void {
-    sessionStorage.removeItem(StorageKey.Auth.REPLAY_SIGNING_SESSION)
+    TypedSessionStorage.removeItem(StorageKey.Auth.REPLAY_SIGNING_SESSION)
   }
 
   async ensureSigningMaterial(force = false): Promise<ReplaySigningMaterial> {

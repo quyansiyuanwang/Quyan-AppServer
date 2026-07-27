@@ -195,6 +195,22 @@
                         >{{ row.displayChannelName }}</el-descriptions-item
                       >
                       <el-descriptions-item
+                        v-if="row.requestId"
+                        :label="i18ns.t('balance.requestId')"
+                      >
+                        <span class="request-id-value">
+                          <code>{{ row.requestId }}</code>
+                          <el-tooltip :content="i18ns.t('copy')" placement="top">
+                            <el-button
+                              text
+                              size="small"
+                              :icon="DocumentCopy"
+                              @click.stop="copyRequestId(row.requestId)"
+                            />
+                          </el-tooltip>
+                        </span>
+                      </el-descriptions-item>
+                      <el-descriptions-item
                         v-if="shouldShowModelMultiplier(row)"
                         :label="i18ns.t('balance.modelMultiplier')"
                         >{{ resolveModelMultiplier(row) }}×</el-descriptions-item
@@ -404,6 +420,20 @@
               <span class="tx-label">{{ i18ns.t('balance.channelUsed') }}</span>
               <span class="tx-value">{{ row.displayChannelName }}</span>
             </div>
+            <div v-if="row.requestId" class="tx-card-row">
+              <span class="tx-label">{{ i18ns.t('balance.requestId') }}</span>
+              <span class="tx-value request-id-value">
+                <code>{{ row.requestId }}</code>
+                <el-tooltip :content="i18ns.t('copy')" placement="top">
+                  <el-button
+                    text
+                    size="small"
+                    :icon="DocumentCopy"
+                    @click.stop="copyRequestId(row.requestId)"
+                  />
+                </el-tooltip>
+              </span>
+            </div>
             <div class="tx-card-row">
               <span class="tx-label">{{ i18ns.t('balance.after') }}</span>
               <span class="tx-value">{{ row.balanceAfter }}</span>
@@ -579,10 +609,12 @@ import { ref, computed, watch, nextTick } from 'vue'
 import type { CSSProperties } from 'vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'
-import { Refresh } from '@element-plus/icons-vue'
+import { DocumentCopy, Refresh } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import type { BalanceTransactionResponse } from '@/client/types.gen'
 import type { TableInstance } from 'element-plus'
 import { AsyncVChart as VChart } from '@/utils/asyncChart'
+import { copyTextWithFallback } from '@/utils/clipboard'
 import {
   buildBillingFormula,
   CACHE_CREATION_MULTIPLIER,
@@ -620,7 +652,6 @@ const props = defineProps<{
     value: number
     min: number
     max: number
-    lockedMin?: number
     marks: Record<number, string | { label: string; style?: CSSProperties }>
   }
   rangeActions?: Array<{
@@ -637,6 +668,12 @@ const emit = defineEmits<{
 }>()
 
 const { isDesktop } = usePageDevice()
+
+const copyRequestId = async (requestId: string) => {
+  const copied = await copyTextWithFallback(requestId)
+  if (copied) ElMessage.success(i18ns.t('copySuccess'))
+  else ElMessage.error(i18ns.t('copyFailed'))
+}
 const desktopTableRef = ref<TableInstance>()
 const viewMode = ref('table')
 const localFilters = ref({
@@ -679,7 +716,6 @@ const rangeSliderOptions = computed(() => {
   const slider = props.rangeSlider
   if (!slider) return []
 
-  const lockedMin = slider.lockedMin ?? slider.min
   const options: Array<{ label: string; value: number; disabled?: boolean }> = []
 
   for (let value = slider.min; value <= slider.max; value += 1) {
@@ -688,17 +724,14 @@ const rangeSliderOptions = computed(() => {
     options.push({
       label,
       value,
-      disabled: value < lockedMin,
     })
   }
 
   return options
 })
 
-const clampRangeSliderValue = (value: number): number => {
-  const lockedMin = props.rangeSlider?.lockedMin ?? props.rangeSlider?.min ?? 0
-  return value < lockedMin ? lockedMin : value
-}
+const clampRangeSliderValue = (value: number): number =>
+  Math.min(Math.max(value, props.rangeSlider?.min ?? 0), props.rangeSlider?.max ?? value)
 
 const formatAmountNumber = (amount: number): string => {
   if (!Number.isFinite(amount)) return '0'
