@@ -940,11 +940,13 @@
         class="mb-3"
       />
       <div class="calibration-toolbar">
+        <span>{{ i18ns.t('relay.channelProbeRoundingMode') }}</span>
+        <el-select v-model="roundingMode" class="rounding-mode">
+          <el-option value="ceil" :label="i18ns.t('relay.channelProbeRoundUp')" />
+          <el-option value="nearest" :label="i18ns.t('relay.channelProbeRoundNearest')" />
+        </el-select>
         <span>{{ i18ns.t('relay.channelProbeRoundDigits') }}</span>
         <el-input-number v-model="roundingDigits" :min="0" :max="6" :step="1" :precision="0" />
-        <el-button plain @click="roundDraftMultipliers">{{
-          i18ns.t('relay.channelProbeRoundAll')
-        }}</el-button>
         <span class="calibration-toolbar-divider" />
         <span>{{ i18ns.t('relay.channelProbeSelectionTolerance') }}</span>
         <el-input-number
@@ -1023,15 +1025,41 @@
             />
           </template>
         </el-table-column>
-        <el-table-column
-          :label="i18ns.t('relay.channelProbeMultiplierChange')"
-          width="138"
-          align="right"
-        >
+        <el-table-column :label="i18ns.t('relay.channelProbeMultiplierChange')" min-width="238">
           <template #default="{ row }">
-            <span :class="multiplierChangeClass(row)">{{
-              formatMultiplierChange(row) + ' · ' + formatMultiplierChangePercent(row)
-            }}</span>
+            <div class="multiplier-change-cell">
+              <span :class="multiplierChangeClass(row)">{{
+                formatMultiplierChange(row) + ' · ' + formatMultiplierChangePercent(row)
+              }}</span>
+              <div
+                class="multiplier-direction-bar"
+                :aria-label="multiplierDirectionLabel(row.currentMultiplier, row.targetMultiplier)"
+                role="img"
+              >
+                <span class="multiplier-direction-label multiplier-direction-label-left">{{
+                  i18ns.t('relay.channelProbePriceDecrease')
+                }}</span>
+                <span class="multiplier-direction-label multiplier-direction-label-center">{{
+                  i18ns.t('relay.channelProbeCurrentMultiplier')
+                }}</span>
+                <span class="multiplier-direction-label multiplier-direction-label-right">{{
+                  i18ns.t('relay.channelProbePriceIncrease')
+                }}</span>
+                <span class="multiplier-direction-track" />
+                <span class="multiplier-direction-zero" />
+                <span
+                  class="multiplier-direction-fill"
+                  :class="multiplierDirectionClass(row.currentMultiplier, row.targetMultiplier)"
+                  :style="
+                    multiplierDirectionStyle(
+                      row.currentMultiplier,
+                      row.targetMultiplier,
+                      applyDirectionMaximumPercent,
+                    )
+                  "
+                />
+              </div>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -1051,7 +1079,7 @@
     <el-dialog
       v-model="changeDialogOpen"
       :title="i18ns.t('relay.channelProbeChangeAnalysis')"
-      width="min(1180px, 94vw)"
+      width="min(1420px, 96vw)"
       append-to-body
     >
       <div class="change-analysis-toolbar">
@@ -1074,11 +1102,35 @@
           :precision="2"
         />
         <span>%</span>
+        <span>{{ i18ns.t('relay.channelProbeNoticeRoundingMode') }}</span>
+        <el-select v-model="changeDisplayRoundingMode" class="rounding-mode">
+          <el-option value="nearest" :label="i18ns.t('relay.channelProbeRoundNearest')" />
+          <el-option value="ceil" :label="i18ns.t('relay.channelProbeRoundUp')" />
+        </el-select>
+        <span>{{ i18ns.t('relay.channelProbeNoticeDecimals') }}</span>
+        <el-input-number v-model="changeDisplayDigits" :min="0" :max="6" :step="1" :precision="0" />
         <span class="selected-draft-summary">{{
           i18ns.t('relay.channelProbeChangeCount', { count: multiplierChangeRows.length })
         }}</span>
+        <span class="selected-draft-summary">{{
+          i18ns.t('relay.channelProbeCustomerNoticeCount', {
+            count: publicMultiplierChangeRows.length,
+          })
+        }}</span>
+        <el-tooltip :disabled="publicMultiplierChangeRows.length > 0" placement="top">
+          <template #content>{{ i18ns.t('relay.channelProbeExportChangeChartNoPublic') }}</template>
+          <span>
+            <el-button
+              :icon="Download"
+              plain
+              :disabled="publicMultiplierChangeRows.length === 0"
+              @click="exportMultiplierChangeChart"
+              >{{ i18ns.t('relay.channelProbeExportChangeChart') }}</el-button
+            >
+          </span>
+        </el-tooltip>
       </div>
-      <el-table :data="pagedMultiplierChangeRows" max-height="500" class="w-full">
+      <el-table :data="pagedCustomerFacingMultiplierChangeRows" max-height="60vh" class="w-full">
         <el-table-column prop="channelName" :label="i18ns.t('relay.channelName')" min-width="150" />
         <el-table-column :label="i18ns.t('relay.channelProbeChangeType')" width="108">
           <template #default="{ row }">
@@ -1103,9 +1155,9 @@
         >
           <template #default="{ row }">{{ row.targetMultiplier }}x</template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('relay.channelProbeMultiplierChange')" min-width="200">
+        <el-table-column :label="i18ns.t('relay.channelProbeMultiplierChange')" min-width="286">
           <template #default="{ row }">
-            <div class="change-bar-cell">
+            <div class="multiplier-change-cell">
               <span
                 :class="
                   row.change > 0
@@ -1118,11 +1170,34 @@
                   formatChangeValue(row.change) + ' · ' + row.changePercent.toFixed(2) + '%'
                 }}</span
               >
-              <el-progress
-                :percentage="changeBarPercent(row)"
-                :show-text="false"
-                :stroke-width="6"
-              />
+              <div
+                class="multiplier-direction-bar"
+                :aria-label="multiplierDirectionLabel(row.sourceMultiplier, row.targetMultiplier)"
+                role="img"
+              >
+                <span class="multiplier-direction-label multiplier-direction-label-left">{{
+                  i18ns.t('relay.channelProbePriceDecrease')
+                }}</span>
+                <span class="multiplier-direction-label multiplier-direction-label-center">{{
+                  i18ns.t('relay.channelProbeCurrentMultiplier')
+                }}</span>
+                <span class="multiplier-direction-label multiplier-direction-label-right">{{
+                  i18ns.t('relay.channelProbePriceIncrease')
+                }}</span>
+                <span class="multiplier-direction-track" />
+                <span class="multiplier-direction-zero" />
+                <span
+                  class="multiplier-direction-fill"
+                  :class="multiplierDirectionClass(row.sourceMultiplier, row.targetMultiplier)"
+                  :style="
+                    multiplierDirectionStyle(
+                      row.sourceMultiplier,
+                      row.targetMultiplier,
+                      customerFacingDirectionMaximumPercent,
+                    )
+                  "
+                />
+              </div>
             </div>
           </template>
         </el-table-column>
@@ -1146,7 +1221,7 @@
         class="mt-4 justify-end"
         layout="total, sizes, prev, pager, next"
         :page-sizes="[20, 50, 100]"
-        :total="multiplierChangeRows.length"
+        :total="publicMultiplierChangeRows.length"
       />
     </el-dialog>
   </main>
@@ -1161,14 +1236,17 @@ import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { getErrorMessage } from '@/utils/error-utils'
 import { relayChannelProbeService } from '@/service/relayChannelProbeService'
+import { relayChannelService } from '@/service/relayChannelService'
 import ProbeKeyValueEditor, { type ProbeKeyValueEntry } from './components/ProbeKeyValueEditor.vue'
 import type { TableInstance } from 'element-plus'
 import type {
   RelayChannelProbeFormat,
+  RelayChannelProbeCustomerFacingTargetDto,
   RelayChannelProbeOverviewItemDto,
   RelayChannelProbeRunDto,
   RelayChannelProbeRunStatus,
   RelayChannelProbeWorkflowStepDto,
+  RelayChannelDto,
 } from '@/client/types.gen'
 
 interface WorkflowFormStep {
@@ -1203,11 +1281,13 @@ interface ApplyMultiplierDraft {
   run: RelayChannelProbeRunDto
   channelName: string
   currentMultiplier: number
+  suggestedMultiplier: number
   targetMultiplier: number
 }
 interface MultiplierChangeRow {
   channelId: string
   channelName: string
+  customerFacingTargets: RelayChannelProbeCustomerFacingTargetDto[]
   sourceMultiplier: number
   targetMultiplier: number
   change: number
@@ -1243,7 +1323,8 @@ const saving = ref(false)
 const clearingProfile = ref(false)
 const applying = ref(false)
 const applyDialogOpen = ref(false)
-const roundingDigits = ref(6)
+const roundingDigits = ref(4)
+const roundingMode = ref<'ceil' | 'nearest'>('ceil')
 const applyDrafts = ref<ApplyMultiplierDraft[]>([])
 const applyTableRef = ref<TableInstance>()
 const selectedApplyRunIds = ref<string[]>([])
@@ -1253,6 +1334,8 @@ const changeDialogOpen = ref(false)
 const changeSort = ref<'largest' | 'smallest' | 'recent'>('largest')
 const changeDirection = ref<'all' | 'increase' | 'decrease'>('all')
 const changeMinimumPercent = ref(0)
+const changeDisplayDigits = ref(4)
+const changeDisplayRoundingMode = ref<'ceil' | 'nearest'>('nearest')
 const changePage = ref(1)
 const changePageSize = ref(50)
 const batchRunning = ref(false)
@@ -1266,6 +1349,7 @@ const resettingChannelId = ref('')
 const clearingHistoryScope = ref<'' | 'all' | 'failed'>('')
 const pageError = ref('')
 const items = ref<RelayChannelProbeOverviewItemDto[]>([])
+const legacyChannelTopology = ref<RelayChannelDto[] | null>(null)
 const selected = ref<RelayChannelProbeOverviewItemDto | null>(null)
 const drawerOpen = ref(false)
 const tab = ref('profile')
@@ -1332,6 +1416,7 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
       {
         channelId: item.channelId,
         channelName: item.channelName,
+        customerFacingTargets: item.customerFacingTargets,
         sourceMultiplier,
         targetMultiplier,
         change,
@@ -1352,9 +1437,53 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
     return new Date(right.time).getTime() - new Date(left.time).getTime()
   })
 })
-const pagedMultiplierChangeRows = computed(() => {
+const publicMultiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
+  const rowsByCustomerEntry = new Map<string, MultiplierChangeRow>()
+  for (const row of multiplierChangeRows.value) {
+    for (const target of Array.isArray(row.customerFacingTargets)
+      ? row.customerFacingTargets
+      : []) {
+      const sourceMultiplier = roundMultiplierForPrecision(
+        row.sourceMultiplier,
+        changeDisplayDigits.value,
+        changeDisplayRoundingMode.value,
+      )
+      const targetMultiplier = roundMultiplierForPrecision(
+        row.targetMultiplier,
+        changeDisplayDigits.value,
+        changeDisplayRoundingMode.value,
+      )
+      const key = [target.channelId, sourceMultiplier, targetMultiplier].join(':')
+      if (rowsByCustomerEntry.has(key)) continue
+      rowsByCustomerEntry.set(key, {
+        ...row,
+        channelId: target.channelId,
+        channelName: target.channelName,
+        customerFacingTargets: [target],
+        sourceMultiplier,
+        targetMultiplier,
+        change: targetMultiplier - sourceMultiplier,
+        changePercent: multiplierRelativeChangePercent(sourceMultiplier, targetMultiplier),
+      })
+    }
+  }
+  return [...rowsByCustomerEntry.values()]
+})
+const applyDirectionMaximumPercent = computed(() =>
+  maximumMultiplierRelativeChange(
+    applyDrafts.value.map((draft) => [draft.currentMultiplier, draft.targetMultiplier] as const),
+  ),
+)
+const customerFacingDirectionMaximumPercent = computed(() =>
+  maximumMultiplierRelativeChange(
+    publicMultiplierChangeRows.value.map(
+      (row) => [row.sourceMultiplier, row.targetMultiplier] as const,
+    ),
+  ),
+)
+const pagedCustomerFacingMultiplierChangeRows = computed(() => {
   const start = (changePage.value - 1) * changePageSize.value
-  return multiplierChangeRows.value.slice(start, start + changePageSize.value)
+  return publicMultiplierChangeRows.value.slice(start, start + changePageSize.value)
 })
 const selectedRuns = computed(() =>
   selectedRows.value.flatMap((row) => (isApplicable(row.latestRun) ? [row.latestRun!.id] : [])),
@@ -1758,6 +1887,7 @@ function getApplicableRuns(runIds: string[]) {
             run,
             channelName: channel.channelName,
             currentMultiplier: channel.multiplier,
+            suggestedMultiplier: run.suggestedMultiplier,
             targetMultiplier: run.suggestedMultiplier,
           },
         ]
@@ -1765,9 +1895,27 @@ function getApplicableRuns(runIds: string[]) {
   })
 }
 function roundDraftMultipliers() {
-  const factor = 10 ** roundingDigits.value
   for (const draft of applyDrafts.value)
-    draft.targetMultiplier = Math.ceil((draft.targetMultiplier - Number.EPSILON) * factor) / factor
+    draft.targetMultiplier = Math.max(
+      0.000001,
+      roundMultiplierForPrecision(
+        draft.suggestedMultiplier,
+        roundingDigits.value,
+        roundingMode.value,
+      ),
+    )
+}
+watch([roundingDigits, roundingMode], () => {
+  if (applyDialogOpen.value && applyDrafts.value.length > 0 && !applying.value)
+    roundDraftMultipliers()
+})
+function roundMultiplierForPrecision(value: number, digits: number, mode: 'ceil' | 'nearest') {
+  const factor = 10 ** digits
+  return (
+    (mode === 'ceil'
+      ? Math.ceil((value - Number.EPSILON) * factor)
+      : Math.round((value + Number.EPSILON) * factor)) / factor
+  )
 }
 function targetLocalCost(run: RelayChannelProbeRunDto) {
   const delta = Number(run.upstreamBalanceDelta ?? 0)
@@ -1793,8 +1941,7 @@ function multiplierChange(draft: ApplyMultiplierDraft) {
   return draft.targetMultiplier - draft.currentMultiplier
 }
 function multiplierChangePercent(draft: ApplyMultiplierDraft) {
-  if (!draft.currentMultiplier) return multiplierChange(draft) === 0 ? 0 : Number.POSITIVE_INFINITY
-  return (Math.abs(multiplierChange(draft)) / Math.abs(draft.currentMultiplier)) * 100
+  return multiplierRelativeChangePercent(draft.currentMultiplier, draft.targetMultiplier)
 }
 function formatMultiplierChange(draft: ApplyMultiplierDraft) {
   const value = multiplierChange(draft)
@@ -1808,17 +1955,186 @@ function multiplierChangeClass(draft: ApplyMultiplierDraft) {
   const value = multiplierChange(draft)
   return value > 0 ? 'multiplier-change-up' : value < 0 ? 'multiplier-change-down' : ''
 }
+function multiplierDirectionClass(currentMultiplier: number, targetMultiplier: number) {
+  if (targetMultiplier > currentMultiplier) return 'multiplier-direction-fill-increase'
+  if (targetMultiplier < currentMultiplier) return 'multiplier-direction-fill-decrease'
+  return 'multiplier-direction-fill-neutral'
+}
+function multiplierRelativeChangePercent(currentMultiplier: number, targetMultiplier: number) {
+  if (!currentMultiplier)
+    return targetMultiplier === currentMultiplier ? 0 : Number.POSITIVE_INFINITY
+  return (Math.abs(targetMultiplier - currentMultiplier) / Math.abs(currentMultiplier)) * 100
+}
+function maximumMultiplierRelativeChange(values: ReadonlyArray<readonly [number, number]>) {
+  return values.reduce((maximum, [currentMultiplier, targetMultiplier]) => {
+    const relativeChange = multiplierRelativeChangePercent(currentMultiplier, targetMultiplier)
+    return Number.isFinite(relativeChange) ? Math.max(maximum, relativeChange) : maximum
+  }, 0)
+}
+function multiplierDirectionStyle(
+  currentMultiplier: number,
+  targetMultiplier: number,
+  maximumRelativeChange: number,
+) {
+  const delta = targetMultiplier - currentMultiplier
+  const relativeChange = multiplierRelativeChangePercent(currentMultiplier, targetMultiplier)
+  const halfWidth = !Number.isFinite(relativeChange)
+    ? 50
+    : maximumRelativeChange > 0
+      ? Math.min(relativeChange / maximumRelativeChange, 1) * 50
+      : 0
+  return {
+    width: String(halfWidth) + '%',
+    left: String(delta < 0 ? 50 - halfWidth : 50) + '%',
+  }
+}
+function multiplierDirectionLabel(currentMultiplier: number, targetMultiplier: number) {
+  const direction =
+    targetMultiplier > currentMultiplier
+      ? i18ns.t('relay.channelProbePriceIncrease')
+      : targetMultiplier < currentMultiplier
+        ? i18ns.t('relay.channelProbePriceDecrease')
+        : i18ns.t('relay.channelProbeCurrentMultiplier')
+  return [
+    direction,
+    formatNumber(currentMultiplier) + 'x',
+    '->',
+    formatNumber(targetMultiplier) + 'x',
+  ].join(' ')
+}
+function exportMultiplierChangeChart() {
+  const rows = publicMultiplierChangeRows.value.slice(0, 20)
+  if (!rows.length) {
+    ElMessage.warning(i18ns.t('relay.channelProbeExportChangeChartNoPublic'))
+    return
+  }
+
+  const canvas = document.createElement('canvas')
+  const chartWidth = 1600
+  const rowHeight = 66
+  const chartHeight = 180 + rows.length * rowHeight
+  canvas.width = chartWidth
+  canvas.height = chartHeight
+  const context = canvas.getContext('2d')
+  if (!context) {
+    ElMessage.error(i18ns.t('operationFailed'))
+    return
+  }
+
+  const rootStyle = getComputedStyle(document.documentElement)
+  const color = (name: string, fallback: string) =>
+    rootStyle.getPropertyValue(name).trim() || fallback
+  const textPrimary = color('--el-text-color-primary', '#1f2937')
+  const textSecondary = color('--el-text-color-secondary', '#667085')
+  const line = color('--el-border-color-lighter', '#e4e7ed')
+  const decrease = color('--el-color-success', '#16a34a')
+  const decreaseMuted = color('--el-color-success-light-8', '#dcfce7')
+  const increase = color('--el-color-danger', '#dc2626')
+  const increaseMuted = color('--el-color-danger-light-8', '#fee2e2')
+  const neutral = color('--el-fill-color-light', '#f3f4f6')
+  const maximum = maximumMultiplierRelativeChange(
+    rows.map((row) => [row.sourceMultiplier, row.targetMultiplier] as const),
+  )
+  const axisStart = 610
+  const axisWidth = 720
+  const axisCenter = axisStart + axisWidth / 2
+
+  context.fillStyle = color('--el-bg-color', '#ffffff')
+  context.fillRect(0, 0, chartWidth, chartHeight)
+  context.fillStyle = textPrimary
+  context.font = '700 34px Microsoft YaHei, sans-serif'
+  context.fillText(i18ns.t('relay.channelProbeExportChangeChartTitle'), 72, 68)
+  context.fillStyle = textSecondary
+  context.font = '20px Microsoft YaHei, sans-serif'
+  context.fillText(i18ns.t('relay.channelProbeExportChangeChartSubtitle'), 72, 106)
+  context.fillText(new Date().toLocaleString(), chartWidth - 300, 106)
+
+  context.font = '600 18px Microsoft YaHei, sans-serif'
+  context.fillStyle = decrease
+  context.fillText(i18ns.t('relay.channelProbePriceDecrease'), axisStart, 146)
+  context.fillStyle = textSecondary
+  context.textAlign = 'center'
+  context.fillText(i18ns.t('relay.channelProbeCurrentMultiplier'), axisCenter, 146)
+  context.fillStyle = increase
+  context.textAlign = 'right'
+  context.fillText(i18ns.t('relay.channelProbePriceIncrease'), axisStart + axisWidth, 146)
+  context.textAlign = 'left'
+
+  rows.forEach((row, index) => {
+    const top = 180 + index * rowHeight
+    const changePercent = multiplierRelativeChangePercent(
+      row.sourceMultiplier,
+      row.targetMultiplier,
+    )
+    const isDecrease = row.targetMultiplier < row.sourceMultiplier
+    const isIncrease = row.targetMultiplier > row.sourceMultiplier
+    const relativeWidth = !Number.isFinite(changePercent)
+      ? axisWidth / 2
+      : maximum > 0
+        ? Math.min(changePercent / maximum, 1) * (axisWidth / 2)
+        : 0
+    const fillStart = isDecrease ? axisCenter - relativeWidth : axisCenter
+    const label = isDecrease
+      ? i18ns.t('relay.channelProbePriceDecrease')
+      : isIncrease
+        ? i18ns.t('relay.channelProbePriceIncrease')
+        : i18ns.t('relay.channelProbeCurrentMultiplier')
+
+    context.strokeStyle = line
+    context.lineWidth = 1
+    context.beginPath()
+    context.moveTo(72, top + rowHeight - 8)
+    context.lineTo(chartWidth - 72, top + rowHeight - 8)
+    context.stroke()
+    context.fillStyle = textPrimary
+    context.font = '600 21px Microsoft YaHei, sans-serif'
+    context.fillText(row.channelName.slice(0, 32), 72, top + 24)
+    context.fillStyle = textSecondary
+    context.font = '18px Microsoft YaHei, sans-serif'
+    context.fillText(
+      formatNumber(row.sourceMultiplier) + 'x  ->  ' + formatNumber(row.targetMultiplier) + 'x',
+      72,
+      top + 50,
+    )
+
+    context.fillStyle = decreaseMuted
+    context.fillRect(axisStart, top + 25, axisWidth / 2, 12)
+    context.fillStyle = neutral
+    context.fillRect(axisCenter - 2, top + 25, 4, 12)
+    context.fillStyle = increaseMuted
+    context.fillRect(axisCenter, top + 25, axisWidth / 2, 12)
+    context.fillStyle = isDecrease ? decrease : isIncrease ? increase : textSecondary
+    context.fillRect(fillStart, top + 25, relativeWidth, 12)
+    context.fillStyle = textPrimary
+    context.fillRect(axisCenter - 2, top + 21, 4, 20)
+
+    context.fillStyle = isDecrease ? decrease : isIncrease ? increase : textSecondary
+    context.font = '600 19px Microsoft YaHei, sans-serif'
+    context.textAlign = 'right'
+    context.fillText(
+      label + ' ' + (Number.isFinite(changePercent) ? changePercent.toFixed(2) + '%' : '∞'),
+      chartWidth - 72,
+      top + 38,
+    )
+    context.textAlign = 'left'
+  })
+
+  canvas.toBlob((blob) => {
+    if (!blob) {
+      ElMessage.error(i18ns.t('operationFailed'))
+      return
+    }
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'service-price-adjustments-' + new Date().toISOString().slice(0, 10) + '.png'
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 0)
+    ElMessage.success(i18ns.t('relay.channelProbeExportChangeCharted'))
+  }, 'image/png')
+}
 function formatChangeValue(value: number) {
   return (value > 0 ? '+' : '') + formatNumber(value) + 'x'
-}
-function changeBarPercent(row: MultiplierChangeRow) {
-  const maximum = multiplierChangeRows.value.reduce(
-    (current, item) =>
-      Math.max(current, Number.isFinite(item.changePercent) ? item.changePercent : 0),
-    0,
-  )
-  if (!maximum || !Number.isFinite(row.changePercent)) return row.changePercent ? 100 : 0
-  return Math.max(2, Math.min(100, (row.changePercent / maximum) * 100))
 }
 function onApplySelectionChange(rows: ApplyMultiplierDraft[]) {
   selectedApplyRunIds.value = rows.map((row) => row.run.id)
@@ -1929,13 +2245,54 @@ function formWorkflow(): RelayChannelProbeWorkflowStepDto[] {
     }
   })
 }
+function resolveCustomerFacingTargets(
+  channels: RelayChannelDto[],
+  standaloneChannelId: string,
+): RelayChannelProbeCustomerFacingTargetDto[] {
+  const channelById = new Map(channels.map((channel) => [channel.id, channel]))
+  const targetById = new Map<string, RelayChannelProbeCustomerFacingTargetDto>()
+  const collectStandaloneMembers = (channelId: string, path = new Set<string>()): string[] => {
+    if (path.has(channelId)) return []
+    const channel = channelById.get(channelId)
+    if (!channel?.enabled) return []
+    if (channel.channelType === 'standalone') return [channel.id]
+    const nextPath = new Set(path).add(channelId)
+    return (channel.poolMembers ?? []).flatMap((member) => {
+      if (member.enabled === false || member.memberChannelEnabled === false) return []
+      return collectStandaloneMembers(member.memberChannelId, nextPath)
+    })
+  }
+  for (const channel of channels) {
+    if (!channel.enabled || channel.channelType !== 'pooled') continue
+    if (collectStandaloneMembers(channel.id).includes(standaloneChannelId)) {
+      targetById.set(channel.id, { channelId: channel.id, channelName: channel.name })
+    }
+  }
+  if (!targetById.size) {
+    const standalone = channelById.get(standaloneChannelId)
+    if (standalone?.enabled)
+      targetById.set(standalone.id, { channelId: standalone.id, channelName: standalone.name })
+  }
+  return [...targetById.values()]
+}
 async function loadOverview() {
   const requestId = ++overviewRequest
   loading.value = true
   pageError.value = ''
   try {
     const result = await relayChannelProbeService.listOverview()
-    if (requestId === overviewRequest) items.value = result
+    let overviewItems = result.items
+    if (!result.hasCustomerFacingTargets) {
+      const channels =
+        legacyChannelTopology.value ??
+        (await relayChannelService.listChannels({ includeDisabled: true }))
+      legacyChannelTopology.value = channels
+      overviewItems = overviewItems.map((item) => ({
+        ...item,
+        customerFacingTargets: resolveCustomerFacingTargets(channels, item.channelId),
+      }))
+    }
+    if (requestId === overviewRequest) items.value = overviewItems
   } catch (error) {
     if (requestId === overviewRequest) {
       pageError.value = getErrorMessage(error, i18ns.t('operationFailed'))
@@ -2247,6 +2604,7 @@ async function confirmApply(runIds: string[]) {
   const drafts = getApplicableRuns(runIds)
   if (!drafts.length) return ElMessage.warning(i18ns.t('relay.channelProbeApplyUnavailable'))
   applyDrafts.value = drafts
+  roundDraftMultipliers()
   applyDialogOpen.value = true
   await nextTick()
   await selectEligibleDrafts()
@@ -2337,9 +2695,19 @@ function stopPolling() {
   pollTimer = undefined
 }
 watch([keyword, profileFilter, enabledFilter, runStatusFilter, suggestionFilter], clearSelection)
-watch([changeSort, changeDirection, changeMinimumPercent, changePageSize], () => {
-  changePage.value = 1
-})
+watch(
+  [
+    changeSort,
+    changeDirection,
+    changeMinimumPercent,
+    changeDisplayDigits,
+    changeDisplayRoundingMode,
+    changePageSize,
+  ],
+  () => {
+    changePage.value = 1
+  },
+)
 onMounted(loadOverview)
 onBeforeUnmount(stopPolling)
 </script>
@@ -2673,6 +3041,9 @@ onBeforeUnmount(stopPolling)
 .selection-direction {
   width: 128px;
 }
+.rounding-mode {
+  width: 118px;
+}
 .calibration-toolbar-divider {
   width: 1px;
   height: 20px;
@@ -2700,10 +3071,87 @@ onBeforeUnmount(stopPolling)
 .change-analysis-toolbar .el-input-number {
   width: 112px;
 }
-.change-bar-cell {
+.change-analysis-toolbar .el-button {
+  margin-left: auto;
+}
+.multiplier-change-cell {
   display: grid;
-  min-width: 150px;
+  min-width: 244px;
   gap: 6px;
+}
+.multiplier-direction-bar {
+  position: relative;
+  display: grid;
+  min-width: 244px;
+  height: 26px;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  line-height: 1;
+}
+.multiplier-direction-label {
+  z-index: 2;
+}
+.multiplier-direction-label-left {
+  text-align: left;
+}
+.multiplier-direction-label-center {
+  padding: 0 6px;
+  color: var(--el-text-color-regular);
+  font-weight: 600;
+}
+.multiplier-direction-label-right {
+  text-align: right;
+}
+.multiplier-direction-track,
+.multiplier-direction-fill,
+.multiplier-direction-zero {
+  position: absolute;
+  top: 17px;
+  height: 6px;
+}
+.multiplier-direction-track {
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--el-fill-color-light);
+}
+.multiplier-direction-track::before,
+.multiplier-direction-track::after {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 100%;
+  content: '';
+}
+.multiplier-direction-track::before {
+  left: 0;
+  background: var(--el-color-success-light-8);
+}
+.multiplier-direction-track::after {
+  right: 0;
+  background: var(--el-color-danger-light-8);
+}
+.multiplier-direction-zero {
+  z-index: 2;
+  left: calc(50% - 1px);
+  width: 2px;
+  background: var(--el-text-color-primary);
+}
+.multiplier-direction-fill {
+  z-index: 1;
+  border-radius: 1px;
+}
+.multiplier-direction-fill-decrease {
+  background: var(--el-color-success);
+}
+.multiplier-direction-fill-increase {
+  background: var(--el-color-danger);
+}
+.multiplier-direction-fill-neutral {
+  background: var(--el-color-info);
 }
 .multiplier-change-up {
   color: var(--el-color-success);

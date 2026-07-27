@@ -401,6 +401,8 @@ export class RelayChannelService {
       (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)?.rankingMode === "stability-first"
         ? "stability-first"
         : DEFAULT_AUTOMATIC_POOL_RANKING_MODE;
+    const dynamicMemberRankingEnabled =
+      (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)?.dynamicMemberRankingEnabled !== false;
     const rankedMembers = await this.relayChannelHealthService.rankMembers(
       poolMembers.map((member) => {
         const memberChannel = member.memberChannel;
@@ -424,7 +426,13 @@ export class RelayChannelService {
       now,
     );
     const window = rankedMembers[0]?.health ?? (await this.relayChannelHealthService.getHealth(channel.id, now));
-    const members: RelayAutomaticPoolHealthMemberDto[] = rankedMembers.map((member, index) => ({
+    const displayedMembers = dynamicMemberRankingEnabled
+      ? rankedMembers
+      : [...rankedMembers].sort(
+          (left, right) =>
+            left.priority - right.priority || left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
+        );
+    const members: RelayAutomaticPoolHealthMemberDto[] = displayedMembers.map((member, index) => ({
       ...member.health,
       name: member.name,
       enabled: member.enabled,
@@ -445,6 +453,7 @@ export class RelayChannelService {
       channelId: channel.id,
       name: channel.name,
       rankingMode,
+      dynamicMemberRankingEnabled,
       windowStartAt: window.windowStartAt,
       windowEndAt: window.windowEndAt,
       members,
@@ -903,6 +912,11 @@ export class RelayChannelService {
       }
     }
 
+    if (channelType !== "automatic-proxy-pool") delete normalized.dynamicMemberRankingEnabled;
+    else if (Object.prototype.hasOwnProperty.call(normalized, "dynamicMemberRankingEnabled")) {
+      normalized.dynamicMemberRankingEnabled = normalized.dynamicMemberRankingEnabled !== false;
+    }
+
     if (Object.prototype.hasOwnProperty.call(normalized, "healthScoreThreshold")) {
       normalized.healthScoreThreshold =
         normalized.healthScoreThreshold === null ? null : Number(normalized.healthScoreThreshold);
@@ -1133,8 +1147,12 @@ export class RelayChannelService {
     const isCreate = !existing;
     const wasPooled = isPoolType((existing?.channelType as RelayChannelType | undefined) ?? "standalone");
     const normalizedRoutingConfig = this.normalizeRoutingConfig(routingConfig, channelType);
-    if (channelType !== "automatic-proxy-pool" && data.routingConfig?.rankingMode)
-      throw new BadRequestError("rankingMode can only be configured for automatic proxy pools");
+    if (
+      channelType !== "automatic-proxy-pool" &&
+      (data.routingConfig?.rankingMode ||
+        Object.prototype.hasOwnProperty.call(data.routingConfig ?? {}, "dynamicMemberRankingEnabled"))
+    )
+      throw new BadRequestError("automatic pool ranking settings can only be configured for automatic proxy pools");
 
     const openaiUpstreamUrl =
       data.openaiUpstreamUrl !== undefined ? data.openaiUpstreamUrl : existing?.openaiUpstreamUrl || undefined;

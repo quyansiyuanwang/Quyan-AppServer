@@ -22,7 +22,7 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       api: ${{ steps.filter.outputs.api }}
       full: ${{ steps.filter.outputs.full }}
-      files: ${{ steps.filter.outputs.files }}
+      files: ${{ steps.filter.outputs.files_files || '[]' }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v4

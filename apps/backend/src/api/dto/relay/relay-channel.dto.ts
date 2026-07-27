@@ -62,6 +62,8 @@ export interface RelayChannelRoutingConfigDto {
   stickyByFormat?: boolean;
   /** Dynamic ordering mode for automatic proxy pools. */
   rankingMode?: RelayAutomaticPoolRankingMode;
+  /** Automatic proxy pools: use member price and health telemetry to reorder attempts. */
+  dynamicMemberRankingEnabled?: boolean;
   /** Standalone channels: collect live Redis samples, use administrator values, or keep priority unchanged. */
   healthTrackingMode?: RelayChannelHealthTrackingMode;
   /** Administrator-maintained availability for manual health tracking, from 0 to 1. */
@@ -202,6 +204,7 @@ export interface RelayAutomaticPoolHealthDto {
   channelId: string;
   name: string;
   rankingMode: RelayAutomaticPoolRankingMode;
+  dynamicMemberRankingEnabled: boolean;
   windowStartAt: Date;
   windowEndAt: Date;
   members: RelayAutomaticPoolHealthMemberDto[];

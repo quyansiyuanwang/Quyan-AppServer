@@ -120,6 +120,25 @@ describe("token-usage util", () => {
       });
     });
 
+    it("extracts Gemini camelCase usage and cache-read fields", () => {
+      expect(
+        extractTokenUsageMetrics({
+          promptTokenCount: 80,
+          candidatesTokenCount: 20,
+          totalTokenCount: 100,
+          cachedContentTokenCount: 24,
+        }),
+      ).toEqual({
+        inputTokens: 80,
+        outputTokens: 20,
+        requestTokens: 80,
+        responseTokens: 20,
+        totalTokens: 100,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 24,
+      });
+    });
+
     it("does not include cache tokens in total", () => {
       const usage = {
         input_tokens: 10,

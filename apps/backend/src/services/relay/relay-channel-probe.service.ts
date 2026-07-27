@@ -4,12 +4,15 @@ import type { Prisma } from "@prisma/client";
 import { EnvSpace } from "@/config/env";
 import { assertSafeOutboundUrl } from "@/util/developer-outbound-url";
 import { BadRequestError, ConflictError, LockBackendUnavailableError, NotFoundError } from "@/util/errors";
+import { resolveMappedModel } from "@/util/model-mapping.util";
+import { resolveModelId } from "@/util/model-resolution.util";
 import { RelayChannelService } from "./relay-channel.service";
-import { ModelPricingService } from "./model-pricing.service";
 import { RelayConfigService } from "./relay-config.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
 import { RedisService } from "@/services/infrastructure/redis.service";
+import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
+import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import logger from "@/util/logger";
 import {
   RelayChannelProbeRepository,
@@ -32,12 +35,15 @@ import type {
   CreateRelayChannelProbeRunsResponse,
   ClearRelayChannelProbeRunHistoryResponse,
   RelayChannelProbeOverviewItemDto,
+  RelayChannelProbeCustomerFacingTargetDto,
   RelayChannelProbeProfileDto,
   RelayChannelProbeRunDto,
   RelayChannelProbeRunHistoryScope,
   RelayChannelProbeWorkflowStepDto,
   UpsertRelayChannelProbeProfileRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
+import type { RelayChannelDto, RelayChannelMemberDto, RelayChannelType } from "@/api/dto/relay/relay-channel.dto";
+import type { ModelPricingItemDto } from "@/api/dto/relay/relay-config.dto";
 
 const PROBE_TIMEOUT_MS = 30_000;
 const MAX_RESPONSE_BYTES = 256 * 1024;
@@ -47,6 +53,7 @@ const RUN_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const RUN_QUEUE_SLOT_TTL_MS = 2 * 60 * 60 * 1000;
 const RUN_QUEUE_SLOT_PREFIX = "relay:channel-probe-run:v1";
 const GROUP_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+const MAX_CONCURRENT_PROBE_RUNS = 4;
 // Upstream billing ledgers are commonly eventually consistent. Keep both
 // snapshots outside the actual model request by a small, deterministic window
 // while the channel write lock is held, so an in-app request cannot distort a
@@ -56,6 +63,52 @@ const PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS = 5_000;
 
 type ProbeProfileRecord = RelayChannelProbeProfileRecord;
 type ProbeRunRecord = RelayChannelProbeRunRecord;
+export type RelayChannelProbeTopologyItem = Pick<
+  RelayChannelDto,
+  "id" | "name" | "enabled" | "channelType" | "poolMembers"
+>;
+
+/**
+ * Converts internal standalone members to the routing entries a customer
+ * actually sees. Visibility mode governs management access, not token routing,
+ * so a pooled channel takes precedence regardless of that internal setting.
+ */
+export function resolveProbeCustomerFacingTargets(
+  channels: RelayChannelProbeTopologyItem[],
+  standaloneChannelId: string,
+): RelayChannelProbeCustomerFacingTargetDto[] {
+  const channelById = new Map(channels.map((channel) => [channel.id, channel]));
+  const targetById = new Map<string, RelayChannelProbeCustomerFacingTargetDto>();
+
+  const collectStandaloneMembers = (channelId: string, path = new Set<string>()): string[] => {
+    if (path.has(channelId)) return [];
+    const channel = channelById.get(channelId);
+    if (!channel?.enabled) return [];
+    if (channel.channelType === "standalone") return [channel.id];
+
+    const nextPath = new Set(path).add(channelId);
+    return (channel.poolMembers ?? []).flatMap((member) => {
+      if (member.enabled === false || member.memberChannelEnabled === false) return [];
+      return collectStandaloneMembers(member.memberChannelId, nextPath);
+    });
+  };
+
+  for (const channel of channels) {
+    if (!channel.enabled || channel.channelType !== "pooled") continue;
+    if (collectStandaloneMembers(channel.id).includes(standaloneChannelId)) {
+      targetById.set(channel.id, { channelId: channel.id, channelName: channel.name });
+    }
+  }
+
+  if (targetById.size === 0) {
+    const standalone = channelById.get(standaloneChannelId);
+    if (standalone?.enabled) {
+      targetById.set(standalone.id, { channelId: standalone.id, channelName: standalone.name });
+    }
+  }
+
+  return [...targetById.values()].sort((left, right) => left.channelName.localeCompare(right.channelName));
+}
 
 export function readProbeJsonPath(source: unknown, path: string): unknown {
   const normalized = path
@@ -151,6 +204,38 @@ export function getProbeWorkflowRequestBody(method: string, body: unknown): unkn
   if (method.toUpperCase() === "GET" || method.toUpperCase() === "HEAD") return undefined;
   if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length === 0) return undefined;
   return body;
+}
+
+/** GET/HEAD balance reads must not retain stale body transport headers from imported templates. */
+export function getProbeWorkflowHeaders(method: string, headers: Record<string, string>): Record<string, string> {
+  if (method.toUpperCase() !== "GET" && method.toUpperCase() !== "HEAD") return headers;
+  return Object.fromEntries(
+    Object.entries(headers).filter(([name]) => !["content-length", "transfer-encoding"].includes(name.toLowerCase())),
+  );
+}
+
+/** An ungrouped channel is its own scheduling scope; grouped channels serialize by group. */
+export function getProbeSchedulingScope(channelId: string, probeGroup: string | null | undefined): string {
+  const normalizedGroup = probeGroup?.trim().toLocaleLowerCase();
+  return normalizedGroup ? `group:${normalizedGroup}` : `channel:${channelId}`;
+}
+
+/**
+ * Probe traffic must resolve models in the same way as relay traffic: the
+ * configured model name selects local pricing, while its modelId is what the
+ * upstream receives. This matters for channel-level aliases and mappings.
+ */
+export function resolveProbeModelPricing(
+  probeModel: string,
+  channelModelMapping: Record<string, string> | null | undefined,
+  modelRates: ModelPricingItemDto[],
+): { rate: ModelPricingItemDto; upstreamModelId: string } {
+  const pricingModel = resolveMappedModel(probeModel.trim(), channelModelMapping);
+  const rate = modelRates.find((item) => item.model === pricingModel);
+  if (!rate) throw new BadRequestError("探针模型没有本地定价配置");
+  const upstreamModelId = rate.modelId?.trim() || resolveModelId(rate).trim();
+  if (!upstreamModelId) throw new BadRequestError("探针模型缺少上游模型标识");
+  return { rate, upstreamModelId };
 }
 
 type ProbeUsage = {
@@ -260,9 +345,12 @@ function toNumber(value: unknown): number | undefined {
 
 export class RelayChannelProbeService {
   private static instance: RelayChannelProbeService;
-  private running = false;
+  private scheduling = false;
+  private readonly activeRunIds = new Set<string>();
+  private readonly activeSchedulingScopes = new Set<string>();
   private lastCleanupAt = 0;
   private readonly channelLockService = RelayChannelProbeLockService.getInstance();
+  private readonly relayChannelRepository = RelayChannelRepository.getInstance();
   private readonly repository = RelayChannelProbeRepository.getInstance();
   private readonly redis = RedisService.getInstance();
 
@@ -272,7 +360,10 @@ export class RelayChannelProbeService {
   }
 
   async listOverview(actorUserId: string): Promise<RelayChannelProbeOverviewItemDto[]> {
-    const channels = await RelayChannelService.getInstance().listChannels(actorUserId, true);
+    const [channels, topology] = await Promise.all([
+      RelayChannelService.getInstance().listChannels(actorUserId, true),
+      this.listChannelTopology(),
+    ]);
     const standalone = channels.filter((channel) => channel.channelType === "standalone");
     const channelIds = standalone.map((item) => item.id);
     const [profiles, runs] = await Promise.all([
@@ -285,12 +376,51 @@ export class RelayChannelProbeService {
       channelId: channel.id,
       channelName: channel.name,
       enabled: channel.enabled,
+      visibilityMode: channel.visibilityMode,
+      customerFacingTargets: resolveProbeCustomerFacingTargets(topology, channel.id),
       multiplier: channel.multiplier,
       allowedProbeFormats: this.toAllowedProbeFormats(channel.allowedFormats),
       allowedProbeModels: channel.allowedModels,
       profile: profileMap.has(channel.id) ? this.toProfileDto(profileMap.get(channel.id)!) : undefined,
       latestRun: runMap.has(channel.id) ? this.toRunDto(runMap.get(channel.id)!) : undefined,
     }));
+  }
+
+  /**
+   * Probe readers can only inspect channels they are allowed to manage, but a
+   * member's customer-facing pool can use a private management visibility mode.
+   * Read the topology separately so notices consistently use the pool label.
+   */
+  private async listChannelTopology(): Promise<RelayChannelProbeTopologyItem[]> {
+    const channels = await this.relayChannelRepository.listVisible();
+    return channels.map((channel) => {
+      const members = (
+        channel as typeof channel & {
+          poolMembers?: Array<{
+            memberChannelId: string;
+            priority: number;
+            weight: number;
+            enabled: boolean;
+            memberChannel?: { status: number } | null;
+          }>;
+        }
+      ).poolMembers;
+      return {
+        id: channel.id,
+        name: channel.name,
+        enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+        channelType: channel.channelType as RelayChannelType,
+        poolMembers: members?.map(
+          (member): RelayChannelMemberDto => ({
+            memberChannelId: member.memberChannelId,
+            priority: member.priority,
+            weight: Number(member.weight),
+            enabled: member.enabled,
+            memberChannelEnabled: member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+          }),
+        ),
+      };
+    });
   }
 
   async getProfile(channelId: string, actorUserId: string): Promise<RelayChannelProbeProfileDto> {
@@ -543,25 +673,45 @@ export class RelayChannelProbeService {
   }
 
   start(): void {
-    setInterval(() => void this.processNext(), 5_000).unref();
+    setInterval(() => void this.schedulePendingRuns(), 5_000).unref();
     setInterval(() => void this.cleanupExpiredRuns(), 60 * 60 * 1000).unref();
-    void this.processNext();
+    void this.schedulePendingRuns();
     void this.cleanupExpiredRuns();
   }
 
-  private async processNext(): Promise<void> {
-    if (this.running) return;
-    this.running = true;
+  private async schedulePendingRuns(): Promise<void> {
+    if (this.scheduling) return;
+    this.scheduling = true;
     try {
-      const owner = randomUUID();
+      const availableSlots = MAX_CONCURRENT_PROBE_RUNS - this.activeRunIds.size;
+      if (availableSlots <= 0) return;
       const now = new Date();
-      const candidate = await this.repository.findClaimableRun(now);
-      if (!candidate) return;
-      const claimed = await this.repository.claimRun(candidate.id, owner, now, new Date(Date.now() + RUN_LEASE_MS));
-      if (!claimed.count) return;
-      await this.executeRun(candidate.id, owner);
+      // Inspect more than the immediate capacity so a queued job in an active
+      // group never prevents an independent group from starting.
+      const candidates = await this.repository.findClaimableRuns(now, availableSlots * 8);
+      for (const candidate of candidates) {
+        if (this.activeRunIds.size >= MAX_CONCURRENT_PROBE_RUNS) break;
+        const scope = getProbeSchedulingScope(candidate.relayChannelId, candidate.profile?.probeGroup);
+        if (this.activeRunIds.has(candidate.id) || this.activeSchedulingScopes.has(scope)) continue;
+
+        const owner = randomUUID();
+        const claimed = await this.repository.claimRun(candidate.id, owner, now, new Date(Date.now() + RUN_LEASE_MS));
+        if (!claimed.count) continue;
+
+        this.activeRunIds.add(candidate.id);
+        this.activeSchedulingScopes.add(scope);
+        void this.executeRun(candidate.id, owner)
+          .catch((error) =>
+            logger.error("Relay channel probe worker crashed", { runId: candidate.id, error: this.safeError(error) }),
+          )
+          .finally(() => {
+            this.activeRunIds.delete(candidate.id);
+            this.activeSchedulingScopes.delete(scope);
+            void this.schedulePendingRuns();
+          });
+      }
     } finally {
-      this.running = false;
+      this.scheduling = false;
     }
   }
 
@@ -587,6 +737,7 @@ export class RelayChannelProbeService {
     leaseHeartbeat.unref();
     try {
       const profile = run.profile;
+      const pricing = await this.resolveProbeModelPricing(profile);
       const executeProbe = () =>
         this.channelLockService.withWrite(profile.relayChannelId, async () => {
           const variables = this.decryptCredentials(profile);
@@ -594,7 +745,7 @@ export class RelayChannelProbeService {
           const beforeBalance = await this.runProbePhase("读取请求前余额", () => this.runWorkflow(workflow, variables));
           await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
           const upstreamResponse = await this.runProbePhase("最小模型请求", () =>
-            this.callUpstream(profile, variables),
+            this.callUpstream(profile, variables, pricing.upstreamModelId),
           );
           const usage = this.extractUsage(upstreamResponse);
           assertProbeUsage(usage);
@@ -617,7 +768,7 @@ export class RelayChannelProbeService {
         throw new BadRequestError("上游余额换算结果无效");
       const upstreamDelta = normalizedBefore - normalizedAfter;
       const upstreamRateMultiplier = Number(profile.upstreamRateMultiplier);
-      const baseCost = await this.calculateBaseCost(profile, usage);
+      const baseCost = await this.calculateBaseCost(profile, usage, pricing.rate);
       const comparable =
         profile.upstreamCurrency === profile.localCurrency &&
         upstreamDelta > 0 &&
@@ -677,10 +828,14 @@ export class RelayChannelProbeService {
       const rawUrl = interpolateRequiredProbeVariables(step.url, variables) as string;
       const safe = await assertSafeOutboundUrl(rawUrl);
       const body = interpolateRequiredProbeVariables(step.body || {}, variables);
+      const headers = getProbeWorkflowHeaders(
+        step.method,
+        interpolateRequiredProbeVariables(step.headers || {}, variables) as Record<string, string>,
+      );
       const response = await axios.request({
         method: step.method,
         url: safe.url.toString(),
-        headers: interpolateRequiredProbeVariables(step.headers || {}, variables) as Record<string, string>,
+        headers,
         params: interpolateRequiredProbeVariables(step.query || {}, variables),
         data: getProbeWorkflowRequestBody(step.method, body),
         httpAgent: safe.httpAgent,
@@ -711,6 +866,7 @@ export class RelayChannelProbeService {
   private async callUpstream(
     profile: ProbeProfileRecord,
     variables: Record<string, string>,
+    upstreamModelId: string,
   ): Promise<Record<string, unknown>> {
     const channel = profile.relayChannel;
     const format = profile.probeFormat as "openai" | "anthropic" | "gemini";
@@ -729,14 +885,14 @@ export class RelayChannelProbeService {
     if (!upstreamUrl || !apiKey) throw new BadRequestError("渠道缺少对应格式的上游配置");
     const base = await assertSafeOutboundUrl(upstreamUrl);
     const payload = interpolateRequiredProbeVariables(
-      { ...(profile.probePayload as Record<string, unknown>), model: profile.probeModel },
+      { ...(profile.probePayload as Record<string, unknown>), model: upstreamModelId },
       variables,
     ) as Record<string, unknown>;
     const headers: Record<string, string> =
       format === "anthropic"
         ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
         : { Authorization: `Bearer ${apiKey}` };
-    const endpointUrl = new URL(buildProbeUpstreamEndpoint(base.url.toString(), format, profile.probeModel));
+    const endpointUrl = new URL(buildProbeUpstreamEndpoint(base.url.toString(), format, upstreamModelId));
     if (format === "gemini") endpointUrl.searchParams.set("key", apiKey);
     const response = await axios.post(endpointUrl.toString(), payload, {
       headers,
@@ -780,12 +936,8 @@ export class RelayChannelProbeService {
       cacheCreationTokens: number;
       cacheReadTokens: number;
     },
+    rate: ModelPricingItemDto,
   ) {
-    const mappedModel =
-      ((profile.relayChannel.modelMapping as Record<string, string> | null) || {})[profile.probeModel] ||
-      profile.probeModel;
-    const rate = (await ModelPricingService.getInstance().getModelPricing()).find((item) => item.model === mappedModel);
-    if (!rate) throw new BadRequestError("探针模型没有本地定价配置");
     const relayConfig = await RelayConfigService.getInstance().getRelayConfig();
     const timeMultiplier = computeMultiplierForTime(
       (profile.relayChannel.timePeriodMultipliers as any[]) || [],
@@ -798,7 +950,7 @@ export class RelayChannelProbeService {
     const inputRate = Number(rate.inputPrice || 0) / TOKEN_PRICE_DIVISOR;
     const outputRate = Number(rate.outputPrice || 0) / TOKEN_PRICE_DIVISOR;
     const billableInputTokens =
-      profile.relayChannel.inputTokensIncludeCacheRead !== false
+      profile.relayChannel.inputTokensIncludeCacheRead === true
         ? Math.max(0, usage.requestTokens - usage.cacheReadTokens)
         : usage.requestTokens;
     const cacheCreationMultiplier = Number(rate.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER);
@@ -810,6 +962,15 @@ export class RelayChannelProbeService {
         usage.responseTokens * outputRate) *
       multiplier;
     return Number.isFinite(rawCost) ? Math.max(0, Math.ceil(rawCost * 10_000) / 10_000) : 0;
+  }
+
+  private async resolveProbeModelPricing(profile: ProbeProfileRecord) {
+    const relayConfig = await RelayConfigService.getInstance().getRelayConfig();
+    return resolveProbeModelPricing(
+      profile.probeModel,
+      profile.relayChannel.modelMapping as Record<string, string> | null | undefined,
+      relayConfig.modelRates,
+    );
   }
 
   private getEncryptionKey(): Buffer {
@@ -928,7 +1089,7 @@ export class RelayChannelProbeService {
   }
 
   private getProbeGroupLockId(group: string): string {
-    const fingerprint = createHash("sha256").update(group).digest("hex").slice(0, 32);
+    const fingerprint = createHash("sha256").update(group.trim().toLocaleLowerCase()).digest("hex").slice(0, 32);
     return `probe-group:${fingerprint}`;
   }
 
