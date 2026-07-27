@@ -2563,6 +2563,9 @@ export default {
     routingStrategyLatencyPriority: 'Latency Priority',
     routingConfig: 'Routing Parameters',
     automaticPoolRankingMode: 'Automatic Pool Ranking',
+    automaticPoolDynamicRanking: 'Dynamic Member Ranking',
+    automaticPoolDynamicRankingHelp:
+      'When enabled, reorder members from price, availability, and latency; otherwise keep configured priority.',
     automaticPoolRankingPriceFirst: 'Price First',
     automaticPoolRankingStabilityFirst: 'Stability First',
     automaticPoolRankingHelp: 'Channel order adapts to current price and health data.',

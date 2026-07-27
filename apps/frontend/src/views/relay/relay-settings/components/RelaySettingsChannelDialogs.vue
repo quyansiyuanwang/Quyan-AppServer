@@ -126,10 +126,23 @@
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
             <el-form-item
               v-if="channelForm.channelType === 'automatic-proxy-pool'"
+              :label="i18ns.t('relay.automaticPoolDynamicRanking')"
+              label-width="auto"
+            >
+              <el-switch v-model="channelForm.routingConfig.dynamicMemberRankingEnabled" />
+              <div class="text-[#909399] text-xs mt-1">
+                {{ i18ns.t('relay.automaticPoolDynamicRankingHelp') }}
+              </div>
+            </el-form-item>
+            <el-form-item
+              v-if="channelForm.channelType === 'automatic-proxy-pool'"
               :label="i18ns.t('relay.automaticPoolRankingMode')"
               label-width="auto"
             >
-              <el-select v-model="channelForm.routingConfig.rankingMode">
+              <el-select
+                v-model="channelForm.routingConfig.rankingMode"
+                :disabled="channelForm.routingConfig.dynamicMemberRankingEnabled === false"
+              >
                 <el-option
                   :label="i18ns.t('relay.automaticPoolRankingPriceFirst')"
                   value="price-first"
@@ -871,6 +884,21 @@
               {{ i18ns.t('relay.routingConfig') }}
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div
+                v-if="currentChannelDetail.channelType === 'automatic-proxy-pool'"
+                class="rounded border border-[var(--el-border-color-lighter)] p-3"
+              >
+                <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
+                  {{ i18ns.t('relay.automaticPoolDynamicRanking') }}
+                </div>
+                <div>
+                  {{
+                    currentChannelDetail.routingConfig?.dynamicMemberRankingEnabled === false
+                      ? i18ns.t('relay.disabled')
+                      : i18ns.t('relay.enabled')
+                  }}
+                </div>
+              </div>
               <div
                 v-if="currentChannelDetail.channelType === 'automatic-proxy-pool'"
                 class="rounded border border-[var(--el-border-color-lighter)] p-3"

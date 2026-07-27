@@ -2663,6 +2663,8 @@ const emoji: DeepStringify<typeof en> = {
     routingStrategyLatencyPriority: '⚡ 优先',
     routingConfig: '🧰 路由参数',
     automaticPoolRankingMode: '🪣 排序',
+    automaticPoolDynamicRanking: '🔀 📈',
+    automaticPoolDynamicRankingHelp: '🔀 💲 🩺 ⏱️',
     automaticPoolRankingPriceFirst: '💰 优先',
     automaticPoolRankingStabilityFirst: '💚 优先',
     automaticPoolRankingHelp: '💰 与 💚 数据会动态影响排序。',

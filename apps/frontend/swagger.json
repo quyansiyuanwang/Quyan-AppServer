@@ -37391,6 +37391,10 @@
 						"$ref": "#/components/schemas/RelayAutomaticPoolRankingMode",
 						"description": "Dynamic ordering mode for automatic proxy pools."
 					},
+					"dynamicMemberRankingEnabled": {
+						"type": "boolean",
+						"description": "Automatic proxy pools: use member price and health telemetry to reorder attempts."
+					},
 					"healthTrackingMode": {
 						"$ref": "#/components/schemas/RelayChannelHealthTrackingMode",
 						"description": "Standalone channels: collect live Redis samples, use administrator values, or keep priority unchanged."
@@ -38356,6 +38360,9 @@
 					"rankingMode": {
 						"$ref": "#/components/schemas/RelayAutomaticPoolRankingMode"
 					},
+					"dynamicMemberRankingEnabled": {
+						"type": "boolean"
+					},
 					"windowStartAt": {
 						"type": "string",
 						"format": "date-time"
@@ -38375,6 +38382,7 @@
 					"channelId",
 					"name",
 					"rankingMode",
+					"dynamicMemberRankingEnabled",
 					"windowStartAt",
 					"windowEndAt",
 					"members"
@@ -39047,7 +39055,7 @@
 				"additionalProperties": false
 			},
 			"RelayChannelProbeCustomerFacingTargetDto": {
-				"description": "A public routing entry that represents this standalone channel to customers.",
+				"description": "A routing entry that represents this standalone channel in customer-facing price notices.",
 				"properties": {
 					"channelId": {
 						"type": "string"
@@ -39343,7 +39351,7 @@
 							"$ref": "#/components/schemas/RelayChannelProbeCustomerFacingTargetDto"
 						},
 						"type": "array",
-						"description": "Public pooled entries that resolve to this standalone channel. When present,\ncustomer notices must use these names instead of the upstream account name."
+						"description": "Pooled entries that resolve to this standalone channel. When present,\ncustomer notices must use these names instead of the upstream account name."
 					},
 					"multiplier": {
 						"type": "number",

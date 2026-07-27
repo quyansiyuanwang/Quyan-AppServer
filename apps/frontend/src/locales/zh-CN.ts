@@ -2477,6 +2477,9 @@ const zhCN: DeepStringify<typeof en> = {
     routingStrategyLatencyPriority: '低延迟优先',
     routingConfig: '路由参数',
     automaticPoolRankingMode: '自动池排序',
+    automaticPoolDynamicRanking: '动态成员排序',
+    automaticPoolDynamicRankingHelp:
+      '开启后按成员倍率、可用率和延迟动态重排；关闭后严格使用成员优先级。',
     automaticPoolRankingPriceFirst: '价格优先',
     automaticPoolRankingStabilityFirst: '稳定优先',
     automaticPoolRankingHelp: '价格和可用性会随渠道实时健康数据动态排序。',

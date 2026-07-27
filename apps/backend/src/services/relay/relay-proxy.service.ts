@@ -1544,7 +1544,7 @@ export class RelayProxyService {
     if (orderedPoolMembers.length === 0) return [];
 
     let orderedMembers = orderedPoolMembers;
-    if (channel.channelType === "automatic-proxy-pool") {
+    if (channel.channelType === "automatic-proxy-pool" && routingConfig?.dynamicMemberRankingEnabled !== false) {
       const rankingMode = routingConfig?.rankingMode === "stability-first" ? "stability-first" : "price-first";
       const ranked = await this.relayChannelHealthService.rankMembers(
         orderedPoolMembers.map((member) => ({

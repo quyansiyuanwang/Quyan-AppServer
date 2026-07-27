@@ -1108,18 +1108,14 @@
           <el-option value="ceil" :label="i18ns.t('relay.channelProbeRoundUp')" />
         </el-select>
         <span>{{ i18ns.t('relay.channelProbeNoticeDecimals') }}</span>
-        <el-input-number
-          v-model="changeDisplayDigits"
-          :min="0"
-          :max="6"
-          :step="1"
-          :precision="0"
-        />
+        <el-input-number v-model="changeDisplayDigits" :min="0" :max="6" :step="1" :precision="0" />
         <span class="selected-draft-summary">{{
           i18ns.t('relay.channelProbeChangeCount', { count: multiplierChangeRows.length })
         }}</span>
         <span class="selected-draft-summary">{{
-          i18ns.t('relay.channelProbeCustomerNoticeCount', { count: publicMultiplierChangeRows.length })
+          i18ns.t('relay.channelProbeCustomerNoticeCount', {
+            count: publicMultiplierChangeRows.length,
+          })
         }}</span>
         <el-tooltip :disabled="publicMultiplierChangeRows.length > 0" placement="top">
           <template #content>{{ i18ns.t('relay.channelProbeExportChangeChartNoPublic') }}</template>
@@ -1444,7 +1440,9 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
 const publicMultiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
   const rowsByCustomerEntry = new Map<string, MultiplierChangeRow>()
   for (const row of multiplierChangeRows.value) {
-    for (const target of Array.isArray(row.customerFacingTargets) ? row.customerFacingTargets : []) {
+    for (const target of Array.isArray(row.customerFacingTargets)
+      ? row.customerFacingTargets
+      : []) {
       const sourceMultiplier = roundMultiplierForPrecision(
         row.sourceMultiplier,
         changeDisplayDigits.value,
@@ -1900,7 +1898,11 @@ function roundDraftMultipliers() {
   for (const draft of applyDrafts.value)
     draft.targetMultiplier = Math.max(
       0.000001,
-      roundMultiplierForPrecision(draft.suggestedMultiplier, roundingDigits.value, roundingMode.value),
+      roundMultiplierForPrecision(
+        draft.suggestedMultiplier,
+        roundingDigits.value,
+        roundingMode.value,
+      ),
     )
 }
 watch([roundingDigits, roundingMode], () => {
@@ -2703,7 +2705,7 @@ watch(
     changePageSize,
   ],
   () => {
-  changePage.value = 1
+    changePage.value = 1
   },
 )
 onMounted(loadOverview)

@@ -42,11 +42,7 @@ import type {
   RelayChannelProbeWorkflowStepDto,
   UpsertRelayChannelProbeProfileRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
-import type {
-  RelayChannelDto,
-  RelayChannelMemberDto,
-  RelayChannelType,
-} from "@/api/dto/relay/relay-channel.dto";
+import type { RelayChannelDto, RelayChannelMemberDto, RelayChannelType } from "@/api/dto/relay/relay-channel.dto";
 import type { ModelPricingItemDto } from "@/api/dto/relay/relay-config.dto";
 
 const PROBE_TIMEOUT_MS = 30_000;
