@@ -3257,6 +3257,7 @@ export default {
     timeMultiplier: 'Time Multiplier',
     channelName: 'Channel Name',
     channelUsed: 'Channel Used',
+    requestId: 'Request ID',
     cacheCreationMultiplier: 'Cache Creation Multiplier',
     cacheReadMultiplier: 'Cache Read Multiplier',
     adjustBalance: 'Adjust Balance',

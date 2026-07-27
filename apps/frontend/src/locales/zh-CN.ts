@@ -3126,6 +3126,7 @@ const zhCN: DeepStringify<typeof en> = {
     timeMultiplier: '时段倍率',
     channelName: '渠道名称',
     channelUsed: '使用渠道',
+    requestId: '请求 ID',
     cacheCreationMultiplier: '缓存创建倍率',
     cacheReadMultiplier: '缓存读取倍率',
     adjustBalance: '调整余额',

@@ -3264,6 +3264,7 @@ const emoji: DeepStringify<typeof en> = {
     timeMultiplier: '⌛ 🔁',
     channelName: '📡 📛',
     channelUsed: '📡 🚯',
+    requestId: '🧾 🆔',
     cacheCreationMultiplier: '🥴 🔽 🔁',
     cacheReadMultiplier: '🥴 💤 🔁',
     adjustBalance: '🈳 💳',
