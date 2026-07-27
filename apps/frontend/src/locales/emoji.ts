@@ -2770,6 +2770,7 @@ const emoji: DeepStringify<typeof en> = {
     channelProbeCurrentMultiplier: '●',
     channelProbePriceIncrease: '💲 ➡️',
     channelProbeRoundingMode: '🔁',
+    channelProbeRememberApplySettings: '🧠 ⚙️',
     channelProbeRoundUp: '⬆️',
     channelProbeRoundNearest: '≈',
     channelProbeRoundDigits: '🔢',

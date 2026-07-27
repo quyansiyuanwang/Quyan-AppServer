@@ -968,6 +968,9 @@
         <el-button link @click="clearDraftSelection">{{
           i18ns.t('relay.channelProbeClearSelection')
         }}</el-button>
+        <el-checkbox v-model="rememberApplySettings">{{
+          i18ns.t('relay.channelProbeRememberApplySettings')
+        }}</el-checkbox>
         <span class="selected-draft-summary">{{
           i18ns.t('relay.channelProbeSelected', { count: selectedApplyRunIds.length })
         }}</span>
@@ -1335,6 +1338,14 @@ const applyTableRef = ref<TableInstance>()
 const selectedApplyRunIds = ref<string[]>([])
 const selectionTolerancePercent = ref(1)
 const selectionDirection = ref<'all' | 'increase' | 'decrease'>('all')
+const rememberApplySettings = ref(false)
+const APPLY_SETTINGS_STORAGE_KEY = 'relay-channel-probe:apply-multiplier-settings:v1'
+type RememberedApplySettings = {
+  roundingDigits: number
+  roundingMode: 'ceil' | 'nearest'
+  selectionTolerancePercent: number
+  selectionDirection: 'all' | 'increase' | 'decrease'
+}
 const changeDialogOpen = ref(false)
 const changeSort = ref<'largest' | 'smallest' | 'recent'>('largest')
 const changeDirection = ref<'all' | 'increase' | 'decrease'>('all')
@@ -1920,6 +1931,23 @@ watch([roundingDigits, roundingMode], () => {
   if (applyDialogOpen.value && applyDrafts.value.length > 0 && !applying.value)
     roundDraftMultipliers()
 })
+watch(
+  [rememberApplySettings, roundingDigits, roundingMode, selectionTolerancePercent, selectionDirection],
+  () => {
+    if (typeof localStorage === 'undefined') return
+    if (!rememberApplySettings.value) {
+      localStorage.removeItem(APPLY_SETTINGS_STORAGE_KEY)
+      return
+    }
+    const settings: RememberedApplySettings = {
+      roundingDigits: roundingDigits.value,
+      roundingMode: roundingMode.value,
+      selectionTolerancePercent: selectionTolerancePercent.value,
+      selectionDirection: selectionDirection.value,
+    }
+    localStorage.setItem(APPLY_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+  },
+)
 function roundMultiplierForPrecision(value: number, digits: number, mode: 'ceil' | 'nearest') {
   const factor = 10 ** digits
   return (
@@ -2720,7 +2748,22 @@ watch(
     changePage.value = 1
   },
 )
-onMounted(loadOverview)
+onMounted(() => {
+  try {
+    const saved = localStorage.getItem(APPLY_SETTINGS_STORAGE_KEY)
+    if (saved) {
+      const settings = JSON.parse(saved) as Partial<RememberedApplySettings>
+      if (settings.roundingMode === 'ceil' || settings.roundingMode === 'nearest') roundingMode.value = settings.roundingMode
+      if (Number.isInteger(settings.roundingDigits) && settings.roundingDigits! >= 0 && settings.roundingDigits! <= 6) roundingDigits.value = settings.roundingDigits!
+      if (Number.isFinite(settings.selectionTolerancePercent) && settings.selectionTolerancePercent! >= 0 && settings.selectionTolerancePercent! <= 100) selectionTolerancePercent.value = settings.selectionTolerancePercent!
+      if (settings.selectionDirection === 'all' || settings.selectionDirection === 'increase' || settings.selectionDirection === 'decrease') selectionDirection.value = settings.selectionDirection
+      rememberApplySettings.value = true
+    }
+  } catch {
+    localStorage.removeItem(APPLY_SETTINGS_STORAGE_KEY)
+  }
+  void loadOverview()
+})
 onBeforeUnmount(stopPolling)
 </script>
 

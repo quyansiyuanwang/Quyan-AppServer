@@ -2681,6 +2681,7 @@ export default {
     channelProbeCurrentMultiplier: 'Current',
     channelProbePriceIncrease: 'Higher price',
     channelProbeRoundingMode: 'Rounding mode',
+    channelProbeRememberApplySettings: 'Remember these settings',
     channelProbeRoundUp: 'Round up',
     channelProbeRoundNearest: 'Round to nearest',
     channelProbeRoundDigits: 'Decimal places',

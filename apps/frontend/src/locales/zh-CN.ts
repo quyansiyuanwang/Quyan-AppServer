@@ -2591,6 +2591,7 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeCurrentMultiplier: '当前',
     channelProbePriceIncrease: '涨价',
     channelProbeRoundingMode: '取整方式',
+    channelProbeRememberApplySettings: '记住本次设置',
     channelProbeRoundUp: '向上取整',
     channelProbeRoundNearest: '四舍五入',
     channelProbeRoundDigits: '保留小数位',
