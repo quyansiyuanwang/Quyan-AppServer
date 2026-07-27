@@ -3167,6 +3167,7 @@ const emoji: DeepStringify<typeof en> = {
     contextRuleMinTokens: '🔢 🧠 🪙',
     contextRuleMultiplier: '💹',
     contextRuleAdd: '➕ 🧾',
+    contextRuleQuickAdd: '⚡ ➕ 🔢',
     openaiUpstream: '🛄 🌊',
     anthropicUpstream: '🚷 🌊',
     geminiUpstream: '😦 🌊',

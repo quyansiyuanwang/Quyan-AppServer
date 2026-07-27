@@ -3154,6 +3154,7 @@ export default {
     contextRuleMinTokens: 'Minimum Context Tokens',
     contextRuleMultiplier: 'Multiplier',
     contextRuleAdd: 'Add Rule',
+    contextRuleQuickAdd: 'Quick-add thresholds',
     openaiUpstream: 'OpenAI Upstream',
     anthropicUpstream: 'Anthropic Upstream',
     geminiUpstream: 'Gemini Upstream',

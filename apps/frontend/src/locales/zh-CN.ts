@@ -3035,6 +3035,7 @@ const zhCN: DeepStringify<typeof en> = {
     contextRuleMinTokens: '最小上下文 Token',
     contextRuleMultiplier: '倍率',
     contextRuleAdd: '添加规则',
+    contextRuleQuickAdd: '快速添加阈值',
     openaiUpstream: 'OpenAI 上游',
     anthropicUpstream: 'Anthropic 上游',
     geminiUpstream: 'Gemini 上游',

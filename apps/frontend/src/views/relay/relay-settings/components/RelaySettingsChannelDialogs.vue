@@ -670,18 +670,30 @@
         <el-divider content-position="left">{{ i18ns.t('relay.contextRules') }}</el-divider>
         <el-form-item label="">
           <div class="flex flex-col gap-2 w-full">
-            <el-button
-              size="small"
-              @click="
-                channelForm.contextLengthMultipliers.push({
-                  name: '',
-                  enabled: true,
-                  minTokens: 0,
-                  multiplier: 1,
-                })
-              "
-              >{{ i18ns.t('relay.contextRuleAdd') }}</el-button
-            >
+            <div class="flex flex-wrap items-center gap-2">
+              <el-button
+                size="small"
+                @click="
+                  channelForm.contextLengthMultipliers.push({
+                    name: '',
+                    enabled: true,
+                    minTokens: 0,
+                    multiplier: 1,
+                  })
+                "
+                >{{ i18ns.t('relay.contextRuleAdd') }}</el-button
+              >
+              <span class="text-xs text-[#909399]">{{ i18ns.t('relay.contextRuleQuickAdd') }}</span>
+              <el-button
+                v-for="preset in contextLengthPresets"
+                :key="preset.minTokens"
+                size="small"
+                :disabled="hasContextLengthRule(preset.minTokens)"
+                @click="addContextLengthRule(preset)"
+              >
+                {{ preset.name }}
+              </el-button>
+            </div>
             <el-table :data="channelForm.contextLengthMultipliers" size="small" max-height="260">
               <el-table-column :label="i18ns.t('relay.contextRuleName')" min-width="140">
                 <template #default="{ row }"><el-input v-model="row.name" size="small" /></template>
@@ -1481,6 +1493,27 @@ const automaticPoolHealth = computed(() => {
   const health = channelHealth.value
   return health && 'members' in health ? health : null
 })
+
+const contextLengthPresets = [
+  { name: '128K', minTokens: 128_000 },
+  { name: '256K', minTokens: 256_000 },
+  { name: '512K', minTokens: 512_000 },
+  { name: '1M', minTokens: 1_024_000 },
+]
+
+const hasContextLengthRule = (minTokens: number) =>
+  channelForm.value.contextLengthMultipliers.some((rule) => rule.minTokens === minTokens)
+
+const addContextLengthRule = (preset: (typeof contextLengthPresets)[number]) => {
+  if (hasContextLengthRule(preset.minTokens)) return
+  channelForm.value.contextLengthMultipliers.push({
+    name: preset.name,
+    enabled: true,
+    minTokens: preset.minTokens,
+    multiplier: 1,
+  })
+  channelForm.value.contextLengthMultipliers.sort((left, right) => left.minTokens - right.minTokens)
+}
 
 const standardChannelHealth = computed(() => {
   const health = channelHealth.value
