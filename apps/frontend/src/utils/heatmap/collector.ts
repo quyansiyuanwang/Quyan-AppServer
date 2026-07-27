@@ -1,3 +1,5 @@
+import { TypedSessionStorage } from '@/utils/typedSessionStorage'
+import StorageKey from '@/constant/storagekey'
 interface HeatPoint {
   pointType: 'click' | 'scroll_stop'
   page: string
@@ -14,8 +16,7 @@ const FLUSH_INTERVAL = 5000
 const ENDPOINT = `${import.meta.env.VITE_BACKEND_URL || ''}/v1/heatmap/collect`
 
 function getSessionId(): string {
-  const key = 'track_session_id'
-  return sessionStorage.getItem(key) ?? ''
+  return TypedSessionStorage.getItem(StorageKey.Tracking.SESSION_ID) ?? ''
 }
 
 class HeatCollector {

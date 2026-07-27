@@ -1,3 +1,4 @@
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { authEventBus } from '@/stores/globalInstance'
 import { useRequestStore } from '@/stores/request'
 import StorageKey from '@/constant/storagekey'
@@ -49,8 +50,8 @@ export class HeartbeatService {
     this.started = false
     this.clearTimers()
     this.inFlight = null
-    localStorage.removeItem(this.getLeaderIdKey())
-    localStorage.removeItem(this.getLeaderExpiresKey())
+    TypedLocalStorage.removeItem(this.getLeaderIdKey())
+    TypedLocalStorage.removeItem(this.getLeaderExpiresKey())
   }
 
   private async fetchRuntimeConfig(): Promise<HeartbeatRuntimeConfigDto> {
@@ -80,13 +81,13 @@ export class HeartbeatService {
 
   private renewLeadership = () => {
     const expiresAt = Date.now() + LEADER_TTL_MS
-    localStorage.setItem(this.getLeaderIdKey(), this.leaderId)
-    localStorage.setItem(this.getLeaderExpiresKey(), String(expiresAt))
+    TypedLocalStorage.setItem(this.getLeaderIdKey(), this.leaderId)
+    TypedLocalStorage.setItem(this.getLeaderExpiresKey(), String(expiresAt))
   }
 
   private tryBecomeLeader() {
-    const expiresAt = Number(localStorage.getItem(this.getLeaderExpiresKey()) || '0')
-    const currentLeaderId = localStorage.getItem(this.getLeaderIdKey())
+    const expiresAt = Number(TypedLocalStorage.getItem(this.getLeaderExpiresKey()) || '0')
+    const currentLeaderId = TypedLocalStorage.getItem(this.getLeaderIdKey())
     if (!currentLeaderId || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
       this.renewLeadership()
       return true
@@ -95,8 +96,8 @@ export class HeartbeatService {
   }
 
   private isLeader() {
-    const currentLeaderId = localStorage.getItem(this.getLeaderIdKey())
-    const expiresAt = Number(localStorage.getItem(this.getLeaderExpiresKey()) || '0')
+    const currentLeaderId = TypedLocalStorage.getItem(this.getLeaderIdKey())
+    const expiresAt = Number(TypedLocalStorage.getItem(this.getLeaderExpiresKey()) || '0')
     return currentLeaderId === this.leaderId && expiresAt > Date.now()
   }
 
@@ -137,8 +138,8 @@ export class HeartbeatService {
     this.clearTimers()
     if (this.isLeader()) {
       void this.sendStopHeartbeat()
-      localStorage.removeItem(this.getLeaderIdKey())
-      localStorage.removeItem(this.getLeaderExpiresKey())
+      TypedLocalStorage.removeItem(this.getLeaderIdKey())
+      TypedLocalStorage.removeItem(this.getLeaderExpiresKey())
     }
   }
 

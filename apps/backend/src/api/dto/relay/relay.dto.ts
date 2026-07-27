@@ -284,6 +284,36 @@ export interface RelayUsageStatsDto {
   usages: RelayUsageDto[];
 }
 
+export interface RelayRequestDiagnosticAttemptDto {
+  id: string;
+  executionChannelId?: string;
+  executionChannelName?: string;
+  statusCode: number;
+  method: string;
+  path: string;
+  totalTokens: number;
+  timeToFirstByte?: number;
+  totalOutputTime?: number;
+  createTime: Date;
+}
+
+export interface RelayRequestDiagnosticDto {
+  requestId: string;
+  relayTokenId: string;
+  relayTokenName?: string;
+  userId: string;
+  username?: string;
+  createTime: Date;
+  attempts: RelayRequestDiagnosticAttemptDto[];
+}
+
+export interface RelayRequestDiagnosticsPageDto {
+  total: number;
+  page: number;
+  pageSize: number;
+  records: RelayRequestDiagnosticDto[];
+}
+
 export interface RelayTokenUsageSummaryDto {
   relayTokenId: string;
   tokenName?: string;

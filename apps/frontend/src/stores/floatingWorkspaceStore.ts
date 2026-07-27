@@ -1,3 +1,4 @@
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import localStorageKeys from '@/constant/storagekey'
@@ -132,7 +133,7 @@ const loadState = (): FloatingWorkspaceState => {
   }
 
   try {
-    const rawValue = window.localStorage.getItem(localStorageKeys.Overlay.FLOATING_WORKSPACE_STATE)
+    const rawValue = TypedLocalStorage.getItem(localStorageKeys.Overlay.FLOATING_WORKSPACE_STATE)
     if (!rawValue) {
       return createDefaultState()
     }
@@ -151,7 +152,7 @@ export const useFloatingWorkspaceStore = defineStore('floatingWorkspace', () => 
       return
     }
 
-    window.localStorage.setItem(
+    TypedLocalStorage.setItem(
       localStorageKeys.Overlay.FLOATING_WORKSPACE_STATE,
       JSON.stringify(state.value),
     )

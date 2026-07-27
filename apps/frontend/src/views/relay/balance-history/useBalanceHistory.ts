@@ -63,19 +63,15 @@ export function useBalanceHistory() {
   })
 
   const historyRangeSlider = computed(() => {
-    const minLevel = historyRangeLevel.value
     return {
       value: historyRangeLevel.value,
       min: HISTORY_RANGE_LEVELS[0]?.value ?? 0,
       max: HISTORY_RANGE_LEVELS[HISTORY_RANGE_LEVELS.length - 1]?.value ?? 3,
-      lockedMin: minLevel,
       marks: Object.fromEntries(
         HISTORY_RANGE_LEVELS.map((item) => [
           item.value,
           {
             label: item.label(),
-            style:
-              item.value < minLevel ? { color: 'var(--el-text-color-placeholder)' } : undefined,
           },
         ]),
       ),
@@ -155,11 +151,6 @@ export function useBalanceHistory() {
     }
 
     if (complete) {
-      const level = getRangeLevelByKey(rangeKey)
-      if (level > historyRangeLevel.value) {
-        historyRangeLevel.value = level
-      }
-
       if (rangeKey === 'all') {
         void persistHistoryAllComplete(true)
       }
@@ -206,21 +197,6 @@ export function useBalanceHistory() {
     return 0
   }
 
-  const detectAvailableRangeLevelFromCache = (): number => {
-    if (historyRangeCache.all.complete && historyRangeCache.all.records.length > 0) return 3
-    if (historyRangeCache['30d'].records.length > 0) return 2
-    if (historyRangeCache['7d'].records.length > 0) return 1
-    if (historyRangeCache['1d'].records.length > 0) return 0
-    return DEFAULT_HISTORY_RANGE_LEVEL
-  }
-
-  const syncHistoryRangeLevelFromCache = () => {
-    const detectedLevel = detectAvailableRangeLevelFromCache()
-    if (detectedLevel > historyRangeLevel.value) {
-      historyRangeLevel.value = detectedLevel
-    }
-  }
-
   const primeHistoryRangeCacheFromSession = async (): Promise<number> => {
     try {
       const cachedRecords = sortByCreateTimeDesc(
@@ -234,7 +210,6 @@ export function useBalanceHistory() {
       if (cachedRecords.length === 0) {
         await persistHistoryAllComplete(false)
         const fallbackLevel = DEFAULT_HISTORY_RANGE_LEVEL
-        historyRangeLevel.value = fallbackLevel
         return fallbackLevel
       }
 
@@ -252,12 +227,10 @@ export function useBalanceHistory() {
         })
       }
 
-      historyRangeLevel.value = detectedLevel
       return detectedLevel
     } catch (error) {
       console.error('Failed to inspect cached balance history:', error)
       const fallbackLevel = DEFAULT_HISTORY_RANGE_LEVEL
-      historyRangeLevel.value = fallbackLevel
       return fallbackLevel
     }
   }
@@ -445,7 +418,6 @@ export function useBalanceHistory() {
     if (allTransactions.value.length === 0) {
       applyTransactions(filteredCached, rangeKey)
       setRangeCache(rangeKey, filteredCached, false)
-      syncHistoryRangeLevelFromCache()
       return
     }
 
@@ -453,7 +425,6 @@ export function useBalanceHistory() {
     allTransactions.value = mergedTransactions
     lastLoadTime.value = mergedTransactions[0]?.createTime ?? lastLoadTime.value
     setRangeCache(rangeKey, mergedTransactions, false)
-    syncHistoryRangeLevelFromCache()
   }
 
   const fetchAndApplyRangeTransactions = async (
@@ -468,7 +439,6 @@ export function useBalanceHistory() {
 
     const sortedRecords = applyTransactions(records, rangeKey)
     setRangeCache(rangeKey, sortedRecords, true)
-    syncHistoryRangeLevelFromCache()
     await sessionDB.save(STORE_NAMES.BALANCE_TRANSACTIONS, sortedRecords)
   }
 
@@ -630,22 +600,19 @@ export function useBalanceHistory() {
     try {
       const newRecords = await syncTransactionsSinceLatestCachedRecord()
       if (newRecords.length > 0) {
-        const existingIds = new Set(allTransactions.value.map((record) => record.id))
-        const uniqueNew = newRecords.filter((record) => !existingIds.has(record.id))
-        const filteredUniqueNew = filterTransactionsByRange(uniqueNew, rangeKey)
-        if (filteredUniqueNew.length > 0) {
+        const filteredUpdatedRecords = filterTransactionsByRange(newRecords, rangeKey)
+        if (filteredUpdatedRecords.length > 0) {
           if (loadToken != null && !isHistoryLoadCurrent(rangeKey, loadToken)) return
 
-          const sortedUniqueNew = sortByCreateTimeDesc(filteredUniqueNew)
+          const sortedUpdatedRecords = sortByCreateTimeDesc(filteredUpdatedRecords)
           allTransactions.value = mergeSortedTransactionsDesc(
-            sortedUniqueNew,
+            sortedUpdatedRecords,
             allTransactions.value,
           )
           lastLoadTime.value = allTransactions.value[0]?.createTime || lastLoadTime.value
           setRangeCache(rangeKey, allTransactions.value, historyRangeCache[rangeKey].complete)
         }
         mergeRecordsIntoCache(newRecords)
-        syncHistoryRangeLevelFromCache()
       }
     } catch (error: any) {
       console.error('Failed to update transactions:', error)
@@ -659,7 +626,11 @@ export function useBalanceHistory() {
     loadingAllData.value = true
 
     try {
-      await fetchAndApplyRangeTransactions(rangeKey, loadToken)
+      if (allTransactions.value.length === 0) {
+        await fetchAndApplyRangeTransactions(rangeKey, loadToken)
+      } else {
+        await incrementalUpdateTransactions({ rangeKey, loadToken })
+      }
     } catch (error: any) {
       ElMessage.error(error.message || i18ns.t('balance.loadFailed'))
       console.error('Failed to refresh transactions:', error)
@@ -766,8 +737,24 @@ export function useBalanceHistory() {
     const targetRangeKey = getRangeKeyByLevel(value)
     const currentLevel = getRangeLevelByKey(activeHistoryRangeKey.value)
 
-    if (value <= currentLevel) {
-      historyRangeLevel.value = currentLevel
+    if (value === currentLevel) {
+      return
+    }
+
+    if (value < currentLevel) {
+      const currentRangeKey = activeHistoryRangeKey.value
+      const currentRangeComplete = historyRangeCache[currentRangeKey].complete
+      ++historyLoadToken
+      activeHistoryRangeKey.value = targetRangeKey
+      historyRangeLevel.value = value
+      loading.value = false
+      loadingAllData.value = false
+
+      const trimmedRecords = filterTransactionsByRange(allTransactions.value, targetRangeKey)
+      applyTransactions(trimmedRecords, targetRangeKey)
+      setRangeCache(targetRangeKey, trimmedRecords, currentRangeComplete)
+
+      // Cancels pending wider-range work; IndexedDB remains the durable incremental cursor.
       return
     }
 
@@ -814,12 +801,12 @@ export function useBalanceHistory() {
 
   onMounted(async () => {
     historyRangeLevel.value = DEFAULT_HISTORY_RANGE_LEVEL
-    const initialLevel = await primeHistoryRangeCacheFromSession()
+    await primeHistoryRangeCacheFromSession()
 
     await Promise.all([
       refreshBalanceAndStats(),
       loadUsageStats(),
-      loadTransactionsByRange(getRangeKeyByLevel(initialLevel), {
+      loadTransactionsByRange('1d', {
         preferCache: true,
         forceNetworkFull: false,
       }),

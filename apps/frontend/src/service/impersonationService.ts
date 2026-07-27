@@ -1,3 +1,4 @@
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import {
   useRequestStore,
   saveTokenExpiration,
@@ -39,51 +40,53 @@ export class ImpersonationService {
   }
 
   private backupOriginalSession() {
-    const accessToken = localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN)
-    const refreshToken = localStorage.getItem(StorageKey.Auth.REFRESH_TOKEN)
-    const accessExpiry = localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)
-    const refreshExpiry = localStorage.getItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION)
+    const accessToken = TypedLocalStorage.getItem(StorageKey.Auth.ACCESS_TOKEN)
+    const refreshToken = TypedLocalStorage.getItem(StorageKey.Auth.REFRESH_TOKEN)
+    const accessExpiry = TypedLocalStorage.getItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)
+    const refreshExpiry = TypedLocalStorage.getItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION)
     const storageScope = getCurrentStorageScope()
 
     if (accessToken) {
-      localStorage.setItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN, accessToken)
+      TypedLocalStorage.setItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN, accessToken)
     } else {
-      localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN)
+      TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN)
     }
 
     if (refreshToken) {
-      localStorage.setItem(StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN, refreshToken)
+      TypedLocalStorage.setItem(StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN, refreshToken)
     } else {
-      localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN)
+      TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN)
     }
 
     if (accessExpiry) {
-      localStorage.setItem(StorageKey.Impersonation.ORIGINAL_ACCESS_EXPIRY, accessExpiry)
+      TypedLocalStorage.setItem(StorageKey.Impersonation.ORIGINAL_ACCESS_EXPIRY, accessExpiry)
     } else {
-      localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_EXPIRY)
+      TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_EXPIRY)
     }
 
     if (refreshExpiry) {
-      localStorage.setItem(StorageKey.Impersonation.ORIGINAL_REFRESH_EXPIRY, refreshExpiry)
+      TypedLocalStorage.setItem(StorageKey.Impersonation.ORIGINAL_REFRESH_EXPIRY, refreshExpiry)
     } else {
-      localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_EXPIRY)
+      TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_EXPIRY)
     }
 
-    localStorage.setItem(StorageKey.Impersonation.ORIGINAL_STORAGE_SCOPE, storageScope)
+    TypedLocalStorage.setItem(StorageKey.Impersonation.ORIGINAL_STORAGE_SCOPE, storageScope)
   }
 
   private restoreOriginalSession(): boolean {
-    const originalAccessToken = localStorage.getItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN)
-    const originalRefreshToken = localStorage.getItem(
+    const originalAccessToken = TypedLocalStorage.getItem(
+      StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN,
+    )
+    const originalRefreshToken = TypedLocalStorage.getItem(
       StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN,
     )
-    const originalAccessExpiry = localStorage.getItem(
+    const originalAccessExpiry = TypedLocalStorage.getItem(
       StorageKey.Impersonation.ORIGINAL_ACCESS_EXPIRY,
     )
-    const originalRefreshExpiry = localStorage.getItem(
+    const originalRefreshExpiry = TypedLocalStorage.getItem(
       StorageKey.Impersonation.ORIGINAL_REFRESH_EXPIRY,
     )
-    const originalStorageScope = localStorage.getItem(
+    const originalStorageScope = TypedLocalStorage.getItem(
       StorageKey.Impersonation.ORIGINAL_STORAGE_SCOPE,
     )
 
@@ -93,19 +96,19 @@ export class ImpersonationService {
 
     setAccessToken(originalAccessToken)
     if (originalAccessExpiry) {
-      localStorage.setItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION, originalAccessExpiry)
+      TypedLocalStorage.setItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION, originalAccessExpiry)
     }
 
     if (originalRefreshToken) {
-      localStorage.setItem(StorageKey.Auth.REFRESH_TOKEN, originalRefreshToken)
+      TypedLocalStorage.setItem(StorageKey.Auth.REFRESH_TOKEN, originalRefreshToken)
     } else {
-      localStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN)
+      TypedLocalStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN)
     }
 
     if (originalRefreshExpiry) {
-      localStorage.setItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION, originalRefreshExpiry)
+      TypedLocalStorage.setItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION, originalRefreshExpiry)
     } else {
-      localStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION)
+      TypedLocalStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION)
     }
 
     if (originalStorageScope) {
@@ -118,11 +121,11 @@ export class ImpersonationService {
   }
 
   private clearOriginalSessionBackup() {
-    localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN)
-    localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN)
-    localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_EXPIRY)
-    localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_EXPIRY)
-    localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_STORAGE_SCOPE)
+    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN)
+    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN)
+    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_EXPIRY)
+    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_EXPIRY)
+    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_STORAGE_SCOPE)
   }
 
   /**

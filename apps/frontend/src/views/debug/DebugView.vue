@@ -314,6 +314,8 @@
 </template>
 
 <script setup lang="ts">
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
+import StorageKey from '@/constant/storagekey'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { swaggerDocsService } from '@/service/swaggerDocsService'
@@ -329,10 +331,10 @@ import { AprilFoolsService } from '@/service/aprilFoolsService'
 import { twoFactorManagementService } from '@/service/twoFactor/twoFactorManagementService'
 import { redemptionCodeService } from '@/service/redemptionCodeService'
 
-const APRIL_FEATURE_SWITCH_KEY = 'AprilFools-feature-switch'
-const APRIL_PREVIEW_MODE_KEY = 'AprilFools-preview-mode'
-const APRIL_MASTER_DISABLED_KEY = 'AprilFools-master-disabled-2026'
-const APRIL_USER_DISMISS_KEY = 'AprilFools-user-dismiss-day'
+const APRIL_FEATURE_SWITCH_KEY = StorageKey.Easter.FEATURE_SWITCH
+const APRIL_PREVIEW_MODE_KEY = StorageKey.Easter.PREVIEW_MODE
+const APRIL_MASTER_DISABLED_KEY = StorageKey.Easter.MASTER_DISABLED
+const APRIL_USER_DISMISS_KEY = StorageKey.Easter.USER_DISMISS_BY_DAY
 
 const buildInfo = __BUILD_INFO__
 const backendBuildInfo = ref<BuildInfo | null>(null)
@@ -407,19 +409,19 @@ const JumpDocsJson = async () => {
 }
 
 const openAprilPreview = () => {
-  localStorage.setItem(APRIL_FEATURE_SWITCH_KEY, '1')
-  localStorage.setItem(APRIL_PREVIEW_MODE_KEY, '1')
-  localStorage.removeItem(APRIL_MASTER_DISABLED_KEY)
-  localStorage.removeItem(APRIL_USER_DISMISS_KEY)
+  TypedLocalStorage.setItem(APRIL_FEATURE_SWITCH_KEY, '1')
+  TypedLocalStorage.setItem(APRIL_PREVIEW_MODE_KEY, '1')
+  TypedLocalStorage.removeItem(APRIL_MASTER_DISABLED_KEY)
+  TypedLocalStorage.removeItem(APRIL_USER_DISMISS_KEY)
   AprilFoolsService.syncLocalState()
   window.open(`${window.location.origin}/home`, '_blank')
 }
 
 const simulateAprilArrival = () => {
-  localStorage.setItem(APRIL_FEATURE_SWITCH_KEY, '1')
-  localStorage.setItem(APRIL_PREVIEW_MODE_KEY, '1')
-  localStorage.removeItem(APRIL_MASTER_DISABLED_KEY)
-  localStorage.removeItem(APRIL_USER_DISMISS_KEY)
+  TypedLocalStorage.setItem(APRIL_FEATURE_SWITCH_KEY, '1')
+  TypedLocalStorage.setItem(APRIL_PREVIEW_MODE_KEY, '1')
+  TypedLocalStorage.removeItem(APRIL_MASTER_DISABLED_KEY)
+  TypedLocalStorage.removeItem(APRIL_USER_DISMISS_KEY)
 
   AprilFoolsService.syncLocalState()
   AprilFoolsService.runAutoSequence()
@@ -427,8 +429,8 @@ const simulateAprilArrival = () => {
 }
 
 const closeAprilPreview = () => {
-  localStorage.setItem(APRIL_PREVIEW_MODE_KEY, '0')
-  localStorage.setItem(APRIL_FEATURE_SWITCH_KEY, '0')
+  TypedLocalStorage.setItem(APRIL_PREVIEW_MODE_KEY, '0')
+  TypedLocalStorage.setItem(APRIL_FEATURE_SWITCH_KEY, '0')
   AprilFoolsService.syncLocalState()
   ElMessage.success(i18ns.t('DebugView.aprilClosed'))
 }

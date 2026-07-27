@@ -1300,7 +1300,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
   });
 
   it(
-    "自动代理池重试后将执行、展示和消费统计均归属到最终选中的成员",
+    "自动代理池重试后将用户和消费展示归属自动池，并保留最终成员执行记录",
     async () => {
       const primary = await prisma.relayChannel.create({
         data: {
@@ -1401,17 +1401,17 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         expect(successfulUsage).toMatchObject({
           statusCode: 200,
           executionChannelId: secondary.id,
-          displayChannelId: secondary.id,
-          displayChannelName: secondary.name,
+          displayChannelId: automaticPool.id,
+          displayChannelName: automaticPool.name,
         });
-        expect(successfulUsage.displayChannelId).not.toBe(automaticPool.id);
+        expect(successfulUsage.displayChannelId).not.toBe(secondary.id);
 
         const transaction = await prisma.balanceTransaction.findFirstOrThrow({
           where: { relatedId: successfulUsage.id, type: "api_usage" },
         });
         expect(transaction).toMatchObject({
-          displayChannelId: secondary.id,
-          displayChannelName: secondary.name,
+          displayChannelId: automaticPool.id,
+          displayChannelName: automaticPool.name,
         });
 
         const statsRows = await ConsumptionStatsRepository.getInstance().listUsageRows(
@@ -1419,7 +1419,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           new Date(successfulUsage.createTime.getTime() + 60_000),
         );
         expect(statsRows).toContainEqual(
-          expect.objectContaining({ usageId: successfulUsage.id, channelName: secondary.name }),
+          expect.objectContaining({ usageId: successfulUsage.id, channelName: automaticPool.name }),
         );
       } finally {
         relayAIMockPlugin!.useOpenAI(async (ctx) => ({

@@ -968,6 +968,9 @@
         <el-button link @click="clearDraftSelection">{{
           i18ns.t('relay.channelProbeClearSelection')
         }}</el-button>
+        <el-checkbox v-model="rememberApplySettings">{{
+          i18ns.t('relay.channelProbeRememberApplySettings')
+        }}</el-checkbox>
         <span class="selected-draft-summary">{{
           i18ns.t('relay.channelProbeSelected', { count: selectedApplyRunIds.length })
         }}</span>
@@ -1092,6 +1095,11 @@
           <el-option value="all" :label="i18ns.t('relay.channelProbeSelectionAll')" />
           <el-option value="increase" :label="i18ns.t('relay.channelProbeSelectionIncrease')" />
           <el-option value="decrease" :label="i18ns.t('relay.channelProbeSelectionDecrease')" />
+        </el-select>
+        <el-select v-model="changeTypeFilter">
+          <el-option value="all" :label="i18ns.t('relay.channelProbeChangeTypeAll')" />
+          <el-option value="suggested" :label="i18ns.t('relay.channelProbeChangeTypeSuggested')" />
+          <el-option value="applied" :label="i18ns.t('relay.channelProbeChangeTypeApplied')" />
         </el-select>
         <span>{{ i18ns.t('relay.channelProbeSelectionTolerance') }}</span>
         <el-input-number
@@ -1235,6 +1243,8 @@ import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { getErrorMessage } from '@/utils/error-utils'
+import StorageKey from '@/constant/storagekey'
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { relayChannelProbeService } from '@/service/relayChannelProbeService'
 import { relayChannelService } from '@/service/relayChannelService'
 import ProbeKeyValueEditor, { type ProbeKeyValueEntry } from './components/ProbeKeyValueEditor.vue'
@@ -1330,9 +1340,18 @@ const applyTableRef = ref<TableInstance>()
 const selectedApplyRunIds = ref<string[]>([])
 const selectionTolerancePercent = ref(1)
 const selectionDirection = ref<'all' | 'increase' | 'decrease'>('all')
+const rememberApplySettings = ref(false)
+const APPLY_SETTINGS_STORAGE_KEY = StorageKey.Relay.CHANNEL_PROBE_APPLY_SETTINGS
+type RememberedApplySettings = {
+  roundingDigits: number
+  roundingMode: 'ceil' | 'nearest'
+  selectionTolerancePercent: number
+  selectionDirection: 'all' | 'increase' | 'decrease'
+}
 const changeDialogOpen = ref(false)
 const changeSort = ref<'largest' | 'smallest' | 'recent'>('largest')
 const changeDirection = ref<'all' | 'increase' | 'decrease'>('all')
+const changeTypeFilter = ref<'all' | 'suggested' | 'applied'>('all')
 const changeMinimumPercent = ref(0)
 const changeDisplayDigits = ref(4)
 const changeDisplayRoundingMode = ref<'ceil' | 'nearest'>('nearest')
@@ -1411,7 +1430,12 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
       changeDirection.value === 'all' ||
       (changeDirection.value === 'increase' && change > 0) ||
       (changeDirection.value === 'decrease' && change < 0)
-    if (!matchesDirection || changePercent <= changeMinimumPercent.value) return []
+    const applied = Boolean(run.appliedAt)
+    const matchesType =
+      changeTypeFilter.value === 'all' ||
+      (changeTypeFilter.value === 'applied' && applied) ||
+      (changeTypeFilter.value === 'suggested' && !applied)
+    if (!matchesDirection || !matchesType || changePercent <= changeMinimumPercent.value) return []
     return [
       {
         channelId: item.channelId,
@@ -1421,7 +1445,7 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
         targetMultiplier,
         change,
         changePercent,
-        applied: Boolean(run.appliedAt),
+        applied,
         costFactors:
           formatNumber(run.upstreamRateMultiplier) +
           ' × ' +
@@ -1909,6 +1933,28 @@ watch([roundingDigits, roundingMode], () => {
   if (applyDialogOpen.value && applyDrafts.value.length > 0 && !applying.value)
     roundDraftMultipliers()
 })
+watch(
+  [
+    rememberApplySettings,
+    roundingDigits,
+    roundingMode,
+    selectionTolerancePercent,
+    selectionDirection,
+  ],
+  () => {
+    if (!rememberApplySettings.value) {
+      TypedLocalStorage.removeItem(APPLY_SETTINGS_STORAGE_KEY)
+      return
+    }
+    const settings: RememberedApplySettings = {
+      roundingDigits: roundingDigits.value,
+      roundingMode: roundingMode.value,
+      selectionTolerancePercent: selectionTolerancePercent.value,
+      selectionDirection: selectionDirection.value,
+    }
+    TypedLocalStorage.set(APPLY_SETTINGS_STORAGE_KEY, settings)
+  },
+)
 function roundMultiplierForPrecision(value: number, digits: number, mode: 'ceil' | 'nearest') {
   const factor = 10 ** digits
   return (
@@ -2699,6 +2745,7 @@ watch(
   [
     changeSort,
     changeDirection,
+    changeTypeFilter,
     changeMinimumPercent,
     changeDisplayDigits,
     changeDisplayRoundingMode,
@@ -2708,7 +2755,38 @@ watch(
     changePage.value = 1
   },
 )
-onMounted(loadOverview)
+onMounted(() => {
+  try {
+    const saved = TypedLocalStorage.getItem(APPLY_SETTINGS_STORAGE_KEY)
+    if (saved) {
+      const settings = JSON.parse(saved) as Partial<RememberedApplySettings>
+      if (settings.roundingMode === 'ceil' || settings.roundingMode === 'nearest')
+        roundingMode.value = settings.roundingMode
+      if (
+        Number.isInteger(settings.roundingDigits) &&
+        settings.roundingDigits! >= 0 &&
+        settings.roundingDigits! <= 6
+      )
+        roundingDigits.value = settings.roundingDigits!
+      if (
+        Number.isFinite(settings.selectionTolerancePercent) &&
+        settings.selectionTolerancePercent! >= 0 &&
+        settings.selectionTolerancePercent! <= 100
+      )
+        selectionTolerancePercent.value = settings.selectionTolerancePercent!
+      if (
+        settings.selectionDirection === 'all' ||
+        settings.selectionDirection === 'increase' ||
+        settings.selectionDirection === 'decrease'
+      )
+        selectionDirection.value = settings.selectionDirection
+      rememberApplySettings.value = true
+    }
+  } catch {
+    TypedLocalStorage.removeItem(APPLY_SETTINGS_STORAGE_KEY)
+  }
+  void loadOverview()
+})
 onBeforeUnmount(stopPolling)
 </script>
 

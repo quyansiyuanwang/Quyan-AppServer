@@ -52,6 +52,10 @@ class RelayTokenService {
     return result as T
   }
 
+  async getRequestDiagnostics(params: Record<string, string | number | undefined>) {
+    return this.unwrapResponse(await relayApi.getRequestDiagnostics({ params }))
+  }
+
   private assertSuccess(result: { code?: number; message?: string } | null | undefined) {
     if (!result) {
       throw new Error('Request failed')

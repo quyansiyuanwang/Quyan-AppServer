@@ -46,6 +46,8 @@ export interface BalanceTransactionResponse {
   multiplier?: number;
   cacheCreationMultiplier?: number;
   cacheReadMultiplier?: number;
+  /** 服务端生成的逻辑请求 ID，可提供给支持人员用于排障。 */
+  requestId?: string;
   displayChannelName?: string;
   channelMultiplier?: number;
   globalMultiplier?: number;

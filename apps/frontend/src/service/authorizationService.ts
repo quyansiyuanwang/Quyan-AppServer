@@ -1,3 +1,5 @@
+import { TypedSessionStorage } from '@/utils/typedSessionStorage'
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import {
   useRequestStore,
   saveTokenExpiration,
@@ -228,17 +230,17 @@ export class AuthorizationService {
   }
 
   private clearStoredRefreshToken() {
-    localStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN)
+    TypedLocalStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN)
     clearTokenExpiration(true)
   }
 
   private clearImpersonationArtifacts() {
     useImpersonationStore().clearSession()
-    localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN)
-    localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN)
-    localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_EXPIRY)
-    localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_EXPIRY)
-    localStorage.removeItem(StorageKey.Impersonation.ORIGINAL_STORAGE_SCOPE)
+    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN)
+    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN)
+    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_EXPIRY)
+    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_EXPIRY)
+    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_STORAGE_SCOPE)
   }
 
   private applyAuthenticatedTokens(
@@ -254,7 +256,7 @@ export class AuthorizationService {
     const normalizedRefreshToken = authData.refresh_token?.trim()
     if (normalizedRefreshToken) {
       clearTokenExpiration(true)
-      localStorage.setItem(StorageKey.Auth.REFRESH_TOKEN, normalizedRefreshToken)
+      TypedLocalStorage.setItem(StorageKey.Auth.REFRESH_TOKEN, normalizedRefreshToken)
       saveTokenExpiration(normalizedRefreshToken, true)
     } else if (!preserveRefreshTokenIfMissing) {
       this.clearStoredRefreshToken()
@@ -335,11 +337,14 @@ export class AuthorizationService {
       createdAt: Date.now(),
     }
 
-    sessionStorage.setItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE, JSON.stringify(payload))
+    TypedSessionStorage.setItem(
+      StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE,
+      JSON.stringify(payload),
+    )
   }
 
   getPendingTwoFactorChallenge(): PendingTwoFactorChallenge | null {
-    const raw = sessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)
+    const raw = TypedSessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)
     if (!raw) return null
 
     try {
@@ -356,7 +361,7 @@ export class AuthorizationService {
   }
 
   clearPendingTwoFactorChallenge() {
-    sessionStorage.removeItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)
+    TypedSessionStorage.removeItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)
   }
 
   setPendingPolicyConsentChallenge(challengeToken: string, redirect?: string) {
@@ -368,14 +373,14 @@ export class AuthorizationService {
       createdAt: Date.now(),
     }
 
-    sessionStorage.setItem(
+    TypedSessionStorage.setItem(
       StorageKey.Auth.PENDING_POLICY_CONSENT_CHALLENGE,
       JSON.stringify(payload),
     )
   }
 
   getPendingPolicyConsentChallenge(): PendingPolicyConsentChallenge | null {
-    const raw = sessionStorage.getItem(StorageKey.Auth.PENDING_POLICY_CONSENT_CHALLENGE)
+    const raw = TypedSessionStorage.getItem(StorageKey.Auth.PENDING_POLICY_CONSENT_CHALLENGE)
     if (!raw) return null
 
     try {
@@ -392,7 +397,7 @@ export class AuthorizationService {
   }
 
   clearPendingPolicyConsentChallenge() {
-    sessionStorage.removeItem(StorageKey.Auth.PENDING_POLICY_CONSENT_CHALLENGE)
+    TypedSessionStorage.removeItem(StorageKey.Auth.PENDING_POLICY_CONSENT_CHALLENGE)
   }
 
   async refreshToken(refresh_token?: string) {
@@ -437,7 +442,7 @@ export class AuthorizationService {
         setAccessToken(res.data.access_token)
         saveTokenExpiration(res.data.access_token)
         if (res.data.refresh_token) {
-          localStorage.setItem(StorageKey.Auth.REFRESH_TOKEN, res.data.refresh_token)
+          TypedLocalStorage.setItem(StorageKey.Auth.REFRESH_TOKEN, res.data.refresh_token)
           saveTokenExpiration(res.data.refresh_token, true)
         }
         syncCurrentStorageScopeFromToken(res.data.access_token)
@@ -543,7 +548,7 @@ export class AuthorizationService {
   }
 
   static getRefreshToken(): string | null {
-    return localStorage.getItem(StorageKey.Auth.REFRESH_TOKEN)
+    return TypedLocalStorage.getItem(StorageKey.Auth.REFRESH_TOKEN)
   }
 
   async bootstrapSession(force = false): Promise<string | null> {

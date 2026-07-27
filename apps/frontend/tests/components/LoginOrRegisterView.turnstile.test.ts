@@ -63,12 +63,17 @@ vi.mock('@/utils/notification', () => ({
   },
 }))
 
-vi.mock('@/utils/typedLocalStorage', () => ({
-  TypedLocalStorage: {
-    get: vi.fn(() => null),
-    set: vi.fn(),
-  },
-}))
+vi.mock('@/utils/typedLocalStorage', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/typedLocalStorage')>()
+  return {
+    ...actual,
+    TypedLocalStorage: {
+      ...actual.TypedLocalStorage,
+      get: vi.fn(() => null),
+      set: vi.fn(),
+    },
+  }
+})
 
 vi.mock('@/utils/encryption', () => ({
   md5: (value: string) => value,

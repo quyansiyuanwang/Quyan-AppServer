@@ -38,6 +38,7 @@ import type {
   RelayAvailableModelsMapDto,
   RelayTokenSwitchLogsDto,
   RelayTokenAvailableModelsDto,
+  RelayRequestDiagnosticsPageDto,
 } from "@/api/dto/relay/relay.dto";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
@@ -56,6 +57,7 @@ import {
   relayTokenSwitchLogsQuerySchema,
   relayTokenUsageQuerySchema,
   relayTokenUsageSummaryQuerySchema,
+  relayRequestDiagnosticsQuerySchema,
   updateRelayTokenBodySchema,
   updateRelayTokenChannelBodySchema,
 } from "@/api/schema/relay/relay.schema";
@@ -359,6 +361,32 @@ export class RelayController extends Controller {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
     return this.relayTokenService.getUsageSummary(id, request.user!.userId, start, end, limit, offset, targetUserId);
+  }
+
+  @Get("request-diagnostics")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @Middlewares(validateQuery(relayRequestDiagnosticsQuerySchema))
+  async getRequestDiagnostics(
+    @Query() page?: number,
+    @Query() pageSize?: number,
+    @Query() requestId?: string,
+    @Query() keyword?: string,
+    @Query() channelId?: string,
+    @Query() outcome?: "success" | "client-error" | "server-error",
+    @Query() startDate?: string,
+    @Query() endDate?: string,
+  ): Promise<RelayRequestDiagnosticsPageDto> {
+    return this.relayTokenService.getRequestDiagnostics({
+      page,
+      pageSize,
+      requestId,
+      keyword,
+      channelId,
+      outcome,
+      startDate,
+      endDate,
+    });
   }
 
   @Get("available-models")

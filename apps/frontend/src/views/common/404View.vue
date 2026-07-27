@@ -98,8 +98,9 @@ import { House, ArrowLeft } from '@element-plus/icons-vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
+import StorageKey from '@/constant/storagekey'
 
-const APRIL_PREVIEW_MODE_KEY = 'AprilFools-preview-mode'
+const APRIL_PREVIEW_MODE_KEY = StorageKey.Easter.PREVIEW_MODE
 
 const goHome = () => {
   router.push({ name: 'home' })

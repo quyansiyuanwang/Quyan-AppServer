@@ -1,3 +1,5 @@
+import { TypedSessionStorage } from '@/utils/typedSessionStorage'
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import axios, { type Axios, type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { defineStore } from 'pinia'
 import { HttpStatusCode } from 'axios'
@@ -63,7 +65,7 @@ const getStoredTokenKey = (isRefresh: boolean): string =>
 
 const readStorageValue = (key: string): string | null => {
   try {
-    return localStorage.getItem(key)
+    return TypedLocalStorage.getItem(key)
   } catch {
     return null
   }
@@ -71,7 +73,7 @@ const readStorageValue = (key: string): string | null => {
 
 const writeStorageValue = (key: string, value: string): void => {
   try {
-    localStorage.setItem(key, value)
+    TypedLocalStorage.setItem(key, value)
   } catch {
     // ignore storage failures in restricted environments
   }
@@ -79,7 +81,7 @@ const writeStorageValue = (key: string, value: string): void => {
 
 const removeStorageValue = (key: string): void => {
   try {
-    localStorage.removeItem(key)
+    TypedLocalStorage.removeItem(key)
   } catch {
     // ignore storage failures in restricted environments
   }
@@ -424,7 +426,7 @@ class MyAxios {
       }
 
       // 添加一次性令牌（如果存在）
-      const oneTimeToken = sessionStorage.getItem('oneTimeToken')
+      const oneTimeToken = TypedSessionStorage.getItem(StorageKey.Auth.ONE_TIME_TOKEN)
       if (oneTimeToken && request.headers) {
         request.headers['X-Onetime-Token'] = oneTimeToken
         console.log(`[2FA Retry] Adding one-time token to request ${index + 1}`)
@@ -446,7 +448,7 @@ class MyAxios {
     const results = await Promise.all(retryPromises)
 
     // 清除一次性令牌（重试完成后立即清除）
-    sessionStorage.removeItem('oneTimeToken')
+    TypedSessionStorage.removeItem(StorageKey.Auth.ONE_TIME_TOKEN)
     console.log('[2FA Retry] One-time token cleared after retry')
 
     console.log('[2FA Retry] All retries completed:', results)

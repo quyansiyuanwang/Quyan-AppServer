@@ -1,3 +1,4 @@
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { useRequestStore } from '@/stores/request'
 import { isTokenExpired } from '@/stores/request'
 import StorageKey from '@/constant/storagekey'
@@ -91,7 +92,7 @@ class ChatService {
     if (isTokenExpired()) {
       await authorizationService.refreshToken()
     }
-    const token = localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN)
+    const token = TypedLocalStorage.getItem(StorageKey.Auth.ACCESS_TOKEN)
     const url = `${import.meta.env.VITE_BACKEND_URL}/v1/chat/conversations/${conversationId}/messages`
 
     const response = await fetch(url, {

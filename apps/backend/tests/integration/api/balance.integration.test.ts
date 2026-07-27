@@ -14,6 +14,7 @@ describe("Balance API Integration", () => {
   let targetUserId = "";
   let testGroupId = "";
   const relayTokenIds: string[] = [];
+  const relayChannelIds: string[] = [];
 
   const shortSuffix = `${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 100)}`;
   const adminUsername = `bau_${shortSuffix}`;
@@ -74,6 +75,7 @@ describe("Balance API Integration", () => {
     await prisma.balanceTransaction.deleteMany({ where: { userId: { in: [adminUserId, targetUserId] } } });
     await prisma.relayUsage.deleteMany({ where: { relayTokenId: { in: relayTokenIds } } });
     await prisma.relayToken.deleteMany({ where: { id: { in: relayTokenIds } } });
+    await prisma.relayChannel.deleteMany({ where: { id: { in: relayChannelIds } } });
     await prisma.userMonthlyPass.deleteMany({ where: { userId: { in: [adminUserId, targetUserId] } } });
     await prisma.monthlyPassTemplate.deleteMany({ where: { name: { startsWith: `Balance History ${shortSuffix}` } } });
     await prisma.balanceAccount.deleteMany({ where: { userId: { in: [adminUserId, targetUserId] } } });
@@ -362,6 +364,118 @@ describe("Balance API Integration", () => {
     expect(recordById.get(conflictingMonthlyPassTransaction.id)?.displayChannelName).toBeUndefined();
     expect(recordById.get(placeholderOnlyTransaction.id)?.displayChannelName).toBeUndefined();
     expect(recordById.get(unrelatedTransaction.id)?.displayChannelName).toBeUndefined();
+  });
+
+  it("uses automatic pool names and hides unresolved hidden members in balance history", async () => {
+    const [automaticPool, hiddenMember] = await Promise.all([
+      prisma.relayChannel.create({
+        data: {
+          name: `Automatic Pool ${shortSuffix}`,
+          channelType: "automatic-proxy-pool",
+          allowedFormats: "openai",
+        },
+      }),
+      prisma.relayChannel.create({
+        data: {
+          name: `Hidden Member ${shortSuffix}`,
+          visibilityMode: "hidden",
+          allowedFormats: "openai",
+        },
+      }),
+    ]);
+    relayChannelIds.push(automaticPool.id, hiddenMember.id);
+
+    const [automaticToken, orderedToken] = await Promise.all([
+      prisma.relayToken.create({
+        data: {
+          userId: targetUserId,
+          token: `balance_auto_pool_${shortSuffix}_${Date.now()}`,
+          routingMode: "automatic-pool",
+          automaticProxyPoolChannelId: automaticPool.id,
+        },
+      }),
+      prisma.relayToken.create({
+        data: {
+          userId: targetUserId,
+          token: `balance_hidden_member_${shortSuffix}_${Date.now()}`,
+        },
+      }),
+    ]);
+    relayTokenIds.push(automaticToken.id, orderedToken.id);
+
+    const automaticLogicalRequest = await prisma.relayLogicalRequest.create({
+      data: {
+        relayTokenId: automaticToken.id,
+        requestId: `balance-request-${shortSuffix}-${Date.now()}`,
+      },
+    });
+
+    const [automaticUsage, unresolvedUsage] = await Promise.all([
+      prisma.relayUsage.create({
+        data: {
+          relayTokenId: automaticToken.id,
+          logicalRequestId: automaticLogicalRequest.id,
+          executionChannelId: hiddenMember.id,
+          displayChannelId: hiddenMember.id,
+          displayChannelName: hiddenMember.name,
+          path: "/relay/proxy/v1/chat/completions",
+          method: "POST",
+          statusCode: 200,
+          ipAddress: "127.0.0.1",
+        },
+      }),
+      prisma.relayUsage.create({
+        data: {
+          relayTokenId: orderedToken.id,
+          executionChannelId: hiddenMember.id,
+          displayChannelId: hiddenMember.id,
+          displayChannelName: hiddenMember.name,
+          path: "/relay/proxy/v1/chat/completions",
+          method: "POST",
+          statusCode: 200,
+          ipAddress: "127.0.0.1",
+        },
+      }),
+    ]);
+
+    const [automaticTransaction, unresolvedTransaction] = await Promise.all([
+      prisma.balanceTransaction.create({
+        data: {
+          userId: targetUserId,
+          type: "api_usage",
+          amount: -0.1,
+          balanceBefore: 10,
+          balanceAfter: 9.9,
+          relatedId: automaticUsage.id,
+          displayChannelId: hiddenMember.id,
+          displayChannelName: hiddenMember.name,
+        },
+      }),
+      prisma.balanceTransaction.create({
+        data: {
+          userId: targetUserId,
+          type: "api_usage",
+          amount: -0.1,
+          balanceBefore: 9.9,
+          balanceAfter: 9.8,
+          relatedId: unresolvedUsage.id,
+          displayChannelId: hiddenMember.id,
+          displayChannelName: hiddenMember.name,
+        },
+      }),
+    ]);
+
+    const response = await request(app)
+      .get(`/v1/balance/transactions/all?userId=${targetUserId}&limit=100&offset=0`)
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(response.status).toBe(200);
+    const recordById = new Map(
+      (response.body.data.records as Array<Record<string, unknown>>).map((record) => [record.id, record]),
+    );
+    expect(recordById.get(automaticTransaction.id)?.displayChannelName).toBe(automaticPool.name);
+    expect(recordById.get(automaticTransaction.id)?.requestId).toBe(automaticLogicalRequest.requestId);
+    expect(recordById.get(unresolvedTransaction.id)?.displayChannelName).toBeUndefined();
   });
 
   it("rejects balance transaction queries larger than 30 days", async () => {

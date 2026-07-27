@@ -36,6 +36,7 @@
 </template>
 
 <script setup lang="ts">
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { RefreshRight } from '@element-plus/icons-vue'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import localStorageKeys from '@/constant/storagekey'
@@ -100,7 +101,7 @@ function loadSavedPositions(): OverlayPositionMap {
   }
 
   try {
-    const rawValue = window.localStorage.getItem(localStorageKeys.Overlay.FLOATING_PANEL_POSITION)
+    const rawValue = TypedLocalStorage.getItem(localStorageKeys.Overlay.FLOATING_PANEL_POSITION)
     if (!rawValue) {
       return {}
     }
@@ -118,11 +119,11 @@ function savePositions() {
   }
 
   if (!positions.value['bottom-right']) {
-    window.localStorage.removeItem(localStorageKeys.Overlay.FLOATING_PANEL_POSITION)
+    TypedLocalStorage.removeItem(localStorageKeys.Overlay.FLOATING_PANEL_POSITION)
     return
   }
 
-  window.localStorage.setItem(
+  TypedLocalStorage.setItem(
     localStorageKeys.Overlay.FLOATING_PANEL_POSITION,
     JSON.stringify(positions.value),
   )
