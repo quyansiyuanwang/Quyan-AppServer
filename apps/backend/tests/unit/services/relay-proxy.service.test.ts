@@ -705,7 +705,7 @@ describe("RelayProxyService failover", () => {
     );
   });
 
-  it("charges an automatic proxy pool token by its executing member", async () => {
+  it("shows the automatic proxy pool while retaining its executing member for charging", async () => {
     const relayToken = createRelayTokenWithPooledChannel();
     relayToken.channel.channelType = "automatic-proxy-pool";
     relayToken.channel.multiplier = 99;
@@ -732,8 +732,8 @@ describe("RelayProxyService failover", () => {
       expect.objectContaining({
         channelId: "member-a",
         executionChannelId: "member-a",
-        displayChannelId: "member-a",
-        displayChannelName: "Member A",
+        displayChannelId: "pool-1",
+        displayChannelName: "Pool",
         channelMultiplier: 4.2,
       }),
     );

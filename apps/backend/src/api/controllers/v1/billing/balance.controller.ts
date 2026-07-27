@@ -31,7 +31,10 @@ type UsageDataMap = Map<
     totalOutputTime: number | null;
     timeToFirstByte: number | null;
     isStreaming: boolean;
+    requestId: string | null;
     displayChannelName: string | null;
+    automaticProxyPoolName: string | null;
+    hideDisplayChannel: boolean;
     legacyMonthlyPassChannelName: string | null;
   }
 >;
@@ -91,7 +94,16 @@ export class BalanceController extends Controller {
         totalOutputTime: u.totalOutputTime,
         timeToFirstByte: u.timeToFirstByte,
         isStreaming: u.isStreaming,
+        requestId: u.logicalRequest?.requestId || null,
         displayChannelName: u.displayChannelName,
+        automaticProxyPoolName:
+          u.relayToken?.routingMode === "automatic-pool"
+            ? u.relayToken.automaticProxyPoolChannel?.name?.trim() || null
+            : null,
+        hideDisplayChannel:
+          u.relayToken?.routingMode !== "automatic-pool" || !u.relayToken.automaticProxyPoolChannel?.name?.trim()
+            ? u.hasHiddenExecutionChannel
+            : false,
         legacyMonthlyPassChannelName:
           legacyMonthlyPassChannelNames.size === 1 ? [...legacyMonthlyPassChannelNames][0] : null,
       });
@@ -105,6 +117,17 @@ export class BalanceController extends Controller {
     tokenNameMap: Map<string, string>,
     usageDataMap: UsageDataMap,
   ): TransactionListResponse["records"][number] {
+    const usageData = r.relatedId ? usageDataMap.get(r.relatedId) : undefined;
+    const displayChannelName = usageData?.automaticProxyPoolName
+      ? usageData.automaticProxyPoolName
+      : usageData?.hideDisplayChannel
+        ? undefined
+        : r.channelName?.trim() ||
+          usageData?.legacyMonthlyPassChannelName ||
+          normalizeRelayDisplaySnapshotName(r.displayChannelName) ||
+          normalizeRelayDisplaySnapshotName(usageData?.displayChannelName) ||
+          undefined;
+
     return {
       id: r.id,
       userId: r.userId,
@@ -125,23 +148,17 @@ export class BalanceController extends Controller {
       multiplier: r.multiplier != null ? Number(r.multiplier) : undefined,
       cacheCreationMultiplier: r.cacheCreationMultiplier != null ? Number(r.cacheCreationMultiplier) : undefined,
       cacheReadMultiplier: r.cacheReadMultiplier != null ? Number(r.cacheReadMultiplier) : undefined,
+      requestId: usageData?.requestId || undefined,
       pricingType: r.pricingType === "token-based" || r.pricingType === "per-request" ? r.pricingType : undefined,
       fixedPrice: r.fixedPrice != null ? Number(r.fixedPrice) : undefined,
-      displayChannelName:
-        r.channelName?.trim() ||
-        (r.relatedId ? usageDataMap.get(r.relatedId)?.legacyMonthlyPassChannelName : undefined) ||
-        normalizeRelayDisplaySnapshotName(r.displayChannelName) ||
-        (r.relatedId
-          ? normalizeRelayDisplaySnapshotName(usageDataMap.get(r.relatedId)?.displayChannelName)
-          : undefined) ||
-        undefined,
+      displayChannelName,
       channelMultiplier: r.channelMultiplier != null ? Number(r.channelMultiplier) : undefined,
       globalMultiplier: r.globalMultiplier != null ? Number(r.globalMultiplier) : undefined,
       timeMultiplier: r.timeMultiplier != null ? Number(r.timeMultiplier) : undefined,
       tokenName: r.relatedId ? tokenNameMap.get(r.relatedId) || undefined : undefined,
-      totalOutputTime: r.relatedId ? (usageDataMap.get(r.relatedId)?.totalOutputTime ?? undefined) : undefined,
-      timeToFirstByte: r.relatedId ? (usageDataMap.get(r.relatedId)?.timeToFirstByte ?? undefined) : undefined,
-      isStreaming: r.relatedId ? usageDataMap.get(r.relatedId)?.isStreaming : undefined,
+      totalOutputTime: usageData?.totalOutputTime ?? undefined,
+      timeToFirstByte: usageData?.timeToFirstByte ?? undefined,
+      isStreaming: usageData?.isStreaming,
       createTime: r.createTime,
     };
   }

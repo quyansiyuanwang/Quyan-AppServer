@@ -46,7 +46,7 @@ export class RelayUsageRepository implements RelayUsageStore {
     if (ids.length === 0) return [];
 
     const uniqueIds = [...new Set(ids)];
-    const usages: Array<Omit<RelayUsageWithTokenName, "monthlyPassUsages">> = [];
+    const usages: Array<Omit<RelayUsageWithTokenName, "monthlyPassUsages" | "hasHiddenExecutionChannel">> = [];
     const monthlyPassUsagesByRelayUsageId = new Map<string, Array<{ channelName: string | null }>>();
 
     for (let index = 0; index < uniqueIds.length; index += RelayUsageRepository.BILLING_QUERY_CHUNK_SIZE) {
@@ -56,8 +56,13 @@ export class RelayUsageRepository implements RelayUsageStore {
           where: { id: { in: idChunk } },
           include: {
             relayToken: {
-              select: { name: true },
+              select: {
+                name: true,
+                routingMode: true,
+                automaticProxyPoolChannel: { select: { name: true } },
+              },
             },
+            logicalRequest: { select: { requestId: true } },
           },
         }),
         prisma.monthlyPassUsage.findMany({
@@ -75,8 +80,26 @@ export class RelayUsageRepository implements RelayUsageStore {
       }
     }
 
+    const referencedChannelIds = [
+      ...new Set(
+        usages.flatMap((usage) =>
+          [usage.executionChannelId, usage.displayChannelId].filter((id): id is string => Boolean(id)),
+        ),
+      ),
+    ];
+    const hiddenChannelIds = new Set(
+      (
+        await prisma.relayChannel.findMany({
+          where: { id: { in: referencedChannelIds }, visibilityMode: "hidden" },
+          select: { id: true },
+        })
+      ).map((channel) => channel.id),
+    );
+
     return usages.map((usage) => ({
       ...usage,
+      hasHiddenExecutionChannel:
+        hiddenChannelIds.has(usage.executionChannelId || "") || hiddenChannelIds.has(usage.displayChannelId || ""),
       monthlyPassUsages: monthlyPassUsagesByRelayUsageId.get(usage.id) || [],
     }));
   }
