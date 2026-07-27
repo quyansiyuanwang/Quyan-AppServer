@@ -1,3 +1,4 @@
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import StorageKey from '@/constant/storagekey'
 import { normalizeFingerprint } from '@appserver/shared'
 
@@ -32,11 +33,11 @@ export const getOrCreateClientFingerprint = (): string | undefined => {
   const storageKey = StorageKey.Util.CLIENT_FINGERPRINT
 
   try {
-    const existing = normalizeFingerprint(localStorage.getItem(storageKey))
+    const existing = normalizeFingerprint(TypedLocalStorage.getItem(storageKey))
     if (existing) return existing
 
     const generated = generateFingerprint()
-    localStorage.setItem(storageKey, generated)
+    TypedLocalStorage.setItem(storageKey, generated)
     return generated
   } catch {
     return normalizeFingerprint(generateFingerprint())

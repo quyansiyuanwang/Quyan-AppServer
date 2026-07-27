@@ -2,13 +2,111 @@ import { onBeforeUnmount, ref, watchEffect, type Ref } from 'vue'
 import StorageKey from '@/constant/storagekey'
 import type { DeepValues } from '@/types/common'
 
-type StorageLikeKey = DeepValues<typeof StorageKey> | string
+export type StorageLikeKey = DeepValues<typeof StorageKey> | string
+
+export interface TypedStorageLike {
+  get<T>(key: StorageLikeKey, defaultValue?: T): T | undefined
+  set<T>(key: StorageLikeKey, value: T): void
+  getItem(key: StorageLikeKey): string | null
+  setItem(key: StorageLikeKey, value: string): void
+  removeItem(key: StorageLikeKey): void
+  remove(key: StorageLikeKey): void
+  has(key: StorageLikeKey): boolean
+}
+
+const getStorage = (kind: 'local' | 'session'): Storage | null => {
+  try {
+    if (typeof window === 'undefined') return null
+    return kind === 'local' ? window.localStorage : window.sessionStorage
+  } catch {
+    return null
+  }
+}
+
+export class TypedBrowserStorage implements TypedStorageLike {
+  constructor(private readonly kind: 'local' | 'session') {}
+
+  get<T>(key: StorageLikeKey, defaultValue?: T): T | undefined {
+    const value = this.getItem(key)
+    if (value == null) return defaultValue
+    try {
+      return JSON.parse(value) as T
+    } catch {
+      return defaultValue
+    }
+  }
+
+  set<T>(key: StorageLikeKey, value: T): void {
+    try {
+      const serializedValue = JSON.stringify(value)
+      if (serializedValue !== undefined) this.setItem(key, serializedValue)
+    } catch {
+      // JSON serialization and browser storage failures are intentionally non-fatal.
+    }
+  }
+
+  getItem(key: StorageLikeKey): string | null {
+    try {
+      return getStorage(this.kind)?.getItem(key) ?? null
+    } catch {
+      return null
+    }
+  }
+
+  setItem(key: StorageLikeKey, value: string): void {
+    try {
+      getStorage(this.kind)?.setItem(key, value)
+    } catch {
+      // Storage can be unavailable in SSR and privacy-restricted browser contexts.
+    }
+  }
+
+  removeItem(key: StorageLikeKey): void {
+    try {
+      getStorage(this.kind)?.removeItem(key)
+    } catch {
+      // Storage can be unavailable in SSR and privacy-restricted browser contexts.
+    }
+  }
+
+  remove(key: StorageLikeKey): void {
+    this.removeItem(key)
+  }
+  has(key: StorageLikeKey): boolean {
+    return this.getItem(key) !== null
+  }
+
+  clear(): void {
+    try {
+      getStorage(this.kind)?.clear()
+    } catch {
+      // Storage can be unavailable in SSR and privacy-restricted browser contexts.
+    }
+  }
+
+  get size(): number {
+    try {
+      return getStorage(this.kind)?.length ?? 0
+    } catch {
+      return 0
+    }
+  }
+
+  key(index: number): string | null {
+    try {
+      return getStorage(this.kind)?.key(index) ?? null
+    } catch {
+      return null
+    }
+  }
+}
 
 /**
  * typedLocalStorage 工具类
  * 提供类型安全的 localStorage 操作
  */
 export class TypedLocalStorage {
+  private static readonly storage = new TypedBrowserStorage('local')
   /**
    * 深拷贝对象
    * 需要存到 localStorage 中的值, 不存在循环引用
@@ -22,8 +120,8 @@ export class TypedLocalStorage {
    * @param key localStorage 键名
    * @param value 要存储的值
    */
-  static set(key: StorageLikeKey, value: any): void {
-    localStorage.setItem(key, JSON.stringify(value))
+  static set<T>(key: StorageLikeKey, value: T): void {
+    this.storage.set(key, value)
   }
 
   /**
@@ -33,18 +131,15 @@ export class TypedLocalStorage {
    * @returns 存储的值或默认值
    */
   static get<T>(key: StorageLikeKey, defaultValue?: T): T | undefined {
-    const storedValue = localStorage.getItem(key)
-    if (!storedValue) return defaultValue
+    const storedValue = this.storage.getItem(key)
+    if (storedValue == null) return defaultValue
+    if (storedValue === 'null') return defaultValue === null ? (null as T) : defaultValue
 
-    // Handle null explicitly
-    if (storedValue === 'null') {
-      if (defaultValue === null) return null as T
+    try {
+      return JSON.parse(storedValue) as T
+    } catch {
       return defaultValue
     }
-
-    // Check if stored value is JSON object/array
-    const trimmed = storedValue.trim()
-    return JSON.parse(trimmed)
   }
 
   /** 获取原始的 localStorage 值字符串
@@ -52,7 +147,7 @@ export class TypedLocalStorage {
    *  @returns 存储的字符串值或 null
    */
   static getItem(key: StorageLikeKey): string | null {
-    return localStorage.getItem(key)
+    return this.storage.getItem(key)
   }
 
   /** 设置原始的 localStorage 值字符串
@@ -60,7 +155,7 @@ export class TypedLocalStorage {
    *  @param value 要存储的字符串值
    */
   static setItem(key: StorageLikeKey, value: string): void {
-    localStorage.setItem(key, value)
+    this.storage.setItem(key, value)
   }
 
   /**
@@ -68,7 +163,7 @@ export class TypedLocalStorage {
    * @param key localStorage 键名
    */
   static removeItem(key: StorageLikeKey): void {
-    localStorage.removeItem(key)
+    this.storage.removeItem(key)
   }
 
   /**
@@ -76,7 +171,7 @@ export class TypedLocalStorage {
    * @param key localStorage 键名
    */
   static remove(key: StorageLikeKey): void {
-    localStorage.removeItem(key)
+    this.storage.removeItem(key)
   }
 
   /**
@@ -97,12 +192,16 @@ export class TypedLocalStorage {
       }
     }
     collectKeys(StorageKey)
+    const validPrefixes = [
+      StorageKey.Easter.PASSIVE_CONFIG_PREFIX,
+      ...Array.from(validKeys).map((key) => `${key}::`),
+    ]
 
     // 遍历 localStorage 并删除无效键
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key && !validKeys.has(key)) {
-        localStorage.removeItem(key)
+    for (let i = this.size - 1; i >= 0; i--) {
+      const key = this.key(i)
+      if (key && !validKeys.has(key) && !validPrefixes.some((prefix) => key.startsWith(prefix))) {
+        this.removeItem(key)
       }
     }
   }
@@ -111,7 +210,7 @@ export class TypedLocalStorage {
    * 清除所有 localStorage 数据
    */
   static clear(): void {
-    localStorage.clear()
+    this.storage.clear()
   }
 
   /**
@@ -119,14 +218,14 @@ export class TypedLocalStorage {
    * @param key localStorage 键名
    */
   static has(key: StorageLikeKey): boolean {
-    return localStorage.getItem(key) !== null
+    return this.storage.has(key)
   }
 
   /**
    * 获取 localStorage 中所有键的数量
    */
   static get size(): number {
-    return localStorage.length
+    return this.storage.size
   }
 
   /**
@@ -134,7 +233,7 @@ export class TypedLocalStorage {
    * @param index 索引位置
    */
   static key(index: number): string | null {
-    return localStorage.key(index)
+    return this.storage.key(index)
   }
 
   static ref<T, K extends DeepValues<typeof StorageKey>>(

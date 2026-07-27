@@ -186,6 +186,7 @@ import router from '@/router'
 import { Permission } from '@/constant/permission'
 import { ACCOUNT_STATUS } from '@/constant/status'
 import StorageKey from '@/constant/storagekey'
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import {
   Key,
@@ -202,12 +203,12 @@ import {
   Cpu,
   Reading,
 } from '@element-plus/icons-vue'
-const storedDefault = localStorage.getItem(StorageKey.Home.DASHBOARD_DEFAULT_OPEN)
+const storedDefault = TypedLocalStorage.getItem(StorageKey.Home.DASHBOARD_DEFAULT_OPEN)
 const dashboardDefault = ref<'open' | 'closed'>(storedDefault === 'closed' ? 'closed' : 'open')
 const activeNames = ref<string[]>(dashboardDefault.value === 'open' ? ['dashboard'] : [])
 
 function onDefaultChange(val: 'open' | 'closed') {
-  localStorage.setItem(StorageKey.Home.DASHBOARD_DEFAULT_OPEN, val)
+  TypedLocalStorage.setItem(StorageKey.Home.DASHBOARD_DEFAULT_OPEN, val)
   activeNames.value = val === 'open' ? ['dashboard'] : []
 }
 

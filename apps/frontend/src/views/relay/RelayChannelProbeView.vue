@@ -1243,6 +1243,8 @@ import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { getErrorMessage } from '@/utils/error-utils'
+import StorageKey from '@/constant/storagekey'
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { relayChannelProbeService } from '@/service/relayChannelProbeService'
 import { relayChannelService } from '@/service/relayChannelService'
 import ProbeKeyValueEditor, { type ProbeKeyValueEntry } from './components/ProbeKeyValueEditor.vue'
@@ -1339,7 +1341,7 @@ const selectedApplyRunIds = ref<string[]>([])
 const selectionTolerancePercent = ref(1)
 const selectionDirection = ref<'all' | 'increase' | 'decrease'>('all')
 const rememberApplySettings = ref(false)
-const APPLY_SETTINGS_STORAGE_KEY = 'relay-channel-probe:apply-multiplier-settings:v1'
+const APPLY_SETTINGS_STORAGE_KEY = StorageKey.Relay.CHANNEL_PROBE_APPLY_SETTINGS
 type RememberedApplySettings = {
   roundingDigits: number
   roundingMode: 'ceil' | 'nearest'
@@ -1934,9 +1936,8 @@ watch([roundingDigits, roundingMode], () => {
 watch(
   [rememberApplySettings, roundingDigits, roundingMode, selectionTolerancePercent, selectionDirection],
   () => {
-    if (typeof localStorage === 'undefined') return
     if (!rememberApplySettings.value) {
-      localStorage.removeItem(APPLY_SETTINGS_STORAGE_KEY)
+      TypedLocalStorage.removeItem(APPLY_SETTINGS_STORAGE_KEY)
       return
     }
     const settings: RememberedApplySettings = {
@@ -1945,7 +1946,7 @@ watch(
       selectionTolerancePercent: selectionTolerancePercent.value,
       selectionDirection: selectionDirection.value,
     }
-    localStorage.setItem(APPLY_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+    TypedLocalStorage.set(APPLY_SETTINGS_STORAGE_KEY, settings)
   },
 )
 function roundMultiplierForPrecision(value: number, digits: number, mode: 'ceil' | 'nearest') {
@@ -2750,7 +2751,7 @@ watch(
 )
 onMounted(() => {
   try {
-    const saved = localStorage.getItem(APPLY_SETTINGS_STORAGE_KEY)
+    const saved = TypedLocalStorage.getItem(APPLY_SETTINGS_STORAGE_KEY)
     if (saved) {
       const settings = JSON.parse(saved) as Partial<RememberedApplySettings>
       if (settings.roundingMode === 'ceil' || settings.roundingMode === 'nearest') roundingMode.value = settings.roundingMode
@@ -2760,7 +2761,7 @@ onMounted(() => {
       rememberApplySettings.value = true
     }
   } catch {
-    localStorage.removeItem(APPLY_SETTINGS_STORAGE_KEY)
+    TypedLocalStorage.removeItem(APPLY_SETTINGS_STORAGE_KEY)
   }
   void loadOverview()
 })

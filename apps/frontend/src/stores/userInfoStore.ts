@@ -30,7 +30,7 @@ export const useUserInfoStore = defineStore('userInfo', () => {
       }
       return null
     } catch (e) {
-      console.warn(`Error parsing userInfo from localStorage.`, e)
+      console.warn(`Error parsing userInfo from TypedLocalStorage.`, e)
       return null
     }
   }
@@ -48,7 +48,7 @@ export const useUserInfoStore = defineStore('userInfo', () => {
     try {
       TypedLocalStorage.set(getUserInfoStorageKey(), value)
     } catch (e) {
-      console.error(`Failed to save userInfo to localStorage.`, e)
+      console.error(`Failed to save userInfo to TypedLocalStorage.`, e)
     }
   }
 
