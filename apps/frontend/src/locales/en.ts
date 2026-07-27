@@ -782,6 +782,7 @@ export default {
     relaySettings: 'Relay Settings',
     relayChannelHealth: 'Channel Health',
     relayChannelProbes: 'Channel Balance Probes',
+    relayRequestDiagnostics: 'Request Diagnostics',
     upstreamStatus: 'Upstream Status',
     remoteTerminal: 'Cloud Terminal',
     relayChannels: 'Channel Management',
@@ -2571,6 +2572,7 @@ export default {
     automaticPoolRankingHelp: 'Channel order adapts to current price and health data.',
     channelHealth: 'Channel Health',
     channelHealthManagement: 'Channel Health Management',
+    requestDiagnostics: 'Relay Request Diagnostics', requestDiagnosticsDescription: 'Filter by request ID, user, or token and inspect every physical channel attempt.', requestIdSearch: 'Request ID', requestDiagnosticsKeyword: 'Username or token name', requestOutcome: 'Outcome', requestOutcomeSuccess: 'Success', requestOutcomeClientError: '4xx', requestOutcomeServerError: '5xx', requestAttempts: 'Attempts', executionChannel: 'Execution Channel', requestDiagnosticsLoadFailed: 'Failed to load request diagnostics', requestUser: 'User', requestTime: 'Time', requestActions: 'Actions', requestDetails: 'Details', requestStatusCode: 'Status Code', requestPath: 'Path',
     channelHealthManagementDescription:
       'Review live health statistics and choose automatic tracking, manual scoring, or no health ranking.',
     channelProbeTitle: 'Standalone Channel Balance Probes',

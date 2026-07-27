@@ -755,6 +755,12 @@ export const routes = [
             },
           },
           {
+            path: 'relay/request-diagnostics',
+            name: 'relayRequestDiagnostics',
+            component: () => import('@/views/relay/RelayRequestDiagnosticsView.vue'),
+            meta: { permission: Permission.RELAY_CHANNEL_READ },
+          },
+          {
             path: 'relay/channel-probes',
             name: 'relayChannelProbes',
             component: () => import('@/views/relay/RelayChannelProbeView.vue'),

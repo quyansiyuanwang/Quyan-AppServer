@@ -741,6 +741,13 @@ const overviewSections = computed<OverviewSection[]>(() => {
           visible: can(Permission.RELAY_CHANNEL_READ),
         },
         {
+          key: 'relayRequestDiagnostics',
+          label: i18ns.t('nav.relayRequestDiagnostics'),
+          icon: Monitor,
+          route: 'relayRequestDiagnostics',
+          visible: can(Permission.RELAY_CHANNEL_READ),
+        },
+        {
           key: 'relayChannelProbes',
           label: i18ns.t('nav.relayChannelProbes'),
           icon: Monitor,

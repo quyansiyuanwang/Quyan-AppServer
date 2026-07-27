@@ -226,6 +226,27 @@ export class RelayUsageRepository implements RelayUsageStore {
     };
   }
 
+  async findRequestDiagnostics(query: { page: number; pageSize: number; requestId?: string; keyword?: string; channelId?: string; outcome?: string; startDate?: Date; endDate?: Date }) {
+    const where: any = { ...(query.requestId ? { requestId: { contains: query.requestId } } : {}) };
+    if (query.startDate || query.endDate) where.createTime = { ...(query.startDate ? { gte: query.startDate } : {}), ...(query.endDate ? { lte: query.endDate } : {}) };
+    if (query.keyword) where.relayToken = { OR: [{ name: { contains: query.keyword } }, { user: { username: { contains: query.keyword } } }] };
+    const attemptWhere: any = { ...(query.channelId ? { executionChannelId: query.channelId } : {}) };
+    if (query.outcome === "success") attemptWhere.statusCode = { gte: 200, lt: 400 };
+    if (query.outcome === "client-error") attemptWhere.statusCode = { gte: 400, lt: 500 };
+    if (query.outcome === "server-error") attemptWhere.statusCode = { gte: 500 };
+    if (Object.keys(attemptWhere).length) where.relayUsages = { some: attemptWhere };
+    const [total, records] = await prisma.$transaction([
+      prisma.relayLogicalRequest.count({ where }),
+      prisma.relayLogicalRequest.findMany({
+        where, orderBy: { createTime: "desc" }, skip: (query.page - 1) * query.pageSize, take: query.pageSize,
+        include: { relayToken: { select: { id: true, name: true, userId: true, user: { select: { username: true } } } }, relayUsages: { orderBy: { createTime: "asc" } } },
+      }),
+    ]);
+    const channelIds = [...new Set(records.flatMap((record) => record.relayUsages.map((usage) => usage.executionChannelId).filter(Boolean)))];
+    const channelNames = new Map((await prisma.relayChannel.findMany({ where: { id: { in: channelIds as string[] } }, select: { id: true, name: true } })).map((channel) => [channel.id, channel.name]));
+    return { total, records: records.map((record) => ({ ...record, relayUsages: record.relayUsages.map((usage) => ({ ...usage, executionChannelName: usage.executionChannelId ? channelNames.get(usage.executionChannelId) : undefined })) })) };
+  }
+
   private buildRelayUsageWhere(relayTokenIds: string[], startDate?: Date, endDate?: Date) {
     const where: {
       relayTokenId: { in: string[] };

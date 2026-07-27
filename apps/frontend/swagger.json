@@ -13604,6 +13604,104 @@
 				]
 			}
 		},
+		"/v1/relay/request-diagnostics": {
+			"get": {
+				"operationId": "RelayControllerGetRequestDiagnostics",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayRequestDiagnosticsPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "requestId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "channelId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "outcome",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"success",
+								"client-error",
+								"server-error"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/relay/available-models": {
 			"get": {
 				"operationId": "RelayControllerGetAvailableModels",
@@ -36717,6 +36815,123 @@
 					"limit",
 					"offset",
 					"usages"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayRequestDiagnosticAttemptDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"executionChannelId": {
+						"type": "string"
+					},
+					"executionChannelName": {
+						"type": "string"
+					},
+					"statusCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"method": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"timeToFirstByte": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalOutputTime": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"statusCode",
+					"method",
+					"path",
+					"totalTokens",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayRequestDiagnosticDto": {
+				"properties": {
+					"requestId": {
+						"type": "string"
+					},
+					"relayTokenId": {
+						"type": "string"
+					},
+					"relayTokenName": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"attempts": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestDiagnosticAttemptDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"requestId",
+					"relayTokenId",
+					"userId",
+					"createTime",
+					"attempts"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayRequestDiagnosticsPageDto": {
+				"properties": {
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"records": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestDiagnosticDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"total",
+					"page",
+					"pageSize",
+					"records"
 				],
 				"type": "object",
 				"additionalProperties": false
