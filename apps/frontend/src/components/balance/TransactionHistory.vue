@@ -652,7 +652,6 @@ const props = defineProps<{
     value: number
     min: number
     max: number
-    lockedMin?: number
     marks: Record<number, string | { label: string; style?: CSSProperties }>
   }
   rangeActions?: Array<{
@@ -717,7 +716,6 @@ const rangeSliderOptions = computed(() => {
   const slider = props.rangeSlider
   if (!slider) return []
 
-  const lockedMin = slider.lockedMin ?? slider.min
   const options: Array<{ label: string; value: number; disabled?: boolean }> = []
 
   for (let value = slider.min; value <= slider.max; value += 1) {
@@ -726,17 +724,14 @@ const rangeSliderOptions = computed(() => {
     options.push({
       label,
       value,
-      disabled: value < lockedMin,
     })
   }
 
   return options
 })
 
-const clampRangeSliderValue = (value: number): number => {
-  const lockedMin = props.rangeSlider?.lockedMin ?? props.rangeSlider?.min ?? 0
-  return value < lockedMin ? lockedMin : value
-}
+const clampRangeSliderValue = (value: number): number =>
+  Math.min(Math.max(value, props.rangeSlider?.min ?? 0), props.rangeSlider?.max ?? value)
 
 const formatAmountNumber = (amount: number): string => {
   if (!Number.isFinite(amount)) return '0'
