@@ -940,11 +940,13 @@
         class="mb-3"
       />
       <div class="calibration-toolbar">
+        <span>{{ i18ns.t('relay.channelProbeRoundingMode') }}</span>
+        <el-select v-model="roundingMode" class="rounding-mode">
+          <el-option value="ceil" :label="i18ns.t('relay.channelProbeRoundUp')" />
+          <el-option value="nearest" :label="i18ns.t('relay.channelProbeRoundNearest')" />
+        </el-select>
         <span>{{ i18ns.t('relay.channelProbeRoundDigits') }}</span>
         <el-input-number v-model="roundingDigits" :min="0" :max="6" :step="1" :precision="0" />
-        <el-button plain @click="roundDraftMultipliers">{{
-          i18ns.t('relay.channelProbeRoundAll')
-        }}</el-button>
         <span class="calibration-toolbar-divider" />
         <span>{{ i18ns.t('relay.channelProbeSelectionTolerance') }}</span>
         <el-input-number
@@ -1100,18 +1102,39 @@
           :precision="2"
         />
         <span>%</span>
+        <span>{{ i18ns.t('relay.channelProbeNoticeRoundingMode') }}</span>
+        <el-select v-model="changeDisplayRoundingMode" class="rounding-mode">
+          <el-option value="nearest" :label="i18ns.t('relay.channelProbeRoundNearest')" />
+          <el-option value="ceil" :label="i18ns.t('relay.channelProbeRoundUp')" />
+        </el-select>
+        <span>{{ i18ns.t('relay.channelProbeNoticeDecimals') }}</span>
+        <el-input-number
+          v-model="changeDisplayDigits"
+          :min="0"
+          :max="6"
+          :step="1"
+          :precision="0"
+        />
         <span class="selected-draft-summary">{{
           i18ns.t('relay.channelProbeChangeCount', { count: multiplierChangeRows.length })
         }}</span>
-        <el-button
-          :icon="Download"
-          plain
-          :disabled="multiplierChangeRows.length === 0"
-          @click="exportMultiplierChangeChart"
-          >{{ i18ns.t('relay.channelProbeExportChangeChart') }}</el-button
-        >
+        <span class="selected-draft-summary">{{
+          i18ns.t('relay.channelProbeCustomerNoticeCount', { count: publicMultiplierChangeRows.length })
+        }}</span>
+        <el-tooltip :disabled="publicMultiplierChangeRows.length > 0" placement="top">
+          <template #content>{{ i18ns.t('relay.channelProbeExportChangeChartNoPublic') }}</template>
+          <span>
+            <el-button
+              :icon="Download"
+              plain
+              :disabled="publicMultiplierChangeRows.length === 0"
+              @click="exportMultiplierChangeChart"
+              >{{ i18ns.t('relay.channelProbeExportChangeChart') }}</el-button
+            >
+          </span>
+        </el-tooltip>
       </div>
-      <el-table :data="pagedMultiplierChangeRows" max-height="60vh" class="w-full">
+      <el-table :data="pagedCustomerFacingMultiplierChangeRows" max-height="60vh" class="w-full">
         <el-table-column prop="channelName" :label="i18ns.t('relay.channelName')" min-width="150" />
         <el-table-column :label="i18ns.t('relay.channelProbeChangeType')" width="108">
           <template #default="{ row }">
@@ -1174,7 +1197,7 @@
                     multiplierDirectionStyle(
                       row.sourceMultiplier,
                       row.targetMultiplier,
-                      analysisDirectionMaximumPercent,
+                      customerFacingDirectionMaximumPercent,
                     )
                   "
                 />
@@ -1202,7 +1225,7 @@
         class="mt-4 justify-end"
         layout="total, sizes, prev, pager, next"
         :page-sizes="[20, 50, 100]"
-        :total="multiplierChangeRows.length"
+        :total="publicMultiplierChangeRows.length"
       />
     </el-dialog>
   </main>
@@ -1217,14 +1240,17 @@ import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { getErrorMessage } from '@/utils/error-utils'
 import { relayChannelProbeService } from '@/service/relayChannelProbeService'
+import { relayChannelService } from '@/service/relayChannelService'
 import ProbeKeyValueEditor, { type ProbeKeyValueEntry } from './components/ProbeKeyValueEditor.vue'
 import type { TableInstance } from 'element-plus'
 import type {
   RelayChannelProbeFormat,
+  RelayChannelProbeCustomerFacingTargetDto,
   RelayChannelProbeOverviewItemDto,
   RelayChannelProbeRunDto,
   RelayChannelProbeRunStatus,
   RelayChannelProbeWorkflowStepDto,
+  RelayChannelDto,
 } from '@/client/types.gen'
 
 interface WorkflowFormStep {
@@ -1259,11 +1285,13 @@ interface ApplyMultiplierDraft {
   run: RelayChannelProbeRunDto
   channelName: string
   currentMultiplier: number
+  suggestedMultiplier: number
   targetMultiplier: number
 }
 interface MultiplierChangeRow {
   channelId: string
   channelName: string
+  customerFacingTargets: RelayChannelProbeCustomerFacingTargetDto[]
   sourceMultiplier: number
   targetMultiplier: number
   change: number
@@ -1299,7 +1327,8 @@ const saving = ref(false)
 const clearingProfile = ref(false)
 const applying = ref(false)
 const applyDialogOpen = ref(false)
-const roundingDigits = ref(6)
+const roundingDigits = ref(4)
+const roundingMode = ref<'ceil' | 'nearest'>('ceil')
 const applyDrafts = ref<ApplyMultiplierDraft[]>([])
 const applyTableRef = ref<TableInstance>()
 const selectedApplyRunIds = ref<string[]>([])
@@ -1309,6 +1338,8 @@ const changeDialogOpen = ref(false)
 const changeSort = ref<'largest' | 'smallest' | 'recent'>('largest')
 const changeDirection = ref<'all' | 'increase' | 'decrease'>('all')
 const changeMinimumPercent = ref(0)
+const changeDisplayDigits = ref(4)
+const changeDisplayRoundingMode = ref<'ceil' | 'nearest'>('nearest')
 const changePage = ref(1)
 const changePageSize = ref(50)
 const batchRunning = ref(false)
@@ -1322,6 +1353,7 @@ const resettingChannelId = ref('')
 const clearingHistoryScope = ref<'' | 'all' | 'failed'>('')
 const pageError = ref('')
 const items = ref<RelayChannelProbeOverviewItemDto[]>([])
+const legacyChannelTopology = ref<RelayChannelDto[] | null>(null)
 const selected = ref<RelayChannelProbeOverviewItemDto | null>(null)
 const drawerOpen = ref(false)
 const tab = ref('profile')
@@ -1388,6 +1420,7 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
       {
         channelId: item.channelId,
         channelName: item.channelName,
+        customerFacingTargets: item.customerFacingTargets,
         sourceMultiplier,
         targetMultiplier,
         change,
@@ -1408,19 +1441,51 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
     return new Date(right.time).getTime() - new Date(left.time).getTime()
   })
 })
+const publicMultiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
+  const rowsByCustomerEntry = new Map<string, MultiplierChangeRow>()
+  for (const row of multiplierChangeRows.value) {
+    for (const target of Array.isArray(row.customerFacingTargets) ? row.customerFacingTargets : []) {
+      const sourceMultiplier = roundMultiplierForPrecision(
+        row.sourceMultiplier,
+        changeDisplayDigits.value,
+        changeDisplayRoundingMode.value,
+      )
+      const targetMultiplier = roundMultiplierForPrecision(
+        row.targetMultiplier,
+        changeDisplayDigits.value,
+        changeDisplayRoundingMode.value,
+      )
+      const key = [target.channelId, sourceMultiplier, targetMultiplier].join(':')
+      if (rowsByCustomerEntry.has(key)) continue
+      rowsByCustomerEntry.set(key, {
+        ...row,
+        channelId: target.channelId,
+        channelName: target.channelName,
+        customerFacingTargets: [target],
+        sourceMultiplier,
+        targetMultiplier,
+        change: targetMultiplier - sourceMultiplier,
+        changePercent: multiplierRelativeChangePercent(sourceMultiplier, targetMultiplier),
+      })
+    }
+  }
+  return [...rowsByCustomerEntry.values()]
+})
 const applyDirectionMaximumPercent = computed(() =>
   maximumMultiplierRelativeChange(
     applyDrafts.value.map((draft) => [draft.currentMultiplier, draft.targetMultiplier] as const),
   ),
 )
-const analysisDirectionMaximumPercent = computed(() =>
+const customerFacingDirectionMaximumPercent = computed(() =>
   maximumMultiplierRelativeChange(
-    multiplierChangeRows.value.map((row) => [row.sourceMultiplier, row.targetMultiplier] as const),
+    publicMultiplierChangeRows.value.map(
+      (row) => [row.sourceMultiplier, row.targetMultiplier] as const,
+    ),
   ),
 )
-const pagedMultiplierChangeRows = computed(() => {
+const pagedCustomerFacingMultiplierChangeRows = computed(() => {
   const start = (changePage.value - 1) * changePageSize.value
-  return multiplierChangeRows.value.slice(start, start + changePageSize.value)
+  return publicMultiplierChangeRows.value.slice(start, start + changePageSize.value)
 })
 const selectedRuns = computed(() =>
   selectedRows.value.flatMap((row) => (isApplicable(row.latestRun) ? [row.latestRun!.id] : [])),
@@ -1824,6 +1889,7 @@ function getApplicableRuns(runIds: string[]) {
             run,
             channelName: channel.channelName,
             currentMultiplier: channel.multiplier,
+            suggestedMultiplier: run.suggestedMultiplier,
             targetMultiplier: run.suggestedMultiplier,
           },
         ]
@@ -1831,9 +1897,23 @@ function getApplicableRuns(runIds: string[]) {
   })
 }
 function roundDraftMultipliers() {
-  const factor = 10 ** roundingDigits.value
   for (const draft of applyDrafts.value)
-    draft.targetMultiplier = Math.ceil((draft.targetMultiplier - Number.EPSILON) * factor) / factor
+    draft.targetMultiplier = Math.max(
+      0.000001,
+      roundMultiplierForPrecision(draft.suggestedMultiplier, roundingDigits.value, roundingMode.value),
+    )
+}
+watch([roundingDigits, roundingMode], () => {
+  if (applyDialogOpen.value && applyDrafts.value.length > 0 && !applying.value)
+    roundDraftMultipliers()
+})
+function roundMultiplierForPrecision(value: number, digits: number, mode: 'ceil' | 'nearest') {
+  const factor = 10 ** digits
+  return (
+    (mode === 'ceil'
+      ? Math.ceil((value - Number.EPSILON) * factor)
+      : Math.round((value + Number.EPSILON) * factor)) / factor
+  )
 }
 function targetLocalCost(run: RelayChannelProbeRunDto) {
   const delta = Number(run.upstreamBalanceDelta ?? 0)
@@ -1921,9 +2001,9 @@ function multiplierDirectionLabel(currentMultiplier: number, targetMultiplier: n
   ].join(' ')
 }
 function exportMultiplierChangeChart() {
-  const rows = multiplierChangeRows.value.slice(0, 20)
+  const rows = publicMultiplierChangeRows.value.slice(0, 20)
   if (!rows.length) {
-    ElMessage.warning(i18ns.t('relay.channelProbeExportChangeChartEmpty'))
+    ElMessage.warning(i18ns.t('relay.channelProbeExportChangeChartNoPublic'))
     return
   }
 
@@ -1950,7 +2030,9 @@ function exportMultiplierChangeChart() {
   const increase = color('--el-color-danger', '#dc2626')
   const increaseMuted = color('--el-color-danger-light-8', '#fee2e2')
   const neutral = color('--el-fill-color-light', '#f3f4f6')
-  const maximum = analysisDirectionMaximumPercent.value
+  const maximum = maximumMultiplierRelativeChange(
+    rows.map((row) => [row.sourceMultiplier, row.targetMultiplier] as const),
+  )
   const axisStart = 610
   const axisWidth = 720
   const axisCenter = axisStart + axisWidth / 2
@@ -2161,13 +2243,54 @@ function formWorkflow(): RelayChannelProbeWorkflowStepDto[] {
     }
   })
 }
+function resolveCustomerFacingTargets(
+  channels: RelayChannelDto[],
+  standaloneChannelId: string,
+): RelayChannelProbeCustomerFacingTargetDto[] {
+  const channelById = new Map(channels.map((channel) => [channel.id, channel]))
+  const targetById = new Map<string, RelayChannelProbeCustomerFacingTargetDto>()
+  const collectStandaloneMembers = (channelId: string, path = new Set<string>()): string[] => {
+    if (path.has(channelId)) return []
+    const channel = channelById.get(channelId)
+    if (!channel?.enabled) return []
+    if (channel.channelType === 'standalone') return [channel.id]
+    const nextPath = new Set(path).add(channelId)
+    return (channel.poolMembers ?? []).flatMap((member) => {
+      if (member.enabled === false || member.memberChannelEnabled === false) return []
+      return collectStandaloneMembers(member.memberChannelId, nextPath)
+    })
+  }
+  for (const channel of channels) {
+    if (!channel.enabled || channel.channelType !== 'pooled') continue
+    if (collectStandaloneMembers(channel.id).includes(standaloneChannelId)) {
+      targetById.set(channel.id, { channelId: channel.id, channelName: channel.name })
+    }
+  }
+  if (!targetById.size) {
+    const standalone = channelById.get(standaloneChannelId)
+    if (standalone?.enabled)
+      targetById.set(standalone.id, { channelId: standalone.id, channelName: standalone.name })
+  }
+  return [...targetById.values()]
+}
 async function loadOverview() {
   const requestId = ++overviewRequest
   loading.value = true
   pageError.value = ''
   try {
     const result = await relayChannelProbeService.listOverview()
-    if (requestId === overviewRequest) items.value = result
+    let overviewItems = result.items
+    if (!result.hasCustomerFacingTargets) {
+      const channels =
+        legacyChannelTopology.value ??
+        (await relayChannelService.listChannels({ includeDisabled: true }))
+      legacyChannelTopology.value = channels
+      overviewItems = overviewItems.map((item) => ({
+        ...item,
+        customerFacingTargets: resolveCustomerFacingTargets(channels, item.channelId),
+      }))
+    }
+    if (requestId === overviewRequest) items.value = overviewItems
   } catch (error) {
     if (requestId === overviewRequest) {
       pageError.value = getErrorMessage(error, i18ns.t('operationFailed'))
@@ -2479,6 +2602,7 @@ async function confirmApply(runIds: string[]) {
   const drafts = getApplicableRuns(runIds)
   if (!drafts.length) return ElMessage.warning(i18ns.t('relay.channelProbeApplyUnavailable'))
   applyDrafts.value = drafts
+  roundDraftMultipliers()
   applyDialogOpen.value = true
   await nextTick()
   await selectEligibleDrafts()
@@ -2569,9 +2693,19 @@ function stopPolling() {
   pollTimer = undefined
 }
 watch([keyword, profileFilter, enabledFilter, runStatusFilter, suggestionFilter], clearSelection)
-watch([changeSort, changeDirection, changeMinimumPercent, changePageSize], () => {
+watch(
+  [
+    changeSort,
+    changeDirection,
+    changeMinimumPercent,
+    changeDisplayDigits,
+    changeDisplayRoundingMode,
+    changePageSize,
+  ],
+  () => {
   changePage.value = 1
-})
+  },
+)
 onMounted(loadOverview)
 onBeforeUnmount(stopPolling)
 </script>
@@ -2904,6 +3038,9 @@ onBeforeUnmount(stopPolling)
 }
 .selection-direction {
   width: 128px;
+}
+.rounding-mode {
+  width: 118px;
 }
 .calibration-toolbar-divider {
   width: 1px;

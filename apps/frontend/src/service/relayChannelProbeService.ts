@@ -6,14 +6,36 @@ import type {
   ApplyRelayChannelProbeRunsRequest,
   CreateRelayChannelProbeRunRequest,
   CreateRelayChannelProbeRunsRequest,
+  RelayChannelProbeOverviewItemDto,
   UpsertRelayChannelProbeProfileRequest,
 } from '@/client/types.gen'
 
 const api = cacheObject(() => createRelayChannelProbeControllerApi(useRequestStore().getAxios()))
 
+export interface RelayChannelProbeOverviewResult {
+  items: RelayChannelProbeOverviewItemDto[]
+  hasCustomerFacingTargets: boolean
+}
+
 class RelayChannelProbeService {
-  async listOverview() {
-    return checkApiResult<any>(await api.listOverview(), true).data
+  async listOverview(): Promise<RelayChannelProbeOverviewResult> {
+    const response = checkApiResult<{ data: RelayChannelProbeOverviewItemDto[] }>(
+      await api.listOverview(),
+      true,
+    )
+    // Backends rolling out the customer-facing target field may briefly return
+    // the older shape. Keep the console usable until the API instance reloads.
+    return {
+      hasCustomerFacingTargets: response.data.every((item) =>
+        Array.isArray(item.customerFacingTargets),
+      ),
+      items: response.data.map((item) => ({
+        ...item,
+        customerFacingTargets: Array.isArray(item.customerFacingTargets)
+          ? item.customerFacingTargets
+          : [],
+      })),
+    }
   }
 
   async getProfile(channelId: string) {

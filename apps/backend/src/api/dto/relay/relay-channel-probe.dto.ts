@@ -1,3 +1,5 @@
+import type { RelayChannelVisibilityMode } from "@/api/dto/relay/relay-channel.dto";
+
 export type RelayChannelProbeFormat = "openai" | "anthropic" | "gemini";
 export type RelayChannelProbeRunStatus = "queued" | "running" | "succeeded" | "failed" | "timed_out" | "cancelled";
 
@@ -121,10 +123,23 @@ export interface RelayChannelProbeRunPageDto {
   pageSize: number;
 }
 
+/** A routing entry that represents this standalone channel in customer-facing price notices. */
+export interface RelayChannelProbeCustomerFacingTargetDto {
+  channelId: string;
+  channelName: string;
+}
+
 export interface RelayChannelProbeOverviewItemDto {
   channelId: string;
   channelName: string;
   enabled: boolean;
+  /** Visibility of the standalone upstream channel itself. */
+  visibilityMode: RelayChannelVisibilityMode;
+  /**
+   * Pooled entries that resolve to this standalone channel. When present,
+   * customer notices must use these names instead of the upstream account name.
+   */
+  customerFacingTargets: RelayChannelProbeCustomerFacingTargetDto[];
   multiplier: number;
   /** Formats that can be used for the minimal AI request on this channel. */
   allowedProbeFormats: RelayChannelProbeFormat[];

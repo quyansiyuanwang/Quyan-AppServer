@@ -11,6 +11,8 @@ import { RelayConfigService } from "./relay-config.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
 import { RedisService } from "@/services/infrastructure/redis.service";
+import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
+import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import logger from "@/util/logger";
 import {
   RelayChannelProbeRepository,
@@ -33,12 +35,18 @@ import type {
   CreateRelayChannelProbeRunsResponse,
   ClearRelayChannelProbeRunHistoryResponse,
   RelayChannelProbeOverviewItemDto,
+  RelayChannelProbeCustomerFacingTargetDto,
   RelayChannelProbeProfileDto,
   RelayChannelProbeRunDto,
   RelayChannelProbeRunHistoryScope,
   RelayChannelProbeWorkflowStepDto,
   UpsertRelayChannelProbeProfileRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
+import type {
+  RelayChannelDto,
+  RelayChannelMemberDto,
+  RelayChannelType,
+} from "@/api/dto/relay/relay-channel.dto";
 import type { ModelPricingItemDto } from "@/api/dto/relay/relay-config.dto";
 
 const PROBE_TIMEOUT_MS = 30_000;
@@ -59,6 +67,52 @@ const PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS = 5_000;
 
 type ProbeProfileRecord = RelayChannelProbeProfileRecord;
 type ProbeRunRecord = RelayChannelProbeRunRecord;
+export type RelayChannelProbeTopologyItem = Pick<
+  RelayChannelDto,
+  "id" | "name" | "enabled" | "channelType" | "poolMembers"
+>;
+
+/**
+ * Converts internal standalone members to the routing entries a customer
+ * actually sees. Visibility mode governs management access, not token routing,
+ * so a pooled channel takes precedence regardless of that internal setting.
+ */
+export function resolveProbeCustomerFacingTargets(
+  channels: RelayChannelProbeTopologyItem[],
+  standaloneChannelId: string,
+): RelayChannelProbeCustomerFacingTargetDto[] {
+  const channelById = new Map(channels.map((channel) => [channel.id, channel]));
+  const targetById = new Map<string, RelayChannelProbeCustomerFacingTargetDto>();
+
+  const collectStandaloneMembers = (channelId: string, path = new Set<string>()): string[] => {
+    if (path.has(channelId)) return [];
+    const channel = channelById.get(channelId);
+    if (!channel?.enabled) return [];
+    if (channel.channelType === "standalone") return [channel.id];
+
+    const nextPath = new Set(path).add(channelId);
+    return (channel.poolMembers ?? []).flatMap((member) => {
+      if (member.enabled === false || member.memberChannelEnabled === false) return [];
+      return collectStandaloneMembers(member.memberChannelId, nextPath);
+    });
+  };
+
+  for (const channel of channels) {
+    if (!channel.enabled || channel.channelType !== "pooled") continue;
+    if (collectStandaloneMembers(channel.id).includes(standaloneChannelId)) {
+      targetById.set(channel.id, { channelId: channel.id, channelName: channel.name });
+    }
+  }
+
+  if (targetById.size === 0) {
+    const standalone = channelById.get(standaloneChannelId);
+    if (standalone?.enabled) {
+      targetById.set(standalone.id, { channelId: standalone.id, channelName: standalone.name });
+    }
+  }
+
+  return [...targetById.values()].sort((left, right) => left.channelName.localeCompare(right.channelName));
+}
 
 export function readProbeJsonPath(source: unknown, path: string): unknown {
   const normalized = path
@@ -300,6 +354,7 @@ export class RelayChannelProbeService {
   private readonly activeSchedulingScopes = new Set<string>();
   private lastCleanupAt = 0;
   private readonly channelLockService = RelayChannelProbeLockService.getInstance();
+  private readonly relayChannelRepository = RelayChannelRepository.getInstance();
   private readonly repository = RelayChannelProbeRepository.getInstance();
   private readonly redis = RedisService.getInstance();
 
@@ -309,7 +364,10 @@ export class RelayChannelProbeService {
   }
 
   async listOverview(actorUserId: string): Promise<RelayChannelProbeOverviewItemDto[]> {
-    const channels = await RelayChannelService.getInstance().listChannels(actorUserId, true);
+    const [channels, topology] = await Promise.all([
+      RelayChannelService.getInstance().listChannels(actorUserId, true),
+      this.listChannelTopology(),
+    ]);
     const standalone = channels.filter((channel) => channel.channelType === "standalone");
     const channelIds = standalone.map((item) => item.id);
     const [profiles, runs] = await Promise.all([
@@ -322,12 +380,51 @@ export class RelayChannelProbeService {
       channelId: channel.id,
       channelName: channel.name,
       enabled: channel.enabled,
+      visibilityMode: channel.visibilityMode,
+      customerFacingTargets: resolveProbeCustomerFacingTargets(topology, channel.id),
       multiplier: channel.multiplier,
       allowedProbeFormats: this.toAllowedProbeFormats(channel.allowedFormats),
       allowedProbeModels: channel.allowedModels,
       profile: profileMap.has(channel.id) ? this.toProfileDto(profileMap.get(channel.id)!) : undefined,
       latestRun: runMap.has(channel.id) ? this.toRunDto(runMap.get(channel.id)!) : undefined,
     }));
+  }
+
+  /**
+   * Probe readers can only inspect channels they are allowed to manage, but a
+   * member's customer-facing pool can use a private management visibility mode.
+   * Read the topology separately so notices consistently use the pool label.
+   */
+  private async listChannelTopology(): Promise<RelayChannelProbeTopologyItem[]> {
+    const channels = await this.relayChannelRepository.listVisible();
+    return channels.map((channel) => {
+      const members = (
+        channel as typeof channel & {
+          poolMembers?: Array<{
+            memberChannelId: string;
+            priority: number;
+            weight: number;
+            enabled: boolean;
+            memberChannel?: { status: number } | null;
+          }>;
+        }
+      ).poolMembers;
+      return {
+        id: channel.id,
+        name: channel.name,
+        enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+        channelType: channel.channelType as RelayChannelType,
+        poolMembers: members?.map(
+          (member): RelayChannelMemberDto => ({
+            memberChannelId: member.memberChannelId,
+            priority: member.priority,
+            weight: Number(member.weight),
+            enabled: member.enabled,
+            memberChannelEnabled: member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+          }),
+        ),
+      };
+    });
   }
 
   async getProfile(channelId: string, actorUserId: string): Promise<RelayChannelProbeProfileDto> {

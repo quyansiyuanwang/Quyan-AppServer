@@ -39046,6 +39046,23 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayChannelProbeCustomerFacingTargetDto": {
+				"description": "A public routing entry that represents this standalone channel to customers.",
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channelId",
+					"channelName"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayChannelProbeFormat": {
 				"type": "string",
 				"enum": [
@@ -39317,6 +39334,17 @@
 					"enabled": {
 						"type": "boolean"
 					},
+					"visibilityMode": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode",
+						"description": "Visibility of the standalone upstream channel itself."
+					},
+					"customerFacingTargets": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeCustomerFacingTargetDto"
+						},
+						"type": "array",
+						"description": "Public pooled entries that resolve to this standalone channel. When present,\ncustomer notices must use these names instead of the upstream account name."
+					},
 					"multiplier": {
 						"type": "number",
 						"format": "double"
@@ -39346,6 +39374,8 @@
 					"channelId",
 					"channelName",
 					"enabled",
+					"visibilityMode",
+					"customerFacingTargets",
 					"multiplier",
 					"allowedProbeFormats",
 					"allowedProbeModels"

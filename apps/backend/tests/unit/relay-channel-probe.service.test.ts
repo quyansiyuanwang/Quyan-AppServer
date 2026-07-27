@@ -12,10 +12,56 @@ import {
   normalizeProbeNetworkError,
   readProbeJsonPath,
   resolveProbeModelPricing,
+  resolveProbeCustomerFacingTargets,
   waitForProbeSettlement,
 } from "../../src/services/relay/relay-channel-probe.service";
+import type { RelayChannelProbeTopologyItem } from "../../src/services/relay/relay-channel-probe.service";
 
 describe("relay channel probe helpers", () => {
+  it("uses public pooled channel names instead of their standalone upstream members", () => {
+    const channels = [
+      {
+        id: "upstream-account",
+        name: "Internal account A",
+        enabled: true,
+        channelType: "standalone",
+      },
+      {
+        id: "customer-pool",
+        name: "Claude Standard",
+        enabled: true,
+        channelType: "pooled",
+        poolMembers: [
+          {
+            memberChannelId: "upstream-account",
+            priority: 0,
+            enabled: true,
+            memberChannelEnabled: true,
+          },
+        ],
+      },
+    ] as RelayChannelProbeTopologyItem[];
+
+    expect(resolveProbeCustomerFacingTargets(channels, "upstream-account")).toEqual([
+      { channelId: "customer-pool", channelName: "Claude Standard" },
+    ]);
+  });
+
+  it("uses the standalone name only when no pooled route represents it", () => {
+    const channels = [
+      {
+        id: "direct-channel",
+        name: "Direct API",
+        enabled: true,
+        channelType: "standalone",
+      },
+    ] as RelayChannelProbeTopologyItem[];
+
+    expect(resolveProbeCustomerFacingTargets(channels, "direct-channel")).toEqual([
+      { channelId: "direct-channel", channelName: "Direct API" },
+    ]);
+  });
+
   it("interpolates nested request values without changing other primitives", () => {
     expect(
       interpolateProbeVariables(
