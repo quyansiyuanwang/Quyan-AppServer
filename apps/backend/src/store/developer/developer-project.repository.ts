@@ -16,6 +16,7 @@ import { NotificationEvent } from "@/constant/notification-event";
 import { BadRequestError, ForbiddenError, NotFoundError, TooManyRequestsError, UnauthorizedError } from "@/util/errors";
 import { CustomCode } from "@/constant/custom-code";
 import { assertSafeOutboundUrl, isUnsafeOutboundAddress } from "@/util/developer-outbound-url";
+import { toDatabaseDate } from "@/util/database-date";
 import type {
   CreateDeveloperApiKeyDto,
   CreateDeveloperProjectDto,
@@ -234,8 +235,7 @@ export class DeveloperProjectRepository {
 
   async getQuotaSummary(projectId: string, userId: string): Promise<DeveloperQuotaSummaryDto> {
     const project = await this.assertProjectOwner(projectId, userId);
-    const usageDate = new Date();
-    usageDate.setHours(0, 0, 0, 0);
+    const usageDate = toDatabaseDate();
     return prisma.$transaction(async (tx) => {
       const records = await tx.developerQuotaUsage.findMany({ where: { projectId, usageDate } });
       const counts = new Map(records.map((record) => [record.service, record.requestCount]));
@@ -418,8 +418,7 @@ export class DeveloperProjectRepository {
   }
 
   private async consumeQuota(projectId: string, service: QuotaService): Promise<QuotaReceipt> {
-    const usageDate = new Date();
-    usageDate.setHours(0, 0, 0, 0);
+    const usageDate = toDatabaseDate();
     const overagePrice = await this.getOveragePrice(service);
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {

@@ -9,6 +9,7 @@ import { CustomCode } from "@/constant/custom-code";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import { PermissionService } from "@/services/users/permission.service";
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/util/errors";
+import { toDatabaseDate } from "@/util/database-date";
 import type {
   CreateDeveloperProductApiKeyDto,
   CreateDeveloperProductInstanceDto,
@@ -712,8 +713,7 @@ export class DeveloperProductPlatformService {
     const entitlement = await prisma.developerProductEntitlement.findUnique({ where: { id: entitlementId } });
     if (!entitlement || !isDeveloperProductCode(entitlement.productCode)) throw new NotFoundError("产品授权不存在");
     const config = await prisma.developerProductConfig.findUnique({ where: { productCode: entitlement.productCode } });
-    const usageDate = new Date();
-    usageDate.setHours(0, 0, 0, 0);
+    const usageDate = toDatabaseDate();
     const usage = await prisma.developerProductQuotaUsage.findUnique({
       where: { entitlementId_usageDate: { entitlementId, usageDate } },
     });
@@ -781,8 +781,7 @@ export class DeveloperProductPlatformService {
   }
 
   private async consumeQuota(context: ProductMeteringContext): Promise<ProductQuotaReceipt> {
-    const usageDate = new Date();
-    usageDate.setHours(0, 0, 0, 0);
+    const usageDate = toDatabaseDate();
     for (let attempt = 0; attempt < 4; attempt += 1) {
       try {
         return await prisma.$transaction(async (tx) => {
