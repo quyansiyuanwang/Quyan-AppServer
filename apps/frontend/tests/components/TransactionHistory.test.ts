@@ -75,7 +75,9 @@ const ElTableColumnStub = defineComponent({
       h(
         'div',
         { class: 'el-table-column-stub' },
-        rowsRef.value.flatMap((row, index) => (slots.default ? slots.default({ row, $index: index }) : [])),
+        rowsRef.value.flatMap((row, index) =>
+          slots.default ? slots.default({ row, $index: index }) : [],
+        ),
       )
   },
 })
@@ -144,7 +146,7 @@ const mountComponent = (transactions: any[]) =>
         'el-collapse-item': SimpleSlotStub('ElCollapseItem'),
         'el-descriptions': SimpleSlotStub('ElDescriptions'),
         'el-descriptions-item': SimpleSlotStub('ElDescriptionsItem'),
-        'transition': false,
+        transition: false,
       },
     },
   })
@@ -192,5 +194,17 @@ describe('TransactionHistory', () => {
     ])
 
     expect(wrapper.text()).toContain('0.25 元/次 × 1 = 0.25 元')
+  })
+
+  it('shows the channel multiplier snapshot as a history table column', () => {
+    const wrapper = mountComponent([
+      {
+        ...baseTransaction,
+        id: 'tx-channel-multiplier',
+        channelMultiplier: 1.75,
+      },
+    ])
+
+    expect(wrapper.text()).toContain('1.75×')
   })
 })

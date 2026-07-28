@@ -300,6 +300,13 @@
             <span v-else style="color: var(--el-text-color-placeholder)">-</span>
           </template>
         </el-table-column>
+        <el-table-column :label="i18ns.t('balance.channelMultiplier')" width="108" align="right">
+          <template #default="{ row }">
+            <span :class="{ 'text-placeholder': !hasNumericValue(row.channelMultiplier) }">
+              {{ formatMultiplier(row.channelMultiplier) }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column :label="i18ns.t('balance.model')" min-width="50">
           <template #default="{ row }">
             <span v-if="getModelDisplay(row)">{{ getModelDisplay(row) }}</span>
@@ -431,6 +438,10 @@
             <div v-if="row.displayChannelName" class="tx-card-row">
               <span class="tx-label">{{ i18ns.t('balance.channelUsed') }}</span>
               <span class="tx-value">{{ row.displayChannelName }}</span>
+            </div>
+            <div v-if="hasNumericValue(row.channelMultiplier)" class="tx-card-row">
+              <span class="tx-label">{{ i18ns.t('balance.channelMultiplier') }}</span>
+              <span class="tx-value">{{ formatMultiplier(row.channelMultiplier) }}</span>
             </div>
             <div v-if="row.requestId" class="tx-card-row">
               <span class="tx-label">{{ i18ns.t('balance.requestId') }}</span>
@@ -806,6 +817,9 @@ const hasNumericValue = (value: number | null | undefined): value is number =>
 
 const formatTokenCount = (value: number | null | undefined): string =>
   hasNumericValue(value) ? value.toLocaleString() : '-'
+
+const formatMultiplier = (value: number | null | undefined): string =>
+  hasNumericValue(value) && value > 0 ? `${value}×` : '-'
 
 const hasTokenDetails = (tx: BalanceTransactionResponse): boolean =>
   hasNumericValue(tx.inputTokens) || hasNumericValue(tx.outputTokens)
@@ -1293,6 +1307,9 @@ const dailyBalanceChangeChartOption = computed(() => {
 </script>
 
 <style scoped>
+.text-placeholder {
+  color: var(--el-text-color-placeholder);
+}
 .filter-section {
   display: flex;
   gap: 12px;
