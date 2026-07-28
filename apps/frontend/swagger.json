@@ -37733,6 +37733,34 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"ContextLengthMultiplierRule": {
+				"description": "A whole-request multiplier selected from the request's input context length.",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"minTokens": {
+						"type": "number",
+						"format": "double",
+						"description": "Inclusive input-context threshold in tokens."
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"name",
+					"enabled",
+					"minTokens",
+					"multiplier"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayChannelDto": {
 				"properties": {
 					"id": {
@@ -37813,6 +37841,12 @@
 					"timePeriodMultipliers": {
 						"items": {
 							"$ref": "#/components/schemas/TimePeriodMultiplierRule"
+						},
+						"type": "array"
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
 						},
 						"type": "array"
 					},
@@ -37974,6 +38008,12 @@
 						"type": "number",
 						"format": "double"
 					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array"
+					},
 					"modelCapabilities": {
 						"items": {
 							"$ref": "#/components/schemas/RelayChannelModelCapabilityDto"
@@ -38097,6 +38137,12 @@
 						"type": "number",
 						"format": "double"
 					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array"
+					},
 					"allowedFormats": {
 						"type": "string"
 					},
@@ -38162,6 +38208,13 @@
 					"multiplier": {
 						"type": "number",
 						"format": "double"
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array",
+						"description": "Configured whole-request context tiers for a standalone channel."
 					},
 					"allowedFormats": {
 						"type": "string"
@@ -38535,6 +38588,17 @@
 					"rank": {
 						"type": "number",
 						"format": "double"
+					},
+					"eligible": {
+						"type": "boolean",
+						"description": "Whether this member is eligible for the current pool base route."
+					},
+					"exclusionReasons": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Why the member is excluded, when it is not eligible."
 					}
 				},
 				"required": [
@@ -38559,7 +38623,9 @@
 					"weight",
 					"effectivePrice",
 					"score",
-					"rank"
+					"rank",
+					"eligible",
+					"exclusionReasons"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -38795,6 +38861,14 @@
 						"nullable": true,
 						"description": "时段倍率规则"
 					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true,
+						"description": "Input-context threshold multiplier rules."
+					},
 					"id": {
 						"type": "string"
 					},
@@ -38989,6 +39063,14 @@
 						"nullable": true,
 						"description": "时段倍率规则"
 					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true,
+						"description": "Input-context threshold multiplier rules."
+					},
 					"id": {
 						"type": "string",
 						"description": "Export source channel ID, used only to remap pooled members during import."
@@ -39123,6 +39205,14 @@
 						"type": "array",
 						"nullable": true,
 						"description": "时段倍率规则"
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true,
+						"description": "Input-context threshold multiplier rules."
 					}
 				},
 				"required": [
@@ -39235,6 +39325,14 @@
 						"type": "array",
 						"nullable": true,
 						"description": "时段倍率规则"
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true,
+						"description": "Input-context threshold multiplier rules."
 					}
 				},
 				"type": "object",
@@ -44721,6 +44819,18 @@
 					"timeMultiplier": {
 						"type": "number",
 						"format": "double"
+					},
+					"contextTokens": {
+						"type": "number",
+						"format": "double",
+						"description": "Complete input-context token count used to select a context tier."
+					},
+					"contextMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"contextRuleName": {
+						"type": "string"
 					},
 					"tokenName": {
 						"type": "string"

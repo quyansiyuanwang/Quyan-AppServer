@@ -366,12 +366,19 @@ describe("Balance API Integration", () => {
     expect(recordById.get(unrelatedTransaction.id)?.displayChannelName).toBeUndefined();
   });
 
-  it("uses automatic pool names and hides unresolved hidden members in balance history", async () => {
-    const [automaticPool, hiddenMember] = await Promise.all([
+  it("uses a stored accessible parent pool for automatic usage and hides unresolved hidden members", async () => {
+    const [automaticPool, billingPool, hiddenMember] = await Promise.all([
       prisma.relayChannel.create({
         data: {
           name: `Automatic Pool ${shortSuffix}`,
           channelType: "automatic-proxy-pool",
+          allowedFormats: "openai",
+        },
+      }),
+      prisma.relayChannel.create({
+        data: {
+          name: `Billing Pool ${shortSuffix}`,
+          channelType: "pooled",
           allowedFormats: "openai",
         },
       }),
@@ -383,7 +390,16 @@ describe("Balance API Integration", () => {
         },
       }),
     ]);
-    relayChannelIds.push(automaticPool.id, hiddenMember.id);
+    relayChannelIds.push(automaticPool.id, billingPool.id, hiddenMember.id);
+    await prisma.relayChannelMember.create({
+      data: {
+        relayChannelId: billingPool.id,
+        memberChannelId: hiddenMember.id,
+        priority: 1,
+        weight: 1,
+        enabled: true,
+      },
+    });
 
     const [automaticToken, orderedToken] = await Promise.all([
       prisma.relayToken.create({
@@ -410,14 +426,26 @@ describe("Balance API Integration", () => {
       },
     });
 
-    const [automaticUsage, unresolvedUsage] = await Promise.all([
+    const [automaticUsage, legacyAutomaticUsage, unresolvedUsage] = await Promise.all([
       prisma.relayUsage.create({
         data: {
           relayTokenId: automaticToken.id,
           logicalRequestId: automaticLogicalRequest.id,
           executionChannelId: hiddenMember.id,
-          displayChannelId: hiddenMember.id,
-          displayChannelName: hiddenMember.name,
+          displayChannelId: billingPool.id,
+          displayChannelName: billingPool.name,
+          path: "/relay/proxy/v1/chat/completions",
+          method: "POST",
+          statusCode: 200,
+          ipAddress: "127.0.0.1",
+        },
+      }),
+      prisma.relayUsage.create({
+        data: {
+          relayTokenId: automaticToken.id,
+          executionChannelId: hiddenMember.id,
+          displayChannelId: automaticPool.id,
+          displayChannelName: automaticPool.name,
           path: "/relay/proxy/v1/chat/completions",
           method: "POST",
           statusCode: 200,
@@ -438,7 +466,7 @@ describe("Balance API Integration", () => {
       }),
     ]);
 
-    const [automaticTransaction, unresolvedTransaction] = await Promise.all([
+    const [automaticTransaction, legacyAutomaticTransaction, unresolvedTransaction] = await Promise.all([
       prisma.balanceTransaction.create({
         data: {
           userId: targetUserId,
@@ -447,8 +475,8 @@ describe("Balance API Integration", () => {
           balanceBefore: 10,
           balanceAfter: 9.9,
           relatedId: automaticUsage.id,
-          displayChannelId: hiddenMember.id,
-          displayChannelName: hiddenMember.name,
+          displayChannelId: billingPool.id,
+          displayChannelName: billingPool.name,
         },
       }),
       prisma.balanceTransaction.create({
@@ -458,6 +486,18 @@ describe("Balance API Integration", () => {
           amount: -0.1,
           balanceBefore: 9.9,
           balanceAfter: 9.8,
+          relatedId: legacyAutomaticUsage.id,
+          displayChannelId: automaticPool.id,
+          displayChannelName: automaticPool.name,
+        },
+      }),
+      prisma.balanceTransaction.create({
+        data: {
+          userId: targetUserId,
+          type: "api_usage",
+          amount: -0.1,
+          balanceBefore: 9.8,
+          balanceAfter: 9.7,
           relatedId: unresolvedUsage.id,
           displayChannelId: hiddenMember.id,
           displayChannelName: hiddenMember.name,
@@ -473,7 +513,8 @@ describe("Balance API Integration", () => {
     const recordById = new Map(
       (response.body.data.records as Array<Record<string, unknown>>).map((record) => [record.id, record]),
     );
-    expect(recordById.get(automaticTransaction.id)?.displayChannelName).toBe(automaticPool.name);
+    expect(recordById.get(automaticTransaction.id)?.displayChannelName).toBe(billingPool.name);
+    expect(recordById.get(legacyAutomaticTransaction.id)?.displayChannelName).toBe(automaticPool.name);
     expect(recordById.get(automaticTransaction.id)?.requestId).toBe(automaticLogicalRequest.requestId);
     expect(recordById.get(unresolvedTransaction.id)?.displayChannelName).toBeUndefined();
   });

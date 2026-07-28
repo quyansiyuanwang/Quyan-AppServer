@@ -47,10 +47,20 @@ export interface RelayChannelHealthRankingMemberInput {
   manualLatencyMs?: number | null;
 }
 
+export interface RelayAutomaticPoolHealthThresholds {
+  healthScoreThreshold?: number | null;
+  latencyThresholdMs?: number | null;
+  circuitBreakerThreshold?: number | null;
+}
+
 export interface RelayChannelHealthRankingMember extends RelayChannelHealthRankingMemberInput {
   health: RelayChannelHealthSnapshot;
   score: number;
   source: "redis" | "manual" | "disabled";
+  /** Whether this member can be selected after static state and pool health thresholds are applied. */
+  eligible: boolean;
+  /** Stable machine-readable explanations for a member excluded from the current pool route. */
+  exclusionReasons: string[];
 }
 
 type HealthTotals = Omit<
@@ -183,6 +193,7 @@ export class RelayChannelHealthService {
     members: RelayChannelHealthRankingMemberInput[],
     rankingMode: RelayAutomaticPoolRankingMode,
     now = new Date(),
+    thresholds: RelayAutomaticPoolHealthThresholds = {},
   ): Promise<RelayChannelHealthRankingMember[]> {
     const { healthMap, available } = await this.getHealthMapWithAvailability(
       members.map((member) => member.id),
@@ -207,7 +218,27 @@ export class RelayChannelHealthService {
             : health.availability;
       const weight = Math.max(Number(member.weight) || 0, 0.01);
       const price = Math.max(Number(member.effectivePrice) || 0, 0.01);
-      const score = rankingMode === "stability-first" ? availability * weight : price / weight;
+      const score = rankingMode === "stability-first" ? availability * weight : price;
+      const hasTrustedAutomaticHealth =
+        trackingMode === "automatic" && available && health.sampleCount >= MIN_SAMPLES_FOR_CONFIDENCE;
+      const hasTrustedHealth = trackingMode === "manual" || hasTrustedAutomaticHealth;
+      const exclusionReasons: string[] = [];
+      if (!member.enabled) exclusionReasons.push("disabled");
+
+      // Missing telemetry must not make an otherwise valid channel unavailable. Manual values are
+      // administrator-provided and therefore trusted immediately; automatic values need a small sample set.
+      if (hasTrustedHealth) {
+        const healthThreshold = this.normalizeThreshold(thresholds.healthScoreThreshold);
+        if (healthThreshold !== null && availability < healthThreshold) exclusionReasons.push("availability");
+
+        const latencyThreshold = this.normalizeThreshold(thresholds.latencyThresholdMs);
+        if (latencyThreshold !== null && health.averageLatencyMs > 0 && health.averageLatencyMs > latencyThreshold)
+          exclusionReasons.push("latency");
+
+        const breakerThreshold = this.normalizeThreshold(thresholds.circuitBreakerThreshold);
+        if (breakerThreshold !== null && health.failureCount >= breakerThreshold)
+          exclusionReasons.push("circuit-breaker");
+      }
       const source: RelayChannelHealthRankingMember["source"] =
         trackingMode === "manual" ? "manual" : trackingMode === "disabled" ? "disabled" : "redis";
       return {
@@ -216,18 +247,21 @@ export class RelayChannelHealthService {
         health,
         score,
         source,
+        eligible: exclusionReasons.length === 0,
+        exclusionReasons,
       };
     });
 
     const priorityOrder = (left: RelayChannelHealthRankingMember, right: RelayChannelHealthRankingMember): number =>
       left.priority - right.priority || left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
-    const dynamic = ranked.filter((member) => member.healthTrackingMode !== "disabled");
-    dynamic.sort((left, right) => {
-      if (!available && left.healthTrackingMode === "automatic" && right.healthTrackingMode === "automatic") {
-        return priorityOrder(left, right);
+    ranked.sort((left, right) => {
+      if (rankingMode === "price-first") {
+        const priceOrder = left.effectivePrice - right.effectivePrice;
+        if (Math.abs(priceOrder) > 1e-9) return priceOrder;
+      } else {
+        const scoreOrder = right.score - left.score;
+        if (Math.abs(scoreOrder) > 1e-9) return scoreOrder;
       }
-      const scoreOrder = rankingMode === "stability-first" ? right.score - left.score : left.score - right.score;
-      if (Math.abs(scoreOrder) > 1e-9) return scoreOrder;
       const availabilityOrder = right.health.availability - left.health.availability;
       if (Math.abs(availabilityOrder) > 1e-9) return availabilityOrder;
       const priceOrder = left.effectivePrice - right.effectivePrice;
@@ -235,11 +269,22 @@ export class RelayChannelHealthService {
       return priorityOrder(left, right);
     });
 
-    // Disabled entries retain their original priority slot; only tracked entries are dynamically reordered.
-    const dynamicIterator = dynamic.values();
-    return [...ranked]
-      .sort(priorityOrder)
-      .map((member) => (member.healthTrackingMode === "disabled" ? member : dynamicIterator.next().value!));
+    // If thresholds eliminate every enabled member, preserve availability by falling back to the
+    // base order. Static disabled members remain unavailable in both cases.
+    const hasEligibleEnabledMember = ranked.some((member) => member.enabled && member.eligible);
+    if (!hasEligibleEnabledMember) {
+      for (const member of ranked) {
+        if (!member.enabled) continue;
+        member.eligible = true;
+        member.exclusionReasons = [];
+      }
+    }
+    return ranked;
+  }
+
+  private normalizeThreshold(value: number | null | undefined): number | null {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
   }
 
   private clampAvailability(value: number | null | undefined): number {

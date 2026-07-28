@@ -1300,7 +1300,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
   });
 
   it(
-    "自动代理池重试后将用户和消费展示归属自动池，并保留最终成员执行记录",
+    "自动代理池重试后展示成员唯一的父混池，并保留最终成员执行记录",
     async () => {
       const primary = await prisma.relayChannel.create({
         data: {
@@ -1330,6 +1330,15 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           multiplier: 1,
         },
       });
+      const billingPool = await prisma.relayChannel.create({
+        data: {
+          name: `test_automatic_pool_billing_${suffix}`,
+          channelType: "pooled",
+          routingStrategy: "priority",
+          allowedFormats: "openai",
+          multiplier: 1,
+        },
+      });
       await prisma.relayChannelMember.createMany({
         data: [
           {
@@ -1341,6 +1350,20 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           },
           {
             relayChannelId: automaticPool.id,
+            memberChannelId: secondary.id,
+            priority: 2,
+            weight: 1,
+            enabled: true,
+          },
+          {
+            relayChannelId: billingPool.id,
+            memberChannelId: primary.id,
+            priority: 1,
+            weight: 1,
+            enabled: true,
+          },
+          {
+            relayChannelId: billingPool.id,
             memberChannelId: secondary.id,
             priority: 2,
             weight: 1,
@@ -1401,8 +1424,8 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         expect(successfulUsage).toMatchObject({
           statusCode: 200,
           executionChannelId: secondary.id,
-          displayChannelId: automaticPool.id,
-          displayChannelName: automaticPool.name,
+          displayChannelId: billingPool.id,
+          displayChannelName: billingPool.name,
         });
         expect(successfulUsage.displayChannelId).not.toBe(secondary.id);
 
@@ -1410,8 +1433,8 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           where: { relatedId: successfulUsage.id, type: "api_usage" },
         });
         expect(transaction).toMatchObject({
-          displayChannelId: automaticPool.id,
-          displayChannelName: automaticPool.name,
+          displayChannelId: billingPool.id,
+          displayChannelName: billingPool.name,
         });
 
         const statsRows = await ConsumptionStatsRepository.getInstance().listUsageRows(
@@ -1419,7 +1442,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           new Date(successfulUsage.createTime.getTime() + 60_000),
         );
         expect(statsRows).toContainEqual(
-          expect.objectContaining({ usageId: successfulUsage.id, channelName: automaticPool.name }),
+          expect.objectContaining({ usageId: successfulUsage.id, channelName: billingPool.name }),
         );
       } finally {
         relayAIMockPlugin!.useOpenAI(async (ctx) => ({
@@ -1432,8 +1455,12 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         await prisma.relayUsage.deleteMany({ where: { relayTokenId: token.id } });
         await prisma.relayChannelSwitchLog.deleteMany({ where: { relayTokenId: token.id } });
         await prisma.relayToken.delete({ where: { id: token.id } });
-        await prisma.relayChannelMember.deleteMany({ where: { relayChannelId: automaticPool.id } });
-        await prisma.relayChannel.deleteMany({ where: { id: { in: [automaticPool.id, primary.id, secondary.id] } } });
+        await prisma.relayChannelMember.deleteMany({
+          where: { relayChannelId: { in: [automaticPool.id, billingPool.id] } },
+        });
+        await prisma.relayChannel.deleteMany({
+          where: { id: { in: [automaticPool.id, billingPool.id, primary.id, secondary.id] } },
+        });
       }
     },
     RELAY_LOG_PERSISTENCE_TEST_TIMEOUT_MS,

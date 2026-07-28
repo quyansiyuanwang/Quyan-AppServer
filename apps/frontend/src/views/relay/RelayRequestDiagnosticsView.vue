@@ -114,10 +114,12 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
+    const { outcome, ...textFilters } = filters.value
     const data: any = await relayTokenService.getRequestDiagnostics({
       page: page.value,
       pageSize: 20,
-      ...filters.value,
+      ...textFilters,
+      ...(outcome ? { outcome } : {}),
     })
     records.value = data.records || []
     total.value = data.total || 0

@@ -873,6 +873,7 @@ model RelayChannel {
   inputTokensIncludeCacheRead Boolean  @default(false)
   modelMapping                Json?
   timePeriodMultipliers       Json?    @default("[]")
+  contextLengthMultipliers    Json?    @default("[]")
 
   relayTokens          RelayToken[]              @relation("RelayTokenPrimaryChannel")
   automaticRouteTokens RelayToken[]              @relation("RelayTokenAutomaticProxyPool")
@@ -1515,6 +1516,9 @@ model BalanceTransaction {
   channelMultiplier       Decimal? @db.Decimal(10, 6)
   globalMultiplier        Decimal? @db.Decimal(10, 6)
   timeMultiplier          Decimal? @db.Decimal(10, 6)
+  contextTokens           Int?
+  contextMultiplier       Decimal? @db.Decimal(10, 6)
+  contextRuleName         String?  @db.VarChar(100)
   pricingType             String?  @db.VarChar(20)
   fixedPrice              Decimal? @db.Decimal(10, 4)
 

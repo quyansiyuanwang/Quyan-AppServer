@@ -204,13 +204,34 @@ export const useApiDocumentationPricing = () => {
     )
   }
 
+  const getContextTierMultipliers = (
+    rules?: Array<{ enabled: boolean; minTokens: number; multiplier: number }>,
+  ): number[] => {
+    const enabledRules = (rules ?? [])
+      .filter(
+        (rule) =>
+          rule.enabled && Number.isFinite(rule.minTokens) && Number.isFinite(rule.multiplier),
+      )
+      .sort((left, right) => left.minTokens - right.minTokens)
+    const values = enabledRules.map((rule) => rule.multiplier)
+    if (enabledRules.length === 0 || enabledRules[0]!.minTokens > 0) values.push(1)
+    return [...new Set(values)]
+  }
+
   const getEffectiveMultipliersForModel = (
     item: PricingModelRow,
     channel: RelayChannelOptionDto,
   ): number[] => {
-    if (!channel.poolPricing) return [channel.multiplier ?? 1]
+    if (!channel.poolPricing)
+      return getContextTierMultipliers(channel.contextLengthMultipliers).map(
+        (contextMultiplier) => (channel.multiplier ?? 1) * contextMultiplier,
+      )
 
-    return getPoolPricingMembersForModel(item, channel).map((member) => member.effectiveMultiplier)
+    return getPoolPricingMembersForModel(item, channel).flatMap((member) =>
+      getContextTierMultipliers(member.contextLengthMultipliers).map(
+        (contextMultiplier) => member.effectiveMultiplier * contextMultiplier,
+      ),
+    )
   }
 
   const getLowestChannelMultiplierForModel = (
@@ -323,7 +344,10 @@ export const useApiDocumentationPricing = () => {
     const multiplier = Math.min(...effectiveMultipliers)
     const maximumMultiplier = Math.max(...effectiveMultipliers)
     const members = getPoolPricingMembersForModel(item, availableChannel).map((member) => {
-      const memberMultiplier = member.effectiveMultiplier * customMultiplier
+      const memberMultipliers = getContextTierMultipliers(member.contextLengthMultipliers).map(
+        (contextMultiplier) => member.effectiveMultiplier * contextMultiplier * customMultiplier,
+      )
+      const memberMultiplier = Math.min(...memberMultipliers)
       return {
         id: member.id,
         name: member.name,

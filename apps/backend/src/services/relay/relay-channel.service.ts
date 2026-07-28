@@ -24,6 +24,7 @@ import type {
   RelayChannelHealthTrackingMode,
   RelayPoolPricingMemberOptionDto,
   RelayPoolPricingOptionDto,
+  ContextLengthMultiplierRule,
   TimePeriodMultiplierRule,
   UpdateRelayChannelRequest,
   UpdateRelayChannelHealthConfigRequest,
@@ -88,6 +89,7 @@ interface ValidatedRelayChannelData {
   inputTokensIncludeCacheRead: boolean;
   modelMapping?: Record<string, string> | null;
   timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
 }
 
 const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
@@ -131,6 +133,28 @@ export class RelayChannelService {
     const visibleChannels = await this.filterAccessibleChannels(channels, actorUserId);
     const modelCatalog = await this.modelPricingService.getModelPricing();
     return Promise.all(visibleChannels.map((channel) => this.toDto(channel, modelCatalog, includeDisabled)));
+  }
+
+  /**
+   * Resolves the sole direct pooled parent that may be named in this user's billing history.
+   * Private and hidden pools are intentionally never returned, including to administrators.
+   */
+  async resolveUniqueAccessibleDirectPooledParent(
+    memberChannelId: string,
+    actorUserId: string,
+  ): Promise<RelayChannel | null> {
+    const candidates = (
+      await this.relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId(memberChannelId)
+    ).filter((channel) => {
+      const visibilityMode =
+        (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE;
+      return visibilityMode === "public" || visibilityMode === "whitelist";
+    });
+    const accessResults = await Promise.all(
+      candidates.map((channel) => this.canUserAccessChannel(channel, actorUserId, false)),
+    );
+    const accessibleCandidates = candidates.filter((_, index) => accessResults[index]);
+    return accessibleCandidates.length === 1 ? accessibleCandidates[0]! : null;
   }
 
   async listManagementChannels(
@@ -226,6 +250,9 @@ export class RelayChannelService {
           channelType:
             (channel.channelType as RelayChannelOptionDto["channelType"] | undefined) ?? DEFAULT_CHANNEL_TYPE,
           multiplier: Number(channel.multiplier),
+          contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
+            | ContextLengthMultiplierRule[]
+            | undefined,
           allowedFormats: isPoolType((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE)
             ? formatRelayRequestFormats([
                 ...new Set([...modelCapabilities.values()].flatMap((item) => item.supportedRequestFormats)),
@@ -296,6 +323,9 @@ export class RelayChannelService {
             multiplier,
             timePeriodMultiplier,
             effectiveMultiplier: multiplier * timePeriodMultiplier,
+            contextLengthMultipliers: memberChannel?.contextLengthMultipliers as
+              | ContextLengthMultiplierRule[]
+              | undefined,
             allowedFormats: memberChannel?.allowedFormats ?? "none",
             modelCapabilities,
           };
@@ -327,6 +357,9 @@ export class RelayChannelService {
         multiplier,
         timePeriodMultiplier,
         effectiveMultiplier: multiplier * timePeriodMultiplier,
+        contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
+          | ContextLengthMultiplierRule[]
+          | undefined,
         modelCapabilities: modelCapabilities.map((capability) => ({
           ...capability,
           supportedRequestFormats: [...capability.supportedRequestFormats],
@@ -424,6 +457,14 @@ export class RelayChannelService {
       }),
       rankingMode,
       now,
+      {
+        healthScoreThreshold: (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+          ?.healthScoreThreshold,
+        latencyThresholdMs: (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+          ?.latencyThresholdMs,
+        circuitBreakerThreshold: (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+          ?.circuitBreakerThreshold,
+      },
     );
     const window = rankedMembers[0]?.health ?? (await this.relayChannelHealthService.getHealth(channel.id, now));
     const displayedMembers = dynamicMemberRankingEnabled
@@ -441,6 +482,8 @@ export class RelayChannelService {
       effectivePrice: member.effectivePrice,
       score: member.score,
       rank: index + 1,
+      eligible: member.eligible,
+      exclusionReasons: member.exclusionReasons,
       trackingMode: member.healthTrackingMode ?? "automatic",
       source: member.source,
       manualAvailability:
@@ -779,8 +822,12 @@ export class RelayChannelService {
     };
   }
 
-  private async canUserAccessChannel(channel: RelayChannel, actorUserId: string): Promise<boolean> {
-    if (await this.canBypassVisibility(actorUserId)) return true;
+  private async canUserAccessChannel(
+    channel: RelayChannel,
+    actorUserId: string,
+    allowManagementBypass = true,
+  ): Promise<boolean> {
+    if (allowManagementBypass && (await this.canBypassVisibility(actorUserId))) return true;
 
     const visibilityMode =
       (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE;
@@ -1191,6 +1238,10 @@ export class RelayChannelService {
       data.timePeriodMultipliers !== undefined
         ? data.timePeriodMultipliers
         : (existing?.timePeriodMultipliers as TimePeriodMultiplierRule[] | undefined);
+    const contextLengthMultipliers =
+      data.contextLengthMultipliers !== undefined
+        ? data.contextLengthMultipliers
+        : (existing?.contextLengthMultipliers as ContextLengthMultiplierRule[] | undefined);
 
     if (allowedModels !== undefined && allowedModels !== null)
       try {
@@ -1264,6 +1315,9 @@ export class RelayChannelService {
       inputTokensIncludeCacheRead,
       modelMapping,
       timePeriodMultipliers,
+      contextLengthMultipliers: contextLengthMultipliers
+        ? [...contextLengthMultipliers].sort((left, right) => left.minTokens - right.minTokens)
+        : undefined,
     };
   }
 
@@ -1289,6 +1343,7 @@ export class RelayChannelService {
       inputTokensIncludeCacheRead: data.inputTokensIncludeCacheRead,
       modelMapping: data.modelMapping as Prisma.InputJsonValue | undefined,
       timePeriodMultipliers: data.timePeriodMultipliers as Prisma.InputJsonValue | undefined,
+      contextLengthMultipliers: data.contextLengthMultipliers as Prisma.InputJsonValue | undefined,
     };
   }
 
@@ -1329,6 +1384,9 @@ export class RelayChannelService {
       inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true,
       modelMapping: channel.modelMapping as Record<string, string> | undefined,
       timePeriodMultipliers: channel.timePeriodMultipliers as unknown as TimePeriodMultiplierRule[] | undefined,
+      contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
+        | ContextLengthMultiplierRule[]
+        | undefined,
       enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
     };
   }
@@ -1757,6 +1815,9 @@ export class RelayChannelService {
       inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true, // Default to false
       modelMapping: channel.modelMapping as Record<string, string> | undefined,
       timePeriodMultipliers: channel.timePeriodMultipliers as unknown as TimePeriodMultiplierRule[] | undefined,
+      contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
+        | ContextLengthMultiplierRule[]
+        | undefined,
       channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
       routingStrategy: (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
       routingConfig: channel.routingConfig as RelayChannelRoutingConfigDto | undefined,

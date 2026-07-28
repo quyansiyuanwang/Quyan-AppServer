@@ -231,6 +231,18 @@
                         >{{ resolveTimeMultiplier(row) }}×</el-descriptions-item
                       >
                       <el-descriptions-item
+                        v-if="row.contextTokens != null"
+                        :label="i18ns.t('balance.contextTokens')"
+                        >{{ row.contextTokens.toLocaleString() }}</el-descriptions-item
+                      >
+                      <el-descriptions-item
+                        v-if="shouldShowContextMultiplier(row)"
+                        :label="i18ns.t('balance.contextMultiplier')"
+                        >{{ resolveContextMultiplier(row) }}×<template v-if="row.contextRuleName">
+                          · {{ row.contextRuleName }}</template
+                        ></el-descriptions-item
+                      >
+                      <el-descriptions-item
                         v-if="shouldShowMultiplier(row)"
                         :label="i18ns.t('balance.multiplier')"
                         >{{ resolveEffectiveMultiplier(row) }}×</el-descriptions-item
@@ -543,6 +555,18 @@
                       <span>{{ i18ns.t('balance.timeMultiplier') }}:</span>
                       <span>{{ resolveTimeMultiplier(row) }}×</span>
                     </div>
+                    <div v-if="row.contextTokens != null" class="detail-row">
+                      <span>{{ i18ns.t('balance.contextTokens') }}:</span>
+                      <span>{{ row.contextTokens.toLocaleString() }}</span>
+                    </div>
+                    <div v-if="shouldShowContextMultiplier(row)" class="detail-row">
+                      <span>{{ i18ns.t('balance.contextMultiplier') }}:</span>
+                      <span
+                        >{{ resolveContextMultiplier(row) }}×<template v-if="row.contextRuleName">
+                          · {{ row.contextRuleName }}</template
+                        ></span
+                      >
+                    </div>
                     <div v-if="shouldShowMultiplier(row)" class="detail-row">
                       <span>{{ i18ns.t('balance.multiplier') }}:</span>
                       <span>{{ resolveEffectiveMultiplier(row) }}×</span>
@@ -625,6 +649,7 @@ import {
   resolveEffectiveMultiplier,
   resolveGlobalMultiplier,
   resolveModelMultiplier,
+  resolveContextMultiplier,
   resolveTimeMultiplier,
   shouldShowChannelMultiplier,
   shouldShowCacheCreationMultiplier,
@@ -632,6 +657,7 @@ import {
   shouldShowGlobalMultiplier,
   shouldShowModelMultiplier,
   shouldShowMultiplier,
+  shouldShowContextMultiplier,
   shouldShowTimeMultiplier,
 } from '@/composables/useBillingFormula'
 import {
@@ -811,6 +837,8 @@ const hasBillingDetails = (tx: BalanceTransactionResponse): boolean =>
     tx.channelMultiplier,
     tx.globalMultiplier,
     tx.timeMultiplier,
+    tx.contextTokens,
+    tx.contextMultiplier,
     tx.cacheCreationMultiplier,
     tx.cacheReadMultiplier,
     tx.displayChannelName,

@@ -43,6 +43,22 @@ describe('useBillingFormula', () => {
     expect(shouldShowMultiplier(tx)).toBe(true)
   })
 
+  it('includes the context multiplier in the auditable formula', () => {
+    const tx = createTx({
+      inputTokens: 10,
+      outputTokens: 5,
+      inputRate: 1,
+      outputRate: 1,
+      channelMultiplier: 2,
+      contextTokens: 128000,
+      contextMultiplier: 1.5,
+      amount: -45,
+    })
+
+    expect(resolveEffectiveMultiplier(tx)).toBe(3)
+    expect(buildBillingFormula(tx, '元')).toContain('× 2 × 1.5')
+  })
+
   it('builds formula text with global and channel multipliers', () => {
     const tx = createTx({
       inputTokens: 27,

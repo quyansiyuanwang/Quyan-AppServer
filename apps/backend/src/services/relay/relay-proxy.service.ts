@@ -29,7 +29,11 @@ const httpAgent = new http.Agent({
 import { RelayUsageRepository } from "@/store/relay/relay-usage.repository";
 import { RelayProxyRepository } from "@/store/relay/relay-proxy.repository";
 import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
-import type { RelayChannelRoutingConfigDto, RelayChannelRoutingStrategy } from "@/api/dto/relay/relay-channel.dto";
+import type {
+  ContextLengthMultiplierRule,
+  RelayChannelRoutingConfigDto,
+  RelayChannelRoutingStrategy,
+} from "@/api/dto/relay/relay-channel.dto";
 import type { RelayTokenStore } from "@/store/relay/relay-token.store";
 import type { RelayUsageStore } from "@/store/relay/relay-usage.store";
 import type { RelayProxyStore } from "@/store/relay/relay-proxy.store";
@@ -50,6 +54,7 @@ import {
   type RelayResolvedChannelCandidate,
 } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime, type TimePeriodRule } from "./time-period-multiplier.service";
+import { resolveContextLengthMultiplier } from "./context-length-multiplier.service";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
 import { trackErrorForIp } from "@/middleware/error-tracker";
@@ -79,6 +84,7 @@ import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { RelayChannelHealthService } from "./relay-channel-health.service";
 import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
+import { RelayChannelService } from "./relay-channel.service";
 
 const PREFIX = "/relay/proxy";
 
@@ -126,6 +132,8 @@ interface ImageForwardResult extends StreamForwardResult {
 interface RelayAttemptPlan {
   channels: RelayResolvedChannelCandidate[];
   failoverConfig: RelayFailoverRuntimeConfig;
+  /** Price-first automatic pools always start at the cheapest currently eligible member. */
+  allowStickyFailover: boolean;
 }
 
 export interface RelayTokenAvailabilityInput {
@@ -243,12 +251,37 @@ export class RelayProxyService {
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
     private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
     private readonly relayChannelProbeLockService: RelayChannelProbeLockService = RelayChannelProbeLockService.getInstance(),
+    private readonly relayChannelService: Pick<
+      RelayChannelService,
+      "resolveUniqueAccessibleDirectPooledParent"
+    > = RelayChannelService.getInstance(),
   ) {}
 
   static getInstance(): RelayProxyService {
     if (!RelayProxyService.instance) RelayProxyService.instance = new RelayProxyService();
 
     return RelayProxyService.instance;
+  }
+
+  private async resolveBillingDisplayChannel(
+    relayToken: Pick<RelayToken, "userId" | "routingMode">,
+    executionChannel: RelayChannel,
+    logicalDisplayChannel: RelayChannel,
+    resolvedParents: Map<string, RelayChannel | null>,
+  ): Promise<RelayChannel> {
+    if (relayToken.routingMode !== "automatic-pool") return logicalDisplayChannel;
+
+    if (!resolvedParents.has(executionChannel.id)) {
+      resolvedParents.set(
+        executionChannel.id,
+        await this.relayChannelService.resolveUniqueAccessibleDirectPooledParent(
+          executionChannel.id,
+          relayToken.userId,
+        ),
+      );
+    }
+
+    return resolvedParents.get(executionChannel.id) ?? logicalDisplayChannel;
   }
 
   private async recordFailedAttempt(params: {
@@ -467,6 +500,18 @@ export class RelayProxyService {
   /** Returns true when the rate config uses a flat per-request fee rather than token-based billing. */
   private isPerRequestPricingConfig(rateConfig: any): boolean {
     return rateConfig != null && typeof rateConfig === "object" && rateConfig.pricingType === "per-request";
+  }
+
+  private resolveContextMultiplier(
+    rules: ContextLengthMultiplierRule[] | null | undefined,
+    requestTokens: number,
+    cacheCreationTokens: number,
+    cacheReadTokens: number,
+  ) {
+    return resolveContextLengthMultiplier(
+      rules,
+      Math.max(0, requestTokens) + Math.max(0, cacheCreationTokens) + Math.max(0, cacheReadTokens),
+    );
   }
 
   private isMultipartRequest(req: any): boolean {
@@ -1544,38 +1589,65 @@ export class RelayProxyService {
     if (orderedPoolMembers.length === 0) return [];
 
     let orderedMembers = orderedPoolMembers;
-    if (channel.channelType === "automatic-proxy-pool" && routingConfig?.dynamicMemberRankingEnabled !== false) {
+    if (channel.channelType === "automatic-proxy-pool") {
       const rankingMode = routingConfig?.rankingMode === "stability-first" ? "stability-first" : "price-first";
       const ranked = await this.relayChannelHealthService.rankMembers(
-        orderedPoolMembers.map((member) => ({
-          id: member.memberChannelId,
-          name: member.memberChannel?.name ?? member.memberChannelId,
-          enabled: member.enabled && member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
-          priority: member.priority,
-          weight: Number(member.weight),
-          effectivePrice:
-            Number(member.memberChannel?.multiplier ?? 1) *
-            computeMultiplierForTime(
-              ((member.memberChannel as RelayChannel & { timePeriodMultipliers?: TimePeriodRule[] })
-                ?.timePeriodMultipliers ?? []) as TimePeriodRule[],
-              new Date(),
-            ),
-          healthTrackingMode:
-            ((member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
-              ?.healthTrackingMode as "automatic" | "manual" | "disabled" | undefined) ?? "automatic",
-          manualAvailability: (member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
-            ?.manualAvailability,
-          manualLatencyMs: (member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
-            ?.manualLatencyMs,
-        })),
+        orderedPoolMembers.map((member) => {
+          // The graph resolver normally hydrates this relation. Keep the top-level channel relation
+          // as a fallback for callers that have already loaded it (and for light-weight test doubles).
+          const configuredMember = (channel as RelayChannelWithPool).poolMembers?.find(
+            (candidate) => candidate.memberChannelId === member.memberChannelId,
+          );
+          const memberChannel = member.memberChannel ?? configuredMember?.memberChannel;
+          return {
+            id: member.memberChannelId,
+            name: memberChannel?.name ?? member.memberChannelId,
+            enabled: member.enabled && memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+            priority: member.priority,
+            weight: Number(member.weight),
+            effectivePrice:
+              Number(memberChannel?.multiplier ?? 1) *
+              computeMultiplierForTime(
+                ((memberChannel as RelayChannel & { timePeriodMultipliers?: TimePeriodRule[] })
+                  ?.timePeriodMultipliers ?? []) as TimePeriodRule[],
+                new Date(),
+              ),
+            healthTrackingMode:
+              ((memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)?.healthTrackingMode as
+                | "automatic"
+                | "manual"
+                | "disabled"
+                | undefined) ?? "automatic",
+            manualAvailability: (memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+              ?.manualAvailability,
+            manualLatencyMs: (memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+              ?.manualLatencyMs,
+          };
+        }),
         rankingMode,
+        new Date(),
+        {
+          healthScoreThreshold: routingConfig?.healthScoreThreshold,
+          latencyThresholdMs: routingConfig?.latencyThresholdMs,
+          circuitBreakerThreshold: routingConfig?.circuitBreakerThreshold,
+        },
       );
       const byId = new Map(ranked.map((member, index) => [member.id, { index, member }]));
       orderedMembers = [...orderedPoolMembers].sort((left, right) => {
+        if (routingConfig?.dynamicMemberRankingEnabled === false)
+          return (
+            left.priority - right.priority ||
+            (left.memberChannel?.name ?? left.memberChannelId).localeCompare(
+              right.memberChannel?.name ?? right.memberChannelId,
+            ) ||
+            left.memberChannelId.localeCompare(right.memberChannelId)
+          );
         const leftRank = byId.get(left.memberChannelId)?.index ?? Number.MAX_SAFE_INTEGER;
         const rightRank = byId.get(right.memberChannelId)?.index ?? Number.MAX_SAFE_INTEGER;
         return leftRank - rightRank;
       });
+      const eligibleIds = new Set(ranked.filter((member) => member.eligible).map((member) => member.id));
+      orderedMembers = orderedMembers.filter((member) => eligibleIds.has(member.memberChannelId));
     } else if (strategy === "random") orderedMembers = this.shuffleItems(orderedPoolMembers);
     else if (strategy === "weighted-random") orderedMembers = this.weightedShuffleMembers(orderedPoolMembers);
     else if (strategy === "round-robin") {
@@ -1619,14 +1691,22 @@ export class RelayProxyService {
     const tokenFailoverConfig = this.getFailoverRuntimeConfig(relayToken);
     const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : null;
 
+    const isPriceFirstAutomaticPool =
+      singleTopLevelChannel?.channelType === "automatic-proxy-pool" &&
+      this.getChannelRoutingConfig(singleTopLevelChannel)?.rankingMode !== "stability-first";
+
     if (
       tokenFailoverConfig.enabled ||
       !singleTopLevelChannel ||
       !["pooled", "automatic-proxy-pool"].includes(singleTopLevelChannel.channelType)
     )
-      return { channels, failoverConfig: tokenFailoverConfig };
+      return { channels, failoverConfig: tokenFailoverConfig, allowStickyFailover: !isPriceFirstAutomaticPool };
 
-    return { channels, failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length) };
+    return {
+      channels,
+      failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+      allowStickyFailover: !isPriceFirstAutomaticPool,
+    };
   }
 
   private buildFailoverStickyChannelKey(
@@ -1831,6 +1911,7 @@ export class RelayProxyService {
     requestFormat?: "openai" | "anthropic" | "gemini";
     requestedModel?: string;
     failbackCooldownMinutes?: number;
+    allowStickyFailover?: boolean;
   }): Promise<void> {
     try {
       await this.relayTokenRepo.createSwitchLog(params);
@@ -1838,7 +1919,7 @@ export class RelayProxyService {
       logger.warn("Failed to create relay channel switch log", { ...params, error });
     }
 
-    if (!params.requestFormat || !params.requestedModel) return;
+    if (!params.allowStickyFailover || !params.requestFormat || !params.requestedModel) return;
 
     await this.setStickyPreferredChannel({
       relayTokenId: params.relayTokenId,
@@ -2046,6 +2127,7 @@ export class RelayProxyService {
     channelId: string;
     monthlyPassCoverageAt: Date;
     inputTokensIncludeCacheRead: boolean;
+    contextLengthMultipliers?: ContextLengthMultiplierRule[];
     timeMultiplier?: number;
     originalModel?: string;
   }): Promise<void> {
@@ -2091,13 +2173,19 @@ export class RelayProxyService {
       { __relayForwardedResponseByteLength: responseBytes },
       inputTokensIncludeCacheRead,
     );
+    const contextMatch = this.resolveContextMultiplier(
+      params.contextLengthMultipliers,
+      tokenBreakdown.requestTokens,
+      tokenBreakdown.cacheCreationTokens,
+      tokenBreakdown.cacheReadTokens,
+    );
 
     const costResult = this.calculateCost(
       tokenBreakdown.requestTokens,
       tokenBreakdown.responseTokens,
       tokenBreakdown.totalTokens,
       selectedRateConfig,
-      globalMultiplier,
+      globalMultiplier * contextMatch.multiplier,
       tokenBreakdown.cacheCreationTokens,
       tokenBreakdown.cacheReadTokens,
       cacheCreationMult,
@@ -2136,6 +2224,9 @@ export class RelayProxyService {
       channelMultiplier,
       globalMultiplier: relayGlobalMultiplier,
       timeMultiplier,
+      contextTokens: contextMatch.contextTokens,
+      contextMultiplier: contextMatch.multiplier,
+      contextRuleName: contextMatch.ruleName,
       balanceChargeMode: "allow-negative",
       pricingType: selectedRateConfig?.pricingType as "token-based" | "per-request" | undefined,
       fixedPrice: selectedRateConfig?.fixedPrice,
@@ -2156,6 +2247,7 @@ export class RelayProxyService {
     selectedModelId: string,
     globalMultiplier: number,
     timeMultiplier: number,
+    contextLengthMultipliers: ContextLengthMultiplierRule[] | undefined,
     convertedBody: any,
     relayGlobalMultiplier: number,
     channelMultiplier: number,
@@ -2345,6 +2437,7 @@ export class RelayProxyService {
         channelId,
         monthlyPassCoverageAt,
         inputTokensIncludeCacheRead,
+        contextLengthMultipliers,
         timeMultiplier,
         originalModel: originalRequestedModel,
       });
@@ -2404,6 +2497,7 @@ export class RelayProxyService {
 
     const modelPricing = await this.modelPricingService.getModelPricing();
     const failoverConfig = attemptPlan.failoverConfig;
+    const stickyFailbackCooldownMinutes = attemptPlan.allowStickyFailover ? failoverConfig.failbackCooldownMinutes : 0;
     const isStreamRequested = this.isStreamRequest(req.body, req);
     const eligibleChannels = attemptPlan.channels.filter((candidate) =>
       supportsRelayRequestFormat(candidate.resolvedChannel.allowedFormats, requestFormat),
@@ -2459,7 +2553,7 @@ export class RelayProxyService {
       requestFormat,
       requestedModel: normalizedRequestedModel,
       candidateModelConfigs,
-      failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+      failbackCooldownMinutes: stickyFailbackCooldownMinutes,
     });
 
     const maxAttempts = failoverConfig.enabled
@@ -2500,13 +2594,20 @@ export class RelayProxyService {
     try {
       let lastError: unknown = new BadRequestError("No available relay channel");
       const attemptIssues: RelayAttemptIssue[] = [];
+      const resolvedBillingDisplayParents = new Map<string, RelayChannel | null>();
       for (let attemptIndex = 0; attemptIndex < attemptChannels.length; attemptIndex++) {
         const candidate = attemptChannels[attemptIndex];
         const nextCandidate = attemptChannels[attemptIndex + 1];
         const channel = candidate.resolvedChannel;
-        // Usage history is customer-facing. Keep the logical pool as its display
-        // channel while retaining the selected leaf separately for internal audit.
+        // The logical pool remains in internal failover diagnostics. Billing snapshots
+        // may use the member's sole user-visible pooled parent instead.
         const displayChannel = candidate.displayChannel;
+        const billingDisplayChannel = await this.resolveBillingDisplayChannel(
+          relayToken,
+          channel,
+          displayChannel,
+          resolvedBillingDisplayParents,
+        );
         const nextChannel = nextCandidate?.resolvedChannel;
         const nextDisplayChannel = nextCandidate?.displayChannel;
         const hasNextChannel = Boolean(nextCandidate);
@@ -2708,13 +2809,14 @@ export class RelayProxyService {
                   selectedModelId,
                   globalMultiplier,
                   timeMultiplier,
+                  channel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
                   convertedBody,
                   requestFormat,
                   relayGlobalMultiplier,
                   channelMultiplier,
                   channel.id,
-                  displayChannel.id,
-                  displayChannel.name || null,
+                  billingDisplayChannel.id,
+                  billingDisplayChannel.name || null,
                   channel.id,
                   monthlyPassCoverageAt,
                   relayConfig.upstreamStreamTimeout,
@@ -2764,7 +2866,8 @@ export class RelayProxyService {
                   modelName: selectedModelName,
                   requestFormat,
                   requestedModel: normalizedRequestedModel,
-                  failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+                  failbackCooldownMinutes: stickyFailbackCooldownMinutes,
+                  allowStickyFailover: attemptPlan.allowStickyFailover,
                 });
                 channelSwitched = true;
                 break;
@@ -2799,12 +2902,13 @@ export class RelayProxyService {
                   selectedModelId,
                   globalMultiplier,
                   timeMultiplier,
+                  channel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
                   convertedBody,
                   relayGlobalMultiplier,
                   channelMultiplier,
                   channel.id,
-                  displayChannel.id,
-                  displayChannel.name || null,
+                  billingDisplayChannel.id,
+                  billingDisplayChannel.name || null,
                   channel.id,
                   monthlyPassCoverageAt,
                   resourceGuard.nonStreamUpstreamTimeoutMs,
@@ -2851,7 +2955,8 @@ export class RelayProxyService {
                   modelName: selectedModelName,
                   requestFormat,
                   requestedModel: normalizedRequestedModel,
-                  failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+                  failbackCooldownMinutes: stickyFailbackCooldownMinutes,
+                  allowStickyFailover: attemptPlan.allowStickyFailover,
                 });
                 channelSwitched = true;
                 break;
@@ -2909,8 +3014,8 @@ export class RelayProxyService {
                 firstByteTime,
                 isStreaming: false,
                 executionChannelId: channel.id,
-                displayChannelId: displayChannel.id,
-                displayChannelName: displayChannel.name || null,
+                displayChannelId: billingDisplayChannel.id,
+                displayChannelName: billingDisplayChannel.name || null,
                 channelMultiplier,
                 relayGlobalMultiplier,
                 timeMultiplier,
@@ -2955,7 +3060,8 @@ export class RelayProxyService {
                 modelName: selectedModelName,
                 requestFormat,
                 requestedModel: normalizedRequestedModel,
-                failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+                failbackCooldownMinutes: stickyFailbackCooldownMinutes,
+                allowStickyFailover: attemptPlan.allowStickyFailover,
               });
               channelSwitched = true;
               break;
@@ -3015,8 +3121,8 @@ export class RelayProxyService {
                 cacheCreationMultiplier: cacheCreationMult,
                 cacheReadMultiplier: cacheReadMult,
                 executionChannelId: channel.id,
-                displayChannelId: displayChannel.id,
-                displayChannelName: displayChannel.name || null,
+                displayChannelId: billingDisplayChannel.id,
+                displayChannelName: billingDisplayChannel.name || null,
                 channelMultiplier,
                 globalMultiplier: relayGlobalMultiplier,
                 timeMultiplier,
@@ -3069,12 +3175,19 @@ export class RelayProxyService {
               rawUsage: response.data?.usage,
             });
 
+            const contextMatch = this.resolveContextMultiplier(
+              channel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
+              requestTokens,
+              cacheCreationTokens,
+              cacheReadTokens,
+            );
+
             const { cost, inputRate, outputRate } = this.calculateCost(
               requestTokens,
               responseTokens,
               totalTokens,
               rateConfig,
-              globalMultiplier,
+              globalMultiplier * contextMatch.multiplier,
               cacheCreationTokens,
               cacheReadTokens,
               cacheCreationMult,
@@ -3105,8 +3218,8 @@ export class RelayProxyService {
               modelId: selectedModelId,
               channelId: channel.id,
               executionChannelId: channel.id,
-              displayChannelId: displayChannel.id,
-              displayChannelName: displayChannel.name || null,
+              displayChannelId: billingDisplayChannel.id,
+              displayChannelName: billingDisplayChannel.name || null,
               monthlyPassCoverageAt,
               inputRate,
               outputRate,
@@ -3116,6 +3229,9 @@ export class RelayProxyService {
               channelMultiplier,
               globalMultiplier: relayGlobalMultiplier,
               timeMultiplier,
+              contextTokens: contextMatch.contextTokens,
+              contextMultiplier: contextMatch.multiplier,
+              contextRuleName: contextMatch.ruleName,
               balanceChargeMode: "allow-negative",
               pricingType: rateConfig?.pricingType as "token-based" | "per-request" | undefined,
               fixedPrice: rateConfig?.fixedPrice,
@@ -3168,8 +3284,8 @@ export class RelayProxyService {
                 firstByteTime: null,
                 isStreaming: false,
                 executionChannelId: channel.id,
-                displayChannelId: displayChannel.id,
-                displayChannelName: displayChannel.name || null,
+                displayChannelId: billingDisplayChannel.id,
+                displayChannelName: billingDisplayChannel.name || null,
                 channelMultiplier,
                 relayGlobalMultiplier,
                 timeMultiplier,
@@ -3199,7 +3315,8 @@ export class RelayProxyService {
                 modelName: selectedModelName,
                 requestFormat,
                 requestedModel: normalizedRequestedModel,
-                failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+                failbackCooldownMinutes: stickyFailbackCooldownMinutes,
+                allowStickyFailover: attemptPlan.allowStickyFailover,
               });
               channelSwitched = true;
               break;
@@ -3250,7 +3367,8 @@ export class RelayProxyService {
                 modelName: normalizedRequestedModel,
                 requestFormat,
                 requestedModel: normalizedRequestedModel,
-                failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+                failbackCooldownMinutes: stickyFailbackCooldownMinutes,
+                allowStickyFailover: attemptPlan.allowStickyFailover,
               });
               channelSwitched = true;
               break;
@@ -3505,6 +3623,7 @@ export class RelayProxyService {
     selectedModelId: string,
     globalMultiplier: number,
     timeMultiplier: number,
+    contextLengthMultipliers: ContextLengthMultiplierRule[] | undefined,
     convertedBody: any,
     requestFormat: "openai" | "anthropic" | "gemini",
     relayGlobalMultiplier: number = globalMultiplier,
@@ -3627,6 +3746,7 @@ export class RelayProxyService {
                     selectedModelId,
                     globalMultiplier,
                     timeMultiplier,
+                    contextLengthMultipliers,
                     retryBody,
                     requestFormat,
                     relayGlobalMultiplier,
@@ -3897,12 +4017,19 @@ export class RelayProxyService {
                 ? Number(rateConfig.cacheReadMultiplier)
                 : DEFAULT_CACHE_READ_MULTIPLIER;
 
+            const contextMatch = this.resolveContextMultiplier(
+              contextLengthMultipliers,
+              requestTokens,
+              cacheCreationTokens,
+              cacheReadTokens,
+            );
+
             const costResult = this.calculateCost(
               requestTokens,
               responseTokens,
               totalTokens,
               rateConfig,
-              globalMultiplier,
+              globalMultiplier * contextMatch.multiplier,
               cacheCreationTokens,
               cacheReadTokens,
               cacheCreationMult,
@@ -3932,6 +4059,9 @@ export class RelayProxyService {
                 channelId,
                 channelMultiplier,
                 relayGlobalMultiplier,
+                contextTokens: contextMatch.contextTokens,
+                contextMultiplier: contextMatch.multiplier,
+                contextRuleName: contextMatch.ruleName,
                 monthlyPassCoverageAt,
                 path: req.path.replace(/^\/relay\/proxy/, ""),
                 method: req.method,
@@ -4057,6 +4187,9 @@ export class RelayProxyService {
     const channelMultiplier = data.channelMultiplier ?? 1;
     const relayGlobalMultiplier = data.relayGlobalMultiplier ?? 1;
     const timeMultiplier = data.timeMultiplier;
+    const contextTokens = data.contextTokens;
+    const contextMultiplier = data.contextMultiplier;
+    const contextRuleName = data.contextRuleName;
 
     const finalizeResult = await this.usageChargeService.chargeUsage({
       userId: relayToken.userId,
@@ -4090,6 +4223,9 @@ export class RelayProxyService {
       channelMultiplier,
       globalMultiplier: relayGlobalMultiplier,
       timeMultiplier,
+      contextTokens,
+      contextMultiplier,
+      contextRuleName,
       balanceChargeMode: "allow-negative",
       pricingType: data.pricingType,
       fixedPrice: data.fixedPrice,

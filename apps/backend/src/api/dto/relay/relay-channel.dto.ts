@@ -7,6 +7,15 @@ export interface TimePeriodMultiplierRule {
   multiplier: number;
 }
 
+/** A whole-request multiplier selected from the request's input context length. */
+export interface ContextLengthMultiplierRule {
+  name: string;
+  enabled: boolean;
+  /** Inclusive input-context threshold in tokens. */
+  minTokens: number;
+  multiplier: number;
+}
+
 export type RelayChannelType = "standalone" | "pooled" | "automatic-proxy-pool";
 
 export type RelayChannelRoutingStrategy =
@@ -104,6 +113,7 @@ export interface RelayChannelDto {
   inputTokensIncludeCacheRead?: boolean;
   modelMapping?: Record<string, string>;
   timePeriodMultipliers?: TimePeriodMultiplierRule[];
+  contextLengthMultipliers?: ContextLengthMultiplierRule[];
   createTime: Date;
   updateTime: Date;
 }
@@ -118,6 +128,8 @@ export interface RelayChannelOptionDto {
   enabled: boolean;
   channelType: RelayChannelType;
   multiplier: number;
+  /** Configured whole-request context tiers for a standalone channel. */
+  contextLengthMultipliers?: ContextLengthMultiplierRule[];
   allowedFormats: string;
   modelCapabilities: RelayChannelModelCapabilityDto[];
   /** Present for pooled and automatic proxy pool channels. Contains final eligible leaf channels. */
@@ -144,6 +156,7 @@ export interface RelayPoolPricingMemberOptionDto {
   multiplier: number;
   timePeriodMultiplier: number;
   effectiveMultiplier: number;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[];
   /** Current model/format eligibility after pool constraints are resolved. */
   modelCapabilities: RelayChannelModelCapabilityDto[];
 }
@@ -198,6 +211,10 @@ export interface RelayAutomaticPoolHealthMemberDto extends RelayChannelHealthDto
   effectivePrice: number;
   score: number;
   rank: number;
+  /** Whether this member is eligible for the current pool base route. */
+  eligible: boolean;
+  /** Why the member is excluded, when it is not eligible. */
+  exclusionReasons: string[];
 }
 
 export interface RelayAutomaticPoolHealthDto {
@@ -241,6 +258,7 @@ export interface RelayAutomaticProxyPoolMemberOptionDto {
   multiplier: number;
   timePeriodMultiplier: number;
   effectiveMultiplier: number;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[];
   allowedFormats: string;
   /** Current model/format eligibility after pool constraints are resolved. */
   modelCapabilities: RelayChannelModelCapabilityDto[];
@@ -347,6 +365,8 @@ export interface CreateRelayChannelRequest {
   modelMapping?: Record<string, string> | null;
   /** 时段倍率规则 */
   timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
+  /** Input-context threshold multiplier rules. */
+  contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
 }
 
 export interface UpdateRelayChannelRequest {
@@ -388,4 +408,6 @@ export interface UpdateRelayChannelRequest {
   modelMapping?: Record<string, string> | null;
   /** 时段倍率规则 */
   timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
+  /** Input-context threshold multiplier rules. */
+  contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
 }

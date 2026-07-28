@@ -52,6 +52,10 @@ export interface BalanceTransactionResponse {
   channelMultiplier?: number;
   globalMultiplier?: number;
   timeMultiplier?: number;
+  /** Complete input-context token count used to select a context tier. */
+  contextTokens?: number;
+  contextMultiplier?: number;
+  contextRuleName?: string;
   tokenName?: string;
   totalOutputTime?: number;
   timeToFirstByte?: number;

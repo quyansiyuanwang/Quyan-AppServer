@@ -208,6 +208,32 @@ describe('useApiDocumentationPricing', () => {
     dispose()
   })
 
+  it('includes all reachable context tiers in a standalone channel price range', () => {
+    const { composable, dispose } = createComposable()
+    const row = createPricingRow({ inputPrice: 10, outputPrice: 20 })
+    composable.channels.value = [
+      createChannel({
+        multiplier: 2,
+        contextLengthMultipliers: [
+          { name: '32K', enabled: true, minTokens: 32000, multiplier: 1.5 },
+          { name: '128K', enabled: true, minTokens: 128000, multiplier: 3 },
+        ],
+      }),
+    ]
+
+    const cell = composable.getChannelPriceCell(row, composable.channels.value[0]!)
+
+    expect(cell).toMatchObject({
+      multiplier: 2,
+      maximumMultiplier: 6,
+      inputPrice: 20,
+      maximumInputPrice: 60,
+      outputPrice: 40,
+      maximumOutputPrice: 120,
+    })
+    dispose()
+  })
+
   it('uses eligible automatic-pool member multipliers for price ranges and lowest pricing', async () => {
     const { composable, dispose } = createComposable()
     const row = createPricingRow({ inputPrice: 10, outputPrice: 20 })
