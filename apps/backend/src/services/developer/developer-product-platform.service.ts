@@ -512,11 +512,12 @@ export class DeveloperProductPlatformService {
     body: UpdateDeveloperProductInstanceDto,
   ): Promise<DeveloperProductInstanceDto> {
     await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
-    const instance = await prisma.developerProductInstance.update({
-      where: { id: instanceId },
+    const updated = await prisma.developerProductInstance.updateMany({
+      where: { id: instanceId, status: 1 },
       data: { enabled: body.enabled },
-      include: { entitlement: { select: { productCode: true } } },
     });
+    if (!updated.count) throw new NotFoundError("产品实例不存在");
+    const instance = await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
     return this.instanceDto(instance);
   }
 
@@ -527,7 +528,8 @@ export class DeveloperProductPlatformService {
         where: { instanceId: instance.id, status: 1 },
         data: { status: -1 },
       });
-      await tx.developerProject.delete({ where: { id: instance.backingProjectId } });
+      const deleted = await tx.developerProject.deleteMany({ where: { id: instance.backingProjectId } });
+      if (!deleted.count) throw new NotFoundError("产品实例不存在");
     });
   }
 
@@ -690,8 +692,8 @@ export class DeveloperProductPlatformService {
     const permissions = await this.permissionService.getUserFullPermissions(key.subjectUserId);
     if (!permissions || requiredActions.some((action) => !permissions.effectivePermissions.includes(action)))
       throw new ForbiddenError("RAM 权限不足");
-    await prisma.developerProductApiKey.update({
-      where: { id: key.id },
+    await prisma.developerProductApiKey.updateMany({
+      where: { id: key.id, status: 1 },
       data: { lastUsedAt: new Date(), requestCount: { increment: 1 } },
     });
     return {
@@ -781,84 +783,85 @@ export class DeveloperProductPlatformService {
   private async consumeQuota(context: ProductMeteringContext): Promise<ProductQuotaReceipt> {
     const usageDate = new Date();
     usageDate.setHours(0, 0, 0, 0);
-    return prisma.$transaction(async (tx) => {
-      const entitlement = await tx.developerProductEntitlement.findUnique({ where: { id: context.entitlementId } });
-      const config = await tx.developerProductConfig.findUnique({ where: { productCode: context.productCode } });
-      if (!entitlement || !config) throw new NotFoundError("产品授权或配置不存在");
-      let usage;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        usage = await tx.developerProductQuotaUsage.upsert({
-          where: { entitlementId_usageDate: { entitlementId: entitlement.id, usageDate } },
-          create: { entitlementId: entitlement.id, usageDate, requestCount: 1 },
-          update: { requestCount: { increment: 1 } },
+        return await prisma.$transaction(async (tx) => {
+          const entitlement = await tx.developerProductEntitlement.findUnique({ where: { id: context.entitlementId } });
+          const config = await tx.developerProductConfig.findUnique({ where: { productCode: context.productCode } });
+          if (!entitlement || !config) throw new NotFoundError("产品授权或配置不存在");
+          const usage = await tx.developerProductQuotaUsage.upsert({
+            where: { entitlementId_usageDate: { entitlementId: entitlement.id, usageDate } },
+            create: { entitlementId: entitlement.id, usageDate, requestCount: 1 },
+            update: { requestCount: { increment: 1 } },
+          });
+          const chargeAmount = Number(config.overagePrice);
+          // A zero price deliberately represents a free, unlimited product. We still
+          // retain usage for capacity planning and audit, but never block on quota.
+          if (chargeAmount <= 0)
+            return {
+              usageId: usage.id,
+              entitlementId: entitlement.id,
+              accountOwnerId: entitlement.accountOwnerId,
+              chargeAmount: 0,
+            };
+          const freeQuota = entitlement.dailyFreeQuota ?? config.defaultDailyQuota;
+          if (usage.requestCount <= freeQuota)
+            return {
+              usageId: usage.id,
+              entitlementId: entitlement.id,
+              accountOwnerId: entitlement.accountOwnerId,
+              chargeAmount: 0,
+            };
+          if (!entitlement.overageEnabled)
+            throw new ForbiddenError("今日产品免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED);
+          const account = await tx.balanceAccount.findUnique({ where: { userId: entitlement.accountOwnerId } });
+          const balanceBefore = Number(account?.balance ?? 0);
+          const charged = await tx.balanceAccount.updateMany({
+            where: { userId: entitlement.accountOwnerId, status: 1, balance: { gte: new Decimal(chargeAmount) } },
+            data: {
+              balance: { decrement: new Decimal(chargeAmount) },
+              totalUsed: { increment: new Decimal(chargeAmount) },
+            },
+          });
+          if (!charged.count)
+            throw new ForbiddenError("余额不足，无法执行产品超额调用", CustomCode.DEVELOPER_BALANCE_INSUFFICIENT);
+          const balanceAfter = Math.round((balanceBefore - chargeAmount) * 1_000_000) / 1_000_000;
+          await tx.balanceTransaction.create({
+            data: {
+              userId: entitlement.accountOwnerId,
+              type: "developer_product_overage",
+              amount: new Decimal(-chargeAmount),
+              balanceBefore: new Decimal(balanceBefore),
+              balanceAfter: new Decimal(balanceAfter),
+              relatedId: usage.id,
+              model: `product:${context.productCode}`,
+              description: `产品 ${context.productCode} 超额调用`,
+              fixedPrice: new Decimal(chargeAmount),
+            },
+          });
+          return {
+            usageId: usage.id,
+            entitlementId: entitlement.id,
+            accountOwnerId: entitlement.accountOwnerId,
+            chargeAmount,
+          };
         });
       } catch (error) {
         // MySQL can race Prisma's multi-statement upsert across PM2 workers on
-        // the first request of a day. Once the competing create commits, an
-        // atomic increment preserves both requests instead of surfacing P2002.
-        if (!(typeof error === "object" && error !== null && "code" in error && error.code === "P2002")) throw error;
-        usage = await tx.developerProductQuotaUsage.update({
-          where: { entitlementId_usageDate: { entitlementId: entitlement.id, usageDate } },
-          data: { requestCount: { increment: 1 } },
-        });
+        // the first request of a day. Retry in a new transaction so the
+        // competing insert is visible instead of issuing an update against the
+        // failed transaction's stale snapshot.
+        if (attempt === 0 && typeof error === "object" && error !== null && "code" in error && error.code === "P2002")
+          continue;
+        throw error;
       }
-      const chargeAmount = Number(config.overagePrice);
-      // A zero price deliberately represents a free, unlimited product. We still
-      // retain usage for capacity planning and audit, but never block on quota.
-      if (chargeAmount <= 0)
-        return {
-          usageId: usage.id,
-          entitlementId: entitlement.id,
-          accountOwnerId: entitlement.accountOwnerId,
-          chargeAmount: 0,
-        };
-      const freeQuota = entitlement.dailyFreeQuota ?? config.defaultDailyQuota;
-      if (usage.requestCount <= freeQuota)
-        return {
-          usageId: usage.id,
-          entitlementId: entitlement.id,
-          accountOwnerId: entitlement.accountOwnerId,
-          chargeAmount: 0,
-        };
-      if (!entitlement.overageEnabled)
-        throw new ForbiddenError("今日产品免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED);
-      const account = await tx.balanceAccount.findUnique({ where: { userId: entitlement.accountOwnerId } });
-      const balanceBefore = Number(account?.balance ?? 0);
-      const charged = await tx.balanceAccount.updateMany({
-        where: { userId: entitlement.accountOwnerId, status: 1, balance: { gte: new Decimal(chargeAmount) } },
-        data: {
-          balance: { decrement: new Decimal(chargeAmount) },
-          totalUsed: { increment: new Decimal(chargeAmount) },
-        },
-      });
-      if (!charged.count)
-        throw new ForbiddenError("余额不足，无法执行产品超额调用", CustomCode.DEVELOPER_BALANCE_INSUFFICIENT);
-      const balanceAfter = Math.round((balanceBefore - chargeAmount) * 1_000_000) / 1_000_000;
-      await tx.balanceTransaction.create({
-        data: {
-          userId: entitlement.accountOwnerId,
-          type: "developer_product_overage",
-          amount: new Decimal(-chargeAmount),
-          balanceBefore: new Decimal(balanceBefore),
-          balanceAfter: new Decimal(balanceAfter),
-          relatedId: usage.id,
-          model: `product:${context.productCode}`,
-          description: `产品 ${context.productCode} 超额调用`,
-          fixedPrice: new Decimal(chargeAmount),
-        },
-      });
-      return {
-        usageId: usage.id,
-        entitlementId: entitlement.id,
-        accountOwnerId: entitlement.accountOwnerId,
-        chargeAmount,
-      };
-    });
+    }
+    throw new Error("产品配额扣减重试意外结束");
   }
 
   private async refundQuota(receipt: ProductQuotaReceipt): Promise<void> {
     await prisma.$transaction(async (tx) => {
-      await tx.developerProductQuotaUsage.update({
+      await tx.developerProductQuotaUsage.updateMany({
         where: { id: receipt.usageId },
         data: { requestCount: { decrement: 1 } },
       });
@@ -866,20 +869,23 @@ export class DeveloperProductPlatformService {
       const account = await tx.balanceAccount.findUnique({ where: { userId: receipt.accountOwnerId } });
       if (!account) return;
       const balanceBefore = Number(account.balance);
-      const updated = await tx.balanceAccount.update({
+      const updated = await tx.balanceAccount.updateMany({
         where: { userId: receipt.accountOwnerId },
         data: {
           balance: { increment: new Decimal(receipt.chargeAmount) },
           totalUsed: { decrement: new Decimal(receipt.chargeAmount) },
         },
       });
+      if (!updated.count) return;
+      const accountAfter = await tx.balanceAccount.findUnique({ where: { userId: receipt.accountOwnerId } });
+      if (!accountAfter) return;
       await tx.balanceTransaction.create({
         data: {
           userId: receipt.accountOwnerId,
           type: "developer_product_overage_refund",
           amount: new Decimal(receipt.chargeAmount),
           balanceBefore: new Decimal(balanceBefore),
-          balanceAfter: updated.balance,
+          balanceAfter: accountAfter.balance,
           relatedId: receipt.usageId,
           model: "product-refund",
           description: "产品调用失败退款",
