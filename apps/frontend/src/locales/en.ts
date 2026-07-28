@@ -2873,6 +2873,21 @@ export default {
     channelProbeEstimatedCurrentChargeFormula:
       'Estimated cost = base local cost {base} × current channel multiplier {multiplier} = {estimated}. This is a probe-only estimate and does not charge a user balance.',
     channelProbeTokens: 'Actual usage',
+    channelProbeCacheCreationTokens: 'Cache creation tokens',
+    channelProbeCacheReadTokens: 'Cache read tokens',
+    channelProbeCacheBuster: 'Cache-buster UUID',
+    channelProbeCacheBusterUnavailable: 'Not injected (forced run or historical record)',
+    channelProbeCacheBusterDisabled: 'Disabled',
+    channelProbeRawUsage: 'Raw upstream usage',
+    channelProbePreventCache: 'Prevent upstream cache collisions',
+    channelProbePreventCacheOff: 'Allow upstream cache reuse',
+    channelProbePreventCacheHelp:
+      'Adds a unique UUID at the beginning of the system prompt for every probe; stops the request when it cannot be safely injected.',
+    channelProbeForceWithoutCacheBuster: 'Force probe when UUID injection fails',
+    channelProbeTokenCostFormula:
+      'Base cost = ({input} × {inputRate} + {cacheCreation} × {inputRate} × {cacheCreationMultiplier} + {cacheRead} × {inputRate} × {cacheReadMultiplier} + {output} × {outputRate}) × {global} × {time} = raw {raw}, rounded up {base}.',
+    channelProbePerRequestCostFormula:
+      'Base cost = fixed request price {fixed} × global multiplier {global} × time multiplier {time} = raw {raw}, rounded up {base}.',
     channelProbeFormula:
       'Suggested multiplier = ({delta} × upstream rate {upstreamRate} × distribution multiplier {distribution}) ÷ {base} = {suggested}',
     healthTrackingMode: 'Health Tracking Mode',

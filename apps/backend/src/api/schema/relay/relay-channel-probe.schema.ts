@@ -40,6 +40,7 @@ export const upsertRelayChannelProbeProfileBodySchema = z
     probeFormat: z.enum(["openai", "anthropic", "gemini"]),
     probeModel: z.string().trim().min(1).max(200),
     probePayload: z.record(z.string(), z.unknown()),
+    preventCache: z.boolean().optional(),
     upstreamCurrency: z
       .string()
       .trim()
@@ -65,6 +66,7 @@ export const upsertRelayChannelProbeProfileBodySchema = z
   });
 export const createRelayChannelProbeRunBodySchema = z.object({
   distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
+  forceWithoutCacheBuster: z.boolean().optional(),
 });
 export const createRelayChannelProbeRunsBodySchema = z.object({
   channelIds: z
@@ -73,6 +75,7 @@ export const createRelayChannelProbeRunsBodySchema = z.object({
     .max(100)
     .refine((ids) => new Set(ids).size === ids.length),
   distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
+  forceWithoutCacheBuster: z.boolean().optional(),
 });
 export const copyRelayChannelProbeProfileBodySchema = z
   .object({

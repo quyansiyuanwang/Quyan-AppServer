@@ -7,6 +7,7 @@ import {
   getProbeSchedulingScope,
   getProbeWorkflowHeaders,
   getProbeWorkflowRequestBody,
+  injectProbeCacheBuster,
   interpolateRequiredProbeVariables,
   interpolateProbeVariables,
   normalizeProbeNetworkError,
@@ -69,6 +70,36 @@ describe("relay channel probe helpers", () => {
         { token: "secret", user: "alice" },
       ),
     ).toEqual({ headers: { Authorization: "Bearer secret" }, items: ["alice", 1] });
+  });
+
+  it("inserts a unique cache-buster at the highest prompt level without mutating the configured payload", () => {
+    const openai = { messages: [{ role: "user", content: "ping" }] };
+    const anthropic = { system: [{ type: "text", text: "existing" }], messages: [] };
+    const gemini = { systemInstruction: { parts: [{ text: "existing" }] }, contents: [] };
+
+    expect(injectProbeCacheBuster(openai, "openai", "uuid-openai")).toMatchObject({
+      messages: [
+        { role: "system", content: "[probe-cache-buster:uuid-openai]" },
+        { role: "user", content: "ping" },
+      ],
+    });
+    expect(injectProbeCacheBuster(anthropic, "anthropic", "uuid-anthropic")).toMatchObject({
+      system: [
+        { type: "text", text: "[probe-cache-buster:uuid-anthropic]" },
+        { type: "text", text: "existing" },
+      ],
+    });
+    expect(injectProbeCacheBuster(gemini, "gemini", "uuid-gemini")).toMatchObject({
+      systemInstruction: { parts: [{ text: "[probe-cache-buster:uuid-gemini]" }, { text: "existing" }] },
+    });
+    expect(openai).toEqual({ messages: [{ role: "user", content: "ping" }] });
+    expect(anthropic.system).toEqual([{ type: "text", text: "existing" }]);
+    expect(gemini.systemInstruction.parts).toEqual([{ text: "existing" }]);
+  });
+
+  it("refuses cache busting when the payload has no safe prompt insertion point", () => {
+    expect(injectProbeCacheBuster({ input: "ping" }, "openai", "uuid")).toBeUndefined();
+    expect(injectProbeCacheBuster({ systemInstruction: "invalid" }, "gemini", "uuid")).toBeUndefined();
   });
 
   it("rejects an unresolved workflow variable before an upstream request is sent", () => {

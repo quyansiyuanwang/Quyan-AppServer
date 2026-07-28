@@ -79,6 +79,10 @@ pnpm --filter @appserver/frontend test -- tests/utils/relay-formats.test.ts
 
 执行验证前说明所选范围；完成后报告实际执行的命令和未执行的高成本检查。若修改后端 Controller/DTO/schema，OpenAPI 生成仍是强制步骤，不能因测试范围缩小而跳过。
 
+### Prisma 迁移生成
+
+修改 `apps/backend/prisma/schema.prisma` 时，迁移 SQL 必须通过 `pnpm --filter @appserver/backend exec prisma migrate dev --name <migration-name>` 生成并执行。包装脚本已内置 `--name`，使用时传入名称即可：`pnpm run db:migrate:dev -- <migration-name>`。禁止手写、复制或事后编辑 `prisma/migrations/*/migration.sql`；生产环境只使用已提交迁移的 `pnpm run db:migrate` / `prisma migrate deploy`。
+
 ## 共享包 `@appserver/shared`
 
 前后端共享的类型与常量，是权限、错误码等定义的**唯一规范数据源**。位于 `packages/shared/src/`：
@@ -112,6 +116,17 @@ pnpm run openapi:gen:all          # 完整流水线
 ```
 
 **修改后端 Controller/DTO 后必须运行 `pnpm run openapi:gen:all`。**
+
+## GitHub PR 管理流程
+
+需要整理或补全 PR 元数据时，先以 `gh` 读取 PR、改动和近期同目标分支已合并 PR；不要用通用模板覆盖仓库既有风格。
+
+1. 使用 `gh pr view <number>` 与 `gh pr diff <number>` 确认目标分支、提交、改动、现有标题/正文/标签和检查状态。
+2. 使用 `gh pr list --state merged --base <base-branch>` 参考近期同目标分支 PR：标题采用 Conventional Commit，正文按提交倒序列出 `- subject (short-sha)`；合并到 `master` 的 PR 需保留已合并 PR 的 `(#number)` 提交行。
+3. 标签按实际影响面赋予（如 `frontend`、`backend`、`feature`、`bug`、`api`）；仅因功能改动附带测试时不添加 `test`，除非测试本身是 PR 的主要内容。
+4. 用 `gh pr edit` 更新标题、正文和标签后，再用 `gh pr view --json title,body,labels,url` 回读确认。自动 PR 元数据/标签工作流失败时，可手动完成这些非破坏性职责；不得未经用户明确授权合并 PR。
+
+完整说明见 [docs/development/10-pr-management.md](./docs/development/10-pr-management.md)。
 
 ## 关键架构规则
 
@@ -170,6 +185,7 @@ pnpm run openapi:gen:all          # 完整流水线
 | [07-authentication.md](./docs/development/07-authentication.md)     | 认证：JWT/OAuth/RAM/2FA/重放保护/CAPTCHA             |
 | [08-openapi-pipeline.md](./docs/development/08-openapi-pipeline.md) | OpenAPI：TSOA→swagger.json→前端 typed SDK            |
 | [09-deployment.md](./docs/development/09-deployment.md)             | 部署：esbuild/Rolldown 构建、PM2、环境变量           |
+| [10-pr-management.md](./docs/development/10-pr-management.md)       | GitHub PR 读取、风格对齐、编辑与标签流程             |
 
 各项目的 CLAUDE.md/AGENTS.md 位于：
 

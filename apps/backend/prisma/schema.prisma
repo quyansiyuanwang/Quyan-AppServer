@@ -897,6 +897,7 @@ model RelayChannelProbeProfile {
   probeFormat           String   @default("openai") @db.VarChar(20)
   probeModel            String   @db.VarChar(200)
   probePayload          Json
+  preventCache          Boolean  @default(true)
   upstreamCurrency      String   @default("CNY") @db.VarChar(12)
   localCurrency         String   @default("CNY") @db.VarChar(12)
   upstreamBalanceDivisor Decimal @default(1.0) @db.Decimal(18, 6)
@@ -930,6 +931,9 @@ model RelayChannelProbeRun {
   leaseOwner               String?  @db.VarChar(100)
   leaseExpiresAt           DateTime?
   distributionMultiplier   Decimal  @db.Decimal(10, 6)
+  cacheBustingEnabled      Boolean  @default(true)
+  forceWithoutCacheBuster  Boolean  @default(false)
+  cacheBusterId            String?  @db.VarChar(36)
   upstreamBalanceBefore    Decimal? @db.Decimal(18, 6)
   upstreamBalanceAfter     Decimal? @db.Decimal(18, 6)
   upstreamBalanceDelta     Decimal? @db.Decimal(18, 6)
@@ -941,6 +945,10 @@ model RelayChannelProbeRun {
   requestTokens            Int?
   responseTokens           Int?
   totalTokens              Int?
+  cacheCreationTokens      Int?
+  cacheReadTokens          Int?
+  upstreamUsage            Json?
+  costBreakdown            Json?
   suggestedMultiplier      Decimal? @db.Decimal(10, 6)
   sourceChannelMultiplier  Decimal? @db.Decimal(10, 6)
   appliedMultiplier        Decimal? @db.Decimal(10, 6)
