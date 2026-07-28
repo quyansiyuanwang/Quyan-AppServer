@@ -211,7 +211,7 @@ export class RelayPoolResolverService {
     const channels = options.includeDisabled
       ? await this.relayChannelRepository.listVisible()
       : await this.relayChannelRepository.listActive();
-    return new Map(
+    const graph = new Map(
       channels.map((channel) => [
         channel.id,
         {
@@ -227,6 +227,14 @@ export class RelayPoolResolverService {
         },
       ]),
     );
+    // Pool relations only store member IDs. Hydrate the in-memory graph reference once so ordering
+    // callbacks can use the same leaf multiplier and health configuration that routing will use.
+    for (const channel of graph.values())
+      channel.poolMembers = channel.poolMembers.map((member) => ({
+        ...member,
+        memberChannel: graph.get(member.memberChannelId) ?? null,
+      }));
+    return graph;
   }
 
   private async resolveLeafPaths(

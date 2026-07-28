@@ -132,6 +132,8 @@ interface ImageForwardResult extends StreamForwardResult {
 interface RelayAttemptPlan {
   channels: RelayResolvedChannelCandidate[];
   failoverConfig: RelayFailoverRuntimeConfig;
+  /** Price-first automatic pools always start at the cheapest currently eligible member. */
+  allowStickyFailover: boolean;
 }
 
 export interface RelayTokenAvailabilityInput {
@@ -1587,38 +1589,65 @@ export class RelayProxyService {
     if (orderedPoolMembers.length === 0) return [];
 
     let orderedMembers = orderedPoolMembers;
-    if (channel.channelType === "automatic-proxy-pool" && routingConfig?.dynamicMemberRankingEnabled !== false) {
+    if (channel.channelType === "automatic-proxy-pool") {
       const rankingMode = routingConfig?.rankingMode === "stability-first" ? "stability-first" : "price-first";
       const ranked = await this.relayChannelHealthService.rankMembers(
-        orderedPoolMembers.map((member) => ({
-          id: member.memberChannelId,
-          name: member.memberChannel?.name ?? member.memberChannelId,
-          enabled: member.enabled && member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
-          priority: member.priority,
-          weight: Number(member.weight),
-          effectivePrice:
-            Number(member.memberChannel?.multiplier ?? 1) *
-            computeMultiplierForTime(
-              ((member.memberChannel as RelayChannel & { timePeriodMultipliers?: TimePeriodRule[] })
-                ?.timePeriodMultipliers ?? []) as TimePeriodRule[],
-              new Date(),
-            ),
-          healthTrackingMode:
-            ((member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
-              ?.healthTrackingMode as "automatic" | "manual" | "disabled" | undefined) ?? "automatic",
-          manualAvailability: (member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
-            ?.manualAvailability,
-          manualLatencyMs: (member.memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
-            ?.manualLatencyMs,
-        })),
+        orderedPoolMembers.map((member) => {
+          // The graph resolver normally hydrates this relation. Keep the top-level channel relation
+          // as a fallback for callers that have already loaded it (and for light-weight test doubles).
+          const configuredMember = (channel as RelayChannelWithPool).poolMembers?.find(
+            (candidate) => candidate.memberChannelId === member.memberChannelId,
+          );
+          const memberChannel = member.memberChannel ?? configuredMember?.memberChannel;
+          return {
+            id: member.memberChannelId,
+            name: memberChannel?.name ?? member.memberChannelId,
+            enabled: member.enabled && memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+            priority: member.priority,
+            weight: Number(member.weight),
+            effectivePrice:
+              Number(memberChannel?.multiplier ?? 1) *
+              computeMultiplierForTime(
+                ((memberChannel as RelayChannel & { timePeriodMultipliers?: TimePeriodRule[] })
+                  ?.timePeriodMultipliers ?? []) as TimePeriodRule[],
+                new Date(),
+              ),
+            healthTrackingMode:
+              ((memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)?.healthTrackingMode as
+                | "automatic"
+                | "manual"
+                | "disabled"
+                | undefined) ?? "automatic",
+            manualAvailability: (memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+              ?.manualAvailability,
+            manualLatencyMs: (memberChannel?.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+              ?.manualLatencyMs,
+          };
+        }),
         rankingMode,
+        new Date(),
+        {
+          healthScoreThreshold: routingConfig?.healthScoreThreshold,
+          latencyThresholdMs: routingConfig?.latencyThresholdMs,
+          circuitBreakerThreshold: routingConfig?.circuitBreakerThreshold,
+        },
       );
       const byId = new Map(ranked.map((member, index) => [member.id, { index, member }]));
       orderedMembers = [...orderedPoolMembers].sort((left, right) => {
+        if (routingConfig?.dynamicMemberRankingEnabled === false)
+          return (
+            left.priority - right.priority ||
+            (left.memberChannel?.name ?? left.memberChannelId).localeCompare(
+              right.memberChannel?.name ?? right.memberChannelId,
+            ) ||
+            left.memberChannelId.localeCompare(right.memberChannelId)
+          );
         const leftRank = byId.get(left.memberChannelId)?.index ?? Number.MAX_SAFE_INTEGER;
         const rightRank = byId.get(right.memberChannelId)?.index ?? Number.MAX_SAFE_INTEGER;
         return leftRank - rightRank;
       });
+      const eligibleIds = new Set(ranked.filter((member) => member.eligible).map((member) => member.id));
+      orderedMembers = orderedMembers.filter((member) => eligibleIds.has(member.memberChannelId));
     } else if (strategy === "random") orderedMembers = this.shuffleItems(orderedPoolMembers);
     else if (strategy === "weighted-random") orderedMembers = this.weightedShuffleMembers(orderedPoolMembers);
     else if (strategy === "round-robin") {
@@ -1662,14 +1691,22 @@ export class RelayProxyService {
     const tokenFailoverConfig = this.getFailoverRuntimeConfig(relayToken);
     const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : null;
 
+    const isPriceFirstAutomaticPool =
+      singleTopLevelChannel?.channelType === "automatic-proxy-pool" &&
+      this.getChannelRoutingConfig(singleTopLevelChannel)?.rankingMode !== "stability-first";
+
     if (
       tokenFailoverConfig.enabled ||
       !singleTopLevelChannel ||
       !["pooled", "automatic-proxy-pool"].includes(singleTopLevelChannel.channelType)
     )
-      return { channels, failoverConfig: tokenFailoverConfig };
+      return { channels, failoverConfig: tokenFailoverConfig, allowStickyFailover: !isPriceFirstAutomaticPool };
 
-    return { channels, failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length) };
+    return {
+      channels,
+      failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+      allowStickyFailover: !isPriceFirstAutomaticPool,
+    };
   }
 
   private buildFailoverStickyChannelKey(
@@ -1874,6 +1911,7 @@ export class RelayProxyService {
     requestFormat?: "openai" | "anthropic" | "gemini";
     requestedModel?: string;
     failbackCooldownMinutes?: number;
+    allowStickyFailover?: boolean;
   }): Promise<void> {
     try {
       await this.relayTokenRepo.createSwitchLog(params);
@@ -1881,7 +1919,7 @@ export class RelayProxyService {
       logger.warn("Failed to create relay channel switch log", { ...params, error });
     }
 
-    if (!params.requestFormat || !params.requestedModel) return;
+    if (!params.allowStickyFailover || !params.requestFormat || !params.requestedModel) return;
 
     await this.setStickyPreferredChannel({
       relayTokenId: params.relayTokenId,
@@ -2459,6 +2497,7 @@ export class RelayProxyService {
 
     const modelPricing = await this.modelPricingService.getModelPricing();
     const failoverConfig = attemptPlan.failoverConfig;
+    const stickyFailbackCooldownMinutes = attemptPlan.allowStickyFailover ? failoverConfig.failbackCooldownMinutes : 0;
     const isStreamRequested = this.isStreamRequest(req.body, req);
     const eligibleChannels = attemptPlan.channels.filter((candidate) =>
       supportsRelayRequestFormat(candidate.resolvedChannel.allowedFormats, requestFormat),
@@ -2514,7 +2553,7 @@ export class RelayProxyService {
       requestFormat,
       requestedModel: normalizedRequestedModel,
       candidateModelConfigs,
-      failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+      failbackCooldownMinutes: stickyFailbackCooldownMinutes,
     });
 
     const maxAttempts = failoverConfig.enabled
@@ -2827,7 +2866,8 @@ export class RelayProxyService {
                   modelName: selectedModelName,
                   requestFormat,
                   requestedModel: normalizedRequestedModel,
-                  failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+                  failbackCooldownMinutes: stickyFailbackCooldownMinutes,
+                  allowStickyFailover: attemptPlan.allowStickyFailover,
                 });
                 channelSwitched = true;
                 break;
@@ -2915,7 +2955,8 @@ export class RelayProxyService {
                   modelName: selectedModelName,
                   requestFormat,
                   requestedModel: normalizedRequestedModel,
-                  failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+                  failbackCooldownMinutes: stickyFailbackCooldownMinutes,
+                  allowStickyFailover: attemptPlan.allowStickyFailover,
                 });
                 channelSwitched = true;
                 break;
@@ -3019,7 +3060,8 @@ export class RelayProxyService {
                 modelName: selectedModelName,
                 requestFormat,
                 requestedModel: normalizedRequestedModel,
-                failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+                failbackCooldownMinutes: stickyFailbackCooldownMinutes,
+                allowStickyFailover: attemptPlan.allowStickyFailover,
               });
               channelSwitched = true;
               break;
@@ -3273,7 +3315,8 @@ export class RelayProxyService {
                 modelName: selectedModelName,
                 requestFormat,
                 requestedModel: normalizedRequestedModel,
-                failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+                failbackCooldownMinutes: stickyFailbackCooldownMinutes,
+                allowStickyFailover: attemptPlan.allowStickyFailover,
               });
               channelSwitched = true;
               break;
@@ -3324,7 +3367,8 @@ export class RelayProxyService {
                 modelName: normalizedRequestedModel,
                 requestFormat,
                 requestedModel: normalizedRequestedModel,
-                failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
+                failbackCooldownMinutes: stickyFailbackCooldownMinutes,
+                allowStickyFailover: attemptPlan.allowStickyFailover,
               });
               channelSwitched = true;
               break;

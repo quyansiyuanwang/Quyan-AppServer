@@ -38588,6 +38588,17 @@
 					"rank": {
 						"type": "number",
 						"format": "double"
+					},
+					"eligible": {
+						"type": "boolean",
+						"description": "Whether this member is eligible for the current pool base route."
+					},
+					"exclusionReasons": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Why the member is excluded, when it is not eligible."
 					}
 				},
 				"required": [
@@ -38612,7 +38623,9 @@
 					"weight",
 					"effectivePrice",
 					"score",
-					"rank"
+					"rank",
+					"eligible",
+					"exclusionReasons"
 				],
 				"type": "object",
 				"additionalProperties": false

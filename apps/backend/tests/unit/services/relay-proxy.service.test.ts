@@ -766,11 +766,11 @@ describe("RelayProxyService failover", () => {
 
     expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
       expect.objectContaining({
-        channelId: "member-a",
-        executionChannelId: "member-a",
+        channelId: "member-b",
+        executionChannelId: "member-b",
         displayChannelId: "pool-1",
         displayChannelName: "Pool",
-        channelMultiplier: 4.2,
+        channelMultiplier: 1,
       }),
     );
   });
@@ -795,6 +795,47 @@ describe("RelayProxyService failover", () => {
       "member-first",
       "member-second",
     ]);
+  });
+
+  it("uses the cheapest automatic-pool member first and disables cross-request sticky fallback", async () => {
+    const expensive = createChannel("member-expensive", "Expensive", "expensive.example.com", { multiplier: 4 });
+    const cheap = createChannel("member-cheap", "Cheap", "cheap.example.com", { multiplier: 1 });
+    const poolMembers = [
+      { memberChannelId: expensive.id, priority: 0, weight: 999, enabled: true, memberChannel: expensive },
+      { memberChannelId: cheap.id, priority: 1, weight: 0.01, enabled: true, memberChannel: cheap },
+    ];
+    const pool = createChannel("automatic-pool", "Automatic pool", "pool.example.com", {
+      channelType: "automatic-proxy-pool",
+      routingConfig: {
+        dynamicMemberRankingEnabled: true,
+        rankingMode: "price-first",
+        maxRetries: 1,
+        failbackCooldownMinutes: 30,
+      },
+      poolMembers,
+    });
+    const relayToken = {
+      id: "automatic-token",
+      userId: "user-1",
+      routingMode: "automatic-pool",
+      automaticProxyPoolChannel: pool,
+      channel: null,
+      channelId: null,
+    } as any;
+    const { service } = createService();
+
+    const firstPlan = await (service as any).buildAttemptPlan(relayToken);
+    const nextPlan = await (service as any).buildAttemptPlan(relayToken);
+
+    expect(firstPlan.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([
+      "member-cheap",
+      "member-expensive",
+    ]);
+    expect(nextPlan.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([
+      "member-cheap",
+      "member-expensive",
+    ]);
+    expect(firstPlan.allowStickyFailover).toBe(false);
   });
 
   it("infers the same available models for automatic and directly configured pools", async () => {

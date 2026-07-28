@@ -457,6 +457,14 @@ export class RelayChannelService {
       }),
       rankingMode,
       now,
+      {
+        healthScoreThreshold: (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+          ?.healthScoreThreshold,
+        latencyThresholdMs: (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+          ?.latencyThresholdMs,
+        circuitBreakerThreshold: (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined)
+          ?.circuitBreakerThreshold,
+      },
     );
     const window = rankedMembers[0]?.health ?? (await this.relayChannelHealthService.getHealth(channel.id, now));
     const displayedMembers = dynamicMemberRankingEnabled
@@ -474,6 +482,8 @@ export class RelayChannelService {
       effectivePrice: member.effectivePrice,
       score: member.score,
       rank: index + 1,
+      eligible: member.eligible,
+      exclusionReasons: member.exclusionReasons,
       trackingMode: member.healthTrackingMode ?? "automatic",
       source: member.source,
       manualAvailability:

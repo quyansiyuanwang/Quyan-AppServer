@@ -1147,7 +1147,9 @@
       <div>
         <div class="flex items-center justify-between gap-3 mb-2">
           <el-divider content-position="left" class="flex-1">{{
-            i18ns.t('relay.channelHealth')
+            automaticPoolHealth
+              ? i18ns.t('relay.automaticPoolBaseRouteOrder')
+              : i18ns.t('relay.channelHealth')
           }}</el-divider>
           <el-button
             text
@@ -1165,8 +1167,18 @@
           size="small"
           max-height="300"
         >
+          <el-table-column :label="i18ns.t('relay.healthRank')" width="72" prop="rank" />
           <el-table-column :label="i18ns.t('relay.channelName')" min-width="140" prop="name" />
-          <el-table-column :label="i18ns.t('relay.healthRank')" width="82" prop="rank" />
+          <el-table-column :label="i18ns.t('relay.automaticPoolAttemptable')" width="94">
+            <template #default="{ row }">
+              <el-tag :type="row.eligible ? 'success' : 'danger'" size="small">
+                {{ row.eligible ? i18ns.t('yes') : i18ns.t('no') }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('relay.healthEffectivePrice')" width="105">
+            <template #default="{ row }">{{ Number(row.effectivePrice).toFixed(4) }}x</template>
+          </el-table-column>
           <el-table-column :label="i18ns.t('relay.healthAvailability')" width="110">
             <template #default="{ row }">{{ formatAvailability(row.availability) }}</template>
           </el-table-column>
@@ -1174,13 +1186,32 @@
           <el-table-column :label="i18ns.t('relay.healthLatency')" width="105">
             <template #default="{ row }">{{ formatLatency(row.averageLatencyMs) }}</template>
           </el-table-column>
-          <el-table-column :label="i18ns.t('relay.healthEffectivePrice')" width="105">
-            <template #default="{ row }">{{ Number(row.effectivePrice).toFixed(4) }}x</template>
-          </el-table-column>
-          <el-table-column :label="i18ns.t('relay.healthScore')" width="100">
-            <template #default="{ row }">{{ Number(row.score).toFixed(4) }}</template>
+          <el-table-column
+            :label="i18ns.t('relay.healthFailures')"
+            width="82"
+            prop="failureCount"
+          />
+          <el-table-column :label="i18ns.t('relay.automaticPoolExclusionReason')" min-width="130">
+            <template #default="{ row }">
+              {{ formatExclusionReasons(row.exclusionReasons) }}
+            </template>
           </el-table-column>
         </el-table>
+        <div v-if="automaticPoolHealth" class="mt-2 text-xs text-[var(--el-text-color-secondary)]">
+          {{
+            i18ns.t('relay.automaticPoolRouteSummary', {
+              mode:
+                automaticPoolHealth.rankingMode === 'price-first'
+                  ? i18ns.t('relay.automaticPoolRankingPriceFirst')
+                  : i18ns.t('relay.automaticPoolRankingStabilityFirst'),
+              dynamic: automaticPoolHealth.dynamicMemberRankingEnabled
+                ? i18ns.t('yes')
+                : i18ns.t('no'),
+              start: formatDateTime(automaticPoolHealth.windowStartAt),
+              end: formatDateTime(automaticPoolHealth.windowEndAt),
+            })
+          }}
+        </div>
         <el-descriptions
           v-else-if="standardChannelHealth"
           :column="isDesktop ? 3 : 1"
@@ -1540,6 +1571,17 @@ const formatAvailability = (value: number) =>
   `${(Math.max(0, Math.min(1, Number(value) || 0)) * 100).toFixed(1)}%`
 
 const formatLatency = (value: number) => `${Math.max(0, Number(value) || 0).toFixed(0)} ms`
+
+const formatExclusionReasons = (reasons: string[] | null | undefined) => {
+  if (!reasons?.length) return '-'
+  const labels: Record<string, string> = {
+    disabled: i18ns.t('relay.automaticPoolExcludedDisabled'),
+    availability: i18ns.t('relay.automaticPoolExcludedAvailability'),
+    latency: i18ns.t('relay.automaticPoolExcludedLatency'),
+    'circuit-breaker': i18ns.t('relay.automaticPoolExcludedCircuitBreaker'),
+  }
+  return reasons.map((reason) => labels[reason] || reason).join(', ')
+}
 
 const formatStringList = (value: unknown) => {
   if (!Array.isArray(value) || value.length === 0) return '-'

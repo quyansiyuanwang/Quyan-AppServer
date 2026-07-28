@@ -211,6 +211,10 @@ export interface RelayAutomaticPoolHealthMemberDto extends RelayChannelHealthDto
   effectivePrice: number;
   score: number;
   rank: number;
+  /** Whether this member is eligible for the current pool base route. */
+  eligible: boolean;
+  /** Why the member is excluded, when it is not eligible. */
+  exclusionReasons: string[];
 }
 
 export interface RelayAutomaticPoolHealthDto {
