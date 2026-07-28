@@ -2684,6 +2684,7 @@ const emoji: DeepStringify<typeof en> = {
     automaticPoolDynamicDisabled: '配置顺序',
     channelHealth: '📡 💚',
     channelHealthManagement: '📡 🛠️',
+    channelRuntimeStatus: '📡 运行状态',
     channelHealthManagementDescription: '📊 🔁',
     requestDiagnostics: '🔎 📨',
     requestDiagnosticsDescription: '🆔 / 👤 / 🪙 🔍',

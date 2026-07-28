@@ -2587,6 +2587,7 @@ export default {
     automaticPoolDynamicDisabled: 'Configured order',
     channelHealth: 'Channel Health',
     channelHealthManagement: 'Channel Health Management',
+    channelRuntimeStatus: 'Channel Runtime Status',
     requestDiagnostics: 'Relay Request Diagnostics',
     requestDiagnosticsDescription:
       'Filter by request ID, user, or token and inspect every physical channel attempt.',

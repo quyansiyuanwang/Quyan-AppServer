@@ -2499,6 +2499,7 @@ const zhCN: DeepStringify<typeof en> = {
     automaticPoolDynamicDisabled: '配置顺序',
     channelHealth: '渠道健康状态',
     channelHealthManagement: '渠道状态管理',
+    channelRuntimeStatus: '渠道运行状态',
     channelHealthManagementDescription: '查看实时健康统计，设置自动追踪、手动评分或关闭健康排序。',
     requestDiagnostics: 'Relay 请求诊断',
     requestDiagnosticsDescription: '按请求 ID、用户或令牌筛选，查看一次请求的全部实际渠道尝试。',

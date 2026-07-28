@@ -1,15 +1,5 @@
 <template>
   <main class="channel-health-page">
-    <header class="page-header">
-      <div>
-        <h1>{{ i18ns.t('relay.channelHealthManagement') }}</h1>
-        <p>{{ i18ns.t('relay.channelHealthManagementDescription') }}</p>
-      </div>
-      <el-button :icon="Refresh" :loading="loading" @click="loadOverview">{{
-        i18ns.t('refresh')
-      }}</el-button>
-    </header>
-
     <el-alert v-if="error" type="error" :closable="false" show-icon class="mb-4">
       <template #default>
         <span>{{ error }}</span>
@@ -19,136 +9,173 @@
       </template>
     </el-alert>
 
-    <section class="summary-grid" aria-label="Channel health summary">
-      <div class="summary-item">
-        <span>{{ i18ns.t('relay.healthAutomaticCount') }}</span
-        ><strong>{{ automaticCount }}</strong>
-      </div>
-      <div class="summary-item">
-        <span>{{ i18ns.t('relay.healthManualCount') }}</span
-        ><strong>{{ manualCount }}</strong>
-      </div>
-      <div class="summary-item">
-        <span>{{ i18ns.t('relay.healthDisabledCount') }}</span
-        ><strong>{{ disabledCount }}</strong>
-      </div>
-      <div class="summary-item">
-        <span>{{ i18ns.t('relay.healthHealthyCount') }}</span
-        ><strong>{{ healthyCount }}</strong>
-      </div>
-    </section>
+    <div
+      class="health-view-switch"
+      role="navigation"
+      :aria-label="i18ns.t('relay.channelHealthManagement')"
+    >
+      <el-radio-group v-model="activeView" size="default">
+        <el-radio-button value="channels">{{
+          i18ns.t('relay.channelRuntimeStatus')
+        }}</el-radio-button>
+        <el-radio-button value="pools">{{
+          i18ns.t('relay.automaticPoolBaseRouteOrder')
+        }}</el-radio-button>
+      </el-radio-group>
+    </div>
 
-    <section class="content-section">
-      <div class="toolbar">
-        <el-input v-model="keyword" clearable :placeholder="i18ns.t('search')" class="search-input">
-          <template #prefix
-            ><el-icon><Search /></el-icon
-          ></template>
-        </el-input>
-        <el-select v-model="modeFilter" class="filter-select">
-          <el-option value="all" :label="i18ns.t('relay.healthAllModes')" />
-          <el-option value="automatic" :label="i18ns.t('relay.healthTrackingAutomatic')" />
-          <el-option value="manual" :label="i18ns.t('relay.healthTrackingManual')" />
-          <el-option value="disabled" :label="i18ns.t('relay.healthTrackingDisabled')" />
-        </el-select>
-        <el-select v-model="statusFilter" class="filter-select">
-          <el-option value="all" :label="i18ns.t('relay.healthAllStatuses')" />
-          <el-option value="enabled" :label="i18ns.t('relay.healthEnabled')" />
-          <el-option value="disabled" :label="i18ns.t('relay.healthDisabled')" />
-        </el-select>
-        <el-button
-          v-if="canUpdate"
-          type="primary"
-          plain
-          :disabled="selectedChannelIds.length === 0"
-          @click="openBatchEditor"
-        >
-          {{ i18ns.t('relay.healthBatchEdit') }}
-        </el-button>
-        <el-button
-          v-if="canUpdate"
-          type="danger"
-          plain
-          :disabled="selectedChannelIds.length === 0"
-          :loading="batchClearing"
-          @click="confirmBatchClear"
-        >
-          {{ i18ns.t('relay.healthBatchClear') }}
-        </el-button>
-      </div>
-
-      <el-table
-        v-loading="loading"
-        :data="filteredChannels"
-        class="health-table"
-        row-key="channelId"
-        @selection-change="onSelectionChange"
-      >
-        <el-table-column type="selection" width="46" :selectable="() => canUpdate" />
-        <el-table-column prop="name" :label="i18ns.t('relay.channelName')" min-width="180" />
-        <el-table-column :label="i18ns.t('status')" width="105">
-          <template #default="{ row }"
-            ><el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
-              row.enabled ? i18ns.t('relay.healthEnabled') : i18ns.t('relay.healthDisabled')
-            }}</el-tag></template
-          >
-        </el-table-column>
-        <el-table-column :label="i18ns.t('relay.healthTrackingMode')" min-width="130">
-          <template #default="{ row }"
-            ><el-tag size="small" :type="trackingTagType(row.trackingMode)">{{
-              trackingLabel(row.trackingMode)
-            }}</el-tag></template
-          >
-        </el-table-column>
-        <el-table-column :label="i18ns.t('relay.healthAvailability')" width="115" align="right">
-          <template #default="{ row }">{{ formatPercent(row.availability) }}</template>
-        </el-table-column>
-        <el-table-column
-          :label="i18ns.t('relay.healthSamples')"
-          prop="sampleCount"
-          width="95"
-          align="right"
-        />
-        <el-table-column :label="i18ns.t('relay.healthLatency')" width="130" align="right">
-          <template #default="{ row }">{{ formatLatency(row.averageLatencyMs) }}</template>
-        </el-table-column>
-        <el-table-column label="2xx / 4xx / 5xx" min-width="130" align="right">
-          <template #default="{ row }"
-            >{{ row.status2xxCount }} / {{ row.status4xxCount }} /
-            {{ row.status5xxCount }}</template
-          >
-        </el-table-column>
-        <el-table-column :label="i18ns.t('relay.healthLastSeen')" min-width="170">
-          <template #default="{ row }">{{ formatTime(row.lastSeenAt) }}</template>
-        </el-table-column>
-        <el-table-column :label="i18ns.t('actions')" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openDrawer(row)">{{
-              i18ns.t('relay.healthManage')
-            }}</el-button>
-            <el-button
-              v-if="canUpdate"
-              link
-              type="danger"
-              :loading="clearingId === row.channelId"
-              @click="confirmClear(row)"
-              >{{ i18ns.t('relay.healthClear') }}</el-button
-            >
-          </template>
-        </el-table-column>
-        <template #empty
-          ><el-empty :description="i18ns.t('relay.healthNoChannels')" :image-size="88"
-        /></template>
-      </el-table>
-    </section>
-
-    <section class="pool-route-section" aria-label="Automatic proxy pool route order">
-      <div class="pool-route-section__header">
+    <section v-show="activeView === 'channels'" class="content-section">
+      <div class="view-header">
         <div>
-          <h2>{{ i18ns.t('relay.automaticPoolBaseRouteOrder') }}</h2>
-          <p>{{ i18ns.t('relay.automaticPoolRoutePageHelp') }}</p>
+          <h2>{{ i18ns.t('relay.channelRuntimeStatus') }}</h2>
+          <p>{{ i18ns.t('relay.channelHealthManagementDescription') }}</p>
         </div>
-        <el-button :icon="Refresh" :loading="automaticPoolsLoading" @click="loadAutomaticPoolRoutes">
+        <el-button :icon="Refresh" :loading="loading" @click="loadOverview">{{
+          i18ns.t('refresh')
+        }}</el-button>
+      </div>
+      <section class="summary-grid" aria-label="Channel health summary">
+        <div class="summary-item">
+          <span>{{ i18ns.t('relay.healthAutomaticCount') }}</span
+          ><strong>{{ automaticCount }}</strong>
+        </div>
+        <div class="summary-item">
+          <span>{{ i18ns.t('relay.healthManualCount') }}</span
+          ><strong>{{ manualCount }}</strong>
+        </div>
+        <div class="summary-item">
+          <span>{{ i18ns.t('relay.healthDisabledCount') }}</span
+          ><strong>{{ disabledCount }}</strong>
+        </div>
+        <div class="summary-item">
+          <span>{{ i18ns.t('relay.healthHealthyCount') }}</span
+          ><strong>{{ healthyCount }}</strong>
+        </div>
+      </section>
+      <div class="toolbar">
+        <div class="toolbar__filters">
+          <el-input
+            v-model="keyword"
+            clearable
+            :placeholder="i18ns.t('search')"
+            class="search-input"
+          >
+            <template #prefix
+              ><el-icon><Search /></el-icon
+            ></template>
+          </el-input>
+          <el-select v-model="modeFilter" class="filter-select">
+            <el-option value="all" :label="i18ns.t('relay.healthAllModes')" />
+            <el-option value="automatic" :label="i18ns.t('relay.healthTrackingAutomatic')" />
+            <el-option value="manual" :label="i18ns.t('relay.healthTrackingManual')" />
+            <el-option value="disabled" :label="i18ns.t('relay.healthTrackingDisabled')" />
+          </el-select>
+          <el-select v-model="statusFilter" class="filter-select">
+            <el-option value="all" :label="i18ns.t('relay.healthAllStatuses')" />
+            <el-option value="enabled" :label="i18ns.t('relay.healthEnabled')" />
+            <el-option value="disabled" :label="i18ns.t('relay.healthDisabled')" />
+          </el-select>
+        </div>
+        <div v-if="canUpdate" class="toolbar__actions">
+          <el-button
+            type="primary"
+            plain
+            :disabled="selectedChannelIds.length === 0"
+            @click="openBatchEditor"
+          >
+            {{ i18ns.t('relay.healthBatchEdit') }}
+          </el-button>
+          <el-button
+            type="danger"
+            plain
+            :disabled="selectedChannelIds.length === 0"
+            :loading="batchClearing"
+            @click="confirmBatchClear"
+          >
+            {{ i18ns.t('relay.healthBatchClear') }}
+          </el-button>
+        </div>
+      </div>
+
+      <div class="health-table-wrap">
+        <el-table
+          v-loading="loading"
+          :data="filteredChannels"
+          class="health-table"
+          row-key="channelId"
+          @selection-change="onSelectionChange"
+        >
+          <el-table-column type="selection" width="46" :selectable="() => canUpdate" />
+          <el-table-column prop="name" :label="i18ns.t('relay.channelName')" min-width="180" />
+          <el-table-column :label="i18ns.t('status')" width="105">
+            <template #default="{ row }"
+              ><el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
+                row.enabled ? i18ns.t('relay.healthEnabled') : i18ns.t('relay.healthDisabled')
+              }}</el-tag></template
+            >
+          </el-table-column>
+          <el-table-column :label="i18ns.t('relay.healthTrackingMode')" min-width="130">
+            <template #default="{ row }"
+              ><el-tag size="small" :type="trackingTagType(row.trackingMode)">{{
+                trackingLabel(row.trackingMode)
+              }}</el-tag></template
+            >
+          </el-table-column>
+          <el-table-column :label="i18ns.t('relay.healthAvailability')" width="115" align="right">
+            <template #default="{ row }">{{ formatPercent(row.availability) }}</template>
+          </el-table-column>
+          <el-table-column
+            :label="i18ns.t('relay.healthSamples')"
+            prop="sampleCount"
+            width="95"
+            align="right"
+          />
+          <el-table-column :label="i18ns.t('relay.healthLatency')" width="130" align="right">
+            <template #default="{ row }">{{ formatLatency(row.averageLatencyMs) }}</template>
+          </el-table-column>
+          <el-table-column label="2xx / 4xx / 5xx" min-width="130" align="right">
+            <template #default="{ row }"
+              >{{ row.status2xxCount }} / {{ row.status4xxCount }} /
+              {{ row.status5xxCount }}</template
+            >
+          </el-table-column>
+          <el-table-column :label="i18ns.t('relay.healthLastSeen')" min-width="170">
+            <template #default="{ row }">{{ formatTime(row.lastSeenAt) }}</template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('actions')" width="180" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openDrawer(row)">{{
+                i18ns.t('relay.healthManage')
+              }}</el-button>
+              <el-button
+                v-if="canUpdate"
+                link
+                type="danger"
+                :loading="clearingId === row.channelId"
+                @click="confirmClear(row)"
+                >{{ i18ns.t('relay.healthClear') }}</el-button
+              >
+            </template>
+          </el-table-column>
+          <template #empty
+            ><el-empty :description="i18ns.t('relay.healthNoChannels')" :image-size="88"
+          /></template>
+        </el-table>
+      </div>
+    </section>
+
+    <section
+      v-show="activeView === 'pools'"
+      class="pool-route-section"
+      aria-label="Automatic proxy pool route order"
+    >
+      <div class="pool-route-section__header">
+        <h2>{{ i18ns.t('relay.automaticPoolBaseRouteOrder') }}</h2>
+        <el-button
+          :icon="Refresh"
+          :loading="automaticPoolsLoading"
+          @click="loadAutomaticPoolRoutes"
+        >
           {{ i18ns.t('refresh') }}
         </el-button>
       </div>
@@ -161,56 +188,96 @@
         :image-size="72"
       />
       <el-collapse v-else class="pool-route-collapse">
-        <el-collapse-item v-for="pool in automaticPools" :key="pool.channelId" :name="pool.channelId">
+        <el-collapse-item
+          v-for="pool in automaticPools"
+          :key="pool.channelId"
+          :name="pool.channelId"
+        >
           <template #title>
             <div class="pool-route-title">
               <strong>{{ pool.name }}</strong>
               <el-tag size="small" type="primary">
-                {{ pool.rankingMode === 'price-first'
-                  ? i18ns.t('relay.automaticPoolRankingPriceFirst')
-                  : i18ns.t('relay.automaticPoolRankingStabilityFirst') }}
+                {{
+                  pool.rankingMode === 'price-first'
+                    ? i18ns.t('relay.automaticPoolRankingPriceFirst')
+                    : i18ns.t('relay.automaticPoolRankingStabilityFirst')
+                }}
               </el-tag>
               <el-tag size="small" :type="pool.dynamicMemberRankingEnabled ? 'success' : 'info'">
-                {{ pool.dynamicMemberRankingEnabled
-                  ? i18ns.t('relay.automaticPoolDynamicEnabled')
-                  : i18ns.t('relay.automaticPoolDynamicDisabled') }}
+                {{
+                  pool.dynamicMemberRankingEnabled
+                    ? i18ns.t('relay.automaticPoolDynamicEnabled')
+                    : i18ns.t('relay.automaticPoolDynamicDisabled')
+                }}
               </el-tag>
             </div>
           </template>
           <div class="pool-route-meta">
-            {{ i18ns.t('relay.automaticPoolRouteWindow', {
-              start: formatTime(pool.windowStartAt),
-              end: formatTime(pool.windowEndAt),
-            }) }}
-            <el-button link type="primary" :loading="refreshingPoolId === pool.channelId" @click="refreshAutomaticPoolRoute(pool.channelId)">
+            {{
+              i18ns.t('relay.automaticPoolRouteWindow', {
+                start: formatTime(pool.windowStartAt),
+                end: formatTime(pool.windowEndAt),
+              })
+            }}
+            <el-button
+              link
+              type="primary"
+              :loading="refreshingPoolId === pool.channelId"
+              @click="refreshAutomaticPoolRoute(pool.channelId)"
+            >
               {{ i18ns.t('refresh') }}
             </el-button>
           </div>
-          <el-table :data="pool.members" size="small" class="pool-route-table">
-            <el-table-column :label="i18ns.t('relay.healthRank')" prop="rank" width="70" />
-            <el-table-column :label="i18ns.t('relay.channelName')" prop="name" min-width="150" />
-            <el-table-column :label="i18ns.t('relay.automaticPoolAttemptable')" width="95">
-              <template #default="{ row }">
-                <el-tag size="small" :type="row.eligible ? 'success' : 'danger'">
-                  {{ row.eligible ? i18ns.t('yes') : i18ns.t('no') }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('relay.healthEffectivePrice')" width="110" align="right">
-              <template #default="{ row }">{{ Number(row.effectivePrice).toFixed(4) }}x</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('relay.healthAvailability')" width="110" align="right">
-              <template #default="{ row }">{{ formatPercent(row.availability) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('relay.healthSamples')" prop="sampleCount" width="88" align="right" />
-            <el-table-column :label="i18ns.t('relay.healthLatency')" width="110" align="right">
-              <template #default="{ row }">{{ formatLatency(row.averageLatencyMs) }}</template>
-            </el-table-column>
-            <el-table-column :label="i18ns.t('relay.healthFailures')" prop="failureCount" width="82" align="right" />
-            <el-table-column :label="i18ns.t('relay.automaticPoolExclusionReason')" min-width="160">
-              <template #default="{ row }">{{ formatExclusionReasons(row.exclusionReasons) }}</template>
-            </el-table-column>
-          </el-table>
+          <div class="pool-route-table-wrap">
+            <el-table :data="pool.members" size="small" class="pool-route-table">
+              <el-table-column :label="i18ns.t('relay.healthRank')" prop="rank" width="70" />
+              <el-table-column :label="i18ns.t('relay.channelName')" prop="name" min-width="150" />
+              <el-table-column :label="i18ns.t('relay.automaticPoolAttemptable')" width="95">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="row.eligible ? 'success' : 'danger'">
+                    {{ row.eligible ? i18ns.t('yes') : i18ns.t('no') }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column
+                :label="i18ns.t('relay.healthEffectivePrice')"
+                width="110"
+                align="right"
+              >
+                <template #default="{ row }">{{ Number(row.effectivePrice).toFixed(4) }}x</template>
+              </el-table-column>
+              <el-table-column
+                :label="i18ns.t('relay.healthAvailability')"
+                width="110"
+                align="right"
+              >
+                <template #default="{ row }">{{ formatPercent(row.availability) }}</template>
+              </el-table-column>
+              <el-table-column
+                :label="i18ns.t('relay.healthSamples')"
+                prop="sampleCount"
+                width="88"
+                align="right"
+              />
+              <el-table-column :label="i18ns.t('relay.healthLatency')" width="110" align="right">
+                <template #default="{ row }">{{ formatLatency(row.averageLatencyMs) }}</template>
+              </el-table-column>
+              <el-table-column
+                :label="i18ns.t('relay.healthFailures')"
+                prop="failureCount"
+                width="82"
+                align="right"
+              />
+              <el-table-column
+                :label="i18ns.t('relay.automaticPoolExclusionReason')"
+                min-width="160"
+              >
+                <template #default="{ row }">{{
+                  formatExclusionReasons(row.exclusionReasons)
+                }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
         </el-collapse-item>
       </el-collapse>
     </section>
@@ -333,6 +400,7 @@ import type {
 const permissionStore = usePermissionStore()
 const loading = ref(false)
 const error = ref('')
+const activeView = ref<'channels' | 'pools'>('channels')
 const keyword = ref('')
 const modeFilter = ref<'all' | RelayChannelHealthTrackingMode>('all')
 const statusFilter = ref<'all' | 'enabled' | 'disabled'>('enabled')
@@ -431,8 +499,12 @@ const loadAutomaticPoolRoutes = async () => {
   automaticPoolsError.value = ''
   try {
     const allChannels = await relayChannelService.listChannels({ includeDisabled: true })
-    const poolChannels = allChannels.filter((channel) => channel.channelType === 'automatic-proxy-pool')
-    const results = await Promise.all(poolChannels.map((channel) => relayChannelService.getChannelHealth(channel.id)))
+    const poolChannels = allChannels.filter(
+      (channel) => channel.channelType === 'automatic-proxy-pool',
+    )
+    const results = await Promise.all(
+      poolChannels.map((channel) => relayChannelService.getChannelHealth(channel.id)),
+    )
     automaticPools.value = results.filter(
       (result): result is RelayAutomaticPoolHealthDto => 'members' in result,
     )
@@ -579,33 +651,18 @@ onMounted(loadOverview)
 .channel-health-page {
   width: 100%;
   min-width: 0;
-  padding: 24px;
-}
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-.page-header h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-}
-.page-header p {
-  margin: 6px 0 0;
-  color: var(--el-text-color-secondary);
+  padding: 24px 28px 36px;
 }
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   border: 1px solid var(--el-border-color-lighter);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+  background: var(--el-fill-color-blank);
 }
 .summary-item {
-  min-height: 78px;
-  padding: 14px 18px;
+  min-height: 74px;
+  padding: 13px 18px;
   border-right: 1px solid var(--el-border-color-lighter);
   display: grid;
   align-content: center;
@@ -619,14 +676,36 @@ onMounted(loadOverview)
   font-size: 13px;
 }
 .summary-item strong {
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
+}
+.health-view-switch {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 .content-section {
   min-width: 0;
 }
+.view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 12px;
+}
+.view-header p {
+  margin: 4px 0 0;
+  color: var(--el-text-color-secondary);
+}
+.view-header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
 .pool-route-section {
-  margin-top: 24px;
   min-width: 0;
 }
 .pool-route-section__header {
@@ -634,16 +713,17 @@ onMounted(loadOverview)
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 12px;
+  min-height: 42px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 .pool-route-section__header h2 {
   margin: 0;
   font-size: 17px;
   font-weight: 600;
 }
-.pool-route-section__header p,
 .pool-route-meta {
-  margin: 5px 0 0;
   color: var(--el-text-color-secondary);
   font-size: 13px;
 }
@@ -661,17 +741,43 @@ onMounted(loadOverview)
   gap: 12px;
   margin: 0 0 10px;
 }
+.pool-route-collapse {
+  border-top: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.pool-route-table-wrap,
+.health-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--el-border-color-lighter);
+}
 .pool-route-table {
   width: 100%;
 }
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 14px;
+  padding: 10px;
+  background: var(--el-fill-color-lighter);
+  border: 1px solid var(--el-border-color-lighter);
+}
+.toolbar__filters,
+.toolbar__actions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.toolbar__actions {
+  justify-content: flex-end;
 }
 .search-input {
-  width: min(360px, 100%);
+  width: min(340px, 100%);
 }
 .filter-select {
   width: 150px;
@@ -679,17 +785,29 @@ onMounted(loadOverview)
 .health-table {
   width: 100%;
 }
+:deep(.health-table .el-table__header-wrapper th.el-table__cell),
+:deep(.pool-route-table .el-table__header-wrapper th.el-table__cell) {
+  background: var(--el-fill-color-lighter);
+}
+:deep(.pool-route-collapse .el-collapse-item__header) {
+  min-height: 48px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+:deep(.pool-route-collapse .el-collapse-item__content) {
+  padding: 0 12px 14px;
+}
 .drawer-actions {
   display: flex;
   gap: 10px;
   margin-top: 20px;
 }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .channel-health-page {
-    padding: 16px;
+    padding: 18px 16px 28px;
   }
-  .page-header {
-    flex-direction: column;
+  .view-header {
+    align-items: flex-start;
   }
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -703,17 +821,25 @@ onMounted(loadOverview)
   .filter-select {
     flex: 1 1 145px;
   }
+  .toolbar__actions {
+    justify-content: flex-start;
+  }
   .health-table {
     min-width: 920px;
   }
-  .content-section {
-    overflow-x: auto;
-  }
-  .pool-route-section {
-    overflow-x: auto;
-  }
   .pool-route-table {
     min-width: 980px;
+  }
+}
+@media (max-width: 560px) {
+  .health-view-switch {
+    overflow-x: auto;
+  }
+  .pool-route-section__header {
+    align-items: center;
+  }
+  .pool-route-meta {
+    align-items: flex-start;
   }
 }
 </style>
