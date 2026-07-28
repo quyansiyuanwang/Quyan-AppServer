@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   applyRelayChannelProbeRunsBodySchema,
   copyRelayChannelProbeProfileBodySchema,
+  createRelayChannelProbeRunBodySchema,
+  createRelayChannelProbeRunsBodySchema,
   upsertRelayChannelProbeProfileBodySchema,
 } from "../../../src/api/schema/relay/relay-channel-probe.schema";
 
@@ -21,11 +23,13 @@ describe("relay channel probe schemas", () => {
       ...validProfile,
       upstreamBalanceDivisor: 1_000_000,
       probeGroup: "codeflow-main",
+      preventCache: false,
     });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.upstreamBalanceDivisor).toBe(1_000_000);
       expect(result.data.probeGroup).toBe("codeflow-main");
+      expect(result.data.preventCache).toBe(false);
     }
   });
 
@@ -50,6 +54,16 @@ describe("relay channel probe schemas", () => {
 
   it("rejects duplicate run applications", () => {
     expect(applyRelayChannelProbeRunsBodySchema.safeParse({ runIds: ["run-1", "run-1"] }).success).toBe(false);
+  });
+
+  it("accepts the explicit override for unsupported cache-buster payloads", () => {
+    expect(createRelayChannelProbeRunBodySchema.safeParse({ forceWithoutCacheBuster: true }).success).toBe(true);
+    expect(
+      createRelayChannelProbeRunsBodySchema.safeParse({
+        channelIds: ["channel-a", "channel-b"],
+        forceWithoutCacheBuster: true,
+      }).success,
+    ).toBe(true);
   });
 
   it("accepts bounded profile copy targets but rejects copying onto the source", () => {

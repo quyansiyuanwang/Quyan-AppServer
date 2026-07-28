@@ -426,7 +426,7 @@ describe("Balance API Integration", () => {
       },
     });
 
-    const [automaticUsage, legacyAutomaticUsage, unresolvedUsage] = await Promise.all([
+    const [automaticUsage, legacyAutomaticUsage, unresolvedUsage, manualLogicalUsage] = await Promise.all([
       prisma.relayUsage.create({
         data: {
           relayTokenId: automaticToken.id,
@@ -464,46 +464,71 @@ describe("Balance API Integration", () => {
           ipAddress: "127.0.0.1",
         },
       }),
-    ]);
-
-    const [automaticTransaction, legacyAutomaticTransaction, unresolvedTransaction] = await Promise.all([
-      prisma.balanceTransaction.create({
+      prisma.relayUsage.create({
         data: {
-          userId: targetUserId,
-          type: "api_usage",
-          amount: -0.1,
-          balanceBefore: 10,
-          balanceAfter: 9.9,
-          relatedId: automaticUsage.id,
+          relayTokenId: orderedToken.id,
+          executionChannelId: hiddenMember.id,
           displayChannelId: billingPool.id,
           displayChannelName: billingPool.name,
-        },
-      }),
-      prisma.balanceTransaction.create({
-        data: {
-          userId: targetUserId,
-          type: "api_usage",
-          amount: -0.1,
-          balanceBefore: 9.9,
-          balanceAfter: 9.8,
-          relatedId: legacyAutomaticUsage.id,
-          displayChannelId: automaticPool.id,
-          displayChannelName: automaticPool.name,
-        },
-      }),
-      prisma.balanceTransaction.create({
-        data: {
-          userId: targetUserId,
-          type: "api_usage",
-          amount: -0.1,
-          balanceBefore: 9.8,
-          balanceAfter: 9.7,
-          relatedId: unresolvedUsage.id,
-          displayChannelId: hiddenMember.id,
-          displayChannelName: hiddenMember.name,
+          path: "/relay/proxy/v1/chat/completions",
+          method: "POST",
+          statusCode: 200,
+          ipAddress: "127.0.0.1",
         },
       }),
     ]);
+
+    const [automaticTransaction, legacyAutomaticTransaction, unresolvedTransaction, manualLogicalTransaction] =
+      await Promise.all([
+        prisma.balanceTransaction.create({
+          data: {
+            userId: targetUserId,
+            type: "api_usage",
+            amount: -0.1,
+            balanceBefore: 10,
+            balanceAfter: 9.9,
+            relatedId: automaticUsage.id,
+            displayChannelId: billingPool.id,
+            displayChannelName: billingPool.name,
+          },
+        }),
+        prisma.balanceTransaction.create({
+          data: {
+            userId: targetUserId,
+            type: "api_usage",
+            amount: -0.1,
+            balanceBefore: 9.9,
+            balanceAfter: 9.8,
+            relatedId: legacyAutomaticUsage.id,
+            displayChannelId: automaticPool.id,
+            displayChannelName: automaticPool.name,
+          },
+        }),
+        prisma.balanceTransaction.create({
+          data: {
+            userId: targetUserId,
+            type: "api_usage",
+            amount: -0.1,
+            balanceBefore: 9.8,
+            balanceAfter: 9.7,
+            relatedId: unresolvedUsage.id,
+            displayChannelId: hiddenMember.id,
+            displayChannelName: hiddenMember.name,
+          },
+        }),
+        prisma.balanceTransaction.create({
+          data: {
+            userId: targetUserId,
+            type: "api_usage",
+            amount: -0.1,
+            balanceBefore: 9.7,
+            balanceAfter: 9.6,
+            relatedId: manualLogicalUsage.id,
+            displayChannelId: billingPool.id,
+            displayChannelName: billingPool.name,
+          },
+        }),
+      ]);
 
     const response = await request(app)
       .get(`/v1/balance/transactions/all?userId=${targetUserId}&limit=100&offset=0`)
@@ -517,6 +542,7 @@ describe("Balance API Integration", () => {
     expect(recordById.get(legacyAutomaticTransaction.id)?.displayChannelName).toBe(automaticPool.name);
     expect(recordById.get(automaticTransaction.id)?.requestId).toBe(automaticLogicalRequest.requestId);
     expect(recordById.get(unresolvedTransaction.id)?.displayChannelName).toBeUndefined();
+    expect(recordById.get(manualLogicalTransaction.id)?.displayChannelName).toBe(billingPool.name);
   });
 
   it("rejects balance transaction queries larger than 30 days", async () => {

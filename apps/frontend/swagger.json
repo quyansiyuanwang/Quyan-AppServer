@@ -39451,6 +39451,10 @@
 					"probePayload": {
 						"$ref": "#/components/schemas/Record_string.unknown_"
 					},
+					"preventCache": {
+						"type": "boolean",
+						"description": "Inject a unique marker into each probe request to prevent upstream cache collisions."
+					},
 					"upstreamCurrency": {
 						"type": "string"
 					},
@@ -39501,6 +39505,7 @@
 					"probeFormat",
 					"probeModel",
 					"probePayload",
+					"preventCache",
 					"upstreamCurrency",
 					"localCurrency",
 					"upstreamBalanceDivisor",
@@ -39524,6 +39529,66 @@
 					"timed_out",
 					"cancelled"
 				]
+			},
+			"RelayChannelProbeCostBreakdownDto": {
+				"properties": {
+					"pricingType": {
+						"type": "string",
+						"enum": [
+							"token-based",
+							"per-request"
+						]
+					},
+					"fixedPrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"inputRate": {
+						"type": "number",
+						"format": "double"
+					},
+					"outputRate": {
+						"type": "number",
+						"format": "double"
+					},
+					"billableInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheCreationMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheReadMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"globalMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"timeMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"rawCost": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"pricingType",
+					"inputRate",
+					"outputRate",
+					"billableInputTokens",
+					"cacheCreationMultiplier",
+					"cacheReadMultiplier",
+					"globalMultiplier",
+					"timeMultiplier",
+					"rawCost"
+				],
+				"type": "object",
+				"additionalProperties": false
 			},
 			"RelayChannelProbeRunDto": {
 				"properties": {
@@ -39599,6 +39664,29 @@
 						"type": "number",
 						"format": "double"
 					},
+					"cacheCreationTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheReadTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheBustingEnabled": {
+						"type": "boolean"
+					},
+					"forceWithoutCacheBuster": {
+						"type": "boolean"
+					},
+					"cacheBusterId": {
+						"type": "string"
+					},
+					"upstreamUsage": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"costBreakdown": {
+						"$ref": "#/components/schemas/RelayChannelProbeCostBreakdownDto"
+					},
 					"suggestedMultiplier": {
 						"type": "number",
 						"format": "double"
@@ -39637,6 +39725,8 @@
 					"queuedAt",
 					"distributionMultiplier",
 					"upstreamRateMultiplier",
+					"cacheBustingEnabled",
+					"forceWithoutCacheBuster",
 					"requestedByUserId",
 					"createTime",
 					"updateTime"
@@ -39718,6 +39808,9 @@
 					"probePayload": {
 						"$ref": "#/components/schemas/Record_string.unknown_"
 					},
+					"preventCache": {
+						"type": "boolean"
+					},
 					"upstreamCurrency": {
 						"type": "string"
 					},
@@ -39767,6 +39860,10 @@
 					"distributionMultiplier": {
 						"type": "number",
 						"format": "double"
+					},
+					"forceWithoutCacheBuster": {
+						"type": "boolean",
+						"description": "Continue only when cache-buster injection cannot be applied to the configured payload."
 					}
 				},
 				"type": "object",
@@ -39818,6 +39915,9 @@
 					"distributionMultiplier": {
 						"type": "number",
 						"format": "double"
+					},
+					"forceWithoutCacheBuster": {
+						"type": "boolean"
 					}
 				},
 				"required": [

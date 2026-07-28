@@ -126,6 +126,11 @@ pnpm run openapi:gen:all          # 完整流水线（上述两步）
 | `scripts/sync-swagger-to-frontend.mjs`      | 将后端 `swagger.json` 复制到前端 `src/client/`  |
 | `scripts/validate-frontend-permissions.mjs` | 校验前端权限常量与后端 `@appserver/shared` 一致 |
 
+## GitHub PR 管理
+
+PR 标题、正文和标签的整理流程以 [AGENTS.md](./AGENTS.md) 和
+[docs/development/10-pr-management.md](./docs/development/10-pr-management.md) 为准。编辑前必须参考近期同目标分支已合并 PR 的元数据风格，并在编辑后使用 `gh pr view` 回读确认。
+
 ## 共享配置包
 
 ### TypeScript 配置
@@ -173,6 +178,7 @@ export default [
 | [07-authentication.md](./docs/development/07-authentication.md)     | 认证：JWT/OAuth/RAM/2FA/重放保护/CAPTCHA             |
 | [08-openapi-pipeline.md](./docs/development/08-openapi-pipeline.md) | OpenAPI：TSOA→swagger.json→前端 typed SDK            |
 | [09-deployment.md](./docs/development/09-deployment.md)             | 部署：esbuild/Rolldown 构建、PM2、环境变量           |
+| [10-pr-management.md](./docs/development/10-pr-management.md)       | GitHub PR 读取、风格对齐、编辑与标签流程             |
 
 ## 环境要求
 
