@@ -17,7 +17,8 @@ export const resolveContextLengthMultiplier = (
   contextTokens: number,
 ): ContextLengthMultiplierMatch => {
   const normalizedContextTokens = Math.max(0, Math.floor(Number(contextTokens) || 0));
-  const matchedRule = (rules ?? [])
+  const normalizedRules = Array.isArray(rules) ? rules : [];
+  const matchedRule = normalizedRules
     .filter(
       (rule) =>
         rule?.enabled === true &&

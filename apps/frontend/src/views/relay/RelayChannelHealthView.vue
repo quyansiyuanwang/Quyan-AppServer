@@ -142,6 +142,79 @@
       </el-table>
     </section>
 
+    <section class="pool-route-section" aria-label="Automatic proxy pool route order">
+      <div class="pool-route-section__header">
+        <div>
+          <h2>{{ i18ns.t('relay.automaticPoolBaseRouteOrder') }}</h2>
+          <p>{{ i18ns.t('relay.automaticPoolRoutePageHelp') }}</p>
+        </div>
+        <el-button :icon="Refresh" :loading="automaticPoolsLoading" @click="loadAutomaticPoolRoutes">
+          {{ i18ns.t('refresh') }}
+        </el-button>
+      </div>
+      <el-alert v-if="automaticPoolsError" type="warning" :closable="false" show-icon class="mb-3">
+        {{ automaticPoolsError }}
+      </el-alert>
+      <el-empty
+        v-else-if="!automaticPoolsLoading && automaticPools.length === 0"
+        :description="i18ns.t('relay.automaticPoolRouteEmpty')"
+        :image-size="72"
+      />
+      <el-collapse v-else class="pool-route-collapse">
+        <el-collapse-item v-for="pool in automaticPools" :key="pool.channelId" :name="pool.channelId">
+          <template #title>
+            <div class="pool-route-title">
+              <strong>{{ pool.name }}</strong>
+              <el-tag size="small" type="primary">
+                {{ pool.rankingMode === 'price-first'
+                  ? i18ns.t('relay.automaticPoolRankingPriceFirst')
+                  : i18ns.t('relay.automaticPoolRankingStabilityFirst') }}
+              </el-tag>
+              <el-tag size="small" :type="pool.dynamicMemberRankingEnabled ? 'success' : 'info'">
+                {{ pool.dynamicMemberRankingEnabled
+                  ? i18ns.t('relay.automaticPoolDynamicEnabled')
+                  : i18ns.t('relay.automaticPoolDynamicDisabled') }}
+              </el-tag>
+            </div>
+          </template>
+          <div class="pool-route-meta">
+            {{ i18ns.t('relay.automaticPoolRouteWindow', {
+              start: formatTime(pool.windowStartAt),
+              end: formatTime(pool.windowEndAt),
+            }) }}
+            <el-button link type="primary" :loading="refreshingPoolId === pool.channelId" @click="refreshAutomaticPoolRoute(pool.channelId)">
+              {{ i18ns.t('refresh') }}
+            </el-button>
+          </div>
+          <el-table :data="pool.members" size="small" class="pool-route-table">
+            <el-table-column :label="i18ns.t('relay.healthRank')" prop="rank" width="70" />
+            <el-table-column :label="i18ns.t('relay.channelName')" prop="name" min-width="150" />
+            <el-table-column :label="i18ns.t('relay.automaticPoolAttemptable')" width="95">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.eligible ? 'success' : 'danger'">
+                  {{ row.eligible ? i18ns.t('yes') : i18ns.t('no') }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column :label="i18ns.t('relay.healthEffectivePrice')" width="110" align="right">
+              <template #default="{ row }">{{ Number(row.effectivePrice).toFixed(4) }}x</template>
+            </el-table-column>
+            <el-table-column :label="i18ns.t('relay.healthAvailability')" width="110" align="right">
+              <template #default="{ row }">{{ formatPercent(row.availability) }}</template>
+            </el-table-column>
+            <el-table-column :label="i18ns.t('relay.healthSamples')" prop="sampleCount" width="88" align="right" />
+            <el-table-column :label="i18ns.t('relay.healthLatency')" width="110" align="right">
+              <template #default="{ row }">{{ formatLatency(row.averageLatencyMs) }}</template>
+            </el-table-column>
+            <el-table-column :label="i18ns.t('relay.healthFailures')" prop="failureCount" width="82" align="right" />
+            <el-table-column :label="i18ns.t('relay.automaticPoolExclusionReason')" min-width="160">
+              <template #default="{ row }">{{ formatExclusionReasons(row.exclusionReasons) }}</template>
+            </el-table-column>
+          </el-table>
+        </el-collapse-item>
+      </el-collapse>
+    </section>
+
     <el-dialog
       v-model="batchEditorOpen"
       :title="i18ns.t('relay.healthBatchEditTitle')"
@@ -252,6 +325,7 @@ import { relayChannelService } from '@/service/relayChannelService'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { getErrorMessage } from '@/utils/error-utils'
 import type {
+  RelayAutomaticPoolHealthDto,
   RelayChannelHealthOverviewItemDto,
   RelayChannelHealthTrackingMode,
 } from '@/client/types.gen'
@@ -277,6 +351,10 @@ const batchManualAvailability = ref(1)
 const batchManualLatencyMs = ref(0)
 const batchSaving = ref(false)
 const batchClearing = ref(false)
+const automaticPools = ref<RelayAutomaticPoolHealthDto[]>([])
+const automaticPoolsLoading = ref(false)
+const automaticPoolsError = ref('')
+const refreshingPoolId = ref<string | null>(null)
 let latestRequest = 0
 
 const canUpdate = computed(() => permissionStore.hasPermission(Permission.RELAY_CHANNEL_UPDATE))
@@ -317,6 +395,16 @@ const trackingTagType = (mode: RelayChannelHealthTrackingMode) =>
 const formatPercent = (value: number) => `${(Math.max(0, Math.min(1, value)) * 100).toFixed(1)}%`
 const formatLatency = (value: number) => (value > 0 ? `${Math.round(value)} ms` : '-')
 const formatTime = (value?: string | Date) => (value ? new Date(value).toLocaleString() : '-')
+const formatExclusionReasons = (reasons: string[] | null | undefined) => {
+  if (!reasons?.length) return '-'
+  const labels: Record<string, string> = {
+    disabled: i18ns.t('relay.automaticPoolExcludedDisabled'),
+    availability: i18ns.t('relay.automaticPoolExcludedAvailability'),
+    latency: i18ns.t('relay.automaticPoolExcludedLatency'),
+    'circuit-breaker': i18ns.t('relay.automaticPoolExcludedCircuitBreaker'),
+  }
+  return reasons.map((reason) => labels[reason] || reason).join(', ')
+}
 
 const loadOverview = async () => {
   const requestId = ++latestRequest
@@ -327,12 +415,46 @@ const loadOverview = async () => {
     if (requestId !== latestRequest) return
     channels.value = result.channels
     selectedChannelIds.value = []
+    void loadAutomaticPoolRoutes()
   } catch (cause) {
     if (requestId !== latestRequest) return
     error.value = getErrorMessage(cause, i18ns.t('relay.healthLoadFailed'))
     ElMessage.error(error.value)
   } finally {
     if (requestId === latestRequest) loading.value = false
+  }
+}
+
+const loadAutomaticPoolRoutes = async () => {
+  if (automaticPoolsLoading.value) return
+  automaticPoolsLoading.value = true
+  automaticPoolsError.value = ''
+  try {
+    const allChannels = await relayChannelService.listChannels({ includeDisabled: true })
+    const poolChannels = allChannels.filter((channel) => channel.channelType === 'automatic-proxy-pool')
+    const results = await Promise.all(poolChannels.map((channel) => relayChannelService.getChannelHealth(channel.id)))
+    automaticPools.value = results.filter(
+      (result): result is RelayAutomaticPoolHealthDto => 'members' in result,
+    )
+  } catch (cause) {
+    automaticPools.value = []
+    automaticPoolsError.value = getErrorMessage(cause, i18ns.t('relay.healthLoadFailed'))
+  } finally {
+    automaticPoolsLoading.value = false
+  }
+}
+
+const refreshAutomaticPoolRoute = async (channelId: string) => {
+  refreshingPoolId.value = channelId
+  try {
+    const result = await relayChannelService.getChannelHealth(channelId)
+    if (!('members' in result)) return
+    const index = automaticPools.value.findIndex((pool) => pool.channelId === channelId)
+    if (index >= 0) automaticPools.value.splice(index, 1, result)
+  } catch (cause) {
+    ElMessage.error(getErrorMessage(cause, i18ns.t('relay.healthLoadFailed')))
+  } finally {
+    refreshingPoolId.value = null
   }
 }
 
@@ -503,6 +625,45 @@ onMounted(loadOverview)
 .content-section {
   min-width: 0;
 }
+.pool-route-section {
+  margin-top: 24px;
+  min-width: 0;
+}
+.pool-route-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.pool-route-section__header h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.pool-route-section__header p,
+.pool-route-meta {
+  margin: 5px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+.pool-route-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.pool-route-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 10px;
+}
+.pool-route-table {
+  width: 100%;
+}
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -547,6 +708,12 @@ onMounted(loadOverview)
   }
   .content-section {
     overflow-x: auto;
+  }
+  .pool-route-section {
+    overflow-x: auto;
+  }
+  .pool-route-table {
+    min-width: 980px;
   }
 }
 </style>

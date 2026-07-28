@@ -2579,6 +2579,12 @@ export default {
     automaticPoolExcludedCircuitBreaker: 'Circuit breaker threshold reached',
     automaticPoolRouteSummary:
       'Mode: {mode}; Dynamic ordering: {dynamic}; Window: {start} to {end}',
+    automaticPoolRoutePageHelp:
+      'Shows the current base order of attemptable automatic-pool members. Model and format incompatibilities are skipped at request time.',
+    automaticPoolRouteEmpty: 'No automatic proxy pools',
+    automaticPoolRouteWindow: 'Statistics window: {start} to {end}',
+    automaticPoolDynamicEnabled: 'Dynamic ordering enabled',
+    automaticPoolDynamicDisabled: 'Configured order',
     channelHealth: 'Channel Health',
     channelHealthManagement: 'Channel Health Management',
     requestDiagnostics: 'Relay Request Diagnostics',
