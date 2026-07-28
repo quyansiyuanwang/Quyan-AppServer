@@ -323,4 +323,25 @@ describe('BalanceHistoryView', () => {
     expect(getMyTransactionsMock).toHaveBeenCalledTimes(2)
     expect((wrapper.vm as any).allTransactions).toEqual([recentRecord])
   })
+
+  it('uses an explicit end time for the 30-day range boundary', async () => {
+    const records = createTransactions()
+
+    getUsageStatisticsMock.mockResolvedValue({ data: { total: 100, used: 10, remaining: 90 } })
+    getMyBalanceMock.mockResolvedValue({ data: { balance: 88 } })
+    getMyTransactionsMock.mockResolvedValue({ data: { records, total: records.length } })
+    sessionGetRecentMock.mockResolvedValue([])
+    sessionGetAllByIndexMock.mockResolvedValue([])
+    sessionSaveMock.mockResolvedValue(undefined)
+    redeemCodeMock.mockResolvedValue({ code: 0, data: { balance: 88 } })
+
+    const wrapper = await mountView()
+    getMyTransactionsMock.mockClear()
+
+    await (wrapper.vm as any).handleHistorySliderChange(2)
+
+    const [params] = getMyTransactionsMock.mock.calls[0] ?? []
+    expect(params.startTime).toBe('2026-03-27T00:15:00.000Z')
+    expect(params.endTime).toBe('2026-04-26T00:15:00.000Z')
+  })
 })

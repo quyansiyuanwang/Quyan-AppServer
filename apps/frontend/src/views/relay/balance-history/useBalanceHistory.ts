@@ -105,6 +105,20 @@ export function useBalanceHistory() {
     return new Date(Date.now() - dayCount * DAY_MS).toISOString()
   }
 
+  const getHistoryRangeQuery = (
+    rangeKey: HistoryRangeKey,
+  ): { startTime?: string; endTime?: string } => {
+    if (rangeKey === 'all') return {}
+
+    const dayCount = rangeKey === '1d' ? 1 : rangeKey === '7d' ? 7 : 30
+    const endTime = Date.now()
+
+    return {
+      startTime: new Date(endTime - dayCount * DAY_MS).toISOString(),
+      endTime: new Date(endTime).toISOString(),
+    }
+  }
+
   const getHistoryRangeStartTimestamp = (rangeKey: HistoryRangeKey): number | null => {
     const startTime = getHistoryRangeStartTime(rangeKey)
     if (!startTime) return null
@@ -431,9 +445,7 @@ export function useBalanceHistory() {
     rangeKey: HistoryRangeKey,
     loadToken: number,
   ): Promise<void> => {
-    const records = await fetchAllTransactions({
-      startTime: getHistoryRangeStartTime(rangeKey),
-    })
+    const records = await fetchAllTransactions(getHistoryRangeQuery(rangeKey))
 
     if (!isHistoryLoadCurrent(rangeKey, loadToken)) return
 
