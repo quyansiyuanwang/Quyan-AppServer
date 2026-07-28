@@ -11,6 +11,7 @@ import { BAIDU_GEO_API, GEO_CACHE_TTL_SECONDS, REQUEST_TIMEOUT_MS } from "@/cons
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { ConfigService } from "@/services/system/config.service";
 import { NotificationService } from "@/services/notification/notification.service";
+import { RedisService } from "@/services/infrastructure/redis.service";
 import { NotificationEvent } from "@/constant/notification-event";
 import { BadRequestError, ForbiddenError, NotFoundError, TooManyRequestsError, UnauthorizedError } from "@/util/errors";
 import { CustomCode } from "@/constant/custom-code";
@@ -51,6 +52,7 @@ const MAX_KV_VALUE_BYTES = 64 * 1024;
 const MAX_OUTBOUND_RESPONSE_BYTES = 1_024 * 1_024;
 const IP_LOCATION_CACHE_TTL_MS = GEO_CACHE_TTL_SECONDS * 1_000;
 const MAX_IP_LOCATION_CACHE_ENTRIES = 50_000;
+const DEVELOPER_IP_LOCATION_CACHE_PREFIX = "developer:ip-location:";
 const PROJECT_KEY_SCOPES = new Set<DeveloperApiKeyScope>([
   "kv:read",
   "kv:write",
@@ -104,6 +106,7 @@ const mysqlConnectionUrl = (databaseUrl: string): string => {
 export class DeveloperProjectRepository {
   private static instance: DeveloperProjectRepository;
   private readonly configService = ConfigService.getInstance();
+  private readonly redisService = RedisService.getInstance();
   private readonly ipLocationCache = new Map<string, { expiresAt: number; value: Record<string, unknown> }>();
 
   static getInstance(): DeveloperProjectRepository {
@@ -219,10 +222,13 @@ export class DeveloperProjectRepository {
     body: { published: boolean },
   ): Promise<DeveloperProjectDto> {
     await this.assertProjectOwner(projectId, userId);
-    const project = await prisma.developerProject.update({
-      where: { id: projectId },
+    const result = await prisma.developerProject.updateMany({
+      where: { id: projectId, userId, status: 1 },
       data: { statusPagePublished: body.published },
     });
+    if (!result.count) throw new NotFoundError("项目不存在");
+    const project = await prisma.developerProject.findFirst({ where: { id: projectId, userId, status: 1 } });
+    if (!project) throw new NotFoundError("项目不存在");
     return this.toProjectDto(project);
   }
 
@@ -392,8 +398,8 @@ export class DeveloperProjectRepository {
     const scopes = this.readScopes(key.scopes);
     const missing = requiredScopes.filter((scope) => !scopes.includes(scope as DeveloperApiKeyScope));
     if (missing.length) throw new ForbiddenError(`项目 API Key 缺少权限: ${missing.join(", ")}`);
-    await prisma.developerProjectApiKey.update({
-      where: { id: key.id },
+    await prisma.developerProjectApiKey.updateMany({
+      where: { id: key.id, status: 1 },
       data: { lastUsedAt: new Date(), requestCount: { increment: 1 } },
     });
     return key as NonNullable<ProjectKeyRecord>;
@@ -415,56 +421,68 @@ export class DeveloperProjectRepository {
     const usageDate = new Date();
     usageDate.setHours(0, 0, 0, 0);
     const overagePrice = await this.getOveragePrice(service);
-    return prisma.$transaction(async (tx) => {
-      const project = await tx.developerProject.findUnique({
-        where: { id: projectId },
-        select: { id: true, userId: true, dailyFreeQuota: true, overageEnabled: true },
-      });
-      if (!project) throw new NotFoundError("项目不存在");
-      const dailyFreeQuota = await this.resolveDailyFreeQuota(tx, project, service);
-      const usage = await tx.developerQuotaUsage.upsert({
-        where: { projectId_service_usageDate: { projectId, service, usageDate } },
-        create: { projectId, service, usageDate, requestCount: 1 },
-        update: { requestCount: { increment: 1 } },
-      });
-      if (usage.requestCount > dailyFreeQuota && !project.overageEnabled)
-        throw new ForbiddenError("今日免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED);
-      let chargeAmount = 0;
-      if (usage.requestCount > dailyFreeQuota && overagePrice > 0) {
-        const account = await tx.balanceAccount.findUnique({ where: { userId: project.userId } });
-        const balanceBefore = Number(account?.balance ?? 0);
-        const charged = await tx.balanceAccount.updateMany({
-          where: { userId: project.userId, status: 1, balance: { gte: new Decimal(overagePrice) } },
-          data: {
-            balance: { decrement: new Decimal(overagePrice) },
-            totalUsed: { increment: new Decimal(overagePrice) },
-          },
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await prisma.$transaction(async (tx) => {
+          const project = await tx.developerProject.findUnique({
+            where: { id: projectId },
+            select: { id: true, userId: true, dailyFreeQuota: true, overageEnabled: true },
+          });
+          if (!project) throw new NotFoundError("项目不存在");
+          const dailyFreeQuota = await this.resolveDailyFreeQuota(tx, project, service);
+          const usage = await tx.developerQuotaUsage.upsert({
+            where: { projectId_service_usageDate: { projectId, service, usageDate } },
+            create: { projectId, service, usageDate, requestCount: 1 },
+            update: { requestCount: { increment: 1 } },
+          });
+          if (usage.requestCount > dailyFreeQuota && !project.overageEnabled)
+            throw new ForbiddenError("今日免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED);
+          let chargeAmount = 0;
+          if (usage.requestCount > dailyFreeQuota && overagePrice > 0) {
+            const account = await tx.balanceAccount.findUnique({ where: { userId: project.userId } });
+            const balanceBefore = Number(account?.balance ?? 0);
+            const charged = await tx.balanceAccount.updateMany({
+              where: { userId: project.userId, status: 1, balance: { gte: new Decimal(overagePrice) } },
+              data: {
+                balance: { decrement: new Decimal(overagePrice) },
+                totalUsed: { increment: new Decimal(overagePrice) },
+              },
+            });
+            if (!charged.count)
+              throw new ForbiddenError("余额不足，无法执行超额调用", CustomCode.DEVELOPER_BALANCE_INSUFFICIENT);
+            const balanceAfter = Math.round((balanceBefore - overagePrice) * 10_000) / 10_000;
+            await tx.balanceTransaction.create({
+              data: {
+                userId: project.userId,
+                type: "developer_overage",
+                amount: new Decimal(-overagePrice),
+                balanceBefore: new Decimal(balanceBefore),
+                balanceAfter: new Decimal(balanceAfter),
+                relatedId: usage.id,
+                model: `developer:${service}`,
+                description: `开发者服务 ${service} 超额调用`,
+                fixedPrice: new Decimal(overagePrice),
+              },
+            });
+            chargeAmount = overagePrice;
+          }
+          return { projectId, service, usageId: usage.id, userId: project.userId, chargeAmount };
         });
-        if (!charged.count)
-          throw new ForbiddenError("余额不足，无法执行超额调用", CustomCode.DEVELOPER_BALANCE_INSUFFICIENT);
-        const balanceAfter = Math.round((balanceBefore - overagePrice) * 10_000) / 10_000;
-        await tx.balanceTransaction.create({
-          data: {
-            userId: project.userId,
-            type: "developer_overage",
-            amount: new Decimal(-overagePrice),
-            balanceBefore: new Decimal(balanceBefore),
-            balanceAfter: new Decimal(balanceAfter),
-            relatedId: usage.id,
-            model: `developer:${service}`,
-            description: `开发者服务 ${service} 超额调用`,
-            fixedPrice: new Decimal(overagePrice),
-          },
-        });
-        chargeAmount = overagePrice;
+      } catch (error) {
+        // Prisma may emulate MySQL upserts with multiple statements. A unique
+        // conflict must be retried in a fresh transaction so the new usage row
+        // is visible to the increment path.
+        if (attempt === 0 && typeof error === "object" && error !== null && "code" in error && error.code === "P2002")
+          continue;
+        throw error;
       }
-      return { projectId, service, usageId: usage.id, userId: project.userId, chargeAmount };
-    });
+    }
+    throw new Error("开发者额度扣减重试意外结束");
   }
 
   private async refundQuota(receipt: QuotaReceipt): Promise<void> {
     await prisma.$transaction(async (tx) => {
-      await tx.developerQuotaUsage.update({
+      await tx.developerQuotaUsage.updateMany({
         where: { id: receipt.usageId },
         data: { requestCount: { decrement: 1 } },
       });
@@ -472,20 +490,23 @@ export class DeveloperProjectRepository {
       const account = await tx.balanceAccount.findUnique({ where: { userId: receipt.userId } });
       if (!account) return;
       const balanceBefore = Number(account.balance);
-      const updated = await tx.balanceAccount.update({
+      const updated = await tx.balanceAccount.updateMany({
         where: { userId: receipt.userId },
         data: {
           balance: { increment: new Decimal(receipt.chargeAmount) },
           totalUsed: { decrement: new Decimal(receipt.chargeAmount) },
         },
       });
+      if (!updated.count) return;
+      const accountAfter = await tx.balanceAccount.findUnique({ where: { userId: receipt.userId } });
+      if (!accountAfter) return;
       await tx.balanceTransaction.create({
         data: {
           userId: receipt.userId,
           type: "developer_overage_refund",
           amount: new Decimal(receipt.chargeAmount),
           balanceBefore: new Decimal(balanceBefore),
-          balanceAfter: updated.balance,
+          balanceAfter: accountAfter.balance,
           relatedId: receipt.usageId,
           model: `developer:${receipt.service}`,
           description: `开发者服务 ${receipt.service} 调用失败退款`,
@@ -624,14 +645,17 @@ export class DeveloperProjectRepository {
     const existing = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
     if (!existing) throw new NotFoundError("短链接不存在");
     const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).url.toString() : undefined;
-    const link = await prisma.developerShortLink.update({
-      where: { id: linkId },
+    const result = await prisma.developerShortLink.updateMany({
+      where: { id: linkId, projectId },
       data: {
         targetUrl,
         enabled: body.enabled,
         expiresAt: body.expiresAt === null ? null : body.expiresAt ? new Date(body.expiresAt) : undefined,
       },
     });
+    if (!result.count) throw new NotFoundError("短链接不存在");
+    const link = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
+    if (!link) throw new NotFoundError("短链接不存在");
     return this.shortLinkDto(link);
   }
 
@@ -690,12 +714,16 @@ export class DeveloperProjectRepository {
     const country = context?.country?.trim().toUpperCase().slice(0, 8) || undefined;
     const userAgent = context?.userAgent?.trim().slice(0, 255) || undefined;
     const ipAddress = context?.ipAddress?.trim().slice(0, 45) || undefined;
-    await prisma.$transaction([
-      prisma.developerShortLink.update({ where: { id: linkId }, data: { clickCount: { increment: 1 } } }),
-      prisma.developerShortLinkClick.create({
+    await prisma.$transaction(async (tx) => {
+      const updated = await tx.developerShortLink.updateMany({
+        where: { id: linkId },
+        data: { clickCount: { increment: 1 } },
+      });
+      if (!updated.count) return;
+      await tx.developerShortLinkClick.create({
         data: { shortLinkId: linkId, ipAddress, sourceHost, userAgent, country },
-      }),
-    ]);
+      });
+    });
   }
 
   async getShortLinkStats(
@@ -933,7 +961,7 @@ export class DeveloperProjectRepository {
     const record = await prisma.developerSecret.findFirst({ where: { projectId, alias, status: 1 } });
     if (!record) throw new BadRequestError(`未定义的密钥别名: ${alias}`);
     const value = this.decryptSecret(record);
-    void prisma.developerSecret.update({ where: { id: record.id }, data: { lastUsedAt: new Date() } });
+    void prisma.developerSecret.updateMany({ where: { id: record.id, status: 1 }, data: { lastUsedAt: new Date() } });
     return value;
   }
 
@@ -1033,8 +1061,8 @@ export class DeveloperProjectRepository {
     const existing = await prisma.developerStatusMonitor.findFirst({ where: { id: monitorId, projectId } });
     if (!existing) throw new NotFoundError("监控目标不存在");
     const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).url.toString() : undefined;
-    const monitor = await prisma.developerStatusMonitor.update({
-      where: { id: monitorId },
+    const result = await prisma.developerStatusMonitor.updateMany({
+      where: { id: monitorId, projectId },
       data: {
         name: body.name,
         targetUrl,
@@ -1044,6 +1072,9 @@ export class DeveloperProjectRepository {
         enabled: body.enabled,
       },
     });
+    if (!result.count) throw new NotFoundError("监控目标不存在");
+    const monitor = await prisma.developerStatusMonitor.findFirst({ where: { id: monitorId, projectId } });
+    if (!monitor) throw new NotFoundError("监控目标不存在");
     return this.monitorDto(monitor);
   }
 
@@ -1102,10 +1133,13 @@ export class DeveloperProjectRepository {
     const checkedAt = new Date();
     const latencyMs = Date.now() - startedAt;
     const updated = await prisma.$transaction(async (tx) => {
-      const updatedMonitor = await tx.developerStatusMonitor.update({
+      const result = await tx.developerStatusMonitor.updateMany({
         where: { id: monitor.id },
         data: { lastCheckedAt: checkedAt, lastStatus },
       });
+      if (!result.count) throw new NotFoundError("监控目标不存在");
+      const updatedMonitor = await tx.developerStatusMonitor.findFirst({ where: { id: monitor.id } });
+      if (!updatedMonitor) throw new NotFoundError("监控目标不存在");
       await tx.developerStatusCheck.create({
         data: { monitorId: monitor.id, checkedAt, checkStatus: lastStatus, statusCode, latencyMs, errorMessage },
       });
@@ -1270,25 +1304,29 @@ export class DeveloperProjectRepository {
     });
     if (!record || record.remainingTries <= 0) return false;
     if (record.codeHash !== hash(body.code)) {
-      await prisma.developerVerification.update({
-        where: { id: record.id },
+      await prisma.developerVerification.updateMany({
+        where: { id: record.id, consumedAt: null, remainingTries: { gt: 0 }, expiresAt: { gt: new Date() } },
         data: { remainingTries: { decrement: 1 } },
       });
       return false;
     }
-    await prisma.developerVerification.update({ where: { id: record.id }, data: { consumedAt: new Date() } });
-    return true;
+    const consumed = await prisma.developerVerification.updateMany({
+      where: { id: record.id, consumedAt: null, remainingTries: { gt: 0 }, expiresAt: { gt: new Date() } },
+      data: { consumedAt: new Date() },
+    });
+    return consumed.count === 1;
   }
 
   async lookupIp(projectId: string, requestedIp?: string, options?: { skipQuota?: boolean }) {
     const ip = requestedIp?.trim();
     if (!ip || !isIP(ip) || isUnsafeOutboundAddress(ip)) throw new BadRequestError("仅支持公网 IP 地址");
-    const cached = this.ipLocationCache.get(ip);
-    if (cached && cached.expiresAt > Date.now()) {
+    const cached = await this.getCachedIpLocation(ip);
+    // Cached responses still represent an API invocation and therefore keep the
+    // established quota semantics, but never need another provider request.
+    if (cached) {
       if (!options?.skipQuota) await this.consumeQuota(projectId, "ip");
-      return cached.value;
+      return cached;
     }
-    if (cached) this.ipLocationCache.delete(ip);
     const endpoint = EnvSpace.developerProductConfig.ipGeolocationEndpoint;
     const baiduAk = EnvSpace.baiduMapConfig.ipLocationAk;
     if (!endpoint && !baiduAk) throw new BadRequestError("IP 定位服务尚未配置");
@@ -1298,23 +1336,56 @@ export class DeveloperProjectRepository {
       const result = base
         ? await this.lookupIpFromConfiguredProvider(ip, base)
         : await this.lookupIpFromBaidu(ip, baiduAk);
-      if (this.ipLocationCache.size >= MAX_IP_LOCATION_CACHE_ENTRIES) {
-        const now = Date.now();
-        for (const [cacheKey, cacheValue] of this.ipLocationCache) {
-          if (cacheValue.expiresAt <= now) this.ipLocationCache.delete(cacheKey);
-        }
-        while (this.ipLocationCache.size >= MAX_IP_LOCATION_CACHE_ENTRIES) {
-          const oldestKey = this.ipLocationCache.keys().next().value;
-          if (!oldestKey) break;
-          this.ipLocationCache.delete(oldestKey);
-        }
-      }
-      this.ipLocationCache.set(ip, { expiresAt: Date.now() + IP_LOCATION_CACHE_TTL_MS, value: result });
+      await this.cacheIpLocation(ip, result);
       return result;
     } catch (error) {
       if (receipt) await this.refundQuota(receipt).catch(() => {});
       throw error;
     }
+  }
+
+  private async getCachedIpLocation(ip: string): Promise<Record<string, unknown> | undefined> {
+    const memoryCached = this.ipLocationCache.get(ip);
+    if (memoryCached?.expiresAt && memoryCached.expiresAt > Date.now()) return memoryCached.value;
+    if (memoryCached) this.ipLocationCache.delete(ip);
+
+    const cached = await this.redisService.get(`${DEVELOPER_IP_LOCATION_CACHE_PREFIX}${ip}`);
+    if (!cached) return undefined;
+    try {
+      const value: unknown = JSON.parse(cached);
+      if (!value || typeof value !== "object" || Array.isArray(value))
+        throw new Error("invalid IP location cache payload");
+      const result = value as Record<string, unknown>;
+      this.setIpLocationMemoryCache(ip, result);
+      return result;
+    } catch {
+      await this.redisService.delete(`${DEVELOPER_IP_LOCATION_CACHE_PREFIX}${ip}`);
+      return undefined;
+    }
+  }
+
+  private async cacheIpLocation(ip: string, value: Record<string, unknown>): Promise<void> {
+    this.setIpLocationMemoryCache(ip, value);
+    await this.redisService.set(
+      `${DEVELOPER_IP_LOCATION_CACHE_PREFIX}${ip}`,
+      JSON.stringify(value),
+      GEO_CACHE_TTL_SECONDS,
+    );
+  }
+
+  private setIpLocationMemoryCache(ip: string, value: Record<string, unknown>): void {
+    if (this.ipLocationCache.size >= MAX_IP_LOCATION_CACHE_ENTRIES) {
+      const now = Date.now();
+      for (const [cacheKey, cacheValue] of this.ipLocationCache) {
+        if (cacheValue.expiresAt <= now) this.ipLocationCache.delete(cacheKey);
+      }
+      while (this.ipLocationCache.size >= MAX_IP_LOCATION_CACHE_ENTRIES) {
+        const oldestKey = this.ipLocationCache.keys().next().value;
+        if (!oldestKey) break;
+        this.ipLocationCache.delete(oldestKey);
+      }
+    }
+    this.ipLocationCache.set(ip, { expiresAt: Date.now() + IP_LOCATION_CACHE_TTL_MS, value });
   }
 
   private async lookupIpFromConfiguredProvider(
@@ -1502,8 +1573,8 @@ export class DeveloperProjectRepository {
         : {};
     delete existingConfig.secretInstanceId;
     delete existingConfig.secretProjectId;
-    const channel = await prisma.developerPushChannel.update({
-      where: { id: channelId },
+    const result = await prisma.developerPushChannel.updateMany({
+      where: { id: channelId, projectId },
       data: {
         name: body.name,
         endpoint,
@@ -1512,6 +1583,9 @@ export class DeveloperProjectRepository {
         enabled: body.enabled,
       },
     });
+    if (!result.count) throw new NotFoundError("推送渠道不存在");
+    const channel = await prisma.developerPushChannel.findFirst({ where: { id: channelId, projectId } });
+    if (!channel) throw new NotFoundError("推送渠道不存在");
     return this.pushChannelDto(channel);
   }
 
@@ -1554,6 +1628,17 @@ export class DeveloperProjectRepository {
     return deliveries.map((delivery) => this.toPushDeliveryDto(delivery));
   }
 
+  private async updatePushDelivery(
+    deliveryId: string,
+    data: Prisma.DeveloperPushDeliveryUpdateManyMutationInput,
+  ): Promise<DeveloperPushDeliveryDto> {
+    const result = await prisma.developerPushDelivery.updateMany({ where: { id: deliveryId }, data });
+    if (!result.count) throw new NotFoundError("推送记录不存在");
+    const updated = await prisma.developerPushDelivery.findUnique({ where: { id: deliveryId } });
+    if (!updated) throw new NotFoundError("推送记录不存在");
+    return this.toPushDeliveryDto(updated);
+  }
+
   private async dispatchPushDelivery(
     delivery: { id: string; projectId: string; channelId: string; title: string; content: string },
     channel: {
@@ -1587,23 +1672,21 @@ export class DeveloperProjectRepository {
         httpsAgent: target.httpsAgent,
         headers: secret ? { Authorization: `Bearer ${secret}` } : undefined,
       });
-      const updated = await prisma.developerPushDelivery.update({
-        where: { id: delivery.id },
-        data: { deliveryStatus: "success", attemptCount: { increment: 1 }, nextRetryAt: null, errorMessage: null },
+      return this.updatePushDelivery(delivery.id, {
+        deliveryStatus: "success",
+        attemptCount: { increment: 1 },
+        nextRetryAt: null,
+        errorMessage: null,
       });
-      return this.toPushDeliveryDto(updated);
     } catch (error) {
+      if (error instanceof NotFoundError) throw error;
       const message = error instanceof Error ? error.message.slice(0, 500) : "推送失败";
-      const updated = await prisma.developerPushDelivery.update({
-        where: { id: delivery.id },
-        data: {
-          deliveryStatus: "failed",
-          attemptCount: { increment: 1 },
-          nextRetryAt: new Date(Date.now() + 60_000),
-          errorMessage: message,
-        },
+      return this.updatePushDelivery(delivery.id, {
+        deliveryStatus: "failed",
+        attemptCount: { increment: 1 },
+        nextRetryAt: new Date(Date.now() + 60_000),
+        errorMessage: message,
       });
-      return this.toPushDeliveryDto(updated);
     }
   }
 
@@ -1670,8 +1753,8 @@ export class DeveloperProjectRepository {
         quotaRefunded = true;
       }
       if (body.idempotencyKey)
-        await prisma.developerPushRequest.update({
-          where: { projectId_idempotencyKey: { projectId, idempotencyKey: body.idempotencyKey } },
+        await prisma.developerPushRequest.updateMany({
+          where: { projectId, idempotencyKey: body.idempotencyKey },
           data: { requestStatus: hasSuccessfulDelivery ? "success" : "failed" },
         });
       return results;
