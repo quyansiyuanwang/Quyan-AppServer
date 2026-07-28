@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
     $transaction: vi.fn(),
     developerProductEntitlement: { findUnique: vi.fn() },
     developerProductConfig: { findUnique: vi.fn() },
-    developerProductQuotaUsage: { upsert: vi.fn(), updateMany: vi.fn() },
+    developerProductQuotaUsage: { create: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
     balanceAccount: { findUnique: vi.fn(), updateMany: vi.fn() },
     balanceTransaction: { create: vi.fn() },
   },
@@ -22,7 +22,7 @@ describe("DeveloperProductPlatformService", () => {
     mocks.prisma.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback(mocks.prisma));
   });
 
-  it("retries the quota upsert in a new transaction after a first-use race", async () => {
+  it("retries quota creation in a new transaction after a first-use race", async () => {
     mocks.prisma.developerProductEntitlement.findUnique.mockResolvedValue({
       id: "entitlement-1",
       accountOwnerId: "user-1",
@@ -30,9 +30,12 @@ describe("DeveloperProductPlatformService", () => {
       overageEnabled: false,
     });
     mocks.prisma.developerProductConfig.findUnique.mockResolvedValue({ overagePrice: 0, defaultDailyQuota: 0 });
-    mocks.prisma.developerProductQuotaUsage.upsert
-      .mockRejectedValueOnce({ code: "P2002" })
-      .mockResolvedValueOnce({ id: "usage-1", requestCount: 1 });
+    mocks.prisma.developerProductQuotaUsage.updateMany
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 1 });
+    mocks.prisma.developerProductQuotaUsage.create.mockRejectedValueOnce({ code: "P2002" });
+    mocks.prisma.developerProductQuotaUsage.findUnique.mockResolvedValueOnce({ id: "usage-1", requestCount: 1 });
 
     const receipt = await (DeveloperProductPlatformService.getInstance() as any).consumeQuota({
       entitlementId: "entitlement-1",
@@ -50,7 +53,8 @@ describe("DeveloperProductPlatformService", () => {
       chargeAmount: 0,
     });
     expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(2);
-    expect(mocks.prisma.developerProductQuotaUsage.upsert).toHaveBeenCalledTimes(2);
+    expect(mocks.prisma.developerProductQuotaUsage.create).toHaveBeenCalledTimes(1);
+    expect(mocks.prisma.developerProductQuotaUsage.updateMany).toHaveBeenCalledTimes(3);
   });
 
   it("refunds an overage when its quota record was deleted concurrently", async () => {

@@ -16,6 +16,7 @@ import { NotificationEvent } from "@/constant/notification-event";
 import { BadRequestError, ForbiddenError, NotFoundError, TooManyRequestsError, UnauthorizedError } from "@/util/errors";
 import { CustomCode } from "@/constant/custom-code";
 import { assertSafeOutboundUrl, isUnsafeOutboundAddress } from "@/util/developer-outbound-url";
+import { toDatabaseDate, toLegacyDatabaseDate } from "@/util/database-date";
 import type {
   CreateDeveloperApiKeyDto,
   CreateDeveloperProjectDto,
@@ -53,6 +54,7 @@ const MAX_OUTBOUND_RESPONSE_BYTES = 1_024 * 1_024;
 const IP_LOCATION_CACHE_TTL_MS = GEO_CACHE_TTL_SECONDS * 1_000;
 const MAX_IP_LOCATION_CACHE_ENTRIES = 50_000;
 const DEVELOPER_IP_LOCATION_CACHE_PREFIX = "developer:ip-location:";
+const QUOTA_TRANSACTION_MAX_ATTEMPTS = 8;
 const PROJECT_KEY_SCOPES = new Set<DeveloperApiKeyScope>([
   "kv:read",
   "kv:write",
@@ -87,6 +89,12 @@ type BaiduIpLocationResponse = {
     };
   };
 };
+
+function isRetryableQuotaTransactionError(error: unknown): boolean {
+  return (
+    typeof error === "object" && error !== null && "code" in error && (error.code === "P2002" || error.code === "P2034")
+  );
+}
 
 type ProjectKeyRecord = Awaited<ReturnType<typeof prisma.developerProjectApiKey.findFirst>> & {
   project: { userId: string };
@@ -234,10 +242,12 @@ export class DeveloperProjectRepository {
 
   async getQuotaSummary(projectId: string, userId: string): Promise<DeveloperQuotaSummaryDto> {
     const project = await this.assertProjectOwner(projectId, userId);
-    const usageDate = new Date();
-    usageDate.setHours(0, 0, 0, 0);
+    const usageDate = toDatabaseDate();
+    const legacyUsageDate = toLegacyDatabaseDate();
     return prisma.$transaction(async (tx) => {
-      const records = await tx.developerQuotaUsage.findMany({ where: { projectId, usageDate } });
+      let records = await tx.developerQuotaUsage.findMany({ where: { projectId, usageDate } });
+      if (!records.length && legacyUsageDate.getTime() !== usageDate.getTime())
+        records = await tx.developerQuotaUsage.findMany({ where: { projectId, usageDate: legacyUsageDate } });
       const counts = new Map(records.map((record) => [record.service, record.requestCount]));
       const usages = await Promise.all(
         QUOTA_SERVICES.map(async (service) => {
@@ -418,10 +428,10 @@ export class DeveloperProjectRepository {
   }
 
   private async consumeQuota(projectId: string, service: QuotaService): Promise<QuotaReceipt> {
-    const usageDate = new Date();
-    usageDate.setHours(0, 0, 0, 0);
+    const usageDate = toDatabaseDate();
+    const legacyUsageDate = toLegacyDatabaseDate();
     const overagePrice = await this.getOveragePrice(service);
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (let attempt = 0; attempt < QUOTA_TRANSACTION_MAX_ATTEMPTS; attempt += 1) {
       try {
         return await prisma.$transaction(async (tx) => {
           const project = await tx.developerProject.findUnique({
@@ -430,6 +440,14 @@ export class DeveloperProjectRepository {
           });
           if (!project) throw new NotFoundError("项目不存在");
           const dailyFreeQuota = await this.resolveDailyFreeQuota(tx, project, service);
+          const existingUsage = await tx.developerQuotaUsage.findUnique({
+            where: { projectId_service_usageDate: { projectId, service, usageDate } },
+          });
+          if (!existingUsage && legacyUsageDate.getTime() !== usageDate.getTime())
+            await tx.developerQuotaUsage.updateMany({
+              where: { projectId, service, usageDate: legacyUsageDate },
+              data: { usageDate },
+            });
           const usage = await tx.developerQuotaUsage.upsert({
             where: { projectId_service_usageDate: { projectId, service, usageDate } },
             create: { projectId, service, usageDate, requestCount: 1 },
@@ -469,11 +487,12 @@ export class DeveloperProjectRepository {
           return { projectId, service, usageId: usage.id, userId: project.userId, chargeAmount };
         });
       } catch (error) {
-        // Prisma may emulate MySQL upserts with multiple statements. A unique
-        // conflict must be retried in a fresh transaction so the new usage row
-        // is visible to the increment path.
-        if (attempt === 0 && typeof error === "object" && error !== null && "code" in error && error.code === "P2002")
+        // Prisma may emulate MySQL upserts with multiple statements. Retry a
+        // fresh transaction after its unique-row race or a MySQL deadlock.
+        if (attempt < QUOTA_TRANSACTION_MAX_ATTEMPTS - 1 && isRetryableQuotaTransactionError(error)) {
+          if (error.code === "P2034") await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 10));
           continue;
+        }
         throw error;
       }
     }
