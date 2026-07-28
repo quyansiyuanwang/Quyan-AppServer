@@ -40,6 +40,7 @@ import type {
   RelayChannelProbeRunDto,
   RelayChannelProbeRunHistoryScope,
   RelayChannelProbeWorkflowStepDto,
+  RelayChannelProbeCostBreakdownDto,
   UpsertRelayChannelProbeProfileRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
 import type { RelayChannelDto, RelayChannelMemberDto, RelayChannelType } from "@/api/dto/relay/relay-channel.dto";
@@ -70,6 +71,57 @@ export type RelayChannelProbeTopologyItem = Pick<
   RelayChannelDto,
   "id" | "name" | "enabled" | "channelType" | "poolMembers"
 >;
+
+type ProbeFormat = "openai" | "anthropic" | "gemini";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+/**
+ * Adds a unique probe marker where each supported upstream format treats it as
+ * a highest-priority instruction. The caller owns the original JSON payload.
+ */
+export function injectProbeCacheBuster(
+  sourcePayload: Record<string, unknown>,
+  format: ProbeFormat,
+  cacheBusterId: string,
+): Record<string, unknown> | undefined {
+  const payload = structuredClone(sourcePayload);
+  const marker = `[probe-cache-buster:${cacheBusterId}]`;
+
+  if (format === "openai") {
+    if (!Array.isArray(payload.messages)) return undefined;
+    payload.messages = [{ role: "system", content: marker }, ...payload.messages];
+    return payload;
+  }
+
+  if (format === "anthropic") {
+    if (payload.system == null) {
+      payload.system = marker;
+      return payload;
+    }
+    if (typeof payload.system === "string") {
+      payload.system = `${marker}\n${payload.system}`;
+      return payload;
+    }
+    if (Array.isArray(payload.system)) {
+      payload.system = [{ type: "text", text: marker }, ...payload.system];
+      return payload;
+    }
+    return undefined;
+  }
+
+  if (payload.systemInstruction == null) {
+    payload.systemInstruction = { parts: [{ text: marker }] };
+    return payload;
+  }
+  if (!isRecord(payload.systemInstruction) || !Array.isArray(payload.systemInstruction.parts)) return undefined;
+  payload.systemInstruction = {
+    ...payload.systemInstruction,
+    parts: [{ text: marker }, ...payload.systemInstruction.parts],
+  };
+  return payload;
+}
 
 /**
  * Converts internal standalone members to the routing entries a customer
@@ -448,6 +500,7 @@ export class RelayChannelProbeService {
         probeFormat: body.probeFormat,
         probeModel: body.probeModel,
         probePayload: body.probePayload as Prisma.InputJsonValue,
+        preventCache: body.preventCache ?? existing?.preventCache ?? true,
         upstreamCurrency: body.upstreamCurrency || "CNY",
         localCurrency: body.localCurrency || "CNY",
         upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
@@ -464,6 +517,7 @@ export class RelayChannelProbeService {
         probeFormat: body.probeFormat,
         probeModel: body.probeModel,
         probePayload: body.probePayload as Prisma.InputJsonValue,
+        preventCache: body.preventCache ?? existing?.preventCache ?? true,
         upstreamCurrency: body.upstreamCurrency || "CNY",
         localCurrency: body.localCurrency || "CNY",
         upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
@@ -533,6 +587,8 @@ export class RelayChannelProbeService {
         profileId: profile.id,
         requestedByUserId: actorUserId,
         distributionMultiplier: body.distributionMultiplier ?? profile.distributionMultiplier,
+        cacheBustingEnabled: profile.preventCache,
+        forceWithoutCacheBuster: body.forceWithoutCacheBuster === true,
       });
       const attached = await this.redis.replaceIfValueMatches(queueKey, reservationId, run.id, RUN_QUEUE_SLOT_TTL_MS);
       // The persistent run remains authoritative if Redis recovers between the
@@ -559,7 +615,14 @@ export class RelayChannelProbeService {
     for (const channelId of body.channelIds) {
       try {
         queued.push(
-          await this.createRun(channelId, { distributionMultiplier: body.distributionMultiplier }, actorUserId),
+          await this.createRun(
+            channelId,
+            {
+              distributionMultiplier: body.distributionMultiplier,
+              forceWithoutCacheBuster: body.forceWithoutCacheBuster,
+            },
+            actorUserId,
+          ),
         );
       } catch (error) {
         rejected.push({
@@ -751,20 +814,26 @@ export class RelayChannelProbeService {
               this.runWorkflow(workflow, variables),
             );
             await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
-            const upstreamResponse = await this.runProbePhase("最小模型请求", () =>
-              this.callUpstream(profile, variables, pricing.upstreamModelId),
+            const upstream = await this.runProbePhase("最小模型请求", () =>
+              this.callUpstream(
+                profile,
+                variables,
+                pricing.upstreamModelId,
+                run.cacheBustingEnabled,
+                run.forceWithoutCacheBuster,
+              ),
             );
-            const usage = this.extractUsage(upstreamResponse);
+            const usage = this.extractUsage(upstream.response);
             assertProbeUsage(usage);
             await waitForProbeSettlement(PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS);
             const afterBalance = await this.runProbePhase("读取请求后余额", () =>
               this.runWorkflow(workflow, variables),
             );
-            return { before: beforeBalance, after: afterBalance, usage };
+            return { before: beforeBalance, after: afterBalance, usage, cacheBusterId: upstream.cacheBusterId };
           },
           PROBE_LOCK_ACQUIRE_TIMEOUT_MS,
         );
-      const { before, usage, after } = profile.probeGroup
+      const { before, usage, after, cacheBusterId } = profile.probeGroup
         ? await this.channelLockService.withWrite(
             this.getProbeGroupLockId(profile.probeGroup),
             executeProbe,
@@ -779,7 +848,7 @@ export class RelayChannelProbeService {
         throw new BadRequestError("上游余额换算结果无效");
       const upstreamDelta = normalizedBefore - normalizedAfter;
       const upstreamRateMultiplier = Number(profile.upstreamRateMultiplier);
-      const baseCost = await this.calculateBaseCost(profile, usage, pricing.rate);
+      const { baseCost, breakdown } = await this.calculateBaseCost(profile, usage, pricing.rate);
       const comparable =
         profile.upstreamCurrency === profile.localCurrency &&
         upstreamDelta > 0 &&
@@ -811,6 +880,11 @@ export class RelayChannelProbeService {
         requestTokens: usage.requestTokens,
         responseTokens: usage.responseTokens,
         totalTokens: usage.totalTokens,
+        cacheCreationTokens: usage.cacheCreationTokens,
+        cacheReadTokens: usage.cacheReadTokens,
+        cacheBusterId,
+        upstreamUsage: usage.upstreamUsage as Prisma.InputJsonValue,
+        costBreakdown: breakdown as unknown as Prisma.InputJsonValue,
         suggestedMultiplier: suggested,
         sourceChannelMultiplier: profile.relayChannel.multiplier,
       });
@@ -878,7 +952,9 @@ export class RelayChannelProbeService {
     profile: ProbeProfileRecord,
     variables: Record<string, string>,
     upstreamModelId: string,
-  ): Promise<Record<string, unknown>> {
+    cacheBustingEnabled: boolean,
+    forceWithoutCacheBuster: boolean,
+  ): Promise<{ response: Record<string, unknown>; cacheBusterId?: string }> {
     const channel = profile.relayChannel;
     const format = profile.probeFormat as "openai" | "anthropic" | "gemini";
     const upstreamUrl =
@@ -895,10 +971,23 @@ export class RelayChannelProbeService {
           : channel.openaiUpstreamApiKey;
     if (!upstreamUrl || !apiKey) throw new BadRequestError("渠道缺少对应格式的上游配置");
     const base = await assertSafeOutboundUrl(upstreamUrl);
-    const payload = interpolateRequiredProbeVariables(
+    const interpolatedPayload = interpolateRequiredProbeVariables(
       { ...(profile.probePayload as Record<string, unknown>), model: upstreamModelId },
       variables,
-    ) as Record<string, unknown>;
+    );
+    if (!isRecord(interpolatedPayload)) throw new BadRequestError("探针请求体必须是 JSON 对象");
+    let payload = interpolatedPayload;
+    let cacheBusterId: string | undefined;
+    if (cacheBustingEnabled) {
+      const candidateId = randomUUID();
+      const injected = injectProbeCacheBuster(payload, format, candidateId);
+      if (injected) {
+        payload = injected;
+        cacheBusterId = candidateId;
+      } else if (!forceWithoutCacheBuster) {
+        throw new BadRequestError("PROBE_CACHE_BUSTER_INJECTION_FAILED:无法向当前请求结构写入唯一缓存标记");
+      }
+    }
     const headers: Record<string, string> =
       format === "anthropic"
         ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
@@ -915,11 +1004,16 @@ export class RelayChannelProbeService {
       maxContentLength: MAX_RESPONSE_BYTES,
       validateStatus: (status) => status >= 200 && status < 300,
     });
-    return response.data as Record<string, unknown>;
+    if (!isRecord(response.data)) throw new BadRequestError("上游模型响应必须是 JSON 对象");
+    return { response: response.data, cacheBusterId };
   }
 
   private extractUsage(response: Record<string, unknown>) {
-    const usage = (response.usage || response.usageMetadata || {}) as Record<string, unknown>;
+    const usage = isRecord(response.usage)
+      ? response.usage
+      : isRecord(response.usageMetadata)
+        ? response.usageMetadata
+        : {};
     const metrics = extractTokenUsageMetrics(usage);
     const hasExplicitInputTokens =
       hasTokenValue(usage.prompt_tokens) || hasTokenValue(usage.input_tokens) || hasTokenValue(usage.promptTokenCount);
@@ -935,6 +1029,7 @@ export class RelayChannelProbeService {
       totalTokens: normalized.totalTokens,
       cacheCreationTokens: metrics.cacheCreationTokens,
       cacheReadTokens: metrics.cacheReadTokens,
+      upstreamUsage: usage,
     };
   }
 
@@ -948,15 +1043,35 @@ export class RelayChannelProbeService {
       cacheReadTokens: number;
     },
     rate: ModelPricingItemDto,
-  ) {
+  ): Promise<{ baseCost: number; breakdown: RelayChannelProbeCostBreakdownDto }> {
     const relayConfig = await RelayConfigService.getInstance().getRelayConfig();
     const timeMultiplier = computeMultiplierForTime(
       (profile.relayChannel.timePeriodMultipliers as any[]) || [],
       new Date(),
     );
-    const multiplier = Number(relayConfig.globalMultiplier || 1) * timeMultiplier;
-    if (rate.pricingType === "per-request")
-      return Math.max(0, Math.ceil(Number(rate.fixedPrice || 0) * multiplier * 10_000) / 10_000);
+    const globalMultiplier = Number(relayConfig.globalMultiplier || 1);
+    const multiplier = globalMultiplier * timeMultiplier;
+    const cacheCreationMultiplier = Number(rate.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER);
+    const cacheReadMultiplier = Number(rate.cacheReadMultiplier ?? DEFAULT_CACHE_READ_MULTIPLIER);
+    if (rate.pricingType === "per-request") {
+      const fixedPrice = Number(rate.fixedPrice || 0);
+      const rawCost = fixedPrice * multiplier;
+      return {
+        baseCost: Number.isFinite(rawCost) ? Math.max(0, Math.ceil(rawCost * 10_000) / 10_000) : 0,
+        breakdown: {
+          pricingType: "per-request",
+          fixedPrice,
+          inputRate: 0,
+          outputRate: 0,
+          billableInputTokens: 0,
+          cacheCreationMultiplier,
+          cacheReadMultiplier,
+          globalMultiplier,
+          timeMultiplier,
+          rawCost: Number.isFinite(rawCost) ? rawCost : 0,
+        },
+      };
+    }
 
     const inputRate = Number(rate.inputPrice || 0) / TOKEN_PRICE_DIVISOR;
     const outputRate = Number(rate.outputPrice || 0) / TOKEN_PRICE_DIVISOR;
@@ -964,15 +1079,26 @@ export class RelayChannelProbeService {
       profile.relayChannel.inputTokensIncludeCacheRead === true
         ? Math.max(0, usage.requestTokens - usage.cacheReadTokens)
         : usage.requestTokens;
-    const cacheCreationMultiplier = Number(rate.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER);
-    const cacheReadMultiplier = Number(rate.cacheReadMultiplier ?? DEFAULT_CACHE_READ_MULTIPLIER);
     const rawCost =
       (billableInputTokens * inputRate +
         usage.cacheCreationTokens * inputRate * cacheCreationMultiplier +
         usage.cacheReadTokens * inputRate * cacheReadMultiplier +
         usage.responseTokens * outputRate) *
       multiplier;
-    return Number.isFinite(rawCost) ? Math.max(0, Math.ceil(rawCost * 10_000) / 10_000) : 0;
+    return {
+      baseCost: Number.isFinite(rawCost) ? Math.max(0, Math.ceil(rawCost * 10_000) / 10_000) : 0,
+      breakdown: {
+        pricingType: "token-based",
+        inputRate,
+        outputRate,
+        billableInputTokens,
+        cacheCreationMultiplier,
+        cacheReadMultiplier,
+        globalMultiplier,
+        timeMultiplier,
+        rawCost: Number.isFinite(rawCost) ? rawCost : 0,
+      },
+    };
   }
 
   private async resolveProbeModelPricing(profile: ProbeProfileRecord) {
@@ -1020,6 +1146,7 @@ export class RelayChannelProbeService {
       probeFormat: profile.probeFormat,
       probeModel: profile.probeModel,
       probePayload: profile.probePayload as Record<string, unknown>,
+      preventCache: profile.preventCache,
       upstreamCurrency: profile.upstreamCurrency,
       localCurrency: profile.localCurrency,
       upstreamBalanceDivisor: Number(profile.upstreamBalanceDivisor),
@@ -1051,9 +1178,16 @@ export class RelayChannelProbeService {
       localBalanceAfter: n(run.localBalanceAfter),
       localBalanceDelta: n(run.localBalanceDelta),
       baseLocalCost: n(run.baseLocalCost),
-      requestTokens: run.requestTokens || undefined,
-      responseTokens: run.responseTokens || undefined,
-      totalTokens: run.totalTokens || undefined,
+      requestTokens: run.requestTokens ?? undefined,
+      responseTokens: run.responseTokens ?? undefined,
+      totalTokens: run.totalTokens ?? undefined,
+      cacheCreationTokens: run.cacheCreationTokens ?? undefined,
+      cacheReadTokens: run.cacheReadTokens ?? undefined,
+      cacheBustingEnabled: run.cacheBustingEnabled,
+      forceWithoutCacheBuster: run.forceWithoutCacheBuster,
+      cacheBusterId: run.cacheBusterId ?? undefined,
+      upstreamUsage: (run.upstreamUsage as Record<string, unknown> | null) ?? undefined,
+      costBreakdown: (run.costBreakdown as RelayChannelProbeCostBreakdownDto | null) ?? undefined,
       suggestedMultiplier: n(run.suggestedMultiplier),
       sourceChannelMultiplier: n(run.sourceChannelMultiplier),
       appliedMultiplier: n(run.appliedMultiplier),

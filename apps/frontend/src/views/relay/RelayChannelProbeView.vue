@@ -87,6 +87,9 @@
         @click="confirmBatchRun"
         >{{ i18ns.t('relay.channelProbeBatchRun') }}</el-button
       >
+      <el-checkbox v-if="canExecute" v-model="forceWithoutCacheBuster" :disabled="batchRunning">
+        {{ i18ns.t('relay.channelProbeForceWithoutCacheBuster') }}
+      </el-checkbox>
       <el-button
         v-if="canAdjust"
         type="success"
@@ -357,6 +360,15 @@
                           :label="model" /></el-select
                     ></el-form-item>
                   </div>
+                  <el-form-item class="cache-buster-switch">
+                    <el-switch
+                      v-model="form.preventCache"
+                      :disabled="!canExecute"
+                      :active-text="i18ns.t('relay.channelProbePreventCache')"
+                      :inactive-text="i18ns.t('relay.channelProbePreventCacheOff')"
+                    />
+                    <span>{{ i18ns.t('relay.channelProbePreventCacheHelp') }}</span>
+                  </el-form-item>
                   <el-collapse class="advanced-payload">
                     <el-collapse-item
                       :title="i18ns.t('relay.channelProbePayloadAdvanced')"
@@ -781,6 +793,13 @@
               @click="selected && run(selected)"
               >{{ i18ns.t('relay.channelProbeRun') }}</el-button
             >
+            <el-checkbox
+              v-if="canExecute"
+              v-model="forceWithoutCacheBuster"
+              :disabled="runningId !== ''"
+            >
+              {{ i18ns.t('relay.channelProbeForceWithoutCacheBuster') }}
+            </el-checkbox>
             <el-button
               v-if="canExecute && selected"
               type="warning"
@@ -846,6 +865,17 @@
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeTokens')">{{
                 runItem.totalTokens ?? '-'
               }}</el-descriptions-item
+              ><el-descriptions-item :label="i18ns.t('relay.channelProbeCacheCreationTokens')">{{
+                runItem.cacheCreationTokens ?? '-'
+              }}</el-descriptions-item
+              ><el-descriptions-item :label="i18ns.t('relay.channelProbeCacheReadTokens')">{{
+                runItem.cacheReadTokens ?? '-'
+              }}</el-descriptions-item
+              ><el-descriptions-item :label="i18ns.t('relay.channelProbeCacheBuster')">{{
+                runItem.cacheBustingEnabled
+                  ? (runItem.cacheBusterId ?? i18ns.t('relay.channelProbeCacheBusterUnavailable'))
+                  : i18ns.t('relay.channelProbeCacheBusterDisabled')
+              }}</el-descriptions-item
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeSuggestion')">{{
                 runItem.suggestedMultiplier == null ? '-' : `${runItem.suggestedMultiplier}x`
               }}</el-descriptions-item></el-descriptions
@@ -870,6 +900,14 @@
                 })
               }}
             </p>
+            <p v-if="baseCostFormula(runItem)" class="formula formula-detail">
+              {{ baseCostFormula(runItem) }}
+            </p>
+            <el-collapse v-if="runItem.upstreamUsage" class="usage-details">
+              <el-collapse-item :title="i18ns.t('relay.channelProbeRawUsage')" name="usage">
+                <pre>{{ formatUsage(runItem.upstreamUsage) }}</pre>
+              </el-collapse-item>
+            </el-collapse>
             <el-alert
               v-else-if="suggestionUnavailableReason(runItem)"
               type="warning"
@@ -1278,6 +1316,7 @@ interface CredentialFormRow {
 }
 interface ProbeForm {
   enabled: boolean
+  preventCache: boolean
   probeFormat: RelayChannelProbeFormat
   probeModel: string
   distributionMultiplier: number
@@ -1366,6 +1405,7 @@ const runsLoading = ref(false)
 const runningId = ref('')
 const resettingChannelId = ref('')
 const clearingHistoryScope = ref<'' | 'all' | 'failed'>('')
+const forceWithoutCacheBuster = ref(false)
 const pageError = ref('')
 const items = ref<RelayChannelProbeOverviewItemDto[]>([])
 const legacyChannelTopology = ref<RelayChannelDto[] | null>(null)
@@ -1609,6 +1649,7 @@ let pollTimer: ReturnType<typeof setInterval> | undefined
 function emptyForm(): ProbeForm {
   return {
     enabled: true,
+    preventCache: true,
     probeFormat: 'openai',
     probeModel: '',
     distributionMultiplier: 1,
@@ -1756,6 +1797,7 @@ function parseImportedProfile(): ProbeProfileExport['profile'] {
       throw new Error()
     return {
       enabled: source.enabled !== false,
+      preventCache: source.preventCache !== false,
       probeFormat: source.probeFormat as RelayChannelProbeFormat,
       probeModel: source.probeModel,
       distributionMultiplier: Number(source.distributionMultiplier) || 1,
@@ -1791,6 +1833,7 @@ function applyImportedConfiguration() {
     const imported = parseImportedProfile()
     form.value = {
       enabled: imported.enabled,
+      preventCache: imported.preventCache,
       probeFormat: imported.probeFormat,
       probeModel: imported.probeModel,
       distributionMultiplier: imported.distributionMultiplier,
@@ -1982,6 +2025,35 @@ function estimatedCurrentCharge(run: RelayChannelProbeRunDto) {
   if (!Number.isFinite(base) || base < 0 || multiplier == null) return undefined
   const result = base * multiplier
   return Number.isFinite(result) ? result : undefined
+}
+function baseCostFormula(run: RelayChannelProbeRunDto) {
+  const breakdown = run.costBreakdown
+  if (!breakdown) return ''
+  if (breakdown.pricingType === 'per-request')
+    return i18ns.t('relay.channelProbePerRequestCostFormula', {
+      fixed: formatNumber(breakdown.fixedPrice),
+      global: formatNumber(breakdown.globalMultiplier),
+      time: formatNumber(breakdown.timeMultiplier),
+      raw: formatNumber(breakdown.rawCost),
+      base: formatNumber(run.baseLocalCost),
+    })
+  return i18ns.t('relay.channelProbeTokenCostFormula', {
+    input: formatNumber(breakdown.billableInputTokens),
+    inputRate: formatNumber(breakdown.inputRate),
+    cacheCreation: formatNumber(run.cacheCreationTokens),
+    cacheCreationMultiplier: formatNumber(breakdown.cacheCreationMultiplier),
+    cacheRead: formatNumber(run.cacheReadTokens),
+    cacheReadMultiplier: formatNumber(breakdown.cacheReadMultiplier),
+    output: formatNumber(run.responseTokens),
+    outputRate: formatNumber(breakdown.outputRate),
+    global: formatNumber(breakdown.globalMultiplier),
+    time: formatNumber(breakdown.timeMultiplier),
+    raw: formatNumber(breakdown.rawCost),
+    base: formatNumber(run.baseLocalCost),
+  })
+}
+function formatUsage(usage: Record<string, unknown>) {
+  return JSON.stringify(usage, null, 2)
 }
 function multiplierChange(draft: ApplyMultiplierDraft) {
   return draft.targetMultiplier - draft.currentMultiplier
@@ -2375,6 +2447,7 @@ async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
   form.value = profile
     ? {
         enabled: profile.enabled,
+        preventCache: profile.preventCache,
         probeFormat: profile.probeFormat,
         probeModel: profile.probeModel,
         distributionMultiplier: profile.distributionMultiplier,
@@ -2505,7 +2578,9 @@ async function run(row: RelayChannelProbeOverviewItemDto) {
   if (runningId.value) return
   runningId.value = row.channelId
   try {
-    const queued = await relayChannelProbeService.createRun(row.channelId)
+    const queued = await relayChannelProbeService.createRun(row.channelId, {
+      forceWithoutCacheBuster: forceWithoutCacheBuster.value,
+    })
     ElMessage.success(i18ns.t('relay.channelProbeQueued'))
     updateChannelItem(row.channelId, (item) => ({ ...item, latestRun: queued }))
     if (selected.value?.channelId === row.channelId) await loadRuns()
@@ -2587,7 +2662,10 @@ async function confirmBatchRun() {
   }
   batchRunning.value = true
   try {
-    const result = await relayChannelProbeService.createRuns({ channelIds })
+    const result = await relayChannelProbeService.createRuns({
+      channelIds,
+      forceWithoutCacheBuster: forceWithoutCacheBuster.value,
+    })
     if (result.queued.length)
       ElMessage.success(i18ns.t('relay.channelProbeBatchQueued', { count: result.queued.length }))
     if (result.rejected.length)
@@ -3102,6 +3180,35 @@ onBeforeUnmount(stopPolling)
   align-items: center;
   justify-content: flex-start;
   margin-bottom: 12px;
+}
+.cache-buster-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 0;
+}
+.cache-buster-switch > span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.usage-details {
+  margin-top: 10px;
+}
+.usage-details pre {
+  max-height: 240px;
+  margin: 0;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-lighter);
+  color: var(--el-text-color-regular);
+  font:
+    12px/1.5 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .calibration-toolbar {
   display: flex;

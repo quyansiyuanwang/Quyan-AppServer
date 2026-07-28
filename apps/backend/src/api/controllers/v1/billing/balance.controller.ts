@@ -103,7 +103,7 @@ export class BalanceController extends Controller {
             : null,
         hideDisplayChannel:
           u.relayToken?.routingMode !== "automatic-pool" || !u.relayToken.automaticProxyPoolChannel?.name?.trim()
-            ? u.hasHiddenExecutionChannel
+            ? u.hasHiddenDisplayChannel
             : false,
         hasHiddenDisplayChannel: u.hasHiddenDisplayChannel,
         legacyMonthlyPassChannelName:

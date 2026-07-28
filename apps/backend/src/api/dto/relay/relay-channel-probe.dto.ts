@@ -21,6 +21,8 @@ export interface RelayChannelProbeProfileDto {
   probeFormat: RelayChannelProbeFormat;
   probeModel: string;
   probePayload: Record<string, unknown>;
+  /** Inject a unique marker into each probe request to prevent upstream cache collisions. */
+  preventCache: boolean;
   upstreamCurrency: string;
   localCurrency: string;
   upstreamBalanceDivisor: number;
@@ -39,6 +41,7 @@ export interface UpsertRelayChannelProbeProfileRequest {
   probeFormat: RelayChannelProbeFormat;
   probeModel: string;
   probePayload: Record<string, unknown>;
+  preventCache?: boolean;
   upstreamCurrency?: string;
   localCurrency?: string;
   /** Divides the numeric balance extracted from the upstream response before calculating deltas. */
@@ -54,6 +57,8 @@ export interface UpsertRelayChannelProbeProfileRequest {
 
 export interface CreateRelayChannelProbeRunRequest {
   distributionMultiplier?: number;
+  /** Continue only when cache-buster injection cannot be applied to the configured payload. */
+  forceWithoutCacheBuster?: boolean;
 }
 
 export type RelayChannelProbeRunHistoryScope = "all" | "failed";
@@ -66,6 +71,20 @@ export interface ClearRelayChannelProbeRunHistoryResponse {
 export interface CreateRelayChannelProbeRunsRequest {
   channelIds: string[];
   distributionMultiplier?: number;
+  forceWithoutCacheBuster?: boolean;
+}
+
+export interface RelayChannelProbeCostBreakdownDto {
+  pricingType: "token-based" | "per-request";
+  fixedPrice?: number;
+  inputRate: number;
+  outputRate: number;
+  billableInputTokens: number;
+  cacheCreationMultiplier: number;
+  cacheReadMultiplier: number;
+  globalMultiplier: number;
+  timeMultiplier: number;
+  rawCost: number;
 }
 
 export interface CreateRelayChannelProbeRunsResponse {
@@ -106,6 +125,13 @@ export interface RelayChannelProbeRunDto {
   requestTokens?: number;
   responseTokens?: number;
   totalTokens?: number;
+  cacheCreationTokens?: number;
+  cacheReadTokens?: number;
+  cacheBustingEnabled: boolean;
+  forceWithoutCacheBuster: boolean;
+  cacheBusterId?: string;
+  upstreamUsage?: Record<string, unknown>;
+  costBreakdown?: RelayChannelProbeCostBreakdownDto;
   suggestedMultiplier?: number;
   sourceChannelMultiplier?: number;
   appliedMultiplier?: number;

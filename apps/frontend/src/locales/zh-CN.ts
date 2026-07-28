@@ -2763,6 +2763,21 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeEstimatedCurrentChargeFormula:
       '预估计费 = 基准本地成本 {base} × 当前渠道倍率 {multiplier} = {estimated}。这是探针的虚拟计费推算，不会扣除任何用户余额。',
     channelProbeTokens: '实际用量',
+    channelProbeCacheCreationTokens: '缓存写入 Token',
+    channelProbeCacheReadTokens: '缓存读取 Token',
+    channelProbeCacheBuster: '缓存隔离 UUID',
+    channelProbeCacheBusterUnavailable: '未写入（强制执行或历史记录）',
+    channelProbeCacheBusterDisabled: '已关闭',
+    channelProbeRawUsage: '上游原始 usage',
+    channelProbePreventCache: '防止上游缓存撞车',
+    channelProbePreventCacheOff: '允许复用上游缓存',
+    channelProbePreventCacheHelp:
+      '每次探针会在系统提示最前插入唯一 UUID；无法安全插入时默认停止请求。',
+    channelProbeForceWithoutCacheBuster: '强制探针（无法插入 UUID 时仍发送原请求）',
+    channelProbeTokenCostFormula:
+      '基准成本 = ({input} × {inputRate} + {cacheCreation} × {inputRate} × {cacheCreationMultiplier} + {cacheRead} × {inputRate} × {cacheReadMultiplier} + {output} × {outputRate}) × {global} × {time} = 原始 {raw}，向上取整后 {base}。',
+    channelProbePerRequestCostFormula:
+      '基准成本 = 单次价格 {fixed} × 全局倍率 {global} × 时段倍率 {time} = 原始 {raw}，向上取整后 {base}。',
     channelProbeFormula:
       '建议倍率 = ({delta} × 上游比率 {upstreamRate} × 分销倍率 {distribution}) ÷ {base} = {suggested}',
     healthTrackingMode: '健康追踪模式',
