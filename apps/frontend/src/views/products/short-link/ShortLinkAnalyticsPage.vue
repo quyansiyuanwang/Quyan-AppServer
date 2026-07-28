@@ -218,7 +218,6 @@ watch(
 .short-link-analytics {
   min-height: 100%;
   padding: 24px;
-  background: var(--el-bg-color-page);
 }
 .analytics-header,
 .section-heading {
