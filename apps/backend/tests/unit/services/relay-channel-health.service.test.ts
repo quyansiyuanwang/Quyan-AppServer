@@ -95,7 +95,7 @@ describe("RelayChannelHealthService", () => {
     expect((await service.rankMembers(members, "stability-first", now))[0]?.id).toBe("stable");
   });
 
-  it("falls back to configured priority when Redis is unavailable", async () => {
+  it("keeps price-first ordering when Redis is unavailable", async () => {
     const redis = createRedis();
     redis.isRedisAvailable.mockReturnValue(false);
     const service = new HealthServiceCtor(redis);
@@ -104,9 +104,9 @@ describe("RelayChannelHealthService", () => {
         { id: "later", name: "Later", enabled: true, priority: 2, weight: 1, effectivePrice: 1 },
         { id: "first", name: "First", enabled: true, priority: 1, weight: 1, effectivePrice: 2 },
       ],
-      "stability-first",
+      "price-first",
     );
-    expect(ranked.map((member) => member.id)).toEqual(["first", "later"]);
+    expect(ranked.map((member) => member.id)).toEqual(["later", "first"]);
   });
 
   it("uses administrator health values for manual channels without Redis samples", async () => {
@@ -141,7 +141,7 @@ describe("RelayChannelHealthService", () => {
     expect(ranked[0]?.health.averageLatencyMs).toBe(20);
   });
 
-  it("keeps disabled channels in their configured priority slot and clears bucket data", async () => {
+  it("does not let disabled health tracking reserve a configured priority slot and clears bucket data", async () => {
     const redis = createRedis();
     const service = new HealthServiceCtor(redis);
     const now = new Date("2026-07-25T12:00:00.000Z");
@@ -173,9 +173,105 @@ describe("RelayChannelHealthService", () => {
       "stability-first",
       now,
     );
-    expect(ranked[1]?.id).toBe("disabled");
-    expect(ranked[1]?.source).toBe("disabled");
+    expect(ranked.map((member) => member.id)).toEqual(["manual", "tracked", "disabled"]);
+    expect(ranked[2]?.source).toBe("disabled");
     await expect(service.clearHealth("tracked", now)).resolves.toBe(true);
     expect(redis.deleteMany).toHaveBeenCalledOnce();
+  });
+
+  it("sorts price-first strictly by effective price regardless of member weight or priority", async () => {
+    const service = new HealthServiceCtor(createRedis());
+    const ranked = await service.rankMembers(
+      [
+        { id: "expensive", name: "Expensive", enabled: true, priority: 1, weight: 999, effectivePrice: 2 },
+        { id: "cheap", name: "Cheap", enabled: true, priority: 9, weight: 0.01, effectivePrice: 1 },
+      ],
+      "price-first",
+    );
+
+    expect(ranked.map((member) => member.id)).toEqual(["cheap", "expensive"]);
+  });
+
+  it("applies health, latency, and circuit-breaker thresholds after health data is credible", async () => {
+    const redis = createRedis();
+    const service = new HealthServiceCtor(redis);
+    const now = new Date("2026-07-25T12:00:00.000Z");
+    for (let index = 0; index < 3; index += 1) {
+      await service.recordAttempt({
+        channelId: "unhealthy",
+        requestId: `unhealthy-${index}`,
+        success: false,
+        statusCode: 503,
+        latencyMs: 400,
+        observedAt: now,
+      });
+    }
+    for (let index = 0; index < 3; index += 1) {
+      await service.recordAttempt({
+        channelId: "healthy",
+        requestId: `healthy-${index}`,
+        success: true,
+        statusCode: 200,
+        latencyMs: 20,
+        observedAt: now,
+      });
+    }
+
+    const ranked = await service.rankMembers(
+      [
+        { id: "unhealthy", name: "Unhealthy", enabled: true, priority: 1, weight: 1, effectivePrice: 1 },
+        { id: "healthy", name: "Healthy", enabled: true, priority: 2, weight: 1, effectivePrice: 2 },
+      ],
+      "price-first",
+      now,
+      { healthScoreThreshold: 0.8, latencyThresholdMs: 100, circuitBreakerThreshold: 2 },
+    );
+
+    const unhealthy = ranked.find((member) => member.id === "unhealthy")!;
+    expect(unhealthy.eligible).toBe(false);
+    expect(unhealthy.exclusionReasons).toEqual(["availability", "latency", "circuit-breaker"]);
+    expect(ranked.find((member) => member.id === "healthy")?.eligible).toBe(true);
+  });
+
+  it("does not exclude members with insufficient health samples and safely falls back when all are excluded", async () => {
+    const redis = createRedis();
+    const service = new HealthServiceCtor(redis);
+    const now = new Date("2026-07-25T12:00:00.000Z");
+    await service.recordAttempt({
+      channelId: "new",
+      requestId: "new-1",
+      success: false,
+      statusCode: 503,
+      observedAt: now,
+    });
+    const insufficient = await service.rankMembers(
+      [{ id: "new", name: "New", enabled: true, priority: 1, weight: 1, effectivePrice: 1 }],
+      "price-first",
+      now,
+      { healthScoreThreshold: 1 },
+    );
+    expect(insufficient[0]?.eligible).toBe(true);
+
+    for (const id of ["one", "two"])
+      for (let index = 0; index < 3; index += 1)
+        await service.recordAttempt({
+          channelId: id,
+          requestId: `${id}-${index}`,
+          success: false,
+          statusCode: 503,
+          observedAt: now,
+        });
+    const fallback = await service.rankMembers(
+      [
+        { id: "one", name: "One", enabled: true, priority: 2, weight: 1, effectivePrice: 2 },
+        { id: "two", name: "Two", enabled: true, priority: 1, weight: 1, effectivePrice: 1 },
+      ],
+      "price-first",
+      now,
+      { healthScoreThreshold: 1 },
+    );
+    expect(fallback.map((member) => member.id)).toEqual(["two", "one"]);
+    expect(fallback.every((member) => member.eligible)).toBe(true);
+    expect(fallback.every((member) => member.exclusionReasons.length === 0)).toBe(true);
   });
 });

@@ -35,11 +35,15 @@ export const resolveChannelMultiplier = (tx: BalanceTransactionResponse): number
 export const resolveTimeMultiplier = (tx: BalanceTransactionResponse): number =>
   normalizeMultiplierValue(tx.timeMultiplier)
 
+export const resolveContextMultiplier = (tx: BalanceTransactionResponse): number =>
+  normalizeMultiplierValue(tx.contextMultiplier)
+
 export const resolveEffectiveMultiplier = (tx: BalanceTransactionResponse): number =>
   resolveModelMultiplier(tx) *
   resolveGlobalMultiplier(tx) *
   resolveChannelMultiplier(tx) *
-  resolveTimeMultiplier(tx)
+  resolveTimeMultiplier(tx) *
+  resolveContextMultiplier(tx)
 
 export const shouldShowModelMultiplier = (tx: BalanceTransactionResponse): boolean =>
   isNonDefaultMultiplier(resolveModelMultiplier(tx))
@@ -52,6 +56,9 @@ export const shouldShowChannelMultiplier = (tx: BalanceTransactionResponse): boo
 
 export const shouldShowTimeMultiplier = (tx: BalanceTransactionResponse): boolean =>
   isNonDefaultMultiplier(resolveTimeMultiplier(tx))
+
+export const shouldShowContextMultiplier = (tx: BalanceTransactionResponse): boolean =>
+  isNonDefaultMultiplier(resolveContextMultiplier(tx))
 
 export const shouldShowMultiplier = (tx: BalanceTransactionResponse): boolean =>
   isNonDefaultMultiplier(resolveEffectiveMultiplier(tx))
@@ -101,6 +108,7 @@ export const buildBillingFormula = (tx: BalanceTransactionResponse, unitLabel: s
         shouldShowGlobalMultiplier(tx) ? resolveGlobalMultiplier(tx) : null,
         shouldShowChannelMultiplier(tx) ? resolveChannelMultiplier(tx) : null,
         shouldShowTimeMultiplier(tx) ? resolveTimeMultiplier(tx) : null,
+        shouldShowContextMultiplier(tx) ? resolveContextMultiplier(tx) : null,
       ]
         .filter((value): value is number => value !== null)
         .map((value) => `${value}`)
@@ -144,6 +152,7 @@ export const buildBillingFormula = (tx: BalanceTransactionResponse, unitLabel: s
       shouldShowGlobalMultiplier(tx) ? resolveGlobalMultiplier(tx) : null,
       shouldShowChannelMultiplier(tx) ? resolveChannelMultiplier(tx) : null,
       shouldShowTimeMultiplier(tx) ? resolveTimeMultiplier(tx) : null,
+      shouldShowContextMultiplier(tx) ? resolveContextMultiplier(tx) : null,
     ]
       .filter((value): value is number => value !== null)
       .map((value) => `${value}`)

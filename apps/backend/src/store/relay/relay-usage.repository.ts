@@ -46,7 +46,9 @@ export class RelayUsageRepository implements RelayUsageStore {
     if (ids.length === 0) return [];
 
     const uniqueIds = [...new Set(ids)];
-    const usages: Array<Omit<RelayUsageWithTokenName, "monthlyPassUsages" | "hasHiddenExecutionChannel">> = [];
+    const usages: Array<
+      Omit<RelayUsageWithTokenName, "monthlyPassUsages" | "hasHiddenExecutionChannel" | "hasHiddenDisplayChannel">
+    > = [];
     const monthlyPassUsagesByRelayUsageId = new Map<string, Array<{ channelName: string | null }>>();
 
     for (let index = 0; index < uniqueIds.length; index += RelayUsageRepository.BILLING_QUERY_CHUNK_SIZE) {
@@ -100,6 +102,7 @@ export class RelayUsageRepository implements RelayUsageStore {
       ...usage,
       hasHiddenExecutionChannel:
         hiddenChannelIds.has(usage.executionChannelId || "") || hiddenChannelIds.has(usage.displayChannelId || ""),
+      hasHiddenDisplayChannel: hiddenChannelIds.has(usage.displayChannelId || ""),
       monthlyPassUsages: monthlyPassUsagesByRelayUsageId.get(usage.id) || [],
     }));
   }

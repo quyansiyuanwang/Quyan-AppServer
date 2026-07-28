@@ -12,6 +12,7 @@ export type RelayUsageWithTokenName = RelayUsage & {
     requestId: string;
   } | null;
   hasHiddenExecutionChannel: boolean;
+  hasHiddenDisplayChannel: boolean;
   monthlyPassUsages: Array<{
     channelName: string | null;
   }>;

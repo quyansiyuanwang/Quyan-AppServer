@@ -602,7 +602,7 @@
                       <template v-if="isPooledChannel(channel)">
                         {{ getPoolLabel(channel) }}
                       </template>
-                      <template v-else>×{{ getTooltipMultiplierLabel(row, channel) }}</template>
+                      <template v-else>{{ getTooltipMultiplierLabel(row, channel) }}</template>
                     </el-tag>
                   </div>
                   <template v-if="isPooledChannel(channel)">
@@ -642,6 +642,13 @@
                         · {{ t('apiDoc.effectiveMultiplier') }} ×{{
                           formatMultiplier(member.effectiveMultiplier)
                         }}
+                      </div>
+                      <div
+                        v-if="(member.contextLengthMultipliers || []).length"
+                        class="automatic-pool-member__meta"
+                      >
+                        {{ t('apiDoc.contextTiers') }}:
+                        {{ formatContextTiers(member.contextLengthMultipliers || []) }}
                       </div>
                       <template v-if="getAutomaticPoolMemberPrice(row, channel, member.id)">
                         <div
@@ -683,6 +690,15 @@
                     </div>
                   </template>
                   <template v-else-if="row.pricingType !== 'per-request'">
+                    <div
+                      v-if="(channel.contextLengthMultipliers || []).length"
+                      class="channel-price-row channel-price-row--stacked"
+                    >
+                      <span class="channel-price-label">{{ t('apiDoc.contextTiers') }}:</span>
+                      <el-text size="small">{{
+                        formatContextTiers(channel.contextLengthMultipliers || [])
+                      }}</el-text>
+                    </div>
                     <div class="channel-price-row">
                       <span class="channel-price-label">{{ t('apiDoc.inputPrice') }}:</span>
                       <div class="token-price-tooltip-value">
@@ -725,6 +741,15 @@
                     </div>
                   </template>
                   <template v-else>
+                    <div
+                      v-if="(channel.contextLengthMultipliers || []).length"
+                      class="channel-price-row channel-price-row--stacked"
+                    >
+                      <span class="channel-price-label">{{ t('apiDoc.contextTiers') }}:</span>
+                      <el-text size="small">{{
+                        formatContextTiers(channel.contextLengthMultipliers || [])
+                      }}</el-text>
+                    </div>
                     <div class="channel-price-row">
                       <span class="channel-price-label">{{ t('apiDoc.fixedPrice') }}:</span>
                       <el-text type="danger" tag="b">
@@ -1018,9 +1043,8 @@ const getPricingTypeSummary = (): string => {
   return ''
 }
 
-const getTooltipMultiplier = (_item: PricingModelRow, channel: RelayChannelOptionDto): number => {
-  return channel.multiplier ?? 1
-}
+const getTooltipMultiplier = (item: PricingModelRow, channel: RelayChannelOptionDto): number =>
+  getChannelPriceCellValue(item, channel).multiplier
 
 const isAutomaticProxyPool = (channel: RelayChannelOptionDto): boolean =>
   Boolean(channel.automaticProxyPool)
@@ -1057,8 +1081,18 @@ const getTooltipMultiplierLabel = (
   item: PricingModelRow,
   channel: RelayChannelOptionDto,
 ): string => {
-  return formatMultiplier(getTooltipMultiplier(item, channel))
+  const cell = getChannelPriceCellValue(item, channel)
+  return formatMultiplierRange(cell.multiplier, cell.maximumMultiplier)
 }
+
+const formatContextTiers = (
+  rules: Array<{ enabled: boolean; minTokens: number; multiplier: number; name?: string }>,
+): string =>
+  rules
+    .filter((rule) => rule.enabled)
+    .sort((left, right) => left.minTokens - right.minTokens)
+    .map((rule) => `>=${rule.minTokens.toLocaleString()} ×${formatMultiplier(rule.multiplier)}`)
+    .join(' · ')
 
 const isSelectedChannel = (channelId: string): boolean => selectedChannelIdSet.value.has(channelId)
 

@@ -277,6 +277,9 @@ const createService = (
       },
     ),
   };
+  const relayChannelService = {
+    resolveUniqueAccessibleDirectPooledParent: vi.fn().mockResolvedValue(null),
+  };
   const redis = {
     isRedisAvailable: vi.fn().mockReturnValue(true),
     acquireSemaphoreSlot: vi.fn().mockResolvedValue("relay:concurrency:default:user-1:slot:1"),
@@ -302,6 +305,9 @@ const createService = (
     redis as any,
     businessLogService as any,
     relayPoolResolver as any,
+    undefined,
+    undefined,
+    relayChannelService as any,
   );
 
   return {
@@ -314,6 +320,7 @@ const createService = (
     usageChargeService,
     businessLogService,
     relayPoolResolver,
+    relayChannelService,
     redis,
   };
 };
@@ -345,6 +352,35 @@ describe("RelayProxyService failover", () => {
     expect((service as any).getLogicalRequestId(firstRequest)).not.toBe(
       (service as any).getLogicalRequestId(secondRequest),
     );
+  });
+
+  it("uses and caches the unique user-visible parent pool for automatic-pool billing", async () => {
+    const { service, relayChannelService } = createService();
+    const leaf = createChannel("claude-gwl-1", "Claude-GWL-1", "leaf.example.com") as any;
+    const automaticPool = createChannel("automatic-pool", "Automatic Pool", "pool.example.com") as any;
+    const billingPool = createChannel("claude-gwl", "Claude-GWL", "billing.example.com", {
+      channelType: "pooled",
+    }) as any;
+    relayChannelService.resolveUniqueAccessibleDirectPooledParent.mockResolvedValue(billingPool);
+    const parents = new Map();
+    const automaticToken = { userId: "user-1", routingMode: "automatic-pool" } as any;
+
+    await expect(
+      (service as any).resolveBillingDisplayChannel(automaticToken, leaf, automaticPool, parents),
+    ).resolves.toBe(billingPool);
+    await expect(
+      (service as any).resolveBillingDisplayChannel(automaticToken, leaf, automaticPool, parents),
+    ).resolves.toBe(billingPool);
+    expect(relayChannelService.resolveUniqueAccessibleDirectPooledParent).toHaveBeenCalledTimes(1);
+
+    await expect(
+      (service as any).resolveBillingDisplayChannel(
+        { userId: "user-1", routingMode: "ordered" },
+        leaf,
+        automaticPool,
+        new Map(),
+      ),
+    ).resolves.toBe(automaticPool);
   });
 
   it("treats /images/variations as OpenAI image traffic", () => {
@@ -730,11 +766,11 @@ describe("RelayProxyService failover", () => {
 
     expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
       expect.objectContaining({
-        channelId: "member-a",
-        executionChannelId: "member-a",
+        channelId: "member-b",
+        executionChannelId: "member-b",
         displayChannelId: "pool-1",
         displayChannelName: "Pool",
-        channelMultiplier: 4.2,
+        channelMultiplier: 1,
       }),
     );
   });
@@ -759,6 +795,47 @@ describe("RelayProxyService failover", () => {
       "member-first",
       "member-second",
     ]);
+  });
+
+  it("uses the cheapest automatic-pool member first and disables cross-request sticky fallback", async () => {
+    const expensive = createChannel("member-expensive", "Expensive", "expensive.example.com", { multiplier: 4 });
+    const cheap = createChannel("member-cheap", "Cheap", "cheap.example.com", { multiplier: 1 });
+    const poolMembers = [
+      { memberChannelId: expensive.id, priority: 0, weight: 999, enabled: true, memberChannel: expensive },
+      { memberChannelId: cheap.id, priority: 1, weight: 0.01, enabled: true, memberChannel: cheap },
+    ];
+    const pool = createChannel("automatic-pool", "Automatic pool", "pool.example.com", {
+      channelType: "automatic-proxy-pool",
+      routingConfig: {
+        dynamicMemberRankingEnabled: true,
+        rankingMode: "price-first",
+        maxRetries: 1,
+        failbackCooldownMinutes: 30,
+      },
+      poolMembers,
+    });
+    const relayToken = {
+      id: "automatic-token",
+      userId: "user-1",
+      routingMode: "automatic-pool",
+      automaticProxyPoolChannel: pool,
+      channel: null,
+      channelId: null,
+    } as any;
+    const { service } = createService();
+
+    const firstPlan = await (service as any).buildAttemptPlan(relayToken);
+    const nextPlan = await (service as any).buildAttemptPlan(relayToken);
+
+    expect(firstPlan.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([
+      "member-cheap",
+      "member-expensive",
+    ]);
+    expect(nextPlan.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([
+      "member-cheap",
+      "member-expensive",
+    ]);
+    expect(firstPlan.allowStickyFailover).toBe(false);
   });
 
   it("infers the same available models for automatic and directly configured pools", async () => {
@@ -1418,6 +1495,7 @@ describe("RelayProxyService failover", () => {
         "gpt-4o-mini",
         1,
         1,
+        undefined,
         { model: "gpt-4o-mini", stream: true, messages: [] },
         "openai",
         1,
@@ -1518,6 +1596,7 @@ describe("RelayProxyService failover", () => {
         "gpt-4o-mini",
         1,
         1,
+        undefined,
         { model: "gpt-4o-mini", stream: true, stream_options: { include_usage: true } },
         "openai",
         1,
@@ -1684,6 +1763,8 @@ describe("RelayProxyService failover", () => {
         "gpt-4o-mini",
         "gpt-4o-mini",
         1,
+        1,
+        undefined,
         { model: "gpt-4o-mini", stream: true, messages: [] },
         "openai",
         1,
@@ -1789,6 +1870,8 @@ describe("RelayProxyService failover", () => {
         "gpt-4o-mini",
         "gpt-4o-mini",
         1,
+        1,
+        undefined,
         { model: "gpt-4o-mini", stream: true, messages: [] },
         "openai",
         1,

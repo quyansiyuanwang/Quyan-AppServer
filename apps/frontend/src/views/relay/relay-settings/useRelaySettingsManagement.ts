@@ -31,6 +31,7 @@ import type {
   RelayChannelType,
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
+  ContextLengthMultiplierRule,
   TimePeriodMultiplierRule,
   UpdateRelayConfigRequest,
 } from '@/client/types.gen'
@@ -777,6 +778,7 @@ export const useRelaySettingsManagement = () => {
     inputTokensIncludeCacheRead: false,
     modelMapping: {} as Record<string, string>,
     timePeriodMultipliers: [] as TimePeriodMultiplierRule[],
+    contextLengthMultipliers: [] as ContextLengthMultiplierRule[],
   })
 
   const ensureVisibilityUserOption = (
@@ -1878,6 +1880,7 @@ export const useRelaySettingsManagement = () => {
       inputTokensIncludeCacheRead: row.inputTokensIncludeCacheRead === true,
       modelMapping: (row.modelMapping as Record<string, string>) || {},
       timePeriodMultipliers: row.timePeriodMultipliers || [],
+      contextLengthMultipliers: row.contextLengthMultipliers || [],
     }
     ensureSelectedVisibilityOptions(row.visibilityConfig)
     showChannelDialog.value = true
@@ -2064,6 +2067,12 @@ export const useRelaySettingsManagement = () => {
         timePeriodMultipliers:
           channelForm.value.timePeriodMultipliers.length > 0
             ? channelForm.value.timePeriodMultipliers
+            : null,
+        contextLengthMultipliers:
+          channelForm.value.contextLengthMultipliers.length > 0
+            ? [...channelForm.value.contextLengthMultipliers].sort(
+                (left, right) => left.minTokens - right.minTokens,
+              )
             : null,
       }
 

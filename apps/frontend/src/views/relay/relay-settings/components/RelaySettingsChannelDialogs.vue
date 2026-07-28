@@ -665,6 +665,78 @@
           </div>
         </el-form-item>
       </template>
+
+      <template v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">
+        <el-divider content-position="left">{{ i18ns.t('relay.contextRules') }}</el-divider>
+        <el-form-item label="">
+          <div class="flex flex-col gap-2 w-full">
+            <div class="flex flex-wrap items-center gap-2">
+              <el-button
+                size="small"
+                @click="
+                  channelForm.contextLengthMultipliers.push({
+                    name: '',
+                    enabled: true,
+                    minTokens: 0,
+                    multiplier: 1,
+                  })
+                "
+                >{{ i18ns.t('relay.contextRuleAdd') }}</el-button
+              >
+              <span class="text-xs text-[#909399]">{{ i18ns.t('relay.contextRuleQuickAdd') }}</span>
+              <el-button
+                v-for="preset in contextLengthPresets"
+                :key="preset.minTokens"
+                size="small"
+                :disabled="hasContextLengthRule(preset.minTokens)"
+                @click="addContextLengthRule(preset)"
+              >
+                {{ preset.name }}
+              </el-button>
+            </div>
+            <el-table :data="channelForm.contextLengthMultipliers" size="small" max-height="260">
+              <el-table-column :label="i18ns.t('relay.contextRuleName')" min-width="140">
+                <template #default="{ row }"><el-input v-model="row.name" size="small" /></template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('relay.contextRuleMinTokens')" min-width="150">
+                <template #default="{ row }"
+                  ><el-input-number
+                    v-model="row.minTokens"
+                    :min="0"
+                    :step="1000"
+                    :precision="0"
+                    size="small"
+                /></template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('relay.contextRuleMultiplier')" min-width="120">
+                <template #default="{ row }"
+                  ><el-input-number
+                    v-model="row.multiplier"
+                    :min="0.01"
+                    :step="0.01"
+                    :precision="6"
+                    size="small"
+                /></template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('relay.timeRuleEnabled')" width="76">
+                <template #default="{ row }"
+                  ><el-switch v-model="row.enabled" size="small"
+                /></template>
+              </el-table-column>
+              <el-table-column :label="i18ns.t('actions')" width="72" fixed="right">
+                <template #default="{ $index }"
+                  ><el-button
+                    size="small"
+                    type="danger"
+                    @click="channelForm.contextLengthMultipliers.splice($index, 1)"
+                    >{{ i18ns.t('delete') }}</el-button
+                  ></template
+                >
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-form-item>
+      </template>
     </el-form>
     <template #footer>
       <div class="relay-channel-editor-drawer__footer">
@@ -1075,7 +1147,9 @@
       <div>
         <div class="flex items-center justify-between gap-3 mb-2">
           <el-divider content-position="left" class="flex-1">{{
-            i18ns.t('relay.channelHealth')
+            automaticPoolHealth
+              ? i18ns.t('relay.automaticPoolBaseRouteOrder')
+              : i18ns.t('relay.channelHealth')
           }}</el-divider>
           <el-button
             text
@@ -1093,8 +1167,18 @@
           size="small"
           max-height="300"
         >
+          <el-table-column :label="i18ns.t('relay.healthRank')" width="72" prop="rank" />
           <el-table-column :label="i18ns.t('relay.channelName')" min-width="140" prop="name" />
-          <el-table-column :label="i18ns.t('relay.healthRank')" width="82" prop="rank" />
+          <el-table-column :label="i18ns.t('relay.automaticPoolAttemptable')" width="94">
+            <template #default="{ row }">
+              <el-tag :type="row.eligible ? 'success' : 'danger'" size="small">
+                {{ row.eligible ? i18ns.t('yes') : i18ns.t('no') }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('relay.healthEffectivePrice')" width="105">
+            <template #default="{ row }">{{ Number(row.effectivePrice).toFixed(4) }}x</template>
+          </el-table-column>
           <el-table-column :label="i18ns.t('relay.healthAvailability')" width="110">
             <template #default="{ row }">{{ formatAvailability(row.availability) }}</template>
           </el-table-column>
@@ -1102,13 +1186,32 @@
           <el-table-column :label="i18ns.t('relay.healthLatency')" width="105">
             <template #default="{ row }">{{ formatLatency(row.averageLatencyMs) }}</template>
           </el-table-column>
-          <el-table-column :label="i18ns.t('relay.healthEffectivePrice')" width="105">
-            <template #default="{ row }">{{ Number(row.effectivePrice).toFixed(4) }}x</template>
-          </el-table-column>
-          <el-table-column :label="i18ns.t('relay.healthScore')" width="100">
-            <template #default="{ row }">{{ Number(row.score).toFixed(4) }}</template>
+          <el-table-column
+            :label="i18ns.t('relay.healthFailures')"
+            width="82"
+            prop="failureCount"
+          />
+          <el-table-column :label="i18ns.t('relay.automaticPoolExclusionReason')" min-width="130">
+            <template #default="{ row }">
+              {{ formatExclusionReasons(row.exclusionReasons) }}
+            </template>
           </el-table-column>
         </el-table>
+        <div v-if="automaticPoolHealth" class="mt-2 text-xs text-[var(--el-text-color-secondary)]">
+          {{
+            i18ns.t('relay.automaticPoolRouteSummary', {
+              mode:
+                automaticPoolHealth.rankingMode === 'price-first'
+                  ? i18ns.t('relay.automaticPoolRankingPriceFirst')
+                  : i18ns.t('relay.automaticPoolRankingStabilityFirst'),
+              dynamic: automaticPoolHealth.dynamicMemberRankingEnabled
+                ? i18ns.t('yes')
+                : i18ns.t('no'),
+              start: formatDateTime(automaticPoolHealth.windowStartAt),
+              end: formatDateTime(automaticPoolHealth.windowEndAt),
+            })
+          }}
+        </div>
         <el-descriptions
           v-else-if="standardChannelHealth"
           :column="isDesktop ? 3 : 1"
@@ -1254,6 +1357,33 @@
         </div>
         <el-empty v-else :description="i18ns.t('relay.timeRulesEmpty')" />
       </div>
+      <div v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)">
+        <el-divider content-position="left">{{ i18ns.t('relay.contextRules') }}</el-divider>
+        <div
+          v-if="(currentChannelDetail.contextLengthMultipliers || []).length"
+          class="flex flex-col gap-2"
+        >
+          <div
+            v-for="(rule, index) in currentChannelDetail.contextLengthMultipliers || []"
+            :key="`${rule.name}-${index}`"
+            class="rounded border border-[var(--el-border-color-lighter)] p-3"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div class="font-medium break-all">{{ rule.name }}</div>
+              <el-tag :type="rule.multiplier >= 1 ? 'warning' : 'success'" size="small"
+                >{{ rule.multiplier }}x</el-tag
+              >
+            </div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+              {{ i18ns.t('relay.contextRuleMinTokens') }}: {{ rule.minTokens.toLocaleString() }}
+            </div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+              {{ rule.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled') }}
+            </div>
+          </div>
+        </div>
+        <el-empty v-else :description="i18ns.t('relay.contextRulesEmpty')" />
+      </div>
     </div>
     <template #footer>
       <el-button @click="closeChannelDetailDialog">{{ i18ns.t('confirm') }}</el-button>
@@ -1395,6 +1525,27 @@ const automaticPoolHealth = computed(() => {
   return health && 'members' in health ? health : null
 })
 
+const contextLengthPresets = [
+  { name: '128K', minTokens: 128_000 },
+  { name: '256K', minTokens: 256_000 },
+  { name: '512K', minTokens: 512_000 },
+  { name: '1M', minTokens: 1_024_000 },
+]
+
+const hasContextLengthRule = (minTokens: number) =>
+  channelForm.value.contextLengthMultipliers.some((rule) => rule.minTokens === minTokens)
+
+const addContextLengthRule = (preset: (typeof contextLengthPresets)[number]) => {
+  if (hasContextLengthRule(preset.minTokens)) return
+  channelForm.value.contextLengthMultipliers.push({
+    name: preset.name,
+    enabled: true,
+    minTokens: preset.minTokens,
+    multiplier: 1,
+  })
+  channelForm.value.contextLengthMultipliers.sort((left, right) => left.minTokens - right.minTokens)
+}
+
 const standardChannelHealth = computed(() => {
   const health = channelHealth.value
   return health && !('members' in health) ? health : null
@@ -1420,6 +1571,17 @@ const formatAvailability = (value: number) =>
   `${(Math.max(0, Math.min(1, Number(value) || 0)) * 100).toFixed(1)}%`
 
 const formatLatency = (value: number) => `${Math.max(0, Number(value) || 0).toFixed(0)} ms`
+
+const formatExclusionReasons = (reasons: string[] | null | undefined) => {
+  if (!reasons?.length) return '-'
+  const labels: Record<string, string> = {
+    disabled: i18ns.t('relay.automaticPoolExcludedDisabled'),
+    availability: i18ns.t('relay.automaticPoolExcludedAvailability'),
+    latency: i18ns.t('relay.automaticPoolExcludedLatency'),
+    'circuit-breaker': i18ns.t('relay.automaticPoolExcludedCircuitBreaker'),
+  }
+  return reasons.map((reason) => labels[reason] || reason).join(', ')
+}
 
 const formatStringList = (value: unknown) => {
   if (!Array.isArray(value) || value.length === 0) return '-'
