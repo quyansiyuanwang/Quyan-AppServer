@@ -783,17 +783,13 @@ export class DeveloperProductPlatformService {
   private async consumeQuota(context: ProductMeteringContext): Promise<ProductQuotaReceipt> {
     const usageDate = new Date();
     usageDate.setHours(0, 0, 0, 0);
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
       try {
         return await prisma.$transaction(async (tx) => {
           const entitlement = await tx.developerProductEntitlement.findUnique({ where: { id: context.entitlementId } });
           const config = await tx.developerProductConfig.findUnique({ where: { productCode: context.productCode } });
           if (!entitlement || !config) throw new NotFoundError("产品授权或配置不存在");
-          const usage = await tx.developerProductQuotaUsage.upsert({
-            where: { entitlementId_usageDate: { entitlementId: entitlement.id, usageDate } },
-            create: { entitlementId: entitlement.id, usageDate, requestCount: 1 },
-            update: { requestCount: { increment: 1 } },
-          });
+          const usage = await this.incrementQuotaUsage(tx, entitlement.id, usageDate);
           const chargeAmount = Number(config.overagePrice);
           // A zero price deliberately represents a free, unlimited product. We still
           // retain usage for capacity planning and audit, but never block on quota.
@@ -847,16 +843,35 @@ export class DeveloperProductPlatformService {
           };
         });
       } catch (error) {
-        // MySQL can race Prisma's multi-statement upsert across PM2 workers on
-        // the first request of a day. Retry in a new transaction so the
-        // competing insert is visible instead of issuing an update against the
-        // failed transaction's stale snapshot.
-        if (attempt === 0 && typeof error === "object" && error !== null && "code" in error && error.code === "P2002")
+        // A first request can race on the daily row across PM2 workers. The
+        // next transaction observes the winning insert and takes updateMany.
+        if (attempt < 3 && typeof error === "object" && error !== null && "code" in error && error.code === "P2002")
           continue;
         throw error;
       }
     }
     throw new Error("产品配额扣减重试意外结束");
+  }
+
+  private async incrementQuotaUsage(
+    tx: Prisma.TransactionClient,
+    entitlementId: string,
+    usageDate: Date,
+  ): Promise<{ id: string; requestCount: number }> {
+    const where = { entitlementId_usageDate: { entitlementId, usageDate } };
+    const incremented = await tx.developerProductQuotaUsage.updateMany({
+      where: { entitlementId, usageDate },
+      data: { requestCount: { increment: 1 } },
+    });
+
+    if (incremented.count) {
+      const usage = await tx.developerProductQuotaUsage.findUnique({ where });
+      if (usage) return usage;
+    }
+
+    return tx.developerProductQuotaUsage.create({
+      data: { entitlementId, usageDate, requestCount: 1 },
+    });
   }
 
   private async refundQuota(receipt: ProductQuotaReceipt): Promise<void> {
