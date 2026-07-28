@@ -39,6 +39,7 @@ export interface RelayChannelQueryStore {
   findVisibleById(id: string): Promise<RelayChannel | null>;
   listActiveByIds(ids: string[], tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
   listVisibleByIds(ids: string[], tx?: RelayChannelTransactionClient): Promise<RelayChannel[]>;
+  listActiveDirectPooledParentsByMemberChannelId(memberChannelId: string): Promise<RelayChannel[]>;
   listManagementPage(query: RelayChannelManagementQuery): Promise<{
     records: RelayChannelManagementRecord[];
     total: number;

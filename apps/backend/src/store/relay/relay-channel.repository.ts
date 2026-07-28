@@ -112,6 +112,18 @@ export class RelayChannelRepository implements RelayChannelStore {
     });
   }
 
+  async listActiveDirectPooledParentsByMemberChannelId(memberChannelId: string): Promise<RelayChannel[]> {
+    return prisma.relayChannel.findMany({
+      where: {
+        status: RELAY_CHANNEL_STATUS.ENABLED,
+        channelType: "pooled",
+        poolMembers: { some: { memberChannelId, enabled: true } },
+      },
+      orderBy: { id: "asc" },
+      include: relayChannelInclude,
+    });
+  }
+
   async listManagementPage({ where, page, pageSize }: RelayChannelManagementQuery) {
     const [records, total] = await prisma.$transaction([
       prisma.relayChannel.findMany({

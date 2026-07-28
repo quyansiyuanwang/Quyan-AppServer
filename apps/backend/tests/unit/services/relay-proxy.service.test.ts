@@ -277,6 +277,9 @@ const createService = (
       },
     ),
   };
+  const relayChannelService = {
+    resolveUniqueAccessibleDirectPooledParent: vi.fn().mockResolvedValue(null),
+  };
   const redis = {
     isRedisAvailable: vi.fn().mockReturnValue(true),
     acquireSemaphoreSlot: vi.fn().mockResolvedValue("relay:concurrency:default:user-1:slot:1"),
@@ -302,6 +305,9 @@ const createService = (
     redis as any,
     businessLogService as any,
     relayPoolResolver as any,
+    undefined,
+    undefined,
+    relayChannelService as any,
   );
 
   return {
@@ -314,6 +320,7 @@ const createService = (
     usageChargeService,
     businessLogService,
     relayPoolResolver,
+    relayChannelService,
     redis,
   };
 };
@@ -345,6 +352,35 @@ describe("RelayProxyService failover", () => {
     expect((service as any).getLogicalRequestId(firstRequest)).not.toBe(
       (service as any).getLogicalRequestId(secondRequest),
     );
+  });
+
+  it("uses and caches the unique user-visible parent pool for automatic-pool billing", async () => {
+    const { service, relayChannelService } = createService();
+    const leaf = createChannel("claude-gwl-1", "Claude-GWL-1", "leaf.example.com") as any;
+    const automaticPool = createChannel("automatic-pool", "Automatic Pool", "pool.example.com") as any;
+    const billingPool = createChannel("claude-gwl", "Claude-GWL", "billing.example.com", {
+      channelType: "pooled",
+    }) as any;
+    relayChannelService.resolveUniqueAccessibleDirectPooledParent.mockResolvedValue(billingPool);
+    const parents = new Map();
+    const automaticToken = { userId: "user-1", routingMode: "automatic-pool" } as any;
+
+    await expect(
+      (service as any).resolveBillingDisplayChannel(automaticToken, leaf, automaticPool, parents),
+    ).resolves.toBe(billingPool);
+    await expect(
+      (service as any).resolveBillingDisplayChannel(automaticToken, leaf, automaticPool, parents),
+    ).resolves.toBe(billingPool);
+    expect(relayChannelService.resolveUniqueAccessibleDirectPooledParent).toHaveBeenCalledTimes(1);
+
+    await expect(
+      (service as any).resolveBillingDisplayChannel(
+        { userId: "user-1", routingMode: "ordered" },
+        leaf,
+        automaticPool,
+        new Map(),
+      ),
+    ).resolves.toBe(automaticPool);
   });
 
   it("treats /images/variations as OpenAI image traffic", () => {
@@ -1418,6 +1454,7 @@ describe("RelayProxyService failover", () => {
         "gpt-4o-mini",
         1,
         1,
+        undefined,
         { model: "gpt-4o-mini", stream: true, messages: [] },
         "openai",
         1,
@@ -1518,6 +1555,7 @@ describe("RelayProxyService failover", () => {
         "gpt-4o-mini",
         1,
         1,
+        undefined,
         { model: "gpt-4o-mini", stream: true, stream_options: { include_usage: true } },
         "openai",
         1,
@@ -1684,6 +1722,8 @@ describe("RelayProxyService failover", () => {
         "gpt-4o-mini",
         "gpt-4o-mini",
         1,
+        1,
+        undefined,
         { model: "gpt-4o-mini", stream: true, messages: [] },
         "openai",
         1,
@@ -1789,6 +1829,8 @@ describe("RelayProxyService failover", () => {
         "gpt-4o-mini",
         "gpt-4o-mini",
         1,
+        1,
+        undefined,
         { model: "gpt-4o-mini", stream: true, messages: [] },
         "openai",
         1,

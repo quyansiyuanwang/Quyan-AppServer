@@ -84,6 +84,7 @@ import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { RelayChannelHealthService } from "./relay-channel-health.service";
 import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
+import { RelayChannelService } from "./relay-channel.service";
 
 const PREFIX = "/relay/proxy";
 
@@ -248,12 +249,37 @@ export class RelayProxyService {
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
     private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
     private readonly relayChannelProbeLockService: RelayChannelProbeLockService = RelayChannelProbeLockService.getInstance(),
+    private readonly relayChannelService: Pick<
+      RelayChannelService,
+      "resolveUniqueAccessibleDirectPooledParent"
+    > = RelayChannelService.getInstance(),
   ) {}
 
   static getInstance(): RelayProxyService {
     if (!RelayProxyService.instance) RelayProxyService.instance = new RelayProxyService();
 
     return RelayProxyService.instance;
+  }
+
+  private async resolveBillingDisplayChannel(
+    relayToken: Pick<RelayToken, "userId" | "routingMode">,
+    executionChannel: RelayChannel,
+    logicalDisplayChannel: RelayChannel,
+    resolvedParents: Map<string, RelayChannel | null>,
+  ): Promise<RelayChannel> {
+    if (relayToken.routingMode !== "automatic-pool") return logicalDisplayChannel;
+
+    if (!resolvedParents.has(executionChannel.id)) {
+      resolvedParents.set(
+        executionChannel.id,
+        await this.relayChannelService.resolveUniqueAccessibleDirectPooledParent(
+          executionChannel.id,
+          relayToken.userId,
+        ),
+      );
+    }
+
+    return resolvedParents.get(executionChannel.id) ?? logicalDisplayChannel;
   }
 
   private async recordFailedAttempt(params: {
@@ -2529,13 +2555,20 @@ export class RelayProxyService {
     try {
       let lastError: unknown = new BadRequestError("No available relay channel");
       const attemptIssues: RelayAttemptIssue[] = [];
+      const resolvedBillingDisplayParents = new Map<string, RelayChannel | null>();
       for (let attemptIndex = 0; attemptIndex < attemptChannels.length; attemptIndex++) {
         const candidate = attemptChannels[attemptIndex];
         const nextCandidate = attemptChannels[attemptIndex + 1];
         const channel = candidate.resolvedChannel;
-        // Usage history is customer-facing. Keep the logical pool as its display
-        // channel while retaining the selected leaf separately for internal audit.
+        // The logical pool remains in internal failover diagnostics. Billing snapshots
+        // may use the member's sole user-visible pooled parent instead.
         const displayChannel = candidate.displayChannel;
+        const billingDisplayChannel = await this.resolveBillingDisplayChannel(
+          relayToken,
+          channel,
+          displayChannel,
+          resolvedBillingDisplayParents,
+        );
         const nextChannel = nextCandidate?.resolvedChannel;
         const nextDisplayChannel = nextCandidate?.displayChannel;
         const hasNextChannel = Boolean(nextCandidate);
@@ -2743,8 +2776,8 @@ export class RelayProxyService {
                   relayGlobalMultiplier,
                   channelMultiplier,
                   channel.id,
-                  displayChannel.id,
-                  displayChannel.name || null,
+                  billingDisplayChannel.id,
+                  billingDisplayChannel.name || null,
                   channel.id,
                   monthlyPassCoverageAt,
                   relayConfig.upstreamStreamTimeout,
@@ -2834,8 +2867,8 @@ export class RelayProxyService {
                   relayGlobalMultiplier,
                   channelMultiplier,
                   channel.id,
-                  displayChannel.id,
-                  displayChannel.name || null,
+                  billingDisplayChannel.id,
+                  billingDisplayChannel.name || null,
                   channel.id,
                   monthlyPassCoverageAt,
                   resourceGuard.nonStreamUpstreamTimeoutMs,
@@ -2940,8 +2973,8 @@ export class RelayProxyService {
                 firstByteTime,
                 isStreaming: false,
                 executionChannelId: channel.id,
-                displayChannelId: displayChannel.id,
-                displayChannelName: displayChannel.name || null,
+                displayChannelId: billingDisplayChannel.id,
+                displayChannelName: billingDisplayChannel.name || null,
                 channelMultiplier,
                 relayGlobalMultiplier,
                 timeMultiplier,
@@ -3046,8 +3079,8 @@ export class RelayProxyService {
                 cacheCreationMultiplier: cacheCreationMult,
                 cacheReadMultiplier: cacheReadMult,
                 executionChannelId: channel.id,
-                displayChannelId: displayChannel.id,
-                displayChannelName: displayChannel.name || null,
+                displayChannelId: billingDisplayChannel.id,
+                displayChannelName: billingDisplayChannel.name || null,
                 channelMultiplier,
                 globalMultiplier: relayGlobalMultiplier,
                 timeMultiplier,
@@ -3143,8 +3176,8 @@ export class RelayProxyService {
               modelId: selectedModelId,
               channelId: channel.id,
               executionChannelId: channel.id,
-              displayChannelId: displayChannel.id,
-              displayChannelName: displayChannel.name || null,
+              displayChannelId: billingDisplayChannel.id,
+              displayChannelName: billingDisplayChannel.name || null,
               monthlyPassCoverageAt,
               inputRate,
               outputRate,
@@ -3209,8 +3242,8 @@ export class RelayProxyService {
                 firstByteTime: null,
                 isStreaming: false,
                 executionChannelId: channel.id,
-                displayChannelId: displayChannel.id,
-                displayChannelName: displayChannel.name || null,
+                displayChannelId: billingDisplayChannel.id,
+                displayChannelName: billingDisplayChannel.name || null,
                 channelMultiplier,
                 relayGlobalMultiplier,
                 timeMultiplier,

@@ -35,6 +35,7 @@ type UsageDataMap = Map<
     displayChannelName: string | null;
     automaticProxyPoolName: string | null;
     hideDisplayChannel: boolean;
+    hasHiddenDisplayChannel: boolean;
     legacyMonthlyPassChannelName: string | null;
   }
 >;
@@ -104,6 +105,7 @@ export class BalanceController extends Controller {
           u.relayToken?.routingMode !== "automatic-pool" || !u.relayToken.automaticProxyPoolChannel?.name?.trim()
             ? u.hasHiddenExecutionChannel
             : false,
+        hasHiddenDisplayChannel: u.hasHiddenDisplayChannel,
         legacyMonthlyPassChannelName:
           legacyMonthlyPassChannelNames.size === 1 ? [...legacyMonthlyPassChannelNames][0] : null,
       });
@@ -118,15 +120,16 @@ export class BalanceController extends Controller {
     usageDataMap: UsageDataMap,
   ): TransactionListResponse["records"][number] {
     const usageData = r.relatedId ? usageDataMap.get(r.relatedId) : undefined;
+    const storedDisplayChannelName =
+      normalizeRelayDisplaySnapshotName(r.displayChannelName) ||
+      normalizeRelayDisplaySnapshotName(usageData?.displayChannelName);
     const displayChannelName = usageData?.automaticProxyPoolName
-      ? usageData.automaticProxyPoolName
+      ? usageData.hasHiddenDisplayChannel
+        ? usageData.automaticProxyPoolName
+        : storedDisplayChannelName || usageData.automaticProxyPoolName
       : usageData?.hideDisplayChannel
         ? undefined
-        : r.channelName?.trim() ||
-          usageData?.legacyMonthlyPassChannelName ||
-          normalizeRelayDisplaySnapshotName(r.displayChannelName) ||
-          normalizeRelayDisplaySnapshotName(usageData?.displayChannelName) ||
-          undefined;
+        : r.channelName?.trim() || usageData?.legacyMonthlyPassChannelName || storedDisplayChannelName || undefined;
 
     return {
       id: r.id,

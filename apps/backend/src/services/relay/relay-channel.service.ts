@@ -135,6 +135,28 @@ export class RelayChannelService {
     return Promise.all(visibleChannels.map((channel) => this.toDto(channel, modelCatalog, includeDisabled)));
   }
 
+  /**
+   * Resolves the sole direct pooled parent that may be named in this user's billing history.
+   * Private and hidden pools are intentionally never returned, including to administrators.
+   */
+  async resolveUniqueAccessibleDirectPooledParent(
+    memberChannelId: string,
+    actorUserId: string,
+  ): Promise<RelayChannel | null> {
+    const candidates = (
+      await this.relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId(memberChannelId)
+    ).filter((channel) => {
+      const visibilityMode =
+        (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE;
+      return visibilityMode === "public" || visibilityMode === "whitelist";
+    });
+    const accessResults = await Promise.all(
+      candidates.map((channel) => this.canUserAccessChannel(channel, actorUserId, false)),
+    );
+    const accessibleCandidates = candidates.filter((_, index) => accessResults[index]);
+    return accessibleCandidates.length === 1 ? accessibleCandidates[0]! : null;
+  }
+
   async listManagementChannels(
     actorUserId: string,
     query: {
@@ -790,8 +812,12 @@ export class RelayChannelService {
     };
   }
 
-  private async canUserAccessChannel(channel: RelayChannel, actorUserId: string): Promise<boolean> {
-    if (await this.canBypassVisibility(actorUserId)) return true;
+  private async canUserAccessChannel(
+    channel: RelayChannel,
+    actorUserId: string,
+    allowManagementBypass = true,
+  ): Promise<boolean> {
+    if (allowManagementBypass && (await this.canBypassVisibility(actorUserId))) return true;
 
     const visibilityMode =
       (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE;
