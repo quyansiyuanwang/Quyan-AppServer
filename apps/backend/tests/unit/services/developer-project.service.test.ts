@@ -5,30 +5,40 @@ const mocks = vi.hoisted(() => ({
   prisma: {
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
-    developerProject: { findFirst: vi.fn(), findUnique: vi.fn() },
+    developerProject: { findFirst: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
     developerProductConfig: { findUnique: vi.fn() },
-    developerQuotaUsage: { findMany: vi.fn(), upsert: vi.fn(), update: vi.fn() },
+    developerQuotaUsage: { findMany: vi.fn(), upsert: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     developerQuotaOverride: { findFirst: vi.fn() },
     balanceAccount: { findUnique: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
     balanceTransaction: { create: vi.fn() },
-    developerProjectApiKey: { findFirst: vi.fn(), update: vi.fn() },
+    developerProjectApiKey: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
     developerKvEntry: { findFirst: vi.fn(), delete: vi.fn() },
-    developerShortLink: { findFirst: vi.fn() },
+    developerShortLink: { findFirst: vi.fn(), updateMany: vi.fn() },
     developerShortLinkClick: { groupBy: vi.fn(), count: vi.fn(), findMany: vi.fn() },
-    developerSecret: { upsert: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
-    developerVerification: { findFirst: vi.fn(), update: vi.fn() },
-    developerPushChannel: { findMany: vi.fn() },
-    developerPushDelivery: { create: vi.fn(), findMany: vi.fn(), update: vi.fn() },
-    developerPushRequest: { create: vi.fn(), update: vi.fn(), deleteMany: vi.fn() },
+    developerSecret: { upsert: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    developerVerification: { findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    developerPushChannel: { findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
+    developerPushDelivery: {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    developerPushRequest: { create: vi.fn(), update: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
   },
   axios: {
     get: vi.fn(),
     post: vi.fn(),
     request: vi.fn(),
   },
+  redis: { get: vi.fn(), set: vi.fn(), delete: vi.fn() },
 }));
 
 vi.mock("../../../src/config/database", () => ({ prisma: mocks.prisma }));
+vi.mock("../../../src/services/infrastructure/redis.service", () => ({
+  RedisService: { getInstance: () => mocks.redis },
+}));
 vi.mock("axios", async (importOriginal) => {
   const actual = await importOriginal<typeof import("axios")>();
   return { ...actual, default: { ...actual.default, ...mocks.axios } };
@@ -72,8 +82,8 @@ describe("DeveloperProjectService", () => {
     const key = await service.authenticateProjectKey("dk_test", ["kv:read"]);
 
     expect(key.id).toBe("key-1");
-    expect(mocks.prisma.developerProjectApiKey.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "key-1" } }),
+    expect(mocks.prisma.developerProjectApiKey.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "key-1", status: 1 } }),
     );
     await expect(service.authenticateProjectKey("dk_test", ["push:send"])).rejects.toThrow("缺少权限");
   });
@@ -129,6 +139,26 @@ describe("DeveloperProjectService", () => {
     );
   });
 
+  it("retries the first daily quota upsert in a new transaction after a concurrent create", async () => {
+    mocks.prisma.developerProject.findUnique.mockResolvedValue({
+      id: "project-1",
+      userId: "user-1",
+      dailyFreeQuota: 2,
+      overageEnabled: false,
+    });
+    mocks.prisma.developerQuotaOverride.findFirst.mockResolvedValue(null);
+    mocks.prisma.developerQuotaUsage.upsert
+      .mockRejectedValueOnce({ code: "P2002" })
+      .mockResolvedValueOnce({ id: "usage-1", requestCount: 1 });
+
+    const service = DeveloperProjectService.getInstance();
+    (service as any).configService = { get: vi.fn().mockResolvedValue("0") };
+
+    await expect((service as any).consumeQuota("project-1", "ip")).resolves.toMatchObject({ usageId: "usage-1" });
+    expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(mocks.prisma.developerQuotaUsage.upsert).toHaveBeenCalledTimes(2);
+  });
+
   it("treats expired KV entries as missing and removes them", async () => {
     const expired = { id: "kv-1", expiresAt: new Date(Date.now() - 1) };
     mocks.prisma.developerKvEntry.findFirst.mockResolvedValue(expired);
@@ -164,7 +194,7 @@ describe("DeveloperProjectService", () => {
 
     expect(listed).not.toHaveProperty("value");
     await expect(service.resolveSecret("project-1", "OPENAI_KEY")).resolves.toBe("secret-value");
-    expect(mocks.prisma.developerSecret.update).toHaveBeenCalled();
+    expect(mocks.prisma.developerSecret.updateMany).toHaveBeenCalled();
   });
 
   it("substitutes aliases in nested JSON values without exposing the secret in metadata", async () => {
@@ -195,6 +225,7 @@ describe("DeveloperProjectService", () => {
       expiresAt: new Date(Date.now() + 60_000),
     };
     mocks.prisma.developerVerification.findFirst.mockResolvedValue(record);
+    mocks.prisma.developerVerification.updateMany.mockResolvedValue({ count: 1 });
     const service = DeveloperProjectService.getInstance();
 
     await expect(
@@ -205,7 +236,7 @@ describe("DeveloperProjectService", () => {
         code: "000000",
       }),
     ).resolves.toBe(false);
-    expect(mocks.prisma.developerVerification.update).toHaveBeenCalledWith(
+    expect(mocks.prisma.developerVerification.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { remainingTries: { decrement: 1 } } }),
     );
 
@@ -217,8 +248,30 @@ describe("DeveloperProjectService", () => {
         code: "123456",
       }),
     ).resolves.toBe(true);
-    expect(mocks.prisma.developerVerification.update).toHaveBeenCalledWith(
+    expect(mocks.prisma.developerVerification.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { consumedAt: expect.any(Date) } }),
+    );
+  });
+
+  it("does not validate a verification code already consumed by a concurrent request", async () => {
+    mocks.prisma.developerVerification.findFirst.mockResolvedValue({
+      id: "verification-1",
+      codeHash: sha256("123456"),
+      remainingTries: 3,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    mocks.prisma.developerVerification.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      DeveloperProjectService.getInstance().verifyCode("project-1", {
+        channel: "email",
+        recipient: "user@example.com",
+        purpose: "login",
+        code: "123456",
+      }),
+    ).resolves.toBe(false);
+    expect(mocks.prisma.developerVerification.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ consumedAt: null, remainingTries: { gt: 0 } }) }),
     );
   });
 
@@ -228,6 +281,54 @@ describe("DeveloperProjectService", () => {
     await expect(service.lookupIp("project-1", "8.8.8.8")).rejects.toThrow("IP 定位服务尚未配置");
     await expect(service.lookupIp("project-1", "169.254.169.254")).rejects.toThrow("仅支持公网 IP 地址");
     expect(consumeQuota).not.toHaveBeenCalled();
+  });
+
+  it("returns the shared 24-hour IP cache without calling the provider again", async () => {
+    mocks.redis.get.mockResolvedValue(
+      JSON.stringify({ ip: "8.8.8.8", country: "United States", region: "California", city: "Mountain View" }),
+    );
+    const service = DeveloperProjectService.getInstance();
+    const consumeQuota = vi.spyOn(service as any, "consumeQuota");
+    consumeQuota.mockResolvedValue({
+      projectId: "project-1",
+      service: "ip",
+      usageId: "usage-1",
+      userId: "user-1",
+      chargeAmount: 0,
+    });
+
+    await expect(service.lookupIp("project-1", "8.8.8.8")).resolves.toMatchObject({ country: "United States" });
+
+    expect(consumeQuota).toHaveBeenCalledWith("project-1", "ip");
+    expect(mocks.axios.get).not.toHaveBeenCalled();
+    expect(mocks.redis.get).toHaveBeenCalledWith("developer:ip-location:8.8.8.8");
+  });
+
+  it("stores a successful IP lookup in the shared cache for one day", async () => {
+    mocks.redis.get.mockResolvedValue(null);
+    mocks.axios.get.mockResolvedValue({
+      data: { country_name: "United States", region: "California", city: "Mountain View" },
+    });
+    const service = DeveloperProjectService.getInstance();
+    vi.spyOn(service as any, "consumeQuota").mockResolvedValue({
+      projectId: "project-1",
+      service: "ip",
+      usageId: "usage-1",
+      userId: "user-1",
+      chargeAmount: 0,
+    });
+    (EnvSpace as any).developerProductConfig = {
+      ...originalDeveloperProductConfig,
+      ipGeolocationEndpoint: "https://8.8.8.8",
+    };
+
+    await expect(service.lookupIp("project-1", "8.8.8.8")).resolves.toMatchObject({ country: "United States" });
+
+    expect(mocks.redis.set).toHaveBeenCalledWith(
+      "developer:ip-location:8.8.8.8",
+      expect.stringContaining('"country":"United States"'),
+      24 * 60 * 60,
+    );
   });
 
   it("refunds IP quota when the configured provider request fails", async () => {
