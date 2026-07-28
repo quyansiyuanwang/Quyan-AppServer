@@ -9,7 +9,7 @@ import { CustomCode } from "@/constant/custom-code";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import { PermissionService } from "@/services/users/permission.service";
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/util/errors";
-import { toDatabaseDate } from "@/util/database-date";
+import { toDatabaseDate, toLegacyDatabaseDate } from "@/util/database-date";
 import type {
   CreateDeveloperProductApiKeyDto,
   CreateDeveloperProductInstanceDto,
@@ -28,8 +28,15 @@ import type {
 } from "@/api/dto/developer/product-platform.dto";
 
 const PRODUCT_KEY_PREFIX = "dpk_";
+const QUOTA_TRANSACTION_MAX_ATTEMPTS = 8;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const asIso = (value: Date | null | undefined) => value?.toISOString();
+
+function isRetryableQuotaTransactionError(error: unknown): boolean {
+  return (
+    typeof error === "object" && error !== null && "code" in error && (error.code === "P2002" || error.code === "P2034")
+  );
+}
 
 const PRODUCT_PERMISSIONS: Record<DeveloperProductCode, Permission[]> = {
   kv: [Permission.PRODUCT_KV_READ, Permission.PRODUCT_KV_WRITE, Permission.PRODUCT_KV_MANAGE],
@@ -714,9 +721,14 @@ export class DeveloperProductPlatformService {
     if (!entitlement || !isDeveloperProductCode(entitlement.productCode)) throw new NotFoundError("产品授权不存在");
     const config = await prisma.developerProductConfig.findUnique({ where: { productCode: entitlement.productCode } });
     const usageDate = toDatabaseDate();
-    const usage = await prisma.developerProductQuotaUsage.findUnique({
+    let usage = await prisma.developerProductQuotaUsage.findUnique({
       where: { entitlementId_usageDate: { entitlementId, usageDate } },
     });
+    const legacyUsageDate = toLegacyDatabaseDate();
+    if (!usage && legacyUsageDate.getTime() !== usageDate.getTime())
+      usage = await prisma.developerProductQuotaUsage.findUnique({
+        where: { entitlementId_usageDate: { entitlementId, usageDate: legacyUsageDate } },
+      });
     const dailyFreeQuota = entitlement.dailyFreeQuota ?? config?.defaultDailyQuota ?? 0;
     const requestCount = usage?.requestCount ?? 0;
     const unlimited = Number(config?.overagePrice ?? 0) <= 0;
@@ -782,13 +794,14 @@ export class DeveloperProductPlatformService {
 
   private async consumeQuota(context: ProductMeteringContext): Promise<ProductQuotaReceipt> {
     const usageDate = toDatabaseDate();
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    const legacyUsageDate = toLegacyDatabaseDate();
+    for (let attempt = 0; attempt < QUOTA_TRANSACTION_MAX_ATTEMPTS; attempt += 1) {
       try {
         return await prisma.$transaction(async (tx) => {
           const entitlement = await tx.developerProductEntitlement.findUnique({ where: { id: context.entitlementId } });
           const config = await tx.developerProductConfig.findUnique({ where: { productCode: context.productCode } });
           if (!entitlement || !config) throw new NotFoundError("产品授权或配置不存在");
-          const usage = await this.incrementQuotaUsage(tx, entitlement.id, usageDate);
+          const usage = await this.incrementQuotaUsage(tx, entitlement.id, usageDate, legacyUsageDate);
           const chargeAmount = Number(config.overagePrice);
           // A zero price deliberately represents a free, unlimited product. We still
           // retain usage for capacity planning and audit, but never block on quota.
@@ -842,10 +855,13 @@ export class DeveloperProductPlatformService {
           };
         });
       } catch (error) {
-        // A first request can race on the daily row across PM2 workers. The
-        // next transaction observes the winning insert and takes updateMany.
-        if (attempt < 3 && typeof error === "object" && error !== null && "code" in error && error.code === "P2002")
+        // A first request can race on the daily row across PM2 workers. MySQL
+        // can also abort a competing transaction with P2034 (deadlock/write
+        // conflict); neither transaction has committed partial quota changes.
+        if (attempt < QUOTA_TRANSACTION_MAX_ATTEMPTS - 1 && isRetryableQuotaTransactionError(error)) {
+          if (error.code === "P2034") await new Promise((resolve) => setTimeout(resolve, (attempt + 1) * 10));
           continue;
+        }
         throw error;
       }
     }
@@ -856,6 +872,7 @@ export class DeveloperProductPlatformService {
     tx: Prisma.TransactionClient,
     entitlementId: string,
     usageDate: Date,
+    legacyUsageDate: Date,
   ): Promise<{ id: string; requestCount: number }> {
     const where = { entitlementId_usageDate: { entitlementId, usageDate } };
     const incremented = await tx.developerProductQuotaUsage.updateMany({
@@ -866,6 +883,17 @@ export class DeveloperProductPlatformService {
     if (incremented.count) {
       const usage = await tx.developerProductQuotaUsage.findUnique({ where });
       if (usage) return usage;
+    }
+
+    if (legacyUsageDate.getTime() !== usageDate.getTime()) {
+      const migrated = await tx.developerProductQuotaUsage.updateMany({
+        where: { entitlementId, usageDate: legacyUsageDate },
+        data: { usageDate, requestCount: { increment: 1 } },
+      });
+      if (migrated.count) {
+        const usage = await tx.developerProductQuotaUsage.findUnique({ where });
+        if (usage) return usage;
+      }
     }
 
     return tx.developerProductQuotaUsage.create({

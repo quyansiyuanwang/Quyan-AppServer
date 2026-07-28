@@ -61,10 +61,12 @@ describe("DeveloperProductPlatformService product quota persistence", () => {
     if (fixtureIds.groupId) await prisma.group.deleteMany({ where: { id: fixtureIds.groupId } });
   });
 
-  it("increments an existing daily usage row without creating a duplicate", async () => {
+  it("increments an existing daily usage row written by the prior local-midnight code", async () => {
+    const legacyUsageDate = new Date();
+    legacyUsageDate.setHours(0, 0, 0, 0);
     const usageDate = toDatabaseDate();
     await prisma.developerProductQuotaUsage.create({
-      data: { entitlementId: fixtureIds.entitlementId!, usageDate, requestCount: 4 },
+      data: { entitlementId: fixtureIds.entitlementId!, usageDate: legacyUsageDate, requestCount: 4 },
     });
 
     const receipt = await (DeveloperProductPlatformService.getInstance() as any).consumeQuota(context());

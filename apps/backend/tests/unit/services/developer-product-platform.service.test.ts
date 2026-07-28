@@ -32,6 +32,7 @@ describe("DeveloperProductPlatformService", () => {
     mocks.prisma.developerProductConfig.findUnique.mockResolvedValue({ overagePrice: 0, defaultDailyQuota: 0 });
     mocks.prisma.developerProductQuotaUsage.updateMany
       .mockResolvedValueOnce({ count: 0 })
+      .mockResolvedValueOnce({ count: 0 })
       .mockResolvedValueOnce({ count: 1 });
     mocks.prisma.developerProductQuotaUsage.create.mockRejectedValueOnce({ code: "P2002" });
     mocks.prisma.developerProductQuotaUsage.findUnique.mockResolvedValueOnce({ id: "usage-1", requestCount: 1 });
@@ -53,7 +54,7 @@ describe("DeveloperProductPlatformService", () => {
     });
     expect(mocks.prisma.$transaction).toHaveBeenCalledTimes(2);
     expect(mocks.prisma.developerProductQuotaUsage.create).toHaveBeenCalledTimes(1);
-    expect(mocks.prisma.developerProductQuotaUsage.updateMany).toHaveBeenCalledTimes(2);
+    expect(mocks.prisma.developerProductQuotaUsage.updateMany).toHaveBeenCalledTimes(3);
   });
 
   it("refunds an overage when its quota record was deleted concurrently", async () => {
