@@ -2492,7 +2492,8 @@ const zhCN: DeepStringify<typeof en> = {
     automaticPoolExcludedLatency: '延迟超过阈值',
     automaticPoolExcludedCircuitBreaker: '熔断阈值已触发',
     automaticPoolRouteSummary: '排序：{mode}；动态排序：{dynamic}；统计窗口：{start} 至 {end}',
-    automaticPoolRoutePageHelp: '展示自动代理池当前可尝试的基础成员顺序；模型和格式不兼容会在实际请求时跳过。',
+    automaticPoolRoutePageHelp:
+      '展示自动代理池当前可尝试的基础成员顺序；模型和格式不兼容会在实际请求时跳过。',
     automaticPoolRouteEmpty: '暂无自动代理池',
     automaticPoolRouteWindow: '统计窗口：{start} 至 {end}',
     automaticPoolDynamicEnabled: '动态排序已开启',
