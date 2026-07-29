@@ -422,6 +422,9 @@ model DeveloperStatusMonitor {
   name          String           @db.VarChar(100)
   targetUrl     String           @db.Text
   method        String           @default("GET") @db.VarChar(10)
+  requestBody   String?          @db.Text
+  responseBodyMatchMode String?          @db.VarChar(20)
+  responseBodyMatch String?              @db.Text
   successStatusCodes Json?
   intervalSec   Int              @default(60)
   enabled       Boolean          @default(true)

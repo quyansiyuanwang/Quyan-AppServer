@@ -32,6 +32,8 @@ const mocks = vi.hoisted(() => ({
       updateMany: vi.fn(),
     },
     developerPushRequest: { create: vi.fn(), update: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
+    developerStatusMonitor: { findFirst: vi.fn(), updateMany: vi.fn() },
+    developerStatusCheck: { create: vi.fn(), deleteMany: vi.fn() },
   },
   axios: {
     get: vi.fn(),
@@ -39,6 +41,7 @@ const mocks = vi.hoisted(() => ({
     request: vi.fn(),
   },
   redis: { get: vi.fn(), set: vi.fn(), delete: vi.fn() },
+  outbound: { assertSafeOutboundUrl: vi.fn() },
 }));
 
 vi.mock("../../../src/config/database", () => ({ prisma: mocks.prisma }));
@@ -49,9 +52,17 @@ vi.mock("axios", async (importOriginal) => {
   const actual = await importOriginal<typeof import("axios")>();
   return { ...actual, default: { ...actual.default, ...mocks.axios } };
 });
+vi.mock("../../../src/util/developer-outbound-url", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../src/util/developer-outbound-url")>();
+  return { ...actual, assertSafeOutboundUrl: mocks.outbound.assertSafeOutboundUrl };
+});
 
 import { DeveloperProjectService } from "../../../src/services/developer/developer-project.service";
 import { EnvSpace } from "../../../src/config/env";
+import {
+  createStatusMonitorBodySchema,
+  updateStatusMonitorBodySchema,
+} from "../../../src/api/schema/developer/developer.schema";
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -73,6 +84,11 @@ describe("DeveloperProjectService", () => {
       ...originalBaiduMapConfig,
       ipLocationAk: "",
     };
+    mocks.outbound.assertSafeOutboundUrl.mockResolvedValue({
+      url: new URL("https://monitor.example.test/health"),
+      httpAgent: {},
+      httpsAgent: {},
+    });
   });
 
   it("authenticates a project key only when it contains the requested scope", async () => {
@@ -397,6 +413,148 @@ describe("DeveloperProjectService", () => {
 
     expect(page.statusMonitors[0].availability).toBe(0.5);
     expect(page.statusMonitors[0].checks).toHaveLength(2);
+  });
+
+  it("sends a JSON monitor payload and marks a matching response body as up", async () => {
+    mocks.axios.request.mockResolvedValue({ status: 200, data: '{"status":"ok"}' });
+    mocks.prisma.developerStatusMonitor.updateMany.mockResolvedValue({ count: 1 });
+    mocks.prisma.developerStatusMonitor.findFirst.mockResolvedValue({
+      id: "monitor-1",
+      name: "Health",
+      targetUrl: "https://monitor.example.test/health",
+      method: "POST",
+      requestBody: '{"check":true}',
+      responseBodyMatchMode: "contains",
+      responseBodyMatch: '"status":"ok"',
+      intervalSec: 60,
+      successStatusCodes: [200],
+      enabled: true,
+      lastCheckedAt: new Date(),
+      lastStatus: "up",
+    });
+
+    const result = await (DeveloperProjectService.getInstance() as any).performStatusCheck({
+      id: "monitor-1",
+      targetUrl: "https://monitor.example.test/health",
+      method: "POST",
+      requestBody: '{"check":true}',
+      responseBodyMatchMode: "contains",
+      responseBodyMatch: '"status":"ok"',
+      successStatusCodes: [200],
+    });
+
+    expect(result.lastStatus).toBe("up");
+    expect(mocks.axios.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "POST",
+        data: '{"check":true}',
+        headers: { "Content-Type": "application/json" },
+        responseType: "text",
+      }),
+    );
+    expect(mocks.prisma.developerStatusCheck.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ checkStatus: "up", errorMessage: null }) }),
+    );
+  });
+
+  it("marks a successful HTTP response down when its body does not match", async () => {
+    mocks.axios.request.mockResolvedValue({ status: 200, data: '{"status":"degraded"}' });
+    mocks.prisma.developerStatusMonitor.updateMany.mockResolvedValue({ count: 1 });
+    mocks.prisma.developerStatusMonitor.findFirst.mockResolvedValue({
+      id: "monitor-1",
+      name: "Health",
+      targetUrl: "https://monitor.example.test/health",
+      method: "GET",
+      requestBody: null,
+      responseBodyMatchMode: "equals",
+      responseBodyMatch: '{"status":"ok"}',
+      intervalSec: 60,
+      successStatusCodes: [200],
+      enabled: true,
+      lastCheckedAt: new Date(),
+      lastStatus: "down",
+    });
+
+    const result = await (DeveloperProjectService.getInstance() as any).performStatusCheck({
+      id: "monitor-1",
+      targetUrl: "https://monitor.example.test/health",
+      method: "GET",
+      responseBodyMatchMode: "equals",
+      responseBodyMatch: '{"status":"ok"}',
+      successStatusCodes: [200],
+    });
+
+    expect(result.lastStatus).toBe("down");
+    expect(mocks.prisma.developerStatusCheck.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ checkStatus: "down", errorMessage: "响应体不匹配（完全匹配）" }),
+      }),
+    );
+  });
+
+  it("rejects invalid status monitor body configurations", () => {
+    expect(
+      createStatusMonitorBodySchema.safeParse({
+        name: "Health",
+        targetUrl: "https://example.com/health",
+        method: "POST",
+        requestBody: "not json",
+      }).success,
+    ).toBe(false);
+    expect(
+      createStatusMonitorBodySchema.safeParse({
+        name: "Health",
+        targetUrl: "https://example.com/health",
+        method: "HEAD",
+        responseBodyMatchMode: "contains",
+        responseBodyMatch: "ok",
+      }).success,
+    ).toBe(false);
+    expect(updateStatusMonitorBodySchema.safeParse({ responseBodyMatchMode: "contains" }).success).toBe(false);
+  });
+
+  it("clears monitor body settings when their update fields are null", async () => {
+    mocks.prisma.developerProject.findFirst.mockResolvedValue({ id: "project-1" });
+    mocks.prisma.developerStatusMonitor.findFirst
+      .mockResolvedValueOnce({
+        id: "monitor-1",
+        projectId: "project-1",
+        method: "POST",
+        requestBody: '{"check":true}',
+        responseBodyMatchMode: "contains",
+        responseBodyMatch: "ok",
+      })
+      .mockResolvedValueOnce({
+        id: "monitor-1",
+        name: "Health",
+        targetUrl: "https://monitor.example.test/health",
+        method: "POST",
+        requestBody: null,
+        responseBodyMatchMode: null,
+        responseBodyMatch: null,
+        intervalSec: 60,
+        successStatusCodes: [200],
+        enabled: true,
+        lastCheckedAt: null,
+        lastStatus: null,
+      });
+    mocks.prisma.developerStatusMonitor.updateMany.mockResolvedValue({ count: 1 });
+
+    await DeveloperProjectService.getInstance().updateStatusMonitor("project-1", "monitor-1", "user-1", {
+      requestBody: null,
+      responseBodyMatchMode: null,
+      responseBodyMatch: null,
+    });
+
+    expect(mocks.prisma.developerStatusMonitor.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          requestBody: null,
+          responseBodyMatchMode: null,
+          responseBodyMatch: null,
+        }),
+      }),
+    );
   });
 
   it("aggregates short-link visits by IP and returns a paginated detail list", async () => {

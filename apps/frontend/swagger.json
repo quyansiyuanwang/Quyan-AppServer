@@ -42531,6 +42531,19 @@
 					"method": {
 						"type": "string"
 					},
+					"requestBody": {
+						"type": "string"
+					},
+					"responseBodyMatchMode": {
+						"type": "string",
+						"enum": [
+							"contains",
+							"equals"
+						]
+					},
+					"responseBodyMatch": {
+						"type": "string"
+					},
 					"intervalSec": {
 						"type": "number",
 						"format": "double"
@@ -42575,8 +42588,28 @@
 						"type": "string",
 						"enum": [
 							"GET",
-							"HEAD"
+							"HEAD",
+							"POST",
+							"PUT",
+							"PATCH",
+							"DELETE"
 						]
+					},
+					"requestBody": {
+						"type": "string",
+						"description": "JSON request payload. Only supported by POST, PUT, PATCH, and DELETE monitors."
+					},
+					"responseBodyMatchMode": {
+						"type": "string",
+						"enum": [
+							"contains",
+							"equals"
+						],
+						"description": "How the raw response body is matched when responseBodyMatch is configured."
+					},
+					"responseBodyMatch": {
+						"type": "string",
+						"description": "Expected raw response body text. The monitor is down when it does not match."
 					},
 					"intervalSec": {
 						"type": "number",
@@ -42609,8 +42642,32 @@
 						"type": "string",
 						"enum": [
 							"GET",
-							"HEAD"
+							"HEAD",
+							"POST",
+							"PUT",
+							"PATCH",
+							"DELETE"
 						]
+					},
+					"requestBody": {
+						"type": "string",
+						"nullable": true,
+						"description": "Set to null to clear the JSON request payload."
+					},
+					"responseBodyMatchMode": {
+						"type": "string",
+						"enum": [
+							"contains",
+							"equals",
+							null
+						],
+						"nullable": true,
+						"description": "Set to null to disable response body matching."
+					},
+					"responseBodyMatch": {
+						"type": "string",
+						"nullable": true,
+						"description": "Set to null to clear the expected response body text."
 					},
 					"intervalSec": {
 						"type": "number",
