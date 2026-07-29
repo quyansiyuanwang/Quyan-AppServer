@@ -53,6 +53,7 @@ const MAX_KV_VALUE_BYTES = 64 * 1024;
 const MAX_OUTBOUND_RESPONSE_BYTES = 1_024 * 1_024;
 const MAX_STATUS_MONITOR_REQUEST_BODY_BYTES = 20_000;
 const MAX_STATUS_MONITOR_RESPONSE_BODY_MATCH_BYTES = 10_000;
+const SHORT_LINK_STATS_TIME_ZONE_OFFSET_MS = 8 * 60 * 60 * 1_000;
 const IP_LOCATION_CACHE_TTL_MS = GEO_CACHE_TTL_SECONDS * 1_000;
 const MAX_IP_LOCATION_CACHE_ENTRIES = 50_000;
 const DEVELOPER_IP_LOCATION_CACHE_PREFIX = "developer:ip-location:";
@@ -113,6 +114,12 @@ type ProjectKeyRecord = Awaited<ReturnType<typeof prisma.developerProjectApiKey.
 };
 
 const asIso = (value: Date | null | undefined): string | undefined => value?.toISOString();
+const startOfShortLinkStatsDay = (value: Date): Date => {
+  const local = new Date(value.getTime() + SHORT_LINK_STATS_TIME_ZONE_OFFSET_MS);
+  local.setUTCDate(local.getUTCDate() - 29);
+  local.setUTCHours(0, 0, 0, 0);
+  return new Date(local.getTime() - SHORT_LINK_STATS_TIME_ZONE_OFFSET_MS);
+};
 const hash = (value: string): string => createHash("sha256").update(value).digest("hex");
 
 const mysqlConnectionUrl = (databaseUrl: string): string => {
@@ -769,9 +776,7 @@ export class DeveloperProjectRepository {
     if (!link) throw new NotFoundError("短链接不存在");
 
     const periodEnd = new Date();
-    const periodStart = new Date(periodEnd);
-    periodStart.setDate(periodStart.getDate() - 29);
-    periodStart.setHours(0, 0, 0, 0);
+    const periodStart = startOfShortLinkStatsDay(periodEnd);
     const normalizedPage = Math.max(1, Math.floor(page));
     const normalizedPageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
     const where = { shortLinkId: link.id, clickedAt: { gte: periodStart, lte: periodEnd } };
@@ -815,21 +820,21 @@ export class DeveloperProjectRepository {
           AND \`clickedAt\` <= ${periodEnd}
       `),
       prisma.$queryRaw<Array<{ bucket: string; count: bigint }>>(Prisma.sql`
-        SELECT DATE_FORMAT(\`clickedAt\`, '%Y-%m-%d') AS bucket, COUNT(*) AS count
+        SELECT DATE_FORMAT(CONVERT_TZ(\`clickedAt\`, '+00:00', '+08:00'), '%Y-%m-%d') AS bucket, COUNT(*) AS count
         FROM \`developer_short_link_clicks\`
         WHERE \`shortLinkId\` = ${link.id}
           AND \`clickedAt\` >= ${periodStart}
           AND \`clickedAt\` <= ${periodEnd}
-        GROUP BY DATE_FORMAT(\`clickedAt\`, '%Y-%m-%d')
+        GROUP BY DATE_FORMAT(CONVERT_TZ(\`clickedAt\`, '+00:00', '+08:00'), '%Y-%m-%d')
         ORDER BY bucket ASC
       `),
       prisma.$queryRaw<Array<{ bucket: string; count: bigint }>>(Prisma.sql`
-        SELECT DATE_FORMAT(\`clickedAt\`, '%H:00') AS bucket, COUNT(*) AS count
+        SELECT DATE_FORMAT(CONVERT_TZ(\`clickedAt\`, '+00:00', '+08:00'), '%H:00') AS bucket, COUNT(*) AS count
         FROM \`developer_short_link_clicks\`
         WHERE \`shortLinkId\` = ${link.id}
           AND \`clickedAt\` >= ${periodStart}
           AND \`clickedAt\` <= ${periodEnd}
-        GROUP BY DATE_FORMAT(\`clickedAt\`, '%H:00')
+        GROUP BY DATE_FORMAT(CONVERT_TZ(\`clickedAt\`, '+00:00', '+08:00'), '%H:00')
         ORDER BY bucket ASC
       `),
       prisma.developerShortLinkClick.findMany({

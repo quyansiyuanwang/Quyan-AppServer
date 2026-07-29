@@ -411,6 +411,7 @@ const emoji: DeepStringify<typeof en> = {
   shortLinkAnalytics: {
     back: '↩️ 🔗',
     title: '📊',
+    timezone: 'UTC+8',
     description: '/{code} 👁️ 🌐 ↗️',
     refresh: '🔄',
     totalVisits: '🌐 👆',

@@ -558,6 +558,8 @@ describe("DeveloperProjectService", () => {
   });
 
   it("aggregates short-link visits by IP and returns a paginated detail list", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-29T03:15:00.000Z"));
     mocks.prisma.developerProject.findFirst.mockResolvedValue({ id: "project-1" });
     mocks.prisma.developerShortLink.findFirst.mockResolvedValue({ id: "link-1", code: "docs", clickCount: 8 });
     mocks.prisma.developerShortLinkClick.groupBy
@@ -591,6 +593,8 @@ describe("DeveloperProjectService", () => {
     expect(stats.totalClicks).toBe(8);
     expect(stats.uniqueVisitors).toBe(2);
     expect(stats.totalRecords).toBe(3);
+    expect(stats.periodStart).toBe("2026-06-29T16:00:00.000Z");
+    expect(stats.periodEnd).toBe("2026-07-29T03:15:00.000Z");
     expect(stats.page).toBe(2);
     expect(stats.pageSize).toBe(25);
     expect(stats.clicksByDay).toEqual([{ date: "2026-07-23", count: 3 }]);
@@ -599,8 +603,20 @@ describe("DeveloperProjectService", () => {
     expect(stats.countries).toEqual([{ country: "CN", count: 2 }]);
     expect(stats.ipAddresses).toEqual([{ ipAddress: "203.0.113.7", count: 2 }]);
     expect(stats.recentClicks[1].ipAddress).toBe("198.51.100.8");
+    expect((mocks.prisma.$queryRaw.mock.calls[1][0] as { strings: string[] }).strings.join("")).toContain("CONVERT_TZ");
+    expect((mocks.prisma.$queryRaw.mock.calls[2][0] as { strings: string[] }).strings.join("")).toContain("CONVERT_TZ");
     expect(mocks.prisma.developerShortLinkClick.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ skip: 25, take: 25 }),
+      expect.objectContaining({
+        skip: 25,
+        take: 25,
+        where: expect.objectContaining({
+          clickedAt: {
+            gte: new Date("2026-06-29T16:00:00.000Z"),
+            lte: new Date("2026-07-29T03:15:00.000Z"),
+          },
+        }),
+      }),
     );
+    vi.useRealTimers();
   });
 });

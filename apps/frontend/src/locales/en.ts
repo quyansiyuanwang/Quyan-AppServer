@@ -438,6 +438,7 @@ export default {
   shortLinkAnalytics: {
     back: 'Back to short links',
     title: 'Traffic analytics',
+    timezone: 'UTC+8',
     description: 'Visits, visitors, and referrer details for /{code}',
     refresh: 'Refresh',
     totalVisits: 'Total visits',

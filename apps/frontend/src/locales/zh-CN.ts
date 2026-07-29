@@ -417,6 +417,7 @@ const zhCN: DeepStringify<typeof en> = {
   shortLinkAnalytics: {
     back: '返回短链接',
     title: '访问分析',
+    timezone: 'UTC+8',
     description: '/{code} 的访问、访客与来源明细',
     refresh: '刷新',
     totalVisits: '累计访问',

@@ -37,7 +37,10 @@
       <section class="analytics-section chart-section">
         <div class="section-heading">
           <h2>{{ t('shortLinkAnalytics.dailyTrend') }}</h2>
-          <span>{{ stats.periodStart.slice(0, 10) }} - {{ stats.periodEnd.slice(0, 10) }}</span>
+          <span
+            >{{ formatStatsDate(stats.periodStart) }} - {{ formatStatsDate(stats.periodEnd) }} ·
+            {{ t('shortLinkAnalytics.timezone') }}</span
+          >
         </div>
         <AsyncVChart class="traffic-chart" :option="dailyChartOption" autoresize />
       </section>
@@ -45,7 +48,10 @@
       <section class="analytics-section chart-section">
         <div class="section-heading">
           <h2>{{ t('shortLinkAnalytics.hourlyTrend') }}</h2>
-          <span>{{ t('shortLinkAnalytics.periodVisits') }}</span>
+          <span
+            >{{ t('shortLinkAnalytics.periodVisits') }} ·
+            {{ t('shortLinkAnalytics.timezone') }}</span
+          >
         </div>
         <AsyncVChart class="traffic-chart" :option="hourlyChartOption" autoresize />
       </section>
@@ -152,7 +158,16 @@ const analyticsParams = computed(() => route.params as { instanceId?: string; li
 const instanceId = computed(() => String(analyticsParams.value.instanceId || ''))
 const linkId = computed(() => String(analyticsParams.value.linkId || ''))
 
-const formatTime = (value: string) => new Date(value).toLocaleString()
+const statsTimeZone = 'Asia/Shanghai'
+const formatTime = (value: string) =>
+  new Date(value).toLocaleString(undefined, { timeZone: statsTimeZone })
+const formatStatsDate = (value: string) =>
+  new Intl.DateTimeFormat('sv-SE', {
+    timeZone: statsTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value))
 const dailyChartOption = computed(() => ({
   tooltip: { trigger: 'axis' },
   grid: { top: 24, left: 36, right: 16, bottom: 32 },
