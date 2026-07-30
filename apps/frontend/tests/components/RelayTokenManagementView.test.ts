@@ -283,6 +283,12 @@ const automaticProxyPool = {
   multiplier: 1,
   channelType: 'automatic-proxy-pool',
   modelCapabilities: [],
+  automaticProxyPool: {
+    members: [
+      { id: 'channel-primary', name: 'Primary', enabled: true },
+      { id: 'channel-secondary', name: 'Secondary', enabled: true },
+    ],
+  },
 } as any
 
 const relayToken = {
@@ -575,6 +581,57 @@ describe('RelayTokenManagementView', () => {
       maxRetries: 0,
       retryStatusCodes: ['4xx', '/^5(02|03)$/'],
     })
+  })
+
+  it('shows and saves blocked channels only for automatic proxy pools', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openEditDialog(
+      createRelayTokenFixture({
+        routingMode: 'automatic-pool',
+        automaticProxyPoolChannelId: automaticProxyPool.id,
+        blockedAutomaticProxyPoolChannelIds: ['channel-secondary'],
+        channelConfigs: [],
+      }),
+    )
+    await flushPromises()
+
+    expect(wrapper.find('.blocked-automatic-pool-channel-select').exists()).toBe(true)
+    expect(vm.editForm.blockedAutomaticProxyPoolChannelIds).toEqual(['channel-secondary'])
+
+    await vm.handleSave()
+    expect(updateTokenMock).toHaveBeenCalledWith(
+      relayToken.id,
+      expect.objectContaining({
+        routingMode: 'automatic-pool',
+        blockedAutomaticProxyPoolChannelIds: ['channel-secondary'],
+      }),
+    )
+
+    vm.openCreateDialog()
+    await flushPromises()
+    expect(wrapper.find('.blocked-automatic-pool-channel-select').exists()).toBe(false)
+  })
+
+  it('appends desktop batch-selected channels in selection order', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreateDialog()
+    await flushPromises()
+    vm.editForm.channelConfigs = [{ tempKey: 'primary', channelId: 'channel-primary', priority: 0 }]
+    vm.tokenChannelBatchAddIds = ['channel-tertiary', 'channel-secondary']
+    vm.handleBatchAddTokenChannels()
+
+    expect(vm.editForm.channelConfigs.map((config: any) => config.channelId)).toEqual([
+      'channel-primary',
+      'channel-tertiary',
+      'channel-secondary',
+    ])
+    expect(wrapper.find('.channel-config-toolbar__batch-select').exists()).toBe(true)
   })
 
   it('renders amount quota windows with remaining usage details', async () => {

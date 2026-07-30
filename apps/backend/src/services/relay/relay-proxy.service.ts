@@ -142,6 +142,7 @@ export interface RelayTokenAvailabilityInput {
   channel?: RelayChannel | null;
   routingMode?: string | null;
   automaticProxyPoolChannel?: RelayChannel | null;
+  blockedAutomaticProxyPoolChannelIds?: Prisma.JsonValue | string[] | null;
   channelConfigs?: Array<{
     channel?: RelayChannel | null;
     priority?: number | null;
@@ -1684,9 +1685,23 @@ export class RelayProxyService {
 
   private async buildAttemptPlan(relayToken: RelayTokenAvailabilityInput): Promise<RelayAttemptPlan> {
     const topLevelChannels = this.getTopLevelAttemptChannels(relayToken);
-    const channels = await this.relayPoolResolver.resolveActiveLeafCandidates(topLevelChannels, (pool, members) =>
-      this.orderPooledMemberChannels(pool, members),
+    const resolvedChannels = await this.relayPoolResolver.resolveActiveLeafCandidates(
+      topLevelChannels,
+      (pool, members) => this.orderPooledMemberChannels(pool, members),
     );
+    const blockedChannelIds = new Set(
+      Array.isArray(relayToken.blockedAutomaticProxyPoolChannelIds)
+        ? relayToken.blockedAutomaticProxyPoolChannelIds.reduce<string[]>((ids, channelId) => {
+            if (typeof channelId !== "string") return ids;
+            const normalizedChannelId = channelId.trim();
+            if (normalizedChannelId) ids.push(normalizedChannelId);
+            return ids;
+          }, [])
+        : [],
+    );
+    const channels = blockedChannelIds.size
+      ? resolvedChannels.filter((candidate) => !blockedChannelIds.has(candidate.resolvedChannel.id))
+      : resolvedChannels;
 
     const tokenFailoverConfig = this.getFailoverRuntimeConfig(relayToken);
     const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : null;

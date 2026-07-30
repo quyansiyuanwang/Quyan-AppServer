@@ -838,6 +838,30 @@ describe("RelayProxyService failover", () => {
     expect(firstPlan.allowStickyFailover).toBe(false);
   });
 
+  it("excludes token-blocked automatic pool members from the attempt plan", async () => {
+    const firstMember = createChannel("member-first", "First", "first.example.com");
+    const blockedMember = createChannel("member-blocked", "Blocked", "blocked.example.com");
+    const pool = createChannel("automatic-pool", "Automatic pool", "pool.example.com", {
+      channelType: "automatic-proxy-pool",
+      routingConfig: { dynamicMemberRankingEnabled: false },
+      poolMembers: [
+        { memberChannelId: firstMember.id, priority: 0, weight: 1, enabled: true, memberChannel: firstMember },
+        { memberChannelId: blockedMember.id, priority: 1, weight: 1, enabled: true, memberChannel: blockedMember },
+      ],
+    });
+    const { service } = createService();
+
+    const result = await (service as any).buildAttemptPlan({
+      id: "automatic-token",
+      userId: "user-1",
+      routingMode: "automatic-pool",
+      automaticProxyPoolChannel: pool,
+      blockedAutomaticProxyPoolChannelIds: [blockedMember.id],
+    });
+
+    expect(result.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([firstMember.id]);
+  });
+
   it("infers the same available models for automatic and directly configured pools", async () => {
     const directToken = createRelayTokenWithPooledChannel();
     const automaticToken = createRelayTokenWithPooledChannel();

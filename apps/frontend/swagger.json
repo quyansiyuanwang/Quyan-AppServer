@@ -35848,6 +35848,12 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string"
 					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
 					"expiresAt": {
 						"type": "string",
 						"format": "date-time"
@@ -35969,6 +35975,13 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string"
 					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
+					},
 					"targetUserId": {
 						"type": "string",
 						"description": "目标用户 ID，不传则为当前用户"
@@ -36043,6 +36056,13 @@
 					},
 					"automaticProxyPoolChannelId": {
 						"type": "string"
+					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
 					},
 					"targetUserId": {
 						"type": "string",
@@ -36208,6 +36228,13 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string"
 					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
+					},
 					"targetUserId": {
 						"type": "string",
 						"description": "目标用户 ID，不传则为当前用户"
@@ -36366,6 +36393,13 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string",
 						"nullable": true
+					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
 					},
 					"targetUserId": {
 						"type": "string"

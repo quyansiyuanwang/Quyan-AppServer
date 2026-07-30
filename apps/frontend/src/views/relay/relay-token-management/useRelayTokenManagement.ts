@@ -76,6 +76,7 @@ type RelayTokenWithQuotaWindows = RelayTokenDto & {
 type RelayTokenWithRouting = RelayTokenDto & {
   routingMode?: RelayRoutingMode
   automaticProxyPoolChannelId?: string
+  blockedAutomaticProxyPoolChannelIds?: string[]
 }
 
 export type EditableQuotaWindow = RelayTokenQuotaWindowLike & {
@@ -431,6 +432,7 @@ export const useRelayTokenManagement = () => {
     allowedModelIdsList: [] as string[],
     routingMode: 'ordered' as RelayRoutingMode,
     automaticProxyPoolChannelId: '',
+    blockedAutomaticProxyPoolChannelIds: [] as string[],
     channelConfigs: [createEmptyChannelConfig(0)] as EditableChannelConfig[],
     failoverConfig: createDefaultFailoverConfig() as EditableFailoverConfig,
     modelMapping: {} as Record<string, string>,
@@ -457,6 +459,13 @@ export const useRelayTokenManagement = () => {
   const automaticProxyPoolChannelIdSet = computed(
     () => new Set(automaticProxyPoolChannelOptions.value.map((channel) => channel.id)),
   )
+
+  const selectedAutomaticProxyPoolMemberOptions = computed(() => {
+    const automaticPool = automaticProxyPoolChannelOptions.value.find(
+      (channel) => channel.id === editForm.value.automaticProxyPoolChannelId,
+    )
+    return automaticPool?.automaticProxyPool?.members || []
+  })
 
   const selectedChannelConfigKeys = ref<string[]>([])
   const tokenChannelBatchAddIds = ref<string[]>([])
@@ -757,6 +766,24 @@ export const useRelayTokenManagement = () => {
   )
 
   watch(
+    () => [editForm.value.routingMode, editForm.value.automaticProxyPoolChannelId],
+    () => {
+      if (editForm.value.routingMode !== 'automatic-pool') {
+        editForm.value.blockedAutomaticProxyPoolChannelIds = []
+        return
+      }
+
+      const memberIds = new Set(
+        selectedAutomaticProxyPoolMemberOptions.value.map((member) => member.id),
+      )
+      editForm.value.blockedAutomaticProxyPoolChannelIds =
+        editForm.value.blockedAutomaticProxyPoolChannelIds.filter((channelId) =>
+          memberIds.has(channelId),
+        )
+    },
+  )
+
+  watch(
     () => editForm.value.routingMode,
     (routingMode) => {
       if (routingMode !== 'ordered') return
@@ -1036,6 +1063,10 @@ export const useRelayTokenManagement = () => {
       ipWhitelist: token.ipWhitelist || null,
       modelMapping: token.modelMapping || undefined,
       enabled: token.status === MANAGED_STATUS.ENABLED,
+      routingMode: (token as RelayTokenWithRouting).routingMode,
+      automaticProxyPoolChannelId: (token as RelayTokenWithRouting).automaticProxyPoolChannelId,
+      blockedAutomaticProxyPoolChannelIds: (token as RelayTokenWithRouting)
+        .blockedAutomaticProxyPoolChannelIds,
       channelConfigs: (token.channelConfigs || []).map((config) => ({
         channelId: config.channelId,
         priority: config.priority,
@@ -1416,6 +1447,13 @@ export const useRelayTokenManagement = () => {
       allowedModelIdsList: modelIdsList,
       routingMode: routingToken.routingMode || 'ordered',
       automaticProxyPoolChannelId: routingToken.automaticProxyPoolChannelId || '',
+      blockedAutomaticProxyPoolChannelIds: [
+        ...new Set(
+          (routingToken.blockedAutomaticProxyPoolChannelIds || [])
+            .map((channelId) => channelId.trim())
+            .filter(Boolean),
+        ),
+      ],
       channelConfigs,
       failoverConfig: {
         enabled: row.failoverConfig?.enabled ?? false,
@@ -1638,6 +1676,28 @@ export const useRelayTokenManagement = () => {
     return trimmedConfigs
   }
 
+  const buildBlockedAutomaticProxyPoolChannelIdsPayload = () => {
+    const blockedChannelIds = [
+      ...new Set(
+        editForm.value.blockedAutomaticProxyPoolChannelIds
+          .map((channelId) => channelId.trim())
+          .filter(Boolean),
+      ),
+    ]
+    const memberIds = new Set(
+      selectedAutomaticProxyPoolMemberOptions.value.map((member) => member.id),
+    )
+
+    if (blockedChannelIds.some((channelId) => !memberIds.has(channelId))) {
+      throw new Error(i18ns.t('relay.blockedAutomaticPoolChannelInvalid'))
+    }
+    if (memberIds.size > 0 && blockedChannelIds.length >= memberIds.size) {
+      throw new Error(i18ns.t('relay.blockedAutomaticPoolChannelAll'))
+    }
+
+    return blockedChannelIds
+  }
+
   const normalizeRetryStatusCodes = (codes: Array<string | number>) => {
     const normalizedCodes: string[] = []
     const seen = new Set<string>()
@@ -1711,6 +1771,8 @@ export const useRelayTokenManagement = () => {
       ) {
         throw new Error(i18ns.t('relay.automaticProxyPoolChannelRequired'))
       }
+      const blockedAutomaticProxyPoolChannelIds =
+        routingMode === 'automatic-pool' ? buildBlockedAutomaticProxyPoolChannelIdsPayload() : []
       const quotaWindows = normalizeQuotaWindowsPayload()
       const allowedModelsStr = editForm.value.allowedModelIdsList.join(',')
       const normalizedName = editForm.value.name.trim()
@@ -1743,6 +1805,7 @@ export const useRelayTokenManagement = () => {
           routingMode,
           automaticProxyPoolChannelId:
             routingMode === 'automatic-pool' ? automaticProxyPoolChannelId : undefined,
+          blockedAutomaticProxyPoolChannelIds,
           ...(channelConfigs ? { channelId: channelConfigs[0]?.channelId, channelConfigs } : {}),
           failoverConfig,
           expiresAt: normalizedExpiresAt ?? undefined,
@@ -1769,6 +1832,7 @@ export const useRelayTokenManagement = () => {
           routingMode,
           automaticProxyPoolChannelId:
             routingMode === 'automatic-pool' ? automaticProxyPoolChannelId : null,
+          blockedAutomaticProxyPoolChannelIds,
           ...(channelConfigs ? { channelId: channelConfigs[0]?.channelId, channelConfigs } : {}),
           failoverConfig,
           expiresAt: normalizedExpiresAt ?? null,
@@ -2407,6 +2471,7 @@ export const useRelayTokenManagement = () => {
     mobileChannelListRef,
     editForm,
     automaticProxyPoolChannelOptions,
+    selectedAutomaticProxyPoolMemberOptions,
     selectedChannelConfigKeys,
     tokenChannelBatchAddIds,
     showTokenChannelImportDialog,

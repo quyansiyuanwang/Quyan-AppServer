@@ -43,9 +43,9 @@ Each token can have one or more rolling time-window rate limits (e.g. per-minute
 Each token uses exactly one routing mode:
 
 - `Ordered channels`: maintains a channel order and its failover configuration.
-- `Automatic proxy pool`: selects one shared automatic proxy pool and does not retain an ordered channel list. Administrators or automation maintain the pool members centrally.
+- `Automatic proxy pool`: selects one shared automatic proxy pool and does not retain an ordered channel list. Administrators or automation maintain the pool members centrally. A token may exclude individual pool members without changing the pool's global membership.
 
-The resolved member determines the upstream, model capabilities, and billing multiplier. Token users do not see or edit the pool members.
+The resolved member determines the upstream, model capabilities, and billing multiplier. Token users can view members to exclude them for their own token, but cannot edit the pool's global membership.
 
 ### Management actions
 
@@ -56,7 +56,7 @@ The resolved member determines the upstream, model capabilities, and billing mul
 - Enable or disable token.
 - Delete token.
 - **Batch operations**: import / export token list (JSON format).
-- **Channel batch operations**: import / export channel configurations.
+- **Channel batch operations**: import / export channel configurations, or select multiple channels and append them to the ordered list in selection order.
 
 ## Common actions
 

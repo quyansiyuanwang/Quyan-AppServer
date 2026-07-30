@@ -3052,6 +3052,13 @@ export default {
     automaticProxyPoolChannel: 'Automatic Proxy Pool Channel',
     automaticProxyPoolChannelPlaceholder: 'Select an automatic proxy pool channel',
     automaticProxyPoolChannelRequired: 'Select an automatic proxy pool channel',
+    blockedAutomaticPoolChannels: 'Blocked Pool Channels',
+    blockedAutomaticPoolChannelsPlaceholder: 'Select channels to exclude from this token',
+    blockedAutomaticPoolChannelsHelp:
+      'Only affects this token and does not change the automatic proxy pool membership.',
+    blockedAutomaticPoolChannelInvalid:
+      'Blocked channels must belong to the selected automatic proxy pool',
+    blockedAutomaticPoolChannelAll: 'Keep at least one automatic proxy pool channel available',
     invalidOrderedAutomaticPool:
       'Ordered channels contain an automatic proxy pool; reconfigure this token',
     unavailableChannelsWarningTitle: 'This token contains unavailable channels',

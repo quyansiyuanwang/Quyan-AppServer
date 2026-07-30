@@ -2932,6 +2932,11 @@ const zhCN: DeepStringify<typeof en> = {
     automaticProxyPoolChannel: '自动代理池渠道',
     automaticProxyPoolChannelPlaceholder: '请选择自动代理池渠道',
     automaticProxyPoolChannelRequired: '请选择自动代理池渠道',
+    blockedAutomaticPoolChannels: '屏蔽池内渠道',
+    blockedAutomaticPoolChannelsPlaceholder: '选择不参与该令牌路由的渠道',
+    blockedAutomaticPoolChannelsHelp: '仅影响当前令牌，不会修改自动代理池的全局成员配置。',
+    blockedAutomaticPoolChannelInvalid: '屏蔽渠道必须属于当前自动代理池',
+    blockedAutomaticPoolChannelAll: '请至少保留一个自动代理池渠道可用',
     invalidOrderedAutomaticPool: '有序渠道中包含自动代理池，请重新配置',
     unavailableChannelsWarningTitle: '当前令牌包含不可用渠道',
     unavailableChannelsWarningDesc:
