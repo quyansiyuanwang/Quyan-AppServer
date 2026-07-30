@@ -513,7 +513,10 @@ class MyAxios {
   }
 
   constructor(baseURL: string, timeout: number) {
-    this.baseURL = baseURL
+    const configuredBaseUrl = String(baseURL || '').trim()
+    this.baseURL = /^https?:\/\//.test(configuredBaseUrl)
+      ? configuredBaseUrl
+      : new URL(configuredBaseUrl || '/', window.location.origin).toString()
     this.instance = axios.create({
       baseURL,
       timeout,
@@ -955,6 +958,20 @@ class MyAxios {
     return this.instance
   }
 
+  /**
+   * Some endpoints intentionally use fetch (for example SSE). Keep their URL,
+   * locale/fingerprint and replay-protection headers identical to regular API calls.
+   */
+  async prepareStreamingRequest(path: string, body: unknown): Promise<{ url: string; headers: Record<string, string> }> {
+    return {
+      url: this.buildRequestUrl(path),
+      headers: await this._generateHeaderOptions(
+        { endpoint: undefined, body, finalUrl: path },
+        { enableReplayProtection: true, skipProgressBar: true },
+      ),
+    }
+  }
+
   private buildRequestUrl(
     url: string,
     params?: Record<string, string | number | boolean | null | undefined>,
@@ -1002,7 +1019,9 @@ export const useRequestStore = defineStore('Request', () => {
     return instance.retryPendingTwoFactorRequests()
   }
 
-  return { createAxios, getAxios, retryPendingTwoFactorRequests }
+  const prepareStreamingRequest = (path: string, body: unknown) => instance.prepareStreamingRequest(path, body)
+
+  return { createAxios, getAxios, prepareStreamingRequest, retryPendingTwoFactorRequests }
 })
 
 export type RequestStore = ReturnType<typeof useRequestStore>

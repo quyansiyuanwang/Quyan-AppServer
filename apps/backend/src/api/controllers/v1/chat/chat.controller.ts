@@ -148,9 +148,15 @@ export class ChatController extends Controller {
   ): Promise<void> {
     const userId = req.user?.userId;
     const res = req.res!;
+    const abortController = new AbortController();
+    const abortIfClientDisconnected = () => {
+      if (!res.writableEnded) abortController.abort();
+    };
 
     skipResponseWrapper(req);
     this.sseService.initStream(res);
+    req.once("aborted", abortIfClientDisconnected);
+    res.once("close", abortIfClientDisconnected);
 
     try {
       for await (const chunk of this.chatService.sendMessage(
@@ -164,15 +170,19 @@ export class ChatController extends Controller {
           method: req.method,
           ipAddress: req.ip || req.connection?.remoteAddress || "unknown",
           requestId: String(req.headers["x-request-id"] || "").trim() || undefined,
+          signal: abortController.signal,
         },
+        body.replaceMessageId,
       ))
-        this.sseService.sendChunk(res, chunk);
+        if (!res.writableEnded) this.sseService.sendChunk(res, chunk);
 
-      this.sseService.sendDone(res);
+      if (!res.writableEnded) this.sseService.sendDone(res);
     } catch (error: any) {
-      this.sseService.sendError(res, error.message);
+      if (!res.writableEnded) this.sseService.sendError(res, error.message);
+    } finally {
+      req.off("aborted", abortIfClientDisconnected);
+      res.off("close", abortIfClientDisconnected);
+      if (!res.writableEnded) this.sseService.endStream(res);
     }
-
-    this.sseService.endStream(res);
   }
 }

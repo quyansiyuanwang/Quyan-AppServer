@@ -2220,6 +2220,7 @@ model Message {
   outputTokens   Int?
   totalTokens    Int?
   cost           Decimal? @db.Decimal(10, 4)
+  completionStatus String @default("completed") @db.VarChar(20)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 

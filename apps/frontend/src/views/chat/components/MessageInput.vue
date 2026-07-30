@@ -5,6 +5,7 @@
         class="selector"
         v-model="selectedToken"
         :placeholder="i18ns.t('chat.selectToken')"
+        :disabled="sending || !tokens.length"
       >
         <el-option
           v-for="token in tokens"
@@ -17,6 +18,7 @@
         class="selector"
         v-model="selectedModel"
         :placeholder="i18ns.t('chat.selectModel')"
+        :disabled="sending || !availableModels.length"
       >
         <el-option v-for="model in availableModels" :key="model" :label="model" :value="model" />
       </el-select>
@@ -26,15 +28,25 @@
       type="textarea"
       :rows="3"
       :placeholder="i18ns.t('chat.inputPlaceholder')"
-      @keydown.enter.exact.prevent="handleSend"
+      :disabled="sending"
+      @keydown.enter.exact="handleEnter"
     />
     <el-button
+      v-if="sending"
+      class="send-btn"
+      type="danger"
+      plain
+      @click="$emit('stop')"
+      >{{ i18ns.t('chat.stop') }}</el-button
+    >
+    <el-button
+      v-else
       class="send-btn"
       type="primary"
-      :disabled="sending || !content.trim() || !selectedModel"
-      :loading="sending"
+      :disabled="!content.trim() || !selectedModel"
       @click="handleSend"
       >{{ i18ns.t('chat.send') }}</el-button
+    >
     >
   </div>
 </template>
@@ -54,6 +66,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   send: [content: string, model: string, tokenId?: string]
+  stop: []
 }>()
 
 const content = ref('')
@@ -126,6 +139,12 @@ function handleSend() {
   if (!content.value.trim() || !selectedModel.value) return
   emit('send', content.value, selectedModel.value, selectedToken.value || undefined)
   content.value = ''
+}
+
+function handleEnter(event: KeyboardEvent) {
+  if (event.isComposing) return
+  event.preventDefault()
+  handleSend()
 }
 </script>
 

@@ -108,7 +108,7 @@ const RELAY_TOKEN_QUOTA_COMPARE_EPSILON = 1e-8;
 
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 
-interface RelayFailoverRuntimeConfig {
+export interface RelayFailoverRuntimeConfig {
   enabled: boolean;
   maxRetries: number;
   retryStatusCodes: string[];
@@ -129,7 +129,7 @@ interface ImageForwardResult extends StreamForwardResult {
   data?: any;
 }
 
-interface RelayAttemptPlan {
+export interface RelayAttemptPlan {
   channels: RelayResolvedChannelCandidate[];
   failoverConfig: RelayFailoverRuntimeConfig;
   /** Price-first automatic pools always start at the cheapest currently eligible member. */
@@ -1722,6 +1722,15 @@ export class RelayProxyService {
       failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
       allowStickyFailover: !isPriceFirstAutomaticPool,
     };
+  }
+
+  /**
+   * Returns the same ordered, filtered route candidates used by proxy requests.
+   * Chat owns its response persistence, but must never maintain a divergent view
+   * of ordered channels, automatic pools, or token-level channel exclusions.
+   */
+  async getChatAttemptPlan(relayToken: RelayTokenWithChannel): Promise<RelayAttemptPlan> {
+    return this.buildAttemptPlan(relayToken);
   }
 
   private buildFailoverStickyChannelKey(

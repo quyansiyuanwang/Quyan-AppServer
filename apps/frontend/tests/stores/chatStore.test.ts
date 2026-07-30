@@ -80,6 +80,7 @@ describe('chatStore model selection', () => {
       expect.any(Function),
       expect.any(Function),
       expect.any(Function),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
   })
 
@@ -114,5 +115,28 @@ describe('chatStore model selection', () => {
     expect(deleteMessageMock).not.toHaveBeenCalled()
     expect(sendMessageStreamMock).not.toHaveBeenCalled()
     expect(store.messages).toEqual([userMessage, assistantMessage])
+  })
+
+  it('stops the active stream without turning the assistant draft into an error message', async () => {
+    const store = useChatStore()
+    store.currentConversation = conversation
+    store.availableTokens = [{ id: 'token-1', name: 'Token', allowedModels: 'current-model' } as any]
+    sendMessageStreamMock.mockImplementation(
+      (...args: any[]) =>
+        new Promise((resolve) => {
+          const options = args[7] as { signal: AbortSignal }
+          options.signal.addEventListener('abort', () => resolve('aborted'))
+        }),
+    )
+
+    const pending = store.sendMessage('hello', 'current-model', 'token-1')
+    await Promise.resolve()
+    expect(store.isSending).toBe(true)
+
+    store.stopGeneration()
+    await pending
+
+    expect(store.isSending).toBe(false)
+    expect(store.messages.at(-1)).toMatchObject({ role: 'assistant', clientState: 'stopped' })
   })
 })

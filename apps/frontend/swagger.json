@@ -43606,6 +43606,9 @@
 						"format": "double",
 						"nullable": true
 					},
+					"completionStatus": {
+						"type": "string"
+					},
 					"createTime": {
 						"type": "string",
 						"format": "date-time"
@@ -43620,6 +43623,7 @@
 					"inputTokens",
 					"outputTokens",
 					"totalTokens",
+					"completionStatus",
 					"createTime"
 				],
 				"type": "object",
@@ -43706,6 +43710,9 @@
 						"type": "string"
 					},
 					"relayTokenId": {
+						"type": "string"
+					},
+					"replaceMessageId": {
 						"type": "string"
 					}
 				},

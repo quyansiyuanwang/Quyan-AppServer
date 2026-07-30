@@ -22,6 +22,9 @@
           </el-button>
         </div>
       </div>
+      <div v-if="hasMore" class="load-more">
+        <el-button text :loading="loading" @click="$emit('load-more')">{{ i18ns.t('chat.loadMore') }}</el-button>
+      </div>
     </el-scrollbar>
   </div>
 </template>
@@ -33,6 +36,8 @@ import { i18ns } from '@/locales'
 const props = defineProps<{
   conversations: Conversation[]
   current: Conversation | null
+  hasMore?: boolean
+  loading?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -40,6 +45,7 @@ const emit = defineEmits<{
   create: []
   rename: [id: string, title: string | null]
   delete: [id: string]
+  'load-more': []
 }>()
 
 function handleSelect(id: string) {
@@ -88,6 +94,11 @@ function handleSelect(id: string) {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: 10px;
 }
 
 @media (max-width: 768px) {

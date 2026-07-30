@@ -87,25 +87,39 @@ class ChatService {
     onChunk: (chunk: string) => void,
     onComplete: (message: MessageResponse) => void,
     onError: (error: Error) => void,
-    retryCount = 0,
-  ): Promise<void> {
+    options: { signal?: AbortSignal; replaceMessageId?: string; retryCount?: number } = {},
+  ): Promise<'completed' | 'aborted' | 'failed'> {
     if (isTokenExpired()) {
       await authorizationService.refreshToken()
     }
-    const token = TypedLocalStorage.getItem(StorageKey.Auth.ACCESS_TOKEN)
-    const url = `${import.meta.env.VITE_BACKEND_URL}/v1/chat/conversations/${conversationId}/messages`
+    if (options.signal?.aborted) return 'aborted'
 
-    const response = await fetch(url, {
+    const token = TypedLocalStorage.getItem(StorageKey.Auth.ACCESS_TOKEN)
+    const path = `/v1/chat/conversations/${encodeURIComponent(conversationId)}/messages`
+    const body = { content, model, relayTokenId: tokenId, replaceMessageId: options.replaceMessageId }
+    const request = await useRequestStore().prepareStreamingRequest(path, body)
+
+    let response: Response
+    try {
+      response = await fetch(request.url, {
       method: 'POST',
       headers: {
+        ...request.headers,
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ content, model, relayTokenId: tokenId }),
-    })
+      credentials: 'include',
+      body: JSON.stringify(body),
+      signal: options.signal,
+      })
+    } catch (error) {
+      if (options.signal?.aborted || (error as { name?: string })?.name === 'AbortError') return 'aborted'
+      onError(error instanceof Error ? error : new Error(String(error)))
+      return 'failed'
+    }
 
     if (!response.ok) {
-      if (response.status === 401 && retryCount === 0) {
+      if (response.status === 401 && (options.retryCount || 0) === 0) {
         await authorizationService.refreshToken()
         return this.sendMessageStream(
           conversationId,
@@ -115,12 +129,17 @@ class ChatService {
           onChunk,
           onComplete,
           onError,
-          1,
+          { ...options, retryCount: 1 },
         )
       }
       const errText = await response.text()
-      onError(new Error(errText || `HTTP ${response.status}`))
-      return
+      try {
+        const payload = JSON.parse(errText) as { message?: string }
+        onError(new Error(payload.message || `HTTP ${response.status}`))
+      } catch {
+        onError(new Error(errText || `HTTP ${response.status}`))
+      }
+      return 'failed'
     }
 
     const reader = response.body?.getReader()
@@ -128,49 +147,67 @@ class ChatService {
 
     if (!reader) {
       onError(new Error('No response body'))
-      return
+      return 'failed'
     }
 
     try {
       let buffer = ''
+      let streamCompleted = false
+      const processFrame = (frame: string) => {
+        const data = frame
+          .replace(/\r/g, '')
+          .split('\n')
+          .filter((line) => line.startsWith('data:'))
+          .map((line) => line.slice(5).trimStart())
+          .join('\n')
+        if (!data) return
+        if (data === '[DONE]') {
+          streamCompleted = true
+          return
+        }
+
+        try {
+          const parsed = JSON.parse(data) as { content?: string; done?: boolean; message?: MessageResponse; error?: string }
+          if (parsed.error) {
+            onError(new Error(parsed.error))
+            streamCompleted = true
+            return
+          }
+          if (parsed.content) onChunk(parsed.content)
+          if (parsed.done && parsed.message) onComplete(parsed.message)
+        } catch {
+          onError(new Error('Invalid streaming response'))
+          streamCompleted = true
+        }
+      }
+
+      const flushFrames = (isFinal = false) => {
+        const frames = buffer.split(/\r?\n\r?\n/)
+        buffer = isFinal ? '' : (frames.pop() ?? '')
+        for (const frame of frames) {
+          processFrame(frame)
+          if (streamCompleted) return
+        }
+        if (isFinal && buffer.trim()) processFrame(buffer)
+      }
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            console.log('[ChatService] Received data:', data)
-            if (data === '[DONE]') return
-
-            try {
-              const parsed = JSON.parse(data)
-              console.log('[ChatService] Parsed:', parsed)
-              if (parsed.error) {
-                onError(new Error(parsed.error))
-                return
-              }
-              if (parsed.content) {
-                console.log('[ChatService] Calling onChunk with:', parsed.content)
-                onChunk(parsed.content)
-              }
-              if (parsed.done && parsed.message) {
-                console.log('[ChatService] Calling onComplete with:', parsed.message)
-                onComplete(parsed.message as MessageResponse)
-              }
-            } catch (e) {
-              console.error('[ChatService] Parse error:', e)
-            }
-          }
-        }
+        flushFrames()
+        if (streamCompleted) return 'completed'
       }
+      buffer += decoder.decode()
+      flushFrames(true)
+      return options.signal?.aborted ? 'aborted' : 'completed'
     } catch (error: any) {
-      console.error('[ChatService] Stream error:', error)
-      onError(error)
+      if (options.signal?.aborted || error?.name === 'AbortError') return 'aborted'
+      onError(error instanceof Error ? error : new Error(String(error)))
+      return 'failed'
+    } finally {
+      reader.releaseLock()
     }
   }
 
