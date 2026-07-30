@@ -6,6 +6,11 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { RemoteTerminalGatewayService } from "./gateway.service";
 
 const logger = getLogger("RemoteTerminalGateway", LogCategory.APPLICATION);
+const REMOTE_TERMINAL_WEBSOCKET_PATHS = new Set(["/remote-terminal/ws", "/v1/remote-terminal/ws"]);
+
+export function isRemoteTerminalWebSocketPath(pathname: string): boolean {
+  return REMOTE_TERMINAL_WEBSOCKET_PATHS.has(pathname);
+}
 
 export class RemoteTerminalGatewayBootstrap {
   private readonly webSocketServer: WebSocketServer;
@@ -31,7 +36,7 @@ export class RemoteTerminalGatewayBootstrap {
           .split(",")[0]
           .trim() || "http";
       const requestUrl = new URL(request.url ?? "/", `${protocol}://${host}`);
-      if (requestUrl.pathname !== "/remote-terminal/ws") return false;
+          if (!isRemoteTerminalWebSocketPath(requestUrl.pathname)) return false;
 
       this.webSocketServer.handleUpgrade(request, socket, head, (websocket: WebSocket) => {
         void (async () => {
