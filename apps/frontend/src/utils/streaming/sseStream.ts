@@ -1,3 +1,11 @@
+import {
+  applySseRequestMiddlewares,
+  type SseRequest,
+  type SseRequestMiddleware,
+} from '@appserver/shared'
+
+export type { SseRequest, SseRequestMiddleware } from '@appserver/shared'
+
 export type SseStreamErrorKind = 'aborted' | 'network' | 'http' | 'protocol'
 
 export class SseStreamError extends Error {
@@ -13,22 +21,12 @@ export class SseStreamError extends Error {
 
 export type SseTransportEvent<T> = { type: 'data'; value: T } | { type: 'done' }
 
-export interface SseRequest {
-  url: string
-  init: RequestInit
-}
-
-export type SseRequestMiddleware<TContext = unknown> = (
-  request: SseRequest,
-  context: TContext | undefined,
-) => SseRequest | Promise<SseRequest>
-
-export interface SseStreamOptions<T, TContext = unknown> extends SseRequest {
+export interface SseStreamOptions<T, TContext = unknown> extends SseRequest<RequestInit> {
   decode: (data: string) => T
   signal?: AbortSignal
   fetchImpl?: typeof fetch
   context?: TContext
-  middlewares?: readonly SseRequestMiddleware<TContext>[]
+  middlewares?: readonly SseRequestMiddleware<TContext, RequestInit>[]
 }
 
 const isAbortError = (error: unknown) =>
@@ -55,28 +53,14 @@ function takeFrames(buffer: string): { frames: string[]; remainder: string } {
   }
 }
 
-async function applyRequestMiddlewares<TContext>(
-  request: SseRequest,
-  context: TContext | undefined,
-  middlewares: readonly SseRequestMiddleware<TContext>[],
-): Promise<SseRequest> {
-  let nextRequest = request
-  for (const middleware of middlewares) {
-    nextRequest = await middleware(nextRequest, context)
-    if (!nextRequest || typeof nextRequest.url !== 'string' || !nextRequest.init)
-      throw new SseStreamError('protocol', 'SSE request middleware returned an invalid request')
-  }
-  return nextRequest
-}
-
 /** Reads server-sent events without coupling consumers to fetch framing or browser stream cleanup. */
 export async function* readSseStream<T, TContext = unknown>(
   options: SseStreamOptions<T, TContext>,
 ): AsyncGenerator<SseTransportEvent<T>> {
   const fetchImpl = options.fetchImpl ?? fetch
-  let request: SseRequest
+  let request: SseRequest<RequestInit>
   try {
-    request = await applyRequestMiddlewares(
+    request = await applySseRequestMiddlewares(
       { url: options.url, init: options.init },
       options.context,
       options.middlewares ?? [],
@@ -169,11 +153,13 @@ export async function* readSseStream<T, TContext = unknown>(
 
 /** Creates a reusable SSE client whose request middleware can target any upstream service. */
 export class SseClient<TContext = unknown> {
-  constructor(private readonly middlewares: readonly SseRequestMiddleware<TContext>[] = []) {}
+  constructor(
+    private readonly middlewares: readonly SseRequestMiddleware<TContext, RequestInit>[] = [],
+  ) {}
 
   stream<T>(
     options: Omit<SseStreamOptions<T, TContext>, 'middlewares'> & {
-      middlewares?: readonly SseRequestMiddleware<TContext>[]
+      middlewares?: readonly SseRequestMiddleware<TContext, RequestInit>[]
     },
   ): AsyncGenerator<SseTransportEvent<T>> {
     return readSseStream({
@@ -184,5 +170,5 @@ export class SseClient<TContext = unknown> {
 }
 
 export const createSseClient = <TContext = unknown>(
-  middlewares?: readonly SseRequestMiddleware<TContext>[],
+  middlewares?: readonly SseRequestMiddleware<TContext, RequestInit>[],
 ) => new SseClient(middlewares)

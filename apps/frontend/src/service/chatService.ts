@@ -6,14 +6,10 @@ import { authorizationService } from '@/service/authorizationService'
 import type { ChatTokenResponse, ConversationResponse, MessageResponse } from '@/client/types.gen'
 import { cacheObject } from '@/utils/common'
 import { createChatControllerApi } from '@/client/services/chat-controller.gen'
-import type { ChatStreamEvent } from '@appserver/shared'
+import type { ChatStreamEvent, SseRequestMiddleware } from '@appserver/shared'
 import type { ChatStreamClientEvent } from '@/types/chat-stream'
 import { parseChatStreamEvent } from '@/types/chat-stream'
-import {
-  createSseClient,
-  SseStreamError,
-  type SseRequestMiddleware,
-} from '@/utils/streaming/sseStream'
+import { createSseClient, SseStreamError } from '@/utils/streaming/sseStream'
 
 const chatApi = cacheObject(() => createChatControllerApi(useRequestStore().getAxios()))
 
@@ -22,10 +18,10 @@ interface ChatStreamRequestContext {
   body: unknown
 }
 
-const appServerStreamingMiddleware: SseRequestMiddleware<ChatStreamRequestContext> = async (
-  request,
-  context,
-) => {
+const appServerStreamingMiddleware: SseRequestMiddleware<
+  ChatStreamRequestContext,
+  RequestInit
+> = async (request, context) => {
   if (!context) throw new Error('Missing chat streaming request context')
 
   const prepared = await useRequestStore().prepareStreamingRequest(context.path, context.body)
