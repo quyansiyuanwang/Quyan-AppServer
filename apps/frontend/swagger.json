@@ -39426,6 +39426,23 @@
 					"gemini"
 				]
 			},
+			"RelayChannelProbeEndpoint": {
+				"type": "string",
+				"enum": [
+					"openai-chat-completions",
+					"openai-responses",
+					"anthropic-messages",
+					"gemini-generate-content"
+				]
+			},
+			"RelayChannelProbeCacheMode": {
+				"type": "string",
+				"enum": [
+					"cache-bust",
+					"allow-cache",
+					"warm-and-read"
+				]
+			},
 			"RelayChannelProbeWorkflowStepDto": {
 				"properties": {
 					"name": {
@@ -39479,6 +39496,9 @@
 					"probeFormat": {
 						"$ref": "#/components/schemas/RelayChannelProbeFormat"
 					},
+					"probeEndpoint": {
+						"$ref": "#/components/schemas/RelayChannelProbeEndpoint"
+					},
 					"probeModel": {
 						"type": "string"
 					},
@@ -39488,6 +39508,13 @@
 					"preventCache": {
 						"type": "boolean",
 						"description": "Inject a unique marker into each probe request to prevent upstream cache collisions."
+					},
+					"cacheMode": {
+						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
 					},
 					"upstreamCurrency": {
 						"type": "string"
@@ -39537,9 +39564,12 @@
 					"relayChannelId",
 					"enabled",
 					"probeFormat",
+					"probeEndpoint",
 					"probeModel",
 					"probePayload",
 					"preventCache",
+					"cacheMode",
+					"sampleCount",
 					"upstreamCurrency",
 					"localCurrency",
 					"upstreamBalanceDivisor",
@@ -39563,6 +39593,81 @@
 					"timed_out",
 					"cancelled"
 				]
+			},
+			"RelayChannelProbeSampleDto": {
+				"properties": {
+					"index": {
+						"type": "number",
+						"format": "double"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"succeeded",
+							"failed",
+							"discarded"
+						]
+					},
+					"accepted": {
+						"type": "boolean"
+					},
+					"cacheBusterId": {
+						"type": "string"
+					},
+					"upstreamBalanceBefore": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamBalanceAfter": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamBalanceDelta": {
+						"type": "number",
+						"format": "double"
+					},
+					"baseLocalCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"requestTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"responseTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheCreationTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheReadTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"suggestedMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheHitVerified": {
+						"type": "boolean"
+					},
+					"errorMessage": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"index",
+					"status",
+					"accepted"
+				],
+				"type": "object",
+				"additionalProperties": false
 			},
 			"RelayChannelProbeCostBreakdownDto": {
 				"properties": {
@@ -39653,6 +39758,49 @@
 					"distributionMultiplier": {
 						"type": "number",
 						"format": "double"
+					},
+					"probeEndpoint": {
+						"$ref": "#/components/schemas/RelayChannelProbeEndpoint"
+					},
+					"cacheMode": {
+						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"sampleSucceededCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"sampleAcceptedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"sampleDiscardedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupRequestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupCacheCreationTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupCacheReadTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupUsage": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"samples": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeSampleDto"
+						},
+						"type": "array"
 					},
 					"upstreamBalanceBefore": {
 						"type": "number",
@@ -39758,6 +39906,13 @@
 					"status",
 					"queuedAt",
 					"distributionMultiplier",
+					"probeEndpoint",
+					"cacheMode",
+					"sampleCount",
+					"sampleSucceededCount",
+					"sampleAcceptedCount",
+					"sampleDiscardedCount",
+					"warmupRequestCount",
 					"upstreamRateMultiplier",
 					"cacheBustingEnabled",
 					"forceWithoutCacheBuster",
@@ -39836,6 +39991,9 @@
 					"probeFormat": {
 						"$ref": "#/components/schemas/RelayChannelProbeFormat"
 					},
+					"probeEndpoint": {
+						"$ref": "#/components/schemas/RelayChannelProbeEndpoint"
+					},
 					"probeModel": {
 						"type": "string"
 					},
@@ -39844,6 +40002,13 @@
 					},
 					"preventCache": {
 						"type": "boolean"
+					},
+					"cacheMode": {
+						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
 					},
 					"upstreamCurrency": {
 						"type": "string"

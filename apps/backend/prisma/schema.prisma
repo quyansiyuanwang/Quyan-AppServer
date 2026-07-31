@@ -898,9 +898,12 @@ model RelayChannelProbeProfile {
   relayChannelId        String   @unique
   enabled               Boolean  @default(true)
   probeFormat           String   @default("openai") @db.VarChar(20)
+  probeEndpoint         String   @default("openai-chat-completions") @db.VarChar(40)
   probeModel            String   @db.VarChar(200)
   probePayload          Json
   preventCache          Boolean  @default(true)
+  cacheMode             String   @default("cache-bust") @db.VarChar(20)
+  sampleCount           Int      @default(1)
   upstreamCurrency      String   @default("CNY") @db.VarChar(12)
   localCurrency         String   @default("CNY") @db.VarChar(12)
   upstreamBalanceDivisor Decimal @default(1.0) @db.Decimal(18, 6)
@@ -935,6 +938,17 @@ model RelayChannelProbeRun {
   leaseExpiresAt           DateTime?
   distributionMultiplier   Decimal  @db.Decimal(10, 6)
   cacheBustingEnabled      Boolean  @default(true)
+  probeEndpoint            String   @default("openai-chat-completions") @db.VarChar(40)
+  cacheMode                String   @default("cache-bust") @db.VarChar(20)
+  sampleCount              Int      @default(1)
+  sampleSucceededCount     Int      @default(0)
+  sampleAcceptedCount      Int      @default(0)
+  sampleDiscardedCount     Int      @default(0)
+  warmupRequestCount       Int      @default(0)
+  warmupCacheCreationTokens Int?
+  warmupCacheReadTokens    Int?
+  warmupUsage              Json?
+  samples                  Json?
   forceWithoutCacheBuster  Boolean  @default(false)
   cacheBusterId            String?  @db.VarChar(36)
   upstreamBalanceBefore    Decimal? @db.Decimal(18, 6)

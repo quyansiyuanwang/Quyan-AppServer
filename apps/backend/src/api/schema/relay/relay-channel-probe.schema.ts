@@ -2,6 +2,13 @@ import { z } from "zod";
 
 const variablePathSchema = z.string().trim().min(1).max(200);
 const credentialMapSchema = z.record(z.string().trim().min(1).max(80), z.string().min(1).max(2000));
+const probeEndpointSchema = z.enum([
+  "openai-chat-completions",
+  "openai-responses",
+  "anthropic-messages",
+  "gemini-generate-content",
+]);
+const probeCacheModeSchema = z.enum(["cache-bust", "allow-cache", "warm-and-read"]);
 
 const workflowStepSchema = z.object({
   name: z
@@ -38,9 +45,12 @@ export const upsertRelayChannelProbeProfileBodySchema = z
   .object({
     enabled: z.boolean(),
     probeFormat: z.enum(["openai", "anthropic", "gemini"]),
+    probeEndpoint: probeEndpointSchema.optional(),
     probeModel: z.string().trim().min(1).max(200),
     probePayload: z.record(z.string(), z.unknown()),
     preventCache: z.boolean().optional(),
+    cacheMode: probeCacheModeSchema.optional(),
+    sampleCount: z.coerce.number().int().min(1).max(10).optional(),
     upstreamCurrency: z
       .string()
       .trim()
@@ -63,6 +73,14 @@ export const upsertRelayChannelProbeProfileBodySchema = z
   .superRefine((value, ctx) => {
     if (value.workflow.filter((step) => step.balancePath).length !== 1)
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["workflow"], message: "Exactly one balancePath is required" });
+    const endpoint = value.probeEndpoint;
+    if (
+      endpoint &&
+      ((endpoint.startsWith("openai-") && value.probeFormat !== "openai") ||
+        (endpoint === "anthropic-messages" && value.probeFormat !== "anthropic") ||
+        (endpoint === "gemini-generate-content" && value.probeFormat !== "gemini"))
+    )
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["probeEndpoint"], message: "Probe endpoint is incompatible with probe format" });
   });
 export const createRelayChannelProbeRunBodySchema = z.object({
   distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),

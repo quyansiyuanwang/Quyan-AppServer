@@ -41,6 +41,9 @@ import type {
   RelayChannelProbeRunHistoryScope,
   RelayChannelProbeWorkflowStepDto,
   RelayChannelProbeCostBreakdownDto,
+  RelayChannelProbeEndpoint,
+  RelayChannelProbeCacheMode,
+  RelayChannelProbeSampleDto,
   UpsertRelayChannelProbeProfileRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
 import type { RelayChannelDto, RelayChannelMemberDto, RelayChannelType } from "@/api/dto/relay/relay-channel.dto";
@@ -74,6 +77,35 @@ export type RelayChannelProbeTopologyItem = Pick<
 
 type ProbeFormat = "openai" | "anthropic" | "gemini";
 
+export function defaultProbeEndpoint(format: ProbeFormat): RelayChannelProbeEndpoint {
+  return format === "anthropic"
+    ? "anthropic-messages"
+    : format === "gemini"
+      ? "gemini-generate-content"
+      : "openai-chat-completions";
+}
+
+export function assertProbeEndpointCompatibility(
+  endpoint: RelayChannelProbeEndpoint,
+  format: ProbeFormat,
+): void {
+  const compatible = isProbeEndpointCompatible(endpoint, format);
+  if (!compatible) throw new BadRequestError("探针接口与请求格式不兼容");
+}
+
+export function isProbeEndpointCompatible(endpoint: RelayChannelProbeEndpoint, format: ProbeFormat): boolean {
+  return (
+    (endpoint.startsWith("openai-") && format === "openai") ||
+    (endpoint === "anthropic-messages" && format === "anthropic") ||
+    (endpoint === "gemini-generate-content" && format === "gemini")
+  );
+}
+
+export function normalizeProbeEndpoint(endpoint: string | null | undefined, format: ProbeFormat): RelayChannelProbeEndpoint {
+  const candidate = endpoint as RelayChannelProbeEndpoint;
+  return isProbeEndpointCompatible(candidate, format) ? candidate : defaultProbeEndpoint(format);
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -85,9 +117,23 @@ export function injectProbeCacheBuster(
   sourcePayload: Record<string, unknown>,
   format: ProbeFormat,
   cacheBusterId: string,
+  endpoint: RelayChannelProbeEndpoint = defaultProbeEndpoint(format),
 ): Record<string, unknown> | undefined {
   const payload = structuredClone(sourcePayload);
   const marker = `[probe-cache-buster:${cacheBusterId}]`;
+
+  if (endpoint === "openai-responses") {
+    if (typeof payload.input === "string") {
+      payload.input = `${marker}\n${payload.input}`;
+      return payload;
+    }
+    if (!Array.isArray(payload.input)) return undefined;
+    payload.input = [
+      { role: "developer", content: [{ type: "input_text", text: marker }] },
+      ...payload.input,
+    ];
+    return payload;
+  }
 
   if (format === "openai") {
     if (!Array.isArray(payload.messages)) return undefined;
@@ -249,6 +295,30 @@ export function waitForProbeSettlement(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+/** Uses the robust median absolute deviation rather than a mean/stddev pair, so a single bad ledger sample cannot bias calibration. */
+export function findProbeOutlierIndexes(values: readonly number[], threshold = 3.5): Set<number> {
+  if (values.length < 3) return new Set();
+  const median = (items: readonly number[]) => {
+    const ordered = [...items].sort((left, right) => left - right);
+    const middle = Math.floor(ordered.length / 2);
+    return ordered.length % 2 ? ordered[middle]! : (ordered[middle - 1]! + ordered[middle]!) / 2;
+  };
+  const center = median(values);
+  const mad = median(values.map((value) => Math.abs(value - center)));
+  // With zero MAD, equal samples form the baseline and every different value is a clear outlier.
+  if (mad === 0) return new Set(values.flatMap((value, index) => (value === center ? [] : [index])));
+  return new Set(
+    values.flatMap((value, index) => (Math.abs(0.6745 * (value - center) / mad) > threshold ? [index] : [])),
+  );
+}
+
+function averageProbeSampleValue(samples: readonly RelayChannelProbeSampleDto[], key: keyof RelayChannelProbeSampleDto) {
+  const values = samples
+    .map((sample) => sample[key])
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : undefined;
+}
+
 /**
  * Axios treats an explicitly supplied empty object as a JSON request body. A
  * balance workflow normally uses GET and several upstreams reject even that
@@ -310,11 +380,15 @@ export function buildProbeUpstreamEndpoint(
   upstreamUrl: string,
   format: "openai" | "anthropic" | "gemini",
   model: string,
+  endpoint: RelayChannelProbeEndpoint = defaultProbeEndpoint(format),
 ): string {
+  assertProbeEndpointCompatibility(endpoint, format);
   const base = new URL(upstreamUrl);
   const endpointPath =
-    format === "openai"
-      ? "/v1/chat/completions"
+    endpoint === "openai-responses"
+      ? "/v1/responses"
+      : endpoint === "openai-chat-completions"
+        ? "/v1/chat/completions"
       : format === "anthropic"
         ? "/v1/messages"
         : `/v1beta/models/${encodeURIComponent(model)}:generateContent`;
@@ -490,6 +564,16 @@ export class RelayChannelProbeService {
     if (channel.channelType !== "standalone") throw new BadRequestError("仅独立渠道支持余额探针");
     this.assertProbeChannelCompatibility(channel, body.probeFormat, body.probeModel);
     const existing = await this.repository.findProfile(channelId);
+    const probeEndpoint = body.probeEndpoint ?? normalizeProbeEndpoint(existing?.probeEndpoint, body.probeFormat);
+    assertProbeEndpointCompatibility(probeEndpoint, body.probeFormat);
+    const cacheMode: RelayChannelProbeCacheMode =
+      body.cacheMode ??
+      (body.preventCache === false
+        ? "allow-cache"
+        : body.preventCache === true
+          ? "cache-bust"
+          : (existing?.cacheMode as RelayChannelProbeCacheMode | undefined) ?? "cache-bust");
+    const preventCache = body.cacheMode ? cacheMode === "cache-bust" : body.preventCache ?? existing?.preventCache ?? true;
     const encrypted = body.credentials ? this.encryptCredentials(body.credentials) : undefined;
     if (!existing && !encrypted) throw new BadRequestError("首次配置探针必须提供凭据");
     const profile = await this.repository.upsertProfile({
@@ -498,9 +582,12 @@ export class RelayChannelProbeService {
         relayChannelId: channelId,
         enabled: body.enabled,
         probeFormat: body.probeFormat,
+        probeEndpoint,
         probeModel: body.probeModel,
         probePayload: body.probePayload as Prisma.InputJsonValue,
-        preventCache: body.preventCache ?? existing?.preventCache ?? true,
+        preventCache,
+        cacheMode,
+        sampleCount: body.sampleCount ?? existing?.sampleCount ?? 1,
         upstreamCurrency: body.upstreamCurrency || "CNY",
         localCurrency: body.localCurrency || "CNY",
         upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
@@ -515,9 +602,12 @@ export class RelayChannelProbeService {
       update: {
         enabled: body.enabled,
         probeFormat: body.probeFormat,
+        probeEndpoint,
         probeModel: body.probeModel,
         probePayload: body.probePayload as Prisma.InputJsonValue,
-        preventCache: body.preventCache ?? existing?.preventCache ?? true,
+        preventCache,
+        cacheMode,
+        sampleCount: body.sampleCount ?? existing?.sampleCount ?? 1,
         upstreamCurrency: body.upstreamCurrency || "CNY",
         localCurrency: body.localCurrency || "CNY",
         upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
@@ -570,6 +660,7 @@ export class RelayChannelProbeService {
     if (!profile) throw new NotFoundError("渠道探针档案不存在");
     if (!profile.enabled) throw new BadRequestError("渠道探针已停用");
     this.assertProbeChannelCompatibility(channel, profile.probeFormat, profile.probeModel);
+    const probeEndpoint = normalizeProbeEndpoint(profile.probeEndpoint, profile.probeFormat as ProbeFormat);
     if (profile.relayChannel.channelType !== "standalone") throw new BadRequestError("仅独立渠道支持余额探针");
     const active = await this.repository.findActiveRun(channelId);
     if (active) throw new ConflictError("该渠道已有探针任务正在排队或执行");
@@ -587,7 +678,10 @@ export class RelayChannelProbeService {
         profileId: profile.id,
         requestedByUserId: actorUserId,
         distributionMultiplier: body.distributionMultiplier ?? profile.distributionMultiplier,
-        cacheBustingEnabled: profile.preventCache,
+        cacheBustingEnabled: profile.cacheMode === "cache-bust",
+        probeEndpoint,
+        cacheMode: profile.cacheMode,
+        sampleCount: profile.sampleCount,
         forceWithoutCacheBuster: body.forceWithoutCacheBuster === true,
       });
       const attached = await this.redis.replaceIfValueMatches(queueKey, reservationId, run.id, RUN_QUEUE_SLOT_TTL_MS);
@@ -804,89 +898,51 @@ export class RelayChannelProbeService {
     try {
       const profile = run.profile;
       const pricing = await this.resolveProbeModelPricing(profile);
-      const executeProbe = () =>
+      const executeSamples = () =>
         this.channelLockService.withWrite(
           profile.relayChannelId,
-          async () => {
-            const variables = this.decryptCredentials(profile);
-            const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
-            const beforeBalance = await this.runProbePhase("读取请求前余额", () =>
-              this.runWorkflow(workflow, variables),
-            );
-            await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
-            const upstream = await this.runProbePhase("最小模型请求", () =>
-              this.callUpstream(
-                profile,
-                variables,
-                pricing.upstreamModelId,
-                run.cacheBustingEnabled,
-                run.forceWithoutCacheBuster,
-              ),
-            );
-            const usage = this.extractUsage(upstream.response);
-            assertProbeUsage(usage);
-            await waitForProbeSettlement(PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS);
-            const afterBalance = await this.runProbePhase("读取请求后余额", () =>
-              this.runWorkflow(workflow, variables),
-            );
-            return { before: beforeBalance, after: afterBalance, usage, cacheBusterId: upstream.cacheBusterId };
-          },
+          () => this.executeSamples(profile, run, pricing),
           PROBE_LOCK_ACQUIRE_TIMEOUT_MS,
         );
-      const { before, usage, after, cacheBusterId } = profile.probeGroup
+      const result = profile.probeGroup
         ? await this.channelLockService.withWrite(
             this.getProbeGroupLockId(profile.probeGroup),
-            executeProbe,
+            executeSamples,
             GROUP_LOCK_TIMEOUT_MS,
           )
-        : await executeProbe();
-      const balanceDivisor = Number(profile.upstreamBalanceDivisor);
-      if (!Number.isFinite(balanceDivisor) || balanceDivisor <= 0) throw new BadRequestError("上游余额换算除数无效");
-      const normalizedBefore = before / balanceDivisor;
-      const normalizedAfter = after / balanceDivisor;
-      if (!Number.isFinite(normalizedBefore) || !Number.isFinite(normalizedAfter))
-        throw new BadRequestError("上游余额换算结果无效");
-      const upstreamDelta = normalizedBefore - normalizedAfter;
-      const upstreamRateMultiplier = Number(profile.upstreamRateMultiplier);
-      const { baseCost, breakdown } = await this.calculateBaseCost(profile, usage, pricing.rate);
-      const comparable =
-        profile.upstreamCurrency === profile.localCurrency &&
-        upstreamDelta > 0 &&
-        baseCost > 0 &&
-        usage.totalTokens > 0;
-      const suggested = comparable
-        ? calculateSuggestedProbeMultiplier(
-            upstreamDelta,
-            upstreamRateMultiplier,
-            Number(run.distributionMultiplier),
-            baseCost,
-          )
-        : undefined;
+        : await executeSamples();
       await this.repository.completeClaimedRun(runId, owner, {
-        status: "succeeded",
+        status: result.succeededCount ? "succeeded" : "failed",
         finishedAt: new Date(),
         leaseOwner: null,
         leaseExpiresAt: null,
-        upstreamBalanceBefore: normalizedBefore,
-        upstreamBalanceAfter: normalizedAfter,
-        upstreamBalanceDelta: upstreamDelta,
-        upstreamRateMultiplier,
+        upstreamBalanceBefore: result.upstreamBalanceBefore,
+        upstreamBalanceAfter: result.upstreamBalanceAfter,
+        upstreamBalanceDelta: result.upstreamBalanceDelta,
+        upstreamRateMultiplier: Number(profile.upstreamRateMultiplier),
         localBalanceBefore: 0,
-        localBalanceAfter: comparable
-          ? -(upstreamDelta * upstreamRateMultiplier * Number(run.distributionMultiplier))
-          : 0,
-        localBalanceDelta: comparable ? upstreamDelta * upstreamRateMultiplier * Number(run.distributionMultiplier) : 0,
-        baseLocalCost: baseCost,
-        requestTokens: usage.requestTokens,
-        responseTokens: usage.responseTokens,
-        totalTokens: usage.totalTokens,
-        cacheCreationTokens: usage.cacheCreationTokens,
-        cacheReadTokens: usage.cacheReadTokens,
-        cacheBusterId,
-        upstreamUsage: usage.upstreamUsage as Prisma.InputJsonValue,
-        costBreakdown: breakdown as unknown as Prisma.InputJsonValue,
-        suggestedMultiplier: suggested,
+        localBalanceAfter: result.localBalanceDelta == null ? 0 : -result.localBalanceDelta,
+        localBalanceDelta: result.localBalanceDelta ?? 0,
+        baseLocalCost: result.baseLocalCost,
+        requestTokens: result.requestTokens,
+        responseTokens: result.responseTokens,
+        totalTokens: result.totalTokens,
+        cacheCreationTokens: result.cacheCreationTokens,
+        cacheReadTokens: result.cacheReadTokens,
+        cacheBusterId: result.samples.find((sample) => sample.accepted)?.cacheBusterId,
+        upstreamUsage: result.upstreamUsage as Prisma.InputJsonValue,
+        costBreakdown: result.costBreakdown as unknown as Prisma.InputJsonValue,
+        suggestedMultiplier: result.suggestedMultiplier,
         sourceChannelMultiplier: profile.relayChannel.multiplier,
+        sampleSucceededCount: result.succeededCount,
+        sampleAcceptedCount: result.acceptedCount,
+        sampleDiscardedCount: result.discardedCount,
+        warmupRequestCount: result.warmupRequestCount,
+        warmupCacheCreationTokens: result.warmupCacheCreationTokens,
+        warmupCacheReadTokens: result.warmupCacheReadTokens,
+        warmupUsage: result.warmupUsage as Prisma.InputJsonValue,
+        samples: result.samples as unknown as Prisma.InputJsonValue,
+        errorMessage: result.succeededCount ? null : result.samples[0]?.errorMessage ?? "所有探针样本均失败",
       });
     } catch (error) {
       await this.repository.completeClaimedRun(runId, owner, {
@@ -902,6 +958,141 @@ export class RelayChannelProbeService {
         .deleteIfValueMatches(this.getRunQueueSlotKey(run.profile.relayChannelId), runId)
         .catch(() => null);
     }
+  }
+
+  private async executeSamples(profile: ProbeProfileRecord, run: ProbeRunRecord, pricing: { rate: ModelPricingItemDto; upstreamModelId: string }) {
+    const variables = this.decryptCredentials(profile);
+    const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
+    const samples: RelayChannelProbeSampleDto[] = [];
+    const warmups: Array<{ cacheCreationTokens: number; cacheReadTokens: number; usage: Record<string, unknown> }> = [];
+    let costBreakdown: RelayChannelProbeCostBreakdownDto | undefined;
+    for (let index = 0; index < run.sampleCount; index += 1) {
+      try {
+        const cacheBusterId = run.cacheMode === "allow-cache" ? undefined : randomUUID();
+        if (run.cacheMode === "warm-and-read") {
+          const warmup = await this.runProbePhase("缓存预热请求", () =>
+            this.callUpstream(
+              profile,
+              variables,
+              pricing.upstreamModelId,
+              true,
+              run.forceWithoutCacheBuster,
+              cacheBusterId,
+              run.probeEndpoint as RelayChannelProbeEndpoint,
+            ),
+          );
+          const warmupUsage = this.extractUsage(warmup.response);
+          assertProbeUsage(warmupUsage);
+          warmups.push({
+            cacheCreationTokens: warmupUsage.cacheCreationTokens,
+            cacheReadTokens: warmupUsage.cacheReadTokens,
+            usage: warmupUsage.upstreamUsage,
+          });
+          // The preheat charge must settle before taking the measurement baseline,
+          // otherwise it would distort the cache-hit delta used for calibration.
+          await waitForProbeSettlement(PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS);
+        }
+        const before = await this.runProbePhase("读取请求前余额", () => this.runWorkflow(workflow, { ...variables }));
+        await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
+        const upstream = await this.runProbePhase("最小模型请求", () =>
+          this.callUpstream(
+            profile,
+            variables,
+            pricing.upstreamModelId,
+            run.cacheMode !== "allow-cache",
+            run.forceWithoutCacheBuster,
+            cacheBusterId,
+            run.probeEndpoint as RelayChannelProbeEndpoint,
+          ),
+        );
+        const usage = this.extractUsage(upstream.response);
+        assertProbeUsage(usage);
+        await waitForProbeSettlement(PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS);
+        const after = await this.runProbePhase("读取请求后余额", () => this.runWorkflow(workflow, { ...variables }));
+        const divisor = Number(profile.upstreamBalanceDivisor);
+        if (!Number.isFinite(divisor) || divisor <= 0) throw new BadRequestError("上游余额换算除数无效");
+        const upstreamBalanceBefore = before / divisor;
+        const upstreamBalanceAfter = after / divisor;
+        const upstreamBalanceDelta = upstreamBalanceBefore - upstreamBalanceAfter;
+        const calculated = await this.calculateBaseCost(profile, usage, pricing.rate);
+        costBreakdown ??= calculated.breakdown;
+        const cacheHitVerified = run.cacheMode !== "warm-and-read" || usage.cacheReadTokens > 0;
+        const comparable =
+          cacheHitVerified &&
+          profile.upstreamCurrency === profile.localCurrency &&
+          upstreamBalanceDelta > 0 &&
+          calculated.baseCost > 0 &&
+          usage.totalTokens > 0;
+        const suggestedMultiplier = comparable
+          ? calculateSuggestedProbeMultiplier(
+              upstreamBalanceDelta,
+              Number(profile.upstreamRateMultiplier),
+              Number(run.distributionMultiplier),
+              calculated.baseCost,
+            )
+          : undefined;
+        samples.push({
+          index: index + 1,
+          status: "succeeded",
+          accepted: suggestedMultiplier != null,
+          cacheBusterId: upstream.cacheBusterId,
+          upstreamBalanceBefore,
+          upstreamBalanceAfter,
+          upstreamBalanceDelta,
+          baseLocalCost: calculated.baseCost,
+          requestTokens: usage.requestTokens,
+          responseTokens: usage.responseTokens,
+          totalTokens: usage.totalTokens,
+          cacheCreationTokens: usage.cacheCreationTokens,
+          cacheReadTokens: usage.cacheReadTokens,
+          suggestedMultiplier,
+          cacheHitVerified,
+          errorMessage: cacheHitVerified ? undefined : "缓存命中未被上游用量验证",
+        });
+      } catch (error) {
+        samples.push({ index: index + 1, status: "failed", accepted: false, errorMessage: this.safeError(error) });
+      }
+    }
+    const candidates = samples.filter((sample) => sample.accepted && sample.suggestedMultiplier != null);
+    const outlierIndexes = findProbeOutlierIndexes(candidates.map((sample) => sample.suggestedMultiplier!));
+    for (const [index, sample] of candidates.entries()) {
+      if (!outlierIndexes.has(index)) continue;
+      sample.status = "discarded";
+      sample.accepted = false;
+      sample.errorMessage = "样本波动超出 MAD 3.5 阈值，已排除";
+    }
+    const accepted = samples.filter((sample) => sample.accepted);
+    const requiresTwoSamples = run.sampleCount > 1;
+    const canSuggest = accepted.length >= (requiresTwoSamples ? 2 : 1);
+    const baseLocalCost = averageProbeSampleValue(accepted, "baseLocalCost");
+    const upstreamBalanceDelta = averageProbeSampleValue(accepted, "upstreamBalanceDelta");
+    const localBalanceDelta =
+      upstreamBalanceDelta == null
+        ? undefined
+        : upstreamBalanceDelta * Number(profile.upstreamRateMultiplier) * Number(run.distributionMultiplier);
+    return {
+      samples,
+      succeededCount: samples.filter((sample) => sample.status === "succeeded").length,
+      acceptedCount: accepted.length,
+      discardedCount: samples.filter((sample) => sample.status === "discarded").length,
+      warmupRequestCount: warmups.length,
+      warmupCacheCreationTokens: warmups.reduce((sum, item) => sum + item.cacheCreationTokens, 0) || undefined,
+      warmupCacheReadTokens: warmups.reduce((sum, item) => sum + item.cacheReadTokens, 0) || undefined,
+      warmupUsage: warmups.length ? { samples: warmups.map((item) => item.usage) } : undefined,
+      upstreamBalanceBefore: averageProbeSampleValue(accepted, "upstreamBalanceBefore"),
+      upstreamBalanceAfter: averageProbeSampleValue(accepted, "upstreamBalanceAfter"),
+      upstreamBalanceDelta,
+      localBalanceDelta,
+      baseLocalCost,
+      requestTokens: averageProbeSampleValue(accepted, "requestTokens"),
+      responseTokens: averageProbeSampleValue(accepted, "responseTokens"),
+      totalTokens: averageProbeSampleValue(accepted, "totalTokens"),
+      cacheCreationTokens: averageProbeSampleValue(accepted, "cacheCreationTokens"),
+      cacheReadTokens: averageProbeSampleValue(accepted, "cacheReadTokens"),
+      suggestedMultiplier: canSuggest ? averageProbeSampleValue(accepted, "suggestedMultiplier") : undefined,
+      upstreamUsage: accepted.length ? { samples: accepted.map((sample) => ({ index: sample.index, cacheHitVerified: sample.cacheHitVerified })) } : undefined,
+      costBreakdown,
+    };
   }
 
   private async runWorkflow(
@@ -954,9 +1145,13 @@ export class RelayChannelProbeService {
     upstreamModelId: string,
     cacheBustingEnabled: boolean,
     forceWithoutCacheBuster: boolean,
+    cacheBusterId?: string,
+    configuredEndpoint?: RelayChannelProbeEndpoint,
   ): Promise<{ response: Record<string, unknown>; cacheBusterId?: string }> {
     const channel = profile.relayChannel;
     const format = profile.probeFormat as "openai" | "anthropic" | "gemini";
+    const endpoint = normalizeProbeEndpoint(configuredEndpoint ?? profile.probeEndpoint, format);
+    assertProbeEndpointCompatibility(endpoint, format);
     const upstreamUrl =
       format === "anthropic"
         ? channel.anthropicUpstreamUrl
@@ -977,13 +1172,13 @@ export class RelayChannelProbeService {
     );
     if (!isRecord(interpolatedPayload)) throw new BadRequestError("探针请求体必须是 JSON 对象");
     let payload = interpolatedPayload;
-    let cacheBusterId: string | undefined;
+    let injectedCacheBusterId: string | undefined;
     if (cacheBustingEnabled) {
-      const candidateId = randomUUID();
-      const injected = injectProbeCacheBuster(payload, format, candidateId);
+      const candidateId = cacheBusterId ?? randomUUID();
+      const injected = injectProbeCacheBuster(payload, format, candidateId, endpoint);
       if (injected) {
         payload = injected;
-        cacheBusterId = candidateId;
+        injectedCacheBusterId = candidateId;
       } else if (!forceWithoutCacheBuster) {
         throw new BadRequestError("PROBE_CACHE_BUSTER_INJECTION_FAILED:无法向当前请求结构写入唯一缓存标记");
       }
@@ -992,7 +1187,7 @@ export class RelayChannelProbeService {
       format === "anthropic"
         ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
         : { Authorization: `Bearer ${apiKey}` };
-    const endpointUrl = new URL(buildProbeUpstreamEndpoint(base.url.toString(), format, upstreamModelId));
+    const endpointUrl = new URL(buildProbeUpstreamEndpoint(base.url.toString(), format, upstreamModelId, endpoint));
     if (format === "gemini") endpointUrl.searchParams.set("key", apiKey);
     const response = await axios.post(endpointUrl.toString(), payload, {
       headers,
@@ -1005,7 +1200,7 @@ export class RelayChannelProbeService {
       validateStatus: (status) => status >= 200 && status < 300,
     });
     if (!isRecord(response.data)) throw new BadRequestError("上游模型响应必须是 JSON 对象");
-    return { response: response.data, cacheBusterId };
+    return { response: response.data, cacheBusterId: injectedCacheBusterId };
   }
 
   private extractUsage(response: Record<string, unknown>) {
@@ -1144,9 +1339,12 @@ export class RelayChannelProbeService {
       relayChannelId: profile.relayChannelId,
       enabled: profile.enabled,
       probeFormat: profile.probeFormat,
+      probeEndpoint: normalizeProbeEndpoint(profile.probeEndpoint, profile.probeFormat as ProbeFormat),
       probeModel: profile.probeModel,
       probePayload: profile.probePayload as Record<string, unknown>,
       preventCache: profile.preventCache,
+      cacheMode: profile.cacheMode as RelayChannelProbeCacheMode,
+      sampleCount: profile.sampleCount,
       upstreamCurrency: profile.upstreamCurrency,
       localCurrency: profile.localCurrency,
       upstreamBalanceDivisor: Number(profile.upstreamBalanceDivisor),
@@ -1170,6 +1368,17 @@ export class RelayChannelProbeService {
       startedAt: run.startedAt || undefined,
       finishedAt: run.finishedAt || undefined,
       distributionMultiplier: Number(run.distributionMultiplier),
+      probeEndpoint: run.probeEndpoint as RelayChannelProbeEndpoint,
+      cacheMode: run.cacheMode as RelayChannelProbeCacheMode,
+      sampleCount: run.sampleCount,
+      sampleSucceededCount: run.sampleSucceededCount,
+      sampleAcceptedCount: run.sampleAcceptedCount,
+      sampleDiscardedCount: run.sampleDiscardedCount,
+      warmupRequestCount: run.warmupRequestCount,
+      warmupCacheCreationTokens: run.warmupCacheCreationTokens ?? undefined,
+      warmupCacheReadTokens: run.warmupCacheReadTokens ?? undefined,
+      warmupUsage: (run.warmupUsage as Record<string, unknown> | null) ?? undefined,
+      samples: (run.samples as RelayChannelProbeSampleDto[] | null) ?? undefined,
       upstreamBalanceBefore: n(run.upstreamBalanceBefore),
       upstreamBalanceAfter: n(run.upstreamBalanceAfter),
       upstreamBalanceDelta: n(run.upstreamBalanceDelta),
