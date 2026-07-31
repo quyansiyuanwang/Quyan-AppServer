@@ -16,12 +16,46 @@ async function* createChatStream() {
   };
 }
 
+async function* createPartialFailingStream(error: Error) {
+  yield { content: "partial", done: false };
+  throw error;
+}
+
 const createFailingStream = (error: Error) => ({
   [Symbol.asyncIterator]() {
     return {
       next: async () => Promise.reject(error),
     };
   },
+});
+
+const createPersistedMessage = (
+  overrides: Partial<{
+    id: string;
+    conversationId: string;
+    role: string;
+    content: string;
+    model: string | null;
+    inputTokens: number | null;
+    outputTokens: number | null;
+    totalTokens: number | null;
+    cost: number | null;
+    completionStatus: string;
+    createTime: Date;
+  }> = {},
+) => ({
+  id: "assistant-msg-1",
+  conversationId: "conv-1",
+  role: "assistant",
+  content: "hello",
+  model: "gpt-4o-mini",
+  inputTokens: 10,
+  outputTokens: 20,
+  totalTokens: 30,
+  cost: null,
+  completionStatus: "completed",
+  createTime: new Date("2026-01-01T00:00:00.000Z"),
+  ...overrides,
 });
 
 describe("ChatService", () => {
@@ -83,7 +117,13 @@ describe("ChatService", () => {
     getAvailableModelMapForToken: vi.fn(),
     getChatAttemptPlan: vi.fn(async (token: any) => ({
       channels: token.channel ? [{ resolvedChannel: token.channel, displayChannel: token.channel }] : [],
-      failoverConfig: { enabled: false, maxRetries: 0, retryStatusCodes: [] as string[], failoverThreshold: 1, failbackCooldownMinutes: 0 },
+      failoverConfig: {
+        enabled: false,
+        maxRetries: 0,
+        retryStatusCodes: [] as string[],
+        failoverThreshold: 1,
+        failbackCooldownMinutes: 0,
+      },
       allowStickyFailover: true,
     })),
   };
@@ -108,7 +148,13 @@ describe("ChatService", () => {
     modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([]);
     relayProxyService.getChatAttemptPlan.mockImplementation(async (token: any) => ({
       channels: token.channel ? [{ resolvedChannel: token.channel, displayChannel: token.channel }] : [],
-      failoverConfig: { enabled: false, maxRetries: 0, retryStatusCodes: [] as string[], failoverThreshold: 1, failbackCooldownMinutes: 0 },
+      failoverConfig: {
+        enabled: false,
+        maxRetries: 0,
+        retryStatusCodes: [] as string[],
+        failoverThreshold: 1,
+        failbackCooldownMinutes: 0,
+      },
       allowStickyFailover: true,
     }));
   });
@@ -172,8 +218,8 @@ describe("ChatService", () => {
     usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
 
     messageRepo.create
-      .mockResolvedValueOnce({ id: "user-msg-1", conversationId: "conv-1", role: "user", content: "hello" })
-      .mockResolvedValueOnce({ id: "assistant-msg-1", conversationId: "conv-1", role: "assistant", content: "hello" });
+      .mockResolvedValueOnce(createPersistedMessage({ id: "user-msg-1", role: "user" }))
+      .mockResolvedValueOnce(createPersistedMessage());
 
     messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
 
@@ -200,7 +246,7 @@ describe("ChatService", () => {
     const chunks: Array<Record<string, unknown>> = [];
     for await (const chunk of service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini")) chunks.push(chunk);
 
-    expect(chunks[0]).toEqual({ content: "hello", done: false });
+    expect(chunks[0]).toEqual({ type: "delta", content: "hello", done: false });
     expect(chunks.at(-1)?.done).toBe(true);
 
     expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
@@ -246,7 +292,13 @@ describe("ChatService", () => {
         { resolvedChannel: firstChannel, displayChannel: firstChannel },
         { resolvedChannel: secondChannel, displayChannel: secondChannel },
       ],
-      failoverConfig: { enabled: true, maxRetries: 1, retryStatusCodes: ["5xx"], failoverThreshold: 1, failbackCooldownMinutes: 0 },
+      failoverConfig: {
+        enabled: true,
+        maxRetries: 1,
+        retryStatusCodes: ["5xx"],
+        failoverThreshold: 1,
+        failbackCooldownMinutes: 0,
+      },
       allowStickyFailover: true,
     });
     modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
@@ -265,10 +317,12 @@ describe("ChatService", () => {
     usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
     usageChargeService.chargeUsage.mockResolvedValue({ applied: true });
     relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
-    messageRepo.create.mockResolvedValue({ id: "assistant-msg-1", conversationId: "conv-1", role: "assistant" });
+    messageRepo.create.mockResolvedValue(createPersistedMessage());
     messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
     aiProvider.streamChat
-      .mockReturnValueOnce(createFailingStream(Object.assign(new Error("upstream unavailable"), { response: { status: 503 } })))
+      .mockReturnValueOnce(
+        createFailingStream(Object.assign(new Error("upstream unavailable"), { response: { status: 503 } })),
+      )
       .mockReturnValueOnce(createChatStream());
 
     for await (const _chunk of service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini")) {
@@ -309,22 +363,84 @@ describe("ChatService", () => {
       channel: { id: "channel-1", name: "main", multiplier: 1, allowedModels: null },
     });
     modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
-      { model: "gpt-4o-mini", provider: null, pricingType: "token-based", fixedPrice: null, inputPrice: 1000, outputPrice: 2000, cacheCreationMultiplier: 1, cacheReadMultiplier: 1, supportedFormats: "openai" },
+      {
+        model: "gpt-4o-mini",
+        provider: null,
+        pricingType: "token-based",
+        fixedPrice: null,
+        inputPrice: 1000,
+        outputPrice: 2000,
+        cacheCreationMultiplier: 1,
+        cacheReadMultiplier: 1,
+        supportedFormats: "openai",
+      },
     ]);
     usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
     usageChargeService.chargeUsage.mockResolvedValue({ applied: true });
     relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
-    messageRepo.create.mockResolvedValue({ id: "assistant-msg-1", conversationId: "conv-1", role: "assistant" });
+    messageRepo.create.mockResolvedValue(createPersistedMessage());
     messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
-    aiProvider.streamChat.mockReturnValue(createFailingStream(Object.assign(new Error("cancelled"), { code: "ERR_CANCELED" })));
+    aiProvider.streamChat.mockReturnValue(
+      createFailingStream(Object.assign(new Error("cancelled"), { code: "ERR_CANCELED" })),
+    );
     const controller = new AbortController();
     controller.abort();
 
     const chunks: Array<Record<string, unknown>> = [];
-    for await (const chunk of service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini", undefined, { signal: controller.signal })) chunks.push(chunk);
+    for await (const chunk of service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini", undefined, {
+      signal: controller.signal,
+    }))
+      chunks.push(chunk);
 
-    expect(chunks.at(-1)?.done).toBe(true);
+    expect(chunks).toEqual([]);
     expect(messageRepo.create).toHaveBeenLastCalledWith(expect.objectContaining({ completionStatus: "stopped" }));
+  });
+
+  it("persists a failed partial response without emitting a complete event", async () => {
+    conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
+    relayTokenRepository.findByIdWithChannel.mockResolvedValue({
+      id: "token-1",
+      userId: "user-1",
+      token: "rlt_x",
+      channelId: "channel-1",
+      allowedModels: null,
+      upstreamUrl: "https://upstream.example.com",
+      upstreamApiKey: "upstream-key",
+      channel: { id: "channel-1", name: "main", multiplier: 1, allowedModels: null },
+    });
+    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+      {
+        model: "gpt-4o-mini",
+        provider: null,
+        pricingType: "token-based",
+        fixedPrice: null,
+        inputPrice: 1000,
+        outputPrice: 2000,
+        cacheCreationMultiplier: 1,
+        cacheReadMultiplier: 1,
+        supportedFormats: "openai",
+      },
+    ]);
+    usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
+    usageChargeService.chargeUsage.mockResolvedValue({ applied: true });
+    relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
+    messageRepo.create.mockResolvedValue(createPersistedMessage());
+    messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
+    aiProvider.streamChat.mockReturnValue(createPartialFailingStream(new Error("upstream disconnected")));
+
+    const iterator = service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini");
+
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: { type: "delta", content: "partial", done: false },
+    });
+    await expect(iterator.next()).rejects.toThrow("upstream disconnected");
+    expect(messageRepo.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        completionStatus: "failed",
+        content: "partial",
+      }),
+    );
   });
 
   it("filters available models by channel and token constraints", async () => {
@@ -421,15 +537,15 @@ describe("ChatService", () => {
     relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
     usageChargeService.chargeUsage.mockResolvedValue({ applied: true });
     messageRepo.create
-      .mockResolvedValueOnce({ id: "user-msg-1", conversationId: "conv-1", role: "user", content: "hello" })
-      .mockResolvedValueOnce({ id: "assistant-msg-1", conversationId: "conv-1", role: "assistant", content: "hello" });
+      .mockResolvedValueOnce(createPersistedMessage({ id: "user-msg-1", role: "user" }))
+      .mockResolvedValueOnce(createPersistedMessage());
     messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
     aiProvider.streamChat.mockReturnValue(createChatStream());
 
     const chunks: Array<Record<string, unknown>> = [];
     for await (const chunk of service.sendMessage("conv-1", "user-1", "hello", "claude-like-model")) chunks.push(chunk);
 
-    expect(chunks[0]).toEqual({ content: "hello", done: false });
+    expect(chunks[0]).toEqual({ type: "delta", content: "hello", done: false });
     expect(chunks.at(-1)?.done).toBe(true);
     expect(aiProvider.streamChat).toHaveBeenCalledWith(
       [{ role: "user", content: "hello" }],
@@ -536,12 +652,7 @@ describe("ChatService", () => {
       },
     });
     usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
-    messageRepo.create.mockResolvedValue({
-      id: "user-msg-1",
-      conversationId: "conv-1",
-      role: "user",
-      content: "hello",
-    });
+    messageRepo.create.mockResolvedValue(createPersistedMessage({ id: "user-msg-1", role: "user" }));
     messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
 
     modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([

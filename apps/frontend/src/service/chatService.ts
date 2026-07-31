@@ -6,8 +6,39 @@ import { authorizationService } from '@/service/authorizationService'
 import type { ChatTokenResponse, ConversationResponse, MessageResponse } from '@/client/types.gen'
 import { cacheObject } from '@/utils/common'
 import { createChatControllerApi } from '@/client/services/chat-controller.gen'
+import type { ChatStreamEvent } from '@appserver/shared'
+import type { ChatStreamClientEvent } from '@/types/chat-stream'
+import { parseChatStreamEvent } from '@/types/chat-stream'
+import {
+  createSseClient,
+  SseStreamError,
+  type SseRequestMiddleware,
+} from '@/utils/streaming/sseStream'
 
 const chatApi = cacheObject(() => createChatControllerApi(useRequestStore().getAxios()))
+
+interface ChatStreamRequestContext {
+  path: string
+  body: unknown
+}
+
+const appServerStreamingMiddleware: SseRequestMiddleware<ChatStreamRequestContext> = async (
+  request,
+  context,
+) => {
+  if (!context) throw new Error('Missing chat streaming request context')
+
+  const prepared = await useRequestStore().prepareStreamingRequest(context.path, context.body)
+  const headers = new Headers(request.init.headers)
+  for (const [name, value] of Object.entries(prepared.headers)) headers.set(name, value)
+
+  const token = TypedLocalStorage.getItem(StorageKey.Auth.ACCESS_TOKEN)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+
+  return { url: prepared.url, init: { ...request.init, headers } }
+}
+
+const appServerSseClient = createSseClient([appServerStreamingMiddleware])
 
 class ChatService {
   private static instance: ChatService
@@ -79,135 +110,81 @@ class ChatService {
     return this.unwrapResponseData<MessageResponse[]>(response) ?? []
   }
 
-  async sendMessageStream(
+  async *sendMessageStream(
     conversationId: string,
     content: string,
     model: string,
     tokenId: string | undefined,
-    onChunk: (chunk: string) => void,
-    onComplete: (message: MessageResponse) => void,
-    onError: (error: Error) => void,
-    options: { signal?: AbortSignal; replaceMessageId?: string; retryCount?: number } = {},
-  ): Promise<'completed' | 'aborted' | 'failed'> {
+    options: { signal?: AbortSignal; replaceMessageId?: string } = {},
+  ): AsyncGenerator<ChatStreamClientEvent> {
     if (isTokenExpired()) {
       await authorizationService.refreshToken()
     }
-    if (options.signal?.aborted) return 'aborted'
+    if (options.signal?.aborted) {
+      yield { type: 'failure', kind: 'aborted', message: 'Streaming request was aborted' }
+      return
+    }
 
-    const token = TypedLocalStorage.getItem(StorageKey.Auth.ACCESS_TOKEN)
     const path = `/v1/chat/conversations/${encodeURIComponent(conversationId)}/messages`
-    const body = { content, model, relayTokenId: tokenId, replaceMessageId: options.replaceMessageId }
-    const request = await useRequestStore().prepareStreamingRequest(path, body)
-
-    let response: Response
-    try {
-      response = await fetch(request.url, {
-      method: 'POST',
-      headers: {
-        ...request.headers,
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'include',
-      body: JSON.stringify(body),
-      signal: options.signal,
-      })
-    } catch (error) {
-      if (options.signal?.aborted || (error as { name?: string })?.name === 'AbortError') return 'aborted'
-      onError(error instanceof Error ? error : new Error(String(error)))
-      return 'failed'
+    const body = {
+      content,
+      model,
+      relayTokenId: tokenId,
+      replaceMessageId: options.replaceMessageId,
     }
-
-    if (!response.ok) {
-      if (response.status === 401 && (options.retryCount || 0) === 0) {
-        await authorizationService.refreshToken()
-        return this.sendMessageStream(
-          conversationId,
-          content,
-          model,
-          tokenId,
-          onChunk,
-          onComplete,
-          onError,
-          { ...options, retryCount: 1 },
-        )
-      }
-      const errText = await response.text()
+    for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const payload = JSON.parse(errText) as { message?: string }
-        onError(new Error(payload.message || `HTTP ${response.status}`))
-      } catch {
-        onError(new Error(errText || `HTTP ${response.status}`))
-      }
-      return 'failed'
-    }
-
-    const reader = response.body?.getReader()
-    const decoder = new TextDecoder()
-
-    if (!reader) {
-      onError(new Error('No response body'))
-      return 'failed'
-    }
-
-    try {
-      let buffer = ''
-      let streamCompleted = false
-      const processFrame = (frame: string) => {
-        const data = frame
-          .replace(/\r/g, '')
-          .split('\n')
-          .filter((line) => line.startsWith('data:'))
-          .map((line) => line.slice(5).trimStart())
-          .join('\n')
-        if (!data) return
-        if (data === '[DONE]') {
-          streamCompleted = true
-          return
-        }
-
-        try {
-          const parsed = JSON.parse(data) as { content?: string; done?: boolean; message?: MessageResponse; error?: string }
-          if (parsed.error) {
-            onError(new Error(parsed.error))
-            streamCompleted = true
+        for await (const transportEvent of appServerSseClient.stream<ChatStreamEvent>({
+          url: path,
+          init: {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(body),
+          },
+          decode: parseChatStreamEvent,
+          signal: options.signal,
+          context: { path, body },
+        })) {
+          if (transportEvent.type === 'done') continue
+          const event = transportEvent.value
+          if (event.type === 'delta') yield { type: 'delta', content: event.content }
+          else if (event.type === 'complete') {
+            yield { type: 'complete', message: event.message }
+            return
+          } else if (event.type === 'error') {
+            yield { type: 'failure', kind: 'server', message: event.error }
             return
           }
-          if (parsed.content) onChunk(parsed.content)
-          if (parsed.done && parsed.message) onComplete(parsed.message)
-        } catch {
-          onError(new Error('Invalid streaming response'))
-          streamCompleted = true
         }
-      }
-
-      const flushFrames = (isFinal = false) => {
-        const frames = buffer.split(/\r?\n\r?\n/)
-        buffer = isFinal ? '' : (frames.pop() ?? '')
-        for (const frame of frames) {
-          processFrame(frame)
-          if (streamCompleted) return
+        yield {
+          type: 'failure',
+          kind: 'protocol',
+          message: 'SSE stream ended without a complete event',
         }
-        if (isFinal && buffer.trim()) processFrame(buffer)
+        return
+      } catch (error) {
+        if (
+          error instanceof SseStreamError &&
+          error.kind === 'http' &&
+          error.status === 401 &&
+          attempt === 0
+        ) {
+          await authorizationService.refreshToken()
+          continue
+        }
+        const failure =
+          error instanceof SseStreamError
+            ? error
+            : new SseStreamError(
+                'network',
+                error instanceof Error ? error.message : 'Streaming request failed',
+              )
+        yield { type: 'failure', kind: failure.kind, message: failure.message }
+        return
       }
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        flushFrames()
-        if (streamCompleted) return 'completed'
-      }
-      buffer += decoder.decode()
-      flushFrames(true)
-      return options.signal?.aborted ? 'aborted' : 'completed'
-    } catch (error: any) {
-      if (options.signal?.aborted || error?.name === 'AbortError') return 'aborted'
-      onError(error instanceof Error ? error : new Error(String(error)))
-      return 'failed'
-    } finally {
-      reader.releaseLock()
     }
   }
 

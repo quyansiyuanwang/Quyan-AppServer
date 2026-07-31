@@ -93,6 +93,7 @@ import { i18ns } from '@/locales'
 import { Menu, Plus } from '@element-plus/icons-vue'
 import ConversationList from './components/ConversationList.vue'
 import ChatWindow from './components/ChatWindow.vue'
+import type { Message } from '@/types/chat'
 
 const chatStore = useChatStore()
 const { isDesktop } = usePageDevice()
@@ -182,15 +183,15 @@ async function handleSend(content: string, model: string, tokenId?: string) {
   await chatStore.sendMessage(content, model, tokenId)
 }
 
-function handleEdit(message: any, newContent: string) {
+function handleEdit(message: Message, newContent: string) {
   chatStore.editMessage(message.id, newContent)
 }
 
-function handleResend(message: any) {
+function handleResend(message: Message) {
   chatStore.resendMessage(message)
 }
 
-function handleRegenerate(message: any) {
+function handleRegenerate(message: Message) {
   chatStore.regenerateMessage(message)
 }
 

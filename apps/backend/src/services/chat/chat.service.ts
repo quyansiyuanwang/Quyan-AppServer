@@ -14,7 +14,8 @@ import type { RelayTokenStore, RelayTokenWithChannel } from "@/store/relay/relay
 import type { RelayUsageStore } from "@/store/relay/relay-usage.store";
 import type { ModelPricingStore } from "@/store/relay/model-pricing.store";
 import type { RelayConfigStore } from "@/store/relay/relay-config.store";
-import type { RelayChannel } from "@prisma/client";
+import type { Message as PrismaMessage, RelayChannel } from "@prisma/client";
+import type { ChatStreamEvent, ChatStreamMessage } from "@appserver/shared";
 import { TOKEN_PRICE_DIVISOR } from "@/constant/pricing";
 import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";
 import {
@@ -162,6 +163,22 @@ export class ChatService {
     return candidate?.code === "ERR_CANCELED" || candidate?.name === "AbortError";
   }
 
+  private toStreamMessage(message: PrismaMessage): ChatStreamMessage {
+    return {
+      id: message.id,
+      conversationId: message.conversationId,
+      role: message.role,
+      content: message.content,
+      model: message.model,
+      inputTokens: message.inputTokens,
+      outputTokens: message.outputTokens,
+      totalTokens: message.totalTokens,
+      cost: message.cost == null ? null : Number(message.cost),
+      completionStatus: message.completionStatus,
+      createTime: message.createTime.toISOString(),
+    };
+  }
+
   async createConversation(userId: string, title?: string, relayTokenId?: string) {
     if (relayTokenId) {
       const token = await this.relayTokenRepository.findById(relayTokenId);
@@ -216,7 +233,7 @@ export class ChatService {
     relayTokenId?: string,
     requestMeta?: ChatRequestMeta,
     replaceMessageId?: string,
-  ) {
+  ): AsyncGenerator<Extract<ChatStreamEvent, { type: "delta" | "complete" }>> {
     const conversation = await this.getConversation(conversationId, userId);
 
     const tokenId = relayTokenId || conversation.relayTokenId;
@@ -311,21 +328,21 @@ export class ChatService {
               candidate.requestFormat,
             );
         for await (const chunk of stream) {
-        if (chunk.content) {
-          if (!firstChunkAt) firstChunkAt = Date.now();
-          assistantContent += chunk.content;
-          yield { content: chunk.content, done: false };
+          if (!chunk.done && chunk.content) {
+            if (!firstChunkAt) firstChunkAt = Date.now();
+            assistantContent += chunk.content;
+            yield { type: "delta", content: chunk.content, done: false };
+          }
+          if (chunk.done) {
+            inputTokens = chunk.inputTokens || 0;
+            outputTokens = chunk.outputTokens || 0;
+            cacheCreationTokens = chunk.cacheCreationTokens || 0;
+            cacheReadTokens = chunk.cacheReadTokens || 0;
+            totalOutputTime = chunk.totalOutputTime || 0;
+            timeToFirstByte = chunk.timeToFirstByte || 0;
+            isStreaming = chunk.isStreaming ?? true;
+          }
         }
-        if (chunk.done) {
-          inputTokens = chunk.inputTokens || 0;
-          outputTokens = chunk.outputTokens || 0;
-          cacheCreationTokens = chunk.cacheCreationTokens || 0;
-          cacheReadTokens = chunk.cacheReadTokens || 0;
-          totalOutputTime = chunk.totalOutputTime || 0;
-          timeToFirstByte = chunk.timeToFirstByte || 0;
-          isStreaming = chunk.isStreaming ?? true;
-        }
-      }
         break;
       } catch (error) {
         if (this.isAborted(error, requestMeta?.signal)) {
@@ -468,8 +485,13 @@ export class ChatService {
     });
 
     if (!finalizeResult.applied) throw new BadRequestError("Insufficient balance");
+    if (stopped) return;
+    if (failed) {
+      if (lastError instanceof Error) throw lastError;
+      throw new Error("Upstream stream failed after producing output");
+    }
 
-    yield { done: true, message };
+    yield { type: "complete", done: true, message: this.toStreamMessage(message) };
   }
 
   async getAvailableTokens(userId: string) {

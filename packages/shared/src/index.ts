@@ -52,6 +52,7 @@ export {
   supportsRelayRequestFormat,
   unionUniqueModelIds,
 } from './relay-model-availability'
+export type { ChatStreamEvent, ChatStreamMessage } from './chat-stream'
 export type {
   ModelIdentityLike,
   RelayModelNameConstraint,

@@ -26,17 +26,18 @@ interface ChatMessage {
   content: string;
 }
 
-interface StreamChunk {
-  content?: string;
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheCreationTokens?: number;
-  cacheReadTokens?: number;
-  totalOutputTime?: number;
-  timeToFirstByte?: number;
-  isStreaming?: boolean;
-  done: boolean;
-}
+export type StreamChunk =
+  | { content: string; done: false }
+  | {
+      done: true;
+      inputTokens?: number;
+      outputTokens?: number;
+      cacheCreationTokens?: number;
+      cacheReadTokens?: number;
+      totalOutputTime?: number;
+      timeToFirstByte?: number;
+      isStreaming?: boolean;
+    };
 
 interface TokenMetrics {
   inputTokens: number;

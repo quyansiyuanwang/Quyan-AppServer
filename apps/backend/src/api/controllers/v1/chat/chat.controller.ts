@@ -27,6 +27,7 @@ import type {
 import type { SuccessResponse } from "@/api/response";
 import { skipResponseWrapper } from "@/util/response-wrapper";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
+import type { ChatStreamEvent } from "@appserver/shared";
 
 @Route("v1/chat")
 @Tags("Chat")
@@ -152,6 +153,7 @@ export class ChatController extends Controller {
     const abortIfClientDisconnected = () => {
       if (!res.writableEnded) abortController.abort();
     };
+    const canWrite = () => !abortController.signal.aborted && !res.writableEnded && !res.destroyed;
 
     skipResponseWrapper(req);
     this.sseService.initStream(res);
@@ -174,15 +176,19 @@ export class ChatController extends Controller {
         },
         body.replaceMessageId,
       ))
-        if (!res.writableEnded) this.sseService.sendChunk(res, chunk);
+        if (canWrite()) this.sseService.sendChunk(res, chunk);
 
-      if (!res.writableEnded) this.sseService.sendDone(res);
-    } catch (error: any) {
-      if (!res.writableEnded) this.sseService.sendError(res, error.message);
+      if (canWrite()) {
+        this.sseService.sendChunk<Extract<ChatStreamEvent, { type: "done" }>>(res, { type: "done", done: true });
+        this.sseService.sendDone(res);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Chat stream failed";
+      if (canWrite()) this.sseService.sendError(res, message);
     } finally {
       req.off("aborted", abortIfClientDisconnected);
       res.off("close", abortIfClientDisconnected);
-      if (!res.writableEnded) this.sseService.endStream(res);
+      if (!res.writableEnded && !res.destroyed) this.sseService.endStream(res);
     }
   }
 }

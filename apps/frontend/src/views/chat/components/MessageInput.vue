@@ -31,14 +31,9 @@
       :disabled="sending"
       @keydown.enter.exact="handleEnter"
     />
-    <el-button
-      v-if="sending"
-      class="send-btn"
-      type="danger"
-      plain
-      @click="$emit('stop')"
-      >{{ i18ns.t('chat.stop') }}</el-button
-    >
+    <el-button v-if="sending" class="send-btn" type="danger" plain @click="$emit('stop')">{{
+      i18ns.t('chat.stop')
+    }}</el-button>
     <el-button
       v-else
       class="send-btn"
@@ -46,7 +41,6 @@
       :disabled="!content.trim() || !selectedModel"
       @click="handleSend"
       >{{ i18ns.t('chat.send') }}</el-button
-    >
     >
   </div>
 </template>
