@@ -2587,7 +2587,8 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeSampleCount: '采样次数',
     channelProbeInvalidSampleCount: '采样次数必须是 1 到 10 的整数',
     channelProbeSampleSummary: '采样汇总',
-    channelProbeSampleSummaryValue: '接受 {accepted}/{total}；完成 {succeeded}；剔除异常 {discarded}',
+    channelProbeSampleSummaryValue:
+      '接受 {accepted}/{total}；完成 {succeeded}；剔除异常 {discarded}',
     channelProbeWarmup: '缓存预热',
     channelProbeWarmupValue: '{count} 次请求；缓存写入 {creation}，读取 {read}',
     channelProbeSampleDetails: '样本明细',

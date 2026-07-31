@@ -23,11 +23,26 @@
         {{ statusText }}
       </div>
       <div class="actions-overlay">
-        <el-tooltip :content="i18ns.t('copy')"><el-button text size="small" @click.stop="handleCopy"><el-icon><CopyDocument /></el-icon></el-button></el-tooltip>
-        <el-tooltip v-if="message.role === 'user'" :content="i18ns.t('chat.editMessage')"><el-button text size="small" :disabled="sending" @click.stop="startEdit"><el-icon><EditPen /></el-icon></el-button></el-tooltip>
-        <el-tooltip v-if="message.role === 'user'" :content="i18ns.t('chat.resend')"><el-button text size="small" :disabled="sending" @click.stop="handleResend"><el-icon><Refresh /></el-icon></el-button></el-tooltip>
-        <el-tooltip v-if="message.role === 'assistant'" :content="i18ns.t('chat.regenerate')"><el-button text size="small" :disabled="sending" @click.stop="handleRegenerate"><el-icon><Refresh /></el-icon></el-button></el-tooltip>
-        <el-tooltip :content="i18ns.t('chat.delete')"><el-button text size="small" type="danger" :disabled="sending" @click.stop="handleDelete"><el-icon><Delete /></el-icon></el-button></el-tooltip>
+        <el-tooltip :content="i18ns.t('copy')"
+          ><el-button text size="small" @click.stop="handleCopy"
+            ><el-icon><CopyDocument /></el-icon></el-button
+        ></el-tooltip>
+        <el-tooltip v-if="message.role === 'user'" :content="i18ns.t('chat.editMessage')"
+          ><el-button text size="small" :disabled="sending" @click.stop="startEdit"
+            ><el-icon><EditPen /></el-icon></el-button
+        ></el-tooltip>
+        <el-tooltip v-if="message.role === 'user'" :content="i18ns.t('chat.resend')"
+          ><el-button text size="small" :disabled="sending" @click.stop="handleResend"
+            ><el-icon><Refresh /></el-icon></el-button
+        ></el-tooltip>
+        <el-tooltip v-if="message.role === 'assistant'" :content="i18ns.t('chat.regenerate')"
+          ><el-button text size="small" :disabled="sending" @click.stop="handleRegenerate"
+            ><el-icon><Refresh /></el-icon></el-button
+        ></el-tooltip>
+        <el-tooltip :content="i18ns.t('chat.delete')"
+          ><el-button text size="small" type="danger" :disabled="sending" @click.stop="handleDelete"
+            ><el-icon><Delete /></el-icon></el-button
+        ></el-tooltip>
       </div>
     </div>
   </div>
@@ -64,8 +79,10 @@ let renderVersion = 0
 
 const statusText = computed(() => {
   if (props.message.clientState === 'streaming') return i18ns.t('chat.generating')
-  if (props.message.clientState === 'stopped' || props.message.completionStatus === 'stopped') return i18ns.t('chat.stopped')
-  if (props.message.clientState === 'failed' || props.message.completionStatus === 'failed') return props.message.errorMessage || i18ns.t('chat.generationFailed')
+  if (props.message.clientState === 'stopped' || props.message.completionStatus === 'stopped')
+    return i18ns.t('chat.stopped')
+  if (props.message.clientState === 'failed' || props.message.completionStatus === 'failed')
+    return props.message.errorMessage || i18ns.t('chat.generationFailed')
   return ''
 })
 

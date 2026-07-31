@@ -80,7 +80,11 @@ export const upsertRelayChannelProbeProfileBodySchema = z
         (endpoint === "anthropic-messages" && value.probeFormat !== "anthropic") ||
         (endpoint === "gemini-generate-content" && value.probeFormat !== "gemini"))
     )
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["probeEndpoint"], message: "Probe endpoint is incompatible with probe format" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["probeEndpoint"],
+        message: "Probe endpoint is incompatible with probe format",
+      });
   });
 export const createRelayChannelProbeRunBodySchema = z.object({
   distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),

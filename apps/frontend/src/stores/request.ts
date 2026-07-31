@@ -962,7 +962,10 @@ class MyAxios {
    * Some endpoints intentionally use fetch (for example SSE). Keep their URL,
    * locale/fingerprint and replay-protection headers identical to regular API calls.
    */
-  async prepareStreamingRequest(path: string, body: unknown): Promise<{ url: string; headers: Record<string, string> }> {
+  async prepareStreamingRequest(
+    path: string,
+    body: unknown,
+  ): Promise<{ url: string; headers: Record<string, string> }> {
     return {
       url: this.buildRequestUrl(path),
       headers: await this._generateHeaderOptions(
@@ -1019,7 +1022,8 @@ export const useRequestStore = defineStore('Request', () => {
     return instance.retryPendingTwoFactorRequests()
   }
 
-  const prepareStreamingRequest = (path: string, body: unknown) => instance.prepareStreamingRequest(path, body)
+  const prepareStreamingRequest = (path: string, body: unknown) =>
+    instance.prepareStreamingRequest(path, body)
 
   return { createAxios, getAxios, prepareStreamingRequest, retryPendingTwoFactorRequests }
 })

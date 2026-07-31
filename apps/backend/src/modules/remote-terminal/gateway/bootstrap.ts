@@ -36,7 +36,7 @@ export class RemoteTerminalGatewayBootstrap {
           .split(",")[0]
           .trim() || "http";
       const requestUrl = new URL(request.url ?? "/", `${protocol}://${host}`);
-          if (!isRemoteTerminalWebSocketPath(requestUrl.pathname)) return false;
+      if (!isRemoteTerminalWebSocketPath(requestUrl.pathname)) return false;
 
       this.webSocketServer.handleUpgrade(request, socket, head, (websocket: WebSocket) => {
         void (async () => {

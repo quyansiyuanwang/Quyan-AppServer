@@ -30,10 +30,7 @@ export class MessageRepository implements MessageStore {
     return prisma.message.findUnique({ where: { id } });
   }
 
-  async update(
-    id: string,
-    data: Partial<Pick<MessageCreateInput, "content" | "completionStatus">>,
-  ): Promise<Message> {
+  async update(id: string, data: Partial<Pick<MessageCreateInput, "content" | "completionStatus">>): Promise<Message> {
     return prisma.$transaction(async (tx) => {
       const message = await tx.message.update({ where: { id }, data });
       await tx.conversation.update({ where: { id: message.conversationId }, data: {} });

@@ -23,7 +23,9 @@
         </div>
       </div>
       <div v-if="hasMore" class="load-more">
-        <el-button text :loading="loading" @click="$emit('load-more')">{{ i18ns.t('chat.loadMore') }}</el-button>
+        <el-button text :loading="loading" @click="$emit('load-more')">{{
+          i18ns.t('chat.loadMore')
+        }}</el-button>
       </div>
     </el-scrollbar>
   </div>

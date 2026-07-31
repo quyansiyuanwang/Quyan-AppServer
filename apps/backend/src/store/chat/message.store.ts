@@ -17,10 +17,7 @@ export interface MessageStore {
   create(data: MessageCreateInput): Promise<Message>;
   findByConversationId(conversationId: string): Promise<Message[]>;
   findById(id: string): Promise<Message | null>;
-  update(
-    id: string,
-    data: Partial<Pick<MessageCreateInput, "content" | "completionStatus">>,
-  ): Promise<Message>;
+  update(id: string, data: Partial<Pick<MessageCreateInput, "content" | "completionStatus">>): Promise<Message>;
   replaceFrom(messageId: string, content: string): Promise<Message>;
   delete(id: string): Promise<void>;
   deleteFrom(messageId: string): Promise<void>;

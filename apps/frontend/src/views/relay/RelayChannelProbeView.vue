@@ -380,11 +380,23 @@
                       />
                     </el-form-item>
                   </div>
-                  <el-form-item class="cache-buster-switch" :label="i18ns.t('relay.channelProbeCacheMode')">
+                  <el-form-item
+                    class="cache-buster-switch"
+                    :label="i18ns.t('relay.channelProbeCacheMode')"
+                  >
                     <el-select v-model="form.cacheMode" :disabled="!canExecute">
-                      <el-option value="cache-bust" :label="i18ns.t('relay.channelProbeCacheModeBust')" />
-                      <el-option value="allow-cache" :label="i18ns.t('relay.channelProbeCacheModeAllow')" />
-                      <el-option value="warm-and-read" :label="i18ns.t('relay.channelProbeCacheModeWarm')" />
+                      <el-option
+                        value="cache-bust"
+                        :label="i18ns.t('relay.channelProbeCacheModeBust')"
+                      />
+                      <el-option
+                        value="allow-cache"
+                        :label="i18ns.t('relay.channelProbeCacheModeAllow')"
+                      />
+                      <el-option
+                        value="warm-and-read"
+                        :label="i18ns.t('relay.channelProbeCacheModeWarm')"
+                      />
                     </el-select>
                     <span>{{ i18ns.t('relay.channelProbeCacheModeHelp') }}</span>
                   </el-form-item>
@@ -950,24 +962,49 @@
             <el-collapse v-if="runItem.samples?.length" class="usage-details">
               <el-collapse-item :title="i18ns.t('relay.channelProbeSampleDetails')" name="samples">
                 <el-table :data="runItem.samples" size="small" max-height="280">
-                  <el-table-column prop="index" :label="i18ns.t('relay.channelProbeSampleIndex')" width="72" />
+                  <el-table-column
+                    prop="index"
+                    :label="i18ns.t('relay.channelProbeSampleIndex')"
+                    width="72"
+                  />
                   <el-table-column :label="i18ns.t('relay.channelProbeSampleStatus')" width="110">
                     <template #default="{ row }">
-                      <el-tag :type="row.status === 'discarded' ? 'warning' : row.status === 'failed' ? 'danger' : 'success'" size="small">
+                      <el-tag
+                        :type="
+                          row.status === 'discarded'
+                            ? 'warning'
+                            : row.status === 'failed'
+                              ? 'danger'
+                              : 'success'
+                        "
+                        size="small"
+                      >
                         {{ sampleStatusLabel(row.status) }}
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column :label="i18ns.t('relay.channelProbeUpstreamDelta')" min-width="120">
-                    <template #default="{ row }">{{ formatNumber(row.upstreamBalanceDelta) }}</template>
+                  <el-table-column
+                    :label="i18ns.t('relay.channelProbeUpstreamDelta')"
+                    min-width="120"
+                  >
+                    <template #default="{ row }">{{
+                      formatNumber(row.upstreamBalanceDelta)
+                    }}</template>
                   </el-table-column>
                   <el-table-column :label="i18ns.t('relay.channelProbeBaseCost')" min-width="110">
                     <template #default="{ row }">{{ formatNumber(row.baseLocalCost) }}</template>
                   </el-table-column>
                   <el-table-column :label="i18ns.t('relay.channelProbeSuggestion')" min-width="115">
-                    <template #default="{ row }">{{ row.suggestedMultiplier == null ? '-' : `${row.suggestedMultiplier}x` }}</template>
+                    <template #default="{ row }">{{
+                      row.suggestedMultiplier == null ? '-' : `${row.suggestedMultiplier}x`
+                    }}</template>
                   </el-table-column>
-                  <el-table-column prop="errorMessage" :label="i18ns.t('relay.channelProbeSampleNote')" min-width="210" show-overflow-tooltip />
+                  <el-table-column
+                    prop="errorMessage"
+                    :label="i18ns.t('relay.channelProbeSampleNote')"
+                    min-width="210"
+                    show-overflow-tooltip
+                  />
                 </el-table>
               </el-collapse-item>
             </el-collapse>
@@ -1802,7 +1839,10 @@ function applyPayloadPreset() {
       : form.value.probeFormat === 'gemini'
         ? { contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1 } }
         : form.value.probeEndpoint === 'openai-responses'
-          ? { input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], max_output_tokens: 1 }
+          ? {
+              input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+              max_output_tokens: 1,
+            }
           : { messages: [{ role: 'user', content: prompt }], max_tokens: 1 }
   payloadText.value = JSON.stringify(preset, null, 2)
   ElMessage.success(i18ns.t('relay.channelProbePresetApplied'))
@@ -1889,11 +1929,17 @@ function parseImportedProfile(): ProbeProfileExport['profile'] {
       probeFormat: source.probeFormat as RelayChannelProbeFormat,
       probeEndpoint:
         source.probeEndpoint &&
-        ['openai-chat-completions', 'openai-responses', 'anthropic-messages', 'gemini-generate-content'].includes(source.probeEndpoint)
+        [
+          'openai-chat-completions',
+          'openai-responses',
+          'anthropic-messages',
+          'gemini-generate-content',
+        ].includes(source.probeEndpoint)
           ? source.probeEndpoint
           : defaultEndpointForFormat(source.probeFormat as RelayChannelProbeFormat),
       cacheMode:
-        source.cacheMode && ['cache-bust', 'allow-cache', 'warm-and-read'].includes(source.cacheMode)
+        source.cacheMode &&
+        ['cache-bust', 'allow-cache', 'warm-and-read'].includes(source.cacheMode)
           ? source.cacheMode
           : source.preventCache === false
             ? 'allow-cache'
@@ -2555,7 +2601,7 @@ async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
   const profile = row.profile
   form.value = profile
     ? {
-      enabled: profile.enabled,
+        enabled: profile.enabled,
         probeFormat: profile.probeFormat,
         probeEndpoint: profile.probeEndpoint,
         cacheMode: profile.cacheMode,

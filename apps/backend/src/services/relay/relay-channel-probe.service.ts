@@ -85,10 +85,7 @@ export function defaultProbeEndpoint(format: ProbeFormat): RelayChannelProbeEndp
       : "openai-chat-completions";
 }
 
-export function assertProbeEndpointCompatibility(
-  endpoint: RelayChannelProbeEndpoint,
-  format: ProbeFormat,
-): void {
+export function assertProbeEndpointCompatibility(endpoint: RelayChannelProbeEndpoint, format: ProbeFormat): void {
   const compatible = isProbeEndpointCompatible(endpoint, format);
   if (!compatible) throw new BadRequestError("探针接口与请求格式不兼容");
 }
@@ -101,7 +98,10 @@ export function isProbeEndpointCompatible(endpoint: RelayChannelProbeEndpoint, f
   );
 }
 
-export function normalizeProbeEndpoint(endpoint: string | null | undefined, format: ProbeFormat): RelayChannelProbeEndpoint {
+export function normalizeProbeEndpoint(
+  endpoint: string | null | undefined,
+  format: ProbeFormat,
+): RelayChannelProbeEndpoint {
   const candidate = endpoint as RelayChannelProbeEndpoint;
   return isProbeEndpointCompatible(candidate, format) ? candidate : defaultProbeEndpoint(format);
 }
@@ -128,10 +128,7 @@ export function injectProbeCacheBuster(
       return payload;
     }
     if (!Array.isArray(payload.input)) return undefined;
-    payload.input = [
-      { role: "developer", content: [{ type: "input_text", text: marker }] },
-      ...payload.input,
-    ];
+    payload.input = [{ role: "developer", content: [{ type: "input_text", text: marker }] }, ...payload.input];
     return payload;
   }
 
@@ -308,11 +305,14 @@ export function findProbeOutlierIndexes(values: readonly number[], threshold = 3
   // With zero MAD, equal samples form the baseline and every different value is a clear outlier.
   if (mad === 0) return new Set(values.flatMap((value, index) => (value === center ? [] : [index])));
   return new Set(
-    values.flatMap((value, index) => (Math.abs(0.6745 * (value - center) / mad) > threshold ? [index] : [])),
+    values.flatMap((value, index) => (Math.abs((0.6745 * (value - center)) / mad) > threshold ? [index] : [])),
   );
 }
 
-function averageProbeSampleValue(samples: readonly RelayChannelProbeSampleDto[], key: keyof RelayChannelProbeSampleDto) {
+function averageProbeSampleValue(
+  samples: readonly RelayChannelProbeSampleDto[],
+  key: keyof RelayChannelProbeSampleDto,
+) {
   const values = samples
     .map((sample) => sample[key])
     .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
@@ -389,9 +389,9 @@ export function buildProbeUpstreamEndpoint(
       ? "/v1/responses"
       : endpoint === "openai-chat-completions"
         ? "/v1/chat/completions"
-      : format === "anthropic"
-        ? "/v1/messages"
-        : `/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+        : format === "anthropic"
+          ? "/v1/messages"
+          : `/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   const normalizedBasePath = base.pathname.replace(/\/+$/, "");
   const normalizedEndpointPath = endpointPath.replace(/^\/+/, "");
   const endpointWithLeadingSlash = `/${normalizedEndpointPath}`;
@@ -572,8 +572,10 @@ export class RelayChannelProbeService {
         ? "allow-cache"
         : body.preventCache === true
           ? "cache-bust"
-          : (existing?.cacheMode as RelayChannelProbeCacheMode | undefined) ?? "cache-bust");
-    const preventCache = body.cacheMode ? cacheMode === "cache-bust" : body.preventCache ?? existing?.preventCache ?? true;
+          : ((existing?.cacheMode as RelayChannelProbeCacheMode | undefined) ?? "cache-bust"));
+    const preventCache = body.cacheMode
+      ? cacheMode === "cache-bust"
+      : (body.preventCache ?? existing?.preventCache ?? true);
     const encrypted = body.credentials ? this.encryptCredentials(body.credentials) : undefined;
     if (!existing && !encrypted) throw new BadRequestError("首次配置探针必须提供凭据");
     const profile = await this.repository.upsertProfile({
@@ -942,7 +944,7 @@ export class RelayChannelProbeService {
         warmupCacheReadTokens: result.warmupCacheReadTokens,
         warmupUsage: result.warmupUsage as Prisma.InputJsonValue,
         samples: result.samples as unknown as Prisma.InputJsonValue,
-        errorMessage: result.succeededCount ? null : result.samples[0]?.errorMessage ?? "所有探针样本均失败",
+        errorMessage: result.succeededCount ? null : (result.samples[0]?.errorMessage ?? "所有探针样本均失败"),
       });
     } catch (error) {
       await this.repository.completeClaimedRun(runId, owner, {
@@ -960,7 +962,11 @@ export class RelayChannelProbeService {
     }
   }
 
-  private async executeSamples(profile: ProbeProfileRecord, run: ProbeRunRecord, pricing: { rate: ModelPricingItemDto; upstreamModelId: string }) {
+  private async executeSamples(
+    profile: ProbeProfileRecord,
+    run: ProbeRunRecord,
+    pricing: { rate: ModelPricingItemDto; upstreamModelId: string },
+  ) {
     const variables = this.decryptCredentials(profile);
     const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
     const samples: RelayChannelProbeSampleDto[] = [];
@@ -1090,7 +1096,9 @@ export class RelayChannelProbeService {
       cacheCreationTokens: averageProbeSampleValue(accepted, "cacheCreationTokens"),
       cacheReadTokens: averageProbeSampleValue(accepted, "cacheReadTokens"),
       suggestedMultiplier: canSuggest ? averageProbeSampleValue(accepted, "suggestedMultiplier") : undefined,
-      upstreamUsage: accepted.length ? { samples: accepted.map((sample) => ({ index: sample.index, cacheHitVerified: sample.cacheHitVerified })) } : undefined,
+      upstreamUsage: accepted.length
+        ? { samples: accepted.map((sample) => ({ index: sample.index, cacheHitVerified: sample.cacheHitVerified })) }
+        : undefined,
       costBreakdown,
     };
   }

@@ -2675,11 +2675,13 @@ export default {
     channelProbeCacheModeBust: 'Avoid cached responses',
     channelProbeCacheModeAllow: 'Allow upstream cache',
     channelProbeCacheModeWarm: 'Warm then measure cache hit',
-    channelProbeCacheModeHelp: 'Warm-up costs are recorded separately and never affect the suggested multiplier.',
+    channelProbeCacheModeHelp:
+      'Warm-up costs are recorded separately and never affect the suggested multiplier.',
     channelProbeSampleCount: 'Samples',
     channelProbeInvalidSampleCount: 'Sample count must be an integer from 1 to 10',
     channelProbeSampleSummary: 'Sample summary',
-    channelProbeSampleSummaryValue: '{accepted}/{total} accepted; {succeeded} completed; {discarded} outliers removed',
+    channelProbeSampleSummaryValue:
+      '{accepted}/{total} accepted; {succeeded} completed; {discarded} outliers removed',
     channelProbeWarmup: 'Cache warm-up',
     channelProbeWarmupValue: '{count} requests; cache write {creation}, read {read}',
     channelProbeSampleDetails: 'Sample details',
