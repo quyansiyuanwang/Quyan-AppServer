@@ -213,40 +213,17 @@
                     </div>
                   </div>
 
-                  <div class="channel-config-batch-add">
-                    <el-select
-                      v-model="tokenChannelBatchAddIds"
-                      multiple
-                      collapse-tags
-                      collapse-tags-tooltip
-                      filterable
-                      class="channel-config-batch-add__select channel-config-toolbar__batch-select"
-                      :placeholder="i18ns.t('relay.tokenChannelSelectChannelsPlaceholder')"
-                    >
-                      <el-option
-                        v-for="channel in tokenChannelBatchAddOptions"
-                        :key="channel.id"
-                        :label="
-                          state.getChannelOptionLabel({
-                            id: channel.id,
-                            name: channel.name,
-                            multiplier: channel.multiplier,
-                          })
-                        "
-                        :value="channel.id"
-                      />
-                    </el-select>
+                  <div class="channel-config-toolbar__actions">
                     <el-button
                       plain
                       type="primary"
-                      class="channel-config-batch-add__button"
-                      @click="state.handleBatchAddTokenChannels"
+                      :icon="Plus"
+                      :disabled="channelLimitReached"
+                      class="channel-config-toolbar__batch-add-button"
+                      @click="openTokenChannelBatchAddDialog"
                     >
                       {{ i18ns.t('relay.tokenChannelBatchAdd') }}
                     </el-button>
-                  </div>
-
-                  <div class="channel-config-toolbar__actions">
                     <el-button plain @click="state.handleCopyTokenChannelConfigs">{{
                       i18ns.t('copy')
                     }}</el-button>
@@ -890,11 +867,57 @@
       }}</el-button>
     </template>
   </el-drawer>
+
+  <el-dialog
+    v-model="showTokenChannelBatchAddDialog"
+    :title="i18ns.t('relay.tokenChannelBatchAdd')"
+    :width="isDesktop ? '520px' : 'calc(100% - 24px)'"
+    append-to-body
+    class="token-channel-batch-add-dialog"
+    @closed="resetTokenChannelBatchAddSelection"
+  >
+    <el-form label-position="top">
+      <el-form-item :label="i18ns.t('relay.tokenChannelBatchAdd')">
+        <el-select
+          v-model="tokenChannelBatchAddIds"
+          multiple
+          filterable
+          collapse-tags
+          collapse-tags-tooltip
+          style="width: 100%"
+          :placeholder="i18ns.t('relay.tokenChannelSelectChannelsPlaceholder')"
+        >
+          <el-option
+            v-for="channel in tokenChannelBatchAddOptions"
+            :key="channel.id"
+            :label="
+              state.getChannelOptionLabel({
+                id: channel.id,
+                name: channel.name,
+                multiplier: channel.multiplier,
+              })
+            "
+            :value="channel.id"
+          />
+        </el-select>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="showTokenChannelBatchAddDialog = false">{{ i18ns.t('cancel') }}</el-button>
+      <el-button
+        type="primary"
+        :disabled="tokenChannelBatchAddIds.length === 0"
+        @click="confirmTokenChannelBatchAdd"
+      >
+        {{ i18ns.t('relay.tokenChannelBatchAdd') }}
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { Delete, QuestionFilled, Rank } from '@element-plus/icons-vue'
-import { computed, unref, type ComponentPublicInstance } from 'vue'
+import { Delete, Plus, QuestionFilled, Rank } from '@element-plus/icons-vue'
+import { computed, ref, unref, type ComponentPublicInstance } from 'vue'
 import { Permission } from '@/constant/permission'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
@@ -936,4 +959,20 @@ const setChannelListRef = (element: Element | ComponentPublicInstance | null) =>
 }
 
 const channelLimitReached = computed(() => tokenChannelBatchAddOptions.value.length === 0)
+const showTokenChannelBatchAddDialog = ref(false)
+
+const resetTokenChannelBatchAddSelection = () => {
+  tokenChannelBatchAddIds.value = []
+}
+
+const openTokenChannelBatchAddDialog = () => {
+  resetTokenChannelBatchAddSelection()
+  showTokenChannelBatchAddDialog.value = true
+}
+
+const confirmTokenChannelBatchAdd = () => {
+  if (tokenChannelBatchAddIds.value.length === 0) return
+  state.handleBatchAddTokenChannels()
+  showTokenChannelBatchAddDialog.value = false
+}
 </script>
