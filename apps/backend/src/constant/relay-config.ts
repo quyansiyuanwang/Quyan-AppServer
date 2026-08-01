@@ -4,4 +4,5 @@ export const DEFAULT_RELAY_CONFIG = {
   queueTimeout: 300000, // 5 minutes for image generation
   upstreamStreamTimeout: 120000,
   enableQueue: true,
+  apiCatalogPoolVisibility: 'hidden' as const,
 } as const;

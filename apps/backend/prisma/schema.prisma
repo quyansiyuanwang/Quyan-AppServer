@@ -1842,6 +1842,7 @@ model RelayConfig {
   queueTimeout          Int      @default(30000)
   upstreamStreamTimeout Int      @default(120000)
   enableQueue           Boolean  @default(true)
+  apiCatalogPoolVisibility String @default("hidden") @db.VarChar(20)
   uptimeStatusUrl       String?  @db.Text
   monitorNameMapping    Json? // 简化的监控项名称映射 { "2": "中国主线路", "3": "国际线路" }
   showOnlyConfigured    Boolean? // 是否仅展示已配置的监控项

@@ -13664,14 +13664,6 @@
 					},
 					{
 						"in": "query",
-						"name": "channelId",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "query",
 						"name": "outcome",
 						"required": false,
 						"schema": {
@@ -13695,6 +13687,41 @@
 						"in": "query",
 						"name": "endDate",
 						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay/request-diagnostics/{requestId}/route-trace": {
+			"get": {
+				"operationId": "RelayControllerGetRequestRouteTrace",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayRequestRouteTraceDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "requestId",
+						"required": true,
 						"schema": {
 							"type": "string"
 						}
@@ -14143,6 +14170,36 @@
 						}
 					}
 				]
+			}
+		},
+		"/v1/relay-channels/catalog": {
+			"get": {
+				"operationId": "RelayChannelControllerListCatalogOptions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RelayCatalogOptionDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Consumer-facing API documentation catalog. Pool topology is never included in this projection.",
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/v1/relay-channels/health/overview": {
@@ -28121,6 +28178,7 @@
 					"relay:channel:probe:execute",
 					"relay:channel:multiplier:adjust",
 					"relay:request_diagnostics:read",
+					"relay:request_route_trace:read",
 					"accesskey:create",
 					"accesskey:read",
 					"accesskey:delete",
@@ -36898,12 +36956,6 @@
 					"id": {
 						"type": "string"
 					},
-					"executionChannelId": {
-						"type": "string"
-					},
-					"executionChannelName": {
-						"type": "string"
-					},
 					"statusCode": {
 						"type": "number",
 						"format": "double"
@@ -37006,6 +37058,75 @@
 					"page",
 					"pageSize",
 					"records"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayRequestRouteTraceAttemptDto": {
+				"description": "Privileged execution trace. This projection intentionally contains routing data.",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"statusCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"method": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"timeToFirstByte": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalOutputTime": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"executionChannelId": {
+						"type": "string"
+					},
+					"executionChannelName": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"statusCode",
+					"method",
+					"path",
+					"totalTokens",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayRequestRouteTraceDto": {
+				"properties": {
+					"requestId": {
+						"type": "string"
+					},
+					"attempts": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestRouteTraceAttemptDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"requestId",
+					"attempts"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -37229,6 +37350,14 @@
 					"enableQueue": {
 						"type": "boolean"
 					},
+					"apiCatalogPoolVisibility": {
+						"type": "string",
+						"enum": [
+							"hidden",
+							"anonymous-range"
+						],
+						"description": "Whether API documentation publishes pooled routes anonymously or hides them."
+					},
 					"modelRates": {
 						"items": {
 							"$ref": "#/components/schemas/ModelPricingItemDto"
@@ -37258,6 +37387,7 @@
 					"queueTimeout",
 					"upstreamStreamTimeout",
 					"enableQueue",
+					"apiCatalogPoolVisibility",
 					"modelRates"
 				],
 				"type": "object",
@@ -37287,6 +37417,13 @@
 					},
 					"enableQueue": {
 						"type": "boolean"
+					},
+					"apiCatalogPoolVisibility": {
+						"type": "string",
+						"enum": [
+							"hidden",
+							"anonymous-range"
+						]
 					},
 					"modelRates": {
 						"items": {
@@ -38265,7 +38402,7 @@
 				"additionalProperties": false
 			},
 			"RelayChannelOptionDto": {
-				"description": "Business-facing channel capability. Pooled channels expose a flattened, read-only leaf projection\nso clients can calculate model-specific prices without receiving upstream configuration.",
+				"description": "Business-facing channel capability. Pool topology is returned only to authorized callers.",
 				"properties": {
 					"id": {
 						"type": "string"
@@ -38302,11 +38439,11 @@
 					},
 					"poolPricing": {
 						"$ref": "#/components/schemas/RelayPoolPricingOptionDto",
-						"description": "Present for pooled and automatic proxy pool channels. Contains final eligible leaf channels."
+						"description": "Present for pooled and automatic proxy pool channels when pool metadata access is granted."
 					},
 					"automaticProxyPool": {
 						"$ref": "#/components/schemas/RelayAutomaticProxyPoolOptionDto",
-						"description": "Present only for automatic proxy pools. Excludes upstream URLs, credentials, mappings, and visibility rules."
+						"description": "Present for automatic proxy pools when pool metadata access is granted. Excludes upstream credentials and URLs."
 					}
 				},
 				"required": [
@@ -38316,6 +38453,98 @@
 					"multiplier",
 					"allowedFormats",
 					"modelCapabilities"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayCatalogModelPriceRangeDto": {
+				"description": "Anonymous model-specific price range published in API documentation.",
+				"properties": {
+					"catalogModelName": {
+						"type": "string"
+					},
+					"requestModelId": {
+						"type": "string"
+					},
+					"minMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"maxMultiplier": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"catalogModelName",
+					"requestModelId",
+					"minMultiplier",
+					"maxMultiplier"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayCatalogOptionDto": {
+				"description": "Consumer-facing API documentation channel projection. It never exposes pool topology.",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"allowedFormats": {
+						"type": "string"
+					},
+					"modelCapabilities": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelModelCapabilityDto"
+						},
+						"type": "array"
+					},
+					"pricingMode": {
+						"type": "string",
+						"enum": [
+							"fixed",
+							"range"
+						]
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array"
+					},
+					"modelPriceRanges": {
+						"items": {
+							"$ref": "#/components/schemas/RelayCatalogModelPriceRangeDto"
+						},
+						"type": "array"
+					},
+					"pricingEffectiveAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"priceMayVary": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"enabled",
+					"allowedFormats",
+					"modelCapabilities",
+					"pricingMode",
+					"pricingEffectiveAt",
+					"priceMayVary"
 				],
 				"type": "object",
 				"additionalProperties": false

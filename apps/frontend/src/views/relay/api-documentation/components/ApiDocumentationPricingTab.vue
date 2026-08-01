@@ -2,7 +2,7 @@
 import { ArrowDown, ArrowUp, Refresh, Search } from '@element-plus/icons-vue'
 import ComponentErrorBoundary from '@/components/common/ComponentErrorBoundary.vue'
 import ModelPricingTable from '@/components/relay/ModelPricingTable.vue'
-import type { RelayChannelOptionDto } from '@/client/types.gen'
+import type { RelayCatalogOptionDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
 import { useApiDocumentationContext } from '../context'
 
@@ -13,9 +13,6 @@ const filterChannelIds = state.filterChannelIds
 const filterPricingType = state.filterPricingType
 const filterModelKeyword = state.filterModelKeyword
 const onlyModelsWithChannels = state.onlyModelsWithChannels
-const hideIndependentChannels = state.hideIndependentChannels
-const hidePooledChannels = state.hidePooledChannels
-const hideAutomaticProxyPools = state.hideAutomaticProxyPools
 const channelMatchMode = state.channelMatchMode
 const channelPriceMode = state.channelPriceMode
 const pricingTableMode = state.pricingTableMode
@@ -118,39 +115,14 @@ const formatChannelMultiplier = (multiplier?: number | null) => {
   return `x${resolvedMultiplier}`
 }
 
-const getPoolLabel = (channel: RelayChannelOptionDto) =>
-  channel.channelType === 'automatic-proxy-pool'
-    ? t('apiDoc.automaticProxyPool')
-    : t('relay.channelTypePooled')
-
-const getPoolMultipliers = (channel: RelayChannelOptionDto) =>
-  (channel.poolPricing?.members ?? [])
-    .filter((member) => member.enabled)
-    .map((member) => member.effectiveMultiplier)
-
-const formatChannelOptionLabel = (channel: RelayChannelOptionDto) => {
-  if (!channel.poolPricing) {
-    return `${channel.name} ${formatChannelMultiplier(channel.multiplier)}`
+const formatChannelOptionLabel = (channel: RelayCatalogOptionDto) => channel.name
+const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
+  if (channel.pricingMode === 'range') {
+    const ranges = channel.modelPriceRanges ?? []
+    if (ranges.length === 0) return '-'
+    return `${formatChannelMultiplier(Math.min(...ranges.map((range) => range.minMultiplier)))}–${formatChannelMultiplier(Math.max(...ranges.map((range) => range.maxMultiplier)))}`
   }
-
-  const multipliers = getPoolMultipliers(channel)
-
-  if (multipliers.length === 0) {
-    return `${channel.name} · ${getPoolLabel(channel)}`
-  }
-
-  return `${channel.name} · ${getPoolLabel(channel)} ${formatChannelMultiplier(Math.min(...multipliers))}–${formatChannelMultiplier(Math.max(...multipliers))}`
-}
-
-const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
-  if (!channel.poolPricing) return formatChannelMultiplier(channel.multiplier)
-
-  const multipliers = getPoolMultipliers(channel)
-
-  if (multipliers.length === 0) return t('apiDoc.noActivePoolMembers')
-  return `${formatChannelMultiplier(Math.min(...multipliers))}–${formatChannelMultiplier(
-    Math.max(...multipliers),
-  )}`
+  return formatChannelMultiplier(channel.multiplier)
 }
 </script>
 
@@ -245,21 +217,6 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
             <div class="pricing-more-settings-item pricing-more-settings-item--between">
               <span class="pricing-inline-label">{{ t('apiDoc.showCacheMultipliers') }}</span>
               <el-switch v-model="showCacheMultipliers" />
-            </div>
-
-            <div class="pricing-more-settings-item pricing-more-settings-item--between">
-              <span class="pricing-inline-label">{{ t('apiDoc.hideIndependentChannels') }}</span>
-              <el-switch v-model="hideIndependentChannels" />
-            </div>
-
-            <div class="pricing-more-settings-item pricing-more-settings-item--between">
-              <span class="pricing-inline-label">{{ t('apiDoc.hidePooledChannels') }}</span>
-              <el-switch v-model="hidePooledChannels" />
-            </div>
-
-            <div class="pricing-more-settings-item pricing-more-settings-item--between">
-              <span class="pricing-inline-label">{{ t('apiDoc.hideAutomaticProxyPools') }}</span>
-              <el-switch v-model="hideAutomaticProxyPools" />
             </div>
 
             <div class="pricing-more-settings-item">
@@ -589,27 +546,6 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
                     {{ t('apiDoc.showCacheMultipliers') }}
                   </span>
                   <el-switch v-model="showCacheMultipliers" />
-                </div>
-
-                <div class="pricing-mobile-switch">
-                  <span class="pricing-mobile-switch-label">
-                    {{ t('apiDoc.hideIndependentChannels') }}
-                  </span>
-                  <el-switch v-model="hideIndependentChannels" />
-                </div>
-
-                <div class="pricing-mobile-switch">
-                  <span class="pricing-mobile-switch-label">
-                    {{ t('apiDoc.hidePooledChannels') }}
-                  </span>
-                  <el-switch v-model="hidePooledChannels" />
-                </div>
-
-                <div class="pricing-mobile-switch">
-                  <span class="pricing-mobile-switch-label">
-                    {{ t('apiDoc.hideAutomaticProxyPools') }}
-                  </span>
-                  <el-switch v-model="hideAutomaticProxyPools" />
                 </div>
 
                 <div class="pricing-inline-control pricing-inline-control--mobile">

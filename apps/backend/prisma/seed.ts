@@ -52,6 +52,7 @@ async function main() {
         Permission.RELAY_CHANNEL_UPDATE,
         Permission.RELAY_CHANNEL_DELETE,
         Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
+        Permission.RELAY_REQUEST_ROUTE_TRACE_READ,
         Permission.REDEMPTION_CODE_CREATE,
         Permission.REDEMPTION_CODE_READ,
         Permission.MONTHLY_PASS_TEMPLATE_READ,

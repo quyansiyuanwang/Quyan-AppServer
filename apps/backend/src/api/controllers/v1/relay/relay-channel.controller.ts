@@ -21,6 +21,7 @@ import type {
   BatchSetRelayChannelStatusRequest,
   BatchUpdateRelayChannelHealthConfigRequest,
   RelayChannelDto,
+  RelayCatalogOptionDto,
   RelayChannelOptionDto,
   CreateRelayChannelRequest,
   DuplicateRelayChannelRequest,
@@ -36,7 +37,7 @@ import type {
   UpdateRelayChannelRequest,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
-import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
+import { RequireAllPermissions, RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import {
@@ -119,6 +120,22 @@ export class RelayChannelController extends Controller {
     return this.channelService.listChannelOptions(request.user!.userId, targetUserId, { excludePooled });
   }
 
+  /** Consumer-facing API documentation catalog. Pool topology is never included in this projection. */
+  @Get("catalog")
+  @Security("jwt")
+  @RequireAnyPermission([
+    Permission.RELAY_TOKEN_CREATE,
+    Permission.RELAY_TOKEN_READ,
+    Permission.MONTHLY_PASS_TEMPLATE_READ,
+    Permission.MONTHLY_PASS_TEMPLATE_WRITE,
+    Permission.OJ_APIKEY_CREATE,
+    Permission.OJ_APIKEY_READ,
+    Permission.OJ_APIKEY_UPDATE,
+  ])
+  public async listCatalogOptions(@Request() request: TypedRequest): Promise<RelayCatalogOptionDto[]> {
+    return this.channelService.listCatalogOptions(request.user!.userId);
+  }
+
   @Get("health/overview")
   @Security("jwt")
   @RequirePermission(Permission.RELAY_CHANNEL_HEALTH_READ)
@@ -139,7 +156,10 @@ export class RelayChannelController extends Controller {
 
   @Get("health/automatic-pools")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_HEALTH_READ)
+  @RequireAllPermissions([
+    Permission.RELAY_CHANNEL_HEALTH_READ,
+    Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+  ])
   public async getAutomaticPoolHealths(@Request() request: TypedRequest): Promise<RelayAutomaticPoolHealthDto[]> {
     return this.channelService.getAutomaticPoolHealths(request.user!.userId);
   }

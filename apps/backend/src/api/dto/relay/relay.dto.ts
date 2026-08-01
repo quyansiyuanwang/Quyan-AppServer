@@ -291,8 +291,6 @@ export interface RelayUsageStatsDto {
 
 export interface RelayRequestDiagnosticAttemptDto {
   id: string;
-  executionChannelId?: string;
-  executionChannelName?: string;
   statusCode: number;
   method: string;
   path: string;
@@ -300,6 +298,17 @@ export interface RelayRequestDiagnosticAttemptDto {
   timeToFirstByte?: number;
   totalOutputTime?: number;
   createTime: Date;
+}
+
+/** Privileged execution trace. This projection intentionally contains routing data. */
+export interface RelayRequestRouteTraceAttemptDto extends RelayRequestDiagnosticAttemptDto {
+  executionChannelId?: string;
+  executionChannelName?: string;
+}
+
+export interface RelayRequestRouteTraceDto {
+  requestId: string;
+  attempts: RelayRequestRouteTraceAttemptDto[];
 }
 
 export interface RelayRequestDiagnosticDto {

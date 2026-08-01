@@ -33,6 +33,8 @@ import {
   RelayAvailableModelsMapDto,
   RelayTokenSwitchLogsDto,
   RelayTokenAvailableModelsDto,
+  RelayRequestDiagnosticsPageDto,
+  RelayRequestRouteTraceDto,
 } from "@/api/dto/relay/relay.dto";
 import { NotFoundError, BadRequestError, ForbiddenError } from "@/util/errors";
 import { resolveModelId } from "@/util/model-resolution.util";
@@ -983,16 +985,19 @@ export class RelayTokenService {
     };
   }
 
-  async getRequestDiagnostics(query: {
+  async getRequestDiagnostics(
+    actorUserId: string,
+    query: {
     page?: number;
     pageSize?: number;
     requestId?: string;
     keyword?: string;
-    channelId?: string;
     outcome?: string;
     startDate?: string;
     endDate?: string;
-  }) {
+    },
+  ): Promise<RelayRequestDiagnosticsPageDto> {
+    await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_DIAGNOSTICS_READ);
     const page = query.page || 1;
     const pageSize = query.pageSize || 20;
     const result = await this.relayUsageRepo.findRequestDiagnostics({
@@ -1006,7 +1011,7 @@ export class RelayTokenService {
       total: result.total,
       page,
       pageSize,
-      records: result.records.map((record: any) => ({
+      records: result.records.map((record) => ({
         requestId: record.requestId,
         relayTokenId: record.relayToken.id,
         relayTokenName: record.relayToken.name || undefined,
@@ -1015,8 +1020,6 @@ export class RelayTokenService {
         createTime: record.createTime,
         attempts: record.relayUsages.map((usage: any) => ({
           id: usage.id,
-          executionChannelId: usage.executionChannelId || undefined,
-          executionChannelName: usage.executionChannelName,
           statusCode: usage.statusCode,
           method: usage.method,
           path: usage.path,
@@ -1027,6 +1030,34 @@ export class RelayTokenService {
         })),
       })),
     };
+  }
+
+  async getRequestRouteTrace(actorUserId: string, requestId: string): Promise<RelayRequestRouteTraceDto> {
+    await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_DIAGNOSTICS_READ);
+    await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_ROUTE_TRACE_READ);
+    await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_CHANNEL_POOL_METADATA_READ);
+    const trace = await this.relayUsageRepo.findRequestRouteTrace(requestId);
+    if (!trace) throw new NotFoundError("Relay request diagnostics not found");
+    return {
+      requestId: trace.requestId,
+      attempts: trace.relayUsages.map((usage) => ({
+        id: usage.id,
+        executionChannelId: usage.executionChannelId || undefined,
+        executionChannelName: usage.executionChannelName,
+        statusCode: usage.statusCode,
+        method: usage.method,
+        path: usage.path,
+        totalTokens: usage.totalTokens,
+        timeToFirstByte: usage.timeToFirstByte || undefined,
+        totalOutputTime: usage.totalOutputTime || undefined,
+        createTime: usage.createTime,
+      })),
+    };
+  }
+
+  private async assertGlobalRelayOperatorPermission(actorUserId: string, permission: Permission): Promise<void> {
+    if (await this.permissionService.hasPermission(actorUserId, permission)) return;
+    throw new ForbiddenError("Relay operations permission is required");
   }
 
   async getUsageSummaries(

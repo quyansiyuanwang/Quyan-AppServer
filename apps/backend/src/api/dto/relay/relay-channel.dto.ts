@@ -142,6 +142,29 @@ export interface RelayChannelModelCapabilityDto {
   supportedRequestFormats: Array<"openai" | "anthropic" | "gemini">;
 }
 
+/** Anonymous model-specific price range published in API documentation. */
+export interface RelayCatalogModelPriceRangeDto {
+  catalogModelName: string;
+  requestModelId: string;
+  minMultiplier: number;
+  maxMultiplier: number;
+}
+
+/** Consumer-facing API documentation channel projection. It never exposes pool topology. */
+export interface RelayCatalogOptionDto {
+  id: string;
+  name: string;
+  enabled: boolean;
+  allowedFormats: string;
+  modelCapabilities: RelayChannelModelCapabilityDto[];
+  pricingMode: "fixed" | "range";
+  multiplier?: number;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[];
+  modelPriceRanges?: RelayCatalogModelPriceRangeDto[];
+  pricingEffectiveAt: Date;
+  priceMayVary: boolean;
+}
+
 export interface RelayPoolPricingOptionDto {
   /** Flattened final channels after nested pools and inherited restrictions are resolved. */
   members: RelayPoolPricingMemberOptionDto[];

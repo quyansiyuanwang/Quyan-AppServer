@@ -320,6 +320,7 @@ export const useRelaySettingsManagement = () => {
   const maxConcurrency = ref(5)
   const queueTimeoutSec = ref(30)
   const upstreamStreamTimeoutSec = ref(120)
+  const apiCatalogPoolVisibility = ref<'hidden' | 'anonymous-range'>('hidden')
   const relayCustomKeyEnabled = ref(true)
   const relayCustomKeyMaxTokensPerUser = ref(3)
   const relayCustomKeyCreateLimitWindowMinutes = ref(10)
@@ -351,6 +352,7 @@ export const useRelaySettingsManagement = () => {
       upstreamStreamTimeoutSec.value = Math.round(
         (relayConfig.upstreamStreamTimeout ?? 120000) / 1000,
       )
+      apiCatalogPoolVisibility.value = relayConfig.apiCatalogPoolVisibility ?? 'hidden'
       relayUpstreamUrl.value = relaySystemConfig.upstreamUrl || ''
       relayUpstreamApiKey.value = relaySystemConfig.upstreamApiKey || ''
       relayAllowedModels.value = relaySystemConfig.allowedModels || ''
@@ -462,6 +464,7 @@ export const useRelaySettingsManagement = () => {
         maxConcurrency: maxConcurrency.value,
         queueTimeout: queueTimeoutSec.value * 1000,
         upstreamStreamTimeout: upstreamStreamTimeoutSec.value * 1000,
+        apiCatalogPoolVisibility: apiCatalogPoolVisibility.value,
         modelRates: validRates.map((r) => ({
           model: r.model.trim(),
           modelId: resolveModelId({ model: r.model, modelId: r.modelId }),
@@ -2225,6 +2228,7 @@ export const useRelaySettingsManagement = () => {
     maxConcurrency,
     queueTimeoutSec,
     upstreamStreamTimeoutSec,
+    apiCatalogPoolVisibility,
     relayCustomKeyEnabled,
     relayCustomKeyMaxTokensPerUser,
     relayCustomKeyCreateLimitWindowMinutes,

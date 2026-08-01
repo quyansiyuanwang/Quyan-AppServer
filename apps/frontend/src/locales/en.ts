@@ -2247,6 +2247,10 @@ export default {
     unnamedToken: 'Unnamed Token',
     tokenNamePlaceholder: 'Name your token (optional)',
     basicSettings: 'Basic Settings',
+    apiCatalogPoolVisibility: 'API catalog pooled routes',
+    apiCatalogPoolVisibilityHidden: 'Do not publish pooled routes',
+    apiCatalogPoolVisibilityAnonymousRange: 'Publish anonymous price ranges',
+    apiCatalogPoolVisibilityHelp: 'Anonymous publication exposes model capabilities and price ranges only, never members or routing.',
     channelFailoverSettings: 'Channels & Failover',
     quotaSettings: 'Quota Settings',
     advancedSettings: 'Advanced Settings',
@@ -3891,6 +3895,7 @@ export default {
     automaticProxyPool: 'Automatic proxy pool',
     automaticPoolVariablePriceHint:
       'The charged price depends on the member selected for this request. Current member configuration and price range are shown below.',
+    variableRoutePriceHint: 'The charged price may vary for each route.',
     poolMemberActive: 'Active',
     poolMemberInactive: 'Inactive',
     poolMemberUnavailableForModel: 'Not currently eligible for this model or format',

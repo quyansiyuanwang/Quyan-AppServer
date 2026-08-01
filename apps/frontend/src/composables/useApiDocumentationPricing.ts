@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { i18ns } from '@/locales'
-import type { ModelPricingDto, RelayChannelOptionDto } from '@/client/types.gen'
+import type { ModelPricingDto, RelayCatalogOptionDto } from '@/client/types.gen'
 import { ElMessage } from 'element-plus'
 import { modelPricingService } from '@/service/modelPricingService'
 import { relayChannelService } from '@/service/relayChannelService'
@@ -40,17 +40,6 @@ export type ChannelPriceCell = {
   maximumOutputPrice: number | null
   cacheCreationMultiplier: number | null
   cacheReadMultiplier: number | null
-  pooledChannel: boolean
-  members: ChannelPriceMember[]
-}
-
-export type ChannelPriceMember = {
-  id: string
-  name: string
-  multiplier: number
-  fixedPrice: number | null
-  inputPrice: number | null
-  outputPrice: number | null
 }
 
 const HIGHLIGHT_CACHE_MAX_SIZE = 500
@@ -68,16 +57,13 @@ export const useApiDocumentationPricing = () => {
   const loading = ref(false)
   const loadErrorMessage = ref('')
   const pricingData = ref<PricingModelRow[]>([])
-  const channels = ref<RelayChannelOptionDto[]>([])
+  const channels = ref<RelayCatalogOptionDto[]>([])
 
   const filterFormat = ref<string>('')
   const filterChannelIds = ref<string[]>([])
   const filterPricingType = ref<string>('')
   const filterModelKeyword = ref<string>('')
   const onlyModelsWithChannels = ref(true)
-  const hideIndependentChannels = ref(false)
-  const hidePooledChannels = ref(false)
-  const hideAutomaticProxyPools = ref(false)
   const channelMatchMode = ref<ChannelMatchMode>('match-any')
   const channelPriceMode = ref<ChannelPriceMode>('selected-lowest')
   const pricingTableMode = ref<PricingTableMode>('summary')
@@ -109,13 +95,9 @@ export const useApiDocumentationPricing = () => {
 
   const selectedChannelIdsSet = computed(() => new Set(filterChannelIds.value))
 
-  const visibleChannels = computed(() =>
-    channels.value.filter((channel) => {
-      if (channel.channelType === 'automatic-proxy-pool') return !hideAutomaticProxyPools.value
-      if (channel.channelType === 'pooled') return !hidePooledChannels.value
-      return !hideIndependentChannels.value
-    }),
-  )
+  // The catalog is already an access-controlled, topology-free projection. Client filters must
+  // not infer channel implementation from differences in the returned directory.
+  const visibleChannels = computed(() => channels.value)
 
   const filterChannel = computed<string>({
     get: () => filterChannelIds.value[0] || '',
@@ -143,7 +125,7 @@ export const useApiDocumentationPricing = () => {
 
     return filterChannelIds.value
       .map((channelId) => channelMap.get(channelId))
-      .filter((channel): channel is RelayChannelOptionDto => Boolean(channel))
+      .filter((channel): channel is RelayCatalogOptionDto => Boolean(channel))
   })
 
   const primaryComparisonChannel = computed(() => {
@@ -157,7 +139,7 @@ export const useApiDocumentationPricing = () => {
     modelName: string,
     modelId: string,
     modelFormat?: string,
-  ): RelayChannelOptionDto[] => {
+  ): RelayCatalogOptionDto[] => {
     const normalizedModelName = modelName.trim()
     const normalizedModelId = modelId.trim()
     const modelFormats = normalizeFormats(modelFormat)
@@ -172,7 +154,7 @@ export const useApiDocumentationPricing = () => {
     })
   }
 
-  const getSelectedChannelsForModel = (item: PricingModelRow): RelayChannelOptionDto[] => {
+  const getSelectedChannelsForModel = (item: PricingModelRow): RelayCatalogOptionDto[] => {
     const availableChannels = getChannelsForModel(
       item.model || '',
       getRequestModelId(item),
@@ -182,27 +164,6 @@ export const useApiDocumentationPricing = () => {
     if (selectedChannelIdsSet.value.size === 0) return []
 
     return availableChannels.filter((channel) => selectedChannelIdsSet.value.has(channel.id))
-  }
-
-  const channelSupportsModel = (
-    channel: Pick<RelayChannelOptionDto, 'modelCapabilities'>,
-    item: PricingModelRow,
-  ): boolean => {
-    const modelName = (item.model || '').trim()
-    const modelId = getRequestModelId(item)
-    const modelFormats = normalizeFormats(item.supportedFormats)
-
-    return channel.modelCapabilities.some(
-      (capability) =>
-        (capability.catalogModelName === modelName || capability.requestModelId === modelId) &&
-        capability.supportedRequestFormats.some((format) => modelFormats.includes(format)),
-    )
-  }
-
-  const getPoolPricingMembersForModel = (item: PricingModelRow, channel: RelayChannelOptionDto) => {
-    return (channel.poolPricing?.members ?? []).filter(
-      (member) => member.enabled && channelSupportsModel(member, item),
-    )
   }
 
   const getContextTierMultipliers = (
@@ -221,23 +182,23 @@ export const useApiDocumentationPricing = () => {
 
   const getEffectiveMultipliersForModel = (
     item: PricingModelRow,
-    channel: RelayChannelOptionDto,
+    channel: RelayCatalogOptionDto,
   ): number[] => {
-    if (!channel.poolPricing)
+    if (channel.pricingMode === 'fixed')
       return getContextTierMultipliers(channel.contextLengthMultipliers).map(
         (contextMultiplier) => (channel.multiplier ?? 1) * contextMultiplier,
       )
-
-    return getPoolPricingMembersForModel(item, channel).flatMap((member) =>
-      getContextTierMultipliers(member.contextLengthMultipliers).map(
-        (contextMultiplier) => member.effectiveMultiplier * contextMultiplier,
-      ),
+    const capability = channel.modelPriceRanges?.find(
+      (range) =>
+        range.catalogModelName === (item.model || '').trim() ||
+        range.requestModelId === getRequestModelId(item),
     )
+    return capability ? [capability.minMultiplier, capability.maxMultiplier] : []
   }
 
   const getLowestChannelMultiplierForModel = (
     item: PricingModelRow,
-    channel: RelayChannelOptionDto,
+    channel: RelayCatalogOptionDto,
   ): number | null => {
     const multipliers = getEffectiveMultipliersForModel(item, channel)
     return multipliers.length > 0 ? Math.min(...multipliers) : null
@@ -287,7 +248,7 @@ export const useApiDocumentationPricing = () => {
 
   const getChannelPriceCell = (
     item: PricingModelRow,
-    channel: RelayChannelOptionDto,
+    channel: RelayCatalogOptionDto,
   ): ChannelPriceCell => {
     const availableChannel = getChannelsForModel(
       item.model || '',
@@ -313,13 +274,11 @@ export const useApiDocumentationPricing = () => {
         maximumOutputPrice: null,
         cacheCreationMultiplier: item.cacheCreationMultiplier ?? null,
         cacheReadMultiplier: item.cacheReadMultiplier ?? null,
-        pooledChannel: Boolean(channel.poolPricing),
-        members: [],
       }
     }
 
     const memberMultipliers = getEffectiveMultipliersForModel(item, availableChannel)
-    if (availableChannel.poolPricing && memberMultipliers.length === 0) {
+    if (memberMultipliers.length === 0) {
       return {
         available: false,
         channelId: channel.id,
@@ -334,8 +293,6 @@ export const useApiDocumentationPricing = () => {
         maximumOutputPrice: null,
         cacheCreationMultiplier: item.cacheCreationMultiplier ?? null,
         cacheReadMultiplier: item.cacheReadMultiplier ?? null,
-        pooledChannel: true,
-        members: [],
       }
     }
 
@@ -344,28 +301,6 @@ export const useApiDocumentationPricing = () => {
     const effectiveMultipliers = multipliers.map((multiplier) => multiplier * customMultiplier)
     const multiplier = Math.min(...effectiveMultipliers)
     const maximumMultiplier = Math.max(...effectiveMultipliers)
-    const members = getPoolPricingMembersForModel(item, availableChannel).map((member) => {
-      const memberMultipliers = getContextTierMultipliers(member.contextLengthMultipliers).map(
-        (contextMultiplier) => member.effectiveMultiplier * contextMultiplier * customMultiplier,
-      )
-      const memberMultiplier = Math.min(...memberMultipliers)
-      return {
-        id: member.id,
-        name: member.name,
-        multiplier: memberMultiplier,
-        fixedPrice:
-          item.pricingType === 'per-request' ? (item.fixedPrice ?? 0) * memberMultiplier : null,
-        inputPrice:
-          item.pricingType === 'per-request'
-            ? null
-            : ((item.inputPrice ?? 0) * memberMultiplier) / divisor,
-        outputPrice:
-          item.pricingType === 'per-request'
-            ? null
-            : ((item.outputPrice ?? 0) * memberMultiplier) / divisor,
-      }
-    })
-
     return {
       available: true,
       channelId: channel.id,
@@ -391,8 +326,6 @@ export const useApiDocumentationPricing = () => {
           : ((item.outputPrice ?? 0) * maximumMultiplier) / divisor,
       cacheCreationMultiplier: item.cacheCreationMultiplier ?? null,
       cacheReadMultiplier: item.cacheReadMultiplier ?? null,
-      pooledChannel: Boolean(availableChannel.poolPricing),
-      members,
     }
   }
 
@@ -600,9 +533,7 @@ export const useApiDocumentationPricing = () => {
 
   const loadChannels = async () => {
     try {
-      channels.value = await relayChannelService.listChannelOptions(undefined, {
-        excludePooled: hidePooledChannels.value,
-      })
+      channels.value = await relayChannelService.listCatalogOptions()
     } catch (error) {
       loadErrorMessage.value = resolveErrorMessage(error, i18ns.t('relay.loadFailed'))
       ElMessage.error(loadErrorMessage.value)
@@ -650,9 +581,6 @@ export const useApiDocumentationPricing = () => {
     filterPricingType.value = ''
     filterModelKeyword.value = ''
     onlyModelsWithChannels.value = true
-    hideIndependentChannels.value = false
-    hidePooledChannels.value = false
-    hideAutomaticProxyPools.value = false
     channelMatchMode.value = 'match-any'
     channelPriceMode.value = 'selected-lowest'
     pricingTableMode.value = 'summary'
@@ -680,7 +608,7 @@ export const useApiDocumentationPricing = () => {
   })
 
   watch(
-    [hideIndependentChannels, hidePooledChannels, hideAutomaticProxyPools, visibleChannels],
+    [visibleChannels],
     () => {
       const visibleChannelIds = new Set(visibleChannels.value.map((channel) => channel.id))
       filterChannelIds.value = filterChannelIds.value.filter((channelId) =>
@@ -688,10 +616,6 @@ export const useApiDocumentationPricing = () => {
       )
     },
   )
-
-  watch(hidePooledChannels, () => {
-    void loadChannels()
-  })
 
   watch(
     selectedChannels,
@@ -733,9 +657,6 @@ export const useApiDocumentationPricing = () => {
     filterPricingType,
     filterModelKeyword,
     onlyModelsWithChannels,
-    hideIndependentChannels,
-    hidePooledChannels,
-    hideAutomaticProxyPools,
     channelMatchMode,
     channelPriceMode,
     showLowestChannelPrice,

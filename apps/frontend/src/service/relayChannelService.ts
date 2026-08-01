@@ -11,6 +11,7 @@ import type {
   UpdateRelayChannelRequest,
   RelayChannelDto,
   RelayChannelOptionDto,
+  RelayCatalogOptionDto,
   RelayChannelExportResponse,
   RelayChannelHealthDto,
   RelayAutomaticPoolHealthDto,
@@ -76,6 +77,11 @@ class RelayChannelService {
         excludePooled: options?.excludePooled === true ? true : undefined,
       },
     })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async listCatalogOptions(): Promise<RelayCatalogOptionDto[]> {
+    const result = await relayChannelApi.listCatalogOptions()
     return checkApiResult<any>(result, true).data
   }
 

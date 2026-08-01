@@ -2174,6 +2174,10 @@ const zhCN: DeepStringify<typeof en> = {
     unnamedToken: '未命名令牌',
     tokenNamePlaceholder: '为令牌命名（可选）',
     basicSettings: '基础设置',
+    apiCatalogPoolVisibility: 'API 文档混池目录',
+    apiCatalogPoolVisibilityHidden: '不发布混池渠道',
+    apiCatalogPoolVisibilityAnonymousRange: '发布匿名价格区间',
+    apiCatalogPoolVisibilityHelp: '匿名发布仅展示模型能力与价格区间，不展示渠道成员或路由信息。',
     channelFailoverSettings: '有序渠道与自动切换',
     quotaSettings: '额度设置',
     advancedSettings: '高级设置',
@@ -3727,6 +3731,7 @@ const zhCN: DeepStringify<typeof en> = {
     automaticProxyPool: '自动代理池',
     automaticPoolVariablePriceHint:
       '实际扣费由本次请求路由到的成员决定，以下为当前成员配置与价格范围。',
+    variableRoutePriceHint: '实际价格可能随本次路由变化。',
     poolMemberActive: '启用',
     poolMemberInactive: '未启用',
     poolMemberUnavailableForModel: '当前不支持此模型或格式',

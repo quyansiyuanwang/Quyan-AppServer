@@ -558,6 +558,13 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows viewing relay request diagnostics',
     category: 'relay',
   },
+  [Permission.RELAY_REQUEST_ROUTE_TRACE_READ]: {
+    label: '查看请求路由追踪',
+    labelEn: 'View Request Route Trace',
+    tooltip: '允许查看请求实际执行渠道和重试路径，仍需混池元数据权限',
+    tooltipEn: 'Allows viewing execution channels and retry paths; pool metadata access is also required',
+    category: 'relay',
+  },
 
   [Permission.ACCESSKEY_CREATE]: {
     label: '创建 AccessKey',

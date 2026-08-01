@@ -9,6 +9,8 @@ import type {
   ImportRelayChannelsRequest,
   ImportRelayChannelsResponse,
   RelayChannelDto,
+  RelayCatalogOptionDto,
+  RelayCatalogModelPriceRangeDto,
   RelayChannelOptionDto,
   RelayChannelExportItemDto,
   RelayChannelExportResponse,
@@ -58,10 +60,12 @@ import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { Prisma, type RelayChannel } from "@prisma/client";
 import { formatRelayRequestFormats } from "@appserver/shared";
 import type { Request } from "express";
+import crypto from "crypto";
 import { ModelPricingService } from "./model-pricing.service";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { RelayChannelHealthService, type RelayChannelHealthSnapshot } from "./relay-channel-health.service";
+import { RelayConfigService } from "./relay-config.service";
 
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
@@ -119,6 +123,7 @@ export class RelayChannelService {
     private readonly modelPricingService: ModelPricingService = ModelPricingService.getInstance(),
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
     private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
+    private readonly relayConfigService: RelayConfigService = RelayConfigService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -293,6 +298,149 @@ export class RelayChannelService {
     );
 
     return options.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  /** API documentation projection. It intentionally excludes all pool identity and topology fields. */
+  async listCatalogOptions(actorUserId: string): Promise<RelayCatalogOptionDto[]> {
+    const [relayConfig, activeChannels, modelCatalog] = await Promise.all([
+      this.relayConfigService.getRelayConfig(),
+      this.relayChannelRepository.listActive(),
+      this.modelPricingService.getModelPricing(),
+    ]);
+    const accessibleChannels = await this.filterAccessibleChannels(activeChannels, actorUserId);
+    const activeChannelsById = new Map(activeChannels.map((channel) => [channel.id, channel]));
+    const now = new Date();
+    const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog);
+    const channels = accessibleChannels.filter((channel) => {
+      const type = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+      return (
+        (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden" &&
+        (relayConfig.apiCatalogPoolVisibility === "anonymous-range" || !isPoolType(type))
+      );
+    });
+
+    const options = await Promise.all(
+      channels.map(async (channel) => {
+        const channelType = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+        const resolvedCapabilities = await this.relayPoolResolver.resolveChannelCapabilities(
+          channel.id,
+          resolverContext,
+        );
+        const modelCapabilities = this.toCatalogModelCapabilities(resolvedCapabilities);
+        const pricingEffectiveAt = now;
+
+        if (isPoolType(channelType)) {
+          const anonymousKey = crypto.createHash("sha256").update(channel.id).digest("hex").slice(0, 16);
+          return {
+            id: `catalog-${anonymousKey}`,
+            name: `API route ${anonymousKey.slice(0, 8)}`,
+            enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+            allowedFormats: formatRelayRequestFormats(
+              [...new Set(modelCapabilities.flatMap((item) => item.supportedRequestFormats))],
+            ),
+            modelCapabilities,
+            pricingMode: "range" as const,
+            modelPriceRanges: this.toCatalogModelPriceRanges(resolvedCapabilities, activeChannelsById, now),
+            pricingEffectiveAt,
+            priceMayVary: true,
+          } satisfies RelayCatalogOptionDto;
+        }
+
+        return {
+          id: channel.id,
+          name: channel.name,
+          enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+          allowedFormats: channel.allowedFormats,
+          modelCapabilities,
+          pricingMode: "fixed" as const,
+          multiplier:
+            Number(channel.multiplier) *
+            computeMultiplierForTime(
+              (channel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
+              now,
+            ),
+          contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
+            | ContextLengthMultiplierRule[]
+            | undefined,
+          pricingEffectiveAt,
+          priceMayVary: false,
+        } satisfies RelayCatalogOptionDto;
+      }),
+    );
+
+    return options.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private toCatalogModelCapabilities(
+    resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
+  ): RelayCatalogOptionDto["modelCapabilities"] {
+    const capabilities = new Map<string, RelayCatalogOptionDto["modelCapabilities"][number]>();
+    for (const capability of resolvedCapabilities) {
+      const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
+      const existing = capabilities.get(key);
+      if (existing) {
+        existing.supportedRequestFormats = [
+          ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
+        ];
+      } else {
+        capabilities.set(key, {
+          catalogModelName: capability.catalogModelName,
+          requestModelId: capability.requestModelId,
+          supportedRequestFormats: [...capability.supportedRequestFormats],
+        });
+      }
+    }
+    return [...capabilities.values()].sort(
+      (left, right) =>
+        left.catalogModelName.localeCompare(right.catalogModelName) ||
+        left.requestModelId.localeCompare(right.requestModelId),
+    );
+  }
+
+  private toCatalogModelPriceRanges(
+    resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
+    activeChannelsById: ReadonlyMap<string, RelayChannel>,
+    now: Date,
+  ): RelayCatalogModelPriceRangeDto[] {
+    const ranges = new Map<string, RelayCatalogModelPriceRangeDto>();
+    for (const capability of resolvedCapabilities) {
+      const leaf = activeChannelsById.get(capability.leafChannelId);
+      if (!leaf || leaf.status !== RELAY_CHANNEL_STATUS.ENABLED) continue;
+      const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
+      const multipliers = this.getCatalogContextMultipliers(leaf, now);
+      const existing = ranges.get(key);
+      const minMultiplier = Math.min(...multipliers);
+      const maxMultiplier = Math.max(...multipliers);
+      if (existing) {
+        existing.minMultiplier = Math.min(existing.minMultiplier, minMultiplier);
+        existing.maxMultiplier = Math.max(existing.maxMultiplier, maxMultiplier);
+      } else {
+        ranges.set(key, {
+          catalogModelName: capability.catalogModelName,
+          requestModelId: capability.requestModelId,
+          minMultiplier,
+          maxMultiplier,
+        });
+      }
+    }
+    return [...ranges.values()].sort(
+      (left, right) =>
+        left.catalogModelName.localeCompare(right.catalogModelName) ||
+        left.requestModelId.localeCompare(right.requestModelId),
+    );
+  }
+
+  private getCatalogContextMultipliers(channel: RelayChannel, now: Date): number[] {
+    const baseMultiplier =
+      Number(channel.multiplier) *
+      computeMultiplierForTime(
+        (channel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
+        now,
+      );
+    const rules = (channel.contextLengthMultipliers as ContextLengthMultiplierRule[] | null | undefined) ?? [];
+    const contextMultipliers = rules.filter((rule) => rule.enabled).map((rule) => Number(rule.multiplier));
+    if (!contextMultipliers.includes(1)) contextMultipliers.push(1);
+    return contextMultipliers.filter(Number.isFinite).map((multiplier) => baseMultiplier * multiplier);
   }
 
   private toAutomaticProxyPoolOption(
