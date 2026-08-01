@@ -24,6 +24,7 @@ const createChannel = (overrides: Partial<RelayCatalogOptionDto> = {}): RelayCat
   id: 'channel-1',
   name: 'Test Channel',
   enabled: true,
+  channelType: 'standalone',
   allowedFormats: 'openai',
   modelCapabilities: [{
     catalogModelName: 'gpt-4o-mini',

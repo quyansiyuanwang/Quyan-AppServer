@@ -221,6 +221,34 @@ describe("RelayChannelService", () => {
     );
   });
 
+  it("expands selected pooled channel exports with their member dependencies", async () => {
+    const member = { ...sampleChannel, id: "member-channel", name: "Member" };
+    const pool = {
+      ...sampleChannel,
+      id: "pool-channel",
+      name: "Pool",
+      channelType: "pooled",
+      poolMembers: [
+        {
+          id: "pool-member-1",
+          memberChannelId: member.id,
+          priority: 0,
+          weight: 1,
+          enabled: true,
+          memberChannel: member,
+        },
+      ],
+    };
+    relayChannelRepository.listVisibleByIds.mockResolvedValueOnce([pool]).mockResolvedValueOnce([member]);
+
+    const result = await service.exportChannels({ ids: [pool.id], includeDisabled: true }, "actor-user");
+
+    expect(result.channels.map((channel) => channel.id)).toEqual([pool.id, member.id]);
+    expect(result.channels[0]?.poolMembers).toEqual(
+      expect.arrayContaining([expect.objectContaining({ memberChannelId: member.id })]),
+    );
+  });
+
   it("rejects explicit export of an inaccessible channel", async () => {
     relayChannelRepository.listVisibleByIds.mockResolvedValue([
       { ...sampleChannel, id: "private-channel", visibilityMode: "private" },
@@ -974,6 +1002,41 @@ describe("RelayChannelService", () => {
     expect(relayChannelRepository.replaceMembersByChannelId).toHaveBeenCalledWith(
       "target-pool",
       [{ memberChannelId: "target-member", priority: 1, weight: 1, enabled: true }],
+      transactionClient,
+    );
+  });
+
+  it("allows an imported pool to reference an existing destination member", async () => {
+    relayChannelRepository.create.mockResolvedValue({
+      ...sampleChannel,
+      id: "target-pool",
+      name: "Pool",
+      channelType: "pooled",
+    });
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([
+      { ...sampleChannel, id: "existing-destination-member", channelType: "standalone" },
+    ]);
+
+    await service.importChannels(
+      {
+        channels: [
+          {
+            id: "source-pool",
+            name: "Pool",
+            channelType: "pooled",
+            allowedFormats: "openai",
+            poolMembers: [
+              { memberChannelId: "existing-destination-member", priority: 1, weight: 1, enabled: true },
+            ],
+          },
+        ],
+      },
+      "actor-user",
+    );
+
+    expect(relayChannelRepository.replaceMembersByChannelId).toHaveBeenCalledWith(
+      "target-pool",
+      [{ memberChannelId: "existing-destination-member", priority: 1, weight: 1, enabled: true }],
       transactionClient,
     );
   });

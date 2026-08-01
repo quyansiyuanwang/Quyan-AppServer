@@ -60,7 +60,6 @@ import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { Prisma, type RelayChannel } from "@prisma/client";
 import { formatRelayRequestFormats } from "@appserver/shared";
 import type { Request } from "express";
-import crypto from "crypto";
 import { ModelPricingService } from "./model-pricing.service";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
@@ -330,11 +329,11 @@ export class RelayChannelService {
         const pricingEffectiveAt = now;
 
         if (isPoolType(channelType)) {
-          const anonymousKey = crypto.createHash("sha256").update(channel.id).digest("hex").slice(0, 16);
           return {
-            id: `catalog-${anonymousKey}`,
-            name: `API route ${anonymousKey.slice(0, 8)}`,
+            id: channel.id,
+            name: channel.name,
             enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+            channelType,
             allowedFormats: formatRelayRequestFormats(
               [...new Set(modelCapabilities.flatMap((item) => item.supportedRequestFormats))],
             ),
@@ -350,6 +349,7 @@ export class RelayChannelService {
           id: channel.id,
           name: channel.name,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+          channelType: "standalone" as const,
           allowedFormats: channel.allowedFormats,
           modelCapabilities,
           pricingMode: "fixed" as const,
@@ -855,6 +855,9 @@ export class RelayChannelService {
     if (body.ids?.length) {
       channels = await this.getOrderedChannelsByIds(body.ids, body.includeDisabled === true);
       for (const channel of channels) await this.assertChannelAccessible(channel, actorUserId);
+      // A pool export is not self-contained unless its members travel with it. Expand the
+      // selected roots recursively, while preserving the user's selection order first.
+      channels = await this.expandPoolExportDependencies(channels);
     } else {
       const candidates =
         body.includeDisabled === true
@@ -881,6 +884,35 @@ export class RelayChannelService {
     return {
       channels: channels.map((channel) => this.toExportItemDto(channel)),
     };
+  }
+
+  private async expandPoolExportDependencies(
+    roots: RelayChannel[],
+  ): Promise<RelayChannel[]> {
+    const result = [...roots];
+    const knownIds = new Set(result.map((channel) => channel.id));
+    let cursor = 0;
+
+    while (cursor < result.length) {
+      const channel = result[cursor++];
+      const members = (channel as RelayChannelWithMembers).poolMembers ?? [];
+      const missingIds = members
+        .map((member) => member.memberChannelId)
+        .filter((id) => !knownIds.has(id));
+      if (missingIds.length === 0) continue;
+
+      const dependencies = await this.relayChannelRepository.listVisibleByIds([...new Set(missingIds)]);
+      if (dependencies.length !== new Set(missingIds).size)
+        throw new BadRequestError("One or more pooled channel members were not found");
+
+      for (const dependency of dependencies) {
+        if (knownIds.has(dependency.id)) continue;
+        knownIds.add(dependency.id);
+        result.push(dependency);
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -1827,17 +1859,6 @@ export class RelayChannelService {
       }
       if (new Set(sourceIds).size !== sourceIds.length) {
         throw new BadRequestError("Imported relay channel source IDs must be unique");
-      }
-
-      const sourceIdSet = new Set(sourceIds);
-      if (hasSourceIds) {
-        for (const item of body.channels) {
-          for (const member of item.poolMembers ?? []) {
-            if (!sourceIdSet.has(member.memberChannelId)) {
-              throw new BadRequestError("Imported pooled channel member was not found in the import payload");
-            }
-          }
-        }
       }
 
       const reservedNames = await this.getVisibleNameSet(tx);

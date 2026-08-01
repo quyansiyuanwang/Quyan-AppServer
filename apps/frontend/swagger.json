@@ -38496,6 +38496,15 @@
 					"enabled": {
 						"type": "boolean"
 					},
+					"channelType": {
+						"type": "string",
+						"enum": [
+							"standalone",
+							"pooled",
+							"automatic-proxy-pool"
+						],
+						"description": "Public logical type. Member topology and route order are never included."
+					},
 					"allowedFormats": {
 						"type": "string"
 					},
@@ -38540,6 +38549,7 @@
 					"id",
 					"name",
 					"enabled",
+					"channelType",
 					"allowedFormats",
 					"modelCapabilities",
 					"pricingMode",

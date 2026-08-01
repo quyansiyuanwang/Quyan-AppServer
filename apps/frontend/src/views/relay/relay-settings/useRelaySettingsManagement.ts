@@ -320,7 +320,7 @@ export const useRelaySettingsManagement = () => {
   const maxConcurrency = ref(5)
   const queueTimeoutSec = ref(30)
   const upstreamStreamTimeoutSec = ref(120)
-  const apiCatalogPoolVisibility = ref<'hidden' | 'anonymous-range'>('hidden')
+  const apiCatalogPoolVisibility = ref<'hidden' | 'anonymous-range'>('anonymous-range')
   const relayCustomKeyEnabled = ref(true)
   const relayCustomKeyMaxTokensPerUser = ref(3)
   const relayCustomKeyCreateLimitWindowMinutes = ref(10)
@@ -352,7 +352,7 @@ export const useRelaySettingsManagement = () => {
       upstreamStreamTimeoutSec.value = Math.round(
         (relayConfig.upstreamStreamTimeout ?? 120000) / 1000,
       )
-      apiCatalogPoolVisibility.value = relayConfig.apiCatalogPoolVisibility ?? 'hidden'
+      apiCatalogPoolVisibility.value = relayConfig.apiCatalogPoolVisibility ?? 'anonymous-range'
       relayUpstreamUrl.value = relaySystemConfig.upstreamUrl || ''
       relayUpstreamApiKey.value = relaySystemConfig.upstreamApiKey || ''
       relayAllowedModels.value = relaySystemConfig.allowedModels || ''

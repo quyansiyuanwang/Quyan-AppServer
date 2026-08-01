@@ -155,6 +155,8 @@ export interface RelayCatalogOptionDto {
   id: string;
   name: string;
   enabled: boolean;
+  /** Public logical type. Member topology and route order are never included. */
+  channelType: "standalone" | "pooled" | "automatic-proxy-pool";
   allowedFormats: string;
   modelCapabilities: RelayChannelModelCapabilityDto[];
   pricingMode: "fixed" | "range";

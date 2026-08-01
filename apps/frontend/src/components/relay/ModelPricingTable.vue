@@ -689,6 +689,9 @@
                 class="channel-tag"
               >
                 {{ channel.name }}
+                <span v-if="channel.channelType !== 'standalone'" class="channel-multiplier-badge">
+                  {{ channel.channelType === 'automatic-proxy-pool' ? t('apiDoc.automaticProxyPool') : t('relay.channelTypePooled') }}
+                </span>
                 <span v-if="channel.pricingMode === 'range'" class="channel-multiplier-badge">
                   {{ formatMultiplierRange(getChannelPriceCellValue(row, channel).multiplier, getChannelPriceCellValue(row, channel).maximumMultiplier) }}
                 </span>
