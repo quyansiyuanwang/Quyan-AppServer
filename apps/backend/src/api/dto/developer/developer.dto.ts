@@ -146,7 +146,13 @@ export interface DeveloperSecretDto {
 export interface CreateDeveloperStatusMonitorDto {
   name: string;
   targetUrl: string;
-  method?: "GET" | "HEAD";
+  method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
+  /** JSON request payload. Only supported by POST, PUT, PATCH, and DELETE monitors. */
+  requestBody?: string;
+  /** How the raw response body is matched when responseBodyMatch is configured. */
+  responseBodyMatchMode?: "contains" | "equals";
+  /** Expected raw response body text. The monitor is down when it does not match. */
+  responseBodyMatch?: string;
   intervalSec?: number;
   successStatusCodes?: number[];
 }
@@ -154,7 +160,13 @@ export interface CreateDeveloperStatusMonitorDto {
 export interface UpdateDeveloperStatusMonitorDto {
   name?: string;
   targetUrl?: string;
-  method?: "GET" | "HEAD";
+  method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
+  /** Set to null to clear the JSON request payload. */
+  requestBody?: string | null;
+  /** Set to null to disable response body matching. */
+  responseBodyMatchMode?: "contains" | "equals" | null;
+  /** Set to null to clear the expected response body text. */
+  responseBodyMatch?: string | null;
   intervalSec?: number;
   successStatusCodes?: number[];
   enabled?: boolean;
@@ -165,6 +177,9 @@ export interface DeveloperStatusMonitorDto {
   name: string;
   targetUrl: string;
   method: string;
+  requestBody?: string;
+  responseBodyMatchMode?: "contains" | "equals";
+  responseBodyMatch?: string;
   intervalSec: number;
   successStatusCodes?: number[];
   enabled: boolean;

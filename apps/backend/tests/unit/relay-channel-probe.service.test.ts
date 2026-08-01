@@ -3,6 +3,8 @@ import {
   assertProbeUsage,
   buildProbeUpstreamEndpoint,
   calculateSuggestedProbeMultiplier,
+  defaultProbeEndpoint,
+  findProbeOutlierIndexes,
   formatProbeUpstreamError,
   getProbeSchedulingScope,
   getProbeWorkflowHeaders,
@@ -11,6 +13,7 @@ import {
   interpolateRequiredProbeVariables,
   interpolateProbeVariables,
   normalizeProbeNetworkError,
+  normalizeProbeEndpoint,
   readProbeJsonPath,
   resolveProbeModelPricing,
   resolveProbeCustomerFacingTargets,
@@ -98,7 +101,7 @@ describe("relay channel probe helpers", () => {
   });
 
   it("refuses cache busting when the payload has no safe prompt insertion point", () => {
-    expect(injectProbeCacheBuster({ input: "ping" }, "openai", "uuid")).toBeUndefined();
+    expect(injectProbeCacheBuster({ input: 1 }, "openai", "uuid", "openai-responses")).toBeUndefined();
     expect(injectProbeCacheBuster({ systemInstruction: "invalid" }, "gemini", "uuid")).toBeUndefined();
   });
 
@@ -193,6 +196,27 @@ describe("relay channel probe helpers", () => {
     expect(buildProbeUpstreamEndpoint("https://generativelanguage.example.com/v1beta", "gemini", "gemini-test")).toBe(
       "https://generativelanguage.example.com/v1beta/models/gemini-test:generateContent",
     );
+    expect(buildProbeUpstreamEndpoint("https://api.example.com/v1", "openai", "gpt-test", "openai-responses")).toBe(
+      "https://api.example.com/v1/responses",
+    );
+    expect(defaultProbeEndpoint("anthropic")).toBe("anthropic-messages");
+    expect(normalizeProbeEndpoint("openai-chat-completions", "anthropic")).toBe("anthropic-messages");
+  });
+
+  it("injects a stable marker into OpenAI Responses input without mutating the payload", () => {
+    const payload = { input: [{ role: "user", content: [{ type: "input_text", text: "ping" }] }] };
+    const injected = injectProbeCacheBuster(payload, "openai", "same-key", "openai-responses");
+    expect((injected?.input as unknown[])?.[0]).toEqual({
+      role: "developer",
+      content: [{ type: "input_text", text: "[probe-cache-buster:same-key]" }],
+    });
+    expect(payload.input).toHaveLength(1);
+  });
+
+  it("discards only statistically large probe multiplier deviations", () => {
+    expect([...findProbeOutlierIndexes([1, 1.01, 0.99, 7])]).toEqual([3]);
+    expect([...findProbeOutlierIndexes([1, 1.01])]).toEqual([]);
+    expect([...findProbeOutlierIndexes([1, 1, 1, 1])]).toEqual([]);
   });
 
   it("rejects a 2xx upstream response that does not contain billable usage", () => {

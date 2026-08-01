@@ -28,6 +28,12 @@ const conversation = {
   relayTokenId: 'token-1',
 } as Conversation
 
+const secondConversation = {
+  id: 'conversation-2',
+  title: 'Second',
+  relayTokenId: 'token-1',
+} as Conversation
+
 const createMessage = (overrides: Partial<Message>): Message =>
   ({
     id: 'message-1',
@@ -42,12 +48,19 @@ const createMessage = (overrides: Partial<Message>): Message =>
     ...overrides,
   }) as Message
 
+async function* completedStream() {
+  yield {
+    type: 'complete' as const,
+    message: createMessage({ id: 'assistant-1', role: 'assistant', content: 'answer' }),
+  }
+}
+
 describe('chatStore model selection', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     localStorage.clear()
-    sendMessageStreamMock.mockResolvedValue(undefined)
+    sendMessageStreamMock.mockImplementation(completedStream)
     deleteMessageMock.mockResolvedValue(undefined)
   })
 
@@ -77,9 +90,7 @@ describe('chatStore model selection', () => {
       'hello',
       'current-model',
       'token-1',
-      expect.any(Function),
-      expect.any(Function),
-      expect.any(Function),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
   })
 
@@ -114,5 +125,81 @@ describe('chatStore model selection', () => {
     expect(deleteMessageMock).not.toHaveBeenCalled()
     expect(sendMessageStreamMock).not.toHaveBeenCalled()
     expect(store.messages).toEqual([userMessage, assistantMessage])
+  })
+
+  it('stops the active stream without turning the assistant draft into an error message', async () => {
+    const store = useChatStore()
+    store.currentConversation = conversation
+    store.availableTokens = [
+      { id: 'token-1', name: 'Token', allowedModels: 'current-model' } as any,
+    ]
+    sendMessageStreamMock.mockImplementation(async function* (...args: unknown[]) {
+      const options = args[4] as { signal: AbortSignal }
+      await new Promise<void>((resolve) =>
+        options.signal.addEventListener('abort', () => resolve()),
+      )
+      yield {
+        type: 'failure' as const,
+        kind: 'aborted' as const,
+        message: 'Streaming request was aborted',
+      }
+    })
+
+    const pending = store.sendMessage('hello', 'current-model', 'token-1')
+    await Promise.resolve()
+    expect(store.isSending).toBe(true)
+
+    store.stopGeneration()
+    await pending
+
+    expect(store.isSending).toBe(false)
+    expect(store.messages.at(-1)).toMatchObject({ role: 'assistant', clientState: 'stopped' })
+  })
+
+  it('cancels only the previous conversation stream when switching conversations', async () => {
+    const store = useChatStore()
+    store.conversations = [conversation, secondConversation]
+    store.currentConversation = conversation
+    store.availableTokens = [
+      { id: 'token-1', name: 'Token', allowedModels: 'current-model' } as any,
+    ]
+    let firstSignal: AbortSignal | undefined
+    sendMessageStreamMock.mockImplementation(async function* (...args: unknown[]) {
+      firstSignal = (args[4] as { signal: AbortSignal }).signal
+      await new Promise<void>((resolve) => firstSignal?.addEventListener('abort', () => resolve()))
+      yield {
+        type: 'failure' as const,
+        kind: 'aborted' as const,
+        message: 'Streaming request was aborted',
+      }
+    })
+
+    const pending = store.sendMessage('hello', 'current-model', 'token-1')
+    await Promise.resolve()
+    await store.selectConversation(secondConversation.id)
+
+    expect(firstSignal?.aborted).toBe(true)
+    expect(store.currentConversation?.id).toBe(secondConversation.id)
+    expect(store.isSending).toBe(false)
+    await pending
+  })
+
+  it('keeps an explicit failed draft when the stream reports a failure', async () => {
+    const store = useChatStore()
+    store.currentConversation = conversation
+    store.availableTokens = [
+      { id: 'token-1', name: 'Token', allowedModels: 'current-model' } as any,
+    ]
+    sendMessageStreamMock.mockImplementation(async function* () {
+      yield { type: 'failure' as const, kind: 'network' as const, message: 'Network unavailable' }
+    })
+
+    await store.sendMessage('hello', 'current-model', 'token-1')
+
+    expect(store.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      clientState: 'failed',
+      errorMessage: 'Network unavailable',
+    })
   })
 })

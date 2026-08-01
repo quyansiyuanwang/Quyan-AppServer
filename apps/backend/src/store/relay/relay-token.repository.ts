@@ -152,6 +152,7 @@ export class RelayTokenRepository implements RelayTokenStore {
         channelId: data.channelId,
         routingMode: data.routingMode ?? "ordered",
         automaticProxyPoolChannelId: data.automaticProxyPoolChannelId,
+        blockedAutomaticProxyPoolChannelIds: data.blockedAutomaticProxyPoolChannelIds,
         quotaLimit: data.quotaLimit,
         allowedModels: data.allowedModels,
         ipWhitelist: data.ipWhitelist,
@@ -345,6 +346,7 @@ export class RelayTokenRepository implements RelayTokenStore {
       channelId,
       modelMapping,
       automaticProxyPoolChannelId,
+      blockedAutomaticProxyPoolChannelIds,
       ...tokenData
     } = data;
 
@@ -355,6 +357,7 @@ export class RelayTokenRepository implements RelayTokenStore {
           ...tokenData,
           ...(channelId !== undefined ? { channelId } : {}),
           ...(automaticProxyPoolChannelId !== undefined ? { automaticProxyPoolChannelId } : {}),
+          ...(blockedAutomaticProxyPoolChannelIds !== undefined ? { blockedAutomaticProxyPoolChannelIds } : {}),
           ...(modelMapping !== undefined ? { modelMapping: modelMapping as Prisma.InputJsonValue } : {}),
         },
       });

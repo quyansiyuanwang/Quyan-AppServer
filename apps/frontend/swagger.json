@@ -35848,6 +35848,12 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string"
 					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
 					"expiresAt": {
 						"type": "string",
 						"format": "date-time"
@@ -35969,6 +35975,13 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string"
 					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
+					},
 					"targetUserId": {
 						"type": "string",
 						"description": "目标用户 ID，不传则为当前用户"
@@ -36043,6 +36056,13 @@
 					},
 					"automaticProxyPoolChannelId": {
 						"type": "string"
+					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
 					},
 					"targetUserId": {
 						"type": "string",
@@ -36208,6 +36228,13 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string"
 					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
+					},
 					"targetUserId": {
 						"type": "string",
 						"description": "目标用户 ID，不传则为当前用户"
@@ -36366,6 +36393,13 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string",
 						"nullable": true
+					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
 					},
 					"targetUserId": {
 						"type": "string"
@@ -39392,6 +39426,23 @@
 					"gemini"
 				]
 			},
+			"RelayChannelProbeEndpoint": {
+				"type": "string",
+				"enum": [
+					"openai-chat-completions",
+					"openai-responses",
+					"anthropic-messages",
+					"gemini-generate-content"
+				]
+			},
+			"RelayChannelProbeCacheMode": {
+				"type": "string",
+				"enum": [
+					"cache-bust",
+					"allow-cache",
+					"warm-and-read"
+				]
+			},
 			"RelayChannelProbeWorkflowStepDto": {
 				"properties": {
 					"name": {
@@ -39445,6 +39496,9 @@
 					"probeFormat": {
 						"$ref": "#/components/schemas/RelayChannelProbeFormat"
 					},
+					"probeEndpoint": {
+						"$ref": "#/components/schemas/RelayChannelProbeEndpoint"
+					},
 					"probeModel": {
 						"type": "string"
 					},
@@ -39454,6 +39508,13 @@
 					"preventCache": {
 						"type": "boolean",
 						"description": "Inject a unique marker into each probe request to prevent upstream cache collisions."
+					},
+					"cacheMode": {
+						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
 					},
 					"upstreamCurrency": {
 						"type": "string"
@@ -39503,9 +39564,12 @@
 					"relayChannelId",
 					"enabled",
 					"probeFormat",
+					"probeEndpoint",
 					"probeModel",
 					"probePayload",
 					"preventCache",
+					"cacheMode",
+					"sampleCount",
 					"upstreamCurrency",
 					"localCurrency",
 					"upstreamBalanceDivisor",
@@ -39529,6 +39593,81 @@
 					"timed_out",
 					"cancelled"
 				]
+			},
+			"RelayChannelProbeSampleDto": {
+				"properties": {
+					"index": {
+						"type": "number",
+						"format": "double"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"succeeded",
+							"failed",
+							"discarded"
+						]
+					},
+					"accepted": {
+						"type": "boolean"
+					},
+					"cacheBusterId": {
+						"type": "string"
+					},
+					"upstreamBalanceBefore": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamBalanceAfter": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamBalanceDelta": {
+						"type": "number",
+						"format": "double"
+					},
+					"baseLocalCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"requestTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"responseTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheCreationTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheReadTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"suggestedMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheHitVerified": {
+						"type": "boolean"
+					},
+					"errorMessage": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"index",
+					"status",
+					"accepted"
+				],
+				"type": "object",
+				"additionalProperties": false
 			},
 			"RelayChannelProbeCostBreakdownDto": {
 				"properties": {
@@ -39619,6 +39758,49 @@
 					"distributionMultiplier": {
 						"type": "number",
 						"format": "double"
+					},
+					"probeEndpoint": {
+						"$ref": "#/components/schemas/RelayChannelProbeEndpoint"
+					},
+					"cacheMode": {
+						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"sampleSucceededCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"sampleAcceptedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"sampleDiscardedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupRequestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupCacheCreationTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupCacheReadTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupUsage": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"samples": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeSampleDto"
+						},
+						"type": "array"
 					},
 					"upstreamBalanceBefore": {
 						"type": "number",
@@ -39724,6 +39906,13 @@
 					"status",
 					"queuedAt",
 					"distributionMultiplier",
+					"probeEndpoint",
+					"cacheMode",
+					"sampleCount",
+					"sampleSucceededCount",
+					"sampleAcceptedCount",
+					"sampleDiscardedCount",
+					"warmupRequestCount",
 					"upstreamRateMultiplier",
 					"cacheBustingEnabled",
 					"forceWithoutCacheBuster",
@@ -39802,6 +39991,9 @@
 					"probeFormat": {
 						"$ref": "#/components/schemas/RelayChannelProbeFormat"
 					},
+					"probeEndpoint": {
+						"$ref": "#/components/schemas/RelayChannelProbeEndpoint"
+					},
 					"probeModel": {
 						"type": "string"
 					},
@@ -39810,6 +40002,13 @@
 					},
 					"preventCache": {
 						"type": "boolean"
+					},
+					"cacheMode": {
+						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
 					},
 					"upstreamCurrency": {
 						"type": "string"
@@ -42531,6 +42730,19 @@
 					"method": {
 						"type": "string"
 					},
+					"requestBody": {
+						"type": "string"
+					},
+					"responseBodyMatchMode": {
+						"type": "string",
+						"enum": [
+							"contains",
+							"equals"
+						]
+					},
+					"responseBodyMatch": {
+						"type": "string"
+					},
 					"intervalSec": {
 						"type": "number",
 						"format": "double"
@@ -42575,8 +42787,28 @@
 						"type": "string",
 						"enum": [
 							"GET",
-							"HEAD"
+							"HEAD",
+							"POST",
+							"PUT",
+							"PATCH",
+							"DELETE"
 						]
+					},
+					"requestBody": {
+						"type": "string",
+						"description": "JSON request payload. Only supported by POST, PUT, PATCH, and DELETE monitors."
+					},
+					"responseBodyMatchMode": {
+						"type": "string",
+						"enum": [
+							"contains",
+							"equals"
+						],
+						"description": "How the raw response body is matched when responseBodyMatch is configured."
+					},
+					"responseBodyMatch": {
+						"type": "string",
+						"description": "Expected raw response body text. The monitor is down when it does not match."
 					},
 					"intervalSec": {
 						"type": "number",
@@ -42609,8 +42841,32 @@
 						"type": "string",
 						"enum": [
 							"GET",
-							"HEAD"
+							"HEAD",
+							"POST",
+							"PUT",
+							"PATCH",
+							"DELETE"
 						]
+					},
+					"requestBody": {
+						"type": "string",
+						"nullable": true,
+						"description": "Set to null to clear the JSON request payload."
+					},
+					"responseBodyMatchMode": {
+						"type": "string",
+						"enum": [
+							"contains",
+							"equals",
+							null
+						],
+						"nullable": true,
+						"description": "Set to null to disable response body matching."
+					},
+					"responseBodyMatch": {
+						"type": "string",
+						"nullable": true,
+						"description": "Set to null to clear the expected response body text."
 					},
 					"intervalSec": {
 						"type": "number",
@@ -43515,6 +43771,9 @@
 						"format": "double",
 						"nullable": true
 					},
+					"completionStatus": {
+						"type": "string"
+					},
 					"createTime": {
 						"type": "string",
 						"format": "date-time"
@@ -43529,6 +43788,7 @@
 					"inputTokens",
 					"outputTokens",
 					"totalTokens",
+					"completionStatus",
 					"createTime"
 				],
 				"type": "object",
@@ -43615,6 +43875,9 @@
 						"type": "string"
 					},
 					"relayTokenId": {
+						"type": "string"
+					},
+					"replaceMessageId": {
 						"type": "string"
 					}
 				},

@@ -300,6 +300,33 @@ describe("RelayTokenService", () => {
     ).rejects.toThrow("Automatic proxy pool not found or unavailable");
   });
 
+  it("rejects blocked channels outside the automatic pool and blocking every member", async () => {
+    relayChannelService.assertChannelAccessibleById.mockResolvedValue({
+      id: "automatic-pool",
+      status: MANAGED_STATUS.ENABLED,
+      channelType: "automatic-proxy-pool",
+      poolMembers: [{ memberChannelId: "member-1" }, { memberChannelId: "member-2" }],
+    });
+
+    await expect(
+      service.generateToken("user-1", {
+        name: "Automatic Token",
+        routingMode: "automatic-pool",
+        automaticProxyPoolChannelId: "automatic-pool",
+        blockedAutomaticProxyPoolChannelIds: ["not-a-member"],
+      } as any),
+    ).rejects.toThrow("Blocked channels must be members of the selected automatic proxy pool");
+
+    await expect(
+      service.generateToken("user-1", {
+        name: "Automatic Token",
+        routingMode: "automatic-pool",
+        automaticProxyPoolChannelId: "automatic-pool",
+        blockedAutomaticProxyPoolChannelIds: ["member-1", "member-2"],
+      } as any),
+    ).rejects.toThrow("At least one automatic proxy pool channel must remain available");
+  });
+
   it("rejects an automatic proxy pool in ordered channel configuration", async () => {
     relayChannelRepository.listActiveByIds.mockResolvedValue([
       { id: "automatic-pool", channelType: "automatic-proxy-pool" },

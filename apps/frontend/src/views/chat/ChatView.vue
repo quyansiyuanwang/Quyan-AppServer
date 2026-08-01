@@ -11,6 +11,7 @@
       @resend="handleResend"
       @regenerate="handleRegenerate"
       @delete="handleDeleteMessage"
+      @stop="chatStore.stopGeneration"
     />
     <div v-else class="empty-state">
       <el-empty :description="i18ns.t('chat.selectOrCreate')" />
@@ -18,10 +19,13 @@
     <ConversationList
       :conversations="chatStore.conversations"
       :current="chatStore.currentConversation"
+      :has-more="chatStore.hasMoreConversations"
+      :loading="chatStore.isLoading"
       @select="chatStore.selectConversation"
       @create="handleCreate"
       @rename="handleRenameConversation"
       @delete="handleDeleteConversation"
+      @load-more="chatStore.loadConversations(false)"
     />
   </div>
   <div v-else class="chat-mobile">
@@ -47,6 +51,7 @@
         @resend="handleResend"
         @regenerate="handleRegenerate"
         @delete="handleDeleteMessage"
+        @stop="chatStore.stopGeneration"
       />
       <div v-else class="empty-state mobile-empty-state">
         <el-empty :description="i18ns.t('chat.selectOrCreate')">
@@ -67,17 +72,20 @@
       <ConversationList
         :conversations="chatStore.conversations"
         :current="chatStore.currentConversation"
+        :has-more="chatStore.hasMoreConversations"
+        :loading="chatStore.isLoading"
         @select="handleSelectConversation"
         @create="handleCreate"
         @rename="handleRenameConversation"
         @delete="handleDeleteConversation"
+        @load-more="chatStore.loadConversations(false)"
       />
     </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, onBeforeUnmount, ref, computed } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { useChatStore } from '@/stores/chatStore'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -85,6 +93,7 @@ import { i18ns } from '@/locales'
 import { Menu, Plus } from '@element-plus/icons-vue'
 import ConversationList from './components/ConversationList.vue'
 import ChatWindow from './components/ChatWindow.vue'
+import type { Message } from '@/types/chat'
 
 const chatStore = useChatStore()
 const { isDesktop } = usePageDevice()
@@ -97,6 +106,10 @@ const mobileConversationTitle = computed(() => {
 onMounted(async () => {
   await chatStore.loadConversations()
   await chatStore.loadAvailableTokens()
+})
+
+onBeforeUnmount(() => {
+  chatStore.cancelActiveRequest()
 })
 
 async function handleCreate() {
@@ -170,15 +183,15 @@ async function handleSend(content: string, model: string, tokenId?: string) {
   await chatStore.sendMessage(content, model, tokenId)
 }
 
-function handleEdit(message: any, newContent: string) {
+function handleEdit(message: Message, newContent: string) {
   chatStore.editMessage(message.id, newContent)
 }
 
-function handleResend(message: any) {
+function handleResend(message: Message) {
   chatStore.resendMessage(message)
 }
 
-function handleRegenerate(message: any) {
+function handleRegenerate(message: Message) {
   chatStore.regenerateMessage(message)
 }
 

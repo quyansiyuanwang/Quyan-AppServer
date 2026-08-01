@@ -1,60 +1,80 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import type { Conversation, Message, ChatToken } from '@/types/chat'
 import { chatService } from '@/service/chatService'
 import StorageKey from '@/constant/storagekey'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { getScopedStorageKey } from '@/utils/storageScope'
 
+type MessageClientState = 'streaming' | 'failed' | 'stopped'
+type ChatMessage = Message & { clientState?: MessageClientState; errorMessage?: string }
+
+interface ActiveChatRequest {
+  id: number
+  conversationId: string
+  controller: AbortController
+  assistantDraftId: string
+}
+
 export const useChatStore = defineStore('chat', () => {
   const conversations = ref<Conversation[]>([])
   const currentConversation = ref<Conversation | null>(null)
-  const messages = ref<Message[]>([])
+  const messages = ref<ChatMessage[]>([])
   const availableTokens = ref<ChatToken[]>([])
   const isLoading = ref(false)
-  const isSending = ref(false)
-  const pendingDeletedMessageIds = ref<Set<string>>(new Set())
+  const conversationPage = ref(1)
+  const hasMoreConversations = ref(true)
+  let requestVersion = 0
+  let messageLoadVersion = 0
+  const activeRequests = reactive(new Map<string, ActiveChatRequest>())
+  const isSending = computed(() =>
+    currentConversation.value ? activeRequests.has(currentConversation.value.id) : false,
+  )
 
-  const parseAllowedModels = (allowedModels?: string | null): string[] => {
-    if (!allowedModels) return []
-    return allowedModels
+  const parseAllowedModels = (allowedModels?: string | null): string[] =>
+    (allowedModels || '')
       .split(',')
       .map((model) => model.trim())
       .filter(Boolean)
+
+  const getSelectionFromStorage = (): { tokenId?: string; model?: string } => ({
+    tokenId:
+      TypedLocalStorage.getItem(getScopedStorageKey(StorageKey.Chat.SELECTED_TOKEN_ID)) ||
+      undefined,
+    model:
+      TypedLocalStorage.getItem(getScopedStorageKey(StorageKey.Chat.SELECTED_MODEL)) || undefined,
+  })
+
+  const isCurrentRequest = (id: number, conversationId: string) =>
+    activeRequests.get(conversationId)?.id === id
+
+  function cancelActiveRequest(conversationId?: string) {
+    const request = conversationId
+      ? activeRequests.get(conversationId)
+      : currentConversation.value
+        ? activeRequests.get(currentConversation.value.id)
+        : undefined
+    if (!request) return
+    const draft = messages.value.find((item) => item.id === request.assistantDraftId)
+    if (draft) draft.clientState = 'stopped'
+    request.controller.abort()
   }
 
-  const getSelectionFromStorage = (): { tokenId?: string; model?: string } => {
-    const tokenStorageKey = getScopedStorageKey(StorageKey.Chat.SELECTED_TOKEN_ID)
-    const modelStorageKey = getScopedStorageKey(StorageKey.Chat.SELECTED_MODEL)
-    const selectedTokenId = TypedLocalStorage.getItem(tokenStorageKey) || undefined
-    const selectedModel = TypedLocalStorage.getItem(modelStorageKey) || undefined
-
-    const token =
-      availableTokens.value.find((item) => item.id === selectedTokenId) ||
-      availableTokens.value.find((item) => item.id === currentConversation.value?.relayTokenId) ||
-      availableTokens.value[0]
-
-    if (!token) return { tokenId: undefined, model: selectedModel }
-
-    const tokenModels = parseAllowedModels(token.allowedModels)
-    const model =
-      selectedModel && tokenModels.includes(selectedModel)
-        ? selectedModel
-        : tokenModels[0] || selectedModel
-
-    return { tokenId: token.id, model }
-  }
-
-  const filterPendingDeletedMessages = (items: Message[]) => {
-    if (!pendingDeletedMessageIds.value.size) return items
-    return items.filter((message) => !pendingDeletedMessageIds.value.has(message.id))
-  }
-
-  async function loadConversations() {
+  async function loadConversations(reset = true) {
+    if (isLoading.value || (!reset && !hasMoreConversations.value)) return
     isLoading.value = true
+    const page = reset ? 1 : conversationPage.value + 1
     try {
-      const result = await chatService.getConversations()
-      conversations.value = result?.conversations ?? []
+      const result = await chatService.getConversations(page)
+      const incoming = result?.conversations ?? []
+      conversations.value = reset
+        ? incoming
+        : [
+            ...conversations.value,
+            ...incoming.filter((item) => !conversations.value.some((old) => old.id === item.id)),
+          ]
+      conversationPage.value = page
+      hasMoreConversations.value = conversations.value.length < (result?.total ?? 0)
     } finally {
       isLoading.value = false
     }
@@ -69,15 +89,18 @@ export const useChatStore = defineStore('chat', () => {
 
   async function selectConversation(id: string) {
     if (currentConversation.value?.id === id) return
-    currentConversation.value = conversations.value.find((c) => c.id === id) || null
-    if (currentConversation.value) {
-      await loadMessages(id)
-    }
+    cancelActiveRequest(currentConversation.value?.id)
+    currentConversation.value =
+      conversations.value.find((conversation) => conversation.id === id) || null
+    messages.value = []
+    if (currentConversation.value) await loadMessages(id)
   }
 
   async function loadMessages(conversationId: string) {
+    const loadId = ++messageLoadVersion
     const loaded = (await chatService.getMessages(conversationId)) ?? []
-    messages.value = filterPendingDeletedMessages(loaded)
+    if (loadId !== messageLoadVersion || currentConversation.value?.id !== conversationId) return
+    messages.value = loaded as ChatMessage[]
   }
 
   function resolveAvailableSelection(
@@ -91,92 +114,125 @@ export const useChatStore = defineStore('chat', () => {
     if (!token) return null
 
     const models = parseAllowedModels(token.allowedModels)
-    if (models.length === 0) return null
-    const fallbackModel = models[0]
-    if (!fallbackModel) return null
+    if (!models.length) return null
     return {
       tokenId: token.id,
-      model: requestedModel && models.includes(requestedModel) ? requestedModel : fallbackModel,
+      model: requestedModel && models.includes(requestedModel) ? requestedModel : models[0]!,
     }
   }
 
-  async function sendMessage(content: string, model: string, tokenId?: string) {
-    if (!currentConversation.value) return
-    if (isSending.value) return
+  const createDraft = (
+    conversationId: string,
+    role: 'user' | 'assistant',
+    content: string,
+    id: string,
+  ): ChatMessage => ({
+    id,
+    conversationId,
+    role,
+    content,
+    model: null,
+    inputTokens: null,
+    outputTokens: null,
+    totalTokens: null,
+    completionStatus: 'completed',
+    createTime: new Date().toISOString(),
+  })
 
+  async function sendMessage(
+    content: string,
+    model: string,
+    tokenId?: string,
+    replaceMessageId?: string,
+  ) {
+    const conversation = currentConversation.value
+    if (!conversation || activeRequests.has(conversation.id)) return
     const selection = resolveAvailableSelection(tokenId, model)
     if (!selection) return
 
-    isSending.value = true
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      conversationId: currentConversation.value.id,
-      role: 'user',
-      content,
-      model: null,
-      inputTokens: null,
-      outputTokens: null,
-      totalTokens: null,
-      createTime: new Date().toISOString(),
-    }
-    messages.value.push(userMessage)
-
-    const assistantMessageIndex = messages.value.length
-    messages.value.push({
-      id: (Date.now() + 1).toString(),
-      conversationId: currentConversation.value.id,
-      role: 'assistant',
-      content: '',
-      model: null,
-      inputTokens: null,
-      outputTokens: null,
-      totalTokens: null,
-      createTime: new Date().toISOString(),
+    const requestId = ++requestVersion
+    const draftId = `chat-draft-${requestId}`
+    const controller = new AbortController()
+    activeRequests.set(conversation.id, {
+      id: requestId,
+      conversationId: conversation.id,
+      controller,
+      assistantDraftId: draftId,
     })
 
+    if (replaceMessageId) {
+      const messageIndex = messages.value.findIndex((message) => message.id === replaceMessageId)
+      if (messageIndex < 0 || messages.value[messageIndex]?.role !== 'user') {
+        activeRequests.delete(conversation.id)
+        return
+      }
+      messages.value = messages.value.slice(0, messageIndex + 1)
+      messages.value[messageIndex]!.content = content
+    } else
+      messages.value.push(
+        createDraft(conversation.id, 'user', content, `chat-user-draft-${requestId}`),
+      )
+
+    const assistantDraft = createDraft(conversation.id, 'assistant', '', draftId)
+    assistantDraft.clientState = 'streaming'
+    messages.value.push(assistantDraft)
+
+    const getDraft = () =>
+      isCurrentRequest(requestId, conversation.id)
+        ? messages.value.find((message) => message.id === draftId)
+        : undefined
+
     try {
-      await chatService.sendMessageStream(
-        currentConversation.value.id,
+      for await (const event of chatService.sendMessageStream(
+        conversation.id,
         content,
         selection.model,
         selection.tokenId,
-        (chunk) => {
-          console.log('[ChatStore] onChunk called with:', chunk)
-          const assistantMessage = messages.value[assistantMessageIndex]
-          if (!assistantMessage) return
-          assistantMessage.content += chunk
-        },
-        (message) => {
-          console.log('[ChatStore] onComplete called with:', message)
-          const assistantMessage = messages.value[assistantMessageIndex]
-          if (!assistantMessage) return
-          assistantMessage.id = message.id
-          assistantMessage.model = message.model
-          assistantMessage.inputTokens = message.inputTokens
-          assistantMessage.outputTokens = message.outputTokens
-          assistantMessage.totalTokens = message.totalTokens
-          assistantMessage.createTime = message.createTime
-          // 重新加载消息列表以确保同步
-          if (currentConversation.value) {
-            loadMessages(currentConversation.value.id)
-          }
-        },
-        (error) => {
-          console.error('[ChatStore] onError called with:', error)
-          const assistantMessage = messages.value[assistantMessageIndex]
-          if (!assistantMessage) return
-          assistantMessage.content = `Error: ${error.message}`
-        },
-      )
+        { signal: controller.signal, replaceMessageId },
+      )) {
+        if (event.type === 'delta') {
+          const draft = getDraft()
+          if (draft) draft.content += event.content
+          continue
+        }
+        if (event.type === 'complete') {
+          const draft = getDraft()
+          if (!draft) return
+          Object.assign(draft, event.message)
+          delete draft.clientState
+          void loadMessages(conversation.id)
+          return
+        }
+        const draft = getDraft()
+        if (!draft) return
+        if (event.kind === 'aborted') draft.clientState = 'stopped'
+        else {
+          draft.clientState = 'failed'
+          draft.errorMessage = event.message
+        }
+        return
+      }
+    } catch (error) {
+      const draft = getDraft()
+      if (draft) {
+        draft.clientState = 'failed'
+        draft.errorMessage = error instanceof Error ? error.message : 'Streaming request failed'
+      }
     } finally {
-      isSending.value = false
+      if (isCurrentRequest(requestId, conversation.id)) {
+        activeRequests.delete(conversation.id)
+      }
     }
   }
 
+  function stopGeneration() {
+    cancelActiveRequest(currentConversation.value?.id)
+  }
+
   async function deleteConversation(id: string) {
+    cancelActiveRequest(id)
     await chatService.deleteConversation(id)
-    conversations.value = conversations.value.filter((c) => c.id !== id)
+    conversations.value = conversations.value.filter((conversation) => conversation.id !== id)
     if (currentConversation.value?.id === id) {
       currentConversation.value = null
       messages.value = []
@@ -186,85 +242,52 @@ export const useChatStore = defineStore('chat', () => {
   async function renameConversation(id: string, title: string) {
     const conversation = await chatService.updateConversation(id, title)
     if (!conversation) throw new Error('Failed to update conversation')
-
     const index = conversations.value.findIndex((item) => item.id === id)
-    if (index !== -1) {
-      conversations.value[index] = conversation
-    }
-
-    if (currentConversation.value?.id === id) {
-      currentConversation.value = conversation
-    }
-
+    if (index !== -1) conversations.value[index] = conversation
+    if (currentConversation.value?.id === id) currentConversation.value = conversation
     return conversation
   }
 
   async function deleteMessage(id: string): Promise<boolean> {
-    pendingDeletedMessageIds.value.add(id)
-    messages.value = messages.value.filter((m) => m.id !== id)
-
+    const index = messages.value.findIndex((message) => message.id === id)
+    if (index < 0) return false
+    const previous = messages.value
+    messages.value = messages.value.slice(0, index)
     try {
       await chatService.deleteMessage(id)
       return true
-    } catch (error: any) {
-      const statusCode = Number(error?.response?.status || 0)
-
-      // Message already removed on server; treat as successful deletion.
-      if (statusCode === 404) return true
-
-      pendingDeletedMessageIds.value.delete(id)
-      if (currentConversation.value) await loadMessages(currentConversation.value.id)
+    } catch {
+      messages.value = previous
       return false
-    } finally {
-      pendingDeletedMessageIds.value.delete(id)
     }
   }
 
-  function editMessage(id: string, newContent: string) {
-    const msg = messages.value.find((m) => m.id === id)
-    if (msg) {
-      msg.content = newContent
-    }
+  async function editMessage(id: string, newContent: string) {
+    const selection = getSelectionFromStorage()
+    await sendMessage(newContent, selection.model || '', selection.tokenId, id)
   }
 
   async function resendMessage(message: Message) {
-    if (!currentConversation.value) return
-    const storedSelection = getSelectionFromStorage()
-    const selection = resolveAvailableSelection(
-      storedSelection.tokenId || currentConversation.value.relayTokenId || undefined,
-      storedSelection.model || message.model || undefined,
+    const selection = getSelectionFromStorage()
+    await sendMessage(
+      message.content,
+      selection.model || message.model || '',
+      selection.tokenId,
+      message.id,
     )
-    if (!selection) {
-      console.error('[ChatStore] No token available for resend')
-      return
-    }
-    await sendMessage(message.content, selection.model, selection.tokenId)
   }
 
   async function regenerateMessage(assistantMessage: Message) {
-    if (!currentConversation.value) return
-    if (isSending.value) return
-
-    const msgIndex = messages.value.findIndex((m) => m.id === assistantMessage.id)
-    if (msgIndex === -1 || msgIndex === 0) return
-    const userMessage = messages.value[msgIndex - 1]
+    const index = messages.value.findIndex((message) => message.id === assistantMessage.id)
+    const userMessage = index > 0 ? messages.value[index - 1] : undefined
     if (!userMessage || userMessage.role !== 'user') return
-
-    const storedSelection = getSelectionFromStorage()
-    const selection = resolveAvailableSelection(
-      storedSelection.tokenId || currentConversation.value.relayTokenId || undefined,
-      storedSelection.model || assistantMessage.model || userMessage.model || undefined,
+    const selection = getSelectionFromStorage()
+    await sendMessage(
+      userMessage.content,
+      selection.model || assistantMessage.model || '',
+      selection.tokenId,
+      userMessage.id,
     )
-    if (!selection) {
-      console.error('[ChatStore] No token available for regenerate')
-      return
-    }
-
-    // Remove the old QA pair first, then send once to avoid duplicating the user message.
-    const deletedAssistant = await deleteMessage(assistantMessage.id)
-    const deletedUser = await deleteMessage(userMessage.id)
-    if (!deletedAssistant || !deletedUser) return
-    await sendMessage(userMessage.content, selection.model, selection.tokenId)
   }
 
   async function loadAvailableTokens() {
@@ -278,11 +301,14 @@ export const useChatStore = defineStore('chat', () => {
     availableTokens,
     isLoading,
     isSending,
+    hasMoreConversations,
     loadConversations,
     createConversation,
     selectConversation,
     loadMessages,
     sendMessage,
+    stopGeneration,
+    cancelActiveRequest,
     deleteConversation,
     renameConversation,
     deleteMessage,

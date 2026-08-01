@@ -118,5 +118,33 @@ describe("relay token import schema", () => {
         ],
       }),
     ).toThrow("automaticProxyPoolChannelId can only be used in automatic pool mode");
+
+    expect(() =>
+      createRelayTokenBodySchema.parse({
+        routingMode: "ordered",
+        channelId: "channel-1",
+        blockedAutomaticProxyPoolChannelIds: ["channel-2"],
+      }),
+    ).toThrow("blockedAutomaticProxyPoolChannelIds can only be used in automatic pool mode");
+  });
+
+  it("accepts blocked automatic pool member IDs for create, update, and import", () => {
+    const input = {
+      routingMode: "automatic-pool" as const,
+      automaticProxyPoolChannelId: "automatic-pool-1",
+      blockedAutomaticProxyPoolChannelIds: ["member-1", "member-2"],
+    };
+
+    expect(createRelayTokenBodySchema.parse(input).blockedAutomaticProxyPoolChannelIds).toEqual([
+      "member-1",
+      "member-2",
+    ]);
+    expect(updateRelayTokenBodySchema.parse(input).blockedAutomaticProxyPoolChannelIds).toEqual([
+      "member-1",
+      "member-2",
+    ]);
+    expect(
+      importRelayTokensBodySchema.parse({ tokens: [input] }).tokens[0]?.blockedAutomaticProxyPoolChannelIds,
+    ).toEqual(["member-1", "member-2"]);
   });
 });

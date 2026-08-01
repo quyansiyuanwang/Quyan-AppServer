@@ -51,6 +51,9 @@ const KEY_PREFIX = "dk_";
 const MAX_KV_ENTRIES = 1_000;
 const MAX_KV_VALUE_BYTES = 64 * 1024;
 const MAX_OUTBOUND_RESPONSE_BYTES = 1_024 * 1_024;
+const MAX_STATUS_MONITOR_REQUEST_BODY_BYTES = 20_000;
+const MAX_STATUS_MONITOR_RESPONSE_BODY_MATCH_BYTES = 10_000;
+const SHORT_LINK_STATS_TIME_ZONE_OFFSET_MS = 8 * 60 * 60 * 1_000;
 const IP_LOCATION_CACHE_TTL_MS = GEO_CACHE_TTL_SECONDS * 1_000;
 const MAX_IP_LOCATION_CACHE_ENTRIES = 50_000;
 const DEVELOPER_IP_LOCATION_CACHE_PREFIX = "developer:ip-location:";
@@ -65,6 +68,16 @@ const PROJECT_KEY_SCOPES = new Set<DeveloperApiKeyScope>([
 ]);
 const QUOTA_SERVICES = ["verification", "ip", "push"] as const;
 type QuotaService = (typeof QUOTA_SERVICES)[number];
+const STATUS_MONITOR_METHODS = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]);
+const STATUS_MONITOR_BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const STATUS_MONITOR_RESPONSE_BODY_MATCH_MODES = new Set(["contains", "equals"]);
+type StatusMonitorResponseBodyMatchMode = "contains" | "equals";
+type StatusMonitorConfiguration = {
+  method: string;
+  requestBody?: string | null;
+  responseBodyMatchMode?: StatusMonitorResponseBodyMatchMode | null;
+  responseBodyMatch?: string | null;
+};
 type QuotaReceipt = {
   projectId: string;
   service: QuotaService;
@@ -101,6 +114,12 @@ type ProjectKeyRecord = Awaited<ReturnType<typeof prisma.developerProjectApiKey.
 };
 
 const asIso = (value: Date | null | undefined): string | undefined => value?.toISOString();
+const startOfShortLinkStatsDay = (value: Date): Date => {
+  const local = new Date(value.getTime() + SHORT_LINK_STATS_TIME_ZONE_OFFSET_MS);
+  local.setUTCDate(local.getUTCDate() - 29);
+  local.setUTCHours(0, 0, 0, 0);
+  return new Date(local.getTime() - SHORT_LINK_STATS_TIME_ZONE_OFFSET_MS);
+};
 const hash = (value: string): string => createHash("sha256").update(value).digest("hex");
 
 const mysqlConnectionUrl = (databaseUrl: string): string => {
@@ -757,9 +776,7 @@ export class DeveloperProjectRepository {
     if (!link) throw new NotFoundError("短链接不存在");
 
     const periodEnd = new Date();
-    const periodStart = new Date(periodEnd);
-    periodStart.setDate(periodStart.getDate() - 29);
-    periodStart.setHours(0, 0, 0, 0);
+    const periodStart = startOfShortLinkStatsDay(periodEnd);
     const normalizedPage = Math.max(1, Math.floor(page));
     const normalizedPageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
     const where = { shortLinkId: link.id, clickedAt: { gte: periodStart, lte: periodEnd } };
@@ -803,21 +820,21 @@ export class DeveloperProjectRepository {
           AND \`clickedAt\` <= ${periodEnd}
       `),
       prisma.$queryRaw<Array<{ bucket: string; count: bigint }>>(Prisma.sql`
-        SELECT DATE_FORMAT(\`clickedAt\`, '%Y-%m-%d') AS bucket, COUNT(*) AS count
+        SELECT DATE_FORMAT(CONVERT_TZ(\`clickedAt\`, '+00:00', '+08:00'), '%Y-%m-%d') AS bucket, COUNT(*) AS count
         FROM \`developer_short_link_clicks\`
         WHERE \`shortLinkId\` = ${link.id}
           AND \`clickedAt\` >= ${periodStart}
           AND \`clickedAt\` <= ${periodEnd}
-        GROUP BY DATE_FORMAT(\`clickedAt\`, '%Y-%m-%d')
+        GROUP BY DATE_FORMAT(CONVERT_TZ(\`clickedAt\`, '+00:00', '+08:00'), '%Y-%m-%d')
         ORDER BY bucket ASC
       `),
       prisma.$queryRaw<Array<{ bucket: string; count: bigint }>>(Prisma.sql`
-        SELECT DATE_FORMAT(\`clickedAt\`, '%H:00') AS bucket, COUNT(*) AS count
+        SELECT DATE_FORMAT(CONVERT_TZ(\`clickedAt\`, '+00:00', '+08:00'), '%H:00') AS bucket, COUNT(*) AS count
         FROM \`developer_short_link_clicks\`
         WHERE \`shortLinkId\` = ${link.id}
           AND \`clickedAt\` >= ${periodStart}
           AND \`clickedAt\` <= ${periodEnd}
-        GROUP BY DATE_FORMAT(\`clickedAt\`, '%H:00')
+        GROUP BY DATE_FORMAT(CONVERT_TZ(\`clickedAt\`, '+00:00', '+08:00'), '%H:00')
         ORDER BY bucket ASC
       `),
       prisma.developerShortLinkClick.findMany({
@@ -1027,12 +1044,21 @@ export class DeveloperProjectRepository {
   ): Promise<DeveloperStatusMonitorDto> {
     await this.assertProjectOwner(projectId, userId);
     const target = await assertSafeOutboundUrl(body.targetUrl);
+    const configuration = this.resolveStatusMonitorConfiguration({
+      method: body.method ?? "GET",
+      requestBody: body.requestBody,
+      responseBodyMatchMode: body.responseBodyMatchMode,
+      responseBodyMatch: body.responseBodyMatch,
+    });
     const monitor = await prisma.developerStatusMonitor.create({
       data: {
         projectId,
         name: body.name,
         targetUrl: target.url.toString(),
-        method: body.method ?? "GET",
+        method: configuration.method,
+        requestBody: configuration.requestBody,
+        responseBodyMatchMode: configuration.responseBodyMatchMode,
+        responseBodyMatch: configuration.responseBodyMatch,
         intervalSec: body.intervalSec ?? 60,
         successStatusCodes: body.successStatusCodes,
       },
@@ -1045,6 +1071,9 @@ export class DeveloperProjectRepository {
     name: string;
     targetUrl: string;
     method: string;
+    requestBody: string | null;
+    responseBodyMatchMode: string | null;
+    responseBodyMatch: string | null;
     intervalSec: number;
     successStatusCodes: unknown;
     enabled: boolean;
@@ -1052,7 +1081,17 @@ export class DeveloperProjectRepository {
     lastStatus: string | null;
   }): DeveloperStatusMonitorDto {
     return {
-      ...monitor,
+      id: monitor.id,
+      name: monitor.name,
+      targetUrl: monitor.targetUrl,
+      method: monitor.method,
+      requestBody: monitor.requestBody ?? undefined,
+      responseBodyMatchMode: STATUS_MONITOR_RESPONSE_BODY_MATCH_MODES.has(monitor.responseBodyMatchMode ?? "")
+        ? (monitor.responseBodyMatchMode as StatusMonitorResponseBodyMatchMode)
+        : undefined,
+      responseBodyMatch: monitor.responseBodyMatch ?? undefined,
+      intervalSec: monitor.intervalSec,
+      enabled: monitor.enabled,
       successStatusCodes: Array.isArray(monitor.successStatusCodes)
         ? monitor.successStatusCodes.filter((code): code is number => typeof code === "number")
         : undefined,
@@ -1080,12 +1119,32 @@ export class DeveloperProjectRepository {
     const existing = await prisma.developerStatusMonitor.findFirst({ where: { id: monitorId, projectId } });
     if (!existing) throw new NotFoundError("监控目标不存在");
     const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).url.toString() : undefined;
+    const clearResponseBodyMatch = body.responseBodyMatchMode === null || body.responseBodyMatch === null;
+    const responseBodyMatchMode = clearResponseBodyMatch
+      ? null
+      : body.responseBodyMatchMode === undefined
+        ? existing.responseBodyMatchMode
+        : body.responseBodyMatchMode;
+    const responseBodyMatch = clearResponseBodyMatch
+      ? null
+      : body.responseBodyMatch === undefined
+        ? existing.responseBodyMatch
+        : body.responseBodyMatch;
+    const configuration = this.resolveStatusMonitorConfiguration({
+      method: body.method ?? existing.method,
+      requestBody: body.requestBody === undefined ? existing.requestBody : body.requestBody,
+      responseBodyMatchMode,
+      responseBodyMatch,
+    });
     const result = await prisma.developerStatusMonitor.updateMany({
       where: { id: monitorId, projectId },
       data: {
         name: body.name,
         targetUrl,
-        method: body.method,
+        method: configuration.method,
+        requestBody: configuration.requestBody,
+        responseBodyMatchMode: configuration.responseBodyMatchMode,
+        responseBodyMatch: configuration.responseBodyMatch,
         intervalSec: body.intervalSec,
         successStatusCodes: body.successStatusCodes,
         enabled: body.enabled,
@@ -1114,6 +1173,9 @@ export class DeveloperProjectRepository {
     id: string;
     targetUrl: string;
     method: string;
+    requestBody?: string | null;
+    responseBodyMatchMode?: string | null;
+    responseBodyMatch?: string | null;
     successStatusCodes?: unknown;
     lastStatus?: string | null;
     project?: { userId: string };
@@ -1124,12 +1186,16 @@ export class DeveloperProjectRepository {
     const startedAt = Date.now();
     try {
       const target = await assertSafeOutboundUrl(monitor.targetUrl);
+      const hasRequestBody = Boolean(monitor.requestBody) && STATUS_MONITOR_BODY_METHODS.has(monitor.method);
       const response = await axios.request({
         url: target.url.toString(),
         method: monitor.method,
+        data: hasRequestBody ? monitor.requestBody : undefined,
+        headers: hasRequestBody ? { "Content-Type": "application/json" } : undefined,
         timeout: 10_000,
         maxRedirects: 0,
         maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
+        responseType: "text",
         httpAgent: target.httpAgent,
         httpsAgent: target.httpsAgent,
         validateStatus: () => true,
@@ -1138,13 +1204,19 @@ export class DeveloperProjectRepository {
       const configuredCodes = Array.isArray(monitor.successStatusCodes)
         ? monitor.successStatusCodes.filter((code): code is number => typeof code === "number")
         : [];
-      lastStatus = (
-        configuredCodes.length
-          ? configuredCodes.includes(response.status)
-          : response.status >= 200 && response.status < 400
-      )
-        ? "up"
-        : "down";
+      const statusCodeMatches = configuredCodes.length
+        ? configuredCodes.includes(response.status)
+        : response.status >= 200 && response.status < 400;
+      const responseBodyMatchMode = STATUS_MONITOR_RESPONSE_BODY_MATCH_MODES.has(monitor.responseBodyMatchMode ?? "")
+        ? (monitor.responseBodyMatchMode as StatusMonitorResponseBodyMatchMode)
+        : undefined;
+      const responseBodyMatches =
+        !responseBodyMatchMode ||
+        !monitor.responseBodyMatch ||
+        this.matchesStatusMonitorResponseBody(response.data, responseBodyMatchMode, monitor.responseBodyMatch);
+      lastStatus = statusCodeMatches && responseBodyMatches ? "up" : "down";
+      if (statusCodeMatches && !responseBodyMatches)
+        errorMessage = `响应体不匹配（${responseBodyMatchMode === "equals" ? "完全匹配" : "包含"}）`;
     } catch (error) {
       lastStatus = "down";
       errorMessage = error instanceof Error ? error.message.slice(0, 500) : "监控请求失败";
@@ -1177,6 +1249,61 @@ export class DeveloperProjectRepository {
       );
     }
     return this.monitorDto(updated);
+  }
+
+  private resolveStatusMonitorConfiguration(configuration: {
+    method: string;
+    requestBody?: string | null;
+    responseBodyMatchMode?: string | null;
+    responseBodyMatch?: string | null;
+  }): StatusMonitorConfiguration {
+    const method = configuration.method.toUpperCase();
+    if (!STATUS_MONITOR_METHODS.has(method)) throw new BadRequestError("不支持的监控请求方法");
+    const { requestBody, responseBodyMatchMode, responseBodyMatch } = configuration;
+    if (requestBody !== undefined && requestBody !== null) {
+      if (!STATUS_MONITOR_BODY_METHODS.has(method)) throw new BadRequestError("GET 和 HEAD 监控不支持请求负载");
+      if (Buffer.byteLength(requestBody) > MAX_STATUS_MONITOR_REQUEST_BODY_BYTES)
+        throw new BadRequestError("请求负载超过大小限制");
+      try {
+        JSON.parse(requestBody);
+      } catch {
+        throw new BadRequestError("请求负载必须是合法 JSON");
+      }
+    }
+    if (responseBodyMatchMode === null || responseBodyMatch === null) {
+      if (responseBodyMatchMode !== null || responseBodyMatch !== null)
+        throw new BadRequestError("响应体匹配模式和预期内容必须同时提供");
+    } else if (responseBodyMatchMode || responseBodyMatch) {
+      if (method === "HEAD") throw new BadRequestError("HEAD 监控不支持响应体匹配");
+      if (!responseBodyMatchMode || !responseBodyMatch)
+        throw new BadRequestError("响应体匹配模式和预期内容必须同时提供");
+      if (!STATUS_MONITOR_RESPONSE_BODY_MATCH_MODES.has(responseBodyMatchMode))
+        throw new BadRequestError("不支持的响应体匹配模式");
+      if (Buffer.byteLength(responseBodyMatch) > MAX_STATUS_MONITOR_RESPONSE_BODY_MATCH_BYTES)
+        throw new BadRequestError("响应体匹配内容超过大小限制");
+    }
+    return {
+      method,
+      requestBody,
+      responseBodyMatchMode: responseBodyMatchMode as StatusMonitorResponseBodyMatchMode | null | undefined,
+      responseBodyMatch,
+    };
+  }
+
+  private matchesStatusMonitorResponseBody(
+    body: unknown,
+    mode: StatusMonitorResponseBodyMatchMode,
+    expected: string,
+  ): boolean {
+    const responseBody =
+      typeof body === "string"
+        ? body
+        : Buffer.isBuffer(body)
+          ? body.toString("utf8")
+          : body === undefined
+            ? ""
+            : (JSON.stringify(body) ?? "");
+    return mode === "equals" ? responseBody === expected : responseBody.includes(expected);
   }
 
   async runScheduledMonitorChecks(

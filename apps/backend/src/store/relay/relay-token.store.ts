@@ -22,6 +22,9 @@ export type RelayTokenWithRelations = Prisma.RelayTokenGetPayload<{
     channel: {
       include: typeof _relayChannelWithPoolInclude;
     };
+    automaticProxyPoolChannel: {
+      include: typeof _relayChannelWithPoolInclude;
+    };
     failoverConfig: true;
     channelConfigs: {
       include: {
@@ -103,6 +106,7 @@ export interface RelayTokenCreateInput {
   channelId?: string;
   routingMode?: "ordered" | "automatic-pool";
   automaticProxyPoolChannelId?: string;
+  blockedAutomaticProxyPoolChannelIds?: string[];
   quotaLimit?: number | null;
   quotaWindows?: RelayTokenQuotaWindowInput[];
   allowedModels?: string | null;
@@ -131,6 +135,7 @@ export type RelayTokenUpdateInput = Partial<{
   channelId?: string | null;
   routingMode?: "ordered" | "automatic-pool";
   automaticProxyPoolChannelId?: string | null;
+  blockedAutomaticProxyPoolChannelIds?: string[];
   failoverConfig?: RelayFailoverConfigInput;
   channelConfigs?: RelayTokenChannelConfigInput[];
 };

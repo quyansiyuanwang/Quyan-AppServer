@@ -16,7 +16,7 @@
         @delete="handleDelete"
       />
     </el-scrollbar>
-    <MessageInput :tokens="tokens" :sending="sending" @send="handleSend" />
+    <MessageInput :tokens="tokens" :sending="sending" @send="handleSend" @stop="emit('stop')" />
   </div>
 </template>
 
@@ -41,6 +41,7 @@ const emit = defineEmits<{
   resend: [message: Message]
   regenerate: [message: Message]
   delete: [id: string]
+  stop: []
 }>()
 
 const SCROLL_BOTTOM_THRESHOLD = 24

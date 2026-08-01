@@ -34,6 +34,14 @@
         min-width="220"
         show-overflow-tooltip
       />
+      <el-table-column prop="method" :label="t('productResources.method')" width="90" />
+      <el-table-column
+        :label="t('productResources.responseBodyMatch')"
+        min-width="180"
+        show-overflow-tooltip
+      >
+        <template #default="{ row }">{{ responseBodyMatchSummary(row) }}</template>
+      </el-table-column>
       <el-table-column prop="lastStatus" :label="t('productResources.latestStatus')" width="110" />
       <el-table-column :label="t('productResources.status')" width="90"
         ><template #default="{ row }"
@@ -72,7 +80,7 @@
     <el-dialog
       v-model="dialog"
       :title="editing ? t('productResources.edit') : t('productResources.addTarget')"
-      width="520px"
+      width="620px"
       destroy-on-close
     >
       <el-alert v-if="formError" type="error" :title="formError" :closable="false" />
@@ -85,14 +93,45 @@
         /></el-form-item>
         <el-form-item :label="t('productResources.method')"
           ><el-select v-model="form.method"
-            ><el-option label="GET" value="GET" /><el-option label="HEAD" value="HEAD" /></el-select
+            ><el-option label="GET" value="GET" /><el-option label="HEAD" value="HEAD" />
+            <el-option label="POST" value="POST" /><el-option label="PUT" value="PUT" />
+            <el-option label="PATCH" value="PATCH" /><el-option
+              label="DELETE"
+              value="DELETE" /></el-select
         ></el-form-item>
+        <el-form-item v-if="supportsRequestBody" :label="t('productResources.requestPayload')">
+          <el-input
+            v-model="form.requestBody"
+            type="textarea"
+            :rows="5"
+            :placeholder="t('productResources.requestPayloadHint')"
+          />
+        </el-form-item>
         <el-form-item :label="t('productResources.intervalSeconds')"
           ><el-input-number v-model="form.intervalSec" :min="60"
         /></el-form-item>
         <el-form-item :label="t('productResources.successStatusCodes')"
           ><el-input v-model="form.successStatusCodesText" placeholder="200, 201, 204"
         /></el-form-item>
+        <el-form-item
+          v-if="supportsResponseBodyMatch"
+          :label="t('productResources.responseBodyMatchMode')"
+        >
+          <el-select
+            v-model="form.responseBodyMatchMode"
+            clearable
+            :placeholder="t('productResources.responseBodyMatchDisabled')"
+          >
+            <el-option :label="t('productResources.responseBodyMatchContains')" value="contains" />
+            <el-option :label="t('productResources.responseBodyMatchEquals')" value="equals" />
+          </el-select>
+        </el-form-item>
+        <el-form-item
+          v-if="supportsResponseBodyMatch && form.responseBodyMatchMode"
+          :label="t('productResources.responseBodyExpected')"
+        >
+          <el-input v-model="form.responseBodyMatch" type="textarea" :rows="3" />
+        </el-form-item>
       </el-form>
       <template #footer
         ><el-button @click="dialog = false">{{ t('cancel') }}</el-button
@@ -133,10 +172,15 @@ const dialog = ref(false)
 const editing = ref<DeveloperStatusMonitorDto>()
 const published = ref(false)
 const statusPageSlug = ref('')
+type StatusMonitorMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+type ResponseBodyMatchMode = 'contains' | 'equals'
 const form = ref({
   name: '',
   targetUrl: '',
-  method: 'GET' as 'GET' | 'HEAD',
+  method: 'GET' as StatusMonitorMethod,
+  requestBody: '',
+  responseBodyMatchMode: undefined as ResponseBodyMatchMode | undefined,
+  responseBodyMatch: '',
   intervalSec: 60,
   successStatusCodesText: '200',
 })
@@ -146,6 +190,10 @@ const canRead = computed(() => props.hasPermission(Permission.PRODUCT_STATUS_REA
 const canWrite = computed(() => props.hasPermission(Permission.PRODUCT_STATUS_WRITE))
 const canPublish = computed(() => props.hasPermission(Permission.PRODUCT_STATUS_PUBLISH))
 const canManage = computed(() => props.hasPermission(Permission.PRODUCT_STATUS_MANAGE))
+const supportsRequestBody = computed(() =>
+  ['POST', 'PUT', 'PATCH', 'DELETE'].includes(form.value.method),
+)
+const supportsResponseBodyMatch = computed(() => form.value.method !== 'HEAD')
 
 const load = async () => {
   if (!props.instance) {
@@ -186,6 +234,9 @@ const openCreate = () => {
     name: '',
     targetUrl: '',
     method: 'GET',
+    requestBody: '',
+    responseBodyMatchMode: undefined,
+    responseBodyMatch: '',
     intervalSec: 60,
     successStatusCodesText: '200',
   }
@@ -197,7 +248,10 @@ const edit = (row: DeveloperStatusMonitorDto) => {
   form.value = {
     name: row.name,
     targetUrl: row.targetUrl,
-    method: row.method as 'GET' | 'HEAD',
+    method: row.method as StatusMonitorMethod,
+    requestBody: row.requestBody || '',
+    responseBodyMatchMode: row.responseBodyMatchMode,
+    responseBodyMatch: row.responseBodyMatch || '',
     intervalSec: row.intervalSec,
     successStatusCodesText: (row.successStatusCodes || [200]).join(', '),
   }
@@ -209,6 +263,14 @@ const statusCodes = () =>
     .split(',')
     .map((code) => Number(code.trim()))
     .filter((code) => Number.isInteger(code) && code >= 100 && code <= 599)
+const responseBodyMatchSummary = (row: DeveloperStatusMonitorDto) => {
+  if (!row.responseBodyMatchMode || !row.responseBodyMatch) return '-'
+  const mode =
+    row.responseBodyMatchMode === 'equals'
+      ? t('productResources.responseBodyMatchEquals')
+      : t('productResources.responseBodyMatchContains')
+  return `${mode}: ${row.responseBodyMatch}`
+}
 const save = async () => {
   if (!props.instance || submitting.value || !canWrite.value) return
   if (!form.value.name.trim() || !/^https?:\/\//i.test(form.value.targetUrl.trim())) {
@@ -220,6 +282,22 @@ const save = async () => {
     formError.value = t('productResources.invalidStatusCodes')
     return
   }
+  const requestBody = form.value.requestBody.trim() ? form.value.requestBody : undefined
+  if (requestBody) {
+    try {
+      JSON.parse(requestBody)
+    } catch {
+      formError.value = t('productResources.invalidRequestPayload')
+      return
+    }
+  }
+  const responseBodyMatch = form.value.responseBodyMatch.trim()
+    ? form.value.responseBodyMatch
+    : undefined
+  if (form.value.responseBodyMatchMode && !responseBodyMatch) {
+    formError.value = t('productResources.responseBodyMatchRequired')
+    return
+  }
   submitting.value = true
   formError.value = ''
   const body: CreateDeveloperStatusMonitorDto = {
@@ -228,10 +306,22 @@ const save = async () => {
     method: form.value.method,
     intervalSec: form.value.intervalSec,
     successStatusCodes,
+    ...(requestBody ? { requestBody } : {}),
+    ...(form.value.responseBodyMatchMode && responseBodyMatch
+      ? {
+          responseBodyMatchMode: form.value.responseBodyMatchMode,
+          responseBodyMatch,
+        }
+      : {}),
   }
   try {
     if (editing.value) {
-      const update: UpdateDeveloperStatusMonitorDto = body
+      const update: UpdateDeveloperStatusMonitorDto = {
+        ...body,
+        requestBody: requestBody ?? null,
+        responseBodyMatchMode: form.value.responseBodyMatchMode ?? null,
+        responseBodyMatch: responseBodyMatch ?? null,
+      }
       await developerProductService.updateMonitorResource(
         props.instance.id,
         editing.value.id,
@@ -319,6 +409,16 @@ const openPublicStatusPage = () => {
   )
 }
 
+watch(
+  () => form.value.method,
+  (method) => {
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) form.value.requestBody = ''
+    if (method === 'HEAD') {
+      form.value.responseBodyMatchMode = undefined
+      form.value.responseBodyMatch = ''
+    }
+  },
+)
 watch(() => [props.instance?.id, canRead.value, canPublish.value], load, { immediate: true })
 </script>
 

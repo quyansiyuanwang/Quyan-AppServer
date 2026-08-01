@@ -1,9 +1,5 @@
 import type { Response } from "express";
 
-export interface SSEChunk {
-  [key: string]: any;
-}
-
 export class SSEStreamService {
   private static instance: SSEStreamService;
 
@@ -19,7 +15,7 @@ export class SSEStreamService {
     res.flushHeaders();
   }
 
-  sendChunk(res: Response, data: SSEChunk) {
+  sendChunk<T>(res: Response, data: T): void {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   }
 
@@ -27,15 +23,20 @@ export class SSEStreamService {
     res.write("data: [DONE]\n\n");
   }
 
-  sendError(res: Response, error: string) {
-    res.write(`data: ${JSON.stringify({ error })}\n\n`);
+  sendError(res: Response, error: string): void {
+    res.write(`data: ${JSON.stringify({ type: "error", error, done: true })}\n\n`);
   }
 
   endStream(res: Response) {
     res.end();
   }
 
-  async *handleStream<T>(generator: AsyncGenerator<T>, onChunk?: (chunk: T) => SSEChunk): AsyncGenerator<SSEChunk> {
-    for await (const chunk of generator) yield onChunk ? onChunk(chunk) : (chunk as SSEChunk);
+  handleStream<T>(generator: AsyncGenerator<T>): AsyncGenerator<T>;
+  handleStream<T, TEvent>(generator: AsyncGenerator<T>, onChunk: (chunk: T) => TEvent): AsyncGenerator<TEvent>;
+  async *handleStream<T, TEvent>(
+    generator: AsyncGenerator<T>,
+    onChunk?: (chunk: T) => TEvent,
+  ): AsyncGenerator<T | TEvent> {
+    for await (const chunk of generator) yield onChunk ? onChunk(chunk) : chunk;
   }
 }

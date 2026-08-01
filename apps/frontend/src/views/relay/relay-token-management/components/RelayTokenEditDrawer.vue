@@ -127,6 +127,44 @@
               </el-form-item>
 
               <el-form-item
+                v-if="editForm.routingMode === 'automatic-pool'"
+                :class="isDesktop ? 'form-item-span-2' : undefined"
+              >
+                <template #label>
+                  <span class="form-label-with-help">
+                    <span>{{ i18ns.t('relay.blockedAutomaticPoolChannels') }}</span>
+                    <el-tooltip placement="top">
+                      <template #content>
+                        <div class="help-tooltip-content">
+                          {{ i18ns.t('relay.blockedAutomaticPoolChannelsHelp') }}
+                        </div>
+                      </template>
+                      <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
+                    </el-tooltip>
+                  </span>
+                </template>
+                <el-select
+                  v-model="editForm.blockedAutomaticProxyPoolChannelIds"
+                  multiple
+                  collapse-tags
+                  collapse-tags-tooltip
+                  filterable
+                  style="width: 100%"
+                  class="blocked-automatic-pool-channel-select"
+                  :disabled="!editForm.automaticProxyPoolChannelId"
+                  :placeholder="i18ns.t('relay.blockedAutomaticPoolChannelsPlaceholder')"
+                >
+                  <el-option
+                    v-for="member in selectedAutomaticProxyPoolMemberOptions"
+                    :key="member.id"
+                    :label="member.name"
+                    :value="member.id"
+                    :disabled="!member.enabled"
+                  />
+                </el-select>
+              </el-form-item>
+
+              <el-form-item
                 v-if="editForm.routingMode === 'ordered'"
                 required
                 :class="isDesktop ? 'form-item-span-2' : undefined"
@@ -164,6 +202,34 @@
                         <el-button plain @click="state.openTokenChannelImportDialog">{{
                           i18ns.t('relay.importChannels')
                         }}</el-button>
+                        <el-select
+                          v-model="tokenChannelBatchAddIds"
+                          multiple
+                          collapse-tags
+                          collapse-tags-tooltip
+                          filterable
+                          class="channel-config-toolbar__batch-select"
+                          :placeholder="i18ns.t('relay.tokenChannelSelectChannelsPlaceholder')"
+                        >
+                          <el-option
+                            v-for="channel in tokenChannelBatchAddOptions"
+                            :key="channel.id"
+                            :label="
+                              state.getChannelOptionLabel({
+                                id: channel.id,
+                                name: channel.name,
+                                multiplier: channel.multiplier,
+                              })
+                            "
+                            :value="channel.id"
+                          />
+                        </el-select>
+                        <el-button
+                          plain
+                          type="primary"
+                          @click="state.handleBatchAddTokenChannels"
+                          >{{ i18ns.t('relay.tokenChannelBatchAdd') }}</el-button
+                        >
                         <el-button
                           plain
                           type="danger"
@@ -901,6 +967,7 @@ const {
   showMaxRetriesRiskWarning,
   maxRetriesRiskWarningText,
   automaticProxyPoolChannelOptions,
+  selectedAutomaticProxyPoolMemberOptions,
 } = state
 
 const setChannelListRef = (element: Element | ComponentPublicInstance | null) => {

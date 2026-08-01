@@ -1,5 +1,8 @@
 import type { ConversationResponse, MessageResponse, ChatTokenResponse } from '@/client/types.gen'
 
 export type Conversation = ConversationResponse
-export type Message = MessageResponse
+export type Message = MessageResponse & {
+  clientState?: 'streaming' | 'failed' | 'stopped'
+  errorMessage?: string
+}
 export type ChatToken = ChatTokenResponse
