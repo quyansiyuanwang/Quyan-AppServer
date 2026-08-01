@@ -299,7 +299,10 @@ export class RelayChannelService {
     return options.sort((left, right) => left.name.localeCompare(right.name));
   }
 
-  /** API documentation projection. It intentionally excludes all pool identity and topology fields. */
+  /**
+   * API documentation projection. Variable-priced logical channels are published without their
+   * pool identity, members, or routing details; consumers only receive per-model price ranges.
+   */
   async listCatalogOptions(actorUserId: string): Promise<RelayCatalogOptionDto[]> {
     const [relayConfig, activeChannels, modelCatalog] = await Promise.all([
       this.relayConfigService.getRelayConfig(),
@@ -310,11 +313,39 @@ export class RelayChannelService {
     const activeChannelsById = new Map(activeChannels.map((channel) => [channel.id, channel]));
     const now = new Date();
     const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog);
+    const publishedPoolMemberIds = new Set<string>();
+    if (relayConfig.apiCatalogPoolVisibility === "anonymous-range") {
+      const publishedPoolRoots = accessibleChannels.filter((channel) => {
+        const type = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+        return (
+          isPoolType(type) &&
+          (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden"
+        );
+      });
+
+      const visitPool = (channelId: string) => {
+        const channel = activeChannelsById.get(channelId) as RelayChannelWithMembers | undefined;
+        if (!channel) return;
+
+        for (const member of channel.poolMembers ?? []) {
+          if (publishedPoolMemberIds.has(member.memberChannelId)) continue;
+          publishedPoolMemberIds.add(member.memberChannelId);
+          const memberType =
+            (activeChannelsById.get(member.memberChannelId)?.channelType as RelayChannelType | undefined) ??
+            DEFAULT_CHANNEL_TYPE;
+          if (isPoolType(memberType)) visitPool(member.memberChannelId);
+        }
+      };
+
+      for (const root of publishedPoolRoots) visitPool(root.id);
+    }
+
     const channels = accessibleChannels.filter((channel) => {
       const type = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
       return (
         (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden" &&
-        (relayConfig.apiCatalogPoolVisibility === "anonymous-range" || !isPoolType(type))
+        (relayConfig.apiCatalogPoolVisibility === "anonymous-range" || !isPoolType(type)) &&
+        !publishedPoolMemberIds.has(channel.id)
       );
     });
 
@@ -326,21 +357,19 @@ export class RelayChannelService {
           resolverContext,
         );
         const modelCapabilities = this.toCatalogModelCapabilities(resolvedCapabilities);
-        const pricingEffectiveAt = now;
 
         if (isPoolType(channelType)) {
           return {
             id: channel.id,
             name: channel.name,
             enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-            channelType,
             allowedFormats: formatRelayRequestFormats(
               [...new Set(modelCapabilities.flatMap((item) => item.supportedRequestFormats))],
             ),
             modelCapabilities,
             pricingMode: "range" as const,
             modelPriceRanges: this.toCatalogModelPriceRanges(resolvedCapabilities, activeChannelsById, now),
-            pricingEffectiveAt,
+            pricingEffectiveAt: now,
             priceMayVary: true,
           } satisfies RelayCatalogOptionDto;
         }
@@ -349,7 +378,6 @@ export class RelayChannelService {
           id: channel.id,
           name: channel.name,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-          channelType: "standalone" as const,
           allowedFormats: channel.allowedFormats,
           modelCapabilities,
           pricingMode: "fixed" as const,
@@ -362,7 +390,7 @@ export class RelayChannelService {
           contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
             | ContextLengthMultiplierRule[]
             | undefined,
-          pricingEffectiveAt,
+          pricingEffectiveAt: now,
           priceMayVary: false,
         } satisfies RelayCatalogOptionDto;
       }),
@@ -403,14 +431,18 @@ export class RelayChannelService {
     now: Date,
   ): RelayCatalogModelPriceRangeDto[] {
     const ranges = new Map<string, RelayCatalogModelPriceRangeDto>();
+
     for (const capability of resolvedCapabilities) {
       const leaf = activeChannelsById.get(capability.leafChannelId);
       if (!leaf || leaf.status !== RELAY_CHANNEL_STATUS.ENABLED) continue;
+
       const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
       const multipliers = this.getCatalogContextMultipliers(leaf, now);
-      const existing = ranges.get(key);
+      if (multipliers.length === 0) continue;
+
       const minMultiplier = Math.min(...multipliers);
       const maxMultiplier = Math.max(...multipliers);
+      const existing = ranges.get(key);
       if (existing) {
         existing.minMultiplier = Math.min(existing.minMultiplier, minMultiplier);
         existing.maxMultiplier = Math.max(existing.maxMultiplier, maxMultiplier);
@@ -423,6 +455,7 @@ export class RelayChannelService {
         });
       }
     }
+
     return [...ranges.values()].sort(
       (left, right) =>
         left.catalogModelName.localeCompare(right.catalogModelName) ||
@@ -437,8 +470,11 @@ export class RelayChannelService {
         (channel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
         now,
       );
-    const rules = (channel.contextLengthMultipliers as ContextLengthMultiplierRule[] | null | undefined) ?? [];
-    const contextMultipliers = rules.filter((rule) => rule.enabled).map((rule) => Number(rule.multiplier));
+    const rules =
+      (channel.contextLengthMultipliers as ContextLengthMultiplierRule[] | null | undefined) ?? [];
+    const contextMultipliers = rules
+      .filter((rule) => rule.enabled)
+      .map((rule) => Number(rule.multiplier));
     if (!contextMultipliers.includes(1)) contextMultipliers.push(1);
     return contextMultipliers.filter(Number.isFinite).map((multiplier) => baseMultiplier * multiplier);
   }
@@ -887,9 +923,7 @@ export class RelayChannelService {
     };
   }
 
-  private async expandPoolExportDependencies(
-    roots: RelayChannel[],
-  ): Promise<RelayChannel[]> {
+  private async expandPoolExportDependencies(roots: RelayChannel[]): Promise<RelayChannel[]> {
     const result = [...roots];
     const knownIds = new Set(result.map((channel) => channel.id));
     let cursor = 0;
@@ -897,9 +931,7 @@ export class RelayChannelService {
     while (cursor < result.length) {
       const channel = result[cursor++];
       const members = (channel as RelayChannelWithMembers).poolMembers ?? [];
-      const missingIds = members
-        .map((member) => member.memberChannelId)
-        .filter((id) => !knownIds.has(id));
+      const missingIds = members.map((member) => member.memberChannelId).filter((id) => !knownIds.has(id));
       if (missingIds.length === 0) continue;
 
       const dependencies = await this.relayChannelRepository.listVisibleByIds([...new Set(missingIds)]);

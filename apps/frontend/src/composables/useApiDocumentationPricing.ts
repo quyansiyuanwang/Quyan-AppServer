@@ -184,16 +184,18 @@ export const useApiDocumentationPricing = () => {
     item: PricingModelRow,
     channel: RelayCatalogOptionDto,
   ): number[] => {
-    if (channel.pricingMode === 'fixed')
+    if (channel.pricingMode === 'fixed') {
       return getContextTierMultipliers(channel.contextLengthMultipliers).map(
         (contextMultiplier) => (channel.multiplier ?? 1) * contextMultiplier,
       )
-    const capability = channel.modelPriceRanges?.find(
+    }
+
+    const modelRange = channel.modelPriceRanges?.find(
       (range) =>
         range.catalogModelName === (item.model || '').trim() ||
         range.requestModelId === getRequestModelId(item),
     )
-    return capability ? [capability.minMultiplier, capability.maxMultiplier] : []
+    return modelRange ? [modelRange.minMultiplier, modelRange.maxMultiplier] : []
   }
 
   const getLowestChannelMultiplierForModel = (
@@ -607,15 +609,12 @@ export const useApiDocumentationPricing = () => {
     }
   })
 
-  watch(
-    [visibleChannels],
-    () => {
-      const visibleChannelIds = new Set(visibleChannels.value.map((channel) => channel.id))
-      filterChannelIds.value = filterChannelIds.value.filter((channelId) =>
-        visibleChannelIds.has(channelId),
-      )
-    },
-  )
+  watch([visibleChannels], () => {
+    const visibleChannelIds = new Set(visibleChannels.value.map((channel) => channel.id))
+    filterChannelIds.value = filterChannelIds.value.filter((channelId) =>
+      visibleChannelIds.has(channelId),
+    )
+  })
 
   watch(
     selectedChannels,

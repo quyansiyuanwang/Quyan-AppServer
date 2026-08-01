@@ -4,5 +4,6 @@ export const DEFAULT_RELAY_CONFIG = {
   queueTimeout: 300000, // 5 minutes for image generation
   upstreamStreamTimeout: 120000,
   enableQueue: true,
+  // Publish a logical channel with a model-level price range, never its pool topology.
   apiCatalogPoolVisibility: 'anonymous-range' as const,
 } as const;

@@ -599,11 +599,8 @@
                   <div class="channel-price-header">
                     {{ channel.name }}
                     <el-tag size="small" type="info" effect="plain">
-                    {{ getTooltipMultiplierLabel(row, channel) }}
-                  </el-tag>
-                </div>
-                  <div v-if="channel.priceMayVary" class="channel-price-hint">
-                    {{ t('apiDoc.variableRoutePriceHint') }}
+                      {{ getTooltipMultiplierLabel(row, channel) }}
+                    </el-tag>
                   </div>
                   <template v-if="row.pricingType !== 'per-request'">
                     <div
@@ -689,13 +686,7 @@
                 class="channel-tag"
               >
                 {{ channel.name }}
-                <span v-if="channel.channelType !== 'standalone'" class="channel-multiplier-badge">
-                  {{ channel.channelType === 'automatic-proxy-pool' ? t('apiDoc.automaticProxyPool') : t('relay.channelTypePooled') }}
-                </span>
-                <span v-if="channel.pricingMode === 'range'" class="channel-multiplier-badge">
-                  {{ formatMultiplierRange(getChannelPriceCellValue(row, channel).multiplier, getChannelPriceCellValue(row, channel).maximumMultiplier) }}
-                </span>
-                <span v-else-if="channel.multiplier !== 1" class="channel-multiplier-badge">
+                <span v-if="channel.multiplier !== 1" class="channel-multiplier-badge">
                   ×{{ formatMultiplier(channel.multiplier) }}
                 </span>
               </el-tag>
@@ -739,7 +730,12 @@
               <template v-if="getChannelPriceCellValue(row, channel).available">
                 <div class="comparison-multiplier-row">
                   <el-tag size="small" type="info" effect="plain">
-                    {{ formatMultiplierRange(getChannelPriceCellValue(row, channel).multiplier, getChannelPriceCellValue(row, channel).maximumMultiplier) }}
+                    {{
+                      formatMultiplierRange(
+                        getChannelPriceCellValue(row, channel).multiplier,
+                        getChannelPriceCellValue(row, channel).maximumMultiplier,
+                      )
+                    }}
                   </el-tag>
                 </div>
 
@@ -1043,7 +1039,6 @@ const getChannelPriceCellValue = (
 ): ChannelPriceCell => {
   return props.getChannelPriceCell(item, channel)
 }
-
 </script>
 
 <style scoped>

@@ -39,8 +39,6 @@ const mobilePricingAdvancedSettingsExpanded = state.mobilePricingAdvancedSetting
 const mobileSortField = state.mobileSortField
 const mobileSortOrder = state.mobileSortOrder
 const paginatedPricingData = state.paginatedPricingData
-const selectedChannelCount = state.selectedChannelCount
-const selectedChannelSummary = state.selectedChannelSummary
 const selectedChannels = state.selectedChannels
 const primaryComparisonChannel = state.primaryComparisonChannel
 const showCacheMultipliers = state.showCacheMultipliers
@@ -112,17 +110,20 @@ const onPrimaryComparisonChannelChange = (value: string | number | boolean | und
 
 const formatChannelMultiplier = (multiplier?: number | null) => {
   const resolvedMultiplier = multiplier ?? 1
-  return `x${resolvedMultiplier}`
+  return `x${parseFloat(resolvedMultiplier.toFixed(4))}`
 }
 
 const formatChannelOptionLabel = (channel: RelayCatalogOptionDto) => channel.name
+
 const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
-  if (channel.pricingMode === 'range') {
-    const ranges = channel.modelPriceRanges ?? []
-    if (ranges.length === 0) return '-'
-    return `${formatChannelMultiplier(Math.min(...ranges.map((range) => range.minMultiplier)))}–${formatChannelMultiplier(Math.max(...ranges.map((range) => range.maxMultiplier)))}`
-  }
-  return formatChannelMultiplier(channel.multiplier)
+  if (channel.pricingMode === 'fixed') return formatChannelMultiplier(channel.multiplier)
+
+  const ranges = channel.modelPriceRanges ?? []
+  if (ranges.length === 0) return '-'
+
+  const minimum = Math.min(...ranges.map((range) => range.minMultiplier))
+  const maximum = Math.max(...ranges.map((range) => range.maxMultiplier))
+  return `${formatChannelMultiplier(minimum)}–${formatChannelMultiplier(maximum)}`
 }
 </script>
 
@@ -152,8 +153,8 @@ const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
           filterable
           collapse-tags
           collapse-tags-tooltip
-          :max-collapse-tags="2"
-          class="pricing-filter"
+          :max-collapse-tags="1"
+          class="pricing-filter pricing-channel-filter"
         >
           <el-option
             v-for="channel in visibleChannels"
@@ -169,10 +170,6 @@ const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
             </div>
           </el-option>
         </el-select>
-
-        <el-tag v-if="selectedChannelCount > 0" type="info" size="small" effect="plain">
-          {{ selectedChannelSummary }}
-        </el-tag>
 
         <el-input
           v-model="filterModelKeyword"
@@ -458,8 +455,8 @@ const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
               filterable
               collapse-tags
               collapse-tags-tooltip
-              :max-collapse-tags="2"
-              class="pricing-filter"
+              :max-collapse-tags="1"
+              class="pricing-filter pricing-channel-filter"
             >
               <el-option
                 v-for="channel in visibleChannels"
@@ -507,10 +504,6 @@ const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
               <el-option :label="t('apiDoc.sortAscending')" value="asc" />
               <el-option :label="t('apiDoc.sortDescending')" value="desc" />
             </el-select>
-
-            <el-tag v-if="selectedChannelCount > 0" type="info" size="small" effect="plain">
-              {{ selectedChannelSummary }}
-            </el-tag>
 
             <el-button
               text

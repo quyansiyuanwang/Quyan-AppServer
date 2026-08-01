@@ -142,7 +142,7 @@ export interface RelayChannelModelCapabilityDto {
   supportedRequestFormats: Array<"openai" | "anthropic" | "gemini">;
 }
 
-/** Anonymous model-specific price range published in API documentation. */
+/** Model-specific multiplier range for a logical channel with variable upstream pricing. */
 export interface RelayCatalogModelPriceRangeDto {
   catalogModelName: string;
   requestModelId: string;
@@ -150,13 +150,16 @@ export interface RelayCatalogModelPriceRangeDto {
   maxMultiplier: number;
 }
 
-/** Consumer-facing API documentation channel projection. It never exposes pool topology. */
+/**
+ * Consumer-facing API documentation channel projection.
+ *
+ * A variable-priced logical channel intentionally has no pool type, member, or routing data.
+ * It is presented exactly like any other public channel, with only a model-level price range.
+ */
 export interface RelayCatalogOptionDto {
   id: string;
   name: string;
   enabled: boolean;
-  /** Public logical type. Member topology and route order are never included. */
-  channelType: "standalone" | "pooled" | "automatic-proxy-pool";
   allowedFormats: string;
   modelCapabilities: RelayChannelModelCapabilityDto[];
   pricingMode: "fixed" | "range";

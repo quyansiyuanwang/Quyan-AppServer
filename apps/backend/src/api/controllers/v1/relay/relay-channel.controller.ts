@@ -120,7 +120,10 @@ export class RelayChannelController extends Controller {
     return this.channelService.listChannelOptions(request.user!.userId, targetUserId, { excludePooled });
   }
 
-  /** Consumer-facing API documentation catalog. Pool topology is never included in this projection. */
+  /**
+   * Consumer-facing API documentation catalog. Variable-priced logical channels expose only a
+   * model-level multiplier range; pool topology, members, and routing are never included.
+   */
   @Get("catalog")
   @Security("jwt")
   @RequireAnyPermission([

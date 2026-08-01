@@ -16,8 +16,14 @@
               </el-form-item>
               <el-form-item :label="i18ns.t('relay.apiCatalogPoolVisibility')">
                 <el-select v-model="apiCatalogPoolVisibility" style="width: 240px">
-                  <el-option value="hidden" :label="i18ns.t('relay.apiCatalogPoolVisibilityHidden')" />
-                  <el-option value="anonymous-range" :label="i18ns.t('relay.apiCatalogPoolVisibilityAnonymousRange')" />
+                  <el-option
+                    value="hidden"
+                    :label="i18ns.t('relay.apiCatalogPoolVisibilityHidden')"
+                  />
+                  <el-option
+                    value="anonymous-range"
+                    :label="i18ns.t('relay.apiCatalogPoolVisibilityAnonymousRange')"
+                  />
                 </el-select>
                 <span class="form-help">{{ i18ns.t('relay.apiCatalogPoolVisibilityHelp') }}</span>
               </el-form-item>

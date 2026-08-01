@@ -46,12 +46,23 @@
                       i18ns.t('ServerConfigView.globalMultiplierHelp')
                     }}</span>
                   </el-form-item>
-                  <el-form-item :label="i18ns.t('relay.apiCatalogPoolVisibility')" class="setting-block">
+                  <el-form-item
+                    :label="i18ns.t('relay.apiCatalogPoolVisibility')"
+                    class="setting-block"
+                  >
                     <el-select v-model="apiCatalogPoolVisibility" style="width: 100%">
-                      <el-option value="hidden" :label="i18ns.t('relay.apiCatalogPoolVisibilityHidden')" />
-                      <el-option value="anonymous-range" :label="i18ns.t('relay.apiCatalogPoolVisibilityAnonymousRange')" />
+                      <el-option
+                        value="hidden"
+                        :label="i18ns.t('relay.apiCatalogPoolVisibilityHidden')"
+                      />
+                      <el-option
+                        value="anonymous-range"
+                        :label="i18ns.t('relay.apiCatalogPoolVisibilityAnonymousRange')"
+                      />
                     </el-select>
-                    <span class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.apiCatalogPoolVisibilityHelp') }}</span>
+                    <span class="ml-3 text-[#909399] text-xs">{{
+                      i18ns.t('relay.apiCatalogPoolVisibilityHelp')
+                    }}</span>
                   </el-form-item>
                   <el-form-item :label="i18ns.t('relay.uptimeStatusUrl')" class="setting-block">
                     <el-input

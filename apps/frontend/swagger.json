@@ -14190,7 +14190,7 @@
 						}
 					}
 				},
-				"description": "Consumer-facing API documentation catalog. Pool topology is never included in this projection.",
+				"description": "Consumer-facing API documentation catalog. Variable-priced logical channels expose only a\nmodel-level multiplier range; pool topology, members, and routing are never included.",
 				"tags": [
 					"Relay Channels"
 				],
@@ -38458,7 +38458,7 @@
 				"additionalProperties": false
 			},
 			"RelayCatalogModelPriceRangeDto": {
-				"description": "Anonymous model-specific price range published in API documentation.",
+				"description": "Model-specific multiplier range for a logical channel with variable upstream pricing.",
 				"properties": {
 					"catalogModelName": {
 						"type": "string"
@@ -38485,7 +38485,7 @@
 				"additionalProperties": false
 			},
 			"RelayCatalogOptionDto": {
-				"description": "Consumer-facing API documentation channel projection. It never exposes pool topology.",
+				"description": "Consumer-facing API documentation channel projection.\n\nA variable-priced logical channel intentionally has no pool type, member, or routing data.\nIt is presented exactly like any other public channel, with only a model-level price range.",
 				"properties": {
 					"id": {
 						"type": "string"
@@ -38495,15 +38495,6 @@
 					},
 					"enabled": {
 						"type": "boolean"
-					},
-					"channelType": {
-						"type": "string",
-						"enum": [
-							"standalone",
-							"pooled",
-							"automatic-proxy-pool"
-						],
-						"description": "Public logical type. Member topology and route order are never included."
 					},
 					"allowedFormats": {
 						"type": "string"
@@ -38549,7 +38540,6 @@
 					"id",
 					"name",
 					"enabled",
-					"channelType",
 					"allowedFormats",
 					"modelCapabilities",
 					"pricingMode",
