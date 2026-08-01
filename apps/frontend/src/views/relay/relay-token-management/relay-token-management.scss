@@ -810,10 +810,10 @@
 
 .channel-config-toolbar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
 }
 
 .channel-config-toolbar--mobile {
@@ -825,22 +825,42 @@
   color: var(--el-text-color-secondary);
 }
 
+.channel-config-toolbar__selection-actions,
 .channel-config-toolbar__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
   min-width: 0;
 }
 
-.channel-config-toolbar__actions--mobile {
+.channel-config-toolbar__selection-actions {
+  justify-content: flex-end;
+}
+
+.channel-config-toolbar__actions {
   justify-content: flex-start;
 }
 
+.channel-config-batch-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  width: 100%;
+}
+
+.channel-config-batch-add__select {
+  width: 100%;
+  min-width: 0;
+}
+
+.channel-config-batch-add__button {
+  min-width: 132px;
+}
+
 .channel-config-toolbar__batch-select {
-  min-width: min(320px, 100%);
-  flex: 1 1 260px;
+  min-width: 0;
 }
 
 .channel-config-row {
@@ -1466,5 +1486,13 @@
   .relay-token-mobile .token-filter-actions--mobile,
   .relay-token-mobile .el-drawer__footer {
     grid-template-columns: 1fr;
+  }
+
+  .channel-config-batch-add {
+    grid-template-columns: 1fr;
+  }
+
+  .channel-config-batch-add__button {
+    width: 100%;
   }
 }

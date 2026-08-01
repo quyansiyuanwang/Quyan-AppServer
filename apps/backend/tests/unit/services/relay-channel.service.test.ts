@@ -249,6 +249,25 @@ describe("RelayChannelService", () => {
     );
   });
 
+  it("expands pooled dependencies when exporting all active channels", async () => {
+    const member = { ...sampleChannel, id: "member-channel", name: "Member" };
+    const pool = {
+      ...sampleChannel,
+      id: "pool-channel",
+      name: "Pool",
+      channelType: "pooled",
+      poolMembers: [
+        { id: "pool-member-1", memberChannelId: member.id, priority: 0, weight: 1, enabled: true, memberChannel: member },
+      ],
+    };
+    relayChannelRepository.listActive.mockResolvedValue([pool]);
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([member]);
+
+    const result = await service.exportChannels({ includeDisabled: false }, "actor-user");
+
+    expect(result.channels.map((channel) => channel.id)).toEqual([pool.id, member.id]);
+  });
+
   it("rejects explicit export of an inaccessible channel", async () => {
     relayChannelRepository.listVisibleByIds.mockResolvedValue([
       { ...sampleChannel, id: "private-channel", visibilityMode: "private" },
@@ -1013,6 +1032,9 @@ describe("RelayChannelService", () => {
       name: "Pool",
       channelType: "pooled",
     });
+    relayChannelRepository.listVisible.mockResolvedValue([
+      { ...sampleChannel, id: "existing-destination-member", name: "Existing member" },
+    ]);
     relayChannelRepository.listVisibleByIds.mockResolvedValue([
       { ...sampleChannel, id: "existing-destination-member", channelType: "standalone" },
     ]);
@@ -1026,7 +1048,13 @@ describe("RelayChannelService", () => {
             channelType: "pooled",
             allowedFormats: "openai",
             poolMembers: [
-              { memberChannelId: "existing-destination-member", priority: 1, weight: 1, enabled: true },
+              {
+                memberChannelId: "source-member-not-in-payload",
+                memberChannelName: "Existing member",
+                priority: 1,
+                weight: 1,
+                enabled: true,
+              },
             ],
           },
         ],

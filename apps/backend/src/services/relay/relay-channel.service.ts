@@ -855,9 +855,6 @@ export class RelayChannelService {
     if (body.ids?.length) {
       channels = await this.getOrderedChannelsByIds(body.ids, body.includeDisabled === true);
       for (const channel of channels) await this.assertChannelAccessible(channel, actorUserId);
-      // A pool export is not self-contained unless its members travel with it. Expand the
-      // selected roots recursively, while preserving the user's selection order first.
-      channels = await this.expandPoolExportDependencies(channels);
     } else {
       const candidates =
         body.includeDisabled === true
@@ -865,6 +862,10 @@ export class RelayChannelService {
           : await this.relayChannelRepository.listActive();
       channels = await this.filterAccessibleChannels(candidates, actorUserId);
     }
+
+    // Whether the user selected roots or exported the full list, make every pool export
+    // self-contained. This also pulls disabled members referenced by an active pool.
+    channels = await this.expandPoolExportDependencies(channels);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CHANNEL_EXPORT,
@@ -1895,10 +1896,20 @@ export class RelayChannelService {
         });
       }
 
+      // Older exports may contain a pool without its member records. When the destination
+      // already has a channel with the exported member name, resolve that reference instead
+      // of failing solely because the source ID belongs to another installation.
+      const existingChannelsByName = new Map(
+        (await this.relayChannelRepository.listVisible(tx)).map((channel) => [channel.name, channel.id]),
+      );
+
       for (const importedChannel of importedChannels) {
         const poolMembers = importedChannel.poolMembers?.map((member) => ({
           ...member,
-          memberChannelId: importedChannelIds.get(member.memberChannelId) ?? member.memberChannelId,
+          memberChannelId:
+            importedChannelIds.get(member.memberChannelId) ??
+            (member.memberChannelName ? existingChannelsByName.get(member.memberChannelName) : undefined) ??
+            member.memberChannelId,
         }));
         await this.syncPoolMembers(importedChannel.created.id, importedChannel.channelType, poolMembers, tx);
       }

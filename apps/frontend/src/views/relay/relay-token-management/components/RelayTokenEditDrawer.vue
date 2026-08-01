@@ -191,124 +191,79 @@
                     class="channel-config-toolbar"
                     :class="isDesktop ? '' : 'channel-config-toolbar--mobile'"
                   >
-                    <template v-if="isDesktop">
-                      <div class="channel-config-toolbar__actions">
-                        <el-button plain @click="state.handleCopyTokenChannelConfigs">{{
-                          i18ns.t('copy')
-                        }}</el-button>
-                        <el-button plain @click="state.handleExportTokenChannelConfigs">{{
-                          i18ns.t('relay.exportChannels')
-                        }}</el-button>
-                        <el-button plain @click="state.openTokenChannelImportDialog">{{
-                          i18ns.t('relay.importChannels')
-                        }}</el-button>
-                        <el-select
-                          v-model="tokenChannelBatchAddIds"
-                          multiple
-                          collapse-tags
-                          collapse-tags-tooltip
-                          filterable
-                          class="channel-config-toolbar__batch-select"
-                          :placeholder="i18ns.t('relay.tokenChannelSelectChannelsPlaceholder')"
-                        >
-                          <el-option
-                            v-for="channel in tokenChannelBatchAddOptions"
-                            :key="channel.id"
-                            :label="
-                              state.getChannelOptionLabel({
-                                id: channel.id,
-                                name: channel.name,
-                                multiplier: channel.multiplier,
-                              })
-                            "
-                            :value="channel.id"
-                          />
-                        </el-select>
-                        <el-button
-                          plain
-                          type="primary"
-                          @click="state.handleBatchAddTokenChannels"
-                          >{{ i18ns.t('relay.tokenChannelBatchAdd') }}</el-button
-                        >
-                        <el-button
-                          plain
-                          type="danger"
-                          :disabled="!state.hasSelectedChannelConfigs"
-                          @click="state.handleBatchRemoveTokenChannelConfigs"
-                        >
-                          {{ i18ns.t('relay.tokenChannelBatchRemove') }}
-                        </el-button>
-                      </div>
-                    </template>
-                    <template v-else>
-                      <div class="channel-config-toolbar__summary">
-                        {{
-                          i18ns.t('relay.tokenChannelSelectedConfigs', {
-                            count: selectedChannelConfigs.length,
-                          })
-                        }}
-                      </div>
-                      <div
-                        class="channel-config-toolbar__actions channel-config-toolbar__actions--mobile"
+                    <div class="channel-config-toolbar__summary">
+                      {{
+                        i18ns.t('relay.tokenChannelSelectedConfigs', {
+                          count: selectedChannelConfigs.length,
+                        })
+                      }}
+                    </div>
+                    <div class="channel-config-toolbar__selection-actions">
+                      <el-button
+                        link
+                        type="primary"
+                        @click="state.toggleAllChannelConfigSelections"
                       >
-                        <el-button
-                          link
-                          type="primary"
-                          @click="state.toggleAllChannelConfigSelections"
-                        >
-                          {{
-                            isAllChannelConfigsSelected
-                              ? i18ns.t('relay.clearChannelSelection')
-                              : i18ns.t('relay.selectAllChannels')
-                          }}
-                        </el-button>
-                        <el-select
-                          v-model="tokenChannelBatchAddIds"
-                          multiple
-                          collapse-tags
-                          collapse-tags-tooltip
-                          filterable
-                          class="channel-config-toolbar__batch-select"
-                          :placeholder="i18ns.t('relay.tokenChannelSelectChannelsPlaceholder')"
-                        >
-                          <el-option
-                            v-for="channel in tokenChannelBatchAddOptions"
-                            :key="channel.id"
-                            :label="
-                              state.getChannelOptionLabel({
-                                id: channel.id,
-                                name: channel.name,
-                                multiplier: channel.multiplier,
-                              })
-                            "
-                            :value="channel.id"
-                          />
-                        </el-select>
-                        <el-button
-                          plain
-                          type="primary"
-                          @click="state.handleBatchAddTokenChannels"
-                          >{{ i18ns.t('relay.tokenChannelBatchAdd') }}</el-button
-                        >
-                        <el-button plain @click="state.handleCopyTokenChannelConfigs">{{
-                          i18ns.t('copy')
-                        }}</el-button>
-                        <el-button plain @click="state.handleExportTokenChannelConfigs">{{
-                          i18ns.t('relay.exportChannels')
-                        }}</el-button>
-                        <el-button plain @click="state.openTokenChannelImportDialog">{{
-                          i18ns.t('relay.importChannels')
-                        }}</el-button>
-                        <el-button
-                          plain
-                          type="danger"
-                          :disabled="!state.hasSelectedChannelConfigs"
-                          @click="state.handleBatchRemoveTokenChannelConfigs"
-                        >
-                          {{ i18ns.t('relay.tokenChannelBatchRemove') }}
-                        </el-button>
-                      </div>
-                    </template>
+                        {{
+                          isAllChannelConfigsSelected
+                            ? i18ns.t('relay.clearChannelSelection')
+                            : i18ns.t('relay.selectAllChannels')
+                        }}
+                      </el-button>
+                    </div>
+                  </div>
+
+                  <div class="channel-config-batch-add">
+                    <el-select
+                      v-model="tokenChannelBatchAddIds"
+                      multiple
+                      collapse-tags
+                      collapse-tags-tooltip
+                      filterable
+                      class="channel-config-batch-add__select channel-config-toolbar__batch-select"
+                      :placeholder="i18ns.t('relay.tokenChannelSelectChannelsPlaceholder')"
+                    >
+                      <el-option
+                        v-for="channel in tokenChannelBatchAddOptions"
+                        :key="channel.id"
+                        :label="
+                          state.getChannelOptionLabel({
+                            id: channel.id,
+                            name: channel.name,
+                            multiplier: channel.multiplier,
+                          })
+                        "
+                        :value="channel.id"
+                      />
+                    </el-select>
+                    <el-button
+                      plain
+                      type="primary"
+                      class="channel-config-batch-add__button"
+                      @click="state.handleBatchAddTokenChannels"
+                    >
+                      {{ i18ns.t('relay.tokenChannelBatchAdd') }}
+                    </el-button>
+                  </div>
+
+                  <div class="channel-config-toolbar__actions">
+                    <el-button plain @click="state.handleCopyTokenChannelConfigs">{{
+                      i18ns.t('copy')
+                    }}</el-button>
+                    <el-button plain @click="state.handleExportTokenChannelConfigs">{{
+                      i18ns.t('relay.exportChannels')
+                    }}</el-button>
+                    <el-button plain @click="state.openTokenChannelImportDialog">{{
+                      i18ns.t('relay.importChannels')
+                    }}</el-button>
+                    <el-button
+                      plain
+                      type="danger"
+                      :disabled="!state.hasSelectedChannelConfigs"
+                      @click="state.handleBatchRemoveTokenChannelConfigs"
+                    >
+                      {{ i18ns.t('relay.tokenChannelBatchRemove') }}
+                    </el-button>
                   </div>
 
                   <div
