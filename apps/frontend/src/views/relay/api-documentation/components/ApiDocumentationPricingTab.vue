@@ -124,12 +124,6 @@ const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
   }
   return formatChannelMultiplier(channel.multiplier)
 }
-
-const getChannelTypeLabel = (channel: RelayCatalogOptionDto) => {
-  if (channel.channelType === 'automatic-proxy-pool') return t('apiDoc.automaticProxyPool')
-  if (channel.channelType === 'pooled') return t('relay.channelTypePooled')
-  return ''
-}
 </script>
 
 <template>
@@ -172,9 +166,6 @@ const getChannelTypeLabel = (channel: RelayCatalogOptionDto) => {
               <span class="pricing-channel-option__multiplier">
                 {{ formatChannelOptionMultiplier(channel) }}
               </span>
-              <el-tag v-if="getChannelTypeLabel(channel)" size="small" type="warning" effect="plain">
-                {{ getChannelTypeLabel(channel) }}
-              </el-tag>
             </div>
           </el-option>
         </el-select>

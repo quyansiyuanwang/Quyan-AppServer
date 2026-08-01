@@ -18,6 +18,11 @@
             {{ i18ns.t('relay.exportChannels') }}
           </el-button>
         </PermissionWrapper>
+        <PermissionWrapper :require="[Permission.RELAY_CHANNEL_EXPORT]">
+          <el-button :loading="channelExporting" @click="copyAllChannelsAsJson">
+            {{ i18ns.t('relay.copyAllChannels') }}
+          </el-button>
+        </PermissionWrapper>
       </div>
       <div class="relay-channel-management__filters">
         <el-input
@@ -328,6 +333,7 @@ const {
   openChannelImportDialog,
   exportChannelsAsJson,
   copyChannelsAsJson,
+  copyAllChannelsAsJson,
   openChannelDetailDialog,
   openEditChannelDialog,
   handleDuplicateChannel,

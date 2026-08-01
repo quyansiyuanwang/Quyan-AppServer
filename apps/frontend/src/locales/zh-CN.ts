@@ -2439,6 +2439,7 @@ const zhCN: DeepStringify<typeof en> = {
     exportChannels: '导出渠道',
     importChannels: '导入渠道',
     copyChannels: '复制渠道 JSON',
+    copyAllChannels: '复制全部渠道 JSON',
     batchEnableChannels: '批量启用',
     batchDisableChannels: '批量禁用',
     batchDeleteChannels: '批量删除',

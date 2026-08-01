@@ -2627,6 +2627,7 @@ const emoji: DeepStringify<typeof en> = {
     exportChannels: '📤 📡',
     importChannels: '📥 📡',
     copyChannels: '📋 📡 JSON',
+    copyAllChannels: '📋 🌐 📡 JSON',
     batchEnableChannels: '🟢 ☑️',
     batchDisableChannels: '🔴 ☑️',
     batchDeleteChannels: '🗑️ ☑️',

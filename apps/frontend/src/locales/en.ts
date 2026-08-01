@@ -2250,7 +2250,8 @@ export default {
     apiCatalogPoolVisibility: 'API catalog pooled routes',
     apiCatalogPoolVisibilityHidden: 'Do not publish pooled routes',
     apiCatalogPoolVisibilityAnonymousRange: 'Publish anonymous price ranges',
-    apiCatalogPoolVisibilityHelp: 'Anonymous publication exposes model capabilities and price ranges only, never members or routing.',
+    apiCatalogPoolVisibilityHelp:
+      'Anonymous publication exposes model capabilities and price ranges only, never members or routing.',
     channelFailoverSettings: 'Channels & Failover',
     quotaSettings: 'Quota Settings',
     advancedSettings: 'Advanced Settings',
@@ -2524,6 +2525,7 @@ export default {
     exportChannels: 'Export Channels',
     importChannels: 'Import Channels',
     copyChannels: 'Copy Channel JSON',
+    copyAllChannels: 'Copy All Channel JSON',
     batchEnableChannels: 'Batch Enable',
     batchDisableChannels: 'Batch Disable',
     batchDeleteChannels: 'Batch Delete',

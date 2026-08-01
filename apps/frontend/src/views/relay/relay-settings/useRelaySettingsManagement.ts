@@ -1565,8 +1565,8 @@ export const useRelaySettingsManagement = () => {
     URL.revokeObjectURL(url)
   }
 
-  const buildChannelExportContent = async () => {
-    const exportIds = getChannelExportIds()
+  const buildChannelExportContent = async (scope: 'selected' | 'all' = 'selected') => {
+    const exportIds = scope === 'selected' ? getChannelExportIds() : undefined
     const response = await relayChannelService.exportChannels(
       exportIds ? { ids: exportIds, includeDisabled: true } : { includeDisabled: true },
     )
@@ -1599,6 +1599,25 @@ export const useRelaySettingsManagement = () => {
     channelExporting.value = true
     try {
       const content = await buildChannelExportContent()
+      const copied = await copyTextWithFallback(content)
+      if (copied) {
+        ElMessage.success(i18ns.t('copySuccess'))
+        return
+      }
+
+      ElMessage.error(i18ns.t('copyFailed'))
+    } catch (error: any) {
+      ElMessage.error(error.message || i18ns.t('operationFailed'))
+    } finally {
+      channelExporting.value = false
+    }
+  }
+
+  const copyAllChannelsAsJson = async () => {
+    if (channelExporting.value) return
+    channelExporting.value = true
+    try {
+      const content = await buildChannelExportContent('all')
       const copied = await copyTextWithFallback(content)
       if (copied) {
         ElMessage.success(i18ns.t('copySuccess'))
@@ -2336,6 +2355,7 @@ export const useRelaySettingsManagement = () => {
     clearChannelSelection,
     exportChannelsAsJson,
     copyChannelsAsJson,
+    copyAllChannelsAsJson,
     openChannelImportDialog,
     openChannelDetailDialog,
     closeChannelDetailDialog,
