@@ -125,8 +125,7 @@ export class RelayConfigService {
       queueTimeout: config.queueTimeout,
       upstreamStreamTimeout: config.upstreamStreamTimeout,
       enableQueue: config.enableQueue,
-      apiCatalogPoolVisibility:
-        config.apiCatalogPoolVisibility === "anonymous-range" ? "anonymous-range" : "hidden",
+      apiCatalogPoolVisibility: config.apiCatalogPoolVisibility === "anonymous-range" ? "anonymous-range" : "hidden",
       uptimeStatusUrl: config.uptimeStatusUrl || undefined,
       monitorNameMapping: toMonitorNameMapping(config.monitorNameMapping),
       showOnlyConfigured: config.showOnlyConfigured ?? undefined,

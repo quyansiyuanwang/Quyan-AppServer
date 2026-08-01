@@ -103,9 +103,10 @@ import { usePermissionStore } from '@/stores/permissionStore'
 import type { RelayRequestDiagnosticDto, RelayRequestRouteTraceDto } from '@/client/types.gen'
 
 const permissionStore = usePermissionStore()
-const canViewRouteTrace = computed(() =>
-  permissionStore.hasPermission(Permission.RELAY_REQUEST_ROUTE_TRACE_READ) &&
-  permissionStore.hasPermission(Permission.RELAY_CHANNEL_POOL_METADATA_READ),
+const canViewRouteTrace = computed(
+  () =>
+    permissionStore.hasPermission(Permission.RELAY_REQUEST_ROUTE_TRACE_READ) &&
+    permissionStore.hasPermission(Permission.RELAY_CHANNEL_POOL_METADATA_READ),
 )
 const records = ref<RelayRequestDiagnosticDto[]>([])
 const total = ref(0)

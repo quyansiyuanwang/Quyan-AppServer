@@ -159,10 +159,7 @@ export class RelayChannelController extends Controller {
 
   @Get("health/automatic-pools")
   @Security("jwt")
-  @RequireAllPermissions([
-    Permission.RELAY_CHANNEL_HEALTH_READ,
-    Permission.RELAY_CHANNEL_POOL_METADATA_READ,
-  ])
+  @RequireAllPermissions([Permission.RELAY_CHANNEL_HEALTH_READ, Permission.RELAY_CHANNEL_POOL_METADATA_READ])
   public async getAutomaticPoolHealths(@Request() request: TypedRequest): Promise<RelayAutomaticPoolHealthDto[]> {
     return this.channelService.getAutomaticPoolHealths(request.user!.userId);
   }

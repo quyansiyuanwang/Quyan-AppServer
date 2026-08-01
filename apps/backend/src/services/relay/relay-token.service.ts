@@ -988,13 +988,13 @@ export class RelayTokenService {
   async getRequestDiagnostics(
     actorUserId: string,
     query: {
-    page?: number;
-    pageSize?: number;
-    requestId?: string;
-    keyword?: string;
-    outcome?: string;
-    startDate?: string;
-    endDate?: string;
+      page?: number;
+      pageSize?: number;
+      requestId?: string;
+      keyword?: string;
+      outcome?: string;
+      startDate?: string;
+      endDate?: string;
     },
   ): Promise<RelayRequestDiagnosticsPageDto> {
     await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_DIAGNOSTICS_READ);

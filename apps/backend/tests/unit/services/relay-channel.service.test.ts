@@ -185,9 +185,7 @@ describe("RelayChannelService", () => {
     });
     expect(result.find((channel) => channel.id === "pooled-channel")).not.toHaveProperty("channelType");
     expect(result.find((channel) => channel.id === "pooled-channel")).not.toHaveProperty("poolPricing");
-    expect(result.find((channel) => channel.id === "pooled-channel")).not.toHaveProperty(
-      "automaticProxyPool",
-    );
+    expect(result.find((channel) => channel.id === "pooled-channel")).not.toHaveProperty("automaticProxyPool");
   });
 
   it("hides pooled channels from the catalog when pool publication is disabled", async () => {
@@ -341,7 +339,14 @@ describe("RelayChannelService", () => {
       name: "Pool",
       channelType: "pooled",
       poolMembers: [
-        { id: "pool-member-1", memberChannelId: member.id, priority: 0, weight: 1, enabled: true, memberChannel: member },
+        {
+          id: "pool-member-1",
+          memberChannelId: member.id,
+          priority: 0,
+          weight: 1,
+          enabled: true,
+          memberChannel: member,
+        },
       ],
     };
     relayChannelRepository.listActive.mockResolvedValue([pool]);

@@ -562,7 +562,8 @@ export const PERMISSION_META: PermissionMetaMap = {
     label: '查看请求路由追踪',
     labelEn: 'View Request Route Trace',
     tooltip: '允许查看请求实际执行渠道和重试路径，仍需混池元数据权限',
-    tooltipEn: 'Allows viewing execution channels and retry paths; pool metadata access is also required',
+    tooltipEn:
+      'Allows viewing execution channels and retry paths; pool metadata access is also required',
     category: 'relay',
   },
 

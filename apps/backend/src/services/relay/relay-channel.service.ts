@@ -317,10 +317,7 @@ export class RelayChannelService {
     if (relayConfig.apiCatalogPoolVisibility === "anonymous-range") {
       const publishedPoolRoots = accessibleChannels.filter((channel) => {
         const type = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
-        return (
-          isPoolType(type) &&
-          (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden"
-        );
+        return isPoolType(type) && (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden";
       });
 
       const visitPool = (channelId: string) => {
@@ -363,9 +360,9 @@ export class RelayChannelService {
             id: channel.id,
             name: channel.name,
             enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-            allowedFormats: formatRelayRequestFormats(
-              [...new Set(modelCapabilities.flatMap((item) => item.supportedRequestFormats))],
-            ),
+            allowedFormats: formatRelayRequestFormats([
+              ...new Set(modelCapabilities.flatMap((item) => item.supportedRequestFormats)),
+            ]),
             modelCapabilities,
             pricingMode: "range" as const,
             modelPriceRanges: this.toCatalogModelPriceRanges(resolvedCapabilities, activeChannelsById, now),
@@ -470,11 +467,8 @@ export class RelayChannelService {
         (channel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
         now,
       );
-    const rules =
-      (channel.contextLengthMultipliers as ContextLengthMultiplierRule[] | null | undefined) ?? [];
-    const contextMultipliers = rules
-      .filter((rule) => rule.enabled)
-      .map((rule) => Number(rule.multiplier));
+    const rules = (channel.contextLengthMultipliers as ContextLengthMultiplierRule[] | null | undefined) ?? [];
+    const contextMultipliers = rules.filter((rule) => rule.enabled).map((rule) => Number(rule.multiplier));
     if (!contextMultipliers.includes(1)) contextMultipliers.push(1);
     return contextMultipliers.filter(Number.isFinite).map((multiplier) => baseMultiplier * multiplier);
   }
