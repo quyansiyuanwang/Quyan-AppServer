@@ -365,7 +365,7 @@ export class RelayController extends Controller {
 
   @Get("request-diagnostics")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @RequirePermission(Permission.RELAY_REQUEST_DIAGNOSTICS_READ)
   @Middlewares(validateQuery(relayRequestDiagnosticsQuerySchema))
   async getRequestDiagnostics(
     @Query() page?: number,

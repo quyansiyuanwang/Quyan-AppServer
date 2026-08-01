@@ -112,6 +112,24 @@ describe('useApiDocumentationPricing', () => {
     dispose()
   })
 
+  it('reloads options without pooled channels and clears hidden selections', async () => {
+    const { composable, dispose } = createComposable()
+    const standalone = createChannel({ id: 'standalone-channel', channelType: 'standalone' })
+    const pooled = createChannel({ id: 'pooled-channel', channelType: 'pooled' })
+    composable.channels.value = [standalone, pooled]
+    composable.filterChannelIds.value = [standalone.id, pooled.id]
+    listChannelsMock.mockResolvedValue([standalone])
+
+    composable.hidePooledChannels.value = true
+    await nextTick()
+    await nextTick()
+
+    expect(composable.filterChannelIds.value).toEqual([standalone.id])
+    expect(listChannelsMock).toHaveBeenCalledWith(undefined, { excludePooled: true })
+
+    dispose()
+  })
+
   it('keeps filtered pricing rows when channel restriction stores model names', async () => {
     const { composable, dispose } = createComposable()
 

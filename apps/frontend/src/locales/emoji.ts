@@ -3647,6 +3647,7 @@ const emoji: DeepStringify<typeof en> = {
     hideMoreSettings: '➖ ⚙️',
     showCacheMultipliers: '👁️ 💾 ✖️',
     hideIndependentChannels: '🙈 📡',
+    hidePooledChannels: '🙈 🏊',
     hideAutomaticProxyPools: '🙈 🤖 🔁 🏊',
     cacheMultipliers: '💾 ✖️',
     cacheCreateShort: '🆕',

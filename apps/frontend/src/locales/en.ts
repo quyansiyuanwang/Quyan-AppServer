@@ -3916,6 +3916,7 @@ export default {
     hideMoreSettings: 'Hide more settings',
     showCacheMultipliers: 'Show cache multipliers',
     hideIndependentChannels: 'Hide independent channels',
+    hidePooledChannels: 'Hide pooled channels',
     hideAutomaticProxyPools: 'Hide automatic proxy pools',
     cacheMultipliers: 'Cache multipliers',
     cacheCreateShort: 'Create',

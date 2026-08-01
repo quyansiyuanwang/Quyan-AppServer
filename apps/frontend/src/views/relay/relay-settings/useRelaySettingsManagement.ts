@@ -9,6 +9,7 @@ import { groupService } from '@/service/groupService'
 import { ramService } from '@/service/ramService'
 import { relayChannelService } from '@/service/relayChannelService'
 import { relayConfigService } from '@/service/relayConfigService'
+import { usePermissionStore } from '@/stores/permissionStore'
 import { userService } from '@/service/userService'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import {
@@ -272,6 +273,13 @@ const getModelRateRowKey = (row: ModelRateRow): string => {
 }
 
 export const useRelaySettingsManagement = () => {
+  const permissionStore = usePermissionStore()
+  const canViewChannelHealth = computed(() =>
+    permissionStore.hasPermission(Permission.RELAY_CHANNEL_HEALTH_READ),
+  )
+  const canViewPoolMetadata = computed(() =>
+    permissionStore.hasPermission(Permission.RELAY_CHANNEL_POOL_METADATA_READ),
+  )
   const loading = ref(false)
   const saving = ref(false)
   const showImportDialog = ref(false)
@@ -1892,7 +1900,12 @@ export const useRelaySettingsManagement = () => {
     try {
       currentChannelDetail.value = await relayChannelService.getChannel(row.id)
       showChannelDetailDialog.value = true
-      void loadChannelHealth(row.id)
+      if (
+        canViewChannelHealth.value &&
+        (currentChannelDetail.value.channelType === 'standalone' || canViewPoolMetadata.value)
+      ) {
+        void loadChannelHealth(row.id)
+      }
     } catch (error: any) {
       ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
     } finally {
@@ -2250,6 +2263,8 @@ export const useRelaySettingsManagement = () => {
     currentChannelDetail,
     channelHealth,
     channelHealthLoading,
+    canViewChannelHealth,
+    canViewPoolMetadata,
     selectedChannelCount,
     selectedChannels: legacySelectedChannels,
     hasChannelSelection,

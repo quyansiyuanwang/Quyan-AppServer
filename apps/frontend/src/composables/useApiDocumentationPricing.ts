@@ -76,6 +76,7 @@ export const useApiDocumentationPricing = () => {
   const filterModelKeyword = ref<string>('')
   const onlyModelsWithChannels = ref(true)
   const hideIndependentChannels = ref(false)
+  const hidePooledChannels = ref(false)
   const hideAutomaticProxyPools = ref(false)
   const channelMatchMode = ref<ChannelMatchMode>('match-any')
   const channelPriceMode = ref<ChannelPriceMode>('selected-lowest')
@@ -111,7 +112,7 @@ export const useApiDocumentationPricing = () => {
   const visibleChannels = computed(() =>
     channels.value.filter((channel) => {
       if (channel.channelType === 'automatic-proxy-pool') return !hideAutomaticProxyPools.value
-      if (channel.channelType === 'pooled') return true
+      if (channel.channelType === 'pooled') return !hidePooledChannels.value
       return !hideIndependentChannels.value
     }),
   )
@@ -599,7 +600,9 @@ export const useApiDocumentationPricing = () => {
 
   const loadChannels = async () => {
     try {
-      channels.value = await relayChannelService.listChannelOptions()
+      channels.value = await relayChannelService.listChannelOptions(undefined, {
+        excludePooled: hidePooledChannels.value,
+      })
     } catch (error) {
       loadErrorMessage.value = resolveErrorMessage(error, i18ns.t('relay.loadFailed'))
       ElMessage.error(loadErrorMessage.value)
@@ -648,6 +651,7 @@ export const useApiDocumentationPricing = () => {
     filterModelKeyword.value = ''
     onlyModelsWithChannels.value = true
     hideIndependentChannels.value = false
+    hidePooledChannels.value = false
     hideAutomaticProxyPools.value = false
     channelMatchMode.value = 'match-any'
     channelPriceMode.value = 'selected-lowest'
@@ -675,11 +679,15 @@ export const useApiDocumentationPricing = () => {
     }
   })
 
-  watch([hideIndependentChannels, hideAutomaticProxyPools, visibleChannels], () => {
+  watch([hideIndependentChannels, hidePooledChannels, hideAutomaticProxyPools, visibleChannels], () => {
     const visibleChannelIds = new Set(visibleChannels.value.map((channel) => channel.id))
     filterChannelIds.value = filterChannelIds.value.filter((channelId) =>
       visibleChannelIds.has(channelId),
     )
+  })
+
+  watch(hidePooledChannels, () => {
+    void loadChannels()
   })
 
   watch(
@@ -723,6 +731,7 @@ export const useApiDocumentationPricing = () => {
     filterModelKeyword,
     onlyModelsWithChannels,
     hideIndependentChannels,
+    hidePooledChannels,
     hideAutomaticProxyPools,
     channelMatchMode,
     channelPriceMode,

@@ -3752,6 +3752,7 @@ const zhCN: DeepStringify<typeof en> = {
     hideMoreSettings: '收起更多设置',
     showCacheMultipliers: '显示缓存倍率',
     hideIndependentChannels: '屏蔽独立渠道',
+    hidePooledChannels: '屏蔽混池渠道',
     hideAutomaticProxyPools: '屏蔽自动代理池',
     cacheMultipliers: '缓存倍率',
     cacheCreateShort: '创建',

@@ -53,7 +53,7 @@ import type { RamRoleStore } from "@/store/users/ram-role.store";
 import { PermissionService } from "@/services/users/permission.service";
 import { Permission } from "@/constant/permission";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
-import { BadRequestError, ConflictError, NotFoundError } from "@/util/errors";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { Prisma, type RelayChannel } from "@prisma/client";
 import { formatRelayRequestFormats } from "@appserver/shared";
@@ -209,14 +209,26 @@ export class RelayChannelService {
     };
   }
 
-  async listChannelOptions(actorUserId: string, targetUserId?: string): Promise<RelayChannelOptionDto[]> {
+  async listChannelOptions(
+    actorUserId: string,
+    targetUserId?: string,
+    listOptions: { excludePooled?: boolean } = {},
+  ): Promise<RelayChannelOptionDto[]> {
     const effectiveUserId = await this.resolveOptionsUserId(actorUserId, targetUserId);
+    const canViewPoolMetadata = await this.permissionService.hasPermission(
+      actorUserId,
+      Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+    );
     const activeChannels = await this.relayChannelRepository.listActive();
     const accessibleChannels = await this.filterAccessibleChannels(activeChannels, effectiveUserId);
     const activeChannelsById = new Map(activeChannels.map((channel) => [channel.id, channel]));
-    const channels = accessibleChannels.filter(
-      (channel) => (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden",
-    );
+    const channels = accessibleChannels.filter((channel) => {
+      const channelType = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+      return (
+        (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden" &&
+        !(listOptions.excludePooled === true && channelType === "pooled")
+      );
+    });
     const modelCatalog = await this.modelPricingService.getModelPricing();
     const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog);
     const now = new Date();
@@ -243,17 +255,17 @@ export class RelayChannelService {
           }
         }
 
+        const channelType = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
         const option: RelayChannelOptionDto = {
           id: channel.id,
           name: channel.name,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-          channelType:
-            (channel.channelType as RelayChannelOptionDto["channelType"] | undefined) ?? DEFAULT_CHANNEL_TYPE,
+          ...(canViewPoolMetadata ? { channelType } : {}),
           multiplier: Number(channel.multiplier),
           contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
             | ContextLengthMultiplierRule[]
             | undefined,
-          allowedFormats: isPoolType((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE)
+          allowedFormats: isPoolType(channelType)
             ? formatRelayRequestFormats([
                 ...new Set([...modelCapabilities.values()].flatMap((item) => item.supportedRequestFormats)),
               ])
@@ -265,14 +277,14 @@ export class RelayChannelService {
           ),
         };
 
-        if (channel.channelType === "automatic-proxy-pool") {
+        if (canViewPoolMetadata && channelType === "automatic-proxy-pool") {
           option.automaticProxyPool = this.toAutomaticProxyPoolOption(
             channel as RelayChannelWithMembers,
             resolvedCapabilities,
             now,
           );
         }
-        if (isPoolType(option.channelType)) {
+        if (canViewPoolMetadata && isPoolType(channelType)) {
           option.poolPricing = this.toPoolPricingOption(resolvedCapabilities, activeChannelsById, now);
         }
 
@@ -423,7 +435,15 @@ export class RelayChannelService {
     actorUserId: string,
   ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
     const channel = await this.assertChannelAccessibleById(id, actorUserId);
-    if (channel.channelType !== "automatic-proxy-pool") {
+    const channelType = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+    if (channelType !== "standalone") {
+      const canViewPoolMetadata = await this.permissionService.hasPermission(
+        actorUserId,
+        Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+      );
+      if (!canViewPoolMetadata) throw new NotFoundError("Relay channel not found");
+    }
+    if (channelType !== "automatic-proxy-pool") {
       const snapshot = await this.relayChannelHealthService.getHealth(channel.id);
       return this.toHealthDto(channel, snapshot);
     }
@@ -519,6 +539,21 @@ export class RelayChannelService {
       .sort((left, right) => left.name.localeCompare(right.name) || left.channelId.localeCompare(right.channelId));
 
     return { windowMinutes: RelayChannelHealthService.constants.windowMinutes, channels: items };
+  }
+
+  async getAutomaticPoolHealths(actorUserId: string): Promise<RelayAutomaticPoolHealthDto[]> {
+    const canViewPoolMetadata = await this.permissionService.hasPermission(
+      actorUserId,
+      Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+    );
+    if (!canViewPoolMetadata) throw new ForbiddenError("Relay pool metadata access is required");
+
+    const channels = await this.filterAccessibleChannels(await this.relayChannelRepository.listVisible(), actorUserId);
+    const pools = channels.filter(
+      (channel) => ((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE) === "automatic-proxy-pool",
+    );
+    const healths = await Promise.all(pools.map((channel) => this.getChannelHealth(channel.id, actorUserId)));
+    return healths.filter((health): health is RelayAutomaticPoolHealthDto => "members" in health);
   }
 
   async updateChannelHealthConfig(

@@ -14,6 +14,7 @@ const filterPricingType = state.filterPricingType
 const filterModelKeyword = state.filterModelKeyword
 const onlyModelsWithChannels = state.onlyModelsWithChannels
 const hideIndependentChannels = state.hideIndependentChannels
+const hidePooledChannels = state.hidePooledChannels
 const hideAutomaticProxyPools = state.hideAutomaticProxyPools
 const channelMatchMode = state.channelMatchMode
 const channelPriceMode = state.channelPriceMode
@@ -249,6 +250,11 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
             <div class="pricing-more-settings-item pricing-more-settings-item--between">
               <span class="pricing-inline-label">{{ t('apiDoc.hideIndependentChannels') }}</span>
               <el-switch v-model="hideIndependentChannels" />
+            </div>
+
+            <div class="pricing-more-settings-item pricing-more-settings-item--between">
+              <span class="pricing-inline-label">{{ t('apiDoc.hidePooledChannels') }}</span>
+              <el-switch v-model="hidePooledChannels" />
             </div>
 
             <div class="pricing-more-settings-item pricing-more-settings-item--between">
@@ -590,6 +596,13 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
                     {{ t('apiDoc.hideIndependentChannels') }}
                   </span>
                   <el-switch v-model="hideIndependentChannels" />
+                </div>
+
+                <div class="pricing-mobile-switch">
+                  <span class="pricing-mobile-switch-label">
+                    {{ t('apiDoc.hidePooledChannels') }}
+                  </span>
+                  <el-switch v-model="hidePooledChannels" />
                 </div>
 
                 <div class="pricing-mobile-switch">

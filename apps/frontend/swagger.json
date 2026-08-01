@@ -14133,6 +14133,14 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "query",
+						"name": "excludePooled",
+						"required": false,
+						"schema": {
+							"type": "boolean"
+						}
 					}
 				]
 			}
@@ -14254,6 +14262,35 @@
 					"purpose": "stepup",
 					"method": "code"
 				}
+			}
+		},
+		"/v1/relay-channels/health/automatic-pools": {
+			"get": {
+				"operationId": "RelayChannelControllerGetAutomaticPoolHealths",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RelayAutomaticPoolHealthDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/v1/relay-channels/{id}/health-config": {
@@ -28078,9 +28115,12 @@
 					"relay:channel:update",
 					"relay:channel:delete",
 					"relay:channel:export",
+					"relay:channel:health:read",
+					"relay:channel:pool_metadata:read",
 					"relay:channel:probe:read",
 					"relay:channel:probe:execute",
 					"relay:channel:multiplier:adjust",
+					"relay:request_diagnostics:read",
 					"accesskey:create",
 					"accesskey:read",
 					"accesskey:delete",
@@ -38237,7 +38277,8 @@
 						"type": "boolean"
 					},
 					"channelType": {
-						"$ref": "#/components/schemas/RelayChannelType"
+						"$ref": "#/components/schemas/RelayChannelType",
+						"description": "Omitted unless the caller is allowed to view relay pool topology."
 					},
 					"multiplier": {
 						"type": "number",
@@ -38272,7 +38313,6 @@
 					"id",
 					"name",
 					"enabled",
-					"channelType",
 					"multiplier",
 					"allowedFormats",
 					"modelCapabilities"

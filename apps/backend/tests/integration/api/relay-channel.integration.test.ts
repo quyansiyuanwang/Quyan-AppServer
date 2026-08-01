@@ -215,6 +215,18 @@ describe("Relay Channel API Integration", () => {
     expect(getAfterDeleteRes.status).toBe(404);
   });
 
+  it("does not grant health or request diagnostics access through channel read", async () => {
+    const healthRes = await request(app)
+      .get("/v1/relay-channels/health/overview")
+      .set("Authorization", `Bearer ${readOnlyAccessToken}`);
+    expect(healthRes.status).toBe(403);
+
+    const diagnosticsRes = await request(app)
+      .get("/v1/relay/request-diagnostics")
+      .set("Authorization", `Bearer ${readOnlyAccessToken}`);
+    expect(diagnosticsRes.status).toBe(403);
+  });
+
   it("rejects channel creation with duplicate model IDs in allowedModels", async () => {
     // First, create model pricing entries with same model ID
     const modelId = "test-model-id";

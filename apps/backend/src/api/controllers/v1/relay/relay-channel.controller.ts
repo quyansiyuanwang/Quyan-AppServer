@@ -114,26 +114,34 @@ export class RelayChannelController extends Controller {
   public async listChannelOptions(
     @Request() request: TypedRequest,
     @Query() targetUserId?: string,
+    @Query() excludePooled?: boolean,
   ): Promise<RelayChannelOptionDto[]> {
-    return this.channelService.listChannelOptions(request.user!.userId, targetUserId);
+    return this.channelService.listChannelOptions(request.user!.userId, targetUserId, { excludePooled });
   }
 
   @Get("health/overview")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @RequirePermission(Permission.RELAY_CHANNEL_HEALTH_READ)
   public async getChannelHealthOverview(@Request() request: TypedRequest): Promise<RelayChannelHealthOverviewDto> {
     return this.channelService.getChannelHealthOverview(request.user!.userId);
   }
 
   @Get("{id}/health")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @RequirePermission(Permission.RELAY_CHANNEL_HEALTH_READ)
   @Middlewares(validateParams(relayChannelIdParamsSchema))
   public async getChannelHealth(
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
     return this.channelService.getChannelHealth(id, request.user!.userId);
+  }
+
+  @Get("health/automatic-pools")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_HEALTH_READ)
+  public async getAutomaticPoolHealths(@Request() request: TypedRequest): Promise<RelayAutomaticPoolHealthDto[]> {
+    return this.channelService.getAutomaticPoolHealths(request.user!.userId);
   }
 
   @Patch("{id}/health-config")

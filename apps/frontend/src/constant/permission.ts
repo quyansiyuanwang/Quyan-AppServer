@@ -495,6 +495,20 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows viewing relay channel details',
     category: 'relay',
   },
+  [Permission.RELAY_CHANNEL_HEALTH_READ]: {
+    label: '查看渠道健康',
+    labelEn: 'View Channel Health',
+    tooltip: '允许查看中转渠道健康概览和详情',
+    tooltipEn: 'Allows viewing relay channel health overview and details',
+    category: 'relay',
+  },
+  [Permission.RELAY_CHANNEL_POOL_METADATA_READ]: {
+    label: '查看混池元数据',
+    labelEn: 'View Relay Pool Metadata',
+    tooltip: '允许查看混池成员、路由和定价元数据',
+    tooltipEn: 'Allows viewing relay pool members, routing, and pricing metadata',
+    category: 'relay',
+  },
   [Permission.RELAY_CHANNEL_UPDATE]: {
     label: '修改中转渠道',
     labelEn: 'Update Relay Channel',
@@ -535,6 +549,13 @@ export const PERMISSION_META: PermissionMetaMap = {
     labelEn: 'Adjust Channel Multipliers',
     tooltip: '允许应用余额探针计算的渠道价格倍率',
     tooltipEn: 'Allows applying channel price multipliers calculated by probes',
+    category: 'relay',
+  },
+  [Permission.RELAY_REQUEST_DIAGNOSTICS_READ]: {
+    label: '查看请求诊断',
+    labelEn: 'View Request Diagnostics',
+    tooltip: '允许查看中转请求诊断记录',
+    tooltipEn: 'Allows viewing relay request diagnostics',
     category: 'relay',
   },
 
