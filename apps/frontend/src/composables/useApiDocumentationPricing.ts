@@ -679,12 +679,15 @@ export const useApiDocumentationPricing = () => {
     }
   })
 
-  watch([hideIndependentChannels, hidePooledChannels, hideAutomaticProxyPools, visibleChannels], () => {
-    const visibleChannelIds = new Set(visibleChannels.value.map((channel) => channel.id))
-    filterChannelIds.value = filterChannelIds.value.filter((channelId) =>
-      visibleChannelIds.has(channelId),
-    )
-  })
+  watch(
+    [hideIndependentChannels, hidePooledChannels, hideAutomaticProxyPools, visibleChannels],
+    () => {
+      const visibleChannelIds = new Set(visibleChannels.value.map((channel) => channel.id))
+      filterChannelIds.value = filterChannelIds.value.filter((channelId) =>
+        visibleChannelIds.has(channelId),
+      )
+    },
+  )
 
   watch(hidePooledChannels, () => {
     void loadChannels()

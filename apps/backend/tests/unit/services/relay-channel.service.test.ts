@@ -94,8 +94,8 @@ describe("RelayChannelService", () => {
     relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId.mockResolvedValue([]);
     relayChannelRepository.findVisibleByName.mockResolvedValue(null);
     permissionService.hasAnyPermission.mockResolvedValue(false);
-    permissionService.hasPermission.mockImplementation(async (_userId: string, permission: Permission) =>
-      permission === Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+    permissionService.hasPermission.mockImplementation(
+      async (_userId: string, permission: Permission) => permission === Permission.RELAY_CHANNEL_POOL_METADATA_READ,
     );
     userRepository.findByIdWithGroup.mockResolvedValue({ id: "actor-user", groupId: "group-1" });
     ramRoleRepository.listRoleBindingsForUser.mockResolvedValue([]);

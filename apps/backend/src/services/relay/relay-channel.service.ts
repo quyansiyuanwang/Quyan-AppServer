@@ -550,7 +550,8 @@ export class RelayChannelService {
 
     const channels = await this.filterAccessibleChannels(await this.relayChannelRepository.listVisible(), actorUserId);
     const pools = channels.filter(
-      (channel) => ((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE) === "automatic-proxy-pool",
+      (channel) =>
+        ((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE) === "automatic-proxy-pool",
     );
     const healths = await Promise.all(pools.map((channel) => this.getChannelHealth(channel.id, actorUserId)));
     return healths.filter((health): health is RelayAutomaticPoolHealthDto => "members" in health);
