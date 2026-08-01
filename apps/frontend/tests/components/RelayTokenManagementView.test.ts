@@ -74,6 +74,7 @@ vi.mock('@element-plus/icons-vue', () => ({
   DocumentCopy: defineComponent({ name: 'DocumentCopyIcon', template: '<span />' }),
   Clock: defineComponent({ name: 'ClockIcon', template: '<span />' }),
   Delete: defineComponent({ name: 'DeleteIcon', template: '<span />' }),
+  Plus: defineComponent({ name: 'PlusIcon', template: '<span />' }),
   QuestionFilled: defineComponent({ name: 'QuestionFilledIcon', template: '<span />' }),
   Refresh: defineComponent({ name: 'RefreshIcon', template: '<span />' }),
   Rank: defineComponent({ name: 'RankIcon', template: '<span />' }),
@@ -615,7 +616,7 @@ describe('RelayTokenManagementView', () => {
     expect(wrapper.find('.blocked-automatic-pool-channel-select').exists()).toBe(false)
   })
 
-  it('appends desktop batch-selected channels in selection order', async () => {
+  it('opens a batch-add dialog and appends selected channels in selection order', async () => {
     const wrapper = mountView()
     await flushPromises()
     const vm = wrapper.vm as any
@@ -631,7 +632,9 @@ describe('RelayTokenManagementView', () => {
       'channel-tertiary',
       'channel-secondary',
     ])
-    expect(wrapper.find('.channel-config-toolbar__batch-select').exists()).toBe(true)
+    expect(wrapper.find('.channel-config-toolbar__batch-select').exists()).toBe(false)
+    await wrapper.find('.channel-config-toolbar__batch-add-button').trigger('click')
+    expect(wrapper.find('.token-channel-batch-add-dialog').exists()).toBe(true)
   })
 
   it('renders amount quota windows with remaining usage details', async () => {

@@ -234,7 +234,6 @@ export class RelayUsageRepository implements RelayUsageStore {
     pageSize: number;
     requestId?: string;
     keyword?: string;
-    channelId?: string;
     outcome?: string;
     startDate?: Date;
     endDate?: Date;
@@ -249,7 +248,7 @@ export class RelayUsageRepository implements RelayUsageStore {
       where.relayToken = {
         OR: [{ name: { contains: query.keyword } }, { user: { username: { contains: query.keyword } } }],
       };
-    const attemptWhere: any = { ...(query.channelId ? { executionChannelId: query.channelId } : {}) };
+    const attemptWhere: any = {};
     if (query.outcome === "success") attemptWhere.statusCode = { gte: 200, lt: 400 };
     if (query.outcome === "client-error") attemptWhere.statusCode = { gte: 400, lt: 500 };
     if (query.outcome === "server-error") attemptWhere.statusCode = { gte: 500 };
@@ -267,11 +266,24 @@ export class RelayUsageRepository implements RelayUsageStore {
         },
       }),
     ]);
-    const channelIds = [
-      ...new Set(
-        records.flatMap((record) => record.relayUsages.map((usage) => usage.executionChannelId).filter(Boolean)),
-      ),
-    ];
+    return {
+      total,
+      records: records.map((record) => ({
+        ...record,
+        relayUsages: record.relayUsages,
+      })),
+    };
+  }
+
+  async findRequestRouteTrace(requestId: string) {
+    const record = await prisma.relayLogicalRequest.findFirst({
+      where: { requestId },
+      orderBy: { createTime: "desc" },
+      include: { relayUsages: { orderBy: { createTime: "asc" } } },
+    });
+    if (!record) return null;
+
+    const channelIds = [...new Set(record.relayUsages.map((usage) => usage.executionChannelId).filter(Boolean))];
     const channelNames = new Map(
       (
         await prisma.relayChannel.findMany({
@@ -281,13 +293,10 @@ export class RelayUsageRepository implements RelayUsageStore {
       ).map((channel) => [channel.id, channel.name]),
     );
     return {
-      total,
-      records: records.map((record) => ({
-        ...record,
-        relayUsages: record.relayUsages.map((usage) => ({
-          ...usage,
-          executionChannelName: usage.executionChannelId ? channelNames.get(usage.executionChannelId) : undefined,
-        })),
+      requestId: record.requestId,
+      relayUsages: record.relayUsages.map((usage) => ({
+        ...usage,
+        executionChannelName: usage.executionChannelId ? channelNames.get(usage.executionChannelId) : undefined,
       })),
     };
   }

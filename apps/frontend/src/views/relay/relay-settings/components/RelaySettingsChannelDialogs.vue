@@ -1144,7 +1144,12 @@
         </div>
       </div>
 
-      <div>
+      <div
+        v-if="
+          canViewChannelHealth &&
+          (currentChannelDetail.channelType === 'standalone' || canViewPoolMetadata)
+        "
+      >
         <div class="flex items-center justify-between gap-3 mb-2">
           <el-divider content-position="left" class="flex-1">{{
             automaticPoolHealth
@@ -1412,6 +1417,8 @@ const {
   currentChannelDetail,
   channelHealth,
   channelHealthLoading,
+  canViewChannelHealth,
+  canViewPoolMetadata,
   visibilityUserOptions,
   visibilityGroupOptions,
   visibilityRoleOptions,

@@ -9,6 +9,7 @@ import { groupService } from '@/service/groupService'
 import { ramService } from '@/service/ramService'
 import { relayChannelService } from '@/service/relayChannelService'
 import { relayConfigService } from '@/service/relayConfigService'
+import { usePermissionStore } from '@/stores/permissionStore'
 import { userService } from '@/service/userService'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import {
@@ -272,6 +273,13 @@ const getModelRateRowKey = (row: ModelRateRow): string => {
 }
 
 export const useRelaySettingsManagement = () => {
+  const permissionStore = usePermissionStore()
+  const canViewChannelHealth = computed(() =>
+    permissionStore.hasPermission(Permission.RELAY_CHANNEL_HEALTH_READ),
+  )
+  const canViewPoolMetadata = computed(() =>
+    permissionStore.hasPermission(Permission.RELAY_CHANNEL_POOL_METADATA_READ),
+  )
   const loading = ref(false)
   const saving = ref(false)
   const showImportDialog = ref(false)
@@ -312,6 +320,7 @@ export const useRelaySettingsManagement = () => {
   const maxConcurrency = ref(5)
   const queueTimeoutSec = ref(30)
   const upstreamStreamTimeoutSec = ref(120)
+  const apiCatalogPoolVisibility = ref<'hidden' | 'anonymous-range'>('anonymous-range')
   const relayCustomKeyEnabled = ref(true)
   const relayCustomKeyMaxTokensPerUser = ref(3)
   const relayCustomKeyCreateLimitWindowMinutes = ref(10)
@@ -343,6 +352,7 @@ export const useRelaySettingsManagement = () => {
       upstreamStreamTimeoutSec.value = Math.round(
         (relayConfig.upstreamStreamTimeout ?? 120000) / 1000,
       )
+      apiCatalogPoolVisibility.value = relayConfig.apiCatalogPoolVisibility ?? 'anonymous-range'
       relayUpstreamUrl.value = relaySystemConfig.upstreamUrl || ''
       relayUpstreamApiKey.value = relaySystemConfig.upstreamApiKey || ''
       relayAllowedModels.value = relaySystemConfig.allowedModels || ''
@@ -454,6 +464,7 @@ export const useRelaySettingsManagement = () => {
         maxConcurrency: maxConcurrency.value,
         queueTimeout: queueTimeoutSec.value * 1000,
         upstreamStreamTimeout: upstreamStreamTimeoutSec.value * 1000,
+        apiCatalogPoolVisibility: apiCatalogPoolVisibility.value,
         modelRates: validRates.map((r) => ({
           model: r.model.trim(),
           modelId: resolveModelId({ model: r.model, modelId: r.modelId }),
@@ -1554,8 +1565,8 @@ export const useRelaySettingsManagement = () => {
     URL.revokeObjectURL(url)
   }
 
-  const buildChannelExportContent = async () => {
-    const exportIds = getChannelExportIds()
+  const buildChannelExportContent = async (scope: 'selected' | 'all' = 'selected') => {
+    const exportIds = scope === 'selected' ? getChannelExportIds() : undefined
     const response = await relayChannelService.exportChannels(
       exportIds ? { ids: exportIds, includeDisabled: true } : { includeDisabled: true },
     )
@@ -1588,6 +1599,25 @@ export const useRelaySettingsManagement = () => {
     channelExporting.value = true
     try {
       const content = await buildChannelExportContent()
+      const copied = await copyTextWithFallback(content)
+      if (copied) {
+        ElMessage.success(i18ns.t('copySuccess'))
+        return
+      }
+
+      ElMessage.error(i18ns.t('copyFailed'))
+    } catch (error: any) {
+      ElMessage.error(error.message || i18ns.t('operationFailed'))
+    } finally {
+      channelExporting.value = false
+    }
+  }
+
+  const copyAllChannelsAsJson = async () => {
+    if (channelExporting.value) return
+    channelExporting.value = true
+    try {
+      const content = await buildChannelExportContent('all')
       const copied = await copyTextWithFallback(content)
       if (copied) {
         ElMessage.success(i18ns.t('copySuccess'))
@@ -1892,7 +1922,12 @@ export const useRelaySettingsManagement = () => {
     try {
       currentChannelDetail.value = await relayChannelService.getChannel(row.id)
       showChannelDetailDialog.value = true
-      void loadChannelHealth(row.id)
+      if (
+        canViewChannelHealth.value &&
+        (currentChannelDetail.value.channelType === 'standalone' || canViewPoolMetadata.value)
+      ) {
+        void loadChannelHealth(row.id)
+      }
     } catch (error: any) {
       ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
     } finally {
@@ -2212,6 +2247,7 @@ export const useRelaySettingsManagement = () => {
     maxConcurrency,
     queueTimeoutSec,
     upstreamStreamTimeoutSec,
+    apiCatalogPoolVisibility,
     relayCustomKeyEnabled,
     relayCustomKeyMaxTokensPerUser,
     relayCustomKeyCreateLimitWindowMinutes,
@@ -2250,6 +2286,8 @@ export const useRelaySettingsManagement = () => {
     currentChannelDetail,
     channelHealth,
     channelHealthLoading,
+    canViewChannelHealth,
+    canViewPoolMetadata,
     selectedChannelCount,
     selectedChannels: legacySelectedChannels,
     hasChannelSelection,
@@ -2317,6 +2355,7 @@ export const useRelaySettingsManagement = () => {
     clearChannelSelection,
     exportChannelsAsJson,
     copyChannelsAsJson,
+    copyAllChannelsAsJson,
     openChannelImportDialog,
     openChannelDetailDialog,
     closeChannelDetailDialog,

@@ -94,9 +94,13 @@ export enum Permission {
   RELAY_CHANNEL_UPDATE = 'relay:channel:update',
   RELAY_CHANNEL_DELETE = 'relay:channel:delete',
   RELAY_CHANNEL_EXPORT = 'relay:channel:export',
+  RELAY_CHANNEL_HEALTH_READ = 'relay:channel:health:read',
+  RELAY_CHANNEL_POOL_METADATA_READ = 'relay:channel:pool_metadata:read',
   RELAY_CHANNEL_PROBE_READ = 'relay:channel:probe:read',
   RELAY_CHANNEL_PROBE_EXECUTE = 'relay:channel:probe:execute',
   RELAY_CHANNEL_MULTIPLIER_ADJUST = 'relay:channel:multiplier:adjust',
+  RELAY_REQUEST_DIAGNOSTICS_READ = 'relay:request_diagnostics:read',
+  RELAY_REQUEST_ROUTE_TRACE_READ = 'relay:request_route_trace:read',
 
   // AccessKey权限
   ACCESSKEY_CREATE = 'accesskey:create',

@@ -31,6 +31,7 @@ const summarizeRelayConfigChanges = (data: UpdateRelayConfigRequest) => ({
   queueTimeout: data.queueTimeout,
   upstreamStreamTimeout: data.upstreamStreamTimeout,
   enableQueue: data.enableQueue,
+  apiCatalogPoolVisibility: data.apiCatalogPoolVisibility,
   uptimeStatusUrl: data.uptimeStatusUrl,
   monitorNameMapping: data.monitorNameMapping,
   showOnlyConfigured: data.showOnlyConfigured,
@@ -106,6 +107,8 @@ export class RelayConfigService {
         queueTimeout: defaultConfig.queueTimeout,
         upstreamStreamTimeout: defaultConfig.upstreamStreamTimeout,
         enableQueue: defaultConfig.enableQueue,
+        apiCatalogPoolVisibility:
+          defaultConfig.apiCatalogPoolVisibility === "anonymous-range" ? "anonymous-range" : "hidden",
         uptimeStatusUrl: defaultConfig.uptimeStatusUrl || undefined,
         monitorNameMapping: toMonitorNameMapping(defaultConfig.monitorNameMapping),
         showOnlyConfigured: defaultConfig.showOnlyConfigured ?? undefined,
@@ -122,6 +125,7 @@ export class RelayConfigService {
       queueTimeout: config.queueTimeout,
       upstreamStreamTimeout: config.upstreamStreamTimeout,
       enableQueue: config.enableQueue,
+      apiCatalogPoolVisibility: config.apiCatalogPoolVisibility === "anonymous-range" ? "anonymous-range" : "hidden",
       uptimeStatusUrl: config.uptimeStatusUrl || undefined,
       monitorNameMapping: toMonitorNameMapping(config.monitorNameMapping),
       showOnlyConfigured: config.showOnlyConfigured ?? undefined,
@@ -195,6 +199,7 @@ export class RelayConfigService {
         queueTimeout: data.queueTimeout,
         upstreamStreamTimeout: data.upstreamStreamTimeout,
         enableQueue: data.enableQueue,
+        apiCatalogPoolVisibility: data.apiCatalogPoolVisibility,
         uptimeStatusUrl: data.uptimeStatusUrl,
         monitorNameMapping:
           data.monitorNameMapping === null

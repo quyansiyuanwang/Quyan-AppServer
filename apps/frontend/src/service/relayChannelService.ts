@@ -11,6 +11,7 @@ import type {
   UpdateRelayChannelRequest,
   RelayChannelDto,
   RelayChannelOptionDto,
+  RelayCatalogOptionDto,
   RelayChannelExportResponse,
   RelayChannelHealthDto,
   RelayAutomaticPoolHealthDto,
@@ -66,10 +67,21 @@ class RelayChannelService {
     return checkApiResult<any>(result, true).data
   }
 
-  async listChannelOptions(targetUserId?: string): Promise<RelayChannelOptionDto[]> {
+  async listChannelOptions(
+    targetUserId?: string,
+    options?: { excludePooled?: boolean },
+  ): Promise<RelayChannelOptionDto[]> {
     const result = await relayChannelApi.listChannelOptions({
-      params: { targetUserId: targetUserId?.trim() || undefined },
+      params: {
+        targetUserId: targetUserId?.trim() || undefined,
+        excludePooled: options?.excludePooled === true ? true : undefined,
+      },
     })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async listCatalogOptions(): Promise<RelayCatalogOptionDto[]> {
+    const result = await relayChannelApi.listCatalogOptions()
     return checkApiResult<any>(result, true).data
   }
 
@@ -89,6 +101,11 @@ class RelayChannelService {
 
   async getChannelHealthOverview(): Promise<RelayChannelHealthOverviewDto> {
     const result = await relayChannelApi.getChannelHealthOverview()
+    return checkApiResult<any>(result, true).data
+  }
+
+  async getAutomaticPoolHealths(): Promise<RelayAutomaticPoolHealthDto[]> {
+    const result = await relayChannelApi.getAutomaticPoolHealths()
     return checkApiResult<any>(result, true).data
   }
 

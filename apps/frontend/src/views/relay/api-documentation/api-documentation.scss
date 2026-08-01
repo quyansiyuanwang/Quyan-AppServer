@@ -137,6 +137,12 @@
   width: auto;
 }
 
+.pricing-toolbar > .pricing-channel-filter {
+  flex: 1 1 280px;
+  min-width: 220px;
+  max-width: 360px;
+}
+
 .custom-multiplier-badge {
   flex: none;
 }

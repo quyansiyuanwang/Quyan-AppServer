@@ -118,23 +118,21 @@ export interface RelayChannelDto {
   updateTime: Date;
 }
 
-/**
- * Business-facing channel capability. Pooled channels expose a flattened, read-only leaf projection
- * so clients can calculate model-specific prices without receiving upstream configuration.
- */
+/** Business-facing channel capability. Pool topology is returned only to authorized callers. */
 export interface RelayChannelOptionDto {
   id: string;
   name: string;
   enabled: boolean;
-  channelType: RelayChannelType;
+  /** Omitted unless the caller is allowed to view relay pool topology. */
+  channelType?: RelayChannelType;
   multiplier: number;
   /** Configured whole-request context tiers for a standalone channel. */
   contextLengthMultipliers?: ContextLengthMultiplierRule[];
   allowedFormats: string;
   modelCapabilities: RelayChannelModelCapabilityDto[];
-  /** Present for pooled and automatic proxy pool channels. Contains final eligible leaf channels. */
+  /** Present for pooled and automatic proxy pool channels when pool metadata access is granted. */
   poolPricing?: RelayPoolPricingOptionDto;
-  /** Present only for automatic proxy pools. Excludes upstream URLs, credentials, mappings, and visibility rules. */
+  /** Present for automatic proxy pools when pool metadata access is granted. Excludes upstream credentials and URLs. */
   automaticProxyPool?: RelayAutomaticProxyPoolOptionDto;
 }
 
@@ -142,6 +140,34 @@ export interface RelayChannelModelCapabilityDto {
   catalogModelName: string;
   requestModelId: string;
   supportedRequestFormats: Array<"openai" | "anthropic" | "gemini">;
+}
+
+/** Model-specific multiplier range for a logical channel with variable upstream pricing. */
+export interface RelayCatalogModelPriceRangeDto {
+  catalogModelName: string;
+  requestModelId: string;
+  minMultiplier: number;
+  maxMultiplier: number;
+}
+
+/**
+ * Consumer-facing API documentation channel projection.
+ *
+ * A variable-priced logical channel intentionally has no pool type, member, or routing data.
+ * It is presented exactly like any other public channel, with only a model-level price range.
+ */
+export interface RelayCatalogOptionDto {
+  id: string;
+  name: string;
+  enabled: boolean;
+  allowedFormats: string;
+  modelCapabilities: RelayChannelModelCapabilityDto[];
+  pricingMode: "fixed" | "range";
+  multiplier?: number;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[];
+  modelPriceRanges?: RelayCatalogModelPriceRangeDto[];
+  pricingEffectiveAt: Date;
+  priceMayVary: boolean;
 }
 
 export interface RelayPoolPricingOptionDto {

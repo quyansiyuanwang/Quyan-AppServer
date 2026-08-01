@@ -39,8 +39,9 @@ import type {
   RelayTokenSwitchLogsDto,
   RelayTokenAvailableModelsDto,
   RelayRequestDiagnosticsPageDto,
+  RelayRequestRouteTraceDto,
 } from "@/api/dto/relay/relay.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { RequireAllPermissions, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import {
@@ -365,28 +366,41 @@ export class RelayController extends Controller {
 
   @Get("request-diagnostics")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @RequirePermission(Permission.RELAY_REQUEST_DIAGNOSTICS_READ)
   @Middlewares(validateQuery(relayRequestDiagnosticsQuerySchema))
   async getRequestDiagnostics(
+    @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() requestId?: string,
     @Query() keyword?: string,
-    @Query() channelId?: string,
     @Query() outcome?: "success" | "client-error" | "server-error",
     @Query() startDate?: string,
     @Query() endDate?: string,
   ): Promise<RelayRequestDiagnosticsPageDto> {
-    return this.relayTokenService.getRequestDiagnostics({
+    return this.relayTokenService.getRequestDiagnostics(request.user!.userId, {
       page,
       pageSize,
       requestId,
       keyword,
-      channelId,
       outcome,
       startDate,
       endDate,
     });
+  }
+
+  @Get("request-diagnostics/{requestId}/route-trace")
+  @Security("jwt")
+  @RequireAllPermissions([
+    Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
+    Permission.RELAY_REQUEST_ROUTE_TRACE_READ,
+    Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+  ])
+  async getRequestRouteTrace(
+    @Path() requestId: string,
+    @Request() request: TypedRequest,
+  ): Promise<RelayRequestRouteTraceDto> {
+    return this.relayTokenService.getRequestRouteTrace(request.user!.userId, requestId);
   }
 
   @Get("available-models")

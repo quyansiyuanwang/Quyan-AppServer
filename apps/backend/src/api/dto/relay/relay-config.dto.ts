@@ -26,6 +26,8 @@ export interface RelayConfigDto {
   /** 上游流式请求超时（毫秒） */
   upstreamStreamTimeout: number;
   enableQueue: boolean;
+  /** Whether API documentation publishes pooled routes anonymously or hides them. */
+  apiCatalogPoolVisibility: "hidden" | "anonymous-range";
   modelRates: ModelPricingItemDto[];
   uptimeStatusUrl?: string;
   monitorNameMapping?: Record<string, string> | null; // 监控项名称映射 { "2": "中国主线路", "3": "国际线路" }
@@ -44,6 +46,7 @@ export interface UpdateRelayConfigRequest {
   /** 上游流式请求超时（毫秒） */
   upstreamStreamTimeout?: number;
   enableQueue?: boolean;
+  apiCatalogPoolVisibility?: "hidden" | "anonymous-range";
   modelRates?: ModelPricingItemDto[];
   /** Uptime 状态 URL */
   uptimeStatusUrl?: string;

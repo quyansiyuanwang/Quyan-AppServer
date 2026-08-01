@@ -507,7 +507,6 @@ export const relayRequestDiagnosticsQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
   requestId: z.string().trim().max(64).optional(),
   keyword: z.string().trim().max(100).optional(),
-  channelId: z.string().trim().max(50).optional(),
   outcome: z.enum(["success", "client-error", "server-error"]).optional(),
   startDate: z
     .string()

@@ -73,8 +73,9 @@
           selected.relayTokenName || '-'
         }}</el-descriptions-item></el-descriptions
       >
-      <el-table v-if="selected" :data="selected.attempts" class="attempts"
+      <el-table v-if="selected" v-loading="traceLoading" :data="selectedAttempts" class="attempts"
         ><el-table-column
+          v-if="canViewRouteTrace"
           prop="executionChannelName"
           :label="i18ns.t('relay.executionChannel')"
           min-width="160" /><el-table-column
@@ -92,30 +93,55 @@
   </main>
 </template>
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { relayTokenService } from '@/service/relayTokenService'
 import { getErrorMessage } from '@/utils/error-utils'
-const records = ref<any[]>([])
+import { Permission } from '@/constant/permission'
+import { usePermissionStore } from '@/stores/permissionStore'
+import type { RelayRequestDiagnosticDto, RelayRequestRouteTraceDto } from '@/client/types.gen'
+
+const permissionStore = usePermissionStore()
+const canViewRouteTrace = computed(
+  () =>
+    permissionStore.hasPermission(Permission.RELAY_REQUEST_ROUTE_TRACE_READ) &&
+    permissionStore.hasPermission(Permission.RELAY_CHANNEL_POOL_METADATA_READ),
+)
+const records = ref<RelayRequestDiagnosticDto[]>([])
 const total = ref(0)
 const page = ref(1)
 const loading = ref(false)
 const error = ref('')
 const drawer = ref(false)
-const selected = ref<any>()
+const selected = ref<RelayRequestDiagnosticDto>()
+const trace = ref<RelayRequestRouteTraceDto>()
+const traceLoading = ref(false)
 const filters = ref({ requestId: '', keyword: '', outcome: '' })
 const formatTime = (value: string) => new Date(value).toLocaleString()
-const open = (row: any) => {
+const selectedAttempts = computed(() => trace.value?.attempts ?? selected.value?.attempts ?? [])
+const open = (row: RelayRequestDiagnosticDto) => {
   selected.value = row
+  trace.value = undefined
   drawer.value = true
+  if (canViewRouteTrace.value) void loadTrace(row.requestId)
+}
+async function loadTrace(requestId: string) {
+  traceLoading.value = true
+  try {
+    trace.value = await relayTokenService.getRequestRouteTrace(requestId)
+  } catch (cause) {
+    error.value = getErrorMessage(cause, i18ns.t('relay.requestDiagnosticsLoadFailed'))
+  } finally {
+    traceLoading.value = false
+  }
 }
 async function load() {
   loading.value = true
   error.value = ''
   try {
     const { outcome, ...textFilters } = filters.value
-    const data: any = await relayTokenService.getRequestDiagnostics({
+    const data = await relayTokenService.getRequestDiagnostics({
       page: page.value,
       pageSize: 20,
       ...textFilters,
