@@ -35,8 +35,10 @@ describe("DeveloperProductPlatformService product quota persistence", () => {
     });
     fixtureIds.userId = user.id;
 
-    const config = await prisma.developerProductConfig.create({
-      data: { productCode, enabled: true, defaultDailyQuota: 100, overagePrice: 0 },
+    const config = await prisma.developerProductConfig.upsert({
+      where: { productCode },
+      create: { productCode, enabled: true, defaultDailyQuota: 100, overagePrice: 0 },
+      update: { enabled: true, defaultDailyQuota: 100, overagePrice: 0 },
     });
     fixtureIds.configId = config.id;
 

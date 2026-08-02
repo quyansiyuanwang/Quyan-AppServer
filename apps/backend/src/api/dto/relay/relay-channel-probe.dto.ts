@@ -1,6 +1,12 @@
 import type { RelayChannelVisibilityMode } from "@/api/dto/relay/relay-channel.dto";
 
 export type RelayChannelProbeFormat = "openai" | "anthropic" | "gemini";
+export type RelayChannelProbeEndpoint =
+  | "openai-chat-completions"
+  | "openai-responses"
+  | "anthropic-messages"
+  | "gemini-generate-content";
+export type RelayChannelProbeCacheMode = "cache-bust" | "allow-cache" | "warm-and-read";
 export type RelayChannelProbeRunStatus = "queued" | "running" | "succeeded" | "failed" | "timed_out" | "cancelled";
 
 export interface RelayChannelProbeWorkflowStepDto {
@@ -19,10 +25,13 @@ export interface RelayChannelProbeProfileDto {
   relayChannelId: string;
   enabled: boolean;
   probeFormat: RelayChannelProbeFormat;
+  probeEndpoint: RelayChannelProbeEndpoint;
   probeModel: string;
   probePayload: Record<string, unknown>;
   /** Inject a unique marker into each probe request to prevent upstream cache collisions. */
   preventCache: boolean;
+  cacheMode: RelayChannelProbeCacheMode;
+  sampleCount: number;
   upstreamCurrency: string;
   localCurrency: string;
   upstreamBalanceDivisor: number;
@@ -39,9 +48,12 @@ export interface RelayChannelProbeProfileDto {
 export interface UpsertRelayChannelProbeProfileRequest {
   enabled: boolean;
   probeFormat: RelayChannelProbeFormat;
+  probeEndpoint?: RelayChannelProbeEndpoint;
   probeModel: string;
   probePayload: Record<string, unknown>;
   preventCache?: boolean;
+  cacheMode?: RelayChannelProbeCacheMode;
+  sampleCount?: number;
   upstreamCurrency?: string;
   localCurrency?: string;
   /** Divides the numeric balance extracted from the upstream response before calculating deltas. */
@@ -114,6 +126,17 @@ export interface RelayChannelProbeRunDto {
   startedAt?: Date;
   finishedAt?: Date;
   distributionMultiplier: number;
+  probeEndpoint: RelayChannelProbeEndpoint;
+  cacheMode: RelayChannelProbeCacheMode;
+  sampleCount: number;
+  sampleSucceededCount: number;
+  sampleAcceptedCount: number;
+  sampleDiscardedCount: number;
+  warmupRequestCount: number;
+  warmupCacheCreationTokens?: number;
+  warmupCacheReadTokens?: number;
+  warmupUsage?: Record<string, unknown>;
+  samples?: RelayChannelProbeSampleDto[];
   upstreamBalanceBefore?: number;
   upstreamBalanceAfter?: number;
   upstreamBalanceDelta?: number;
@@ -140,6 +163,25 @@ export interface RelayChannelProbeRunDto {
   requestedByUserId: string;
   createTime: Date;
   updateTime: Date;
+}
+
+export interface RelayChannelProbeSampleDto {
+  index: number;
+  status: "succeeded" | "failed" | "discarded";
+  accepted: boolean;
+  cacheBusterId?: string;
+  upstreamBalanceBefore?: number;
+  upstreamBalanceAfter?: number;
+  upstreamBalanceDelta?: number;
+  baseLocalCost?: number;
+  requestTokens?: number;
+  responseTokens?: number;
+  totalTokens?: number;
+  cacheCreationTokens?: number;
+  cacheReadTokens?: number;
+  suggestedMultiplier?: number;
+  cacheHitVerified?: boolean;
+  errorMessage?: string;
 }
 
 export interface RelayChannelProbeRunPageDto {

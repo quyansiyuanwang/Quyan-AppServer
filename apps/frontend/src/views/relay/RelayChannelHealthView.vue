@@ -10,6 +10,7 @@
     </el-alert>
 
     <div
+      v-if="canViewPoolMetadata"
       class="health-view-switch"
       role="navigation"
       :aria-label="i18ns.t('relay.channelHealthManagement')"
@@ -18,7 +19,7 @@
         <el-radio-button value="channels">{{
           i18ns.t('relay.channelRuntimeStatus')
         }}</el-radio-button>
-        <el-radio-button value="pools">{{
+        <el-radio-button v-if="canViewPoolMetadata" value="pools">{{
           i18ns.t('relay.automaticPoolBaseRouteOrder')
         }}</el-radio-button>
       </el-radio-group>
@@ -165,7 +166,7 @@
     </section>
 
     <section
-      v-show="activeView === 'pools'"
+      v-if="canViewPoolMetadata && activeView === 'pools'"
       class="pool-route-section"
       aria-label="Automatic proxy pool route order"
     >
@@ -426,6 +427,9 @@ const refreshingPoolId = ref<string | null>(null)
 let latestRequest = 0
 
 const canUpdate = computed(() => permissionStore.hasPermission(Permission.RELAY_CHANNEL_UPDATE))
+const canViewPoolMetadata = computed(() =>
+  permissionStore.hasPermission(Permission.RELAY_CHANNEL_POOL_METADATA_READ),
+)
 const automaticCount = computed(
   () => channels.value.filter((item) => item.trackingMode === 'automatic').length,
 )
@@ -483,7 +487,7 @@ const loadOverview = async () => {
     if (requestId !== latestRequest) return
     channels.value = result.channels
     selectedChannelIds.value = []
-    void loadAutomaticPoolRoutes()
+    if (canViewPoolMetadata.value) void loadAutomaticPoolRoutes()
   } catch (cause) {
     if (requestId !== latestRequest) return
     error.value = getErrorMessage(cause, i18ns.t('relay.healthLoadFailed'))
@@ -498,16 +502,11 @@ const loadAutomaticPoolRoutes = async () => {
   automaticPoolsLoading.value = true
   automaticPoolsError.value = ''
   try {
-    const allChannels = await relayChannelService.listChannels({ includeDisabled: true })
-    const poolChannels = allChannels.filter(
-      (channel) => channel.channelType === 'automatic-proxy-pool',
-    )
-    const results = await Promise.all(
-      poolChannels.map((channel) => relayChannelService.getChannelHealth(channel.id)),
-    )
-    automaticPools.value = results.filter(
-      (result): result is RelayAutomaticPoolHealthDto => 'members' in result,
-    )
+    if (!canViewPoolMetadata.value) {
+      automaticPools.value = []
+      return
+    }
+    automaticPools.value = await relayChannelService.getAutomaticPoolHealths()
   } catch (cause) {
     automaticPools.value = []
     automaticPoolsError.value = getErrorMessage(cause, i18ns.t('relay.healthLoadFailed'))

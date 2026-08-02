@@ -55,9 +55,12 @@ export class RelayChannelProbeRepository {
     const data = {
       enabled: source.enabled,
       probeFormat: source.probeFormat,
+      probeEndpoint: source.probeEndpoint,
       probeModel: source.probeModel,
       probePayload: source.probePayload as Prisma.InputJsonValue,
       preventCache: source.preventCache,
+      cacheMode: source.cacheMode,
+      sampleCount: source.sampleCount,
       upstreamCurrency: source.upstreamCurrency,
       localCurrency: source.localCurrency,
       upstreamBalanceDivisor: source.upstreamBalanceDivisor,

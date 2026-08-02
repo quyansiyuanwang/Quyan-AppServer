@@ -86,6 +86,8 @@ export interface BatchRelayTokensResultDto {
 export interface CreateRelayTokenDto {
   routingMode?: "ordered" | "automatic-pool";
   automaticProxyPoolChannelId?: string;
+  /** 自动代理池中不参与该令牌路由的成员渠道 ID */
+  blockedAutomaticProxyPoolChannelIds?: string[];
   /** 目标用户 ID，不传则为当前用户 */
   targetUserId?: string;
   /**
@@ -132,6 +134,8 @@ export interface CreateRelayTokenDto {
 export interface UpdateRelayTokenDto {
   routingMode?: "ordered" | "automatic-pool";
   automaticProxyPoolChannelId?: string | null;
+  /** 自动代理池中不参与该令牌路由的成员渠道 ID */
+  blockedAutomaticProxyPoolChannelIds?: string[];
   targetUserId?: string;
   /** Token 名称 */
   name?: string | null;
@@ -240,6 +244,7 @@ export interface RelayTokenDto {
   channelName?: string;
   routingMode?: "ordered" | "automatic-pool";
   automaticProxyPoolChannelId?: string;
+  blockedAutomaticProxyPoolChannelIds?: string[];
   expiresAt?: Date;
   lastUsedAt?: Date;
   createTime: Date;
@@ -286,8 +291,6 @@ export interface RelayUsageStatsDto {
 
 export interface RelayRequestDiagnosticAttemptDto {
   id: string;
-  executionChannelId?: string;
-  executionChannelName?: string;
   statusCode: number;
   method: string;
   path: string;
@@ -295,6 +298,17 @@ export interface RelayRequestDiagnosticAttemptDto {
   timeToFirstByte?: number;
   totalOutputTime?: number;
   createTime: Date;
+}
+
+/** Privileged execution trace. This projection intentionally contains routing data. */
+export interface RelayRequestRouteTraceAttemptDto extends RelayRequestDiagnosticAttemptDto {
+  executionChannelId?: string;
+  executionChannelName?: string;
+}
+
+export interface RelayRequestRouteTraceDto {
+  requestId: string;
+  attempts: RelayRequestRouteTraceAttemptDto[];
 }
 
 export interface RelayRequestDiagnosticDto {

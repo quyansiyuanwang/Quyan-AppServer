@@ -12,6 +12,7 @@ export interface SendMessageRequest {
   content: string;
   model: string;
   relayTokenId?: string;
+  replaceMessageId?: string;
 }
 
 export interface ConversationResponse {
@@ -35,6 +36,7 @@ export interface MessageResponse {
   outputTokens: number | null;
   totalTokens: number | null;
   cost?: number | null;
+  completionStatus: string;
   createTime: Date;
 }
 

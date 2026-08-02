@@ -56,6 +56,10 @@ class RelayTokenService {
     return this.unwrapResponse(await relayApi.getRequestDiagnostics({ params }))
   }
 
+  async getRequestRouteTrace(requestId: string) {
+    return this.unwrapResponse(await relayApi.getRequestRouteTrace({ path: { requestId } }))
+  }
+
   private assertSuccess(result: { code?: number; message?: string } | null | undefined) {
     if (!result) {
       throw new Error('Request failed')

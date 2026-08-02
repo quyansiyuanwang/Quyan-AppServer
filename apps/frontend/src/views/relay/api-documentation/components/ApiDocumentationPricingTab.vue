@@ -2,7 +2,7 @@
 import { ArrowDown, ArrowUp, Refresh, Search } from '@element-plus/icons-vue'
 import ComponentErrorBoundary from '@/components/common/ComponentErrorBoundary.vue'
 import ModelPricingTable from '@/components/relay/ModelPricingTable.vue'
-import type { RelayChannelOptionDto } from '@/client/types.gen'
+import type { RelayCatalogOptionDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
 import { useApiDocumentationContext } from '../context'
 
@@ -13,8 +13,6 @@ const filterChannelIds = state.filterChannelIds
 const filterPricingType = state.filterPricingType
 const filterModelKeyword = state.filterModelKeyword
 const onlyModelsWithChannels = state.onlyModelsWithChannels
-const hideIndependentChannels = state.hideIndependentChannels
-const hideAutomaticProxyPools = state.hideAutomaticProxyPools
 const channelMatchMode = state.channelMatchMode
 const channelPriceMode = state.channelPriceMode
 const pricingTableMode = state.pricingTableMode
@@ -41,8 +39,6 @@ const mobilePricingAdvancedSettingsExpanded = state.mobilePricingAdvancedSetting
 const mobileSortField = state.mobileSortField
 const mobileSortOrder = state.mobileSortOrder
 const paginatedPricingData = state.paginatedPricingData
-const selectedChannelCount = state.selectedChannelCount
-const selectedChannelSummary = state.selectedChannelSummary
 const selectedChannels = state.selectedChannels
 const primaryComparisonChannel = state.primaryComparisonChannel
 const showCacheMultipliers = state.showCacheMultipliers
@@ -114,42 +110,20 @@ const onPrimaryComparisonChannelChange = (value: string | number | boolean | und
 
 const formatChannelMultiplier = (multiplier?: number | null) => {
   const resolvedMultiplier = multiplier ?? 1
-  return `x${resolvedMultiplier}`
+  return `x${parseFloat(resolvedMultiplier.toFixed(4))}`
 }
 
-const getPoolLabel = (channel: RelayChannelOptionDto) =>
-  channel.channelType === 'automatic-proxy-pool'
-    ? t('apiDoc.automaticProxyPool')
-    : t('relay.channelTypePooled')
+const formatChannelOptionLabel = (channel: RelayCatalogOptionDto) => channel.name
 
-const getPoolMultipliers = (channel: RelayChannelOptionDto) =>
-  (channel.poolPricing?.members ?? [])
-    .filter((member) => member.enabled)
-    .map((member) => member.effectiveMultiplier)
+const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
+  if (channel.pricingMode === 'fixed') return formatChannelMultiplier(channel.multiplier)
 
-const formatChannelOptionLabel = (channel: RelayChannelOptionDto) => {
-  if (!channel.poolPricing) {
-    return `${channel.name} ${formatChannelMultiplier(channel.multiplier)}`
-  }
+  const ranges = channel.modelPriceRanges ?? []
+  if (ranges.length === 0) return '-'
 
-  const multipliers = getPoolMultipliers(channel)
-
-  if (multipliers.length === 0) {
-    return `${channel.name} · ${getPoolLabel(channel)}`
-  }
-
-  return `${channel.name} · ${getPoolLabel(channel)} ${formatChannelMultiplier(Math.min(...multipliers))}–${formatChannelMultiplier(Math.max(...multipliers))}`
-}
-
-const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
-  if (!channel.poolPricing) return formatChannelMultiplier(channel.multiplier)
-
-  const multipliers = getPoolMultipliers(channel)
-
-  if (multipliers.length === 0) return t('apiDoc.noActivePoolMembers')
-  return `${formatChannelMultiplier(Math.min(...multipliers))}–${formatChannelMultiplier(
-    Math.max(...multipliers),
-  )}`
+  const minimum = Math.min(...ranges.map((range) => range.minMultiplier))
+  const maximum = Math.max(...ranges.map((range) => range.maxMultiplier))
+  return `${formatChannelMultiplier(minimum)}–${formatChannelMultiplier(maximum)}`
 }
 </script>
 
@@ -179,8 +153,8 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
           filterable
           collapse-tags
           collapse-tags-tooltip
-          :max-collapse-tags="2"
-          class="pricing-filter"
+          :max-collapse-tags="1"
+          class="pricing-filter pricing-channel-filter"
         >
           <el-option
             v-for="channel in visibleChannels"
@@ -196,10 +170,6 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
             </div>
           </el-option>
         </el-select>
-
-        <el-tag v-if="selectedChannelCount > 0" type="info" size="small" effect="plain">
-          {{ selectedChannelSummary }}
-        </el-tag>
 
         <el-input
           v-model="filterModelKeyword"
@@ -244,16 +214,6 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
             <div class="pricing-more-settings-item pricing-more-settings-item--between">
               <span class="pricing-inline-label">{{ t('apiDoc.showCacheMultipliers') }}</span>
               <el-switch v-model="showCacheMultipliers" />
-            </div>
-
-            <div class="pricing-more-settings-item pricing-more-settings-item--between">
-              <span class="pricing-inline-label">{{ t('apiDoc.hideIndependentChannels') }}</span>
-              <el-switch v-model="hideIndependentChannels" />
-            </div>
-
-            <div class="pricing-more-settings-item pricing-more-settings-item--between">
-              <span class="pricing-inline-label">{{ t('apiDoc.hideAutomaticProxyPools') }}</span>
-              <el-switch v-model="hideAutomaticProxyPools" />
             </div>
 
             <div class="pricing-more-settings-item">
@@ -495,8 +455,8 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
               filterable
               collapse-tags
               collapse-tags-tooltip
-              :max-collapse-tags="2"
-              class="pricing-filter"
+              :max-collapse-tags="1"
+              class="pricing-filter pricing-channel-filter"
             >
               <el-option
                 v-for="channel in visibleChannels"
@@ -545,10 +505,6 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
               <el-option :label="t('apiDoc.sortDescending')" value="desc" />
             </el-select>
 
-            <el-tag v-if="selectedChannelCount > 0" type="info" size="small" effect="plain">
-              {{ selectedChannelSummary }}
-            </el-tag>
-
             <el-button
               text
               class="pricing-more-settings-toggle"
@@ -583,20 +539,6 @@ const formatChannelOptionMultiplier = (channel: RelayChannelOptionDto) => {
                     {{ t('apiDoc.showCacheMultipliers') }}
                   </span>
                   <el-switch v-model="showCacheMultipliers" />
-                </div>
-
-                <div class="pricing-mobile-switch">
-                  <span class="pricing-mobile-switch-label">
-                    {{ t('apiDoc.hideIndependentChannels') }}
-                  </span>
-                  <el-switch v-model="hideIndependentChannels" />
-                </div>
-
-                <div class="pricing-mobile-switch">
-                  <span class="pricing-mobile-switch-label">
-                    {{ t('apiDoc.hideAutomaticProxyPools') }}
-                  </span>
-                  <el-switch v-model="hideAutomaticProxyPools" />
                 </div>
 
                 <div class="pricing-inline-control pricing-inline-control--mobile">

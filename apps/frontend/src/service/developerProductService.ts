@@ -1,6 +1,7 @@
 import type {
   CreateDeveloperProductApiKeyDto,
   CreateDeveloperProductInstanceDto,
+  CreateDeveloperStatusMonitorDto,
   DeveloperProductCode,
   UpdateDeveloperPushChannelDto,
   UpdateDeveloperStatusMonitorDto,
@@ -159,16 +160,7 @@ export class DeveloperProductService {
   async listMonitorResources(instanceId: string) {
     return this.unwrap(await resourceApi().listMonitors({ path: { instanceId } }))
   }
-  async createMonitorResource(
-    instanceId: string,
-    body: {
-      name: string
-      targetUrl: string
-      method?: 'GET' | 'HEAD'
-      intervalSec?: number
-      successStatusCodes?: number[]
-    },
-  ) {
+  async createMonitorResource(instanceId: string, body: CreateDeveloperStatusMonitorDto) {
     return this.unwrap(await resourceApi().createMonitor({ path: { instanceId }, body }))
   }
   async updateMonitorResource(

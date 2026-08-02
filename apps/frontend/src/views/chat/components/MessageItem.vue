@@ -1,7 +1,7 @@
 <template>
   <div :class="['message-item', message.role]">
     <div class="message-wrapper">
-      <div class="message-content" @click="handleClick">
+      <div class="message-content">
         <div
           v-if="!isEditing"
           class="content chat-markdown"
@@ -19,35 +19,40 @@
           ref="editInput"
         />
       </div>
+      <div v-if="message.role === 'assistant' && message.clientState" class="message-status">
+        {{ statusText }}
+      </div>
       <div class="actions-overlay">
-        <el-button text size="small" @click.stop="handleCopy">
-          <el-icon><CopyDocument /></el-icon>
-        </el-button>
-        <el-button v-if="message.role === 'user'" text size="small" @click.stop="handleResend">
-          <el-icon><Refresh /></el-icon>
-        </el-button>
-        <el-button
-          v-if="message.role === 'assistant'"
-          text
-          size="small"
-          :disabled="sending"
-          @click.stop="handleRegenerate"
-        >
-          <el-icon><Refresh /></el-icon>
-        </el-button>
-        <el-button text size="small" type="danger" @click.stop="handleDelete">
-          <el-icon><Delete /></el-icon>
-        </el-button>
+        <el-tooltip :content="i18ns.t('copy')"
+          ><el-button text size="small" @click.stop="handleCopy"
+            ><el-icon><CopyDocument /></el-icon></el-button
+        ></el-tooltip>
+        <el-tooltip v-if="message.role === 'user'" :content="i18ns.t('chat.editMessage')"
+          ><el-button text size="small" :disabled="sending" @click.stop="startEdit"
+            ><el-icon><EditPen /></el-icon></el-button
+        ></el-tooltip>
+        <el-tooltip v-if="message.role === 'user'" :content="i18ns.t('chat.resend')"
+          ><el-button text size="small" :disabled="sending" @click.stop="handleResend"
+            ><el-icon><Refresh /></el-icon></el-button
+        ></el-tooltip>
+        <el-tooltip v-if="message.role === 'assistant'" :content="i18ns.t('chat.regenerate')"
+          ><el-button text size="small" :disabled="sending" @click.stop="handleRegenerate"
+            ><el-icon><Refresh /></el-icon></el-button
+        ></el-tooltip>
+        <el-tooltip :content="i18ns.t('chat.delete')"
+          ><el-button text size="small" type="danger" :disabled="sending" @click.stop="handleDelete"
+            ><el-icon><Delete /></el-icon></el-button
+        ></el-tooltip>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick, watch, computed } from 'vue'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { Message } from '@/types/chat'
-import { CopyDocument, Refresh, Delete } from '@element-plus/icons-vue'
+import { CopyDocument, Refresh, Delete, EditPen } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { highlightCodeBlocks, renderChatMarkdown } from '@/utils/asyncMarkdown'
 import 'highlight.js/styles/github-dark.css'
@@ -71,6 +76,15 @@ const editInput = ref()
 const contentRef = ref<HTMLElement>()
 const htmlContent = ref('')
 let renderVersion = 0
+
+const statusText = computed(() => {
+  if (props.message.clientState === 'streaming') return i18ns.t('chat.generating')
+  if (props.message.clientState === 'stopped' || props.message.completionStatus === 'stopped')
+    return i18ns.t('chat.stopped')
+  if (props.message.clientState === 'failed' || props.message.completionStatus === 'failed')
+    return props.message.errorMessage || i18ns.t('chat.generationFailed')
+  return ''
+})
 
 async function addCopyButtons() {
   if (!contentRef.value) return
@@ -126,12 +140,6 @@ watch(
   },
   { immediate: true },
 )
-
-function handleClick() {
-  if (props.message.role === 'user' && !isEditing.value) {
-    startEdit()
-  }
-}
 
 function startEdit() {
   isEditing.value = true
@@ -288,6 +296,11 @@ async function handleDelete() {
   margin-top: 4px;
   opacity: 0;
   transition: opacity 0.2s;
+}
+.message-status {
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 .message-item.user .actions-overlay {
   justify-content: flex-end;

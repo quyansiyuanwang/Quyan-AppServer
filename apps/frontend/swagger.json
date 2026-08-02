@@ -13664,14 +13664,6 @@
 					},
 					{
 						"in": "query",
-						"name": "channelId",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "query",
 						"name": "outcome",
 						"required": false,
 						"schema": {
@@ -13695,6 +13687,41 @@
 						"in": "query",
 						"name": "endDate",
 						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay/request-diagnostics/{requestId}/route-trace": {
+			"get": {
+				"operationId": "RelayControllerGetRequestRouteTrace",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayRequestRouteTraceDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "requestId",
+						"required": true,
 						"schema": {
 							"type": "string"
 						}
@@ -14133,8 +14160,46 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "query",
+						"name": "excludePooled",
+						"required": false,
+						"schema": {
+							"type": "boolean"
+						}
 					}
 				]
+			}
+		},
+		"/v1/relay-channels/catalog": {
+			"get": {
+				"operationId": "RelayChannelControllerListCatalogOptions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RelayCatalogOptionDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Consumer-facing API documentation catalog. Variable-priced logical channels expose only a\nmodel-level multiplier range; pool topology, members, and routing are never included.",
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/v1/relay-channels/health/overview": {
@@ -14254,6 +14319,35 @@
 					"purpose": "stepup",
 					"method": "code"
 				}
+			}
+		},
+		"/v1/relay-channels/health/automatic-pools": {
+			"get": {
+				"operationId": "RelayChannelControllerGetAutomaticPoolHealths",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RelayAutomaticPoolHealthDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/v1/relay-channels/{id}/health-config": {
@@ -28078,9 +28172,13 @@
 					"relay:channel:update",
 					"relay:channel:delete",
 					"relay:channel:export",
+					"relay:channel:health:read",
+					"relay:channel:pool_metadata:read",
 					"relay:channel:probe:read",
 					"relay:channel:probe:execute",
 					"relay:channel:multiplier:adjust",
+					"relay:request_diagnostics:read",
+					"relay:request_route_trace:read",
 					"accesskey:create",
 					"accesskey:read",
 					"accesskey:delete",
@@ -35848,6 +35946,12 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string"
 					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
 					"expiresAt": {
 						"type": "string",
 						"format": "date-time"
@@ -35969,6 +36073,13 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string"
 					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
+					},
 					"targetUserId": {
 						"type": "string",
 						"description": "目标用户 ID，不传则为当前用户"
@@ -36043,6 +36154,13 @@
 					},
 					"automaticProxyPoolChannelId": {
 						"type": "string"
+					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
 					},
 					"targetUserId": {
 						"type": "string",
@@ -36208,6 +36326,13 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string"
 					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
+					},
 					"targetUserId": {
 						"type": "string",
 						"description": "目标用户 ID，不传则为当前用户"
@@ -36366,6 +36491,13 @@
 					"automaticProxyPoolChannelId": {
 						"type": "string",
 						"nullable": true
+					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
 					},
 					"targetUserId": {
 						"type": "string"
@@ -36824,12 +36956,6 @@
 					"id": {
 						"type": "string"
 					},
-					"executionChannelId": {
-						"type": "string"
-					},
-					"executionChannelName": {
-						"type": "string"
-					},
 					"statusCode": {
 						"type": "number",
 						"format": "double"
@@ -36932,6 +37058,75 @@
 					"page",
 					"pageSize",
 					"records"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayRequestRouteTraceAttemptDto": {
+				"description": "Privileged execution trace. This projection intentionally contains routing data.",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"statusCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"method": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"timeToFirstByte": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalOutputTime": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"executionChannelId": {
+						"type": "string"
+					},
+					"executionChannelName": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"statusCode",
+					"method",
+					"path",
+					"totalTokens",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayRequestRouteTraceDto": {
+				"properties": {
+					"requestId": {
+						"type": "string"
+					},
+					"attempts": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestRouteTraceAttemptDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"requestId",
+					"attempts"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -37155,6 +37350,14 @@
 					"enableQueue": {
 						"type": "boolean"
 					},
+					"apiCatalogPoolVisibility": {
+						"type": "string",
+						"enum": [
+							"hidden",
+							"anonymous-range"
+						],
+						"description": "Whether API documentation publishes pooled routes anonymously or hides them."
+					},
 					"modelRates": {
 						"items": {
 							"$ref": "#/components/schemas/ModelPricingItemDto"
@@ -37184,6 +37387,7 @@
 					"queueTimeout",
 					"upstreamStreamTimeout",
 					"enableQueue",
+					"apiCatalogPoolVisibility",
 					"modelRates"
 				],
 				"type": "object",
@@ -37213,6 +37417,13 @@
 					},
 					"enableQueue": {
 						"type": "boolean"
+					},
+					"apiCatalogPoolVisibility": {
+						"type": "string",
+						"enum": [
+							"hidden",
+							"anonymous-range"
+						]
 					},
 					"modelRates": {
 						"items": {
@@ -38191,7 +38402,7 @@
 				"additionalProperties": false
 			},
 			"RelayChannelOptionDto": {
-				"description": "Business-facing channel capability. Pooled channels expose a flattened, read-only leaf projection\nso clients can calculate model-specific prices without receiving upstream configuration.",
+				"description": "Business-facing channel capability. Pool topology is returned only to authorized callers.",
 				"properties": {
 					"id": {
 						"type": "string"
@@ -38203,7 +38414,8 @@
 						"type": "boolean"
 					},
 					"channelType": {
-						"$ref": "#/components/schemas/RelayChannelType"
+						"$ref": "#/components/schemas/RelayChannelType",
+						"description": "Omitted unless the caller is allowed to view relay pool topology."
 					},
 					"multiplier": {
 						"type": "number",
@@ -38227,21 +38439,112 @@
 					},
 					"poolPricing": {
 						"$ref": "#/components/schemas/RelayPoolPricingOptionDto",
-						"description": "Present for pooled and automatic proxy pool channels. Contains final eligible leaf channels."
+						"description": "Present for pooled and automatic proxy pool channels when pool metadata access is granted."
 					},
 					"automaticProxyPool": {
 						"$ref": "#/components/schemas/RelayAutomaticProxyPoolOptionDto",
-						"description": "Present only for automatic proxy pools. Excludes upstream URLs, credentials, mappings, and visibility rules."
+						"description": "Present for automatic proxy pools when pool metadata access is granted. Excludes upstream credentials and URLs."
 					}
 				},
 				"required": [
 					"id",
 					"name",
 					"enabled",
-					"channelType",
 					"multiplier",
 					"allowedFormats",
 					"modelCapabilities"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayCatalogModelPriceRangeDto": {
+				"description": "Model-specific multiplier range for a logical channel with variable upstream pricing.",
+				"properties": {
+					"catalogModelName": {
+						"type": "string"
+					},
+					"requestModelId": {
+						"type": "string"
+					},
+					"minMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"maxMultiplier": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"catalogModelName",
+					"requestModelId",
+					"minMultiplier",
+					"maxMultiplier"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayCatalogOptionDto": {
+				"description": "Consumer-facing API documentation channel projection.\n\nA variable-priced logical channel intentionally has no pool type, member, or routing data.\nIt is presented exactly like any other public channel, with only a model-level price range.",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"allowedFormats": {
+						"type": "string"
+					},
+					"modelCapabilities": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelModelCapabilityDto"
+						},
+						"type": "array"
+					},
+					"pricingMode": {
+						"type": "string",
+						"enum": [
+							"fixed",
+							"range"
+						]
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array"
+					},
+					"modelPriceRanges": {
+						"items": {
+							"$ref": "#/components/schemas/RelayCatalogModelPriceRangeDto"
+						},
+						"type": "array"
+					},
+					"pricingEffectiveAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"priceMayVary": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"enabled",
+					"allowedFormats",
+					"modelCapabilities",
+					"pricingMode",
+					"pricingEffectiveAt",
+					"priceMayVary"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -39392,6 +39695,23 @@
 					"gemini"
 				]
 			},
+			"RelayChannelProbeEndpoint": {
+				"type": "string",
+				"enum": [
+					"openai-chat-completions",
+					"openai-responses",
+					"anthropic-messages",
+					"gemini-generate-content"
+				]
+			},
+			"RelayChannelProbeCacheMode": {
+				"type": "string",
+				"enum": [
+					"cache-bust",
+					"allow-cache",
+					"warm-and-read"
+				]
+			},
 			"RelayChannelProbeWorkflowStepDto": {
 				"properties": {
 					"name": {
@@ -39445,6 +39765,9 @@
 					"probeFormat": {
 						"$ref": "#/components/schemas/RelayChannelProbeFormat"
 					},
+					"probeEndpoint": {
+						"$ref": "#/components/schemas/RelayChannelProbeEndpoint"
+					},
 					"probeModel": {
 						"type": "string"
 					},
@@ -39454,6 +39777,13 @@
 					"preventCache": {
 						"type": "boolean",
 						"description": "Inject a unique marker into each probe request to prevent upstream cache collisions."
+					},
+					"cacheMode": {
+						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
 					},
 					"upstreamCurrency": {
 						"type": "string"
@@ -39503,9 +39833,12 @@
 					"relayChannelId",
 					"enabled",
 					"probeFormat",
+					"probeEndpoint",
 					"probeModel",
 					"probePayload",
 					"preventCache",
+					"cacheMode",
+					"sampleCount",
 					"upstreamCurrency",
 					"localCurrency",
 					"upstreamBalanceDivisor",
@@ -39529,6 +39862,81 @@
 					"timed_out",
 					"cancelled"
 				]
+			},
+			"RelayChannelProbeSampleDto": {
+				"properties": {
+					"index": {
+						"type": "number",
+						"format": "double"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"succeeded",
+							"failed",
+							"discarded"
+						]
+					},
+					"accepted": {
+						"type": "boolean"
+					},
+					"cacheBusterId": {
+						"type": "string"
+					},
+					"upstreamBalanceBefore": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamBalanceAfter": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamBalanceDelta": {
+						"type": "number",
+						"format": "double"
+					},
+					"baseLocalCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"requestTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"responseTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheCreationTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheReadTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"suggestedMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheHitVerified": {
+						"type": "boolean"
+					},
+					"errorMessage": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"index",
+					"status",
+					"accepted"
+				],
+				"type": "object",
+				"additionalProperties": false
 			},
 			"RelayChannelProbeCostBreakdownDto": {
 				"properties": {
@@ -39619,6 +40027,49 @@
 					"distributionMultiplier": {
 						"type": "number",
 						"format": "double"
+					},
+					"probeEndpoint": {
+						"$ref": "#/components/schemas/RelayChannelProbeEndpoint"
+					},
+					"cacheMode": {
+						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"sampleSucceededCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"sampleAcceptedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"sampleDiscardedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupRequestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupCacheCreationTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupCacheReadTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"warmupUsage": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"samples": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeSampleDto"
+						},
+						"type": "array"
 					},
 					"upstreamBalanceBefore": {
 						"type": "number",
@@ -39724,6 +40175,13 @@
 					"status",
 					"queuedAt",
 					"distributionMultiplier",
+					"probeEndpoint",
+					"cacheMode",
+					"sampleCount",
+					"sampleSucceededCount",
+					"sampleAcceptedCount",
+					"sampleDiscardedCount",
+					"warmupRequestCount",
 					"upstreamRateMultiplier",
 					"cacheBustingEnabled",
 					"forceWithoutCacheBuster",
@@ -39802,6 +40260,9 @@
 					"probeFormat": {
 						"$ref": "#/components/schemas/RelayChannelProbeFormat"
 					},
+					"probeEndpoint": {
+						"$ref": "#/components/schemas/RelayChannelProbeEndpoint"
+					},
 					"probeModel": {
 						"type": "string"
 					},
@@ -39810,6 +40271,13 @@
 					},
 					"preventCache": {
 						"type": "boolean"
+					},
+					"cacheMode": {
+						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
+					},
+					"sampleCount": {
+						"type": "number",
+						"format": "double"
 					},
 					"upstreamCurrency": {
 						"type": "string"
@@ -42531,6 +42999,19 @@
 					"method": {
 						"type": "string"
 					},
+					"requestBody": {
+						"type": "string"
+					},
+					"responseBodyMatchMode": {
+						"type": "string",
+						"enum": [
+							"contains",
+							"equals"
+						]
+					},
+					"responseBodyMatch": {
+						"type": "string"
+					},
 					"intervalSec": {
 						"type": "number",
 						"format": "double"
@@ -42575,8 +43056,28 @@
 						"type": "string",
 						"enum": [
 							"GET",
-							"HEAD"
+							"HEAD",
+							"POST",
+							"PUT",
+							"PATCH",
+							"DELETE"
 						]
+					},
+					"requestBody": {
+						"type": "string",
+						"description": "JSON request payload. Only supported by POST, PUT, PATCH, and DELETE monitors."
+					},
+					"responseBodyMatchMode": {
+						"type": "string",
+						"enum": [
+							"contains",
+							"equals"
+						],
+						"description": "How the raw response body is matched when responseBodyMatch is configured."
+					},
+					"responseBodyMatch": {
+						"type": "string",
+						"description": "Expected raw response body text. The monitor is down when it does not match."
 					},
 					"intervalSec": {
 						"type": "number",
@@ -42609,8 +43110,32 @@
 						"type": "string",
 						"enum": [
 							"GET",
-							"HEAD"
+							"HEAD",
+							"POST",
+							"PUT",
+							"PATCH",
+							"DELETE"
 						]
+					},
+					"requestBody": {
+						"type": "string",
+						"nullable": true,
+						"description": "Set to null to clear the JSON request payload."
+					},
+					"responseBodyMatchMode": {
+						"type": "string",
+						"enum": [
+							"contains",
+							"equals",
+							null
+						],
+						"nullable": true,
+						"description": "Set to null to disable response body matching."
+					},
+					"responseBodyMatch": {
+						"type": "string",
+						"nullable": true,
+						"description": "Set to null to clear the expected response body text."
 					},
 					"intervalSec": {
 						"type": "number",
@@ -43515,6 +44040,9 @@
 						"format": "double",
 						"nullable": true
 					},
+					"completionStatus": {
+						"type": "string"
+					},
 					"createTime": {
 						"type": "string",
 						"format": "date-time"
@@ -43529,6 +44057,7 @@
 					"inputTokens",
 					"outputTokens",
 					"totalTokens",
+					"completionStatus",
 					"createTime"
 				],
 				"type": "object",
@@ -43615,6 +44144,9 @@
 						"type": "string"
 					},
 					"relayTokenId": {
+						"type": "string"
+					},
+					"replaceMessageId": {
 						"type": "string"
 					}
 				},

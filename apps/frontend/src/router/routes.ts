@@ -751,14 +751,14 @@ export const routes = [
             name: 'relayChannelHealth',
             component: () => import('@/views/relay/RelayChannelHealthView.vue'),
             meta: {
-              permission: Permission.RELAY_CHANNEL_READ,
+              permission: Permission.RELAY_CHANNEL_HEALTH_READ,
             },
           },
           {
             path: 'relay/request-diagnostics',
             name: 'relayRequestDiagnostics',
             component: () => import('@/views/relay/RelayRequestDiagnosticsView.vue'),
-            meta: { permission: Permission.RELAY_CHANNEL_READ },
+            meta: { permission: Permission.RELAY_REQUEST_DIAGNOSTICS_READ },
           },
           {
             path: 'relay/channel-probes',

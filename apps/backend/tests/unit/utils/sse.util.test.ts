@@ -41,7 +41,7 @@ describe("SSEStreamService", () => {
 
     expect(res.write).toHaveBeenNthCalledWith(1, 'data: {"a":1}\n\n');
     expect(res.write).toHaveBeenNthCalledWith(2, "data: [DONE]\n\n");
-    expect(res.write).toHaveBeenNthCalledWith(3, 'data: {"error":"boom"}\n\n');
+    expect(res.write).toHaveBeenNthCalledWith(3, 'data: {"type":"error","error":"boom","done":true}\n\n');
     expect(res.end).toHaveBeenCalledTimes(1);
   });
 

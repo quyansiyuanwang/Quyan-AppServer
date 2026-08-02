@@ -359,15 +359,46 @@
                           :value="model"
                           :label="model" /></el-select
                     ></el-form-item>
+                    <el-form-item :label="i18ns.t('relay.channelProbeEndpoint')">
+                      <el-select v-model="form.probeEndpoint" :disabled="!canExecute">
+                        <el-option
+                          v-for="endpoint in probeEndpointOptions"
+                          :key="endpoint"
+                          :value="endpoint"
+                          :label="probeEndpointLabel(endpoint)"
+                        />
+                      </el-select>
+                    </el-form-item>
+                    <el-form-item :label="i18ns.t('relay.channelProbeSampleCount')">
+                      <el-input-number
+                        v-model="form.sampleCount"
+                        :min="1"
+                        :max="10"
+                        :step="1"
+                        :precision="0"
+                        :disabled="!canExecute"
+                      />
+                    </el-form-item>
                   </div>
-                  <el-form-item class="cache-buster-switch">
-                    <el-switch
-                      v-model="form.preventCache"
-                      :disabled="!canExecute"
-                      :active-text="i18ns.t('relay.channelProbePreventCache')"
-                      :inactive-text="i18ns.t('relay.channelProbePreventCacheOff')"
-                    />
-                    <span>{{ i18ns.t('relay.channelProbePreventCacheHelp') }}</span>
+                  <el-form-item
+                    class="cache-buster-switch"
+                    :label="i18ns.t('relay.channelProbeCacheMode')"
+                  >
+                    <el-select v-model="form.cacheMode" :disabled="!canExecute">
+                      <el-option
+                        value="cache-bust"
+                        :label="i18ns.t('relay.channelProbeCacheModeBust')"
+                      />
+                      <el-option
+                        value="allow-cache"
+                        :label="i18ns.t('relay.channelProbeCacheModeAllow')"
+                      />
+                      <el-option
+                        value="warm-and-read"
+                        :label="i18ns.t('relay.channelProbeCacheModeWarm')"
+                      />
+                    </el-select>
+                    <span>{{ i18ns.t('relay.channelProbeCacheModeHelp') }}</span>
                   </el-form-item>
                   <el-collapse class="advanced-payload">
                     <el-collapse-item
@@ -876,6 +907,26 @@
                   ? (runItem.cacheBusterId ?? i18ns.t('relay.channelProbeCacheBusterUnavailable'))
                   : i18ns.t('relay.channelProbeCacheBusterDisabled')
               }}</el-descriptions-item
+              ><el-descriptions-item :label="i18ns.t('relay.channelProbeEndpoint')">{{
+                probeEndpointLabel(runItem.probeEndpoint)
+              }}</el-descriptions-item
+              ><el-descriptions-item :label="i18ns.t('relay.channelProbeSampleSummary')">{{
+                i18ns.t('relay.channelProbeSampleSummaryValue', {
+                  total: runItem.sampleCount,
+                  succeeded: runItem.sampleSucceededCount,
+                  accepted: runItem.sampleAcceptedCount,
+                  discarded: runItem.sampleDiscardedCount,
+                })
+              }}</el-descriptions-item
+              ><el-descriptions-item :label="i18ns.t('relay.channelProbeWarmup')">{{
+                runItem.warmupRequestCount
+                  ? i18ns.t('relay.channelProbeWarmupValue', {
+                      count: runItem.warmupRequestCount,
+                      creation: runItem.warmupCacheCreationTokens ?? 0,
+                      read: runItem.warmupCacheReadTokens ?? 0,
+                    })
+                  : '-'
+              }}</el-descriptions-item
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeSuggestion')">{{
                 runItem.suggestedMultiplier == null ? '-' : `${runItem.suggestedMultiplier}x`
               }}</el-descriptions-item></el-descriptions
@@ -906,6 +957,55 @@
             <el-collapse v-if="runItem.upstreamUsage" class="usage-details">
               <el-collapse-item :title="i18ns.t('relay.channelProbeRawUsage')" name="usage">
                 <pre>{{ formatUsage(runItem.upstreamUsage) }}</pre>
+              </el-collapse-item>
+            </el-collapse>
+            <el-collapse v-if="runItem.samples?.length" class="usage-details">
+              <el-collapse-item :title="i18ns.t('relay.channelProbeSampleDetails')" name="samples">
+                <el-table :data="runItem.samples" size="small" max-height="280">
+                  <el-table-column
+                    prop="index"
+                    :label="i18ns.t('relay.channelProbeSampleIndex')"
+                    width="72"
+                  />
+                  <el-table-column :label="i18ns.t('relay.channelProbeSampleStatus')" width="110">
+                    <template #default="{ row }">
+                      <el-tag
+                        :type="
+                          row.status === 'discarded'
+                            ? 'warning'
+                            : row.status === 'failed'
+                              ? 'danger'
+                              : 'success'
+                        "
+                        size="small"
+                      >
+                        {{ sampleStatusLabel(row.status) }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    :label="i18ns.t('relay.channelProbeUpstreamDelta')"
+                    min-width="120"
+                  >
+                    <template #default="{ row }">{{
+                      formatNumber(row.upstreamBalanceDelta)
+                    }}</template>
+                  </el-table-column>
+                  <el-table-column :label="i18ns.t('relay.channelProbeBaseCost')" min-width="110">
+                    <template #default="{ row }">{{ formatNumber(row.baseLocalCost) }}</template>
+                  </el-table-column>
+                  <el-table-column :label="i18ns.t('relay.channelProbeSuggestion')" min-width="115">
+                    <template #default="{ row }">{{
+                      row.suggestedMultiplier == null ? '-' : `${row.suggestedMultiplier}x`
+                    }}</template>
+                  </el-table-column>
+                  <el-table-column
+                    prop="errorMessage"
+                    :label="i18ns.t('relay.channelProbeSampleNote')"
+                    min-width="210"
+                    show-overflow-tooltip
+                  />
+                </el-table>
               </el-collapse-item>
             </el-collapse>
             <el-alert
@@ -1289,6 +1389,8 @@ import ProbeKeyValueEditor, { type ProbeKeyValueEntry } from './components/Probe
 import type { TableInstance } from 'element-plus'
 import type {
   RelayChannelProbeFormat,
+  RelayChannelProbeEndpoint,
+  RelayChannelProbeCacheMode,
   RelayChannelProbeCustomerFacingTargetDto,
   RelayChannelProbeOverviewItemDto,
   RelayChannelProbeRunDto,
@@ -1316,8 +1418,10 @@ interface CredentialFormRow {
 }
 interface ProbeForm {
   enabled: boolean
-  preventCache: boolean
   probeFormat: RelayChannelProbeFormat
+  probeEndpoint: RelayChannelProbeEndpoint
+  cacheMode: RelayChannelProbeCacheMode
+  sampleCount: number
   probeModel: string
   distributionMultiplier: number
   upstreamCurrency: string
@@ -1347,7 +1451,7 @@ interface MultiplierChangeRow {
   time: string | Date
 }
 interface ProbeProfileExport {
-  version: 1
+  version: 2
   type: 'relay-channel-probe-profile'
   profile: ProbeForm & {
     probePayload: Record<string, unknown>
@@ -1649,8 +1753,10 @@ let pollTimer: ReturnType<typeof setInterval> | undefined
 function emptyForm(): ProbeForm {
   return {
     enabled: true,
-    preventCache: true,
     probeFormat: 'openai',
+    probeEndpoint: 'openai-chat-completions',
+    cacheMode: 'cache-bust',
+    sampleCount: 1,
     probeModel: '',
     distributionMultiplier: 1,
     upstreamCurrency: 'CNY',
@@ -1662,6 +1768,24 @@ function emptyForm(): ProbeForm {
 }
 function isProbeFormatAvailable(format: RelayChannelProbeFormat) {
   return selectedProbeFormats.value.length === 0 || selectedProbeFormats.value.includes(format)
+}
+const probeEndpointOptions = computed<RelayChannelProbeEndpoint[]>(() => {
+  if (form.value.probeFormat === 'anthropic') return ['anthropic-messages']
+  if (form.value.probeFormat === 'gemini') return ['gemini-generate-content']
+  return ['openai-chat-completions', 'openai-responses']
+})
+function probeEndpointLabel(endpoint: RelayChannelProbeEndpoint) {
+  return i18ns.t(`relay.channelProbeEndpoint${endpoint}` as any)
+}
+function sampleStatusLabel(status: 'succeeded' | 'failed' | 'discarded') {
+  return i18ns.t(`relay.channelProbeSampleStatus${status}` as any)
+}
+function defaultEndpointForFormat(format: RelayChannelProbeFormat): RelayChannelProbeEndpoint {
+  return format === 'anthropic'
+    ? 'anthropic-messages'
+    : format === 'gemini'
+      ? 'gemini-generate-content'
+      : 'openai-chat-completions'
 }
 function makeStep(): WorkflowFormStep {
   return {
@@ -1714,13 +1838,18 @@ function applyPayloadPreset() {
       ? { max_tokens: 1, messages: [{ role: 'user', content: prompt }] }
       : form.value.probeFormat === 'gemini'
         ? { contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1 } }
-        : { messages: [{ role: 'user', content: prompt }], max_tokens: 1 }
+        : form.value.probeEndpoint === 'openai-responses'
+          ? {
+              input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+              max_output_tokens: 1,
+            }
+          : { messages: [{ role: 'user', content: prompt }], max_tokens: 1 }
   payloadText.value = JSON.stringify(preset, null, 2)
   ElMessage.success(i18ns.t('relay.channelProbePresetApplied'))
 }
 function createProfileExport(): ProbeProfileExport {
   return {
-    version: 1,
+    version: 2,
     type: 'relay-channel-probe-profile',
     profile: {
       ...form.value,
@@ -1784,7 +1913,7 @@ function parseImportedProfile(): ProbeProfileExport['profile'] {
     if (!parsed || typeof parsed !== 'object') throw new Error()
     const source = ('profile' in parsed ? parsed.profile : parsed) as Partial<
       ProbeProfileExport['profile']
-    >
+    > & { preventCache?: boolean }
     if (
       !source ||
       !['openai', 'anthropic', 'gemini'].includes(String(source.probeFormat)) ||
@@ -1797,8 +1926,25 @@ function parseImportedProfile(): ProbeProfileExport['profile'] {
       throw new Error()
     return {
       enabled: source.enabled !== false,
-      preventCache: source.preventCache !== false,
       probeFormat: source.probeFormat as RelayChannelProbeFormat,
+      probeEndpoint:
+        source.probeEndpoint &&
+        [
+          'openai-chat-completions',
+          'openai-responses',
+          'anthropic-messages',
+          'gemini-generate-content',
+        ].includes(source.probeEndpoint)
+          ? source.probeEndpoint
+          : defaultEndpointForFormat(source.probeFormat as RelayChannelProbeFormat),
+      cacheMode:
+        source.cacheMode &&
+        ['cache-bust', 'allow-cache', 'warm-and-read'].includes(source.cacheMode)
+          ? source.cacheMode
+          : source.preventCache === false
+            ? 'allow-cache'
+            : 'cache-bust',
+      sampleCount: validSampleCount(source.sampleCount),
       probeModel: source.probeModel,
       distributionMultiplier: Number(source.distributionMultiplier) || 1,
       upstreamCurrency:
@@ -1828,13 +1974,22 @@ function validUpstreamRateMultiplier(value: unknown): number {
     throw new Error(i18ns.t('relay.channelProbeInvalidUpstreamRate'))
   return multiplier
 }
+function validSampleCount(value: unknown): number {
+  if (value == null) return 1
+  const count = Number(value)
+  if (!Number.isInteger(count) || count < 1 || count > 10)
+    throw new Error(i18ns.t('relay.channelProbeInvalidSampleCount'))
+  return count
+}
 function applyImportedConfiguration() {
   try {
     const imported = parseImportedProfile()
     form.value = {
       enabled: imported.enabled,
-      preventCache: imported.preventCache,
       probeFormat: imported.probeFormat,
+      probeEndpoint: imported.probeEndpoint,
+      cacheMode: imported.cacheMode,
+      sampleCount: imported.sampleCount,
       probeModel: imported.probeModel,
       distributionMultiplier: imported.distributionMultiplier,
       upstreamCurrency: imported.upstreamCurrency,
@@ -2447,8 +2602,10 @@ async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
   form.value = profile
     ? {
         enabled: profile.enabled,
-        preventCache: profile.preventCache,
         probeFormat: profile.probeFormat,
+        probeEndpoint: profile.probeEndpoint,
+        cacheMode: profile.cacheMode,
+        sampleCount: profile.sampleCount,
         probeModel: profile.probeModel,
         distributionMultiplier: profile.distributionMultiplier,
         upstreamCurrency: profile.upstreamCurrency,
@@ -2460,6 +2617,7 @@ async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
     : {
         ...emptyForm(),
         probeFormat: row.allowedProbeFormats[0] ?? 'openai',
+        probeEndpoint: defaultEndpointForFormat(row.allowedProbeFormats[0] ?? 'openai'),
       }
   payloadText.value = JSON.stringify(profile?.probePayload ?? {}, null, 2)
   workflowSteps.value = profile ? profile.workflow.map(toWorkflowForm) : [makeStep()]
@@ -2819,6 +2977,13 @@ function stopPolling() {
   pollTimer = undefined
 }
 watch([keyword, profileFilter, enabledFilter, runStatusFilter, suggestionFilter], clearSelection)
+watch(
+  () => form.value.probeFormat,
+  (format) => {
+    if (!probeEndpointOptions.value.includes(form.value.probeEndpoint))
+      form.value.probeEndpoint = defaultEndpointForFormat(format)
+  },
+)
 watch(
   [
     changeSort,

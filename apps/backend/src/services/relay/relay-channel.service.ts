@@ -9,6 +9,8 @@ import type {
   ImportRelayChannelsRequest,
   ImportRelayChannelsResponse,
   RelayChannelDto,
+  RelayCatalogOptionDto,
+  RelayCatalogModelPriceRangeDto,
   RelayChannelOptionDto,
   RelayChannelExportItemDto,
   RelayChannelExportResponse,
@@ -53,7 +55,7 @@ import type { RamRoleStore } from "@/store/users/ram-role.store";
 import { PermissionService } from "@/services/users/permission.service";
 import { Permission } from "@/constant/permission";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
-import { BadRequestError, ConflictError, NotFoundError } from "@/util/errors";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { Prisma, type RelayChannel } from "@prisma/client";
 import { formatRelayRequestFormats } from "@appserver/shared";
@@ -62,6 +64,7 @@ import { ModelPricingService } from "./model-pricing.service";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { RelayChannelHealthService, type RelayChannelHealthSnapshot } from "./relay-channel-health.service";
+import { RelayConfigService } from "./relay-config.service";
 
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
@@ -119,6 +122,7 @@ export class RelayChannelService {
     private readonly modelPricingService: ModelPricingService = ModelPricingService.getInstance(),
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
     private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
+    private readonly relayConfigService: RelayConfigService = RelayConfigService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -209,14 +213,26 @@ export class RelayChannelService {
     };
   }
 
-  async listChannelOptions(actorUserId: string, targetUserId?: string): Promise<RelayChannelOptionDto[]> {
+  async listChannelOptions(
+    actorUserId: string,
+    targetUserId?: string,
+    listOptions: { excludePooled?: boolean } = {},
+  ): Promise<RelayChannelOptionDto[]> {
     const effectiveUserId = await this.resolveOptionsUserId(actorUserId, targetUserId);
+    const canViewPoolMetadata = await this.permissionService.hasPermission(
+      actorUserId,
+      Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+    );
     const activeChannels = await this.relayChannelRepository.listActive();
     const accessibleChannels = await this.filterAccessibleChannels(activeChannels, effectiveUserId);
     const activeChannelsById = new Map(activeChannels.map((channel) => [channel.id, channel]));
-    const channels = accessibleChannels.filter(
-      (channel) => (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden",
-    );
+    const channels = accessibleChannels.filter((channel) => {
+      const channelType = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+      return (
+        (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden" &&
+        !(listOptions.excludePooled === true && channelType === "pooled")
+      );
+    });
     const modelCatalog = await this.modelPricingService.getModelPricing();
     const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog);
     const now = new Date();
@@ -243,17 +259,17 @@ export class RelayChannelService {
           }
         }
 
+        const channelType = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
         const option: RelayChannelOptionDto = {
           id: channel.id,
           name: channel.name,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-          channelType:
-            (channel.channelType as RelayChannelOptionDto["channelType"] | undefined) ?? DEFAULT_CHANNEL_TYPE,
+          ...(canViewPoolMetadata ? { channelType } : {}),
           multiplier: Number(channel.multiplier),
           contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
             | ContextLengthMultiplierRule[]
             | undefined,
-          allowedFormats: isPoolType((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE)
+          allowedFormats: isPoolType(channelType)
             ? formatRelayRequestFormats([
                 ...new Set([...modelCapabilities.values()].flatMap((item) => item.supportedRequestFormats)),
               ])
@@ -265,14 +281,14 @@ export class RelayChannelService {
           ),
         };
 
-        if (channel.channelType === "automatic-proxy-pool") {
+        if (canViewPoolMetadata && channelType === "automatic-proxy-pool") {
           option.automaticProxyPool = this.toAutomaticProxyPoolOption(
             channel as RelayChannelWithMembers,
             resolvedCapabilities,
             now,
           );
         }
-        if (isPoolType(option.channelType)) {
+        if (canViewPoolMetadata && isPoolType(channelType)) {
           option.poolPricing = this.toPoolPricingOption(resolvedCapabilities, activeChannelsById, now);
         }
 
@@ -281,6 +297,180 @@ export class RelayChannelService {
     );
 
     return options.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  /**
+   * API documentation projection. Variable-priced logical channels are published without their
+   * pool identity, members, or routing details; consumers only receive per-model price ranges.
+   */
+  async listCatalogOptions(actorUserId: string): Promise<RelayCatalogOptionDto[]> {
+    const [relayConfig, activeChannels, modelCatalog] = await Promise.all([
+      this.relayConfigService.getRelayConfig(),
+      this.relayChannelRepository.listActive(),
+      this.modelPricingService.getModelPricing(),
+    ]);
+    const accessibleChannels = await this.filterAccessibleChannels(activeChannels, actorUserId);
+    const activeChannelsById = new Map(activeChannels.map((channel) => [channel.id, channel]));
+    const now = new Date();
+    const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog);
+    const publishedPoolMemberIds = new Set<string>();
+    if (relayConfig.apiCatalogPoolVisibility === "anonymous-range") {
+      const publishedPoolRoots = accessibleChannels.filter((channel) => {
+        const type = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+        return isPoolType(type) && (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden";
+      });
+
+      const visitPool = (channelId: string) => {
+        const channel = activeChannelsById.get(channelId) as RelayChannelWithMembers | undefined;
+        if (!channel) return;
+
+        for (const member of channel.poolMembers ?? []) {
+          if (publishedPoolMemberIds.has(member.memberChannelId)) continue;
+          publishedPoolMemberIds.add(member.memberChannelId);
+          const memberType =
+            (activeChannelsById.get(member.memberChannelId)?.channelType as RelayChannelType | undefined) ??
+            DEFAULT_CHANNEL_TYPE;
+          if (isPoolType(memberType)) visitPool(member.memberChannelId);
+        }
+      };
+
+      for (const root of publishedPoolRoots) visitPool(root.id);
+    }
+
+    const channels = accessibleChannels.filter((channel) => {
+      const type = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+      return (
+        (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden" &&
+        (relayConfig.apiCatalogPoolVisibility === "anonymous-range" || !isPoolType(type)) &&
+        !publishedPoolMemberIds.has(channel.id)
+      );
+    });
+
+    const options = await Promise.all(
+      channels.map(async (channel) => {
+        const channelType = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+        const resolvedCapabilities = await this.relayPoolResolver.resolveChannelCapabilities(
+          channel.id,
+          resolverContext,
+        );
+        const modelCapabilities = this.toCatalogModelCapabilities(resolvedCapabilities);
+
+        if (isPoolType(channelType)) {
+          return {
+            id: channel.id,
+            name: channel.name,
+            enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+            allowedFormats: formatRelayRequestFormats([
+              ...new Set(modelCapabilities.flatMap((item) => item.supportedRequestFormats)),
+            ]),
+            modelCapabilities,
+            pricingMode: "range" as const,
+            modelPriceRanges: this.toCatalogModelPriceRanges(resolvedCapabilities, activeChannelsById, now),
+            pricingEffectiveAt: now,
+            priceMayVary: true,
+          } satisfies RelayCatalogOptionDto;
+        }
+
+        return {
+          id: channel.id,
+          name: channel.name,
+          enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+          allowedFormats: channel.allowedFormats,
+          modelCapabilities,
+          pricingMode: "fixed" as const,
+          multiplier:
+            Number(channel.multiplier) *
+            computeMultiplierForTime(
+              (channel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
+              now,
+            ),
+          contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
+            | ContextLengthMultiplierRule[]
+            | undefined,
+          pricingEffectiveAt: now,
+          priceMayVary: false,
+        } satisfies RelayCatalogOptionDto;
+      }),
+    );
+
+    return options.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  private toCatalogModelCapabilities(
+    resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
+  ): RelayCatalogOptionDto["modelCapabilities"] {
+    const capabilities = new Map<string, RelayCatalogOptionDto["modelCapabilities"][number]>();
+    for (const capability of resolvedCapabilities) {
+      const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
+      const existing = capabilities.get(key);
+      if (existing) {
+        existing.supportedRequestFormats = [
+          ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
+        ];
+      } else {
+        capabilities.set(key, {
+          catalogModelName: capability.catalogModelName,
+          requestModelId: capability.requestModelId,
+          supportedRequestFormats: [...capability.supportedRequestFormats],
+        });
+      }
+    }
+    return [...capabilities.values()].sort(
+      (left, right) =>
+        left.catalogModelName.localeCompare(right.catalogModelName) ||
+        left.requestModelId.localeCompare(right.requestModelId),
+    );
+  }
+
+  private toCatalogModelPriceRanges(
+    resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
+    activeChannelsById: ReadonlyMap<string, RelayChannel>,
+    now: Date,
+  ): RelayCatalogModelPriceRangeDto[] {
+    const ranges = new Map<string, RelayCatalogModelPriceRangeDto>();
+
+    for (const capability of resolvedCapabilities) {
+      const leaf = activeChannelsById.get(capability.leafChannelId);
+      if (!leaf || leaf.status !== RELAY_CHANNEL_STATUS.ENABLED) continue;
+
+      const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
+      const multipliers = this.getCatalogContextMultipliers(leaf, now);
+      if (multipliers.length === 0) continue;
+
+      const minMultiplier = Math.min(...multipliers);
+      const maxMultiplier = Math.max(...multipliers);
+      const existing = ranges.get(key);
+      if (existing) {
+        existing.minMultiplier = Math.min(existing.minMultiplier, minMultiplier);
+        existing.maxMultiplier = Math.max(existing.maxMultiplier, maxMultiplier);
+      } else {
+        ranges.set(key, {
+          catalogModelName: capability.catalogModelName,
+          requestModelId: capability.requestModelId,
+          minMultiplier,
+          maxMultiplier,
+        });
+      }
+    }
+
+    return [...ranges.values()].sort(
+      (left, right) =>
+        left.catalogModelName.localeCompare(right.catalogModelName) ||
+        left.requestModelId.localeCompare(right.requestModelId),
+    );
+  }
+
+  private getCatalogContextMultipliers(channel: RelayChannel, now: Date): number[] {
+    const baseMultiplier =
+      Number(channel.multiplier) *
+      computeMultiplierForTime(
+        (channel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
+        now,
+      );
+    const rules = (channel.contextLengthMultipliers as ContextLengthMultiplierRule[] | null | undefined) ?? [];
+    const contextMultipliers = rules.filter((rule) => rule.enabled).map((rule) => Number(rule.multiplier));
+    if (!contextMultipliers.includes(1)) contextMultipliers.push(1);
+    return contextMultipliers.filter(Number.isFinite).map((multiplier) => baseMultiplier * multiplier);
   }
 
   private toAutomaticProxyPoolOption(
@@ -423,7 +613,15 @@ export class RelayChannelService {
     actorUserId: string,
   ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
     const channel = await this.assertChannelAccessibleById(id, actorUserId);
-    if (channel.channelType !== "automatic-proxy-pool") {
+    const channelType = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+    if (channelType !== "standalone") {
+      const canViewPoolMetadata = await this.permissionService.hasPermission(
+        actorUserId,
+        Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+      );
+      if (!canViewPoolMetadata) throw new NotFoundError("Relay channel not found");
+    }
+    if (channelType !== "automatic-proxy-pool") {
       const snapshot = await this.relayChannelHealthService.getHealth(channel.id);
       return this.toHealthDto(channel, snapshot);
     }
@@ -519,6 +717,22 @@ export class RelayChannelService {
       .sort((left, right) => left.name.localeCompare(right.name) || left.channelId.localeCompare(right.channelId));
 
     return { windowMinutes: RelayChannelHealthService.constants.windowMinutes, channels: items };
+  }
+
+  async getAutomaticPoolHealths(actorUserId: string): Promise<RelayAutomaticPoolHealthDto[]> {
+    const canViewPoolMetadata = await this.permissionService.hasPermission(
+      actorUserId,
+      Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+    );
+    if (!canViewPoolMetadata) throw new ForbiddenError("Relay pool metadata access is required");
+
+    const channels = await this.filterAccessibleChannels(await this.relayChannelRepository.listVisible(), actorUserId);
+    const pools = channels.filter(
+      (channel) =>
+        ((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE) === "automatic-proxy-pool",
+    );
+    const healths = await Promise.all(pools.map((channel) => this.getChannelHealth(channel.id, actorUserId)));
+    return healths.filter((health): health is RelayAutomaticPoolHealthDto => "members" in health);
   }
 
   async updateChannelHealthConfig(
@@ -679,6 +893,10 @@ export class RelayChannelService {
       channels = await this.filterAccessibleChannels(candidates, actorUserId);
     }
 
+    // Whether the user selected roots or exported the full list, make every pool export
+    // self-contained. This also pulls disabled members referenced by an active pool.
+    channels = await this.expandPoolExportDependencies(channels);
+
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CHANNEL_EXPORT,
       operationCategory: OperationCategory.RELAY,
@@ -697,6 +915,31 @@ export class RelayChannelService {
     return {
       channels: channels.map((channel) => this.toExportItemDto(channel)),
     };
+  }
+
+  private async expandPoolExportDependencies(roots: RelayChannel[]): Promise<RelayChannel[]> {
+    const result = [...roots];
+    const knownIds = new Set(result.map((channel) => channel.id));
+    let cursor = 0;
+
+    while (cursor < result.length) {
+      const channel = result[cursor++];
+      const members = (channel as RelayChannelWithMembers).poolMembers ?? [];
+      const missingIds = members.map((member) => member.memberChannelId).filter((id) => !knownIds.has(id));
+      if (missingIds.length === 0) continue;
+
+      const dependencies = await this.relayChannelRepository.listVisibleByIds([...new Set(missingIds)]);
+      if (dependencies.length !== new Set(missingIds).size)
+        throw new BadRequestError("One or more pooled channel members were not found");
+
+      for (const dependency of dependencies) {
+        if (knownIds.has(dependency.id)) continue;
+        knownIds.add(dependency.id);
+        result.push(dependency);
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -1645,17 +1888,6 @@ export class RelayChannelService {
         throw new BadRequestError("Imported relay channel source IDs must be unique");
       }
 
-      const sourceIdSet = new Set(sourceIds);
-      if (hasSourceIds) {
-        for (const item of body.channels) {
-          for (const member of item.poolMembers ?? []) {
-            if (!sourceIdSet.has(member.memberChannelId)) {
-              throw new BadRequestError("Imported pooled channel member was not found in the import payload");
-            }
-          }
-        }
-      }
-
       const reservedNames = await this.getVisibleNameSet(tx);
       const importedChannels: Array<{
         created: RelayChannel;
@@ -1690,10 +1922,20 @@ export class RelayChannelService {
         });
       }
 
+      // Older exports may contain a pool without its member records. When the destination
+      // already has a channel with the exported member name, resolve that reference instead
+      // of failing solely because the source ID belongs to another installation.
+      const existingChannelsByName = new Map(
+        (await this.relayChannelRepository.listVisible(tx)).map((channel) => [channel.name, channel.id]),
+      );
+
       for (const importedChannel of importedChannels) {
         const poolMembers = importedChannel.poolMembers?.map((member) => ({
           ...member,
-          memberChannelId: importedChannelIds.get(member.memberChannelId) ?? member.memberChannelId,
+          memberChannelId:
+            importedChannelIds.get(member.memberChannelId) ??
+            (member.memberChannelName ? existingChannelsByName.get(member.memberChannelName) : undefined) ??
+            member.memberChannelId,
         }));
         await this.syncPoolMembers(importedChannel.created.id, importedChannel.channelType, poolMembers, tx);
       }

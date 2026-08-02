@@ -32,6 +32,8 @@ const relayTokenChannelConfigSchema = z.object({
   priority: z.coerce.number().int().min(0).max(999),
 });
 
+const blockedAutomaticProxyPoolChannelIdsSchema = z.array(z.string().trim().min(1).max(50)).max(100).optional();
+
 const relayTokenIdsSchema = z
   .array(z.string().trim().min(1).max(50))
   .min(1)
@@ -108,6 +110,7 @@ export const createRelayTokenBodySchema = z
     targetUserId: z.string().trim().min(1).max(50).optional(),
     routingMode: z.enum(["ordered", "automatic-pool"]).optional(),
     automaticProxyPoolChannelId: z.string().trim().min(1).max(50).optional(),
+    blockedAutomaticProxyPoolChannelIds: blockedAutomaticProxyPoolChannelIdsSchema,
     name: z.string().max(100).nullish(),
     token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
@@ -148,6 +151,12 @@ export const createRelayTokenBodySchema = z
         code: z.ZodIssueCode.custom,
         message: "automaticProxyPoolChannelId can only be used in automatic pool mode",
         path: ["automaticProxyPoolChannelId"],
+      });
+    if (value.routingMode !== "automatic-pool" && value.blockedAutomaticProxyPoolChannelIds?.length)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "blockedAutomaticProxyPoolChannelIds can only be used in automatic pool mode",
+        path: ["blockedAutomaticProxyPoolChannelIds"],
       });
 
     if (value.channelConfigs) {
@@ -194,6 +203,7 @@ export const updateRelayTokenBodySchema = z
     targetUserId: z.string().trim().min(1).max(50).optional(),
     routingMode: z.enum(["ordered", "automatic-pool"]).optional(),
     automaticProxyPoolChannelId: z.string().trim().min(1).max(50).nullable().optional(),
+    blockedAutomaticProxyPoolChannelIds: blockedAutomaticProxyPoolChannelIdsSchema,
     name: z.string().max(100).nullish(),
     token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
@@ -224,6 +234,12 @@ export const updateRelayTokenBodySchema = z
         code: z.ZodIssueCode.custom,
         message: "automaticProxyPoolChannelId can only be used in automatic pool mode",
         path: ["automaticProxyPoolChannelId"],
+      });
+    if (value.routingMode !== "automatic-pool" && value.blockedAutomaticProxyPoolChannelIds?.length)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "blockedAutomaticProxyPoolChannelIds can only be used in automatic pool mode",
+        path: ["blockedAutomaticProxyPoolChannelIds"],
       });
     if (value.channelConfigs) {
       const channelIdSet = new Set<string>();
@@ -287,6 +303,7 @@ const relayTokenImportItemSchema = z
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
     routingMode: z.enum(["ordered", "automatic-pool"]).optional(),
     automaticProxyPoolChannelId: z.string().trim().min(1).max(50).optional(),
+    blockedAutomaticProxyPoolChannelIds: blockedAutomaticProxyPoolChannelIdsSchema,
     channelId: z.string().trim().min(1).max(50).optional(),
     channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
     failoverConfig: relayTokenFailoverConfigSchema.optional(),
@@ -325,6 +342,12 @@ const relayTokenImportItemSchema = z
         code: z.ZodIssueCode.custom,
         message: "automaticProxyPoolChannelId can only be used in automatic pool mode",
         path: ["automaticProxyPoolChannelId"],
+      });
+    if (value.routingMode !== "automatic-pool" && value.blockedAutomaticProxyPoolChannelIds?.length)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "blockedAutomaticProxyPoolChannelIds can only be used in automatic pool mode",
+        path: ["blockedAutomaticProxyPoolChannelIds"],
       });
 
     if (value.channelConfigs) {
@@ -484,7 +507,6 @@ export const relayRequestDiagnosticsQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
   requestId: z.string().trim().max(64).optional(),
   keyword: z.string().trim().max(100).optional(),
-  channelId: z.string().trim().max(50).optional(),
   outcome: z.enum(["success", "client-error", "server-error"]).optional(),
   startDate: z
     .string()

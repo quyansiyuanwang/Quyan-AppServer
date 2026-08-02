@@ -338,6 +338,8 @@
           Permission.UPSTREAM_STATUS_READ,
           Permission.RELAY_TOKEN_READ,
           Permission.RELAY_CHANNEL_READ,
+          Permission.RELAY_CHANNEL_HEALTH_READ,
+          Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
         ]"
       >
         <el-sub-menu index="relay">
@@ -373,7 +375,7 @@
               <template #title>{{ i18ns.t('nav.relaySettings') }}</template>
             </el-menu-item>
           </PermissionWrapper>
-          <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
+          <PermissionWrapper :require="[Permission.RELAY_CHANNEL_HEALTH_READ]">
             <el-menu-item
               index="relayChannelHealth"
               @click="nav('relayChannelHealth', $event)"
@@ -383,7 +385,7 @@
               <template #title>{{ i18ns.t('nav.relayChannelHealth') }}</template>
             </el-menu-item>
           </PermissionWrapper>
-          <PermissionWrapper :require="[Permission.RELAY_CHANNEL_READ]">
+          <PermissionWrapper :require="[Permission.RELAY_REQUEST_DIAGNOSTICS_READ]">
             <el-menu-item
               index="relayRequestDiagnostics"
               @click="nav('relayRequestDiagnostics', $event)"

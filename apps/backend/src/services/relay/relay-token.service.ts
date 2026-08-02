@@ -33,6 +33,8 @@ import {
   RelayAvailableModelsMapDto,
   RelayTokenSwitchLogsDto,
   RelayTokenAvailableModelsDto,
+  RelayRequestDiagnosticsPageDto,
+  RelayRequestRouteTraceDto,
 } from "@/api/dto/relay/relay.dto";
 import { NotFoundError, BadRequestError, ForbiddenError } from "@/util/errors";
 import { resolveModelId } from "@/util/model-resolution.util";
@@ -42,6 +44,7 @@ import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import crypto from "crypto";
 import type { Request } from "express";
+import type { RelayChannel } from "@prisma/client";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { MANAGED_STATUS } from "@/constant/status";
 import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
@@ -264,7 +267,12 @@ export class RelayTokenService {
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
     const automaticPoolId = data.routingMode === "automatic-pool" ? data.automaticProxyPoolChannelId : undefined;
-    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId, actorUserId);
+    const automaticPool = automaticPoolId
+      ? await this.assertAutomaticProxyPool(automaticPoolId, actorUserId)
+      : undefined;
+    const blockedAutomaticProxyPoolChannelIds = automaticPool
+      ? this.normalizeBlockedAutomaticProxyPoolChannelIds(automaticPool, data.blockedAutomaticProxyPoolChannelIds)
+      : [];
     const normalizedConfig = automaticPoolId
       ? { defaultChannelId: undefined, channelConfigs: [] }
       : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
@@ -293,6 +301,7 @@ export class RelayTokenService {
       channelId: normalizedConfig.defaultChannelId,
       routingMode: automaticPoolId ? "automatic-pool" : "ordered",
       automaticProxyPoolChannelId: automaticPoolId,
+      blockedAutomaticProxyPoolChannelIds,
       channelConfigs: normalizedConfig.channelConfigs,
       failoverConfig: data.failoverConfig,
       quotaLimit: data.quotaLimit ?? undefined,
@@ -599,7 +608,14 @@ export class RelayTokenService {
     const hasChannelConfigs = Object.prototype.hasOwnProperty.call(data, "channelConfigs");
     const hasAutomaticMode = data.routingMode === "automatic-pool";
     const automaticPoolId = hasAutomaticMode ? data.automaticProxyPoolChannelId : undefined;
-    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId, actorUserId);
+    const automaticPool = automaticPoolId
+      ? await this.assertAutomaticProxyPool(automaticPoolId, actorUserId)
+      : undefined;
+    const blockedAutomaticProxyPoolChannelIds = automaticPool
+      ? this.normalizeBlockedAutomaticProxyPoolChannelIds(automaticPool, data.blockedAutomaticProxyPoolChannelIds)
+      : data.routingMode === "ordered"
+        ? []
+        : undefined;
     const hasRoutingUpdate = hasAutomaticMode || hasChannelId || hasChannelConfigs;
     const normalizedConfig = hasAutomaticMode
       ? { defaultChannelId: null, channelConfigs: [] }
@@ -650,6 +666,7 @@ export class RelayTokenService {
         : data.routingMode === "ordered"
           ? null
           : undefined,
+      blockedAutomaticProxyPoolChannelIds,
       failoverConfig: data.failoverConfig,
     });
     const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
@@ -670,10 +687,46 @@ export class RelayTokenService {
     return updatedToken;
   }
 
-  private async assertAutomaticProxyPool(channelId: string, actorUserId: string): Promise<void> {
+  private async assertAutomaticProxyPool(
+    channelId: string,
+    actorUserId: string,
+  ): Promise<RelayChannel & { poolMembers?: Array<{ memberChannelId: string }> }> {
     const channel = await this.relayChannelService.assertChannelAccessibleById(channelId, actorUserId);
     if (channel.status !== MANAGED_STATUS.ENABLED || channel.channelType !== "automatic-proxy-pool")
       throw new BadRequestError("Automatic proxy pool not found or unavailable");
+    return channel as RelayChannel & { poolMembers?: Array<{ memberChannelId: string }> };
+  }
+
+  private normalizeBlockedAutomaticProxyPoolChannelIds(
+    automaticPool: RelayChannel & { poolMembers?: Array<{ memberChannelId: string }> },
+    blockedChannelIds?: string[],
+  ): string[] {
+    const normalizedIds = [
+      ...new Set(
+        (blockedChannelIds ?? []).map((channelId) => channelId.trim()).filter((channelId) => Boolean(channelId)),
+      ),
+    ];
+    const memberIds = new Set((automaticPool.poolMembers ?? []).map((member) => member.memberChannelId));
+
+    if (normalizedIds.some((channelId) => !memberIds.has(channelId)))
+      throw new BadRequestError("Blocked channels must be members of the selected automatic proxy pool");
+    if (memberIds.size > 0 && normalizedIds.length >= memberIds.size)
+      throw new BadRequestError("At least one automatic proxy pool channel must remain available");
+
+    return normalizedIds;
+  }
+
+  private normalizeStoredBlockedAutomaticProxyPoolChannelIds(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+
+    return [
+      ...new Set(
+        value
+          .filter((channelId): channelId is string => typeof channelId === "string")
+          .map((channelId) => channelId.trim())
+          .filter(Boolean),
+      ),
+    ];
   }
 
   async duplicateToken(
@@ -932,16 +985,19 @@ export class RelayTokenService {
     };
   }
 
-  async getRequestDiagnostics(query: {
-    page?: number;
-    pageSize?: number;
-    requestId?: string;
-    keyword?: string;
-    channelId?: string;
-    outcome?: string;
-    startDate?: string;
-    endDate?: string;
-  }) {
+  async getRequestDiagnostics(
+    actorUserId: string,
+    query: {
+      page?: number;
+      pageSize?: number;
+      requestId?: string;
+      keyword?: string;
+      outcome?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ): Promise<RelayRequestDiagnosticsPageDto> {
+    await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_DIAGNOSTICS_READ);
     const page = query.page || 1;
     const pageSize = query.pageSize || 20;
     const result = await this.relayUsageRepo.findRequestDiagnostics({
@@ -955,7 +1011,7 @@ export class RelayTokenService {
       total: result.total,
       page,
       pageSize,
-      records: result.records.map((record: any) => ({
+      records: result.records.map((record) => ({
         requestId: record.requestId,
         relayTokenId: record.relayToken.id,
         relayTokenName: record.relayToken.name || undefined,
@@ -964,8 +1020,6 @@ export class RelayTokenService {
         createTime: record.createTime,
         attempts: record.relayUsages.map((usage: any) => ({
           id: usage.id,
-          executionChannelId: usage.executionChannelId || undefined,
-          executionChannelName: usage.executionChannelName,
           statusCode: usage.statusCode,
           method: usage.method,
           path: usage.path,
@@ -976,6 +1030,34 @@ export class RelayTokenService {
         })),
       })),
     };
+  }
+
+  async getRequestRouteTrace(actorUserId: string, requestId: string): Promise<RelayRequestRouteTraceDto> {
+    await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_DIAGNOSTICS_READ);
+    await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_ROUTE_TRACE_READ);
+    await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_CHANNEL_POOL_METADATA_READ);
+    const trace = await this.relayUsageRepo.findRequestRouteTrace(requestId);
+    if (!trace) throw new NotFoundError("Relay request diagnostics not found");
+    return {
+      requestId: trace.requestId,
+      attempts: trace.relayUsages.map((usage) => ({
+        id: usage.id,
+        executionChannelId: usage.executionChannelId || undefined,
+        executionChannelName: usage.executionChannelName,
+        statusCode: usage.statusCode,
+        method: usage.method,
+        path: usage.path,
+        totalTokens: usage.totalTokens,
+        timeToFirstByte: usage.timeToFirstByte || undefined,
+        totalOutputTime: usage.totalOutputTime || undefined,
+        createTime: usage.createTime,
+      })),
+    };
+  }
+
+  private async assertGlobalRelayOperatorPermission(actorUserId: string, permission: Permission): Promise<void> {
+    if (await this.permissionService.hasPermission(actorUserId, permission)) return;
+    throw new ForbiddenError("Relay operations permission is required");
   }
 
   async getUsageSummaries(
@@ -1245,6 +1327,9 @@ export class RelayTokenService {
       channelName: token.channel?.name || undefined,
       routingMode: token.routingMode === "automatic-pool" ? "automatic-pool" : "ordered",
       automaticProxyPoolChannelId: token.automaticProxyPoolChannelId || undefined,
+      blockedAutomaticProxyPoolChannelIds: this.normalizeStoredBlockedAutomaticProxyPoolChannelIds(
+        token.blockedAutomaticProxyPoolChannelIds,
+      ),
       expiresAt: token.expiresAt,
       lastUsedAt: token.lastUsedAt,
       createTime: token.createTime,
@@ -1277,6 +1362,9 @@ export class RelayTokenService {
       expiresAt: token.expiresAt ? token.expiresAt.toISOString() : undefined,
       routingMode: token.routingMode === "automatic-pool" ? "automatic-pool" : "ordered",
       automaticProxyPoolChannelId: token.automaticProxyPoolChannelId || undefined,
+      blockedAutomaticProxyPoolChannelIds: this.normalizeStoredBlockedAutomaticProxyPoolChannelIds(
+        token.blockedAutomaticProxyPoolChannelIds,
+      ),
       channelId: token.channelId || token.channelConfigs[0]?.channelId || undefined,
       channelConfigs: token.channelConfigs.map((config) => ({
         channelId: config.channelId,
@@ -1645,7 +1733,12 @@ export class RelayTokenService {
     tx?: RelayTokenTransactionClient,
   ): Promise<RelayTokenWithRelations> {
     const automaticPoolId = data.routingMode === "automatic-pool" ? data.automaticProxyPoolChannelId : undefined;
-    if (automaticPoolId) await this.assertAutomaticProxyPool(automaticPoolId, actorUserId);
+    const automaticPool = automaticPoolId
+      ? await this.assertAutomaticProxyPool(automaticPoolId, actorUserId)
+      : undefined;
+    const blockedAutomaticProxyPoolChannelIds = automaticPool
+      ? this.normalizeBlockedAutomaticProxyPoolChannelIds(automaticPool, data.blockedAutomaticProxyPoolChannelIds)
+      : [];
     const normalizedConfig = automaticPoolId
       ? { defaultChannelId: undefined, channelConfigs: [] }
       : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
@@ -1673,6 +1766,7 @@ export class RelayTokenService {
         channelId: normalizedConfig.defaultChannelId,
         routingMode: automaticPoolId ? "automatic-pool" : "ordered",
         automaticProxyPoolChannelId: automaticPoolId,
+        blockedAutomaticProxyPoolChannelIds,
         channelConfigs: normalizedConfig.channelConfigs,
         failoverConfig: data.failoverConfig,
         quotaLimit: data.quotaLimit ?? undefined,

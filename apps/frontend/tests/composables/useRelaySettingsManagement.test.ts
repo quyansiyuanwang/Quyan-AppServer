@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref, shallowRef } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   useRelaySettingsManagement,
@@ -198,6 +199,7 @@ const mountComposable = async () => {
 
 describe('useRelaySettingsManagement', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.clearAllMocks()
     getRelayConfigMock.mockResolvedValue(createRelayConfigResponse())
     updateRelayConfigMock.mockResolvedValue(undefined)
@@ -370,6 +372,25 @@ describe('useRelaySettingsManagement', () => {
       JSON.stringify({ channels: [channel] }, null, 2),
     )
     expect(batchDuplicateChannelsMock).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('copies all channel export JSON without changing the current selection', async () => {
+    const selectedChannel = createChannelRow({ id: 'selected-channel' })
+    const allChannels = [selectedChannel, createChannelRow({ id: 'other-channel' })]
+    const { api, wrapper } = await mountComposable()
+    api.channels.value = allChannels
+    api.toggleChannelSelection(selectedChannel.id, true)
+    exportChannelsMock.mockResolvedValue({ channels: allChannels })
+
+    await api.copyAllChannelsAsJson()
+
+    expect(exportChannelsMock).toHaveBeenCalledWith({ includeDisabled: true })
+    expect(copyTextWithFallbackMock).toHaveBeenCalledWith(
+      JSON.stringify({ channels: allChannels }, null, 2),
+    )
+    expect(api.selectedChannelCount.value).toBe(1)
 
     wrapper.unmount()
   })

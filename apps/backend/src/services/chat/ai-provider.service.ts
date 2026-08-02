@@ -26,17 +26,18 @@ interface ChatMessage {
   content: string;
 }
 
-interface StreamChunk {
-  content?: string;
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheCreationTokens?: number;
-  cacheReadTokens?: number;
-  totalOutputTime?: number;
-  timeToFirstByte?: number;
-  isStreaming?: boolean;
-  done: boolean;
-}
+export type StreamChunk =
+  | { content: string; done: false }
+  | {
+      done: true;
+      inputTokens?: number;
+      outputTokens?: number;
+      cacheCreationTokens?: number;
+      cacheReadTokens?: number;
+      totalOutputTime?: number;
+      timeToFirstByte?: number;
+      isStreaming?: boolean;
+    };
 
 interface TokenMetrics {
   inputTokens: number;
@@ -198,12 +199,13 @@ export class AIProviderService {
     apiKey: string,
     upstreamUrl: string,
     requestFormat?: RelayRequestFormat,
+    signal?: AbortSignal,
   ): AsyncGenerator<StreamChunk> {
     const provider = this.resolveProvider(model, requestFormat);
 
-    if (provider === "openai") yield* this.streamOpenAI(messages, model, apiKey, upstreamUrl);
-    else if (provider === "anthropic") yield* this.streamAnthropic(messages, model, apiKey, upstreamUrl);
-    else if (provider === "gemini") yield* this.streamGemini(messages, model, apiKey, upstreamUrl);
+    if (provider === "openai") yield* this.streamOpenAI(messages, model, apiKey, upstreamUrl, signal);
+    else if (provider === "anthropic") yield* this.streamAnthropic(messages, model, apiKey, upstreamUrl, signal);
+    else if (provider === "gemini") yield* this.streamGemini(messages, model, apiKey, upstreamUrl, signal);
     else throw new Error(`Provider ${provider} not yet implemented`);
   }
 
@@ -212,6 +214,7 @@ export class AIProviderService {
     model: string,
     apiKey: string,
     upstreamUrl: string,
+    signal?: AbortSignal,
   ): AsyncGenerator<StreamChunk> {
     const url = this.buildOpenAIUrl(upstreamUrl);
     console.log("[AIProvider] Calling OpenAI API:", url, "model:", model);
@@ -232,6 +235,7 @@ export class AIProviderService {
           responseType: "stream",
           httpAgent,
           httpsAgent,
+          signal,
         },
       );
     } catch (error) {
@@ -247,6 +251,7 @@ export class AIProviderService {
           responseType: "stream",
           httpAgent,
           httpsAgent,
+          signal,
         },
       );
     }
@@ -393,6 +398,7 @@ export class AIProviderService {
     model: string,
     apiKey: string,
     upstreamUrl: string,
+    signal?: AbortSignal,
   ): AsyncGenerator<StreamChunk> {
     const url = this.buildAnthropicUrl(upstreamUrl);
     const startAt = Date.now();
@@ -429,6 +435,7 @@ export class AIProviderService {
         responseType: "stream",
         httpAgent,
         httpsAgent,
+        signal,
       },
     );
 
@@ -521,6 +528,7 @@ export class AIProviderService {
     model: string,
     apiKey: string,
     upstreamUrl: string,
+    signal?: AbortSignal,
   ): AsyncGenerator<StreamChunk> {
     const url = this.buildGeminiUrl(upstreamUrl, model, apiKey);
     const startAt = Date.now();
@@ -547,6 +555,7 @@ export class AIProviderService {
       responseType: "stream",
       httpAgent,
       httpsAgent,
+      signal,
     });
 
     const finalizeDoneChunk = (): StreamChunk => {

@@ -422,6 +422,9 @@ model DeveloperStatusMonitor {
   name          String           @db.VarChar(100)
   targetUrl     String           @db.Text
   method        String           @default("GET") @db.VarChar(10)
+  requestBody   String?          @db.Text
+  responseBodyMatchMode String?          @db.VarChar(20)
+  responseBodyMatch String?              @db.Text
   successStatusCodes Json?
   intervalSec   Int              @default(60)
   enabled       Boolean          @default(true)
@@ -895,9 +898,12 @@ model RelayChannelProbeProfile {
   relayChannelId        String   @unique
   enabled               Boolean  @default(true)
   probeFormat           String   @default("openai") @db.VarChar(20)
+  probeEndpoint         String   @default("openai-chat-completions") @db.VarChar(40)
   probeModel            String   @db.VarChar(200)
   probePayload          Json
   preventCache          Boolean  @default(true)
+  cacheMode             String   @default("cache-bust") @db.VarChar(20)
+  sampleCount           Int      @default(1)
   upstreamCurrency      String   @default("CNY") @db.VarChar(12)
   localCurrency         String   @default("CNY") @db.VarChar(12)
   upstreamBalanceDivisor Decimal @default(1.0) @db.Decimal(18, 6)
@@ -932,6 +938,17 @@ model RelayChannelProbeRun {
   leaseExpiresAt           DateTime?
   distributionMultiplier   Decimal  @db.Decimal(10, 6)
   cacheBustingEnabled      Boolean  @default(true)
+  probeEndpoint            String   @default("openai-chat-completions") @db.VarChar(40)
+  cacheMode                String   @default("cache-bust") @db.VarChar(20)
+  sampleCount              Int      @default(1)
+  sampleSucceededCount     Int      @default(0)
+  sampleAcceptedCount      Int      @default(0)
+  sampleDiscardedCount     Int      @default(0)
+  warmupRequestCount       Int      @default(0)
+  warmupCacheCreationTokens Int?
+  warmupCacheReadTokens    Int?
+  warmupUsage              Json?
+  samples                  Json?
   forceWithoutCacheBuster  Boolean  @default(false)
   cacheBusterId            String?  @db.VarChar(36)
   upstreamBalanceBefore    Decimal? @db.Decimal(18, 6)
@@ -1001,6 +1018,7 @@ model RelayToken {
   channelId                   String?
   routingMode                 String    @default("ordered") @db.VarChar(30)
   automaticProxyPoolChannelId String?
+  blockedAutomaticProxyPoolChannelIds Json?
   totalTokens                 Int       @default(0)
   requestCount                Int       @default(0)
   usedQuota                   Decimal   @default(0) @db.Decimal(10, 4)
@@ -1824,6 +1842,7 @@ model RelayConfig {
   queueTimeout          Int      @default(30000)
   upstreamStreamTimeout Int      @default(120000)
   enableQueue           Boolean  @default(true)
+  apiCatalogPoolVisibility String @default("anonymous-range") @db.VarChar(20)
   uptimeStatusUrl       String?  @db.Text
   monitorNameMapping    Json? // 简化的监控项名称映射 { "2": "中国主线路", "3": "国际线路" }
   showOnlyConfigured    Boolean? // 是否仅展示已配置的监控项
@@ -2216,6 +2235,7 @@ model Message {
   outputTokens   Int?
   totalTokens    Int?
   cost           Decimal? @db.Decimal(10, 4)
+  completionStatus String @default("completed") @db.VarChar(20)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 

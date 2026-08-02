@@ -108,7 +108,7 @@ const RELAY_TOKEN_QUOTA_COMPARE_EPSILON = 1e-8;
 
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 
-interface RelayFailoverRuntimeConfig {
+export interface RelayFailoverRuntimeConfig {
   enabled: boolean;
   maxRetries: number;
   retryStatusCodes: string[];
@@ -129,7 +129,7 @@ interface ImageForwardResult extends StreamForwardResult {
   data?: any;
 }
 
-interface RelayAttemptPlan {
+export interface RelayAttemptPlan {
   channels: RelayResolvedChannelCandidate[];
   failoverConfig: RelayFailoverRuntimeConfig;
   /** Price-first automatic pools always start at the cheapest currently eligible member. */
@@ -142,6 +142,7 @@ export interface RelayTokenAvailabilityInput {
   channel?: RelayChannel | null;
   routingMode?: string | null;
   automaticProxyPoolChannel?: RelayChannel | null;
+  blockedAutomaticProxyPoolChannelIds?: Prisma.JsonValue | string[] | null;
   channelConfigs?: Array<{
     channel?: RelayChannel | null;
     priority?: number | null;
@@ -1684,9 +1685,23 @@ export class RelayProxyService {
 
   private async buildAttemptPlan(relayToken: RelayTokenAvailabilityInput): Promise<RelayAttemptPlan> {
     const topLevelChannels = this.getTopLevelAttemptChannels(relayToken);
-    const channels = await this.relayPoolResolver.resolveActiveLeafCandidates(topLevelChannels, (pool, members) =>
-      this.orderPooledMemberChannels(pool, members),
+    const resolvedChannels = await this.relayPoolResolver.resolveActiveLeafCandidates(
+      topLevelChannels,
+      (pool, members) => this.orderPooledMemberChannels(pool, members),
     );
+    const blockedChannelIds = new Set(
+      Array.isArray(relayToken.blockedAutomaticProxyPoolChannelIds)
+        ? relayToken.blockedAutomaticProxyPoolChannelIds.reduce<string[]>((ids, channelId) => {
+            if (typeof channelId !== "string") return ids;
+            const normalizedChannelId = channelId.trim();
+            if (normalizedChannelId) ids.push(normalizedChannelId);
+            return ids;
+          }, [])
+        : [],
+    );
+    const channels = blockedChannelIds.size
+      ? resolvedChannels.filter((candidate) => !blockedChannelIds.has(candidate.resolvedChannel.id))
+      : resolvedChannels;
 
     const tokenFailoverConfig = this.getFailoverRuntimeConfig(relayToken);
     const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : null;
@@ -1707,6 +1722,15 @@ export class RelayProxyService {
       failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
       allowStickyFailover: !isPriceFirstAutomaticPool,
     };
+  }
+
+  /**
+   * Returns the same ordered, filtered route candidates used by proxy requests.
+   * Chat owns its response persistence, but must never maintain a divergent view
+   * of ordered channels, automatic pools, or token-level channel exclusions.
+   */
+  async getChatAttemptPlan(relayToken: RelayTokenWithChannel): Promise<RelayAttemptPlan> {
+    return this.buildAttemptPlan(relayToken);
   }
 
   private buildFailoverStickyChannelKey(
