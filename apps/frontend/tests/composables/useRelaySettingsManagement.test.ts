@@ -16,6 +16,7 @@ const {
   getChannelMock,
   exportChannelsMock,
   batchDuplicateChannelsMock,
+  batchUpdateChannelsMock,
   getRelayConfigMock,
   updateRelayConfigMock,
   getSystemRelayConfigMock,
@@ -34,6 +35,7 @@ const {
   getChannelMock: vi.fn(),
   exportChannelsMock: vi.fn(),
   batchDuplicateChannelsMock: vi.fn(),
+  batchUpdateChannelsMock: vi.fn(),
   getRelayConfigMock: vi.fn(),
   updateRelayConfigMock: vi.fn(),
   getSystemRelayConfigMock: vi.fn(),
@@ -68,6 +70,7 @@ vi.mock('@/service/relayChannelService', () => ({
     importChannels: vi.fn(),
     duplicateChannel: vi.fn(),
     batchDuplicateChannels: batchDuplicateChannelsMock,
+    batchUpdateChannels: batchUpdateChannelsMock,
     batchSetChannelStatus: vi.fn(),
     batchDeleteChannels: vi.fn(),
     toggleChannelStatus: vi.fn(),
@@ -408,6 +411,37 @@ describe('useRelaySettingsManagement', () => {
     expect(exportChannelsMock).not.toHaveBeenCalled()
     expect(copyTextWithFallbackMock).not.toHaveBeenCalled()
 
+    wrapper.unmount()
+  })
+
+  it('submits batch edits for the selected channels and retains rejected rows for retry', async () => {
+    const { api, wrapper } = await mountComposable()
+    api.toggleChannelSelection('updated-channel', true)
+    api.toggleChannelSelection('rejected-channel', true)
+    batchUpdateChannelsMock.mockResolvedValue({
+      updated: [createChannelRow({ id: 'updated-channel' })],
+      rejected: [{ id: 'rejected-channel', reason: 'Unsupported model' }],
+    })
+
+    const result = await api.handleBatchUpdateChannels({
+      patch: { multiplier: 0.8 },
+      modelPricingMigration: {
+        sourceModelId: 'gpt-5.6-luna',
+        targetPricingModel: 'gpt-5.6-luna-disc-1',
+      },
+    })
+
+    expect(batchUpdateChannelsMock).toHaveBeenCalledWith({
+      ids: ['updated-channel', 'rejected-channel'],
+      patch: { multiplier: 0.8 },
+      modelPricingMigration: {
+        sourceModelId: 'gpt-5.6-luna',
+        targetPricingModel: 'gpt-5.6-luna-disc-1',
+      },
+    })
+    expect(result.rejected).toHaveLength(1)
+    expect(api.selectedChannelCount.value).toBe(1)
+    expect(api.isChannelSelected('rejected-channel')).toBe(true)
     wrapper.unmount()
   })
 

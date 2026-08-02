@@ -35,6 +35,8 @@ import type {
   ContextLengthMultiplierRule,
   TimePeriodMultiplierRule,
   UpdateRelayConfigRequest,
+  BatchUpdateRelayChannelsRequest,
+  BatchUpdateRelayChannelsResponse,
 } from '@/client/types.gen'
 
 export type ModelRateRow = {
@@ -749,6 +751,8 @@ export const useRelaySettingsManagement = () => {
   const hasLoadedVisibilityGroups = ref(false)
   const hasLoadedVisibilityRoles = ref(false)
   const showChannelDetailDialog = ref(false)
+  const showChannelBatchEditDialog = ref(false)
+  const channelBatchEditMode = ref<'settings' | 'model-pricing-migration'>('settings')
   const currentChannelDetail = ref<RelayChannelDto | null>(null)
   const channelHealth = ref<RelayChannelHealthDto | RelayAutomaticPoolHealthDto | null>(null)
   const channelHealthLoading = ref(false)
@@ -1739,6 +1743,31 @@ export const useRelaySettingsManagement = () => {
     }
   }
 
+  const openChannelBatchEditDialog = () => {
+    if (!ensureChannelsSelected()) return
+    channelBatchEditMode.value = 'settings'
+    showChannelBatchEditDialog.value = true
+  }
+
+  const openChannelModelPricingMigrationDialog = () => {
+    if (!ensureChannelsSelected()) return
+    channelBatchEditMode.value = 'model-pricing-migration'
+    showChannelBatchEditDialog.value = true
+  }
+
+  const handleBatchUpdateChannels = async (
+    payload: Omit<BatchUpdateRelayChannelsRequest, 'ids'>,
+  ): Promise<BatchUpdateRelayChannelsResponse> => {
+    const result = await relayChannelService.batchUpdateChannels({
+      ids: selectedChannelIds.value,
+      ...payload,
+    })
+    const updatedIds = new Set(result.updated.map((channel) => channel.id))
+    selectedChannelIds.value = selectedChannelIds.value.filter((id) => !updatedIds.has(id))
+    await loadChannels()
+    return result
+  }
+
   const handleBatchDeleteChannels = async () => {
     if (!ensureChannelsSelected()) return
     const count = selectedChannelIds.value.length
@@ -2280,6 +2309,8 @@ export const useRelaySettingsManagement = () => {
     poolMemberTooltipLoadingIds,
     showChannelDialog,
     showChannelDetailDialog,
+    showChannelBatchEditDialog,
+    channelBatchEditMode,
     showChannelImportDialog,
     channelImportText,
     isEditingChannel,
@@ -2365,6 +2396,9 @@ export const useRelaySettingsManagement = () => {
     handleDuplicateChannel,
     handleBatchDuplicateChannels,
     handleBatchSetChannelStatus,
+    openChannelBatchEditDialog,
+    openChannelModelPricingMigrationDialog,
+    handleBatchUpdateChannels,
     handleBatchDeleteChannels,
     openCreateChannelDialog,
     openEditChannelDialog,

@@ -110,6 +110,11 @@ describe("RelayChannelService", () => {
     relayPoolResolver.preloadContext.mockResolvedValue({ graph: new Map(), modelCatalog: [] });
     relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([]);
     relayConfigService.getRelayConfig.mockResolvedValue({ apiCatalogPoolVisibility: "anonymous-range" });
+    relayChannelRepository.updateById.mockImplementation(async (id: string, data: Record<string, unknown>) => ({
+      ...sampleChannel,
+      id,
+      ...data,
+    }));
     relayTokenRepository.findManagedPoolsByOwnerUserId.mockResolvedValue([]);
     relayTokenRepository.findManagedPoolByRelayChannelId.mockResolvedValue(null);
     vi.spyOn(RelayTokenRepository, "getInstance").mockReturnValue(relayTokenRepository as any);
@@ -123,6 +128,104 @@ describe("RelayChannelService", () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("channel-1");
     expect(result[0].enabled).toBe(true);
+  });
+
+  it("merges a model pricing migration without changing the upstream request model", async () => {
+    const channel = {
+      ...sampleChannel,
+      modelMapping: { "gpt-4o": "legacy-price" },
+      allowedModels: JSON.stringify(["gpt-5.6-luna"]),
+    };
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([channel]);
+    relayConfigService.getRelayConfig.mockResolvedValue({
+      modelRates: [
+        { model: "gpt-5.6-luna", modelId: "gpt-5.6-luna" },
+        { model: "gpt-5.6-luna-disc-1", modelId: "gpt-5.6-luna" },
+      ],
+    });
+
+    const result = await service.batchUpdateChannels(
+      {
+        ids: [channel.id],
+        patch: { multiplier: 0.8 },
+        modelPricingMigration: {
+          sourceModelId: "gpt-5.6-luna",
+          targetPricingModel: "gpt-5.6-luna-disc-1",
+        },
+      },
+      "actor-user",
+    );
+
+    expect(result.rejected).toEqual([]);
+    expect(result.updated).toHaveLength(1);
+    expect(relayChannelRepository.updateById).toHaveBeenCalledWith(
+      channel.id,
+      expect.objectContaining({
+        multiplier: 0.8,
+        modelMapping: {
+          "gpt-4o": "legacy-price",
+          "gpt-5.6-luna": "gpt-5.6-luna-disc-1",
+        },
+      }),
+      transactionClient,
+    );
+    expect(businessLogService.logOperation).toHaveBeenCalledWith(
+      expect.objectContaining({ operationType: OperationType.RELAY_CHANNEL_BATCH_UPDATE }),
+    );
+  });
+
+  it("rejects only channels that cannot accept the migration source model", async () => {
+    const allowed = { ...sampleChannel, id: "allowed", allowedModels: JSON.stringify(["gpt-5.6-luna"]) };
+    const rejected = { ...sampleChannel, id: "rejected", allowedModels: JSON.stringify(["other-model"]) };
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([allowed, rejected]);
+    relayConfigService.getRelayConfig.mockResolvedValue({
+      modelRates: [
+        { model: "gpt-5.6-luna", modelId: "gpt-5.6-luna" },
+        { model: "gpt-5.6-luna-disc-1", modelId: "gpt-5.6-luna" },
+      ],
+    });
+
+    const result = await service.batchUpdateChannels(
+      {
+        ids: [allowed.id, rejected.id],
+        patch: {},
+        modelPricingMigration: {
+          sourceModelId: "gpt-5.6-luna",
+          targetPricingModel: "gpt-5.6-luna-disc-1",
+        },
+      },
+      "actor-user",
+    );
+
+    expect(result.updated.map((item) => item.id)).toEqual([allowed.id]);
+    expect(result.rejected).toEqual([
+      expect.objectContaining({ id: rejected.id, reason: expect.stringContaining("does not allow") }),
+    ]);
+    expect(relayChannelRepository.updateById).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a pricing migration when the target pricing record resolves to another upstream model", async () => {
+    relayConfigService.getRelayConfig.mockResolvedValue({
+      modelRates: [{ model: "gpt-5.6-luna-disc-1", modelId: "another-upstream-model" }],
+    });
+
+    const result = await service.batchUpdateChannels(
+      {
+        ids: [sampleChannel.id],
+        patch: {},
+        modelPricingMigration: {
+          sourceModelId: "gpt-5.6-luna",
+          targetPricingModel: "gpt-5.6-luna-disc-1",
+        },
+      },
+      "actor-user",
+    );
+
+    expect(result.updated).toEqual([]);
+    expect(result.rejected).toEqual([
+      expect.objectContaining({ id: sampleChannel.id, reason: expect.stringContaining("expected 'gpt-5.6-luna'") }),
+    ]);
+    expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
   });
 
   it("publishes pooled channels as logical price ranges without topology", async () => {

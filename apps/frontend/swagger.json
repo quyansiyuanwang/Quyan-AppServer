@@ -14700,6 +14700,48 @@
 				}
 			}
 		},
+		"/v1/relay-channels/batch": {
+			"patch": {
+				"operationId": "RelayChannelControllerBatchUpdateChannels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BatchUpdateRelayChannelsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BatchUpdateRelayChannelsRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/relay-channels/{id}/duplicate": {
 			"post": {
 				"operationId": "RelayChannelControllerDuplicateChannel",
@@ -33751,6 +33793,7 @@
 					"RELAY_CHANNEL_BATCH_DELETE",
 					"RELAY_CHANNEL_DUPLICATE",
 					"RELAY_CHANNEL_BATCH_DUPLICATE",
+					"RELAY_CHANNEL_BATCH_UPDATE",
 					"RELAY_CHANNEL_EXPORT",
 					"RELAY_CHANNEL_IMPORT",
 					"RELAY_CONFIG_UPDATE",
@@ -39638,6 +39681,151 @@
 						"description": "Input-context threshold multiplier rules."
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchUpdateRelayChannelRejectedDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"reason"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchUpdateRelayChannelsResponse": {
+				"properties": {
+					"updated": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelDto"
+						},
+						"type": "array"
+					},
+					"rejected": {
+						"items": {
+							"$ref": "#/components/schemas/BatchUpdateRelayChannelRejectedDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"updated",
+					"rejected"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchUpdateRelayChannelPatch": {
+				"description": "Fields that can be safely applied to multiple channels. Sensitive upstream settings and pool topology are excluded.",
+				"properties": {
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"allowedFormats": {
+						"type": "string"
+					},
+					"allowedModels": {
+						"type": "string",
+						"nullable": true
+					},
+					"addUserIdentifier": {
+						"type": "boolean"
+					},
+					"inputTokensIncludeCacheRead": {
+						"type": "boolean"
+					},
+					"modelMapping": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Record_string.string_"
+							}
+						],
+						"nullable": true
+					},
+					"visibilityMode": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode"
+					},
+					"visibilityConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelVisibilityConfigDto"
+							}
+						],
+						"nullable": true
+					},
+					"routingStrategy": {
+						"$ref": "#/components/schemas/RelayChannelRoutingStrategy"
+					},
+					"routingConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelRoutingConfigDto"
+							}
+						],
+						"nullable": true
+					},
+					"timePeriodMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/TimePeriodMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelModelPricingMigrationRequest": {
+				"description": "Maps a request model to another local pricing record without changing its upstream model ID.",
+				"properties": {
+					"sourceModelId": {
+						"type": "string"
+					},
+					"targetPricingModel": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"sourceModelId",
+					"targetPricingModel"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchUpdateRelayChannelsRequest": {
+				"properties": {
+					"ids": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"patch": {
+						"$ref": "#/components/schemas/BatchUpdateRelayChannelPatch"
+					},
+					"modelPricingMigration": {
+						"$ref": "#/components/schemas/RelayChannelModelPricingMigrationRequest"
+					}
+				},
+				"required": [
+					"ids",
+					"patch"
+				],
 				"type": "object",
 				"additionalProperties": false
 			},

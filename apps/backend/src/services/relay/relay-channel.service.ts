@@ -2,6 +2,8 @@ import type {
   BatchDeleteRelayChannelsRequest,
   BatchRelayChannelsResultDto,
   BatchSetRelayChannelStatusRequest,
+  BatchUpdateRelayChannelsRequest,
+  BatchUpdateRelayChannelsResponse,
   BatchUpdateRelayChannelHealthConfigRequest,
   CreateRelayChannelRequest,
   DuplicateRelayChannelRequest,
@@ -1724,6 +1726,138 @@ export class RelayChannelService {
     });
 
     return this.toDto(channel);
+  }
+
+  async batchUpdateChannels(
+    body: BatchUpdateRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchUpdateRelayChannelsResponse> {
+    const channels = await this.getOrderedChannelsByIds(body.ids, true);
+    const migration = body.modelPricingMigration;
+    const relayConfig = migration ? await this.relayConfigService.getRelayConfig() : undefined;
+    const sourceModelId = migration?.sourceModelId.trim();
+    const targetPricingModel = migration?.targetPricingModel.trim();
+    const targetModel = migration
+      ? relayConfig?.modelRates.find((model) => model.model.trim() === targetPricingModel)
+      : undefined;
+
+    const rejected: BatchUpdateRelayChannelsResponse["rejected"] = [];
+    const updated: RelayChannelDto[] = [];
+
+    if (migration && !targetModel) {
+      await this.logBatchChannelUpdate(body, actorUserId, request, 0, channels.length);
+      return {
+        updated,
+        rejected: channels.map((channel) => ({
+          id: channel.id,
+          reason: `Pricing model '${targetPricingModel}' was not found`,
+        })),
+      };
+    }
+
+    const targetModelId = targetModel?.modelId?.trim() || targetModel?.model.trim();
+    if (migration && targetModelId !== sourceModelId) {
+      await this.logBatchChannelUpdate(body, actorUserId, request, 0, channels.length);
+      return {
+        updated,
+        rejected: channels.map((channel) => ({
+          id: channel.id,
+          reason: `Pricing model '${targetPricingModel}' has upstream modelId '${targetModelId}', expected '${sourceModelId}'`,
+        })),
+      };
+    }
+
+    const sourceModelNames = new Set(
+      (relayConfig?.modelRates ?? [])
+        .filter((model) => (model.modelId?.trim() || model.model.trim()) === sourceModelId)
+        .map((model) => model.model.trim()),
+    );
+
+    for (const channel of channels) {
+      try {
+        if (migration && !this.channelAllowsModelId(channel, sourceModelId!, sourceModelNames)) {
+          throw new BadRequestError(`Channel does not allow request model '${sourceModelId}'`);
+        }
+
+        const patch: UpdateRelayChannelRequest = { ...body.patch };
+        if (migration) {
+          patch.modelMapping = {
+            ...((channel.modelMapping as Record<string, string> | null) ?? {}),
+            [sourceModelId!]: targetPricingModel!,
+          };
+        }
+        const validated = await this.buildValidatedChannelData(patch, channel);
+        await this.assertVisibleNameAvailable(validated.name, channel.id);
+        if (
+          validated.visibilityMode === "hidden" &&
+          (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden"
+        ) {
+          const referenceCount = await this.relayChannelRepository.countDirectBusinessReferences(channel.id);
+          if (referenceCount > 0) {
+            throw new BadRequestError(
+              "Cannot hide a relay channel while it is directly assigned to relay tokens, OJ API keys, or monthly passes",
+            );
+          }
+        }
+
+        const saved = await this.relayChannelRepository.withTransaction((tx) =>
+          this.relayChannelRepository.updateById(channel.id, this.toPersistenceInput(validated), tx),
+        );
+        updated.push(await this.toDto(saved));
+      } catch (error) {
+        rejected.push({
+          id: channel.id,
+          reason: error instanceof Error ? error.message : "Channel update failed",
+        });
+      }
+    }
+
+    await this.logBatchChannelUpdate(body, actorUserId, request, updated.length, rejected.length);
+
+    return { updated, rejected };
+  }
+
+  private async logBatchChannelUpdate(
+    body: BatchUpdateRelayChannelsRequest,
+    actorUserId: string,
+    request: Request | undefined,
+    updatedCount: number,
+    rejectedCount: number,
+  ): Promise<void> {
+    const migration = body.modelPricingMigration;
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_BATCH_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `批量更新了 ${updatedCount} 个中转渠道${rejectedCount ? `，${rejectedCount} 个未更新` : ""}`,
+      metadata: {
+        ids: body.ids,
+        fields: Object.keys(body.patch),
+        modelPricingMigration: migration
+          ? { sourceModelId: migration.sourceModelId, targetPricingModel: migration.targetPricingModel }
+          : undefined,
+        updated: updatedCount,
+        rejected: rejectedCount,
+      },
+      success: rejectedCount === 0,
+      ...buildBusinessLogRequestContext(request),
+    });
+  }
+
+  private channelAllowsModelId(channel: RelayChannel, sourceModelId: string, sourceModelNames: Set<string>): boolean {
+    if (!channel.allowedModels) return true;
+    try {
+      const allowedModels = JSON.parse(channel.allowedModels);
+      if (!Array.isArray(allowedModels)) return false;
+      return allowedModels.some((model) => {
+        const normalized = typeof model === "string" ? model.trim() : "";
+        return normalized === sourceModelId || sourceModelNames.has(normalized);
+      });
+    } catch {
+      return false;
+    }
   }
 
   async duplicateChannel(
