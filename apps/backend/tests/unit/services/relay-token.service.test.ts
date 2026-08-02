@@ -305,7 +305,18 @@ describe("RelayTokenService", () => {
       id: "automatic-pool",
       status: MANAGED_STATUS.ENABLED,
       channelType: "automatic-proxy-pool",
-      poolMembers: [{ memberChannelId: "member-1" }, { memberChannelId: "member-2" }],
+      poolMembers: [
+        {
+          memberChannelId: "member-1",
+          enabled: true,
+          memberChannel: { status: MANAGED_STATUS.ENABLED },
+        },
+        {
+          memberChannelId: "member-2",
+          enabled: true,
+          memberChannel: { status: MANAGED_STATUS.ENABLED },
+        },
+      ],
     });
 
     await expect(
@@ -315,7 +326,7 @@ describe("RelayTokenService", () => {
         automaticProxyPoolChannelId: "automatic-pool",
         blockedAutomaticProxyPoolChannelIds: ["not-a-member"],
       } as any),
-    ).rejects.toThrow("Blocked channels must be members of the selected automatic proxy pool");
+    ).rejects.toThrow("Blocked channels must be enabled members of the selected automatic proxy pool");
 
     await expect(
       service.generateToken("user-1", {
@@ -325,6 +336,35 @@ describe("RelayTokenService", () => {
         blockedAutomaticProxyPoolChannelIds: ["member-1", "member-2"],
       } as any),
     ).rejects.toThrow("At least one automatic proxy pool channel must remain available");
+  });
+
+  it("rejects disabled automatic proxy pool members as blockable channels", async () => {
+    relayChannelService.assertChannelAccessibleById.mockResolvedValue({
+      id: "automatic-pool",
+      status: MANAGED_STATUS.ENABLED,
+      channelType: "automatic-proxy-pool",
+      poolMembers: [
+        {
+          memberChannelId: "member-enabled",
+          enabled: true,
+          memberChannel: { status: MANAGED_STATUS.ENABLED },
+        },
+        {
+          memberChannelId: "member-disabled",
+          enabled: false,
+          memberChannel: { status: MANAGED_STATUS.ENABLED },
+        },
+      ],
+    });
+
+    await expect(
+      service.generateToken("user-1", {
+        name: "Automatic Token",
+        routingMode: "automatic-pool",
+        automaticProxyPoolChannelId: "automatic-pool",
+        blockedAutomaticProxyPoolChannelIds: ["member-disabled"],
+      } as any),
+    ).rejects.toThrow("Blocked channels must be enabled members of the selected automatic proxy pool");
   });
 
   it("rejects an automatic proxy pool in ordered channel configuration", async () => {

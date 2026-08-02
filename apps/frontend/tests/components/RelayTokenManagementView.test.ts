@@ -103,7 +103,10 @@ const ElTableStub = defineComponent({
   name: 'ElTable',
   props: { data: { type: Array, default: () => [] } },
   setup(props) {
-    provide('tableRows', computed(() => props.data as any[]))
+    provide(
+      'tableRows',
+      computed(() => props.data as any[]),
+    )
   },
   template: '<div class="el-table-stub"><slot /></div>',
 })
@@ -136,8 +139,14 @@ const ElDrawerStub = defineComponent({
 const ElFormStub = defineComponent({ name: 'ElForm', template: '<form><slot /></form>' })
 const ElFormItemStub = defineComponent({ name: 'ElFormItem', template: '<div><slot /></div>' })
 const ElTagStub = defineComponent({ name: 'ElTag', template: '<span><slot /></span>' })
-const ElTooltipStub = defineComponent({ name: 'ElTooltip', template: '<div><slot /><slot name="content" /></div>' })
-const ElDatePickerStub = defineComponent({ name: 'ElDatePicker', template: '<input class="date-picker-stub" />' })
+const ElTooltipStub = defineComponent({
+  name: 'ElTooltip',
+  template: '<div><slot /><slot name="content" /></div>',
+})
+const ElDatePickerStub = defineComponent({
+  name: 'ElDatePicker',
+  template: '<input class="date-picker-stub" />',
+})
 const ElEmptyStub = defineComponent({ name: 'ElEmpty', template: '<div class="empty-stub"></div>' })
 const ElIconStub = defineComponent({ name: 'ElIcon', template: '<i><slot /></i>' })
 const ElLinkStub = defineComponent({ name: 'ElLink', template: '<a><slot /></a>' })
@@ -177,14 +186,16 @@ const ElSwitchStub = defineComponent({
   name: 'ElSwitch',
   props: { modelValue: { type: Boolean, default: false } },
   emits: ['update:modelValue'],
-  template: '<button class="el-switch-stub" @click="$emit(\'update:modelValue\', !modelValue)">{{ modelValue }}</button>',
+  template:
+    '<button class="el-switch-stub" @click="$emit(\'update:modelValue\', !modelValue)">{{ modelValue }}</button>',
 })
 
 const ElButtonStub = defineComponent({
   name: 'ElButton',
   props: { disabled: { type: Boolean, default: false } },
   emits: ['click'],
-  template: '<button class="el-button-stub" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
+  template:
+    '<button class="el-button-stub" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
 })
 
 const ElSelectStub = defineComponent({
@@ -368,7 +379,12 @@ describe('RelayTokenManagementView', () => {
       total: 1,
     })
     getTokenSwitchLogsMock.mockResolvedValue({ logs: [] })
-    listChannelsMock.mockResolvedValue([channelPrimary, channelSecondary, channelTertiary, automaticProxyPool])
+    listChannelsMock.mockResolvedValue([
+      channelPrimary,
+      channelSecondary,
+      channelTertiary,
+      automaticProxyPool,
+    ])
     createRelayTokenMock.mockResolvedValue({ id: 'created-token' })
     updateTokenMock.mockResolvedValue({ id: relayToken.id })
     refreshRelayTokenMock.mockResolvedValue({ ...relayToken, token: 'rlt_refreshed_token_value' })
@@ -619,6 +635,45 @@ describe('RelayTokenManagementView', () => {
     expect(wrapper.find('.blocked-automatic-pool-channel-select').exists()).toBe(false)
   })
 
+  it('does not expose disabled automatic proxy pool members as blockable channels', async () => {
+    const disabledMemberPool = {
+      ...automaticProxyPool,
+      automaticProxyPool: {
+        members: [
+          ...automaticProxyPool.automaticProxyPool.members,
+          { id: 'channel-disabled', name: 'Disabled channel', enabled: false },
+        ],
+      },
+    }
+    listChannelsMock.mockResolvedValue([
+      channelPrimary,
+      channelSecondary,
+      channelTertiary,
+      disabledMemberPool,
+    ])
+
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openEditDialog(
+      createRelayTokenFixture({
+        routingMode: 'automatic-pool',
+        automaticProxyPoolChannelId: disabledMemberPool.id,
+        blockedAutomaticProxyPoolChannelIds: ['channel-secondary', 'channel-disabled'],
+        channelConfigs: [],
+      }),
+    )
+    await flushPromises()
+
+    expect(vm.selectedAutomaticProxyPoolMemberOptions.map((member: any) => member.id)).toEqual([
+      'channel-primary',
+      'channel-secondary',
+    ])
+    expect(vm.editForm.blockedAutomaticProxyPoolChannelIds).toEqual(['channel-secondary'])
+    expect(wrapper.text()).not.toContain('Disabled channel')
+  })
+
   it('opens a batch-add dialog and appends selected channels in selection order', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -789,7 +844,7 @@ describe('RelayTokenManagementView', () => {
     vm.openCreateDialog()
     vm.editForm.channelConfigs = [{ channelId: 'channel-primary', priority: 0 }]
     vm.editForm.channelId = 'channel-primary'
-     vm.editForm.quotaWindowsEnabled = true
+    vm.editForm.quotaWindowsEnabled = true
     vm.editForm.quotaWindows = [
       {
         id: 'window-1',
@@ -834,88 +889,88 @@ describe('RelayTokenManagementView', () => {
     )
   })
 
-       it('omits quotaWindows on update when existing disabled state remains unchanged', async () => {
-       const wrapper = mountView()
-       await flushPromises()
-       const vm = wrapper.vm as any
+  it('omits quotaWindows on update when existing disabled state remains unchanged', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
 
-       vm.openEditDialog(createRelayTokenFixture({ quotaWindows: [] }))
-       vm.editForm.channelConfigs = [{ channelId: 'channel-primary', priority:0 }]
-       vm.editForm.channelId = 'channel-primary'
-       vm.editForm.quotaWindowsEnabled = false
-       vm.editForm.quotaWindows = []
+    vm.openEditDialog(createRelayTokenFixture({ quotaWindows: [] }))
+    vm.editForm.channelConfigs = [{ channelId: 'channel-primary', priority: 0 }]
+    vm.editForm.channelId = 'channel-primary'
+    vm.editForm.quotaWindowsEnabled = false
+    vm.editForm.quotaWindows = []
 
-       await vm.handleSave()
-       await flushPromises()
+    await vm.handleSave()
+    await flushPromises()
 
-       expect(updateTokenMock).toHaveBeenCalledWith(
-       relayToken.id,
-       expect.not.objectContaining({
-       quotaWindows: expect.anything(),
-       }),
-       )
-       })
+    expect(updateTokenMock).toHaveBeenCalledWith(
+      relayToken.id,
+      expect.not.objectContaining({
+        quotaWindows: expect.anything(),
+      }),
+    )
+  })
 
-       it('sends quotaWindows empty array on update when user clears existing windows', async () => {
-       const wrapper = mountView()
-       await flushPromises()
-       const vm = wrapper.vm as any
+  it('sends quotaWindows empty array on update when user clears existing windows', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
 
-       vm.openEditDialog(relayToken)
-       vm.editForm.channelConfigs = [{ channelId: 'channel-primary', priority:0 }]
-       vm.editForm.channelId = 'channel-primary'
-       vm.editForm.quotaWindowsEnabled = false
-       vm.editForm.quotaWindows = []
+    vm.openEditDialog(relayToken)
+    vm.editForm.channelConfigs = [{ channelId: 'channel-primary', priority: 0 }]
+    vm.editForm.channelId = 'channel-primary'
+    vm.editForm.quotaWindowsEnabled = false
+    vm.editForm.quotaWindows = []
 
-       await vm.handleSave()
-       await flushPromises()
+    await vm.handleSave()
+    await flushPromises()
 
-       expect(updateTokenMock).toHaveBeenCalledWith(
-       relayToken.id,
-       expect.objectContaining({
-       quotaWindows: [],
-       }),
-       )
-       })
+    expect(updateTokenMock).toHaveBeenCalledWith(
+      relayToken.id,
+      expect.objectContaining({
+        quotaWindows: [],
+      }),
+    )
+  })
 
-       it('replaces quotaWindows with non-empty array on update', async () => {
-       const wrapper = mountView()
-       await flushPromises()
-       const vm = wrapper.vm as any
+  it('replaces quotaWindows with non-empty array on update', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
 
-       vm.openEditDialog(relayToken)
-       vm.editForm.channelConfigs = [{ channelId: 'channel-primary', priority:0 }]
-       vm.editForm.channelId = 'channel-primary'
-       vm.editForm.quotaWindowsEnabled = true
-       vm.editForm.quotaWindows = [
-       {
-       id: 'window-replace-1',
-       quotaUnit: 'request',
-       quotaLimit:9,
-       quotaWindowHours:12,
-       months:0,
-       days:0,
-       hours:12,
-       minutes:0,
-       },
-       ]
+    vm.openEditDialog(relayToken)
+    vm.editForm.channelConfigs = [{ channelId: 'channel-primary', priority: 0 }]
+    vm.editForm.channelId = 'channel-primary'
+    vm.editForm.quotaWindowsEnabled = true
+    vm.editForm.quotaWindows = [
+      {
+        id: 'window-replace-1',
+        quotaUnit: 'request',
+        quotaLimit: 9,
+        quotaWindowHours: 12,
+        months: 0,
+        days: 0,
+        hours: 12,
+        minutes: 0,
+      },
+    ]
 
-       await vm.handleSave()
-       await flushPromises()
+    await vm.handleSave()
+    await flushPromises()
 
-       expect(updateTokenMock).toHaveBeenCalledWith(
-       relayToken.id,
-       expect.objectContaining({
-       quotaWindows: [
-       {
-       quotaUnit: 'request',
-       quotaLimit:9,
-       quotaWindowHours:12,
-       },
-       ],
-       }),
-       )
-       })
+    expect(updateTokenMock).toHaveBeenCalledWith(
+      relayToken.id,
+      expect.objectContaining({
+        quotaWindows: [
+          {
+            quotaUnit: 'request',
+            quotaLimit: 9,
+            quotaWindowHours: 12,
+          },
+        ],
+      }),
+    )
+  })
 
   it('rejects duplicate quota window rules before submit', async () => {
     const wrapper = mountView()
@@ -925,7 +980,7 @@ describe('RelayTokenManagementView', () => {
     vm.openCreateDialog()
     vm.editForm.channelConfigs = [{ channelId: 'channel-primary', priority: 0 }]
     vm.editForm.channelId = 'channel-primary'
-     vm.editForm.quotaWindowsEnabled = true
+    vm.editForm.quotaWindowsEnabled = true
     vm.editForm.quotaWindows = [
       {
         id: 'window-1',

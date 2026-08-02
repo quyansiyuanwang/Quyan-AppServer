@@ -466,7 +466,7 @@ export const useRelayTokenManagement = () => {
     const automaticPool = automaticProxyPoolChannelOptions.value.find(
       (channel) => channel.id === editForm.value.automaticProxyPoolChannelId,
     )
-    return automaticPool?.automaticProxyPool?.members || []
+    return (automaticPool?.automaticProxyPool?.members || []).filter((member) => member.enabled)
   })
 
   const selectedChannelConfigKeys = ref<string[]>([])

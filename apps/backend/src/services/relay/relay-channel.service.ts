@@ -489,9 +489,9 @@ export class RelayChannelService {
       routingStrategy: (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
       routingConfig: Object.keys(safeRoutingConfig).length > 0 ? safeRoutingConfig : undefined,
       members: (channel.poolMembers ?? [])
+        .filter((member) => member.enabled !== false && member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED)
         .map((member) => {
           const memberChannel = member.memberChannel;
-          const enabled = member.enabled !== false && memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED;
           const timePeriodMultiplier = memberChannel
             ? computeMultiplierForTime(
                 (memberChannel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
@@ -499,17 +499,17 @@ export class RelayChannelService {
               )
             : 1;
           const multiplier = memberChannel ? Number(memberChannel.multiplier) : 1;
-          const modelCapabilities = enabled
-            ? (capabilitiesByLeafChannelId.get(member.memberChannelId) ?? []).map((capability) => ({
-                ...capability,
-                supportedRequestFormats: [...capability.supportedRequestFormats],
-              }))
-            : [];
+          const modelCapabilities = (capabilitiesByLeafChannelId.get(member.memberChannelId) ?? []).map(
+            (capability) => ({
+              ...capability,
+              supportedRequestFormats: [...capability.supportedRequestFormats],
+            }),
+          );
 
           return {
             id: member.memberChannelId,
             name: memberChannel?.name ?? member.memberChannelId,
-            enabled,
+            enabled: true,
             priority: member.priority,
             weight: Number(member.weight),
             multiplier,
