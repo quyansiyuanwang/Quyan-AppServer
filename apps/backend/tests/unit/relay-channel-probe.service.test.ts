@@ -18,11 +18,19 @@ import {
   readProbeJsonPath,
   resolveProbeModelPricing,
   resolveProbeCustomerFacingTargets,
+  resolveAllowedProbeFormats,
   waitForProbeSettlement,
 } from "../../src/services/relay/relay-channel-probe.service";
 import type { RelayChannelProbeTopologyItem } from "../../src/services/relay/relay-channel-probe.service";
 
 describe("relay channel probe helpers", () => {
+  it("uses the shared channel format parser for probe endpoint availability", () => {
+    expect(resolveAllowedProbeFormats("anthropic")).toEqual(["anthropic"]);
+    expect(resolveAllowedProbeFormats("openai, anthropic")).toEqual(["openai", "anthropic"]);
+    expect(resolveAllowedProbeFormats("OpenAI, Anthropic")).toEqual(["openai", "anthropic"]);
+    expect(resolveAllowedProbeFormats("all")).toEqual(["openai", "anthropic", "gemini"]);
+  });
+
   it("uses public pooled channel names instead of their standalone upstream members", () => {
     const channels = [
       {

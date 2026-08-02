@@ -25,6 +25,7 @@ import {
   TOKEN_PRICE_DIVISOR,
 } from "@/constant/pricing";
 import { extractTokenUsageMetrics, hasTokenValue, normalizeTokenBreakdown } from "@/util/token-usage.util";
+import { parseRelayRequestFormats, supportsRelayRequestFormat, type RelayRequestFormat } from "@appserver/shared";
 import type {
   ApplyRelayChannelProbeRunsRequest,
   ApplyRelayChannelProbeRunsResponse,
@@ -76,6 +77,11 @@ export type RelayChannelProbeTopologyItem = Pick<
 >;
 
 type ProbeFormat = "openai" | "anthropic" | "gemini";
+
+/** Keep probe format availability aligned with the channel request-format contract. */
+export function resolveAllowedProbeFormats(value: string | null | undefined): ProbeFormat[] {
+  return parseRelayRequestFormats(value) as ProbeFormat[];
+}
 
 export function defaultProbeEndpoint(format: ProbeFormat): RelayChannelProbeEndpoint {
   return format === "anthropic"
@@ -1072,6 +1078,7 @@ export class RelayChannelProbeService {
           totalTokens: usage.totalTokens,
           cacheCreationTokens: usage.cacheCreationTokens,
           cacheReadTokens: usage.cacheReadTokens,
+          upstreamUsage: usage.upstreamUsage,
           suggestedMultiplier,
           cacheHitVerified,
           errorMessage: cacheHitVerified ? undefined : "缓存命中未被上游用量验证",
@@ -1117,9 +1124,7 @@ export class RelayChannelProbeService {
       cacheCreationTokens: averageProbeSampleValue(accepted, "cacheCreationTokens"),
       cacheReadTokens: averageProbeSampleValue(accepted, "cacheReadTokens"),
       suggestedMultiplier: canSuggest ? averageProbeSampleValue(accepted, "suggestedMultiplier") : undefined,
-      upstreamUsage: accepted.length
-        ? { samples: accepted.map((sample) => ({ index: sample.index, cacheHitVerified: sample.cacheHitVerified })) }
-        : undefined,
+      upstreamUsage: this.toAggregateUpstreamUsage(samples),
       costBreakdown,
     };
   }
@@ -1262,6 +1267,23 @@ export class RelayChannelProbeService {
       cacheCreationTokens: metrics.cacheCreationTokens,
       cacheReadTokens: metrics.cacheReadTokens,
       upstreamUsage: usage,
+    };
+  }
+
+  /**
+   * A one-sample run should expose precisely the object the provider returned.
+   * Multi-sample runs retain every successful raw usage object with only the
+   * sample index added outside that object, so diagnostics never alter usage.
+   */
+  private toAggregateUpstreamUsage(samples: readonly RelayChannelProbeSampleDto[]): Record<string, unknown> | undefined {
+    const measured = samples.filter(
+      (sample): sample is RelayChannelProbeSampleDto & { upstreamUsage: Record<string, unknown> } =>
+        sample.upstreamUsage != null,
+    );
+    if (measured.length === 0) return undefined;
+    if (measured.length === 1) return measured[0].upstreamUsage;
+    return {
+      samples: measured.map((sample) => ({ index: sample.index, usage: sample.upstreamUsage })),
     };
   }
 
@@ -1468,15 +1490,7 @@ export class RelayChannelProbeService {
   }
 
   private toAllowedProbeFormats(value: string): Array<"openai" | "anthropic" | "gemini"> {
-    const values = value
-      .split(",")
-      .map((item) => item.trim().toLowerCase())
-      .filter((item): item is "openai" | "anthropic" | "gemini" => ["openai", "anthropic", "gemini"].includes(item));
-    return values.length || value.trim().toLowerCase() === "all"
-      ? values.length
-        ? values
-        : ["openai", "anthropic", "gemini"]
-      : [];
+    return resolveAllowedProbeFormats(value);
   }
 
   private getProbeGroupLockId(group: string): string {
@@ -1489,11 +1503,7 @@ export class RelayChannelProbeService {
     format: string,
     model: string,
   ): void {
-    const configuredFormats = channel.allowedFormats
-      .split(",")
-      .map((item) => item.trim().toLowerCase())
-      .filter(Boolean);
-    if (!configuredFormats.includes("all") && !configuredFormats.includes(format))
+    if (!supportsRelayRequestFormat(channel.allowedFormats, format as RelayRequestFormat))
       throw new BadRequestError(`渠道不支持 ${format} 格式探针请求`);
 
     if (channel.allowedModels.length && !channel.allowedModels.includes(model))
