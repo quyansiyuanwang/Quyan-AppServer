@@ -404,6 +404,11 @@
                     </el-select>
                     <span class="probe-form-help">{{ cacheModeHelp }}</span>
                   </el-form-item>
+                  <div class="payload-preset-action">
+                    <el-button plain :disabled="!canExecute" @click="applyPayloadPreset">
+                      {{ i18ns.t('relay.channelProbeApplyPreset') }}
+                    </el-button>
+                  </div>
                   <el-collapse class="advanced-payload">
                     <el-collapse-item
                       :title="i18ns.t('relay.channelProbePayloadAdvanced')"
@@ -1849,6 +1854,16 @@ function applyPayloadPreset() {
   )
   ElMessage.success(i18ns.t('relay.channelProbePresetApplied'))
 }
+function isPayloadPreset(format: RelayChannelProbeFormat, endpoint: RelayChannelProbeEndpoint) {
+  try {
+    return (
+      JSON.stringify(JSON.parse(payloadText.value)) ===
+      JSON.stringify(createDefaultProbePayload(format, endpoint))
+    )
+  } catch {
+    return false
+  }
+}
 function createDefaultProbePayload(
   format: RelayChannelProbeFormat,
   endpoint: RelayChannelProbeEndpoint,
@@ -3001,10 +3016,20 @@ function stopPolling() {
 }
 watch([keyword, profileFilter, enabledFilter, runStatusFilter, suggestionFilter], clearSelection)
 watch(
-  () => form.value.probeFormat,
-  (format) => {
-    if (!probeEndpointOptions.value.includes(form.value.probeEndpoint))
+  [() => form.value.probeFormat, () => form.value.probeEndpoint],
+  ([format, endpoint], [previousFormat, previousEndpoint]) => {
+    if (!probeEndpointOptions.value.includes(endpoint)) {
       form.value.probeEndpoint = defaultEndpointForFormat(format)
+      return
+    }
+    // Only migrate a generated preset. Custom JSON can carry upstream-specific
+    // fields and must never be overwritten by a format switch.
+    if (
+      previousFormat !== undefined &&
+      previousEndpoint !== undefined &&
+      isPayloadPreset(previousFormat, previousEndpoint)
+    )
+      payloadText.value = JSON.stringify(createDefaultProbePayload(format, endpoint), null, 2)
   },
 )
 watch(
@@ -3228,6 +3253,11 @@ onBeforeUnmount(stopPolling)
 }
 .advanced-payload {
   margin-bottom: 12px;
+}
+.payload-preset-action {
+  display: flex;
+  justify-content: flex-start;
+  margin: 8px 0;
 }
 .probe-helper-panel {
   position: sticky;
