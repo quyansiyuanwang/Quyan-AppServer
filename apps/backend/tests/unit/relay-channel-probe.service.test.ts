@@ -11,6 +11,7 @@ import {
   getProbeWorkflowHeaders,
   getProbeWorkflowRequestBody,
   injectProbeCacheBuster,
+  injectProbeMeasurementInput,
   interpolateRequiredProbeVariables,
   interpolateProbeVariables,
   normalizeProbeNetworkError,
@@ -234,6 +235,26 @@ describe("relay channel probe helpers", () => {
       content: [{ type: "input_text", text: "[probe-cache-buster:same-key]" }],
     });
     expect(payload.input).toHaveLength(1);
+  });
+
+  it("adds a measurable text window to every supported default request format", () => {
+    const cases = [
+      ["openai", "openai-chat-completions"],
+      ["openai", "openai-responses"],
+      ["anthropic", "anthropic-messages"],
+      ["gemini", "gemini-generate-content"],
+    ] as const;
+    for (const [format, endpoint] of cases) {
+      const payload = createDefaultProbePayload(format, endpoint);
+      const injected = injectProbeMeasurementInput(payload, format, 128, endpoint);
+      expect(injected).toBeDefined();
+      expect(JSON.stringify(injected)).toContain("probe-measurement");
+      expect(JSON.stringify(payload)).not.toContain("probe-measurement");
+    }
+  });
+
+  it("keeps opaque custom payloads diagnostic-only instead of rewriting their structure", () => {
+    expect(injectProbeMeasurementInput({ tools: [{ type: "function" }] }, "openai", 1024)).toBeUndefined();
   });
 
   it("discards only statistically large probe multiplier deviations", () => {

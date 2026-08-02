@@ -2552,6 +2552,7 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeNoticeDecimals: '通知保留位数',
     channelProbeCustomerNoticeCount: '用户通知 {count} 项',
     channelProbeExportChangeChart: '导出用户通知图',
+    channelProbeExportAppliedChangeChart: '应用后导出本次已勾选渠道的用户通知图',
     channelProbeExportChangeChartEmpty: '当前没有可导出的倍率变化',
     channelProbeExportChangeChartNoPublic: '没有可面向用户通知的渠道倍率变化',
     channelProbeExportChangeCharted: '倍率变化图已导出',
@@ -2605,7 +2606,21 @@ const zhCN: DeepStringify<typeof en> = {
       '每个样本先用同一缓存标记预热，再测量读取；预热成本单独记录且不参与建议。计量请求必须返回缓存读取 Token，否则该样本不产生缓存建议。',
     channelProbeSampleCount: '采样次数',
     channelProbeSampleCountHelp:
-      '同一渠道按顺序执行 1 至 10 次测量。1 次直接使用有效结果；大于 1 次至少需保留 2 个有效样本。成功样本达到 3 个时，会按 MAD 3.5 规则剔除异常值，再对剩余样本取平均。',
+      '同一渠道按顺序执行 1 至 10 次测量。探针建议至少需要 3 个有效样本；成功样本达到 3 个时，会按 MAD 3.5 规则剔除异常值，再对剩余样本取平均。',
+    channelProbeMeasurementInputTokens: '测量输入 Token 目标',
+    channelProbeMeasurementInputTokensHelp:
+      '系统会向可识别的文本提示追加稳定测量文本，提高余额变化的可观测性；自定义请求体无法安全追加时仅保留诊断，不生成建议。',
+    channelProbeBalanceSettlementTolerance: '余额可分辨阈值',
+    channelProbeBalanceSettlementToleranceHelp:
+      '标准化后的余额变化必须大于此值才会参与校准。余额接口仅保留两位小数时通常设为 0.01。',
+    channelProbeBalanceSettlementReads: '余额稳定读取次数',
+    channelProbeBalanceSettlementReadsHelp:
+      '模型请求后需要连续相同的余额读取次数，确认上游扣费已经落账。',
+    channelProbeCalibrationVerified: '校准已验证',
+    channelProbeCalibrationLowSignal: '测量信号不足',
+    channelProbeCalibrationInsufficientSamples: '有效样本不足',
+    channelProbeCalibrationUnstable: '余额或样本波动过大',
+    channelProbeCalibrationPending: '等待校准',
     channelProbeInvalidSampleCount: '采样次数必须是 1 到 10 的整数',
     channelProbeSampleSummary: '采样汇总',
     channelProbeSampleSummaryValue:
@@ -2618,6 +2633,9 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeSampleStatussucceeded: '已测量',
     channelProbeSampleStatusfailed: '不可用',
     channelProbeSampleStatusdiscarded: '已剔除异常',
+    channelProbeSampleStatuslow_signal: '测量信号不足',
+    channelProbeSampleStatusbalance_unstable: '余额不稳定',
+    channelProbeSampleStatussettlement_timeout: '扣费未稳定',
     channelProbeSampleNote: '说明',
     channelProbeModel: '探针模型',
     channelProbeModelPlaceholder: '选择渠道已配置模型',

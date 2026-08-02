@@ -903,7 +903,10 @@ model RelayChannelProbeProfile {
   probePayload          Json
   preventCache          Boolean  @default(true)
   cacheMode             String   @default("cache-bust") @db.VarChar(20)
-  sampleCount           Int      @default(1)
+  sampleCount           Int      @default(3)
+  measurementInputTokens Int     @default(1024)
+  balanceSettlementTolerance Decimal @default(0.000001) @db.Decimal(18, 6)
+  balanceSettlementReads Int     @default(2)
   upstreamCurrency      String   @default("CNY") @db.VarChar(12)
   localCurrency         String   @default("CNY") @db.VarChar(12)
   upstreamBalanceDivisor Decimal @default(1.0) @db.Decimal(18, 6)
@@ -940,7 +943,10 @@ model RelayChannelProbeRun {
   cacheBustingEnabled      Boolean  @default(true)
   probeEndpoint            String   @default("openai-chat-completions") @db.VarChar(40)
   cacheMode                String   @default("cache-bust") @db.VarChar(20)
-  sampleCount              Int      @default(1)
+  sampleCount              Int      @default(3)
+  measurementInputTokens   Int      @default(1024)
+  balanceSettlementTolerance Decimal @default(0.000001) @db.Decimal(18, 6)
+  balanceSettlementReads   Int      @default(2)
   sampleSucceededCount     Int      @default(0)
   sampleAcceptedCount      Int      @default(0)
   sampleDiscardedCount     Int      @default(0)
@@ -950,6 +956,10 @@ model RelayChannelProbeRun {
   warmupUsage              Json?
   samples                  Json?
   forceWithoutCacheBuster  Boolean  @default(false)
+  calibrationStatus        String   @default("pending") @db.VarChar(32)
+  pricingFingerprint       String?  @db.VarChar(64)
+  pricingSnapshot          Json?
+  balanceSnapshots         Json?
   cacheBusterId            String?  @db.VarChar(36)
   upstreamBalanceBefore    Decimal? @db.Decimal(18, 6)
   upstreamBalanceAfter     Decimal? @db.Decimal(18, 6)

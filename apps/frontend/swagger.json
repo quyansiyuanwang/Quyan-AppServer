@@ -39785,6 +39785,18 @@
 						"type": "number",
 						"format": "double"
 					},
+					"measurementInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceSettlementTolerance": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceSettlementReads": {
+						"type": "number",
+						"format": "double"
+					},
 					"upstreamCurrency": {
 						"type": "string"
 					},
@@ -39839,6 +39851,9 @@
 					"preventCache",
 					"cacheMode",
 					"sampleCount",
+					"measurementInputTokens",
+					"balanceSettlementTolerance",
+					"balanceSettlementReads",
 					"upstreamCurrency",
 					"localCurrency",
 					"upstreamBalanceDivisor",
@@ -39874,7 +39889,10 @@
 						"enum": [
 							"succeeded",
 							"failed",
-							"discarded"
+							"discarded",
+							"low_signal",
+							"balance_unstable",
+							"settlement_timeout"
 						]
 					},
 					"accepted": {
@@ -39930,6 +39948,36 @@
 					"cacheHitVerified": {
 						"type": "boolean"
 					},
+					"measurementInputInjected": {
+						"type": "boolean"
+					},
+					"balanceSnapshots": {
+						"items": {
+							"properties": {
+								"observedAt": {
+									"type": "string"
+								},
+								"balance": {
+									"type": "number",
+									"format": "double"
+								},
+								"phase": {
+									"type": "string",
+									"enum": [
+										"before",
+										"after"
+									]
+								}
+							},
+							"required": [
+								"observedAt",
+								"balance",
+								"phase"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
 					"errorMessage": {
 						"type": "string"
 					}
@@ -39941,6 +39989,17 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"RelayChannelProbeCalibrationStatus": {
+				"type": "string",
+				"enum": [
+					"pending",
+					"verified",
+					"insufficient-samples",
+					"low-signal",
+					"unstable",
+					"pricing-mismatch"
+				]
 			},
 			"RelayChannelProbeCostBreakdownDto": {
 				"properties": {
@@ -39983,6 +40042,17 @@
 						"type": "number",
 						"format": "double"
 					},
+					"contextMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"contextTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"contextRuleName": {
+						"type": "string"
+					},
 					"rawCost": {
 						"type": "number",
 						"format": "double"
@@ -39997,6 +40067,8 @@
 					"cacheReadMultiplier",
 					"globalMultiplier",
 					"timeMultiplier",
+					"contextMultiplier",
+					"contextTokens",
 					"rawCost"
 				],
 				"type": "object",
@@ -40039,6 +40111,18 @@
 						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
 					},
 					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"measurementInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceSettlementTolerance": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceSettlementReads": {
 						"type": "number",
 						"format": "double"
 					},
@@ -40133,6 +40217,42 @@
 					"forceWithoutCacheBuster": {
 						"type": "boolean"
 					},
+					"calibrationStatus": {
+						"$ref": "#/components/schemas/RelayChannelProbeCalibrationStatus"
+					},
+					"pricingFingerprint": {
+						"type": "string"
+					},
+					"pricingSnapshot": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"balanceSnapshots": {
+						"items": {
+							"properties": {
+								"observedAt": {
+									"type": "string"
+								},
+								"balance": {
+									"type": "number",
+									"format": "double"
+								},
+								"phase": {
+									"type": "string",
+									"enum": [
+										"before",
+										"after"
+									]
+								}
+							},
+							"required": [
+								"observedAt",
+								"balance",
+								"phase"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
 					"cacheBusterId": {
 						"type": "string"
 					},
@@ -40182,6 +40302,9 @@
 					"probeEndpoint",
 					"cacheMode",
 					"sampleCount",
+					"measurementInputTokens",
+					"balanceSettlementTolerance",
+					"balanceSettlementReads",
 					"sampleSucceededCount",
 					"sampleAcceptedCount",
 					"sampleDiscardedCount",
@@ -40189,6 +40312,7 @@
 					"upstreamRateMultiplier",
 					"cacheBustingEnabled",
 					"forceWithoutCacheBuster",
+					"calibrationStatus",
 					"requestedByUserId",
 					"createTime",
 					"updateTime"
@@ -40282,6 +40406,21 @@
 					"sampleCount": {
 						"type": "number",
 						"format": "double"
+					},
+					"measurementInputTokens": {
+						"type": "number",
+						"format": "double",
+						"description": "Approximate minimum input token count used to make balance deltas measurable."
+					},
+					"balanceSettlementTolerance": {
+						"type": "number",
+						"format": "double",
+						"description": "Normalized balance delta required to consider an upstream charge observable."
+					},
+					"balanceSettlementReads": {
+						"type": "number",
+						"format": "double",
+						"description": "Consecutive equal balance reads required after a charge."
 					},
 					"upstreamCurrency": {
 						"type": "string"

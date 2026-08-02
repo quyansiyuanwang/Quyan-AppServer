@@ -2643,6 +2643,8 @@ export default {
     channelProbeNoticeDecimals: 'Notice decimals',
     channelProbeCustomerNoticeCount: '{count} customer notices',
     channelProbeExportChangeChart: 'Export customer notice',
+    channelProbeExportAppliedChangeChart:
+      'Export a customer notice for the selected changes after applying',
     channelProbeExportChangeChartEmpty: 'There are no multiplier changes to export',
     channelProbeExportChangeChartNoPublic: 'There are no customer-facing channel changes to export',
     channelProbeExportChangeCharted: 'Multiplier change chart exported',
@@ -2699,7 +2701,21 @@ export default {
       'For each sample, warms one cache key and then measures a read with that key. Warm-up cost is recorded separately and excluded. The measured request must report cache-read tokens or the sample cannot produce a cache suggestion.',
     channelProbeSampleCount: 'Samples',
     channelProbeSampleCountHelp:
-      'Runs 1 to 10 measurements for the same channel in sequence. One sample uses its valid result directly; multiple samples need at least two valid results. With three or more successful samples, MAD 3.5 removes outliers before averaging the remainder.',
+      'Runs 1 to 10 measurements for the same channel in sequence. A suggestion requires at least three accepted samples. With three or more successful samples, MAD 3.5 removes outliers before averaging the remainder.',
+    channelProbeMeasurementInputTokens: 'Measurement input tokens',
+    channelProbeMeasurementInputTokensHelp:
+      'Appends stable measurement text to recognized prompts so balance changes are observable. Opaque custom payloads remain diagnostic-only.',
+    channelProbeBalanceSettlementTolerance: 'Balance resolution threshold',
+    channelProbeBalanceSettlementToleranceHelp:
+      'A normalized balance delta must exceed this value to calibrate. A ledger rounded to two decimals usually needs 0.01.',
+    channelProbeBalanceSettlementReads: 'Stable balance reads',
+    channelProbeBalanceSettlementReadsHelp:
+      'Requires this many consecutive equal reads after the model request before accepting the upstream charge.',
+    channelProbeCalibrationVerified: 'Calibration verified',
+    channelProbeCalibrationLowSignal: 'Measurement signal too low',
+    channelProbeCalibrationInsufficientSamples: 'Not enough accepted samples',
+    channelProbeCalibrationUnstable: 'Balance or sample variation is too high',
+    channelProbeCalibrationPending: 'Calibration pending',
     channelProbeInvalidSampleCount: 'Sample count must be an integer from 1 to 10',
     channelProbeSampleSummary: 'Sample summary',
     channelProbeSampleSummaryValue:
@@ -2712,6 +2728,9 @@ export default {
     channelProbeSampleStatussucceeded: 'Measured',
     channelProbeSampleStatusfailed: 'Unavailable',
     channelProbeSampleStatusdiscarded: 'Outlier removed',
+    channelProbeSampleStatuslow_signal: 'Low signal',
+    channelProbeSampleStatusbalance_unstable: 'Balance unstable',
+    channelProbeSampleStatussettlement_timeout: 'Settlement timed out',
     channelProbeSampleNote: 'Note',
     channelProbeModel: 'Probe model',
     channelProbeModelPlaceholder: 'Select a model configured for this channel',
