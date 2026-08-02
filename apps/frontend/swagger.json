@@ -44426,9 +44426,6 @@
 						"type": "string",
 						"nullable": true
 					},
-					"token": {
-						"type": "string"
-					},
 					"allowedModels": {
 						"type": "string",
 						"nullable": true
@@ -44437,7 +44434,6 @@
 				"required": [
 					"id",
 					"name",
-					"token",
 					"allowedModels"
 				],
 				"type": "object",
