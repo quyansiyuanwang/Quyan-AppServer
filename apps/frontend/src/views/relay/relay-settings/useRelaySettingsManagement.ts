@@ -2330,6 +2330,7 @@ export const useRelaySettingsManagement = () => {
     visibilityUserOptionsLoading,
     visibilityGroupOptionsLoading,
     visibilityRoleOptionsLoading,
+    ensureVisibilityOptionsLoaded,
     channelForm,
     timeRuleDialogVisible,
     editingTimeRuleIndex,
