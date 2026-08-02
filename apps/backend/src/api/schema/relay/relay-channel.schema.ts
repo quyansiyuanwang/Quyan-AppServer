@@ -76,6 +76,7 @@ const routingConfigSchema = z
     stickyByModel: z.coerce.boolean().optional(),
     stickyByFormat: z.coerce.boolean().optional(),
     rankingMode: automaticPoolRankingModeSchema.optional(),
+    dynamicMemberRankingEnabled: z.coerce.boolean().optional(),
     healthTrackingMode: healthTrackingModeSchema.optional(),
     manualAvailability: z.coerce.number().min(0).max(1).nullable().optional(),
     manualLatencyMs: z.coerce.number().int().min(0).max(600000).nullable().optional(),

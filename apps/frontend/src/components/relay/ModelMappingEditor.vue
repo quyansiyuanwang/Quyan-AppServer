@@ -15,6 +15,7 @@
             <el-input
               v-model="row.source"
               size="small"
+              :disabled="disabled"
               :placeholder="i18ns.t('relay.modelMappingSourcePlaceholder')"
               clearable
             />
@@ -34,6 +35,7 @@
           <el-select
             v-model="row.target"
             size="small"
+            :disabled="disabled"
             filterable
             allow-create
             default-first-option
@@ -46,20 +48,20 @@
       </el-table-column>
       <el-table-column :label="i18ns.t('relay.modelMappingAction')" width="80">
         <template #default="{ $index }">
-          <el-button type="danger" size="small" @click="removeEntry($index)">
+          <el-button type="danger" size="small" :disabled="disabled" @click="removeEntry($index)">
             {{ i18ns.t('delete') }}
           </el-button>
         </template>
       </el-table-column>
     </el-table>
     <div class="mt-2 flex items-center gap-2">
-      <el-button size="small" @click="addEntry">
+      <el-button size="small" :disabled="disabled" @click="addEntry">
         + {{ i18ns.t('relay.modelMappingAdd') }}
       </el-button>
-      <el-button size="small" @click="copyAsJson">
+      <el-button size="small" :disabled="disabled" @click="copyAsJson">
         {{ i18ns.t('relay.modelMappingCopyJson') }}
       </el-button>
-      <el-button size="small" @click="addIdentityMappings">
+      <el-button size="small" :disabled="disabled" @click="addIdentityMappings">
         {{ i18ns.t('relay.modelMappingAddIdentity') }}
       </el-button>
     </div>
@@ -113,10 +115,12 @@ const props = withDefaults(
   defineProps<{
     modelValue?: Record<string, string>
     availableModels?: string[]
+    disabled?: boolean
   }>(),
   {
     modelValue: () => ({}),
     availableModels: () => [],
+    disabled: false,
   },
 )
 

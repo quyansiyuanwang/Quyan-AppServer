@@ -72,7 +72,7 @@
       </el-button>
       <div class="relay-channel-management__batch-actions">
         <el-dropdown :disabled="!hasChannelSelection" @command="handleBatchCommand">
-          <el-button size="small">
+          <el-button size="small" :disabled="!hasChannelSelection">
             {{ i18ns.t('actions') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </el-button>
           <template #dropdown>
