@@ -3,6 +3,7 @@ import {
   assertProbeUsage,
   buildProbeUpstreamEndpoint,
   calculateSuggestedProbeMultiplier,
+  createDefaultProbePayload,
   defaultProbeEndpoint,
   findProbeOutlierIndexes,
   formatProbeUpstreamError,
@@ -103,6 +104,20 @@ describe("relay channel probe helpers", () => {
   it("refuses cache busting when the payload has no safe prompt insertion point", () => {
     expect(injectProbeCacheBuster({ input: 1 }, "openai", "uuid", "openai-responses")).toBeUndefined();
     expect(injectProbeCacheBuster({ systemInstruction: "invalid" }, "gemini", "uuid")).toBeUndefined();
+  });
+
+  it("creates cache-buster-compatible minimal payloads for every supported endpoint", () => {
+    const cases = [
+      ["openai", "openai-chat-completions"],
+      ["openai", "openai-responses"],
+      ["anthropic", "anthropic-messages"],
+      ["gemini", "gemini-generate-content"],
+    ] as const;
+
+    for (const [format, endpoint] of cases) {
+      const payload = createDefaultProbePayload(format, endpoint);
+      expect(injectProbeCacheBuster(payload, format, "default-payload", endpoint)).toBeDefined();
+    }
   });
 
   it("rejects an unresolved workflow variable before an upstream request is sent", () => {

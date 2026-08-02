@@ -1673,7 +1673,7 @@ const canBatchCopyProfile = computed(
   () => selectedRows.value.length >= 2 && batchProfileSources.value.length > 0,
 )
 const form = ref<ProbeForm>(emptyForm())
-const payloadText = ref('{}')
+const payloadText = ref('')
 const workflowSteps = ref<WorkflowFormStep[]>([])
 const credentials = ref<CredentialFormRow[]>([])
 const credentialNames = ref<string[]>([])
@@ -1842,20 +1842,28 @@ async function copyVariable(name: string) {
   }
 }
 function applyPayloadPreset() {
-  const prompt = 'Reply with OK.'
-  const preset =
-    form.value.probeFormat === 'anthropic'
-      ? { max_tokens: 1, messages: [{ role: 'user', content: prompt }] }
-      : form.value.probeFormat === 'gemini'
-        ? { contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1 } }
-        : form.value.probeEndpoint === 'openai-responses'
-          ? {
-              input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
-              max_output_tokens: 1,
-            }
-          : { messages: [{ role: 'user', content: prompt }], max_tokens: 1 }
-  payloadText.value = JSON.stringify(preset, null, 2)
+  payloadText.value = JSON.stringify(
+    createDefaultProbePayload(form.value.probeFormat, form.value.probeEndpoint),
+    null,
+    2,
+  )
   ElMessage.success(i18ns.t('relay.channelProbePresetApplied'))
+}
+function createDefaultProbePayload(
+  format: RelayChannelProbeFormat,
+  endpoint: RelayChannelProbeEndpoint,
+): Record<string, unknown> {
+  const prompt = 'Reply with OK.'
+  return endpoint === 'openai-responses'
+    ? {
+        input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+        max_output_tokens: 1,
+      }
+    : format === 'anthropic'
+      ? { max_tokens: 1, messages: [{ role: 'user', content: prompt }] }
+      : format === 'gemini'
+        ? { contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1 } }
+        : { messages: [{ role: 'user', content: prompt }], max_tokens: 1 }
 }
 function createProfileExport(): ProbeProfileExport {
   return {
@@ -2629,7 +2637,11 @@ async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
         probeFormat: row.allowedProbeFormats[0] ?? 'openai',
         probeEndpoint: defaultEndpointForFormat(row.allowedProbeFormats[0] ?? 'openai'),
       }
-  payloadText.value = JSON.stringify(profile?.probePayload ?? {}, null, 2)
+  payloadText.value = JSON.stringify(
+    profile?.probePayload ?? createDefaultProbePayload(form.value.probeFormat, form.value.probeEndpoint),
+    null,
+    2,
+  )
   workflowSteps.value = profile ? profile.workflow.map(toWorkflowForm) : [makeStep()]
   credentialNames.value = profile?.credentialNames ?? []
   credentials.value = []

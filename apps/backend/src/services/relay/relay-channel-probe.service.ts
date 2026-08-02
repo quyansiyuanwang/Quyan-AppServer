@@ -106,6 +106,27 @@ export function normalizeProbeEndpoint(
   return isProbeEndpointCompatible(candidate, format) ? candidate : defaultProbeEndpoint(format);
 }
 
+/** Minimal billable request body used when an older profile has no request payload yet. */
+export function createDefaultProbePayload(
+  format: ProbeFormat,
+  endpoint: RelayChannelProbeEndpoint = defaultProbeEndpoint(format),
+): Record<string, unknown> {
+  const prompt = "Reply with OK.";
+  if (endpoint === "openai-responses") {
+    return {
+      input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
+      max_output_tokens: 1,
+    };
+  }
+  if (format === "anthropic") {
+    return { max_tokens: 1, messages: [{ role: "user", content: prompt }] };
+  }
+  if (format === "gemini") {
+    return { contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1 } };
+  }
+  return { messages: [{ role: "user", content: prompt }], max_tokens: 1 };
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -1180,6 +1201,12 @@ export class RelayChannelProbeService {
     );
     if (!isRecord(interpolatedPayload)) throw new BadRequestError("探针请求体必须是 JSON 对象");
     let payload = interpolatedPayload;
+    // Earlier profiles were initialized with {}, which cannot safely carry a cache marker.
+    // Preserve every configured field, but turn that exact empty legacy shape into the same
+    // minimal request the UI now starts with.
+    if (Object.keys(payload).every((key) => key === "model")) {
+      payload = { ...payload, ...createDefaultProbePayload(format, endpoint) };
+    }
     let injectedCacheBusterId: string | undefined;
     if (cacheBustingEnabled) {
       const candidateId = cacheBusterId ?? randomUUID();
@@ -1188,7 +1215,9 @@ export class RelayChannelProbeService {
         payload = injected;
         injectedCacheBusterId = candidateId;
       } else if (!forceWithoutCacheBuster) {
-        throw new BadRequestError("PROBE_CACHE_BUSTER_INJECTION_FAILED:无法向当前请求结构写入唯一缓存标记");
+        throw new BadRequestError(
+          "PROBE_CACHE_BUSTER_INJECTION_FAILED:当前请求体不包含该接口可注入的提示字段，请应用最小请求预设或修正请求格式",
+        );
       }
     }
     const headers: Record<string, string> =
