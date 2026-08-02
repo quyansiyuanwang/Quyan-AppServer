@@ -83,6 +83,14 @@
               <el-dropdown-item command="duplicate">{{
                 i18ns.t('relay.batchDuplicateChannels')
               }}</el-dropdown-item>
+              <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
+                <el-dropdown-item command="edit">{{
+                  i18ns.t('relay.batchEditChannels')
+                }}</el-dropdown-item>
+                <el-dropdown-item command="pricing-migration">{{
+                  i18ns.t('relay.batchModelPricingMigration')
+                }}</el-dropdown-item>
+              </PermissionWrapper>
               <el-dropdown-item command="enable">{{
                 i18ns.t('relay.batchEnableChannels')
               }}</el-dropdown-item>
@@ -341,6 +349,8 @@ const {
   handleDeleteChannel,
   handleBatchDuplicateChannels,
   handleBatchSetChannelStatus,
+  openChannelBatchEditDialog,
+  openChannelModelPricingMigrationDialog,
   handleBatchDeleteChannels,
 } = state
 
@@ -352,6 +362,8 @@ const handleRowCommand = (command: string, row: (typeof channelRows.value)[numbe
 const handleBatchCommand = (command: string) => {
   if (command === 'copy') void copyChannelsAsJson()
   if (command === 'duplicate') void handleBatchDuplicateChannels()
+  if (command === 'edit') openChannelBatchEditDialog()
+  if (command === 'pricing-migration') openChannelModelPricingMigrationDialog()
   if (command === 'enable') void handleBatchSetChannelStatus(true)
   if (command === 'disable') void handleBatchSetChannelStatus(false)
   if (command === 'delete') void handleBatchDeleteChannels()

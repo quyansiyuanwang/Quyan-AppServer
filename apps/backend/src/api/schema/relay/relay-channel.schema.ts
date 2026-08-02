@@ -212,6 +212,51 @@ export const batchDuplicateRelayChannelsBodySchema = z.object({
   ids: relayChannelIdsSchema,
 });
 
+const batchUpdateRelayChannelPatchSchema = z
+  .object({
+    multiplier: channelMultiplierSchema,
+    allowedFormats: z.string().max(500).optional(),
+    allowedModels: z.string().max(2000).nullable().optional(),
+    addUserIdentifier: z.coerce.boolean().optional(),
+    inputTokensIncludeCacheRead: z.coerce.boolean().optional(),
+    modelMapping: z.record(z.string(), z.string()).nullable().optional(),
+    visibilityMode: visibilityModeSchema.optional(),
+    visibilityConfig: visibilityConfigSchema,
+    routingStrategy: routingStrategySchema.optional(),
+    routingConfig: routingConfigSchema,
+    timePeriodMultipliers: z.array(timePeriodRuleSchema).nullable().optional(),
+    contextLengthMultipliers: z
+      .array(contextLengthRuleSchema)
+      .max(100)
+      .refine(
+        (rules) => new Set(rules.map((rule) => rule.minTokens)).size === rules.length,
+        "contextLengthMultipliers must have unique minTokens",
+      )
+      .nullable()
+      .optional(),
+  })
+  .strict();
+
+export const batchUpdateRelayChannelsBodySchema = z
+  .object({
+    ids: relayChannelIdsSchema,
+    patch: batchUpdateRelayChannelPatchSchema,
+    modelPricingMigration: z
+      .object({
+        sourceModelId: z.string().trim().min(1).max(200),
+        targetPricingModel: z.string().trim().min(1).max(200),
+      })
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    if (Object.keys(value.patch).length > 0 || value.modelPricingMigration) return;
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["patch"],
+      message: "At least one patch field or modelPricingMigration is required",
+    });
+  });
+
 export const exportRelayChannelsBodySchema = z.object({
   ids: relayChannelIdsSchema.optional(),
   includeDisabled: z.coerce.boolean().optional(),

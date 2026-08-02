@@ -9,7 +9,7 @@ export type RelayChannelProbeClaimCandidate = Prisma.RelayChannelProbeRunGetPayl
   include: { profile: { select: { probeGroup: true } } };
 }>;
 export type RelayChannelProbeRunWithChannelRecord = Prisma.RelayChannelProbeRunGetPayload<{
-  include: { relayChannel: true };
+  include: { relayChannel: true; profile: { include: { relayChannel: true } } };
 }>;
 
 /** Persistence boundary for channel balance probe profiles and queued runs. */
@@ -61,6 +61,9 @@ export class RelayChannelProbeRepository {
       preventCache: source.preventCache,
       cacheMode: source.cacheMode,
       sampleCount: source.sampleCount,
+      measurementInputTokens: source.measurementInputTokens,
+      balanceSettlementTolerance: source.balanceSettlementTolerance,
+      balanceSettlementReads: source.balanceSettlementReads,
       upstreamCurrency: source.upstreamCurrency,
       localCurrency: source.localCurrency,
       upstreamBalanceDivisor: source.upstreamBalanceDivisor,
@@ -117,7 +120,25 @@ export class RelayChannelProbeRepository {
   }
 
   public findRunsWithChannels(runIds: string[]): Promise<RelayChannelProbeRunWithChannelRecord[]> {
-    return prisma.relayChannelProbeRun.findMany({ where: { id: { in: runIds } }, include: { relayChannel: true } });
+    return prisma.relayChannelProbeRun.findMany({
+      where: { id: { in: runIds } },
+      include: { relayChannel: true, profile: { include: { relayChannel: true } } },
+    });
+  }
+
+  public findRecentVerifiedRuns(channelId: string, excludingRunId: string, since: Date) {
+    return prisma.relayChannelProbeRun.findMany({
+      where: {
+        relayChannelId: channelId,
+        id: { not: excludingRunId },
+        status: "succeeded",
+        calibrationStatus: "verified",
+        suggestedMultiplier: { not: null },
+        finishedAt: { gte: since },
+      },
+      orderBy: { finishedAt: "desc" },
+      take: 1,
+    });
   }
 
   public async applySuggestedMultiplier(params: {

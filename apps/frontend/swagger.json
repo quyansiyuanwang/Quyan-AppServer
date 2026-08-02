@@ -14700,6 +14700,48 @@
 				}
 			}
 		},
+		"/v1/relay-channels/batch": {
+			"patch": {
+				"operationId": "RelayChannelControllerBatchUpdateChannels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BatchUpdateRelayChannelsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BatchUpdateRelayChannelsRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/relay-channels/{id}/duplicate": {
 			"post": {
 				"operationId": "RelayChannelControllerDuplicateChannel",
@@ -33751,6 +33793,7 @@
 					"RELAY_CHANNEL_BATCH_DELETE",
 					"RELAY_CHANNEL_DUPLICATE",
 					"RELAY_CHANNEL_BATCH_DUPLICATE",
+					"RELAY_CHANNEL_BATCH_UPDATE",
 					"RELAY_CHANNEL_EXPORT",
 					"RELAY_CHANNEL_IMPORT",
 					"RELAY_CONFIG_UPDATE",
@@ -39641,6 +39684,151 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"BatchUpdateRelayChannelRejectedDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"reason"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchUpdateRelayChannelsResponse": {
+				"properties": {
+					"updated": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelDto"
+						},
+						"type": "array"
+					},
+					"rejected": {
+						"items": {
+							"$ref": "#/components/schemas/BatchUpdateRelayChannelRejectedDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"updated",
+					"rejected"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchUpdateRelayChannelPatch": {
+				"description": "Fields that can be safely applied to multiple channels. Sensitive upstream settings and pool topology are excluded.",
+				"properties": {
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"allowedFormats": {
+						"type": "string"
+					},
+					"allowedModels": {
+						"type": "string",
+						"nullable": true
+					},
+					"addUserIdentifier": {
+						"type": "boolean"
+					},
+					"inputTokensIncludeCacheRead": {
+						"type": "boolean"
+					},
+					"modelMapping": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Record_string.string_"
+							}
+						],
+						"nullable": true
+					},
+					"visibilityMode": {
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode"
+					},
+					"visibilityConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelVisibilityConfigDto"
+							}
+						],
+						"nullable": true
+					},
+					"routingStrategy": {
+						"$ref": "#/components/schemas/RelayChannelRoutingStrategy"
+					},
+					"routingConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayChannelRoutingConfigDto"
+							}
+						],
+						"nullable": true
+					},
+					"timePeriodMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/TimePeriodMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelModelPricingMigrationRequest": {
+				"description": "Maps a request model to another local pricing record without changing its upstream model ID.",
+				"properties": {
+					"sourceModelId": {
+						"type": "string"
+					},
+					"targetPricingModel": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"sourceModelId",
+					"targetPricingModel"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchUpdateRelayChannelsRequest": {
+				"properties": {
+					"ids": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"patch": {
+						"$ref": "#/components/schemas/BatchUpdateRelayChannelPatch"
+					},
+					"modelPricingMigration": {
+						"$ref": "#/components/schemas/RelayChannelModelPricingMigrationRequest"
+					}
+				},
+				"required": [
+					"ids",
+					"patch"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"DuplicateRelayChannelRequest": {
 				"properties": {
 					"name": {
@@ -39785,6 +39973,18 @@
 						"type": "number",
 						"format": "double"
 					},
+					"measurementInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceSettlementTolerance": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceSettlementReads": {
+						"type": "number",
+						"format": "double"
+					},
 					"upstreamCurrency": {
 						"type": "string"
 					},
@@ -39839,6 +40039,9 @@
 					"preventCache",
 					"cacheMode",
 					"sampleCount",
+					"measurementInputTokens",
+					"balanceSettlementTolerance",
+					"balanceSettlementReads",
 					"upstreamCurrency",
 					"localCurrency",
 					"upstreamBalanceDivisor",
@@ -39874,7 +40077,10 @@
 						"enum": [
 							"succeeded",
 							"failed",
-							"discarded"
+							"discarded",
+							"low_signal",
+							"balance_unstable",
+							"settlement_timeout"
 						]
 					},
 					"accepted": {
@@ -39930,6 +40136,36 @@
 					"cacheHitVerified": {
 						"type": "boolean"
 					},
+					"measurementInputInjected": {
+						"type": "boolean"
+					},
+					"balanceSnapshots": {
+						"items": {
+							"properties": {
+								"observedAt": {
+									"type": "string"
+								},
+								"balance": {
+									"type": "number",
+									"format": "double"
+								},
+								"phase": {
+									"type": "string",
+									"enum": [
+										"before",
+										"after"
+									]
+								}
+							},
+							"required": [
+								"observedAt",
+								"balance",
+								"phase"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
 					"errorMessage": {
 						"type": "string"
 					}
@@ -39941,6 +40177,17 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"RelayChannelProbeCalibrationStatus": {
+				"type": "string",
+				"enum": [
+					"pending",
+					"verified",
+					"insufficient-samples",
+					"low-signal",
+					"unstable",
+					"pricing-mismatch"
+				]
 			},
 			"RelayChannelProbeCostBreakdownDto": {
 				"properties": {
@@ -39983,6 +40230,17 @@
 						"type": "number",
 						"format": "double"
 					},
+					"contextMultiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"contextTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"contextRuleName": {
+						"type": "string"
+					},
 					"rawCost": {
 						"type": "number",
 						"format": "double"
@@ -39997,6 +40255,8 @@
 					"cacheReadMultiplier",
 					"globalMultiplier",
 					"timeMultiplier",
+					"contextMultiplier",
+					"contextTokens",
 					"rawCost"
 				],
 				"type": "object",
@@ -40039,6 +40299,18 @@
 						"$ref": "#/components/schemas/RelayChannelProbeCacheMode"
 					},
 					"sampleCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"measurementInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceSettlementTolerance": {
+						"type": "number",
+						"format": "double"
+					},
+					"balanceSettlementReads": {
 						"type": "number",
 						"format": "double"
 					},
@@ -40133,6 +40405,42 @@
 					"forceWithoutCacheBuster": {
 						"type": "boolean"
 					},
+					"calibrationStatus": {
+						"$ref": "#/components/schemas/RelayChannelProbeCalibrationStatus"
+					},
+					"pricingFingerprint": {
+						"type": "string"
+					},
+					"pricingSnapshot": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"balanceSnapshots": {
+						"items": {
+							"properties": {
+								"observedAt": {
+									"type": "string"
+								},
+								"balance": {
+									"type": "number",
+									"format": "double"
+								},
+								"phase": {
+									"type": "string",
+									"enum": [
+										"before",
+										"after"
+									]
+								}
+							},
+							"required": [
+								"observedAt",
+								"balance",
+								"phase"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
 					"cacheBusterId": {
 						"type": "string"
 					},
@@ -40182,6 +40490,9 @@
 					"probeEndpoint",
 					"cacheMode",
 					"sampleCount",
+					"measurementInputTokens",
+					"balanceSettlementTolerance",
+					"balanceSettlementReads",
 					"sampleSucceededCount",
 					"sampleAcceptedCount",
 					"sampleDiscardedCount",
@@ -40189,6 +40500,7 @@
 					"upstreamRateMultiplier",
 					"cacheBustingEnabled",
 					"forceWithoutCacheBuster",
+					"calibrationStatus",
 					"requestedByUserId",
 					"createTime",
 					"updateTime"
@@ -40282,6 +40594,21 @@
 					"sampleCount": {
 						"type": "number",
 						"format": "double"
+					},
+					"measurementInputTokens": {
+						"type": "number",
+						"format": "double",
+						"description": "Approximate minimum input token count used to make balance deltas measurable."
+					},
+					"balanceSettlementTolerance": {
+						"type": "number",
+						"format": "double",
+						"description": "Normalized balance delta required to consider an upstream charge observable."
+					},
+					"balanceSettlementReads": {
+						"type": "number",
+						"format": "double",
+						"description": "Consecutive equal balance reads required after a charge."
 					},
 					"upstreamCurrency": {
 						"type": "string"
