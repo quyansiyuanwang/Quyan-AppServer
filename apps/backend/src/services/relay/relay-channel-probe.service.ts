@@ -1275,7 +1275,9 @@ export class RelayChannelProbeService {
    * Multi-sample runs retain every successful raw usage object with only the
    * sample index added outside that object, so diagnostics never alter usage.
    */
-  private toAggregateUpstreamUsage(samples: readonly RelayChannelProbeSampleDto[]): Record<string, unknown> | undefined {
+  private toAggregateUpstreamUsage(
+    samples: readonly RelayChannelProbeSampleDto[],
+  ): Record<string, unknown> | undefined {
     const measured = samples.filter(
       (sample): sample is RelayChannelProbeSampleDto & { upstreamUsage: Record<string, unknown> } =>
         sample.upstreamUsage != null,

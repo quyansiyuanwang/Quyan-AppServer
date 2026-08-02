@@ -2638,7 +2638,8 @@ async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
         probeEndpoint: defaultEndpointForFormat(row.allowedProbeFormats[0] ?? 'openai'),
       }
   payloadText.value = JSON.stringify(
-    profile?.probePayload ?? createDefaultProbePayload(form.value.probeFormat, form.value.probeEndpoint),
+    profile?.probePayload ??
+      createDefaultProbePayload(form.value.probeFormat, form.value.probeEndpoint),
     null,
     2,
   )
