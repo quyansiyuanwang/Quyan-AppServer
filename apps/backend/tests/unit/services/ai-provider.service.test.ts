@@ -263,4 +263,26 @@ describe("AIProviderService", () => {
     expect(chunks[0]).toEqual({ content: "Codex", done: false });
     expect(chunks.at(-1)?.done).toBe(true);
   });
+
+  it("emits completed Responses output when the upstream omitted delta frames", async () => {
+    mockedPost.mockResolvedValue({
+      data: createAsyncChunkStream([
+        'data: {"type":"response.completed","response":{"output":[{"content":[{"type":"output_text","text":"answer"}]}],"usage":{"input_tokens":8,"output_tokens":2,"total_tokens":10}}}\n\n',
+        "data: [DONE]\n\n",
+      ]),
+    } as any);
+
+    const service = AIProviderService.getInstance();
+    const chunks = await collectChunks(
+      service.streamChat(
+        [{ role: "user", content: "hello" }],
+        "gpt-5.6-luna",
+        "test-key",
+        "https://upstream.example.com",
+      ),
+    );
+
+    expect(chunks).toContainEqual({ content: "answer", done: false });
+    expect(chunks.at(-1)).toMatchObject({ done: true, inputTokens: 8, outputTokens: 2 });
+  });
 });

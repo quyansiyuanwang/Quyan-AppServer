@@ -10,7 +10,7 @@
         <el-option
           v-for="token in tokens"
           :key="token.id"
-          :label="token.name || token.token"
+          :label="token.name || token.id"
           :value="token.id"
         />
       </el-select>

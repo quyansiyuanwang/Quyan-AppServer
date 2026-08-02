@@ -21,6 +21,17 @@ async function* createPartialFailingStream(error: Error) {
   throw error;
 }
 
+async function* createEmptyChatStream() {
+  yield {
+    done: true,
+    inputTokens: 8,
+    outputTokens: 0,
+    totalOutputTime: 100,
+    timeToFirstByte: 100,
+    isStreaming: true,
+  };
+}
+
 const createFailingStream = (error: Error) => ({
   [Symbol.asyncIterator]() {
     return {
@@ -259,7 +270,7 @@ describe("ChatService", () => {
     );
   });
 
-  it("uses the next proxy-planned channel when the first channel fails before output", async () => {
+  it("uses the next proxy-planned channel when the first channel completes without visible output", async () => {
     const firstChannel = {
       id: "channel-first",
       name: "first",
@@ -319,11 +330,7 @@ describe("ChatService", () => {
     relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
     messageRepo.create.mockResolvedValue(createPersistedMessage());
     messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
-    aiProvider.streamChat
-      .mockReturnValueOnce(
-        createFailingStream(Object.assign(new Error("upstream unavailable"), { response: { status: 503 } })),
-      )
-      .mockReturnValueOnce(createChatStream());
+    aiProvider.streamChat.mockReturnValueOnce(createEmptyChatStream()).mockReturnValueOnce(createChatStream());
 
     for await (const _chunk of service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini")) {
       // Exhaust the stream.
@@ -469,8 +476,8 @@ describe("ChatService", () => {
 
     const result = await service.getAvailableTokens("user-1");
 
-    expect(result).toHaveLength(1);
-    expect(result[0].allowedModels).toBe("model-a");
+    expect(result).toEqual([{ id: "token-1", name: "token-name", allowedModels: "model-a" }]);
+    expect(result[0]).not.toHaveProperty("token");
   });
 
   it("returns empty available models when token channel does not support openai format", async () => {
