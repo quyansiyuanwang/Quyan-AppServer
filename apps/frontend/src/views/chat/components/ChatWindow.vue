@@ -229,6 +229,8 @@ async function handleDelete(id: string) {
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 .header {
   padding: 16px 24px;
@@ -242,9 +244,13 @@ async function handleDelete(id: string) {
 }
 .messages {
   flex: 1;
-  padding: 16px 24px;
   min-height: 0;
   background: var(--color-background-soft);
+}
+
+.messages :deep(.el-scrollbar__view) {
+  min-height: 100%;
+  padding: 16px 24px;
 }
 
 @media (max-width: 768px) {
@@ -261,6 +267,10 @@ async function handleDelete(id: string) {
   }
 
   .messages {
+    min-width: 0;
+  }
+
+  .messages :deep(.el-scrollbar__view) {
     padding: 10px 12px;
   }
 }

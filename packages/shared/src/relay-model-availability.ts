@@ -56,7 +56,7 @@ export const parseRelayTokenAllowedModelIds = (allowedModels?: string | null): s
 };
 
 export const parseRelayRequestFormats = (allowedFormats?: string | null): RelayRequestFormat[] => {
-  const normalizedFormats = normalizeModelEntry(allowedFormats);
+  const normalizedFormats = normalizeModelEntry(allowedFormats).toLowerCase();
   if (!normalizedFormats || normalizedFormats === 'all') return [...ALL_RELAY_REQUEST_FORMATS];
 
   const validFormats = new Set<RelayRequestFormat>(ALL_RELAY_REQUEST_FORMATS);
@@ -75,7 +75,7 @@ export const supportsRelayRequestFormat = (
   allowedFormats: string | null | undefined,
   requestFormat: RelayRequestFormat,
 ): boolean => {
-  const normalizedFormats = normalizeModelEntry(allowedFormats);
+  const normalizedFormats = normalizeModelEntry(allowedFormats).toLowerCase();
   return !normalizedFormats || normalizedFormats === 'all' || parseRelayRequestFormats(normalizedFormats).includes(requestFormat);
 };
 

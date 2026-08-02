@@ -1,7 +1,5 @@
-import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { useRequestStore } from '@/stores/request'
-import { isTokenExpired } from '@/stores/request'
-import StorageKey from '@/constant/storagekey'
+import { getAccessToken, isTokenExpired } from '@/stores/request'
 import { authorizationService } from '@/service/authorizationService'
 import type { ChatTokenResponse, ConversationResponse, MessageResponse } from '@/client/types.gen'
 import { cacheObject } from '@/utils/common'
@@ -28,7 +26,9 @@ const appServerStreamingMiddleware: SseRequestMiddleware<
   const headers = new Headers(request.init.headers)
   for (const [name, value] of Object.entries(prepared.headers)) headers.set(name, value)
 
-  const token = TypedLocalStorage.getItem(StorageKey.Auth.ACCESS_TOKEN)
+  // Access tokens intentionally live in the request layer's memory state. Reading
+  // localStorage here drops freshly issued tokens because they are not persisted.
+  const token = getAccessToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
 
   return { url: prepared.url, init: { ...request.init, headers } }

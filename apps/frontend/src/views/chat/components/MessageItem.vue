@@ -202,6 +202,7 @@ async function handleDelete() {
   display: flex;
   flex-direction: column;
   max-width: 70%;
+  min-width: 0;
 }
 .message-content {
   padding: 12px 16px;
@@ -209,6 +210,8 @@ async function handleDelete() {
   cursor: pointer;
   transition: all 0.2s;
   width: fit-content;
+  max-width: 100%;
+  min-width: 0;
 }
 .message-item.user .message-content {
   background: var(--el-color-primary-light-9);
@@ -222,7 +225,8 @@ async function handleDelete() {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 .content {
-  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   line-height: 1.6;
 }
 .content.chat-markdown {
@@ -254,6 +258,7 @@ async function handleDelete() {
 }
 .content :deep(.code-block-wrapper) {
   margin: 12px 0;
+  max-width: 100%;
   border-radius: 8px;
   overflow: hidden;
   background: #1e1e1e;
@@ -289,6 +294,7 @@ async function handleDelete() {
   margin: 0;
   padding: 12px;
   background: #1e1e1e;
+  overflow-x: auto;
 }
 .actions-overlay {
   display: flex;
@@ -310,5 +316,19 @@ async function handleDelete() {
 }
 .message-wrapper:hover .actions-overlay {
   opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .message-wrapper {
+    max-width: 92%;
+  }
+
+  .message-content {
+    padding: 10px 12px;
+  }
+
+  .actions-overlay {
+    opacity: 1;
+  }
 }
 </style>

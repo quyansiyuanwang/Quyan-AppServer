@@ -25,6 +25,7 @@ import {
   TOKEN_PRICE_DIVISOR,
 } from "@/constant/pricing";
 import { extractTokenUsageMetrics, hasTokenValue, normalizeTokenBreakdown } from "@/util/token-usage.util";
+import { parseRelayRequestFormats, supportsRelayRequestFormat, type RelayRequestFormat } from "@appserver/shared";
 import type {
   ApplyRelayChannelProbeRunsRequest,
   ApplyRelayChannelProbeRunsResponse,
@@ -77,6 +78,11 @@ export type RelayChannelProbeTopologyItem = Pick<
 
 type ProbeFormat = "openai" | "anthropic" | "gemini";
 
+/** Keep probe format availability aligned with the channel request-format contract. */
+export function resolveAllowedProbeFormats(value: string | null | undefined): ProbeFormat[] {
+  return parseRelayRequestFormats(value) as ProbeFormat[];
+}
+
 export function defaultProbeEndpoint(format: ProbeFormat): RelayChannelProbeEndpoint {
   return format === "anthropic"
     ? "anthropic-messages"
@@ -104,6 +110,27 @@ export function normalizeProbeEndpoint(
 ): RelayChannelProbeEndpoint {
   const candidate = endpoint as RelayChannelProbeEndpoint;
   return isProbeEndpointCompatible(candidate, format) ? candidate : defaultProbeEndpoint(format);
+}
+
+/** Minimal billable request body used when an older profile has no request payload yet. */
+export function createDefaultProbePayload(
+  format: ProbeFormat,
+  endpoint: RelayChannelProbeEndpoint = defaultProbeEndpoint(format),
+): Record<string, unknown> {
+  const prompt = "Reply with OK.";
+  if (endpoint === "openai-responses") {
+    return {
+      input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
+      max_output_tokens: 1,
+    };
+  }
+  if (format === "anthropic") {
+    return { max_tokens: 1, messages: [{ role: "user", content: prompt }] };
+  }
+  if (format === "gemini") {
+    return { contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1 } };
+  }
+  return { messages: [{ role: "user", content: prompt }], max_tokens: 1 };
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -1051,6 +1078,7 @@ export class RelayChannelProbeService {
           totalTokens: usage.totalTokens,
           cacheCreationTokens: usage.cacheCreationTokens,
           cacheReadTokens: usage.cacheReadTokens,
+          upstreamUsage: usage.upstreamUsage,
           suggestedMultiplier,
           cacheHitVerified,
           errorMessage: cacheHitVerified ? undefined : "缓存命中未被上游用量验证",
@@ -1096,9 +1124,7 @@ export class RelayChannelProbeService {
       cacheCreationTokens: averageProbeSampleValue(accepted, "cacheCreationTokens"),
       cacheReadTokens: averageProbeSampleValue(accepted, "cacheReadTokens"),
       suggestedMultiplier: canSuggest ? averageProbeSampleValue(accepted, "suggestedMultiplier") : undefined,
-      upstreamUsage: accepted.length
-        ? { samples: accepted.map((sample) => ({ index: sample.index, cacheHitVerified: sample.cacheHitVerified })) }
-        : undefined,
+      upstreamUsage: this.toAggregateUpstreamUsage(samples),
       costBreakdown,
     };
   }
@@ -1180,6 +1206,12 @@ export class RelayChannelProbeService {
     );
     if (!isRecord(interpolatedPayload)) throw new BadRequestError("探针请求体必须是 JSON 对象");
     let payload = interpolatedPayload;
+    // Earlier profiles were initialized with {}, which cannot safely carry a cache marker.
+    // Preserve every configured field, but turn that exact empty legacy shape into the same
+    // minimal request the UI now starts with.
+    if (Object.keys(payload).every((key) => key === "model")) {
+      payload = { ...payload, ...createDefaultProbePayload(format, endpoint) };
+    }
     let injectedCacheBusterId: string | undefined;
     if (cacheBustingEnabled) {
       const candidateId = cacheBusterId ?? randomUUID();
@@ -1188,7 +1220,9 @@ export class RelayChannelProbeService {
         payload = injected;
         injectedCacheBusterId = candidateId;
       } else if (!forceWithoutCacheBuster) {
-        throw new BadRequestError("PROBE_CACHE_BUSTER_INJECTION_FAILED:无法向当前请求结构写入唯一缓存标记");
+        throw new BadRequestError(
+          "PROBE_CACHE_BUSTER_INJECTION_FAILED:当前请求体不包含该接口可注入的提示字段，请应用最小请求预设或修正请求格式",
+        );
       }
     }
     const headers: Record<string, string> =
@@ -1233,6 +1267,25 @@ export class RelayChannelProbeService {
       cacheCreationTokens: metrics.cacheCreationTokens,
       cacheReadTokens: metrics.cacheReadTokens,
       upstreamUsage: usage,
+    };
+  }
+
+  /**
+   * A one-sample run should expose precisely the object the provider returned.
+   * Multi-sample runs retain every successful raw usage object with only the
+   * sample index added outside that object, so diagnostics never alter usage.
+   */
+  private toAggregateUpstreamUsage(
+    samples: readonly RelayChannelProbeSampleDto[],
+  ): Record<string, unknown> | undefined {
+    const measured = samples.filter(
+      (sample): sample is RelayChannelProbeSampleDto & { upstreamUsage: Record<string, unknown> } =>
+        sample.upstreamUsage != null,
+    );
+    if (measured.length === 0) return undefined;
+    if (measured.length === 1) return measured[0].upstreamUsage;
+    return {
+      samples: measured.map((sample) => ({ index: sample.index, usage: sample.upstreamUsage })),
     };
   }
 
@@ -1439,15 +1492,7 @@ export class RelayChannelProbeService {
   }
 
   private toAllowedProbeFormats(value: string): Array<"openai" | "anthropic" | "gemini"> {
-    const values = value
-      .split(",")
-      .map((item) => item.trim().toLowerCase())
-      .filter((item): item is "openai" | "anthropic" | "gemini" => ["openai", "anthropic", "gemini"].includes(item));
-    return values.length || value.trim().toLowerCase() === "all"
-      ? values.length
-        ? values
-        : ["openai", "anthropic", "gemini"]
-      : [];
+    return resolveAllowedProbeFormats(value);
   }
 
   private getProbeGroupLockId(group: string): string {
@@ -1460,11 +1505,7 @@ export class RelayChannelProbeService {
     format: string,
     model: string,
   ): void {
-    const configuredFormats = channel.allowedFormats
-      .split(",")
-      .map((item) => item.trim().toLowerCase())
-      .filter(Boolean);
-    if (!configuredFormats.includes("all") && !configuredFormats.includes(format))
+    if (!supportsRelayRequestFormat(channel.allowedFormats, format as RelayRequestFormat))
       throw new BadRequestError(`渠道不支持 ${format} 格式探针请求`);
 
     if (channel.allowedModels.length && !channel.allowedModels.includes(model))
