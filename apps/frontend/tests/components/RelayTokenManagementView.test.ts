@@ -46,7 +46,7 @@ vi.mock('@/service/relayTokenService', () => ({
 
 vi.mock('@/service/relayChannelService', () => ({
   relayChannelService: {
-    listChannelOptions: listChannelsMock,
+    listRoutingCatalogOptions: listChannelsMock,
   },
 }))
 

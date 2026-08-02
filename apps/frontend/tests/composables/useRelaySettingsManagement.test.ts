@@ -445,7 +445,7 @@ describe('useRelaySettingsManagement', () => {
     wrapper.unmount()
   })
 
-  it('sends pooled channel payload with auto allowed-model mode, explicit null thresholds, and deduped whitelist fields', async () => {
+  it('sends logical pooled channel pricing and routing settings without legacy direct members', async () => {
     const { api, wrapper } = await mountComposable()
 
     listChannelsMock.mockResolvedValue([
@@ -502,6 +502,7 @@ describe('useRelaySettingsManagement', () => {
         routingStrategy: 'weighted-random',
         allowedModels: null,
         openaiUpstreamUrl: '',
+        poolMembers: [],
         routingConfig: expect.objectContaining({
           maxRetries: 2,
           retryStatusCodes: ['5xx'],
@@ -515,10 +516,6 @@ describe('useRelaySettingsManagement', () => {
           groupIds: ['group-1', 'group-2'],
           roleIds: ['role-1'],
         },
-        poolMembers: [
-          { memberChannelId: 'member-1', priority: 1, weight: 3, enabled: true },
-          { memberChannelId: 'member-2', priority: 2, weight: 1, enabled: false },
-        ],
       }),
     )
 
