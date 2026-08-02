@@ -2740,6 +2740,8 @@ export default {
     channelProbeCalibrationUnstable: 'Balance or sample variation is too high',
     channelProbeCalibrationPending: 'Calibration pending',
     channelProbeInvalidSampleCount: 'Sample count must be an integer from 1 to 10',
+    channelProbeInvalidBalanceSettlementTolerance:
+      'Balance resolution threshold must be between 0.000001 and 1000000',
     channelProbeSampleSummary: 'Sample summary',
     channelProbeSampleSummaryValue:
       '{accepted}/{total} accepted; {succeeded} completed; {discarded} outliers removed',

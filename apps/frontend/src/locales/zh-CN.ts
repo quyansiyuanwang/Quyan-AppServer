@@ -2645,6 +2645,8 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeCalibrationUnstable: '余额或样本波动过大',
     channelProbeCalibrationPending: '等待校准',
     channelProbeInvalidSampleCount: '采样次数必须是 1 到 10 的整数',
+    channelProbeInvalidBalanceSettlementTolerance:
+      '余额可分辨阈值必须介于 0.000001 和 1000000 之间',
     channelProbeSampleSummary: '采样汇总',
     channelProbeSampleSummaryValue:
       '接受 {accepted}/{total}；完成 {succeeded}；剔除异常 {discarded}',

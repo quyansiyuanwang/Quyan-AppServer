@@ -42,6 +42,27 @@ describe("relay channel probe schemas", () => {
     ).toBe(false);
   });
 
+  it("uses the persisted six-decimal balance resolution floor", () => {
+    expect(
+      upsertRelayChannelProbeProfileBodySchema.safeParse({
+        ...validProfile,
+        balanceSettlementTolerance: 0.000001,
+      }).success,
+    ).toBe(true);
+    expect(
+      upsertRelayChannelProbeProfileBodySchema.safeParse({
+        ...validProfile,
+        balanceSettlementTolerance: 0.0000001,
+      }).success,
+    ).toBe(false);
+    expect(
+      upsertRelayChannelProbeProfileBodySchema.safeParse({
+        ...validProfile,
+        balanceSettlementTolerance: 0.0000015,
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects profiles without exactly one balance field", () => {
     expect(upsertRelayChannelProbeProfileBodySchema.safeParse({ ...validProfile, workflow: [] }).success).toBe(false);
     expect(

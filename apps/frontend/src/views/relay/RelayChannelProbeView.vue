@@ -370,6 +370,8 @@
                       </el-select>
                       <span class="probe-form-help">{{ probeEndpointHelp }}</span>
                     </el-form-item>
+                  </div>
+                  <div class="calibration-config-grid">
                     <el-form-item :label="i18ns.t('relay.channelProbeSampleCount')">
                       <el-input-number
                         v-model="form.sampleCount"
@@ -399,7 +401,7 @@
                     <el-form-item :label="i18ns.t('relay.channelProbeBalanceSettlementTolerance')">
                       <el-input-number
                         v-model="form.balanceSettlementTolerance"
-                        :min="0.0000001"
+                        :min="0.000001"
                         :max="1000000"
                         :step="0.000001"
                         :precision="6"
@@ -2109,8 +2111,14 @@ function validMeasurementInputTokens(value: unknown): number {
 function validBalanceSettlementTolerance(value: unknown): number {
   if (value == null) return 0.000001
   const tolerance = Number(value)
-  if (!Number.isFinite(tolerance) || tolerance < 0.0000001 || tolerance > 1000000)
-    throw new Error(i18ns.t('relay.channelProbeInvalidBalanceDivisor'))
+  const scaledTolerance = tolerance * 1_000_000
+  if (
+    !Number.isFinite(tolerance) ||
+    tolerance < 0.000001 ||
+    tolerance > 1000000 ||
+    Math.abs(Math.round(scaledTolerance) - scaledTolerance) >= 1e-8
+  )
+    throw new Error(i18ns.t('relay.channelProbeInvalidBalanceSettlementTolerance'))
   return tolerance
 }
 function validBalanceSettlementReads(value: unknown): number {
@@ -3379,6 +3387,9 @@ onBeforeUnmount(stopPolling)
 }
 .calibration-config-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 .profile-section {
   margin: 0 0 18px;

@@ -2815,6 +2815,7 @@ const emoji: DeepStringify<typeof en> = {
     channelProbeCalibrationUnstable: '〰️ ⚠️',
     channelProbeCalibrationPending: '⏳ 📈',
     channelProbeInvalidSampleCount: '🔢 1️⃣ ➡️ 🔟',
+    channelProbeInvalidBalanceSettlementTolerance: '💰 0.000001 ➡️ 1000000',
     channelProbeSampleSummary: '🧪 ∑',
     channelProbeSampleSummaryValue: '✅ {accepted}/{total} · 🧪 {succeeded} · 🗑️ {discarded}',
     channelProbeWarmup: '🔥 🗃️',
