@@ -15,7 +15,7 @@ export interface RelayChannelManagementRecord {
   visibilityMode: string | null;
   multiplier: Prisma.Decimal;
   updateTime: Date;
-  _count: { poolMembers: number };
+  _count: { poolMembers: number; pooledChildren: number };
 }
 
 export type RelayChannelTransactionClient = Omit<

@@ -891,7 +891,7 @@
                         row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
                       }}</el-tag>
                       <el-tag
-                        v-if="!['pooled', 'automatic-proxy-pool'].includes(row.channelType)"
+                        v-if="row.channelType !== 'automatic-proxy-pool'"
                         size="small"
                         type="primary"
                         >{{ row.multiplier }}x</el-tag

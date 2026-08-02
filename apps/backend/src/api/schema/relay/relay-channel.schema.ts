@@ -39,7 +39,7 @@ const contextLengthRuleSchema = z.object({
   multiplier: z.coerce.number().min(0.01).max(100),
 });
 
-const relayChannelTypeSchema = z.enum(["standalone", "pooled", "automatic-proxy-pool"]);
+const relayChannelTypeSchema = z.enum(["standalone", "pooled-member", "pooled", "automatic-proxy-pool"]);
 const routingStrategySchema = z.enum([
   "priority",
   "random",
@@ -107,6 +107,10 @@ const relayChannelBaseSchema = z.object({
   visibilityMode: visibilityModeSchema.optional(),
   visibilityConfig: visibilityConfigSchema,
   poolMembers: z.array(relayChannelMemberSchema).max(200).nullable().optional(),
+  pooledParentId: z.string().trim().min(1).nullable().optional(),
+  pooledPriority: z.coerce.number().int().min(0).max(9999).optional(),
+  pooledWeight: z.coerce.number().positive().max(100000).optional(),
+  pooledMemberEnabled: z.coerce.boolean().optional(),
   multiplier: channelMultiplierSchema,
   allowedFormats: z.string().max(500).optional(),
   allowedModels: z.string().max(2000).nullable().optional(),

@@ -14125,6 +14125,32 @@
 				]
 			}
 		},
+		"/v1/relay-channels/topology-audit": {
+			"get": {
+				"operationId": "RelayChannelControllerGetTopologyAudit",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelTopologyAuditDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/v1/relay-channels/options": {
 			"get": {
 				"operationId": "RelayChannelControllerListChannelOptions",
@@ -14167,6 +14193,45 @@
 						"required": false,
 						"schema": {
 							"type": "boolean"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay-channels/routing-catalog": {
+			"get": {
+				"operationId": "RelayChannelControllerListRoutingCatalogOptions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RelayRoutingCatalogOptionDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"description": "Safe directory for token and other end-user routing selectors.",
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
 						}
 					}
 				]
@@ -37401,6 +37466,14 @@
 						],
 						"description": "Whether API documentation publishes pooled routes anonymously or hides them."
 					},
+					"channelTopologyMode": {
+						"type": "string",
+						"enum": [
+							"legacy",
+							"strict-two-tier"
+						],
+						"description": "Enables the one-to-many pooled-member -> pooled -> automatic-pool topology."
+					},
 					"modelRates": {
 						"items": {
 							"$ref": "#/components/schemas/ModelPricingItemDto"
@@ -37431,6 +37504,7 @@
 					"upstreamStreamTimeout",
 					"enableQueue",
 					"apiCatalogPoolVisibility",
+					"channelTopologyMode",
 					"modelRates"
 				],
 				"type": "object",
@@ -37466,6 +37540,13 @@
 						"enum": [
 							"hidden",
 							"anonymous-range"
+						]
+					},
+					"channelTopologyMode": {
+						"type": "string",
+						"enum": [
+							"legacy",
+							"strict-two-tier"
 						]
 					},
 					"modelRates": {
@@ -37765,6 +37846,7 @@
 				"type": "string",
 				"enum": [
 					"standalone",
+					"pooled-member",
 					"pooled",
 					"automatic-proxy-pool"
 				]
@@ -38047,6 +38129,24 @@
 						},
 						"type": "array"
 					},
+					"pooledParentId": {
+						"type": "string",
+						"description": "The sole logical pooled parent for a physical pooled member."
+					},
+					"pooledParentName": {
+						"type": "string"
+					},
+					"pooledPriority": {
+						"type": "number",
+						"format": "double"
+					},
+					"pooledWeight": {
+						"type": "number",
+						"format": "double"
+					},
+					"pooledMemberEnabled": {
+						"type": "boolean"
+					},
 					"openaiUpstreamUrl": {
 						"type": "string"
 					},
@@ -38207,6 +38307,59 @@
 					"total",
 					"page",
 					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelTopologyMode": {
+				"type": "string",
+				"enum": [
+					"legacy",
+					"strict-two-tier"
+				]
+			},
+			"RelayChannelTopologyAuditIssueDto": {
+				"properties": {
+					"code": {
+						"type": "string"
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"message": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelTopologyAuditDto": {
+				"description": "Read-only prerequisite report for enabling strict two-tier topology.",
+				"properties": {
+					"mode": {
+						"$ref": "#/components/schemas/RelayChannelTopologyMode"
+					},
+					"canEnableStrict": {
+						"type": "boolean"
+					},
+					"issues": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelTopologyAuditIssueDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"mode",
+					"canEnableStrict",
+					"issues"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -38493,6 +38646,62 @@
 					"id",
 					"name",
 					"enabled",
+					"multiplier",
+					"allowedFormats",
+					"modelCapabilities"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayRoutingCatalogOptionDto": {
+				"description": "Safe, user-selectable routing catalog. Unlike channel-management options it\nintentionally excludes every physical pooled-member node and its topology.",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"channelType": {
+						"type": "string",
+						"enum": [
+							"standalone",
+							"pooled",
+							"automatic-proxy-pool"
+						]
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array"
+					},
+					"allowedFormats": {
+						"type": "string"
+					},
+					"modelCapabilities": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelModelCapabilityDto"
+						},
+						"type": "array"
+					},
+					"automaticProxyPool": {
+						"$ref": "#/components/schemas/RelayAutomaticProxyPoolOptionDto",
+						"description": "Only populated for automatic pools; members are logical pooled channels."
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"enabled",
+					"channelType",
 					"multiplier",
 					"allowedFormats",
 					"modelCapabilities"
@@ -39170,6 +39379,22 @@
 						"nullable": true,
 						"description": "混池成员"
 					},
+					"pooledParentId": {
+						"type": "string",
+						"nullable": true,
+						"description": "Required for pooled-member channels in strict two-tier topology mode."
+					},
+					"pooledPriority": {
+						"type": "number",
+						"format": "double"
+					},
+					"pooledWeight": {
+						"type": "number",
+						"format": "double"
+					},
+					"pooledMemberEnabled": {
+						"type": "boolean"
+					},
 					"multiplier": {
 						"type": "number",
 						"format": "double",
@@ -39372,6 +39597,22 @@
 						"nullable": true,
 						"description": "混池成员"
 					},
+					"pooledParentId": {
+						"type": "string",
+						"nullable": true,
+						"description": "Required for pooled-member channels in strict two-tier topology mode."
+					},
+					"pooledPriority": {
+						"type": "number",
+						"format": "double"
+					},
+					"pooledWeight": {
+						"type": "number",
+						"format": "double"
+					},
+					"pooledMemberEnabled": {
+						"type": "boolean"
+					},
 					"multiplier": {
 						"type": "number",
 						"format": "double",
@@ -39515,6 +39756,22 @@
 						"nullable": true,
 						"description": "混池成员"
 					},
+					"pooledParentId": {
+						"type": "string",
+						"nullable": true,
+						"description": "Required for pooled-member channels in strict two-tier topology mode."
+					},
+					"pooledPriority": {
+						"type": "number",
+						"format": "double"
+					},
+					"pooledWeight": {
+						"type": "number",
+						"format": "double"
+					},
+					"pooledMemberEnabled": {
+						"type": "boolean"
+					},
 					"multiplier": {
 						"type": "number",
 						"format": "double",
@@ -39634,6 +39891,22 @@
 						"type": "array",
 						"nullable": true,
 						"description": "混池成员，传 [] 或 null 清空"
+					},
+					"pooledParentId": {
+						"type": "string",
+						"nullable": true,
+						"description": "The sole logical pooled parent for a physical pooled member."
+					},
+					"pooledPriority": {
+						"type": "number",
+						"format": "double"
+					},
+					"pooledWeight": {
+						"type": "number",
+						"format": "double"
+					},
+					"pooledMemberEnabled": {
+						"type": "boolean"
 					},
 					"multiplier": {
 						"type": "number",
@@ -40568,6 +40841,14 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"Record_string.Record_string.string__": {
+				"properties": {},
+				"additionalProperties": {
+					"$ref": "#/components/schemas/Record_string.string_"
+				},
+				"type": "object",
+				"description": "Construct a type with a set of properties K of type T"
+			},
 			"UpsertRelayChannelProbeProfileRequest": {
 				"properties": {
 					"enabled": {
@@ -40642,6 +40923,10 @@
 					},
 					"credentials": {
 						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"memberCredentials": {
+						"$ref": "#/components/schemas/Record_string.Record_string.string__",
+						"description": "Logical pooled channels provide credentials per hidden physical member."
 					}
 				},
 				"required": [

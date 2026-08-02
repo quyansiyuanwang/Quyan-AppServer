@@ -1372,7 +1372,7 @@ export const useRelayTokenManagement = () => {
     channelsLoading.value = true
     channelsLoadError.value = null
     try {
-      channels.value = await relayChannelService.listChannelOptions(
+      channels.value = await relayChannelService.listRoutingCatalogOptions(
         currentTargetUserIdForRequest.value,
       )
     } catch (error) {

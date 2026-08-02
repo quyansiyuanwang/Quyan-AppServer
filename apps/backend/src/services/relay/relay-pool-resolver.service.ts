@@ -60,7 +60,10 @@ export interface RelayChannelModelCapability {
  */
 export interface RelayResolvedChannelCandidate {
   resolvedChannel: RelayChannel;
+  /** Logical route root, retained for internal diagnostics. */
   displayChannel: RelayChannel;
+  /** User-facing billable channel. For automatic pools this is the direct pooled parent. */
+  billingChannel?: RelayChannel;
 }
 
 interface ResolvedLeafPath {
@@ -180,6 +183,10 @@ export class RelayPoolResolverService {
         candidates.set(signature, {
           resolvedChannel: leaf,
           displayChannel: channel,
+          billingChannel:
+            leaf.pooledParentId && graph.get(leaf.pooledParentId)?.channelType === "pooled"
+              ? graph.get(leaf.pooledParentId)!
+              : channel,
         });
       }
     }
@@ -227,6 +234,22 @@ export class RelayPoolResolverService {
         },
       ]),
     );
+    // Strict topology stores ordinary pooled members as a one-to-many self relation. Materialize
+    // those edges into the existing resolver graph; legacy RelayChannelMember edges remain until
+    // an administrator enables strict-two-tier mode.
+    for (const channel of graph.values()) {
+      if (channel.channelType !== "pooled-member" || !channel.pooledParentId) continue;
+      const parent = graph.get(channel.pooledParentId);
+      if (!parent || parent.channelType !== "pooled") continue;
+      parent.poolMembers.push({
+        memberChannelId: channel.id,
+        priority: channel.pooledPriority,
+        weight: channel.pooledWeight,
+        enabled: channel.pooledMemberEnabled,
+        memberChannel: channel,
+      });
+    }
+
     // Pool relations only store member IDs. Hydrate the in-memory graph reference once so ordering
     // callbacks can use the same leaf multiplier and health configuration that routing will use.
     for (const channel of graph.values())
@@ -285,14 +308,19 @@ export class RelayPoolResolverService {
   private mergeConstraints(inherited: EffectiveChannelConstraints, channel: RelayChannel): EffectiveChannelConstraints {
     const channelFormats = new Set(parseRelayRequestFormats(channel.allowedFormats));
     const formats = new Set([...inherited.formats].filter((format) => channelFormats.has(format)));
-    const ownAllowedModelNames = this.getManualAllowedModelNames(channel);
+    // A pooled-member is an execution account, not a second user-facing
+    // product. It may constrain the protocol it can actually speak, but its
+    // local whitelist and model mapping must not silently change the logical
+    // pooled channel's advertised model or billing rule.
+    const isPhysicalPooledMember = channel.channelType === "pooled-member";
+    const ownAllowedModelNames = isPhysicalPooledMember ? null : this.getManualAllowedModelNames(channel);
 
     return {
       formats,
       allowedModelNames: this.intersectAllowedModelNames(inherited.allowedModelNames, ownAllowedModelNames),
       modelMapping: {
         ...inherited.modelMapping,
-        ...((channel.modelMapping as Record<string, string> | null) ?? {}),
+        ...(isPhysicalPooledMember ? {} : ((channel.modelMapping as Record<string, string> | null) ?? {})),
       },
     };
   }

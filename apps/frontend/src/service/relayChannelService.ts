@@ -13,6 +13,7 @@ import type {
   UpdateRelayChannelRequest,
   RelayChannelDto,
   RelayChannelOptionDto,
+  RelayRoutingCatalogOptionDto,
   RelayCatalogOptionDto,
   RelayChannelExportResponse,
   RelayChannelHealthDto,
@@ -78,6 +79,14 @@ class RelayChannelService {
         targetUserId: targetUserId?.trim() || undefined,
         excludePooled: options?.excludePooled === true ? true : undefined,
       },
+    })
+    return checkApiResult<any>(result, true).data
+  }
+
+  /** Safe user routing directory: never contains pooled-member execution nodes. */
+  async listRoutingCatalogOptions(targetUserId?: string): Promise<RelayRoutingCatalogOptionDto[]> {
+    const result = await relayChannelApi.listRoutingCatalogOptions({
+      params: { targetUserId: targetUserId?.trim() || undefined },
     })
     return checkApiResult<any>(result, true).data
   }

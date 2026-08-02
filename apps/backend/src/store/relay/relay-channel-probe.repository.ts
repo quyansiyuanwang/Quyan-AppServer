@@ -42,7 +42,7 @@ export class RelayChannelProbeRepository {
   public findProfileWithChannel(channelId: string): Promise<RelayChannelProbeProfileRecord | null> {
     return prisma.relayChannelProbeProfile.findUnique({
       where: { relayChannelId: channelId },
-      include: { relayChannel: true },
+      include: { relayChannel: { include: { pooledChildren: true } } },
     });
   }
 
@@ -184,11 +184,11 @@ export class RelayChannelProbeRepository {
   }
 
   public findRunWithProfile(runId: string): Promise<Prisma.RelayChannelProbeRunGetPayload<{
-    include: { profile: { include: { relayChannel: true } } };
+    include: { profile: { include: { relayChannel: { include: { pooledChildren: true } } } } };
   }> | null> {
     return prisma.relayChannelProbeRun.findUnique({
       where: { id: runId },
-      include: { profile: { include: { relayChannel: true } } },
+      include: { profile: { include: { relayChannel: { include: { pooledChildren: true } } } } },
     });
   }
 

@@ -740,6 +740,7 @@ export const useRelaySettingsManagement = () => {
   const poolMemberPickerKeyword = ref('')
   const selectedPoolMemberCandidateIds = ref<string[]>([])
   const poolMemberCandidateCache = ref<Record<string, RelayChannelManagementListItemDto>>({})
+  const pooledParentOptions = ref<RelayChannelManagementListItemDto[]>([])
   const poolMemberInsertPosition = ref<'top' | 'bottom'>('bottom')
   const visibilityUserOptions = ref<ChannelUserOption[]>([])
   const visibilityGroupOptions = ref<ChannelGroupOption[]>([])
@@ -774,6 +775,10 @@ export const useRelaySettingsManagement = () => {
     visibilityMode: 'public' as RelayChannelVisibilityMode,
     visibilityConfig: defaultVisibilityConfigForm(),
     poolMembers: [] as RelayChannelMemberDto[],
+    pooledParentId: '',
+    pooledPriority: 0,
+    pooledWeight: 1,
+    pooledMemberEnabled: true,
     openaiUpstreamUrl: '',
     openaiUpstreamApiKey: '',
     hasOpenaiUpstreamApiKey: false,
@@ -1192,8 +1197,7 @@ export const useRelaySettingsManagement = () => {
     if (channelForm.value.poolMembers.some((member) => member.memberChannelId === channel.id))
       return false
     return (
-      channelForm.value.channelType !== 'automatic-proxy-pool' ||
-      channel.channelType === 'standalone'
+      channelForm.value.channelType === 'automatic-proxy-pool' && channel.channelType === 'pooled'
     )
   }
 
@@ -1202,8 +1206,7 @@ export const useRelaySettingsManagement = () => {
       page: poolMemberPickerPagination.value.page,
       pageSize: poolMemberPickerPagination.value.pageSize,
       keyword: poolMemberPickerKeyword.value,
-      channelType:
-        channelForm.value.channelType === 'automatic-proxy-pool' ? 'standalone' : undefined,
+      channelType: channelForm.value.channelType === 'automatic-proxy-pool' ? 'pooled' : undefined,
     })
     poolMemberPickerRows.value = response.items.filter(isPoolMemberCandidateEligible)
     poolMemberPickerPagination.value.total = response.total
@@ -1217,6 +1220,15 @@ export const useRelaySettingsManagement = () => {
     poolMemberInsertPosition.value = 'bottom'
     showPoolMemberPicker.value = true
     await loadPoolMemberCandidates()
+  }
+
+  const loadPooledParentOptions = async () => {
+    const response = await relayChannelService.listManagementChannels({
+      page: 1,
+      pageSize: 100,
+      channelType: 'pooled',
+    })
+    pooledParentOptions.value = response.items.filter((item) => item.id !== editingChannelId.value)
   }
 
   const addSelectedPoolMembers = () => {
@@ -1258,6 +1270,7 @@ export const useRelaySettingsManagement = () => {
   const formatChannelTypeLabel = (channelType: RelayChannelType | string | undefined) => {
     if (channelType === 'automatic-proxy-pool')
       return i18ns.t('relay.channelTypeAutomaticProxyPool')
+    if (channelType === 'pooled-member') return i18ns.t('relay.channelTypePooledMember')
     return channelType === 'pooled'
       ? i18ns.t('relay.channelTypePooled')
       : i18ns.t('relay.channelTypeStandalone')
@@ -1873,6 +1886,7 @@ export const useRelaySettingsManagement = () => {
     ensureSelectedVisibilityOptions(channelForm.value.visibilityConfig)
     showChannelDialog.value = true
     void ensureVisibilityOptionsLoaded()
+    void loadPooledParentOptions()
   }
 
   const openEditChannelDialog = (
@@ -1917,6 +1931,10 @@ export const useRelaySettingsManagement = () => {
       visibilityMode: row.visibilityMode || 'public',
       visibilityConfig: normalizeVisibilityConfigForm(row.visibilityConfig),
       poolMembers: normalizePoolMembersForm(row.poolMembers),
+      pooledParentId: row.pooledParentId || '',
+      pooledPriority: row.pooledPriority ?? 0,
+      pooledWeight: row.pooledWeight ?? 1,
+      pooledMemberEnabled: row.pooledMemberEnabled !== false,
       openaiUpstreamUrl: row.openaiUpstreamUrl || '',
       openaiUpstreamApiKey: '',
       hasOpenaiUpstreamApiKey: row.hasOpenaiUpstreamApiKey,
@@ -1944,6 +1962,7 @@ export const useRelaySettingsManagement = () => {
     ensureSelectedVisibilityOptions(row.visibilityConfig)
     showChannelDialog.value = true
     void ensureVisibilityOptionsLoaded()
+    if (row.channelType === 'pooled-member') void loadPooledParentOptions()
   }
 
   const openChannelDetailDialog = async (row: Pick<RelayChannelManagementListItemDto, 'id'>) => {
@@ -1991,6 +2010,10 @@ export const useRelaySettingsManagement = () => {
     const isPooledChannel = ['pooled', 'automatic-proxy-pool'].includes(
       channelForm.value.channelType,
     )
+    const isAutomaticPool = channelForm.value.channelType === 'automatic-proxy-pool'
+    const isUpstreamChannel = ['standalone', 'pooled-member'].includes(
+      channelForm.value.channelType,
+    )
 
     if (
       channelForm.value.visibilityMode === 'whitelist' &&
@@ -2002,15 +2025,22 @@ export const useRelaySettingsManagement = () => {
       return
     }
 
-    if (isPooledChannel) {
+    if (isAutomaticPool) {
       const poolMembers = buildPoolMembersPayload()
       if (poolMembers.length === 0) {
         ElMessage.error(i18ns.t('relay.poolMembersRequired'))
         return
       }
     }
+    if (
+      channelForm.value.channelType === 'pooled-member' &&
+      !channelForm.value.pooledParentId.trim()
+    ) {
+      ElMessage.error(i18ns.t('relay.pooledParentRequired'))
+      return
+    }
 
-    if (!isPooledChannel) {
+    if (isUpstreamChannel) {
       if (
         !channelForm.value.openaiUpstreamUrl &&
         !channelForm.value.anthropicUpstreamUrl &&
@@ -2026,7 +2056,7 @@ export const useRelaySettingsManagement = () => {
         ? channelForm.value.allowedFormats
         : ['openai', 'anthropic', 'gemini']
 
-    if (!isPooledChannel && formats.includes('openai')) {
+    if (isUpstreamChannel && formats.includes('openai')) {
       if (!channelForm.value.openaiUpstreamUrl) {
         ElMessage.error(i18ns.t('relay.openaiFormatNoUrl'))
         return
@@ -2036,7 +2066,7 @@ export const useRelaySettingsManagement = () => {
         return
       }
     }
-    if (!isPooledChannel && formats.includes('anthropic')) {
+    if (isUpstreamChannel && formats.includes('anthropic')) {
       if (!channelForm.value.anthropicUpstreamUrl) {
         ElMessage.error(i18ns.t('relay.anthropicFormatNoUrl'))
         return
@@ -2049,7 +2079,7 @@ export const useRelaySettingsManagement = () => {
         return
       }
     }
-    if (!isPooledChannel && formats.includes('gemini')) {
+    if (isUpstreamChannel && formats.includes('gemini')) {
       if (!channelForm.value.geminiUpstreamUrl) {
         ElMessage.error(i18ns.t('relay.geminiFormatNoUrl'))
         return
@@ -2061,7 +2091,7 @@ export const useRelaySettingsManagement = () => {
     }
 
     if (
-      (!isPooledChannel && !Array.isArray(channelForm.value.allowedFormats)) ||
+      (isUpstreamChannel && !Array.isArray(channelForm.value.allowedFormats)) ||
       channelForm.value.allowedFormats.length === 0
     ) {
       if (
@@ -2097,7 +2127,7 @@ export const useRelaySettingsManagement = () => {
         : buildStandaloneHealthTrackingPayload()
       const visibilityConfig =
         channelForm.value.visibilityMode === 'hidden' ? null : buildVisibilityConfigPayload()
-      const poolMembers = isPooledChannel ? buildPoolMembersPayload() : []
+      const poolMembers = isAutomaticPool ? buildPoolMembersPayload() : []
 
       const data = {
         name: channelForm.value.name,
@@ -2106,11 +2136,18 @@ export const useRelaySettingsManagement = () => {
         routingConfig,
         visibilityMode: channelForm.value.visibilityMode,
         visibilityConfig,
-        poolMembers: isPooledChannel ? poolMembers : [],
-        openaiUpstreamUrl: isPooledChannel ? '' : channelForm.value.openaiUpstreamUrl,
-        anthropicUpstreamUrl: isPooledChannel ? '' : channelForm.value.anthropicUpstreamUrl,
-        geminiUpstreamUrl: isPooledChannel ? '' : channelForm.value.geminiUpstreamUrl,
-        multiplier: isPooledChannel ? undefined : channelForm.value.multiplier,
+        poolMembers: isAutomaticPool ? poolMembers : [],
+        pooledParentId:
+          channelForm.value.channelType === 'pooled-member'
+            ? channelForm.value.pooledParentId.trim() || null
+            : null,
+        pooledPriority: channelForm.value.pooledPriority,
+        pooledWeight: channelForm.value.pooledWeight,
+        pooledMemberEnabled: channelForm.value.pooledMemberEnabled,
+        openaiUpstreamUrl: isUpstreamChannel ? channelForm.value.openaiUpstreamUrl : '',
+        anthropicUpstreamUrl: isUpstreamChannel ? channelForm.value.anthropicUpstreamUrl : '',
+        geminiUpstreamUrl: isUpstreamChannel ? channelForm.value.geminiUpstreamUrl : '',
+        multiplier: isAutomaticPool ? undefined : channelForm.value.multiplier,
         allowedFormats:
           Array.isArray(channelForm.value.allowedFormats) &&
           channelForm.value.allowedFormats.length > 0
@@ -2141,7 +2178,7 @@ export const useRelaySettingsManagement = () => {
       }
 
       if (isEditingChannel.value) {
-        const secretUpdates = isPooledChannel
+        const secretUpdates = !isUpstreamChannel
           ? {
               openaiUpstreamApiKey: '',
               anthropicUpstreamApiKey: '',
@@ -2357,10 +2394,12 @@ export const useRelaySettingsManagement = () => {
     poolMemberPickerRows,
     poolMemberPickerPagination,
     poolMemberPickerKeyword,
+    pooledParentOptions,
     selectedPoolMemberCandidateIds,
     poolMemberInsertPosition,
     openPoolMemberPicker,
     loadPoolMemberCandidates,
+    loadPooledParentOptions,
     loadPoolMemberTooltip,
     addSelectedPoolMembers,
     movePoolMember,

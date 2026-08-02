@@ -1,6 +1,6 @@
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "crypto";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, RelayChannel } from "@prisma/client";
 import { EnvSpace } from "@/config/env";
 import { assertSafeOutboundUrl } from "@/util/developer-outbound-url";
 import { BadRequestError, ConflictError, LockBackendUnavailableError, NotFoundError } from "@/util/errors";
@@ -88,6 +88,9 @@ type ProbeBalanceSnapshot = { balance: number; observedAt: string };
 export function resolveAllowedProbeFormats(value: string | null | undefined): ProbeFormat[] {
   return parseRelayRequestFormats(value) as ProbeFormat[];
 }
+
+const isProbeableChannelType = (channelType: RelayChannelType | undefined): boolean =>
+  channelType === "standalone" || channelType === "pooled";
 
 export function defaultProbeEndpoint(format: ProbeFormat): RelayChannelProbeEndpoint {
   return format === "anthropic"
@@ -287,6 +290,10 @@ export function resolveProbeCustomerFacingTargets(
 ): RelayChannelProbeCustomerFacingTargetDto[] {
   const channelById = new Map(channels.map((channel) => [channel.id, channel]));
   const targetById = new Map<string, RelayChannelProbeCustomerFacingTargetDto>();
+  const requested = channelById.get(standaloneChannelId);
+  if (requested?.enabled && requested.channelType === "pooled") {
+    return [{ channelId: requested.id, channelName: requested.name }];
+  }
 
   const collectStandaloneMembers = (channelId: string, path = new Set<string>()): string[] => {
     if (path.has(channelId)) return [];
@@ -603,15 +610,15 @@ export class RelayChannelProbeService {
       RelayChannelService.getInstance().listChannels(actorUserId, true),
       this.listChannelTopology(),
     ]);
-    const standalone = channels.filter((channel) => channel.channelType === "standalone");
-    const channelIds = standalone.map((item) => item.id);
+    const probeableChannels = channels.filter((channel) => isProbeableChannelType(channel.channelType));
+    const channelIds = probeableChannels.map((item) => item.id);
     const [profiles, runs] = await Promise.all([
       this.repository.listProfiles(channelIds),
       this.repository.listLatestRuns(channelIds),
     ]);
     const profileMap = new Map(profiles.map((profile) => [profile.relayChannelId, profile]));
     const runMap = new Map(runs.map((run) => [run.relayChannelId, run]));
-    return standalone.map((channel) => ({
+    return probeableChannels.map((channel) => ({
       channelId: channel.id,
       channelName: channel.name,
       enabled: channel.enabled,
@@ -671,7 +678,7 @@ export class RelayChannelProbeService {
 
   async upsertProfile(channelId: string, body: UpsertRelayChannelProbeProfileRequest, actorUserId: string) {
     const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
-    if (channel.channelType !== "standalone") throw new BadRequestError("仅独立渠道支持余额探针");
+    if (!isProbeableChannelType(channel.channelType)) throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针");
     this.assertProbeChannelCompatibility(channel, body.probeFormat, body.probeModel);
     const existing = await this.repository.findProfile(channelId);
     const probeEndpoint = body.probeEndpoint ?? normalizeProbeEndpoint(existing?.probeEndpoint, body.probeFormat);
@@ -687,7 +694,34 @@ export class RelayChannelProbeService {
       ? cacheMode === "cache-bust"
       : (body.preventCache ?? existing?.preventCache ?? true);
     const encrypted = body.credentials ? this.encryptCredentials(body.credentials) : undefined;
-    if (!existing && !encrypted) throw new BadRequestError("首次配置探针必须提供凭据");
+    const memberCredentials = body.memberCredentials
+      ? Object.fromEntries(
+          Object.entries(body.memberCredentials).map(([memberId, credentials]) => [memberId, credentials]),
+        )
+      : undefined;
+    const encryptedMemberCredentials = memberCredentials ? this.encryptCredentials(memberCredentials) : undefined;
+    if (channel.channelType === "pooled") {
+      if (body.credentials) throw new BadRequestError("逻辑混池必须按物理成员配置探针凭据");
+      const pooled = await this.relayChannelRepository.findVisibleById(channelId);
+      const activeMemberIds = (
+        (pooled as (RelayChannel & { pooledChildren?: RelayChannel[] }) | null)?.pooledChildren ?? []
+      )
+        .filter(
+          (member: RelayChannel) =>
+            member.channelType === "pooled-member" &&
+            member.status === RELAY_CHANNEL_STATUS.ENABLED &&
+            member.pooledMemberEnabled !== false,
+        )
+        .map((member: RelayChannel) => member.id);
+      const supplied = memberCredentials ? new Set(Object.keys(memberCredentials)) : undefined;
+      if (!existing && !supplied) throw new BadRequestError("首次配置逻辑混池探针必须提供各物理成员凭据");
+      if (supplied && activeMemberIds.some((memberId: string) => !supplied.has(memberId)))
+        throw new BadRequestError("逻辑混池缺少启用物理成员的探针凭据");
+    } else if (body.memberCredentials) {
+      throw new BadRequestError("仅逻辑混池可按成员配置探针凭据");
+    } else if (!existing && !encrypted) {
+      throw new BadRequestError("首次配置探针必须提供凭据");
+    }
     const profile = await this.repository.upsertProfile({
       where: { relayChannelId: channelId },
       create: {
@@ -710,9 +744,9 @@ export class RelayChannelProbeService {
         probeGroup: this.normalizeProbeGroup(body.probeGroup),
         distributionMultiplier: body.distributionMultiplier ?? 1,
         workflow: body.workflow as unknown as Prisma.InputJsonValue,
-        encryptedCredentials: encrypted?.ciphertext,
-        credentialIv: encrypted?.iv,
-        credentialAuthTag: encrypted?.authTag,
+        encryptedCredentials: encryptedMemberCredentials?.ciphertext ?? encrypted?.ciphertext,
+        credentialIv: encryptedMemberCredentials?.iv ?? encrypted?.iv,
+        credentialAuthTag: encryptedMemberCredentials?.authTag ?? encrypted?.authTag,
       },
       update: {
         enabled: body.enabled,
@@ -733,11 +767,11 @@ export class RelayChannelProbeService {
         probeGroup: this.normalizeProbeGroup(body.probeGroup),
         distributionMultiplier: body.distributionMultiplier ?? 1,
         workflow: body.workflow as unknown as Prisma.InputJsonValue,
-        ...(encrypted
+        ...(encryptedMemberCredentials || encrypted
           ? {
-              encryptedCredentials: encrypted.ciphertext,
-              credentialIv: encrypted.iv,
-              credentialAuthTag: encrypted.authTag,
+              encryptedCredentials: (encryptedMemberCredentials ?? encrypted)!.ciphertext,
+              credentialIv: (encryptedMemberCredentials ?? encrypted)!.iv,
+              credentialAuthTag: (encryptedMemberCredentials ?? encrypted)!.authTag,
             }
           : {}),
       },
@@ -779,7 +813,8 @@ export class RelayChannelProbeService {
     if (!profile.enabled) throw new BadRequestError("渠道探针已停用");
     this.assertProbeChannelCompatibility(channel, profile.probeFormat, profile.probeModel);
     const probeEndpoint = normalizeProbeEndpoint(profile.probeEndpoint, profile.probeFormat as ProbeFormat);
-    if (profile.relayChannel.channelType !== "standalone") throw new BadRequestError("仅独立渠道支持余额探针");
+    if (!isProbeableChannelType(profile.relayChannel.channelType as RelayChannelType))
+      throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针");
     const active = await this.repository.findActiveRun(channelId);
     if (active) throw new ConflictError("该渠道已有探针任务正在排队或执行");
     if (!this.redis.isRedisAvailable())
@@ -861,7 +896,8 @@ export class RelayChannelProbeService {
   ): Promise<CopyRelayChannelProbeProfileResponse> {
     const channelService = RelayChannelService.getInstance();
     const sourceChannel = await channelService.getChannel(body.sourceChannelId, actorUserId);
-    if (sourceChannel.channelType !== "standalone") throw new BadRequestError("仅独立渠道支持余额探针");
+    if (!isProbeableChannelType(sourceChannel.channelType))
+      throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针");
     const sourceProfile = await this.repository.findProfileWithChannel(body.sourceChannelId);
     if (!sourceProfile) throw new NotFoundError("来源渠道尚未配置探针档案");
 
@@ -870,8 +906,12 @@ export class RelayChannelProbeService {
     for (const channelId of body.targetChannelIds) {
       try {
         const targetChannel = await channelService.getChannel(channelId, actorUserId);
-        if (targetChannel.channelType !== "standalone") {
-          rejected.push({ channelId, reason: "仅独立渠道支持余额探针" });
+        if (!isProbeableChannelType(targetChannel.channelType)) {
+          rejected.push({ channelId, reason: "仅独立渠道或逻辑混池支持余额探针" });
+          continue;
+        }
+        if (targetChannel.channelType !== sourceChannel.channelType) {
+          rejected.push({ channelId, reason: "独立渠道与逻辑混池的探针凭据结构不兼容" });
           continue;
         }
         this.assertProbeChannelCompatibility(targetChannel, sourceProfile.probeFormat, sourceProfile.probeModel);
@@ -1116,7 +1156,6 @@ export class RelayChannelProbeService {
     run: ProbeRunRecord,
     pricing: { rate: ModelPricingItemDto; upstreamModelId: string },
   ) {
-    const variables = this.decryptCredentials(profile);
     const workflow = profile.workflow as unknown as RelayChannelProbeWorkflowStepDto[];
     const samples: RelayChannelProbeSampleDto[] = [];
     const warmups: Array<{ cacheCreationTokens: number; cacheReadTokens: number; usage: Record<string, unknown> }> = [];
@@ -1126,6 +1165,8 @@ export class RelayChannelProbeService {
     const balanceReads = profile.balanceSettlementReads;
     for (let index = 0; index < run.sampleCount; index += 1) {
       try {
+        const executionChannel = this.resolveProbeExecutionChannel(profile, index);
+        const variables = this.resolveProbeVariables(profile, executionChannel.id);
         const cacheBusterId = run.cacheMode === "allow-cache" ? undefined : randomUUID();
         if (run.cacheMode === "warm-and-read") {
           const warmupBefore = await this.runProbePhase("读取预热前稳定余额", () =>
@@ -1134,6 +1175,7 @@ export class RelayChannelProbeService {
           const warmup = await this.runProbePhase("缓存预热请求", () =>
             this.callUpstream(
               profile,
+              executionChannel,
               variables,
               pricing.upstreamModelId,
               true,
@@ -1165,6 +1207,7 @@ export class RelayChannelProbeService {
         const upstream = await this.runProbePhase("最小模型请求", () =>
           this.callUpstream(
             profile,
+            executionChannel,
             variables,
             pricing.upstreamModelId,
             run.cacheMode !== "allow-cache",
@@ -1384,6 +1427,7 @@ export class RelayChannelProbeService {
 
   private async callUpstream(
     profile: ProbeProfileRecord,
+    channel: RelayChannel,
     variables: Record<string, string>,
     upstreamModelId: string,
     cacheBustingEnabled: boolean,
@@ -1391,7 +1435,6 @@ export class RelayChannelProbeService {
     cacheBusterId?: string,
     configuredEndpoint?: RelayChannelProbeEndpoint,
   ): Promise<{ response: Record<string, unknown>; cacheBusterId?: string; measurementInputInjected: boolean }> {
-    const channel = profile.relayChannel;
     const format = profile.probeFormat as "openai" | "anthropic" | "gemini";
     const endpoint = normalizeProbeEndpoint(configuredEndpoint ?? profile.probeEndpoint, format);
     assertProbeEndpointCompatibility(endpoint, format);
@@ -1616,7 +1659,7 @@ export class RelayChannelProbeService {
     if (secret.length < 64) throw new BadRequestError("渠道探针主密钥未配置");
     return createHash("sha256").update(secret).digest();
   }
-  private encryptCredentials(credentials: Record<string, string>) {
+  private encryptCredentials(credentials: Record<string, unknown>) {
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", this.getEncryptionKey(), iv);
     const ciphertext = Buffer.concat([cipher.update(JSON.stringify(credentials), "utf8"), cipher.final()]).toString(
@@ -1624,7 +1667,7 @@ export class RelayChannelProbeService {
     );
     return { ciphertext, iv: iv.toString("base64"), authTag: cipher.getAuthTag().toString("base64") };
   }
-  private decryptCredentials(profile: ProbeProfileRecord): Record<string, string> {
+  private decryptCredentials(profile: ProbeProfileRecord): Record<string, unknown> {
     if (!profile.encryptedCredentials || !profile.credentialIv || !profile.credentialAuthTag)
       throw new BadRequestError("渠道探针凭据未配置");
     const decipher = createDecipheriv(
@@ -1633,11 +1676,40 @@ export class RelayChannelProbeService {
       Buffer.from(profile.credentialIv, "base64"),
     );
     decipher.setAuthTag(Buffer.from(profile.credentialAuthTag, "base64"));
-    return JSON.parse(
+    const parsed: unknown = JSON.parse(
       Buffer.concat([decipher.update(Buffer.from(profile.encryptedCredentials, "base64")), decipher.final()]).toString(
         "utf8",
       ),
     );
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      throw new BadRequestError("渠道探针凭据格式无效");
+    return parsed as Record<string, unknown>;
+  }
+
+  private resolveProbeExecutionChannel(profile: ProbeProfileRecord, sampleIndex: number) {
+    if (profile.relayChannel.channelType !== "pooled") return profile.relayChannel;
+    const members = (
+      (profile.relayChannel as RelayChannel & { pooledChildren?: RelayChannel[] }).pooledChildren ?? []
+    ).filter(
+      (member) =>
+        member.channelType === "pooled-member" &&
+        member.status === RELAY_CHANNEL_STATUS.ENABLED &&
+        member.pooledMemberEnabled !== false,
+    );
+    if (!members.length) throw new BadRequestError("逻辑混池没有可用的物理成员用于探针");
+    return members[sampleIndex % members.length]!;
+  }
+
+  private resolveProbeVariables(profile: ProbeProfileRecord, memberId: string): Record<string, string> {
+    const credentials = this.decryptCredentials(profile);
+    const candidate = profile.relayChannel.channelType === "pooled" ? credentials[memberId] : credentials;
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
+      throw new BadRequestError("逻辑混池缺少当前物理成员的探针凭据");
+    const variables = Object.entries(candidate).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    );
+    if (variables.length !== Object.keys(candidate).length) throw new BadRequestError("渠道探针凭据格式无效");
+    return Object.fromEntries(variables);
   }
   private toProfileDto(profile: any): RelayChannelProbeProfileDto {
     return {
