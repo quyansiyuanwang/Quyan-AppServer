@@ -250,6 +250,7 @@ const channelPrimary = {
   id: 'channel-primary',
   name: 'Primary',
   multiplier: 1,
+  channelType: 'standalone',
   modelCapabilities: [
     {
       catalogModelName: 'gpt-4o',
@@ -268,6 +269,7 @@ const channelSecondary = {
   id: 'channel-secondary',
   name: 'Secondary',
   multiplier: 1,
+  channelType: 'standalone',
   modelCapabilities: [],
 } as any
 
@@ -275,6 +277,7 @@ const channelTertiary = {
   id: 'channel-tertiary',
   name: 'Tertiary',
   multiplier: 1,
+  channelType: 'pooled',
   modelCapabilities: [],
 } as any
 
@@ -635,6 +638,55 @@ describe('RelayTokenManagementView', () => {
     expect(wrapper.find('.channel-config-toolbar__batch-select').exists()).toBe(false)
     await wrapper.find('.channel-config-toolbar__batch-add-button').trigger('click')
     expect(wrapper.find('.token-channel-batch-add-dialog').exists()).toBe(true)
+  })
+
+  it('separates ordered channels from automatic proxy pools in the token editor', async () => {
+    const redactedChannel = {
+      id: 'redacted-channel',
+      name: 'Redacted channel',
+      multiplier: 1,
+      modelCapabilities: [],
+    } as any
+    listChannelsMock.mockResolvedValue([
+      channelPrimary,
+      channelSecondary,
+      channelTertiary,
+      automaticProxyPool,
+      redactedChannel,
+    ])
+
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreateDialog()
+    await flushPromises()
+
+    expect(vm.getAvailableChannelOptions('').map((channel: any) => channel.id)).toEqual([
+      channelPrimary.id,
+      channelSecondary.id,
+      channelTertiary.id,
+    ])
+    expect(vm.tokenChannelBatchAddOptions.map((channel: any) => channel.id)).toEqual([
+      channelPrimary.id,
+      channelSecondary.id,
+      channelTertiary.id,
+    ])
+
+    vm.editForm.channelConfigs = [
+      { tempKey: 'automatic-pool-config', channelId: automaticProxyPool.id, priority: 0 },
+    ]
+    vm.editForm.routingMode = 'automatic-pool'
+    await flushPromises()
+
+    expect(vm.automaticProxyPoolChannelOptions.map((channel: any) => channel.id)).toEqual([
+      automaticProxyPool.id,
+    ])
+
+    vm.editForm.routingMode = 'ordered'
+    await flushPromises()
+
+    expect(vm.editForm.channelConfigs.map((config: any) => config.channelId)).toEqual([''])
   })
 
   it('renders amount quota windows with remaining usage details', async () => {

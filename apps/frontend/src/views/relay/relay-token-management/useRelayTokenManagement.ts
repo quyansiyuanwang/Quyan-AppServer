@@ -453,7 +453,9 @@ export const useRelayTokenManagement = () => {
   )
 
   const orderedChannelOptions = computed(() =>
-    channels.value.filter((channel) => channel.channelType !== 'automatic-proxy-pool'),
+    channels.value.filter(
+      (channel) => channel.channelType === 'standalone' || channel.channelType === 'pooled',
+    ),
   )
 
   const automaticProxyPoolChannelIdSet = computed(
