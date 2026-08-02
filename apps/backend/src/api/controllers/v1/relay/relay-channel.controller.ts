@@ -19,6 +19,8 @@ import type {
   BatchDeleteRelayChannelsRequest,
   BatchRelayChannelsResultDto,
   BatchSetRelayChannelStatusRequest,
+  BatchUpdateRelayChannelsRequest,
+  BatchUpdateRelayChannelsResponse,
   BatchUpdateRelayChannelHealthConfigRequest,
   RelayChannelDto,
   RelayCatalogOptionDto,
@@ -44,6 +46,7 @@ import {
   batchDeleteRelayChannelsBodySchema,
   batchDuplicateRelayChannelsBodySchema,
   batchSetRelayChannelStatusBodySchema,
+  batchUpdateRelayChannelsBodySchema,
   batchUpdateRelayChannelHealthConfigBodySchema,
   createRelayChannelBodySchema,
   duplicateRelayChannelBodySchema,
@@ -301,6 +304,22 @@ export class RelayChannelController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<RelayChannelDto> {
     return this.channelService.updateChannel(id, body, request.user!.userId, request);
+  }
+
+  @Patch("batch")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(batchUpdateRelayChannelsBodySchema),
+  )
+  public async batchUpdateChannels(
+    @Body() body: BatchUpdateRelayChannelsRequest,
+    @Request() request: TypedRequest,
+  ): Promise<BatchUpdateRelayChannelsResponse> {
+    return this.channelService.batchUpdateChannels(body, request.user!.userId, request);
   }
 
   @Post("{id}/duplicate")

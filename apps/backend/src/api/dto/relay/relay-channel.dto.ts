@@ -343,6 +343,44 @@ export interface BatchDuplicateRelayChannelsRequest {
   ids: string[];
 }
 
+/** Fields that can be safely applied to multiple channels. Sensitive upstream settings and pool topology are excluded. */
+export interface BatchUpdateRelayChannelPatch {
+  multiplier?: number;
+  allowedFormats?: string;
+  allowedModels?: string | null;
+  addUserIdentifier?: boolean;
+  inputTokensIncludeCacheRead?: boolean;
+  modelMapping?: Record<string, string> | null;
+  visibilityMode?: RelayChannelVisibilityMode;
+  visibilityConfig?: RelayChannelVisibilityConfigDto | null;
+  routingStrategy?: RelayChannelRoutingStrategy;
+  routingConfig?: RelayChannelRoutingConfigDto | null;
+  timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
+}
+
+/** Maps a request model to another local pricing record without changing its upstream model ID. */
+export interface RelayChannelModelPricingMigrationRequest {
+  sourceModelId: string;
+  targetPricingModel: string;
+}
+
+export interface BatchUpdateRelayChannelsRequest {
+  ids: string[];
+  patch: BatchUpdateRelayChannelPatch;
+  modelPricingMigration?: RelayChannelModelPricingMigrationRequest;
+}
+
+export interface BatchUpdateRelayChannelRejectedDto {
+  id: string;
+  reason: string;
+}
+
+export interface BatchUpdateRelayChannelsResponse {
+  updated: RelayChannelDto[];
+  rejected: BatchUpdateRelayChannelRejectedDto[];
+}
+
 export interface BatchRelayChannelsResultDto {
   total: number;
   affected: number;

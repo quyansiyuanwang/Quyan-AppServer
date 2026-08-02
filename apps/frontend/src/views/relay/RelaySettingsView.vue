@@ -3,6 +3,7 @@
     <RelaySettingsPageDesktop v-if="isDesktop" />
     <RelaySettingsPageMobile v-else />
     <RelaySettingsChannelDialogs />
+    <RelayChannelBatchEditDialog />
     <RelaySettingsTimeRuleDialog />
   </div>
 </template>
@@ -10,6 +11,7 @@
 <script setup lang="ts">
 import { provide } from 'vue'
 import RelaySettingsChannelDialogs from './relay-settings/components/RelaySettingsChannelDialogs.vue'
+import RelayChannelBatchEditDialog from './relay-settings/components/RelayChannelBatchEditDialog.vue'
 import RelaySettingsPageDesktop from './relay-settings/components/RelaySettingsPageDesktop.vue'
 import RelaySettingsPageMobile from './relay-settings/components/RelaySettingsPageMobile.vue'
 import RelaySettingsTimeRuleDialog from './relay-settings/components/RelaySettingsTimeRuleDialog.vue'

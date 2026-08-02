@@ -383,6 +383,45 @@
                         i18ns.t('relay.channelProbeSampleCountHelp')
                       }}</span>
                     </el-form-item>
+                    <el-form-item :label="i18ns.t('relay.channelProbeMeasurementInputTokens')">
+                      <el-input-number
+                        v-model="form.measurementInputTokens"
+                        :min="0"
+                        :max="32768"
+                        :step="128"
+                        :precision="0"
+                        :disabled="!canExecute"
+                      />
+                      <span class="probe-form-help">{{
+                        i18ns.t('relay.channelProbeMeasurementInputTokensHelp')
+                      }}</span>
+                    </el-form-item>
+                    <el-form-item :label="i18ns.t('relay.channelProbeBalanceSettlementTolerance')">
+                      <el-input-number
+                        v-model="form.balanceSettlementTolerance"
+                        :min="0.0000001"
+                        :max="1000000"
+                        :step="0.000001"
+                        :precision="6"
+                        :disabled="!canExecute"
+                      />
+                      <span class="probe-form-help">{{
+                        i18ns.t('relay.channelProbeBalanceSettlementToleranceHelp')
+                      }}</span>
+                    </el-form-item>
+                    <el-form-item :label="i18ns.t('relay.channelProbeBalanceSettlementReads')">
+                      <el-input-number
+                        v-model="form.balanceSettlementReads"
+                        :min="2"
+                        :max="5"
+                        :step="1"
+                        :precision="0"
+                        :disabled="!canExecute"
+                      />
+                      <span class="probe-form-help">{{
+                        i18ns.t('relay.channelProbeBalanceSettlementReadsHelp')
+                      }}</span>
+                    </el-form-item>
                   </div>
                   <el-form-item
                     class="cache-buster-switch"
@@ -404,6 +443,11 @@
                     </el-select>
                     <span class="probe-form-help">{{ cacheModeHelp }}</span>
                   </el-form-item>
+                  <div class="payload-preset-action">
+                    <el-button plain :disabled="!canExecute" @click="applyPayloadPreset">
+                      {{ i18ns.t('relay.channelProbeApplyPreset') }}
+                    </el-button>
+                  </div>
                   <el-collapse class="advanced-payload">
                     <el-collapse-item
                       :title="i18ns.t('relay.channelProbePayloadAdvanced')"
@@ -888,6 +932,12 @@
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeUpstreamDelta')">{{
                 formatNumber(runItem.upstreamBalanceDelta)
               }}</el-descriptions-item
+              ><el-descriptions-item :label="i18ns.t('relay.channelProbeCalibration')">{{
+                calibrationStatusLabel(runItem.calibrationStatus)
+              }}</el-descriptions-item
+              ><el-descriptions-item
+                :label="i18ns.t('relay.channelProbeBalanceSettlementTolerance')"
+                >{{ formatNumber(runItem.balanceSettlementTolerance) }}</el-descriptions-item
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeBaseCost')">{{
                 formatNumber(runItem.baseLocalCost)
               }}</el-descriptions-item
@@ -977,9 +1027,11 @@
                         :type="
                           row.status === 'discarded'
                             ? 'warning'
-                            : row.status === 'failed'
+                            : row.status === 'failed' || row.status === 'settlement_timeout'
                               ? 'danger'
-                              : 'success'
+                              : row.status === 'low_signal' || row.status === 'balance_unstable'
+                                ? 'warning'
+                                : 'success'
                         "
                         size="small"
                       >
@@ -1210,6 +1262,11 @@
       </el-table>
       <template #footer>
         <el-button @click="applyDialogOpen = false">{{ i18ns.t('cancel') }}</el-button>
+        <el-checkbox
+          v-model="exportAppliedChangeChart"
+          :disabled="selectedApplyRunIds.length === 0"
+          >{{ i18ns.t('relay.channelProbeExportAppliedChangeChart') }}</el-checkbox
+        >
         <el-button
           type="primary"
           :disabled="selectedApplyRunIds.length === 0"
@@ -1426,6 +1483,9 @@ interface ProbeForm {
   probeEndpoint: RelayChannelProbeEndpoint
   cacheMode: RelayChannelProbeCacheMode
   sampleCount: number
+  measurementInputTokens: number
+  balanceSettlementTolerance: number
+  balanceSettlementReads: number
   probeModel: string
   distributionMultiplier: number
   upstreamCurrency: string
@@ -1480,6 +1540,7 @@ const saving = ref(false)
 const clearingProfile = ref(false)
 const applying = ref(false)
 const applyDialogOpen = ref(false)
+const exportAppliedChangeChart = ref(false)
 const roundingDigits = ref(4)
 const roundingMode = ref<'ceil' | 'nearest'>('ceil')
 const applyDrafts = ref<ApplyMultiplierDraft[]>([])
@@ -1609,9 +1670,12 @@ const multiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
     return new Date(right.time).getTime() - new Date(left.time).getTime()
   })
 })
-const publicMultiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
+const publicMultiplierChangeRows = computed<MultiplierChangeRow[]>(() =>
+  toCustomerFacingMultiplierChangeRows(multiplierChangeRows.value),
+)
+function toCustomerFacingMultiplierChangeRows(rows: MultiplierChangeRow[]): MultiplierChangeRow[] {
   const rowsByCustomerEntry = new Map<string, MultiplierChangeRow>()
-  for (const row of multiplierChangeRows.value) {
+  for (const row of rows) {
     for (const target of Array.isArray(row.customerFacingTargets)
       ? row.customerFacingTargets
       : []) {
@@ -1640,7 +1704,7 @@ const publicMultiplierChangeRows = computed<MultiplierChangeRow[]>(() => {
     }
   }
   return [...rowsByCustomerEntry.values()]
-})
+}
 const applyDirectionMaximumPercent = computed(() =>
   maximumMultiplierRelativeChange(
     applyDrafts.value.map((draft) => [draft.currentMultiplier, draft.targetMultiplier] as const),
@@ -1662,6 +1726,11 @@ const selectedRuns = computed(() =>
 )
 const selectedProbeFormats = computed(() => selected.value?.allowedProbeFormats ?? [])
 const selectedProbeModels = computed(() => selected.value?.allowedProbeModels ?? [])
+const hasActiveProbeRuns = computed(() =>
+  items.value.some(
+    (item) => item.latestRun?.status === 'queued' || item.latestRun?.status === 'running',
+  ),
+)
 const runnableChannelIds = computed(() =>
   selectedRows.value.flatMap((row) => (isRunnable(row) ? [row.channelId] : [])),
 )
@@ -1760,7 +1829,10 @@ function emptyForm(): ProbeForm {
     probeFormat: 'openai',
     probeEndpoint: 'openai-chat-completions',
     cacheMode: 'cache-bust',
-    sampleCount: 1,
+    sampleCount: 3,
+    measurementInputTokens: 1024,
+    balanceSettlementTolerance: 0.000001,
+    balanceSettlementReads: 2,
     probeModel: '',
     distributionMultiplier: 1,
     upstreamCurrency: 'CNY',
@@ -1787,8 +1859,21 @@ const probeEndpointHelp = computed(() =>
 const cacheModeHelp = computed(() =>
   i18ns.t(`relay.channelProbeCacheModeHelp${form.value.cacheMode}` as any),
 )
-function sampleStatusLabel(status: 'succeeded' | 'failed' | 'discarded') {
+function sampleStatusLabel(status: string) {
   return i18ns.t(`relay.channelProbeSampleStatus${status}` as any)
+}
+function calibrationStatusLabel(status: string) {
+  const key =
+    status === 'verified'
+      ? 'relay.channelProbeCalibrationVerified'
+      : status === 'low-signal'
+        ? 'relay.channelProbeCalibrationLowSignal'
+        : status === 'insufficient-samples'
+          ? 'relay.channelProbeCalibrationInsufficientSamples'
+          : status === 'unstable'
+            ? 'relay.channelProbeCalibrationUnstable'
+            : 'relay.channelProbeCalibrationPending'
+  return i18ns.t(key)
 }
 function defaultEndpointForFormat(format: RelayChannelProbeFormat): RelayChannelProbeEndpoint {
   return format === 'anthropic'
@@ -1848,6 +1933,16 @@ function applyPayloadPreset() {
     2,
   )
   ElMessage.success(i18ns.t('relay.channelProbePresetApplied'))
+}
+function isPayloadPreset(format: RelayChannelProbeFormat, endpoint: RelayChannelProbeEndpoint) {
+  try {
+    return (
+      JSON.stringify(JSON.parse(payloadText.value)) ===
+      JSON.stringify(createDefaultProbePayload(format, endpoint))
+    )
+  } catch {
+    return false
+  }
 }
 function createDefaultProbePayload(
   format: RelayChannelProbeFormat,
@@ -1963,6 +2058,11 @@ function parseImportedProfile(): ProbeProfileExport['profile'] {
             ? 'allow-cache'
             : 'cache-bust',
       sampleCount: validSampleCount(source.sampleCount),
+      measurementInputTokens: validMeasurementInputTokens(source.measurementInputTokens),
+      balanceSettlementTolerance: validBalanceSettlementTolerance(
+        source.balanceSettlementTolerance,
+      ),
+      balanceSettlementReads: validBalanceSettlementReads(source.balanceSettlementReads),
       probeModel: source.probeModel,
       distributionMultiplier: Number(source.distributionMultiplier) || 1,
       upstreamCurrency:
@@ -1993,11 +2093,32 @@ function validUpstreamRateMultiplier(value: unknown): number {
   return multiplier
 }
 function validSampleCount(value: unknown): number {
-  if (value == null) return 1
+  if (value == null) return 3
   const count = Number(value)
   if (!Number.isInteger(count) || count < 1 || count > 10)
     throw new Error(i18ns.t('relay.channelProbeInvalidSampleCount'))
   return count
+}
+function validMeasurementInputTokens(value: unknown): number {
+  if (value == null) return 1024
+  const count = Number(value)
+  if (!Number.isInteger(count) || count < 0 || count > 32768)
+    throw new Error(i18ns.t('relay.channelProbeInvalidSampleCount'))
+  return count
+}
+function validBalanceSettlementTolerance(value: unknown): number {
+  if (value == null) return 0.000001
+  const tolerance = Number(value)
+  if (!Number.isFinite(tolerance) || tolerance < 0.0000001 || tolerance > 1000000)
+    throw new Error(i18ns.t('relay.channelProbeInvalidBalanceDivisor'))
+  return tolerance
+}
+function validBalanceSettlementReads(value: unknown): number {
+  if (value == null) return 2
+  const reads = Number(value)
+  if (!Number.isInteger(reads) || reads < 2 || reads > 5)
+    throw new Error(i18ns.t('relay.channelProbeInvalidSampleCount'))
+  return reads
 }
 function applyImportedConfiguration() {
   try {
@@ -2008,6 +2129,9 @@ function applyImportedConfiguration() {
       probeEndpoint: imported.probeEndpoint,
       cacheMode: imported.cacheMode,
       sampleCount: imported.sampleCount,
+      measurementInputTokens: imported.measurementInputTokens,
+      balanceSettlementTolerance: imported.balanceSettlementTolerance,
+      balanceSettlementReads: imported.balanceSettlementReads,
       probeModel: imported.probeModel,
       distributionMultiplier: imported.distributionMultiplier,
       upstreamCurrency: imported.upstreamCurrency,
@@ -2077,7 +2201,12 @@ function formatNumber(value?: number) {
 }
 function isApplicable(run?: RelayChannelProbeRunDto) {
   return Boolean(
-    run && run.status === 'succeeded' && run.suggestedMultiplier != null && !run.appliedAt,
+    run &&
+      run.status === 'succeeded' &&
+      run.calibrationStatus === 'verified' &&
+      run.sampleAcceptedCount >= 3 &&
+      run.suggestedMultiplier != null &&
+      !run.appliedAt,
   )
 }
 function suggestionUnavailableReason(run: RelayChannelProbeRunDto) {
@@ -2115,13 +2244,13 @@ function getApplicableRuns(runIds: string[]) {
   const channelById = new Map(items.value.map((item) => [item.channelId, item]))
   const runsById = new Map(
     [...items.value.map((item) => item.latestRun), ...runs.value]
-      .filter((run): run is RelayChannelProbeRunDto => Boolean(run?.suggestedMultiplier != null))
+      .filter((run): run is RelayChannelProbeRunDto => isApplicable(run))
       .map((run) => [run.id, run]),
   )
   return runIds.flatMap((runId) => {
     const run = runsById.get(runId)
     const channel = run ? channelById.get(run.relayChannelId) : undefined
-    return run && channel && run.suggestedMultiplier != null
+    return run && channel && isApplicable(run) && run.suggestedMultiplier != null
       ? [
           {
             run,
@@ -2293,8 +2422,10 @@ function multiplierDirectionLabel(currentMultiplier: number, targetMultiplier: n
     formatNumber(targetMultiplier) + 'x',
   ].join(' ')
 }
-function exportMultiplierChangeChart() {
-  const rows = publicMultiplierChangeRows.value.slice(0, 20)
+function exportMultiplierChangeChart(
+  sourceRows: MultiplierChangeRow[] = publicMultiplierChangeRows.value,
+) {
+  const rows = sourceRows.slice(0, 20)
   if (!rows.length) {
     ElMessage.warning(i18ns.t('relay.channelProbeExportChangeChartNoPublic'))
     return
@@ -2426,6 +2557,35 @@ function exportMultiplierChangeChart() {
 }
 function formatChangeValue(value: number) {
   return (value > 0 ? '+' : '') + formatNumber(value) + 'x'
+}
+function appliedDraftChangeRows(drafts: ApplyMultiplierDraft[]): MultiplierChangeRow[] {
+  const itemByChannelId = new Map(items.value.map((item) => [item.channelId, item]))
+  return drafts.flatMap((draft) => {
+    const item = itemByChannelId.get(draft.run.relayChannelId)
+    if (!item) return []
+    const change = draft.targetMultiplier - draft.currentMultiplier
+    return [
+      {
+        channelId: item.channelId,
+        channelName: item.channelName,
+        customerFacingTargets: item.customerFacingTargets,
+        sourceMultiplier: draft.currentMultiplier,
+        targetMultiplier: draft.targetMultiplier,
+        change,
+        changePercent: multiplierRelativeChangePercent(
+          draft.currentMultiplier,
+          draft.targetMultiplier,
+        ),
+        applied: true,
+        costFactors:
+          formatNumber(draft.run.upstreamRateMultiplier) +
+          ' × ' +
+          formatNumber(draft.run.distributionMultiplier),
+        targetCost: targetLocalCost(draft.run),
+        time: new Date(),
+      },
+    ]
+  })
 }
 function onApplySelectionChange(rows: ApplyMultiplierDraft[]) {
   selectedApplyRunIds.value = rows.map((row) => row.run.id)
@@ -2624,6 +2784,9 @@ async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
         probeEndpoint: profile.probeEndpoint,
         cacheMode: profile.cacheMode,
         sampleCount: profile.sampleCount,
+        measurementInputTokens: profile.measurementInputTokens,
+        balanceSettlementTolerance: profile.balanceSettlementTolerance,
+        balanceSettlementReads: profile.balanceSettlementReads,
         probeModel: profile.probeModel,
         distributionMultiplier: profile.distributionMultiplier,
         upstreamCurrency: profile.upstreamCurrency,
@@ -2677,7 +2840,6 @@ function resetDrawer() {
   runs.value = []
   credentials.value = []
   runsLoading.value = false
-  stopPolling()
 }
 async function loadRuns() {
   if (!selected.value) return
@@ -2909,6 +3071,7 @@ async function confirmApply(runIds: string[]) {
   const drafts = getApplicableRuns(runIds)
   if (!drafts.length) return ElMessage.warning(i18ns.t('relay.channelProbeApplyUnavailable'))
   applyDrafts.value = drafts
+  exportAppliedChangeChart.value = false
   roundDraftMultipliers()
   applyDialogOpen.value = true
   await nextTick()
@@ -2948,6 +3111,7 @@ async function submitApplyMultipliers() {
       ElMessage.warning(result.rejected.map((item: { reason: string }) => item.reason).join('；'))
     const rejectedRunIds = new Set(result.rejected.map((item: { runId: string }) => item.runId))
     const appliedRunIds = runIds.filter((runId) => !rejectedRunIds.has(runId))
+    const appliedDrafts = selectedDrafts.filter((draft) => appliedRunIds.includes(draft.run.id))
     for (const runId of appliedRunIds) {
       const draft = applyDrafts.value.find((item) => item.run.id === runId)
       const targetMultiplier = targetMultiplierByRunId.get(runId)
@@ -2967,6 +3131,10 @@ async function submitApplyMultipliers() {
     }
     if (selected.value && appliedRunIds.some((runId) => runs.value.some((run) => run.id === runId)))
       await loadRuns()
+    if (exportAppliedChangeChart.value && appliedDrafts.length)
+      exportMultiplierChangeChart(
+        toCustomerFacingMultiplierChangeRows(appliedDraftChangeRows(appliedDrafts)),
+      )
     const remainingDrafts = applyDrafts.value.filter(
       (draft) => !appliedRunIds.includes(draft.run.id),
     )
@@ -2988,11 +3156,17 @@ async function submitApplyMultipliers() {
   }
 }
 function startPolling() {
-  stopPolling()
+  if (pollTimer || !hasActiveProbeRuns.value) return
   pollTimer = setInterval(() => {
-    if (runs.value.some((run) => run.status === 'queued' || run.status === 'running')) {
+    if (!hasActiveProbeRuns.value) return stopPolling()
+    if (!loading.value) void loadOverview()
+    if (
+      selected.value &&
+      (selected.value.latestRun?.status === 'queued' ||
+        selected.value.latestRun?.status === 'running') &&
+      !runsLoading.value
+    )
       void loadRuns()
-    }
   }, 3000)
 }
 function stopPolling() {
@@ -3000,11 +3174,25 @@ function stopPolling() {
   pollTimer = undefined
 }
 watch([keyword, profileFilter, enabledFilter, runStatusFilter, suggestionFilter], clearSelection)
+watch(hasActiveProbeRuns, (active) => {
+  if (active) startPolling()
+  else stopPolling()
+})
 watch(
-  () => form.value.probeFormat,
-  (format) => {
-    if (!probeEndpointOptions.value.includes(form.value.probeEndpoint))
+  [() => form.value.probeFormat, () => form.value.probeEndpoint],
+  ([format, endpoint], [previousFormat, previousEndpoint]) => {
+    if (!probeEndpointOptions.value.includes(endpoint)) {
       form.value.probeEndpoint = defaultEndpointForFormat(format)
+      return
+    }
+    // Only migrate a generated preset. Custom JSON can carry upstream-specific
+    // fields and must never be overwritten by a format switch.
+    if (
+      previousFormat !== undefined &&
+      previousEndpoint !== undefined &&
+      isPayloadPreset(previousFormat, previousEndpoint)
+    )
+      payloadText.value = JSON.stringify(createDefaultProbePayload(format, endpoint), null, 2)
   },
 )
 watch(
@@ -3228,6 +3416,11 @@ onBeforeUnmount(stopPolling)
 }
 .advanced-payload {
   margin-bottom: 12px;
+}
+.payload-preset-action {
+  display: flex;
+  justify-content: flex-start;
+  margin: 8px 0;
 }
 .probe-helper-panel {
   position: sticky;

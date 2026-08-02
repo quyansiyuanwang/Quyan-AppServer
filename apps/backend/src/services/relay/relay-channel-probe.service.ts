@@ -9,6 +9,7 @@ import { resolveModelId } from "@/util/model-resolution.util";
 import { RelayChannelService } from "./relay-channel.service";
 import { RelayConfigService } from "./relay-config.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
+import { resolveContextLengthMultiplier, type ContextLengthMultiplierRule } from "./context-length-multiplier.service";
 import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
@@ -67,7 +68,11 @@ const MAX_CONCURRENT_PROBE_RUNS = 4;
 // while the channel write lock is held, so an in-app request cannot distort a
 // calibration run between its two balance reads.
 const PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS = 1_000;
-const PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS = 5_000;
+const PROBE_BALANCE_SETTLEMENT_POLL_MS = 2_000;
+const PROBE_BALANCE_SETTLEMENT_TIMEOUT_MS = 30_000;
+const MIN_VERIFIED_SAMPLE_COUNT = 3;
+const MAX_ACCEPTED_SAMPLE_SPREAD = 0.2;
+const LARGE_MULTIPLIER_CHANGE_RATIO = 0.2;
 
 type ProbeProfileRecord = RelayChannelProbeProfileRecord;
 type ProbeRunRecord = RelayChannelProbeRunRecord;
@@ -77,6 +82,7 @@ export type RelayChannelProbeTopologyItem = Pick<
 >;
 
 type ProbeFormat = "openai" | "anthropic" | "gemini";
+type ProbeBalanceSnapshot = { balance: number; observedAt: string };
 
 /** Keep probe format availability aligned with the channel request-format contract. */
 export function resolveAllowedProbeFormats(value: string | null | undefined): ProbeFormat[] {
@@ -191,6 +197,83 @@ export function injectProbeCacheBuster(
     parts: [{ text: marker }, ...payload.systemInstruction.parts],
   };
   return payload;
+}
+
+/**
+ * Adds deterministic, inert text to an existing user prompt so a balance
+ * ledger with coarse precision can observe a real charge. It only changes a
+ * supported text field and returns undefined for opaque custom payloads.
+ */
+export function injectProbeMeasurementInput(
+  sourcePayload: Record<string, unknown>,
+  format: ProbeFormat,
+  measurementInputTokens: number,
+  endpoint: RelayChannelProbeEndpoint = defaultProbeEndpoint(format),
+): Record<string, unknown> | undefined {
+  if (measurementInputTokens <= 0) return structuredClone(sourcePayload);
+  const payload = structuredClone(sourcePayload);
+  const padding = `\n[probe-measurement]\n${"calibration ".repeat(Math.ceil((measurementInputTokens * 4) / 12))}`;
+  const appendContent = (content: unknown): unknown | undefined => {
+    if (typeof content === "string") return `${content}${padding}`;
+    if (!Array.isArray(content)) return undefined;
+    const index = content.findIndex(
+      (part) => isRecord(part) && typeof part.text === "string" && ["text", "input_text"].includes(String(part.type)),
+    );
+    if (index < 0) return undefined;
+    return content.map((part, itemIndex) =>
+      itemIndex === index
+        ? { ...(part as Record<string, unknown>), text: `${String((part as Record<string, unknown>).text)}${padding}` }
+        : part,
+    );
+  };
+  const appendToMessages = (key: "messages" | "input"): boolean => {
+    const messages = payload[key];
+    if (!Array.isArray(messages)) return false;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (!isRecord(message)) continue;
+      const content = appendContent(message.content);
+      if (content === undefined) continue;
+      payload[key] = messages.map((item, itemIndex) =>
+        itemIndex === index ? { ...(item as Record<string, unknown>), content } : item,
+      );
+      return true;
+    }
+    return false;
+  };
+
+  if (endpoint === "openai-responses") {
+    if (typeof payload.input === "string") {
+      payload.input = `${payload.input}${padding}`;
+      return payload;
+    }
+    return appendToMessages("input") ? payload : undefined;
+  }
+  if (format === "openai" || format === "anthropic") return appendToMessages("messages") ? payload : undefined;
+  if (!Array.isArray(payload.contents)) return undefined;
+  for (let index = payload.contents.length - 1; index >= 0; index -= 1) {
+    const content = payload.contents[index];
+    if (!isRecord(content) || !Array.isArray(content.parts)) continue;
+    const partIndex = content.parts.findIndex((part) => isRecord(part) && typeof part.text === "string");
+    if (partIndex < 0) continue;
+    payload.contents = payload.contents.map((item, itemIndex) =>
+      itemIndex === index
+        ? {
+            ...(item as Record<string, unknown>),
+            parts: (content.parts as unknown[]).map((part, nestedIndex) =>
+              nestedIndex === partIndex
+                ? {
+                    ...(part as Record<string, unknown>),
+                    text: `${String((part as Record<string, unknown>).text)}${padding}`,
+                  }
+                : part,
+            ),
+          }
+        : item,
+    );
+    return payload;
+  }
+  return undefined;
 }
 
 /**
@@ -616,7 +699,10 @@ export class RelayChannelProbeService {
         probePayload: body.probePayload as Prisma.InputJsonValue,
         preventCache,
         cacheMode,
-        sampleCount: body.sampleCount ?? existing?.sampleCount ?? 1,
+        sampleCount: body.sampleCount ?? existing?.sampleCount ?? MIN_VERIFIED_SAMPLE_COUNT,
+        measurementInputTokens: body.measurementInputTokens ?? existing?.measurementInputTokens ?? 1024,
+        balanceSettlementTolerance: body.balanceSettlementTolerance ?? existing?.balanceSettlementTolerance ?? 0.000001,
+        balanceSettlementReads: body.balanceSettlementReads ?? existing?.balanceSettlementReads ?? 2,
         upstreamCurrency: body.upstreamCurrency || "CNY",
         localCurrency: body.localCurrency || "CNY",
         upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
@@ -636,7 +722,10 @@ export class RelayChannelProbeService {
         probePayload: body.probePayload as Prisma.InputJsonValue,
         preventCache,
         cacheMode,
-        sampleCount: body.sampleCount ?? existing?.sampleCount ?? 1,
+        sampleCount: body.sampleCount ?? existing?.sampleCount ?? MIN_VERIFIED_SAMPLE_COUNT,
+        measurementInputTokens: body.measurementInputTokens ?? existing?.measurementInputTokens ?? 1024,
+        balanceSettlementTolerance: body.balanceSettlementTolerance ?? existing?.balanceSettlementTolerance ?? 0.000001,
+        balanceSettlementReads: body.balanceSettlementReads ?? existing?.balanceSettlementReads ?? 2,
         upstreamCurrency: body.upstreamCurrency || "CNY",
         localCurrency: body.localCurrency || "CNY",
         upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
@@ -711,6 +800,9 @@ export class RelayChannelProbeService {
         probeEndpoint,
         cacheMode: profile.cacheMode,
         sampleCount: profile.sampleCount,
+        measurementInputTokens: profile.measurementInputTokens,
+        balanceSettlementTolerance: profile.balanceSettlementTolerance,
+        balanceSettlementReads: profile.balanceSettlementReads,
         forceWithoutCacheBuster: body.forceWithoutCacheBuster === true,
       });
       const attached = await this.redis.replaceIfValueMatches(queueKey, reservationId, run.id, RUN_QUEUE_SLOT_TTL_MS);
@@ -835,6 +927,8 @@ export class RelayChannelProbeService {
         await RelayChannelService.getInstance().getChannel(run.relayChannelId, actorUserId);
         if (run.status !== "succeeded" || run.suggestedMultiplier == null || run.appliedAt)
           throw new BadRequestError("探针结果不可应用");
+        if (run.calibrationStatus !== "verified" || run.sampleAcceptedCount < MIN_VERIFIED_SAMPLE_COUNT)
+          throw new BadRequestError("探针结果未通过稳定性校验");
         if (!run.finishedAt || Date.now() - run.finishedAt.getTime() > SUGGESTION_MAX_AGE_MS)
           throw new BadRequestError("探针建议已过期");
         if (
@@ -842,7 +936,31 @@ export class RelayChannelProbeService {
           Number(run.relayChannel.multiplier) !== Number(run.sourceChannelMultiplier)
         )
           throw new ConflictError("渠道倍率已变更，请重新探针");
+        if (!run.profile || !run.pricingFingerprint) throw new BadRequestError("旧探针结果缺少计费快照，不可应用");
+        const currentPricing = await this.resolveProbeModelPricing(run.profile);
+        const currentFingerprint = this.fingerprintPricingSnapshot(
+          await this.createPricingSnapshot(run.profile, currentPricing.rate),
+        );
+        if (currentFingerprint !== run.pricingFingerprint) throw new ConflictError("探针计费配置已变更，请重新探针");
         const targetMultiplier = overrides.get(run.id) ?? Number(run.suggestedMultiplier);
+        const sourceMultiplier = Number(run.sourceChannelMultiplier);
+        if (
+          Math.abs(targetMultiplier - sourceMultiplier) / Math.max(sourceMultiplier, Number.EPSILON) >
+          LARGE_MULTIPLIER_CHANGE_RATIO
+        ) {
+          const previous = await this.repository.findRecentVerifiedRuns(
+            run.relayChannelId,
+            run.id,
+            new Date(Date.now() - SUGGESTION_MAX_AGE_MS),
+          );
+          if (
+            !previous[0]?.suggestedMultiplier ||
+            Math.abs(Number(previous[0].suggestedMultiplier) - targetMultiplier) /
+              Math.max(targetMultiplier, Number.EPSILON) >
+              0.1
+          )
+            throw new BadRequestError("大幅倍率变更需要另一条独立、稳定的探针结果确认");
+        }
         const appliedRun = await this.repository.applySuggestedMultiplier({
           runId: run.id,
           channelId: run.relayChannelId,
@@ -971,6 +1089,10 @@ export class RelayChannelProbeService {
         warmupCacheReadTokens: result.warmupCacheReadTokens,
         warmupUsage: result.warmupUsage as Prisma.InputJsonValue,
         samples: result.samples as unknown as Prisma.InputJsonValue,
+        calibrationStatus: result.calibrationStatus,
+        pricingFingerprint: result.pricingFingerprint,
+        pricingSnapshot: result.pricingSnapshot as Prisma.InputJsonValue,
+        balanceSnapshots: result.balanceSnapshots as Prisma.InputJsonValue,
         errorMessage: result.succeededCount ? null : (result.samples[0]?.errorMessage ?? "所有探针样本均失败"),
       });
     } catch (error) {
@@ -999,10 +1121,16 @@ export class RelayChannelProbeService {
     const samples: RelayChannelProbeSampleDto[] = [];
     const warmups: Array<{ cacheCreationTokens: number; cacheReadTokens: number; usage: Record<string, unknown> }> = [];
     let costBreakdown: RelayChannelProbeCostBreakdownDto | undefined;
+    const pricingSnapshot = await this.createPricingSnapshot(profile, pricing.rate);
+    const balanceTolerance = Number(profile.balanceSettlementTolerance);
+    const balanceReads = profile.balanceSettlementReads;
     for (let index = 0; index < run.sampleCount; index += 1) {
       try {
         const cacheBusterId = run.cacheMode === "allow-cache" ? undefined : randomUUID();
         if (run.cacheMode === "warm-and-read") {
+          const warmupBefore = await this.runProbePhase("读取预热前稳定余额", () =>
+            this.readSettledBalance(workflow, { ...variables }, balanceTolerance, balanceReads),
+          );
           const warmup = await this.runProbePhase("缓存预热请求", () =>
             this.callUpstream(
               profile,
@@ -1021,11 +1149,18 @@ export class RelayChannelProbeService {
             cacheReadTokens: warmupUsage.cacheReadTokens,
             usage: warmupUsage.upstreamUsage,
           });
-          // The preheat charge must settle before taking the measurement baseline,
-          // otherwise it would distort the cache-hit delta used for calibration.
-          await waitForProbeSettlement(PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS);
+          // A warmup must finish posting before its matching measurement baseline.
+          await this.readSettledBalance(
+            workflow,
+            { ...variables },
+            balanceTolerance,
+            balanceReads,
+            warmupBefore.balance,
+          );
         }
-        const before = await this.runProbePhase("读取请求前余额", () => this.runWorkflow(workflow, { ...variables }));
+        const before = await this.runProbePhase("读取请求前稳定余额", () =>
+          this.readSettledBalance(workflow, { ...variables }, balanceTolerance, balanceReads),
+        );
         await waitForProbeSettlement(PROBE_BEFORE_REQUEST_SETTLEMENT_DELAY_MS);
         const upstream = await this.runProbePhase("最小模型请求", () =>
           this.callUpstream(
@@ -1040,20 +1175,24 @@ export class RelayChannelProbeService {
         );
         const usage = this.extractUsage(upstream.response);
         assertProbeUsage(usage);
-        await waitForProbeSettlement(PROBE_AFTER_REQUEST_SETTLEMENT_DELAY_MS);
-        const after = await this.runProbePhase("读取请求后余额", () => this.runWorkflow(workflow, { ...variables }));
+        const after = await this.runProbePhase("等待上游扣费稳定", () =>
+          this.readSettledBalance(workflow, { ...variables }, balanceTolerance, balanceReads, before.balance),
+        );
         const divisor = Number(profile.upstreamBalanceDivisor);
         if (!Number.isFinite(divisor) || divisor <= 0) throw new BadRequestError("上游余额换算除数无效");
-        const upstreamBalanceBefore = before / divisor;
-        const upstreamBalanceAfter = after / divisor;
+        const upstreamBalanceBefore = before.balance / divisor;
+        const upstreamBalanceAfter = after.balance / divisor;
         const upstreamBalanceDelta = upstreamBalanceBefore - upstreamBalanceAfter;
         const calculated = await this.calculateBaseCost(profile, usage, pricing.rate);
         costBreakdown ??= calculated.breakdown;
         const cacheHitVerified = run.cacheMode !== "warm-and-read" || usage.cacheReadTokens > 0;
+        const measurementInputInjected = upstream.measurementInputInjected;
+        const hasMeasurableBalanceDelta = upstreamBalanceDelta > balanceTolerance;
         const comparable =
           cacheHitVerified &&
+          measurementInputInjected &&
+          hasMeasurableBalanceDelta &&
           profile.upstreamCurrency === profile.localCurrency &&
-          upstreamBalanceDelta > 0 &&
           calculated.baseCost > 0 &&
           usage.totalTokens > 0;
         const suggestedMultiplier = comparable
@@ -1064,9 +1203,10 @@ export class RelayChannelProbeService {
               calculated.baseCost,
             )
           : undefined;
+        const status = !measurementInputInjected || !hasMeasurableBalanceDelta ? "low_signal" : "succeeded";
         samples.push({
           index: index + 1,
-          status: "succeeded",
+          status,
           accepted: suggestedMultiplier != null,
           cacheBusterId: upstream.cacheBusterId,
           upstreamBalanceBefore,
@@ -1081,10 +1221,27 @@ export class RelayChannelProbeService {
           upstreamUsage: usage.upstreamUsage,
           suggestedMultiplier,
           cacheHitVerified,
-          errorMessage: cacheHitVerified ? undefined : "缓存命中未被上游用量验证",
+          measurementInputInjected,
+          balanceSnapshots: [
+            ...before.snapshots.map((snapshot) => ({ phase: "before" as const, ...snapshot })),
+            ...after.snapshots.map((snapshot) => ({ phase: "after" as const, ...snapshot })),
+          ],
+          errorMessage: !measurementInputInjected
+            ? "当前请求体不包含可扩展的文本字段，无法形成足够测量信号"
+            : !hasMeasurableBalanceDelta
+              ? "余额变化低于配置的最小可分辨阈值"
+              : cacheHitVerified
+                ? undefined
+                : "缓存命中未被上游用量验证",
         });
       } catch (error) {
-        samples.push({ index: index + 1, status: "failed", accepted: false, errorMessage: this.safeError(error) });
+        const errorMessage = this.safeError(error);
+        samples.push({
+          index: index + 1,
+          status: errorMessage.includes("PROBE_BALANCE_SETTLEMENT_TIMEOUT") ? "settlement_timeout" : "failed",
+          accepted: false,
+          errorMessage,
+        });
       }
     }
     const candidates = samples.filter((sample) => sample.accepted && sample.suggestedMultiplier != null);
@@ -1096,8 +1253,26 @@ export class RelayChannelProbeService {
       sample.errorMessage = "样本波动超出 MAD 3.5 阈值，已排除";
     }
     const accepted = samples.filter((sample) => sample.accepted);
-    const requiresTwoSamples = run.sampleCount > 1;
-    const canSuggest = accepted.length >= (requiresTwoSamples ? 2 : 1);
+    const suggestedValues = accepted.flatMap((sample) =>
+      sample.suggestedMultiplier == null ? [] : [sample.suggestedMultiplier],
+    );
+    const meanSuggestion = suggestedValues.length
+      ? suggestedValues.reduce((sum, value) => sum + value, 0) / suggestedValues.length
+      : 0;
+    const relativeSpread =
+      meanSuggestion > 0 && suggestedValues.length > 1
+        ? (Math.max(...suggestedValues) - Math.min(...suggestedValues)) / meanSuggestion
+        : 0;
+    const stable = accepted.length >= MIN_VERIFIED_SAMPLE_COUNT && relativeSpread <= MAX_ACCEPTED_SAMPLE_SPREAD;
+    const calibrationStatus = samples.some((sample) => sample.status === "low_signal")
+      ? "low-signal"
+      : samples.some((sample) => sample.status === "settlement_timeout")
+        ? "unstable"
+        : accepted.length < MIN_VERIFIED_SAMPLE_COUNT
+          ? "insufficient-samples"
+          : stable
+            ? "verified"
+            : "unstable";
     const baseLocalCost = averageProbeSampleValue(accepted, "baseLocalCost");
     const upstreamBalanceDelta = averageProbeSampleValue(accepted, "upstreamBalanceDelta");
     const localBalanceDelta =
@@ -1106,7 +1281,8 @@ export class RelayChannelProbeService {
         : upstreamBalanceDelta * Number(profile.upstreamRateMultiplier) * Number(run.distributionMultiplier);
     return {
       samples,
-      succeededCount: samples.filter((sample) => sample.status === "succeeded").length,
+      succeededCount: samples.filter((sample) => sample.status !== "failed" && sample.status !== "settlement_timeout")
+        .length,
       acceptedCount: accepted.length,
       discardedCount: samples.filter((sample) => sample.status === "discarded").length,
       warmupRequestCount: warmups.length,
@@ -1123,16 +1299,21 @@ export class RelayChannelProbeService {
       totalTokens: averageProbeSampleValue(accepted, "totalTokens"),
       cacheCreationTokens: averageProbeSampleValue(accepted, "cacheCreationTokens"),
       cacheReadTokens: averageProbeSampleValue(accepted, "cacheReadTokens"),
-      suggestedMultiplier: canSuggest ? averageProbeSampleValue(accepted, "suggestedMultiplier") : undefined,
+      suggestedMultiplier:
+        calibrationStatus === "verified" ? averageProbeSampleValue(accepted, "suggestedMultiplier") : undefined,
       upstreamUsage: this.toAggregateUpstreamUsage(samples),
       costBreakdown,
+      calibrationStatus,
+      pricingSnapshot,
+      pricingFingerprint: this.fingerprintPricingSnapshot(pricingSnapshot),
+      balanceSnapshots: samples.flatMap((sample) => sample.balanceSnapshots ?? []),
     };
   }
 
-  private async runWorkflow(
+  private async readBalanceSnapshot(
     workflow: RelayChannelProbeWorkflowStepDto[],
     variables: Record<string, string>,
-  ): Promise<number> {
+  ): Promise<ProbeBalanceSnapshot> {
     let balance: number | undefined;
     for (const step of workflow) {
       const rawUrl = interpolateRequiredProbeVariables(step.url, variables) as string;
@@ -1170,7 +1351,35 @@ export class RelayChannelProbeService {
       }
     }
     if (balance === undefined) throw new BadRequestError("余额工作流未返回余额");
-    return balance;
+    return { balance, observedAt: new Date().toISOString() };
+  }
+
+  private async readSettledBalance(
+    workflow: RelayChannelProbeWorkflowStepDto[],
+    variables: Record<string, string>,
+    tolerance: number,
+    stableReadCount: number,
+    baseline?: number,
+  ): Promise<{ balance: number; snapshots: ProbeBalanceSnapshot[] }> {
+    const normalizedTolerance = Number.isFinite(tolerance) && tolerance > 0 ? tolerance : 0.000001;
+    const requiredReads = Math.max(2, Math.floor(stableReadCount || 2));
+    const snapshots: ProbeBalanceSnapshot[] = [];
+    const deadline = Date.now() + PROBE_BALANCE_SETTLEMENT_TIMEOUT_MS;
+    let stableReads = 0;
+    let previous: ProbeBalanceSnapshot | undefined;
+    while (Date.now() <= deadline) {
+      const snapshot = await this.readBalanceSnapshot(workflow, { ...variables });
+      snapshots.push(snapshot);
+      const chargeObserved = baseline == null || snapshot.balance < baseline - normalizedTolerance;
+      stableReads =
+        chargeObserved && previous && Math.abs(snapshot.balance - previous.balance) <= normalizedTolerance
+          ? stableReads + 1
+          : 1;
+      if (chargeObserved && stableReads >= requiredReads) return { balance: snapshot.balance, snapshots };
+      previous = snapshot;
+      await waitForProbeSettlement(PROBE_BALANCE_SETTLEMENT_POLL_MS);
+    }
+    throw new BadRequestError("PROBE_BALANCE_SETTLEMENT_TIMEOUT:上游余额在超时前未显示稳定扣费");
   }
 
   private async callUpstream(
@@ -1181,7 +1390,7 @@ export class RelayChannelProbeService {
     forceWithoutCacheBuster: boolean,
     cacheBusterId?: string,
     configuredEndpoint?: RelayChannelProbeEndpoint,
-  ): Promise<{ response: Record<string, unknown>; cacheBusterId?: string }> {
+  ): Promise<{ response: Record<string, unknown>; cacheBusterId?: string; measurementInputInjected: boolean }> {
     const channel = profile.relayChannel;
     const format = profile.probeFormat as "openai" | "anthropic" | "gemini";
     const endpoint = normalizeProbeEndpoint(configuredEndpoint ?? profile.probeEndpoint, format);
@@ -1212,6 +1421,9 @@ export class RelayChannelProbeService {
     if (Object.keys(payload).every((key) => key === "model")) {
       payload = { ...payload, ...createDefaultProbePayload(format, endpoint) };
     }
+    const measured = injectProbeMeasurementInput(payload, format, profile.measurementInputTokens, endpoint);
+    const measurementInputInjected = measured != null;
+    if (measured) payload = measured;
     let injectedCacheBusterId: string | undefined;
     if (cacheBustingEnabled) {
       const candidateId = cacheBusterId ?? randomUUID();
@@ -1242,7 +1454,7 @@ export class RelayChannelProbeService {
       validateStatus: (status) => status >= 200 && status < 300,
     });
     if (!isRecord(response.data)) throw new BadRequestError("上游模型响应必须是 JSON 对象");
-    return { response: response.data, cacheBusterId: injectedCacheBusterId };
+    return { response: response.data, cacheBusterId: injectedCacheBusterId, measurementInputInjected };
   }
 
   private extractUsage(response: Record<string, unknown>) {
@@ -1305,8 +1517,12 @@ export class RelayChannelProbeService {
       (profile.relayChannel.timePeriodMultipliers as any[]) || [],
       new Date(),
     );
-    const globalMultiplier = Number(relayConfig.globalMultiplier || 1);
-    const multiplier = globalMultiplier * timeMultiplier;
+    const globalMultiplier = Number(relayConfig.globalMultiplier);
+    const contextMatch = resolveContextLengthMultiplier(
+      profile.relayChannel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
+      usage.requestTokens + usage.cacheCreationTokens + usage.cacheReadTokens,
+    );
+    const multiplier = globalMultiplier * timeMultiplier * contextMatch.multiplier;
     const cacheCreationMultiplier = Number(rate.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER);
     const cacheReadMultiplier = Number(rate.cacheReadMultiplier ?? DEFAULT_CACHE_READ_MULTIPLIER);
     if (rate.pricingType === "per-request") {
@@ -1324,6 +1540,9 @@ export class RelayChannelProbeService {
           cacheReadMultiplier,
           globalMultiplier,
           timeMultiplier,
+          contextMultiplier: contextMatch.multiplier,
+          contextTokens: contextMatch.contextTokens,
+          contextRuleName: contextMatch.ruleName,
           rawCost: Number.isFinite(rawCost) ? rawCost : 0,
         },
       };
@@ -1352,6 +1571,9 @@ export class RelayChannelProbeService {
         cacheReadMultiplier,
         globalMultiplier,
         timeMultiplier,
+        contextMultiplier: contextMatch.multiplier,
+        contextTokens: contextMatch.contextTokens,
+        contextRuleName: contextMatch.ruleName,
         rawCost: Number.isFinite(rawCost) ? rawCost : 0,
       },
     };
@@ -1364,6 +1586,29 @@ export class RelayChannelProbeService {
       profile.relayChannel.modelMapping as Record<string, string> | null | undefined,
       relayConfig.modelRates,
     );
+  }
+
+  private async createPricingSnapshot(
+    profile: ProbeProfileRecord,
+    rate: ModelPricingItemDto,
+  ): Promise<Record<string, unknown>> {
+    const relayConfig = await RelayConfigService.getInstance().getRelayConfig();
+    return {
+      model: profile.probeModel,
+      modelMapping: profile.relayChannel.modelMapping ?? {},
+      rate,
+      globalMultiplier: relayConfig.globalMultiplier,
+      timeMultiplier: computeMultiplierForTime((profile.relayChannel.timePeriodMultipliers as any[]) || [], new Date()),
+      timePeriodMultipliers: profile.relayChannel.timePeriodMultipliers ?? [],
+      contextLengthMultipliers: profile.relayChannel.contextLengthMultipliers ?? [],
+      inputTokensIncludeCacheRead: profile.relayChannel.inputTokensIncludeCacheRead === true,
+      cacheMode: profile.cacheMode,
+      endpoint: profile.probeEndpoint,
+    };
+  }
+
+  private fingerprintPricingSnapshot(snapshot: Record<string, unknown>): string {
+    return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
   }
 
   private getEncryptionKey(): Buffer {
@@ -1406,6 +1651,9 @@ export class RelayChannelProbeService {
       preventCache: profile.preventCache,
       cacheMode: profile.cacheMode as RelayChannelProbeCacheMode,
       sampleCount: profile.sampleCount,
+      measurementInputTokens: profile.measurementInputTokens,
+      balanceSettlementTolerance: Number(profile.balanceSettlementTolerance),
+      balanceSettlementReads: profile.balanceSettlementReads,
       upstreamCurrency: profile.upstreamCurrency,
       localCurrency: profile.localCurrency,
       upstreamBalanceDivisor: Number(profile.upstreamBalanceDivisor),
@@ -1432,6 +1680,9 @@ export class RelayChannelProbeService {
       probeEndpoint: run.probeEndpoint as RelayChannelProbeEndpoint,
       cacheMode: run.cacheMode as RelayChannelProbeCacheMode,
       sampleCount: run.sampleCount,
+      measurementInputTokens: run.measurementInputTokens,
+      balanceSettlementTolerance: Number(run.balanceSettlementTolerance),
+      balanceSettlementReads: run.balanceSettlementReads,
       sampleSucceededCount: run.sampleSucceededCount,
       sampleAcceptedCount: run.sampleAcceptedCount,
       sampleDiscardedCount: run.sampleDiscardedCount,
@@ -1455,6 +1706,10 @@ export class RelayChannelProbeService {
       cacheReadTokens: run.cacheReadTokens ?? undefined,
       cacheBustingEnabled: run.cacheBustingEnabled,
       forceWithoutCacheBuster: run.forceWithoutCacheBuster,
+      calibrationStatus: run.calibrationStatus as RelayChannelProbeRunDto["calibrationStatus"],
+      pricingFingerprint: run.pricingFingerprint || undefined,
+      pricingSnapshot: (run.pricingSnapshot as Record<string, unknown> | null) ?? undefined,
+      balanceSnapshots: (run.balanceSnapshots as RelayChannelProbeRunDto["balanceSnapshots"] | null) ?? undefined,
       cacheBusterId: run.cacheBusterId ?? undefined,
       upstreamUsage: (run.upstreamUsage as Record<string, unknown> | null) ?? undefined,
       costBreakdown: (run.costBreakdown as RelayChannelProbeCostBreakdownDto | null) ?? undefined,

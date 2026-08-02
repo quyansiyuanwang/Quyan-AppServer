@@ -8,6 +8,13 @@ export type RelayChannelProbeEndpoint =
   | "gemini-generate-content";
 export type RelayChannelProbeCacheMode = "cache-bust" | "allow-cache" | "warm-and-read";
 export type RelayChannelProbeRunStatus = "queued" | "running" | "succeeded" | "failed" | "timed_out" | "cancelled";
+export type RelayChannelProbeCalibrationStatus =
+  | "pending"
+  | "verified"
+  | "insufficient-samples"
+  | "low-signal"
+  | "unstable"
+  | "pricing-mismatch";
 
 export interface RelayChannelProbeWorkflowStepDto {
   name: string;
@@ -32,6 +39,9 @@ export interface RelayChannelProbeProfileDto {
   preventCache: boolean;
   cacheMode: RelayChannelProbeCacheMode;
   sampleCount: number;
+  measurementInputTokens: number;
+  balanceSettlementTolerance: number;
+  balanceSettlementReads: number;
   upstreamCurrency: string;
   localCurrency: string;
   upstreamBalanceDivisor: number;
@@ -54,6 +64,12 @@ export interface UpsertRelayChannelProbeProfileRequest {
   preventCache?: boolean;
   cacheMode?: RelayChannelProbeCacheMode;
   sampleCount?: number;
+  /** Approximate minimum input token count used to make balance deltas measurable. */
+  measurementInputTokens?: number;
+  /** Normalized balance delta required to consider an upstream charge observable. */
+  balanceSettlementTolerance?: number;
+  /** Consecutive equal balance reads required after a charge. */
+  balanceSettlementReads?: number;
   upstreamCurrency?: string;
   localCurrency?: string;
   /** Divides the numeric balance extracted from the upstream response before calculating deltas. */
@@ -96,6 +112,9 @@ export interface RelayChannelProbeCostBreakdownDto {
   cacheReadMultiplier: number;
   globalMultiplier: number;
   timeMultiplier: number;
+  contextMultiplier: number;
+  contextTokens: number;
+  contextRuleName?: string;
   rawCost: number;
 }
 
@@ -129,6 +148,9 @@ export interface RelayChannelProbeRunDto {
   probeEndpoint: RelayChannelProbeEndpoint;
   cacheMode: RelayChannelProbeCacheMode;
   sampleCount: number;
+  measurementInputTokens: number;
+  balanceSettlementTolerance: number;
+  balanceSettlementReads: number;
   sampleSucceededCount: number;
   sampleAcceptedCount: number;
   sampleDiscardedCount: number;
@@ -152,6 +174,10 @@ export interface RelayChannelProbeRunDto {
   cacheReadTokens?: number;
   cacheBustingEnabled: boolean;
   forceWithoutCacheBuster: boolean;
+  calibrationStatus: RelayChannelProbeCalibrationStatus;
+  pricingFingerprint?: string;
+  pricingSnapshot?: Record<string, unknown>;
+  balanceSnapshots?: Array<{ phase: "before" | "after"; balance: number; observedAt: string }>;
   cacheBusterId?: string;
   upstreamUsage?: Record<string, unknown>;
   costBreakdown?: RelayChannelProbeCostBreakdownDto;
@@ -167,7 +193,7 @@ export interface RelayChannelProbeRunDto {
 
 export interface RelayChannelProbeSampleDto {
   index: number;
-  status: "succeeded" | "failed" | "discarded";
+  status: "succeeded" | "failed" | "discarded" | "low_signal" | "balance_unstable" | "settlement_timeout";
   accepted: boolean;
   cacheBusterId?: string;
   upstreamBalanceBefore?: number;
@@ -183,6 +209,8 @@ export interface RelayChannelProbeSampleDto {
   upstreamUsage?: Record<string, unknown>;
   suggestedMultiplier?: number;
   cacheHitVerified?: boolean;
+  measurementInputInjected?: boolean;
+  balanceSnapshots?: Array<{ phase: "before" | "after"; balance: number; observedAt: string }>;
   errorMessage?: string;
 }
 

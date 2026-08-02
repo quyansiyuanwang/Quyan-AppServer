@@ -3,6 +3,8 @@ import type {
   BatchDeleteRelayChannelsRequest,
   BatchRelayChannelsResultDto,
   BatchSetRelayChannelStatusRequest,
+  BatchUpdateRelayChannelsRequest,
+  BatchUpdateRelayChannelsResponse,
   CreateRelayChannelRequest,
   DuplicateRelayChannelRequest,
   ExportRelayChannelsRequest,
@@ -201,6 +203,13 @@ class RelayChannelService {
     const result = await relayChannelApi.batchSetChannelStatus({
       body: data,
     })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async batchUpdateChannels(
+    data: BatchUpdateRelayChannelsRequest,
+  ): Promise<BatchUpdateRelayChannelsResponse> {
+    const result = await relayChannelApi.batchUpdateChannels({ body: data })
     return checkApiResult<any>(result, true).data
   }
 
