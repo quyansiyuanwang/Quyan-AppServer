@@ -2584,12 +2584,28 @@ const zhCN: DeepStringify<typeof en> = {
     'channelProbeEndpointopenai-responses': 'OpenAI Responses',
     'channelProbeEndpointanthropic-messages': 'Anthropic Messages',
     'channelProbeEndpointgemini-generate-content': 'Gemini Generate Content',
+    'channelProbeEndpointHelpopenai-chat-completions':
+      '请求 /v1/chat/completions，最小请求使用 messages 和 max_tokens。',
+    'channelProbeEndpointHelpopenai-responses':
+      '请求 /v1/responses，最小请求使用 input 和 max_output_tokens。',
+    'channelProbeEndpointHelpanthropic-messages':
+      '请求 /v1/messages，最小请求使用 messages 和 max_tokens。',
+    'channelProbeEndpointHelpgemini-generate-content':
+      '请求 /v1beta/models/{model}:generateContent，最小请求使用 contents 和 generationConfig。',
     channelProbeCacheMode: '缓存测量',
     channelProbeCacheModeBust: '避免缓存响应',
     channelProbeCacheModeAllow: '允许上游缓存',
     channelProbeCacheModeWarm: '预热后测量缓存命中',
     channelProbeCacheModeHelp: '预热请求成本会单独记录，不参与建议倍率计算。',
+    'channelProbeCacheModeHelpcache-bust':
+      '每个计量请求写入唯一缓存标记，尽量避免命中已有缓存；没有预热请求，计量请求的实际成本参与建议倍率。',
+    'channelProbeCacheModeHelpallow-cache':
+      '不写入缓存标记，直接发送配置的请求体；上游可能命中，也可能不命中缓存，测得的是当时的实际成本，不能证明缓存命中。',
+    'channelProbeCacheModeHelpwarm-and-read':
+      '每个样本先用同一缓存标记预热，再测量读取；预热成本单独记录且不参与建议。计量请求必须返回缓存读取 Token，否则该样本不产生缓存建议。',
     channelProbeSampleCount: '采样次数',
+    channelProbeSampleCountHelp:
+      '同一渠道按顺序执行 1 至 10 次测量。1 次直接使用有效结果；大于 1 次至少需保留 2 个有效样本。成功样本达到 3 个时，会按 MAD 3.5 规则剔除异常值，再对剩余样本取平均。',
     channelProbeInvalidSampleCount: '采样次数必须是 1 到 10 的整数',
     channelProbeSampleSummary: '采样汇总',
     channelProbeSampleSummaryValue:

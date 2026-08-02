@@ -368,6 +368,7 @@
                           :label="probeEndpointLabel(endpoint)"
                         />
                       </el-select>
+                      <span class="probe-form-help">{{ probeEndpointHelp }}</span>
                     </el-form-item>
                     <el-form-item :label="i18ns.t('relay.channelProbeSampleCount')">
                       <el-input-number
@@ -378,6 +379,9 @@
                         :precision="0"
                         :disabled="!canExecute"
                       />
+                      <span class="probe-form-help">{{
+                        i18ns.t('relay.channelProbeSampleCountHelp')
+                      }}</span>
                     </el-form-item>
                   </div>
                   <el-form-item
@@ -398,7 +402,7 @@
                         :label="i18ns.t('relay.channelProbeCacheModeWarm')"
                       />
                     </el-select>
-                    <span>{{ i18ns.t('relay.channelProbeCacheModeHelp') }}</span>
+                    <span class="probe-form-help">{{ cacheModeHelp }}</span>
                   </el-form-item>
                   <el-collapse class="advanced-payload">
                     <el-collapse-item
@@ -1777,6 +1781,12 @@ const probeEndpointOptions = computed<RelayChannelProbeEndpoint[]>(() => {
 function probeEndpointLabel(endpoint: RelayChannelProbeEndpoint) {
   return i18ns.t(`relay.channelProbeEndpoint${endpoint}` as any)
 }
+const probeEndpointHelp = computed(() =>
+  i18ns.t(`relay.channelProbeEndpointHelp${form.value.probeEndpoint}` as any),
+)
+const cacheModeHelp = computed(() =>
+  i18ns.t(`relay.channelProbeCacheModeHelp${form.value.cacheMode}` as any),
+)
 function sampleStatusLabel(status: 'succeeded' | 'failed' | 'discarded') {
   return i18ns.t(`relay.channelProbeSampleStatus${status}` as any)
 }
@@ -3355,6 +3365,14 @@ onBeforeUnmount(stopPolling)
 .cache-buster-switch > span {
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+.probe-form-help {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .usage-details {
   margin-top: 10px;
