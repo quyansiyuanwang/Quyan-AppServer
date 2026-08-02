@@ -62,6 +62,8 @@ function handleSelect(id: string) {
   border-left: 1px solid var(--el-border-color);
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 .header {
   padding: 16px;
@@ -69,6 +71,7 @@ function handleSelect(id: string) {
 }
 .list {
   flex: 1;
+  min-height: 0;
 }
 .item {
   padding: 12px 16px;
@@ -94,6 +97,7 @@ function handleSelect(id: string) {
 
 .actions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 4px;
 }

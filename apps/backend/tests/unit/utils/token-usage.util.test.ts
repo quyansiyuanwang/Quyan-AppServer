@@ -157,6 +157,24 @@ describe("token-usage util", () => {
       });
     });
 
+    it("does not infer cache creation from a cache-read-only upstream usage payload", () => {
+      expect(
+        extractTokenUsageMetrics({
+          input_tokens: 40,
+          output_tokens: 4,
+          cache_read_input_tokens: 36,
+        }),
+      ).toEqual({
+        inputTokens: 40,
+        outputTokens: 4,
+        requestTokens: 40,
+        responseTokens: 4,
+        totalTokens: 44,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 36,
+      });
+    });
+
     it("deduplicates cache creation aliases to avoid double counting", () => {
       const usage = {
         prompt_tokens: 80,

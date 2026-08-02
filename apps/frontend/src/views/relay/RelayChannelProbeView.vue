@@ -368,6 +368,7 @@
                           :label="probeEndpointLabel(endpoint)"
                         />
                       </el-select>
+                      <span class="probe-form-help">{{ probeEndpointHelp }}</span>
                     </el-form-item>
                     <el-form-item :label="i18ns.t('relay.channelProbeSampleCount')">
                       <el-input-number
@@ -378,6 +379,9 @@
                         :precision="0"
                         :disabled="!canExecute"
                       />
+                      <span class="probe-form-help">{{
+                        i18ns.t('relay.channelProbeSampleCountHelp')
+                      }}</span>
                     </el-form-item>
                   </div>
                   <el-form-item
@@ -398,7 +402,7 @@
                         :label="i18ns.t('relay.channelProbeCacheModeWarm')"
                       />
                     </el-select>
-                    <span>{{ i18ns.t('relay.channelProbeCacheModeHelp') }}</span>
+                    <span class="probe-form-help">{{ cacheModeHelp }}</span>
                   </el-form-item>
                   <el-collapse class="advanced-payload">
                     <el-collapse-item
@@ -1669,7 +1673,7 @@ const canBatchCopyProfile = computed(
   () => selectedRows.value.length >= 2 && batchProfileSources.value.length > 0,
 )
 const form = ref<ProbeForm>(emptyForm())
-const payloadText = ref('{}')
+const payloadText = ref('')
 const workflowSteps = ref<WorkflowFormStep[]>([])
 const credentials = ref<CredentialFormRow[]>([])
 const credentialNames = ref<string[]>([])
@@ -1777,6 +1781,12 @@ const probeEndpointOptions = computed<RelayChannelProbeEndpoint[]>(() => {
 function probeEndpointLabel(endpoint: RelayChannelProbeEndpoint) {
   return i18ns.t(`relay.channelProbeEndpoint${endpoint}` as any)
 }
+const probeEndpointHelp = computed(() =>
+  i18ns.t(`relay.channelProbeEndpointHelp${form.value.probeEndpoint}` as any),
+)
+const cacheModeHelp = computed(() =>
+  i18ns.t(`relay.channelProbeCacheModeHelp${form.value.cacheMode}` as any),
+)
 function sampleStatusLabel(status: 'succeeded' | 'failed' | 'discarded') {
   return i18ns.t(`relay.channelProbeSampleStatus${status}` as any)
 }
@@ -1832,20 +1842,28 @@ async function copyVariable(name: string) {
   }
 }
 function applyPayloadPreset() {
-  const prompt = 'Reply with OK.'
-  const preset =
-    form.value.probeFormat === 'anthropic'
-      ? { max_tokens: 1, messages: [{ role: 'user', content: prompt }] }
-      : form.value.probeFormat === 'gemini'
-        ? { contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1 } }
-        : form.value.probeEndpoint === 'openai-responses'
-          ? {
-              input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
-              max_output_tokens: 1,
-            }
-          : { messages: [{ role: 'user', content: prompt }], max_tokens: 1 }
-  payloadText.value = JSON.stringify(preset, null, 2)
+  payloadText.value = JSON.stringify(
+    createDefaultProbePayload(form.value.probeFormat, form.value.probeEndpoint),
+    null,
+    2,
+  )
   ElMessage.success(i18ns.t('relay.channelProbePresetApplied'))
+}
+function createDefaultProbePayload(
+  format: RelayChannelProbeFormat,
+  endpoint: RelayChannelProbeEndpoint,
+): Record<string, unknown> {
+  const prompt = 'Reply with OK.'
+  return endpoint === 'openai-responses'
+    ? {
+        input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+        max_output_tokens: 1,
+      }
+    : format === 'anthropic'
+      ? { max_tokens: 1, messages: [{ role: 'user', content: prompt }] }
+      : format === 'gemini'
+        ? { contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1 } }
+        : { messages: [{ role: 'user', content: prompt }], max_tokens: 1 }
 }
 function createProfileExport(): ProbeProfileExport {
   return {
@@ -2619,7 +2637,12 @@ async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
         probeFormat: row.allowedProbeFormats[0] ?? 'openai',
         probeEndpoint: defaultEndpointForFormat(row.allowedProbeFormats[0] ?? 'openai'),
       }
-  payloadText.value = JSON.stringify(profile?.probePayload ?? {}, null, 2)
+  payloadText.value = JSON.stringify(
+    profile?.probePayload ??
+      createDefaultProbePayload(form.value.probeFormat, form.value.probeEndpoint),
+    null,
+    2,
+  )
   workflowSteps.value = profile ? profile.workflow.map(toWorkflowForm) : [makeStep()]
   credentialNames.value = profile?.credentialNames ?? []
   credentials.value = []
@@ -3355,6 +3378,14 @@ onBeforeUnmount(stopPolling)
 .cache-buster-switch > span {
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+.probe-form-help {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .usage-details {
   margin-top: 10px;

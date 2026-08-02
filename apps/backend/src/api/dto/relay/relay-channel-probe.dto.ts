@@ -179,6 +179,8 @@ export interface RelayChannelProbeSampleDto {
   totalTokens?: number;
   cacheCreationTokens?: number;
   cacheReadTokens?: number;
+  /** The unmodified usage object returned by the upstream measurement request. */
+  upstreamUsage?: Record<string, unknown>;
   suggestedMultiplier?: number;
   cacheHitVerified?: boolean;
   errorMessage?: string;

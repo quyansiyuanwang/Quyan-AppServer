@@ -39919,6 +39919,10 @@
 						"type": "number",
 						"format": "double"
 					},
+					"upstreamUsage": {
+						"$ref": "#/components/schemas/Record_string.unknown_",
+						"description": "The unmodified usage object returned by the upstream measurement request."
+					},
 					"suggestedMultiplier": {
 						"type": "number",
 						"format": "double"

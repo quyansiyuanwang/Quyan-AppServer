@@ -2677,13 +2677,29 @@ export default {
     'channelProbeEndpointopenai-responses': 'OpenAI Responses',
     'channelProbeEndpointanthropic-messages': 'Anthropic Messages',
     'channelProbeEndpointgemini-generate-content': 'Gemini Generate Content',
+    'channelProbeEndpointHelpopenai-chat-completions':
+      'Calls /v1/chat/completions with a minimal messages and max_tokens request.',
+    'channelProbeEndpointHelpopenai-responses':
+      'Calls /v1/responses with a minimal input and max_output_tokens request.',
+    'channelProbeEndpointHelpanthropic-messages':
+      'Calls /v1/messages with a minimal messages and max_tokens request.',
+    'channelProbeEndpointHelpgemini-generate-content':
+      'Calls /v1beta/models/{model}:generateContent with contents and generationConfig.',
     channelProbeCacheMode: 'Cache measurement',
     channelProbeCacheModeBust: 'Avoid cached responses',
     channelProbeCacheModeAllow: 'Allow upstream cache',
     channelProbeCacheModeWarm: 'Warm then measure cache hit',
     channelProbeCacheModeHelp:
       'Warm-up costs are recorded separately and never affect the suggested multiplier.',
+    'channelProbeCacheModeHelpcache-bust':
+      'Adds a unique cache marker to every measured request to avoid an existing hit. There is no warm-up request; the measured request cost is used for the suggested multiplier.',
+    'channelProbeCacheModeHelpallow-cache':
+      'Sends the configured payload without a cache marker. The upstream may hit or miss cache, so the result reflects the cost at that moment and does not verify a cache hit.',
+    'channelProbeCacheModeHelpwarm-and-read':
+      'For each sample, warms one cache key and then measures a read with that key. Warm-up cost is recorded separately and excluded. The measured request must report cache-read tokens or the sample cannot produce a cache suggestion.',
     channelProbeSampleCount: 'Samples',
+    channelProbeSampleCountHelp:
+      'Runs 1 to 10 measurements for the same channel in sequence. One sample uses its valid result directly; multiple samples need at least two valid results. With three or more successful samples, MAD 3.5 removes outliers before averaging the remainder.',
     channelProbeInvalidSampleCount: 'Sample count must be an integer from 1 to 10',
     channelProbeSampleSummary: 'Sample summary',
     channelProbeSampleSummaryValue:

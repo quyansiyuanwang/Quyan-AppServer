@@ -205,6 +205,8 @@ function handleDeleteMessage(id: string) {
   display: flex;
   height: 100%;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .chat-mobile {
@@ -248,6 +250,7 @@ function handleDeleteMessage(id: string) {
 
 .mobile-content {
   min-height: 0;
+  min-width: 0;
   flex: 1;
   display: flex;
   overflow: hidden;
@@ -266,9 +269,7 @@ function handleDeleteMessage(id: string) {
 
 @media (max-width: 768px) {
   .chat-mobile {
-    border-radius: 14px;
-    border: 1px solid var(--surface-card-border);
-    box-shadow: var(--surface-card-shadow);
+    background: var(--color-background);
   }
 
   .mobile-header {
@@ -279,10 +280,6 @@ function handleDeleteMessage(id: string) {
 }
 
 @media (max-width: 480px) {
-  .chat-mobile {
-    border-radius: 12px;
-  }
-
   .mobile-header {
     padding: 0 10px;
   }
@@ -294,6 +291,7 @@ function handleDeleteMessage(id: string) {
 
 .mobile-conversation-drawer :deep(.conversation-list) {
   width: 100%;
+  height: 100%;
   border-left: none;
 }
 </style>

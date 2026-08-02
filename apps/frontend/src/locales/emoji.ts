@@ -2765,12 +2765,23 @@ const emoji: DeepStringify<typeof en> = {
     'channelProbeEndpointopenai-responses': '🅾️ ↩️',
     'channelProbeEndpointanthropic-messages': '🅰️ 💬',
     'channelProbeEndpointgemini-generate-content': '♊ ✨',
+    'channelProbeEndpointHelpopenai-chat-completions':
+      '💬 /v1/chat/completions · 📨 messages · 🔢 max_tokens',
+    'channelProbeEndpointHelpopenai-responses':
+      '↩️ /v1/responses · 📨 input · 🔢 max_output_tokens',
+    'channelProbeEndpointHelpanthropic-messages': '💬 /v1/messages · 📨 messages · 🔢 max_tokens',
+    'channelProbeEndpointHelpgemini-generate-content':
+      '✨ generateContent · 📨 contents · ⚙️ generationConfig',
     channelProbeCacheMode: '🗃️ 🧪',
     channelProbeCacheModeBust: '🚫 🗃️',
     channelProbeCacheModeAllow: '✅ 🗃️',
     channelProbeCacheModeWarm: '🔥 ➡️ 🧪',
     channelProbeCacheModeHelp: '🔥 💸 ↗️ 🧾，🚫 🧮 ✖️',
+    'channelProbeCacheModeHelpcache-bust': '🔑 UUID ➡️ 📨 · 🚫 🗃️ = 🧾 ➡️ 🔁',
+    'channelProbeCacheModeHelpallow-cache': '🚫 UUID · 🗃️ ? · 💸 = ⏱️ ⚠️ 🚫 ✅ 🗃️',
+    'channelProbeCacheModeHelpwarm-and-read': '🔥 UUID ➡️ 📖 🗃️ · 🔥 💸 🚫 🔁 · 📖 Token = ✅',
     channelProbeSampleCount: '🔢 🧪',
+    channelProbeSampleCountHelp: '1️⃣ ➡️ 🔟 ⏭️ · 2️⃣ ✅ ➡️ 🔁 · 3️⃣+ ✅ ➡️ MAD 3.5 🗑️ ⚠️ · ∑',
     channelProbeInvalidSampleCount: '🔢 1️⃣ ➡️ 🔟',
     channelProbeSampleSummary: '🧪 ∑',
     channelProbeSampleSummaryValue: '✅ {accepted}/{total} · 🧪 {succeeded} · 🗑️ {discarded}',
