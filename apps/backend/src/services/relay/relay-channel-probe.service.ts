@@ -87,9 +87,7 @@ export function requiresLargeMultiplierConfirmation(
     return false;
   return (
     previousSuggestedMultiplier == null ||
-    Math.abs(previousSuggestedMultiplier - targetMultiplier) /
-      Math.max(targetMultiplier, Number.EPSILON) >
-      0.1
+    Math.abs(previousSuggestedMultiplier - targetMultiplier) / Math.max(targetMultiplier, Number.EPSILON) > 0.1
   );
 }
 
@@ -1067,7 +1065,7 @@ export class RelayChannelProbeService {
         if (
           !body.forceLargeChange &&
           Math.abs(targetMultiplier - sourceMultiplier) / Math.max(sourceMultiplier, Number.EPSILON) >
-          LARGE_MULTIPLIER_CHANGE_RATIO
+            LARGE_MULTIPLIER_CHANGE_RATIO
         ) {
           const previous = await this.repository.findRecentVerifiedRuns(
             run.relayChannelId,
@@ -1075,16 +1073,8 @@ export class RelayChannelProbeService {
             new Date(Date.now() - SUGGESTION_MAX_AGE_MS),
           );
           const previousSuggestedMultiplier =
-            previous[0]?.suggestedMultiplier == null
-              ? undefined
-              : Number(previous[0].suggestedMultiplier);
-          if (
-            requiresLargeMultiplierConfirmation(
-              sourceMultiplier,
-              targetMultiplier,
-              previousSuggestedMultiplier,
-            )
-          )
+            previous[0]?.suggestedMultiplier == null ? undefined : Number(previous[0].suggestedMultiplier);
+          if (requiresLargeMultiplierConfirmation(sourceMultiplier, targetMultiplier, previousSuggestedMultiplier))
             throw new BadRequestError("大幅倍率变更需要另一条独立、稳定的探针结果确认");
         }
         const appliedRun = await this.repository.applySuggestedMultiplier({

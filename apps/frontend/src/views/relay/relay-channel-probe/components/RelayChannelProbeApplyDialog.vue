@@ -144,12 +144,14 @@
             v-model="forceLargeMultiplierChange"
             :disabled="selectedApplyRunIds.length === 0"
             class="apply-dialog-option"
-          >{{ i18ns.t('relay.channelProbeForceLargeChange') }}</el-checkbox>
+            >{{ i18ns.t('relay.channelProbeForceLargeChange') }}</el-checkbox
+          >
           <el-checkbox
             v-model="exportAppliedChangeChart"
             :disabled="selectedApplyRunIds.length === 0"
             class="apply-dialog-option"
-          >{{ i18ns.t('relay.channelProbeExportAppliedChangeChart') }}</el-checkbox>
+            >{{ i18ns.t('relay.channelProbeExportAppliedChangeChart') }}</el-checkbox
+          >
         </div>
         <div class="apply-dialog-actions">
           <el-button @click="applyDialogOpen = false">{{ i18ns.t('cancel') }}</el-button>
@@ -158,7 +160,10 @@
             :disabled="selectedApplyRunIds.length === 0"
             :loading="applying"
             @click="submitApplyMultipliers"
-          >{{ i18ns.t('relay.channelProbeApplySelected', { count: selectedApplyRunIds.length }) }}</el-button>
+            >{{
+              i18ns.t('relay.channelProbeApplySelected', { count: selectedApplyRunIds.length })
+            }}</el-button
+          >
         </div>
       </div>
     </template>

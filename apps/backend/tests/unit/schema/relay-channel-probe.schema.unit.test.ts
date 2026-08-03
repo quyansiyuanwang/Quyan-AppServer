@@ -87,9 +87,9 @@ describe("relay channel probe schemas", () => {
   });
 
   it("accepts an explicit large-change override only as a boolean", () => {
-    expect(
-      applyRelayChannelProbeRunsBodySchema.safeParse({ runIds: ["run-1"], forceLargeChange: true }).success,
-    ).toBe(true);
+    expect(applyRelayChannelProbeRunsBodySchema.safeParse({ runIds: ["run-1"], forceLargeChange: true }).success).toBe(
+      true,
+    );
     expect(
       applyRelayChannelProbeRunsBodySchema.safeParse({ runIds: ["run-1"], forceLargeChange: "true" }).success,
     ).toBe(false);
