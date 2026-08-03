@@ -5,7 +5,7 @@ description: 审查或实现 AppServerMonorepo 的认证、授权、权限、Tok
 
 # 安全
 
-修改安全敏感行为前，先读取 `SECURITY.md`、`AGENTS.md`、`docs/development/07-authentication.md` 与 [KNOWLEDGE.md](KNOWLEDGE.md)。
+修改安全敏感行为前，先使用 MCP `git_impact` 获取影响摘要；需要安全原文规则时再读取 `SECURITY.md`、`AGENTS.md`、`docs/development/07-authentication.md` 与 [KNOWLEDGE.md](KNOWLEDGE.md)。
 
 ## 工作流
 

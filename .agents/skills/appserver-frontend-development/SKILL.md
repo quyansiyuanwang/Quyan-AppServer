@@ -5,7 +5,7 @@ description: 实现或审查 AppServerMonorepo Vue 前端改动。涉及页面�
 
 # 前端开发
 
-编辑前端前，先读取 `AGENTS.md`、`apps/frontend/AGENTS.md`、`apps/frontend/CLAUDE.md` 和 [KNOWLEDGE.md](KNOWLEDGE.md)。
+编辑前端前，优先使用 MCP `repo_context` 与 `git_impact` 获取摘要；需要原文证据时再读取 `AGENTS.md`、`apps/frontend/AGENTS.md`、`apps/frontend/CLAUDE.md` 和 [KNOWLEDGE.md](KNOWLEDGE.md)。
 
 ## 工作流
 

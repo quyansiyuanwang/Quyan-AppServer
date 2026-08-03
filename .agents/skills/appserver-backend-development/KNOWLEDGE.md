@@ -14,7 +14,7 @@
 - 使用 `src/util/errors.ts` 中既有错误类、`jwt`/`relay-token`/`local-or-jwt` 认证方案、`@CheckPermission`、`@ReplayProtected` 和 `@TwoFactorChallengeProtected`。
 - `src/app.ts` 的中间件顺序不可随意调整：响应包装在生成路由之前，异常处理保持在最后。
 
-## Relay 规则
+## 中转路由规则
 
 - `ModelPricing.model` 是目录模型身份；解析后的请求/上游模型 ID 是另一身份域。
 - 模型限制、映射、格式与叶子渠道身份必须在同一池路由上保持关联。

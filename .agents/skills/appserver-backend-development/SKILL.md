@@ -5,7 +5,7 @@ description: 实现或审查 AppServerMonorepo 后端改动。涉及 Express、T
 
 # 后端开发
 
-修改后端前，先读取 `AGENTS.md`、`apps/backend/CLAUDE.md` 和 [KNOWLEDGE.md](KNOWLEDGE.md)。涉及架构、数据库、认证或 OpenAPI 时，再读取对应 `docs/development/` 文档。
+修改后端前，优先使用 MCP `repo_context` 与 `git_impact` 获取摘要；需要原文证据时再读取 `AGENTS.md`、`apps/backend/CLAUDE.md` 和 [KNOWLEDGE.md](KNOWLEDGE.md)。涉及架构、数据库、认证或 OpenAPI 时，再读取对应 `docs/development/` 文档。
 
 ## 工作流
 

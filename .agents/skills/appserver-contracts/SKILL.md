@@ -5,7 +5,7 @@ description: 维护 AppServerMonorepo 的共享类型、权限、错误码、DTO
 
 # 共享契约
 
-编辑共享类型或 API 契约前，先读取 `AGENTS.md`、`docs/development/04-shared-package.md`、`docs/development/08-openapi-pipeline.md` 和 [KNOWLEDGE.md](KNOWLEDGE.md)。
+编辑共享类型或 API 契约前，优先调用 MCP `repo_context`、`git_impact` 与 `suggest_validation`；需要原文规则时再读取 `AGENTS.md`、`docs/development/04-shared-package.md`、`docs/development/08-openapi-pipeline.md` 和 [KNOWLEDGE.md](KNOWLEDGE.md)。
 
 ## 工作流
 

@@ -5,7 +5,7 @@ description: 为 AppServerMonorepo 选择、运行、排查和维护 Vitest 测�
 
 # 测试与 CI
 
-修改或运行测试前，先读取 `AGENTS.md`、`docs/development/11-testing-and-ci.md`、对应应用的 `tests/README.md` 与 [KNOWLEDGE.md](KNOWLEDGE.md)。
+修改或运行测试前，优先调用 MCP `git_impact` 和 `suggest_validation`；需要测试原文规则时再读取 `AGENTS.md`、`docs/development/11-testing-and-ci.md`、对应应用的 `tests/README.md` 与 [KNOWLEDGE.md](KNOWLEDGE.md)。
 
 ## 工作流
 

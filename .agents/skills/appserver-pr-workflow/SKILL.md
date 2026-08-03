@@ -3,9 +3,11 @@ name: appserver-pr-workflow
 description: 检查并安全更新 AppServerMonorepo GitHub Pull Request 的元数据、标题、正文、标签、提交与检查状态。审查 PR 上下文、对齐 PR 风格、准备发布提升 PR 元数据或仅编辑 PR 而不合并时使用。
 ---
 
-# Pull Request 工作流
+# 拉取请求工作流
 
 操作 GitHub PR 前，先读取 `AGENTS.md`、`docs/development/10-pr-management.md` 和 [KNOWLEDGE.md](KNOWLEDGE.md)。
+
+本地暂存、验证和 commit message 使用 `appserver-git-workflow`；PR 标题、正文和标签不能替代单个本地提交的 Conventional Commit 规范。
 
 ## 工作流
 

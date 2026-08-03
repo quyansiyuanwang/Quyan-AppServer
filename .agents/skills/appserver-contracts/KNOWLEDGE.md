@@ -1,4 +1,4 @@
-## shared 包
+## 共享包
 
 `packages/shared/src/` 是共享类型与常量的唯一规范源：
 
