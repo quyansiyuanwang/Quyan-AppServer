@@ -4,19 +4,20 @@
 
 ## 文档索引
 
-| 文档                                               | 内容                                                          |
-| -------------------------------------------------- | ------------------------------------------------------------- |
-| [01-architecture.md](./01-architecture.md)         | 项目技术全景概述：架构、技术栈、核心模块亮点（求职展示入口）  |
-| [02-backend.md](./02-backend.md)                   | 后端详解：TSOA 3层模式、47 Controllers、60 Services、中间件链 |
-| [03-frontend.md](./03-frontend.md)                 | 前端详解：143 页面、12 Pinia stores、52 Services、事件总线    |
-| [04-shared-package.md](./04-shared-package.md)     | 共享包：135+ Permission 枚举、47 CustomCode、22 种通知事件    |
-| [05-database.md](./05-database.md)                 | 数据库：71 个 Prisma 模型、关系、软删除模式                   |
-| [06-api-development.md](./06-api-development.md)   | API 开发流程：添加 Controller、DTO、Service、Repository       |
-| [07-authentication.md](./07-authentication.md)     | 认证与授权：JWT、OAuth 2.0、RAM 权限、2FA、重放保护           |
-| [08-openapi-pipeline.md](./08-openapi-pipeline.md) | OpenAPI 生成流水线：TSOA → swagger.json → 前端 typed SDK      |
-| [09-deployment.md](./09-deployment.md)             | 构建与部署：esbuild、PM2、环境变量、生产注意事项              |
-| [10-pr-management.md](./10-pr-management.md)       | GitHub PR 读取、风格对齐、编辑与标签流程                      |
-| [11-testing-and-ci.md](./11-testing-and-ci.md)     | 测试分类、并行隔离、数据库 worker 与 GitHub Actions 策略      |
+| 文档                                                       | 内容                                                          |
+| ---------------------------------------------------------- | ------------------------------------------------------------- |
+| [01-architecture.md](./01-architecture.md)                 | 项目技术全景概述：架构、技术栈、核心模块亮点（求职展示入口）  |
+| [02-backend.md](./02-backend.md)                           | 后端详解：TSOA 3层模式、47 Controllers、60 Services、中间件链 |
+| [03-frontend.md](./03-frontend.md)                         | 前端详解：143 页面、12 Pinia stores、52 Services、事件总线    |
+| [04-shared-package.md](./04-shared-package.md)             | 共享包：135+ Permission 枚举、47 CustomCode、22 种通知事件    |
+| [05-database.md](./05-database.md)                         | 数据库：71 个 Prisma 模型、关系、软删除模式                   |
+| [06-api-development.md](./06-api-development.md)           | API 开发流程：添加 Controller、DTO、Service、Repository       |
+| [07-authentication.md](./07-authentication.md)             | 认证与授权：JWT、OAuth 2.0、RAM 权限、2FA、重放保护           |
+| [08-openapi-pipeline.md](./08-openapi-pipeline.md)         | OpenAPI 生成流水线：TSOA → swagger.json → 前端 typed SDK      |
+| [09-deployment.md](./09-deployment.md)                     | 构建与部署：esbuild、PM2、环境变量、生产注意事项              |
+| [10-pr-management.md](./10-pr-management.md)               | GitHub PR 读取、风格对齐、编辑与标签流程                      |
+| [11-testing-and-ci.md](./11-testing-and-ci.md)             | 测试分类、并行隔离、数据库 worker 与 GitHub Actions 策略      |
+| [12-git-workflow-and-mcp.md](./12-git-workflow-and-mcp.md) | Git 交付、commit hook 与项目 MCP                              |
 
 ## 快速导航
 
@@ -33,6 +34,7 @@
 - **如何部署** → [09-deployment.md](./09-deployment.md)
 - **如何整理 PR 元数据** → [10-pr-management.md](./10-pr-management.md)
 - **如何选择和运行测试** → [11-testing-and-ci.md](./11-testing-and-ci.md)
+- **如何规范提交和使用项目 MCP** → [12-git-workflow-and-mcp.md](./12-git-workflow-and-mcp.md)
 - **开源前如何检查安全配置** → [SECURITY.md](../../SECURITY.md)
 
 ### 常用命令速查
@@ -62,6 +64,10 @@ pnpm --filter @appserver/backend run test:runtime
 pnpm --filter @appserver/frontend run test:node
 pnpm --filter @appserver/frontend run test:dom
 pnpm --filter @appserver/frontend run test:taxonomy
+
+# 本地 Git 交付与 MCP
+pnpm run mcp:serve              # 启动本机 stdio MCP server
+pnpm run commit -- -m "fix: ..." # 完整 precommit 后正常提交
 
 # 数据库
 pnpm run db:generate             # 生成 Prisma client

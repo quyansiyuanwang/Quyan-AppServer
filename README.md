@@ -112,10 +112,19 @@ pnpm --filter @appserver/frontend run test:taxonomy
 
 ```bash
 pnpm run precommit        # OpenAPI 生成 + 代码检查（CI 风格）
-pnpm run commit           # precommit + git commit
+pnpm run commit -- -m "fix: your change" # precommit + Git hooks + git commit
 ```
 
 提交时会通过 `lint-staged` 自动对暂存文件执行 ESLint 检查。
+`commit-msg` hook 会使用 commitlint 校验英文 Conventional Commit；提交格式与紧急绕过说明见 [Git 交付与项目 MCP](./docs/development/12-git-workflow-and-mcp.md)。
+
+### 项目 MCP
+
+```bash
+pnpm run mcp:serve        # 启动本机 stdio MCP server
+```
+
+根 `.mcp.json` 提供通用客户端配置。MCP 可紧凑返回 Git 影响面、验证建议和提交信息草稿，并只允许运行固定验证命令；完整接入方式见 [Git 交付与项目 MCP](./docs/development/12-git-workflow-and-mcp.md)。
 
 ### 安全
 
