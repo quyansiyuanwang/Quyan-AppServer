@@ -22,6 +22,13 @@ function includesForScope(name: string, include: string[]): string[] {
 
 export function defineBackendTestProject(name: string, include: string[], database = false) {
   const groupOrder = name === "backend-unit" ? 0 : name === "backend-database" ? 1 : 2;
+  const generatedRouteAliases =
+    name === "backend-unit"
+      ? [
+          { find: "@/build/route-paths", replacement: path.resolve(__dirname, "./tests/stubs/route-paths.ts") },
+          { find: "@/build/routes", replacement: path.resolve(__dirname, "./tests/stubs/routes.ts") },
+        ]
+      : [];
 
   return defineConfig({
     plugins: [tsconfigPaths()],
@@ -52,6 +59,7 @@ export function defineBackendTestProject(name: string, include: string[], databa
     },
     resolve: {
       alias: [
+        ...generatedRouteAliases,
         { find: /^@\/(.*)$/, replacement: `${path.resolve(__dirname, "./src")}/$1` },
         { find: /^@src\/(.*)$/, replacement: `${path.resolve(__dirname, "./src")}/$1` },
         { find: /^@logs\/(.*)$/, replacement: `${path.resolve(__dirname, "./logs")}/$1` },
