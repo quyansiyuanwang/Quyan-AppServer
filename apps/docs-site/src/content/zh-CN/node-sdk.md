@@ -27,7 +27,7 @@
 ## 推荐目录
 
 ```text
-ServerSDK/sdks/oauth/node/
+integrations/server-sdk/sdks/oauth/node/
 ├─ package.json
 ├─ .env
 └─ src/index.mjs

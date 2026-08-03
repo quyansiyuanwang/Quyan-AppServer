@@ -240,7 +240,7 @@ for item in payload["data"]["items"]:
 ### 第一步：跳转到授权页
 
 ```text
-GET https://api.qysyw.cn/oauth/authorize
+GET https://api.qysyw.cn/v1/oauth/authorize
 	?response_type=code
 	&client_id=oc_live_xxx
 	&redirect_uri=https%3A%2F%2Fdemo.example.com%2Fcallback
@@ -253,7 +253,7 @@ GET https://api.qysyw.cn/oauth/authorize
 ### 第二步：后端换 token
 
 ```bash
-curl -X POST "https://api.qysyw.cn/oauth/token" \
+curl -X POST "https://api.qysyw.cn/v1/oauth/token" \
 	-H "Content-Type: application/json" \
 	-d '{
 		"grant_type": "authorization_code",

@@ -2,7 +2,7 @@
 
 这页提供完整的 OAuth 授权码模式最小 demo，包括时序图、流程图、Node 模板和 Python 模板。
 
-如果你希望直接使用完整可运行工程，而不是从本页代码片段手动拼装，可以优先使用 `ServerSDK/demos/oauth/node/`，或按语言选择 `ServerSDK/sdks/oauth/*`。
+如果你希望直接使用完整可运行工程，而不是从本页代码片段手动拼装，可以优先使用 `integrations/server-sdk/demos/oauth/node/`，或按语言选择 `integrations/server-sdk/sdks/oauth/*`。
 
 <div class="docs-jump-grid">
   <a class="docs-jump-card" href="/zh-CN/node-sdk">
@@ -33,11 +33,11 @@ sequenceDiagram
     participant Api as AppServer API
 
     User->>Client: 点击“使用 AppServer 登录”
-    Client->>Auth: GET /oauth/authorize\nclient_id + redirect_uri + scope + state
+    Client->>Auth: GET /v1/oauth/authorize\nclient_id + redirect_uri + scope + state
     Auth->>User: 展示登录/授权确认页
     User->>Auth: 登录并同意授权
     Auth-->>Client: 302 redirect\ncode + state
-    Client->>Token: POST /oauth/token\ncode + client_id + client_secret
+    Client->>Token: POST /v1/oauth/token\ncode + client_id + client_secret
     Token-->>Client: access_token
     Client->>Api: GET /api/user/profile\nAuthorization: Bearer access_token
     Api-->>Client: 用户资料数据
@@ -49,12 +49,12 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     A[创建 OAuth 应用] --> B[登记 Redirect URI]
-    B --> C[拼接 /oauth/authorize 地址]
+    B --> C[拼接 /v1/oauth/authorize 地址]
     C --> D[用户登录并确认授权]
     D --> E{是否授权通过}
     E -- 否 --> F[返回错误或取消结果]
     E -- 是 --> G[回调地址收到 code]
-    G --> H[服务端请求 /oauth/token]
+    G --> H[服务端请求 /v1/oauth/token]
     H --> I{换取 token 成功?}
     I -- 否 --> J[记录错误并提示重试]
     I -- 是 --> K[持有 access_token 调用业务 API]
@@ -66,7 +66,7 @@ flowchart TD
 ### 目录建议
 
 ```text
-ServerSDK/demos/oauth/node/
+integrations/server-sdk/demos/oauth/node/
 ├─ package.json
 ├─ .env
 └─ src/server.mjs
@@ -125,7 +125,7 @@ app.get('/', (_req, res) => {
 
 app.get('/login', (_req, res) => {
   const state = crypto.randomUUID()
-  const authorizeUrl = new URL('/oauth/authorize', apiBaseUrl)
+  const authorizeUrl = new URL('/v1/oauth/authorize', apiBaseUrl)
   authorizeUrl.searchParams.set('response_type', 'code')
   authorizeUrl.searchParams.set('client_id', clientId)
   authorizeUrl.searchParams.set('redirect_uri', redirectUri)
@@ -143,7 +143,7 @@ app.get('/oauth/callback', async (req, res) => {
     return
   }
 
-  const tokenResponse = await fetch(new URL('/oauth/token', apiBaseUrl), {
+  const tokenResponse = await fetch(new URL('/v1/oauth/token', apiBaseUrl), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -190,7 +190,7 @@ app.listen(port, () => {
 ### 目录建议
 
 ```text
-ServerSDK/sdks/oauth/python/
+integrations/server-sdk/sdks/oauth/python/
 ├─ requirements.txt
 ├─ .env
 └─ app.py
@@ -257,7 +257,7 @@ def login():
             "state": state,
         }
     )
-    return redirect(f"{APPSERVER_BASE_URL}/oauth/authorize?{query}")
+    return redirect(f"{APPSERVER_BASE_URL}/v1/oauth/authorize?{query}")
 
 
 @app.get("/oauth/callback")
@@ -268,7 +268,7 @@ def oauth_callback():
         return jsonify({"error": "missing_code", "query": request.args}), 400
 
     token_response = requests.post(
-        f"{APPSERVER_BASE_URL}/oauth/token",
+        f"{APPSERVER_BASE_URL}/v1/oauth/token",
         json={
             "grant_type": "authorization_code",
             "code": code,
@@ -288,7 +288,7 @@ def oauth_callback():
         return jsonify({"error": "token_exchange_failed", "tokenPayload": token_payload}), 502
 
     profile_response = requests.get(
-        f"{APPSERVER_BASE_URL}/api/user/profile",
+        f"{APPSERVER_BASE_URL}/v1/users/me",
         headers={"Authorization": f"Bearer {access_token}"},
         timeout=15,
     )
@@ -313,8 +313,8 @@ if __name__ == "__main__":
 
 关键差异：
 
-- `/oauth/authorize` 阶段传 `code_challenge` 和 `code_challenge_method=S256`
-- `/oauth/token` 阶段传 `code_verifier`
+- `/v1/oauth/authorize` 阶段传 `code_challenge` 和 `code_challenge_method=S256`
+- `/v1/oauth/token` 阶段传 `code_verifier`
 - 公开客户端通常 **不传** `client_secret`
 
 ### Node PKCE 示例
@@ -336,7 +336,7 @@ function createPkcePair() {
 const { codeVerifier, codeChallenge, codeChallengeMethod } = createPkcePair()
 const state = crypto.randomUUID()
 
-const authorizeUrl = new URL('/oauth/authorize', process.env.APPSERVER_BASE_URL)
+const authorizeUrl = new URL('/v1/oauth/authorize', process.env.APPSERVER_BASE_URL)
 authorizeUrl.searchParams.set('response_type', 'code')
 authorizeUrl.searchParams.set('client_id', process.env.CLIENT_ID)
 authorizeUrl.searchParams.set('redirect_uri', process.env.REDIRECT_URI)
@@ -351,7 +351,7 @@ console.log(authorizeUrl.toString())
 // 用户授权后，你会在回调地址拿到 code
 const code = 'paste_callback_code_here'
 
-const tokenResponse = await fetch(new URL('/oauth/token', process.env.APPSERVER_BASE_URL), {
+const tokenResponse = await fetch(new URL('/v1/oauth/token', process.env.APPSERVER_BASE_URL), {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -404,13 +404,13 @@ authorize_query = urlencode(
 )
 
 print("Open this URL in the browser:")
-print(f"{os.getenv('APPSERVER_BASE_URL', 'http://localhost:10001')}/oauth/authorize?{authorize_query}")
+print(f"{os.getenv('APPSERVER_BASE_URL', 'http://localhost:10001')}/v1/oauth/authorize?{authorize_query}")
 
 # 用户授权回调后，把 code 粘过来
 code = "paste_callback_code_here"
 
 token_response = requests.post(
-    f"{os.getenv('APPSERVER_BASE_URL', 'http://localhost:10001')}/oauth/token",
+    f"{os.getenv('APPSERVER_BASE_URL', 'http://localhost:10001')}/v1/oauth/token",
     json={
         "grant_type": "authorization_code",
         "code": code,

@@ -11,6 +11,10 @@ AppServerMonorepo/
 │   ├── frontend/          # @appserver/frontend   Vue 3 + Element Plus 管理面板
 │   └── docs-site/         # @appserver/docs-site   Vue 3 文档站点
 ├── packages/              # 共享包（配置、工具等）
+├── integrations/server-sdk/
+│                           # Git submodule：面向接入方的 SDK、模板与 Demo
+├── products/remote-terminal-cloud/
+│                           # Git submodule：独立发布的 Rust + Tauri Agent
 ├── .cspell/               # 拼写检查词表
 ├── .husky/                # Git hooks
 ├── .github/               # GitHub Actions 工作流
@@ -38,6 +42,10 @@ AppServerMonorepo/
 ## 快速开始
 
 ```bash
+# 克隆（包含独立发布的 Agent 子模块）
+git clone --recurse-submodules https://github.com/quyansiyuanwang/Quyan-AppServer.git
+cd Quyan-AppServer
+
 # 安装依赖
 pnpm install
 
@@ -53,6 +61,21 @@ pnpm run dev
 # - API 服务: http://localhost:10001
 # - Swagger UI: http://localhost:10001/docs
 ```
+
+### 独立交付物子模块
+
+两个目录都不属于 pnpm workspace：
+
+- `products/remote-terminal-cloud` 是面向终端用户的 Rust/Tauri 产品，保持独立工具链与发布节奏。
+- `integrations/server-sdk` 是面向第三方接入方的多语言 SDK、模板与可运行 Demo，保持独立版本和仓库历史。
+
+已克隆主仓但缺少子模块时运行：
+
+```bash
+git submodule update --init --recursive
+```
+
+更新到主仓已记录的版本使用上面的命令；维护者要更新引用时，在子模块拉取并验证目标提交后，在主仓提交新的 gitlink。各交付物的构建与校验请在其子模块目录内按 README 执行。
 
 ## 常用命令
 
