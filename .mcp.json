@@ -1,12 +1,9 @@
 {
   "mcpServers": {
     "appserver": {
-      "command": "pnpm",
-      "args": ["run", "mcp:serve"],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "APPSERVER_MCP_ROOT": "${workspaceFolder}"
-      }
+      "command": "bun",
+      "args": ["packages/appserver-mcp/src/index.ts"],
+      "cwd": "${workspaceFolder}"
     }
   }
 }
