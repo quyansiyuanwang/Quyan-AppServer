@@ -39,28 +39,27 @@ JWT_REFRESH_EXPIRES_IN=3600
 
 关键配置：
 
-- `fileParallelism: false`: 禁用并行测试，避免数据库并发冲突
-- `globalSetup`: 全局设置文件 `tests/globalSetup.ts`
-- `setupFiles`: 测试设置文件 `tests/setup.ts`
-- `mockReset: true`: 每次测试后重置 mock
+- `backend-unit`: 纯 Node 单测，不启动 Prisma、MySQL 或 Redis，可并行。
+- `backend-database`: Prisma、Redis、HTTP 集成测试；每个 worker 使用独立的派生 MySQL 库及 Redis DB。
+- `backend-contract`: 仅 schema 合约检查使用 Node；需要运行时数据的 operation 合约在数据库项目中执行。
+- `mockReset: true`: 每次测试后重置 mock。
 
 ### 2.3 测试数据库初始化
 
-在运行测试前，需要初始化测试数据库：
+数据库测试在运行前自动初始化：
 
 ```bash
-# 使用测试环境变量
-export $(cat .env.test | xargs)
+# 纯单测：不连接基础设施
+pnpm run test:unit
 
-# 推送模型到测试数据库
-pnpm run db:push
+# 所有数据库、集成和运行时 contract 测试
+pnpm run test:runtime
 
-# 或使用迁移
-pnpm run db:migrate
-
-# 填充测试数据
-pnpm run db:seed
+# 清理中断测试遗留的派生数据库
+pnpm run test:db:clean
 ```
+
+`DATABASE_URL` 必须指向名称含 `test` 的专用基础库，测试帐号必须拥有该基础库同服务器上的 `CREATE/DROP DATABASE` 权限。每次运行使用随机命名空间创建 `<base>__vitest_<run>_<worker>`，结束时自动删除；不会重置基础库本身。`TEST_DB_WORKERS` 控制数据库 worker 数，`TEST_REDIS_DB_BASE` 指定 Redis 逻辑库起点，二者默认保守限制在 Redis 的 16 个逻辑库范围内。CI 设置 `TEST_REDIS_REQUIRED=true`，因此 Redis 不可用会立即失败并且每个文件会清空自己的 Redis DB；本地只有设置 `TEST_REDIS_CLEANUP=true` 才连接 Redis，避免未启动 Redis 的开发环境拖慢不依赖它的持久化测试。
 
 ## 3. 运行测试
 
@@ -103,22 +102,21 @@ pnpm run test:coverage
 
 ```
 tests/
-├── globalSetup.ts          # 全局设置
-├── setup.ts                # 测试设置
-├── api/                    # API 测试
-│   ├── auth.test.ts        # 认证接口测试
-│   ├── user.test.ts        # 用户接口测试
-│   └── permission.test.ts  # 权限接口测试
-├── services/               # 服务层测试
-├── store/                  # 仓储层测试
-└── utils/                  # 工具函数测试
+├── unit/                   # *.unit.test.ts，纯 Node/mocked tests
+├── database/               # *.db.test.ts，直接 Prisma 持久化 tests
+├── integration/            # *.integration.test.ts，HTTP/Redis/API tests
+├── contract/               # *.contract.test.ts，OpenAPI tests
+├── runtime/                # worker 数据库与 Redis 隔离
+├── scripts/                # 运行器、清理与分类校验
+└── util/                   # 测试辅助工具
 ```
 
 ### 4.2 测试文件命名
 
-- 单元测试: `*.test.ts`
+- 纯单元测试: `*.unit.test.ts`
+- 数据库测试: `*.db.test.ts`
 - 集成测试: `*.integration.test.ts`
-- E2E 测试: `*.e2e.test.ts`
+- 合约测试: `*.contract.test.ts`
 
 ## 5. API 测试
 

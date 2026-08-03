@@ -48,6 +48,9 @@ export default defineConfigWithVueTs(
           allowDefaultProject: [
             'vite.config.ts',
             'vitest.config.ts',
+            'vitest.shared.ts',
+            'vitest.node.config.ts',
+            'vitest.dom.config.ts',
             'eslint.config.ts',
             'openapi-ts.config.ts',
             'scripts/plugins/vite-plugin-auto-route-types.ts',
@@ -78,6 +81,24 @@ export default defineConfigWithVueTs(
     },
     rules: {
       '@typescript-eslint/no-deprecated': 'off',
+    },
+  },
+
+  {
+    name: 'app/test-node-dom-boundary',
+    files: ['tests/node/**/*.node.test.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@vue/test-utils',
+              message: 'Vue Test Utils requires jsdom; move this test to tests/dom.',
+            },
+          ],
+        },
+      ],
     },
   },
 
