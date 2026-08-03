@@ -1700,7 +1700,9 @@ export class RelayProxyService {
         : [],
     );
     const channels = blockedChannelIds.size
-      ? resolvedChannels.filter((candidate) => !blockedChannelIds.has(candidate.resolvedChannel.id))
+      ? resolvedChannels.filter(
+          (candidate) => !blockedChannelIds.has((candidate.billingChannel ?? candidate.resolvedChannel).id),
+        )
       : resolvedChannels;
 
     const tokenFailoverConfig = this.getFailoverRuntimeConfig(relayToken);
@@ -2629,7 +2631,7 @@ export class RelayProxyService {
         const billingDisplayChannel = await this.resolveBillingDisplayChannel(
           relayToken,
           channel,
-          displayChannel,
+          candidate.billingChannel ?? displayChannel,
           resolvedBillingDisplayParents,
         );
         const nextChannel = nextCandidate?.resolvedChannel;
@@ -2737,7 +2739,10 @@ export class RelayProxyService {
             const upstreamConfig = this.resolveChannelUpstreamConfig(channel, requestFormat);
             const upstreamUrl = upstreamConfig.upstreamUrl;
             let upstreamApiKey = upstreamConfig.upstreamApiKey;
-            channelMultiplier = upstreamConfig.channelMultiplier;
+            channelMultiplier =
+              billingDisplayChannel.channelType === "pooled"
+                ? Number(billingDisplayChannel.multiplier)
+                : upstreamConfig.channelMultiplier;
 
             if (Buffer.isBuffer(req.body) && selectedModelId !== normalizedRequestedModel)
               logger.warn("Multipart relay request keeps original model field because body rewrite is not supported", {
@@ -2751,7 +2756,7 @@ export class RelayProxyService {
             const hasChargeCoverage = await this.usageChargeService.hasCoverageOrPositiveBalance({
               userId: relayToken.userId,
               modelName: selectedModelName,
-              channelId: channel.id,
+              channelId: billingDisplayChannel.id,
               at: monthlyPassCoverageAt,
             });
 
@@ -2759,7 +2764,7 @@ export class RelayProxyService {
 
             relayGlobalMultiplier = relayConfig.globalMultiplier;
             timeMultiplier = computeMultiplierForTime(
-              ((channel as any).timePeriodMultipliers as TimePeriodRule[]) || [],
+              ((billingDisplayChannel as any).timePeriodMultipliers as TimePeriodRule[]) || [],
               new Date(),
             );
             const globalMultiplier = relayGlobalMultiplier * channelMultiplier * timeMultiplier;
@@ -2833,7 +2838,9 @@ export class RelayProxyService {
                   selectedModelId,
                   globalMultiplier,
                   timeMultiplier,
-                  channel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
+                  billingDisplayChannel.contextLengthMultipliers as unknown as
+                    | ContextLengthMultiplierRule[]
+                    | undefined,
                   convertedBody,
                   requestFormat,
                   relayGlobalMultiplier,
@@ -2846,7 +2853,7 @@ export class RelayProxyService {
                   relayConfig.upstreamStreamTimeout,
                   hasNextChannel && failoverConfig.enabled,
                   failoverConfig.retryStatusCodes,
-                  channel.inputTokensIncludeCacheRead !== false,
+                  billingDisplayChannel.inputTokensIncludeCacheRead !== false,
                   relayOriginalRequestedModel,
                   autoInjectedStreamUsageOption,
                 ),
@@ -2926,7 +2933,9 @@ export class RelayProxyService {
                   selectedModelId,
                   globalMultiplier,
                   timeMultiplier,
-                  channel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
+                  billingDisplayChannel.contextLengthMultipliers as unknown as
+                    | ContextLengthMultiplierRule[]
+                    | undefined,
                   convertedBody,
                   relayGlobalMultiplier,
                   channelMultiplier,
@@ -2939,7 +2948,7 @@ export class RelayProxyService {
                   resourceGuard.imageResponseBodyLimitMb * 1024 * 1024,
                   hasNextChannel && failoverConfig.enabled,
                   failoverConfig.retryStatusCodes,
-                  channel.inputTokensIncludeCacheRead !== false,
+                  billingDisplayChannel.inputTokensIncludeCacheRead !== false,
                   relayOriginalRequestedModel,
                 ),
               );
@@ -3187,7 +3196,11 @@ export class RelayProxyService {
             upstreamResponseSucceeded = true;
 
             const { requestTokens, responseTokens, totalTokens, cacheCreationTokens, cacheReadTokens } =
-              this.calculateTokens(convertedBody, response.data, channel.inputTokensIncludeCacheRead !== false);
+              this.calculateTokens(
+                convertedBody,
+                response.data,
+                billingDisplayChannel.inputTokensIncludeCacheRead !== false,
+              );
 
             logger.info("Cache metrics", {
               cacheCreationTokens,
@@ -3200,7 +3213,7 @@ export class RelayProxyService {
             });
 
             const contextMatch = this.resolveContextMultiplier(
-              channel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
+              billingDisplayChannel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
               requestTokens,
               cacheCreationTokens,
               cacheReadTokens,

@@ -81,6 +81,8 @@ export interface UpsertRelayChannelProbeProfileRequest {
   distributionMultiplier?: number;
   workflow: RelayChannelProbeWorkflowStepDto[];
   credentials?: Record<string, string>;
+  /** Logical pooled channels provide credentials per hidden physical member. */
+  memberCredentials?: Record<string, Record<string, string>>;
 }
 
 export interface CreateRelayChannelProbeRunRequest {

@@ -6,4 +6,5 @@ export const DEFAULT_RELAY_CONFIG = {
   enableQueue: true,
   // Publish a logical channel with a model-level price range, never its pool topology.
   apiCatalogPoolVisibility: "anonymous-range" as const,
+  channelTopologyMode: "legacy" as const,
 } as const;

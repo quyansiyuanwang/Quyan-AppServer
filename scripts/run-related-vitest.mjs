@@ -42,9 +42,19 @@ if (relatedFiles.length === 0) {
 }
 
 console.log(`[related-vitest] Resolving tests related to ${relatedFiles.length} changed file(s).`)
+const backendWorkspace = path.posix.normalize(workspace).endsWith('apps/backend')
+const selectedProjects = String(process.env.VITEST_PROJECT_SELECTOR || '')
+  .split(',')
+  .map((project) => project.trim())
+  .filter(Boolean)
+const projectArgs = selectedProjects.flatMap((project) => ['--project', project])
+const command = backendWorkspace
+  ? ['--filter', '@appserver/backend', 'run', 'test:related', '--', ...projectArgs, ...relatedFiles]
+  : ['exec', 'vitest', 'related', '--run', '--passWithNoTests', ...relatedFiles]
+
 const result = spawnSync(
   'pnpm',
-  ['exec', 'vitest', 'related', '--run', '--passWithNoTests', ...relatedFiles],
+  command,
   { cwd: workspace, stdio: 'inherit', shell: process.platform === 'win32' },
 )
 

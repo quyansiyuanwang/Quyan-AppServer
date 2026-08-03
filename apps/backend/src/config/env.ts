@@ -43,6 +43,14 @@ if (process.env.NODE_ENV === "test")
     override: true,
   });
 
+// Database test workers receive their isolated runtime values from Vitest setup.
+// Apply them after .env.test so the immutable configuration snapshot cannot point
+// back at the shared base database or Redis logical database.
+if (process.env.NODE_ENV === "test") {
+  if (process.env.APPSERVER_TEST_DATABASE_URL) process.env.DATABASE_URL = process.env.APPSERVER_TEST_DATABASE_URL;
+  if (process.env.APPSERVER_TEST_REDIS_DB) process.env.REDIS_DB = process.env.APPSERVER_TEST_REDIS_DB;
+}
+
 type EnvSnapshot = Readonly<Record<string, string | undefined>>;
 
 // Capture the environment once after dotenv has finished. Runtime configuration

@@ -13,6 +13,10 @@ const relayChannelInclude = {
     include: { memberChannel: true },
     orderBy: { priority: "asc" },
   },
+  pooledParent: true,
+  pooledChildren: {
+    orderBy: { pooledPriority: "asc" },
+  },
 } satisfies Prisma.RelayChannelInclude;
 
 export class RelayChannelRepository implements RelayChannelStore {
@@ -117,7 +121,13 @@ export class RelayChannelRepository implements RelayChannelStore {
       where: {
         status: RELAY_CHANNEL_STATUS.ENABLED,
         channelType: "pooled",
-        poolMembers: { some: { memberChannelId, enabled: true } },
+        pooledChildren: {
+          some: {
+            id: memberChannelId,
+            pooledMemberEnabled: true,
+            status: RELAY_CHANNEL_STATUS.ENABLED,
+          },
+        },
       },
       orderBy: { id: "asc" },
       include: relayChannelInclude,
@@ -140,7 +150,7 @@ export class RelayChannelRepository implements RelayChannelStore {
           visibilityMode: true,
           multiplier: true,
           updateTime: true,
-          _count: { select: { poolMembers: true } },
+          _count: { select: { poolMembers: true, pooledChildren: true } },
         },
       }),
       prisma.relayChannel.count({ where }),

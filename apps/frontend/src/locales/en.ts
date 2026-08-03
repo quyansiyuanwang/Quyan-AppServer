@@ -2584,6 +2584,7 @@ export default {
     channelComposition: 'Channel Composition',
     channelType: 'Channel Type',
     channelTypeStandalone: 'Standalone',
+    channelTypePooledMember: 'Pooled Member',
     channelTypePooled: 'Pooled',
     channelTypeAutomaticProxyPool: 'Automatic Proxy Pool',
     channelTypeHelp:
@@ -2603,6 +2604,10 @@ export default {
     poolMemberCount: 'members',
     noPoolMembers: 'No members',
     poolMembersRequired: 'A pooled channel must contain at least one member channel',
+    pooledParent: 'Logical Pool Parent',
+    pooledParentHelp:
+      'A physical member belongs to exactly one logical pool and is never user-visible.',
+    pooledParentRequired: 'Select a logical pool parent',
     routingStrategy: 'Routing Strategy',
     routingStrategyHelp:
       'Choose how member channels are selected. Combine it with the parameters below for randomization, round-robin, weighting, and failover behavior.',

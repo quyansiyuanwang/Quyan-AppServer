@@ -12,11 +12,13 @@ import type {
   ImportRelayChannelsResponse,
   RelayChannelDto,
   RelayCatalogOptionDto,
+  RelayRoutingCatalogOptionDto,
   RelayCatalogModelPriceRangeDto,
   RelayChannelOptionDto,
   RelayChannelExportItemDto,
   RelayChannelExportResponse,
   RelayChannelManagementListItemDto,
+  RelayChannelTopologyAuditDto,
   RelayChannelImportItemDto,
   RelayChannelAllowedModelsMode,
   RelayAutomaticProxyPoolOptionDto,
@@ -72,6 +74,7 @@ const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
 const POOLED_ALLOWED_MODE_VALUES = new Set(["all", "manual", "auto"] as const);
 const isPoolType = (type: RelayChannelType): boolean => type === "pooled" || type === "automatic-proxy-pool";
+const isUpstreamChannelType = (type: RelayChannelType): boolean => type === "standalone" || type === "pooled-member";
 
 interface ValidatedRelayChannelData {
   name: string;
@@ -81,6 +84,10 @@ interface ValidatedRelayChannelData {
   visibilityMode: RelayChannelVisibilityMode;
   visibilityConfig?: RelayChannelVisibilityConfigDto | null;
   poolMembers?: RelayChannelMemberDto[] | null;
+  pooledParentId?: string | null;
+  pooledPriority: number;
+  pooledWeight: number;
+  pooledMemberEnabled: boolean;
   openaiUpstreamUrl?: string;
   openaiUpstreamApiKey?: string;
   anthropicUpstreamUrl?: string;
@@ -205,7 +212,10 @@ export class RelayChannelService {
         routingStrategy:
           (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
         visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
-        poolMemberCount: channel._count.poolMembers,
+        poolMemberCount:
+          ((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE) === "pooled"
+            ? channel._count.pooledChildren
+            : channel._count.poolMembers,
         multiplier: Number(channel.multiplier),
         updateTime: channel.updateTime,
       })),
@@ -301,6 +311,126 @@ export class RelayChannelService {
     return options.sort((left, right) => left.name.localeCompare(right.name));
   }
 
+  async getTopologyAudit(actorUserId: string): Promise<RelayChannelTopologyAuditDto> {
+    const [config, channels] = await Promise.all([
+      this.relayConfigService.getRelayConfig(),
+      this.relayChannelRepository.listVisible(),
+    ]);
+    const visible = await this.filterAccessibleChannels(channels, actorUserId);
+    const byId = new Map(channels.map((channel) => [channel.id, channel]));
+    const issues: RelayChannelTopologyAuditDto["issues"] = [];
+    for (const channel of visible) {
+      const type = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+      const members = (channel as RelayChannelWithMembers).poolMembers ?? [];
+      if (type === "pooled" && members.length)
+        issues.push({
+          code: "legacy_pool_members",
+          channelId: channel.id,
+          channelName: channel.name,
+          message: "Uses legacy pool members",
+        });
+      if (type === "pooled-member") {
+        const parent = channel.pooledParentId ? byId.get(channel.pooledParentId) : undefined;
+        if (!parent || parent.channelType !== "pooled")
+          issues.push({
+            code: "invalid_pooled_parent",
+            channelId: channel.id,
+            channelName: channel.name,
+            message: "Missing valid logical pooled parent",
+          });
+      }
+      if (type === "automatic-proxy-pool")
+        for (const member of members) {
+          const target = byId.get(member.memberChannelId);
+          if (!target || target.channelType !== "pooled")
+            issues.push({
+              code: "automatic_pool_physical_member",
+              channelId: channel.id,
+              channelName: channel.name,
+              message: "Automatic pool contains a non-logical member",
+            });
+        }
+    }
+    return { mode: config.channelTopologyMode, canEnableStrict: issues.length === 0, issues };
+  }
+
+  /**
+   * User-facing routing selection is deliberately separate from the management
+   * options endpoint. Physical pooled members must never be enumerable here,
+   * while automatic-pool membership remains visible as logical pooled routes so
+   * a token owner can make an informed blocking decision.
+   */
+  async listRoutingCatalogOptions(actorUserId: string, targetUserId?: string): Promise<RelayRoutingCatalogOptionDto[]> {
+    const effectiveUserId = await this.resolveOptionsUserId(actorUserId, targetUserId);
+    const [activeChannels, modelCatalog] = await Promise.all([
+      this.relayChannelRepository.listActive(),
+      this.modelPricingService.getModelPricing(),
+    ]);
+    const accessible = await this.filterAccessibleChannels(activeChannels, effectiveUserId);
+    const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog);
+    const now = new Date();
+
+    const selectable = accessible.filter((channel) => {
+      const type = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+      return (
+        (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden" &&
+        (type === "standalone" || type === "pooled" || type === "automatic-proxy-pool")
+      );
+    });
+
+    const options = await Promise.all(
+      selectable.map(async (channel) => {
+        const channelType = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+        const routingChannelType = channelType as RelayRoutingCatalogOptionDto["channelType"];
+        const capabilities = await this.relayPoolResolver.resolveChannelCapabilities(channel.id, resolverContext);
+        const modelCapabilities = new Map<string, RelayRoutingCatalogOptionDto["modelCapabilities"][number]>();
+        for (const capability of capabilities) {
+          const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
+          const existing = modelCapabilities.get(key);
+          if (existing) {
+            existing.supportedRequestFormats = [
+              ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
+            ];
+          } else {
+            modelCapabilities.set(key, {
+              catalogModelName: capability.catalogModelName,
+              requestModelId: capability.requestModelId,
+              supportedRequestFormats: [...capability.supportedRequestFormats],
+            });
+          }
+        }
+        return {
+          id: channel.id,
+          name: channel.name,
+          enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+          channelType: routingChannelType,
+          multiplier: Number(channel.multiplier),
+          contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
+            | ContextLengthMultiplierRule[]
+            | undefined,
+          allowedFormats: formatRelayRequestFormats([
+            ...new Set([...modelCapabilities.values()].flatMap((item) => item.supportedRequestFormats)),
+          ]),
+          modelCapabilities: [...modelCapabilities.values()].sort(
+            (left, right) =>
+              left.catalogModelName.localeCompare(right.catalogModelName) ||
+              left.requestModelId.localeCompare(right.requestModelId),
+          ),
+          ...(channelType === "automatic-proxy-pool"
+            ? {
+                automaticProxyPool: this.toAutomaticProxyPoolOption(
+                  channel as RelayChannelWithMembers,
+                  capabilities,
+                  now,
+                ),
+              }
+            : {}),
+        } satisfies RelayRoutingCatalogOptionDto;
+      }),
+    );
+    return options.sort((left, right) => left.name.localeCompare(right.name));
+  }
+
   /**
    * API documentation projection. Variable-priced logical channels are published without their
    * pool identity, members, or routing details; consumers only receive per-model price ranges.
@@ -357,7 +487,7 @@ export class RelayChannelService {
         );
         const modelCapabilities = this.toCatalogModelCapabilities(resolvedCapabilities);
 
-        if (isPoolType(channelType)) {
+        if (channelType === "automatic-proxy-pool") {
           return {
             id: channel.id,
             name: channel.name,
@@ -377,7 +507,12 @@ export class RelayChannelService {
           id: channel.id,
           name: channel.name,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-          allowedFormats: channel.allowedFormats,
+          allowedFormats:
+            channelType === "pooled"
+              ? formatRelayRequestFormats([
+                  ...new Set(modelCapabilities.flatMap((item) => item.supportedRequestFormats)),
+                ])
+              : channel.allowedFormats,
           modelCapabilities,
           pricingMode: "fixed" as const,
           multiplier:
@@ -489,9 +624,9 @@ export class RelayChannelService {
       routingStrategy: (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
       routingConfig: Object.keys(safeRoutingConfig).length > 0 ? safeRoutingConfig : undefined,
       members: (channel.poolMembers ?? [])
+        .filter((member) => member.enabled !== false && member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED)
         .map((member) => {
           const memberChannel = member.memberChannel;
-          const enabled = member.enabled !== false && memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED;
           const timePeriodMultiplier = memberChannel
             ? computeMultiplierForTime(
                 (memberChannel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
@@ -499,17 +634,17 @@ export class RelayChannelService {
               )
             : 1;
           const multiplier = memberChannel ? Number(memberChannel.multiplier) : 1;
-          const modelCapabilities = enabled
-            ? (capabilitiesByLeafChannelId.get(member.memberChannelId) ?? []).map((capability) => ({
-                ...capability,
-                supportedRequestFormats: [...capability.supportedRequestFormats],
-              }))
-            : [];
+          const modelCapabilities = (capabilitiesByLeafChannelId.get(member.memberChannelId) ?? []).map(
+            (capability) => ({
+              ...capability,
+              supportedRequestFormats: [...capability.supportedRequestFormats],
+            }),
+          );
 
           return {
             id: member.memberChannelId,
             name: memberChannel?.name ?? member.memberChannelId,
-            enabled,
+            enabled: true,
             priority: member.priority,
             weight: Number(member.weight),
             multiplier,
@@ -1316,6 +1451,19 @@ export class RelayChannelService {
     }
   }
 
+  private async assertPooledMemberParent(
+    channelId: string | undefined,
+    data: Pick<ValidatedRelayChannelData, "channelType" | "pooledParentId">,
+    _tx?: Parameters<RelayChannelStore["replaceMembersByChannelId"]>[2],
+  ): Promise<void> {
+    if (data.channelType !== "pooled-member") return;
+    if (!data.pooledParentId) throw new BadRequestError("pooled-member channels require a pooled parent");
+    if (data.pooledParentId === channelId) throw new BadRequestError("pooled-member channel cannot be its own parent");
+    const parent = await this.relayChannelRepository.findVisibleById(data.pooledParentId);
+    if (!parent || parent.channelType !== "pooled")
+      throw new BadRequestError("pooled-member parent must be a pooled channel");
+  }
+
   private async assertNoPoolCycle(
     channelId: string,
     tx?: Parameters<RelayChannelStore["replaceMembersByChannelId"]>[2],
@@ -1345,9 +1493,39 @@ export class RelayChannelService {
     members: RelayChannelMemberDto[] | null | undefined,
     tx?: Parameters<RelayChannelStore["replaceMembersByChannelId"]>[2],
   ): Promise<void> {
-    if (!isPoolType(channelType)) {
+    if (channelType === "pooled-member" || channelType === "standalone") {
       await this.relayChannelRepository.deleteMembersByChannelId(channelId, tx);
       await this.assertNoPoolCycle(channelId, tx);
+      return;
+    }
+
+    if (channelType === "pooled") {
+      // Legacy ordinary-pool edges are read while the topology is in legacy mode, but new
+      // pooled channels receive their members through pooled-member.pooledParentId.
+      const topology = await this.relayConfigService.getRelayConfig();
+      if (topology.channelTopologyMode !== "strict-two-tier") {
+        if (members === undefined) return;
+        if (members === null || members.length === 0) {
+          await this.relayChannelRepository.deleteMembersByChannelId(channelId, tx);
+          return;
+        }
+        await this.assertPoolMembersExist(members, tx);
+        await this.relayChannelRepository.replaceMembersByChannelId(
+          channelId,
+          members.map((member) => ({
+            memberChannelId: member.memberChannelId,
+            priority: member.priority,
+            weight: member.weight,
+            enabled: member.enabled,
+          })),
+          tx,
+        );
+        await this.assertNoPoolCycle(channelId, tx);
+        return;
+      }
+      if (members?.length)
+        throw new BadRequestError("pooled channels use pooled-member parent assignments instead of poolMembers");
+      await this.relayChannelRepository.deleteMembersByChannelId(channelId, tx);
       return;
     }
 
@@ -1362,8 +1540,12 @@ export class RelayChannelService {
         members.map((member) => member.memberChannelId),
         tx,
       );
-      if (channels.some((channel) => channel.channelType !== "standalone"))
-        throw new BadRequestError("automatic proxy pool members must be standalone channels");
+      const topology = await this.relayConfigService.getRelayConfig();
+      if (
+        topology.channelTopologyMode === "strict-two-tier" &&
+        channels.some((channel) => channel.channelType !== "pooled")
+      )
+        throw new BadRequestError("automatic proxy pool members must be pooled channels");
     }
 
     await this.relayChannelRepository.replaceMembersByChannelId(
@@ -1409,20 +1591,17 @@ export class RelayChannelService {
     const channelType = (data.channelType ??
       (existing?.channelType as RelayChannelType | undefined) ??
       DEFAULT_CHANNEL_TYPE) as RelayChannelType;
-    // A pool is billed through its resolved standalone leaf. Keep a legacy value only to satisfy
-    // the persisted non-null column; callers cannot override pooled pricing through this field.
-    const multiplier = isPoolType(channelType)
-      ? Number(existing?.multiplier ?? 1)
-      : data.multiplier !== undefined
-        ? data.multiplier
-        : Number(existing?.multiplier ?? 1);
+    // A logical pooled channel owns the customer-facing price. Its physical members only provide
+    // upstream execution and balance signals.
+    const multiplier = data.multiplier !== undefined ? data.multiplier : Number(existing?.multiplier ?? 1);
     if (multiplier < 0) throw new BadRequestError("multiplier must be >= 0");
     const routingStrategy = (data.routingStrategy ??
       (existing?.routingStrategy as RelayChannelRoutingStrategy | undefined) ??
       DEFAULT_ROUTING_STRATEGY) as RelayChannelRoutingStrategy;
-    const visibilityMode = (data.visibilityMode ??
+    const requestedVisibilityMode = (data.visibilityMode ??
       (existing?.visibilityMode as RelayChannelVisibilityMode | undefined) ??
       DEFAULT_VISIBILITY_MODE) as RelayChannelVisibilityMode;
+    const visibilityMode = channelType === "pooled-member" ? "hidden" : requestedVisibilityMode;
     const routingConfig =
       data.routingConfig !== undefined
         ? data.routingConfig
@@ -1436,6 +1615,22 @@ export class RelayChannelService {
       data.poolMembers !== undefined ? data.poolMembers : undefined,
     );
     this.assertNoSelfReference(existing?.id, poolMembers);
+    const pooledParentId =
+      data.pooledParentId !== undefined ? data.pooledParentId?.trim() || null : (existing?.pooledParentId ?? null);
+    const pooledPriority =
+      data.pooledPriority !== undefined
+        ? Math.max(0, Math.floor(data.pooledPriority))
+        : (existing?.pooledPriority ?? 0);
+    const pooledWeight =
+      data.pooledWeight !== undefined ? Number(data.pooledWeight) : Number(existing?.pooledWeight ?? 1);
+    const pooledMemberEnabled =
+      data.pooledMemberEnabled !== undefined ? data.pooledMemberEnabled : existing?.pooledMemberEnabled !== false;
+    if (!Number.isFinite(pooledWeight) || pooledWeight <= 0)
+      throw new BadRequestError("pooledWeight must be greater than zero");
+    if (channelType === "pooled-member" && !pooledParentId)
+      throw new BadRequestError("pooled-member channels require a pooled parent");
+    if (channelType !== "pooled-member" && pooledParentId)
+      throw new BadRequestError("only pooled-member channels may have a pooled parent");
     const isCreate = !existing;
     const wasPooled = isPoolType((existing?.channelType as RelayChannelType | undefined) ?? "standalone");
     const normalizedRoutingConfig = this.normalizeRoutingConfig(routingConfig, channelType);
@@ -1487,6 +1682,7 @@ export class RelayChannelService {
       data.contextLengthMultipliers !== undefined
         ? data.contextLengthMultipliers
         : (existing?.contextLengthMultipliers as ContextLengthMultiplierRule[] | undefined);
+    const topology = await this.relayConfigService.getRelayConfig();
 
     if (allowedModels !== undefined && allowedModels !== null)
       try {
@@ -1498,7 +1694,7 @@ export class RelayChannelService {
         throw new BadRequestError("allowedModels must be a valid JSON array");
       }
 
-    if (!isPoolType(channelType)) {
+    if (isUpstreamChannelType(channelType)) {
       if (!openaiUpstreamUrl && !anthropicUpstreamUrl && !geminiUpstreamUrl)
         throw new BadRequestError("At least one upstream URL (OpenAI, Anthropic, or Gemini) must be configured");
 
@@ -1531,13 +1727,29 @@ export class RelayChannelService {
       }
     }
 
-    if (isPoolType(channelType)) {
+    if (channelType === "automatic-proxy-pool") {
       const memberCount = poolMembers == null ? undefined : poolMembers.length;
       if (isCreate || !wasPooled) {
         if (!memberCount) throw new BadRequestError("pooled channel must contain at least one member");
       } else if (poolMembers !== undefined && memberCount === 0)
         throw new BadRequestError("pooled channel must contain at least one member");
     }
+
+    if (
+      channelType === "pooled" &&
+      topology.channelTopologyMode === "strict-two-tier" &&
+      poolMembers != null &&
+      poolMembers.length > 0
+    )
+      throw new BadRequestError("pooled channels use pooled-member parent assignments instead of poolMembers");
+    if (
+      existing &&
+      channelType === "pooled" &&
+      topology.channelTopologyMode !== "strict-two-tier" &&
+      poolMembers != null &&
+      poolMembers.length === 0
+    )
+      throw new BadRequestError("pooled channel must contain at least one member channel");
 
     return {
       name,
@@ -1547,6 +1759,10 @@ export class RelayChannelService {
       visibilityMode,
       visibilityConfig,
       poolMembers,
+      pooledParentId,
+      pooledPriority,
+      pooledWeight,
+      pooledMemberEnabled,
       openaiUpstreamUrl,
       openaiUpstreamApiKey,
       anthropicUpstreamUrl,
@@ -1575,6 +1791,10 @@ export class RelayChannelService {
       visibilityMode: data.visibilityMode,
       visibilityConfig:
         data.visibilityConfig === null ? Prisma.JsonNull : (data.visibilityConfig as Prisma.InputJsonValue | undefined),
+      pooledParentId: data.pooledParentId ?? null,
+      pooledPriority: data.pooledPriority,
+      pooledWeight: data.pooledWeight,
+      pooledMemberEnabled: data.pooledMemberEnabled,
       openaiUpstreamUrl: data.openaiUpstreamUrl,
       openaiUpstreamApiKey: data.openaiUpstreamApiKey,
       anthropicUpstreamUrl: data.anthropicUpstreamUrl,
@@ -1600,6 +1820,10 @@ export class RelayChannelService {
       routingConfig: channel.routingConfig as RelayChannelRoutingConfigDto | undefined,
       visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
       visibilityConfig: channel.visibilityConfig as RelayChannelVisibilityConfigDto | undefined,
+      pooledParentId: channel.pooledParentId || undefined,
+      pooledPriority: channel.pooledPriority,
+      pooledWeight: Number(channel.pooledWeight),
+      pooledMemberEnabled: channel.pooledMemberEnabled,
       poolMembers: Array.isArray((channel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
         ? (
             (
@@ -1663,6 +1887,7 @@ export class RelayChannelService {
         tx,
       );
 
+      await this.assertPooledMemberParent(created.id, validated, tx);
       await this.syncPoolMembers(created.id, validated.channelType, validated.poolMembers, tx);
 
       return created;
@@ -1706,6 +1931,7 @@ export class RelayChannelService {
     }
 
     const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
+      await this.assertPooledMemberParent(id, validated, tx);
       const updated = await this.relayChannelRepository.updateById(id, this.toPersistenceInput(validated), tx);
 
       await this.syncPoolMembers(updated.id, validated.channelType, validated.poolMembers, tx);
@@ -2030,17 +2256,22 @@ export class RelayChannelService {
       }> = [];
       const importedChannelIds = new Map<string, string>();
 
-      for (const item of body.channels) {
+      // Parents must exist before their physical children so exported source IDs
+      // can be remapped without guessing or temporarily violating the FK.
+      const orderedItems = [...body.channels].sort(
+        (left, right) => Number(left.channelType === "pooled-member") - Number(right.channelType === "pooled-member"),
+      );
+      for (const item of orderedItems) {
         const preferredName = item.name.trim();
         const finalName = reservedNames.has(preferredName)
           ? this.buildCopyName(preferredName, reservedNames)
           : preferredName;
         reservedNames.add(finalName);
 
-        const validated = await this.buildValidatedChannelData({
-          ...item,
-          name: finalName,
-        });
+        const pooledParentId = item.pooledParentId
+          ? (importedChannelIds.get(item.pooledParentId) ?? item.pooledParentId)
+          : item.pooledParentId;
+        const validated = await this.buildValidatedChannelData({ ...item, name: finalName, pooledParentId });
         const created = await this.relayChannelRepository.create(
           {
             ...this.toPersistenceInput(validated),
@@ -2156,7 +2387,7 @@ export class RelayChannelService {
     modelCatalog?: ModelPricingDto[],
     includeDisabled = false,
   ): Promise<RelayChannelDto> {
-    const poolMembers = Array.isArray((channel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
+    const legacyPoolMembers = Array.isArray((channel as RelayChannel & { poolMembers?: unknown[] }).poolMembers)
       ? (
           (
             channel as RelayChannel & {
@@ -2172,6 +2403,23 @@ export class RelayChannelService {
           ).poolMembers ?? []
         ).map((member) => this.toPoolMemberDto(member))
       : undefined;
+    const physicalPooledMembers =
+      channel.channelType === "pooled"
+        ? ((channel as RelayChannel & { pooledChildren?: RelayChannel[] }).pooledChildren ?? []).map(
+            (member): RelayChannelMemberDto => ({
+              memberChannelId: member.id,
+              priority: member.pooledPriority,
+              weight: Number(member.pooledWeight),
+              enabled: member.pooledMemberEnabled,
+              memberChannelName: member.name,
+              memberChannelType: "pooled-member",
+              memberChannelEnabled: member.status === RELAY_CHANNEL_STATUS.ENABLED,
+            }),
+          )
+        : undefined;
+    // Prefer strict one-to-many members when present; legacy edges remain visible
+    // until an administrator explicitly completes topology migration.
+    const poolMembers = physicalPooledMembers?.length ? physicalPooledMembers : legacyPoolMembers;
 
     const dto: RelayChannelDto = {
       id: channel.id,
@@ -2200,6 +2448,11 @@ export class RelayChannelService {
       visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
       visibilityConfig: channel.visibilityConfig as RelayChannelVisibilityConfigDto | undefined,
       poolMembers,
+      pooledParentId: channel.pooledParentId || undefined,
+      pooledParentName: (channel as RelayChannel & { pooledParent?: RelayChannel | null }).pooledParent?.name,
+      pooledPriority: channel.pooledPriority,
+      pooledWeight: Number(channel.pooledWeight),
+      pooledMemberEnabled: channel.pooledMemberEnabled,
       createTime: channel.createTime,
       updateTime: channel.updateTime,
     };

@@ -690,15 +690,35 @@ export class RelayTokenService {
   private async assertAutomaticProxyPool(
     channelId: string,
     actorUserId: string,
-  ): Promise<RelayChannel & { poolMembers?: Array<{ memberChannelId: string }> }> {
+  ): Promise<
+    RelayChannel & {
+      poolMembers?: Array<{
+        memberChannelId: string;
+        enabled?: boolean;
+        memberChannel?: Pick<RelayChannel, "status"> | null;
+      }>;
+    }
+  > {
     const channel = await this.relayChannelService.assertChannelAccessibleById(channelId, actorUserId);
     if (channel.status !== MANAGED_STATUS.ENABLED || channel.channelType !== "automatic-proxy-pool")
       throw new BadRequestError("Automatic proxy pool not found or unavailable");
-    return channel as RelayChannel & { poolMembers?: Array<{ memberChannelId: string }> };
+    return channel as RelayChannel & {
+      poolMembers?: Array<{
+        memberChannelId: string;
+        enabled?: boolean;
+        memberChannel?: Pick<RelayChannel, "status"> | null;
+      }>;
+    };
   }
 
   private normalizeBlockedAutomaticProxyPoolChannelIds(
-    automaticPool: RelayChannel & { poolMembers?: Array<{ memberChannelId: string }> },
+    automaticPool: RelayChannel & {
+      poolMembers?: Array<{
+        memberChannelId: string;
+        enabled?: boolean;
+        memberChannel?: Pick<RelayChannel, "status"> | null;
+      }>;
+    },
     blockedChannelIds?: string[],
   ): string[] {
     const normalizedIds = [
@@ -706,10 +726,14 @@ export class RelayTokenService {
         (blockedChannelIds ?? []).map((channelId) => channelId.trim()).filter((channelId) => Boolean(channelId)),
       ),
     ];
-    const memberIds = new Set((automaticPool.poolMembers ?? []).map((member) => member.memberChannelId));
+    const memberIds = new Set(
+      (automaticPool.poolMembers ?? [])
+        .filter((member) => member.enabled !== false && member.memberChannel?.status === MANAGED_STATUS.ENABLED)
+        .map((member) => member.memberChannelId),
+    );
 
     if (normalizedIds.some((channelId) => !memberIds.has(channelId)))
-      throw new BadRequestError("Blocked channels must be members of the selected automatic proxy pool");
+      throw new BadRequestError("Blocked channels must be enabled members of the selected automatic proxy pool");
     if (memberIds.size > 0 && normalizedIds.length >= memberIds.size)
       throw new BadRequestError("At least one automatic proxy pool channel must remain available");
 

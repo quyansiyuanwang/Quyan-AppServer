@@ -40,6 +40,7 @@ export const updateRelayConfigBodySchema = z.object({
   upstreamStreamTimeout: z.coerce.number().int().min(0).optional(),
   enableQueue: z.coerce.boolean().optional(),
   apiCatalogPoolVisibility: z.enum(["hidden", "anonymous-range"]).optional(),
+  channelTopologyMode: z.enum(["legacy", "strict-two-tier"]).optional(),
   modelRates: z.array(modelPricingItemSchema).optional(),
   uptimeStatusUrl: z.string().max(500).optional(),
   monitorNameMapping: z.record(z.string(), z.string()).nullable().optional(),

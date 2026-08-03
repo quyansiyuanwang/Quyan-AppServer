@@ -21,6 +21,9 @@
           <el-radio-button value="standalone">{{
             i18ns.t('relay.channelTypeStandalone')
           }}</el-radio-button>
+          <el-radio-button value="pooled-member">{{
+            i18ns.t('relay.channelTypePooledMember')
+          }}</el-radio-button>
           <el-radio-button value="pooled">{{ i18ns.t('relay.channelTypePooled') }}</el-radio-button>
           <el-radio-button value="automatic-proxy-pool">{{
             i18ns.t('relay.channelTypeAutomaticProxyPool')
@@ -31,7 +34,37 @@
         </div>
       </el-form-item>
 
-      <template v-if="['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">
+      <template v-if="channelForm.channelType === 'pooled-member'">
+        <el-form-item :label="i18ns.t('relay.pooledParent')" required>
+          <el-select v-model="channelForm.pooledParentId" filterable style="width: 100%">
+            <el-option
+              v-for="parent in pooledParentOptions"
+              :key="parent.id"
+              :label="parent.name"
+              :value="parent.id"
+            />
+          </el-select>
+          <div class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.pooledParentHelp') }}</div>
+        </el-form-item>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <el-form-item :label="i18ns.t('relay.poolMemberPriority')">
+            <el-input-number v-model="channelForm.pooledPriority" :min="0" :step="1" />
+          </el-form-item>
+          <el-form-item :label="i18ns.t('relay.poolMemberWeight')">
+            <el-input-number
+              v-model="channelForm.pooledWeight"
+              :min="0.001"
+              :step="0.1"
+              :precision="3"
+            />
+          </el-form-item>
+          <el-form-item :label="i18ns.t('relay.poolMemberEnabled')">
+            <el-switch v-model="channelForm.pooledMemberEnabled" />
+          </el-form-item>
+        </div>
+      </template>
+
+      <template v-if="channelForm.channelType === 'automatic-proxy-pool'">
         <el-form-item :label="i18ns.t('relay.poolMembers')" required>
           <div class="relay-pool-member-editor">
             <div class="relay-pool-member-editor__toolbar">
@@ -345,7 +378,7 @@
         i18ns.t('relay.formatAndModelRestrictions')
       }}</el-divider>
       <el-form-item
-        v-if="channelForm.channelType === 'standalone'"
+        v-if="['standalone', 'pooled-member'].includes(channelForm.channelType)"
         :label="i18ns.t('relay.allowedFormats')"
         required
       >
@@ -430,7 +463,7 @@
         </template>
       </el-form-item>
 
-      <template v-if="channelForm.channelType === 'standalone'">
+      <template v-if="['standalone', 'pooled-member'].includes(channelForm.channelType)">
         <el-divider
           v-if="computeShowUpstream(channelForm.allowedFormats, 'openai')"
           content-position="left"
@@ -549,11 +582,11 @@
 
       <el-divider
         content-position="left"
-        v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)"
+        v-if="channelForm.channelType !== 'automatic-proxy-pool'"
         >{{ i18ns.t('relay.channelSettings') }}</el-divider
       >
       <el-form-item
-        v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)"
+        v-if="channelForm.channelType !== 'automatic-proxy-pool'"
         :label="i18ns.t('relay.channelMultiplier')"
       >
         <el-input-number v-model="channelForm.multiplier" :step="0.000001" :precision="6" />
@@ -562,7 +595,7 @@
         }}</span>
       </el-form-item>
       <el-form-item
-        v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)"
+        v-if="channelForm.channelType !== 'automatic-proxy-pool'"
         :label="i18ns.t('relay.inputTokensIncludeCacheRead')"
       >
         <div class="w-full flex flex-col gap-2">
@@ -587,7 +620,7 @@
         </div>
       </el-form-item>
 
-      <template v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">
+      <template v-if="channelForm.channelType !== 'automatic-proxy-pool'">
         <el-divider content-position="left">{{ i18ns.t('relay.timeRules') }}</el-divider>
         <el-form-item label="">
           <div class="flex flex-col gap-2 w-full">
@@ -666,7 +699,7 @@
         </el-form-item>
       </template>
 
-      <template v-if="!['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">
+      <template v-if="channelForm.channelType !== 'automatic-proxy-pool'">
         <el-divider content-position="left">{{ i18ns.t('relay.contextRules') }}</el-divider>
         <el-form-item label="">
           <div class="flex flex-col gap-2 w-full">
@@ -864,7 +897,7 @@
           <div>{{ getVisibilitySummary(currentChannelDetail) }}</div>
         </div>
         <div
-          v-if="!['pooled', 'automatic-proxy-pool'].includes(currentChannelDetail.channelType)"
+          v-if="currentChannelDetail.channelType !== 'automatic-proxy-pool'"
           class="rounded border border-[var(--el-border-color-lighter)] p-2.5"
         >
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
@@ -873,7 +906,7 @@
           <div>{{ currentChannelDetail.multiplier }}x</div>
         </div>
         <div
-          v-if="currentChannelDetail.channelType === 'standalone'"
+          v-if="['standalone', 'pooled'].includes(currentChannelDetail.channelType)"
           class="rounded border border-[var(--el-border-color-lighter)] p-2.5"
         >
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-1">
@@ -1434,6 +1467,7 @@ const {
   poolMemberPickerRows,
   poolMemberPickerPagination,
   poolMemberPickerKeyword,
+  pooledParentOptions,
   selectedPoolMemberCandidateIds,
   poolMemberInsertPosition,
   openPoolMemberPicker,

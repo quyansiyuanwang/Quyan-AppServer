@@ -2497,6 +2497,7 @@ const zhCN: DeepStringify<typeof en> = {
     channelComposition: '渠道组合',
     channelType: '渠道类型',
     channelTypeStandalone: '独立渠道',
+    channelTypePooledMember: '混池物理成员',
     channelTypePooled: '混池渠道',
     channelTypeAutomaticProxyPool: '自动代理池',
     channelTypeHelp:
@@ -2515,6 +2516,9 @@ const zhCN: DeepStringify<typeof en> = {
     poolMemberCount: '个成员',
     noPoolMembers: '无成员',
     poolMembersRequired: '混池渠道至少需要一个成员渠道',
+    pooledParent: '所属逻辑混池',
+    pooledParentHelp: '物理成员只能归属于一个逻辑混池，不会直接展示给用户。',
+    pooledParentRequired: '请选择所属逻辑混池',
     routingStrategy: '路由策略',
     routingStrategyHelp:
       '配置成员渠道的选择方式，可配合下面的策略参数实现随机、轮询、权重和故障切换。',

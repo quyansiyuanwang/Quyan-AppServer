@@ -16,7 +16,8 @@ export interface ContextLengthMultiplierRule {
   multiplier: number;
 }
 
-export type RelayChannelType = "standalone" | "pooled" | "automatic-proxy-pool";
+export type RelayChannelType = "standalone" | "pooled-member" | "pooled" | "automatic-proxy-pool";
+export type RelayChannelTopologyMode = "legacy" | "strict-two-tier";
 
 export type RelayChannelRoutingStrategy =
   | "priority"
@@ -58,6 +59,20 @@ export interface RelayChannelManagementListItemDto {
   updateTime: Date;
 }
 
+export interface RelayChannelTopologyAuditIssueDto {
+  code: string;
+  channelId?: string;
+  channelName?: string;
+  message: string;
+}
+
+/** Read-only prerequisite report for enabling strict two-tier topology. */
+export interface RelayChannelTopologyAuditDto {
+  mode: RelayChannelTopologyMode;
+  canEnableStrict: boolean;
+  issues: RelayChannelTopologyAuditIssueDto[];
+}
+
 export interface RelayChannelRoutingConfigDto {
   maxRetries?: number;
   failoverThreshold?: number;
@@ -97,6 +112,12 @@ export interface RelayChannelDto {
   visibilityMode: RelayChannelVisibilityMode;
   visibilityConfig?: RelayChannelVisibilityConfigDto;
   poolMembers?: RelayChannelMemberDto[];
+  /** The sole logical pooled parent for a physical pooled member. */
+  pooledParentId?: string;
+  pooledParentName?: string;
+  pooledPriority?: number;
+  pooledWeight?: number;
+  pooledMemberEnabled?: boolean;
   openaiUpstreamUrl?: string;
   hasOpenaiUpstreamApiKey: boolean;
   anthropicUpstreamUrl?: string;
@@ -168,6 +189,23 @@ export interface RelayCatalogOptionDto {
   modelPriceRanges?: RelayCatalogModelPriceRangeDto[];
   pricingEffectiveAt: Date;
   priceMayVary: boolean;
+}
+
+/**
+ * Safe, user-selectable routing catalog. Unlike channel-management options it
+ * intentionally excludes every physical pooled-member node and its topology.
+ */
+export interface RelayRoutingCatalogOptionDto {
+  id: string;
+  name: string;
+  enabled: boolean;
+  channelType: "standalone" | "pooled" | "automatic-proxy-pool";
+  multiplier: number;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[];
+  allowedFormats: string;
+  modelCapabilities: RelayChannelModelCapabilityDto[];
+  /** Only populated for automatic pools; members are logical pooled channels. */
+  automaticProxyPool?: RelayAutomaticProxyPoolOptionDto;
 }
 
 export interface RelayPoolPricingOptionDto {
@@ -415,6 +453,11 @@ export interface CreateRelayChannelRequest {
   visibilityConfig?: RelayChannelVisibilityConfigDto | null;
   /** 混池成员 */
   poolMembers?: RelayChannelMemberDto[] | null;
+  /** Required for pooled-member channels in strict two-tier topology mode. */
+  pooledParentId?: string | null;
+  pooledPriority?: number;
+  pooledWeight?: number;
+  pooledMemberEnabled?: boolean;
   /**
    * 价格倍率
    */
@@ -460,6 +503,11 @@ export interface UpdateRelayChannelRequest {
   visibilityConfig?: RelayChannelVisibilityConfigDto | null;
   /** 混池成员，传 [] 或 null 清空 */
   poolMembers?: RelayChannelMemberDto[] | null;
+  /** The sole logical pooled parent for a physical pooled member. */
+  pooledParentId?: string | null;
+  pooledPriority?: number;
+  pooledWeight?: number;
+  pooledMemberEnabled?: boolean;
   /** 价格倍率 */
   multiplier?: number;
   /** 允许的格式 */
