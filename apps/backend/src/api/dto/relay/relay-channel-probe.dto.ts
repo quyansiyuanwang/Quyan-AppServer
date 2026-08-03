@@ -39,6 +39,8 @@ export interface RelayChannelProbeProfileDto {
   preventCache: boolean;
   cacheMode: RelayChannelProbeCacheMode;
   sampleCount: number;
+  /** Enables the conservative three-sample, MAD outlier, and stability checks. */
+  strictCalibrationValidation: boolean;
   measurementInputTokens: number;
   balanceSettlementTolerance: number;
   balanceSettlementReads: number;
@@ -64,6 +66,8 @@ export interface UpsertRelayChannelProbeProfileRequest {
   preventCache?: boolean;
   cacheMode?: RelayChannelProbeCacheMode;
   sampleCount?: number;
+  /** Opt in to conservative multi-sample validation. The default keeps all comparable samples. */
+  strictCalibrationValidation?: boolean;
   /** Approximate minimum input token count used to make balance deltas measurable. */
   measurementInputTokens?: number;
   /** Normalized balance delta required to consider an upstream charge observable. */
@@ -150,6 +154,7 @@ export interface RelayChannelProbeRunDto {
   probeEndpoint: RelayChannelProbeEndpoint;
   cacheMode: RelayChannelProbeCacheMode;
   sampleCount: number;
+  strictCalibrationValidation: boolean;
   measurementInputTokens: number;
   balanceSettlementTolerance: number;
   balanceSettlementReads: number;

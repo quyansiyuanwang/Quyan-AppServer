@@ -33,6 +33,15 @@ describe("relay channel probe schemas", () => {
     }
   });
 
+  it("accepts the opt-in strict calibration validation setting", () => {
+    const result = upsertRelayChannelProbeProfileBodySchema.safeParse({
+      ...validProfile,
+      strictCalibrationValidation: true,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.strictCalibrationValidation).toBe(true);
+  });
+
   it("rejects an invalid balance divisor or oversized probe group", () => {
     expect(
       upsertRelayChannelProbeProfileBodySchema.safeParse({ ...validProfile, upstreamBalanceDivisor: 0 }).success,
