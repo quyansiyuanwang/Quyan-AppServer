@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { EnvSpace } from "./env";
 
-// 在测试环境中，DATABASE_URL 已经通过 vitest.config.ts 或 globalSetup.ts 设置
+// 在测试环境中，DATABASE_URL 由 Vitest database worker setup 注入。
 // Prisma 会自动使用 DATABASE_URL 环境变量
 const prisma = new PrismaClient({
   log: EnvSpace.isTest ? [] : ["warn", "error"], // 测试环境下关闭日志

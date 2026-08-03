@@ -9,7 +9,7 @@ on:
         default: full
         options: [api, full]
   pull_request:
-    branches: [staging]
+    branches: [master, staging]
     types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
@@ -43,8 +43,9 @@ jobs:
             # Tooling, shared contracts and test bootstrap changes can affect
             # every UI test; these are the only automatic full-suite cases.
             full:
-              - 'apps/frontend/vitest.config.ts'
+              - 'apps/frontend/vitest*.config.ts'
               - 'apps/frontend/tests/setup.ts'
+              - 'apps/frontend/tests/scripts/**'
               - 'apps/frontend/package.json'
               - 'apps/frontend/tsconfig*.json'
               - 'packages/shared/**'
@@ -82,9 +83,19 @@ jobs:
           bun-version: 1.3.13
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Restore generated frontend SDK
+        id: frontend-sdk-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/backend/src/build/swagger.json
+            apps/frontend/swagger.json
+            apps/frontend/src/client
+          key: frontend-sdk-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/backend/src/api/**', 'apps/backend/tsoa.json', 'apps/frontend/openapi-ts.config.ts', 'apps/frontend/scripts/generate-api-constants.js', 'apps/frontend/scripts/generate-api-types-map.js', 'apps/frontend/scripts/generate-replay-protected-endpoints.js') }}
       # src/client is intentionally ignored by Git. Every frontend test needs
       # the generated SDK, even when the changed UI code has no API impact.
       - name: Generate frontend SDK test prerequisite
+        if: steps.frontend-sdk-cache.outputs.cache-hit != 'true'
         run: |
           pnpm --filter @appserver/backend run build:info:stub
           pnpm --filter @appserver/backend run openapi:generate

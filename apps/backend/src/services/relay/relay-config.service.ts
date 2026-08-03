@@ -1,6 +1,6 @@
 import type { ModelPricingItemDto, RelayConfigDto, UpdateRelayConfigRequest } from "@/api/dto/relay/relay-config.dto";
 import { Prisma } from "@prisma/client";
-import { NotFoundError } from "@/util/errors";
+import { BadRequestError, NotFoundError } from "@/util/errors";
 import { DEFAULT_RELAY_CONFIG } from "@/constant/relay-config";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
@@ -13,6 +13,7 @@ import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { RECORD_STATUS } from "@/constant/status";
 import type { Request } from "express";
+import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
 
 const MAX_MODEL_FIELD_LENGTH = 200;
 
@@ -32,6 +33,7 @@ const summarizeRelayConfigChanges = (data: UpdateRelayConfigRequest) => ({
   upstreamStreamTimeout: data.upstreamStreamTimeout,
   enableQueue: data.enableQueue,
   apiCatalogPoolVisibility: data.apiCatalogPoolVisibility,
+  channelTopologyMode: data.channelTopologyMode,
   uptimeStatusUrl: data.uptimeStatusUrl,
   monitorNameMapping: data.monitorNameMapping,
   showOnlyConfigured: data.showOnlyConfigured,
@@ -63,6 +65,34 @@ export class RelayConfigService {
   static getInstance() {
     if (!this.instance) this.instance = new RelayConfigService();
     return this.instance;
+  }
+
+  /** Strict mode is an explicit migration gate, never a best-effort conversion. */
+  private async assertStrictTwoTierTopology(): Promise<void> {
+    const channels = await RelayChannelRepository.getInstance().listVisible();
+    const byId = new Map(channels.map((channel) => [channel.id, channel]));
+    const issues: string[] = [];
+    for (const channel of channels) {
+      const type = channel.channelType || "standalone";
+      const legacyMembers = (channel as typeof channel & { poolMembers?: unknown[] }).poolMembers ?? [];
+      if (type === "pooled" && legacyMembers.length) issues.push(`pooled '${channel.name}' still has legacy members`);
+      if (type === "pooled-member") {
+        const parent = channel.pooledParentId ? byId.get(channel.pooledParentId) : undefined;
+        if (!parent || parent.channelType !== "pooled")
+          issues.push(`pooled-member '${channel.name}' has no valid pooled parent`);
+      } else if (channel.pooledParentId) {
+        issues.push(`non-member '${channel.name}' has a pooled parent`);
+      }
+      if (type === "automatic-proxy-pool") {
+        for (const member of legacyMembers as Array<{ memberChannelId?: string }>) {
+          const target = member.memberChannelId ? byId.get(member.memberChannelId) : undefined;
+          if (!target || target.channelType !== "pooled")
+            issues.push(`automatic pool '${channel.name}' contains a non-logical-pool member`);
+        }
+      }
+    }
+    if (issues.length)
+      throw new BadRequestError(`Strict two-tier topology audit failed: ${issues.slice(0, 10).join("; ")}`);
   }
 
   private async fetchModelRates(): Promise<ModelPricingItemDto[]> {
@@ -109,6 +139,7 @@ export class RelayConfigService {
         enableQueue: defaultConfig.enableQueue,
         apiCatalogPoolVisibility:
           defaultConfig.apiCatalogPoolVisibility === "anonymous-range" ? "anonymous-range" : "hidden",
+        channelTopologyMode: defaultConfig.channelTopologyMode === "strict-two-tier" ? "strict-two-tier" : "legacy",
         uptimeStatusUrl: defaultConfig.uptimeStatusUrl || undefined,
         monitorNameMapping: toMonitorNameMapping(defaultConfig.monitorNameMapping),
         showOnlyConfigured: defaultConfig.showOnlyConfigured ?? undefined,
@@ -126,6 +157,7 @@ export class RelayConfigService {
       upstreamStreamTimeout: config.upstreamStreamTimeout,
       enableQueue: config.enableQueue,
       apiCatalogPoolVisibility: config.apiCatalogPoolVisibility === "anonymous-range" ? "anonymous-range" : "hidden",
+      channelTopologyMode: config.channelTopologyMode === "strict-two-tier" ? "strict-two-tier" : "legacy",
       uptimeStatusUrl: config.uptimeStatusUrl || undefined,
       monitorNameMapping: toMonitorNameMapping(config.monitorNameMapping),
       showOnlyConfigured: config.showOnlyConfigured ?? undefined,
@@ -148,6 +180,9 @@ export class RelayConfigService {
     }
 
     if (!existing) throw new NotFoundError("Relay config not found");
+
+    if (data.channelTopologyMode === "strict-two-tier" && existing.channelTopologyMode !== "strict-two-tier")
+      await this.assertStrictTwoTierTopology();
 
     let normalizedModelRates: RelayModelRateInput[] | undefined;
     if (data.modelRates !== undefined)
@@ -200,6 +235,7 @@ export class RelayConfigService {
         upstreamStreamTimeout: data.upstreamStreamTimeout,
         enableQueue: data.enableQueue,
         apiCatalogPoolVisibility: data.apiCatalogPoolVisibility,
+        channelTopologyMode: data.channelTopologyMode,
         uptimeStatusUrl: data.uptimeStatusUrl,
         monitorNameMapping:
           data.monitorNameMapping === null

@@ -61,7 +61,10 @@ export class AIProviderService {
     if (!this.isRecord(value)) return "";
 
     if (typeof value.text === "string") return value.text;
+    if (typeof value.output_text === "string") return value.output_text;
+    if (typeof value.value === "string") return value.value;
     if (Array.isArray(value.content)) return value.content.map((item) => this.extractTextValue(item)).join("");
+    if (Array.isArray(value.output)) return value.output.map((item) => this.extractTextValue(item)).join("");
 
     return "";
   }
@@ -76,6 +79,10 @@ export class AIProviderService {
     if (eventType === "response.output_text.delta") return this.extractTextValue(event.delta);
     if (eventType === "response.output_text") return this.extractTextValue(event.text);
     if (eventType === "response.output_text.done") return this.extractTextValue(event.text);
+
+    // Some compatible Responses upstreams omit output_text delta events and only
+    // include the completed output tree in the final event.
+    if (eventType === "response.completed") return this.extractTextValue(event.response);
 
     return "";
   }
@@ -314,7 +321,9 @@ export class AIProviderService {
       try {
         const parsed = JSON.parse(data);
         const completionDeltaText = extractTextValue(parsed?.choices?.[0]?.delta?.content);
-        const responsesEventText = extractResponseEventText(parsed);
+        const isResponsesCompletion = parsed?.type === "response.completed";
+        const responsesEventText =
+          isResponsesCompletion && assistantContentLength > 0 ? "" : extractResponseEventText(parsed);
         const content = completionDeltaText || responsesEventText;
 
         if (content.length > 0) {

@@ -43,6 +43,5 @@ export interface MessageResponse {
 export interface ChatTokenResponse {
   id: string;
   name: string | null;
-  token: string;
   allowedModels: string | null;
 }

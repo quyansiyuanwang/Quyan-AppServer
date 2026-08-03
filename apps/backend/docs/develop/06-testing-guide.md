@@ -39,28 +39,27 @@ JWT_REFRESH_EXPIRES_IN=3600
 
 关键配置：
 
-- `fileParallelism: false`: 禁用并行测试，避免数据库并发冲突
-- `globalSetup`: 全局设置文件 `tests/globalSetup.ts`
-- `setupFiles`: 测试设置文件 `tests/setup.ts`
-- `mockReset: true`: 每次测试后重置 mock
+- `backend-unit`: 纯 Node 单测，不连接 MySQL 或 Redis，可并行。运行器会先生成 Prisma Client，供间接导入 Prisma 模块的测试加载；这不是数据库 bootstrap。
+- `backend-database`: Prisma、Redis、HTTP 集成测试；每个 worker 使用独立的派生 MySQL 库及 Redis DB。
+- `backend-contract`: 仅 schema 合约检查使用 Node；需要运行时数据的 operation 合约在数据库项目中执行。
+- `mockReset: true`: 每次测试后重置 mock。
 
 ### 2.3 测试数据库初始化
 
-在运行测试前，需要初始化测试数据库：
+数据库测试在运行前自动初始化：
 
 ```bash
-# 使用测试环境变量
-export $(cat .env.test | xargs)
+# 纯单测：不连接基础设施
+pnpm run test:unit
 
-# 推送模型到测试数据库
-pnpm run db:push
+# 所有数据库、集成和运行时 contract 测试
+pnpm run test:runtime
 
-# 或使用迁移
-pnpm run db:migrate
-
-# 填充测试数据
-pnpm run db:seed
+# 清理中断测试遗留的派生数据库
+pnpm run test:db:clean
 ```
+
+`DATABASE_URL` 必须指向名称含 `test` 的专用基础库，测试帐号必须拥有该基础库同服务器上的 `CREATE/DROP DATABASE` 权限。每次运行使用随机命名空间创建 `<base>__vitest_<run>_<worker>`，结束时自动删除；不会重置基础库本身。每个数据库文件开始前，worker 以单次批量 SQL 清空其派生库，避免逐表清理在并发时发生 hook 超时。`TEST_DB_WORKERS` 控制数据库 worker 数，`TEST_REDIS_DB_BASE` 指定 Redis 逻辑库起点，二者默认保守限制在 Redis 的 16 个逻辑库范围内。CI 固定 `TEST_DB_WORKERS=2` 并设置 `TEST_REDIS_REQUIRED=true`，因此 Redis 不可用会立即失败且每个文件会清空自己的 Redis DB；本地只有设置 `TEST_REDIS_CLEANUP=true` 才连接 Redis，避免未启动 Redis 的开发环境拖慢不依赖它的持久化测试。
 
 ## 3. 运行测试
 
@@ -68,6 +67,16 @@ pnpm run db:seed
 
 ```bash
 pnpm run test
+```
+
+按范围运行：
+
+```bash
+pnpm run test:unit         # 纯 mock/逻辑测试
+pnpm run test:database     # Prisma 持久化测试
+pnpm run test:integration  # HTTP、Redis 和流程集成测试
+pnpm run test:contract     # OpenAPI schema 与 operation contract
+pnpm run test:runtime      # database + contract
 ```
 
 ### 3.2 监听模式
@@ -103,22 +112,21 @@ pnpm run test:coverage
 
 ```
 tests/
-├── globalSetup.ts          # 全局设置
-├── setup.ts                # 测试设置
-├── api/                    # API 测试
-│   ├── auth.test.ts        # 认证接口测试
-│   ├── user.test.ts        # 用户接口测试
-│   └── permission.test.ts  # 权限接口测试
-├── services/               # 服务层测试
-├── store/                  # 仓储层测试
-└── utils/                  # 工具函数测试
+├── unit/                   # *.unit.test.ts，纯 Node/mocked tests
+├── database/               # *.db.test.ts，直接 Prisma 持久化 tests
+├── integration/            # *.integration.test.ts，HTTP/Redis/API tests
+├── contract/               # *.contract.test.ts，OpenAPI tests
+├── runtime/                # worker 数据库与 Redis 隔离
+├── scripts/                # 运行器、清理与分类校验
+└── util/                   # 测试辅助工具
 ```
 
 ### 4.2 测试文件命名
 
-- 单元测试: `*.test.ts`
+- 纯单元测试: `*.unit.test.ts`
+- 数据库测试: `*.db.test.ts`
 - 集成测试: `*.integration.test.ts`
-- E2E 测试: `*.e2e.test.ts`
+- 合约测试: `*.contract.test.ts`
 
 ## 5. API 测试
 
@@ -502,7 +510,7 @@ it("should return paginated results", async () => {
 ### 10.1 运行单个测试文件
 
 ```bash
-pnpm exec vitest run tests/api/auth.test.ts
+pnpm run test:integration -- tests/integration/<name>.integration.test.ts
 ```
 
 ### 10.2 运行特定测试
@@ -528,42 +536,12 @@ it.skip("should skip this test", async () => {
 ### 10.4 查看详细输出
 
 ```bash
-pnpm exec vitest run --reporter=verbose
+pnpm run test:unit -- --reporter=verbose
 ```
 
 ## 11. 持续集成
 
-### 11.1 CI 配置示例
-
-```yaml
-# .github/workflows/test.yml
-name: Test
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: password
-          MYSQL_DATABASE: test_db
-        ports:
-          - 3306:3306
-
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: "20"
-      - run: pnpm install
-      - run: pnpm run db:push
-      - run: pnpm run test
-      - run: pnpm run test:coverage
-```
+CI 定义在仓库根目录 `.github/workflows/test-backend.yml`。它通过 paths filter 区分普通源码、API 表面和测试基础设施变更：纯单测在独立 job 中运行；运行时 job 提供 MySQL/Redis service，固定两个数据库 worker，并运行数据库与 contract 测试。相关测试无法可靠覆盖配置、Prisma、共享包或测试 runtime 变更时，CI 会升级为完整受影响套件。完整策略见仓库级 [测试与 CI 文档](../../../../docs/development/11-testing-and-ci.md)。
 
 ## 12. 性能测试
 
@@ -594,9 +572,10 @@ it("should respond within 100ms", async () => {
 
 **解决**:
 
-1. 确认测试数据库已创建
-2. 检查 `.env.test` 中的 `DATABASE_URL`
-3. 确保 MySQL 服务运行中
+1. 检查 `.env.test` 中的基础 `DATABASE_URL` 名称包含 `test`
+2. 确认测试账户拥有 `CREATE/DROP DATABASE` 权限
+3. 确保 MySQL 服务运行中；需要 Redis 严格隔离时确认 Redis 可用
+4. 中断测试后运行 `pnpm run test:db:clean` 回收派生数据库
 
 ### 13.2 测试超时
 
@@ -620,9 +599,9 @@ it("should complete long operation", async () => {
 
 **解决**:
 
-1. 使用事务回滚
-2. 在 `afterEach` 中清理数据
-3. 使用独立的测试数据库
+1. 确认测试位于 `database`、`integration` 或 runtime contract 分类
+2. 不要将 fixture 写入基础测试库；worker 会在每个文件开始前清空自己的派生库
+3. 中断测试后运行 `pnpm run test:db:clean`
 
 ## 14. 测试清单
 

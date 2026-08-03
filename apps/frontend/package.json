@@ -38,10 +38,15 @@
     "spell:check": "cspell lint \"src/**/*.{ts,js,vue}\" \"scripts/**/*.js\"",
     "--- g_test ------------------------": "",
     "test": "vitest run",
+    "test:node": "vitest run --dir tests/node",
+    "test:dom": "vitest run --dir tests/dom",
+    "test:watch:node": "vitest --dir tests/node",
+    "test:watch:dom": "vitest --dir tests/dom",
     "test:ci": "pnpm run test",
     "test:coverage": "vitest run --coverage",
+    "test:taxonomy": "node ./tests/scripts/validate-test-taxonomy.mjs",
     "--- h_check -----------------------": "",
-    "check": "pnpm run lint-format-check && pnpm run test",
+    "check": "pnpm run lint-format-check && pnpm run test:taxonomy && pnpm run test",
     "precommit": "pnpm run check"
   },
   "dependencies": {

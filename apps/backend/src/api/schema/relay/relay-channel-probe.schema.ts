@@ -9,6 +9,10 @@ const probeEndpointSchema = z.enum([
   "gemini-generate-content",
 ]);
 const probeCacheModeSchema = z.enum(["cache-bust", "allow-cache", "warm-and-read"]);
+const hasPersistedBalanceTolerancePrecision = (value: number): boolean => {
+  const scaled = value * 1_000_000;
+  return Math.abs(Math.round(scaled) - scaled) < 1e-8;
+};
 
 const workflowStepSchema = z.object({
   name: z
@@ -52,7 +56,13 @@ export const upsertRelayChannelProbeProfileBodySchema = z
     cacheMode: probeCacheModeSchema.optional(),
     sampleCount: z.coerce.number().int().min(1).max(10).optional(),
     measurementInputTokens: z.coerce.number().int().min(0).max(32_768).optional(),
-    balanceSettlementTolerance: z.coerce.number().finite().min(0.0000001).max(1_000_000).optional(),
+    balanceSettlementTolerance: z.coerce
+      .number()
+      .finite()
+      .min(0.000001)
+      .max(1_000_000)
+      .refine(hasPersistedBalanceTolerancePrecision, "balanceSettlementTolerance must have at most 6 decimal places")
+      .optional(),
     balanceSettlementReads: z.coerce.number().int().min(2).max(5).optional(),
     upstreamCurrency: z
       .string()

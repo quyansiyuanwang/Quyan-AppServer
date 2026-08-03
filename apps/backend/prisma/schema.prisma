@@ -859,6 +859,10 @@ model RelayChannel {
   updateTime                  DateTime @updatedAt
   name                        String
   channelType                 String   @default("standalone") @db.VarChar(30)
+  pooledParentId              String?
+  pooledPriority              Int      @default(0)
+  pooledWeight                Decimal  @default(1.0) @db.Decimal(10, 6)
+  pooledMemberEnabled         Boolean  @default(true)
   routingStrategy             String   @default("priority") @db.VarChar(30)
   routingConfig               Json?
   visibilityMode              String   @default("public") @db.VarChar(30)
@@ -883,6 +887,8 @@ model RelayChannel {
   tokenConfigs         RelayTokenChannelConfig[]
   poolMembers          RelayChannelMember[]      @relation("RelayChannelPool")
   memberOfPools        RelayChannelMember[]      @relation("RelayChannelPoolMember")
+  pooledParent         RelayChannel?             @relation("RelayPooledChildren", fields: [pooledParentId], references: [id], onDelete: SetNull)
+  pooledChildren       RelayChannel[]            @relation("RelayPooledChildren")
   fromSwitchLogs       RelayChannelSwitchLog[]   @relation("RelaySwitchLogFromChannel")
   toSwitchLogs         RelayChannelSwitchLog[]   @relation("RelaySwitchLogToChannel")
   ojApiKeys            OJAPIKey[]
@@ -890,6 +896,7 @@ model RelayChannel {
   probeRuns            RelayChannelProbeRun[]
 
   @@index([status])
+  @@index([pooledParentId, pooledPriority])
   @@map("relay_channels")
 }
 
@@ -1853,6 +1860,7 @@ model RelayConfig {
   upstreamStreamTimeout Int      @default(120000)
   enableQueue           Boolean  @default(true)
   apiCatalogPoolVisibility String @default("anonymous-range") @db.VarChar(20)
+  channelTopologyMode   String   @default("legacy") @db.VarChar(30)
   uptimeStatusUrl       String?  @db.Text
   monitorNameMapping    Json? // 简化的监控项名称映射 { "2": "中国主线路", "3": "国际线路" }
   showOnlyConfigured    Boolean? // 是否仅展示已配置的监控项

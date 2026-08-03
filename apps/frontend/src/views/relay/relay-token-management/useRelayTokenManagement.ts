@@ -453,7 +453,9 @@ export const useRelayTokenManagement = () => {
   )
 
   const orderedChannelOptions = computed(() =>
-    channels.value.filter((channel) => channel.channelType !== 'automatic-proxy-pool'),
+    channels.value.filter(
+      (channel) => channel.channelType === 'standalone' || channel.channelType === 'pooled',
+    ),
   )
 
   const automaticProxyPoolChannelIdSet = computed(
@@ -464,7 +466,7 @@ export const useRelayTokenManagement = () => {
     const automaticPool = automaticProxyPoolChannelOptions.value.find(
       (channel) => channel.id === editForm.value.automaticProxyPoolChannelId,
     )
-    return automaticPool?.automaticProxyPool?.members || []
+    return (automaticPool?.automaticProxyPool?.members || []).filter((member) => member.enabled)
   })
 
   const selectedChannelConfigKeys = ref<string[]>([])
@@ -1370,7 +1372,7 @@ export const useRelayTokenManagement = () => {
     channelsLoading.value = true
     channelsLoadError.value = null
     try {
-      channels.value = await relayChannelService.listChannelOptions(
+      channels.value = await relayChannelService.listRoutingCatalogOptions(
         currentTargetUserIdForRequest.value,
       )
     } catch (error) {

@@ -724,7 +724,7 @@
               </el-table-column>
               <el-table-column :label="i18ns.t('relay.channelMultiplier')" width="100">
                 <template #default="{ row }">
-                  <template v-if="!['pooled', 'automatic-proxy-pool'].includes(row.channelType)">
+                  <template v-if="row.channelType !== 'automatic-proxy-pool'">
                     {{ row.multiplier }}x
                   </template>
                 </template>

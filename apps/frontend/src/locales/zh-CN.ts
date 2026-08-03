@@ -2450,10 +2450,19 @@ const zhCN: DeepStringify<typeof en> = {
       '将配置应用到已选的 {count} 个渠道。只有勾选的字段组会被提交，未勾选的字段保持各渠道原值。',
     batchEditSafeFieldsHelp:
       '批量编辑不会修改渠道名称、上游地址或密钥、渠道类型及混池成员拓扑。渠道会逐条校验，不兼容项会保留并说明原因。',
+    batchEditBasicsTab: '基础设置',
+    batchEditModelsTab: '模型与映射',
+    batchEditAccessRoutingTab: '可见范围与路由',
+    batchEditMultiplierRulesTab: '倍率规则',
+    batchEditRulesInvalid: '请为每条规则填写名称和完整的时间范围。',
+    batchEditFormatsRequired: '请至少选择一种请求格式。',
+    batchEditWhitelistRequired: '白名单至少需要选择一个用户、用户组或角色。',
+    batchEditAdvancedRouting: '高级路由条件',
+    batchEditAllowedModelsMode: '混池模型来源',
     batchEditBasic: '运行与基础计费',
     batchEditUserIdentifier: '附加用户标识',
     batchEditRestrictModels: '限制允许模型',
-    batchEditVisibilityConfig: '可见范围 JSON',
+    batchEditVisibilityConfig: '可见范围',
     batchEditInvalidJson: '{field} 不是有效的 JSON',
     batchEditRejected: '{count} 个渠道未更新',
     applyBatchEdit: '应用批量编辑',
@@ -2488,6 +2497,7 @@ const zhCN: DeepStringify<typeof en> = {
     channelComposition: '渠道组合',
     channelType: '渠道类型',
     channelTypeStandalone: '独立渠道',
+    channelTypePooledMember: '混池物理成员',
     channelTypePooled: '混池渠道',
     channelTypeAutomaticProxyPool: '自动代理池',
     channelTypeHelp:
@@ -2506,6 +2516,9 @@ const zhCN: DeepStringify<typeof en> = {
     poolMemberCount: '个成员',
     noPoolMembers: '无成员',
     poolMembersRequired: '混池渠道至少需要一个成员渠道',
+    pooledParent: '所属逻辑混池',
+    pooledParentHelp: '物理成员只能归属于一个逻辑混池，不会直接展示给用户。',
+    pooledParentRequired: '请选择所属逻辑混池',
     routingStrategy: '路由策略',
     routingStrategyHelp:
       '配置成员渠道的选择方式，可配合下面的策略参数实现随机、轮询、权重和故障切换。',
@@ -2645,6 +2658,8 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeCalibrationUnstable: '余额或样本波动过大',
     channelProbeCalibrationPending: '等待校准',
     channelProbeInvalidSampleCount: '采样次数必须是 1 到 10 的整数',
+    channelProbeInvalidBalanceSettlementTolerance:
+      '余额可分辨阈值必须介于 0.000001 和 1000000 之间',
     channelProbeSampleSummary: '采样汇总',
     channelProbeSampleSummaryValue:
       '接受 {accepted}/{total}；完成 {succeeded}；剔除异常 {discarded}',

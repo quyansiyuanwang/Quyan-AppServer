@@ -2536,10 +2536,19 @@ export default {
       "Apply settings to {count} selected channels. Only checked field groups are sent; unchecked fields keep each channel's current value.",
     batchEditSafeFieldsHelp:
       'Batch editing never changes channel names, upstream URLs or keys, channel types, or pool membership. Channels are validated independently and incompatible entries are reported.',
+    batchEditBasicsTab: 'Basics',
+    batchEditModelsTab: 'Models and Mapping',
+    batchEditAccessRoutingTab: 'Access and Routing',
+    batchEditMultiplierRulesTab: 'Multiplier Rules',
+    batchEditRulesInvalid: 'Give every rule a name and a complete time range.',
+    batchEditFormatsRequired: 'Select at least one request format.',
+    batchEditWhitelistRequired: 'Select at least one user, group, or role for the whitelist.',
+    batchEditAdvancedRouting: 'Advanced Routing Conditions',
+    batchEditAllowedModelsMode: 'Pool Model Source',
     batchEditBasic: 'Operation and Base Pricing',
     batchEditUserIdentifier: 'Add User Identifier',
     batchEditRestrictModels: 'Restrict Allowed Models',
-    batchEditVisibilityConfig: 'Visibility Scope JSON',
+    batchEditVisibilityConfig: 'Visibility Scope',
     batchEditInvalidJson: '{field} is not valid JSON',
     batchEditRejected: '{count} channels were not updated',
     applyBatchEdit: 'Apply Batch Edit',
@@ -2575,6 +2584,7 @@ export default {
     channelComposition: 'Channel Composition',
     channelType: 'Channel Type',
     channelTypeStandalone: 'Standalone',
+    channelTypePooledMember: 'Pooled Member',
     channelTypePooled: 'Pooled',
     channelTypeAutomaticProxyPool: 'Automatic Proxy Pool',
     channelTypeHelp:
@@ -2594,6 +2604,10 @@ export default {
     poolMemberCount: 'members',
     noPoolMembers: 'No members',
     poolMembersRequired: 'A pooled channel must contain at least one member channel',
+    pooledParent: 'Logical Pool Parent',
+    pooledParentHelp:
+      'A physical member belongs to exactly one logical pool and is never user-visible.',
+    pooledParentRequired: 'Select a logical pool parent',
     routingStrategy: 'Routing Strategy',
     routingStrategyHelp:
       'Choose how member channels are selected. Combine it with the parameters below for randomization, round-robin, weighting, and failover behavior.',
@@ -2740,6 +2754,8 @@ export default {
     channelProbeCalibrationUnstable: 'Balance or sample variation is too high',
     channelProbeCalibrationPending: 'Calibration pending',
     channelProbeInvalidSampleCount: 'Sample count must be an integer from 1 to 10',
+    channelProbeInvalidBalanceSettlementTolerance:
+      'Balance resolution threshold must be between 0.000001 and 1000000',
     channelProbeSampleSummary: 'Sample summary',
     channelProbeSampleSummaryValue:
       '{accepted}/{total} accepted; {succeeded} completed; {discarded} outliers removed',

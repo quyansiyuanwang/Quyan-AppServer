@@ -218,6 +218,24 @@ export default [
   },
 
   {
+    name: "app/test-unit-prisma-boundary",
+    files: ["tests/unit/**/*.unit.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/config/database",
+              message: "Pure unit tests must mock persistence boundaries instead of importing the Prisma runtime.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  {
     name: "app/src-service-layer-boundary",
     files: ["src/services/**/*.ts"],
     rules: {

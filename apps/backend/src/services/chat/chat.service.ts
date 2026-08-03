@@ -343,6 +343,11 @@ export class ChatService {
             isStreaming = chunk.isStreaming ?? true;
           }
         }
+        if (!firstChunkAt) {
+          lastError = new BadRequestError("Upstream completed without a visible response");
+          effectiveCandidate = null;
+          if (attemptIndex < attemptCandidates.length - 1) continue;
+        }
         break;
       } catch (error) {
         if (this.isAborted(error, requestMeta?.signal)) {
@@ -507,7 +512,6 @@ export class ChatService {
         return {
           id: token.id,
           name: token.name,
-          token: token.token,
           allowedModels: allowedModels.join(","),
         };
       }),

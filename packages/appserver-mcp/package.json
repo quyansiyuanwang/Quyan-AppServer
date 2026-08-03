@@ -1,0 +1,29 @@
+{
+  "name": "@appserver/mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "build": "pnpm run type-check",
+    "type-check": "pnpm exec tsc --noEmit",
+    "lint": "pnpm exec eslint --config eslint.config.mjs src test --fix",
+    "lint:check": "pnpm exec eslint --config eslint.config.mjs src test",
+    "format": "pnpm exec prettier --write src test package.json tsconfig.json",
+    "format:check": "pnpm exec prettier --check src test package.json tsconfig.json",
+    "spell:check": "pnpm exec cspell lint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^22.18.11",
+    "bun-types": "^1.3.14",
+    "globals": "^17.7.0",
+    "typescript-eslint": "^8.46.0",
+    "typescript": "^5.9.3"
+  }
+}

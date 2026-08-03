@@ -24,6 +24,7 @@ import type {
   BatchUpdateRelayChannelHealthConfigRequest,
   RelayChannelDto,
   RelayCatalogOptionDto,
+  RelayRoutingCatalogOptionDto,
   RelayChannelOptionDto,
   CreateRelayChannelRequest,
   DuplicateRelayChannelRequest,
@@ -32,6 +33,7 @@ import type {
   ImportRelayChannelsResponse,
   RelayChannelExportResponse,
   RelayChannelManagementListItemDto,
+  RelayChannelTopologyAuditDto,
   RelayChannelHealthDto,
   RelayChannelHealthOverviewDto,
   RelayAutomaticPoolHealthDto,
@@ -99,6 +101,13 @@ export class RelayChannelController extends Controller {
     });
   }
 
+  @Get("topology-audit")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  public async getTopologyAudit(@Request() request: TypedRequest): Promise<RelayChannelTopologyAuditDto> {
+    return this.channelService.getTopologyAudit(request.user!.userId);
+  }
+
   /**
    * Lists caller-visible channel capabilities. Automatic proxy pools include limited member and routing data
    * needed to disclose variable pricing, while upstream credentials, URLs, mappings, and visibility rules remain hidden.
@@ -121,6 +130,25 @@ export class RelayChannelController extends Controller {
     @Query() excludePooled?: boolean,
   ): Promise<RelayChannelOptionDto[]> {
     return this.channelService.listChannelOptions(request.user!.userId, targetUserId, { excludePooled });
+  }
+
+  /** Safe directory for token and other end-user routing selectors. */
+  @Get("routing-catalog")
+  @Security("jwt")
+  @RequireAnyPermission([
+    Permission.RELAY_TOKEN_CREATE,
+    Permission.RELAY_TOKEN_READ,
+    Permission.MONTHLY_PASS_TEMPLATE_READ,
+    Permission.MONTHLY_PASS_TEMPLATE_WRITE,
+    Permission.OJ_APIKEY_CREATE,
+    Permission.OJ_APIKEY_READ,
+    Permission.OJ_APIKEY_UPDATE,
+  ])
+  public async listRoutingCatalogOptions(
+    @Request() request: TypedRequest,
+    @Query() targetUserId?: string,
+  ): Promise<RelayRoutingCatalogOptionDto[]> {
+    return this.channelService.listRoutingCatalogOptions(request.user!.userId, targetUserId);
   }
 
   /**

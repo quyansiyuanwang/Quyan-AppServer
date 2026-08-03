@@ -114,6 +114,7 @@ middleware
 middlewares
 Menlo
 modelandaction
+modelcontextprotocol
 Modelid
 monorepo
 mysqldump
