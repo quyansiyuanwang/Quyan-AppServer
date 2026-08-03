@@ -2,7 +2,7 @@
 
 This page provides a complete minimal authorization-code demo, including diagrams plus Node and Python templates.
 
-If you would rather start from a full runnable project instead of assembling the snippets manually, start with `ServerSDK/demos/oauth/node/`, or pick a language-specific sample from `ServerSDK/sdks/oauth/*`.
+If you would rather start from a full runnable project instead of assembling the snippets manually, start with `integrations/server-sdk/demos/oauth/node/`, or pick a language-specific sample from `integrations/server-sdk/sdks/oauth/*`.
 
 <div class="docs-jump-grid">
   <a class="docs-jump-card" href="/en/node-sdk">
@@ -33,11 +33,11 @@ sequenceDiagram
     participant Api as AppServer API
 
     User->>Client: Click "Sign in with AppServer"
-    Client->>Auth: GET /oauth/authorize\nclient_id + redirect_uri + scope + state
+    Client->>Auth: GET /v1/oauth/authorize\nclient_id + redirect_uri + scope + state
     Auth->>User: Show login / consent page
     User->>Auth: Sign in and approve
     Auth-->>Client: 302 redirect\ncode + state
-    Client->>Token: POST /oauth/token\ncode + client_id + client_secret
+    Client->>Token: POST /v1/oauth/token\ncode + client_id + client_secret
     Token-->>Client: access_token
     Client->>Api: GET /api/user/profile\nAuthorization: Bearer access_token
     Api-->>Client: User profile data
@@ -49,12 +49,12 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     A[Create OAuth app] --> B[Register Redirect URI]
-    B --> C[Build /oauth/authorize URL]
+    B --> C[Build /v1/oauth/authorize URL]
     C --> D[User signs in and approves]
     D --> E{Approved?}
     E -- No --> F[Return cancel or error result]
     E -- Yes --> G[Callback receives code]
-    G --> H[Backend calls /oauth/token]
+    G --> H[Backend calls /v1/oauth/token]
     H --> I{Token exchange success?}
     I -- No --> J[Log error and retry safely]
     I -- Yes --> K[Call business API with access_token]
@@ -66,7 +66,7 @@ flowchart TD
 ### Suggested structure
 
 ```text
-ServerSDK/demos/oauth/node/
+integrations/server-sdk/demos/oauth/node/
 ├─ package.json
 ├─ .env
 └─ src/server.mjs
@@ -125,7 +125,7 @@ app.get('/', (_req, res) => {
 
 app.get('/login', (_req, res) => {
   const state = crypto.randomUUID()
-  const authorizeUrl = new URL('/oauth/authorize', apiBaseUrl)
+  const authorizeUrl = new URL('/v1/oauth/authorize', apiBaseUrl)
   authorizeUrl.searchParams.set('response_type', 'code')
   authorizeUrl.searchParams.set('client_id', clientId)
   authorizeUrl.searchParams.set('redirect_uri', redirectUri)
@@ -143,7 +143,7 @@ app.get('/oauth/callback', async (req, res) => {
     return
   }
 
-  const tokenResponse = await fetch(new URL('/oauth/token', apiBaseUrl), {
+  const tokenResponse = await fetch(new URL('/v1/oauth/token', apiBaseUrl), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -190,7 +190,7 @@ app.listen(port, () => {
 ### Suggested structure
 
 ```text
-ServerSDK/sdks/oauth/python/
+integrations/server-sdk/sdks/oauth/python/
 ├─ requirements.txt
 ├─ .env
 └─ app.py
@@ -257,7 +257,7 @@ def login():
             "state": state,
         }
     )
-    return redirect(f"{APPSERVER_BASE_URL}/oauth/authorize?{query}")
+    return redirect(f"{APPSERVER_BASE_URL}/v1/oauth/authorize?{query}")
 
 
 @app.get("/oauth/callback")
@@ -268,7 +268,7 @@ def oauth_callback():
         return jsonify({"error": "missing_code", "query": request.args}), 400
 
     token_response = requests.post(
-        f"{APPSERVER_BASE_URL}/oauth/token",
+        f"{APPSERVER_BASE_URL}/v1/oauth/token",
         json={
             "grant_type": "authorization_code",
             "code": code,
@@ -288,7 +288,7 @@ def oauth_callback():
         return jsonify({"error": "token_exchange_failed", "tokenPayload": token_payload}), 502
 
     profile_response = requests.get(
-        f"{APPSERVER_BASE_URL}/api/user/profile",
+        f"{APPSERVER_BASE_URL}/v1/users/me",
         headers={"Authorization": f"Bearer {access_token}"},
         timeout=15,
     )
@@ -313,8 +313,8 @@ If the app is a public client, such as a desktop app, CLI, mobile app, or anothe
 
 Key differences:
 
-- send `code_challenge` and `code_challenge_method=S256` to `/oauth/authorize`
-- send `code_verifier` to `/oauth/token`
+- send `code_challenge` and `code_challenge_method=S256` to `/v1/oauth/authorize`
+- send `code_verifier` to `/v1/oauth/token`
 - public clients normally do **not** send `client_secret`
 
 ### Node PKCE example
@@ -336,7 +336,7 @@ function createPkcePair() {
 const { codeVerifier, codeChallenge, codeChallengeMethod } = createPkcePair()
 const state = crypto.randomUUID()
 
-const authorizeUrl = new URL('/oauth/authorize', process.env.APPSERVER_BASE_URL)
+const authorizeUrl = new URL('/v1/oauth/authorize', process.env.APPSERVER_BASE_URL)
 authorizeUrl.searchParams.set('response_type', 'code')
 authorizeUrl.searchParams.set('client_id', process.env.CLIENT_ID)
 authorizeUrl.searchParams.set('redirect_uri', process.env.REDIRECT_URI)
@@ -351,7 +351,7 @@ console.log(authorizeUrl.toString())
 // After the browser redirects back, paste the callback code here.
 const code = 'paste_callback_code_here'
 
-const tokenResponse = await fetch(new URL('/oauth/token', process.env.APPSERVER_BASE_URL), {
+const tokenResponse = await fetch(new URL('/v1/oauth/token', process.env.APPSERVER_BASE_URL), {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -404,13 +404,13 @@ authorize_query = urlencode(
 )
 
 print("Open this URL in the browser:")
-print(f"{os.getenv('APPSERVER_BASE_URL', 'http://localhost:10001')}/oauth/authorize?{authorize_query}")
+print(f"{os.getenv('APPSERVER_BASE_URL', 'http://localhost:10001')}/v1/oauth/authorize?{authorize_query}")
 
 # After the browser redirects back, paste the callback code here.
 code = "paste_callback_code_here"
 
 token_response = requests.post(
-    f"{os.getenv('APPSERVER_BASE_URL', 'http://localhost:10001')}/oauth/token",
+    f"{os.getenv('APPSERVER_BASE_URL', 'http://localhost:10001')}/v1/oauth/token",
     json={
         "grant_type": "authorization_code",
         "code": code,

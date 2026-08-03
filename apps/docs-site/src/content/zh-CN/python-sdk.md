@@ -27,7 +27,7 @@
 ## 推荐目录
 
 ```text
-ServerSDK/sdks/oauth/python/
+integrations/server-sdk/sdks/oauth/python/
 ├─ requirements.txt
 ├─ .env
 └─ app.py
