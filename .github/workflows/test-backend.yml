@@ -9,7 +9,7 @@ on:
         default: full
         options: [api, full]
   pull_request:
-    branches: [master, staging]
+    branches: [staging]
     types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
