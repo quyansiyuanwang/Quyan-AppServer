@@ -61,6 +61,7 @@ export class RelayChannelProbeRepository {
       preventCache: source.preventCache,
       cacheMode: source.cacheMode,
       sampleCount: source.sampleCount,
+      strictCalibrationValidation: source.strictCalibrationValidation,
       measurementInputTokens: source.measurementInputTokens,
       balanceSettlementTolerance: source.balanceSettlementTolerance,
       balanceSettlementReads: source.balanceSettlementReads,

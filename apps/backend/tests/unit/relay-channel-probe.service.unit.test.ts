@@ -5,6 +5,7 @@ import {
   calculateSuggestedProbeMultiplier,
   createDefaultProbePayload,
   defaultProbeEndpoint,
+  finalizeProbeCalibration,
   findProbeOutlierIndexes,
   formatProbeUpstreamError,
   getProbeSchedulingScope,
@@ -23,6 +24,7 @@ import {
   waitForProbeSettlement,
 } from "../../src/services/relay/relay-channel-probe.service";
 import type { RelayChannelProbeTopologyItem } from "../../src/services/relay/relay-channel-probe.service";
+import type { RelayChannelProbeSampleDto } from "../../src/api/dto/relay/relay-channel-probe.dto";
 
 describe("relay channel probe helpers", () => {
   it("uses the shared channel format parser for probe endpoint availability", () => {
@@ -261,6 +263,34 @@ describe("relay channel probe helpers", () => {
     expect([...findProbeOutlierIndexes([1, 1.01, 0.99, 7])]).toEqual([3]);
     expect([...findProbeOutlierIndexes([1, 1.01])]).toEqual([]);
     expect([...findProbeOutlierIndexes([1, 1, 1, 1])]).toEqual([]);
+  });
+
+  it("keeps a single comparable sample when strict calibration validation is disabled", () => {
+    const samples: RelayChannelProbeSampleDto[] = [
+      { index: 1, status: "succeeded", accepted: true, suggestedMultiplier: 1.25 },
+    ];
+
+    const result = finalizeProbeCalibration(samples, false);
+
+    expect(result.calibrationStatus).toBe("verified");
+    expect(result.accepted).toHaveLength(1);
+    expect(result.discardedCount).toBe(0);
+  });
+
+  it("uses the established sample count and MAD checks only in strict calibration mode", () => {
+    const samples: RelayChannelProbeSampleDto[] = [
+      { index: 1, status: "succeeded", accepted: true, suggestedMultiplier: 1 },
+      { index: 2, status: "succeeded", accepted: true, suggestedMultiplier: 1.01 },
+      { index: 3, status: "succeeded", accepted: true, suggestedMultiplier: 0.99 },
+      { index: 4, status: "succeeded", accepted: true, suggestedMultiplier: 7 },
+    ];
+
+    const result = finalizeProbeCalibration(samples, true);
+
+    expect(result.calibrationStatus).toBe("verified");
+    expect(result.accepted).toHaveLength(3);
+    expect(result.discardedCount).toBe(1);
+    expect(samples[3]).toMatchObject({ status: "discarded", accepted: false });
   });
 
   it("rejects a 2xx upstream response that does not contain billable usage", () => {

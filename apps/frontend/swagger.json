@@ -40246,6 +40246,10 @@
 						"type": "number",
 						"format": "double"
 					},
+					"strictCalibrationValidation": {
+						"type": "boolean",
+						"description": "Enables the conservative three-sample, MAD outlier, and stability checks."
+					},
 					"measurementInputTokens": {
 						"type": "number",
 						"format": "double"
@@ -40312,6 +40316,7 @@
 					"preventCache",
 					"cacheMode",
 					"sampleCount",
+					"strictCalibrationValidation",
 					"measurementInputTokens",
 					"balanceSettlementTolerance",
 					"balanceSettlementReads",
@@ -40575,6 +40580,9 @@
 						"type": "number",
 						"format": "double"
 					},
+					"strictCalibrationValidation": {
+						"type": "boolean"
+					},
 					"measurementInputTokens": {
 						"type": "number",
 						"format": "double"
@@ -40763,6 +40771,7 @@
 					"probeEndpoint",
 					"cacheMode",
 					"sampleCount",
+					"strictCalibrationValidation",
 					"measurementInputTokens",
 					"balanceSettlementTolerance",
 					"balanceSettlementReads",
@@ -40875,6 +40884,10 @@
 					"sampleCount": {
 						"type": "number",
 						"format": "double"
+					},
+					"strictCalibrationValidation": {
+						"type": "boolean",
+						"description": "Opt in to conservative multi-sample validation. The default keeps all comparable samples."
 					},
 					"measurementInputTokens": {
 						"type": "number",

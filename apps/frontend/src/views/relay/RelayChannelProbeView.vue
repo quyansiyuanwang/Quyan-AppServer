@@ -385,6 +385,15 @@
                         i18ns.t('relay.channelProbeSampleCountHelp')
                       }}</span>
                     </el-form-item>
+                    <el-form-item :label="i18ns.t('relay.channelProbeStrictCalibrationValidation')">
+                      <el-switch
+                        v-model="form.strictCalibrationValidation"
+                        :disabled="!canExecute"
+                      />
+                      <span class="probe-form-help">{{
+                        i18ns.t('relay.channelProbeStrictCalibrationValidationHelp')
+                      }}</span>
+                    </el-form-item>
                     <el-form-item :label="i18ns.t('relay.channelProbeMeasurementInputTokens')">
                       <el-input-number
                         v-model="form.measurementInputTokens"
@@ -974,6 +983,13 @@
                   discarded: runItem.sampleDiscardedCount,
                 })
               }}</el-descriptions-item
+              ><el-descriptions-item
+                :label="i18ns.t('relay.channelProbeStrictCalibrationValidation')"
+                >{{
+                  runItem.strictCalibrationValidation
+                    ? i18ns.t('relay.channelProbeValidationEnabled')
+                    : i18ns.t('relay.channelProbeValidationDisabled')
+                }}</el-descriptions-item
               ><el-descriptions-item :label="i18ns.t('relay.channelProbeWarmup')">{{
                 runItem.warmupRequestCount
                   ? i18ns.t('relay.channelProbeWarmupValue', {
@@ -1485,6 +1501,7 @@ interface ProbeForm {
   probeEndpoint: RelayChannelProbeEndpoint
   cacheMode: RelayChannelProbeCacheMode
   sampleCount: number
+  strictCalibrationValidation: boolean
   measurementInputTokens: number
   balanceSettlementTolerance: number
   balanceSettlementReads: number
@@ -1832,6 +1849,7 @@ function emptyForm(): ProbeForm {
     probeEndpoint: 'openai-chat-completions',
     cacheMode: 'cache-bust',
     sampleCount: 3,
+    strictCalibrationValidation: false,
     measurementInputTokens: 1024,
     balanceSettlementTolerance: 0.000001,
     balanceSettlementReads: 2,
@@ -2060,6 +2078,7 @@ function parseImportedProfile(): ProbeProfileExport['profile'] {
             ? 'allow-cache'
             : 'cache-bust',
       sampleCount: validSampleCount(source.sampleCount),
+      strictCalibrationValidation: source.strictCalibrationValidation === true,
       measurementInputTokens: validMeasurementInputTokens(source.measurementInputTokens),
       balanceSettlementTolerance: validBalanceSettlementTolerance(
         source.balanceSettlementTolerance,
@@ -2137,6 +2156,7 @@ function applyImportedConfiguration() {
       probeEndpoint: imported.probeEndpoint,
       cacheMode: imported.cacheMode,
       sampleCount: imported.sampleCount,
+      strictCalibrationValidation: imported.strictCalibrationValidation,
       measurementInputTokens: imported.measurementInputTokens,
       balanceSettlementTolerance: imported.balanceSettlementTolerance,
       balanceSettlementReads: imported.balanceSettlementReads,
@@ -2212,7 +2232,6 @@ function isApplicable(run?: RelayChannelProbeRunDto) {
     run &&
       run.status === 'succeeded' &&
       run.calibrationStatus === 'verified' &&
-      run.sampleAcceptedCount >= 3 &&
       run.suggestedMultiplier != null &&
       !run.appliedAt,
   )
@@ -2792,6 +2811,7 @@ async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
         probeEndpoint: profile.probeEndpoint,
         cacheMode: profile.cacheMode,
         sampleCount: profile.sampleCount,
+        strictCalibrationValidation: profile.strictCalibrationValidation,
         measurementInputTokens: profile.measurementInputTokens,
         balanceSettlementTolerance: profile.balanceSettlementTolerance,
         balanceSettlementReads: profile.balanceSettlementReads,
