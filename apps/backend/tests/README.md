@@ -16,3 +16,5 @@
   - Shared test helpers and mock plugins.
 
 Use `test:unit` for fast local feedback, `test:runtime` for all persistence/API checks, and `test:db:clean` only after an interrupted database run.
+
+All backend test commands run Prisma Client generation once before Vitest starts. This is a local code-generation prerequisite for modules that import Prisma types; it does not connect to MySQL, create a database, or run `db push`. Those operations remain exclusive to the database and integration projects.
