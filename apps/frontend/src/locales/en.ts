@@ -2682,6 +2682,8 @@ export default {
     channelProbeExportChangeChart: 'Export customer notice',
     channelProbeExportAppliedChangeChart:
       'Export a customer notice for the selected changes after applying',
+    channelProbeForceLargeChange:
+      'Force large multiplier changes (skip the second independent, stable probe confirmation)',
     channelProbeExportChangeChartEmpty: 'There are no multiplier changes to export',
     channelProbeExportChangeChartNoPublic: 'There are no customer-facing channel changes to export',
     channelProbeExportChangeCharted: 'Multiplier change chart exported',

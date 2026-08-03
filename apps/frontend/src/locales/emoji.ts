@@ -2770,6 +2770,7 @@ const emoji: DeepStringify<typeof en> = {
     channelProbeCustomerNoticeCount: '📣 {count}',
     channelProbeExportChangeChart: '🖼️ ⬇️',
     channelProbeExportAppliedChangeChart: '✅ ⬇️ 🖼️',
+    channelProbeForceLargeChange: '⚠️ 📈 ⏭️ 🔬',
     channelProbeExportChangeChartEmpty: '∅',
     channelProbeExportChangeChartNoPublic: '∅ 🌐',
     channelProbeExportChangeCharted: '✅ 🖼️',

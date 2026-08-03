@@ -137,21 +137,30 @@
       </el-table-column>
     </el-table>
     <template #footer>
-      <el-button @click="applyDialogOpen = false">{{ i18ns.t('cancel') }}</el-button>
-      <el-checkbox
-        v-model="exportAppliedChangeChart"
-        :disabled="selectedApplyRunIds.length === 0"
-        >{{ i18ns.t('relay.channelProbeExportAppliedChangeChart') }}</el-checkbox
-      >
-      <el-button
-        type="primary"
-        :disabled="selectedApplyRunIds.length === 0"
-        :loading="applying"
-        @click="submitApplyMultipliers"
-        >{{
-          i18ns.t('relay.channelProbeApplySelected', { count: selectedApplyRunIds.length })
-        }}</el-button
-      >
+      <div class="apply-dialog-footer">
+        <div class="apply-dialog-options">
+          <el-checkbox
+            v-if="hasLargeMultiplierChange"
+            v-model="forceLargeMultiplierChange"
+            :disabled="selectedApplyRunIds.length === 0"
+            class="apply-dialog-option"
+          >{{ i18ns.t('relay.channelProbeForceLargeChange') }}</el-checkbox>
+          <el-checkbox
+            v-model="exportAppliedChangeChart"
+            :disabled="selectedApplyRunIds.length === 0"
+            class="apply-dialog-option"
+          >{{ i18ns.t('relay.channelProbeExportAppliedChangeChart') }}</el-checkbox>
+        </div>
+        <div class="apply-dialog-actions">
+          <el-button @click="applyDialogOpen = false">{{ i18ns.t('cancel') }}</el-button>
+          <el-button
+            type="primary"
+            :disabled="selectedApplyRunIds.length === 0"
+            :loading="applying"
+            @click="submitApplyMultipliers"
+          >{{ i18ns.t('relay.channelProbeApplySelected', { count: selectedApplyRunIds.length }) }}</el-button>
+        </div>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -168,9 +177,11 @@ const {
   applying,
   clearDraftSelection,
   exportAppliedChangeChart,
+  forceLargeMultiplierChange,
   formatMultiplierChange,
   formatMultiplierChangePercent,
   formatNumber,
+  hasLargeMultiplierChange,
   multiplierChangeClass,
   multiplierDirectionClass,
   multiplierDirectionLabel,

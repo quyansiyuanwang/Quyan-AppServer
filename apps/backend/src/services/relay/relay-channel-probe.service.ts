@@ -75,6 +75,24 @@ const MIN_VERIFIED_SAMPLE_COUNT = 3;
 const MAX_ACCEPTED_SAMPLE_SPREAD = 0.2;
 const LARGE_MULTIPLIER_CHANGE_RATIO = 0.2;
 
+export function requiresLargeMultiplierConfirmation(
+  sourceMultiplier: number,
+  targetMultiplier: number,
+  previousSuggestedMultiplier?: number,
+): boolean {
+  if (
+    Math.abs(targetMultiplier - sourceMultiplier) / Math.max(sourceMultiplier, Number.EPSILON) <=
+    LARGE_MULTIPLIER_CHANGE_RATIO
+  )
+    return false;
+  return (
+    previousSuggestedMultiplier == null ||
+    Math.abs(previousSuggestedMultiplier - targetMultiplier) /
+      Math.max(targetMultiplier, Number.EPSILON) >
+      0.1
+  );
+}
+
 type ProbeProfileRecord = RelayChannelProbeProfileRecord;
 type ProbeRunRecord = RelayChannelProbeRunRecord;
 export type RelayChannelProbeTopologyItem = Pick<
@@ -1047,6 +1065,7 @@ export class RelayChannelProbeService {
         const targetMultiplier = overrides.get(run.id) ?? Number(run.suggestedMultiplier);
         const sourceMultiplier = Number(run.sourceChannelMultiplier);
         if (
+          !body.forceLargeChange &&
           Math.abs(targetMultiplier - sourceMultiplier) / Math.max(sourceMultiplier, Number.EPSILON) >
           LARGE_MULTIPLIER_CHANGE_RATIO
         ) {
@@ -1055,11 +1074,16 @@ export class RelayChannelProbeService {
             run.id,
             new Date(Date.now() - SUGGESTION_MAX_AGE_MS),
           );
+          const previousSuggestedMultiplier =
+            previous[0]?.suggestedMultiplier == null
+              ? undefined
+              : Number(previous[0].suggestedMultiplier);
           if (
-            !previous[0]?.suggestedMultiplier ||
-            Math.abs(Number(previous[0].suggestedMultiplier) - targetMultiplier) /
-              Math.max(targetMultiplier, Number.EPSILON) >
-              0.1
+            requiresLargeMultiplierConfirmation(
+              sourceMultiplier,
+              targetMultiplier,
+              previousSuggestedMultiplier,
+            )
           )
             throw new BadRequestError("大幅倍率变更需要另一条独立、稳定的探针结果确认");
         }

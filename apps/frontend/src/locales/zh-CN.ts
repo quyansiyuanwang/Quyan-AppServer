@@ -2589,6 +2589,7 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeCustomerNoticeCount: '用户通知 {count} 项',
     channelProbeExportChangeChart: '导出用户通知图',
     channelProbeExportAppliedChangeChart: '应用后导出本次已勾选渠道的用户通知图',
+    channelProbeForceLargeChange: '强制应用大幅倍率变更（跳过第二条独立稳定探针确认）',
     channelProbeExportChangeChartEmpty: '当前没有可导出的倍率变化',
     channelProbeExportChangeChartNoPublic: '没有可面向用户通知的渠道倍率变化',
     channelProbeExportChangeCharted: '倍率变化图已导出',

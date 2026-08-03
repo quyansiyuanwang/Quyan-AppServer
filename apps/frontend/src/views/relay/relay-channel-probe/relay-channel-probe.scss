@@ -365,6 +365,31 @@
   color: var(--el-text-color-secondary);
   font-size: 13px;
 }
+.apply-dialog-footer {
+  display: grid;
+  gap: 12px;
+}
+.apply-dialog-options {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.apply-dialog-option {
+  align-items: flex-start;
+  height: auto;
+  margin-right: 0;
+  text-align: left;
+}
+.apply-dialog-option .el-checkbox__label {
+  white-space: normal;
+  line-height: 1.45;
+}
+.apply-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .calibration-toolbar .el-input-number {
   width: 112px;
 }

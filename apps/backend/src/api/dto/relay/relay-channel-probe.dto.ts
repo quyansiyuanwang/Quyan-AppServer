@@ -258,6 +258,8 @@ export interface ApplyRelayChannelProbeRunsRequest {
   runIds: string[];
   /** Optional operator-confirmed values, used for rounding or a deliberate calibration adjustment. */
   overrides?: Array<{ runId: string; multiplier: number }>;
+  /** Explicitly bypass the second stable probe requirement for large multiplier changes. */
+  forceLargeChange?: boolean;
 }
 
 export interface ApplyRelayChannelProbeRunsResponse {

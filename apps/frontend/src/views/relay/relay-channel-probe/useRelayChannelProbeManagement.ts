@@ -93,6 +93,9 @@ type CredentialRequirement = {
 }
 
 export const useRelayChannelProbeManagement = () => {
+  // Keep this aligned with the backend's large-change guard. The value only
+  // controls whether the explicit override control is relevant to the user.
+  const LARGE_MULTIPLIER_CHANGE_RATIO = 0.2
   const permissionStore = usePermissionStore()
   const canExecute = computed(() =>
     permissionStore.hasPermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE),
@@ -106,11 +109,22 @@ export const useRelayChannelProbeManagement = () => {
   const applying = ref(false)
   const applyDialogOpen = ref(false)
   const exportAppliedChangeChart = ref(false)
+  const forceLargeMultiplierChange = ref(false)
   const roundingDigits = ref(4)
   const roundingMode = ref<'ceil' | 'nearest'>('ceil')
   const applyDrafts = ref<ApplyMultiplierDraft[]>([])
   const applyTableRef = ref<TableInstance>()
   const selectedApplyRunIds = ref<string[]>([])
+  const hasLargeMultiplierChange = computed(() =>
+    applyDrafts.value
+      .filter((draft) => selectedApplyRunIds.value.includes(draft.run.id))
+      .some(
+        (draft) =>
+          Math.abs(draft.targetMultiplier - draft.currentMultiplier) /
+            Math.max(draft.currentMultiplier, Number.EPSILON) >
+          LARGE_MULTIPLIER_CHANGE_RATIO,
+      ),
+  )
   const selectionTolerancePercent = ref(1)
   const selectionDirection = ref<'all' | 'increase' | 'decrease'>('all')
   const rememberApplySettings = ref(false)
@@ -856,6 +870,9 @@ export const useRelayChannelProbeManagement = () => {
   watch([roundingDigits, roundingMode], () => {
     if (applyDialogOpen.value && applyDrafts.value.length > 0 && !applying.value)
       roundDraftMultipliers()
+  })
+  watch(hasLargeMultiplierChange, (hasLargeChange) => {
+    if (!hasLargeChange) forceLargeMultiplierChange.value = false
   })
   watch(
     [
@@ -1656,6 +1673,7 @@ export const useRelayChannelProbeManagement = () => {
     if (!drafts.length) return ElMessage.warning(i18ns.t('relay.channelProbeApplyUnavailable'))
     applyDrafts.value = drafts
     exportAppliedChangeChart.value = false
+    forceLargeMultiplierChange.value = false
     roundDraftMultipliers()
     applyDialogOpen.value = true
     await nextTick()
@@ -1684,6 +1702,7 @@ export const useRelayChannelProbeManagement = () => {
     try {
       const result = await relayChannelProbeService.applyRuns({
         runIds,
+        forceLargeChange: forceLargeMultiplierChange.value,
         overrides: selectedDrafts.map((draft) => ({
           runId: draft.run.id,
           multiplier: draft.targetMultiplier,
@@ -1734,6 +1753,7 @@ export const useRelayChannelProbeManagement = () => {
         applyDialogOpen.value = false
         applyDrafts.value = []
         selectedApplyRunIds.value = []
+        forceLargeMultiplierChange.value = false
         clearSelection()
       }
     } catch (error) {
@@ -1840,11 +1860,13 @@ export const useRelayChannelProbeManagement = () => {
     applying,
     applyDialogOpen,
     exportAppliedChangeChart,
+    forceLargeMultiplierChange,
     roundingDigits,
     roundingMode,
     applyDrafts,
     applyTableRef,
     selectedApplyRunIds,
+    hasLargeMultiplierChange,
     selectionTolerancePercent,
     selectionDirection,
     rememberApplySettings,
