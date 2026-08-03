@@ -2,6 +2,21 @@
 
 此文件为 AI 编程代理（Codex、Claude Code 等）提供在 monorepo 中工作的指引。
 
+## 仓库技能索引
+
+仓库专用技能位于 `.agents/skills/`，每个技能只包含 `SKILL.md` 和可选的 `KNOWLEDGE.md`。技能按任务加载最小必要上下文；本文件、各项目 `AGENTS.md/CLAUDE.md` 和 `docs/development/` 仍是规范事实来源。
+
+| 技能                                                                                       | 适用范围                                       |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| [appserver-backend-development](./.agents/skills/appserver-backend-development/SKILL.md)   | Express、TSOA、Prisma、Relay、后端服务和中间件 |
+| [appserver-frontend-development](./.agents/skills/appserver-frontend-development/SKILL.md) | Vue、Pinia、组件、Service、路由和前端测试      |
+| [appserver-testing-ci](./.agents/skills/appserver-testing-ci/SKILL.md)                     | Vitest 分类、隔离、并行、CI 和测试选择         |
+| [appserver-contracts](./.agents/skills/appserver-contracts/SKILL.md)                       | shared、权限、DTO、OpenAPI 和生成 SDK          |
+| [appserver-security](./.agents/skills/appserver-security/SKILL.md)                         | 认证、授权、密钥、日志和开源安全               |
+| [appserver-pr-workflow](./.agents/skills/appserver-pr-workflow/SKILL.md)                   | GitHub PR 检查、元数据和标签                   |
+
+涉及多个领域时，同时读取对应技能；例如 Controller/DTO 变更使用后端与 contracts，权限或 Token 变更再加入 security，测试命令选择加入 testing-ci。
+
 ## Monorepo 结构
 
 ```
@@ -162,7 +177,7 @@ pnpm run openapi:gen:all          # 完整流水线
 
 ## 重要注意事项
 
-- 测试顺序执行（不并行），避免数据库冲突
+- 测试按分类并行执行：纯单测使用 Vitest 文件并行，数据库/集成测试使用每 worker 独立 MySQL 与 Redis 运行空间；详见 `docs/development/11-testing-and-ci.md`
 - JWT access token 开发环境有效期极短（5 秒），生产环境建议 900 秒
 - 安全密钥（`REPLAY_SIGNING_MASTER_SECRET`、`TWO_FACTOR_TRUSTED_DEVICE_SECRET`）需 ≥64 字符且与 JWT 密钥不同
 - 后端 dev 模式自动运行 `openapi:generate`（nodemon 触发）
@@ -186,6 +201,7 @@ pnpm run openapi:gen:all          # 完整流水线
 | [08-openapi-pipeline.md](./docs/development/08-openapi-pipeline.md) | OpenAPI：TSOA→swagger.json→前端 typed SDK            |
 | [09-deployment.md](./docs/development/09-deployment.md)             | 部署：esbuild/Rolldown 构建、PM2、环境变量           |
 | [10-pr-management.md](./docs/development/10-pr-management.md)       | GitHub PR 读取、风格对齐、编辑与标签流程             |
+| [11-testing-and-ci.md](./docs/development/11-testing-and-ci.md)     | 测试分类、并行隔离、数据库 worker 与 CI 策略         |
 
 各项目的 CLAUDE.md/AGENTS.md 位于：
 
