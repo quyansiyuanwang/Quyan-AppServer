@@ -86,6 +86,15 @@ describe("relay channel probe schemas", () => {
     expect(applyRelayChannelProbeRunsBodySchema.safeParse({ runIds: ["run-1", "run-1"] }).success).toBe(false);
   });
 
+  it("accepts an explicit large-change override only as a boolean", () => {
+    expect(applyRelayChannelProbeRunsBodySchema.safeParse({ runIds: ["run-1"], forceLargeChange: true }).success).toBe(
+      true,
+    );
+    expect(
+      applyRelayChannelProbeRunsBodySchema.safeParse({ runIds: ["run-1"], forceLargeChange: "true" }).success,
+    ).toBe(false);
+  });
+
   it("accepts the explicit override for unsupported cache-buster payloads", () => {
     expect(createRelayChannelProbeRunBodySchema.safeParse({ forceWithoutCacheBuster: true }).success).toBe(true);
     expect(

@@ -41190,6 +41190,10 @@
 						},
 						"type": "array",
 						"description": "Optional operator-confirmed values, used for rounding or a deliberate calibration adjustment."
+					},
+					"forceLargeChange": {
+						"type": "boolean",
+						"description": "Explicitly bypass the second stable probe requirement for large multiplier changes."
 					}
 				},
 				"required": [
