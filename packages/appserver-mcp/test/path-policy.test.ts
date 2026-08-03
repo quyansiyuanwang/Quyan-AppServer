@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { assertSafeRelativePath, readAllowedFile } from '../src/path-policy.js'
+import { resolveWorkspaceRoot } from '../src/workspace.js'
 
 let root = ''
 
@@ -22,6 +23,15 @@ afterEach(async () => {
 })
 
 describe('path policy', () => {
+  test('finds the workspace root from a package directory', async () => {
+    const packageDirectory = path.join(root, 'packages', 'appserver-mcp')
+    await mkdir(packageDirectory, { recursive: true })
+    await writeFile(path.join(root, 'package.json'), '{}')
+    await writeFile(path.join(root, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n')
+
+    await expect(resolveWorkspaceRoot(packageDirectory)).resolves.toBe(root)
+  })
+
   test('accepts a safe repository-relative path', () => {
     expect(assertSafeRelativePath('docs/../notes.md')).toBe('notes.md')
   })
