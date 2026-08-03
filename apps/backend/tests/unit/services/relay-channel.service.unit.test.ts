@@ -204,6 +204,35 @@ describe("RelayChannelService", () => {
     expect(relayChannelRepository.updateById).toHaveBeenCalledTimes(1);
   });
 
+  it("does not misreport a pricing catalog failure as malformed allowedModels", async () => {
+    const channel = { ...sampleChannel, allowedModels: JSON.stringify(["gpt-5.6-luna"]) };
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([channel]);
+    relayConfigService.getRelayConfig.mockResolvedValue({
+      modelRates: [
+        { model: "gpt-5.6-luna", modelId: "gpt-5.6-luna" },
+        { model: "gpt-5.6-luna-disc-1", modelId: "gpt-5.6-luna" },
+      ],
+    });
+    modelPricingService.getModelPricing.mockRejectedValue(new Error("pricing catalog unavailable"));
+
+    const result = await service.batchUpdateChannels(
+      {
+        ids: [channel.id],
+        patch: {},
+        modelPricingMigration: {
+          sourceModelId: "gpt-5.6-luna",
+          targetPricingModel: "gpt-5.6-luna-disc-1",
+        },
+      },
+      "actor-user",
+    );
+
+    expect(result.updated).toEqual([]);
+    expect(result.rejected).toEqual([
+      expect.objectContaining({ id: channel.id, reason: "pricing catalog unavailable" }),
+    ]);
+  });
+
   it("rejects a pricing migration when the target pricing record resolves to another upstream model", async () => {
     relayConfigService.getRelayConfig.mockResolvedValue({
       modelRates: [{ model: "gpt-5.6-luna-disc-1", modelId: "another-upstream-model" }],

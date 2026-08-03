@@ -61,6 +61,7 @@ import { Permission } from "@/constant/permission";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
+import { resolveModelId } from "@/util/model-resolution.util";
 import { Prisma, type RelayChannel } from "@prisma/client";
 import { formatRelayRequestFormats } from "@appserver/shared";
 import type { Request } from "express";
@@ -1082,15 +1083,10 @@ export class RelayChannelService {
   /**
    * Validate that allowedModels array doesn't contain multiple models with the same model ID
    */
-  private async validateNoDuplicateModelIds(modelNames: string[]): Promise<void> {
+  private async validateNoDuplicateModelIds(modelNames: readonly unknown[]): Promise<void> {
     if (!modelNames || modelNames.length === 0) return;
 
-    // Import here to avoid circular dependency
-    const { ModelPricingService } = await import("./model-pricing.service");
-    const modelPricingService = ModelPricingService.getInstance();
-    const { resolveModelId } = await import("@/util/model-resolution.util");
-
-    const allModels = await modelPricingService.getModelPricing();
+    const allModels = await this.modelPricingService.getModelPricing();
 
     // Build a map of model name -> model ID
     const modelNameToId = new Map<string, string>();
@@ -1684,15 +1680,17 @@ export class RelayChannelService {
         : (existing?.contextLengthMultipliers as ContextLengthMultiplierRule[] | undefined);
     const topology = await this.relayConfigService.getRelayConfig();
 
-    if (allowedModels !== undefined && allowedModels !== null)
+    if (allowedModels !== undefined && allowedModels !== null) {
+      let parsedAllowedModels: unknown;
       try {
-        const parsed = JSON.parse(allowedModels);
-        if (!Array.isArray(parsed)) throw new Error("allowedModels must be a JSON array");
-        await this.validateNoDuplicateModelIds(parsed);
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("duplicate model ID")) throw error;
+        parsedAllowedModels = JSON.parse(allowedModels);
+      } catch {
         throw new BadRequestError("allowedModels must be a valid JSON array");
       }
+
+      if (!Array.isArray(parsedAllowedModels)) throw new BadRequestError("allowedModels must be a valid JSON array");
+      await this.validateNoDuplicateModelIds(parsedAllowedModels);
+    }
 
     if (isUpstreamChannelType(channelType)) {
       if (!openaiUpstreamUrl && !anthropicUpstreamUrl && !geminiUpstreamUrl)
