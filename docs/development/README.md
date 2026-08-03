@@ -16,6 +16,7 @@
 | [08-openapi-pipeline.md](./08-openapi-pipeline.md) | OpenAPI 生成流水线：TSOA → swagger.json → 前端 typed SDK      |
 | [09-deployment.md](./09-deployment.md)             | 构建与部署：esbuild、PM2、环境变量、生产注意事项              |
 | [10-pr-management.md](./10-pr-management.md)       | GitHub PR 读取、风格对齐、编辑与标签流程                      |
+| [11-testing-and-ci.md](./11-testing-and-ci.md)     | 测试分类、并行隔离、数据库 worker 与 GitHub Actions 策略      |
 
 ## 快速导航
 
@@ -31,6 +32,8 @@
 - **如何生成 API 客户端** → [08-openapi-pipeline.md](./08-openapi-pipeline.md)
 - **如何部署** → [09-deployment.md](./09-deployment.md)
 - **如何整理 PR 元数据** → [10-pr-management.md](./10-pr-management.md)
+- **如何选择和运行测试** → [11-testing-and-ci.md](./11-testing-and-ci.md)
+- **开源前如何检查安全配置** → [SECURITY.md](../../SECURITY.md)
 
 ### 常用命令速查
 
@@ -45,10 +48,20 @@ pnpm run dev:frontend            # 只启动前端 (port 5173)
 # OpenAPI
 pnpm run openapi:gen:all         # 完整流水线（后端 spec → 同步 → 前端客户端）
 
-# 测试
-pnpm --filter @appserver/backend test
-pnpm --filter @appserver/backend test:unit     # 仅单元测试
-pnpm --filter @appserver/backend test:api      # 集成 + 契约测试
+# 测试：根级命令并行运行两个应用
+pnpm run test
+
+# 后端：按测试层级选择
+pnpm --filter @appserver/backend run test:unit
+pnpm --filter @appserver/backend run test:database
+pnpm --filter @appserver/backend run test:integration
+pnpm --filter @appserver/backend run test:contract
+pnpm --filter @appserver/backend run test:runtime
+
+# 前端：Node 与 DOM 分层
+pnpm --filter @appserver/frontend run test:node
+pnpm --filter @appserver/frontend run test:dom
+pnpm --filter @appserver/frontend run test:taxonomy
 
 # 数据库
 pnpm run db:generate             # 生成 Prisma client

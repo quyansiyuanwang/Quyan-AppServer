@@ -322,8 +322,10 @@ pnpm run precommit
 
 - 全局变量: 启用
 - 环境: Node
-- 并行: 禁用（避免数据库冲突）
+- 并行: 纯单测按 Vitest 文件并行；数据库项目通过独立 MySQL/Redis worker 资源并行
 - 路径别名: 同 tsconfig.json
+
+测试分类、派生数据库、Prisma Client generation 与 CI 选择策略见 [测试指南](./06-testing-guide.md) 和仓库级 [测试与 CI 文档](../../../../docs/development/11-testing-and-ci.md)。
 
 ## 9. 日志系统
 

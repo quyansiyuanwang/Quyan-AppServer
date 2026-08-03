@@ -21,11 +21,11 @@ AppServerMonorepo/
 
 ## 技术栈
 
-| 项目 | 框架 | 构建 | 数据库 | 主要依赖 |
-|------|------|------|--------|---------|
-| **backend** | Express 5 + TypeScript | esbuild + Bun | MySQL (Prisma) | TSOA, JWT, Redis, WebSocket |
-| **frontend** | Vue 3 + TypeScript | Rolldown Vite | - | Element Plus, Pinia, Axios, ECharts |
-| **docs-site** | Vue 3 + TypeScript | Rolldown Vite | - | marked, mermaid |
+| 项目          | 框架                   | 构建          | 数据库         | 主要依赖                            |
+| ------------- | ---------------------- | ------------- | -------------- | ----------------------------------- |
+| **backend**   | Express 5 + TypeScript | esbuild + Bun | MySQL (Prisma) | TSOA, JWT, Redis, WebSocket         |
+| **frontend**  | Vue 3 + TypeScript     | Rolldown Vite | -              | Element Plus, Pinia, Axios, ECharts |
+| **docs-site** | Vue 3 + TypeScript     | Rolldown Vite | -              | marked, mermaid                     |
 
 ## 前置要求
 
@@ -90,10 +90,23 @@ pnpm run clean            # 清理所有 dist
 ### 测试
 
 ```bash
-pnpm run test             # 运行所有测试
-pnpm run test:backend     # 后端测试
-pnpm run test:frontend    # 前端测试
+# 根级命令并行运行 backend 与 frontend
+pnpm run test
+
+# Backend: 按依赖选择最小测试范围
+pnpm --filter @appserver/backend run test:unit
+pnpm --filter @appserver/backend run test:database
+pnpm --filter @appserver/backend run test:integration
+pnpm --filter @appserver/backend run test:contract
+pnpm --filter @appserver/backend run test:runtime
+
+# Frontend: Node 逻辑与 DOM 组件分开执行
+pnpm --filter @appserver/frontend run test:node
+pnpm --filter @appserver/frontend run test:dom
+pnpm --filter @appserver/frontend run test:taxonomy
 ```
+
+测试分类、并行边界、数据库 worker 隔离和 CI 选择策略见 [测试与 CI 文档](./docs/development/11-testing-and-ci.md)。
 
 ### 提交
 
@@ -103,6 +116,10 @@ pnpm run commit           # precommit + git commit
 ```
 
 提交时会通过 `lint-staged` 自动对暂存文件执行 ESLint 检查。
+
+### 安全
+
+公开仓库前请阅读 [SECURITY.md](./SECURITY.md)。漏洞只接受 GitHub Private Vulnerability Reporting 私密报告，不要在公开 Issue 披露可利用细节。
 
 ### 数据库
 
