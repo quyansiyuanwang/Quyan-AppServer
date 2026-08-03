@@ -45,6 +45,7 @@ import type {
   RelayChannelProbeCostBreakdownDto,
   RelayChannelProbeEndpoint,
   RelayChannelProbeCacheMode,
+  RelayChannelProbeCalibrationStatus,
   RelayChannelProbeSampleDto,
   UpsertRelayChannelProbeProfileRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
@@ -426,6 +427,65 @@ export function findProbeOutlierIndexes(values: readonly number[], threshold = 3
   );
 }
 
+/**
+ * Strict validation is an explicit operator choice. The default retains every
+ * comparable sample so a deliberate one-shot measurement can still produce a
+ * usable suggestion; it never turns a malformed or non-comparable response
+ * into a measurement.
+ */
+export function finalizeProbeCalibration(
+  samples: RelayChannelProbeSampleDto[],
+  strictCalibrationValidation: boolean,
+): {
+  accepted: RelayChannelProbeSampleDto[];
+  discardedCount: number;
+  calibrationStatus: RelayChannelProbeCalibrationStatus;
+} {
+  const candidates = samples.filter((sample) => sample.accepted && sample.suggestedMultiplier != null);
+  if (strictCalibrationValidation) {
+    const outlierIndexes = findProbeOutlierIndexes(candidates.map((sample) => sample.suggestedMultiplier!));
+    for (const [index, sample] of candidates.entries()) {
+      if (!outlierIndexes.has(index)) continue;
+      sample.status = "discarded";
+      sample.accepted = false;
+      sample.errorMessage = "样本波动超出 MAD 3.5 阈值，已排除";
+    }
+  }
+  const accepted = samples.filter((sample) => sample.accepted);
+  const suggestedValues = accepted.flatMap((sample) =>
+    sample.suggestedMultiplier == null ? [] : [sample.suggestedMultiplier],
+  );
+  const meanSuggestion = suggestedValues.length
+    ? suggestedValues.reduce((sum, value) => sum + value, 0) / suggestedValues.length
+    : 0;
+  const relativeSpread =
+    meanSuggestion > 0 && suggestedValues.length > 1
+      ? (Math.max(...suggestedValues) - Math.min(...suggestedValues)) / meanSuggestion
+      : 0;
+  const calibrationStatus: RelayChannelProbeCalibrationStatus = strictCalibrationValidation
+    ? samples.some((sample) => sample.status === "low_signal")
+      ? "low-signal"
+      : samples.some((sample) => sample.status === "settlement_timeout")
+        ? "unstable"
+        : accepted.length < MIN_VERIFIED_SAMPLE_COUNT
+          ? "insufficient-samples"
+          : relativeSpread <= MAX_ACCEPTED_SAMPLE_SPREAD
+            ? "verified"
+            : "unstable"
+    : accepted.length > 0
+      ? "verified"
+      : samples.some((sample) => sample.status === "low_signal")
+        ? "low-signal"
+        : samples.some((sample) => sample.status === "settlement_timeout")
+          ? "unstable"
+          : "insufficient-samples";
+  return {
+    accepted,
+    discardedCount: samples.filter((sample) => sample.status === "discarded").length,
+    calibrationStatus,
+  };
+}
+
 function averageProbeSampleValue(
   samples: readonly RelayChannelProbeSampleDto[],
   key: keyof RelayChannelProbeSampleDto,
@@ -734,6 +794,7 @@ export class RelayChannelProbeService {
         preventCache,
         cacheMode,
         sampleCount: body.sampleCount ?? existing?.sampleCount ?? MIN_VERIFIED_SAMPLE_COUNT,
+        strictCalibrationValidation: body.strictCalibrationValidation ?? existing?.strictCalibrationValidation ?? false,
         measurementInputTokens: body.measurementInputTokens ?? existing?.measurementInputTokens ?? 1024,
         balanceSettlementTolerance: body.balanceSettlementTolerance ?? existing?.balanceSettlementTolerance ?? 0.000001,
         balanceSettlementReads: body.balanceSettlementReads ?? existing?.balanceSettlementReads ?? 2,
@@ -757,6 +818,7 @@ export class RelayChannelProbeService {
         preventCache,
         cacheMode,
         sampleCount: body.sampleCount ?? existing?.sampleCount ?? MIN_VERIFIED_SAMPLE_COUNT,
+        strictCalibrationValidation: body.strictCalibrationValidation ?? existing?.strictCalibrationValidation ?? false,
         measurementInputTokens: body.measurementInputTokens ?? existing?.measurementInputTokens ?? 1024,
         balanceSettlementTolerance: body.balanceSettlementTolerance ?? existing?.balanceSettlementTolerance ?? 0.000001,
         balanceSettlementReads: body.balanceSettlementReads ?? existing?.balanceSettlementReads ?? 2,
@@ -835,6 +897,7 @@ export class RelayChannelProbeService {
         probeEndpoint,
         cacheMode: profile.cacheMode,
         sampleCount: profile.sampleCount,
+        strictCalibrationValidation: profile.strictCalibrationValidation,
         measurementInputTokens: profile.measurementInputTokens,
         balanceSettlementTolerance: profile.balanceSettlementTolerance,
         balanceSettlementReads: profile.balanceSettlementReads,
@@ -967,8 +1030,7 @@ export class RelayChannelProbeService {
         await RelayChannelService.getInstance().getChannel(run.relayChannelId, actorUserId);
         if (run.status !== "succeeded" || run.suggestedMultiplier == null || run.appliedAt)
           throw new BadRequestError("探针结果不可应用");
-        if (run.calibrationStatus !== "verified" || run.sampleAcceptedCount < MIN_VERIFIED_SAMPLE_COUNT)
-          throw new BadRequestError("探针结果未通过稳定性校验");
+        if (run.calibrationStatus !== "verified") throw new BadRequestError("探针结果未通过稳定性校验");
         if (!run.finishedAt || Date.now() - run.finishedAt.getTime() > SUGGESTION_MAX_AGE_MS)
           throw new BadRequestError("探针建议已过期");
         if (
@@ -1287,35 +1349,10 @@ export class RelayChannelProbeService {
         });
       }
     }
-    const candidates = samples.filter((sample) => sample.accepted && sample.suggestedMultiplier != null);
-    const outlierIndexes = findProbeOutlierIndexes(candidates.map((sample) => sample.suggestedMultiplier!));
-    for (const [index, sample] of candidates.entries()) {
-      if (!outlierIndexes.has(index)) continue;
-      sample.status = "discarded";
-      sample.accepted = false;
-      sample.errorMessage = "样本波动超出 MAD 3.5 阈值，已排除";
-    }
-    const accepted = samples.filter((sample) => sample.accepted);
-    const suggestedValues = accepted.flatMap((sample) =>
-      sample.suggestedMultiplier == null ? [] : [sample.suggestedMultiplier],
+    const { accepted, discardedCount, calibrationStatus } = finalizeProbeCalibration(
+      samples,
+      run.strictCalibrationValidation,
     );
-    const meanSuggestion = suggestedValues.length
-      ? suggestedValues.reduce((sum, value) => sum + value, 0) / suggestedValues.length
-      : 0;
-    const relativeSpread =
-      meanSuggestion > 0 && suggestedValues.length > 1
-        ? (Math.max(...suggestedValues) - Math.min(...suggestedValues)) / meanSuggestion
-        : 0;
-    const stable = accepted.length >= MIN_VERIFIED_SAMPLE_COUNT && relativeSpread <= MAX_ACCEPTED_SAMPLE_SPREAD;
-    const calibrationStatus = samples.some((sample) => sample.status === "low_signal")
-      ? "low-signal"
-      : samples.some((sample) => sample.status === "settlement_timeout")
-        ? "unstable"
-        : accepted.length < MIN_VERIFIED_SAMPLE_COUNT
-          ? "insufficient-samples"
-          : stable
-            ? "verified"
-            : "unstable";
     const baseLocalCost = averageProbeSampleValue(accepted, "baseLocalCost");
     const upstreamBalanceDelta = averageProbeSampleValue(accepted, "upstreamBalanceDelta");
     const localBalanceDelta =
@@ -1327,7 +1364,7 @@ export class RelayChannelProbeService {
       succeededCount: samples.filter((sample) => sample.status !== "failed" && sample.status !== "settlement_timeout")
         .length,
       acceptedCount: accepted.length,
-      discardedCount: samples.filter((sample) => sample.status === "discarded").length,
+      discardedCount,
       warmupRequestCount: warmups.length,
       warmupCacheCreationTokens: warmups.reduce((sum, item) => sum + item.cacheCreationTokens, 0) || undefined,
       warmupCacheReadTokens: warmups.reduce((sum, item) => sum + item.cacheReadTokens, 0) || undefined,
@@ -1723,6 +1760,7 @@ export class RelayChannelProbeService {
       preventCache: profile.preventCache,
       cacheMode: profile.cacheMode as RelayChannelProbeCacheMode,
       sampleCount: profile.sampleCount,
+      strictCalibrationValidation: profile.strictCalibrationValidation,
       measurementInputTokens: profile.measurementInputTokens,
       balanceSettlementTolerance: Number(profile.balanceSettlementTolerance),
       balanceSettlementReads: profile.balanceSettlementReads,
@@ -1752,6 +1790,7 @@ export class RelayChannelProbeService {
       probeEndpoint: run.probeEndpoint as RelayChannelProbeEndpoint,
       cacheMode: run.cacheMode as RelayChannelProbeCacheMode,
       sampleCount: run.sampleCount,
+      strictCalibrationValidation: run.strictCalibrationValidation,
       measurementInputTokens: run.measurementInputTokens,
       balanceSettlementTolerance: Number(run.balanceSettlementTolerance),
       balanceSettlementReads: run.balanceSettlementReads,

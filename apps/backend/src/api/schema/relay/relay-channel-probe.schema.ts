@@ -55,6 +55,7 @@ export const upsertRelayChannelProbeProfileBodySchema = z
     preventCache: z.boolean().optional(),
     cacheMode: probeCacheModeSchema.optional(),
     sampleCount: z.coerce.number().int().min(1).max(10).optional(),
+    strictCalibrationValidation: z.boolean().optional(),
     measurementInputTokens: z.coerce.number().int().min(0).max(32_768).optional(),
     balanceSettlementTolerance: z.coerce
       .number()

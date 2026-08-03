@@ -2738,7 +2738,12 @@ export default {
       'For each sample, warms one cache key and then measures a read with that key. Warm-up cost is recorded separately and excluded. The measured request must report cache-read tokens or the sample cannot produce a cache suggestion.',
     channelProbeSampleCount: 'Samples',
     channelProbeSampleCountHelp:
-      'Runs 1 to 10 measurements for the same channel in sequence. A suggestion requires at least three accepted samples. With three or more successful samples, MAD 3.5 removes outliers before averaging the remainder.',
+      'Runs 1 to 10 measurements for the same channel in sequence. With strict calibration disabled, one comparable sample can produce a suggestion.',
+    channelProbeStrictCalibrationValidation: 'Strict calibration validation',
+    channelProbeStrictCalibrationValidationHelp:
+      'Disabled by default: retains every comparable sample and allows a one-shot suggestion. When enabled, requires three accepted samples, removes MAD 3.5 outliers, and checks sample variation.',
+    channelProbeValidationEnabled: 'Enabled',
+    channelProbeValidationDisabled: 'Disabled',
     channelProbeMeasurementInputTokens: 'Measurement input tokens',
     channelProbeMeasurementInputTokensHelp:
       'Appends stable measurement text to recognized prompts so balance changes are observable. Opaque custom payloads remain diagnostic-only.',

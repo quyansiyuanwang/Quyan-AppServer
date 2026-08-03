@@ -2642,7 +2642,12 @@ const zhCN: DeepStringify<typeof en> = {
       '每个样本先用同一缓存标记预热，再测量读取；预热成本单独记录且不参与建议。计量请求必须返回缓存读取 Token，否则该样本不产生缓存建议。',
     channelProbeSampleCount: '采样次数',
     channelProbeSampleCountHelp:
-      '同一渠道按顺序执行 1 至 10 次测量。探针建议至少需要 3 个有效样本；成功样本达到 3 个时，会按 MAD 3.5 规则剔除异常值，再对剩余样本取平均。',
+      '同一渠道按顺序执行 1 至 10 次测量。关闭严格校准验证时，一个可比样本即可生成建议。',
+    channelProbeStrictCalibrationValidation: '严格校准验证',
+    channelProbeStrictCalibrationValidationHelp:
+      '默认关闭，保留所有可比样本并允许单次测量生成建议。开启后至少需要 3 个有效样本，并按 MAD 3.5 剔除异常值及检查样本波动。',
+    channelProbeValidationEnabled: '已开启',
+    channelProbeValidationDisabled: '已关闭',
     channelProbeMeasurementInputTokens: '测量输入 Token 目标',
     channelProbeMeasurementInputTokensHelp:
       '系统会向可识别的文本提示追加稳定测量文本，提高余额变化的可观测性；自定义请求体无法安全追加时仅保留诊断，不生成建议。',
