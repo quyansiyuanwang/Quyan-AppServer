@@ -92,11 +92,16 @@ pnpm run generate-operation-ids
 ```bash
 pnpm run test
 pnpm run test:unit
+pnpm run test:database
 pnpm run test:integration
 pnpm run test:contract
+pnpm run test:runtime
 pnpm run test:api
 pnpm run test:coverage
+pnpm run test:db:clean
 ```
+
+纯单测不连接 MySQL 或 Redis；数据库、集成和运行时 contract 测试使用每 worker 独立的派生测试库。所有测试命令会先生成 Prisma Client，但只有运行时测试会创建派生库和执行 schema bootstrap。完整并行与恢复说明见 [测试指南](./docs/develop/06-testing-guide.md)。
 
 ## 目录结构
 

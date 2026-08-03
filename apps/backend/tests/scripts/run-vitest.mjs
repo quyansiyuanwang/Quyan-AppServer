@@ -3,8 +3,10 @@ import { spawnSync } from "node:child_process";
 
 const namespace = randomBytes(12).toString("hex");
 const vitestArgs = process.argv.slice(2);
-const selectedProjects = vitestArgs.filter((value, index) => vitestArgs[index - 1] === "--project");
-const needsPrismaGenerate = selectedProjects.length === 0 || selectedProjects.includes("backend-database");
+// Some pure services import Prisma-generated types without opening a database
+// connection. Generate once for every invocation so a clean CI checkout can
+// load those modules; database bootstrap remains database-project-only.
+const needsPrismaGenerate = true;
 const spawnOptions = {
   cwd: process.cwd(),
   env: { ...process.env, APPSERVER_TEST_RUN_NAMESPACE: namespace },
