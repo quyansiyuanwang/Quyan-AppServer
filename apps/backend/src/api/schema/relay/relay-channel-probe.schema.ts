@@ -147,6 +147,7 @@ export const applyRelayChannelProbeRunsBodySchema = z
       )
       .max(100)
       .optional(),
+    forceLargeChange: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
     const seen = new Set<string>();

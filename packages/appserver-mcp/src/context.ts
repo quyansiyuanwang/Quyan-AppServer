@@ -21,6 +21,7 @@ export function getRepositoryContext(domain?: string) {
     frontend: [
       'apps/frontend/',
       'appserver-frontend-development',
+      'appserver-vue-view-splitting',
       'appserver-contracts',
       'appserver-testing-ci',
     ],
@@ -49,6 +50,7 @@ export function getRepositoryContext(domain?: string) {
       'appserver-pr-workflow',
       'appserver-git-workflow',
       'appserver-skill-authoring',
+      'appserver-vue-view-splitting',
     ],
     documents: DOCUMENTS,
     scripts: [

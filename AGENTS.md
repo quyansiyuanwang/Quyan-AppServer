@@ -16,6 +16,7 @@
 | [appserver-pr-workflow](./.agents/skills/appserver-pr-workflow/SKILL.md)                   | GitHub PR 检查、元数据和标签                   |
 | [appserver-git-workflow](./.agents/skills/appserver-git-workflow/SKILL.md)                 | 本地暂存、验证、Conventional Commit 与交接     |
 | [appserver-skill-authoring](./.agents/skills/appserver-skill-authoring/SKILL.md)           | 仓库技能编写、精简、中文化与校验               |
+| [appserver-vue-view-splitting](./.agents/skills/appserver-vue-view-splitting/SKILL.md)     | 大型 Vue View 的结构化拆分与状态边界           |
 
 涉及多个领域时，同时读取对应技能；例如 Controller/DTO 变更使用后端与 contracts，权限或 Token 变更再加入 security，测试命令选择加入 testing-ci。优先用 `pnpm run mcp:serve` 提供的项目 MCP 获取紧凑上下文，再按需读取完整文档。
 

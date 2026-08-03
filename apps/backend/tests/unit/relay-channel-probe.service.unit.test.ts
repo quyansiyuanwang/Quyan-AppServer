@@ -18,6 +18,7 @@ import {
   normalizeProbeNetworkError,
   normalizeProbeEndpoint,
   readProbeJsonPath,
+  requiresLargeMultiplierConfirmation,
   resolveProbeModelPricing,
   resolveProbeCustomerFacingTargets,
   resolveAllowedProbeFormats,
@@ -27,6 +28,13 @@ import type { RelayChannelProbeTopologyItem } from "../../src/services/relay/rel
 import type { RelayChannelProbeSampleDto } from "../../src/api/dto/relay/relay-channel-probe.dto";
 
 describe("relay channel probe helpers", () => {
+  it("requires an independent stable result only for unconfirmed large multiplier changes", () => {
+    expect(requiresLargeMultiplierConfirmation(1, 1.1)).toBe(false);
+    expect(requiresLargeMultiplierConfirmation(1, 1.5)).toBe(true);
+    expect(requiresLargeMultiplierConfirmation(1, 1.5, 1.52)).toBe(false);
+    expect(requiresLargeMultiplierConfirmation(1, 1.5, 1.2)).toBe(true);
+  });
+
   it("uses the shared channel format parser for probe endpoint availability", () => {
     expect(resolveAllowedProbeFormats("anthropic")).toEqual(["anthropic"]);
     expect(resolveAllowedProbeFormats("openai, anthropic")).toEqual(["openai", "anthropic"]);
