@@ -38,8 +38,8 @@
 ## SDK 与 Demo 入口
 
 - 如果你只需要快速调通接口，优先查看文档站内的 `Node SDK`、`Python SDK` 和 `OAuth Demo`。
-- 如果你希望直接拿到可运行工程、集成模板或更完整的示例集合，请优先查看 `Quyan-ServerSDK` 目录约定。
-- `Quyan-ServerSDK` 用于按场景提供更合适的 SDK 或 Demo，例如 `ServerSDK/demos/oauth/node/` 这类完整流程示例，以及 `ServerSDK/sdks/oauth/*` 这类多语言接入模板。
+- 如果你希望直接拿到可运行工程、集成模板或更完整的示例集合，请优先查看仓库内的 `integrations/server-sdk`。
+- `integrations/server-sdk` 按场景提供 OAuth SDK 与 Demo，例如 `integrations/server-sdk/demos/oauth/node/` 这类完整流程示例，以及 `integrations/server-sdk/sdks/oauth/*` 这类多语言接入模板。
 
 ## 示例路由
 

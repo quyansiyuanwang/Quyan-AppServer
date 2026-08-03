@@ -4,7 +4,7 @@ This hub page helps integrators pick the right template without mixing all examp
 
 ## How to choose
 
-### `Quyan-ServerSDK` layout
+### `integrations/server-sdk` layout
 
 Best for:
 
@@ -17,7 +17,7 @@ Includes:
 - scenario-based SDK or demo selections
 - more complete project samples than the short snippets in this docs site
 - integration templates that can be used as a starting point
-- current OAuth paths such as `ServerSDK/demos/oauth/node/`, `ServerSDK/sdks/oauth/node/`, `ServerSDK/sdks/oauth/python/`, `ServerSDK/sdks/oauth/java/`, and `ServerSDK/sdks/oauth/go/`
+- current OAuth paths such as `integrations/server-sdk/demos/oauth/node/`, `integrations/server-sdk/sdks/oauth/node/`, `integrations/server-sdk/sdks/oauth/python/`, `integrations/server-sdk/sdks/oauth/java/`, and `integrations/server-sdk/sdks/oauth/go/`
 
 ### `Node SDK`
 
@@ -111,7 +111,7 @@ Includes:
 
 ## Suggested reading order
 
-0. If you prefer starting from a full runnable project, start with the `Quyan-ServerSDK` layout and choose the matching SDK or demo there.
+0. If you prefer starting from a full runnable project, start with the `integrations/server-sdk` layout and choose the matching SDK or demo there.
 1. Start with `OAuth App Management` to create the app and register redirect URIs.
 2. Continue with `OAuth Demo` to run the authorization-code flow end to end.
 3. If you only need business API access, go directly to `Node SDK` or `Python SDK`.
@@ -129,7 +129,7 @@ Includes:
 
 ## Recommended follow-up reading
 
-- `Quyan-ServerSDK`
+- `integrations/server-sdk`
 - `Node SDK`
 - `Python SDK`
 - `OAuth Demo`

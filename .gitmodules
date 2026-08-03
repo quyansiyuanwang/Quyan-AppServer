@@ -1,0 +1,8 @@
+[submodule "products/remote-terminal-cloud"]
+	path = products/remote-terminal-cloud
+	url = https://github.com/quyansiyuanwang/Quyan-RemoteTerminalCloud.git
+	branch = master
+[submodule "integrations/server-sdk"]
+	path = integrations/server-sdk
+	url = https://github.com/quyansiyuanwang/Quyan-ServerSDK.git
+	branch = main
