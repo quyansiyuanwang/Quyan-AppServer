@@ -141,4 +141,37 @@ describe('useRelayChannelProbeManagement', () => {
     expect(listOverviewMock).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
+
+  it('waits for a polling refresh to finish before scheduling the next one', async () => {
+    vi.useFakeTimers()
+    let resolveRefresh: ((value: { hasCustomerFacingTargets: boolean; items: object[] }) => void) | undefined
+    const activeOverview = {
+      hasCustomerFacingTargets: true,
+      items: [createItem({ latestRun: { id: 'run-1', status: 'queued' } })],
+    }
+    listOverviewMock
+      .mockResolvedValueOnce(activeOverview)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRefresh = resolve
+          }),
+      )
+      .mockResolvedValue(activeOverview)
+
+    const { wrapper } = await mountComposable()
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(listOverviewMock).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(9000)
+    expect(listOverviewMock).toHaveBeenCalledTimes(2)
+
+    resolveRefresh?.(activeOverview)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(2999)
+    expect(listOverviewMock).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(listOverviewMock).toHaveBeenCalledTimes(3)
+    wrapper.unmount()
+  })
 })
