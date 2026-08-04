@@ -13,6 +13,9 @@ describe('git impact helpers', () => {
     expect(
       assertTestPath('C:/repo', 'apps/backend/tests/unit/utils/foo.unit.test.ts', 'backend'),
     ).toBe('apps/backend/tests/unit/utils/foo.unit.test.ts')
+    expect(assertTestPath('C:/repo', 'tests/dom/a.dom.test.ts', 'frontend')).toBe(
+      'apps/frontend/tests/dom/a.dom.test.ts',
+    )
     expect(() => assertTestPath('C:/repo', 'apps/backend/src/foo.ts', 'backend')).toThrow()
     expect(() =>
       assertTestPath('C:/repo', 'apps/frontend/tests/dom/a.dom.test.ts', 'backend'),

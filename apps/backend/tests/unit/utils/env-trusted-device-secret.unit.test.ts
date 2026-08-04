@@ -111,4 +111,55 @@ describe("env trusted-device secret validation", () => {
     const module = await import("../../../src/config/env");
     expect(module.EnvSpace.twoFactorTrustedDeviceCookieDomain).toBeUndefined();
   });
+
+  it("defaults to one trusted reverse-proxy hop when the setting is absent", async () => {
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: "development",
+    };
+    delete process.env.TRUST_PROXY_HOPS;
+
+    vi.resetModules();
+
+    const module = await import("../../../src/config/env");
+    expect(module.EnvSpace.trustProxyHops).toBe(1);
+  });
+
+  it("honors explicit direct and multi-proxy hop settings", async () => {
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: "development",
+      TRUST_PROXY_HOPS: "0",
+    };
+
+    vi.resetModules();
+    let module = await import("../../../src/config/env");
+    expect(module.EnvSpace.trustProxyHops).toBe(0);
+
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: "development",
+      TRUST_PROXY_HOPS: "2",
+    };
+
+    vi.resetModules();
+    module = await import("../../../src/config/env");
+    expect(module.EnvSpace.trustProxyHops).toBe(2);
+  });
+
+  it("rejects malformed or out-of-range trusted proxy hop settings", async () => {
+    for (const value of ["1.5", "invalid", "11"]) {
+      process.env = {
+        ...originalEnv,
+        NODE_ENV: "development",
+        TRUST_PROXY_HOPS: value,
+      };
+
+      vi.resetModules();
+
+      await expect(import("../../../src/config/env")).rejects.toThrow(
+        "TRUST_PROXY_HOPS must be an integer between 0 and 10",
+      );
+    }
+  });
 });
