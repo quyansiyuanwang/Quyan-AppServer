@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Request } from "express";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import {
   clearTrustedDeviceTokenCookie,
   extractTrustedDeviceIdFromToken,
@@ -9,14 +9,14 @@ import {
 } from "@/util/trusted-device-token";
 
 describe("trusted-device token cookie options", () => {
-  const originalIsProduction = EnvSpace.isProduction;
-  const originalSameSite = (EnvSpace as any).twoFactorTrustedDeviceCookieSameSite;
-  const originalCookieDomain = (EnvSpace as any).twoFactorTrustedDeviceCookieDomain;
+  const originalIsProduction = env.runtime.isProduction;
+  const originalSameSite = (env.auth.trustedDeviceCookie as any).sameSite;
+  const originalCookieDomain = (env.auth.trustedDeviceCookie as any).domain;
 
   afterEach(() => {
-    (EnvSpace as any).isProduction = originalIsProduction;
-    (EnvSpace as any).twoFactorTrustedDeviceCookieSameSite = originalSameSite;
-    (EnvSpace as any).twoFactorTrustedDeviceCookieDomain = originalCookieDomain;
+    (env.runtime as any).isProduction = originalIsProduction;
+    (env.auth.trustedDeviceCookie as any).sameSite = originalSameSite;
+    (env.auth.trustedDeviceCookie as any).domain = originalCookieDomain;
   });
 
   it("uses configured sameSite for trusted-device cookie", () => {
@@ -25,8 +25,8 @@ describe("trusted-device token cookie options", () => {
       res: { cookie },
     } as unknown as Request;
 
-    (EnvSpace as any).isProduction = false;
-    (EnvSpace as any).twoFactorTrustedDeviceCookieSameSite = "lax";
+    (env.runtime as any).isProduction = false;
+    (env.auth.trustedDeviceCookie as any).sameSite = "lax";
 
     setTrustedDeviceTokenCookie(req, "token-value", 120);
 
@@ -47,8 +47,8 @@ describe("trusted-device token cookie options", () => {
       res: { cookie },
     } as unknown as Request;
 
-    (EnvSpace as any).isProduction = false;
-    (EnvSpace as any).twoFactorTrustedDeviceCookieSameSite = "none";
+    (env.runtime as any).isProduction = false;
+    (env.auth.trustedDeviceCookie as any).sameSite = "none";
 
     setTrustedDeviceTokenCookie(req, "token-value", 120);
 
@@ -68,8 +68,8 @@ describe("trusted-device token cookie options", () => {
       res: { clearCookie },
     } as unknown as Request;
 
-    (EnvSpace as any).isProduction = true;
-    (EnvSpace as any).twoFactorTrustedDeviceCookieSameSite = "strict";
+    (env.runtime as any).isProduction = true;
+    (env.auth.trustedDeviceCookie as any).sameSite = "strict";
 
     clearTrustedDeviceTokenCookie(req);
 
@@ -88,9 +88,9 @@ describe("trusted-device token cookie options", () => {
       res: { cookie },
     } as unknown as Request;
 
-    (EnvSpace as any).isProduction = true;
-    (EnvSpace as any).twoFactorTrustedDeviceCookieSameSite = "strict";
-    (EnvSpace as any).twoFactorTrustedDeviceCookieDomain = ".qysyw.cn";
+    (env.runtime as any).isProduction = true;
+    (env.auth.trustedDeviceCookie as any).sameSite = "strict";
+    (env.auth.trustedDeviceCookie as any).domain = ".qysyw.cn";
 
     setTrustedDeviceTokenCookie(req, "token-value", 120);
 

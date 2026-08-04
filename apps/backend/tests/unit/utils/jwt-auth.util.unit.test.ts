@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import jwt from "jsonwebtoken";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { JWTAccessIns } from "@/util/auth";
 import { RedisService } from "@/services/infrastructure/redis.service";
 
@@ -26,7 +26,7 @@ describe("JWT util auth", () => {
   });
 
   it("verifyToken returns null when decoded payload is a string", async () => {
-    const token = jwt.sign("raw-string-payload", EnvSpace.accessTokenSecret);
+    const token = jwt.sign("raw-string-payload", env.auth.accessTokenSecret);
 
     const payload = await JWTAccessIns.verifyToken(token);
 

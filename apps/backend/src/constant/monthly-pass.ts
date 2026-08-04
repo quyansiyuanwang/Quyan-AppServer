@@ -1,8 +1,8 @@
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 
 export const MONTHLY_PASS_MAX_PAGE_SIZE = 100;
 export const MONTHLY_PASS_DEFAULT_PAGE_SIZE = Math.min(
-  EnvSpace.monthlyPassConfig.defaultPageSize,
+  env.integrations.monthlyPass.defaultPageSize,
   MONTHLY_PASS_MAX_PAGE_SIZE,
 );
 
@@ -13,17 +13,17 @@ export const MONTHLY_PASS_DECIMAL_SCALE = 4;
 const MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS_FALLBACK = 24 * 30 * 12;
 
 export const MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS = Math.min(
-  EnvSpace.monthlyPassConfig.defaultQuotaWindowHours,
+  env.integrations.monthlyPass.defaultQuotaWindowHours,
   MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS_FALLBACK,
 );
 
 export const MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS = Math.max(
   MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS,
-  Math.min(EnvSpace.monthlyPassConfig.maxQuotaWindowHours, MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS_FALLBACK),
+  Math.min(env.integrations.monthlyPass.maxQuotaWindowHours, MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS_FALLBACK),
 );
 
 export const MONTHLY_PASS_QUOTA_WINDOW_MS = 60 * 60 * 1000;
 
-export const MONTHLY_PASS_MAX_AMOUNT_QUOTA = EnvSpace.monthlyPassConfig.maxAmountQuota;
+export const MONTHLY_PASS_MAX_AMOUNT_QUOTA = env.integrations.monthlyPass.maxAmountQuota;
 
-export const MONTHLY_PASS_MAX_INTEGER_QUOTA = EnvSpace.monthlyPassConfig.maxIntegerQuota;
+export const MONTHLY_PASS_MAX_INTEGER_QUOTA = env.integrations.monthlyPass.maxIntegerQuota;

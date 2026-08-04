@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { createHash, randomUUID } from "crypto";
 import type { Request, Response } from "express";
 import type { UserExternalIdentity } from "@prisma/client";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { UserRepository } from "@/store/users/user.repository";
 import { ExternalIdentityRepository } from "@/store/auth/external-identity.repository";
@@ -190,7 +190,7 @@ export class ExternalAuthService {
     const protocol = protoHeader || (request?.secure ? "https" : "http");
 
     if (host) return `${protocol}://${host}`;
-    return `http://localhost:${EnvSpace.port}`;
+    return `http://localhost:${env.runtime.port}`;
   }
 
   private getFrontendOrigin(config: SocialAuthConfig, request?: Request): string {

@@ -58,7 +58,7 @@ vi.mock("../../../src/util/developer-outbound-url", async (importOriginal) => {
 });
 
 import { DeveloperProjectService } from "../../../src/services/developer/developer-project.service";
-import { EnvSpace } from "../../../src/config/env";
+import { env } from "../../../src/config/env";
 import {
   createStatusMonitorBodySchema,
   updateStatusMonitorBodySchema,
@@ -67,8 +67,8 @@ import {
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 
 describe("DeveloperProjectService", () => {
-  const originalDeveloperProductConfig = EnvSpace.developerProductConfig;
-  const originalBaiduMapConfig = EnvSpace.baiduMapConfig;
+  const originalDeveloperProductConfig = env.integrations.developerProduct;
+  const originalBaiduMapConfig = env.integrations.baiduMap;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -76,11 +76,11 @@ describe("DeveloperProjectService", () => {
     (DeveloperProjectService as any).serviceInstance = undefined;
     process.env.DEVELOPER_SECRETS_MASTER_KEY = "d".repeat(64);
     delete process.env.IP_GEOLOCATION_ENDPOINT;
-    (EnvSpace as any).developerProductConfig = {
+    (env.integrations as any).developerProduct = {
       ...originalDeveloperProductConfig,
       ipGeolocationEndpoint: "",
     };
-    (EnvSpace as any).baiduMapConfig = {
+    (env.integrations as any).baiduMap = {
       ...originalBaiduMapConfig,
       ipLocationAk: "",
     };
@@ -339,7 +339,7 @@ describe("DeveloperProjectService", () => {
       userId: "user-1",
       chargeAmount: 0,
     });
-    (EnvSpace as any).developerProductConfig = {
+    (env.integrations as any).developerProduct = {
       ...originalDeveloperProductConfig,
       ipGeolocationEndpoint: "https://8.8.8.8",
     };
@@ -359,7 +359,7 @@ describe("DeveloperProjectService", () => {
     vi.spyOn(service as any, "consumeQuota").mockResolvedValue(receipt);
     const refundQuota = vi.spyOn(service as any, "refundQuota").mockResolvedValue(undefined);
     mocks.axios.get.mockRejectedValue(new Error("provider unavailable"));
-    (EnvSpace as any).developerProductConfig = {
+    (env.integrations as any).developerProduct = {
       ...originalDeveloperProductConfig,
       ipGeolocationEndpoint: "https://8.8.8.8",
     };

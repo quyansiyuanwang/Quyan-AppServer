@@ -7,7 +7,7 @@ import { UserRepository } from "@/store/users/user.repository";
 import type { GroupStore, GroupWithUserCount, GroupListFilters } from "@/store/users/group.store";
 import type { UserStore } from "@/store/users/user.store";
 import type { Request } from "express";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { extractClientIp } from "@/util/ip-extractor";
 
 export class GroupService {
@@ -55,7 +55,7 @@ export class GroupService {
     if (!actorGroup) return [];
 
     // 如果是超级管理员组，返回所有组
-    if (actorGroup.username === EnvSpace.superAdminGroupUsername) return this.getAllGroups();
+    if (actorGroup.username === env.security.superAdminGroupUsername) return this.getAllGroups();
 
     // 否则只返回 level >= actorGroup.level 的组
     const groups = await this.groupRepository.listVisibleWithUserCount(actorGroup.level);
@@ -85,7 +85,7 @@ export class GroupService {
     };
 
     // 非管理员只能看到 level >= 自己 level 的组
-    if (actorGroup.username !== EnvSpace.superAdminGroupUsername) filters.minLevel = actorGroup.level;
+    if (actorGroup.username !== env.security.superAdminGroupUsername) filters.minLevel = actorGroup.level;
 
     const skip = (options.page - 1) * options.pageSize;
     const [total, groups] = await Promise.all([
@@ -168,7 +168,7 @@ export class GroupService {
   async deleteGroup(groupId: string, actorUserId: string, request?: Request): Promise<void> {
     const group = await this.groupRepository.findByIdWithUserCount(groupId);
     if (!group) throw new NotFoundError("用户组不存在");
-    if (group.username === EnvSpace.protectedGroupName) throw new BadRequestError("该用户组不允许删除");
+    if (group.username === env.security.protectedGroupName) throw new BadRequestError("该用户组不允许删除");
     if (group._count.users > 0) throw new BadRequestError("该组下仍有用户，无法删除");
 
     await this.groupRepository.softDelete(groupId);

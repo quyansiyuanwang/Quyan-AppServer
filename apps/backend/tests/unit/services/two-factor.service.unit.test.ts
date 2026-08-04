@@ -6,7 +6,7 @@ import { RedisService } from "../../../src/services/infrastructure/redis.service
 import { RateLimiterService } from "../../../src/services/infrastructure/rate-limiter.service";
 import { EmailService } from "../../../src/services/auth/email.service";
 import { UnauthorizedError } from "../../../src/util/errors";
-import { EnvSpace } from "../../../src/config/env";
+import { env } from "../../../src/config/env";
 import {
   TWO_FACTOR_TRUSTED_DEVICE_PAGE_SIZE_DEFAULT,
   TWO_FACTOR_TRUSTED_DEVICE_PAGE_SIZE_MAX,
@@ -15,10 +15,10 @@ import {
 
 describe("TwoFactorService security hardening", () => {
   const originalEnv = { ...process.env };
-  const originalTwoFactorConfig = { ...EnvSpace.twoFactorConfig };
-  const originalTrustWindowMinutes = EnvSpace.twoFactorTrustWindowMinutes;
-  const originalTrustedDeviceSecret = EnvSpace.trustedDeviceSecret;
-  const originalAccessTokenSecret = EnvSpace.accessTokenSecret;
+  const originalTwoFactorConfig = { ...env.auth.twoFactor };
+  const originalTrustWindowMinutes = env.auth.twoFactorTrustWindowMinutes;
+  const originalTrustedDeviceSecret = env.auth.trustedDeviceSecret;
+  const originalAccessTokenSecret = env.auth.accessTokenSecret;
   const trustedDeviceSecret = "a".repeat(64);
 
   beforeEach(() => {
@@ -30,10 +30,10 @@ describe("TwoFactorService security hardening", () => {
 
   afterEach(() => {
     process.env = { ...originalEnv };
-    (EnvSpace as any).twoFactorConfig = { ...originalTwoFactorConfig };
-    (EnvSpace as any).twoFactorTrustWindowMinutes = originalTrustWindowMinutes;
-    (EnvSpace as any).trustedDeviceSecret = originalTrustedDeviceSecret;
-    (EnvSpace as any).accessTokenSecret = originalAccessTokenSecret;
+    (env.auth as any).twoFactor = { ...originalTwoFactorConfig };
+    (env.auth as any).twoFactorTrustWindowMinutes = originalTrustWindowMinutes;
+    (env.auth as any).trustedDeviceSecret = originalTrustedDeviceSecret;
+    (env.auth as any).accessTokenSecret = originalAccessTokenSecret;
   });
 
   const createService = () => {
@@ -161,22 +161,22 @@ describe("TwoFactorService security hardening", () => {
     const counter = Math.floor(fixedNow / 1000 / 30);
     const previousCode = service.generateTotpAtCounter(secret, counter - 1);
 
-    (EnvSpace as any).twoFactorConfig = {
-      ...EnvSpace.twoFactorConfig,
+    (env.auth as any).twoFactor = {
+      ...env.auth.twoFactor,
       totpWindowSteps: 0,
     };
     expect(service.verifyTotpCode(secret, previousCode)).toBe(false);
 
-    (EnvSpace as any).twoFactorConfig = {
-      ...EnvSpace.twoFactorConfig,
+    (env.auth as any).twoFactor = {
+      ...env.auth.twoFactor,
       totpWindowSteps: 1,
     };
     expect(service.verifyTotpCode(secret, previousCode)).toBe(true);
   });
 
   it("uses configurable recovery code count", () => {
-    (EnvSpace as any).twoFactorConfig = {
-      ...EnvSpace.twoFactorConfig,
+    (env.auth as any).twoFactor = {
+      ...env.auth.twoFactor,
       recoveryCodeCount: 12,
     };
 
@@ -268,8 +268,8 @@ describe("TwoFactorService security hardening", () => {
   it("returns login reminder once per cooldown interval", async () => {
     const { service, mocks } = createService();
 
-    (EnvSpace as any).twoFactorConfig = {
-      ...EnvSpace.twoFactorConfig,
+    (env.auth as any).twoFactor = {
+      ...env.auth.twoFactor,
       reminderEnabled: true,
       reminderIntervalDays: 7,
     };
@@ -431,12 +431,12 @@ describe("TwoFactorService security hardening", () => {
 
     const oldSecret = "a".repeat(64);
     const rotatedSecret = "b".repeat(64);
-    (EnvSpace as any).trustedDeviceSecret = oldSecret;
+    (env.auth as any).trustedDeviceSecret = oldSecret;
 
     const deviceId = service.generateTrustedDeviceId();
     const token = service.createTrustedDeviceToken("user-1", deviceId);
 
-    (EnvSpace as any).trustedDeviceSecret = rotatedSecret;
+    (env.auth as any).trustedDeviceSecret = rotatedSecret;
 
     expect(service.verifyTrustedDeviceToken("user-1", token)).toBeNull();
   });
@@ -553,7 +553,7 @@ describe("TwoFactorService security hardening", () => {
 
   it("reuses existing trusted device by fingerprint when token is missing", async () => {
     const { service, mocks } = createService();
-    (EnvSpace as any).twoFactorTrustWindowMinutes = 30;
+    (env.auth as any).twoFactorTrustWindowMinutes = 30;
 
     const deviceA = "a".repeat(64);
     const deviceB = "b".repeat(64);
@@ -608,7 +608,7 @@ describe("TwoFactorService security hardening", () => {
 
   it("requires TWO_FACTOR_TRUSTED_DEVICE_SECRET to be configured", () => {
     const { service } = createService();
-    (EnvSpace as any).trustedDeviceSecret = "";
+    (env.auth as any).trustedDeviceSecret = "";
 
     const deviceId = service.generateTrustedDeviceId();
     expect(() => service.createTrustedDeviceToken("user-1", deviceId)).toThrow(
@@ -618,7 +618,7 @@ describe("TwoFactorService security hardening", () => {
 
   it("requires TWO_FACTOR_TRUSTED_DEVICE_SECRET to be strong enough", () => {
     const { service } = createService();
-    (EnvSpace as any).trustedDeviceSecret = "short-secret";
+    (env.auth as any).trustedDeviceSecret = "short-secret";
 
     const deviceId = service.generateTrustedDeviceId();
     expect(() => service.createTrustedDeviceToken("user-1", deviceId)).toThrow(
@@ -628,8 +628,8 @@ describe("TwoFactorService security hardening", () => {
 
   it("requires TWO_FACTOR_TRUSTED_DEVICE_SECRET to be different from JWT_ACCESS_SECRET", () => {
     const { service } = createService();
-    (EnvSpace as any).accessTokenSecret = trustedDeviceSecret;
-    (EnvSpace as any).trustedDeviceSecret = trustedDeviceSecret;
+    (env.auth as any).accessTokenSecret = trustedDeviceSecret;
+    (env.auth as any).trustedDeviceSecret = trustedDeviceSecret;
 
     const deviceId = service.generateTrustedDeviceId();
     expect(() => service.createTrustedDeviceToken("user-1", deviceId)).toThrow(

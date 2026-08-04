@@ -14,7 +14,7 @@ import type {
   AuthCenterTokenDto,
   AuthCenterTokenResponseDto,
 } from "@/api/dto/auth-center/auth-center.dto";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { MANAGED_STATUS } from "@/constant/status";
 import { AuthCenterAuthorizationRepository } from "@/store/auth-center/auth-center-authorization.repository";
 import type {
@@ -160,7 +160,7 @@ export class AuthCenterAuthorizationService {
   }
 
   getJwks(): AuthCenterJwksResponseDto {
-    const publicJwk = createPublicKey(EnvSpace.authCenterConfig.publicKey).export({ format: "jwk" }) as Record<
+    const publicJwk = createPublicKey(env.auth.authCenter.publicKey).export({ format: "jwk" }) as Record<
       string,
       unknown
     >;
@@ -169,16 +169,16 @@ export class AuthCenterAuthorizationService {
       keys: [
         {
           ...publicJwk,
-          kid: EnvSpace.authCenterConfig.keyId,
+          kid: env.auth.authCenter.keyId,
           use: "sig",
-          alg: EnvSpace.authCenterConfig.algorithm,
+          alg: env.auth.authCenter.algorithm,
         } as AuthCenterJwkDto,
       ],
     };
   }
 
   getDiscoveryDocument(): AuthCenterDiscoveryResponseDto {
-    const issuer = EnvSpace.authCenterConfig.issuer.replace(/\/$/, "");
+    const issuer = env.auth.authCenter.issuer.replace(/\/$/, "");
     return {
       issuer,
       authorization_endpoint: `${issuer}/authorize`,
@@ -437,11 +437,11 @@ export class AuthCenterAuthorizationService {
         token_use: "access_token",
         ...(input.userId ? { uid: input.userId } : {}),
       },
-      EnvSpace.authCenterConfig.privateKey,
+      env.auth.authCenter.privateKey,
       {
-        algorithm: EnvSpace.authCenterConfig.algorithm,
-        keyid: EnvSpace.authCenterConfig.keyId,
-        issuer: EnvSpace.authCenterConfig.issuer,
+        algorithm: env.auth.authCenter.algorithm,
+        keyid: env.auth.authCenter.keyId,
+        issuer: env.auth.authCenter.issuer,
         audience: input.client.clientId,
         subject: input.subject,
         jwtid: jti,

@@ -52,10 +52,9 @@ describe("main runtime bootstrap", () => {
       setupService,
     }));
     vi.doMock("../../src/config/env", () => ({
-      EnvSpace: {
-        port: 10001,
-        isDevelopment: false,
-        hiddenDatabase: "mysql://root:****@localhost:3306/app_test",
+      env: {
+        runtime: { port: 10001, isDevelopment: false },
+        database: { hiddenUrl: "mysql://root:****@localhost:3306/app_test" },
       },
     }));
     vi.doMock("../../src/config/database", () => ({ disconnectDatabase: vi.fn() }));
@@ -149,10 +148,9 @@ describe("main runtime bootstrap", () => {
       setupService,
     }));
     vi.doMock("../../src/config/env", () => ({
-      EnvSpace: {
-        port: 10001,
-        isDevelopment: true,
-        hiddenDatabase: "mysql://root:****@localhost:3306/app_test",
+      env: {
+        runtime: { port: 10001, isDevelopment: true },
+        database: { hiddenUrl: "mysql://root:****@localhost:3306/app_test" },
       },
     }));
     vi.doMock("../../src/config/database", () => ({ disconnectDatabase: vi.fn() }));

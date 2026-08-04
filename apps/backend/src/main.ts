@@ -1,6 +1,6 @@
 import { createApp, setupService } from "./app";
 import { disconnectDatabase } from "./config/database";
-import { EnvSpace } from "./config/env";
+import { env } from "./config/env";
 import { disposeRequestLogService } from "./middleware/logging";
 import { RemoteTerminalGatewayBootstrap } from "./modules/remote-terminal/gateway/bootstrap";
 import { RemoteTerminalGatewayService } from "./modules/remote-terminal/gateway/gateway.service";
@@ -11,15 +11,15 @@ import { getLogger, LogCategory } from "./util/logger";
 
 const app = createApp();
 setupService();
-const port = EnvSpace.port;
-const isDev = EnvSpace.isDevelopment;
+const port = env.runtime.port;
+const isDev = env.runtime.isDevelopment;
 const logger = getLogger("Main", LogCategory.UTIL);
 const remoteTerminalGatewayBootstrap = new RemoteTerminalGatewayBootstrap(RemoteTerminalGatewayService.getInstance());
 
 if (isDev) logger.warn("Running in development mode");
 
 const server = app.listen(port, () => {
-  logger.info(`Database: ${EnvSpace.hiddenDatabase}`);
+  logger.info(`Database: ${env.database.hiddenUrl}`);
   logger.info(`🚀 Server is running on port ${port}`);
   logger.info(`📖 API 文档: http://localhost:${port}/docs`);
   logger.info(`📄 OpenAPI JSON: http://localhost:${port}/docs/openapi.json`);

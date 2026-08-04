@@ -1,14 +1,14 @@
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import fs from "fs";
 import path from "path";
 
 function resolveRuntimePath(...candidatePaths: string[]): string {
   for (const candidatePath of candidatePaths) {
-    const absolutePath = path.join(EnvSpace.cwd, candidatePath);
+    const absolutePath = path.join(env.runtime.cwd, candidatePath);
     if (fs.existsSync(absolutePath)) return absolutePath;
   }
 
-  return path.join(EnvSpace.cwd, candidatePaths[0] || "");
+  return path.join(env.runtime.cwd, candidatePaths[0] || "");
 }
 
 function resolveSwaggerUiDistPath(): string {

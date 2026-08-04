@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { LockBackendUnavailableError, TooManyRequestsError } from "@/util/errors";
 
 describe("RelayProxyService distributed concurrency", () => {
@@ -53,10 +53,10 @@ describe("RelayProxyService distributed concurrency", () => {
     expect(policy).toEqual({
       userId: "user-1",
       scope: "image",
-      maxConcurrency: Math.min(relayConfig.maxConcurrency, EnvSpace.relayResourceGuardConfig.imageMaxConcurrency),
-      queueTimeout: Math.min(relayConfig.queueTimeout, EnvSpace.relayResourceGuardConfig.imageQueueTimeoutMs),
+      maxConcurrency: Math.min(relayConfig.maxConcurrency, env.relay.resourceGuard.imageMaxConcurrency),
+      queueTimeout: Math.min(relayConfig.queueTimeout, env.relay.resourceGuard.imageQueueTimeoutMs),
       enableQueue: true,
-      slotTtlSeconds: Math.max(1, Math.ceil(EnvSpace.relayResourceGuardConfig.nonStreamUpstreamTimeoutMs / 1000) + 5),
+      slotTtlSeconds: Math.max(1, Math.ceil(env.relay.resourceGuard.nonStreamUpstreamTimeoutMs / 1000) + 5),
     });
   });
 

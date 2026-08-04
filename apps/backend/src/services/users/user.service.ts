@@ -20,7 +20,7 @@ import type { Request } from "express";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { NotificationEvent } from "@/constant/notification-event";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { extractClientIp } from "@/util/ip-extractor";
 
 type UserEntity = NonNullable<Awaited<ReturnType<UserStore["findById"]>>>;
@@ -323,7 +323,7 @@ export class UserService {
     const user = await this.userRepository.findById(userId);
     if (!user || !user.groupId) return false;
     const group = await this.groupRepository.findById(user.groupId);
-    return group?.username === EnvSpace.superAdminGroupUsername;
+    return group?.username === env.security.superAdminGroupUsername;
   }
 
   async changeUserPassword(

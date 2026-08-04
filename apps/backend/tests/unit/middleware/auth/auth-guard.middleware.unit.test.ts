@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpStatusCode } from "axios";
 import { CustomCode } from "@/constant/custom-code";
 import { ForbiddenError, UnauthorizedError } from "@/util/errors";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { JWTAccessIns } from "@/util/auth";
 import { authMiddleware, expressAuthentication } from "@/middleware/auth/auth_guard";
 import { validateAccountStatus } from "@/util/auth/account-status";
@@ -222,8 +222,8 @@ describe("auth_guard middleware", () => {
   });
 
   it("expressAuthentication allows local requests for local-or-jwt outside test mode", async () => {
-    const originalIsTest = EnvSpace.isTest;
-    (EnvSpace as any).isTest = false;
+    const originalIsTest = env.runtime.isTest;
+    (env.runtime as any).isTest = false;
     mockedIsLocalRequest.mockReturnValue(true);
 
     try {
@@ -233,7 +233,7 @@ describe("auth_guard middleware", () => {
       expect(result).toEqual({ local: true });
       expect(mockedSetRequestContext).toHaveBeenCalledWith(req);
     } finally {
-      (EnvSpace as any).isTest = originalIsTest;
+      (env.runtime as any).isTest = originalIsTest;
     }
   });
 

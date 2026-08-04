@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { EnvSpace } from "../config/env";
+import { env } from "../config/env";
 import chalk from "chalk";
 import { getLogger, LogCategory } from "@/util/logger";
 import { LogService } from "@/services/system/log.service";
@@ -18,7 +18,7 @@ type ResponseChunkEncoding =
   | "binary"
   | "hex";
 
-const isDev = EnvSpace.isDevelopment;
+const isDev = env.runtime.isDevelopment;
 const logger = getLogger("LoggingMiddleware", LogCategory.MIDDLEWARE);
 const logService = new LogService();
 

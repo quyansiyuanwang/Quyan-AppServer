@@ -2,7 +2,7 @@ import fs from "fs";
 import winston from "winston";
 import DailyRotateFile from "winston-daily-rotate-file";
 import path from "path";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 
 /**
  * 日志类别枚举
@@ -36,12 +36,12 @@ export enum LogLevel {
   SILLY = "silly",
 }
 
-const isDev = EnvSpace.isDevelopment;
-const logConfig = EnvSpace.logConfig ?? {
+const isDev = env.runtime.isDevelopment;
+const logConfig = env.runtime.logging ?? {
   disableConsoleLog: false,
   enableFileLogging: false,
 };
-const logsDir = path.join(EnvSpace.cwd || process.cwd(), "logs");
+const logsDir = path.join(env.runtime.cwd || process.cwd(), "logs");
 
 function canWriteLogsDir(): boolean {
   try {

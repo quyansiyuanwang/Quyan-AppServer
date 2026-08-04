@@ -4,13 +4,19 @@ import { IpGeolocationService } from "../../../src/services/infrastructure/ip-ge
 import { RedisService } from "../../../src/services/infrastructure/redis.service";
 
 vi.mock("../../../src/config/env", () => ({
-  EnvSpace: {
-    redisConfig: {
+  env: {
+    runtime: {
+      isDevelopment: false,
+      logging: { disableConsoleLog: true, enableFileLogging: false },
+    },
+    redis: {
       circuitBreakerFailureThreshold: 5,
       circuitBreakerOpenMs: 30000,
     },
-    baiduMapConfig: {
-      ipLocationAk: "test-ak",
+    integrations: {
+      baiduMap: {
+        ipLocationAk: "test-ak",
+      },
     },
   },
 }));
