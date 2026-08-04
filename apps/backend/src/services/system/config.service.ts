@@ -330,9 +330,7 @@ export class ConfigService {
       configs[CONFIG_KEYS.CAPTCHA.PROVIDER] || (envEnabled ? "recaptcha" : "none"),
     );
     const fallbackProvider = this.parseCaptchaProvider(configs[CONFIG_KEYS.CAPTCHA.FALLBACK_PROVIDER] || "none");
-    const parsedMinScore = parseFloat(
-      configs[CONFIG_KEYS.CAPTCHA.MIN_SCORE] || String(env.auth.recaptcha.minScore),
-    );
+    const parsedMinScore = parseFloat(configs[CONFIG_KEYS.CAPTCHA.MIN_SCORE] || String(env.auth.recaptcha.minScore));
     const parsedTrustWindowMinutes = parseInt(
       configs[CONFIG_KEYS.CAPTCHA.TRUST_WINDOW_MINUTES] || String(env.security.captchaTrust.windowMinutes),
       10,

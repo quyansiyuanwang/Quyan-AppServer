@@ -14,9 +14,10 @@ function listTypeScriptFiles(directory: string): string[] {
 }
 
 describe("environment boundary", () => {
-  it("keeps process.env access inside config/env.ts", () => {
+  it("keeps process.env access inside config/env", () => {
     const offenders = listTypeScriptFiles(backendSrc).filter((filePath) => {
-      if (path.normalize(filePath) === path.normalize(path.join(backendSrc, "config", "env.ts"))) return false;
+      const environmentConfigDirectory = path.normalize(path.join(backendSrc, "config", "env"));
+      if (path.normalize(filePath).startsWith(`${environmentConfigDirectory}${path.sep}`)) return false;
       return /process\.env/.test(fs.readFileSync(filePath, "utf8"));
     });
 
