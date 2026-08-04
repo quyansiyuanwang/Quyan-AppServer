@@ -6,7 +6,7 @@ import { CustomCode } from "@/constant/custom-code";
 import { ApiError, ValidationError, TooManyRequestsError, ResourceLockedError } from "@/util/errors";
 import { ValidateError } from "@tsoa/runtime";
 import { getLogger, LogCategory } from "@/util/logger";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { DEFAULT_BACKEND_LOCALE, translateKnownMessage, translateMessage, type BackendLocale } from "@/locales";
 
 const logger = getLogger("ExceptionMiddleware", LogCategory.SYSTEM);
@@ -61,7 +61,7 @@ export function exceptionMiddleware(err: Error, req: Request, res: Response, nex
       name: err.name,
       path: req.path,
       method: req.method,
-      stack: EnvSpace.isDevelopment ? err.stack : undefined,
+      stack: env.runtime.isDevelopment ? err.stack : undefined,
     };
 
     try {
@@ -133,7 +133,7 @@ export function exceptionMiddleware(err: Error, req: Request, res: Response, nex
     if (err instanceof ValidationError && err.fields) response.fields = err.fields;
 
     // 开发环境下附加堆栈信息
-    if (EnvSpace.isDevelopment && !err.isOperational) response.stack = err.stack;
+    if (env.runtime.isDevelopment && !err.isOperational) response.stack = err.stack;
 
     return res.status(err.statusCode).json(response);
   }
@@ -161,7 +161,7 @@ export function exceptionMiddleware(err: Error, req: Request, res: Response, nex
         message: translateMessage("errors.resourceAlreadyExists", locale),
       };
 
-      if (EnvSpace.isDevelopment) {
+      if (env.runtime.isDevelopment) {
         response.error = err.message;
         response.target = getPrismaErrorTarget(err);
       }
@@ -172,20 +172,20 @@ export function exceptionMiddleware(err: Error, req: Request, res: Response, nex
     return res.status(HttpStatusCode.BadRequest).json({
       code: CustomCode.VALIDATION_FAILED,
       message: translateMessage("errors.databaseOperationFailed", locale),
-      error: EnvSpace.isDevelopment ? err.message : undefined,
+      error: env.runtime.isDevelopment ? err.message : undefined,
     });
   }
 
   // 处理未知错误
   const response: any = {
     code: CustomCode.INTERNAL_SERVER_ERROR,
-    message: EnvSpace.isProduction
+    message: env.runtime.isProduction
       ? translateMessage("errors.internalServerError", locale)
       : err.message || translateMessage("errors.internalServerError", locale),
   };
 
   // 开发环境下提供详细错误信息
-  if (EnvSpace.isDevelopment) {
+  if (env.runtime.isDevelopment) {
     response.error = err.message;
     response.stack = err.stack;
   }

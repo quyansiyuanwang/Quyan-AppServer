@@ -5,7 +5,7 @@ import axios from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RelayProxyService } from "../../../src/services/relay/relay-proxy.service";
 import { RELAY_CHANNEL_STATUS } from "../../../src/constant/relay-channel";
-import { EnvSpace } from "../../../src/config/env";
+import { env } from "../../../src/config/env";
 import { GatewayTimeoutError, LockBackendUnavailableError, TooManyRequestsError } from "../../../src/util/errors";
 import { OperationType } from "../../../src/constant/operation-type";
 
@@ -640,14 +640,14 @@ describe("RelayProxyService failover", () => {
     expect(result.userId).toBe("user-1");
     expect(result.limits).toEqual({
       maxConcurrency: 3,
-      effectiveImageMaxConcurrency: Math.min(3, EnvSpace.relayResourceGuardConfig.imageMaxConcurrency),
-      imageMaxConcurrencyCap: EnvSpace.relayResourceGuardConfig.imageMaxConcurrency,
+      effectiveImageMaxConcurrency: Math.min(3, env.relay.resourceGuard.imageMaxConcurrency),
+      imageMaxConcurrencyCap: env.relay.resourceGuard.imageMaxConcurrency,
       enableQueue: true,
       queueTimeoutMs: 1000,
-      effectiveImageQueueTimeoutMs: Math.min(1000, EnvSpace.relayResourceGuardConfig.imageQueueTimeoutMs),
-      imageQueueTimeoutMs: EnvSpace.relayResourceGuardConfig.imageQueueTimeoutMs,
+      effectiveImageQueueTimeoutMs: Math.min(1000, env.relay.resourceGuard.imageQueueTimeoutMs),
+      imageQueueTimeoutMs: env.relay.resourceGuard.imageQueueTimeoutMs,
       upstreamStreamTimeoutMs: 30000,
-      nonStreamUpstreamTimeoutMs: EnvSpace.relayResourceGuardConfig.nonStreamUpstreamTimeoutMs,
+      nonStreamUpstreamTimeoutMs: env.relay.resourceGuard.nonStreamUpstreamTimeoutMs,
     });
     expect(result.totals).toEqual({
       activeCount: 3,

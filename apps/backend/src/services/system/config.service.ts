@@ -2,7 +2,7 @@ import BusinessLogService from "./businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { ALL_NOTIFICATION_EVENTS, NotificationEvent, THRESHOLD_EVENTS } from "@/constant/notification-event";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { ServerConfigRepository } from "@/store/system/server-config.repository";
 import type { ServerConfigStore } from "@/store/system/server-config.store";
 import type { Request } from "express";
@@ -325,16 +325,16 @@ export class ConfigService {
       CONFIG_KEYS.CAPTCHA.TRUST_WINDOW_MINUTES,
     ];
     const configs = await this.getMultiple(keys);
-    const envEnabled = EnvSpace.recaptchaConfig.enabled;
+    const envEnabled = env.auth.recaptcha.enabled;
     const provider = this.parseCaptchaProvider(
       configs[CONFIG_KEYS.CAPTCHA.PROVIDER] || (envEnabled ? "recaptcha" : "none"),
     );
     const fallbackProvider = this.parseCaptchaProvider(configs[CONFIG_KEYS.CAPTCHA.FALLBACK_PROVIDER] || "none");
     const parsedMinScore = parseFloat(
-      configs[CONFIG_KEYS.CAPTCHA.MIN_SCORE] || String(EnvSpace.recaptchaConfig.minScore),
+      configs[CONFIG_KEYS.CAPTCHA.MIN_SCORE] || String(env.auth.recaptcha.minScore),
     );
     const parsedTrustWindowMinutes = parseInt(
-      configs[CONFIG_KEYS.CAPTCHA.TRUST_WINDOW_MINUTES] || String(EnvSpace.captchaTrustConfig.windowMinutes),
+      configs[CONFIG_KEYS.CAPTCHA.TRUST_WINDOW_MINUTES] || String(env.security.captchaTrust.windowMinutes),
       10,
     );
 
@@ -342,10 +342,10 @@ export class ConfigService {
       enabled: provider !== "none",
       provider,
       fallbackProvider,
-      minScore: Number.isFinite(parsedMinScore) ? parsedMinScore : EnvSpace.recaptchaConfig.minScore,
+      minScore: Number.isFinite(parsedMinScore) ? parsedMinScore : env.auth.recaptcha.minScore,
       trustWindowMinutes: Number.isFinite(parsedTrustWindowMinutes)
         ? Math.min(1440, Math.max(0, parsedTrustWindowMinutes))
-        : EnvSpace.captchaTrustConfig.windowMinutes,
+        : env.security.captchaTrust.windowMinutes,
     };
   }
 
@@ -360,7 +360,7 @@ export class ConfigService {
   }
 
   async getSocialAuthConfig(): Promise<SocialAuthConfig> {
-    const envConfig = EnvSpace.socialAuthConfig;
+    const envConfig = env.auth.social;
     const keys = [
       CONFIG_KEYS.SOCIAL_AUTH.FRONTEND_BASE_URL,
       CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_ENABLED,

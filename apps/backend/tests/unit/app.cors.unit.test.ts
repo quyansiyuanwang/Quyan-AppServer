@@ -1,17 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "../../src/app";
-import { EnvSpace } from "../../src/config/env";
+import { env } from "../../src/config/env";
 
 describe("createApp CORS configuration", () => {
-  const originalAllowedOrigins = EnvSpace.corsAllowedOrigins;
+  const originalAllowedOrigins = env.runtime.corsAllowedOrigins;
 
   afterEach(() => {
-    (EnvSpace as any).corsAllowedOrigins = originalAllowedOrigins;
+    (env.runtime as any).corsAllowedOrigins = originalAllowedOrigins;
   });
 
   it("allows any origin when CORS_ALLOWED_ORIGINS is empty", async () => {
-    (EnvSpace as any).corsAllowedOrigins = "";
+    (env.runtime as any).corsAllowedOrigins = "";
     const app = createApp();
     const origin = "https://any-origin.example";
 
@@ -22,7 +22,7 @@ describe("createApp CORS configuration", () => {
   });
 
   it("allows configured origin and rejects non-allowlisted origin", async () => {
-    (EnvSpace as any).corsAllowedOrigins = "https://allowed.example,https://another.example";
+    (env.runtime as any).corsAllowedOrigins = "https://allowed.example,https://another.example";
     const app = createApp();
 
     const allowedResponse = await request(app).get("/__cors_probe_allowed").set("Origin", "https://allowed.example");
@@ -36,7 +36,7 @@ describe("createApp CORS configuration", () => {
   });
 
   it("includes credentials on allowed preflight requests", async () => {
-    (EnvSpace as any).corsAllowedOrigins = "https://allowed.example";
+    (env.runtime as any).corsAllowedOrigins = "https://allowed.example";
     const app = createApp();
 
     const response = await request(app)
@@ -50,7 +50,7 @@ describe("createApp CORS configuration", () => {
   });
 
   it("ignores malformed allowlist entries and keeps valid origins only", async () => {
-    (EnvSpace as any).corsAllowedOrigins = "invalid-origin,https://allowed.example,not-a-url";
+    (env.runtime as any).corsAllowedOrigins = "invalid-origin,https://allowed.example,not-a-url";
     const app = createApp();
 
     const allowedResponse = await request(app)
@@ -66,7 +66,7 @@ describe("createApp CORS configuration", () => {
   });
 
   it("supports wildcard subdomain allowlist entries", async () => {
-    (EnvSpace as any).corsAllowedOrigins = "https://*.qysyw.cn,https://qysyw.cn";
+    (env.runtime as any).corsAllowedOrigins = "https://*.qysyw.cn,https://qysyw.cn";
     const app = createApp();
 
     const rootResponse = await request(app).get("/__cors_probe_wildcard_root").set("Origin", "https://qysyw.cn");
@@ -85,7 +85,7 @@ describe("createApp CORS configuration", () => {
   });
 
   it("supports regex allowlist entries", async () => {
-    (EnvSpace as any).corsAllowedOrigins = "regex:^https://([a-z0-9-]+\\.)*qysyw\\.cn$";
+    (env.runtime as any).corsAllowedOrigins = "regex:^https://([a-z0-9-]+\\.)*qysyw\\.cn$";
     const app = createApp();
 
     const allowedResponse = await request(app)

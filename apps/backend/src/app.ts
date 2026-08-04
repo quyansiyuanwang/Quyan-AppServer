@@ -16,7 +16,7 @@ import { RelayChannelProbeService } from "./services/relay/relay-channel-probe.s
 import { RegisterRoutes } from "@/build/routes";
 import { HttpStatusCode } from "axios";
 import { CustomCode } from "./constant/custom-code";
-import { EnvSpace } from "./config/env";
+import { env } from "./config/env";
 import { registerSwaggerUi } from "./util/swagger-ui";
 import { SystemService } from "./services/system/system.service";
 import { RedisService } from "./services/infrastructure/redis.service";
@@ -38,9 +38,9 @@ function parseContentLength(value: string | string[] | undefined): number | null
 
 export function createApp() {
   const app = express();
-  const requestSizeLimitConfig = EnvSpace.requestSizeLimitConfig;
+  const requestSizeLimitConfig = env.runtime.requestSizeLimits;
 
-  const corsAllowedOrigins = createCorsOriginAllowlist(EnvSpace.corsAllowedOrigins);
+  const corsAllowedOrigins = createCorsOriginAllowlist(env.runtime.corsAllowedOrigins);
 
   // 允许前端跨域访问
   app.use(
@@ -88,7 +88,7 @@ export function createApp() {
   app.use(
     createRequestSizeGuard({
       maxJsonBytes: requestSizeLimitConfig.jsonBodyLimitMb * 1024 * 1024,
-      maxMultipartBytes: EnvSpace.relayResourceGuardConfig.multipartBodyLimitMb * 1024 * 1024,
+      maxMultipartBytes: env.relay.resourceGuard.multipartBodyLimitMb * 1024 * 1024,
       maxOtherBytes: requestSizeLimitConfig.otherBodyLimitMb * 1024 * 1024,
     }),
   );
@@ -99,14 +99,14 @@ export function createApp() {
     "/relay/proxy",
     express.raw({
       type: ["multipart/form-data"],
-      limit: `${EnvSpace.relayResourceGuardConfig.multipartBodyLimitMb}mb`,
+      limit: `${env.relay.resourceGuard.multipartBodyLimitMb}mb`,
     }),
   );
   app.use(express.json({ limit: `${requestSizeLimitConfig.jsonBodyLimitMb}mb` }));
   app.use(express.urlencoded({ extended: true, limit: `${requestSizeLimitConfig.urlencodedBodyLimitMb}mb` }));
   // Trust only the explicitly configured number of reverse-proxy hops.
   // The default (0) prevents client-controlled forwarding headers from affecting req.ip.
-  app.set("trust proxy", EnvSpace.trustProxyHops);
+  app.set("trust proxy", env.runtime.trustProxyHops);
 
   app.use((req, _res, next) => {
     const originalCookie = req.res?.cookie?.bind(req.res);

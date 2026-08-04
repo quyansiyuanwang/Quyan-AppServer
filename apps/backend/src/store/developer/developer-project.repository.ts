@@ -6,7 +6,7 @@ import { createConnection } from "mysql2/promise";
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { prisma } from "@/config/database";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { BAIDU_GEO_API, GEO_CACHE_TTL_SECONDS, REQUEST_TIMEOUT_MS } from "@/constant/ip-geolocation";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { ConfigService } from "@/services/system/config.service";
@@ -145,7 +145,7 @@ export class DeveloperProjectRepository {
     // MySQL named locks are scoped to one physical connection. Prisma's pool may route the
     // acquire and release queries to different connections, leaving the lock stuck and causing
     // every subsequent scheduler tick to be skipped.
-    const connection = await createConnection(mysqlConnectionUrl(EnvSpace.databaseUrl));
+    const connection = await createConnection(mysqlConnectionUrl(env.database.url));
     const lockKey = "appserver:developer-monitor-scheduler";
     try {
       const [lockRows] = await connection.query("SELECT GET_LOCK(?, 0) AS acquired", [lockKey]);
@@ -930,7 +930,7 @@ export class DeveloperProjectRepository {
   }
 
   private getEncryptionKey(): Buffer {
-    const secret = EnvSpace.developerProductConfig.secretsMasterKey;
+    const secret = env.integrations.developerProduct.secretsMasterKey;
     if (secret.length < 64) throw new BadRequestError("密钥托管未配置");
     return createHash("sha256").update(secret).digest();
   }
@@ -1473,8 +1473,8 @@ export class DeveloperProjectRepository {
       if (!options?.skipQuota) await this.consumeQuota(projectId, "ip");
       return cached;
     }
-    const endpoint = EnvSpace.developerProductConfig.ipGeolocationEndpoint;
-    const baiduAk = EnvSpace.baiduMapConfig.ipLocationAk;
+    const endpoint = env.integrations.developerProduct.ipGeolocationEndpoint;
+    const baiduAk = env.integrations.baiduMap.ipLocationAk;
     if (!endpoint && !baiduAk) throw new BadRequestError("IP 定位服务尚未配置");
     const base = endpoint ? await assertSafeOutboundUrl(endpoint) : undefined;
     const receipt = options?.skipQuota ? undefined : await this.consumeQuota(projectId, "ip");

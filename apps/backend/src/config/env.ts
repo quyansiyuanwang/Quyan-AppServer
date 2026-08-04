@@ -1,4 +1,3 @@
-import { noUndefined } from "@/util/function-tools";
 import { createHash, generateKeyPairSync } from "crypto";
 import fs from "fs";
 import path from "path";
@@ -32,30 +31,65 @@ function resolveEnvPath(fileName: string): string {
 
 assertNotRunningFromDist();
 
-// 基础配置来自 .env，测试环境再由 .env.test 覆盖，避免测试缺少通用配置项。
-dotenv.config({
-  path: resolveEnvPath(".env"),
-});
-
-if (process.env.NODE_ENV === "test")
-  dotenv.config({
-    path: resolveEnvPath(".env.test"),
-    override: true,
-  });
-
-// Database test workers receive their isolated runtime values from Vitest setup.
-// Apply them after .env.test so the immutable configuration snapshot cannot point
-// back at the shared base database or Redis logical database.
-if (process.env.NODE_ENV === "test") {
-  if (process.env.APPSERVER_TEST_DATABASE_URL) process.env.DATABASE_URL = process.env.APPSERVER_TEST_DATABASE_URL;
-  if (process.env.APPSERVER_TEST_REDIS_DB) process.env.REDIS_DB = process.env.APPSERVER_TEST_REDIS_DB;
-}
-
 type EnvSnapshot = Readonly<Record<string, string | undefined>>;
 
-// Capture the environment once after dotenv has finished. Runtime configuration
-// accessors read this private snapshot instead of consulting process.env.
-let envSnapshot: EnvSnapshot = Object.freeze({ ...process.env });
+function parseEnvFile(filePath: string): Record<string, string | undefined> {
+  if (!fs.existsSync(filePath)) return {};
+  return dotenv.parse(fs.readFileSync(filePath));
+}
+
+class EnvironmentSource {
+  private readonly baseValues = parseEnvFile(resolveEnvPath(".env"));
+  private readonly nodeEnv = process.env.NODE_ENV || this.baseValues.NODE_ENV;
+  private readonly testValues = this.nodeEnv === "test" ? parseEnvFile(resolveEnvPath(".env.test")) : {};
+  private readonly resolvedValues = new Map<string, string | undefined>();
+
+  read(key: string): string | undefined {
+    if (this.resolvedValues.has(key)) return this.resolvedValues.get(key);
+
+    let value: string | undefined;
+    if (this.nodeEnv === "test" && key === "DATABASE_URL" && process.env.APPSERVER_TEST_DATABASE_URL)
+      value = process.env.APPSERVER_TEST_DATABASE_URL;
+    else if (this.nodeEnv === "test" && key === "REDIS_DB" && process.env.APPSERVER_TEST_REDIS_DB)
+      value = process.env.APPSERVER_TEST_REDIS_DB;
+    else if (this.nodeEnv === "test" && key in this.testValues) value = this.testValues[key];
+    else value = process.env[key] ?? this.baseValues[key];
+
+    this.resolvedValues.set(key, value);
+    return value;
+  }
+
+  dispose(): void {
+    this.resolvedValues.clear();
+    Object.keys(this.baseValues).forEach((key) => delete this.baseValues[key]);
+    Object.keys(this.testValues).forEach((key) => delete this.testValues[key]);
+  }
+}
+
+class AssertionCenter {
+  private readonly assertions: Array<() => void> = [];
+
+  register(assertion: () => void): void {
+    this.assertions.push(assertion);
+  }
+
+  assert(): void {
+    const failures: string[] = [];
+    for (const assertion of this.assertions) {
+      try {
+        assertion();
+      } catch (error) {
+        failures.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+    if (failures.length > 0) throw new Error(`Environment validation failed:\n${failures.join("\n")}`);
+  }
+}
+
+const environmentSource = new EnvironmentSource();
+let envSnapshot: EnvSnapshot = new Proxy({} as EnvSnapshot, {
+  get: (_target, key) => (typeof key === "string" ? environmentSource.read(key) : undefined),
+});
 
 function redactDatabaseUrl(value: string): string {
   return value.replace(/(\/\/[^:]+:)[^@]+@/, "$1****@");
@@ -154,24 +188,13 @@ function assertRelayChannelProbeMasterKey(): void {
 }
 
 function assertEnvironment(): void {
-  const checks = [
-    assertTestModeDatabaseSafety,
-    assertTrustedDeviceSecretIsolation,
-    assertReplaySigningSecretIsolation,
-    assertDeveloperSecretsMasterKey,
-    assertRelayChannelProbeMasterKey,
-  ];
-  const failures: string[] = [];
-
-  for (const check of checks) {
-    try {
-      check();
-    } catch (error) {
-      failures.push(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  if (failures.length > 0) throw new Error(`Environment validation failed:\n${failures.join("\n")}`);
+  const assertions = new AssertionCenter();
+  assertions.register(assertTestModeDatabaseSafety);
+  assertions.register(assertTrustedDeviceSecretIsolation);
+  assertions.register(assertReplaySigningSecretIsolation);
+  assertions.register(assertDeveloperSecretsMasterKey);
+  assertions.register(assertRelayChannelProbeMasterKey);
+  assertions.assert();
 }
 
 assertEnvironment();
@@ -669,63 +692,91 @@ function environmentDiagnostics() {
   });
 }
 
-const resolvedEnvSpace = {
-  isProduction: noUndefined(isProduction),
-  isDevelopment: noUndefined(isDevelopment),
-  isTest: noUndefined(isTest),
-  nodeEnv: noUndefined(nodeEnv),
-  port: noUndefined(getPort),
-  trustProxyHops: noUndefined(trustProxyHops),
-  accessTokenSecret: noUndefined(() => getJwtSecret("access")),
-  refreshTokenSecret: noUndefined(() => getJwtSecret("refresh")),
-  trustedDeviceSecret: noUndefined(trustedDeviceSecret),
-  accessTokenExpiresIn: noUndefined(() => getJwtExpiresIn("access")),
-  refreshTokenExpiresIn: noUndefined(() => getJwtExpiresIn("refresh")),
-  hiddenDatabase: noUndefined(getHiddenDatabase),
-  databaseUrl: noUndefined(getDatabaseUrl),
-  databaseParams: noUndefined(getDatabaseParams),
-  corsAllowedOrigins: noUndefined(corsAllowedOrigins),
-  protectedGroupName: noUndefined(getProtectedGroupName),
-  superAdminGroupUsername: noUndefined(getSuperAdminGroupUsername),
-  rateLimitConfig: noUndefined(rateLimitConfig),
-  redisConfig: noUndefined(redisConfig),
-  anthropicConfig: noUndefined(anthropicConfig),
-  developerProductConfig: noUndefined(developerProductConfig),
-  relayChannelProbeConfig: noUndefined(relayChannelProbeConfig),
-  remoteTerminalConfig: noUndefined(remoteTerminalConfig),
-  monthlyPassConfig: noUndefined(monthlyPassConfig),
-  webAuthnConfig: noUndefined(webAuthnConfig),
-  recaptchaConfig: noUndefined(recaptchaConfig),
-  turnstileConfig: noUndefined(turnstileConfig),
-  baiduMapConfig: noUndefined(baiduMapConfig),
-  captchaTrustConfig: captchaTrustConfig(),
-  logConfig: noUndefined(logConfig),
-  twoFactorConfig: noUndefined(twoFactorConfig),
-  twoFactorTrustWindowMinutes: noUndefined(twoFactorTrustWindowMinutes),
-  twoFactorTrustedDeviceCookieSameSite: noUndefined(twoFactorTrustedDeviceCookieSameSite),
-  twoFactorTrustedDeviceCookieDomain: twoFactorTrustedDeviceCookieDomain(),
-  authRefreshCookieName: noUndefined(authRefreshCookieName),
-  authRefreshCookieSameSite: noUndefined(authRefreshCookieSameSite),
-  authRefreshCookieDomain: authRefreshCookieDomain(),
-  authSessionCookieName: noUndefined(authSessionCookieName),
-  authSessionCookieSameSite: noUndefined(authSessionCookieSameSite),
-  authSessionCookieDomain: authSessionCookieDomain(),
-  authSessionForceOfflineTtlDays: noUndefined(authSessionForceOfflineTtlDays),
-  distributedLockConfig: noUndefined(distributedLockConfig),
-  relayResourceGuardConfig: noUndefined(relayResourceGuardConfig),
-  requestSizeLimitConfig: noUndefined(requestSizeLimitConfig),
-  replayProtectionConfig: noUndefined(replayProtectionConfig),
-  socialAuthConfig: noUndefined(socialAuthConfig),
-  authCenterConfig: noUndefined(authCenterConfig),
-  environmentDiagnostics: noUndefined(environmentDiagnostics),
-  cwd: noUndefined(cwd),
+function deepFreeze<T>(value: T): Readonly<T> {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value as Readonly<T>;
+  Object.values(value).forEach((child) => deepFreeze(child));
+  return Object.freeze(value);
+}
+
+const resolvedEnvironment = {
+  runtime: {
+    isProduction: isProduction(),
+    isDevelopment: isDevelopment(),
+    isTest: isTest(),
+    nodeEnv: nodeEnv(),
+    port: getPort(),
+    trustProxyHops: trustProxyHops(),
+    corsAllowedOrigins: corsAllowedOrigins(),
+    cwd: cwd(),
+    logging: logConfig(),
+    requestSizeLimits: requestSizeLimitConfig(),
+  },
+  database: {
+    url: getDatabaseUrl(),
+    hiddenUrl: getHiddenDatabase(),
+    params: getDatabaseParams(),
+  },
+  auth: {
+    accessTokenSecret: getJwtSecret("access"),
+    refreshTokenSecret: getJwtSecret("refresh"),
+    accessTokenExpiresIn: getJwtExpiresIn("access"),
+    refreshTokenExpiresIn: getJwtExpiresIn("refresh"),
+    trustedDeviceSecret: trustedDeviceSecret(),
+    twoFactor: twoFactorConfig(),
+    twoFactorTrustWindowMinutes: twoFactorTrustWindowMinutes(),
+    trustedDeviceCookie: {
+      sameSite: twoFactorTrustedDeviceCookieSameSite(),
+      domain: twoFactorTrustedDeviceCookieDomain(),
+    },
+    refreshCookie: {
+      name: authRefreshCookieName(),
+      sameSite: authRefreshCookieSameSite(),
+      domain: authRefreshCookieDomain(),
+    },
+    sessionCookie: {
+      name: authSessionCookieName(),
+      sameSite: authSessionCookieSameSite(),
+      domain: authSessionCookieDomain(),
+      forceOfflineTtlDays: authSessionForceOfflineTtlDays(),
+    },
+    webAuthn: webAuthnConfig(),
+    recaptcha: recaptchaConfig(),
+    turnstile: turnstileConfig(),
+    social: socialAuthConfig(),
+    authCenter: authCenterConfig(),
+  },
+  security: {
+    protectedGroupName: getProtectedGroupName(),
+    superAdminGroupUsername: getSuperAdminGroupUsername(),
+    replayProtection: replayProtectionConfig(),
+    captchaTrust: captchaTrustConfig(),
+  },
+  redis: redisConfig(),
+  rateLimit: rateLimitConfig(),
+  relay: {
+    resourceGuard: relayResourceGuardConfig(),
+    channelProbe: relayChannelProbeConfig(),
+  },
+  integrations: {
+    anthropic: anthropicConfig(),
+    developerProduct: developerProductConfig(),
+    remoteTerminal: remoteTerminalConfig(),
+    monthlyPass: monthlyPassConfig(),
+    baiduMap: baiduMapConfig(),
+    distributedLock: distributedLockConfig(),
+  },
+  diagnostics: environmentDiagnostics(),
 };
 
-// Production configuration is immutable after startup. Tests deliberately keep
-// the resolved surface mutable so they can inject isolated values without
-// reintroducing direct process.env reads into runtime modules.
-export const EnvSpace = isTest() ? resolvedEnvSpace : Object.freeze(resolvedEnvSpace);
+// Runtime configuration is immutable. Unit tests keep an isolated mutable copy
+// so they can model configuration changes without changing process.env.
+export const env = (isTest() ? resolvedEnvironment : deepFreeze(resolvedEnvironment)) as Readonly<typeof resolvedEnvironment>;
 
-// All EnvSpace values are eagerly resolved above. Replace the raw snapshot so
-// the module no longer retains a general-purpose environment dictionary.
+export type Environment = typeof env;
+
+export function createEnvironmentForTests(overrides: Partial<Environment>): Environment {
+  return deepFreeze({ ...structuredClone(env), ...overrides }) as Environment;
+}
+
+environmentSource.dispose();
 envSnapshot = Object.freeze({});

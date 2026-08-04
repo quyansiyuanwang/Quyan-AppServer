@@ -8,7 +8,7 @@
  */
 
 import axios from "axios";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { BadRequestError } from "@/util/errors";
 
 export interface AnthropicUpstreamConfig {
@@ -66,14 +66,14 @@ export class AnthropicUpstreamClient {
 
     // 回退到环境变量
     if (!apiKey) {
-      apiKey = EnvSpace.anthropicConfig.apiKey;
+      apiKey = env.integrations.anthropic.apiKey;
       if (!apiKey)
         throw new BadRequestError(
           "Anthropic API key not configured. Please set the ANTHROPIC_API_KEY environment variable or configure a relay channel.",
         );
     }
 
-    if (!baseUrl) baseUrl = EnvSpace.anthropicConfig.baseUrl;
+    if (!baseUrl) baseUrl = env.integrations.anthropic.baseUrl;
 
     if (!baseUrl) throw new BadRequestError("Anthropic API base URL not configured.");
 

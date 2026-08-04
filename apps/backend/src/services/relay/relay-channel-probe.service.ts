@@ -1,7 +1,7 @@
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "crypto";
 import type { Prisma, RelayChannel } from "@prisma/client";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { assertSafeOutboundUrl } from "@/util/developer-outbound-url";
 import { BadRequestError, ConflictError, LockBackendUnavailableError, NotFoundError } from "@/util/errors";
 import { resolveMappedModel } from "@/util/model-mapping.util";
@@ -1718,7 +1718,7 @@ export class RelayChannelProbeService {
   }
 
   private getEncryptionKey(): Buffer {
-    const secret = EnvSpace.relayChannelProbeConfig.masterKey;
+    const secret = env.relay.channelProbe.masterKey;
     if (secret.length < 64) throw new BadRequestError("渠道探针主密钥未配置");
     return createHash("sha256").update(secret).digest();
   }

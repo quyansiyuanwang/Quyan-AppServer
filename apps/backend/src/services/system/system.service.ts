@@ -38,7 +38,7 @@ import type { GroupStore } from "@/store/users/group.store";
 import { BUILD_INFO } from "@/generated/buildInfo";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { ConfigService } from "@/services/system/config.service";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { INTERNAL_LOG_METADATA_KEY } from "@/config/logging";
 
 function formatUptime(seconds: number): string {
@@ -445,7 +445,7 @@ function resolveResponseSizeInfo(log: { requestHeaders?: unknown; response?: unk
 export class SystemService {
   private static instance: SystemService | null = null;
   private startedAt: number;
-  private readonly logsDir = path.join(EnvSpace.cwd, "logs");
+  private readonly logsDir = path.join(env.runtime.cwd, "logs");
   private readonly configService = ConfigService.getInstance();
 
   private constructor(
@@ -534,18 +534,18 @@ export class SystemService {
       permissionCount,
 
       config: {
-        nodeEnv: EnvSpace.nodeEnv,
-        port: EnvSpace.port,
-        database: EnvSpace.databaseParams,
-        redisHost: EnvSpace.redisConfig.host || "localhost",
-        redisPort: EnvSpace.redisConfig.port,
-        redisDb: EnvSpace.redisConfig.db,
+        nodeEnv: env.runtime.nodeEnv,
+        port: env.runtime.port,
+        database: env.database.params,
+        redisHost: env.redis.host || "localhost",
+        redisPort: env.redis.port,
+        redisDb: env.redis.db,
         captchaEnabled: captchaConfig.enabled,
         captchaProvider: captchaConfig.provider,
         captchaFallbackProvider: captchaConfig.fallbackProvider,
-        jwtAccessExpiresIn: EnvSpace.accessTokenExpiresIn,
-        jwtRefreshExpiresIn: EnvSpace.refreshTokenExpiresIn,
-        corsAllowedOrigins: EnvSpace.corsAllowedOrigins || "*",
+        jwtAccessExpiresIn: env.auth.accessTokenExpiresIn,
+        jwtRefreshExpiresIn: env.auth.refreshTokenExpiresIn,
+        corsAllowedOrigins: env.runtime.corsAllowedOrigins || "*",
       },
 
       // backward compatibility

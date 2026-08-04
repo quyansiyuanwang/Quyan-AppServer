@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { ApiError } from "@/util/errors";
 import { CustomCode } from "@/constant/custom-code";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 
 export const REPLAY_SIGNING_SESSION_HEADER = "x-replay-session-id";
 
@@ -30,12 +30,12 @@ export function buildReplayNonceKey(sessionId: string, nonce: string): string {
 
 export function generateReplaySigningKey(sessionId: string, fingerprint?: string): string {
   const seed = `${sessionId}:${Date.now()}:${fingerprint || ""}`;
-  return createHmac("sha256", EnvSpace.replayProtectionConfig.masterSecret).update(seed).digest("hex");
+  return createHmac("sha256", env.security.replayProtection.masterSecret).update(seed).digest("hex");
 }
 
 export function deriveReplaySigningKey(sessionId: string, fingerprint?: string): string {
   const seed = `${sessionId}:${fingerprint || ""}`;
-  return createHmac("sha256", EnvSpace.replayProtectionConfig.masterSecret).update(seed).digest("hex");
+  return createHmac("sha256", env.security.replayProtection.masterSecret).update(seed).digest("hex");
 }
 
 export function createTestReplaySigningMaterial(

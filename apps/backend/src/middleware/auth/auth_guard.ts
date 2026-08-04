@@ -10,7 +10,7 @@ import { ReURLService } from "@/services/system/reurl.service";
 import { getLogger, LogCategory } from "@/util/logger";
 import { RelayTokenService } from "@/services/relay/relay-token.service";
 import { setRequestContext } from "@/util/request-context";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { validateAccountStatus } from "@/util/auth/account-status";
 import { UserRepository } from "@/store/users/user.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
@@ -281,7 +281,7 @@ export async function expressAuthentication(
   if (securityName === "local-or-jwt") {
     // 如果是本地请求且不在测试环境，直接放行
     // 在测试环境中，即使是本地请求也需要验证 JWT
-    if (isLocalRequest(request) && !EnvSpace.isTest) return { local: true };
+    if (isLocalRequest(request) && !env.runtime.isTest) return { local: true };
 
     // 否则进行 JWT 认证（继续执行下面的 jwt 逻辑）
     securityName = "jwt";

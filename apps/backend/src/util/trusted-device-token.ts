@@ -1,18 +1,18 @@
 import type { CookieOptions, Request } from "express";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { getCookieValue } from "@/util/cookie";
 
 export const TRUSTED_DEVICE_COOKIE_NAME = "two_factor_trusted_device";
 const TRUSTED_DEVICE_ID_PATTERN = /^[a-f0-9]{64}$/i;
 
 const resolveCookieOptions = (maxAgeSeconds?: number): CookieOptions => {
-  const sameSite = EnvSpace.twoFactorTrustedDeviceCookieSameSite;
-  const cookieDomain = EnvSpace.twoFactorTrustedDeviceCookieDomain;
+  const sameSite = env.auth.trustedDeviceCookie.sameSite;
+  const cookieDomain = env.auth.trustedDeviceCookie.domain;
 
   return {
     httpOnly: true,
     // Browsers require Secure when SameSite=None.
-    secure: EnvSpace.isProduction || sameSite === "none",
+    secure: env.runtime.isProduction || sameSite === "none",
     sameSite,
     path: "/",
     ...(cookieDomain ? { domain: cookieDomain } : {}),

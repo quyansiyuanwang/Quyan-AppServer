@@ -16,9 +16,9 @@ describe("database runtime config", () => {
 
     vi.doMock("@prisma/client", () => ({ PrismaClient }));
     vi.doMock("../../../src/config/env", () => ({
-      EnvSpace: {
-        isTest: true,
-        databaseUrl: "mysql://root:password@localhost:3306/runtime_test",
+      env: {
+        runtime: { isTest: true },
+        database: { url: "mysql://root:password@localhost:3306/runtime_test" },
       },
     }));
 
@@ -45,9 +45,9 @@ describe("database runtime config", () => {
 
     vi.doMock("@prisma/client", () => ({ PrismaClient }));
     vi.doMock("../../../src/config/env", () => ({
-      EnvSpace: {
-        isTest: false,
-        databaseUrl: "mysql://root:password@localhost:3306/runtime_dev",
+      env: {
+        runtime: { isTest: false },
+        database: { url: "mysql://root:password@localhost:3306/runtime_dev" },
       },
     }));
 

@@ -1,8 +1,8 @@
 import type { CookieOptions, Request } from "express";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { getCookieValue } from "@/util/cookie";
 
-export const AUTH_REFRESH_COOKIE_NAME = EnvSpace.authRefreshCookieName;
+export const AUTH_REFRESH_COOKIE_NAME = env.auth.refreshCookie.name;
 
 function parseExpiresToSeconds(raw: string | number | undefined): number {
   if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) return Math.floor(raw);
@@ -35,12 +35,12 @@ function parseExpiresToSeconds(raw: string | number | undefined): number {
 }
 
 function resolveCookieOptions(maxAgeSeconds?: number): CookieOptions {
-  const sameSite = EnvSpace.authRefreshCookieSameSite;
-  const cookieDomain = EnvSpace.authRefreshCookieDomain;
+  const sameSite = env.auth.refreshCookie.sameSite;
+  const cookieDomain = env.auth.refreshCookie.domain;
 
   return {
     httpOnly: true,
-    secure: EnvSpace.isProduction || sameSite === "none",
+    secure: env.runtime.isProduction || sameSite === "none",
     sameSite,
     path: "/",
     ...(cookieDomain ? { domain: cookieDomain } : {}),
@@ -59,7 +59,7 @@ export function setRefreshTokenCookie(req: Request, token: string): void {
   req.res?.cookie(
     AUTH_REFRESH_COOKIE_NAME,
     normalizedToken,
-    resolveCookieOptions(parseExpiresToSeconds(EnvSpace.refreshTokenExpiresIn)),
+    resolveCookieOptions(parseExpiresToSeconds(env.auth.refreshTokenExpiresIn)),
   );
 }
 

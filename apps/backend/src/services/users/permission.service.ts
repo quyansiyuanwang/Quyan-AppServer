@@ -8,7 +8,7 @@ import { UserRepository } from "@/store/users/user.repository";
 import { GroupRepository } from "@/store/users/group.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import type { UserStore, UserWithGroup } from "@/store/users/user.store";
 import type { GroupStore } from "@/store/users/group.store";
 import type { RamRoleStore } from "@/store/users/ram-role.store";
@@ -80,7 +80,7 @@ export class PermissionService {
 
     if (operatorUser.groupId) {
       const operatorGroup = await this.groupRepository.findById(operatorUser.groupId);
-      if (operatorGroup?.username === EnvSpace.superAdminGroupUsername) return;
+      if (operatorGroup?.username === env.security.superAdminGroupUsername) return;
     }
 
     const operatorPermissions = await this.getUserFullPermissions(operatorUserId);

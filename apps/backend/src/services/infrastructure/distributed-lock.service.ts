@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { LockBackendUnavailableError, ResourceLockedError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import { RedisService } from "./redis.service";
@@ -167,7 +167,7 @@ export class DistributedLockService {
   }
 
   private resolveOptions(options?: DistributedLockOptions): NormalizedLockOptions {
-    const config = EnvSpace.distributedLockConfig;
+    const config = env.integrations.distributedLock;
 
     return {
       ttlMs: this.resolveTtlMs(options?.ttlMs),
@@ -179,7 +179,7 @@ export class DistributedLockService {
   }
 
   private resolveTtlMs(ttlMs?: number): number {
-    return this.resolvePositiveInt(ttlMs, EnvSpace.distributedLockConfig.defaultTtlMs);
+    return this.resolvePositiveInt(ttlMs, env.integrations.distributedLock.defaultTtlMs);
   }
 
   private resolvePositiveInt(value: number | undefined, fallback: number): number {

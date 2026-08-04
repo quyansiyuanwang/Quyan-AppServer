@@ -1,6 +1,6 @@
 import axios from "axios";
 import { getLogger, LogCategory } from "@/util/logger";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { BAIDU_GEO_API, GEO_CACHE_PREFIX, GEO_CACHE_TTL_SECONDS, REQUEST_TIMEOUT_MS } from "@/constant/ip-geolocation";
 
 const logger = getLogger("IpGeolocationService", LogCategory.BUSINESS);
@@ -63,7 +63,7 @@ export class IpGeolocationService {
   }
 
   private async fetchFromBaidu(ip: string): Promise<string> {
-    const ak = String(EnvSpace.baiduMapConfig.ipLocationAk || "").trim();
+    const ak = String(env.integrations.baiduMap.ipLocationAk || "").trim();
     if (!ak) {
       logger.warn("[IpGeolocation] Missing BAIDU_IP_LOCATION_AK, fallback to 未知地区");
       return "未知地区";

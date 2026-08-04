@@ -71,7 +71,7 @@ describe("env runtime path guards", () => {
     vi.resetModules();
 
     const module = await import("../../../src/config/env");
-    expect(module.EnvSpace.port).toBe(19001);
-    expect(module.EnvSpace.hiddenDatabase).toContain("****@");
+    expect(module.env.runtime.port).toBe(19001);
+    expect(module.env.database.hiddenUrl).toContain("****@");
   });
 });

@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { EnvSpace } from "../../../src/config/env";
+import { createEnvironmentForTests, env } from "../../../src/config/env";
 
 const backendSrc = path.resolve(__dirname, "../../../src");
 
@@ -24,11 +24,20 @@ describe("environment boundary", () => {
   });
 
   it("only exposes redacted environment diagnostics", () => {
-    const diagnostics = EnvSpace.environmentDiagnostics;
+    const diagnostics = env.diagnostics;
     const serialized = JSON.stringify(diagnostics);
 
     expect(diagnostics.databaseUrl).not.toContain("123456");
     expect(serialized).not.toContain(process.env.JWT_ACCESS_SECRET || "__missing_secret__");
     expect(serialized).not.toContain(process.env.REPLAY_SIGNING_MASTER_SECRET || "__missing_replay_secret__");
+  });
+
+  it("creates an isolated, deeply frozen test environment", () => {
+    const isolated = createEnvironmentForTests({});
+
+    expect(isolated).not.toBe(env);
+    expect(Object.isFrozen(isolated)).toBe(true);
+    expect(Object.isFrozen(isolated.runtime)).toBe(true);
+    expect(Object.isFrozen(isolated.auth)).toBe(true);
   });
 });
