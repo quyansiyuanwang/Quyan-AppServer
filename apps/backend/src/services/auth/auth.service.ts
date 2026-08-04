@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { JWTAccessIns, JWTRefreshIns } from "@/util/auth";
-import { hashPassword } from "@/util/crypto";
+import { hashPassword, isLegacyPasswordHash, verifyPassword } from "@/util/crypto";
+import { extractClientIp } from "@/util/ip-extractor";
 import {
   BadRequestError,
   InternalServerError,
@@ -152,9 +153,7 @@ export class AuthService {
    * 获取客户端 IP 地址
    */
   private getClientIP(req: Request): string {
-    const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) return typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0];
-    return req.ip || req.socket.remoteAddress || "unknown";
+    return extractClientIp(req);
   }
 
   private getUserAgent(userAgent: string | string[] | undefined): string {
@@ -542,8 +541,11 @@ export class AuthService {
       const user = await this.userRepository.findByUsername(username);
       if (!user) throw new UnauthorizedError("用户名或密码错误", CustomCode.LOGIN_AUTH_FAILED);
 
-      const match = hashPassword(password) === user.password;
+      const match = verifyPassword(password, user.password);
       if (!match) throw new UnauthorizedError("用户名或密码错误", CustomCode.LOGIN_AUTH_FAILED);
+
+      // Upgrade legacy MD5 hashes after a successful login without forcing a password reset.
+      if (isLegacyPasswordHash(user.password)) await this.userRepository.updateById(user.id, { password: hashPassword(password) });
 
       // Check whether the account can log in based on AccountStatus.
       validateAccountStatus(user.status, user.id, "login");

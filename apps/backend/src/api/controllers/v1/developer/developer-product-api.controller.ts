@@ -19,6 +19,7 @@ import {
   verifyCodeBodySchema,
 } from "@/api/schema/developer/developer.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
+import { extractClientIp } from "@/util/ip-extractor";
 
 @Route("v1/products/kv")
 @Tags("KV Product API")
@@ -80,10 +81,8 @@ export class DeveloperProductVerificationApiController extends Controller {
     @Body() body: SendDeveloperVerificationDto,
     @Request() request: TypedRequest,
   ): Promise<{ success: true }> {
-    const forwarded = request.headers["x-forwarded-for"];
-    const sourceIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : request.ip;
     await this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_VERIFICATION_SEND, () =>
-      this.project.sendVerification(request.productApiKey!.backingProjectId, body, sourceIp, { skipQuota: true }),
+      this.project.sendVerification(request.productApiKey!.backingProjectId, body, extractClientIp(request), { skipQuota: true }),
     );
     return { success: true };
   }

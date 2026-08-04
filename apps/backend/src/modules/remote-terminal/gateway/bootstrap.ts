@@ -83,6 +83,11 @@ export class RemoteTerminalGatewayBootstrap {
     }
   }
 
+  public async close(): Promise<void> {
+    for (const client of this.webSocketServer.clients) client.close(1001, "Server shutting down");
+    await new Promise<void>((resolve) => this.webSocketServer.close(() => resolve()));
+  }
+
   private toCloseReason(error: unknown): string {
     const message = error instanceof Error ? error.message : String(error);
     return message.trim().slice(0, 123) || "WebSocket upgrade rejected.";

@@ -5,6 +5,7 @@ import type { ErrorResponse } from "@/api/response";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
+import { extractClientIp } from "@/util/ip-extractor";
 import TrackService from "@/services/analytics/track.service";
 import type {
   BatchTrackBody,
@@ -26,8 +27,7 @@ export class TrackController extends Controller {
     @Body() body: BatchTrackBody,
     @Request() request: TypedRequest,
   ): Promise<{ success: boolean }> {
-    const ip = (request.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? request.ip ?? "";
-    await this.service.batchTrack(body.events ?? [], ip);
+    await this.service.batchTrack(body.events ?? [], extractClientIp(request));
     return { success: true };
   }
 

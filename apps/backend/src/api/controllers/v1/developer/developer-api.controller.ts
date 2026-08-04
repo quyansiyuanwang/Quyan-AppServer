@@ -10,6 +10,7 @@ import type {
   VerifyDeveloperCodeDto,
 } from "@/api/dto/developer/developer.dto";
 import { validateBody, validateParams } from "@/middleware/validation";
+import { extractClientIp } from "@/util/ip-extractor";
 import {
   kvKeyParamsSchema,
   sendPushBodySchema,
@@ -63,9 +64,7 @@ export class DeveloperApiController extends Controller {
     @Body() body: SendDeveloperVerificationDto,
     @Request() request: TypedRequest,
   ): Promise<{ success: true }> {
-    const forwarded = request.headers["x-forwarded-for"];
-    const sourceIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : request.ip;
-    await this.service.sendVerification(request.projectApiKey!.projectId, body, sourceIp);
+    await this.service.sendVerification(request.projectApiKey!.projectId, body, extractClientIp(request));
     return { success: true };
   }
   @Post("verification/verify")
@@ -85,9 +84,7 @@ export class DeveloperApiController extends Controller {
   @Get("ip")
   @Security("project-key", ["ip:lookup"])
   public async lookupCallerIp(@Request() request: TypedRequest) {
-    const forwarded = request.headers["x-forwarded-for"];
-    const sourceIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : request.ip;
-    return this.service.lookupIp(request.projectApiKey!.projectId, sourceIp);
+    return this.service.lookupIp(request.projectApiKey!.projectId, extractClientIp(request));
   }
   @Post("push")
   @Security("project-key", ["push:send"])

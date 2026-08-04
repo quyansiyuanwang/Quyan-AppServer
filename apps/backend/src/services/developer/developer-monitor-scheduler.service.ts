@@ -10,6 +10,7 @@ const logger = getLogger("DeveloperMonitorScheduler", LogCategory.SYSTEM);
 export class DeveloperMonitorSchedulerService {
   private static instance: DeveloperMonitorSchedulerService;
   private started = false;
+  private task: ReturnType<typeof cron.schedule> | null = null;
 
   static getInstance(): DeveloperMonitorSchedulerService {
     if (!this.instance) this.instance = new DeveloperMonitorSchedulerService();
@@ -19,9 +20,15 @@ export class DeveloperMonitorSchedulerService {
   start(): void {
     if (this.started) return;
     this.started = true;
-    cron.schedule("* * * * *", () => void this.run());
+    this.task = cron.schedule("* * * * *", () => void this.run());
     // A restart must not leave enabled monitors stale until the next minute boundary.
     void this.run();
+  }
+
+  stop(): void {
+    this.task?.stop();
+    this.task = null;
+    this.started = false;
   }
 
   private async run(): Promise<void> {

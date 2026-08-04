@@ -31,7 +31,7 @@ describe("main runtime bootstrap", () => {
     const logger = { info, warn, error };
 
     const handlers = new Map<string, () => void>();
-    vi.spyOn(process, "on").mockImplementation(((event: string, handler: () => void) => {
+    vi.spyOn(process, "once").mockImplementation(((event: string, handler: () => void) => {
       handlers.set(event, handler);
       return process;
     }) as typeof process.on);
@@ -58,6 +58,17 @@ describe("main runtime bootstrap", () => {
         hiddenDatabase: "mysql://root:****@localhost:3306/app_test",
       },
     }));
+    vi.doMock("../../src/config/database", () => ({ disconnectDatabase: vi.fn() }));
+    vi.doMock("../../src/middleware/logging", () => ({ disposeRequestLogService: vi.fn() }));
+    vi.doMock("../../src/services/developer/developer-monitor-scheduler.service", () => ({
+      DeveloperMonitorSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
+    vi.doMock("../../src/services/infrastructure/redis.service", () => ({
+      RedisService: { getInstance: vi.fn(() => ({ close: vi.fn() })) },
+    }));
+    vi.doMock("../../src/services/relay/relay-channel-probe.service", () => ({
+      RelayChannelProbeService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
     vi.doMock("../../src/util/logger", () => ({
       LogCategory: { UTIL: "UTIL" },
       getLogger: vi.fn(() => logger),
@@ -71,6 +82,7 @@ describe("main runtime bootstrap", () => {
       RemoteTerminalGatewayBootstrap: vi.fn(
         class {
           public handleUpgrade = handleUpgrade;
+          public close = vi.fn();
         },
       ),
     }));
@@ -82,6 +94,7 @@ describe("main runtime bootstrap", () => {
       expect(serverOn).toHaveBeenCalledWith("upgrade", expect.any(Function));
 
       handlers.get("SIGINT")?.();
+      await Promise.resolve();
       expect(info).toHaveBeenCalledWith("SIGINT received, starting graceful shutdown");
       expect(close).toHaveBeenCalledTimes(1);
 
@@ -120,7 +133,7 @@ describe("main runtime bootstrap", () => {
     const logger = { info, warn, error };
 
     const handlers = new Map<string, () => void>();
-    const processOnSpy = vi.spyOn(process, "on").mockImplementation(((event: string, handler: () => void) => {
+    const processOnceSpy = vi.spyOn(process, "once").mockImplementation(((event: string, handler: () => void) => {
       handlers.set(event, handler);
       return process;
     }) as typeof process.on);
@@ -142,6 +155,17 @@ describe("main runtime bootstrap", () => {
         hiddenDatabase: "mysql://root:****@localhost:3306/app_test",
       },
     }));
+    vi.doMock("../../src/config/database", () => ({ disconnectDatabase: vi.fn() }));
+    vi.doMock("../../src/middleware/logging", () => ({ disposeRequestLogService: vi.fn() }));
+    vi.doMock("../../src/services/developer/developer-monitor-scheduler.service", () => ({
+      DeveloperMonitorSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
+    vi.doMock("../../src/services/infrastructure/redis.service", () => ({
+      RedisService: { getInstance: vi.fn(() => ({ close: vi.fn() })) },
+    }));
+    vi.doMock("../../src/services/relay/relay-channel-probe.service", () => ({
+      RelayChannelProbeService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
     vi.doMock("../../src/util/logger", () => ({
       LogCategory: { UTIL: "UTIL" },
       getLogger: vi.fn(() => logger),
@@ -155,6 +179,7 @@ describe("main runtime bootstrap", () => {
       RemoteTerminalGatewayBootstrap: vi.fn(
         class {
           public handleUpgrade = handleUpgrade;
+          public close = vi.fn();
         },
       ),
     }));
@@ -176,15 +201,16 @@ describe("main runtime bootstrap", () => {
       expect(processWithSend.send).toHaveBeenCalledWith("ready");
       expect(info).toHaveBeenCalledWith("Sent 'ready' signal to PM2");
 
-      expect(processOnSpy).toHaveBeenCalledWith("SIGTERM", expect.any(Function));
-      expect(processOnSpy).toHaveBeenCalledWith("SIGINT", expect.any(Function));
+      expect(processOnceSpy).toHaveBeenCalledWith("SIGTERM", expect.any(Function));
+      expect(processOnceSpy).toHaveBeenCalledWith("SIGINT", expect.any(Function));
 
       handlers.get("SIGTERM")?.();
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
 
       expect(info).toHaveBeenCalledWith("SIGTERM received, starting graceful shutdown");
       expect(close).toHaveBeenCalledTimes(1);
-      expect(info).toHaveBeenCalledWith("HTTP server closed");
-      expect(processExitSpy).toHaveBeenCalledWith(0);
+      expect(info).toHaveBeenCalledWith("Graceful shutdown completed");
+      expect(processExitSpy).not.toHaveBeenCalledWith(0);
       expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 12 * 60 * 1000);
     } finally {
       processWithSend.send = originalSend;

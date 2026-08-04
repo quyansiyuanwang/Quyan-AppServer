@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import { createApp } from "../../src/app";
 import { prisma } from "../../src/config/database";
-import { hashPassword } from "../../src/util/crypto";
+import md5 from "md5";
+import { hashPassword, isLegacyPasswordHash, verifyPassword } from "../../src/util/crypto";
 import { Express } from "express";
 import { CustomCode } from "../../src/constant/custom-code";
 import { withReplayProtection } from "../util/replay-protection-test-helper";
@@ -92,6 +93,59 @@ describe("认证 API 集成测试", () => {
       expect(response.body.data.user.username).toBe("t_auth_int_user");
       expect(response.body.data.user).not.toHaveProperty("password");
       expect(extractRefreshCookie(response)).toContain(`${AUTH_REFRESH_COOKIE_NAME}=`);
+    });
+
+    it("应该通过真实接口迁移旧 MD5 密码并允许后续再次登录", async () => {
+      const password = "legacy_md5_password_123";
+      const legacyHash = md5(password);
+
+      try {
+        await prisma.user.update({
+          where: { id: testUser.id },
+          data: { password: legacyHash },
+        });
+
+        const firstResponse = await postWithReplay("/v1/auth/login", {
+          username: "t_auth_int_user",
+          password,
+          agreedToLegalPolicies: true,
+        });
+
+        expect(firstResponse.status).toBe(200);
+        expect(firstResponse.body.code).toBe(0);
+        expect(firstResponse.body.data.access_token).toBeTruthy();
+
+        const migratedUser = await prisma.user.findUnique({
+          where: { id: testUser.id },
+          select: { password: true },
+        });
+
+        expect(migratedUser).toBeTruthy();
+        expect(isLegacyPasswordHash(migratedUser!.password)).toBe(false);
+        expect(migratedUser!.password).toMatch(/^\$2[aby]\$/);
+        expect(verifyPassword(password, migratedUser!.password)).toBe(true);
+
+        const secondResponse = await postWithReplay("/v1/auth/login", {
+          username: "t_auth_int_user",
+          password,
+          agreedToLegalPolicies: true,
+        });
+
+        expect(secondResponse.status).toBe(200);
+        expect(secondResponse.body.code).toBe(0);
+        expect(secondResponse.body.data.access_token).toBeTruthy();
+
+        const persistedUser = await prisma.user.findUnique({
+          where: { id: testUser.id },
+          select: { password: true },
+        });
+        expect(persistedUser!.password).toBe(migratedUser!.password);
+      } finally {
+        await prisma.user.update({
+          where: { id: testUser.id },
+          data: { password: hashPassword("test_password_123") },
+        });
+      }
     });
 
     it("应该在无效用户名时返回 401", async () => {

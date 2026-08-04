@@ -22,6 +22,10 @@ const isDev = EnvSpace.isDevelopment;
 const logger = getLogger("LoggingMiddleware", LogCategory.MIDDLEWARE);
 const logService = new LogService();
 
+export function disposeRequestLogService(): Promise<void> {
+  return logService.dispose();
+}
+
 // Maximum response body size to capture (1MB)
 const MAX_RESPONSE_BODY_SIZE = 1024 * 1024;
 const TEXT_RESPONSE_CONTENT_TYPE_KEYWORDS = [

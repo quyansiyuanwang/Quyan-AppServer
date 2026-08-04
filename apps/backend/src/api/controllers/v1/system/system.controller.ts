@@ -32,6 +32,7 @@ import { NotFoundError } from "@/util/errors";
 import type { ErrorResponse } from "@/api/response";
 import { BUILD_INFO } from "@/generated/buildInfo";
 import { LogRoute } from "@/util/logger-decorator";
+import { extractClientIp } from "@/util/ip-extractor";
 import {
   consumptionStatsQuerySchema,
   serverLogContentQuerySchema,
@@ -169,9 +170,7 @@ export class SystemController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async getClientIp(@Request() request: TypedRequest): Promise<{ ip: string }> {
-    const ip =
-      (request.headers["x-forwarded-for"] as string)?.split(",")[0].trim() || request.socket.remoteAddress || "";
-    return { ip };
+    return { ip: extractClientIp(request) };
   }
 
   @Get("logs/{logId}")

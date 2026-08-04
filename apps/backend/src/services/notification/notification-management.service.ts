@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { extractClientIp } from "@/util/ip-extractor";
 import {
   NotificationPreferenceRepository,
   type NotificationPreferenceUpdateInput,
@@ -353,8 +354,6 @@ export class NotificationManagementService {
   }
 
   private getClientIP(req: Request): string {
-    const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) return typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0];
-    return req.ip || req.socket.remoteAddress || "unknown";
+    return extractClientIp(req);
   }
 }
