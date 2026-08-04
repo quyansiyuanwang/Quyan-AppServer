@@ -102,7 +102,14 @@ export async function runCheck(
     const safeTarget = assertTestPath(root, target, 'backend')
     await access(path.join(root, safeTarget))
     definition = {
-      args: ['--filter', '@appserver/backend', 'run', 'test', '--', safeTarget],
+      args: [
+        '--filter',
+        '@appserver/backend',
+        'run',
+        'test',
+        '--',
+        safeTarget.slice('apps/backend/'.length),
+      ],
       timeoutMs: 15 * 60_000,
     }
   } else if (profile === 'frontend-test-file') {
@@ -110,7 +117,14 @@ export async function runCheck(
     const safeTarget = assertTestPath(root, target, 'frontend')
     await access(path.join(root, safeTarget))
     definition = {
-      args: ['--filter', '@appserver/frontend', 'run', 'test', '--', safeTarget],
+      args: [
+        '--filter',
+        '@appserver/frontend',
+        'run',
+        'test',
+        '--',
+        safeTarget.slice('apps/frontend/'.length),
+      ],
       timeoutMs: 15 * 60_000,
     }
   } else {

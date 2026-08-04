@@ -140,17 +140,22 @@ export function assertTestPath(
 ): string {
   const normalized = target.replace(/\\/g, '/')
   const expectedPrefix = 'apps/' + application + '/tests/'
+  const repositoryPath = normalized.startsWith(expectedPrefix)
+    ? normalized
+    : normalized.startsWith('tests/')
+      ? 'apps/' + application + '/' + normalized
+      : expectedPrefix + normalized
   const suffix =
     application === 'backend'
       ? /\.(unit|db|integration|contract)\.test\.ts$/
       : /\.(node|dom)\.test\.ts$/
   if (
-    !normalized.startsWith(expectedPrefix) ||
-    !suffix.test(normalized) ||
-    normalized.includes('..') ||
+    !repositoryPath.startsWith(expectedPrefix) ||
+    !suffix.test(repositoryPath) ||
+    repositoryPath.split('/').includes('..') ||
     path.isAbsolute(normalized)
   ) {
     throw new Error('精确测试路径不在允许的测试目录或后缀范围内')
   }
-  return normalized
+  return repositoryPath
 }
