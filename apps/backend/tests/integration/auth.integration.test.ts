@@ -8,7 +8,7 @@ import { Express } from "express";
 import { CustomCode } from "../../src/constant/custom-code";
 import { withReplayProtection } from "../util/replay-protection-test-helper";
 import { RedisService } from "../../src/services/infrastructure/redis.service";
-import { EnvSpace } from "../../src/config/env";
+import { env } from "../../src/config/env";
 import { ReplayProtectionClient } from "../../src/util/replay-protection-client";
 import { buildReplaySigningSessionKey } from "../../src/util/replay-signing-session";
 import { AUTH_REFRESH_COOKIE_NAME } from "../../src/util/auth-refresh-cookie";
@@ -185,7 +185,7 @@ describe("认证 API 集成测试", () => {
     });
 
     it("应该按冷却周期返回 2FA 开启提醒", async () => {
-      if (!EnvSpace.twoFactorConfig.reminderEnabled) return;
+      if (!env.auth.twoFactor.reminderEnabled) return;
 
       const redisService = RedisService.getInstance();
       if (!redisService.isRedisAvailable()) return;
@@ -230,7 +230,7 @@ describe("认证 API 集成测试", () => {
       expect(typeof response.body.data.sessionId).toBe("string");
       expect(typeof response.body.data.signingKey).toBe("string");
       expect(response.body.data.signingKey.length).toBeGreaterThanOrEqual(64);
-      expect(response.body.data.expiresIn).toBe(EnvSpace.replayProtectionConfig.signingSessionTtlSeconds);
+      expect(response.body.data.expiresIn).toBe(env.security.replayProtection.signingSessionTtlSeconds);
 
       const storedSession = await redisService.get(buildReplaySigningSessionKey(response.body.data.sessionId));
       expect(storedSession).toBeTruthy();

@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import { randomUUID } from "crypto";
-import { EnvSpace } from "../../config/env";
+import { env } from "../../config/env";
 import { RedisService } from "@/services/infrastructure/redis.service";
 
 export interface JWTPayload {
@@ -73,8 +73,8 @@ function parseJwtExpiresToSeconds(raw: string | number | undefined): number {
 }
 
 function getSessionRevocationTtlSeconds(): number {
-  const accessTtl = parseJwtExpiresToSeconds(EnvSpace.accessTokenExpiresIn);
-  const refreshTtl = parseJwtExpiresToSeconds(EnvSpace.refreshTokenExpiresIn);
+  const accessTtl = parseJwtExpiresToSeconds(env.auth.accessTokenExpiresIn);
+  const refreshTtl = parseJwtExpiresToSeconds(env.auth.refreshTokenExpiresIn);
   const configured = Math.max(accessTtl, refreshTtl);
   return configured > 0 ? configured : DEFAULT_SESSION_REVOCATION_TTL_SECONDS;
 }
@@ -141,5 +141,5 @@ export async function revokeAllUserSessions(userId: string): Promise<void> {
   );
 }
 
-export const JWTAccessIns = new JWTUtil(EnvSpace.accessTokenSecret, parseInt(EnvSpace.accessTokenExpiresIn, 10));
-export const JWTRefreshIns = new JWTUtil(EnvSpace.refreshTokenSecret, parseInt(EnvSpace.refreshTokenExpiresIn, 10));
+export const JWTAccessIns = new JWTUtil(env.auth.accessTokenSecret, parseInt(env.auth.accessTokenExpiresIn, 10));
+export const JWTRefreshIns = new JWTUtil(env.auth.refreshTokenSecret, parseInt(env.auth.refreshTokenExpiresIn, 10));

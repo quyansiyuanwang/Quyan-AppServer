@@ -13,13 +13,13 @@ import { RedisService } from "@/services/infrastructure/redis.service";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { PasskeyCredentialItem } from "@/api/dto/users/passkey.dto";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 
 const logger = getLogger("PasskeyService", LogCategory.APPLICATION);
 
-const RP_NAME = EnvSpace.webAuthnConfig?.rpName;
-const RP_ID = EnvSpace.webAuthnConfig?.rpId;
-const ORIGIN = EnvSpace.webAuthnConfig?.origin;
+const RP_NAME = env.auth.webAuthn?.rpName;
+const RP_ID = env.auth.webAuthn?.rpId;
+const ORIGIN = env.auth.webAuthn?.origin;
 const CHALLENGE_TTL = 300; // 5 minutes
 
 export class PasskeyService {

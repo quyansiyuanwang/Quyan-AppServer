@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import {
   createTestReplaySigningMaterial,
   generateReplaySign,
@@ -31,7 +31,7 @@ export class ReplayProtectionClient {
   }
 
   static getDefaultMaterial(): ReplayProtectionClientMaterial {
-    if (EnvSpace.isTest) return createTestReplaySigningMaterial();
+    if (env.runtime.isTest) return createTestReplaySigningMaterial();
     throw new Error("Replay signing material is required outside test environment");
   }
 

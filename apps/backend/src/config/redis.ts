@@ -1,6 +1,6 @@
 import Redis from "ioredis";
 import { getLogger, LogCategory } from "@/util/logger";
-import { EnvSpace } from "./env";
+import { env } from "./env";
 
 const logger = getLogger("RedisConfig", LogCategory.CONFIG);
 
@@ -13,10 +13,10 @@ export interface RedisConfig {
 
 export function getRedisConfig(): RedisConfig {
   return {
-    host: EnvSpace.redisConfig.host || "localhost",
-    port: EnvSpace.redisConfig.port,
-    password: EnvSpace.redisConfig.password,
-    db: EnvSpace.redisConfig.db,
+    host: env.redis.host || "localhost",
+    port: env.redis.port,
+    password: env.redis.password,
+    db: env.redis.db,
   };
 }
 

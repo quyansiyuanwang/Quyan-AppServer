@@ -78,7 +78,7 @@ import { RELAY_PROXY_DESCRIPTION_MAX_LENGTH, RELAY_PROXY_PROMPT_PREVIEW_MAX_LENG
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { matchesRetryStatusRule, normalizeRetryStatusRules } from "@/util/relay-failover-status-rule.util";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import logger from "@/util/logger";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
@@ -1149,7 +1149,7 @@ export class RelayProxyService {
       case "relayUpstreamConcurrency": {
         const { userId, isImageRequest, isStreamRequest, relayConfig } =
           context as RelayCapacityPolicyContextMap["relayUpstreamConcurrency"];
-        const resourceGuard = EnvSpace.relayResourceGuardConfig;
+        const resourceGuard = env.relay.resourceGuard;
         return {
           userId,
           scope: this.getConcurrencyScope(isImageRequest),
@@ -1179,7 +1179,7 @@ export class RelayProxyService {
   }
 
   private getRelayConcurrencyStatusLimits(relayConfig: Awaited<ReturnType<RelayConfigService["getRelayConfig"]>>) {
-    const resourceGuard = EnvSpace.relayResourceGuardConfig;
+    const resourceGuard = env.relay.resourceGuard;
 
     return {
       maxConcurrency: relayConfig.maxConcurrency,
@@ -2491,7 +2491,7 @@ export class RelayProxyService {
     const requestStartTime = Date.now();
     const requestFormat = this.getRequestFormat(req);
     const relayConfig = await this.relayConfigService.getRelayConfig();
-    const resourceGuard = EnvSpace.relayResourceGuardConfig;
+    const resourceGuard = env.relay.resourceGuard;
     const requestedModel = this.extractRequestedModel(req, requestFormat);
     if (!requestedModel) throw new BadRequestError("Model is required in request body or URL path");
 
@@ -2830,7 +2830,7 @@ export class RelayProxyService {
               systemHasCache,
             });
 
-            if (EnvSpace.isDevelopment)
+            if (env.runtime.isDevelopment)
               logger.debug("Final request body to upstream API", {
                 body: JSON.stringify(convertedBody, null, 2),
               });

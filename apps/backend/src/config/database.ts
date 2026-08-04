@@ -1,13 +1,13 @@
 import { PrismaClient } from "@prisma/client";
-import { EnvSpace } from "./env";
+import { env } from "./env";
 
 // 在测试环境中，DATABASE_URL 由 Vitest database worker setup 注入。
 // Prisma 会自动使用 DATABASE_URL 环境变量
 const prisma = new PrismaClient({
-  log: EnvSpace.isTest ? [] : ["warn", "error"], // 测试环境下关闭日志
+  log: env.runtime.isTest ? [] : ["warn", "error"], // 测试环境下关闭日志
   datasources: {
     db: {
-      url: EnvSpace.databaseUrl,
+      url: env.database.url,
     },
   },
 });

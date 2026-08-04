@@ -12,7 +12,7 @@ import {
 } from "@/constant/two-factor";
 import { TwoFactorCredentialRepository } from "@/store/auth/two-factor.repository";
 import type { TwoFactorCredentialStore } from "@/store/auth/two-factor.store";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { EmailService } from "./email.service";
 import { revokeAllUserSessions } from "@/util/auth";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -222,7 +222,7 @@ export class TwoFactorService {
 
     await this.redisService.set(this.setupKey(setupToken), JSON.stringify(setupSession), SETUP_SESSION_TTL_SECONDS);
 
-    const appName = EnvSpace.webAuthnConfig?.rpName || "AppServer";
+    const appName = env.auth.webAuthn?.rpName || "AppServer";
     const accountLabel = encodeURIComponent(`${appName}:${user.username}`);
     const issuer = encodeURIComponent(appName);
     const otpauthUrl = `otpauth://totp/${accountLabel}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=${TOTP_DIGITS}&period=${this.getTotpIntervalSeconds()}`;
@@ -363,7 +363,7 @@ export class TwoFactorService {
 
   async consumeLoginReminder(userId: string, twoFactorEnabled: boolean): Promise<TwoFactorLoginReminder | null> {
     if (twoFactorEnabled) return null;
-    if (!EnvSpace.twoFactorConfig.reminderEnabled) return null;
+    if (!env.auth.twoFactor.reminderEnabled) return null;
     if (!this.redisService.isRedisAvailable()) return null;
 
     const intervalSeconds = this.getReminderIntervalSeconds();
@@ -378,7 +378,7 @@ export class TwoFactorService {
       shouldSetupTwoFactor: true,
       message: "建议开启二次验证以提升账号安全",
       nextRemindAt: new Date(nextRemindAtEpoch * 1000).toISOString(),
-      intervalDays: Math.max(1, Number(EnvSpace.twoFactorConfig.reminderIntervalDays) || 7),
+      intervalDays: Math.max(1, Number(env.auth.twoFactor.reminderIntervalDays) || 7),
     };
   }
 
@@ -852,31 +852,31 @@ export class TwoFactorService {
   }
 
   private getTrustWindowSeconds(): number {
-    const minutes = Math.max(0, Number(EnvSpace.twoFactorTrustWindowMinutes));
+    const minutes = Math.max(0, Number(env.auth.twoFactorTrustWindowMinutes));
     if (!Number.isFinite(minutes)) return 0;
     return Math.floor(minutes * 60);
   }
 
   private getTotpIntervalSeconds(): number {
-    const configured = Number(EnvSpace.twoFactorConfig.totpIntervalSeconds);
+    const configured = Number(env.auth.twoFactor.totpIntervalSeconds);
     if (!Number.isFinite(configured) || configured <= 0) return DEFAULT_TOTP_INTERVAL_SECONDS;
     return Math.floor(configured);
   }
 
   private getTotpWindowSteps(): number {
-    const configured = Number(EnvSpace.twoFactorConfig.totpWindowSteps);
+    const configured = Number(env.auth.twoFactor.totpWindowSteps);
     if (!Number.isFinite(configured) || configured < 0) return 1;
     return Math.floor(configured);
   }
 
   private getRecoveryCodeCount(): number {
-    const configured = Number(EnvSpace.twoFactorConfig.recoveryCodeCount);
+    const configured = Number(env.auth.twoFactor.recoveryCodeCount);
     if (!Number.isFinite(configured) || configured <= 0) return DEFAULT_RECOVERY_CODE_COUNT;
     return Math.floor(configured);
   }
 
   private getReminderIntervalSeconds(): number {
-    const configuredDays = Number(EnvSpace.twoFactorConfig.reminderIntervalDays);
+    const configuredDays = Number(env.auth.twoFactor.reminderIntervalDays);
     if (!Number.isFinite(configuredDays) || configuredDays <= 0) return 0;
     return Math.floor(configuredDays * 24 * 60 * 60);
   }
@@ -888,7 +888,7 @@ export class TwoFactorService {
       await this.redisService.increment(key, TRUSTED_DEVICE_METRICS_TTL_SECONDS, 1);
     } catch (error) {
       // Metrics are best effort and must not affect auth flow.
-      if (!EnvSpace.isProduction) logger.warn("Trusted-device metric recording failed", { metric, error });
+      if (!env.runtime.isProduction) logger.warn("Trusted-device metric recording failed", { metric, error });
     }
   }
 
@@ -909,14 +909,14 @@ export class TwoFactorService {
   }
 
   private getTrustedDeviceSecret(): string {
-    const configured = EnvSpace.trustedDeviceSecret;
+    const configured = env.auth.trustedDeviceSecret;
     if (!configured) throw new Error("TWO_FACTOR_TRUSTED_DEVICE_SECRET must be configured");
     if (configured.length < TRUSTED_DEVICE_SECRET_MIN_LENGTH)
       throw new Error(
         `TWO_FACTOR_TRUSTED_DEVICE_SECRET must be at least ${TRUSTED_DEVICE_SECRET_MIN_LENGTH} characters`,
       );
 
-    const accessSecret = EnvSpace.accessTokenSecret;
+    const accessSecret = env.auth.accessTokenSecret;
     if (accessSecret && configured === accessSecret)
       throw new Error("TWO_FACTOR_TRUSTED_DEVICE_SECRET must be different from JWT_ACCESS_SECRET");
 

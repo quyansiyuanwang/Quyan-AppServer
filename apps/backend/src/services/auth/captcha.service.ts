@@ -1,6 +1,6 @@
 import axios from "axios";
 import type { Request } from "express";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { ConfigService, type CaptchaConfig, type CaptchaProvider } from "@/services/system/config.service";
 import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -177,7 +177,7 @@ export class CaptchaService {
   }
 
   private async verifyRecaptcha(token: string, expectedAction: string | undefined, minScore: number): Promise<void> {
-    const secretKey = String(EnvSpace.recaptchaConfig.secretKey || "").trim();
+    const secretKey = String(env.auth.recaptcha.secretKey || "").trim();
     if (!secretKey) {
       logger.warn("reCAPTCHA secret key is missing");
       throw new CaptchaProviderUnavailableError("recaptcha", "reCAPTCHA secret key is missing");
@@ -237,7 +237,7 @@ export class CaptchaService {
   }
 
   private async verifyTurnstile(token: string, expectedAction?: string): Promise<void> {
-    const secretKey = String(EnvSpace.turnstileConfig.secretKey || "").trim();
+    const secretKey = String(env.auth.turnstile.secretKey || "").trim();
     if (!secretKey) {
       logger.warn("Turnstile secret key is missing");
       throw new CaptchaProviderUnavailableError("turnstile", "Turnstile secret key is missing");

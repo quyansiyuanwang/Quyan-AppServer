@@ -1,9 +1,9 @@
 import { randomUUID } from "crypto";
 import type { CookieOptions, Request } from "express";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { getCookieValue } from "@/util/cookie";
 
-export const AUTH_SESSION_COOKIE_NAME = EnvSpace.authSessionCookieName;
+export const AUTH_SESSION_COOKIE_NAME = env.auth.sessionCookie.name;
 
 function parseExpiresToSeconds(raw: string | number | undefined): number {
   if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) return Math.floor(raw);
@@ -36,12 +36,12 @@ function parseExpiresToSeconds(raw: string | number | undefined): number {
 }
 
 function resolveCookieOptions(maxAgeSeconds?: number): CookieOptions {
-  const sameSite = EnvSpace.authSessionCookieSameSite;
-  const cookieDomain = EnvSpace.authSessionCookieDomain;
+  const sameSite = env.auth.sessionCookie.sameSite;
+  const cookieDomain = env.auth.sessionCookie.domain;
 
   return {
     httpOnly: true,
-    secure: EnvSpace.isProduction || sameSite === "none",
+    secure: env.runtime.isProduction || sameSite === "none",
     sameSite,
     path: "/",
     ...(cookieDomain ? { domain: cookieDomain } : {}),
@@ -64,7 +64,7 @@ export function setAuthSessionIdCookie(req: Request, sessionId: string = createA
   req.res?.cookie(
     AUTH_SESSION_COOKIE_NAME,
     normalizedSessionId,
-    resolveCookieOptions(parseExpiresToSeconds(EnvSpace.refreshTokenExpiresIn)),
+    resolveCookieOptions(parseExpiresToSeconds(env.auth.refreshTokenExpiresIn)),
   );
 
   return normalizedSessionId;
@@ -79,5 +79,5 @@ export function buildForceOfflineAuthSessionKey(sessionId: string): string {
 }
 
 export function getForceOfflineAuthSessionTtlSeconds(): number {
-  return Math.max(1, EnvSpace.authSessionForceOfflineTtlDays) * 24 * 60 * 60;
+  return Math.max(1, env.auth.sessionCookie.forceOfflineTtlDays) * 24 * 60 * 60;
 }

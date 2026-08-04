@@ -4,7 +4,7 @@ import { BadRequestError, UnauthorizedError } from "@/util/errors";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { getLogger, LogCategory } from "@/util/logger";
 import { CustomCode } from "@/constant/custom-code";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { extractClientFingerprint } from "@/util/client-fingerprint";
 import {
   buildReplayNonceKey,
@@ -67,7 +67,7 @@ export async function replayProtectionMiddleware(req: TypedRequest, res: Respons
   const requestFingerprint = extractClientFingerprint(req);
   let signingSession: ReplaySigningSessionRecord;
 
-  if (EnvSpace.isTest && sessionId.startsWith("test:")) {
+  if (env.runtime.isTest && sessionId.startsWith("test:")) {
     const material = createTestReplaySigningMaterial(requestFingerprint);
     if (material.sessionId !== sessionId) {
       logger.warn(`Replay signing test session mismatch: ${req.method} ${req.path} from ${req.ip}`);

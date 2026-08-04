@@ -59,7 +59,7 @@ import {
   createReplayProtectionUnavailableError,
   generateReplaySigningKey,
 } from "@/util/replay-signing-session";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationEvent } from "@/constant/notification-event";
 import { IpGeolocationService } from "@/services/infrastructure/ip-geolocation.service";
@@ -126,7 +126,7 @@ export class AuthService {
     const sessionId = randomUUID();
     const fingerprint = request ? extractClientFingerprint(request) : undefined;
     const signingKey = generateReplaySigningKey(sessionId, fingerprint);
-    const expiresIn = EnvSpace.replayProtectionConfig.signingSessionTtlSeconds;
+    const expiresIn = env.security.replayProtection.signingSessionTtlSeconds;
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
     await this.redisService.set(
@@ -521,7 +521,7 @@ export class AuthService {
 
     // 登录频率限制：per-IP + per-account
     // 测试环境下跳过频率限制
-    if (this.redisService.isRedisAvailable() && !EnvSpace.isTest) {
+    if (this.redisService.isRedisAvailable() && !env.runtime.isTest) {
       const rateLimitCheck = await this.rateLimiterService.checkNamedRedisWindowRateLimit("login", {
         ipAddress,
         username,

@@ -5,7 +5,7 @@ import { getLogger, LogCategory } from "../logger";
 import { isLocalRequest } from "../../middleware/auth/local_auth";
 import { SecurityScheme } from "@/middleware/auth/auth_guard";
 import { getRequestContext } from "../request-context";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { validateAccountStatus } from "@/util/auth/account-status";
 import { copyFunctionMetadata } from "../decorator-metadata";
 
@@ -50,7 +50,7 @@ export function CheckPermission(
       let request = getRequestContext();
       if (!request) request = args.find((arg) => arg && arg.user !== undefined);
 
-      if (securityScheme === "local-or-jwt" && request && isLocalRequest(request) && !EnvSpace.isTest) {
+      if (securityScheme === "local-or-jwt" && request && isLocalRequest(request) && !env.runtime.isTest) {
         // 如果是本地请求且不在测试环境，直接放行，不检查权限
         logger.info(`本地请求访问方法 ${String(propertyKey)}，跳过权限检查`);
         return await originalMethod.apply(this, args);

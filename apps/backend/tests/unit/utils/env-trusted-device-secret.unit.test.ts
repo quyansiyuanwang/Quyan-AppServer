@@ -49,7 +49,7 @@ describe("env trusted-device secret validation", () => {
     vi.resetModules();
 
     const module = await import("../../../src/config/env");
-    expect(module.EnvSpace).toBeDefined();
+    expect(module.env).toBeDefined();
   });
 
   it("reads trusted-device cookie sameSite from env", async () => {
@@ -64,7 +64,7 @@ describe("env trusted-device secret validation", () => {
     vi.resetModules();
 
     const module = await import("../../../src/config/env");
-    expect(module.EnvSpace.twoFactorTrustedDeviceCookieSameSite).toBe("lax");
+    expect(module.env.auth.trustedDeviceCookie.sameSite).toBe("lax");
   });
 
   it("falls back to strict when trusted-device cookie sameSite is invalid", async () => {
@@ -79,7 +79,7 @@ describe("env trusted-device secret validation", () => {
     vi.resetModules();
 
     const module = await import("../../../src/config/env");
-    expect(module.EnvSpace.twoFactorTrustedDeviceCookieSameSite).toBe("strict");
+    expect(module.env.auth.trustedDeviceCookie.sameSite).toBe("strict");
   });
 
   it("reads trusted-device cookie domain from env", async () => {
@@ -94,7 +94,7 @@ describe("env trusted-device secret validation", () => {
     vi.resetModules();
 
     const module = await import("../../../src/config/env");
-    expect(module.EnvSpace.twoFactorTrustedDeviceCookieDomain).toBe(".qysyw.cn");
+    expect(module.env.auth.trustedDeviceCookie.domain).toBe(".qysyw.cn");
   });
 
   it("uses undefined when trusted-device cookie domain is empty", async () => {
@@ -109,7 +109,7 @@ describe("env trusted-device secret validation", () => {
     vi.resetModules();
 
     const module = await import("../../../src/config/env");
-    expect(module.EnvSpace.twoFactorTrustedDeviceCookieDomain).toBeUndefined();
+    expect(module.env.auth.trustedDeviceCookie.domain).toBeUndefined();
   });
 
   it("defaults to one trusted reverse-proxy hop when the setting is absent", async () => {
@@ -122,7 +122,7 @@ describe("env trusted-device secret validation", () => {
     vi.resetModules();
 
     const module = await import("../../../src/config/env");
-    expect(module.EnvSpace.trustProxyHops).toBe(1);
+    expect(module.env.runtime.trustProxyHops).toBe(1);
   });
 
   it("honors explicit direct and multi-proxy hop settings", async () => {
@@ -134,7 +134,7 @@ describe("env trusted-device secret validation", () => {
 
     vi.resetModules();
     let module = await import("../../../src/config/env");
-    expect(module.EnvSpace.trustProxyHops).toBe(0);
+    expect(module.env.runtime.trustProxyHops).toBe(0);
 
     process.env = {
       ...originalEnv,
@@ -144,7 +144,7 @@ describe("env trusted-device secret validation", () => {
 
     vi.resetModules();
     module = await import("../../../src/config/env");
-    expect(module.EnvSpace.trustProxyHops).toBe(2);
+    expect(module.env.runtime.trustProxyHops).toBe(2);
   });
 
   it("rejects malformed or out-of-range trusted proxy hop settings", async () => {

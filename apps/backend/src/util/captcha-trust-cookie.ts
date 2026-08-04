@@ -1,10 +1,10 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import type { CookieOptions, Request } from "express";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { getCookieValue } from "@/util/cookie";
 import { extractClientIp } from "@/util/ip-extractor";
 
-export const CAPTCHA_TRUST_COOKIE_NAME = EnvSpace.captchaTrustConfig.cookieName;
+export const CAPTCHA_TRUST_COOKIE_NAME = env.security.captchaTrust.cookieName;
 
 type CaptchaTrustPayload = {
   exp: number;
@@ -12,12 +12,12 @@ type CaptchaTrustPayload = {
 };
 
 function resolveCookieOptions(maxAgeSeconds?: number): CookieOptions {
-  const sameSite = EnvSpace.captchaTrustConfig.cookieSameSite;
-  const cookieDomain = EnvSpace.captchaTrustConfig.cookieDomain;
+  const sameSite = env.security.captchaTrust.cookieSameSite;
+  const cookieDomain = env.security.captchaTrust.cookieDomain;
 
   return {
     httpOnly: true,
-    secure: EnvSpace.isProduction || sameSite === "none",
+    secure: env.runtime.isProduction || sameSite === "none",
     sameSite,
     path: "/",
     ...(cookieDomain ? { domain: cookieDomain } : {}),
@@ -26,7 +26,7 @@ function resolveCookieOptions(maxAgeSeconds?: number): CookieOptions {
 }
 
 function signPayload(payloadBase64: string): string {
-  return createHmac("sha256", EnvSpace.captchaTrustConfig.secret).update(payloadBase64).digest("base64url");
+  return createHmac("sha256", env.security.captchaTrust.secret).update(payloadBase64).digest("base64url");
 }
 
 function parseCaptchaTrustCookie(raw: string): CaptchaTrustPayload | null {

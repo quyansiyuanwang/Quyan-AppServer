@@ -86,7 +86,7 @@ import {
   extractTrustedDeviceIdFromToken,
   extractTrustedDeviceToken,
 } from "@/util/trusted-device-token";
-import { EnvSpace } from "@/config/env";
+import { env } from "@/config/env";
 import { TWO_FACTOR_TRUSTED_DEVICE_PAGE_SIZE_DEFAULT } from "@/constant/two-factor";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
@@ -127,7 +127,7 @@ export class UserController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(replayProtectionMiddleware)
   public async clearTwoFactorTrustedWindow(@Request() request: TypedRequest): Promise<TwoFactorTrustClearResponse> {
-    if (!EnvSpace.isDevelopment) throw new NotFoundError("接口不存在");
+    if (!env.runtime.isDevelopment) throw new NotFoundError("接口不存在");
 
     const userId = request.user?.userId;
     if (!userId) throw new NotFoundError("用户信息不存在", undefined, { messageKey: "user.userInfoNotFound" });
