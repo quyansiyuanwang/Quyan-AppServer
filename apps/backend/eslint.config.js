@@ -143,6 +143,9 @@ export default [
     files: ["**/*.ts"],
     languageOptions: {
       parser: tsparser,
+      parserOptions: {
+        tsconfigRootDir: __dirname,
+      },
     },
     plugins: {
       "@typescript-eslint": tseslint,
