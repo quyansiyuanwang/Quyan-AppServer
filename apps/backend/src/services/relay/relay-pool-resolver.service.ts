@@ -15,9 +15,15 @@ export interface RelayPoolMemberGraph {
   memberChannel?: RelayChannel | null;
 }
 
+export interface RelayPoolMemberOrderContext {
+  /** An automatic proxy pool is an ancestor, so every eligible leaf must remain reachable. */
+  expandAllEligibleMembers: boolean;
+}
+
 export type RelayPoolMemberOrderer = (
   pool: RelayChannel,
   members: RelayPoolMemberGraph[],
+  context: RelayPoolMemberOrderContext,
 ) => Promise<RelayPoolMemberGraph[]>;
 
 export interface RelayChannelGraphNode extends RelayChannel {
@@ -267,6 +273,7 @@ export class RelayPoolResolverService {
     orderMembers: RelayPoolMemberOrderer | undefined,
     ancestors: Set<string>,
     includeDisabled = false,
+    expandAllEligibleMembers = false,
   ): Promise<ResolvedLeafPath[]> {
     if (ancestors.has(channel.id)) throw new BadRequestError(`Relay channel pool cycle detected at '${channel.name}'`);
 
@@ -278,8 +285,11 @@ export class RelayPoolResolverService {
     const enabledMembers = channel.poolMembers.filter(
       (member) => member.enabled !== false && graph.has(member.memberChannelId),
     );
+    const childPathsMustRemainReachable = expandAllEligibleMembers || channel.channelType === "automatic-proxy-pool";
     const orderedMembers = orderMembers
-      ? await orderMembers(channel, enabledMembers)
+      ? await orderMembers(channel, enabledMembers, {
+          expandAllEligibleMembers: childPathsMustRemainReachable,
+        })
       : [...enabledMembers].sort((left, right) => left.priority - right.priority);
     const leaves: ResolvedLeafPath[] = [];
 
@@ -294,6 +304,7 @@ export class RelayPoolResolverService {
           orderMembers,
           nextAncestors,
           includeDisabled,
+          childPathsMustRemainReachable,
         )),
       );
     }

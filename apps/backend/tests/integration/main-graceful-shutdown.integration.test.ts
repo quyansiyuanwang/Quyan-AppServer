@@ -76,34 +76,42 @@ describe("backend process graceful shutdown", () => {
     if (child && child.exitCode === null && !child.killed) child.kill("SIGKILL");
   });
 
-  it("serves traffic and exits cleanly through the SIGTERM shutdown handler", async () => {
-    const port = await reservePort();
-    const testEnvDirectory = await createChildTestEnv(port);
-    let output = "";
-    try {
-      const childProcess = spawn("bun", ["-e", "await import('./src/main.ts'); setTimeout(() => process.emit('SIGTERM'), 2000)"], {
-        cwd: backendDirectory,
-        env: {
-          ...process.env,
-          ENV_FILE_PATH: path.join(testEnvDirectory, ".env.test"),
-          NODE_ENV: "test",
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      child = childProcess;
-      childProcess.stdout?.on("data", (chunk: Buffer) => {
-        output += chunk.toString();
-      });
-      childProcess.stderr?.on("data", (chunk: Buffer) => {
-        output += chunk.toString();
-      });
+  it(
+    "serves traffic and exits cleanly through the SIGTERM shutdown handler",
+    async () => {
+      const port = await reservePort();
+      const testEnvDirectory = await createChildTestEnv(port);
+      let output = "";
+      try {
+        const childProcess = spawn(
+          "bun",
+          ["-e", "await import('./src/main.ts'); setTimeout(() => process.emit('SIGTERM'), 2000)"],
+          {
+            cwd: backendDirectory,
+            env: {
+              ...process.env,
+              ENV_FILE_PATH: path.join(testEnvDirectory, ".env.test"),
+              NODE_ENV: "test",
+            },
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+        child = childProcess;
+        childProcess.stdout?.on("data", (chunk: Buffer) => {
+          output += chunk.toString();
+        });
+        childProcess.stderr?.on("data", (chunk: Buffer) => {
+          output += chunk.toString();
+        });
 
-      await waitForPing(port, () => output);
-      const result = await waitForExit(childProcess);
+        await waitForPing(port, () => output);
+        const result = await waitForExit(childProcess);
 
-      expect(result).toEqual({ code: 0, signal: null });
-    } finally {
-      await rm(testEnvDirectory, { recursive: true, force: true });
-    }
-  }, startupTimeoutMs + shutdownTimeoutMs + 5_000);
+        expect(result).toEqual({ code: 0, signal: null });
+      } finally {
+        await rm(testEnvDirectory, { recursive: true, force: true });
+      }
+    },
+    startupTimeoutMs + shutdownTimeoutMs + 5_000,
+  );
 });

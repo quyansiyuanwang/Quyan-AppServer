@@ -545,7 +545,8 @@ export class AuthService {
       if (!match) throw new UnauthorizedError("用户名或密码错误", CustomCode.LOGIN_AUTH_FAILED);
 
       // Upgrade legacy MD5 hashes after a successful login without forcing a password reset.
-      if (isLegacyPasswordHash(user.password)) await this.userRepository.updateById(user.id, { password: hashPassword(password) });
+      if (isLegacyPasswordHash(user.password))
+        await this.userRepository.updateById(user.id, { password: hashPassword(password) });
 
       // Check whether the account can log in based on AccountStatus.
       validateAccountStatus(user.status, user.id, "login");

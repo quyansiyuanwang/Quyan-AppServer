@@ -82,7 +82,9 @@ export class DeveloperProductVerificationApiController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<{ success: true }> {
     await this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_VERIFICATION_SEND, () =>
-      this.project.sendVerification(request.productApiKey!.backingProjectId, body, extractClientIp(request), { skipQuota: true }),
+      this.project.sendVerification(request.productApiKey!.backingProjectId, body, extractClientIp(request), {
+        skipQuota: true,
+      }),
     );
     return { success: true };
   }

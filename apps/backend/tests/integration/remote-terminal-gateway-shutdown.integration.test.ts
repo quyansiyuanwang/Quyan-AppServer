@@ -8,7 +8,8 @@ describe("RemoteTerminalGatewayBootstrap graceful close", () => {
   let server: Server | undefined;
 
   afterEach(async () => {
-    if (server?.listening) await new Promise<void>((resolve, reject) => server!.close((error) => (error ? reject(error) : resolve())));
+    if (server?.listening)
+      await new Promise<void>((resolve, reject) => server!.close((error) => (error ? reject(error) : resolve())));
   });
 
   it("closes connected websocket clients with the server shutdown close code", async () => {
