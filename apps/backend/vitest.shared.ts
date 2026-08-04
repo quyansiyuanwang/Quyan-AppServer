@@ -41,6 +41,7 @@ export function defineBackendTestProject(name: string, include: string[], databa
       sequence: { groupOrder },
       env: { NODE_ENV: "test" },
       setupFiles: database ? ["./tests/runtime/database-worker.setup.ts"] : ["./tests/setup.ts"],
+      ...(database ? { hookTimeout: 60_000 } : {}),
       ...(database
         ? {
             globalSetup: ["./tests/runtime/database-global-setup.ts"],
