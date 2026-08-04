@@ -3187,6 +3187,8 @@ const emoji: DeepStringify<typeof en> = {
     failoverParamsHelp: '📋 说明：',
     maxRetries: '🔁 🔢',
     maxRetriesHelp: '🔁 🧮 📡；0️⃣ = 1️⃣ 📡',
+    maxAcceptedChannelMultiplier: '🤖 📡 ⬆️ 倍率',
+    maxAcceptedChannelMultiplierHelp: '🤖 📡；⬆️ ❌ ➜ 🛑；空白 = ♾️',
     failoverThreshold: '🔁 ⚡',
     failoverThresholdHelp: '1️⃣ 📡 ❌ 🧮 ➜ 🔀',
     failbackCooldownMinutes: '↩️ ⏱️ (分钟)',

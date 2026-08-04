@@ -102,6 +102,7 @@ describe("RelayTokenRepository", () => {
           enabled: true,
           maxRetries: 2,
           retryStatusCodes: ["401", "503"],
+          maxAcceptedChannelMultiplier: 2.5,
         },
       }),
     ).resolves.toBeTruthy();
@@ -113,6 +114,7 @@ describe("RelayTokenRepository", () => {
       maxRetries: 2,
       retryStatusCodes: ["401", "503"],
     });
+    expect(Number(updatedToken?.failoverConfig?.maxAcceptedChannelMultiplier)).toBe(2.5);
   });
 
   it("updates existing failover config without violating the required relation", async () => {
@@ -125,6 +127,7 @@ describe("RelayTokenRepository", () => {
         enabled: true,
         maxRetries: 1,
         retryStatusCodes: ["503"],
+        maxAcceptedChannelMultiplier: 4,
       },
       channelConfigs: [
         { channelId: primaryChannelId, priority: 0 },
@@ -140,6 +143,7 @@ describe("RelayTokenRepository", () => {
           enabled: true,
           maxRetries: 3,
           retryStatusCodes: ["4xx", "503"],
+          maxAcceptedChannelMultiplier: 1.75,
         },
       }),
     ).resolves.toBeTruthy();
@@ -154,6 +158,7 @@ describe("RelayTokenRepository", () => {
       maxRetries: 3,
       retryStatusCodes: ["4xx", "503"],
     });
+    expect(Number(updatedToken?.failoverConfig?.maxAcceptedChannelMultiplier)).toBe(1.75);
     expect(updatedToken?.channelConfigs.map((config) => config.channelId)).toEqual([
       primaryChannelId,
       secondaryChannelId,

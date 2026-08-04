@@ -711,6 +711,75 @@ describe("RelayProxyService failover", () => {
     });
   });
 
+  it("carries a token automatic-pool multiplier limit into the attempt plan", async () => {
+    const relayToken = createRelayTokenWithPooledChannel({
+      routingMode: "automatic-pool",
+      automaticProxyPoolChannel: undefined,
+      failoverConfig: { enabled: false, maxAcceptedChannelMultiplier: 2.5 },
+    });
+    relayToken.channel.channelType = "automatic-proxy-pool";
+    relayToken.automaticProxyPoolChannel = relayToken.channel;
+    relayToken.channel = null;
+    relayToken.channelId = null;
+    const { service } = createService();
+
+    const result = await (service as any).buildAttemptPlan(relayToken);
+
+    expect(result.failoverConfig.maxAcceptedChannelMultiplier).toBe(2.5);
+    expect(() =>
+      service.assertRelayChannelMultiplierAccepted(
+        { id: "equal", name: "Equal", multiplier: 2.5 },
+        result.failoverConfig,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      service.assertRelayChannelMultiplierAccepted(
+        { id: "expensive", name: "Expensive", multiplier: 2.500001 },
+        result.failoverConfig,
+      ),
+    ).toThrow("exceeding the token limit 2.5");
+  });
+
+  it("fails before upstream when the first automatic-pool member exceeds the token multiplier limit", async () => {
+    const relayToken = createRelayTokenWithPooledChannel({
+      routingMode: "automatic-pool",
+      failoverConfig: { enabled: false, maxAcceptedChannelMultiplier: 1 },
+    });
+    relayToken.channel.channelType = "automatic-proxy-pool";
+    relayToken.channel.routingConfig = { dynamicMemberRankingEnabled: false };
+    relayToken.channel.poolMembers[0].memberChannel.multiplier = 2;
+    relayToken.automaticProxyPoolChannel = relayToken.channel;
+    relayToken.channel = null;
+    relayToken.channelId = null;
+    const { service } = createService();
+
+    await expect(service.forwardRequest(relayToken, createRequest())).rejects.toThrow("exceeding the token limit 1");
+    expect(axiosMock).not.toHaveBeenCalled();
+  });
+
+  it("fails immediately when failover reaches an automatic-pool member over the token multiplier limit", async () => {
+    const relayToken = createRelayTokenWithPooledChannel({
+      routingMode: "automatic-pool",
+      failoverConfig: { enabled: false, maxAcceptedChannelMultiplier: 1 },
+    });
+    relayToken.channel.channelType = "automatic-proxy-pool";
+    relayToken.channel.routingConfig = { dynamicMemberRankingEnabled: false, retryStatusCodes: ["5xx"] };
+    relayToken.channel.poolMembers[0].memberChannel.multiplier = 1;
+    relayToken.channel.poolMembers[1].memberChannel.multiplier = 2;
+    relayToken.automaticProxyPoolChannel = relayToken.channel;
+    relayToken.channel = null;
+    relayToken.channelId = null;
+    const { service } = createService();
+    axiosMock.mockResolvedValueOnce({
+      status: 503,
+      headers: { "content-type": "application/json" },
+      data: { error: { message: "upstream unavailable" } },
+    });
+
+    await expect(service.forwardRequest(relayToken, createRequest())).rejects.toThrow("exceeding the token limit 1");
+    expect(axiosMock).toHaveBeenCalledTimes(1);
+  });
+
   it("charges a pooled token by its logical channel while retaining the executing member", async () => {
     const relayToken = createRelayTokenWithPooledChannel();
     relayToken.channel.multiplier = 1.8;

@@ -115,6 +115,7 @@ export interface RelayFailoverRuntimeConfig {
   retryStatusCodes: string[];
   failoverThreshold: number;
   failbackCooldownMinutes: number;
+  maxAcceptedChannelMultiplier?: number | null;
 }
 
 interface StreamForwardResult {
@@ -154,6 +155,7 @@ export interface RelayTokenAvailabilityInput {
     retryStatusCodes?: Prisma.JsonValue | string[] | null;
     failoverThreshold?: number | null;
     failbackCooldownMinutes?: number | null;
+    maxAcceptedChannelMultiplier?: number | Prisma.Decimal | null;
   } | null;
 }
 
@@ -1504,13 +1506,33 @@ export class RelayProxyService {
     const retryStatusCodes = normalizeRetryStatusRules(
       Array.isArray(relayToken.failoverConfig?.retryStatusCodes) ? relayToken.failoverConfig.retryStatusCodes : [],
     );
+    const maxAcceptedChannelMultiplier = relayToken.failoverConfig?.maxAcceptedChannelMultiplier;
     return {
       enabled: Boolean(relayToken.failoverConfig?.enabled),
       maxRetries: Math.max(0, Number(relayToken.failoverConfig?.maxRetries ?? 0)),
       retryStatusCodes,
       failoverThreshold: Math.max(0, Number(relayToken.failoverConfig?.failoverThreshold ?? 0)) + 1,
       failbackCooldownMinutes: Math.max(0, Number(relayToken.failoverConfig?.failbackCooldownMinutes ?? 0)),
+      ...(maxAcceptedChannelMultiplier == null
+        ? {}
+        : { maxAcceptedChannelMultiplier: Number(maxAcceptedChannelMultiplier) }),
     };
+  }
+
+  /** Reject an automatic-pool execution channel before any upstream request is made. */
+  assertRelayChannelMultiplierAccepted(
+    channel: Pick<RelayChannel, "id" | "name"> & { multiplier: Prisma.Decimal | number },
+    failoverConfig: RelayFailoverRuntimeConfig,
+  ): void {
+    const maximum = failoverConfig.maxAcceptedChannelMultiplier;
+    if (maximum == null) return;
+
+    const multiplier = Number(channel.multiplier);
+    if (!Number.isFinite(multiplier) || multiplier <= maximum) return;
+
+    throw new BadRequestError(
+      `Automatic proxy pool channel '${channel.name || channel.id}' has multiplier ${multiplier}, exceeding the token limit ${maximum}`,
+    );
   }
 
   private getPoolRoundRobinKey(channel: RelayChannel): string {
@@ -1724,7 +1746,12 @@ export class RelayProxyService {
     if (singleTopLevelChannel?.channelType === "automatic-proxy-pool")
       return {
         channels,
-        failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+        failoverConfig: {
+          ...this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+          ...(tokenFailoverConfig.maxAcceptedChannelMultiplier == null
+            ? {}
+            : { maxAcceptedChannelMultiplier: tokenFailoverConfig.maxAcceptedChannelMultiplier }),
+        },
         allowStickyFailover: !isPriceFirstAutomaticPool,
       };
 
@@ -2649,6 +2676,9 @@ export class RelayProxyService {
         const nextChannel = nextCandidate?.resolvedChannel;
         const nextDisplayChannel = nextCandidate?.displayChannel;
         const hasNextChannel = Boolean(nextCandidate);
+
+        if (relayToken.routingMode === "automatic-pool")
+          this.assertRelayChannelMultiplierAccepted(channel, failoverConfig);
 
         // Define variables that need to be accessible in catch block
         let channelMultiplier = 1;

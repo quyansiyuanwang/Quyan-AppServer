@@ -165,6 +165,35 @@
               </el-form-item>
 
               <el-form-item
+                v-if="editForm.routingMode === 'automatic-pool'"
+                :class="isDesktop ? 'form-item-span-2' : undefined"
+              >
+                <template #label>
+                  <span class="form-label-with-help">
+                    <span>{{ i18ns.t('relay.maxAcceptedChannelMultiplier') }}</span>
+                    <el-tooltip placement="top">
+                      <template #content>
+                        <div class="help-tooltip-content">
+                          {{ i18ns.t('relay.maxAcceptedChannelMultiplierHelp') }}
+                        </div>
+                      </template>
+                      <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
+                    </el-tooltip>
+                  </span>
+                </template>
+                <el-input-number
+                  v-model="editForm.failoverConfig.maxAcceptedChannelMultiplier"
+                  :min="0.01"
+                  :max="100"
+                  :step="0.000001"
+                  :precision="6"
+                  clearable
+                  controls-position="right"
+                  style="width: 100%"
+                />
+              </el-form-item>
+
+              <el-form-item
                 v-if="editForm.routingMode === 'ordered'"
                 required
                 :class="isDesktop ? 'form-item-span-2' : undefined"

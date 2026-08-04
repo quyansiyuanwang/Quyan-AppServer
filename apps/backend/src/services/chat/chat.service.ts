@@ -296,6 +296,8 @@ export class ChatService {
     for (let attemptIndex = 0; attemptIndex < attemptCandidates.length; attemptIndex += 1) {
       const candidate = attemptCandidates[attemptIndex];
       if (!candidate) continue;
+      if (token.routingMode === "automatic-pool")
+        this.relayProxyService.assertRelayChannelMultiplierAccepted(candidate.channel, attemptPlan.failoverConfig);
       requireRelayChannelForFormat({ ...token, channel: candidate.channel }, candidate.requestFormat);
 
       const hasChargeCoverage = await this.usageChargeService.hasCoverageOrPositiveBalance({

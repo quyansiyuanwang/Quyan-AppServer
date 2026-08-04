@@ -1092,6 +1092,7 @@ model RelayTokenFailoverConfig {
   retryStatusCodes        Json?
   failoverThreshold       Int      @default(0)
   failbackCooldownMinutes Int      @default(0)
+  maxAcceptedChannelMultiplier Decimal? @db.Decimal(10, 6)
   createTime              DateTime @default(now())
   updateTime              DateTime @updatedAt
 

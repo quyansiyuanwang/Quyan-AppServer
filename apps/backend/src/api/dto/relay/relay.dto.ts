@@ -199,6 +199,8 @@ export interface RelayTokenFailoverConfigDto {
    * @default 0
    */
   failbackCooldownMinutes: number;
+  /** 自动代理池允许选择的最高执行渠道基础倍率；不传或为 null 表示不限 */
+  maxAcceptedChannelMultiplier?: number | null;
 }
 
 export interface RelayTokenChannelConfigDto {
