@@ -104,7 +104,9 @@ export function createApp() {
   );
   app.use(express.json({ limit: `${requestSizeLimitConfig.jsonBodyLimitMb}mb` }));
   app.use(express.urlencoded({ extended: true, limit: `${requestSizeLimitConfig.urlencodedBodyLimitMb}mb` }));
-  app.set("trust proxy", true);
+  // Trust only the explicitly configured number of reverse-proxy hops.
+  // The default (0) prevents client-controlled forwarding headers from affecting req.ip.
+  app.set("trust proxy", EnvSpace.trustProxyHops);
 
   app.use((req, _res, next) => {
     const originalCookie = req.res?.cookie?.bind(req.res);

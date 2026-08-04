@@ -6,6 +6,7 @@ import { EnvSpace } from "@/config/env";
 import { ServerConfigRepository } from "@/store/system/server-config.repository";
 import type { ServerConfigStore } from "@/store/system/server-config.store";
 import type { Request } from "express";
+import { extractClientIp } from "@/util/ip-extractor";
 
 const DEFAULT_RECHARGE_RATIO = 100;
 const DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30;
@@ -202,9 +203,7 @@ export class ConfigService {
 
   private getClientIP(req?: Request): string {
     if (!req) return "unknown";
-    const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) return typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0];
-    return req.ip || req.socket.remoteAddress || "unknown";
+    return extractClientIp(req);
   }
 
   async get(key: string): Promise<string | null> {

@@ -19,6 +19,7 @@ import { Permission } from "@/constant/permission";
 import type { Request } from "express";
 import bcrypt from "bcrypt";
 import { RedisService } from "@/services/infrastructure/redis.service";
+import { extractClientIp } from "@/util/ip-extractor";
 
 const ACCESS_MODE_STATIC_PASSWORD = "static-password";
 const ACCESS_MODE_PUBLIC_KEY = "public-key";
@@ -58,9 +59,7 @@ export class JsonEndpointService {
 
   private getClientIP(req?: Request): string {
     if (!req) return "unknown";
-    const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) return typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0];
-    return req.ip || req.socket.remoteAddress || "unknown";
+    return extractClientIp(req);
   }
 
   /**

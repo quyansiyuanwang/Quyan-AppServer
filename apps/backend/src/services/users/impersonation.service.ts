@@ -9,6 +9,7 @@ import { UserRepository } from "@/store/users/user.repository";
 import type { UserStore } from "@/store/users/user.store";
 import type { TypedRequest } from "@/types/express";
 import type { StartImpersonationResponse } from "@/api/dto/users/impersonation.dto";
+import { extractClientIp } from "@/util/ip-extractor";
 
 export class ImpersonationService {
   private readonly userRepository: UserStore = UserRepository.getInstance();
@@ -17,9 +18,7 @@ export class ImpersonationService {
 
   private getClientIP(req?: TypedRequest): string {
     if (!req) return "unknown";
-    const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) return typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0];
-    return req.ip || req.socket.remoteAddress || "unknown";
+    return extractClientIp(req);
   }
 
   async startImpersonation(

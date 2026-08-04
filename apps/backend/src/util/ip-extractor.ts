@@ -5,22 +5,9 @@ import type { Request } from "express";
  * 考虑代理和负载均衡器的情况
  */
 export function extractClientIp(req: Request): string {
-  // 优先级顺序：
-  // 1. X-Forwarded-For（取第一个 IP）
-  // 2. X-Real-IP
-  // 3. req.ip（Express 默认）
-
-  const xForwardedFor = req.headers["x-forwarded-for"];
-  if (xForwardedFor) {
-    const ips = (xForwardedFor as string).split(",");
-    return normalizeIp(ips[0].trim());
-  }
-
-  const xRealIp = req.headers["x-real-ip"];
-  if (xRealIp) return normalizeIp(xRealIp as string);
-
-  let ip = req.ip || req.socket.remoteAddress || "unknown";
-  return normalizeIp(ip);
+  // Express resolves forwarding headers only when the configured proxy trust
+  // boundary allows it. Never parse these headers directly here.
+  return normalizeIp(req.ip || req.socket.remoteAddress || "unknown");
 }
 
 /**

@@ -18,7 +18,7 @@ describe("LogService", () => {
       deleteOldLogs: vi.fn(),
     };
 
-    logService = new LogService(mockRepo, { registerShutdownHandlers: false });
+    logService = new LogService(mockRepo);
   });
 
   afterEach(async () => {
@@ -326,7 +326,6 @@ describe("LogService", () => {
       vi.useFakeTimers();
 
       const timedService = new LogService(mockRepo, {
-        registerShutdownHandlers: false,
         flushIntervalMs: 50,
       });
 
@@ -370,8 +369,8 @@ describe("LogService", () => {
         deleteOldLogs: vi.fn(),
       };
 
-      const serviceA = new LogService(repoA, { autoStartTimer: false, registerShutdownHandlers: false });
-      const serviceB = new LogService(repoB, { autoStartTimer: false, registerShutdownHandlers: false });
+      const serviceA = new LogService(repoA, { autoStartTimer: false });
+      const serviceB = new LogService(repoB, { autoStartTimer: false });
 
       const requestA = {
         headers: { "x-request-id": "service-a" },

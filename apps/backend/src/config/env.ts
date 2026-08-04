@@ -268,6 +268,14 @@ function getPort(): number {
   return parseInt(port, 10);
 }
 
+function trustProxyHops(): number {
+  const raw = String(envSnapshot.TRUST_PROXY_HOPS || "0").trim();
+  const hops = Number.parseInt(raw, 10);
+  if (!Number.isInteger(hops) || hops < 0 || hops > 10)
+    throw new Error("TRUST_PROXY_HOPS must be an integer between 0 and 10");
+  return hops;
+}
+
 function getJwtSecret(tp: "access" | "refresh"): string {
   if (tp === "access") {
     if (!envSnapshot.JWT_ACCESS_SECRET) throw new Error("JWT_ACCESS_SECRET is not defined in environment variables");
@@ -666,6 +674,7 @@ const resolvedEnvSpace = {
   isTest: noUndefined(isTest),
   nodeEnv: noUndefined(nodeEnv),
   port: noUndefined(getPort),
+  trustProxyHops: noUndefined(trustProxyHops),
   accessTokenSecret: noUndefined(() => getJwtSecret("access")),
   refreshTokenSecret: noUndefined(() => getJwtSecret("refresh")),
   trustedDeviceSecret: noUndefined(trustedDeviceSecret),

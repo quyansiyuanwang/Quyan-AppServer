@@ -183,6 +183,32 @@ describe("RelayPoolResolverService", () => {
     expect(leaves.map((channel) => channel.id)).toEqual([selectedLeaf.id]);
   });
 
+  it("marks nested pooled members for full traversal beneath an automatic pool", async () => {
+    const firstLeaf = createChannel("first-leaf");
+    const secondLeaf = createChannel("second-leaf");
+    const nestedPool = createChannel("nested-pool", {
+      channelType: "pooled",
+      poolMembers: [
+        { memberChannelId: firstLeaf.id, priority: 0, weight: 1, enabled: true },
+        { memberChannelId: secondLeaf.id, priority: 1, weight: 1, enabled: true },
+      ],
+    });
+    const automaticPool = createChannel("automatic-pool", {
+      channelType: "automatic-proxy-pool",
+      poolMembers: [{ memberChannelId: nestedPool.id, priority: 0, weight: 1, enabled: true }],
+    });
+    const { resolver } = createResolver([automaticPool, nestedPool, firstLeaf, secondLeaf]);
+    const contexts: Record<string, boolean> = {};
+
+    const leaves = await resolver.resolveActiveLeaves([automaticPool], async (pool, members, context) => {
+      contexts[pool.id] = context.expandAllEligibleMembers;
+      return members;
+    });
+
+    expect(leaves.map((channel) => channel.id)).toEqual([firstLeaf.id, secondLeaf.id]);
+    expect(contexts).toEqual({ [automaticPool.id]: true, [nestedPool.id]: true });
+  });
+
   it("preserves distinct constraints for duplicate leaf paths", async () => {
     const leaf = createChannel("leaf");
     const openaiPool = createChannel("openai-pool", {

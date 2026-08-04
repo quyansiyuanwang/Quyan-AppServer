@@ -247,7 +247,10 @@ const createService = (
   };
   const relayPoolResolver = {
     resolveActiveLeafCandidates: vi.fn(
-      async (roots: any[], orderMembers?: (pool: any, members: any[]) => Promise<any[]>) => {
+      async (
+        roots: any[],
+        orderMembers?: (pool: any, members: any[], context: { expandAllEligibleMembers: boolean }) => Promise<any[]>,
+      ) => {
         const candidates: any[] = [];
         for (const root of roots) {
           if (!root) continue;
@@ -264,7 +267,11 @@ const createService = (
               weight: member.weight,
               enabled: member.enabled,
             }));
-          const orderedMembers = orderMembers ? await orderMembers(root, members) : members;
+          const orderedMembers = orderMembers
+            ? await orderMembers(root, members, {
+                expandAllEligibleMembers: root.channelType === "automatic-proxy-pool",
+              })
+            : members;
           for (const member of orderedMembers) {
             const sourceMember = (root.poolMembers ?? []).find(
               (candidate: any) => candidate.memberChannelId === member.memberChannelId,
@@ -836,6 +843,64 @@ describe("RelayProxyService failover", () => {
       "member-expensive",
     ]);
     expect(firstPlan.allowStickyFailover).toBe(false);
+  });
+
+  it("tries every automatic-pool member even when its configured maxRetries is zero", async () => {
+    const firstMember = createChannel("member-first", "First", "first.example.com");
+    const secondMember = createChannel("member-second", "Second", "second.example.com");
+    const thirdMember = createChannel("member-third", "Third", "third.example.com");
+    const pool = createChannel("automatic-pool", "Automatic pool", "pool.example.com", {
+      channelType: "automatic-proxy-pool",
+      routingConfig: { dynamicMemberRankingEnabled: false, maxRetries: 0, retryStatusCodes: ["5xx"] },
+      poolMembers: [
+        { memberChannelId: firstMember.id, priority: 0, weight: 1, enabled: true, memberChannel: firstMember },
+        { memberChannelId: secondMember.id, priority: 1, weight: 1, enabled: true, memberChannel: secondMember },
+        { memberChannelId: thirdMember.id, priority: 2, weight: 1, enabled: true, memberChannel: thirdMember },
+      ],
+    });
+    const { service } = createService();
+
+    const result = await (service as any).buildAttemptPlan({
+      id: "automatic-token",
+      userId: "user-1",
+      routingMode: "automatic-pool",
+      automaticProxyPoolChannel: pool,
+      failoverConfig: { enabled: true, maxRetries: 0, retryStatusCodes: ["5xx"] },
+    });
+
+    expect(result.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([
+      firstMember.id,
+      secondMember.id,
+      thirdMember.id,
+    ]);
+    expect(result.failoverConfig).toMatchObject({ enabled: true, maxRetries: 2, retryStatusCodes: ["5xx"] });
+  });
+
+  it("keeps nested pooled members reachable from an automatic pool", async () => {
+    const firstMember = createChannel("member-first", "First", "first.example.com");
+    const secondMember = createChannel("member-second", "Second", "second.example.com");
+    const thirdMember = createChannel("member-third", "Third", "third.example.com");
+    const nestedPool = createChannel("nested-pool", "Nested pool", "nested.example.com", {
+      channelType: "pooled",
+      routingConfig: { maxRetries: 0 },
+    });
+    const { service } = createService();
+
+    const ordered = await (service as any).orderPooledMemberChannels(
+      nestedPool,
+      [
+        { memberChannelId: firstMember.id, priority: 0, weight: 1, enabled: true, memberChannel: firstMember },
+        { memberChannelId: secondMember.id, priority: 1, weight: 1, enabled: true, memberChannel: secondMember },
+        { memberChannelId: thirdMember.id, priority: 2, weight: 1, enabled: true, memberChannel: thirdMember },
+      ],
+      { expandAllEligibleMembers: true },
+    );
+
+    expect(ordered.map((member: { memberChannelId: string }) => member.memberChannelId)).toEqual([
+      firstMember.id,
+      secondMember.id,
+      thirdMember.id,
+    ]);
   });
 
   it("excludes token-blocked automatic pool members from the attempt plan", async () => {

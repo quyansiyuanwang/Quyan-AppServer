@@ -15,6 +15,7 @@ import {
 import { BadRequestError, NotFoundError, ForbiddenError } from "@/util/errors";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { Permission } from "@/constant/permission";
+import { extractClientIp } from "@/util/ip-extractor";
 import type { Request } from "express";
 
 export class ArticleService {
@@ -35,9 +36,7 @@ export class ArticleService {
 
   private getClientIP(req?: Request): string {
     if (!req) return "unknown";
-    const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) return typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0];
-    return req.ip || req.socket.remoteAddress || "unknown";
+    return extractClientIp(req);
   }
 
   async createArticle(dto: CreateArticleDto, authorId: string, request: Request): Promise<ArticleDto> {

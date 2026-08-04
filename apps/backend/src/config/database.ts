@@ -17,4 +17,8 @@ const prisma = new PrismaClient({
 
 export { prisma };
 
+export async function disconnectDatabase(): Promise<void> {
+  await prisma.$disconnect();
+}
+
 export * from "@prisma/client";

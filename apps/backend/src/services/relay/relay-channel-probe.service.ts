@@ -668,6 +668,8 @@ function toNumber(value: unknown): number | undefined {
 export class RelayChannelProbeService {
   private static instance: RelayChannelProbeService;
   private scheduling = false;
+  private schedulerTimer: ReturnType<typeof setInterval> | undefined;
+  private cleanupTimer: ReturnType<typeof setInterval> | undefined;
   private readonly activeRunIds = new Set<string>();
   private readonly activeSchedulingScopes = new Set<string>();
   private lastCleanupAt = 0;
@@ -1096,10 +1098,20 @@ export class RelayChannelProbeService {
   }
 
   start(): void {
-    setInterval(() => void this.schedulePendingRuns(), 5_000).unref();
-    setInterval(() => void this.cleanupExpiredRuns(), 60 * 60 * 1000).unref();
+    if (this.schedulerTimer) return;
+    this.schedulerTimer = setInterval(() => void this.schedulePendingRuns(), 5_000);
+    this.schedulerTimer.unref();
+    this.cleanupTimer = setInterval(() => void this.cleanupExpiredRuns(), 60 * 60 * 1000);
+    this.cleanupTimer.unref();
     void this.schedulePendingRuns();
     void this.cleanupExpiredRuns();
+  }
+
+  stop(): void {
+    if (this.schedulerTimer) clearInterval(this.schedulerTimer);
+    if (this.cleanupTimer) clearInterval(this.cleanupTimer);
+    this.schedulerTimer = undefined;
+    this.cleanupTimer = undefined;
   }
 
   private async schedulePendingRuns(): Promise<void> {

@@ -35,45 +35,26 @@ describe("LogService shutdown handlers", () => {
 
   const createResponse = () => ({ statusCode: 500 }) as Response;
 
-  it("flushes buffered logs before exiting on SIGTERM", async () => {
-    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code?: number) => code as never) as any);
+  it("flushes buffered logs when disposed", async () => {
     const service = new LogService(mockRepo, {
       autoStartTimer: false,
-      registerShutdownHandlers: true,
     });
 
     await service.logRequest(createRequest("sigterm-flush"), createResponse());
-    service.start();
-
-    process.emit("SIGTERM");
-    for (let index = 0; index < 10 && exitSpy.mock.calls.length === 0; index += 1)
-      await new Promise<void>((resolve) => {
-        setImmediate(resolve);
-      });
+    await service.dispose();
 
     expect(mockRepo.create).toHaveBeenCalledTimes(1);
-    expect(exitSpy).toHaveBeenCalledWith(0);
-
-    await service.dispose({ flush: false });
   });
 
-  it("flushes buffered logs on beforeExit without forcing process exit", async () => {
-    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code?: number) => code as never) as any);
+  it("does not register process-level shutdown handlers", async () => {
     const service = new LogService(mockRepo, {
       autoStartTimer: false,
-      registerShutdownHandlers: true,
     });
 
     await service.logRequest(createRequest("before-exit-flush"), createResponse());
-    service.start();
-
-    process.emit("beforeExit", 0);
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(mockRepo.create).toHaveBeenCalledTimes(1);
-    expect(exitSpy).not.toHaveBeenCalled();
-
-    await service.dispose({ flush: false });
+    expect(process.listenerCount("SIGTERM")).toBe(0);
+    expect(process.listenerCount("SIGINT")).toBe(0);
+    expect(process.listenerCount("beforeExit")).toBe(0);
+    await service.dispose();
   });
 });
