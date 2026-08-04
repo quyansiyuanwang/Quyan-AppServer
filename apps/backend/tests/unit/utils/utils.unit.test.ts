@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { JWTAccessIns, JWTRefreshIns, JWTPayload } from "../../../src/util/auth";
-import { hashPassword } from "../../../src/util/crypto";
+import { hashPassword, isLegacyPasswordHash, verifyPassword } from "../../../src/util/crypto";
 import {
   ApiError,
   BadRequestError,
@@ -119,12 +119,14 @@ describe("工具函数测试", () => {
       expect(hash.length).toBeGreaterThan(0);
     });
 
-    it("相同的密码应该生成相同的哈希", () => {
+    it("相同的密码应该生成不同的随机哈希", () => {
       const password = "same_password";
       const hash1 = hashPassword(password);
       const hash2 = hashPassword(password);
 
-      expect(hash1).toBe(hash2);
+      expect(hash1).not.toBe(hash2);
+      expect(verifyPassword(password, hash1)).toBe(true);
+      expect(verifyPassword(password, hash2)).toBe(true);
     });
 
     it("不同的密码应该生成不同的哈希", () => {
@@ -148,6 +150,14 @@ describe("工具函数测试", () => {
 
       expect(hash).toBeTruthy();
       expect(typeof hash).toBe("string");
+    });
+
+    it("应该兼容旧 MD5 哈希并识别为待迁移密码", () => {
+      const legacyHash = "5f4dcc3b5aa765d61d8327deb882cf99";
+
+      expect(isLegacyPasswordHash(legacyHash)).toBe(true);
+      expect(verifyPassword("password", legacyHash)).toBe(true);
+      expect(verifyPassword("wrong-password", legacyHash)).toBe(false);
     });
   });
 

@@ -1300,7 +1300,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
   });
 
   it(
-    "自动代理池重试后展示成员唯一的父混池，并保留最终成员执行记录",
+    "自动代理池在一次请求中尝试全部成员，并保留最终成员执行记录",
     async () => {
       const primary = await prisma.relayChannel.create({
         data: {
@@ -1320,13 +1320,22 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           multiplier: 1,
         },
       });
+      const tertiary = await prisma.relayChannel.create({
+        data: {
+          name: `test_automatic_pool_tertiary_${suffix}`,
+          openaiUpstreamUrl: relayAIMockPlugin!.baseUrl,
+          openaiUpstreamApiKey: "test-automatic-pool-tertiary-key",
+          allowedFormats: "openai",
+          multiplier: 1,
+        },
+      });
       const automaticPool = await prisma.relayChannel.create({
         data: {
           name: `test_automatic_pool_${suffix}`,
           channelType: "automatic-proxy-pool",
           routingStrategy: "priority",
           allowedFormats: "openai",
-          routingConfig: { maxRetries: 1, retryStatusCodes: ["5xx"], allowedModelsMode: "all" },
+          routingConfig: { maxRetries: 0, retryStatusCodes: ["5xx"], allowedModelsMode: "all" },
           multiplier: 1,
         },
       });
@@ -1356,6 +1365,13 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
             enabled: true,
           },
           {
+            relayChannelId: automaticPool.id,
+            memberChannelId: tertiary.id,
+            priority: 3,
+            weight: 1,
+            enabled: true,
+          },
+          {
             relayChannelId: billingPool.id,
             memberChannelId: primary.id,
             priority: 1,
@@ -1366,6 +1382,13 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
             relayChannelId: billingPool.id,
             memberChannelId: secondary.id,
             priority: 2,
+            weight: 1,
+            enabled: true,
+          },
+          {
+            relayChannelId: billingPool.id,
+            memberChannelId: tertiary.id,
+            priority: 3,
             weight: 1,
             enabled: true,
           },
@@ -1383,7 +1406,11 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
 
       const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: token.id } });
       relayAIMockPlugin!.useOpenAI(async (ctx) => {
-        if (String(ctx.headers.authorization || "") === "Bearer test-automatic-pool-primary-key")
+        if (
+          ["Bearer test-automatic-pool-primary-key", "Bearer test-automatic-pool-secondary-key"].includes(
+            String(ctx.headers.authorization || ""),
+          )
+        )
           return { status: 503, body: { error: { message: "automatic primary unavailable" } } };
         return {
           body: {
@@ -1394,7 +1421,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
               {
                 index: 0,
                 finish_reason: "stop",
-                message: { role: "assistant", content: "automatic-secondary-success" },
+                message: { role: "assistant", content: "automatic-tertiary-success" },
               },
             ],
             usage: { prompt_tokens: 7, completion_tokens: 5, total_tokens: 12 },
@@ -1413,17 +1440,18 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           });
 
         expect(relayResponse.status).toBe(200);
-        expect(relayResponse.body?.choices?.[0]?.message?.content).toContain("automatic-secondary-success");
+        expect(relayResponse.body?.choices?.[0]?.message?.content).toContain("automatic-tertiary-success");
 
-        await waitForUsageCount(token.id, beforeUsageCount + 2);
+        await waitForUsageCount(token.id, beforeUsageCount + 3);
         const usages = await prisma.relayUsage.findMany({
           where: { relayTokenId: token.id },
           orderBy: { createTime: "asc" },
         });
         const successfulUsage = usages.at(-1)!;
+        expect(usages.slice(-3).map((usage) => usage.statusCode)).toEqual([503, 503, 200]);
         expect(successfulUsage).toMatchObject({
           statusCode: 200,
-          executionChannelId: secondary.id,
+          executionChannelId: tertiary.id,
           displayChannelId: automaticPool.id,
           displayChannelName: automaticPool.name,
         });
@@ -1444,6 +1472,37 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         expect(statsRows).toContainEqual(
           expect.objectContaining({ usageId: successfulUsage.id, channelName: automaticPool.name }),
         );
+
+        const switchLogs = await prisma.relayChannelSwitchLog.findMany({
+          where: { relayTokenId: token.id },
+          orderBy: { createTime: "asc" },
+        });
+        expect(switchLogs).toHaveLength(2);
+        expect(switchLogs.map((log) => [log.fromChannelId, log.toChannelId])).toEqual([
+          [primary.id, secondary.id],
+          [secondary.id, tertiary.id],
+        ]);
+
+        relayAIMockPlugin!.useOpenAI(async () => ({
+          status: 503,
+          body: { error: { message: "automatic pool unavailable" } },
+        }));
+        const exhaustedResponse = await request(app)
+          .post("/relay/proxy/v1/chat/completions")
+          .set("Authorization", `Bearer ${token.token}`)
+          .send({
+            model: openaiRelayModelId,
+            messages: [{ role: "user", content: "自动代理池应在所有成员失败后才返回错误" }],
+            stream: false,
+          });
+
+        expect(exhaustedResponse.status).toBeGreaterThanOrEqual(400);
+        await waitForUsageCount(token.id, beforeUsageCount + 6);
+        const exhaustedUsages = await prisma.relayUsage.findMany({
+          where: { relayTokenId: token.id },
+          orderBy: { createTime: "asc" },
+        });
+        expect(exhaustedUsages.slice(-3).map((usage) => usage.statusCode)).toEqual([503, 503, 503]);
       } finally {
         relayAIMockPlugin!.useOpenAI(async (ctx) => ({
           ...(ctx.body.stream === true
@@ -1459,7 +1518,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           where: { relayChannelId: { in: [automaticPool.id, billingPool.id] } },
         });
         await prisma.relayChannel.deleteMany({
-          where: { id: { in: [automaticPool.id, billingPool.id, primary.id, secondary.id] } },
+          where: { id: { in: [automaticPool.id, billingPool.id, primary.id, secondary.id, tertiary.id] } },
         });
       }
     },

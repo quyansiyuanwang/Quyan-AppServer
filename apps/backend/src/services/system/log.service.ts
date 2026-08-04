@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { APILogRepository, CreateAPILogParams } from "@/store/system/apilog";
 import type { APILogStore } from "@/store/system/apilog.store";
 import { getLogger, LogCategory } from "@/util/logger";
+import { extractClientIp } from "@/util/ip-extractor";
 import {
   SENSITIVE_FIELDS,
   EXCLUDE_RESPONSE_PATHS,
@@ -23,7 +24,6 @@ const BUFFER_HARD_CAP = 500; // 缓冲区硬上限：超过时丢弃最旧的条
 
 export interface LogServiceOptions {
   autoStartTimer?: boolean;
-  registerShutdownHandlers?: boolean;
   flushIntervalMs?: number;
   flushMaxBatch?: number;
   bufferHardCap?: number;
@@ -38,27 +38,16 @@ export class LogService {
   private readonly flushIntervalMs: number;
   private readonly flushMaxBatch: number;
   private readonly bufferHardCap: number;
-  private readonly shouldRegisterShutdownHandlers: boolean;
-
   /** 实例级写缓冲，避免多个 LogService 之间互相污染 */
   private buffer: CreateAPILogParams[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private flushPromise: Promise<void> | null = null;
-  private shutdownRegistered = false;
-
-  private readonly handleSigterm = this.createFlushAndExitHandler("SIGTERM");
-  private readonly handleSigint = this.createFlushAndExitHandler("SIGINT");
-  private readonly handleBeforeExit = async () => {
-    await this.flushUntilIdle();
-  };
 
   constructor(apiLogRepo: APILogStore = APILogRepository.getInstance(), options: LogServiceOptions = {}) {
     this.apiLogRepo = apiLogRepo;
     this.flushIntervalMs = options.flushIntervalMs ?? FLUSH_INTERVAL_MS;
     this.flushMaxBatch = options.flushMaxBatch ?? FLUSH_MAX_BATCH;
     this.bufferHardCap = options.bufferHardCap ?? BUFFER_HARD_CAP;
-    this.shouldRegisterShutdownHandlers = options.registerShutdownHandlers ?? true;
-
     if (options.autoStartTimer ?? true) this.start();
   }
 
@@ -71,8 +60,6 @@ export class LogService {
 
     // 允许进程在无请求时自然退出
     this.flushTimer.unref?.();
-
-    if (this.shouldRegisterShutdownHandlers) this.registerShutdownHandlers();
   }
 
   public stop(): void {
@@ -104,37 +91,8 @@ export class LogService {
 
   public async dispose(options: { flush?: boolean } = {}): Promise<void> {
     this.stop();
-    this.unregisterShutdownHandlers();
 
     if (options.flush !== false) await this.flushUntilIdle();
-  }
-
-  /** 注册进程信号处理，确保退出前把缓冲中的日志全部写入 DB */
-  private registerShutdownHandlers(): void {
-    if (this.shutdownRegistered) return;
-    this.shutdownRegistered = true;
-
-    process.once("SIGTERM", this.handleSigterm);
-    process.once("SIGINT", this.handleSigint);
-    // beforeExit 在 event loop 空时触发（非 process.exit() 调用）
-    process.once("beforeExit", this.handleBeforeExit);
-  }
-
-  private unregisterShutdownHandlers(): void {
-    if (!this.shutdownRegistered) return;
-
-    process.removeListener("SIGTERM", this.handleSigterm);
-    process.removeListener("SIGINT", this.handleSigint);
-    process.removeListener("beforeExit", this.handleBeforeExit);
-    this.shutdownRegistered = false;
-  }
-
-  private createFlushAndExitHandler(signal: string) {
-    return async () => {
-      logger.info(`[LogService] Received ${signal}, flushing log buffer...`);
-      await this.flushUntilIdle();
-      process.exit(0);
-    };
   }
 
   private async flushUntilIdle(): Promise<void> {
@@ -183,10 +141,7 @@ export class LogService {
   }
 
   private getClientIP(req: Request): string {
-    const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) return typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0];
-
-    return req.ip || req.socket.remoteAddress || "unknown";
+    return extractClientIp(req);
   }
 
   private getUserID(req: Request): string | undefined {

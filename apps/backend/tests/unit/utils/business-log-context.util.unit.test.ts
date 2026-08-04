@@ -9,7 +9,7 @@ describe("business-log-context util", () => {
     });
   });
 
-  it("extracts request metadata from headers and connection info", () => {
+  it("extracts request metadata without trusting client-provided forwarding headers", () => {
     const context = buildBusinessLogRequestContext({
       headers: {
         "x-forwarded-for": "203.0.113.8, 10.0.0.1",
@@ -21,7 +21,7 @@ describe("business-log-context util", () => {
     } as any);
 
     expect(context).toEqual({
-      ipAddress: "203.0.113.8",
+      ipAddress: "127.0.0.1",
       userAgent: "Vitest Agent",
       requestId: "req-123",
     });

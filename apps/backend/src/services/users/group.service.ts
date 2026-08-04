@@ -8,6 +8,7 @@ import type { GroupStore, GroupWithUserCount, GroupListFilters } from "@/store/u
 import type { UserStore } from "@/store/users/user.store";
 import type { Request } from "express";
 import { EnvSpace } from "@/config/env";
+import { extractClientIp } from "@/util/ip-extractor";
 
 export class GroupService {
   constructor(
@@ -18,9 +19,7 @@ export class GroupService {
 
   private getClientIP(req?: Request): string {
     if (!req) return "unknown";
-    const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) return typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0];
-    return req.ip || req.socket.remoteAddress || "unknown";
+    return extractClientIp(req);
   }
 
   private mapGroupToDto(group: GroupWithUserCount): GroupDto {

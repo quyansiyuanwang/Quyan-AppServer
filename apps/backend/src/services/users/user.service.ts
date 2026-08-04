@@ -21,6 +21,7 @@ import { NotificationService } from "@/services/notification/notification.servic
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { NotificationEvent } from "@/constant/notification-event";
 import { EnvSpace } from "@/config/env";
+import { extractClientIp } from "@/util/ip-extractor";
 
 type UserEntity = NonNullable<Awaited<ReturnType<UserStore["findById"]>>>;
 
@@ -37,9 +38,7 @@ export class UserService {
    */
   private getClientIP(req?: Request): string {
     if (!req) return "unknown";
-    const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) return typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0];
-    return req.ip || req.socket.remoteAddress || "unknown";
+    return extractClientIp(req);
   }
 
   private async dispatchSecurityNotification(

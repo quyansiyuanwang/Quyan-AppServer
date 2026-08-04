@@ -14,6 +14,7 @@ import type { GroupStore } from "@/store/users/group.store";
 import type { RamRoleStore } from "@/store/users/ram-role.store";
 import type { RamPolicyStore } from "@/store/users/ram-policy.store";
 import type { Request } from "express";
+import { extractClientIp } from "@/util/ip-extractor";
 
 type UserPermissionEntity = Pick<UserWithGroup, "id" | "permissionAdds" | "permissionRemoves">;
 type GroupPermissionEntity = { permissions: unknown };
@@ -47,9 +48,7 @@ export class PermissionService {
    */
   private getClientIP(req?: Request): string {
     if (!req) return "unknown";
-    const forwarded = req.headers["x-forwarded-for"];
-    if (forwarded) return typeof forwarded === "string" ? forwarded.split(",")[0].trim() : forwarded[0];
-    return req.ip || req.socket.remoteAddress || "unknown";
+    return extractClientIp(req);
   }
 
   /**

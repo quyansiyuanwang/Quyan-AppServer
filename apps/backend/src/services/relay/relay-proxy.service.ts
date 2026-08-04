@@ -51,6 +51,7 @@ import { ModelPricingService } from "./model-pricing.service";
 import {
   RelayPoolResolverService,
   type RelayPoolMemberGraph,
+  type RelayPoolMemberOrderContext,
   type RelayResolvedChannelCandidate,
 } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime, type TimePeriodRule } from "./time-period-multiplier.service";
@@ -1582,6 +1583,7 @@ export class RelayProxyService {
   private async orderPooledMemberChannels(
     channel: RelayChannel,
     poolMembers: RelayPoolMemberGraph[],
+    context?: RelayPoolMemberOrderContext,
   ): Promise<RelayPoolMemberGraph[]> {
     const strategy = (channel.routingStrategy || "priority") as RelayChannelRoutingStrategy;
     const routingConfig = this.getChannelRoutingConfig(channel);
@@ -1656,6 +1658,10 @@ export class RelayProxyService {
       orderedMembers = this.rotateItems(orderedPoolMembers, Math.max(0, Math.floor(counter - 1)));
     }
 
+    // Automatic pools always expose every currently eligible member to the request-level
+    // failover loop. `maxRetries` remains meaningful for ordinary pooled channels only.
+    if (context?.expandAllEligibleMembers) return orderedMembers;
+
     const rawMaxRetries = Number(routingConfig?.maxRetries);
     const maxAttempts = Number.isFinite(rawMaxRetries)
       ? Math.max(1, Math.min(orderedMembers.length, Math.floor(rawMaxRetries) + 1))
@@ -1670,9 +1676,12 @@ export class RelayProxyService {
       Array.isArray(routingConfig?.retryStatusCodes) ? routingConfig.retryStatusCodes : ["4xx", "5xx"],
     );
     const rawMaxRetries = Number(routingConfig?.maxRetries);
-    const maxRetries = Number.isFinite(rawMaxRetries)
-      ? Math.max(0, Math.floor(rawMaxRetries))
-      : Math.max(0, poolSize - 1);
+    const maxRetries =
+      channel.channelType === "automatic-proxy-pool"
+        ? Math.max(0, poolSize - 1)
+        : Number.isFinite(rawMaxRetries)
+          ? Math.max(0, Math.floor(rawMaxRetries))
+          : Math.max(0, poolSize - 1);
 
     return {
       enabled: poolSize > 1,
@@ -1687,7 +1696,7 @@ export class RelayProxyService {
     const topLevelChannels = this.getTopLevelAttemptChannels(relayToken);
     const resolvedChannels = await this.relayPoolResolver.resolveActiveLeafCandidates(
       topLevelChannels,
-      (pool, members) => this.orderPooledMemberChannels(pool, members),
+      (pool, members, context) => this.orderPooledMemberChannels(pool, members, context),
     );
     const blockedChannelIds = new Set(
       Array.isArray(relayToken.blockedAutomaticProxyPoolChannelIds)
@@ -1712,11 +1721,14 @@ export class RelayProxyService {
       singleTopLevelChannel?.channelType === "automatic-proxy-pool" &&
       this.getChannelRoutingConfig(singleTopLevelChannel)?.rankingMode !== "stability-first";
 
-    if (
-      tokenFailoverConfig.enabled ||
-      !singleTopLevelChannel ||
-      !["pooled", "automatic-proxy-pool"].includes(singleTopLevelChannel.channelType)
-    )
+    if (singleTopLevelChannel?.channelType === "automatic-proxy-pool")
+      return {
+        channels,
+        failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+        allowStickyFailover: !isPriceFirstAutomaticPool,
+      };
+
+    if (tokenFailoverConfig.enabled || !singleTopLevelChannel || singleTopLevelChannel.channelType !== "pooled")
       return { channels, failoverConfig: tokenFailoverConfig, allowStickyFailover: !isPriceFirstAutomaticPool };
 
     return {

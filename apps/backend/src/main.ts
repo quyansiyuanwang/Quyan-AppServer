@@ -1,7 +1,12 @@
 import { createApp, setupService } from "./app";
+import { disconnectDatabase } from "./config/database";
 import { EnvSpace } from "./config/env";
+import { disposeRequestLogService } from "./middleware/logging";
 import { RemoteTerminalGatewayBootstrap } from "./modules/remote-terminal/gateway/bootstrap";
 import { RemoteTerminalGatewayService } from "./modules/remote-terminal/gateway/gateway.service";
+import { DeveloperMonitorSchedulerService } from "./services/developer/developer-monitor-scheduler.service";
+import { RedisService } from "./services/infrastructure/redis.service";
+import { RelayChannelProbeService } from "./services/relay/relay-channel-probe.service";
 import { getLogger, LogCategory } from "./util/logger";
 
 const app = createApp();
@@ -37,23 +42,48 @@ server.headersTimeout = 66 * 1000; // 66 seconds (must be higher than keepAliveT
 server.requestTimeout = 10 * 60 * 1000; // 10 minutes for long-running requests (streaming)
 
 // Graceful shutdown handler
-const gracefulShutdown = (signal: string) => {
-  logger.info(`${signal} received, starting graceful shutdown`);
+let shutdownStarted = false;
 
-  server.close(() => {
-    logger.info("HTTP server closed");
-    process.exit(0);
+const closeHttpServer = (): Promise<void> =>
+  new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error && (error as { code?: string }).code !== "ERR_SERVER_NOT_RUNNING") reject(error);
+      else resolve();
+    });
   });
 
+const gracefulShutdown = async (signal: string) => {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
+  logger.info(`${signal} received, starting graceful shutdown`);
+
   // Force shutdown after 12 minutes (10min request + 2min buffer)
-  setTimeout(
+  const forceShutdownTimer = setTimeout(
     () => {
       logger.error("Forced shutdown after timeout");
       process.exit(1);
     },
     12 * 60 * 1000,
   );
+  forceShutdownTimer.unref?.();
+
+  try {
+    DeveloperMonitorSchedulerService.getInstance().stop();
+    RelayChannelProbeService.getInstance().stop();
+    await remoteTerminalGatewayBootstrap.close();
+    await closeHttpServer();
+    await disposeRequestLogService();
+    await RedisService.getInstance().close();
+    await disconnectDatabase();
+    logger.info("Graceful shutdown completed");
+    process.exitCode = 0;
+  } catch (error) {
+    logger.error("Graceful shutdown failed", { error });
+    process.exitCode = 1;
+  } finally {
+    clearTimeout(forceShutdownTimer);
+  }
 };
 
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.once("SIGTERM", () => void gracefulShutdown("SIGTERM"));
+process.once("SIGINT", () => void gracefulShutdown("SIGINT"));
