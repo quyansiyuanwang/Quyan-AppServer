@@ -406,7 +406,9 @@ export const useRelayChannelProbeManagement = () => {
   )
   let overviewRequest = 0
   let runsRequest = 0
-  let pollTimer: ReturnType<typeof setInterval> | undefined
+  let pollTimer: ReturnType<typeof setTimeout> | undefined
+  let polling = false
+  let pollingEnabled = false
 
   function emptyForm(): ProbeForm {
     return {
@@ -1762,23 +1764,36 @@ export const useRelayChannelProbeManagement = () => {
       applying.value = false
     }
   }
-  function startPolling() {
-    if (pollTimer || !hasActiveProbeRuns.value) return
-    pollTimer = setInterval(() => {
-      if (!hasActiveProbeRuns.value) return stopPolling()
-      if (!loading.value) void loadOverview()
-      if (
-        selected.value &&
-        (selected.value.latestRun?.status === 'queued' ||
-          selected.value.latestRun?.status === 'running') &&
-        !runsLoading.value
-      )
-        void loadRuns()
+  function schedulePolling() {
+    if (!pollingEnabled || polling || pollTimer || !hasActiveProbeRuns.value) return
+    pollTimer = setTimeout(async () => {
+      pollTimer = undefined
+      if (!pollingEnabled || !hasActiveProbeRuns.value) return
+      polling = true
+      try {
+        const refreshes = [loadOverview()]
+        if (
+          selected.value &&
+          (selected.value.latestRun?.status === 'queued' ||
+            selected.value.latestRun?.status === 'running')
+        )
+          refreshes.push(loadRuns())
+        await Promise.all(refreshes)
+      } finally {
+        polling = false
+        schedulePolling()
+      }
     }, 3000)
+  }
+  function startPolling() {
+    if (!hasActiveProbeRuns.value) return
+    pollingEnabled = true
+    schedulePolling()
   }
   function stopPolling() {
     if (pollTimer) clearInterval(pollTimer)
     pollTimer = undefined
+    pollingEnabled = false
   }
   watch([keyword, profileFilter, enabledFilter, runStatusFilter, suggestionFilter], clearSelection)
   watch(hasActiveProbeRuns, (active) => {

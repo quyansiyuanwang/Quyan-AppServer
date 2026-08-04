@@ -269,10 +269,11 @@ function getPort(): number {
 }
 
 function trustProxyHops(): number {
-  const raw = String(envSnapshot.TRUST_PROXY_HOPS || "0").trim();
-  const hops = Number.parseInt(raw, 10);
-  if (!Number.isInteger(hops) || hops < 0 || hops > 10)
-    throw new Error("TRUST_PROXY_HOPS must be an integer between 0 and 10");
+  const raw = String(envSnapshot.TRUST_PROXY_HOPS || "1").trim();
+  if (!/^\d+$/.test(raw)) throw new Error("TRUST_PROXY_HOPS must be an integer between 0 and 10");
+
+  const hops = Number(raw);
+  if (hops < 0 || hops > 10) throw new Error("TRUST_PROXY_HOPS must be an integer between 0 and 10");
   return hops;
 }
 
