@@ -709,37 +709,52 @@
     </div>
 
     <div v-else v-loading="loading" class="chart-view">
-      <div
-        class="hourly-consumption-chart"
-        style="
-          margin-bottom: 20px;
-          padding: 16px;
-          background: var(--el-bg-color);
-          border-radius: 8px;
-        "
-      >
-        <v-chart :option="hourlyConsumptionChartOption" style="height: 350px; width: 100%" />
-      </div>
-      <div class="charts-container">
-        <div class="chart-item">
-          <v-chart :option="balanceChartOption" style="height: 350px; width: 100%" />
+      <template v-if="props.scope === 'account'">
+        <div class="charts-container charts-container--account">
+          <div class="chart-item chart-item--account-balance">
+            <v-chart :option="balanceChartOption" style="height: 350px; width: 100%" />
+          </div>
+          <div class="chart-item chart-item--account-cash-flow">
+            <v-chart :option="accountCashFlowChartOption" style="height: 350px; width: 100%" />
+          </div>
+          <div class="chart-item chart-item--account-types">
+            <v-chart :option="typeChartOption" style="height: 350px; width: 100%" />
+          </div>
         </div>
-        <div class="chart-item">
-          <v-chart :option="spendingChartOption" style="height: 350px; width: 100%" />
+      </template>
+      <template v-else>
+        <div
+          class="hourly-consumption-chart"
+          style="
+            margin-bottom: 20px;
+            padding: 16px;
+            background: var(--el-bg-color);
+            border-radius: 8px;
+          "
+        >
+          <v-chart :option="hourlyConsumptionChartOption" style="height: 350px; width: 100%" />
         </div>
-        <div class="chart-item">
-          <v-chart :option="typeChartOption" style="height: 350px; width: 100%" />
+        <div class="charts-container">
+          <div class="chart-item">
+            <v-chart :option="balanceChartOption" style="height: 350px; width: 100%" />
+          </div>
+          <div class="chart-item">
+            <v-chart :option="spendingChartOption" style="height: 350px; width: 100%" />
+          </div>
+          <div class="chart-item">
+            <v-chart :option="typeChartOption" style="height: 350px; width: 100%" />
+          </div>
+          <div class="chart-item">
+            <v-chart :option="modelChartOption" style="height: 350px; width: 100%" />
+          </div>
+          <div class="chart-item">
+            <v-chart :option="tokenUsageChartOption" style="height: 350px; width: 100%" />
+          </div>
+          <div class="chart-item">
+            <v-chart :option="dailyBalanceChangeChartOption" style="height: 350px; width: 100%" />
+          </div>
         </div>
-        <div class="chart-item">
-          <v-chart :option="modelChartOption" style="height: 350px; width: 100%" />
-        </div>
-        <div class="chart-item">
-          <v-chart :option="tokenUsageChartOption" style="height: 350px; width: 100%" />
-        </div>
-        <div class="chart-item">
-          <v-chart :option="dailyBalanceChangeChartOption" style="height: 350px; width: 100%" />
-        </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>
@@ -1131,7 +1146,13 @@ const balanceChartOption = computed(() => {
     (a, b) => new Date(a.createTime).getTime() - new Date(b.createTime).getTime(),
   )
   return {
-    title: { text: i18ns.t('balance.transactionHistory'), left: 'center' },
+    title: {
+      text:
+        props.scope === 'account'
+          ? i18ns.t('balance.accountBalanceTrend')
+          : i18ns.t('balance.transactionHistory'),
+      left: 'center',
+    },
     tooltip: { trigger: 'axis' },
     xAxis: {
       type: 'category',
@@ -1139,6 +1160,56 @@ const balanceChartOption = computed(() => {
     },
     yAxis: { type: 'value' },
     series: [{ type: 'line', data: sortedData.map((t) => Number(t.balanceAfter)), smooth: true }],
+  }
+})
+
+const accountCashFlowChartOption = computed(() => {
+  const dailyData = new Map<string, { income: number; expense: number; netChange: number }>()
+  const sortedTransactions = [...filteredTransactions.value].sort(
+    (a, b) => new Date(a.createTime).getTime() - new Date(b.createTime).getTime(),
+  )
+
+  sortedTransactions.forEach((transaction) => {
+    const date = new Date(transaction.createTime).toLocaleDateString()
+    const existing = dailyData.get(date) || { income: 0, expense: 0, netChange: 0 }
+    const amount = Number(transaction.amount)
+
+    if (Number.isFinite(amount)) {
+      if (amount > 0) existing.income += amount
+      if (amount < 0) existing.expense += Math.abs(amount)
+      existing.netChange += amount
+    }
+
+    dailyData.set(date, existing)
+  })
+
+  const dates = Array.from(dailyData.keys())
+  return {
+    title: { text: i18ns.t('balance.accountCashFlow'), left: 'center' },
+    tooltip: { trigger: 'axis' },
+    legend: {
+      data: [i18ns.t('balance.income'), i18ns.t('balance.expense'), i18ns.t('balance.netChange')],
+      top: 30,
+    },
+    xAxis: { type: 'category', data: dates, axisLabel: { rotate: 45 } },
+    yAxis: { type: 'value' },
+    series: [
+      {
+        name: i18ns.t('balance.income'),
+        type: 'bar',
+        data: dates.map((date) => Number((dailyData.get(date)?.income || 0).toFixed(4))),
+      },
+      {
+        name: i18ns.t('balance.expense'),
+        type: 'bar',
+        data: dates.map((date) => -Number((dailyData.get(date)?.expense || 0).toFixed(4))),
+      },
+      {
+        name: i18ns.t('balance.netChange'),
+        type: 'line',
+        data: dates.map((date) => Number((dailyData.get(date)?.netChange || 0).toFixed(4))),
+      },
+    ],
   }
 })
 
@@ -1697,6 +1768,10 @@ const dailyBalanceChangeChartOption = computed(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
   gap: 20px;
+}
+
+.charts-container--account {
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
 }
 
 .chart-item {
