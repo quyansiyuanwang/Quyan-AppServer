@@ -48,6 +48,11 @@ export interface ServerConfigContext {
   saveRegistration: () => Promise<void>
   savingBilling: Ref<boolean>
   rechargeRatio: Ref<number>
+  giftCodeEnabled: Ref<boolean>
+  directTransferEnabled: Ref<boolean>
+  giftCodeFeePercent: Ref<number>
+  directTransferFeePercent: Ref<number>
+  giftCodeCancelFeeRefundPercent: Ref<number>
   saveBilling: () => Promise<void>
   savingHeartbeat: Ref<boolean>
   heartbeatIntervalSeconds: Ref<number>

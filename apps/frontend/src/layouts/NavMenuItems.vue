@@ -25,6 +25,14 @@
       <el-icon><Wallet /></el-icon>
       <template #title>{{ i18ns.t('relay.accountBalance') }}</template>
     </el-menu-item>
+    <el-menu-item
+      index="consumptionRecords"
+      @click="nav('consumptionRecords', $event)"
+      @contextmenu.prevent="openRouteMenu('consumptionRecords', $event)"
+    >
+      <el-icon><TrendCharts /></el-icon>
+      <template #title>{{ i18ns.t('nav.consumptionRecords') }}</template>
+    </el-menu-item>
   </PermissionWrapper>
   <PermissionWrapper
     :any-require="[

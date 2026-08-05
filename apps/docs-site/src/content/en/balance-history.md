@@ -1,48 +1,48 @@
-# Balance & usage history
+# Account balance & transfers
 
-Use this page to monitor your current balance, redeem value, and review historical usage.
+Use this page to manage account balance, redeem codes, and send balance. API usage metrics and consumption records are kept on the separate Consumption records page.
 
-## Page purpose
+## What you can do
 
-- Check the current account balance.
-- Redeem balance or promotional codes.
-- Inspect usage trends and transaction history.
+- Check and refresh your current account balance.
+- Redeem a code to add balance to your account.
+- Create a shareable balance gift code.
+- Transfer balance directly to an exact username.
+- Review account funding, transfer, refund, and adjustment transactions.
 
-## What you will see
+## Redeem a code
 
-### Balance overview
+Enter a valid code to add its balance to your account. Administrator codes and balance gift codes created by other users use the same redemption entry point. You cannot redeem a gift code that you created yourself.
 
-- Current balance card.
-- Refresh action.
-- Quick usage summary.
+## Create a balance gift code
 
-### Charts and trends
+The amount entered is what the recipient receives. The sender pays the fee in addition to that amount. Before submission, the dialog shows the current fee rate, fee amount, total debit, and the estimated fee and total refund available after cancellation.
 
-- Request trend chart.
-- TPM and RPM charts.
-- Time-range controls.
+- You can set an optional expiry time. The creator can still cancel an expired code if it has not been redeemed.
+- Only an active user other than the creator can redeem the code.
+- The creator can cancel an unredeemed code. Cancellation returns the recipient amount plus the configured portion of the fee.
+- A redeemed or cancelled code cannot be used or cancelled again.
 
-### Transactions
+The fee and cancellation-refund rates are captured by the server when the code is created. Later configuration changes do not alter an existing code.
 
-- Transaction-history list or panel.
-- Time filtering tools.
-- Record details for balance changes.
+## Direct transfer
 
-## Common actions
+Enter the recipient's exact username and the amount they should receive. The recipient amount excludes the fee; the sender pays it in addition. The dialog shows the current rate, fee, and total debit before submission.
 
-1. Refresh the page before reviewing recent balance changes.
-2. Enter a redemption code when you need to add value.
-3. Switch the time range to compare different periods.
-4. Open transaction history to confirm the source of a balance change.
+A completed direct transfer cannot be reversed. There is no user directory or fuzzy search, so verify the username before submitting.
+
+## Account transactions
+
+Account transactions help you reconcile balance changes. Use the date and loaded-range controls to inspect recent or longer history. API usage records are not shown here; open Consumption records to filter by model, channel, token, and usage type.
 
 ## Notes
 
-- Trend charts help explain rapid balance consumption.
-- Redemption flows can fail if a code is used, expired, or invalid.
-- Transaction history is the best place to confirm whether an action affected your balance.
+- Creating a gift code and making a direct transfer can require an additional security challenge.
+- Feature availability, fee rates, and fee-refund rates are controlled by the current server configuration.
+- Amounts shown before submission are previews. Final debits and refunds are determined by the server result.
 
 ## Related pages
 
+- `consumption-records`
 - `my-monthly-passes`
-- `balance-management`
 - `relay-token-management`

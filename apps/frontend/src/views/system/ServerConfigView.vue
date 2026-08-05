@@ -47,6 +47,11 @@ const groups = ref<any[]>([])
 // Billing
 const savingBilling = ref(false)
 const rechargeRatio = ref(100)
+const giftCodeEnabled = ref(true)
+const directTransferEnabled = ref(true)
+const giftCodeFeePercent = ref(0)
+const directTransferFeePercent = ref(0)
+const giftCodeCancelFeeRefundPercent = ref(0)
 
 // Heartbeat
 const savingHeartbeat = ref(false)
@@ -234,6 +239,11 @@ const loadBillingConfig = async () => {
   try {
     const billingConfig = await configService.getBillingConfig()
     rechargeRatio.value = billingConfig.rechargeRatio
+    giftCodeEnabled.value = billingConfig.giftCodeEnabled
+    directTransferEnabled.value = billingConfig.directTransferEnabled
+    giftCodeFeePercent.value = billingConfig.giftCodeFeePercent
+    directTransferFeePercent.value = billingConfig.directTransferFeePercent
+    giftCodeCancelFeeRefundPercent.value = billingConfig.giftCodeCancelFeeRefundPercent
     billingLoaded.value = true
   } catch (error: any) {
     ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
@@ -444,6 +454,11 @@ const saveBilling = async () => {
   try {
     await configService.setBillingConfig({
       rechargeRatio: rechargeRatio.value,
+      giftCodeEnabled: giftCodeEnabled.value,
+      directTransferEnabled: directTransferEnabled.value,
+      giftCodeFeePercent: giftCodeFeePercent.value,
+      directTransferFeePercent: directTransferFeePercent.value,
+      giftCodeCancelFeeRefundPercent: giftCodeCancelFeeRefundPercent.value,
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
@@ -700,6 +715,11 @@ const serverConfigContext: ServerConfigContext = {
   saveRegistration,
   savingBilling,
   rechargeRatio,
+  giftCodeEnabled,
+  directTransferEnabled,
+  giftCodeFeePercent,
+  directTransferFeePercent,
+  giftCodeCancelFeeRefundPercent,
   saveBilling,
   savingHeartbeat,
   heartbeatIntervalSeconds,

@@ -53,6 +53,42 @@
           />
           <span class="form-help">{{ i18ns.t('ServerConfigView.rechargeRatioHelp') }}</span>
         </el-form-item>
+        <el-divider content-position="left">{{
+          i18ns.t('ServerConfigView.balanceTransferTitle')
+        }}</el-divider>
+        <el-form-item :label="i18ns.t('ServerConfigView.giftCodeEnabled')">
+          <el-switch v-model="giftCodeEnabled" />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.giftCodeFeePercent')">
+          <el-input-number
+            v-model="giftCodeFeePercent"
+            :min="0"
+            :max="100"
+            :precision="4"
+            :step="0.1"
+          />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.giftCodeCancelFeeRefundPercent')">
+          <el-input-number
+            v-model="giftCodeCancelFeeRefundPercent"
+            :min="0"
+            :max="100"
+            :precision="4"
+            :step="0.1"
+          />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.directTransferEnabled')">
+          <el-switch v-model="directTransferEnabled" />
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.directTransferFeePercent')">
+          <el-input-number
+            v-model="directTransferFeePercent"
+            :min="0"
+            :max="100"
+            :precision="4"
+            :step="0.1"
+          />
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="savingBilling" @click="saveBilling">
             {{ i18ns.t('save') }}
@@ -666,6 +702,11 @@ const {
   saveRegistration,
   savingBilling,
   rechargeRatio,
+  giftCodeEnabled,
+  directTransferEnabled,
+  giftCodeFeePercent,
+  directTransferFeePercent,
+  giftCodeCancelFeeRefundPercent,
   saveBilling,
   savingHeartbeat,
   heartbeatIntervalSeconds,

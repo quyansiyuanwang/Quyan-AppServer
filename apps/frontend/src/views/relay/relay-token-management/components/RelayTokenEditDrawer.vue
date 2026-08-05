@@ -635,19 +635,10 @@
                             {{ state.formatQuotaWindowPreview(quotaWindow, index) }}
                           </span>
                         </div>
-                        <el-button
-                          link
-                          type="danger"
-                          :size="isDesktop ? undefined : 'small'"
-                          :disabled="saving"
-                          @click="state.removeQuotaWindow(index)"
-                        >
-                          {{ i18ns.t('relay.removeQuotaWindow') }}
-                        </el-button>
                       </div>
                       <div
                         class="quota-window-editor__fields"
-                        :class="isDesktop ? '' : 'quota-window-editor__fields--mobile'"
+                        :class="{ 'quota-window-editor__fields--mobile': !isDesktop }"
                       >
                         <div class="quota-window-editor__field">
                           <label class="quota-window-editor__field-label">{{
@@ -788,6 +779,15 @@
                           </div>
                         </div>
                       </div>
+                      <el-button
+                        link
+                        type="danger"
+                        :size="isDesktop ? undefined : 'small'"
+                        :disabled="saving"
+                        @click="state.removeQuotaWindow(index)"
+                      >
+                        {{ i18ns.t('relay.removeQuotaWindow') }}
+                      </el-button>
                     </div>
                   </div>
                   <el-alert

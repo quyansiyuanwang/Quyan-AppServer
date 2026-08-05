@@ -28,6 +28,11 @@ const configApi = cacheObject(() => createConfigControllerApi(useRequestStore().
 
 export interface BillingConfigDto {
   rechargeRatio: number
+  giftCodeEnabled: boolean
+  directTransferEnabled: boolean
+  giftCodeFeePercent: number
+  directTransferFeePercent: number
+  giftCodeCancelFeeRefundPercent: number
 }
 
 export interface RelayConfigDto {
@@ -42,6 +47,11 @@ export interface RelayConfigDto {
 
 export interface SetBillingConfigDto {
   rechargeRatio: number
+  giftCodeEnabled: boolean
+  directTransferEnabled: boolean
+  giftCodeFeePercent: number
+  directTransferFeePercent: number
+  giftCodeCancelFeeRefundPercent: number
 }
 
 export class ConfigService {

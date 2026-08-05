@@ -9,14 +9,15 @@ export default defineDocsPage({
     'zh-CN': '账号',
   },
   title: {
-    en: 'Balance & usage history',
-    'zh-CN': '余额与用量记录',
+    en: 'Account balance & transfers',
+    'zh-CN': '账户余额与转出',
   },
   summary: {
-    en: 'Check balance, redeem codes, and review usage trends and transactions.',
-    'zh-CN': '说明余额查看、兑换码使用、趋势图和交易记录。',
+    en: 'Check your balance, redeem codes, create gift codes, transfer balance, and review account transactions.',
+    'zh-CN': '说明余额查看、兑换充值、生成兑换码、直接转账和账户资金流水。',
   },
-  tags: ['balance', 'usage', 'transaction'],
+  tags: ['balance', 'redemption', 'gift-code', 'transfer', 'transaction'],
+  updatedAt: '2026-08-05',
   content: {
     en: contentEn,
     'zh-CN': contentZh,

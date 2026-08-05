@@ -70,6 +70,10 @@ model User {
   scriptExecutions             UserScriptExecution[]
   redemptionCodesUsed          RedemptionCode[]                @relation("RedemptionCodeUsedBy")
   redemptionCodesCreated       RedemptionCode[]                @relation("RedemptionCodeCreatedBy")
+  balanceGiftCodesCreated      BalanceGiftCode[]               @relation("BalanceGiftCodeCreatedBy")
+  balanceGiftCodesRedeemed     BalanceGiftCode[]               @relation("BalanceGiftCodeRedeemedBy")
+  balanceTransfersSent         BalanceTransfer[]               @relation("BalanceTransferSender")
+  balanceTransfersReceived     BalanceTransfer[]               @relation("BalanceTransferRecipient")
   conversations                Conversation[]
   notificationPreference       NotificationPreference?
   notificationInboxItems       NotificationInboxItem[]
@@ -1577,6 +1581,55 @@ model BalanceTransaction {
   @@index([userId, model, createTime])
   @@index([displayChannelId])
   @@map("balance_transactions")
+}
+
+model BalanceGiftCode {
+  id                      String   @id @default(cuid())
+  status                  Int      @default(1)
+  createTime              DateTime @default(now())
+  updateTime              DateTime @updatedAt
+  state                   String   @default("active") @db.VarChar(20)
+  code                    String   @unique @db.VarChar(80)
+  amount                  Decimal  @db.Decimal(15, 4)
+  feeAmount               Decimal  @db.Decimal(15, 4)
+  feePercent              Decimal  @db.Decimal(10, 4)
+  cancelFeeRefundPercent  Decimal  @db.Decimal(10, 4)
+  totalDebit              Decimal  @db.Decimal(15, 4)
+  refundedAmount          Decimal? @db.Decimal(15, 4)
+  createdBy               String
+  redeemedBy              String?
+  redeemedAt              DateTime?
+  cancelledAt             DateTime?
+  expiresAt               DateTime?
+
+  createdByUser User  @relation("BalanceGiftCodeCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  redeemedByUser User? @relation("BalanceGiftCodeRedeemedBy", fields: [redeemedBy], references: [id], onDelete: SetNull)
+
+  @@index([createdBy, createTime])
+  @@index([redeemedBy])
+  @@index([state, expiresAt])
+  @@map("balance_gift_codes")
+}
+
+model BalanceTransfer {
+  id                String   @id @default(cuid())
+  status            Int      @default(1)
+  createTime        DateTime @default(now())
+  updateTime        DateTime @updatedAt
+  senderId          String
+  recipientId       String
+  amount            Decimal  @db.Decimal(15, 4)
+  feeAmount         Decimal  @db.Decimal(15, 4)
+  feePercent        Decimal  @db.Decimal(10, 4)
+  totalDebit        Decimal  @db.Decimal(15, 4)
+  description       String?  @db.VarChar(500)
+
+  sender    User @relation("BalanceTransferSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User @relation("BalanceTransferRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, createTime])
+  @@index([recipientId, createTime])
+  @@map("balance_transfers")
 }
 
 model MonthlyPassTemplate {

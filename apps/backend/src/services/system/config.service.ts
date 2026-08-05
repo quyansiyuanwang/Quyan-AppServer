@@ -9,6 +9,10 @@ import type { Request } from "express";
 import { extractClientIp } from "@/util/ip-extractor";
 
 const DEFAULT_RECHARGE_RATIO = 100;
+const DEFAULT_GIFT_CODE_ENABLED = true;
+const DEFAULT_DIRECT_TRANSFER_ENABLED = true;
+const DEFAULT_TRANSFER_FEE_PERCENT = 0;
+const DEFAULT_GIFT_CODE_CANCEL_FEE_REFUND_PERCENT = 0;
 const DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30;
 const DEFAULT_HEARTBEAT_TIMEOUT_SECONDS = 90;
 const DEFAULT_REMOTE_TERMINAL_UNBIND_MAX_COUNT = 3;
@@ -89,6 +93,11 @@ export interface RelayConfig {
 
 export interface BillingConfig {
   rechargeRatio: number;
+  giftCodeEnabled: boolean;
+  directTransferEnabled: boolean;
+  giftCodeFeePercent: number;
+  directTransferFeePercent: number;
+  giftCodeCancelFeeRefundPercent: number;
 }
 
 export interface SiteConfig {
@@ -261,11 +270,29 @@ export class ConfigService {
   }
 
   async getBillingConfig(): Promise<BillingConfig> {
-    const rechargeRatio = await this.get(CONFIG_KEYS.BILLING.RECHARGE_RATIO);
+    const keys = Object.values(CONFIG_KEYS.BILLING);
+    const configs = await this.getMultiple(keys);
+    const rechargeRatio = configs[CONFIG_KEYS.BILLING.RECHARGE_RATIO];
     const parsed = rechargeRatio ? parseFloat(rechargeRatio) : DEFAULT_RECHARGE_RATIO;
+    const parsePercent = (key: string, fallback: number): number => {
+      const value = parseFloat(configs[key] || "");
+      return Number.isFinite(value) && value >= 0 && value <= 100 ? value : fallback;
+    };
 
     return {
       rechargeRatio: Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_RECHARGE_RATIO,
+      giftCodeEnabled: configs[CONFIG_KEYS.BILLING.GIFT_CODE_ENABLED] !== "false" ? DEFAULT_GIFT_CODE_ENABLED : false,
+      directTransferEnabled:
+        configs[CONFIG_KEYS.BILLING.DIRECT_TRANSFER_ENABLED] !== "false" ? DEFAULT_DIRECT_TRANSFER_ENABLED : false,
+      giftCodeFeePercent: parsePercent(CONFIG_KEYS.BILLING.GIFT_CODE_FEE_PERCENT, DEFAULT_TRANSFER_FEE_PERCENT),
+      directTransferFeePercent: parsePercent(
+        CONFIG_KEYS.BILLING.DIRECT_TRANSFER_FEE_PERCENT,
+        DEFAULT_TRANSFER_FEE_PERCENT,
+      ),
+      giftCodeCancelFeeRefundPercent: parsePercent(
+        CONFIG_KEYS.BILLING.GIFT_CODE_CANCEL_FEE_REFUND_PERCENT,
+        DEFAULT_GIFT_CODE_CANCEL_FEE_REFUND_PERCENT,
+      ),
     };
   }
 

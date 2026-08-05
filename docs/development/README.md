@@ -18,6 +18,7 @@
 | [10-pr-management.md](./10-pr-management.md)               | GitHub PR 读取、风格对齐、编辑与标签流程                      |
 | [11-testing-and-ci.md](./11-testing-and-ci.md)             | 测试分类、并行隔离、数据库 worker 与 GitHub Actions 策略      |
 | [12-git-workflow-and-mcp.md](./12-git-workflow-and-mcp.md) | Git 交付、commit hook 与项目 MCP                              |
+| [13-docs-site.md](./13-docs-site.md)                       | docs-site 文档同步、写作规范与验证                            |
 
 ## 快速导航
 
@@ -35,6 +36,7 @@
 - **如何整理 PR 元数据** → [10-pr-management.md](./10-pr-management.md)
 - **如何选择和运行测试** → [11-testing-and-ci.md](./11-testing-and-ci.md)
 - **如何规范提交和使用项目 MCP** → [12-git-workflow-and-mcp.md](./12-git-workflow-and-mcp.md)
+- **如何同步和编写 docs-site 文档** → [13-docs-site.md](./13-docs-site.md)
 - **开源前如何检查安全配置** → [SECURITY.md](../../SECURITY.md)
 
 ### 常用命令速查
