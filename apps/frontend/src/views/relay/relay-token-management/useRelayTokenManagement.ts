@@ -37,6 +37,7 @@ export type EditableFailoverConfig = {
   retryStatusCodes: string[]
   failoverThreshold: number
   failbackCooldownMinutes: number
+  maxAcceptedChannelMultiplier: number | null
 }
 
 export type ChannelOption = {
@@ -154,6 +155,7 @@ const createDefaultFailoverConfig = (): EditableFailoverConfig => ({
   retryStatusCodes: [...DEFAULT_RETRY_STATUS_CODES],
   failoverThreshold: 0,
   failbackCooldownMinutes: 0,
+  maxAcceptedChannelMultiplier: null,
 })
 
 let channelConfigKeySeed = 0
@@ -1080,6 +1082,7 @@ export const useRelayTokenManagement = () => {
             retryStatusCodes: token.failoverConfig.retryStatusCodes || [],
             failoverThreshold: token.failoverConfig.failoverThreshold ?? 0,
             failbackCooldownMinutes: token.failoverConfig.failbackCooldownMinutes ?? 0,
+            maxAcceptedChannelMultiplier: token.failoverConfig.maxAcceptedChannelMultiplier ?? null,
           }
         : undefined,
     }))
@@ -1465,6 +1468,7 @@ export const useRelayTokenManagement = () => {
           : [...DEFAULT_RETRY_STATUS_CODES],
         failoverThreshold: row.failoverConfig?.failoverThreshold ?? 0,
         failbackCooldownMinutes: row.failoverConfig?.failbackCooldownMinutes ?? 0,
+        maxAcceptedChannelMultiplier: row.failoverConfig?.maxAcceptedChannelMultiplier ?? null,
       },
       modelMapping: (row.modelMapping as Record<string, string>) || {},
     }
@@ -1788,6 +1792,10 @@ export const useRelayTokenManagement = () => {
         retryStatusCodes: normalizeRetryStatusCodes(editForm.value.failoverConfig.retryStatusCodes),
         failoverThreshold: editForm.value.failoverConfig.failoverThreshold,
         failbackCooldownMinutes: editForm.value.failoverConfig.failbackCooldownMinutes,
+        maxAcceptedChannelMultiplier:
+          editForm.value.failoverConfig.maxAcceptedChannelMultiplier == null
+            ? null
+            : Number(editForm.value.failoverConfig.maxAcceptedChannelMultiplier),
       }
 
       const shouldIncludeQuotaWindowsForUpdate =
@@ -2193,14 +2201,19 @@ export const useRelayTokenManagement = () => {
   }
 
   const formatCompactFailoverSummary = (row: RelayTokenDto) => {
-    if (!row.failoverConfig?.enabled) return `${i18ns.t('relay.maxRetries')}: 0`
+    const maxAcceptedChannelMultiplier = row.failoverConfig?.maxAcceptedChannelMultiplier
+    const multiplierText =
+      maxAcceptedChannelMultiplier == null
+        ? ''
+        : ` · ${i18ns.t('relay.maxAcceptedChannelMultiplier')}: ${maxAcceptedChannelMultiplier}x`
+    if (!row.failoverConfig?.enabled) return `${i18ns.t('relay.maxRetries')}: 0${multiplierText}`
     const retryCodes = normalizeRetryStatusCodes(row.failoverConfig.retryStatusCodes || [])
     const threshold = row.failoverConfig.failoverThreshold ?? 0
     const failbackCooldownMinutes = Math.max(0, row.failoverConfig.failbackCooldownMinutes ?? 0)
     const cooldownText = failbackCooldownMinutes
       ? ` · ${i18ns.t('relay.failbackCooldownCompact', { minutes: failbackCooldownMinutes })}`
       : ''
-    return `${i18ns.t('relay.maxRetries')}: ${row.failoverConfig.maxRetries} · ${i18ns.t('relay.failoverThreshold')}: ${threshold} · ${retryCodes.length}${i18ns.t('relay.statusCode')}${cooldownText}`
+    return `${i18ns.t('relay.maxRetries')}: ${row.failoverConfig.maxRetries} · ${i18ns.t('relay.failoverThreshold')}: ${threshold} · ${retryCodes.length}${i18ns.t('relay.statusCode')}${cooldownText}${multiplierText}`
   }
 
   const formatMobileChannelMeta = (row: RelayTokenDto) => {

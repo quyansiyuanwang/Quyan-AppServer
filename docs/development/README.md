@@ -43,9 +43,10 @@
 cd AppServerMonorepo
 
 # 开发
-pnpm run dev                     # 并行启动 backend + frontend
+pnpm run dev                     # 并行启动 backend + frontend + docs-site
 pnpm run dev:backend             # 只启动后端 (port 10001)
 pnpm run dev:frontend            # 只启动前端 (port 5173)
+pnpm run dev:docs                # 只启动文档站点 (port 4173)
 
 # OpenAPI
 pnpm run openapi:gen:all         # 完整流水线（后端 spec → 同步 → 前端客户端）

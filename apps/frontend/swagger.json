@@ -35993,6 +35993,12 @@
 						"default": 0,
 						"minimum": 0,
 						"maximum": 525600
+					},
+					"maxAcceptedChannelMultiplier": {
+						"type": "number",
+						"format": "double",
+						"nullable": true,
+						"description": "自动代理池允许选择的最高执行渠道基础倍率；不传或为 null 表示不限"
 					}
 				},
 				"required": [

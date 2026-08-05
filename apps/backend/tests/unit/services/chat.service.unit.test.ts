@@ -126,17 +126,22 @@ describe("ChatService", () => {
 
   const relayProxyService = {
     getAvailableModelMapForToken: vi.fn(),
-    getChatAttemptPlan: vi.fn(async (token: any) => ({
-      channels: token.channel ? [{ resolvedChannel: token.channel, displayChannel: token.channel }] : [],
-      failoverConfig: {
-        enabled: false,
-        maxRetries: 0,
-        retryStatusCodes: [] as string[],
-        failoverThreshold: 1,
-        failbackCooldownMinutes: 0,
-      },
-      allowStickyFailover: true,
-    })),
+    assertRelayChannelMultiplierAccepted: vi.fn(),
+    getChatAttemptPlan: vi.fn(
+      async (token: any) =>
+        ({
+          channels: token.channel ? [{ resolvedChannel: token.channel, displayChannel: token.channel }] : [],
+          failoverConfig: {
+            enabled: false,
+            maxRetries: 0,
+            retryStatusCodes: [] as string[],
+            failoverThreshold: 1,
+            failbackCooldownMinutes: 0,
+            maxAcceptedChannelMultiplier: undefined,
+          },
+          allowStickyFailover: true,
+        }) as any,
+    ),
   };
 
   const ChatServiceCtor = ChatService as unknown as new (...args: any[]) => ChatService;
@@ -157,17 +162,21 @@ describe("ChatService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([]);
-    relayProxyService.getChatAttemptPlan.mockImplementation(async (token: any) => ({
-      channels: token.channel ? [{ resolvedChannel: token.channel, displayChannel: token.channel }] : [],
-      failoverConfig: {
-        enabled: false,
-        maxRetries: 0,
-        retryStatusCodes: [] as string[],
-        failoverThreshold: 1,
-        failbackCooldownMinutes: 0,
-      },
-      allowStickyFailover: true,
-    }));
+    relayProxyService.getChatAttemptPlan.mockImplementation(
+      async (token: any) =>
+        ({
+          channels: token.channel ? [{ resolvedChannel: token.channel, displayChannel: token.channel }] : [],
+          failoverConfig: {
+            enabled: false,
+            maxRetries: 0,
+            retryStatusCodes: [] as string[],
+            failoverThreshold: 1,
+            failbackCooldownMinutes: 0,
+            maxAcceptedChannelMultiplier: undefined,
+          },
+          allowStickyFailover: true,
+        }) as any,
+    );
   });
 
   it("throws ForbiddenError when creating conversation with invalid relay token", async () => {
@@ -205,6 +214,60 @@ describe("ChatService", () => {
     const iterator = service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini");
 
     await expect(iterator.next()).rejects.toThrow(BadRequestError);
+  });
+
+  it("checks the automatic-pool multiplier limit before streaming", async () => {
+    conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
+    relayTokenRepository.findByIdWithChannel.mockResolvedValue({
+      id: "token-1",
+      userId: "user-1",
+      token: "rlt_x",
+      channelId: null,
+      routingMode: "automatic-pool",
+      automaticProxyPoolChannel: { id: "pool-1", name: "Pool", channelType: "automatic-proxy-pool" },
+      channel: null,
+      allowedModels: null,
+    });
+    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+      { model: "gpt-4o-mini", provider: "gpt-4o-mini", supportedFormats: "openai" },
+    ]);
+    relayProxyService.getChatAttemptPlan.mockResolvedValue({
+      channels: [
+        {
+          resolvedChannel: {
+            id: "member-expensive",
+            name: "Expensive",
+            multiplier: 2,
+            allowedFormats: "openai",
+            openaiUpstreamUrl: "https://expensive.example.com",
+            openaiUpstreamApiKey: "expensive-key",
+          },
+          displayChannel: { id: "pool-1", name: "Pool" },
+        },
+      ],
+      failoverConfig: {
+        enabled: true,
+        maxRetries: 0,
+        retryStatusCodes: ["5xx"],
+        failoverThreshold: 1,
+        failbackCooldownMinutes: 0,
+        maxAcceptedChannelMultiplier: 1,
+      },
+      allowStickyFailover: false,
+    });
+    relayProxyService.assertRelayChannelMultiplierAccepted.mockImplementation(() => {
+      throw new BadRequestError("exceeding the token limit 1");
+    });
+    messageRepo.findByConversationId.mockResolvedValue([]);
+
+    const iterator = service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini");
+
+    await expect(iterator.next()).rejects.toThrow("exceeding the token limit 1");
+    expect(relayProxyService.assertRelayChannelMultiplierAccepted).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "member-expensive", multiplier: 2 }),
+      expect.objectContaining({ maxAcceptedChannelMultiplier: 1 }),
+    );
+    expect(aiProvider.streamChat).not.toHaveBeenCalled();
   });
 
   it("streams response and charges usage through unified billing API", async () => {
@@ -344,6 +407,94 @@ describe("ChatService", () => {
       "https://first.example.com",
       "openai",
     );
+    expect(aiProvider.streamChat).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Array),
+      "gpt-4o-mini",
+      "second-key",
+      "https://second.example.com",
+      "openai",
+    );
+    expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ executionChannelId: "channel-second" }),
+    );
+  });
+
+  it("fails over after a selected-model capacity response even when 429 is not configured", async () => {
+    const firstChannel = {
+      id: "channel-first",
+      name: "first",
+      multiplier: 1,
+      allowedModels: null,
+      openaiUpstreamUrl: "https://first.example.com",
+      openaiUpstreamApiKey: "first-key",
+    };
+    const secondChannel = {
+      id: "channel-second",
+      name: "second",
+      multiplier: 1,
+      allowedModels: null,
+      openaiUpstreamUrl: "https://second.example.com",
+      openaiUpstreamApiKey: "second-key",
+    };
+    const capacityError = Object.assign(new Error("Selected model is at capacity. Please try a different model."), {
+      response: {
+        status: 429,
+        data: { error: { message: "Selected model is at capacity. Please try a different model." } },
+      },
+    });
+
+    conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
+    relayTokenRepository.findByIdWithChannel.mockResolvedValue({
+      id: "token-1",
+      userId: "user-1",
+      token: "rlt_x",
+      channelId: firstChannel.id,
+      upstreamUrl: null,
+      upstreamApiKey: null,
+      allowedModels: null,
+      channel: firstChannel,
+    });
+    relayProxyService.getChatAttemptPlan.mockResolvedValue({
+      channels: [
+        { resolvedChannel: firstChannel, displayChannel: firstChannel },
+        { resolvedChannel: secondChannel, displayChannel: secondChannel },
+      ],
+      failoverConfig: {
+        enabled: true,
+        maxRetries: 1,
+        retryStatusCodes: ["503"],
+        failoverThreshold: 1,
+        failbackCooldownMinutes: 0,
+      },
+      allowStickyFailover: true,
+    });
+    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+      {
+        model: "gpt-4o-mini",
+        provider: null,
+        pricingType: "token-based",
+        fixedPrice: null,
+        inputPrice: 1000,
+        outputPrice: 2000,
+        cacheCreationMultiplier: 1,
+        cacheReadMultiplier: 1,
+        supportedFormats: "openai",
+      },
+    ]);
+    usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
+    usageChargeService.chargeUsage.mockResolvedValue({ applied: true });
+    relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
+    messageRepo.create.mockResolvedValue(createPersistedMessage());
+    messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
+    aiProvider.streamChat
+      .mockReturnValueOnce(createFailingStream(capacityError))
+      .mockReturnValueOnce(createChatStream());
+
+    for await (const _chunk of service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini")) {
+      // Exhaust the recovered stream.
+    }
+
     expect(aiProvider.streamChat).toHaveBeenNthCalledWith(
       2,
       expect.any(Array),

@@ -711,6 +711,75 @@ describe("RelayProxyService failover", () => {
     });
   });
 
+  it("carries a token automatic-pool multiplier limit into the attempt plan", async () => {
+    const relayToken = createRelayTokenWithPooledChannel({
+      routingMode: "automatic-pool",
+      automaticProxyPoolChannel: undefined,
+      failoverConfig: { enabled: false, maxAcceptedChannelMultiplier: 2.5 },
+    });
+    relayToken.channel.channelType = "automatic-proxy-pool";
+    relayToken.automaticProxyPoolChannel = relayToken.channel;
+    relayToken.channel = null;
+    relayToken.channelId = null;
+    const { service } = createService();
+
+    const result = await (service as any).buildAttemptPlan(relayToken);
+
+    expect(result.failoverConfig.maxAcceptedChannelMultiplier).toBe(2.5);
+    expect(() =>
+      service.assertRelayChannelMultiplierAccepted(
+        { id: "equal", name: "Equal", multiplier: 2.5 },
+        result.failoverConfig,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      service.assertRelayChannelMultiplierAccepted(
+        { id: "expensive", name: "Expensive", multiplier: 2.500001 },
+        result.failoverConfig,
+      ),
+    ).toThrow("exceeding the token limit 2.5");
+  });
+
+  it("fails before upstream when the first automatic-pool member exceeds the token multiplier limit", async () => {
+    const relayToken = createRelayTokenWithPooledChannel({
+      routingMode: "automatic-pool",
+      failoverConfig: { enabled: false, maxAcceptedChannelMultiplier: 1 },
+    });
+    relayToken.channel.channelType = "automatic-proxy-pool";
+    relayToken.channel.routingConfig = { dynamicMemberRankingEnabled: false };
+    relayToken.channel.poolMembers[0].memberChannel.multiplier = 2;
+    relayToken.automaticProxyPoolChannel = relayToken.channel;
+    relayToken.channel = null;
+    relayToken.channelId = null;
+    const { service } = createService();
+
+    await expect(service.forwardRequest(relayToken, createRequest())).rejects.toThrow("exceeding the token limit 1");
+    expect(axiosMock).not.toHaveBeenCalled();
+  });
+
+  it("fails immediately when failover reaches an automatic-pool member over the token multiplier limit", async () => {
+    const relayToken = createRelayTokenWithPooledChannel({
+      routingMode: "automatic-pool",
+      failoverConfig: { enabled: false, maxAcceptedChannelMultiplier: 1 },
+    });
+    relayToken.channel.channelType = "automatic-proxy-pool";
+    relayToken.channel.routingConfig = { dynamicMemberRankingEnabled: false, retryStatusCodes: ["5xx"] };
+    relayToken.channel.poolMembers[0].memberChannel.multiplier = 1;
+    relayToken.channel.poolMembers[1].memberChannel.multiplier = 2;
+    relayToken.automaticProxyPoolChannel = relayToken.channel;
+    relayToken.channel = null;
+    relayToken.channelId = null;
+    const { service } = createService();
+    axiosMock.mockResolvedValueOnce({
+      status: 503,
+      headers: { "content-type": "application/json" },
+      data: { error: { message: "upstream unavailable" } },
+    });
+
+    await expect(service.forwardRequest(relayToken, createRequest())).rejects.toThrow("exceeding the token limit 1");
+    expect(axiosMock).toHaveBeenCalledTimes(1);
+  });
+
   it("charges a pooled token by its logical channel while retaining the executing member", async () => {
     const relayToken = createRelayTokenWithPooledChannel();
     relayToken.channel.multiplier = 1.8;
@@ -1465,6 +1534,37 @@ describe("RelayProxyService failover", () => {
     );
   });
 
+  it("retries the next channel for a selected-model capacity response even when 429 is not configured", async () => {
+    const relayToken = createRelayToken();
+    const req = createRequest();
+    const { service, relayTokenRepo } = createService();
+
+    axiosMock
+      .mockResolvedValueOnce({
+        status: 429,
+        headers: { "content-type": "application/json" },
+        data: { error: { message: "Selected model is at capacity. Please try a different model." } },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        data: { id: "resp-capacity-failover", usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 } },
+      });
+
+    const result = await service.forwardRequest(relayToken, req);
+
+    expect(result.status).toBe(200);
+    expect(axiosMock).toHaveBeenCalledTimes(2);
+    expect(relayTokenRepo.createSwitchLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerStatusCode: 429,
+        triggerError: "Selected model is at capacity. Please try a different model.",
+        fromChannelId: "channel-primary",
+        toChannelId: "channel-secondary",
+      }),
+    );
+  });
+
   it("retries the next channel when a regex retry rule matches", async () => {
     const relayToken = createRelayToken();
     relayToken.failoverConfig.retryStatusCodes = ["/^5(02|03)$/"];
@@ -1523,7 +1623,7 @@ describe("RelayProxyService failover", () => {
     );
   });
 
-  it("allows streaming retry only before any response is sent to the client", async () => {
+  it("allows streaming capacity failover before any response is sent to the client", async () => {
     const relayToken = createRelayToken();
     const { service } = createService();
     const req = new EventEmitter() as any;
@@ -1552,11 +1652,16 @@ describe("RelayProxyService failover", () => {
       proxyReq.write = vi.fn();
       proxyReq.end = vi.fn(() => {
         const proxyRes = new EventEmitter() as any;
-        proxyRes.statusCode = 503;
+        proxyRes.statusCode = 429;
         proxyRes.headers = { "content-type": "application/json" };
 
         callback(proxyRes);
-        proxyRes.emit("data", Buffer.from(JSON.stringify({ error: { message: "temporary unavailable" } })));
+        proxyRes.emit(
+          "data",
+          Buffer.from(
+            JSON.stringify({ error: { message: "Selected model is at capacity. Please try a different model." } }),
+          ),
+        );
         proxyRes.emit("end");
       });
       proxyReq.destroy = vi.fn((err?: Error) => {
@@ -1603,7 +1708,7 @@ describe("RelayProxyService failover", () => {
         expect.objectContaining({
           handled: false,
           retryable: true,
-          statusCode: 503,
+          statusCode: 429,
         }),
       );
       expect(res.writeHead).not.toHaveBeenCalled();

@@ -3061,6 +3061,9 @@ const zhCN: DeepStringify<typeof en> = {
     failoverParamsHelp: '参数说明：',
     maxRetries: '最大渠道切换次数',
     maxRetriesHelp: '最多尝试几个不同的渠道（0 表示只用第一个渠道）',
+    maxAcceptedChannelMultiplier: '自动池最高渠道倍率',
+    maxAcceptedChannelMultiplierHelp:
+      '仅自动代理池生效。初次选择或故障切换到基础倍率超过此上限的渠道时，请求会立即失败；留空表示不限。',
     failoverThreshold: '单渠道重试次数',
     failoverThresholdHelp: '同一渠道失败多少次后才切换到下一个渠道',
     failbackCooldownMinutes: '回切冷却时间（分钟）',

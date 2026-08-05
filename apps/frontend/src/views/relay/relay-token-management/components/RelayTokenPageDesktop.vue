@@ -224,6 +224,10 @@
                       {{ i18ns.t('relay.retryStatusCodes') }}:
                       {{ state.formatRetryStatusCodes(row.failoverConfig?.retryStatusCodes || []) }}
                     </div>
+                    <div v-if="row.failoverConfig?.maxAcceptedChannelMultiplier != null">
+                      {{ i18ns.t('relay.maxAcceptedChannelMultiplier') }}:
+                      {{ row.failoverConfig.maxAcceptedChannelMultiplier }}x
+                    </div>
                   </div>
                 </div>
               </template>

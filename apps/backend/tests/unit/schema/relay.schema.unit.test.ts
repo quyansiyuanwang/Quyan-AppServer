@@ -6,6 +6,71 @@ import {
 } from "../../../src/api/schema/relay/relay.schema";
 
 describe("relay token import schema", () => {
+  it("validates the automatic pool multiplier limit across token operations", () => {
+    const failoverConfig = {
+      enabled: false,
+      maxRetries: 0,
+      retryStatusCodes: [],
+      failoverThreshold: 0,
+      failbackCooldownMinutes: 0,
+      maxAcceptedChannelMultiplier: 2.5,
+    };
+
+    expect(
+      createRelayTokenBodySchema.parse({
+        routingMode: "automatic-pool",
+        automaticProxyPoolChannelId: "automatic-pool-1",
+        failoverConfig,
+      }).failoverConfig?.maxAcceptedChannelMultiplier,
+    ).toBe(2.5);
+    expect(updateRelayTokenBodySchema.parse({ failoverConfig }).failoverConfig?.maxAcceptedChannelMultiplier).toBe(2.5);
+    expect(
+      importRelayTokensBodySchema.parse({
+        tokens: [{ routingMode: "automatic-pool", automaticProxyPoolChannelId: "pool-1", failoverConfig }],
+      }).tokens[0]?.failoverConfig?.maxAcceptedChannelMultiplier,
+    ).toBe(2.5);
+    expect(
+      createRelayTokenBodySchema.parse({
+        routingMode: "automatic-pool",
+        automaticProxyPoolChannelId: "automatic-pool-1",
+        failoverConfig: { ...failoverConfig, maxAcceptedChannelMultiplier: null },
+      }).failoverConfig?.maxAcceptedChannelMultiplier,
+    ).toBeNull();
+  });
+
+  it("rejects invalid automatic pool multiplier limits", () => {
+    const base = {
+      routingMode: "automatic-pool" as const,
+      automaticProxyPoolChannelId: "automatic-pool-1",
+      failoverConfig: {
+        enabled: false,
+        maxRetries: 0,
+        retryStatusCodes: [],
+        failoverThreshold: 0,
+        failbackCooldownMinutes: 0,
+      },
+    };
+
+    expect(() =>
+      createRelayTokenBodySchema.parse({
+        ...base,
+        failoverConfig: { ...base.failoverConfig, maxAcceptedChannelMultiplier: 0 },
+      }),
+    ).toThrow();
+    expect(() =>
+      createRelayTokenBodySchema.parse({
+        ...base,
+        failoverConfig: { ...base.failoverConfig, maxAcceptedChannelMultiplier: 100.000001 },
+      }),
+    ).toThrow();
+    expect(() =>
+      createRelayTokenBodySchema.parse({
+        ...base,
+        failoverConfig: { ...base.failoverConfig, maxAcceptedChannelMultiplier: 1.0000001 },
+      }),
+    ).toThrow("maxAcceptedChannelMultiplier must have at most 6 decimal places");
+  });
+
   it("preserves token model mappings", () => {
     const parsed = importRelayTokensBodySchema.parse({
       tokens: [
