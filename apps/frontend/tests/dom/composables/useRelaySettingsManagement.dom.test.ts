@@ -336,6 +336,38 @@ describe('useRelaySettingsManagement', () => {
     wrapper.unmount()
   })
 
+  it('loads logical pool options when editing a standalone channel before converting it to a physical member', async () => {
+    listManagementChannelsMock.mockResolvedValue({
+      items: [
+        {
+          id: 'logical-pool-1',
+          name: 'Claude-GWL',
+          enabled: true,
+          channelType: 'pooled',
+          routingStrategy: 'priority',
+          visibilityMode: 'public',
+          poolMemberCount: 2,
+          multiplier: 1,
+          updateTime: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    })
+    const { api, wrapper } = await mountComposable()
+
+    api.openEditChannelDialog(
+      createChannelRow({ id: 'legacy-member-1', channelType: 'standalone' }),
+    )
+    await flushPromises()
+
+    expect(api.pooledParentOptions.value).toEqual([
+      expect.objectContaining({ id: 'logical-pool-1', name: 'Claude-GWL' }),
+    ])
+    wrapper.unmount()
+  })
+
   it('sends legacy pooled members instead of clearing the existing member relation', async () => {
     getRelayConfigMock.mockResolvedValue({
       ...createRelayConfigResponse(),
