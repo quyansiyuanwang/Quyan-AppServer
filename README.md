@@ -53,13 +53,14 @@ pnpm install
 pnpm --filter @appserver/backend db:push
 pnpm --filter @appserver/backend db:seed
 
-# 启动开发服务器（后端 + 管理面板并行）
+# 启动开发服务器
 pnpm run dev
 
 # 访问
 # - 管理面板: http://localhost:5173
 # - API 服务: http://localhost:10001
 # - Swagger UI: http://localhost:10001/docs
+# - 文档站点: http://localhost:4173
 ```
 
 ### 独立交付物子模块
@@ -82,7 +83,7 @@ git submodule update --init --recursive
 ### 开发
 
 ```bash
-pnpm run dev              # 并行启动 backend + frontend
+pnpm run dev              # 并行启动 backend + frontend + docs-site
 pnpm run dev:backend      # 只启动后端
 pnpm run dev:frontend     # 只启动前端
 pnpm run dev:docs         # 启动文档站点

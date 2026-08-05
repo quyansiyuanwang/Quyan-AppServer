@@ -98,3 +98,30 @@ export const normalizeRetryStatusRules = (rules: unknown[] | null | undefined): 
 
   return normalizedRules;
 };
+
+const MODEL_CAPACITY_ERROR_PATTERN = /selected\s+model\s+is\s+at\s+capacity/i;
+
+const readUpstreamErrorMessage = (responseData: unknown): string => {
+  if (typeof responseData === "string") return responseData;
+  if (!responseData || typeof responseData !== "object") return "";
+
+  const data = responseData as Record<string, unknown>;
+  const nestedError = data.error;
+  if (nestedError && typeof nestedError === "object") {
+    const nestedMessage = (nestedError as Record<string, unknown>).message;
+    if (typeof nestedMessage === "string") return nestedMessage;
+  }
+  if (typeof data.message === "string") return data.message;
+  if (typeof data.error === "string") return data.error;
+  return "";
+};
+
+/** Capacity responses are transient channel availability failures. */
+export const shouldRetryRelayUpstreamFailure = (
+  statusCode: number | undefined,
+  responseData: unknown,
+  retryStatusCodes: string[],
+): boolean => {
+  if (statusCode != null && retryStatusCodes.some((rule) => matchesRetryStatusRule(statusCode, rule))) return true;
+  return MODEL_CAPACITY_ERROR_PATTERN.test(readUpstreamErrorMessage(responseData));
+};

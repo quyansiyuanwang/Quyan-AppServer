@@ -1,0 +1,7 @@
+[mcp_servers.appserver]
+command = "pnpm"
+args = ["run", "mcp:serve"]
+cwd = "."
+
+[mcp_servers.appserver.env]
+APPSERVER_MCP_ROOT = "."

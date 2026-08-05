@@ -369,12 +369,22 @@ describe("用户管理 API 集成测试", () => {
 
   describe("密码字段安全测试", () => {
     it("所有用户 API 端点都不应该返回密码字段", async () => {
+      const loginBody = {
+        username: "test_user_admin",
+        password: "admin_password",
+        agreedToLegalPolicies: true,
+      };
+      const freshLoginResponse = await postWithReplay("/v1/auth/login", loginBody).send(loginBody);
+      expect(freshLoginResponse.status).toBe(200);
+      const freshAdminToken = freshLoginResponse.body.data.access_token;
+
       // 测试 /users/me
-      const meResponse = await request(app).get("/v1/users/me").set("Authorization", `Bearer ${adminToken}`);
+      const meResponse = await request(app).get("/v1/users/me").set("Authorization", `Bearer ${freshAdminToken}`);
+      expect(meResponse.status).toBe(200);
       expect(meResponse.body.data).not.toHaveProperty("password");
 
       // 测试 /users
-      const allUsersResponse = await request(app).get("/v1/users").set("Authorization", `Bearer ${adminToken}`);
+      const allUsersResponse = await request(app).get("/v1/users").set("Authorization", `Bearer ${freshAdminToken}`);
       expect(allUsersResponse.body.data).toHaveProperty("users");
       allUsersResponse.body.data.users.forEach((user: any) => {
         expect(user).not.toHaveProperty("password");
@@ -383,15 +393,10 @@ describe("用户管理 API 集成测试", () => {
       // 测试 /users/:userId
       const userByIdResponse = await request(app)
         .get(`/v1/users/${normalUser.id}`)
-        .set("Authorization", `Bearer ${adminToken}`);
+        .set("Authorization", `Bearer ${freshAdminToken}`);
       expect(userByIdResponse.body.data).not.toHaveProperty("password");
 
       // 测试登录返回的用户信息
-      const loginBody = {
-        username: "test_user_admin",
-        password: "admin_password",
-        agreedToLegalPolicies: true,
-      };
       const loginResponse = await postWithReplay("/v1/auth/login", loginBody).send(loginBody);
       expect(loginResponse.body.data.user).not.toHaveProperty("password");
     });

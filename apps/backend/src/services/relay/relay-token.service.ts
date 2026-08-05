@@ -1374,6 +1374,10 @@ export class RelayTokenService {
             ),
             failoverThreshold: Math.max(0, Number(token.failoverConfig.failoverThreshold ?? 0)),
             failbackCooldownMinutes: Math.max(0, Number(token.failoverConfig.failbackCooldownMinutes ?? 0)),
+            maxAcceptedChannelMultiplier:
+              token.failoverConfig.maxAcceptedChannelMultiplier == null
+                ? null
+                : Number(token.failoverConfig.maxAcceptedChannelMultiplier),
           }
         : undefined,
     };
@@ -1403,6 +1407,10 @@ export class RelayTokenService {
             ),
             failoverThreshold: Math.max(0, Number(token.failoverConfig.failoverThreshold ?? 0)),
             failbackCooldownMinutes: Math.max(0, Number(token.failoverConfig.failbackCooldownMinutes ?? 0)),
+            maxAcceptedChannelMultiplier:
+              token.failoverConfig.maxAcceptedChannelMultiplier == null
+                ? null
+                : Number(token.failoverConfig.maxAcceptedChannelMultiplier),
           }
         : undefined,
       quotaLimit: token.quotaLimit != null ? Number(token.quotaLimit) : undefined,

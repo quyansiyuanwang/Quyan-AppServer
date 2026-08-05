@@ -3192,6 +3192,9 @@ export default {
     failoverParamsHelp: 'Parameters:',
     maxRetries: 'Max Channel Switches',
     maxRetriesHelp: 'Maximum number of different channels to try (0 = only use the first channel)',
+    maxAcceptedChannelMultiplier: 'Maximum Automatic Pool Channel Multiplier',
+    maxAcceptedChannelMultiplierHelp:
+      'Applies only to automatic pools. The request fails immediately if the selected or failover channel exceeds this base multiplier; leave empty for no limit.',
     failoverThreshold: 'Retries Per Channel',
     failoverThresholdHelp: 'Number of failures on the same channel before switching to the next',
     failbackCooldownMinutes: 'Failback Cooldown (Minutes)',

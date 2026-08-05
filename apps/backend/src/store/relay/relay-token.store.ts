@@ -83,6 +83,7 @@ export interface RelayFailoverConfigInput {
   retryStatusCodes?: string[];
   failoverThreshold?: number;
   failbackCooldownMinutes?: number;
+  maxAcceptedChannelMultiplier?: number | null;
 }
 
 export interface RelayTokenChannelConfigInput {

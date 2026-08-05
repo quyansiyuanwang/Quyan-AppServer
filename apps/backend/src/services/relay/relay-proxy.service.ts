@@ -76,7 +76,7 @@ import {
 import { MONTHLY_PASS_QUOTA_WINDOW_MS } from "@/constant/monthly-pass";
 import { RELAY_PROXY_DESCRIPTION_MAX_LENGTH, RELAY_PROXY_PROMPT_PREVIEW_MAX_LENGTH } from "@/constant/relay-proxy";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
-import { matchesRetryStatusRule, normalizeRetryStatusRules } from "@/util/relay-failover-status-rule.util";
+import { normalizeRetryStatusRules, shouldRetryRelayUpstreamFailure } from "@/util/relay-failover-status-rule.util";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { env } from "@/config/env";
 import logger from "@/util/logger";
@@ -115,6 +115,7 @@ export interface RelayFailoverRuntimeConfig {
   retryStatusCodes: string[];
   failoverThreshold: number;
   failbackCooldownMinutes: number;
+  maxAcceptedChannelMultiplier?: number | null;
 }
 
 interface StreamForwardResult {
@@ -154,6 +155,7 @@ export interface RelayTokenAvailabilityInput {
     retryStatusCodes?: Prisma.JsonValue | string[] | null;
     failoverThreshold?: number | null;
     failbackCooldownMinutes?: number | null;
+    maxAcceptedChannelMultiplier?: number | Prisma.Decimal | null;
   } | null;
 }
 
@@ -1504,13 +1506,33 @@ export class RelayProxyService {
     const retryStatusCodes = normalizeRetryStatusRules(
       Array.isArray(relayToken.failoverConfig?.retryStatusCodes) ? relayToken.failoverConfig.retryStatusCodes : [],
     );
+    const maxAcceptedChannelMultiplier = relayToken.failoverConfig?.maxAcceptedChannelMultiplier;
     return {
       enabled: Boolean(relayToken.failoverConfig?.enabled),
       maxRetries: Math.max(0, Number(relayToken.failoverConfig?.maxRetries ?? 0)),
       retryStatusCodes,
       failoverThreshold: Math.max(0, Number(relayToken.failoverConfig?.failoverThreshold ?? 0)) + 1,
       failbackCooldownMinutes: Math.max(0, Number(relayToken.failoverConfig?.failbackCooldownMinutes ?? 0)),
+      ...(maxAcceptedChannelMultiplier == null
+        ? {}
+        : { maxAcceptedChannelMultiplier: Number(maxAcceptedChannelMultiplier) }),
     };
+  }
+
+  /** Reject an automatic-pool execution channel before any upstream request is made. */
+  assertRelayChannelMultiplierAccepted(
+    channel: Pick<RelayChannel, "id" | "name"> & { multiplier: Prisma.Decimal | number },
+    failoverConfig: RelayFailoverRuntimeConfig,
+  ): void {
+    const maximum = failoverConfig.maxAcceptedChannelMultiplier;
+    if (maximum == null) return;
+
+    const multiplier = Number(channel.multiplier);
+    if (!Number.isFinite(multiplier) || multiplier <= maximum) return;
+
+    throw new BadRequestError(
+      `Automatic proxy pool channel '${channel.name || channel.id}' has multiplier ${multiplier}, exceeding the token limit ${maximum}`,
+    );
   }
 
   private getPoolRoundRobinKey(channel: RelayChannel): string {
@@ -1724,7 +1746,12 @@ export class RelayProxyService {
     if (singleTopLevelChannel?.channelType === "automatic-proxy-pool")
       return {
         channels,
-        failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+        failoverConfig: {
+          ...this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+          ...(tokenFailoverConfig.maxAcceptedChannelMultiplier == null
+            ? {}
+            : { maxAcceptedChannelMultiplier: tokenFailoverConfig.maxAcceptedChannelMultiplier }),
+        },
         allowStickyFailover: !isPriceFirstAutomaticPool,
       };
 
@@ -1917,10 +1944,11 @@ export class RelayProxyService {
     statusCode: number | undefined,
     failoverConfig: RelayFailoverRuntimeConfig,
     hasNextChannel: boolean,
+    responseData?: unknown,
   ): boolean {
     if (!hasNextChannel || !failoverConfig.enabled) return false;
     if (statusCode == null) return true;
-    return failoverConfig.retryStatusCodes.some((rule) => matchesRetryStatusRule(statusCode, rule));
+    return shouldRetryRelayUpstreamFailure(statusCode, responseData, failoverConfig.retryStatusCodes);
   }
 
   private extractUpstreamErrorMessage(responseData: any, fallbackStatus?: number): string {
@@ -2349,7 +2377,7 @@ export class RelayProxyService {
         // tracking failure must not block the response
       }
 
-      if (allowRetryBeforeResponse && retryStatusCodes.some((rule) => matchesRetryStatusRule(statusCode, rule)))
+      if (allowRetryBeforeResponse && shouldRetryRelayUpstreamFailure(statusCode, upstreamData, retryStatusCodes))
         return {
           handled: false,
           success: false,
@@ -2649,6 +2677,9 @@ export class RelayProxyService {
         const nextChannel = nextCandidate?.resolvedChannel;
         const nextDisplayChannel = nextCandidate?.displayChannel;
         const hasNextChannel = Boolean(nextCandidate);
+
+        if (relayToken.routingMode === "automatic-pool")
+          this.assertRelayChannelMultiplierAccepted(channel, failoverConfig);
 
         // Define variables that need to be accessible in catch block
         let channelMultiplier = 1;
@@ -3046,7 +3077,10 @@ export class RelayProxyService {
             const firstByteTime = Date.now();
             const isErrorResponse = response.status >= 400;
 
-            if (isErrorResponse && this.shouldRetryWithNextChannel(response.status, failoverConfig, hasNextChannel)) {
+            if (
+              isErrorResponse &&
+              this.shouldRetryWithNextChannel(response.status, failoverConfig, hasNextChannel, response.data)
+            ) {
               // Record failed attempt with correct channel info
               await this.recordFailedAttempt({
                 relayToken,
@@ -3840,7 +3874,7 @@ export class RelayProxyService {
 
               if (
                 allowRetryBeforeResponse &&
-                retryStatusCodes.some((rule) => matchesRetryStatusRule(streamStatusCode, rule))
+                shouldRetryRelayUpstreamFailure(streamStatusCode, upstreamData, retryStatusCodes)
               ) {
                 resolve({
                   handled: false,

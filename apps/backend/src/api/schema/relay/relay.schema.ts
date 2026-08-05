@@ -88,6 +88,13 @@ const relayTokenFailoverConfigSchema = z.object({
     .transform((rules) => normalizeRetryStatusRules(rules)),
   failoverThreshold: z.coerce.number().int().min(0).max(100).default(0),
   failbackCooldownMinutes: z.coerce.number().int().min(0).max(525600).default(0),
+  maxAcceptedChannelMultiplier: z
+    .union([z.null(), z.coerce.number().min(0.01).max(100)])
+    .optional()
+    .refine(
+      (value) => value == null || hasDecimalPrecision(value, 6),
+      "maxAcceptedChannelMultiplier must have at most 6 decimal places",
+    ),
 });
 
 const relayTokenIpWhitelistSchema = z

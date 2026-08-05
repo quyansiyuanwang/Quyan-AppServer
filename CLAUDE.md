@@ -28,7 +28,7 @@ AppServerMonorepo/
 ## 常用命令
 
 ```bash
-pnpm run dev                     # 并行启动 backend + frontend
+pnpm run dev                     # 并行启动 backend + frontend + docs-site
 pnpm run dev:frontend            # 只启动前端
 pnpm run dev:backend             # 只启动后端
 pnpm run dev:docs                # 启动文档站点

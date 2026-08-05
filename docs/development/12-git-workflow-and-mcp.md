@@ -64,6 +64,28 @@ pnpm run mcp:serve
 
 `read_file` 拒绝仓库外路径、symlink 逃逸、`.git`、`.env*`、私钥、认证文件、`node_modules`、构建产物、coverage 与二进制文件。所有工具的输出有固定大小上限，并在截断时标记，避免将大文件或完整 diff 送入上下文。
 
+### Codex 接入
+
+Codex 会自动读取仓库根目录的 `AGENTS.md`，并按当前工作目录继续读取更近的嵌套 `AGENTS.md`。`.agents/skills/` 保持仓库内的技能唯一来源；按任务需要显式使用 `appserver-backend-development`、`appserver-contracts`、`appserver-testing-ci` 等技能即可，不需要复制到用户目录。
+
+仓库同时提供项目级 `.codex/config.toml`，将本地 MCP 注册为 `appserver`。在受信任的仓库目录启动 Codex 后，可用以下命令确认配置：
+
+```bash
+codex mcp list
+```
+
+Codex TUI 中可使用 `/mcp` 查看已连接的工具。若客户端尚未加载项目配置，也可以从仓库根目录执行备用注册命令：
+
+```bash
+codex mcp add appserver -- pnpm run mcp:serve
+```
+
+本地直接检查 MCP server 是否能启动：
+
+```bash
+pnpm run mcp:serve
+```
+
 ## 与 Skills 协作
 
 领域 skill 应优先调用 `repo_context`、`git_impact` 或 `suggest_validation`，只在摘要不足或需要证据时读取完整规范。提交工作使用 `appserver-git-workflow`；PR 标题、正文和标签使用 `appserver-pr-workflow`，两者不能互相替代。
