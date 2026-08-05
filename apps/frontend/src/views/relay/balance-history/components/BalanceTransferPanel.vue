@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { CopyDocument, Plus, Refresh, Switch } from '@element-plus/icons-vue'
+import { Plus, Refresh, Switch } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { BalanceGiftCodeDto, BalanceTransferConfigDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
@@ -11,8 +11,9 @@ const emit = defineEmits<{ changed: [] }>()
 const userInfoStore = useUserInfoStore()
 const loading = ref(false)
 const submitting = ref(false)
-const mode = ref<'gift' | 'transfer'>('gift')
 const config = ref<BalanceTransferConfigDto | null>(null)
+const giftDialogVisible = ref(false)
+const transferDialogVisible = ref(false)
 const giftAmount = ref<number | undefined>()
 const giftExpiry = ref<string | undefined>()
 const recipientUsername = ref('')
@@ -35,6 +36,12 @@ const transferFee = computed(() =>
   round4(
     (Number(transferAmount.value || 0) * Number(config.value?.directTransferFeePercent || 0)) / 100,
   ),
+)
+const giftCancellationFeeRefund = computed(() =>
+  round4((giftFee.value * Number(config.value?.giftCodeCancelFeeRefundPercent || 0)) / 100),
+)
+const giftCancellationRefund = computed(() =>
+  round4(Number(giftAmount.value || 0) + giftCancellationFeeRefund.value),
 )
 
 async function load() {
@@ -67,6 +74,7 @@ async function createGiftCode() {
     })
     giftAmount.value = undefined
     giftExpiry.value = undefined
+    giftDialogVisible.value = false
     ElMessage.success(i18ns.t('balance.giftCodeCreated'))
     emit('changed')
   } catch (error: any) {
@@ -102,6 +110,7 @@ async function createTransfer() {
     recipientUsername.value = ''
     transferAmount.value = undefined
     transferDescription.value = ''
+    transferDialogVisible.value = false
     ElMessage.success(i18ns.t('balance.transferSuccess'))
     emit('changed')
   } catch (error: any) {
@@ -141,6 +150,16 @@ async function copyCode(code: string) {
 }
 
 const formatNumber = (value: number) => Number(value || 0).toFixed(4)
+const formatPercent = (value: number) =>
+  `${Number(value || 0)
+    .toFixed(4)
+    .replace(/\.?0+$/, '')}%`
+const openGiftDialog = () => {
+  giftDialogVisible.value = true
+}
+const openTransferDialog = () => {
+  transferDialogVisible.value = true
+}
 onMounted(load)
 </script>
 
@@ -151,93 +170,28 @@ onMounted(load)
         <h2>{{ i18ns.t('balance.transferOut') }}</h2>
         <p>{{ i18ns.t('balance.transferOutHint') }}</p>
       </div>
-      <el-button :icon="Refresh" circle @click="load" />
+      <div class="balance-transfer-panel__actions">
+        <el-button
+          v-if="config?.giftCodeEnabled"
+          type="primary"
+          :icon="Plus"
+          @click="openGiftDialog"
+        >
+          {{ i18ns.t('balance.createGiftCode') }}
+        </el-button>
+        <el-button v-if="config?.directTransferEnabled" :icon="Switch" @click="openTransferDialog">
+          {{ i18ns.t('balance.directTransfer') }}
+        </el-button>
+        <el-button :icon="Refresh" circle @click="load" />
+      </div>
     </div>
-
-    <el-tabs v-model="mode" class="balance-transfer-panel__tabs">
-      <el-tab-pane v-if="config?.giftCodeEnabled" :label="i18ns.t('balance.giftCode')" name="gift">
-        <el-form
-          label-position="top"
-          class="balance-transfer-panel__form"
-          @submit.prevent="createGiftCode"
-        >
-          <el-form-item :label="i18ns.t('balance.receivedAmount')">
-            <el-input-number
-              v-model="giftAmount"
-              :min="0.01"
-              :precision="4"
-              :step="1"
-              controls-position="right"
-            />
-          </el-form-item>
-          <el-form-item :label="i18ns.t('redemption.expiresAt')">
-            <el-date-picker
-              v-model="giftExpiry"
-              type="datetime"
-              value-format="YYYY-MM-DDTHH:mm:ss.SSS[Z]"
-              clearable
-            />
-          </el-form-item>
-          <div class="balance-transfer-panel__preview">
-            <span>{{ i18ns.t('balance.fee') }} {{ formatNumber(giftFee) }}</span>
-            <strong
-              >{{ i18ns.t('balance.totalDebit') }}
-              {{ formatNumber(Number(giftAmount || 0) + giftFee) }}</strong
-            >
-          </div>
-          <el-button type="primary" :icon="Plus" :loading="submitting" native-type="submit">
-            {{ i18ns.t('balance.createGiftCode') }}
-          </el-button>
-        </el-form>
-      </el-tab-pane>
-
-      <el-tab-pane
-        v-if="config?.directTransferEnabled"
-        :label="i18ns.t('balance.directTransfer')"
-        name="transfer"
-      >
-        <el-form
-          label-position="top"
-          class="balance-transfer-panel__form"
-          @submit.prevent="createTransfer"
-        >
-          <el-form-item :label="i18ns.t('balance.recipientUsername')">
-            <el-input v-model="recipientUsername" autocomplete="off" />
-          </el-form-item>
-          <el-form-item :label="i18ns.t('balance.receivedAmount')">
-            <el-input-number
-              v-model="transferAmount"
-              :min="0.01"
-              :precision="4"
-              :step="1"
-              controls-position="right"
-            />
-          </el-form-item>
-          <el-form-item :label="i18ns.t('balance.transferNote')">
-            <el-input v-model="transferDescription" maxlength="500" show-word-limit />
-          </el-form-item>
-          <div class="balance-transfer-panel__preview">
-            <span>{{ i18ns.t('balance.fee') }} {{ formatNumber(transferFee) }}</span>
-            <strong
-              >{{ i18ns.t('balance.totalDebit') }}
-              {{ formatNumber(Number(transferAmount || 0) + transferFee) }}</strong
-            >
-          </div>
-          <el-button type="primary" :icon="Switch" :loading="submitting" native-type="submit">
-            {{ i18ns.t('balance.directTransfer') }}
-          </el-button>
-        </el-form>
-      </el-tab-pane>
-    </el-tabs>
 
     <div class="balance-transfer-panel__codes">
       <h3>{{ i18ns.t('balance.myGiftCodes') }}</h3>
       <el-table :data="giftCodes" size="small" empty-text="-">
         <el-table-column prop="code" :label="i18ns.t('redemption.code')" min-width="210">
           <template #default="{ row }">
-            <el-button text :icon="CopyDocument" @click="copyCode(row.code)">{{
-              row.code
-            }}</el-button>
+            <el-link type="primary" @click="copyCode(row.code)">{{ row.code }}</el-link>
           </template>
         </el-table-column>
         <el-table-column prop="amount" :label="i18ns.t('balance.receivedAmount')" width="120" />
@@ -259,6 +213,132 @@ onMounted(load)
         </el-table-column>
       </el-table>
     </div>
+
+    <el-dialog
+      v-model="giftDialogVisible"
+      :title="i18ns.t('balance.createGiftCode')"
+      width="min(560px, 92vw)"
+    >
+      <el-form
+        label-position="top"
+        class="balance-transfer-dialog__form"
+        @submit.prevent="createGiftCode"
+      >
+        <div class="balance-transfer-dialog__grid">
+          <el-form-item :label="i18ns.t('balance.receivedAmount')">
+            <el-input-number
+              v-model="giftAmount"
+              :min="0.01"
+              :precision="4"
+              :step="0.0001"
+              controls-position="right"
+            />
+          </el-form-item>
+          <el-form-item :label="i18ns.t('redemption.expiresAt')">
+            <el-date-picker
+              v-model="giftExpiry"
+              type="datetime"
+              value-format="YYYY-MM-DDTHH:mm:ss.SSS[Z]"
+              clearable
+            />
+          </el-form-item>
+        </div>
+        <div class="balance-transfer-dialog__summary">
+          <div class="balance-transfer-dialog__summary-row">
+            <span>{{ i18ns.t('balance.feeRate') }}</span>
+            <strong>{{ formatPercent(config?.giftCodeFeePercent || 0) }}</strong>
+          </div>
+          <div class="balance-transfer-dialog__summary-row">
+            <span>{{ i18ns.t('balance.fee') }}</span>
+            <strong>{{ formatNumber(giftFee) }}</strong>
+          </div>
+          <div
+            class="balance-transfer-dialog__summary-row balance-transfer-dialog__summary-row--total"
+          >
+            <span>{{ i18ns.t('balance.totalDebit') }}</span>
+            <strong>{{ formatNumber(Number(giftAmount || 0) + giftFee) }}</strong>
+          </div>
+          <div class="balance-transfer-dialog__summary-row">
+            <span>{{ i18ns.t('balance.cancelFeeRefundRate') }}</span>
+            <strong>{{ formatPercent(config?.giftCodeCancelFeeRefundPercent || 0) }}</strong>
+          </div>
+          <div class="balance-transfer-dialog__summary-row">
+            <span>{{ i18ns.t('balance.cancelFeeRefund') }}</span>
+            <strong>{{ formatNumber(giftCancellationFeeRefund) }}</strong>
+          </div>
+          <div
+            class="balance-transfer-dialog__summary-row balance-transfer-dialog__summary-row--total"
+          >
+            <span>{{ i18ns.t('balance.estimatedCancelRefund') }}</span>
+            <strong>{{ formatNumber(giftCancellationRefund) }}</strong>
+          </div>
+          <p class="balance-transfer-dialog__summary-hint">
+            {{ i18ns.t('balance.giftCodeRateSnapshotHint') }}
+          </p>
+        </div>
+        <div class="balance-transfer-dialog__footer">
+          <el-button @click="giftDialogVisible = false">{{ i18ns.t('cancel') }}</el-button>
+          <el-button type="primary" :icon="Plus" :loading="submitting" native-type="submit">{{
+            i18ns.t('balance.createGiftCode')
+          }}</el-button>
+        </div>
+      </el-form>
+    </el-dialog>
+
+    <el-dialog
+      v-model="transferDialogVisible"
+      :title="i18ns.t('balance.directTransfer')"
+      width="min(620px, 92vw)"
+    >
+      <el-form
+        label-position="top"
+        class="balance-transfer-dialog__form"
+        @submit.prevent="createTransfer"
+      >
+        <div class="balance-transfer-dialog__grid">
+          <el-form-item :label="i18ns.t('balance.recipientUsername')">
+            <el-input v-model="recipientUsername" autocomplete="off" />
+          </el-form-item>
+          <el-form-item :label="i18ns.t('balance.receivedAmount')">
+            <el-input-number
+              v-model="transferAmount"
+              :min="0.01"
+              :precision="4"
+              :step="0.0001"
+              controls-position="right"
+            />
+          </el-form-item>
+        </div>
+        <el-form-item :label="i18ns.t('balance.transferNote')">
+          <el-input v-model="transferDescription" maxlength="500" show-word-limit />
+        </el-form-item>
+        <div class="balance-transfer-dialog__summary">
+          <div class="balance-transfer-dialog__summary-row">
+            <span>{{ i18ns.t('balance.feeRate') }}</span>
+            <strong>{{ formatPercent(config?.directTransferFeePercent || 0) }}</strong>
+          </div>
+          <div class="balance-transfer-dialog__summary-row">
+            <span>{{ i18ns.t('balance.fee') }}</span>
+            <strong>{{ formatNumber(transferFee) }}</strong>
+          </div>
+          <div
+            class="balance-transfer-dialog__summary-row balance-transfer-dialog__summary-row--total"
+          >
+            <span>{{ i18ns.t('balance.totalDebit') }}</span>
+            <strong>{{ formatNumber(Number(transferAmount || 0) + transferFee) }}</strong>
+          </div>
+          <p class="balance-transfer-dialog__summary-hint">
+            {{ i18ns.t('balance.transferIrreversibleHint') }}
+          </p>
+        </div>
+        <div class="balance-transfer-dialog__footer">
+          <el-button @click="transferDialogVisible = false">{{ i18ns.t('cancel') }}</el-button>
+          <el-button type="primary" :icon="Switch" :loading="submitting" native-type="submit">{{
+            i18ns.t('balance.directTransfer')
+          }}</el-button>
+        </div>
+      </el-form>
+    </el-dialog>
   </section>
 </template>
 
@@ -268,11 +348,13 @@ onMounted(load)
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
+  margin-bottom: 20px;
 }
 .balance-transfer-panel__heading {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px 16px;
   align-items: start;
 }
 .balance-transfer-panel__heading h2,
@@ -285,22 +367,11 @@ onMounted(load)
   color: var(--el-text-color-secondary);
   font-size: 13px;
 }
-.balance-transfer-panel__tabs {
-  margin-top: 14px;
-}
-.balance-transfer-panel__form {
-  max-width: 520px;
-}
-.balance-transfer-panel__preview {
+.balance-transfer-panel__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  margin: -4px 0 16px;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-}
-.balance-transfer-panel__preview strong {
-  color: var(--el-text-color-primary);
+  justify-content: flex-end;
+  gap: 8px;
 }
 .balance-transfer-panel__codes {
   margin-top: 18px;
@@ -308,9 +379,84 @@ onMounted(load)
 .balance-transfer-panel__codes h3 {
   margin-bottom: 10px;
 }
+.balance-transfer-dialog__form {
+  padding-top: 2px;
+}
+.balance-transfer-dialog__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+.balance-transfer-dialog__grid :deep(.el-form-item) {
+  min-width: 0;
+}
+.balance-transfer-dialog__grid :deep(.el-input-number),
+.balance-transfer-dialog__grid :deep(.el-date-editor) {
+  width: 100%;
+}
+.balance-transfer-dialog__summary {
+  display: grid;
+  gap: 6px 16px;
+  padding: 10px 12px;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+.balance-transfer-dialog__summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+.balance-transfer-dialog__summary-row strong {
+  color: var(--el-text-color-primary);
+}
+.balance-transfer-dialog__summary-row--total {
+  padding-top: 4px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.balance-transfer-dialog__summary-hint {
+  margin: 5px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.balance-transfer-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
 @media (max-width: 768px) {
   .balance-transfer-panel {
     padding: 14px;
+  }
+  .balance-transfer-panel__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .balance-transfer-dialog__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .balance-transfer-dialog__summary {
+    gap: 8px;
+  }
+  .balance-transfer-dialog__footer > .el-button {
+    flex: 1;
+  }
+  .balance-transfer-panel__actions > .el-button:not(.is-circle) {
+    flex: 1 1 148px;
+  }
+  .balance-transfer-panel__actions > .el-button.is-circle {
+    flex: 0 0 auto;
+  }
+  .balance-transfer-panel__codes :deep(.el-table) {
+    font-size: 12px;
+  }
+  .balance-transfer-panel__codes :deep(.el-table__cell) {
+    padding: 8px 0;
+  }
+  .balance-transfer-dialog__footer {
+    width: 100%;
   }
 }
 </style>

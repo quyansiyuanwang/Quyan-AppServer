@@ -6,17 +6,18 @@
 
 仓库专用技能位于 `.agents/skills/`，每个技能只包含 `SKILL.md` 和可选的 `KNOWLEDGE.md`。技能按任务加载最小必要上下文；本文件、各项目 `AGENTS.md/CLAUDE.md` 和 `docs/development/` 仍是规范事实来源。
 
-| 技能                                                                                       | 适用范围                                       |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------- |
-| [appserver-backend-development](./.agents/skills/appserver-backend-development/SKILL.md)   | Express、TSOA、Prisma、Relay、后端服务和中间件 |
-| [appserver-frontend-development](./.agents/skills/appserver-frontend-development/SKILL.md) | Vue、Pinia、组件、Service、路由和前端测试      |
-| [appserver-testing-ci](./.agents/skills/appserver-testing-ci/SKILL.md)                     | Vitest 分类、隔离、并行、CI 和测试选择         |
-| [appserver-contracts](./.agents/skills/appserver-contracts/SKILL.md)                       | shared、权限、DTO、OpenAPI 和生成 SDK          |
-| [appserver-security](./.agents/skills/appserver-security/SKILL.md)                         | 认证、授权、密钥、日志和开源安全               |
-| [appserver-pr-workflow](./.agents/skills/appserver-pr-workflow/SKILL.md)                   | GitHub PR 检查、元数据和标签                   |
-| [appserver-git-workflow](./.agents/skills/appserver-git-workflow/SKILL.md)                 | 本地暂存、验证、Conventional Commit 与交接     |
-| [appserver-skill-authoring](./.agents/skills/appserver-skill-authoring/SKILL.md)           | 仓库技能编写、精简、中文化与校验               |
-| [appserver-vue-view-splitting](./.agents/skills/appserver-vue-view-splitting/SKILL.md)     | 大型 Vue View 的结构化拆分与状态边界           |
+| 技能                                                                                         | 适用范围                                       |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| [appserver-backend-development](./.agents/skills/appserver-backend-development/SKILL.md)     | Express、TSOA、Prisma、Relay、后端服务和中间件 |
+| [appserver-frontend-development](./.agents/skills/appserver-frontend-development/SKILL.md)   | Vue、Pinia、组件、Service、路由和前端测试      |
+| [appserver-testing-ci](./.agents/skills/appserver-testing-ci/SKILL.md)                       | Vitest 分类、隔离、并行、CI 和测试选择         |
+| [appserver-contracts](./.agents/skills/appserver-contracts/SKILL.md)                         | shared、权限、DTO、OpenAPI 和生成 SDK          |
+| [appserver-security](./.agents/skills/appserver-security/SKILL.md)                           | 认证、授权、密钥、日志和开源安全               |
+| [appserver-pr-workflow](./.agents/skills/appserver-pr-workflow/SKILL.md)                     | GitHub PR 检查、元数据和标签                   |
+| [appserver-git-workflow](./.agents/skills/appserver-git-workflow/SKILL.md)                   | 本地暂存、验证、Conventional Commit 与交接     |
+| [appserver-skill-authoring](./.agents/skills/appserver-skill-authoring/SKILL.md)             | 仓库技能编写、精简、中文化与校验               |
+| [appserver-vue-view-splitting](./.agents/skills/appserver-vue-view-splitting/SKILL.md)       | 大型 Vue View 的结构化拆分与状态边界           |
+| [appserver-docs-site-development](./.agents/skills/appserver-docs-site-development/SKILL.md) | docs-site 文档编写、注册与用户可见功能同步     |
 
 涉及多个领域时，同时读取对应技能；例如 Controller/DTO 变更使用后端与 contracts，权限或 Token 变更再加入 security，测试命令选择加入 testing-ci。优先用 `pnpm run mcp:serve` 提供的项目 MCP 获取紧凑上下文，再按需读取完整文档。
 
@@ -206,6 +207,7 @@ pnpm run openapi:gen:all          # 完整流水线
 | [10-pr-management.md](./docs/development/10-pr-management.md)               | GitHub PR 读取、风格对齐、编辑与标签流程             |
 | [11-testing-and-ci.md](./docs/development/11-testing-and-ci.md)             | 测试分类、并行隔离、数据库 worker 与 CI 策略         |
 | [12-git-workflow-and-mcp.md](./docs/development/12-git-workflow-and-mcp.md) | Git 交付、commit hook 与项目 MCP                     |
+| [13-docs-site.md](./docs/development/13-docs-site.md)                       | docs-site 文档同步、写作规范与验证                   |
 
 各项目的 CLAUDE.md/AGENTS.md 位于：
 

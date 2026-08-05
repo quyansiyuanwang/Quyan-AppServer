@@ -3,9 +3,17 @@ import { Refresh, Wallet } from '@element-plus/icons-vue'
 import { AsyncVChart as VChart } from '@/utils/asyncChart'
 import { useBalanceHistoryContext } from '../context'
 
-defineProps<{
-  cardClass: string
-}>()
+withDefaults(
+  defineProps<{
+    cardClass: string
+    showBalance?: boolean
+    showStatistics?: boolean
+  }>(),
+  {
+    showBalance: true,
+    showStatistics: true,
+  },
+)
 
 const state = useBalanceHistoryContext()
 const i18ns = state.i18ns
@@ -33,7 +41,7 @@ const rpmChartOption = state.rpmChartOption
     v-loading="loadingStats"
     :element-loading-text="loadingStats ? i18ns.t('relay.firstLoadTip') : ''"
   >
-    <div class="card-header-section">
+    <div v-if="showBalance" class="card-header-section">
       <el-row :gutter="20" align="middle">
         <el-col :xs="24" :sm="12" :md="10">
           <div class="balance-info">
@@ -73,9 +81,9 @@ const rpmChartOption = state.rpmChartOption
       </el-row>
     </div>
 
-    <el-divider />
+    <el-divider v-if="showBalance && showStatistics" />
 
-    <div class="statistics-section">
+    <div v-if="showStatistics" class="statistics-section">
       <el-row :gutter="16" class="stats-row">
         <el-col :xs="24" :sm="12" :md="6">
           <div class="stat-item">
