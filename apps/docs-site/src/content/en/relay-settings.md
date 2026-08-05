@@ -71,10 +71,11 @@ Each channel is a logical route that tokens or system workflows can use. Channel
 - Best for: failover, weighted load distribution, and hiding multiple physical channels behind one logical name.
 - Effect:
   - users and tokens typically see only the pooled logical channel
-  - member channels carry the actual traffic
-  - the pool itself does not store direct upstream credentials
-- When editing a pooled channel, click Add Physical Member to select physical members directly and save them in one operation.
-- Saving assigns the selected physical members to this logical pool and applies their priority, weight, and enabled state from the list order; members do not need to be edited one by one.
+- member channels carry the actual traffic
+- the pool itself does not store direct upstream credentials
+- In strict two-tier topology, click Add Physical Member to select physical members directly and save them in one operation.
+- In legacy topology, select standalone channels; saving updates the pool's own member list, and members can be removed from that editor.
+- In strict two-tier topology, saving converts selected channels to physical members, assigns them to this logical pool, and applies priority, weight, and enabled state from the list order. To move a member, select it again from the destination pool editor.
 
 #### Automatic proxy pool
 
@@ -88,7 +89,9 @@ Each channel is a logical route that tokens or system workflows can use. Channel
 ### Pool members
 
 - Member channel: a concrete channel the pool may route to.
-- Physical member: belongs to exactly one logical pooled channel. Prefer adding it from the logical pool editor instead of opening each physical member and setting its parent individually.
+- Legacy member: legacy topology stores member relationships on the pool editor, where a member can be removed directly.
+- Physical member: in strict two-tier topology, belongs to exactly one logical pooled channel. The management list displays its logical parent instead of a member count.
+- Member relationships: existing legacy and strict two-tier relationships are both recognized. When the same member exists in both, strict priority, weight, and enabled settings apply.
 - Priority: lower numbers are tried earlier in priority-based strategies.
 - Weight: mainly used by weighted-random routing; larger values increase selection probability.
 - Enabled state: disabled members do not participate in current routing.

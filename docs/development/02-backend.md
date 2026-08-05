@@ -85,9 +85,11 @@ export class UserController extends Controller {
 - 渠道限制使用 `ModelPricing.model` 的目录名称；令牌允许模型、模型映射和实际路由使用 `resolveModelId()` 解析出的请求模型 ID。两个身份域不得混用。
 - 模型限制的缺失值表示不限制，有效空数组表示禁止全部；历史格式损坏时记录告警并按兼容策略放行。规范解析位于 `@appserver/shared`，前后端不得复制实现。
 - 混池渠道通过 `RelayPoolResolverService` 解析。模型、请求格式、映射和叶子渠道身份必须沿同一条根到叶路径保持关联，不能分别求并集后再组合。
+- legacy `RelayChannelMember` 与 strict `pooledChildren` 必须先投影为同一有效成员集，再供详情 DTO、管理列表成员数与 `RelayPoolResolverService` 使用；按成员 ID 去重，冲突时 strict 的优先级、权重和启用状态优先，禁止各处分别读取不同关系。
 - 面向业务客户端的渠道 options 使用结构化 `modelCapabilities`，混池和普通渠道采用相同契约；不向用户暴露混池拓扑。
 - 普通渠道读取 DTO 只返回 `has*ApiKey` 配置状态，禁止返回密钥正文。包含密钥的导出使用独立权限、2FA、重放保护和业务审计。
 - OJ 请求按绑定渠道 ID 使用同一混池解析和模型映射流程，并在兼容叶子间故障转移；不得通过可变渠道名称重新查找凭据。
+- 用户可见的业务校验错误必须提供后端 locale `messageKey`，由异常中间件按 `X-Locale` 生成响应；不得将英文源码错误直接作为面向用户的最终消息。
 
 ### 月卡一致性契约
 

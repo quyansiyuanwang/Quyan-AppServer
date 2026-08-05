@@ -12,6 +12,7 @@ describe("RelayChannelService", () => {
     listActive: vi.fn(),
     listVisible: vi.fn(),
     listVisibleByIds: vi.fn(),
+    listManagementPage: vi.fn(),
     listActiveDirectPooledParentsByMemberChannelId: vi.fn(),
     findVisibleByName: vi.fn(),
     findActiveById: vi.fn(),
@@ -98,6 +99,7 @@ describe("RelayChannelService", () => {
       ids.map((id) => ({ ...sampleChannel, id })),
     );
     relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId.mockResolvedValue([]);
+    relayChannelRepository.listManagementPage.mockResolvedValue({ records: [], total: 0 });
     relayChannelRepository.findVisibleByName.mockResolvedValue(null);
     permissionService.hasAnyPermission.mockResolvedValue(false);
     permissionService.hasPermission.mockImplementation(
@@ -128,6 +130,52 @@ describe("RelayChannelService", () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("channel-1");
     expect(result[0].enabled).toBe(true);
+  });
+
+  it("reports merged pool members and physical parent metadata in management rows", async () => {
+    relayChannelRepository.listManagementPage.mockResolvedValue({
+      records: [
+        {
+          id: "pool-1",
+          name: "Claude-GWL",
+          status: RELAY_CHANNEL_STATUS.ENABLED,
+          channelType: "pooled",
+          routingStrategy: "priority",
+          visibilityMode: "public",
+          multiplier: 1,
+          updateTime: now,
+          pooledParentId: null,
+          pooledParent: null,
+          poolMembers: [{ memberChannelId: "member-1" }, { memberChannelId: "member-2" }],
+          pooledChildren: [],
+        },
+        {
+          id: "member-1",
+          name: "Claude-GWL-1",
+          status: RELAY_CHANNEL_STATUS.ENABLED,
+          channelType: "pooled-member",
+          routingStrategy: "priority",
+          visibilityMode: "hidden",
+          multiplier: 1,
+          updateTime: now,
+          pooledParentId: "pool-1",
+          pooledParent: { name: "Claude-GWL" },
+          poolMembers: [],
+          pooledChildren: [],
+        },
+      ],
+      total: 2,
+    });
+
+    const result = await service.listManagementChannels("actor-user", { page: 1, pageSize: 25 });
+
+    expect(result.items[0]).toMatchObject({ id: "pool-1", poolMemberCount: 2 });
+    expect(result.items[1]).toMatchObject({
+      id: "member-1",
+      pooledParentId: "pool-1",
+      pooledParentName: "Claude-GWL",
+      poolMemberCount: 0,
+    });
   });
 
   it("merges a model pricing migration without changing the upstream request model", async () => {

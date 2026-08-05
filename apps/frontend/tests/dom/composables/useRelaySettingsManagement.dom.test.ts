@@ -144,6 +144,7 @@ const createRelayConfigResponse = () => ({
   ],
   monitorNameMapping: null,
   showOnlyConfigured: false,
+  channelTopologyMode: 'strict-two-tier',
 })
 
 const createSystemRelayConfigResponse = () => ({
@@ -305,6 +306,7 @@ describe('useRelaySettingsManagement', () => {
     expect(updateChannelMock).toHaveBeenCalledWith(
       'physical-member-1',
       expect.objectContaining({
+        channelType: 'pooled-member',
         pooledParentId: 'logical-pool-1',
         pooledPriority: 1,
       }),
@@ -331,6 +333,32 @@ describe('useRelaySettingsManagement', () => {
     expect(api.pooledParentOptions.value).toEqual([
       expect.objectContaining({ id: 'pool-1', name: 'Fallback Pool' }),
     ])
+    wrapper.unmount()
+  })
+
+  it('sends legacy pooled members instead of clearing the existing member relation', async () => {
+    getRelayConfigMock.mockResolvedValue({
+      ...createRelayConfigResponse(),
+      channelTopologyMode: 'legacy',
+    })
+    const { api, wrapper } = await mountComposable()
+
+    api.channelForm.value = {
+      ...api.channelForm.value,
+      name: 'Legacy Pooled Channel',
+      channelType: 'pooled',
+      poolMembers: [{ memberChannelId: 'legacy-member', priority: 1, weight: 1, enabled: true }],
+    }
+
+    await api.handleSaveChannel()
+
+    expect(createChannelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelType: 'pooled',
+        poolMembers: [{ memberChannelId: 'legacy-member', priority: 1, weight: 1, enabled: true }],
+      }),
+    )
+    expect(updateChannelMock).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 

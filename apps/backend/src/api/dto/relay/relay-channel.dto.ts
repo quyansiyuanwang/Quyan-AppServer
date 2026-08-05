@@ -55,6 +55,10 @@ export interface RelayChannelManagementListItemDto {
   routingStrategy: RelayChannelRoutingStrategy;
   visibilityMode: RelayChannelVisibilityMode;
   poolMemberCount: number;
+  /** Present for a physical pooled member in the management list. */
+  pooledParentId?: string;
+  /** Present with pooledParentId for a physical pooled member. */
+  pooledParentName?: string;
   multiplier: number;
   updateTime: Date;
 }

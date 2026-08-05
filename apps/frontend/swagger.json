@@ -38507,6 +38507,14 @@
 						"type": "number",
 						"format": "double"
 					},
+					"pooledParentId": {
+						"type": "string",
+						"description": "Present for a physical pooled member in the management list."
+					},
+					"pooledParentName": {
+						"type": "string",
+						"description": "Present with pooledParentId for a physical pooled member."
+					},
 					"multiplier": {
 						"type": "number",
 						"format": "double"

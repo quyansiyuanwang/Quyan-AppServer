@@ -15,7 +15,10 @@ export interface RelayChannelManagementRecord {
   visibilityMode: string | null;
   multiplier: Prisma.Decimal;
   updateTime: Date;
-  _count: { poolMembers: number; pooledChildren: number };
+  pooledParentId: string | null;
+  pooledParent: { name: string } | null;
+  poolMembers: Array<{ memberChannelId: string }>;
+  pooledChildren: Array<{ id: string }>;
 }
 
 export type RelayChannelTransactionClient = Omit<

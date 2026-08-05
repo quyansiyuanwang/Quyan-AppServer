@@ -30,6 +30,7 @@ import type {
   RelayAutomaticPoolRankingMode,
   RelayChannelHealthTrackingMode,
   RelayChannelType,
+  RelayChannelTopologyMode,
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
   ContextLengthMultiplierRule,
@@ -323,6 +324,7 @@ export const useRelaySettingsManagement = () => {
   const queueTimeoutSec = ref(30)
   const upstreamStreamTimeoutSec = ref(120)
   const apiCatalogPoolVisibility = ref<'hidden' | 'anonymous-range'>('anonymous-range')
+  const channelTopologyMode = ref<RelayChannelTopologyMode>('legacy')
   const relayCustomKeyEnabled = ref(true)
   const relayCustomKeyMaxTokensPerUser = ref(3)
   const relayCustomKeyCreateLimitWindowMinutes = ref(10)
@@ -355,6 +357,7 @@ export const useRelaySettingsManagement = () => {
         (relayConfig.upstreamStreamTimeout ?? 120000) / 1000,
       )
       apiCatalogPoolVisibility.value = relayConfig.apiCatalogPoolVisibility ?? 'anonymous-range'
+      channelTopologyMode.value = relayConfig.channelTopologyMode ?? 'legacy'
       relayUpstreamUrl.value = relaySystemConfig.upstreamUrl || ''
       relayUpstreamApiKey.value = relaySystemConfig.upstreamApiKey || ''
       relayAllowedModels.value = relaySystemConfig.allowedModels || ''
@@ -1196,13 +1199,15 @@ export const useRelaySettingsManagement = () => {
     if (channel.id === editingChannelId.value) return false
     if (channelForm.value.poolMembers.some((member) => member.memberChannelId === channel.id))
       return false
-    const expectedType =
+    const expectedTypes =
       channelForm.value.channelType === 'automatic-proxy-pool'
-        ? 'pooled'
+        ? ['pooled']
         : channelForm.value.channelType === 'pooled'
-          ? 'pooled-member'
-          : undefined
-    return expectedType !== undefined && channel.channelType === expectedType
+          ? channelTopologyMode.value === 'strict-two-tier'
+            ? ['pooled-member']
+            : ['standalone']
+          : []
+    return expectedTypes.includes(channel.channelType)
   }
 
   const loadPoolMemberCandidates = async () => {
@@ -1214,7 +1219,9 @@ export const useRelaySettingsManagement = () => {
         channelForm.value.channelType === 'automatic-proxy-pool'
           ? 'pooled'
           : channelForm.value.channelType === 'pooled'
-            ? 'pooled-member'
+            ? channelTopologyMode.value === 'strict-two-tier'
+              ? 'pooled-member'
+              : 'standalone'
             : undefined,
     })
     poolMemberPickerRows.value = response.items.filter(isPoolMemberCandidateEligible)
@@ -1232,6 +1239,7 @@ export const useRelaySettingsManagement = () => {
   }
 
   const loadPooledParentOptions = async () => {
+    pooledParentOptions.value = []
     try {
       const options: RelayChannelManagementListItemDto[] = []
       let page = 1
@@ -1248,7 +1256,7 @@ export const useRelaySettingsManagement = () => {
         page += 1
       } while (options.length < total)
 
-      if (options.length > 0 || total === 0) {
+      if (options.length > 0) {
         pooledParentOptions.value = options.filter((item) => item.id !== editingChannelId.value)
         return
       }
@@ -1310,6 +1318,7 @@ export const useRelaySettingsManagement = () => {
 
     for (const [index, member] of members.entries()) {
       await relayChannelService.updateChannel(member.memberChannelId, {
+        channelType: 'pooled-member',
         pooledParentId: poolId,
         pooledPriority: index + 1,
         pooledWeight: member.weight ?? 1,
@@ -2089,7 +2098,7 @@ export const useRelaySettingsManagement = () => {
       return
     }
 
-    if (isAutomaticPool) {
+    if (isPooledChannel) {
       const poolMembers = buildPoolMembersPayload()
       if (poolMembers.length === 0) {
         ElMessage.error(i18ns.t('relay.poolMembersRequired'))
@@ -2203,7 +2212,11 @@ export const useRelaySettingsManagement = () => {
         routingConfig,
         visibilityMode: channelForm.value.visibilityMode,
         visibilityConfig,
-        poolMembers: isAutomaticPool ? poolMembers : [],
+        poolMembers:
+          isAutomaticPool ||
+          (channelForm.value.channelType === 'pooled' && channelTopologyMode.value === 'legacy')
+            ? poolMembers
+            : [],
         pooledParentId:
           channelForm.value.channelType === 'pooled-member'
             ? channelForm.value.pooledParentId.trim() || null
@@ -2267,7 +2280,11 @@ export const useRelaySettingsManagement = () => {
           ...data,
           // Strict two-tier logical pools persist physical members through their
           // pooledParentId relation, not the legacy poolMembers edge.
-          poolMembers: isAutomaticPool ? poolMembers : [],
+          poolMembers:
+            isAutomaticPool ||
+            (channelForm.value.channelType === 'pooled' && channelTopologyMode.value === 'legacy')
+              ? poolMembers
+              : [],
           ...secretUpdates,
         })
       } else {
@@ -2280,7 +2297,10 @@ export const useRelaySettingsManagement = () => {
         savedChannelId = createdChannel.id
       }
 
-      if (channelForm.value.channelType === 'pooled') {
+      if (
+        channelForm.value.channelType === 'pooled' &&
+        channelTopologyMode.value === 'strict-two-tier'
+      ) {
         await assignPooledPhysicalMembers(savedChannelId, poolMembers)
       }
 
@@ -2390,6 +2410,7 @@ export const useRelaySettingsManagement = () => {
     queueTimeoutSec,
     upstreamStreamTimeoutSec,
     apiCatalogPoolVisibility,
+    channelTopologyMode,
     relayCustomKeyEnabled,
     relayCustomKeyMaxTokensPerUser,
     relayCustomKeyCreateLimitWindowMinutes,
