@@ -7,7 +7,7 @@ import { localeMiddleware } from "@/middleware/locale";
 import { responseWrapperMiddleware } from "@/middleware/response-wrapper";
 import { exceptionMiddleware } from "@/middleware/exception";
 import { CustomCode } from "@/constant/custom-code";
-import { TooManyRequestsError } from "@/util/errors";
+import { BadRequestError, TooManyRequestsError } from "@/util/errors";
 import { DEFAULT_BACKEND_LOCALE, translateMessage } from "@/locales";
 
 function createApp() {
@@ -34,6 +34,12 @@ function createApp() {
 
   app.get("/rate-limit", () => {
     throw new TooManyRequestsError();
+  });
+
+  app.get("/pool-members-required", () => {
+    throw new BadRequestError("pooled channel must contain at least one member", undefined, {
+      messageKey: "relay.poolMembersRequired",
+    });
   });
 
   app.get("/validate", () => {
@@ -117,6 +123,28 @@ describe("backend locale-aware response messages", () => {
           code: CustomCode.TOO_MANY_REQUESTS,
           message: "Too many requests",
         });
+      });
+  });
+
+  it("localizes pooled validation errors by message key", async () => {
+    const app = createApp();
+
+    await request(app)
+      .get("/pool-members-required")
+      .set("X-Locale", "en")
+      .expect(400)
+      .expect(({ body, headers }) => {
+        expect(headers["x-locale"]).toBe("en");
+        expect(body.message).toBe("A pooled channel must contain at least one member channel");
+      });
+
+    await request(app)
+      .get("/pool-members-required")
+      .set("X-Locale", "zh-CN")
+      .expect(400)
+      .expect(({ body, headers }) => {
+        expect(headers["x-locale"]).toBe("zh-CN");
+        expect(body.message).toBe("混池渠道至少需要一个成员渠道");
       });
   });
 

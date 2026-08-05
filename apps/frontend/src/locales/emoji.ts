@@ -2712,6 +2712,7 @@ const emoji: DeepStringify<typeof en> = {
     pooledParent: '🪣 父级',
     pooledParentHelp: '🔩 物理成员只属于 1 个 🪣，用户不可见。',
     pooledParentRequired: '请选择 🪣 父级',
+    pooledParentMissing: '🚫 未设置 🪣 父级',
     routingStrategy: '🧭 路由',
     routingStrategyHelp: '设置成员 📡 的选择方式：随机、轮询、权重、故障切换。',
     routingStrategyPriority: '🥇 优先切换',

@@ -119,7 +119,10 @@
                     ><el-icon><Top /></el-icon></el-button
                 ></el-tooltip>
                 <el-tooltip
-                  v-if="channelForm.channelType === 'automatic-proxy-pool'"
+                  v-if="
+                    channelForm.channelType === 'automatic-proxy-pool' ||
+                    channelTopologyMode === 'legacy'
+                  "
                   :content="i18ns.t('delete')"
                   ><el-button text circle type="danger" @click="removePoolMember(index)"
                     ><el-icon><Delete /></el-icon></el-button
@@ -1480,6 +1483,7 @@ const {
   poolMemberPickerPagination,
   poolMemberPickerKeyword,
   pooledParentOptions,
+  channelTopologyMode,
   selectedPoolMemberCandidateIds,
   poolMemberInsertPosition,
   openPoolMemberPicker,

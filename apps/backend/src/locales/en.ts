@@ -124,6 +124,17 @@ const en = {
     customKeyCreateRateLimitReached:
       "Custom token creation is too frequent (max {{limit}} within {{windowMinutes}} minutes). Please try again later.",
     probeVariableMissing: "Probe variable {{variable}} is not configured",
+    hiddenChannelPoolOnly: "Hidden relay channels can only be used as pooled channel members",
+    poolMemberNotFound: "One or more pooled channel members were not found",
+    poolCannotContainSelf: "A pooled channel cannot include itself as a member",
+    pooledParentRequired: "Physical pooled channels require a logical pooled parent",
+    pooledParentCannotSelf: "A physical pooled channel cannot be its own parent",
+    pooledParentInvalid: "The physical pooled channel parent must be a logical pooled channel",
+    poolCycle: "Pooled channels cannot contain an indirect cycle",
+    strictPoolMembersForbidden: "Logical pooled channels use physical member parent assignments instead of poolMembers",
+    poolMembersRequired: "A pooled channel must contain at least one member channel",
+    automaticPoolMembersMustBeLogical: "Automatic proxy pool members must be logical pooled channels",
+    pooledParentOnlyForPhysical: "Only physical pooled channels may have a logical pooled parent",
   },
   ram: {
     actorNotFound: "Operator user does not exist",
