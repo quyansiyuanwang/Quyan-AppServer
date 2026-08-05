@@ -3418,6 +3418,7 @@ export default {
     monthlyPassCoverage: 'Monthly Pass Coverage',
     adminAdjustment: 'Admin Adjustment',
     amount: 'Amount',
+    balanceChange: 'Balance Change',
     balanceBefore: 'Balance Before',
     balanceAfter: 'Balance After',
     description: 'Description',

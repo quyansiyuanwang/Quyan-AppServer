@@ -71,15 +71,15 @@ const ElTableStub = defineComponent({
 
 const ElTableColumnStub = defineComponent({
   name: 'ElTableColumn',
-  setup(_props, { slots }) {
+  props: { label: { type: String, default: '' } },
+  setup(props, { slots }) {
     return () =>
-      h(
-        'div',
-        { class: 'el-table-column-stub' },
-        rowsRef.value.flatMap((row, index) =>
+      h('div', { class: 'el-table-column-stub', 'data-label': props.label }, [
+        h('span', { class: 'el-table-column-label' }, props.label),
+        ...rowsRef.value.flatMap((row, index) =>
           slots.default ? slots.default({ row, $index: index }) : [],
         ),
-      )
+      ])
   },
 })
 
@@ -120,12 +120,13 @@ const baseTransaction = {
   model: 'gpt-4o',
 } as any
 
-const mountComponent = (transactions: any[]) =>
+const mountComponent = (transactions: any[], scope?: 'account' | 'consumption' | 'all') =>
   mount(TransactionHistory, {
     props: {
       transactions,
       loading: false,
       loadingFull: false,
+      scope,
     },
     global: {
       directives: { loading: {} },
@@ -207,5 +208,29 @@ describe('TransactionHistory', () => {
     ])
 
     expect(wrapper.text()).toContain('1.75×')
+  })
+
+  it('hides consumption-only columns for account transactions', () => {
+    const wrapper = mountComponent(
+      [
+        {
+          ...baseTransaction,
+          id: 'transfer-in',
+          type: 'peer_transfer_in',
+          description: '来自用户 sender 的转账',
+          channelMultiplier: 1.75,
+        },
+      ],
+      'account',
+    )
+
+    expect(wrapper.find('[data-label="令牌名称"]').exists()).toBe(false)
+    expect(wrapper.find('[data-label="使用渠道"]').exists()).toBe(false)
+    expect(wrapper.find('[data-label="渠道倍率"]').exists()).toBe(false)
+    expect(wrapper.find('[data-label="模型"]').exists()).toBe(false)
+    expect(wrapper.find('[data-label="性能指标"]').exists()).toBe(false)
+    expect(wrapper.find('[data-label="说明"]').text()).toContain('来自用户 sender 的转账')
+    expect(wrapper.find('[data-label="余额变动"]').exists()).toBe(true)
+    expect(wrapper.find('[data-label="变动后余额"]').exists()).toBe(true)
   })
 })
