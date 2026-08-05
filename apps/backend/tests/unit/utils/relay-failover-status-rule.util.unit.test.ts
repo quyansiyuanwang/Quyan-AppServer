@@ -3,6 +3,7 @@ import {
   isValidRetryStatusRule,
   matchesRetryStatusRule,
   normalizeRetryStatusRules,
+  shouldRetryRelayUpstreamFailure,
 } from "@/util/relay-failover-status-rule.util";
 
 describe("relay-failover-status-rule util", () => {
@@ -54,6 +55,22 @@ describe("relay-failover-status-rule util", () => {
     it("returns an empty array for non-array inputs", () => {
       expect(normalizeRetryStatusRules(undefined)).toEqual([]);
       expect(normalizeRetryStatusRules(null)).toEqual([]);
+    });
+  });
+
+  describe("shouldRetryRelayUpstreamFailure", () => {
+    it("retries an explicit model-capacity response even when its status is not configured", () => {
+      expect(
+        shouldRetryRelayUpstreamFailure(
+          429,
+          { error: { message: "Selected model is at capacity. Please try a different model." } },
+          ["503"],
+        ),
+      ).toBe(true);
+    });
+
+    it("keeps non-capacity responses governed by the configured status rules", () => {
+      expect(shouldRetryRelayUpstreamFailure(429, { error: { message: "Rate limit exceeded" } }, ["503"])).toBe(false);
     });
   });
 });

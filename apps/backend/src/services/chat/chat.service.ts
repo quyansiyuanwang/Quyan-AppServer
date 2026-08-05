@@ -30,7 +30,7 @@ import { UsageChargeService } from "@/services/billing/usage-charge.service";
 import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
 import { RelayProxyService, type RelayAttemptPlan } from "@/services/relay/relay-proxy.service";
 import { randomUUID } from "crypto";
-import { matchesRetryStatusRule } from "@/util/relay-failover-status-rule.util";
+import { shouldRetryRelayUpstreamFailure } from "@/util/relay-failover-status-rule.util";
 
 interface ChatRequestMeta {
   path?: string;
@@ -362,10 +362,11 @@ export class ChatService {
           break;
         }
         effectiveCandidate = null;
-        const statusCode = (error as { response?: { status?: unknown } })?.response?.status;
+        const response = (error as { response?: { status?: unknown; data?: unknown } })?.response;
+        const statusCode = response?.status;
         const shouldRetry =
           typeof statusCode !== "number" ||
-          attemptPlan.failoverConfig.retryStatusCodes.some((rule) => matchesRetryStatusRule(statusCode, rule));
+          shouldRetryRelayUpstreamFailure(statusCode, response?.data, attemptPlan.failoverConfig.retryStatusCodes);
         if (!shouldRetry || attemptIndex === attemptCandidates.length - 1) break;
       }
     }

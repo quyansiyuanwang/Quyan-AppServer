@@ -76,7 +76,7 @@ import {
 import { MONTHLY_PASS_QUOTA_WINDOW_MS } from "@/constant/monthly-pass";
 import { RELAY_PROXY_DESCRIPTION_MAX_LENGTH, RELAY_PROXY_PROMPT_PREVIEW_MAX_LENGTH } from "@/constant/relay-proxy";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
-import { matchesRetryStatusRule, normalizeRetryStatusRules } from "@/util/relay-failover-status-rule.util";
+import { normalizeRetryStatusRules, shouldRetryRelayUpstreamFailure } from "@/util/relay-failover-status-rule.util";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { env } from "@/config/env";
 import logger from "@/util/logger";
@@ -1944,10 +1944,11 @@ export class RelayProxyService {
     statusCode: number | undefined,
     failoverConfig: RelayFailoverRuntimeConfig,
     hasNextChannel: boolean,
+    responseData?: unknown,
   ): boolean {
     if (!hasNextChannel || !failoverConfig.enabled) return false;
     if (statusCode == null) return true;
-    return failoverConfig.retryStatusCodes.some((rule) => matchesRetryStatusRule(statusCode, rule));
+    return shouldRetryRelayUpstreamFailure(statusCode, responseData, failoverConfig.retryStatusCodes);
   }
 
   private extractUpstreamErrorMessage(responseData: any, fallbackStatus?: number): string {
@@ -2376,7 +2377,7 @@ export class RelayProxyService {
         // tracking failure must not block the response
       }
 
-      if (allowRetryBeforeResponse && retryStatusCodes.some((rule) => matchesRetryStatusRule(statusCode, rule)))
+      if (allowRetryBeforeResponse && shouldRetryRelayUpstreamFailure(statusCode, upstreamData, retryStatusCodes))
         return {
           handled: false,
           success: false,
@@ -3076,7 +3077,10 @@ export class RelayProxyService {
             const firstByteTime = Date.now();
             const isErrorResponse = response.status >= 400;
 
-            if (isErrorResponse && this.shouldRetryWithNextChannel(response.status, failoverConfig, hasNextChannel)) {
+            if (
+              isErrorResponse &&
+              this.shouldRetryWithNextChannel(response.status, failoverConfig, hasNextChannel, response.data)
+            ) {
               // Record failed attempt with correct channel info
               await this.recordFailedAttempt({
                 relayToken,
@@ -3870,7 +3874,7 @@ export class RelayProxyService {
 
               if (
                 allowRetryBeforeResponse &&
-                retryStatusCodes.some((rule) => matchesRetryStatusRule(streamStatusCode, rule))
+                shouldRetryRelayUpstreamFailure(streamStatusCode, upstreamData, retryStatusCodes)
               ) {
                 resolve({
                   handled: false,

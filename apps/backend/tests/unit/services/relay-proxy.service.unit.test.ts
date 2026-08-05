@@ -1534,6 +1534,37 @@ describe("RelayProxyService failover", () => {
     );
   });
 
+  it("retries the next channel for a selected-model capacity response even when 429 is not configured", async () => {
+    const relayToken = createRelayToken();
+    const req = createRequest();
+    const { service, relayTokenRepo } = createService();
+
+    axiosMock
+      .mockResolvedValueOnce({
+        status: 429,
+        headers: { "content-type": "application/json" },
+        data: { error: { message: "Selected model is at capacity. Please try a different model." } },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        data: { id: "resp-capacity-failover", usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 } },
+      });
+
+    const result = await service.forwardRequest(relayToken, req);
+
+    expect(result.status).toBe(200);
+    expect(axiosMock).toHaveBeenCalledTimes(2);
+    expect(relayTokenRepo.createSwitchLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerStatusCode: 429,
+        triggerError: "Selected model is at capacity. Please try a different model.",
+        fromChannelId: "channel-primary",
+        toChannelId: "channel-secondary",
+      }),
+    );
+  });
+
   it("retries the next channel when a regex retry rule matches", async () => {
     const relayToken = createRelayToken();
     relayToken.failoverConfig.retryStatusCodes = ["/^5(02|03)$/"];
@@ -1592,7 +1623,7 @@ describe("RelayProxyService failover", () => {
     );
   });
 
-  it("allows streaming retry only before any response is sent to the client", async () => {
+  it("allows streaming capacity failover before any response is sent to the client", async () => {
     const relayToken = createRelayToken();
     const { service } = createService();
     const req = new EventEmitter() as any;
@@ -1621,11 +1652,16 @@ describe("RelayProxyService failover", () => {
       proxyReq.write = vi.fn();
       proxyReq.end = vi.fn(() => {
         const proxyRes = new EventEmitter() as any;
-        proxyRes.statusCode = 503;
+        proxyRes.statusCode = 429;
         proxyRes.headers = { "content-type": "application/json" };
 
         callback(proxyRes);
-        proxyRes.emit("data", Buffer.from(JSON.stringify({ error: { message: "temporary unavailable" } })));
+        proxyRes.emit(
+          "data",
+          Buffer.from(
+            JSON.stringify({ error: { message: "Selected model is at capacity. Please try a different model." } }),
+          ),
+        );
         proxyRes.emit("end");
       });
       proxyReq.destroy = vi.fn((err?: Error) => {
@@ -1672,7 +1708,7 @@ describe("RelayProxyService failover", () => {
         expect.objectContaining({
           handled: false,
           retryable: true,
-          statusCode: 503,
+          statusCode: 429,
         }),
       );
       expect(res.writeHead).not.toHaveBeenCalled();
