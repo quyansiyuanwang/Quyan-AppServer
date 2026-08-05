@@ -1,5 +1,12 @@
 import type { BalanceGiftCode, BalanceTransfer } from "@prisma/client";
 
+export interface BalanceTransferDisplayRecord {
+  id: string;
+  senderUsername: string;
+  recipientUsername: string;
+  description: string | null;
+}
+
 export interface CreateGiftCodeParams {
   senderId: string;
   code: string;
@@ -16,6 +23,7 @@ export interface BalanceTransferStore {
   listGiftCodes(senderId: string, skip: number, take: number): Promise<{ total: number; records: BalanceGiftCode[] }>;
   redeemGiftCode(code: string, userId: string): Promise<{ balance: number; amount: number }>;
   cancelGiftCode(id: string, senderId: string): Promise<{ refundedAmount: number; balance: number }>;
+  findTransferDisplayRecords(ids: string[]): Promise<BalanceTransferDisplayRecord[]>;
   createTransfer(params: {
     senderId: string;
     recipientId: string;

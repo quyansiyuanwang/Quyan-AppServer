@@ -148,7 +148,7 @@
         stripe
         @expand-change="handleExpandChange"
       >
-        <el-table-column type="expand">
+        <el-table-column v-if="props.scope !== 'account'" type="expand">
           <template #default="{ row }">
             <transition name="transaction-expand" appear>
               <div
@@ -322,32 +322,63 @@
             }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('balance.tokenName')" min-width="40">
+        <el-table-column
+          v-if="props.scope === 'account'"
+          :label="i18ns.t('balance.description')"
+          min-width="260"
+          show-overflow-tooltip
+        >
+          <template #default="{ row }">
+            <span class="account-transaction-description">{{ row.description || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="props.scope !== 'account'"
+          :label="i18ns.t('balance.tokenName')"
+          min-width="40"
+        >
           <template #default="{ row }">
             <span v-if="row.tokenName">{{ row.tokenName }}</span>
             <span v-else style="color: var(--el-text-color-placeholder)">-</span>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('balance.channelUsed')" min-width="40">
+        <el-table-column
+          v-if="props.scope !== 'account'"
+          :label="i18ns.t('balance.channelUsed')"
+          min-width="40"
+        >
           <template #default="{ row }">
             <span v-if="row.displayChannelName">{{ row.displayChannelName }}</span>
             <span v-else style="color: var(--el-text-color-placeholder)">-</span>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('balance.channelMultiplier')" width="108" align="right">
+        <el-table-column
+          v-if="props.scope !== 'account'"
+          :label="i18ns.t('balance.channelMultiplier')"
+          width="108"
+          align="right"
+        >
           <template #default="{ row }">
             <span :class="{ 'text-placeholder': !hasNumericValue(row.channelMultiplier) }">
               {{ formatMultiplier(row.channelMultiplier) }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('balance.model')" min-width="50">
+        <el-table-column
+          v-if="props.scope !== 'account'"
+          :label="i18ns.t('balance.model')"
+          min-width="50"
+        >
           <template #default="{ row }">
             <span v-if="getModelDisplay(row)">{{ getModelDisplay(row) }}</span>
             <span v-else style="color: var(--el-text-color-placeholder)">-</span>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('balance.performanceMetrics')" class-name="hide-on-mobile">
+        <el-table-column
+          v-if="props.scope !== 'account'"
+          :label="i18ns.t('balance.performanceMetrics')"
+          class-name="hide-on-mobile"
+        >
           <template #default="{ row }">
             <div v-if="hasPerformanceMetrics(row)" class="timing-metrics">
               <span v-if="hasNumericValue(row.totalOutputTime)" class="metric-badge">
@@ -374,7 +405,12 @@
             <span v-else style="color: var(--el-text-color-placeholder)">-</span>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('balance.amount')" min-width="25">
+        <el-table-column
+          :label="
+            props.scope === 'account' ? i18ns.t('balance.balanceChange') : i18ns.t('balance.amount')
+          "
+          min-width="25"
+        >
           <template #default="{ row }">
             <el-tooltip
               v-if="isMonthlyPassCoverage(row)"
@@ -399,8 +435,17 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="balanceAfter" :label="i18ns.t('balance.after')" min-width="25" />
-        <el-table-column :label="i18ns.t('relay.createTime')" min-width="50">
+        <el-table-column
+          prop="balanceAfter"
+          :label="
+            props.scope === 'account' ? i18ns.t('balance.balanceAfter') : i18ns.t('balance.after')
+          "
+          min-width="25"
+        />
+        <el-table-column
+          :label="props.scope === 'account' ? i18ns.t('balance.time') : i18ns.t('relay.createTime')"
+          min-width="50"
+        >
           <template #default="{ row }">
             {{ new Date(row.createTime).toLocaleString() }}
           </template>
@@ -473,23 +518,29 @@
             </span>
           </div>
           <div class="tx-card-body">
-            <div v-if="getModelDisplay(row)" class="tx-card-row">
+            <div v-if="props.scope === 'account' && row.description" class="tx-card-description">
+              {{ row.description }}
+            </div>
+            <div v-if="props.scope !== 'account' && getModelDisplay(row)" class="tx-card-row">
               <span class="tx-label">{{ i18ns.t('balance.model') }}</span>
               <span class="tx-value">{{ getModelDisplay(row) }}</span>
             </div>
-            <div v-if="row.tokenName" class="tx-card-row">
+            <div v-if="props.scope !== 'account' && row.tokenName" class="tx-card-row">
               <span class="tx-label">{{ i18ns.t('balance.tokenName') }}</span>
               <span class="tx-value">{{ row.tokenName }}</span>
             </div>
-            <div v-if="row.displayChannelName" class="tx-card-row">
+            <div v-if="props.scope !== 'account' && row.displayChannelName" class="tx-card-row">
               <span class="tx-label">{{ i18ns.t('balance.channelUsed') }}</span>
               <span class="tx-value">{{ row.displayChannelName }}</span>
             </div>
-            <div v-if="hasNumericValue(row.channelMultiplier)" class="tx-card-row">
+            <div
+              v-if="props.scope !== 'account' && hasNumericValue(row.channelMultiplier)"
+              class="tx-card-row"
+            >
               <span class="tx-label">{{ i18ns.t('balance.channelMultiplier') }}</span>
               <span class="tx-value">{{ formatMultiplier(row.channelMultiplier) }}</span>
             </div>
-            <div v-if="row.requestId" class="tx-card-row">
+            <div v-if="props.scope !== 'account' && row.requestId" class="tx-card-row">
               <span class="tx-label">{{ i18ns.t('balance.requestId') }}</span>
               <span class="tx-value request-id-value">
                 <code>{{ row.requestId }}</code>
@@ -508,20 +559,28 @@
               <span class="tx-value">{{ row.balanceAfter }}</span>
             </div>
             <div
-              v-if="hasTokenDetails(row) && hasNumericValue(row.inputTokens)"
+              v-if="
+                props.scope !== 'account' &&
+                hasTokenDetails(row) &&
+                hasNumericValue(row.inputTokens)
+              "
               class="tx-card-row"
             >
               <span class="tx-label">{{ i18ns.t('balance.inputTokens') }}</span>
               <span class="tx-value">{{ formatTokenCount(row.inputTokens) }}</span>
             </div>
             <div
-              v-if="hasTokenDetails(row) && hasNumericValue(row.outputTokens)"
+              v-if="
+                props.scope !== 'account' &&
+                hasTokenDetails(row) &&
+                hasNumericValue(row.outputTokens)
+              "
               class="tx-card-row"
             >
               <span class="tx-label">{{ i18ns.t('balance.outputTokens') }}</span>
               <span class="tx-value">{{ formatTokenCount(row.outputTokens) }}</span>
             </div>
-            <div v-if="hasPerformanceMetrics(row)" class="tx-card-row">
+            <div v-if="props.scope !== 'account' && hasPerformanceMetrics(row)" class="tx-card-row">
               <span class="tx-label">{{ i18ns.t('balance.performanceMetrics') }}</span>
               <span class="tx-value">
                 <span v-if="hasNumericValue(row.totalOutputTime)" class="metric-badge">
@@ -555,7 +614,7 @@
 
             <!-- 计费详情折叠 -->
             <el-collapse
-              v-if="row.description || hasBillingDetails(row)"
+              v-if="props.scope !== 'account' && (row.description || hasBillingDetails(row))"
               class="detail-collapse"
               style="margin-top: 12px"
             >
@@ -1722,6 +1781,16 @@ const dailyBalanceChangeChartOption = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.tx-card-description,
+.account-transaction-description {
+  color: var(--el-text-color-regular);
+}
+
+.tx-card-description {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .tx-card-row {

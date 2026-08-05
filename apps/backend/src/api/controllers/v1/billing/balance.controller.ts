@@ -69,6 +69,15 @@ type UsageDataMap = Map<
   }
 >;
 
+type TransferDisplayDataMap = Map<
+  string,
+  {
+    senderUsername: string;
+    recipientUsername: string;
+    description: string | null;
+  }
+>;
+
 @Route("v1/balance")
 @Tags("Balance")
 export class BalanceController extends Controller {
@@ -152,10 +161,34 @@ export class BalanceController extends Controller {
     return { tokenNameMap, usageDataMap };
   }
 
+  private async buildTransferDisplayDataMap(relatedIds: string[]): Promise<TransferDisplayDataMap> {
+    const records = await this.balanceTransferService.getTransferDisplayRecords(relatedIds);
+    return new Map(records.map((record) => [record.id, record]));
+  }
+
+  private resolveTransferDescription(
+    transaction: BalanceTransaction,
+    transferDataMap: TransferDisplayDataMap,
+  ): string | undefined {
+    if (!transaction.relatedId) return transaction.description || undefined;
+
+    const transfer = transferDataMap.get(transaction.relatedId);
+    if (!transfer) return transaction.description || undefined;
+
+    const note = transfer.description?.trim();
+    if (transaction.type === "peer_transfer_in")
+      return `来自用户 ${transfer.senderUsername} 的转账${note ? `：${note}` : ""}`;
+    if (transaction.type === "peer_transfer_out")
+      return `转账给用户 ${transfer.recipientUsername}${note ? `：${note}` : ""}`;
+
+    return transaction.description || undefined;
+  }
+
   private mapTransactionRecord(
     r: BalanceTransaction,
     tokenNameMap: Map<string, string>,
     usageDataMap: UsageDataMap,
+    transferDataMap: TransferDisplayDataMap,
   ): TransactionListResponse["records"][number] {
     const usageData = r.relatedId ? usageDataMap.get(r.relatedId) : undefined;
     const storedDisplayChannelName =
@@ -177,7 +210,7 @@ export class BalanceController extends Controller {
       amount: Number(r.amount),
       balanceBefore: Number(r.balanceBefore),
       balanceAfter: Number(r.balanceAfter),
-      description: r.description || undefined,
+      description: this.resolveTransferDescription(r, transferDataMap),
       model: r.model || undefined,
       tokens: r.tokens ?? undefined,
       inputTokens: r.inputTokens ?? undefined,
@@ -382,7 +415,13 @@ export class BalanceController extends Controller {
     const result = await this.balanceService.getTransactions(userId, type, page, pageSize, model, start, end);
 
     const relatedIds = result.records.filter((r) => r.relatedId).map((r) => r.relatedId!);
-    const { tokenNameMap, usageDataMap } = await this.buildUsageMaps(relatedIds);
+    const transferIds = result.records
+      .filter((r) => (r.type === "peer_transfer_in" || r.type === "peer_transfer_out") && r.relatedId)
+      .map((r) => r.relatedId!);
+    const [{ tokenNameMap, usageDataMap }, transferDataMap] = await Promise.all([
+      this.buildUsageMaps(relatedIds),
+      this.buildTransferDisplayDataMap(transferIds),
+    ]);
 
     let filteredRecords = result.records;
     if (tokenName)
@@ -390,7 +429,7 @@ export class BalanceController extends Controller {
 
     return {
       ...result,
-      records: filteredRecords.map((r) => this.mapTransactionRecord(r, tokenNameMap, usageDataMap)),
+      records: filteredRecords.map((r) => this.mapTransactionRecord(r, tokenNameMap, usageDataMap, transferDataMap)),
     };
   }
 
@@ -416,7 +455,13 @@ export class BalanceController extends Controller {
     const result = await this.balanceService.getTransactions(userId, type, page, pageSize, model, start, end);
 
     const relatedIds = result.records.filter((r) => r.relatedId).map((r) => r.relatedId!);
-    const { tokenNameMap, usageDataMap } = await this.buildUsageMaps(relatedIds);
+    const transferIds = result.records
+      .filter((r) => (r.type === "peer_transfer_in" || r.type === "peer_transfer_out") && r.relatedId)
+      .map((r) => r.relatedId!);
+    const [{ tokenNameMap, usageDataMap }, transferDataMap] = await Promise.all([
+      this.buildUsageMaps(relatedIds),
+      this.buildTransferDisplayDataMap(transferIds),
+    ]);
 
     let filteredRecords = result.records;
     if (tokenName)
@@ -424,7 +469,7 @@ export class BalanceController extends Controller {
 
     return {
       ...result,
-      records: filteredRecords.map((r) => this.mapTransactionRecord(r, tokenNameMap, usageDataMap)),
+      records: filteredRecords.map((r) => this.mapTransactionRecord(r, tokenNameMap, usageDataMap, transferDataMap)),
     };
   }
 }

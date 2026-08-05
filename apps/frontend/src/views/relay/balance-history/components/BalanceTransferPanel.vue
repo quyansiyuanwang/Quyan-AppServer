@@ -262,7 +262,7 @@ onMounted(load)
             <el-date-picker
               v-model="giftExpiry"
               type="datetime"
-              value-format="YYYY-MM-DDTHH:mm:ss.SSS[Z]"
+              value-format="YYYY-MM-DDTHH:mm:ss"
               clearable
             />
           </el-form-item>

@@ -1,6 +1,10 @@
 import { prisma } from "@/config/database";
 import { BadRequestError, ConflictError, NotFoundError } from "@/util/errors";
-import type { BalanceTransferStore, CreateGiftCodeParams } from "./balance-transfer.store";
+import type {
+  BalanceTransferDisplayRecord,
+  BalanceTransferStore,
+  CreateGiftCodeParams,
+} from "./balance-transfer.store";
 
 const round4 = (value: number): number => Math.round((value + Number.EPSILON) * 10000) / 10000;
 
@@ -139,6 +143,26 @@ export class BalanceTransferRepository implements BalanceTransferStore {
     });
   }
 
+  async findTransferDisplayRecords(ids: string[]): Promise<BalanceTransferDisplayRecord[]> {
+    if (ids.length === 0) return [];
+
+    const records = await prisma.balanceTransfer.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        description: true,
+        sender: { select: { username: true } },
+        recipient: { select: { username: true } },
+      },
+    });
+    return records.map((record) => ({
+      id: record.id,
+      senderUsername: record.sender.username,
+      recipientUsername: record.recipient.username,
+      description: record.description,
+    }));
+  }
+
   async createTransfer(params: {
     senderId: string;
     recipientId: string;
@@ -155,13 +179,15 @@ export class BalanceTransferRepository implements BalanceTransferStore {
       });
       if (debited.count !== 1) throw new BadRequestError("余额不足");
 
-      const [senderAccount, recipientAccount] = await Promise.all([
+      const [senderAccount, recipientAccount, sender, recipient] = await Promise.all([
         tx.balanceAccount.findUniqueOrThrow({ where: { userId: params.senderId } }),
         tx.balanceAccount.upsert({
           where: { userId: params.recipientId },
           create: { userId: params.recipientId, balance: params.amount, totalRecharged: params.amount },
           update: { balance: { increment: params.amount }, totalRecharged: { increment: params.amount } },
         }),
+        tx.user.findUniqueOrThrow({ where: { id: params.senderId }, select: { username: true } }),
+        tx.user.findUniqueOrThrow({ where: { id: params.recipientId }, select: { username: true } }),
       ]);
       const senderBalance = Number(senderAccount.balance);
       const recipientBalance = Number(recipientAccount.balance);
@@ -175,7 +201,7 @@ export class BalanceTransferRepository implements BalanceTransferStore {
             balanceBefore: round4(senderBalance + params.totalDebit),
             balanceAfter: senderBalance,
             relatedId: transfer.id,
-            description: `转账给用户 ${params.recipientId}`,
+            description: `转账给用户 ${recipient.username}${params.description ? `：${params.description}` : ""}`,
           },
           {
             userId: params.recipientId,
@@ -184,7 +210,7 @@ export class BalanceTransferRepository implements BalanceTransferStore {
             balanceBefore: round4(recipientBalance - params.amount),
             balanceAfter: recipientBalance,
             relatedId: transfer.id,
-            description: `来自用户 ${params.senderId} 的转账`,
+            description: `来自用户 ${sender.username} 的转账${params.description ? `：${params.description}` : ""}`,
           },
         ],
       });

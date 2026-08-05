@@ -3277,6 +3277,7 @@ const zhCN: DeepStringify<typeof en> = {
     monthlyPassCoverage: '月卡抵扣',
     adminAdjustment: '管理员调整',
     amount: '金额',
+    balanceChange: '余额变动',
     balanceBefore: '变动前余额',
     balanceAfter: '变动后余额',
     description: '说明',
