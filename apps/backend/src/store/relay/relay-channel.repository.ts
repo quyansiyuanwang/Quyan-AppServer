@@ -121,13 +121,26 @@ export class RelayChannelRepository implements RelayChannelStore {
       where: {
         status: RELAY_CHANNEL_STATUS.ENABLED,
         channelType: "pooled",
-        pooledChildren: {
-          some: {
-            id: memberChannelId,
-            pooledMemberEnabled: true,
-            status: RELAY_CHANNEL_STATUS.ENABLED,
+        OR: [
+          {
+            pooledChildren: {
+              some: {
+                id: memberChannelId,
+                pooledMemberEnabled: true,
+                status: RELAY_CHANNEL_STATUS.ENABLED,
+              },
+            },
           },
-        },
+          {
+            poolMembers: {
+              some: {
+                memberChannelId,
+                enabled: true,
+                memberChannel: { pooledParentId: null },
+              },
+            },
+          },
+        ],
       },
       orderBy: { id: "asc" },
       include: relayChannelInclude,
