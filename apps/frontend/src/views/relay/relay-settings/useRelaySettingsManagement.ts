@@ -2035,7 +2035,9 @@ export const useRelaySettingsManagement = () => {
     ensureSelectedVisibilityOptions(row.visibilityConfig)
     showChannelDialog.value = true
     void ensureVisibilityOptionsLoaded()
-    if (row.channelType === 'pooled-member') void loadPooledParentOptions()
+    // Load before the type is changed so a standalone legacy member can be
+    // converted to a physical member without opening the create dialog first.
+    void loadPooledParentOptions()
   }
 
   const openChannelDetailDialog = async (row: Pick<RelayChannelManagementListItemDto, 'id'>) => {
