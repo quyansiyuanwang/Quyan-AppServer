@@ -264,6 +264,76 @@ describe('useRelaySettingsManagement', () => {
     wrapper.unmount()
   })
 
+  it('loads physical members for a logical pool and assigns them when saving', async () => {
+    const { api, wrapper } = await mountComposable()
+    api.channelForm.value = {
+      ...api.channelForm.value,
+      name: 'Logical Pool',
+      channelType: 'pooled',
+      poolMembers: [],
+    }
+    listManagementChannelsMock.mockResolvedValue({
+      items: [
+        {
+          id: 'physical-member-1',
+          name: 'Physical Member 1',
+          enabled: true,
+          channelType: 'pooled-member',
+          routingStrategy: 'priority',
+          visibilityMode: 'hidden',
+          poolMemberCount: 0,
+          multiplier: 1,
+          updateTime: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    })
+    createChannelMock.mockResolvedValue({ id: 'logical-pool-1' })
+
+    await api.openPoolMemberPicker()
+
+    expect(listManagementChannelsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channelType: 'pooled-member' }),
+    )
+    api.selectedPoolMemberCandidateIds.value = ['physical-member-1']
+    api.addSelectedPoolMembers()
+    expect(api.channelForm.value.poolMembers[0]?.memberChannelId).toBe('physical-member-1')
+
+    await api.handleSaveChannel()
+    expect(updateChannelMock).toHaveBeenCalledWith(
+      'physical-member-1',
+      expect.objectContaining({
+        pooledParentId: 'logical-pool-1',
+        pooledPriority: 1,
+      }),
+    )
+    wrapper.unmount()
+  })
+
+  it('falls back to full channel details when logical pool options cannot be loaded from management', async () => {
+    const { api, wrapper } = await mountComposable()
+    listManagementChannelsMock.mockRejectedValue(new Error('management unavailable'))
+    listChannelsMock.mockResolvedValue([
+      createChannelRow({ id: 'pool-1', name: 'Fallback Pool', channelType: 'pooled' }),
+    ])
+
+    api.openEditChannelDialog(
+      createChannelRow({
+        id: 'physical-member-1',
+        channelType: 'pooled-member',
+        pooledParentId: 'pool-1',
+      }),
+    )
+    await flushPromises()
+
+    expect(api.pooledParentOptions.value).toEqual([
+      expect.objectContaining({ id: 'pool-1', name: 'Fallback Pool' }),
+    ])
+    wrapper.unmount()
+  })
+
   it('clears optional routing thresholds to explicit null values', async () => {
     const { api, wrapper } = await mountComposable()
 

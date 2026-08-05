@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { defineComponent, h, ref } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -232,5 +232,31 @@ describe('TransactionHistory', () => {
     expect(wrapper.find('[data-label="说明"]').text()).toContain('来自用户 sender 的转账')
     expect(wrapper.find('[data-label="余额变动"]').exists()).toBe(true)
     expect(wrapper.find('[data-label="变动后余额"]').exists()).toBe(true)
+  })
+
+  it('shows only account-relevant charts for account transactions', async () => {
+    const wrapper = mountComponent(
+      [
+        { ...baseTransaction, id: 'transfer-out', type: 'peer_transfer_out', amount: -10 },
+        {
+          ...baseTransaction,
+          id: 'transfer-in',
+          type: 'peer_transfer_in',
+          amount: 5,
+          createTime: '2026-04-27T00:00:00.000Z',
+        },
+      ],
+      'account',
+    )
+
+    ;(wrapper.vm as { viewMode: string }).viewMode = 'chart'
+    await nextTick()
+
+    expect(wrapper.find('.charts-container--account').exists()).toBe(true)
+    expect(wrapper.find('.hourly-consumption-chart').exists()).toBe(false)
+    expect(wrapper.findAll('.charts-container--account .chart-item')).toHaveLength(3)
+    expect(wrapper.find('.chart-item--account-balance').exists()).toBe(true)
+    expect(wrapper.find('.chart-item--account-cash-flow').exists()).toBe(true)
+    expect(wrapper.find('.chart-item--account-types').exists()).toBe(true)
   })
 })

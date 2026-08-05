@@ -2600,6 +2600,9 @@ export default {
     poolMembersHelp:
       'Add member channels to this logical channel and configure their priority, weight, and enabled state.',
     addPoolMember: 'Add Member Channel',
+    physicalPoolMembersHelp:
+      'Select physical members directly. Saving updates their logical-pool assignments in one batch.',
+    addPhysicalPoolMember: 'Add Physical Member',
     poolMemberInsertTop: 'Insert at Top',
     poolMemberInsertBottom: 'Insert at Bottom',
     poolMemberChannel: 'Member Channel',
@@ -3510,6 +3513,11 @@ export default {
     totalTokens: 'Total Tokens',
     hourlyConsumptionByModel: 'Hourly Consumption by Model (Recent 24h)',
     dailyBalanceChange: 'Daily Balance Change',
+    accountBalanceTrend: 'Balance Trend',
+    accountCashFlow: 'Daily Cash Flow',
+    income: 'Income',
+    expense: 'Expense',
+    netChange: 'Net Change',
     transferOut: 'Transfer Balance',
     transferOutHint: 'The entered amount is what the recipient receives; the sender pays the fee.',
     giftCode: 'Gift Code',
