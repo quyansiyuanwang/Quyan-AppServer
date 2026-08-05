@@ -158,18 +158,37 @@ export class RelayChannelService {
     memberChannelId: string,
     actorUserId: string,
   ): Promise<RelayChannel | null> {
-    const candidates = (
-      await this.relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId(memberChannelId)
-    ).filter((channel) => {
-      const visibilityMode =
-        (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE;
-      return visibilityMode === "public" || visibilityMode === "whitelist";
-    });
-    const accessResults = await Promise.all(
-      candidates.map((channel) => this.canUserAccessChannel(channel, actorUserId, false)),
-    );
-    const accessibleCandidates = candidates.filter((_, index) => accessResults[index]);
+    const accessibleCandidates = await this.findAccessibleDirectPooledParents(memberChannelId, actorUserId);
     return accessibleCandidates.length === 1 ? accessibleCandidates[0]! : null;
+  }
+
+  /**
+   * Resolves the channel name that may be exposed for an automatic-pool usage record.
+   * A unique visible pooled parent takes precedence; otherwise only the visible
+   * executing channel itself may be shown.
+   */
+  async resolveAutomaticPoolUsageDisplayChannel(
+    executionChannel: RelayChannel,
+    actorUserId: string,
+  ): Promise<RelayChannel | null> {
+    const accessibleParents = await this.findAccessibleDirectPooledParents(executionChannel.id, actorUserId);
+    if (accessibleParents.length === 1) return accessibleParents[0]!;
+    if (accessibleParents.length > 1) return null;
+
+    const channelType = (executionChannel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
+    if (channelType !== "standalone") return null;
+
+    return (await this.canUserAccessChannel(executionChannel, actorUserId, false)) ? executionChannel : null;
+  }
+
+  async resolveAutomaticPoolUsageDisplayChannelById(
+    executionChannelId: string,
+    actorUserId: string,
+  ): Promise<RelayChannel | null> {
+    const executionChannel = await this.relayChannelRepository.findActiveById(executionChannelId);
+    if (!executionChannel) return null;
+
+    return await this.resolveAutomaticPoolUsageDisplayChannel(executionChannel, actorUserId);
   }
 
   async listManagementChannels(
@@ -1233,6 +1252,23 @@ export class RelayChannelService {
 
     const roleBindings = await this.ramRoleRepository.listRoleBindingsForUser(actorUserId, user.groupId ?? null);
     return roleBindings.some((binding) => roleIds.includes(binding.roleId));
+  }
+
+  private async findAccessibleDirectPooledParents(
+    memberChannelId: string,
+    actorUserId: string,
+  ): Promise<RelayChannel[]> {
+    const candidates = (
+      await this.relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId(memberChannelId)
+    ).filter((channel) => {
+      const visibilityMode =
+        (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE;
+      return visibilityMode === "public" || visibilityMode === "whitelist";
+    });
+    const accessResults = await Promise.all(
+      candidates.map((channel) => this.canUserAccessChannel(channel, actorUserId, false)),
+    );
+    return candidates.filter((_, index) => accessResults[index]);
   }
 
   private async filterAccessibleChannels(channels: RelayChannel[], actorUserId: string): Promise<RelayChannel[]> {

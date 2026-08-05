@@ -257,7 +257,7 @@ export class RelayProxyService {
     private readonly relayChannelProbeLockService: RelayChannelProbeLockService = RelayChannelProbeLockService.getInstance(),
     private readonly relayChannelService: Pick<
       RelayChannelService,
-      "resolveUniqueAccessibleDirectPooledParent"
+      "resolveUniqueAccessibleDirectPooledParent" | "resolveAutomaticPoolUsageDisplayChannel"
     > = RelayChannelService.getInstance(),
   ) {}
 
@@ -2188,7 +2188,7 @@ export class RelayProxyService {
     relayGlobalMultiplier: number;
     channelMultiplier: number;
     executionChannelId: string;
-    displayChannelId: string;
+    displayChannelId: string | null;
     displayChannelName: string | null;
     channelId: string;
     monthlyPassCoverageAt: Date;
@@ -2318,7 +2318,7 @@ export class RelayProxyService {
     relayGlobalMultiplier: number,
     channelMultiplier: number,
     executionChannelId: string,
-    displayChannelId: string,
+    displayChannelId: string | null,
     displayChannelName: string | null,
     channelId: string,
     monthlyPassCoverageAt: Date,
@@ -2674,6 +2674,12 @@ export class RelayProxyService {
           candidate.billingChannel ?? displayChannel,
           resolvedBillingDisplayParents,
         );
+        const usageDisplayChannel =
+          relayToken.routingMode === "automatic-pool"
+            ? await this.relayChannelService.resolveAutomaticPoolUsageDisplayChannel(channel, relayToken.userId)
+            : billingDisplayChannel;
+        const usageDisplayChannelId = usageDisplayChannel?.id ?? null;
+        const usageDisplayChannelName = usageDisplayChannel?.name || null;
         const nextChannel = nextCandidate?.resolvedChannel;
         const nextDisplayChannel = nextCandidate?.displayChannel;
         const hasNextChannel = Boolean(nextCandidate);
@@ -2889,8 +2895,8 @@ export class RelayProxyService {
                   relayGlobalMultiplier,
                   channelMultiplier,
                   channel.id,
-                  billingDisplayChannel.id,
-                  billingDisplayChannel.name || null,
+                  usageDisplayChannelId,
+                  usageDisplayChannelName,
                   channel.id,
                   monthlyPassCoverageAt,
                   relayConfig.upstreamStreamTimeout,
@@ -2983,8 +2989,8 @@ export class RelayProxyService {
                   relayGlobalMultiplier,
                   channelMultiplier,
                   channel.id,
-                  billingDisplayChannel.id,
-                  billingDisplayChannel.name || null,
+                  usageDisplayChannelId,
+                  usageDisplayChannelName,
                   channel.id,
                   monthlyPassCoverageAt,
                   resourceGuard.nonStreamUpstreamTimeoutMs,
@@ -3093,8 +3099,8 @@ export class RelayProxyService {
                 firstByteTime,
                 isStreaming: false,
                 executionChannelId: channel.id,
-                displayChannelId: billingDisplayChannel.id,
-                displayChannelName: billingDisplayChannel.name || null,
+                displayChannelId: usageDisplayChannelId,
+                displayChannelName: usageDisplayChannelName,
                 channelMultiplier,
                 relayGlobalMultiplier,
                 timeMultiplier,
@@ -3200,8 +3206,8 @@ export class RelayProxyService {
                 cacheCreationMultiplier: cacheCreationMult,
                 cacheReadMultiplier: cacheReadMult,
                 executionChannelId: channel.id,
-                displayChannelId: billingDisplayChannel.id,
-                displayChannelName: billingDisplayChannel.name || null,
+                displayChannelId: usageDisplayChannelId,
+                displayChannelName: usageDisplayChannelName,
                 channelMultiplier,
                 globalMultiplier: relayGlobalMultiplier,
                 timeMultiplier,
@@ -3301,8 +3307,8 @@ export class RelayProxyService {
               modelId: selectedModelId,
               channelId: channel.id,
               executionChannelId: channel.id,
-              displayChannelId: billingDisplayChannel.id,
-              displayChannelName: billingDisplayChannel.name || null,
+              displayChannelId: usageDisplayChannelId,
+              displayChannelName: usageDisplayChannelName,
               monthlyPassCoverageAt,
               inputRate,
               outputRate,
@@ -3367,8 +3373,8 @@ export class RelayProxyService {
                 firstByteTime: null,
                 isStreaming: false,
                 executionChannelId: channel.id,
-                displayChannelId: billingDisplayChannel.id,
-                displayChannelName: billingDisplayChannel.name || null,
+                displayChannelId: usageDisplayChannelId,
+                displayChannelName: usageDisplayChannelName,
                 channelMultiplier,
                 relayGlobalMultiplier,
                 timeMultiplier,
@@ -3712,7 +3718,7 @@ export class RelayProxyService {
     relayGlobalMultiplier: number = globalMultiplier,
     channelMultiplier: number = 1,
     executionChannelId: string,
-    displayChannelId: string,
+    displayChannelId: string | null,
     displayChannelName: string | null,
     channelId: string,
     monthlyPassCoverageAt: Date,
