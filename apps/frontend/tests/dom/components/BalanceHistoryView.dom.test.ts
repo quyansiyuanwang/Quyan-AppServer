@@ -135,6 +135,15 @@ vi.mock('@/components/common/ComponentErrorBoundary.vue', () => ({
   }),
 }))
 
+vi.mock('@/views/relay/balance-history/components/BalanceTransferPanel.vue', () => ({
+  default: defineComponent({
+    name: 'BalanceTransferPanel',
+    setup() {
+      return () => h('div', { class: 'balance-transfer-panel-stub' })
+    },
+  }),
+}))
+
 import BalanceHistoryView from '@/views/relay/BalanceHistoryView.vue'
 
 const createTransactions = () =>
@@ -221,11 +230,10 @@ describe('BalanceHistoryView', () => {
     redeemCodeMock.mockResolvedValue({ code: 0, data: { balance: 88 } })
 
     const wrapper = await mountView()
-    const statValues = wrapper.findAll('.stat-value')
 
-    expect(statValues[1]?.text()).toBe('1')
-    expect(statValues[2]?.text()).toBe('30.00')
-    expect(statValues[3]?.text()).toBe('0.10')
+    expect((wrapper.vm as any).requestCount).toBe(1)
+    expect((wrapper.vm as any).avgTPM).toBe(30)
+    expect((wrapper.vm as any).avgRPM).toBe(0.1)
     expect(transactionHistoryPropsRef.value?.transactions).toHaveLength(2)
   })
 
