@@ -17,6 +17,7 @@ import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type { CreateRedemptionCodeDto, RedemptionCodeDto, RedeemCodeDto } from "@/api/dto/billing/redemption-code.dto";
 import { RedemptionCodeService } from "@/services/billing/redemption-code.service";
+import { BalanceTransferService } from "@/services/billing/balance-transfer.service";
 import {
   createRedemptionCodeBodySchema,
   redeemCodeBodySchema,
@@ -32,6 +33,7 @@ import { setResponseMessageKey } from "@/util/response-wrapper";
 @Tags("RedemptionCode")
 export class RedemptionCodeController extends Controller {
   private redemptionCodeService = RedemptionCodeService.getInstance();
+  private balanceTransferService = BalanceTransferService.getInstance();
 
   @Post("create")
   @Security("jwt")
@@ -66,6 +68,8 @@ export class RedemptionCodeController extends Controller {
   @Security("jwt")
   @Middlewares(replayProtectionMiddleware, validateBody(redeemCodeBodySchema))
   async redeemCode(@Body() body: RedeemCodeDto, @Request() request: TypedRequest): Promise<{ balance: number }> {
+    if (body.code.startsWith("ugc_"))
+      return await this.balanceTransferService.redeemGiftCode(body.code, request.user!.userId, request);
     return await this.redemptionCodeService.redeemCode(body.code, request.user!.userId, request);
   }
 

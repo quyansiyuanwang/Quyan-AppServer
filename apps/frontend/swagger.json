@@ -23781,6 +23781,200 @@
 				}
 			}
 		},
+		"/v1/balance/transfers/config": {
+			"get": {
+				"operationId": "BalanceControllerGetTransferConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BalanceTransferConfigDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Balance"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/balance/gift-codes": {
+			"post": {
+				"operationId": "BalanceControllerCreateGiftCode",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BalanceGiftCodeDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Balance"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateBalanceGiftCodeDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			},
+			"get": {
+				"operationId": "BalanceControllerGetMyGiftCodes",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BalanceGiftCodeListResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Balance"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/balance/gift-codes/{id}": {
+			"delete": {
+				"operationId": "BalanceControllerCancelGiftCode",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CancelBalanceGiftCodeResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Balance"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/balance/transfers": {
+			"post": {
+				"operationId": "BalanceControllerCreateTransfer",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BalanceTransferResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Balance"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateBalanceTransferDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/balance/transactions": {
 			"get": {
 				"operationId": "BalanceControllerGetMyTransactions",
@@ -33270,10 +33464,33 @@
 						"type": "number",
 						"format": "double",
 						"description": "充值比例：1 元可兑换的额度数量"
+					},
+					"giftCodeEnabled": {
+						"type": "boolean"
+					},
+					"directTransferEnabled": {
+						"type": "boolean"
+					},
+					"giftCodeFeePercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"directTransferFeePercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"giftCodeCancelFeeRefundPercent": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
-					"rechargeRatio"
+					"rechargeRatio",
+					"giftCodeEnabled",
+					"directTransferEnabled",
+					"giftCodeFeePercent",
+					"directTransferFeePercent",
+					"giftCodeCancelFeeRefundPercent"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -33670,10 +33887,33 @@
 						"type": "number",
 						"format": "double",
 						"description": "充值比例：1 元可兑换的额度数量"
+					},
+					"giftCodeEnabled": {
+						"type": "boolean"
+					},
+					"directTransferEnabled": {
+						"type": "boolean"
+					},
+					"giftCodeFeePercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"directTransferFeePercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"giftCodeCancelFeeRefundPercent": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
-					"rechargeRatio"
+					"rechargeRatio",
+					"giftCodeEnabled",
+					"directTransferEnabled",
+					"giftCodeFeePercent",
+					"directTransferFeePercent",
+					"giftCodeCancelFeeRefundPercent"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -33911,6 +34151,10 @@
 					"REDEMPTION_CODE_CREATE",
 					"REDEMPTION_CODE_DELETE",
 					"REDEMPTION_CODE_REDEEM",
+					"BALANCE_GIFT_CODE_CREATE",
+					"BALANCE_GIFT_CODE_CANCEL",
+					"BALANCE_GIFT_CODE_REDEEM",
+					"BALANCE_TRANSFER_CREATE",
 					"OJ_APIKEY_CREATE",
 					"OJ_APIKEY_UPDATE",
 					"OJ_APIKEY_DELETE",
@@ -45986,10 +46230,260 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"BalanceTransferConfigDto": {
+				"properties": {
+					"giftCodeEnabled": {
+						"type": "boolean"
+					},
+					"directTransferEnabled": {
+						"type": "boolean"
+					},
+					"giftCodeFeePercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"directTransferFeePercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"giftCodeCancelFeeRefundPercent": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"giftCodeEnabled",
+					"directTransferEnabled",
+					"giftCodeFeePercent",
+					"directTransferFeePercent",
+					"giftCodeCancelFeeRefundPercent"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BalanceGiftCodeDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"code": {
+						"type": "string"
+					},
+					"amount": {
+						"type": "number",
+						"format": "double"
+					},
+					"feeAmount": {
+						"type": "number",
+						"format": "double"
+					},
+					"feePercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"cancelFeeRefundPercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalDebit": {
+						"type": "number",
+						"format": "double"
+					},
+					"refundedAmount": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"state": {
+						"type": "string",
+						"enum": [
+							"active",
+							"redeemed",
+							"cancelled"
+						]
+					},
+					"redeemedByUsername": {
+						"type": "string",
+						"nullable": true
+					},
+					"redeemedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"cancelledAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"expiresAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"code",
+					"amount",
+					"feeAmount",
+					"feePercent",
+					"cancelFeeRefundPercent",
+					"totalDebit",
+					"state",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateBalanceGiftCodeDto": {
+				"properties": {
+					"amount": {
+						"type": "number",
+						"format": "double",
+						"description": "收款人最终到账金额"
+					},
+					"expiresAt": {
+						"type": "string",
+						"format": "date-time",
+						"description": "可选兑换截止时间"
+					}
+				},
+				"required": [
+					"amount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BalanceGiftCodeListResponse": {
+				"properties": {
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"records": {
+						"items": {
+							"$ref": "#/components/schemas/BalanceGiftCodeDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"total",
+					"records",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CancelBalanceGiftCodeResponse": {
+				"properties": {
+					"refundedAmount": {
+						"type": "number",
+						"format": "double"
+					},
+					"balance": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"refundedAmount",
+					"balance"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BalanceTransferResponse": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"recipientUsername": {
+						"type": "string"
+					},
+					"amount": {
+						"type": "number",
+						"format": "double"
+					},
+					"feeAmount": {
+						"type": "number",
+						"format": "double"
+					},
+					"feePercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalDebit": {
+						"type": "number",
+						"format": "double"
+					},
+					"balance": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"recipientUsername",
+					"amount",
+					"feeAmount",
+					"feePercent",
+					"totalDebit",
+					"balance",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateBalanceTransferDto": {
+				"properties": {
+					"recipientUsername": {
+						"type": "string",
+						"description": "收款人唯一用户名"
+					},
+					"amount": {
+						"type": "number",
+						"format": "double",
+						"description": "收款人最终到账金额"
+					},
+					"description": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"recipientUsername",
+					"amount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"BalanceTransactionCategory": {
 				"type": "string",
 				"enum": [
 					"redemption",
+					"gift_code_create",
+					"gift_code_redeem",
+					"gift_code_cancel",
+					"peer_transfer_out",
+					"peer_transfer_in",
 					"chat_usage",
 					"api_usage",
 					"monthly_pass_coverage",

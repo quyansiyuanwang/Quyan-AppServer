@@ -11,6 +11,8 @@
         <el-option :label="i18ns.t('nav.chat')" value="chat_usage" />
         <el-option :label="i18ns.t('balance.apiUsage')" value="api_usage" />
         <el-option :label="i18ns.t('balance.monthlyPassCoverage')" value="monthly_pass_coverage" />
+        <el-option :label="i18ns.t('balance.giftCode')" value="gift_code_create" />
+        <el-option :label="i18ns.t('balance.directTransfer')" value="peer_transfer_out" />
         <el-option :label="i18ns.t('balance.adminAdjustment')" value="recharge" />
       </el-select>
       <el-select
@@ -283,6 +285,18 @@
               size="small"
               >{{ i18ns.t('balance.monthlyPassCoverage') }}</el-tag
             >
+            <el-tag
+              v-else-if="getTransactionCategory(row).startsWith('gift_code')"
+              type="success"
+              size="small"
+              >{{ i18ns.t('balance.giftCode') }}</el-tag
+            >
+            <el-tag
+              v-else-if="getTransactionCategory(row).startsWith('peer_transfer')"
+              type="primary"
+              size="small"
+              >{{ i18ns.t('balance.directTransfer') }}</el-tag
+            >
             <el-tag v-else type="info" size="small">{{
               i18ns.t('balance.adminAdjustment')
             }}</el-tag>
@@ -400,6 +414,18 @@
               type="success"
               size="small"
               >{{ i18ns.t('balance.monthlyPassCoverage') }}</el-tag
+            >
+            <el-tag
+              v-else-if="getTransactionCategory(row).startsWith('gift_code')"
+              type="success"
+              size="small"
+              >{{ i18ns.t('balance.giftCode') }}</el-tag
+            >
+            <el-tag
+              v-else-if="getTransactionCategory(row).startsWith('peer_transfer')"
+              type="primary"
+              size="small"
+              >{{ i18ns.t('balance.directTransfer') }}</el-tag
             >
             <el-tag v-else type="info" size="small">{{
               i18ns.t('balance.adminAdjustment')
@@ -1040,6 +1066,11 @@ const typeChartOption = computed(() => {
     chat_usage: i18ns.t('nav.chat'),
     api_usage: i18ns.t('balance.apiUsage'),
     monthly_pass_coverage: i18ns.t('balance.monthlyPassCoverage'),
+    gift_code_create: i18ns.t('balance.giftCode'),
+    gift_code_redeem: i18ns.t('balance.giftCode'),
+    gift_code_cancel: i18ns.t('balance.giftCode'),
+    peer_transfer_out: i18ns.t('balance.directTransfer'),
+    peer_transfer_in: i18ns.t('balance.directTransfer'),
     recharge: i18ns.t('balance.adminAdjustment'),
   }
   return {

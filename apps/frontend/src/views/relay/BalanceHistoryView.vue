@@ -4,6 +4,7 @@
   >
     <div class="balance-container">
       <BalanceHistorySummary :card-class="isDesktop ? 'page-card' : 'mobile-card'" />
+      <BalanceTransferPanel @changed="state.refreshBalanceAndStats" />
       <BalanceHistoryTransactions :card-class="isDesktop ? 'page-card' : 'mobile-card'" />
     </div>
   </div>
@@ -13,6 +14,7 @@
 import { provide } from 'vue'
 import BalanceHistorySummary from './balance-history/components/BalanceHistorySummary.vue'
 import BalanceHistoryTransactions from './balance-history/components/BalanceHistoryTransactions.vue'
+import BalanceTransferPanel from './balance-history/components/BalanceTransferPanel.vue'
 import { balanceHistoryContextKey } from './balance-history/context'
 import { useBalanceHistory } from './balance-history/useBalanceHistory'
 

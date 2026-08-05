@@ -372,6 +372,11 @@ export class ConfigController extends Controller {
     await this.configService.setMultiple(
       {
         [CONFIG_KEYS.BILLING.RECHARGE_RATIO]: String(body.rechargeRatio),
+        [CONFIG_KEYS.BILLING.GIFT_CODE_ENABLED]: String(body.giftCodeEnabled),
+        [CONFIG_KEYS.BILLING.DIRECT_TRANSFER_ENABLED]: String(body.directTransferEnabled),
+        [CONFIG_KEYS.BILLING.GIFT_CODE_FEE_PERCENT]: String(body.giftCodeFeePercent),
+        [CONFIG_KEYS.BILLING.DIRECT_TRANSFER_FEE_PERCENT]: String(body.directTransferFeePercent),
+        [CONFIG_KEYS.BILLING.GIFT_CODE_CANCEL_FEE_REFUND_PERCENT]: String(body.giftCodeCancelFeeRefundPercent),
       },
       currentUserId,
       request,

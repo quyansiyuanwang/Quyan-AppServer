@@ -31,6 +31,11 @@ export interface BillingConfigDto {
    * 充值比例：1 元可兑换的额度数量
    */
   rechargeRatio: number;
+  giftCodeEnabled: boolean;
+  directTransferEnabled: boolean;
+  giftCodeFeePercent: number;
+  directTransferFeePercent: number;
+  giftCodeCancelFeeRefundPercent: number;
 }
 
 export type CaptchaProviderDto = "none" | "recaptcha" | "turnstile";
@@ -97,6 +102,11 @@ export interface SetBillingConfigDto {
    * 充值比例：1 元可兑换的额度数量
    */
   rechargeRatio: number;
+  giftCodeEnabled: boolean;
+  directTransferEnabled: boolean;
+  giftCodeFeePercent: number;
+  directTransferFeePercent: number;
+  giftCodeCancelFeeRefundPercent: number;
 }
 
 export interface SiteConfigDto {
