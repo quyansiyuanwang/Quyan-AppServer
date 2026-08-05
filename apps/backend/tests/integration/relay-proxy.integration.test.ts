@@ -1452,8 +1452,8 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         expect(successfulUsage).toMatchObject({
           statusCode: 200,
           executionChannelId: tertiary.id,
-          displayChannelId: automaticPool.id,
-          displayChannelName: automaticPool.name,
+          displayChannelId: billingPool.id,
+          displayChannelName: billingPool.name,
         });
         expect(successfulUsage.displayChannelId).not.toBe(secondary.id);
 
@@ -1461,8 +1461,8 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           where: { relatedId: successfulUsage.id, type: "api_usage" },
         });
         expect(transaction).toMatchObject({
-          displayChannelId: automaticPool.id,
-          displayChannelName: automaticPool.name,
+          displayChannelId: billingPool.id,
+          displayChannelName: billingPool.name,
         });
 
         const statsRows = await ConsumptionStatsRepository.getInstance().listUsageRows(
@@ -1470,7 +1470,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           new Date(successfulUsage.createTime.getTime() + 60_000),
         );
         expect(statsRows).toContainEqual(
-          expect.objectContaining({ usageId: successfulUsage.id, channelName: automaticPool.name }),
+          expect.objectContaining({ usageId: successfulUsage.id, channelName: billingPool.name }),
         );
 
         const switchLogs = await prisma.relayChannelSwitchLog.findMany({

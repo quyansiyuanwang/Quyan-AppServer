@@ -286,6 +286,7 @@ const createService = (
   };
   const relayChannelService = {
     resolveUniqueAccessibleDirectPooledParent: vi.fn().mockResolvedValue(null),
+    resolveAutomaticPoolUsageDisplayChannel: vi.fn().mockImplementation(async (channel: any) => channel),
   };
   const redis = {
     isRedisAvailable: vi.fn().mockReturnValue(true),
@@ -817,7 +818,7 @@ describe("RelayProxyService failover", () => {
     );
   });
 
-  it("shows the automatic proxy pool while retaining its executing member for charging", async () => {
+  it("shows the automatic pool's executing standalone channel without changing charging", async () => {
     const relayToken = createRelayTokenWithPooledChannel();
     relayToken.channel.channelType = "automatic-proxy-pool";
     relayToken.channel.multiplier = 99;
@@ -844,8 +845,8 @@ describe("RelayProxyService failover", () => {
       expect.objectContaining({
         channelId: "member-b",
         executionChannelId: "member-b",
-        displayChannelId: "pool-1",
-        displayChannelName: "Pool",
+        displayChannelId: "member-b",
+        displayChannelName: "Member B",
         channelMultiplier: 1,
       }),
     );

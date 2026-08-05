@@ -3,10 +3,9 @@ import type { RelayUsage } from "@prisma/client";
 export type RelayUsageWithTokenName = RelayUsage & {
   relayToken: {
     name: string | null;
+    userId: string;
     routingMode: string;
-    automaticProxyPoolChannel: {
-      name: string;
-    } | null;
+    automaticProxyPoolChannelId: string | null;
   } | null;
   logicalRequest: {
     requestId: string;

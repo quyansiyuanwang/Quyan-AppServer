@@ -60,8 +60,9 @@ export class RelayUsageRepository implements RelayUsageStore {
             relayToken: {
               select: {
                 name: true,
+                userId: true,
                 routingMode: true,
-                automaticProxyPoolChannel: { select: { name: true } },
+                automaticProxyPoolChannelId: true,
               },
             },
             logicalRequest: { select: { requestId: true } },

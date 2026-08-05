@@ -53,6 +53,7 @@ import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/uti
 import { isMonthlyPassCoverageDescription } from "@/util/monthly-pass-coverage.util";
 import { normalizeRelayDisplaySnapshotName } from "@/util/relay-display-channel.util";
 import { BalanceTransferService } from "@/services/billing/balance-transfer.service";
+import { RelayChannelService } from "@/services/relay/relay-channel.service";
 
 type UsageDataMap = Map<
   string,
@@ -62,9 +63,9 @@ type UsageDataMap = Map<
     isStreaming: boolean;
     requestId: string | null;
     displayChannelName: string | null;
-    automaticProxyPoolName: string | null;
+    automaticPoolDisplayChannelName: string | null;
+    isAutomaticPoolUsage: boolean;
     hideDisplayChannel: boolean;
-    hasHiddenDisplayChannel: boolean;
     legacyMonthlyPassChannelName: string | null;
   }
 >;
@@ -84,6 +85,7 @@ export class BalanceController extends Controller {
   private balanceService = BalanceService.getInstance();
   private balanceTransferService = BalanceTransferService.getInstance();
   private relayUsageRepository = RelayUsageRepository.getInstance();
+  private relayChannelService = RelayChannelService.getInstance();
 
   private isChatUsageDescription(description?: string | null): boolean {
     if (!description) return false;
@@ -133,26 +135,60 @@ export class BalanceController extends Controller {
     const usageDataMap: UsageDataMap = new Map();
 
     const usages = await this.relayUsageRepository.findByIdsWithTokenName(relatedIds);
+    const automaticDisplayChannels = new Map<string, string | null>();
+    const automaticUsageKeys = new Map<string, { executionChannelId: string; userId: string }>();
+
+    for (const usage of usages) {
+      const relayToken = usage.relayToken;
+      const storedDisplayChannelName = normalizeRelayDisplaySnapshotName(usage.displayChannelName);
+      const needsRecovery =
+        relayToken?.routingMode === "automatic-pool" &&
+        Boolean(usage.executionChannelId) &&
+        (usage.displayChannelId === relayToken.automaticProxyPoolChannelId || !storedDisplayChannelName);
+      if (!needsRecovery || !usage.executionChannelId || !relayToken) continue;
+
+      const key = `${relayToken.userId}\u0000${usage.executionChannelId}`;
+      automaticUsageKeys.set(key, { executionChannelId: usage.executionChannelId, userId: relayToken.userId });
+    }
+
+    await Promise.all(
+      [...automaticUsageKeys].map(async ([key, { executionChannelId, userId }]) => {
+        const channel = await this.relayChannelService.resolveAutomaticPoolUsageDisplayChannelById(
+          executionChannelId,
+          userId,
+        );
+        automaticDisplayChannels.set(key, channel?.name?.trim() || null);
+      }),
+    );
+
     usages.forEach((u) => {
       if (u.relayToken?.name) tokenNameMap.set(u.id, u.relayToken.name);
       const legacyMonthlyPassChannelNames = new Set(
         u.monthlyPassUsages.map((usage) => usage.channelName?.trim()).filter((name): name is string => Boolean(name)),
       );
+      const relayToken = u.relayToken;
+      const storedDisplayChannelName = normalizeRelayDisplaySnapshotName(u.displayChannelName) || null;
+      const needsRecovery =
+        relayToken?.routingMode === "automatic-pool" &&
+        Boolean(u.executionChannelId) &&
+        (u.displayChannelId === relayToken.automaticProxyPoolChannelId || !storedDisplayChannelName);
+      const automaticUsageKey =
+        relayToken?.routingMode === "automatic-pool" && u.executionChannelId
+          ? `${relayToken.userId}\u0000${u.executionChannelId}`
+          : null;
+      const isAutomaticPoolUsage = relayToken?.routingMode === "automatic-pool";
       usageDataMap.set(u.id, {
         totalOutputTime: u.totalOutputTime,
         timeToFirstByte: u.timeToFirstByte,
         isStreaming: u.isStreaming,
         requestId: u.logicalRequest?.requestId || null,
-        displayChannelName: u.displayChannelName,
-        automaticProxyPoolName:
-          u.relayToken?.routingMode === "automatic-pool"
-            ? u.relayToken.automaticProxyPoolChannel?.name?.trim() || null
-            : null,
-        hideDisplayChannel:
-          u.relayToken?.routingMode !== "automatic-pool" || !u.relayToken.automaticProxyPoolChannel?.name?.trim()
-            ? u.hasHiddenDisplayChannel
-            : false,
-        hasHiddenDisplayChannel: u.hasHiddenDisplayChannel,
+        displayChannelName: storedDisplayChannelName,
+        automaticPoolDisplayChannelName:
+          needsRecovery && automaticUsageKey && automaticDisplayChannels.has(automaticUsageKey)
+            ? automaticDisplayChannels.get(automaticUsageKey) || null
+            : storedDisplayChannelName,
+        isAutomaticPoolUsage,
+        hideDisplayChannel: !isAutomaticPoolUsage && u.hasHiddenDisplayChannel,
         legacyMonthlyPassChannelName:
           legacyMonthlyPassChannelNames.size === 1 ? [...legacyMonthlyPassChannelNames][0] : null,
       });
@@ -194,10 +230,8 @@ export class BalanceController extends Controller {
     const storedDisplayChannelName =
       normalizeRelayDisplaySnapshotName(r.displayChannelName) ||
       normalizeRelayDisplaySnapshotName(usageData?.displayChannelName);
-    const displayChannelName = usageData?.automaticProxyPoolName
-      ? usageData.hasHiddenDisplayChannel
-        ? usageData.automaticProxyPoolName
-        : storedDisplayChannelName || usageData.automaticProxyPoolName
+    const displayChannelName = usageData?.isAutomaticPoolUsage
+      ? usageData.automaticPoolDisplayChannelName || undefined
       : usageData?.hideDisplayChannel
         ? undefined
         : r.channelName?.trim() || usageData?.legacyMonthlyPassChannelName || storedDisplayChannelName || undefined;

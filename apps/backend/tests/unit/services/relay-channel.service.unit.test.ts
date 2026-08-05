@@ -388,6 +388,38 @@ describe("RelayChannelService", () => {
     expect(relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId).toHaveBeenCalledWith("claude-gwl-1");
   });
 
+  it("resolves automatic-pool usage to a visible pool or standalone channel", async () => {
+    const standalone = {
+      ...sampleChannel,
+      id: "standalone-channel",
+      name: "Standalone Channel",
+      channelType: "standalone",
+      visibilityMode: "public",
+    };
+    const parentPool = {
+      ...sampleChannel,
+      id: "pooled-channel",
+      name: "Pooled Channel",
+      channelType: "pooled",
+      visibilityMode: "public",
+    };
+
+    relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId.mockResolvedValue([parentPool]);
+    await expect(service.resolveAutomaticPoolUsageDisplayChannel(standalone as any, "token-owner")).resolves.toEqual(
+      parentPool,
+    );
+
+    relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId.mockResolvedValue([]);
+    await expect(service.resolveAutomaticPoolUsageDisplayChannel(standalone as any, "token-owner")).resolves.toEqual(
+      standalone,
+    );
+
+    relayChannelRepository.findActiveById.mockResolvedValue(standalone);
+    await expect(
+      service.resolveAutomaticPoolUsageDisplayChannelById("standalone-channel", "token-owner"),
+    ).resolves.toEqual(standalone);
+  });
+
   it("resolves a whitelisted direct pooled parent only for an allowed user", async () => {
     const parentPool = {
       ...sampleChannel,
@@ -419,6 +451,12 @@ describe("RelayChannelService", () => {
       { ...publicParent, id: "claude-backup" },
     ]);
     await expect(service.resolveUniqueAccessibleDirectPooledParent("claude-gwl-1", "token-owner")).resolves.toBeNull();
+    await expect(
+      service.resolveAutomaticPoolUsageDisplayChannel(
+        { ...sampleChannel, id: "claude-gwl-1", channelType: "standalone", visibilityMode: "public" } as any,
+        "token-owner",
+      ),
+    ).resolves.toBeNull();
 
     relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId.mockResolvedValue([
       { ...publicParent, visibilityMode: "private" },
@@ -429,6 +467,32 @@ describe("RelayChannelService", () => {
       { ...publicParent, visibilityMode: "hidden" },
     ]);
     await expect(service.resolveUniqueAccessibleDirectPooledParent("claude-gwl-1", "token-owner")).resolves.toBeNull();
+
+    relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId.mockResolvedValue([]);
+    await expect(
+      service.resolveAutomaticPoolUsageDisplayChannel(
+        { ...sampleChannel, id: "hidden-channel", channelType: "standalone", visibilityMode: "hidden" } as any,
+        "token-owner",
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      service.resolveAutomaticPoolUsageDisplayChannel(
+        { ...sampleChannel, id: "private-channel", channelType: "standalone", visibilityMode: "private" } as any,
+        "token-owner",
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      service.resolveAutomaticPoolUsageDisplayChannel(
+        {
+          ...sampleChannel,
+          id: "whitelist-channel",
+          channelType: "standalone",
+          visibilityMode: "whitelist",
+          visibilityConfig: { userIds: ["another-user"] },
+        } as any,
+        "token-owner",
+      ),
+    ).resolves.toBeNull();
   });
 
   it.skip("legacy token-managed pools were removed", async () => {
