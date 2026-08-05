@@ -17,9 +17,11 @@ description: 实现或审查 AppServerMonorepo Vue 前端改动。涉及页面�
 6. 同步维护 `zh-CN`、`en`、`emoji` 的 locale key。
 7. 沿用 Element Plus 与现有响应式模式；客户端检查不能掩盖服务端的授权失败。
 8. 后端契约变更时执行 `pnpm run openapi:gen:all`，再执行最小相关 Node/DOM 测试和 `pnpm --filter @appserver/frontend run type-check`。
+9. 所有可能持续增长的表格、记录列表和资源列表必须使用服务端分页或等价的分段加载；维护页码、每页条数和总数，翻页/改页大小重新请求，并在增删改后刷新列表。仅有明确上限的静态列表可免除分页。
 
 ## 边界
 
 - 不得新增绕过 `stores/request.ts` 的第二套 HTTP/认证客户端或浏览器直连调用。
 - 不得通过管理 DTO 或浏览器过滤推断敏感 Relay 拓扑。
+- 不得把一次性拉取全部记录后在浏览器本地切片当作可增长列表的分页实现。
 - 生成 API/shared 权限变更使用 `appserver-contracts`；测试环境选择使用 `appserver-testing-ci`。

@@ -2,6 +2,11 @@ import type { BalanceTransactionResponse } from '@/client/types.gen'
 
 export type TransactionCategory =
   | 'redemption'
+  | 'gift_code_create'
+  | 'gift_code_redeem'
+  | 'gift_code_cancel'
+  | 'peer_transfer_out'
+  | 'peer_transfer_in'
   | 'chat_usage'
   | 'api_usage'
   | 'monthly_pass_coverage'
@@ -21,6 +26,11 @@ export const getBackendCategory = (tx: BalanceTransactionResponse): TransactionC
 
   if (
     category === 'redemption' ||
+    category === 'gift_code_create' ||
+    category === 'gift_code_redeem' ||
+    category === 'gift_code_cancel' ||
+    category === 'peer_transfer_out' ||
+    category === 'peer_transfer_in' ||
     category === 'chat_usage' ||
     category === 'api_usage' ||
     category === 'monthly_pass_coverage' ||
@@ -68,6 +78,14 @@ export const getTransactionCategory = (tx: BalanceTransactionResponse): Transact
   if (isMonthlyPassCoverageDescription(tx.description)) return 'monthly_pass_coverage'
   if (tx.type === 'monthly_pass_coverage') return 'monthly_pass_coverage'
   if (tx.type === 'redemption') return 'redemption'
+  if (
+    tx.type === 'gift_code_create' ||
+    tx.type === 'gift_code_redeem' ||
+    tx.type === 'gift_code_cancel' ||
+    tx.type === 'peer_transfer_out' ||
+    tx.type === 'peer_transfer_in'
+  )
+    return tx.type
   if (isApiUsageRecord(tx)) return isChatDescription(tx.description) ? 'chat_usage' : 'api_usage'
   return 'recharge'
 }

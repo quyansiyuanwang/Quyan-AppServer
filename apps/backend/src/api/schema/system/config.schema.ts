@@ -13,6 +13,11 @@ export const setBillingConfigBodySchema = z.object({
   rechargeRatio: z.coerce.number().positive().max(1000000).refine(maxFourDecimalPlaces, {
     message: "充值比例最多支持 4 位小数",
   }),
+  giftCodeEnabled: z.coerce.boolean(),
+  directTransferEnabled: z.coerce.boolean(),
+  giftCodeFeePercent: z.coerce.number().min(0).max(100).refine(maxFourDecimalPlaces),
+  directTransferFeePercent: z.coerce.number().min(0).max(100).refine(maxFourDecimalPlaces),
+  giftCodeCancelFeeRefundPercent: z.coerce.number().min(0).max(100).refine(maxFourDecimalPlaces),
 });
 
 export const setHeartbeatConfigBodySchema = z.object({

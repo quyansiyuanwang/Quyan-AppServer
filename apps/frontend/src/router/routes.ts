@@ -678,6 +678,11 @@ export const routes = [
             component: () => import('@/views/relay/BalanceHistoryView.vue'),
           },
           {
+            path: 'account/consumption',
+            name: 'consumptionRecords',
+            component: () => import('@/views/relay/ConsumptionRecordsView.vue'),
+          },
+          {
             path: 'account/tickets',
             name: 'myTickets',
             component: () => import('@/views/workspace/WorkspaceTicketView.vue'),

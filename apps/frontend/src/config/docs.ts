@@ -42,6 +42,7 @@ const docsRouteToSlug = {
   debug: 'debug-tools',
   scriptManager: 'script-manager',
   balanceHistory: 'balance-history',
+  consumptionRecords: 'consumption-records',
   myTickets: 'my-tickets',
   myMonthlyPasses: 'my-monthly-passes',
   myRemoteTerminalProducts: 'my-remote-terminal-products',

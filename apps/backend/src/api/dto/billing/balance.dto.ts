@@ -21,6 +21,11 @@ export interface RechargeRequest {
 
 export type BalanceTransactionCategory =
   | "redemption"
+  | "gift_code_create"
+  | "gift_code_redeem"
+  | "gift_code_cancel"
+  | "peer_transfer_out"
+  | "peer_transfer_in"
   | "chat_usage"
   | "api_usage"
   | "monthly_pass_coverage"

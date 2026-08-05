@@ -2,18 +2,35 @@
   <div class="transaction-history">
     <div class="filter-section">
       <el-select
+        v-if="props.scope !== 'account'"
         v-model="localFilters.type"
         :placeholder="i18ns.t('balance.allTypes')"
         clearable
         :style="isDesktop ? { width: '180px' } : { width: '100%' }"
       >
-        <el-option :label="i18ns.t('balance.redemption')" value="redemption" />
-        <el-option :label="i18ns.t('nav.chat')" value="chat_usage" />
-        <el-option :label="i18ns.t('balance.apiUsage')" value="api_usage" />
-        <el-option :label="i18ns.t('balance.monthlyPassCoverage')" value="monthly_pass_coverage" />
-        <el-option :label="i18ns.t('balance.adminAdjustment')" value="recharge" />
+        <template v-if="props.scope === 'consumption'">
+          <el-option :label="i18ns.t('nav.chat')" value="chat_usage" />
+          <el-option :label="i18ns.t('balance.apiUsage')" value="api_usage" />
+          <el-option
+            :label="i18ns.t('balance.monthlyPassCoverage')"
+            value="monthly_pass_coverage"
+          />
+        </template>
+        <template v-else>
+          <el-option :label="i18ns.t('balance.redemption')" value="redemption" />
+          <el-option :label="i18ns.t('nav.chat')" value="chat_usage" />
+          <el-option :label="i18ns.t('balance.apiUsage')" value="api_usage" />
+          <el-option
+            :label="i18ns.t('balance.monthlyPassCoverage')"
+            value="monthly_pass_coverage"
+          />
+          <el-option :label="i18ns.t('balance.giftCode')" value="gift_code_create" />
+          <el-option :label="i18ns.t('balance.directTransfer')" value="peer_transfer_out" />
+          <el-option :label="i18ns.t('balance.adminAdjustment')" value="recharge" />
+        </template>
       </el-select>
       <el-select
+        v-if="props.scope !== 'account'"
         v-model="localFilters.tokenName"
         :placeholder="i18ns.t('balance.selectToken')"
         clearable
@@ -22,6 +39,7 @@
         <el-option v-for="token in availableTokens" :key="token" :label="token" :value="token" />
       </el-select>
       <el-select
+        v-if="props.scope !== 'account'"
         v-model="localFilters.displayChannelName"
         :placeholder="i18ns.t('balance.selectChannel')"
         clearable
@@ -35,6 +53,7 @@
         />
       </el-select>
       <el-input
+        v-if="props.scope !== 'account'"
         v-model="localFilters.model"
         :placeholder="i18ns.t('balance.selectModel')"
         clearable
@@ -71,6 +90,9 @@
           value-format="YYYY-MM-DDTHH:mm:ss.SSSZ"
         />
       </template>
+      <el-button link :disabled="!hasActiveFilters" @click="clearFilters">
+        {{ i18ns.t('balance.clearFilters') }}
+      </el-button>
       <el-button
         :icon="Refresh"
         :disabled="props.loadingFull"
@@ -283,6 +305,18 @@
               size="small"
               >{{ i18ns.t('balance.monthlyPassCoverage') }}</el-tag
             >
+            <el-tag
+              v-else-if="getTransactionCategory(row).startsWith('gift_code')"
+              type="success"
+              size="small"
+              >{{ i18ns.t('balance.giftCode') }}</el-tag
+            >
+            <el-tag
+              v-else-if="getTransactionCategory(row).startsWith('peer_transfer')"
+              type="primary"
+              size="small"
+              >{{ i18ns.t('balance.directTransfer') }}</el-tag
+            >
             <el-tag v-else type="info" size="small">{{
               i18ns.t('balance.adminAdjustment')
             }}</el-tag>
@@ -400,6 +434,18 @@
               type="success"
               size="small"
               >{{ i18ns.t('balance.monthlyPassCoverage') }}</el-tag
+            >
+            <el-tag
+              v-else-if="getTransactionCategory(row).startsWith('gift_code')"
+              type="success"
+              size="small"
+              >{{ i18ns.t('balance.giftCode') }}</el-tag
+            >
+            <el-tag
+              v-else-if="getTransactionCategory(row).startsWith('peer_transfer')"
+              type="primary"
+              size="small"
+              >{{ i18ns.t('balance.directTransfer') }}</el-tag
             >
             <el-tag v-else type="info" size="small">{{
               i18ns.t('balance.adminAdjustment')
@@ -696,6 +742,7 @@ const props = defineProps<{
     label: string
     disabled?: boolean
   }>
+  scope?: 'account' | 'consumption' | 'all'
 }>()
 
 const emit = defineEmits<{
@@ -723,6 +770,22 @@ const localFilters = ref({
 })
 const dateRange = ref<[Date, Date] | null>(null)
 const pagination = ref({ page: 1, pageSize: 20, total: 0 })
+
+const hasActiveFilters = computed(() =>
+  Object.values(localFilters.value).some((value) => Boolean(value)),
+)
+
+const clearFilters = () => {
+  localFilters.value = {
+    type: '',
+    model: '',
+    tokenName: '',
+    displayChannelName: '',
+    startTime: '',
+    endTime: '',
+  }
+  dateRange.value = null
+}
 
 const rangeSliderValue = computed<number>({
   get: () => props.rangeSlider?.value ?? 0,
@@ -935,7 +998,7 @@ const filterOptions = computed(() => {
   const tokens = new Set<string>()
   const channels = new Set<string>()
 
-  props.transactions.forEach((transaction) => {
+  scopedTransactions.value.forEach((transaction) => {
     if (transaction.tokenName) tokens.add(transaction.tokenName)
     if (transaction.displayChannelName) channels.add(transaction.displayChannelName)
   })
@@ -950,8 +1013,19 @@ const availableTokens = computed(() => filterOptions.value.tokens)
 
 const availableChannels = computed(() => filterOptions.value.channels)
 
+const consumptionCategories = new Set(['chat_usage', 'api_usage', 'monthly_pass_coverage'])
+
+const scopedTransactions = computed(() => {
+  if (!props.scope || props.scope === 'all') return props.transactions
+
+  return props.transactions.filter((transaction) => {
+    const isConsumption = consumptionCategories.has(getTransactionCategory(transaction))
+    return props.scope === 'consumption' ? isConsumption : !isConsumption
+  })
+})
+
 const filteredTransactions = computed(() => {
-  let filtered = props.transactions
+  let filtered = scopedTransactions.value
   if (localFilters.value.type)
     filtered = filtered.filter((t) => getTransactionCategory(t) === localFilters.value.type)
   if (localFilters.value.model)
@@ -1040,6 +1114,11 @@ const typeChartOption = computed(() => {
     chat_usage: i18ns.t('nav.chat'),
     api_usage: i18ns.t('balance.apiUsage'),
     monthly_pass_coverage: i18ns.t('balance.monthlyPassCoverage'),
+    gift_code_create: i18ns.t('balance.giftCode'),
+    gift_code_redeem: i18ns.t('balance.giftCode'),
+    gift_code_cancel: i18ns.t('balance.giftCode'),
+    peer_transfer_out: i18ns.t('balance.directTransfer'),
+    peer_transfer_in: i18ns.t('balance.directTransfer'),
     recharge: i18ns.t('balance.adminAdjustment'),
   }
   return {

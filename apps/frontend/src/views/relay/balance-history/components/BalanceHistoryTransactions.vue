@@ -3,9 +3,15 @@ import ComponentErrorBoundary from '@/components/common/ComponentErrorBoundary.v
 import TransactionHistory from '@/components/balance/TransactionHistory.vue'
 import { useBalanceHistoryContext } from '../context'
 
-defineProps<{
-  cardClass: string
-}>()
+withDefaults(
+  defineProps<{
+    cardClass: string
+    scope?: 'account' | 'consumption' | 'all'
+  }>(),
+  {
+    scope: 'all',
+  },
+)
 
 const state = useBalanceHistoryContext()
 const allTransactions = state.allTransactions
@@ -26,6 +32,7 @@ const handleHistorySliderChange = state.handleHistorySliderChange
         :loading-full="loadingAllData"
         :range-hint="historyRangeHint"
         :range-slider="historyRangeSlider"
+        :scope="scope"
         @refresh="refreshTransactions"
         @range-slider-change="handleHistorySliderChange"
       />

@@ -611,6 +611,13 @@ const overviewSections = computed<OverviewSection[]>(() => {
           visible: can(Permission.RELAY_TOKEN_READ),
         },
         {
+          key: 'consumptionRecords',
+          label: i18ns.t('nav.consumptionRecords'),
+          icon: TrendCharts,
+          route: 'consumptionRecords',
+          visible: can(Permission.RELAY_TOKEN_READ),
+        },
+        {
           key: 'myTickets',
           label: i18ns.t('nav.myTickets'),
           icon: ChatDotRound,

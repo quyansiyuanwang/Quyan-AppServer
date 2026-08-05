@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Route, Security, Body, Query, Request, Path, Tags, Middlewares } from "@tsoa/runtime";
+import {
+  Controller,
+  Delete,
+  Get,
+  Post,
+  Route,
+  Security,
+  Body,
+  Query,
+  Request,
+  Path,
+  Tags,
+  Middlewares,
+} from "@tsoa/runtime";
 import { BalanceService } from "@/services/billing/balance.service";
 import type {
   BalanceAccountResponse,
@@ -6,6 +19,15 @@ import type {
   RechargeRequest,
   TransactionListResponse,
 } from "@/api/dto/billing/balance.dto";
+import type {
+  BalanceGiftCodeDto,
+  BalanceGiftCodeListResponse,
+  BalanceTransferConfigDto,
+  BalanceTransferResponse,
+  CancelBalanceGiftCodeResponse,
+  CreateBalanceGiftCodeDto,
+  CreateBalanceTransferDto,
+} from "@/api/dto/billing/balance-transfer.dto";
 import type { UserBalanceResponse } from "@/api/dto/billing/user-balance.dto";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
@@ -19,11 +41,18 @@ import {
   batchBalanceAccountsBodySchema,
   rechargeBodySchema,
 } from "@/api/schema/billing/balance.schema";
+import {
+  balanceGiftCodeListQuerySchema,
+  balanceGiftCodeParamsSchema,
+  createBalanceGiftCodeBodySchema,
+  createBalanceTransferBodySchema,
+} from "@/api/schema/billing/balance-transfer.schema";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { isMonthlyPassCoverageDescription } from "@/util/monthly-pass-coverage.util";
 import { normalizeRelayDisplaySnapshotName } from "@/util/relay-display-channel.util";
+import { BalanceTransferService } from "@/services/billing/balance-transfer.service";
 
 type UsageDataMap = Map<
   string,
@@ -44,6 +73,7 @@ type UsageDataMap = Map<
 @Tags("Balance")
 export class BalanceController extends Controller {
   private balanceService = BalanceService.getInstance();
+  private balanceTransferService = BalanceTransferService.getInstance();
   private relayUsageRepository = RelayUsageRepository.getInstance();
 
   private isChatUsageDescription(description?: string | null): boolean {
@@ -65,6 +95,14 @@ export class BalanceController extends Controller {
       return "monthly_pass_coverage";
 
     if (r.type === "redemption") return "redemption";
+    if (
+      r.type === "gift_code_create" ||
+      r.type === "gift_code_redeem" ||
+      r.type === "gift_code_cancel" ||
+      r.type === "peer_transfer_out" ||
+      r.type === "peer_transfer_in"
+    )
+      return r.type;
 
     const isUsageLike =
       r.type === "api_usage" ||
@@ -259,6 +297,68 @@ export class BalanceController extends Controller {
       createTime: account.createTime,
       updateTime: account.updateTime,
     };
+  }
+
+  @Get("transfers/config")
+  @Security("jwt")
+  public async getTransferConfig(@Request() _request: TypedRequest): Promise<BalanceTransferConfigDto> {
+    return await this.balanceTransferService.getConfig();
+  }
+
+  @Post("gift-codes")
+  @Security("jwt")
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(createBalanceGiftCodeBodySchema),
+  )
+  public async createGiftCode(
+    @Body() body: CreateBalanceGiftCodeDto,
+    @Request() request: TypedRequest,
+  ): Promise<BalanceGiftCodeDto> {
+    return await this.balanceTransferService.createGiftCode(body, request.user!.userId, request);
+  }
+
+  @Get("gift-codes")
+  @Security("jwt")
+  @Middlewares(validateQuery(balanceGiftCodeListQuerySchema))
+  public async getMyGiftCodes(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<BalanceGiftCodeListResponse> {
+    return await this.balanceTransferService.listGiftCodes(request.user!.userId, page, pageSize);
+  }
+
+  @Delete("gift-codes/{id}")
+  @Security("jwt")
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(balanceGiftCodeParamsSchema),
+  )
+  public async cancelGiftCode(
+    @Path() id: string,
+    @Request() request: TypedRequest,
+  ): Promise<CancelBalanceGiftCodeResponse> {
+    return await this.balanceTransferService.cancelGiftCode(id, request.user!.userId, request);
+  }
+
+  @Post("transfers")
+  @Security("jwt")
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(createBalanceTransferBodySchema),
+  )
+  public async createTransfer(
+    @Body() body: CreateBalanceTransferDto,
+    @Request() request: TypedRequest,
+  ): Promise<BalanceTransferResponse> {
+    return await this.balanceTransferService.createTransfer(body, request.user!.userId, request);
   }
 
   @Get("transactions")

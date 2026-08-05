@@ -14,6 +14,11 @@ export const CONFIG_KEYS = {
   },
   BILLING: {
     RECHARGE_RATIO: "billing.rechargeRatio",
+    GIFT_CODE_ENABLED: "billing.giftCodeEnabled",
+    DIRECT_TRANSFER_ENABLED: "billing.directTransferEnabled",
+    GIFT_CODE_FEE_PERCENT: "billing.giftCodeFeePercent",
+    DIRECT_TRANSFER_FEE_PERCENT: "billing.directTransferFeePercent",
+    GIFT_CODE_CANCEL_FEE_REFUND_PERCENT: "billing.giftCodeCancelFeeRefundPercent",
   },
   DEVELOPER: {
     VERIFICATION_OVERAGE_PRICE: "developer.pricing.verification",
