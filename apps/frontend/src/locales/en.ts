@@ -2600,6 +2600,9 @@ export default {
     poolMembersHelp:
       'Add member channels to this logical channel and configure their priority, weight, and enabled state.',
     addPoolMember: 'Add Member Channel',
+    physicalPoolMembersHelp:
+      'Select physical members directly. Saving updates their logical-pool assignments in one batch.',
+    addPhysicalPoolMember: 'Add Physical Member',
     poolMemberInsertTop: 'Insert at Top',
     poolMemberInsertBottom: 'Insert at Bottom',
     poolMemberChannel: 'Member Channel',

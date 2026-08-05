@@ -2696,6 +2696,8 @@ const emoji: DeepStringify<typeof en> = {
     poolMembers: '🪣 👥',
     poolMembersHelp: '➕ 成员 📡，可设 ↕️、⚖️、✅/⛔。',
     addPoolMember: '➕ 成员 📡',
+    physicalPoolMembersHelp: '直接 👆 物理成员；💾 时批量更新所属 🪣。',
+    addPhysicalPoolMember: '➕ 物理成员',
     poolMemberInsertTop: '⬆️ 顶部',
     poolMemberInsertBottom: '⬇️ 底部',
     poolMemberChannel: '成员 📡',

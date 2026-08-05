@@ -2512,6 +2512,8 @@ const zhCN: DeepStringify<typeof en> = {
     poolMembers: '混池成员',
     poolMembersHelp: '添加要纳入此逻辑渠道的成员渠道，可配置优先级、权重和启用状态。',
     addPoolMember: '添加成员渠道',
+    physicalPoolMembersHelp: '直接选择物理成员并归入此逻辑混池，保存时会批量更新成员所属关系。',
+    addPhysicalPoolMember: '添加物理成员',
     poolMemberInsertTop: '插入顶部',
     poolMemberInsertBottom: '插入底部',
     poolMemberChannel: '成员渠道',

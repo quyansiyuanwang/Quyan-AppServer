@@ -73,11 +73,13 @@ Each channel is a logical route that tokens or system workflows can use. Channel
   - users and tokens typically see only the pooled logical channel
   - member channels carry the actual traffic
   - the pool itself does not store direct upstream credentials
+- When editing a pooled channel, click Add Physical Member to select physical members directly and save them in one operation.
+- Saving assigns the selected physical members to this logical pool and applies their priority, weight, and enabled state from the list order; members do not need to be edited one by one.
 
 #### Automatic proxy pool
 
 - Best for: centrally managed or automated member updates without requiring every token to be reconfigured.
-- Members: only standalone channels may be members; nested pools are not allowed.
+- Members: logical pooled channels are added as members; standalone channels and other automatic proxy pools cannot be added directly.
 - Billing: the resolved member supplies the model pricing and channel/time multipliers; the token owner pays the resulting charge.
 - Visibility: token users select the automatic proxy pool, not its underlying members.
 
@@ -86,6 +88,7 @@ Each channel is a logical route that tokens or system workflows can use. Channel
 ### Pool members
 
 - Member channel: a concrete channel the pool may route to.
+- Physical member: belongs to exactly one logical pooled channel. Prefer adding it from the logical pool editor instead of opening each physical member and setting its parent individually.
 - Priority: lower numbers are tried earlier in priority-based strategies.
 - Weight: mainly used by weighted-random routing; larger values increase selection probability.
 - Enabled state: disabled members do not participate in current routing.

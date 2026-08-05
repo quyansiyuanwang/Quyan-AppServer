@@ -64,14 +64,20 @@
         </div>
       </template>
 
-      <template v-if="channelForm.channelType === 'automatic-proxy-pool'">
+      <template v-if="['pooled', 'automatic-proxy-pool'].includes(channelForm.channelType)">
         <el-form-item :label="i18ns.t('relay.poolMembers')" required>
           <div class="relay-pool-member-editor">
             <div class="relay-pool-member-editor__toolbar">
               <el-button size="small" type="primary" @click="openPoolMemberPicker">{{
-                i18ns.t('relay.addPoolMember')
+                channelForm.channelType === 'pooled'
+                  ? i18ns.t('relay.addPhysicalPoolMember')
+                  : i18ns.t('relay.addPoolMember')
               }}</el-button>
-              <span>{{ i18ns.t('relay.poolMembersHelp') }}</span>
+              <span>{{
+                channelForm.channelType === 'pooled'
+                  ? i18ns.t('relay.physicalPoolMembersHelp')
+                  : i18ns.t('relay.poolMembersHelp')
+              }}</span>
             </div>
             <div ref="poolMemberSortableRef" class="relay-pool-member-editor__rows">
               <div
@@ -112,14 +118,20 @@
                     @click="movePoolMemberToEdge(index, 'top')"
                     ><el-icon><Top /></el-icon></el-button
                 ></el-tooltip>
-                <el-tooltip :content="i18ns.t('delete')"
+                <el-tooltip
+                  v-if="channelForm.channelType === 'automatic-proxy-pool'"
+                  :content="i18ns.t('delete')"
                   ><el-button text circle type="danger" @click="removePoolMember(index)"
                     ><el-icon><Delete /></el-icon></el-button
                 ></el-tooltip>
               </div>
               <el-empty
                 v-if="channelForm.poolMembers.length === 0"
-                :description="i18ns.t('relay.poolMembersHelp')"
+                :description="
+                  channelForm.channelType === 'pooled'
+                    ? i18ns.t('relay.physicalPoolMembersHelp')
+                    : i18ns.t('relay.poolMembersHelp')
+                "
               />
             </div>
           </div>

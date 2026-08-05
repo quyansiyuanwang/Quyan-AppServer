@@ -1196,9 +1196,13 @@ export const useRelaySettingsManagement = () => {
     if (channel.id === editingChannelId.value) return false
     if (channelForm.value.poolMembers.some((member) => member.memberChannelId === channel.id))
       return false
-    return (
-      channelForm.value.channelType === 'automatic-proxy-pool' && channel.channelType === 'pooled'
-    )
+    const expectedType =
+      channelForm.value.channelType === 'automatic-proxy-pool'
+        ? 'pooled'
+        : channelForm.value.channelType === 'pooled'
+          ? 'pooled-member'
+          : undefined
+    return expectedType !== undefined && channel.channelType === expectedType
   }
 
   const loadPoolMemberCandidates = async () => {
@@ -1206,7 +1210,12 @@ export const useRelaySettingsManagement = () => {
       page: poolMemberPickerPagination.value.page,
       pageSize: poolMemberPickerPagination.value.pageSize,
       keyword: poolMemberPickerKeyword.value,
-      channelType: channelForm.value.channelType === 'automatic-proxy-pool' ? 'pooled' : undefined,
+      channelType:
+        channelForm.value.channelType === 'automatic-proxy-pool'
+          ? 'pooled'
+          : channelForm.value.channelType === 'pooled'
+            ? 'pooled-member'
+            : undefined,
     })
     poolMemberPickerRows.value = response.items.filter(isPoolMemberCandidateEligible)
     poolMemberPickerPagination.value.total = response.total
@@ -1223,12 +1232,51 @@ export const useRelaySettingsManagement = () => {
   }
 
   const loadPooledParentOptions = async () => {
-    const response = await relayChannelService.listManagementChannels({
-      page: 1,
-      pageSize: 100,
-      channelType: 'pooled',
-    })
-    pooledParentOptions.value = response.items.filter((item) => item.id !== editingChannelId.value)
+    try {
+      const options: RelayChannelManagementListItemDto[] = []
+      let page = 1
+      let total = 0
+      do {
+        const response = await relayChannelService.listManagementChannels({
+          page,
+          pageSize: 100,
+          channelType: 'pooled',
+        })
+        if (response.items.length === 0) break
+        options.push(...response.items)
+        total = response.total
+        page += 1
+      } while (options.length < total)
+
+      if (options.length > 0 || total === 0) {
+        pooledParentOptions.value = options.filter((item) => item.id !== editingChannelId.value)
+        return
+      }
+    } catch {
+      // Fall back to the detail endpoint below. This also keeps the selector usable when
+      // the management projection is unavailable to an otherwise authorized editor.
+    }
+
+    try {
+      const channels = await relayChannelService.listChannels({ includeDisabled: true })
+      pooledParentOptions.value = channels
+        .filter((channel) => channel.channelType === 'pooled')
+        .filter((channel) => channel.id !== editingChannelId.value)
+        .map((channel) => ({
+          id: channel.id,
+          name: channel.name,
+          enabled: channel.enabled,
+          channelType: channel.channelType,
+          routingStrategy: channel.routingStrategy,
+          visibilityMode: channel.visibilityMode,
+          poolMemberCount: channel.poolMembers?.length ?? 0,
+          multiplier: channel.multiplier,
+          updateTime: channel.updateTime,
+        }))
+    } catch (error: any) {
+      pooledParentOptions.value = []
+      ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+    }
   }
 
   const addSelectedPoolMembers = () => {
@@ -1252,6 +1300,22 @@ export const useRelaySettingsManagement = () => {
         : [...channelForm.value.poolMembers, ...additions]
     reindexPoolMembers()
     showPoolMemberPicker.value = false
+  }
+
+  const assignPooledPhysicalMembers = async (
+    poolId: string,
+    members: RelayChannelMemberDto[],
+  ): Promise<void> => {
+    if (members.length === 0) return
+
+    for (const [index, member] of members.entries()) {
+      await relayChannelService.updateChannel(member.memberChannelId, {
+        pooledParentId: poolId,
+        pooledPriority: index + 1,
+        pooledWeight: member.weight ?? 1,
+        pooledMemberEnabled: member.enabled !== false,
+      })
+    }
   }
 
   const resetRoutingConfigToRecommended = () => {
@@ -2127,7 +2191,10 @@ export const useRelaySettingsManagement = () => {
         : buildStandaloneHealthTrackingPayload()
       const visibilityConfig =
         channelForm.value.visibilityMode === 'hidden' ? null : buildVisibilityConfigPayload()
-      const poolMembers = isAutomaticPool ? buildPoolMembersPayload() : []
+      const poolMembers =
+        isAutomaticPool || channelForm.value.channelType === 'pooled'
+          ? buildPoolMembersPayload()
+          : []
 
       const data = {
         name: channelForm.value.name,
@@ -2177,6 +2244,7 @@ export const useRelaySettingsManagement = () => {
             : null,
       }
 
+      let savedChannelId = editingChannelId.value
       if (isEditingChannel.value) {
         const secretUpdates = !isUpstreamChannel
           ? {
@@ -2197,15 +2265,23 @@ export const useRelaySettingsManagement = () => {
             }
         await relayChannelService.updateChannel(editingChannelId.value, {
           ...data,
+          // Strict two-tier logical pools persist physical members through their
+          // pooledParentId relation, not the legacy poolMembers edge.
+          poolMembers: isAutomaticPool ? poolMembers : [],
           ...secretUpdates,
         })
       } else {
-        await relayChannelService.createChannel({
+        const createdChannel = await relayChannelService.createChannel({
           ...data,
           openaiUpstreamApiKey: isPooledChannel ? '' : channelForm.value.openaiUpstreamApiKey,
           anthropicUpstreamApiKey: isPooledChannel ? '' : channelForm.value.anthropicUpstreamApiKey,
           geminiUpstreamApiKey: isPooledChannel ? '' : channelForm.value.geminiUpstreamApiKey,
         })
+        savedChannelId = createdChannel.id
+      }
+
+      if (channelForm.value.channelType === 'pooled') {
+        await assignPooledPhysicalMembers(savedChannelId, poolMembers)
       }
 
       ElMessage.success(
@@ -2402,6 +2478,7 @@ export const useRelaySettingsManagement = () => {
     loadPooledParentOptions,
     loadPoolMemberTooltip,
     addSelectedPoolMembers,
+    assignPooledPhysicalMembers,
     movePoolMember,
     movePoolMemberToEdge,
     removePoolMember,
