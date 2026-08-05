@@ -114,6 +114,10 @@ export class BalanceTransferService {
     return result;
   }
 
+  async getTransferDisplayRecords(ids: string[]) {
+    return await this.repository.findTransferDisplayRecords(ids);
+  }
+
   async redeemGiftCode(code: string, userId: string, request?: Request): Promise<{ balance: number }> {
     const result = await this.repository.redeemGiftCode(code, userId);
     await this.businessLogService.logOperation({

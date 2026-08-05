@@ -8,6 +8,7 @@ describe("BalanceTransferService", () => {
     listGiftCodes: vi.fn(),
     redeemGiftCode: vi.fn(),
     cancelGiftCode: vi.fn(),
+    findTransferDisplayRecords: vi.fn(),
     createTransfer: vi.fn(),
   };
   const users = { findByUsername: vi.fn() };
@@ -89,6 +90,21 @@ describe("BalanceTransferService", () => {
       balance: 50.1,
     });
     expect(repository.cancelGiftCode).toHaveBeenCalledWith("gc-1", "sender-1");
+  });
+
+  it("retrieves transfer counterparties for transaction display", async () => {
+    const records = [
+      {
+        id: "tr-1",
+        senderUsername: "sender",
+        recipientUsername: "recipient",
+        description: "thanks",
+      },
+    ];
+    repository.findTransferDisplayRecords.mockResolvedValue(records);
+
+    await expect(service.getTransferDisplayRecords(["tr-1"])).resolves.toEqual(records);
+    expect(repository.findTransferDisplayRecords).toHaveBeenCalledWith(["tr-1"]);
   });
 
   it("uses the direct-transfer fee and rejects self transfers", async () => {

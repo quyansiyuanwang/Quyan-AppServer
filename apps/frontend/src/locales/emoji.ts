@@ -3396,6 +3396,7 @@ const emoji: DeepStringify<typeof en> = {
     monthlyPassCoverage: '🗓️ 💳',
     adminAdjustment: '👑 💩',
     amount: '🔢',
+    balanceChange: '💳 ↕️',
     balanceBefore: '💳 🗑️',
     balanceAfter: '💳 🔭',
     description: '📝',
