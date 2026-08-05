@@ -152,6 +152,15 @@
           <template #default="{ row }">
             <span v-if="row.channelType === 'standalone'">-</span>
             <el-tooltip
+              v-else-if="row.channelType === 'pooled-member'"
+              :content="row.pooledParentName || i18ns.t('relay.pooledParentMissing')"
+              placement="top"
+            >
+              <span class="relay-channel-management__pool-members-trigger">
+                {{ row.pooledParentName || i18ns.t('relay.pooledParentMissing') }}
+              </span>
+            </el-tooltip>
+            <el-tooltip
               v-else
               effect="light"
               placement="bottom-start"

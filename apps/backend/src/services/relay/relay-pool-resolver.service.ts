@@ -6,6 +6,7 @@ import logger from "@/util/logger";
 import { parseRelayRequestFormats } from "@/util/relay-model-availability.util";
 import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
 import type { RelayChannelStore } from "@/store/relay/relay-channel.store";
+import { resolveEffectiveRelayPoolMembers } from "./relay-pool-members.util";
 
 export interface RelayPoolMemberGraph {
   memberChannelId: string;
@@ -225,36 +226,8 @@ export class RelayPoolResolverService {
       ? await this.relayChannelRepository.listVisible()
       : await this.relayChannelRepository.listActive();
     const graph = new Map(
-      channels.map((channel) => [
-        channel.id,
-        {
-          ...channel,
-          poolMembers: Array.isArray((channel as RelayChannel & { poolMembers?: RelayPoolMemberGraph[] }).poolMembers)
-            ? ((channel as RelayChannel & { poolMembers?: RelayPoolMemberGraph[] }).poolMembers ?? []).map(
-                (member) => ({
-                  ...member,
-                  memberChannel: member.memberChannel ?? null,
-                }),
-              )
-            : [],
-        },
-      ]),
+      channels.map((channel) => [channel.id, { ...channel, poolMembers: resolveEffectiveRelayPoolMembers(channel) }]),
     );
-    // Strict topology stores ordinary pooled members as a one-to-many self relation. Materialize
-    // those edges into the existing resolver graph; legacy RelayChannelMember edges remain until
-    // an administrator enables strict-two-tier mode.
-    for (const channel of graph.values()) {
-      if (channel.channelType !== "pooled-member" || !channel.pooledParentId) continue;
-      const parent = graph.get(channel.pooledParentId);
-      if (!parent || parent.channelType !== "pooled") continue;
-      parent.poolMembers.push({
-        memberChannelId: channel.id,
-        priority: channel.pooledPriority,
-        weight: channel.pooledWeight,
-        enabled: channel.pooledMemberEnabled,
-        memberChannel: channel,
-      });
-    }
 
     // Pool relations only store member IDs. Hydrate the in-memory graph reference once so ordering
     // callbacks can use the same leaf multiplier and health configuration that routing will use.

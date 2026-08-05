@@ -2618,6 +2618,7 @@ export default {
     pooledParentHelp:
       'A physical member belongs to exactly one logical pool and is never user-visible.',
     pooledParentRequired: 'Select a logical pool parent',
+    pooledParentMissing: 'No logical pool parent',
     routingStrategy: 'Routing Strategy',
     routingStrategyHelp:
       'Choose how member channels are selected. Combine it with the parameters below for randomization, round-robin, weighting, and failover behavior.',
