@@ -20,6 +20,7 @@ const recipientUsername = ref('')
 const transferAmount = ref<number | undefined>()
 const transferDescription = ref('')
 const giftCodes = ref<BalanceGiftCodeDto[]>([])
+const giftCodePagination = ref({ page: 1, pageSize: 20, total: 0 })
 const giftCodeStateLabels = {
   active: i18ns.t('balance.giftCodeState.active'),
   redeemed: i18ns.t('balance.giftCodeState.redeemed'),
@@ -44,20 +45,34 @@ const giftCancellationRefund = computed(() =>
   round4(Number(giftAmount.value || 0) + giftCancellationFeeRefund.value),
 )
 
-async function load() {
+async function load(page = giftCodePagination.value.page) {
+  giftCodePagination.value.page = Math.max(1, page)
   loading.value = true
   try {
     const [nextConfig, list] = await Promise.all([
       balanceTransferService.getConfig(),
-      balanceTransferService.listGiftCodes(),
+      balanceTransferService.listGiftCodes(
+        giftCodePagination.value.page,
+        giftCodePagination.value.pageSize,
+      ),
     ])
     config.value = nextConfig
     giftCodes.value = list.records
+    giftCodePagination.value.total = list.total
+    giftCodePagination.value.page = list.page
+    giftCodePagination.value.pageSize = list.pageSize
   } catch (error: any) {
     ElMessage.error(error.message || i18ns.t('balance.loadFailed'))
   } finally {
     loading.value = false
   }
+}
+
+const refresh = () => load(giftCodePagination.value.page)
+const handleGiftCodePageChange = (page: number) => load(page)
+const handleGiftCodePageSizeChange = (pageSize: number) => {
+  giftCodePagination.value.pageSize = pageSize
+  return load(1)
 }
 
 async function createGiftCode() {
@@ -68,13 +83,13 @@ async function createGiftCode() {
       amount: giftAmount.value,
       expiresAt: giftExpiry.value,
     })
-    giftCodes.value.unshift(result)
     userInfoStore.setUserInfo({
       balance: round4(Number(userInfoStore.userInfo.balance || 0) - result.totalDebit),
     })
     giftAmount.value = undefined
     giftExpiry.value = undefined
     giftDialogVisible.value = false
+    await load(1)
     ElMessage.success(i18ns.t('balance.giftCodeCreated'))
     emit('changed')
   } catch (error: any) {
@@ -182,7 +197,7 @@ onMounted(load)
         <el-button v-if="config?.directTransferEnabled" :icon="Switch" @click="openTransferDialog">
           {{ i18ns.t('balance.directTransfer') }}
         </el-button>
-        <el-button :icon="Refresh" circle @click="load" />
+        <el-button :icon="Refresh" circle @click="refresh" />
       </div>
     </div>
 
@@ -212,6 +227,15 @@ onMounted(load)
           </template>
         </el-table-column>
       </el-table>
+      <el-pagination
+        v-model:current-page="giftCodePagination.page"
+        v-model:page-size="giftCodePagination.pageSize"
+        :total="giftCodePagination.total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next"
+        @current-change="handleGiftCodePageChange"
+        @size-change="handleGiftCodePageSizeChange"
+      />
     </div>
 
     <el-dialog
@@ -454,6 +478,12 @@ onMounted(load)
   }
   .balance-transfer-panel__codes :deep(.el-table__cell) {
     padding: 8px 0;
+  }
+  .balance-transfer-panel__codes :deep(.el-pagination) {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
   }
   .balance-transfer-dialog__footer {
     width: 100%;
