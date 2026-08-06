@@ -29,6 +29,13 @@ import type {
   ReviewRelayChannelSubmissionRequest,
   SubmitRelayChannelRequest,
   RelayChannelSubmissionStatus,
+  CreateRelayChannelChangeRequest,
+  RelayChannelChangeRequestDto,
+  RelayChannelChangeRequestStatus,
+  ReviewRelayChannelChangeRequest,
+  RelayChannelUpstreamModelsRequest,
+  RelayChannelUpstreamModelsResponse,
+  UpdateRelayChannelProviderConfigRequest,
 } from '@/client/types.gen'
 import { checkApiResult } from '@/utils/service-utils'
 import { cacheObject } from '@/utils/common'
@@ -258,6 +265,45 @@ class RelayChannelService {
   ): Promise<RelayChannelDto> {
     const result = await relayChannelApi.reviewChannelSubmission({ path: { id }, body: data })
     return checkApiResult<any>(result, true).data
+  }
+
+  async updateProviderConfig(id: string, data: UpdateRelayChannelProviderConfigRequest) {
+    const result = await relayChannelApi.updateProviderConfig({ path: { id }, body: data })
+    return checkApiResult<any>(result, true).data as RelayChannelDto
+  }
+
+  async createChangeRequest(id: string, data: CreateRelayChannelChangeRequest) {
+    const result = await relayChannelApi.createChangeRequest({ path: { id }, body: data })
+    return checkApiResult<any>(result, true).data as RelayChannelChangeRequestDto
+  }
+
+  async listMyChangeRequests(options: { page: number; pageSize: number }) {
+    const result = await relayChannelApi.listMyChangeRequests({ params: options })
+    return checkApiResult<any>(result, true).data as {
+      items: RelayChannelChangeRequestDto[]
+      total: number
+      page: number
+      pageSize: number
+    }
+  }
+
+  async listChangeRequests(options: {
+    page: number
+    pageSize: number
+    reviewStatus?: RelayChannelChangeRequestStatus
+  }) {
+    const result = await relayChannelApi.listChangeRequests({ params: options })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async reviewChangeRequest(id: string, data: ReviewRelayChannelChangeRequest) {
+    const result = await relayChannelApi.reviewChangeRequest({ path: { id }, body: data })
+    return checkApiResult<any>(result, true).data as RelayChannelChangeRequestDto
+  }
+
+  async listUpstreamModels(data: RelayChannelUpstreamModelsRequest) {
+    const result = await relayChannelApi.listUpstreamModels({ body: data })
+    return checkApiResult<any>(result, true).data as RelayChannelUpstreamModelsResponse
   }
 
   async getMyProviderEarnings(options: {

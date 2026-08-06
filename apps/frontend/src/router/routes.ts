@@ -755,6 +755,12 @@ export const routes = [
             },
           },
           {
+            path: 'relay/channel-review',
+            name: 'relayChannelReview',
+            component: () => import('@/views/relay/RelayChannelReviewView.vue'),
+            meta: { permission: Permission.RELAY_CHANNEL_REVIEW },
+          },
+          {
             path: 'relay/settings',
             name: 'relaySettings',
             component: () => import('@/views/relay/RelaySettingsView.vue'),

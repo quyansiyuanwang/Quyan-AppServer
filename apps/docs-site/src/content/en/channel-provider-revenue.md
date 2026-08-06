@@ -8,6 +8,12 @@ Only standalone channels can be submitted. Enter the upstream URL and API key fo
 
 Submitted channels remain pending until an administrator lists, rejects, or offboards them. After listing, an administrator can change the sale multiplier, add providers, and configure each provider's commission and settlement mode.
 
+The form also covers format and model restrictions, model mappings, cache-read accounting, time-period multipliers, and context-length multipliers. After a channel is listed, the original submitter cannot edit the live configuration directly. They can submit a complete configuration from My change requests; it stays pending, approved, or rejected with the operator's reason, and is applied atomically only after approval.
+
+The format and model section can probe the corresponding upstream `/v1/models` endpoint. Temporary probe credentials are not persisted or returned. Models that match global pricing can be added to the restriction with one click; unmatched IDs remain visible as pricing gaps.
+
+Administrators with `RELAY_CHANNEL_REVIEW` use the separate Channel Supply Review page for initial submissions and change requests. Multiplier, provider shares, and settlement modes are saved through a separate configuration action.
+
 ## Earnings and settlement
 
 Earnings are created only from an amount actually debited from a consumer balance. Failed requests, zero charges, and fully covered monthly-pass usage create no earnings. When a pass covers only part of a request, only the remaining debit is shared. Each earning preserves the channel, provider, and percentage snapshot from when the debit occurred, so later edits never rewrite history.

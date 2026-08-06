@@ -34,6 +34,7 @@ export type RelayAutomaticPoolRankingMode = "price-first" | "stability-first";
 /** Controls whether a standalone channel contributes health samples to automatic proxy pools. */
 export type RelayChannelHealthTrackingMode = "automatic" | "manual" | "disabled";
 export type RelayChannelSubmissionStatus = "pending" | "approved" | "rejected" | "offboarded";
+export type RelayChannelChangeRequestStatus = "pending" | "approved" | "rejected";
 export type RelayChannelProviderSettlementMode = "realtime" | "interval" | "daily" | "manual";
 
 export interface RelayChannelProviderDto {
@@ -574,14 +575,83 @@ export interface SubmitRelayChannelRequest {
   multiplier?: number;
   allowedFormats?: string;
   allowedModels?: string | null;
+  inputTokensIncludeCacheRead?: boolean;
   modelMapping?: Record<string, string> | null;
+  timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
+  providers?: RelayChannelProviderConfigRequest[];
 }
 
 export interface ReviewRelayChannelSubmissionRequest {
   action: "approve" | "reject" | "offboard";
   reason?: string;
+}
+
+/** Operator-only revenue configuration, kept separate from review state changes. */
+export interface UpdateRelayChannelProviderConfigRequest {
   multiplier?: number;
   providers?: RelayChannelProviderConfigRequest[];
+}
+
+/** Full standalone configuration proposed by the original channel submitter. */
+export interface CreateRelayChannelChangeRequest {
+  name: string;
+  openaiUpstreamUrl?: string;
+  openaiUpstreamApiKey?: string;
+  anthropicUpstreamUrl?: string;
+  anthropicUpstreamApiKey?: string;
+  geminiUpstreamUrl?: string;
+  geminiUpstreamApiKey?: string;
+  multiplier?: number;
+  allowedFormats?: string;
+  allowedModels?: string | null;
+  inputTokensIncludeCacheRead?: boolean;
+  modelMapping?: Record<string, string> | null;
+  timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
+  providers?: RelayChannelProviderConfigRequest[];
+}
+
+export interface ReviewRelayChannelChangeRequest {
+  action: "approve" | "reject";
+  reason?: string;
+}
+
+export interface RelayChannelChangeRequestDto {
+  id: string;
+  relayChannelId: string;
+  channelName: string;
+  submittedByUserId: string;
+  submittedByUsername?: string;
+  reviewStatus: RelayChannelChangeRequestStatus;
+  reviewedAt?: Date;
+  reviewReason?: string;
+  config: Omit<CreateRelayChannelChangeRequest, "openaiUpstreamApiKey" | "anthropicUpstreamApiKey" | "geminiUpstreamApiKey"> & {
+    hasOpenaiUpstreamApiKey: boolean;
+    hasAnthropicUpstreamApiKey: boolean;
+    hasGeminiUpstreamApiKey: boolean;
+  };
+  createTime: Date;
+  updateTime: Date;
+}
+
+export interface RelayChannelUpstreamModelsRequest {
+  format: "openai" | "anthropic" | "gemini";
+  channelId?: string;
+  upstreamUrl?: string;
+  apiKey?: string;
+}
+
+export interface RelayChannelUpstreamModelDto {
+  id: string;
+  matched: boolean;
+  pricingModel?: string;
+  pricingModelId?: string;
+}
+
+export interface RelayChannelUpstreamModelsResponse {
+  format: "openai" | "anthropic" | "gemini";
+  models: RelayChannelUpstreamModelDto[];
 }
 
 export interface RelayChannelProviderEarningDto {

@@ -14693,6 +14693,349 @@
 				}
 			}
 		},
+		"/v1/relay-channels/{id}/provider-config": {
+			"put": {
+				"operationId": "RelayChannelControllerUpdateProviderConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateRelayChannelProviderConfigRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channels/{id}/change-requests": {
+			"post": {
+				"operationId": "RelayChannelControllerCreateChangeRequest",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelChangeRequestDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateRelayChannelChangeRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channels/change-requests/mine": {
+			"get": {
+				"operationId": "RelayChannelControllerListMyChangeRequests",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"pageSize": {
+											"type": "number",
+											"format": "double"
+										},
+										"page": {
+											"type": "number",
+											"format": "double"
+										},
+										"total": {
+											"type": "number",
+											"format": "double"
+										},
+										"items": {
+											"items": {
+												"$ref": "#/components/schemas/RelayChannelChangeRequestDto"
+											},
+											"type": "array"
+										}
+									},
+									"required": [
+										"pageSize",
+										"page",
+										"total",
+										"items"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay-channels/change-requests": {
+			"get": {
+				"operationId": "RelayChannelControllerListChangeRequests",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"pageSize": {
+											"type": "number",
+											"format": "double"
+										},
+										"page": {
+											"type": "number",
+											"format": "double"
+										},
+										"total": {
+											"type": "number",
+											"format": "double"
+										},
+										"items": {
+											"items": {
+												"$ref": "#/components/schemas/RelayChannelChangeRequestDto"
+											},
+											"type": "array"
+										}
+									},
+									"required": [
+										"pageSize",
+										"page",
+										"total",
+										"items"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "reviewStatus",
+						"required": false,
+						"schema": {
+							"$ref": "#/components/schemas/RelayChannelChangeRequestStatus"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay-channels/change-requests/{id}/review": {
+			"post": {
+				"operationId": "RelayChannelControllerReviewChangeRequest",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelChangeRequestDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ReviewRelayChannelChangeRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channels/upstream-models": {
+			"post": {
+				"operationId": "RelayChannelControllerListUpstreamModels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelUpstreamModelsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RelayChannelUpstreamModelsRequest"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/relay-channels/provider/earnings": {
 			"get": {
 				"operationId": "RelayChannelControllerGetMyProviderEarnings",
@@ -39885,6 +40228,34 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayChannelProviderConfigRequest": {
+				"properties": {
+					"userId": {
+						"type": "string"
+					},
+					"commissionPercent": {
+						"type": "number",
+						"format": "double"
+					},
+					"settlementMode": {
+						"$ref": "#/components/schemas/RelayChannelProviderSettlementMode"
+					},
+					"settlementIntervalDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"settlementTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"userId",
+					"commissionPercent",
+					"settlementMode"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"SubmitRelayChannelRequest": {
 				"description": "User-facing submission. Only standalone channels are accepted.",
 				"properties": {
@@ -39920,6 +40291,9 @@
 						"type": "string",
 						"nullable": true
 					},
+					"inputTokensIncludeCacheRead": {
+						"type": "boolean"
+					},
 					"modelMapping": {
 						"allOf": [
 							{
@@ -39927,6 +40301,26 @@
 							}
 						],
 						"nullable": true
+					},
+					"timePeriodMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/TimePeriodMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"providers": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProviderConfigRequest"
+						},
+						"type": "array"
 					}
 				},
 				"required": [
@@ -39966,34 +40360,6 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"RelayChannelProviderConfigRequest": {
-				"properties": {
-					"userId": {
-						"type": "string"
-					},
-					"commissionPercent": {
-						"type": "number",
-						"format": "double"
-					},
-					"settlementMode": {
-						"$ref": "#/components/schemas/RelayChannelProviderSettlementMode"
-					},
-					"settlementIntervalDays": {
-						"type": "number",
-						"format": "double"
-					},
-					"settlementTime": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"userId",
-					"commissionPercent",
-					"settlementMode"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
 			"ReviewRelayChannelSubmissionRequest": {
 				"properties": {
 					"action": {
@@ -40006,7 +40372,17 @@
 					},
 					"reason": {
 						"type": "string"
-					},
+					}
+				},
+				"required": [
+					"action"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateRelayChannelProviderConfigRequest": {
+				"description": "Operator-only revenue configuration, kept separate from review state changes.",
+				"properties": {
 					"multiplier": {
 						"type": "number",
 						"format": "double"
@@ -40018,8 +40394,311 @@
 						"type": "array"
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelChangeRequestStatus": {
+				"type": "string",
+				"enum": [
+					"pending",
+					"approved",
+					"rejected"
+				]
+			},
+			"Pick_CreateRelayChannelChangeRequest.Exclude_keyofCreateRelayChannelChangeRequest.openaiUpstreamApiKey-or-anthropicUpstreamApiKey-or-geminiUpstreamApiKey__": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"openaiUpstreamUrl": {
+						"type": "string"
+					},
+					"anthropicUpstreamUrl": {
+						"type": "string"
+					},
+					"geminiUpstreamUrl": {
+						"type": "string"
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"allowedFormats": {
+						"type": "string"
+					},
+					"allowedModels": {
+						"type": "string"
+					},
+					"inputTokensIncludeCacheRead": {
+						"type": "boolean"
+					},
+					"modelMapping": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"timePeriodMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/TimePeriodMultiplierRule"
+						},
+						"type": "array"
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array"
+					},
+					"providers": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProviderConfigRequest"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"Omit_CreateRelayChannelChangeRequest.openaiUpstreamApiKey-or-anthropicUpstreamApiKey-or-geminiUpstreamApiKey_": {
+				"$ref": "#/components/schemas/Pick_CreateRelayChannelChangeRequest.Exclude_keyofCreateRelayChannelChangeRequest.openaiUpstreamApiKey-or-anthropicUpstreamApiKey-or-geminiUpstreamApiKey__",
+				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"RelayChannelChangeRequestDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"relayChannelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"submittedByUserId": {
+						"type": "string"
+					},
+					"submittedByUsername": {
+						"type": "string"
+					},
+					"reviewStatus": {
+						"$ref": "#/components/schemas/RelayChannelChangeRequestStatus"
+					},
+					"reviewedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"reviewReason": {
+						"type": "string"
+					},
+					"config": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Omit_CreateRelayChannelChangeRequest.openaiUpstreamApiKey-or-anthropicUpstreamApiKey-or-geminiUpstreamApiKey_"
+							},
+							{
+								"properties": {
+									"hasGeminiUpstreamApiKey": {
+										"type": "boolean"
+									},
+									"hasAnthropicUpstreamApiKey": {
+										"type": "boolean"
+									},
+									"hasOpenaiUpstreamApiKey": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"hasGeminiUpstreamApiKey",
+									"hasAnthropicUpstreamApiKey",
+									"hasOpenaiUpstreamApiKey"
+								],
+								"type": "object"
+							}
+						]
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"updateTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"relayChannelId",
+					"channelName",
+					"submittedByUserId",
+					"reviewStatus",
+					"config",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateRelayChannelChangeRequest": {
+				"description": "Full standalone configuration proposed by the original channel submitter.",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"openaiUpstreamUrl": {
+						"type": "string"
+					},
+					"openaiUpstreamApiKey": {
+						"type": "string"
+					},
+					"anthropicUpstreamUrl": {
+						"type": "string"
+					},
+					"anthropicUpstreamApiKey": {
+						"type": "string"
+					},
+					"geminiUpstreamUrl": {
+						"type": "string"
+					},
+					"geminiUpstreamApiKey": {
+						"type": "string"
+					},
+					"multiplier": {
+						"type": "number",
+						"format": "double"
+					},
+					"allowedFormats": {
+						"type": "string"
+					},
+					"allowedModels": {
+						"type": "string",
+						"nullable": true
+					},
+					"inputTokensIncludeCacheRead": {
+						"type": "boolean"
+					},
+					"modelMapping": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Record_string.string_"
+							}
+						],
+						"nullable": true
+					},
+					"timePeriodMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/TimePeriodMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"contextLengthMultipliers": {
+						"items": {
+							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
+						},
+						"type": "array",
+						"nullable": true
+					},
+					"providers": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProviderConfigRequest"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ReviewRelayChannelChangeRequest": {
+				"properties": {
+					"action": {
+						"type": "string",
+						"enum": [
+							"approve",
+							"reject"
+						]
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
 				"required": [
 					"action"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelUpstreamModelDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"matched": {
+						"type": "boolean"
+					},
+					"pricingModel": {
+						"type": "string"
+					},
+					"pricingModelId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"matched"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelUpstreamModelsResponse": {
+				"properties": {
+					"format": {
+						"type": "string",
+						"enum": [
+							"openai",
+							"anthropic",
+							"gemini"
+						]
+					},
+					"models": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelUpstreamModelDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"format",
+					"models"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelUpstreamModelsRequest": {
+				"properties": {
+					"format": {
+						"type": "string",
+						"enum": [
+							"openai",
+							"anthropic",
+							"gemini"
+						]
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"upstreamUrl": {
+						"type": "string"
+					},
+					"apiKey": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"format"
 				],
 				"type": "object",
 				"additionalProperties": false

@@ -348,6 +348,7 @@
           Permission.RELAY_CHANNEL_READ,
           Permission.RELAY_CHANNEL_SUBMIT,
           Permission.RELAY_CHANNEL_PROVIDER_READ,
+          Permission.RELAY_CHANNEL_REVIEW,
           Permission.RELAY_CHANNEL_HEALTH_READ,
           Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
         ]"
@@ -385,6 +386,16 @@
             >
               <el-icon><Wallet /></el-icon>
               <template #title>{{ i18ns.t('nav.relayChannelProvider') }}</template>
+            </el-menu-item>
+          </PermissionWrapper>
+          <PermissionWrapper :require="[Permission.RELAY_CHANNEL_REVIEW]">
+            <el-menu-item
+              index="relayChannelReview"
+              @click="nav('relayChannelReview', $event)"
+              @contextmenu.prevent="openRouteMenu('relayChannelReview', $event)"
+            >
+              <el-icon><Document /></el-icon>
+              <template #title>{{ i18ns.t('nav.relayChannelReview') }}</template>
             </el-menu-item>
           </PermissionWrapper>
           <PermissionWrapper :require="[Permission.MODEL_PRICING_UPDATE]">

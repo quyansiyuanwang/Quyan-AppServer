@@ -53,6 +53,8 @@ model User {
   balanceAccount               BalanceAccount?
   submittedRelayChannels       RelayChannel[]                  @relation("RelayChannelSubmittedBy")
   reviewedRelayChannels        RelayChannel[]                  @relation("RelayChannelReviewedBy")
+  submittedRelayChannelChanges RelayChannelChangeRequest[]     @relation("RelayChannelChangeSubmittedBy")
+  reviewedRelayChannelChanges  RelayChannelChangeRequest[]     @relation("RelayChannelChangeReviewedBy")
   relayChannelProviders        RelayChannelProvider[]
   monthlyPasses                UserMonthlyPass[]
   remoteTerminalEntitlements   RemoteTerminalUserEntitlement[]
@@ -909,12 +911,38 @@ model RelayChannel {
   submittedBy          User?                     @relation("RelayChannelSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
   reviewedBy           User?                     @relation("RelayChannelReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
   providers            RelayChannelProvider[]
+  changeRequests       RelayChannelChangeRequest[]
 
   @@index([status])
   @@index([pooledParentId, pooledPriority])
   @@index([submissionStatus])
   @@index([submittedByUserId])
   @@map("relay_channels")
+}
+
+model RelayChannelChangeRequest {
+  id                   String   @id @default(cuid())
+  status               Int      @default(1)
+  createTime           DateTime @default(now())
+  updateTime           DateTime @updatedAt
+  relayChannelId       String
+  submittedByUserId    String
+  reviewedByUserId     String?
+  reviewStatus         String   @default("pending") @db.VarChar(20)
+  reviewedAt           DateTime?
+  reviewReason         String?  @db.Text
+  configSnapshot       Json
+  encryptedCredentials String?  @db.LongText
+  credentialIv         String?  @db.VarChar(64)
+  credentialAuthTag    String?  @db.VarChar(64)
+
+  relayChannel RelayChannel @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
+  submittedBy  User         @relation("RelayChannelChangeSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: Cascade)
+  reviewedBy   User?        @relation("RelayChannelChangeReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([relayChannelId, reviewStatus])
+  @@index([submittedByUserId, createTime])
+  @@map("relay_channel_change_requests")
 }
 
 model RelayChannelProvider {
