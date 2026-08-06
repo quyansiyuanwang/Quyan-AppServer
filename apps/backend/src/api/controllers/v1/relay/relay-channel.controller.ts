@@ -15,6 +15,7 @@ import {
   Tags,
 } from "@tsoa/runtime";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
+import { RelayChannelProviderRevenueService } from "@/services/relay/relay-channel-provider-revenue.service";
 import type {
   BatchDeleteRelayChannelsRequest,
   BatchRelayChannelsResultDto,
@@ -39,6 +40,11 @@ import type {
   RelayAutomaticPoolHealthDto,
   UpdateRelayChannelHealthConfigRequest,
   UpdateRelayChannelRequest,
+  SubmitRelayChannelRequest,
+  ReviewRelayChannelSubmissionRequest,
+  RelayChannelProviderEarningsResponse,
+  ClaimRelayChannelProviderEarningsResponse,
+  RelayChannelSubmissionStatus,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
 import { RequireAllPermissions, RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
@@ -58,6 +64,9 @@ import {
   relayChannelIdParamsSchema,
   updateRelayChannelHealthConfigBodySchema,
   updateRelayChannelBodySchema,
+  submitRelayChannelBodySchema,
+  reviewRelayChannelSubmissionBodySchema,
+  providerEarningsQuerySchema,
 } from "@/api/schema/relay/relay-channel.schema";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
@@ -69,6 +78,7 @@ import { setResponseMessageKey } from "@/util/response-wrapper";
 @Tags("Relay Channels")
 export class RelayChannelController extends Controller {
   private channelService = RelayChannelService.getInstance();
+  private providerRevenueService = RelayChannelProviderRevenueService.getInstance();
 
   @Get()
   @Security("jwt")
@@ -91,6 +101,7 @@ export class RelayChannelController extends Controller {
     @Query() keyword?: string,
     @Query() channelType?: RelayChannelManagementListItemDto["channelType"],
     @Query() enabled?: boolean,
+    @Query() submissionStatus?: RelayChannelSubmissionStatus,
   ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
     return this.channelService.listManagementChannels(request.user!.userId, {
       page,
@@ -98,6 +109,7 @@ export class RelayChannelController extends Controller {
       keyword,
       channelType,
       enabled,
+      submissionStatus,
     });
   }
 
@@ -257,6 +269,68 @@ export class RelayChannelController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<BatchRelayChannelsResultDto> {
     return this.channelService.batchClearChannelHealth(body.ids, request.user!.userId, request);
+  }
+
+  @Post("submissions")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  @Middlewares(replayProtectionMiddleware, validateBody(submitRelayChannelBodySchema))
+  public async submitChannel(
+    @Body() body: SubmitRelayChannelRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelDto> {
+    return this.channelService.submitChannel(body, request.user!.userId, request);
+  }
+
+  @Get("submissions/mine")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  public async listMySubmittedChannels(
+    @Request() request: TypedRequest,
+    @Query() page: number = 1,
+    @Query() pageSize: number = 20,
+  ): Promise<PaginatedResponse<RelayChannelDto>> {
+    return this.channelService.listMySubmittedChannels(request.user!.userId, page, pageSize);
+  }
+
+  @Post("{id}/review-submission")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_REVIEW)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(relayChannelIdParamsSchema),
+    validateBody(reviewRelayChannelSubmissionBodySchema),
+  )
+  public async reviewChannelSubmission(
+    @Path() id: string,
+    @Body() body: ReviewRelayChannelSubmissionRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelDto> {
+    return this.channelService.reviewSubmittedChannel(id, body, request.user!.userId, request);
+  }
+
+  @Get("provider/earnings")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROVIDER_READ)
+  @Middlewares(validateQuery(providerEarningsQuerySchema))
+  public async getMyProviderEarnings(
+    @Request() request: TypedRequest,
+    @Query() page: number = 1,
+    @Query() pageSize: number = 20,
+  ): Promise<RelayChannelProviderEarningsResponse> {
+    return this.providerRevenueService.listOwnEarnings(request.user!.userId, page, pageSize);
+  }
+
+  @Post("provider/earnings/claim")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROVIDER_SETTLE)
+  @Middlewares(replayProtectionMiddleware)
+  public async claimMyProviderEarnings(
+    @Request() request: TypedRequest,
+  ): Promise<ClaimRelayChannelProviderEarningsResponse> {
+    return this.providerRevenueService.claimOwnEarnings(request.user!.userId);
   }
 
   @Get("{id}")

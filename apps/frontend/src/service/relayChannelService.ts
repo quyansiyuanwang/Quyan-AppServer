@@ -23,6 +23,12 @@ import type {
   BatchUpdateRelayChannelHealthConfigRequest,
   PaginatedResponseRelayChannelManagementListItemDto,
   RelayChannelManagementListItemDto,
+  ClaimRelayChannelProviderEarningsResponse,
+  PaginatedResponseRelayChannelDto,
+  RelayChannelProviderEarningsResponse,
+  ReviewRelayChannelSubmissionRequest,
+  SubmitRelayChannelRequest,
+  RelayChannelSubmissionStatus,
 } from '@/client/types.gen'
 import { checkApiResult } from '@/utils/service-utils'
 import { cacheObject } from '@/utils/common'
@@ -57,6 +63,7 @@ class RelayChannelService {
     keyword?: string
     channelType?: RelayChannelManagementListItemDto['channelType']
     enabled?: boolean
+    submissionStatus?: RelayChannelSubmissionStatus
   }): Promise<PaginatedResponseRelayChannelManagementListItemDto> {
     const result = await relayChannelApi.listManagementChannels({
       params: {
@@ -65,6 +72,7 @@ class RelayChannelService {
         keyword: options.keyword?.trim() || undefined,
         channelType: options.channelType,
         enabled: options.enabled,
+        submissionStatus: options.submissionStatus,
       },
     })
     return checkApiResult<any>(result, true).data
@@ -228,6 +236,40 @@ class RelayChannelService {
     const result = await relayChannelApi.batchDeleteChannels({
       body: data,
     })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async submitChannel(data: SubmitRelayChannelRequest): Promise<RelayChannelDto> {
+    const result = await relayChannelApi.submitChannel({ body: data })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async listMySubmittedChannels(options: {
+    page: number
+    pageSize: number
+  }): Promise<PaginatedResponseRelayChannelDto> {
+    const result = await relayChannelApi.listMySubmittedChannels({ params: options })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async reviewChannelSubmission(
+    id: string,
+    data: ReviewRelayChannelSubmissionRequest,
+  ): Promise<RelayChannelDto> {
+    const result = await relayChannelApi.reviewChannelSubmission({ path: { id }, body: data })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async getMyProviderEarnings(options: {
+    page: number
+    pageSize: number
+  }): Promise<RelayChannelProviderEarningsResponse> {
+    const result = await relayChannelApi.getMyProviderEarnings({ params: options })
+    return checkApiResult<any>(result, true).data
+  }
+
+  async claimMyProviderEarnings(): Promise<ClaimRelayChannelProviderEarningsResponse> {
+    const result = await relayChannelApi.claimMyProviderEarnings()
     return checkApiResult<any>(result, true).data
   }
 }

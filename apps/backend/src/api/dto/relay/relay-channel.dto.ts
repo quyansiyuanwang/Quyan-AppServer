@@ -33,6 +33,27 @@ export type RelayChannelAllowedModelsMode = "all" | "manual" | "auto";
 export type RelayAutomaticPoolRankingMode = "price-first" | "stability-first";
 /** Controls whether a standalone channel contributes health samples to automatic proxy pools. */
 export type RelayChannelHealthTrackingMode = "automatic" | "manual" | "disabled";
+export type RelayChannelSubmissionStatus = "pending" | "approved" | "rejected" | "offboarded";
+export type RelayChannelProviderSettlementMode = "realtime" | "interval" | "daily" | "manual";
+
+export interface RelayChannelProviderDto {
+  id: string;
+  userId: string;
+  username?: string;
+  commissionPercent: number;
+  settlementMode: RelayChannelProviderSettlementMode;
+  settlementIntervalDays?: number;
+  settlementTime?: string;
+  nextSettlementAt?: Date;
+}
+
+export interface RelayChannelProviderConfigRequest {
+  userId: string;
+  commissionPercent: number;
+  settlementMode: RelayChannelProviderSettlementMode;
+  settlementIntervalDays?: number;
+  settlementTime?: string;
+}
 
 export interface RelayChannelMemberDto {
   id?: string;
@@ -60,6 +81,9 @@ export interface RelayChannelManagementListItemDto {
   /** Present with pooledParentId for a physical pooled member. */
   pooledParentName?: string;
   multiplier: number;
+  submissionStatus: RelayChannelSubmissionStatus;
+  providerCount: number;
+  providerCommissionPercent: number;
   updateTime: Date;
 }
 
@@ -139,6 +163,12 @@ export interface RelayChannelDto {
   modelMapping?: Record<string, string>;
   timePeriodMultipliers?: TimePeriodMultiplierRule[];
   contextLengthMultipliers?: ContextLengthMultiplierRule[];
+  submissionStatus: RelayChannelSubmissionStatus;
+  submittedByUserId?: string;
+  submittedByUsername?: string;
+  reviewedAt?: Date;
+  reviewReason?: string;
+  providers: RelayChannelProviderDto[];
   createTime: Date;
   updateTime: Date;
 }
@@ -478,6 +508,8 @@ export interface CreateRelayChannelRequest {
   timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
   /** Input-context threshold multiplier rules. */
   contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
+  /** Admin-configured providers for revenue sharing. */
+  providers?: RelayChannelProviderConfigRequest[];
 }
 
 export interface UpdateRelayChannelRequest {
@@ -526,4 +558,54 @@ export interface UpdateRelayChannelRequest {
   timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
   /** Input-context threshold multiplier rules. */
   contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
+  /** Admin-configured providers for revenue sharing. */
+  providers?: RelayChannelProviderConfigRequest[];
+}
+
+/** User-facing submission. Only standalone channels are accepted. */
+export interface SubmitRelayChannelRequest {
+  name: string;
+  openaiUpstreamUrl?: string;
+  openaiUpstreamApiKey?: string;
+  anthropicUpstreamUrl?: string;
+  anthropicUpstreamApiKey?: string;
+  geminiUpstreamUrl?: string;
+  geminiUpstreamApiKey?: string;
+  multiplier?: number;
+  allowedFormats?: string;
+  allowedModels?: string | null;
+  modelMapping?: Record<string, string> | null;
+}
+
+export interface ReviewRelayChannelSubmissionRequest {
+  action: "approve" | "reject" | "offboard";
+  reason?: string;
+  multiplier?: number;
+  providers?: RelayChannelProviderConfigRequest[];
+}
+
+export interface RelayChannelProviderEarningDto {
+  id: string;
+  channelId: string;
+  channelName: string;
+  grossAmount: number;
+  commissionPercent: number;
+  commissionAmount: number;
+  settled: boolean;
+  createTime: Date;
+  settledAt?: Date;
+}
+
+export interface RelayChannelProviderEarningsResponse {
+  pendingAmount: number;
+  settledAmount: number;
+  total: number;
+  page: number;
+  pageSize: number;
+  records: RelayChannelProviderEarningDto[];
+}
+
+export interface ClaimRelayChannelProviderEarningsResponse {
+  settledAmount: number;
+  settlementId?: string;
 }

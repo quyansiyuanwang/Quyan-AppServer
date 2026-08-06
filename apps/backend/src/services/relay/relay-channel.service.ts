@@ -40,6 +40,11 @@ import type {
   RelayChannelType,
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
+  RelayChannelProviderConfigRequest,
+  RelayChannelProviderDto,
+  RelayChannelSubmissionStatus,
+  SubmitRelayChannelRequest,
+  ReviewRelayChannelSubmissionRequest,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
 import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
@@ -104,12 +109,31 @@ interface ValidatedRelayChannelData {
   modelMapping?: Record<string, string> | null;
   timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
   contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
+  providers?: RelayChannelProviderConfigRequest[];
 }
 
 const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
 const DEFAULT_ROUTING_STRATEGY: RelayChannelRoutingStrategy = "priority";
 const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
 const DEFAULT_AUTOMATIC_POOL_RANKING_MODE = "price-first" as const;
+
+const nextDailyProviderSettlementAt = (settlementTime: string | undefined, now: Date): Date => {
+  const [hours, minutes] = (settlementTime || "00:00").split(":").map(Number);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .formatToParts(now)
+    .reduce<Record<string, number>>((result, part) => {
+      if (part.type === "year" || part.type === "month" || part.type === "day") result[part.type] = Number(part.value);
+      return result;
+    }, {});
+  let targetPseudoUtc = Date.UTC(parts.year, parts.month - 1, parts.day, hours || 0, minutes || 0);
+  if (new Date(targetPseudoUtc - 8 * 60 * 60 * 1000) <= now) targetPseudoUtc += 24 * 60 * 60 * 1000;
+  return new Date(targetPseudoUtc - 8 * 60 * 60 * 1000);
+};
 
 type RelayChannelWithMembers = RelayChannel & {
   poolMembers?: Array<{
@@ -199,6 +223,7 @@ export class RelayChannelService {
       keyword?: string;
       channelType?: RelayChannelType;
       enabled?: boolean;
+      submissionStatus?: RelayChannelSubmissionStatus;
     },
   ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
     const page = query.page ?? 1;
@@ -214,6 +239,7 @@ export class RelayChannelService {
 
     if (query.keyword?.trim()) where.name = { contains: query.keyword.trim() };
     if (query.channelType) where.channelType = query.channelType;
+    if (query.submissionStatus) where.submissionStatus = query.submissionStatus;
 
     const visibilityWhere = await this.buildManagementVisibilityWhere(actorUserId);
     if (visibilityWhere) where.AND = [visibilityWhere];
@@ -240,6 +266,12 @@ export class RelayChannelService {
         pooledParentId: channel.pooledParentId || undefined,
         pooledParentName: channel.pooledParent?.name,
         multiplier: Number(channel.multiplier),
+        submissionStatus: (channel.submissionStatus as RelayChannelSubmissionStatus) || "approved",
+        providerCount: channel.providers.length,
+        providerCommissionPercent: channel.providers.reduce(
+          (total, provider) => total + Number(provider.commissionPercent),
+          0,
+        ),
         updateTime: channel.updateTime,
       })),
       total,
@@ -1862,7 +1894,29 @@ export class RelayChannelService {
       contextLengthMultipliers: contextLengthMultipliers
         ? [...contextLengthMultipliers].sort((left, right) => left.minTokens - right.minTokens)
         : undefined,
+      providers: data.providers,
     };
+  }
+
+  private async buildProviderRows(
+    providers: RelayChannelProviderConfigRequest[],
+  ): Promise<Array<RelayChannelProviderConfigRequest & { nextSettlementAt?: Date | null }>> {
+    const userIds = providers.map((provider) => provider.userId.trim());
+    if (new Set(userIds).size !== userIds.length) throw new BadRequestError("Channel providers must be unique");
+    const now = new Date();
+    return Promise.all(
+      providers.map(async (provider) => {
+        const user = await this.userRepository.findById(provider.userId);
+        if (!user || user.status !== 1) throw new BadRequestError("Channel provider user is unavailable");
+        const nextSettlementAt =
+          provider.settlementMode === "interval"
+            ? new Date(now.getTime() + Number(provider.settlementIntervalDays) * 24 * 60 * 60 * 1000)
+            : provider.settlementMode === "daily"
+              ? nextDailyProviderSettlementAt(provider.settlementTime, now)
+              : null;
+        return { ...provider, userId: provider.userId.trim(), nextSettlementAt };
+      }),
+    );
   }
 
   private toPersistenceInput(data: ValidatedRelayChannelData): Prisma.RelayChannelUncheckedCreateInput {
@@ -1972,6 +2026,12 @@ export class RelayChannelService {
 
       await this.assertPooledMemberParent(created.id, validated, tx);
       await this.syncPoolMembers(created.id, validated.channelType, validated.poolMembers, tx);
+      if (validated.providers !== undefined)
+        await this.relayChannelRepository.replaceProvidersByChannelId(
+          created.id,
+          await this.buildProviderRows(validated.providers),
+          tx,
+        );
 
       return created;
     });
@@ -1988,7 +2048,90 @@ export class RelayChannelService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    return this.toDto(channel);
+    const refreshed = await this.relayChannelRepository.findVisibleById(channel.id);
+    return this.toDto(refreshed ?? channel);
+  }
+
+  async submitChannel(
+    data: SubmitRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    const validated = await this.buildValidatedChannelData({ ...data, channelType: "standalone" });
+    await this.assertVisibleNameAvailable(validated.name);
+    const channel = await this.relayChannelRepository.create({
+      ...this.toPersistenceInput(validated),
+      status: RELAY_CHANNEL_STATUS.DISABLED,
+      submissionStatus: "pending",
+      submittedByUserId: actorUserId,
+    });
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_CREATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: channel.id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `提交了中转渠道 '${channel.name}' 待审核`,
+      changes: maskSensitiveData(data),
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    const refreshed = await this.relayChannelRepository.findVisibleById(channel.id);
+    return this.toDto(refreshed ?? channel, undefined, true);
+  }
+
+  async listMySubmittedChannels(actorUserId: string, page = 1, pageSize = 20) {
+    const result = await this.relayChannelRepository.listSubmittedByUser(actorUserId, page, pageSize);
+    return {
+      items: await Promise.all(result.records.map((channel) => this.toDto(channel, undefined, true))),
+      total: result.total,
+      page,
+      pageSize,
+    };
+  }
+
+  async reviewSubmittedChannel(
+    id: string,
+    body: ReviewRelayChannelSubmissionRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    const existing = await this.relayChannelRepository.findVisibleById(id);
+    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (!existing.submittedByUserId) throw new BadRequestError("Only submitted channels may be reviewed");
+    const approved = body.action === "approve";
+    const providers =
+      body.providers ??
+      (approved
+        ? [{ userId: existing.submittedByUserId, commissionPercent: 0, settlementMode: "manual" as const }]
+        : undefined);
+    const data: Prisma.RelayChannelUncheckedUpdateInput = {
+      submissionStatus: approved ? "approved" : body.action === "reject" ? "rejected" : "offboarded",
+      status: approved ? RELAY_CHANNEL_STATUS.ENABLED : RELAY_CHANNEL_STATUS.DISABLED,
+      reviewedByUserId: actorUserId,
+      reviewedAt: new Date(),
+      reviewReason: body.reason?.trim() || null,
+    };
+    if (body.multiplier !== undefined) data.multiplier = body.multiplier;
+    const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
+      const updated = await this.relayChannelRepository.updateById(id, data, tx);
+      if (providers !== undefined)
+        await this.relayChannelRepository.replaceProvidersByChannelId(id, await this.buildProviderRows(providers), tx);
+      return updated;
+    });
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `审核了中转渠道 '${channel.name}'`,
+      metadata: { action: body.action, providerCount: providers?.length },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    const refreshed = await this.relayChannelRepository.findVisibleById(channel.id);
+    return this.toDto(refreshed ?? channel, undefined, true);
   }
 
   async updateChannel(
@@ -2018,6 +2161,12 @@ export class RelayChannelService {
       const updated = await this.relayChannelRepository.updateById(id, this.toPersistenceInput(validated), tx);
 
       await this.syncPoolMembers(updated.id, validated.channelType, validated.poolMembers, tx);
+      if (data.providers !== undefined)
+        await this.relayChannelRepository.replaceProvidersByChannelId(
+          updated.id,
+          await this.buildProviderRows(data.providers),
+          tx,
+        );
 
       return updated;
     });
@@ -2034,7 +2183,8 @@ export class RelayChannelService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    return this.toDto(channel);
+    const refreshed = await this.relayChannelRepository.findVisibleById(channel.id);
+    return this.toDto(refreshed ?? channel);
   }
 
   async batchUpdateChannels(
@@ -2514,6 +2664,36 @@ export class RelayChannelService {
       pooledPriority: channel.pooledPriority,
       pooledWeight: Number(channel.pooledWeight),
       pooledMemberEnabled: channel.pooledMemberEnabled,
+      submissionStatus: (channel.submissionStatus as RelayChannelSubmissionStatus) || "approved",
+      submittedByUserId: channel.submittedByUserId || undefined,
+      submittedByUsername: (channel as RelayChannel & { submittedBy?: { username?: string } | null }).submittedBy
+        ?.username,
+      reviewedAt: channel.reviewedAt || undefined,
+      reviewReason: channel.reviewReason || undefined,
+      providers:
+        (
+          channel as RelayChannel & {
+            providers?: Array<{
+              id: string;
+              userId: string;
+              commissionPercent: Prisma.Decimal | number;
+              settlementMode: RelayChannelProviderDto["settlementMode"];
+              settlementIntervalDays: number | null;
+              settlementTime: string | null;
+              nextSettlementAt: Date | null;
+              user?: { username: string } | null;
+            }>;
+          }
+        ).providers?.map((provider) => ({
+          id: provider.id,
+          userId: provider.userId,
+          username: provider.user?.username,
+          commissionPercent: Number(provider.commissionPercent),
+          settlementMode: provider.settlementMode,
+          settlementIntervalDays: provider.settlementIntervalDays ?? undefined,
+          settlementTime: provider.settlementTime ?? undefined,
+          nextSettlementAt: provider.nextSettlementAt ?? undefined,
+        })) ?? [],
       createTime: channel.createTime,
       updateTime: channel.updateTime,
     };
