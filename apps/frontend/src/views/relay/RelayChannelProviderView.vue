@@ -1,20 +1,27 @@
 <template>
-  <div class="desktop-page page-shell relay-provider-page">
-    <section class="page-card relay-provider-page__section">
-      <div class="relay-provider-page__heading">
-        <div>
-          <h2>{{ i18ns.t('relay.providerChannelTitle') }}</h2>
-          <p>{{ i18ns.t('relay.providerChannelDescription') }}</p>
+  <div
+    :class="[
+      isDesktop ? 'desktop-page page-shell' : 'mobile-page mobile-adapter',
+      'relay-provider-page',
+    ]"
+  >
+    <el-card shadow="never" class="page-card surface-card relay-provider-page__section">
+      <template #header>
+        <div class="relay-provider-page__heading">
+          <div>
+            <h2>{{ i18ns.t('relay.providerChannelTitle') }}</h2>
+            <p>{{ i18ns.t('relay.providerChannelDescription') }}</p>
+          </div>
+          <el-button
+            v-if="canSubmit"
+            type="primary"
+            :loading="submitting"
+            @click="submissionDialogVisible = true"
+          >
+            {{ i18ns.t('relay.submitChannel') }}
+          </el-button>
         </div>
-        <el-button
-          v-if="canSubmit"
-          type="primary"
-          :loading="submitting"
-          @click="submissionDialogVisible = true"
-        >
-          {{ i18ns.t('relay.submitChannel') }}
-        </el-button>
-      </div>
+      </template>
 
       <el-table v-loading="submissionsLoading" :data="submittedChannels" size="small">
         <el-table-column prop="name" :label="i18ns.t('relay.channelName')" min-width="180" />
@@ -41,18 +48,29 @@
         :total="submissionPage.total"
         @update:current-page="loadSubmissions($event)"
       />
-    </section>
+    </el-card>
 
-    <section v-if="canReadEarnings" class="page-card relay-provider-page__section">
-      <div class="relay-provider-page__heading">
-        <div>
-          <h2>{{ i18ns.t('relay.providerEarningsTitle') }}</h2>
-          <p>{{ i18ns.t('relay.providerEarningsDescription') }}</p>
+    <el-card
+      v-if="canReadEarnings"
+      shadow="never"
+      class="page-card surface-card relay-provider-page__section"
+    >
+      <template #header>
+        <div class="relay-provider-page__heading">
+          <div>
+            <h2>{{ i18ns.t('relay.providerEarningsTitle') }}</h2>
+            <p>{{ i18ns.t('relay.providerEarningsDescription') }}</p>
+          </div>
+          <el-button
+            type="primary"
+            :disabled="pendingAmount <= 0"
+            :loading="claiming"
+            @click="claim"
+          >
+            {{ i18ns.t('relay.claimProviderEarnings') }}
+          </el-button>
         </div>
-        <el-button type="primary" :disabled="pendingAmount <= 0" :loading="claiming" @click="claim">
-          {{ i18ns.t('relay.claimProviderEarnings') }}
-        </el-button>
-      </div>
+      </template>
       <div class="relay-provider-page__stats">
         <div>
           <span>{{ i18ns.t('relay.pendingEarnings') }}</span
@@ -94,7 +112,7 @@
         :total="earningsPage.total"
         @update:current-page="loadEarnings($event)"
       />
-    </section>
+    </el-card>
 
     <el-dialog
       v-model="submissionDialogVisible"
@@ -144,6 +162,8 @@
 </template>
 
 <script setup lang="ts">
+import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
+import { usePageDevice } from '@/composables/usePageDevice'
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import type {
@@ -157,6 +177,7 @@ import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 
 const permissionStore = usePermissionStore()
+const { isDesktop } = usePageDevice()
 const canSubmit = permissionStore.hasPermission(Permission.RELAY_CHANNEL_SUBMIT)
 const canReadEarnings = permissionStore.hasPermission(Permission.RELAY_CHANNEL_PROVIDER_READ)
 const submittedChannels = ref<RelayChannelDto[]>([])
@@ -291,6 +312,10 @@ onMounted(() => {
   void loadSubmissions()
   if (canReadEarnings) void loadEarnings()
 })
+
+if (!isDesktop.value) {
+  useMobileTableCardLabels('.relay-provider-page')
+}
 </script>
 
 <style scoped lang="scss">
@@ -298,24 +323,37 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  min-width: 0;
 }
 .relay-provider-page__section {
-  padding: 20px;
+  overflow: hidden;
 }
+
+.relay-provider-page :deep(.surface-card) {
+  border: 1px solid var(--surface-card-border);
+  border-radius: 8px;
+  background-color: var(--surface-card-bg);
+  box-shadow: var(--surface-card-shadow);
+  backdrop-filter: blur(var(--surface-card-blur));
+}
+
 .relay-provider-page__heading {
   display: flex;
   justify-content: space-between;
   gap: 16px;
   align-items: flex-start;
-  margin-bottom: 16px;
 }
 .relay-provider-page__heading h2 {
   margin: 0;
   font-size: 20px;
+  line-height: 1.35;
+  color: var(--el-text-color-primary);
 }
 .relay-provider-page__heading p {
   margin: 6px 0 0;
   color: var(--el-text-color-secondary);
+  line-height: 1.5;
 }
 .relay-provider-page__stats {
   display: grid;
@@ -328,6 +366,8 @@ onMounted(() => {
   padding: 12px;
   display: grid;
   gap: 4px;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
 }
 .relay-provider-page__stats span {
   color: var(--el-text-color-secondary);
@@ -335,17 +375,141 @@ onMounted(() => {
 }
 .relay-provider-page__stats strong {
   font-size: 20px;
+  line-height: 1.25;
+  color: var(--el-text-color-primary);
 }
 .relay-provider-page__pagination {
   justify-content: flex-end;
   margin-top: 16px;
 }
+
+.relay-provider-page :deep(.el-card__header) {
+  padding: 16px 20px;
+}
+
+.relay-provider-page :deep(.el-card__body) {
+  padding: 16px 20px 20px;
+}
+
+.relay-provider-page :deep(.el-table) {
+  background-color: transparent;
+}
+
 @media (max-width: 768px) {
+  .relay-provider-page {
+    gap: 12px;
+  }
+
+  .relay-provider-page__section {
+    border-radius: 8px;
+  }
+
+  .relay-provider-page :deep(.el-card__header),
+  .relay-provider-page :deep(.el-card__body) {
+    padding: 12px 14px;
+  }
+
   .relay-provider-page__heading {
     flex-direction: column;
+    gap: 10px;
   }
+
+  .relay-provider-page__heading h2 {
+    font-size: 18px;
+  }
+
   .relay-provider-page__heading .el-button {
     width: 100%;
   }
+
+  .relay-provider-page__stats {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .relay-provider-page__pagination {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+.mobile-adapter {
+  padding: 8px 6px 16px;
+  overflow-x: hidden;
+}
+
+.mobile-adapter :deep(.el-table__header-wrapper),
+.mobile-adapter :deep(.el-table__scrollbar),
+.mobile-adapter :deep(.el-table__body colgroup),
+.mobile-adapter :deep(.el-table__header colgroup) {
+  display: none !important;
+}
+
+.mobile-adapter :deep(.el-table__inner-wrapper),
+.mobile-adapter :deep(.el-table__body-wrapper),
+.mobile-adapter :deep(.el-table__body-wrapper .el-scrollbar),
+.mobile-adapter :deep(.el-table__body-wrapper .el-scrollbar__wrap),
+.mobile-adapter :deep(.el-table__body-wrapper .el-scrollbar__view) {
+  overflow-x: hidden !important;
+}
+
+.mobile-adapter :deep(.el-table__body-wrapper) {
+  overflow-y: visible !important;
+  padding: 4px 0 10px;
+}
+
+.mobile-adapter :deep(.el-table__body tbody) {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobile-adapter :deep(.el-table__body tr) {
+  display: block;
+  width: 100% !important;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+}
+
+.mobile-adapter :deep(.el-table__body td) {
+  display: block;
+  border: none !important;
+  padding: 5px 0;
+}
+
+.mobile-adapter :deep(.el-table__body td::before) {
+  content: attr(data-label);
+  display: block;
+  margin-bottom: 2px;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.mobile-adapter :deep(.el-dialog) {
+  width: 96% !important;
+  max-width: 96% !important;
+  margin-top: 3vh !important;
+}
+
+.mobile-adapter :deep(.el-dialog__body) {
+  max-height: 72vh;
+  overflow: auto;
+  padding: 12px 14px;
+}
+
+.mobile-adapter :deep(.el-form-item__label) {
+  float: none;
+  display: block;
+  text-align: left;
+  padding: 0 0 6px;
+}
+
+.mobile-adapter :deep(.el-form-item__content) {
+  margin-left: 0 !important;
 }
 </style>
