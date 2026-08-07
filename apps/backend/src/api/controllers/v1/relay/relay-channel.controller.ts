@@ -326,11 +326,7 @@ export class RelayChannelController extends Controller {
 
   @Put("{id}/provider-config")
   @Security("jwt")
-  @RequireAnyPermission([
-    Permission.RELAY_CHANNEL_REVIEW,
-    Permission.RELAY_CHANNEL_UPDATE,
-    Permission.RELAY_CHANNEL_SUBMIT,
-  ])
+  @RequireAnyPermission([Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE])
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -405,7 +401,11 @@ export class RelayChannelController extends Controller {
 
   @Post("upstream-models")
   @Security("jwt")
-  @RequireAnyPermission([Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE])
+  @RequireAnyPermission([
+    Permission.RELAY_CHANNEL_REVIEW,
+    Permission.RELAY_CHANNEL_UPDATE,
+    Permission.RELAY_CHANNEL_SUBMIT,
+  ])
   @Middlewares(validateBody(relayChannelUpstreamModelsBodySchema))
   public async listUpstreamModels(
     @Body() body: RelayChannelUpstreamModelsRequest,

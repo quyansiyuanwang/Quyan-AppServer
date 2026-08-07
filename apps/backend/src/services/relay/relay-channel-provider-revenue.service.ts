@@ -32,21 +32,40 @@ export class RelayChannelProviderRevenueService {
       where: { relayChannelId: input.relayChannelId, status: 1 },
     });
 
-    for (const provider of providers) {
-      const commissionAmount = round4((input.grossAmount * Number(provider.commissionPercent)) / 100);
-      if (commissionAmount <= 0) continue;
-      const earning = await tx.relayChannelProviderEarning.create({
-        data: {
-          providerId: provider.id,
-          relayUsageId: input.relayUsageId,
-          grossAmount: new Decimal(input.grossAmount),
-          commissionPercent: provider.commissionPercent,
-          commissionAmount: new Decimal(commissionAmount),
-        },
-      });
-      if (provider.settlementMode === "realtime")
-        await this.settleEarningsInTransaction(tx, provider.id, [earning.id], "realtime");
-    }
+    const earningRows = providers
+      .map((provider) => ({
+        provider,
+        commissionAmount: round4((input.grossAmount * Number(provider.commissionPercent)) / 100),
+      }))
+      .filter(({ commissionAmount }) => commissionAmount > 0);
+    if (!earningRows.length) return;
+
+    await tx.relayChannelProviderEarning.createMany({
+      data: earningRows.map(({ provider, commissionAmount }) => ({
+        providerId: provider.id,
+        relayUsageId: input.relayUsageId,
+        grossAmount: new Decimal(input.grossAmount),
+        commissionPercent: provider.commissionPercent,
+        commissionAmount: new Decimal(commissionAmount),
+      })),
+      skipDuplicates: true,
+    });
+
+    const realtimeProviderIds = earningRows
+      .filter(({ provider }) => provider.settlementMode === "realtime")
+      .map(({ provider }) => provider.id);
+    if (!realtimeProviderIds.length) return;
+    const realtimeEarnings = await tx.relayChannelProviderEarning.findMany({
+      where: {
+        relayUsageId: input.relayUsageId,
+        providerId: { in: realtimeProviderIds },
+        settlementId: null,
+        status: 1,
+      },
+      select: { id: true, providerId: true },
+    });
+    for (const earning of realtimeEarnings)
+      await this.settleEarningsInTransaction(tx, earning.providerId, [earning.id], "realtime");
   }
 
   async listOwnEarnings(userId: string, page = 1, pageSize = 20) {

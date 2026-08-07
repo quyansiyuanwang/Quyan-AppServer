@@ -267,29 +267,32 @@ export class RelayChannelService {
     });
 
     return {
-      items: records.map((channel) => ({
-        id: channel.id,
-        name: channel.name,
-        enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-        channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
-        routingStrategy:
-          (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
-        visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
-        poolMemberCount: new Set([
-          ...channel.poolMembers.map((member) => member.memberChannelId),
-          ...(channel.channelType === "pooled" ? channel.pooledChildren.map((member) => member.id) : []),
-        ]).size,
-        pooledParentId: channel.pooledParentId || undefined,
-        pooledParentName: channel.pooledParent?.name,
-        multiplier: Number(channel.multiplier),
-        submissionStatus: (channel.submissionStatus as RelayChannelSubmissionStatus) || "approved",
-        providerCount: channel.providers.length,
-        providerCommissionPercent: channel.providers.reduce(
-          (total, provider) => total + Number(provider.commissionPercent),
-          0,
-        ),
-        updateTime: channel.updateTime,
-      })),
+      items: records.map((channel) => {
+        const providers = channel.providers ?? [];
+        return {
+          id: channel.id,
+          name: channel.name,
+          enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+          channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
+          routingStrategy:
+            (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
+          visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
+          poolMemberCount: new Set([
+            ...channel.poolMembers.map((member) => member.memberChannelId),
+            ...(channel.channelType === "pooled" ? channel.pooledChildren.map((member) => member.id) : []),
+          ]).size,
+          pooledParentId: channel.pooledParentId || undefined,
+          pooledParentName: channel.pooledParent?.name,
+          multiplier: Number(channel.multiplier),
+          submissionStatus: (channel.submissionStatus as RelayChannelSubmissionStatus) || "approved",
+          providerCount: providers.length,
+          providerCommissionPercent: providers.reduce(
+            (total, provider) => total + Number(provider.commissionPercent),
+            0,
+          ),
+          updateTime: channel.updateTime,
+        };
+      }),
       total,
       page,
       pageSize,
@@ -2338,9 +2341,14 @@ export class RelayChannelService {
   }
 
   private getChangeRequestEncryptionKey(): Buffer {
-    const secret = env.relay.channelProbe.masterKey;
+    const secret = env.relay.channelChangeRequest.masterKey;
     if (secret.length < 64) throw new BadRequestError("渠道修改申请加密密钥未配置");
     return createHash("sha256").update(secret).digest();
+  }
+
+  private getLegacyChangeRequestEncryptionKey(): Buffer | undefined {
+    const secret = env.relay.channelProbe.masterKey;
+    return secret.length >= 64 ? createHash("sha256").update(secret).digest() : undefined;
   }
 
   private encryptChangeCredentials(credentials: Record<string, string>) {
@@ -2358,18 +2366,24 @@ export class RelayChannelService {
     credentialAuthTag: string | null;
   }): Record<string, string> {
     if (!row.encryptedCredentials || !row.credentialIv || !row.credentialAuthTag) return {};
-    const decipher = createDecipheriv(
-      "aes-256-gcm",
-      this.getChangeRequestEncryptionKey(),
-      Buffer.from(row.credentialIv, "base64"),
+    const keys = [this.getChangeRequestEncryptionKey(), this.getLegacyChangeRequestEncryptionKey()].filter(
+      (key): key is Buffer => Boolean(key),
     );
-    decipher.setAuthTag(Buffer.from(row.credentialAuthTag, "base64"));
-    const parsed = JSON.parse(
-      Buffer.concat([decipher.update(Buffer.from(row.encryptedCredentials, "base64")), decipher.final()]).toString(
-        "utf8",
-      ),
-    );
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, string>) : {};
+    for (const key of keys) {
+      try {
+        const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(row.credentialIv, "base64"));
+        decipher.setAuthTag(Buffer.from(row.credentialAuthTag, "base64"));
+        const parsed = JSON.parse(
+          Buffer.concat([decipher.update(Buffer.from(row.encryptedCredentials, "base64")), decipher.final()]).toString(
+            "utf8",
+          ),
+        );
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, string>;
+      } catch {
+        // Older change requests were encrypted with the channel-probe key.
+      }
+    }
+    throw new BadRequestError("渠道修改申请凭据无法解密");
   }
 
   private toChangeRequestDto(row: any): RelayChannelChangeRequestDto {
@@ -2576,7 +2590,9 @@ export class RelayChannelService {
     });
 
     const refreshed = await this.relayChannelRepository.findVisibleById(channel.id);
-    return this.toDto(refreshed ?? channel);
+    // Keep relation data from the refreshed projection, while preserving the
+    // values returned by the transactional update when a stale read occurs.
+    return this.toDto(refreshed ? ({ ...refreshed, ...channel } as RelayChannel) : channel);
   }
 
   async batchUpdateChannels(

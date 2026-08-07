@@ -339,7 +339,7 @@ export const reviewRelayChannelChangeRequestBodySchema = z.object({
 });
 
 export const updateRelayChannelProviderConfigBodySchema = z.object({
-  multiplier: channelMultiplierSchema,
+  multiplier: channelMultiplierSchema.optional(),
   providers: z.array(providerConfigSchema).max(100).optional(),
 });
 
@@ -363,8 +363,6 @@ export const relayChannelUpstreamModelsBodySchema = z
 export const reviewRelayChannelSubmissionBodySchema = z.object({
   action: z.enum(["approve", "reject", "offboard"]),
   reason: z.string().trim().max(1000).optional(),
-  multiplier: channelMultiplierSchema.optional(),
-  providers: z.array(providerConfigSchema).max(100).optional(),
 });
 
 export const providerEarningsQuerySchema = z.object({

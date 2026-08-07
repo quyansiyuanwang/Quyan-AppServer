@@ -9,6 +9,7 @@ export function assertEnvironment(source: EnvSnapshot): void {
   assertions.register(() => assertReplaySigningSecretIsolation(source));
   assertions.register(() => assertDeveloperSecretsMasterKey(source));
   assertions.register(() => assertRelayChannelProbeMasterKey(source));
+  assertions.register(() => assertRelayChannelChangeRequestMasterKey(source));
   assertions.assert();
 }
 
@@ -81,4 +82,22 @@ function assertRelayChannelProbeMasterKey(source: EnvSnapshot): void {
   ].map((value) => String(value || "").trim());
   if (protectedSecrets.includes(secret))
     throw new Error("RELAY_CHANNEL_PROBE_MASTER_KEY must be different from authentication and platform secrets");
+}
+
+function assertRelayChannelChangeRequestMasterKey(source: EnvSnapshot): void {
+  const secret = String(source.RELAY_CHANNEL_CHANGE_REQUEST_MASTER_KEY || "").trim();
+  if (!secret) return;
+  if (secret.length < 64) throw new Error("RELAY_CHANNEL_CHANGE_REQUEST_MASTER_KEY must be at least 64 characters");
+  const protectedSecrets = [
+    source.JWT_ACCESS_SECRET,
+    source.JWT_REFRESH_SECRET,
+    source.REPLAY_SIGNING_MASTER_SECRET,
+    source.TWO_FACTOR_TRUSTED_DEVICE_SECRET,
+    source.DEVELOPER_SECRETS_MASTER_KEY,
+    source.RELAY_CHANNEL_PROBE_MASTER_KEY,
+  ].map((value) => String(value || "").trim());
+  if (protectedSecrets.includes(secret))
+    throw new Error(
+      "RELAY_CHANNEL_CHANGE_REQUEST_MASTER_KEY must be different from authentication, platform, and probe secrets",
+    );
 }

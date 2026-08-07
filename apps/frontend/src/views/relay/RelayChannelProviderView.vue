@@ -79,6 +79,7 @@
             <p>{{ i18ns.t('relay.providerEarningsDescription') }}</p>
           </div>
           <el-button
+            v-if="canSettleEarnings"
             type="primary"
             :icon="Wallet"
             :disabled="pendingAmount <= 0"
@@ -181,6 +182,7 @@ const { isDesktop } = usePageDevice()
 const permissionStore = usePermissionStore()
 const canSubmit = permissionStore.hasPermission(Permission.RELAY_CHANNEL_SUBMIT)
 const canReadEarnings = permissionStore.hasPermission(Permission.RELAY_CHANNEL_PROVIDER_READ)
+const canSettleEarnings = permissionStore.hasPermission(Permission.RELAY_CHANNEL_PROVIDER_SETTLE)
 const submittedChannels = ref<RelayChannelDto[]>([])
 const changeRequests = ref<any[]>([])
 const earningRecords = ref<RelayChannelProviderEarningDto[]>([])

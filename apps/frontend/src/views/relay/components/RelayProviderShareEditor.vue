@@ -177,10 +177,9 @@ const remove = (index: number) =>
 }
 .relay-provider-editor__row {
   display: grid;
-  grid-template-columns: minmax(190px, 1.4fr) minmax(110px, 0.7fr) minmax(150px, 1fr) minmax(
-      140px,
-      0.9fr
-    ) auto;
+  grid-template-columns:
+    minmax(190px, 1.4fr) minmax(110px, 0.7fr) minmax(150px, 1fr) minmax(140px, 0.9fr)
+    auto;
   gap: 8px;
   align-items: center;
   padding: 10px;
