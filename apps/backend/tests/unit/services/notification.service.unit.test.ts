@@ -5,7 +5,6 @@ import { ConfigService } from "../../../src/services/system/config.service";
 import { RedisService } from "../../../src/services/infrastructure/redis.service";
 import { NotificationPreferenceInitializerService } from "../../../src/services/notification/notification-preference-initializer.service";
 import { NotificationEvent } from "../../../src/constant/notification-event";
-import type { NotificationPayload } from "../../../src/services/notification/notification.service";
 
 vi.mock("../../../src/store/notification/notification-preference.repository");
 vi.mock("../../../src/services/system/config.service");
@@ -56,10 +55,9 @@ const makePreference = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const payload: NotificationPayload = {
-  title: "余额不足",
-  content: "您的余额已低于阈值",
-  data: { balance: "5.00" },
+const payload = {
+  currentBalance: "5.00",
+  threshold: "10.00",
 };
 
 describe("NotificationService", () => {
@@ -198,7 +196,8 @@ describe("NotificationService", () => {
       expect(sendMailMock).toHaveBeenCalledWith(
         expect.objectContaining({
           to: "user@example.com",
-          subject: "余额不足",
+          subject: "余额不足提醒",
+          text: expect.stringContaining("当前余额: 5.00"),
         }),
       );
       expect(repoMock.createLog).toHaveBeenCalledWith(
@@ -341,8 +340,8 @@ describe("NotificationService", () => {
         expect.objectContaining({
           userId: "user-1",
           eventType: NotificationEvent.BALANCE_LOW,
-          title: "余额不足",
-          content: "您的余额已低于阈值",
+          title: "余额不足提醒",
+          content: "当前余额已低于设定阈值，请及时充值。",
         }),
       );
     });

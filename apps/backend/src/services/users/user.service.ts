@@ -18,6 +18,7 @@ import type { GroupStore } from "@/store/users/group.store";
 import type { BusinessLogStore } from "@/store/system/businesslog.store";
 import type { Request } from "express";
 import { NotificationService } from "@/services/notification/notification.service";
+import type { NotificationTemplateInput } from "@/services/notification/notification-template";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { NotificationEvent } from "@/constant/notification-event";
 import { env } from "@/config/env";
@@ -44,7 +45,7 @@ export class UserService {
   private async dispatchSecurityNotification(
     userId: string,
     event: NotificationEvent,
-    payload: { title: string; content: string; data?: Record<string, unknown> },
+    payload: NotificationTemplateInput,
   ): Promise<void> {
     try {
       const prefRepo = NotificationPreferenceRepository.getInstance();
@@ -277,9 +278,10 @@ export class UserService {
       const oldStatus = existingUser.status;
       const newStatus = data.status;
       this.dispatchSecurityNotification(userId, NotificationEvent.ACCOUNT_STATUS_CHANGED, {
-        title: "账户状态变更",
-        content: `您的账户状态已由「${oldStatus}」变更为「${newStatus}」。如有疑问，请联系管理员。`,
-        data: { oldStatus, newStatus },
+        subject: "账户状态变更",
+        summary: `您的账户状态已由「${oldStatus}」变更为「${newStatus}」。如有疑问，请联系管理员。`,
+        oldStatus,
+        newStatus,
       }).catch(() => {});
     }
 
@@ -357,11 +359,11 @@ export class UserService {
 
     // Fire-and-forget: notify the target user about password change
     this.dispatchSecurityNotification(userId, NotificationEvent.PASSWORD_CHANGED, {
-      title: "密码已修改",
-      content: isSelf
+      subject: "密码已修改",
+      summary: isSelf
         ? "您的账户密码已成功修改。如非本人操作，请立即联系管理员。"
         : "您的账户密码已被管理员修改，请及时登录确认。",
-      data: { isSelf },
+      isSelf,
     }).catch(() => {});
   }
 

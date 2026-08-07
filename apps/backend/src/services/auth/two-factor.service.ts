@@ -1222,11 +1222,11 @@ export class TwoFactorService {
       if (!subscribedEvents.includes(NotificationEvent.TWO_FACTOR_STATUS_CHANGE)) return;
 
       NotificationService.getInstance().dispatch(userId, NotificationEvent.TWO_FACTOR_STATUS_CHANGE, {
-        title: enabled ? "2FA 已开启" : "2FA 已关闭",
-        content: enabled
+        subject: enabled ? "2FA 已开启" : "2FA 已关闭",
+        summary: enabled
           ? "您的账户已成功开启两步验证，账户安全性已提升。"
           : "您的账户已关闭两步验证。如非本人操作，请立即联系管理员。",
-        data: { enabled },
+        enabled,
       });
     } catch {
       // non-fatal
