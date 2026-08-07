@@ -143,10 +143,7 @@
         />
         <RelayProviderShareEditor
           :providers="configProviders"
-          :user-options="providerUserOptions"
-          :users-loading="providerUsersLoading"
           @update:providers="configProviders = $event"
-          @search-users="loadProviderUsers"
         /> </el-form
       ><template #footer
         ><div class="drawer-footer">
@@ -188,9 +185,7 @@ import { usePageDevice } from '@/composables/usePageDevice'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { i18ns } from '@/locales'
 import { relayChannelService } from '@/service/relayChannelService'
-import RelayProviderShareEditor, {
-  type RelayProviderUserOption,
-} from './components/RelayProviderShareEditor.vue'
+import RelayProviderShareEditor from './components/RelayProviderShareEditor.vue'
 import type {
   RelayChannelManagementListItemDto,
   RelayChannelDto,
@@ -210,13 +205,11 @@ const configMultiplier = ref(1)
 const configProviders = ref<RelayChannelProviderConfigRequest[]>([])
 const changeVisible = ref(false)
 const selectedChange = ref<RelayChannelChangeRequestDto | null>(null)
-const providerUserOptions = ref<RelayProviderUserOption[]>([])
-const providerUsersLoading = ref(false)
 const changeRequestByChannel = computed(
   () => new Map(changeRequests.value.map((request) => [request.relayChannelId, request])),
 )
 const providerSummary = (providers?: RelayChannelProviderConfigRequest[]) =>
-  (providers || []).map((item) => `${item.userId}: ${item.commissionPercent}%`).join(', ') || '-'
+  (providers || []).map((item) => `${item.username}: ${item.commissionPercent}%`).join(', ') || '-'
 const credentialSummary = (config: any) =>
   (
     [
@@ -284,21 +277,12 @@ const openConfig = async (id: string) => {
     configChannel.value = await relayChannelService.getChannel(id)
     configMultiplier.value = configChannel.value.multiplier
     configProviders.value = configChannel.value.providers.map((provider) => ({
-      userId: provider.userId,
+      username: provider.username || '',
       commissionPercent: provider.commissionPercent,
       settlementMode: provider.settlementMode,
       settlementIntervalDays: provider.settlementIntervalDays,
       settlementTime: provider.settlementTime,
     }))
-    providerUserOptions.value = [
-      ...providerUserOptions.value,
-      ...configChannel.value.providers
-        .filter((provider) => provider.userId && provider.username)
-        .map((provider) => ({ id: provider.userId, username: provider.username!, name: null })),
-    ].filter(
-      (item, index, options) =>
-        options.findIndex((candidate) => candidate.id === item.id) === index,
-    )
     configVisible.value = true
   } catch (error: any) {
     ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
@@ -318,23 +302,6 @@ const saveConfig = async () => {
     ElMessage.error(error?.message || i18ns.t('operationFailed'))
   }
 }
-const loadProviderUsers = async (keyword = '') => {
-  providerUsersLoading.value = true
-  try {
-    const data = await relayChannelService.listProviderUsers({ page: 1, pageSize: 30, keyword })
-    const selected = providerUserOptions.value.filter((item) =>
-      configProviders.value.some((provider) => provider.userId === item.id),
-    )
-    providerUserOptions.value = [...selected, ...data.items].filter(
-      (item, index, options) =>
-        options.findIndex((candidate) => candidate.id === item.id) === index,
-    )
-  } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
-  } finally {
-    providerUsersLoading.value = false
-  }
-}
 const showChange = (request: RelayChannelChangeRequestDto) => {
   selectedChange.value = request
   changeVisible.value = true
@@ -342,7 +309,6 @@ const showChange = (request: RelayChannelChangeRequestDto) => {
 onMounted(() => {
   void loadChannels()
   void loadChanges()
-  void loadProviderUsers()
 })
 if (!isDesktop.value) useMobileTableCardLabels('.relay-review-page')
 </script>

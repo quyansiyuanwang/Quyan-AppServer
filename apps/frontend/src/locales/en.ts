@@ -2295,7 +2295,7 @@ export default {
     channelParameters: 'Channel parameters',
     apiKey: 'API key',
     credentialRetainHelp: 'Leave blank to retain the live credential when approved.',
-    providerUserIdPlaceholder: 'Provider user ID',
+    providerUsernamePlaceholder: 'Provider username',
     providerSubmitterAutoAdd:
       'If the submitter is omitted, the server adds them at 0% manual settlement.',
     mappingSource: 'Request model',

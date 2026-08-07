@@ -2220,7 +2220,7 @@ const zhCN: DeepStringify<typeof en> = {
     channelParameters: '渠道参数',
     apiKey: 'API Key',
     credentialRetainHelp: '留空表示审核应用时保留线上凭据。',
-    providerUserIdPlaceholder: '提供者用户 ID',
+    providerUsernamePlaceholder: '提供者用户名',
     providerSubmitterAutoAdd: '未填写提交人时，服务端会自动加入提交人并使用 0% 手动结算。',
     mappingSource: '请求模型',
     mappingTarget: '计费模型',

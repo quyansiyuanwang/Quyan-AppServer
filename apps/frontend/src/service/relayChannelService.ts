@@ -36,7 +36,6 @@ import type {
   RelayChannelUpstreamModelsRequest,
   RelayChannelUpstreamModelsResponse,
   UpdateRelayChannelProviderConfigRequest,
-  RelayChannelProviderUserOptionDto,
 } from '@/client/types.gen'
 import { checkApiResult } from '@/utils/service-utils'
 import { cacheObject } from '@/utils/common'
@@ -305,18 +304,6 @@ class RelayChannelService {
   async listUpstreamModels(data: RelayChannelUpstreamModelsRequest) {
     const result = await relayChannelApi.listUpstreamModels({ body: data })
     return checkApiResult<any>(result, true).data as RelayChannelUpstreamModelsResponse
-  }
-
-  async listProviderUsers(options: { page: number; pageSize: number; keyword?: string }): Promise<{
-    items: RelayChannelProviderUserOptionDto[]
-    total: number
-    page: number
-    pageSize: number
-  }> {
-    const result = await relayChannelApi.listProviderUsers({
-      params: { ...options, keyword: options.keyword?.trim() || undefined },
-    })
-    return checkApiResult<any>(result, true).data
   }
 
   async getMyProviderEarnings(options: {
