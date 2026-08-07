@@ -10,6 +10,8 @@ Submitted channels remain pending until an administrator lists, rejects, or offb
 
 The form also covers format and model restrictions, model mappings, cache-read accounting, time-period multipliers, and context-length multipliers. After a channel is listed, the original submitter cannot edit the live configuration directly. They can submit a complete configuration from My change requests; it stays pending, approved, or rejected with the operator's reason, and is applied atomically only after approval.
 
+A rejected channel can be revised and submitted again; it returns to pending review. Once approved, the updated configuration is applied and the channel is listed and enabled automatically. The original submitter may delete pending, rejected, or offboarded channels. Deletion cannot be undone, and deleted channels no longer appear in supply or review lists. Listed channels cannot be deleted directly by the provider.
+
 The format and model section can probe the corresponding upstream `/v1/models` endpoint. Temporary probe credentials are not persisted or returned. Models that match global pricing can be added to the restriction with one click; unmatched IDs remain visible as pricing gaps.
 
 Administrators with `RELAY_CHANNEL_REVIEW` use the separate Channel Supply Review page for initial submissions and change requests. Multiplier, provider shares, and settlement modes are saved through a separate configuration action.

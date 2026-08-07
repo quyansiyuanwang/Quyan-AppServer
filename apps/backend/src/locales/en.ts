@@ -116,6 +116,7 @@ const en = {
   },
   relay: {
     channelDeleted: "Channel deleted successfully",
+    reviewReasonRequired: "A review note is required when rejecting a channel or change request",
     tokenDeleted: "Token deleted successfully",
     customKeyPermissionDenied: "You do not have permission to set custom token keys",
     manageOthersPermissionDenied: "You do not have permission to manage other users' relay tokens",

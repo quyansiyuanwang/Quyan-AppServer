@@ -1,133 +1,5 @@
 <template>
-  <RelayStandaloneChannelDrawer
-    v-if="useStandaloneDrawer"
-    v-model="showChannelDialog"
-    mode="management"
-    :form="standaloneForm"
-    :submitting="channelSaving"
-    :model-options="standaloneModelOptions"
-    @update-providers="standaloneForm.providers = $event"
-    @add-time-rule="addStandaloneTimeRule"
-    @add-context-rule="addStandaloneContextRule"
-    @key-touched="markStandaloneKeyTouched"
-    @save="handleSaveChannel"
-  >
-    <template #management-sections>
-      <el-divider content-position="left">{{ i18ns.t('relay.channelComposition') }}</el-divider>
-      <el-form-item :label="i18ns.t('relay.channelType')">
-        <el-radio-group v-model="channelForm.channelType">
-          <el-radio-button value="standalone">{{
-            i18ns.t('relay.channelTypeStandalone')
-          }}</el-radio-button>
-          <el-radio-button value="pooled-member">{{
-            i18ns.t('relay.channelTypePooledMember')
-          }}</el-radio-button>
-          <el-radio-button value="pooled">{{ i18ns.t('relay.channelTypePooled') }}</el-radio-button>
-          <el-radio-button value="automatic-proxy-pool">{{
-            i18ns.t('relay.channelTypeAutomaticProxyPool')
-          }}</el-radio-button>
-        </el-radio-group>
-        <div class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.channelTypeHelp') }}</div>
-      </el-form-item>
-      <el-divider content-position="left">{{ i18ns.t('relay.healthTrackingMode') }}</el-divider>
-      <el-form-item :label="i18ns.t('relay.healthTrackingMode')">
-        <el-radio-group v-model="channelForm.routingConfig.healthTrackingMode">
-          <el-radio value="automatic">{{ i18ns.t('relay.healthTrackingAutomatic') }}</el-radio>
-          <el-radio value="manual">{{ i18ns.t('relay.healthTrackingManual') }}</el-radio>
-          <el-radio value="disabled">{{ i18ns.t('relay.healthTrackingDisabled') }}</el-radio>
-        </el-radio-group>
-        <div class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.healthTrackingHelp') }}</div>
-      </el-form-item>
-      <template v-if="channelForm.routingConfig.healthTrackingMode === 'manual'">
-        <el-form-item :label="i18ns.t('relay.healthManualAvailability')">
-          <el-input-number
-            v-model="channelForm.routingConfig.manualAvailability"
-            :min="0"
-            :max="1"
-            :step="0.01"
-            :precision="2"
-          />
-        </el-form-item>
-        <el-form-item :label="i18ns.t('relay.healthManualLatency')">
-          <el-input-number
-            v-model="channelForm.routingConfig.manualLatencyMs"
-            :min="0"
-            :step="10"
-          />
-        </el-form-item>
-      </template>
-      <el-divider content-position="left">{{ i18ns.t('relay.visibilityMode') }}</el-divider>
-      <el-form-item :label="i18ns.t('relay.visibilityMode')">
-        <el-select v-model="channelForm.visibilityMode" style="width: 100%">
-          <el-option :label="i18ns.t('relay.visibilityModePublic')" value="public" />
-          <el-option :label="i18ns.t('relay.visibilityModePrivate')" value="private" />
-          <el-option :label="i18ns.t('relay.visibilityModeWhitelist')" value="whitelist" />
-          <el-option :label="i18ns.t('relay.visibilityModeHidden')" value="hidden" />
-        </el-select>
-        <div class="ml-3 text-[#909399] text-xs">{{ i18ns.t('relay.visibilityModeHelp') }}</div>
-      </el-form-item>
-      <template v-if="channelForm.visibilityMode === 'whitelist'">
-        <el-form-item :label="i18ns.t('relay.visibilityUsers')">
-          <el-select
-            v-model="channelForm.visibilityConfig.userIds"
-            multiple
-            filterable
-            remote
-            allow-create
-            default-first-option
-            :remote-method="handleVisibilityUserSearch"
-            :loading="visibilityUserOptionsLoading"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="user in visibilityUserOptions"
-              :key="user.id"
-              :label="formatVisibilityUserOption(user)"
-              :value="user.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="i18ns.t('relay.visibilityGroups')">
-          <el-select
-            v-model="channelForm.visibilityConfig.groupIds"
-            multiple
-            filterable
-            allow-create
-            default-first-option
-            :loading="visibilityGroupOptionsLoading"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="group in visibilityGroupOptions"
-              :key="group.id"
-              :label="formatVisibilityGroupOption(group)"
-              :value="group.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="i18ns.t('relay.visibilityRoles')">
-          <el-select
-            v-model="channelForm.visibilityConfig.roleIds"
-            multiple
-            filterable
-            allow-create
-            default-first-option
-            :loading="visibilityRoleOptionsLoading"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="role in visibilityRoleOptions"
-              :key="role.id"
-              :label="formatVisibilityRoleOption(role)"
-              :value="role.id"
-            />
-          </el-select>
-        </el-form-item>
-      </template>
-    </template>
-  </RelayStandaloneChannelDrawer>
   <el-drawer
-    v-else
     v-model="showChannelDialog"
     :title="isEditingChannel ? i18ns.t('relay.editChannel') : i18ns.t('relay.createChannel')"
     :direction="isDesktop ? 'rtl' : 'btt'"
@@ -1587,15 +1459,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Delete, Rank, Top } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
 import RelayProviderShareEditor from '../../components/RelayProviderShareEditor.vue'
-import RelayStandaloneChannelDrawer, {
-  type StandaloneChannelFormState,
-} from '../../components/RelayStandaloneChannelDrawer.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
 
@@ -1660,125 +1529,6 @@ const {
   handleImportChannels,
 } = state
 
-const standaloneForm = reactive<StandaloneChannelFormState>({
-  name: '',
-  formats: [],
-  urls: { openai: '', anthropic: '', gemini: '' },
-  keys: { openai: '', anthropic: '', gemini: '' },
-  hasKeys: { openai: false, anthropic: false, gemini: false },
-  keyTouched: { openai: false, anthropic: false, gemini: false },
-  multiplier: 1,
-  inputTokensIncludeCacheRead: false,
-  allowedModels: [],
-  restrictModels: false,
-  providers: [],
-  mappings: [],
-  timePeriodMultipliers: [],
-  contextLengthMultipliers: [],
-})
-
-const useStandaloneDrawer = computed(() => channelForm.value.channelType === 'standalone')
-
-const hydrateStandaloneForm = () => {
-  const source = channelForm.value
-  standaloneForm.name = source.name
-  standaloneForm.formats = source.allowedFormats.filter(
-    (format): format is 'openai' | 'anthropic' | 'gemini' =>
-      format === 'openai' || format === 'anthropic' || format === 'gemini',
-  )
-  standaloneForm.urls = {
-    openai: source.openaiUpstreamUrl,
-    anthropic: source.anthropicUpstreamUrl,
-    gemini: source.geminiUpstreamUrl,
-  }
-  standaloneForm.keys = {
-    openai: source.openaiUpstreamApiKey,
-    anthropic: source.anthropicUpstreamApiKey,
-    gemini: source.geminiUpstreamApiKey,
-  }
-  standaloneForm.hasKeys = {
-    openai: source.hasOpenaiUpstreamApiKey,
-    anthropic: source.hasAnthropicUpstreamApiKey,
-    gemini: source.hasGeminiUpstreamApiKey,
-  }
-  standaloneForm.keyTouched = {
-    openai: source.openaiUpstreamApiKeyTouched,
-    anthropic: source.anthropicUpstreamApiKeyTouched,
-    gemini: source.geminiUpstreamApiKeyTouched,
-  }
-  standaloneForm.multiplier = source.multiplier
-  standaloneForm.inputTokensIncludeCacheRead = source.inputTokensIncludeCacheRead
-  standaloneForm.allowedModels = [...source.allowedModelsArray]
-  standaloneForm.restrictModels = source.restrictModels
-  standaloneForm.providers = source.providers.map((provider) => ({ ...provider }))
-  standaloneForm.mappings = Object.entries(source.modelMapping).map(([source, target]) => ({
-    source,
-    target,
-  }))
-  standaloneForm.timePeriodMultipliers = source.timePeriodMultipliers.map((rule) => ({ ...rule }))
-  standaloneForm.contextLengthMultipliers = source.contextLengthMultipliers.map((rule) => ({
-    ...rule,
-  }))
-}
-
-const syncStandaloneForm = () => {
-  if (!showChannelDialog.value || channelForm.value.channelType !== 'standalone') return
-  const target = channelForm.value
-  target.name = standaloneForm.name
-  target.allowedFormats = [...standaloneForm.formats]
-  target.openaiUpstreamUrl = standaloneForm.urls.openai
-  target.anthropicUpstreamUrl = standaloneForm.urls.anthropic
-  target.geminiUpstreamUrl = standaloneForm.urls.gemini
-  target.openaiUpstreamApiKey = standaloneForm.keys.openai
-  target.anthropicUpstreamApiKey = standaloneForm.keys.anthropic
-  target.geminiUpstreamApiKey = standaloneForm.keys.gemini
-  target.openaiUpstreamApiKeyTouched = standaloneForm.keyTouched?.openai === true
-  target.anthropicUpstreamApiKeyTouched = standaloneForm.keyTouched?.anthropic === true
-  target.geminiUpstreamApiKeyTouched = standaloneForm.keyTouched?.gemini === true
-  target.multiplier = standaloneForm.multiplier
-  target.inputTokensIncludeCacheRead = standaloneForm.inputTokensIncludeCacheRead
-  target.allowedModelsArray = [...standaloneForm.allowedModels]
-  target.restrictModels = standaloneForm.restrictModels === true
-  target.providers = standaloneForm.providers.map((provider) => ({ ...provider }))
-  target.modelMapping = Object.fromEntries(
-    standaloneForm.mappings
-      .filter((mapping) => mapping.source.trim() && mapping.target.trim())
-      .map((mapping) => [mapping.source.trim(), mapping.target.trim()]),
-  )
-  target.timePeriodMultipliers = standaloneForm.timePeriodMultipliers.map((rule) => ({ ...rule }))
-  target.contextLengthMultipliers = standaloneForm.contextLengthMultipliers.map((rule) => ({
-    ...rule,
-  }))
-}
-
-const standaloneModelOptions = computed(() =>
-  filteredModels.value.map((model) => ({
-    label: formatModelOptionLabel(model),
-    value: model.model,
-    disabled: isModelDisabled(model),
-  })),
-)
-
-const addStandaloneTimeRule = () =>
-  standaloneForm.timePeriodMultipliers.push({
-    name: '',
-    enabled: true,
-    dayOfWeek: '1,2,3,4,5',
-    startTime: '00:00',
-    endTime: '23:59',
-    multiplier: 1,
-  })
-const addStandaloneContextRule = () =>
-  standaloneForm.contextLengthMultipliers.push({
-    name: '',
-    enabled: true,
-    minTokens: 0,
-    multiplier: 1,
-  })
-const markStandaloneKeyTouched = (format: 'openai' | 'anthropic' | 'gemini') => {
-  if (standaloneForm.keyTouched) standaloneForm.keyTouched[format] = true
-}
-
 const openChannelProbePage = () => {
   showChannelDetailDialog.value = false
   void router.push({ name: 'relayChannelProbes' })
@@ -1810,13 +1560,9 @@ const initPoolMemberSortable = async () => {
 }
 
 watch(showChannelDialog, (visible) => {
-  if (visible) {
-    if (channelForm.value.channelType === 'standalone') hydrateStandaloneForm()
-    void initPoolMemberSortable()
-  } else destroyPoolMemberSortable()
+  if (visible) void initPoolMemberSortable()
+  else destroyPoolMemberSortable()
 })
-
-watch(standaloneForm, syncStandaloneForm, { deep: true })
 
 onBeforeUnmount(destroyPoolMemberSortable)
 

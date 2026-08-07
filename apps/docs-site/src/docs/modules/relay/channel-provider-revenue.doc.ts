@@ -11,6 +11,6 @@ export default defineDocsPage({
     'zh-CN': '提交独立中转渠道并了解提供者收益。',
   },
   tags: ['relay', 'channel', 'provider', 'earnings'],
-  updatedAt: '2026-08-06',
+  updatedAt: '2026-08-07',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

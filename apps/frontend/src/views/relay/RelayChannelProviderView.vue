@@ -47,7 +47,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('actions')" width="180" fixed="right"
+        <el-table-column :label="i18ns.t('actions')" width="280" fixed="right"
           ><template #default="{ row }"
             ><el-button
               v-if="['pending', 'approved', 'rejected'].includes(row.submissionStatus)"
@@ -56,6 +56,13 @@
               :disabled="changeRequestByChannel.get(row.id)?.reviewStatus === 'pending'"
               @click="openChangeRequest(row)"
               >{{ i18ns.t('relay.submitChangeRequest') }}</el-button
+            ><el-button
+              v-if="['pending', 'rejected', 'offboarded'].includes(row.submissionStatus)"
+              size="small"
+              type="danger"
+              :icon="Delete"
+              @click="deleteSubmission(row)"
+              >{{ i18ns.t('relay.deleteSubmittedChannel') }}</el-button
             ></template
           ></el-table-column
         >
@@ -160,15 +167,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Edit, Plus, Wallet } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, Edit, Plus, Wallet } from '@element-plus/icons-vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { relayChannelService } from '@/service/relayChannelService'
-import { relayConfigService } from '@/service/relayConfigService'
 import RelayStandaloneChannelDrawer, {
   type StandaloneChannelFormState,
 } from './components/RelayStandaloneChannelDrawer.vue'
@@ -264,9 +270,19 @@ const modelOptions = computed(() => {
           : item.model,
     }))
 })
-const changeRequestByChannel = computed(
-  () => new Map(changeRequests.value.map((request) => [request.relayChannelId, request])),
-)
+const changeRequestByChannel = computed(() => {
+  const latest = new Map<string, any>()
+  for (const request of changeRequests.value) {
+    const previous = latest.get(request.relayChannelId)
+    if (
+      !previous ||
+      new Date(request.createTime).getTime() > new Date(previous.createTime).getTime()
+    ) {
+      latest.set(request.relayChannelId, request)
+    }
+  }
+  return latest
+})
 const providerTotal = (
   providers?: RelayChannelProviderConfigRequest[] | RelayChannelDto['providers'],
 ) => (providers || []).reduce((sum, provider) => sum + Number(provider.commissionPercent || 0), 0)
@@ -324,7 +340,7 @@ const hydrateForm = (channel: RelayChannelDto) => {
     form.allowedModels = []
   }
   form.providers = channel.providers.map((provider) => ({
-    username: provider.username || '',
+    username: provider.username || provider.userId,
     commissionPercent: provider.commissionPercent,
     settlementMode: provider.settlementMode,
     settlementIntervalDays: provider.settlementIntervalDays,
@@ -402,6 +418,21 @@ const saveForm = async () => {
     ElMessage.error(error?.message || i18ns.t('operationFailed'))
   } finally {
     submitting.value = false
+  }
+}
+const deleteSubmission = async (channel: RelayChannelDto) => {
+  try {
+    await ElMessageBox.confirm(
+      i18ns.t('relay.deleteSubmittedChannelConfirm'),
+      i18ns.t('relay.deleteSubmittedChannel'),
+      { type: 'warning' },
+    )
+    await relayChannelService.deleteSubmittedChannel(channel.id)
+    ElMessage.success(i18ns.t('relay.channelDeleted'))
+    await Promise.all([loadSubmissions(1), loadChangeRequests()])
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error?.message || i18ns.t('operationFailed'))
   }
 }
 const addTimeRule = () =>
@@ -496,10 +527,27 @@ const claim = async () => {
 }
 const loadAvailableModels = async () => {
   try {
-    const config = await relayConfigService.getRelayConfig()
-    availableModels.value = config.modelRates || []
+    const catalog = await relayChannelService.listCatalogOptions()
+    const options = new Map<string, ProviderModelOption>()
+    for (const channel of catalog) {
+      for (const capability of channel.modelCapabilities) {
+        const model = capability.catalogModelName.trim()
+        if (!model) continue
+        const existing = options.get(model)
+        const supportedFormats = new Set([
+          ...(existing?.supportedFormats || '').split(',').filter(Boolean),
+          ...capability.supportedRequestFormats,
+        ])
+        options.set(model, {
+          model,
+          modelId: capability.requestModelId,
+          supportedFormats: [...supportedFormats].join(','),
+        })
+      }
+    }
+    availableModels.value = [...options.values()]
   } catch (error) {
-    console.error('加载中转模型列表失败:', error)
+    console.error('加载中转模型目录失败:', error)
   }
 }
 onMounted(() => {

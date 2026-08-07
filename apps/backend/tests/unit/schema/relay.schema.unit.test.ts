@@ -4,8 +4,14 @@ import {
   importRelayTokensBodySchema,
   updateRelayTokenBodySchema,
 } from "../../../src/api/schema/relay/relay.schema";
+import { relayChannelManagementQuerySchema } from "../../../src/api/schema/relay/relay-channel.schema";
 
 describe("relay token import schema", () => {
+  it("preserves false for the management enabled query filter", () => {
+    expect(relayChannelManagementQuerySchema.parse({ enabled: "false" }).enabled).toBe(false);
+    expect(relayChannelManagementQuerySchema.parse({ enabled: "true" }).enabled).toBe(true);
+  });
+
   it("validates the automatic pool multiplier limit across token operations", () => {
     const failoverConfig = {
       enabled: false,

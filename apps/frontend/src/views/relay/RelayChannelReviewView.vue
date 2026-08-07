@@ -16,15 +16,26 @@
         </div></template
       >
       <div class="review-toolbar">
-        <el-select v-model="submissionFilter" size="small" @change="loadChannels(1)"
-          ><el-option value="pending" :label="i18ns.t('relay.submissionStatusPending')" /><el-option
-            value="approved"
-            :label="i18ns.t('relay.submissionStatusApproved')" /><el-option
-            value="rejected"
-            :label="i18ns.t('relay.submissionStatusRejected')" /><el-option
-            value="offboarded"
-            :label="i18ns.t('relay.submissionStatusOffboarded')"
-        /></el-select>
+        <el-input
+          v-model="keywordFilter"
+          clearable
+          size="small"
+          :placeholder="i18ns.t('search')"
+          @clear="loadChannels(1)"
+          @keyup.enter="loadChannels(1)"
+        />
+        <el-select v-model="submissionFilter" size="small" @change="loadChannels(1)">
+          <el-option value="all" :label="i18ns.t('all')" />
+          <el-option value="pending" :label="i18ns.t('relay.submissionStatusPending')" />
+          <el-option value="approved" :label="i18ns.t('relay.submissionStatusApproved')" />
+          <el-option value="rejected" :label="i18ns.t('relay.submissionStatusRejected')" />
+          <el-option value="offboarded" :label="i18ns.t('relay.submissionStatusOffboarded')" />
+        </el-select>
+        <el-select v-model="enabledFilter" size="small" @change="loadChannels(1)">
+          <el-option value="all" :label="i18ns.t('all')" />
+          <el-option value="enabled" :label="i18ns.t('relay.enabled')" />
+          <el-option value="disabled" :label="i18ns.t('relay.disabled')" />
+        </el-select>
       </div>
       <div class="review-table">
         <el-table v-loading="channelsLoading" :data="channels" size="small"
@@ -32,7 +43,11 @@
             prop="name"
             :label="i18ns.t('relay.channelName')"
             min-width="180"
-          /><el-table-column
+          /><el-table-column :label="i18ns.t('relay.providerUser')" min-width="160"
+            ><template #default="{ row }">
+              {{ row.submittedByUsername || row.submittedByUserId || '-' }}
+            </template></el-table-column
+          ><el-table-column
             prop="multiplier"
             :label="i18ns.t('relay.channelMultiplier')"
             width="110"
@@ -52,7 +67,7 @@
                         ? 'info'
                         : 'warning'
                 "
-                >{{ row.submissionStatus }}</el-tag
+                >{{ submissionStatusLabel(row.submissionStatus) }}</el-tag
               ></template
             ></el-table-column
           ><el-table-column :label="i18ns.t('relay.pendingChangeRequests')" min-width="240"
@@ -83,14 +98,14 @@
           ><el-table-column :label="i18ns.t('actions')" min-width="300" fixed="right"
             ><template #default="{ row }"
               ><el-button
-                v-if="row.submissionStatus === 'pending'"
+                v-if="row.submissionStatus === 'pending' && !changeRequestByChannel.get(row.id)"
                 size="small"
                 type="success"
                 :icon="Check"
                 @click="reviewSubmission(row.id, 'approve')"
                 >{{ i18ns.t('relay.reviewApprove') }}</el-button
               ><el-button
-                v-if="row.submissionStatus === 'pending'"
+                v-if="row.submissionStatus === 'pending' && !changeRequestByChannel.get(row.id)"
                 size="small"
                 type="danger"
                 :icon="Close"
@@ -170,7 +185,7 @@
           providerSummary(selectedChange.config.providers)
         }}</el-descriptions-item
         ><el-descriptions-item :label="i18ns.t('relay.allowedModelsChannel')">{{
-          selectedChange.config.allowedModels || i18ns.t('relay.noModels')
+          formatAllowedModels(selectedChange.config.allowedModels)
         }}</el-descriptions-item></el-descriptions
       ></el-dialog
     >
@@ -179,7 +194,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Close, Refresh, Setting, View } from '@element-plus/icons-vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
@@ -194,7 +209,9 @@ import type {
 } from '@/client/types.gen'
 
 const { isDesktop } = usePageDevice()
-const submissionFilter = ref<'pending' | 'approved' | 'rejected' | 'offboarded'>('pending')
+const keywordFilter = ref('')
+const submissionFilter = ref<'all' | 'pending' | 'approved' | 'rejected' | 'offboarded'>('pending')
+const enabledFilter = ref<'all' | 'enabled' | 'disabled'>('all')
 const channels = ref<RelayChannelManagementListItemDto[]>([])
 const changeRequests = ref<RelayChannelChangeRequestDto[]>([])
 const channelsLoading = ref(false)
@@ -208,8 +225,31 @@ const selectedChange = ref<RelayChannelChangeRequestDto | null>(null)
 const changeRequestByChannel = computed(
   () => new Map(changeRequests.value.map((request) => [request.relayChannelId, request])),
 )
+const submissionStatusLabel = (status: string) => {
+  if (status === 'pending') return i18ns.t('relay.submissionStatusPending')
+  if (status === 'approved') return i18ns.t('relay.submissionStatusApproved')
+  if (status === 'rejected') return i18ns.t('relay.submissionStatusRejected')
+  if (status === 'offboarded') return i18ns.t('relay.submissionStatusOffboarded')
+  return i18ns.t('all')
+}
 const providerSummary = (providers?: RelayChannelProviderConfigRequest[]) =>
-  (providers || []).map((item) => `${item.username}: ${item.commissionPercent}%`).join(', ') || '-'
+  (providers || [])
+    .map(
+      (item) =>
+        `${item.username || ('userId' in item ? item.userId : '') || '-'}: ${item.commissionPercent}%`,
+    )
+    .join(', ') || '-'
+const formatAllowedModels = (value: unknown) => {
+  if (!value) return i18ns.t('relay.noModels')
+  if (Array.isArray(value)) return value.join(', ')
+  if (typeof value !== 'string') return String(value)
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.join(', ') || i18ns.t('relay.noModels') : value
+  } catch {
+    return value
+  }
+}
 const credentialSummary = (config: any) =>
   (
     [
@@ -227,8 +267,10 @@ const loadChannels = async (page = channelPage.page) => {
     const data = await relayChannelService.listManagementChannels({
       page,
       pageSize: channelPage.pageSize,
+      keyword: keywordFilter.value,
       channelType: 'standalone',
-      submissionStatus: submissionFilter.value,
+      enabled: enabledFilter.value === 'all' ? undefined : enabledFilter.value === 'enabled',
+      submissionStatus: submissionFilter.value === 'all' ? undefined : submissionFilter.value,
     })
     channels.value = data.items
     Object.assign(channelPage, { page: data.page, total: data.total })
@@ -254,20 +296,41 @@ const refresh = () => {
   void loadChannels(1)
   void loadChanges()
 }
+const promptReviewReason = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      i18ns.t('relay.reviewReasonPrompt'),
+      i18ns.t('relay.reviewReject'),
+      {
+        inputType: 'textarea',
+        inputPlaceholder: i18ns.t('relay.reviewReason'),
+        inputValidator: (value) => (value.trim() ? true : i18ns.t('relay.reviewReasonRequired')),
+      },
+    )
+    return value.trim()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return undefined
+    throw error
+  }
+}
 const reviewSubmission = async (id: string, action: 'approve' | 'reject' | 'offboard') => {
   try {
-    await relayChannelService.reviewChannelSubmission(id, { action })
+    const reason = action === 'reject' ? await promptReviewReason() : undefined
+    if (action === 'reject' && reason === undefined) return
+    await relayChannelService.reviewChannelSubmission(id, { action, reason })
     ElMessage.success(i18ns.t('relay.reviewSuccess'))
-    await loadChannels(channelPage.page)
+    await Promise.all([loadChannels(channelPage.page), loadChanges()])
   } catch (error: any) {
     ElMessage.error(error?.message || i18ns.t('operationFailed'))
   }
 }
 const reviewChange = async (id: string, action: 'approve' | 'reject') => {
   try {
-    await relayChannelService.reviewChangeRequest(id, { action })
+    const reason = action === 'reject' ? await promptReviewReason() : undefined
+    if (action === 'reject' && reason === undefined) return
+    await relayChannelService.reviewChangeRequest(id, { action, reason })
     ElMessage.success(i18ns.t('relay.reviewSuccess'))
-    await loadChanges()
+    await Promise.all([loadChannels(channelPage.page), loadChanges()])
   } catch (error: any) {
     ElMessage.error(error?.message || i18ns.t('operationFailed'))
   }
@@ -277,7 +340,7 @@ const openConfig = async (id: string) => {
     configChannel.value = await relayChannelService.getChannel(id)
     configMultiplier.value = configChannel.value.multiplier
     configProviders.value = configChannel.value.providers.map((provider) => ({
-      username: provider.username || '',
+      username: provider.username || provider.userId,
       commissionPercent: provider.commissionPercent,
       settlementMode: provider.settlementMode,
       settlementIntervalDays: provider.settlementIntervalDays,
@@ -324,7 +387,14 @@ if (!isDesktop.value) useMobileTableCardLabels('.relay-review-page')
 .review-toolbar {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   margin-bottom: 8px;
+}
+.review-toolbar .el-input {
+  width: min(260px, 100%);
+}
+.review-toolbar .el-select {
+  width: 140px;
 }
 .surface-card {
   border: 1px solid var(--surface-card-border);
@@ -371,6 +441,13 @@ if (!isDesktop.value) useMobileTableCardLabels('.relay-review-page')
 @media (max-width: 768px) {
   .page-heading {
     flex-direction: column;
+  }
+  .review-toolbar {
+    flex-wrap: wrap;
+  }
+  .review-toolbar .el-input,
+  .review-toolbar .el-select {
+    width: 100%;
   }
   .pagination {
     justify-content: center;
