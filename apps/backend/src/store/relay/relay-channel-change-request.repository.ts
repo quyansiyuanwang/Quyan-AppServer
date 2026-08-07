@@ -15,10 +15,7 @@ export class RelayChannelChangeRequestRepository {
     return this.instance;
   }
 
-  async create(
-    data: Prisma.RelayChannelChangeRequestUncheckedCreateInput,
-    tx?: RelayChannelTransactionClient,
-  ) {
+  async create(data: Prisma.RelayChannelChangeRequestUncheckedCreateInput, tx?: RelayChannelTransactionClient) {
     return (tx ?? prisma).relayChannelChangeRequest.create({ data, include: changeRequestInclude });
   }
 

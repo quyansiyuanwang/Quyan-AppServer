@@ -9,7 +9,11 @@
     </div>
 
     <div v-if="providers.length" class="relay-provider-editor__list">
-      <div v-for="(provider, index) in providers" :key="`${provider.userId}-${index}`" class="relay-provider-editor__row">
+      <div
+        v-for="(provider, index) in providers"
+        :key="`${provider.userId}-${index}`"
+        class="relay-provider-editor__row"
+      >
         <el-select
           :model-value="provider.userId"
           filterable
@@ -21,7 +25,12 @@
           :placeholder="i18ns.t('relay.providerUser')"
           @update:model-value="(value: string) => update(index, { userId: value })"
         >
-          <el-option v-for="user in userOptions" :key="user.id" :label="userLabel(user)" :value="user.id">
+          <el-option
+            v-for="user in userOptions"
+            :key="user.id"
+            :label="userLabel(user)"
+            :value="user.id"
+          >
             <div class="relay-provider-editor__option">
               <strong>{{ user.username }}</strong>
               <span v-if="user.name">{{ user.name }}</span>
@@ -36,13 +45,18 @@
           :step="1"
           controls-position="right"
           class="relay-provider-editor__percent"
-          @update:model-value="(value: number | undefined) => update(index, { commissionPercent: value ?? 0 })"
+          @update:model-value="
+            (value: number | undefined) => update(index, { commissionPercent: value ?? 0 })
+          "
         />
         <el-select
           :model-value="provider.settlementMode"
           class="relay-provider-editor__settlement"
           :placeholder="i18ns.t('relay.providerSettlementMode')"
-          @update:model-value="(value: RelayChannelProviderConfigRequest['settlementMode']) => update(index, { settlementMode: value })"
+          @update:model-value="
+            (value: RelayChannelProviderConfigRequest['settlementMode']) =>
+              update(index, { settlementMode: value })
+          "
         >
           <el-option value="realtime" :label="i18ns.t('relay.settlementModeRealtime')" />
           <el-option value="interval" :label="i18ns.t('relay.settlementModeInterval')" />
@@ -57,7 +71,9 @@
           controls-position="right"
           class="relay-provider-editor__extra"
           :placeholder="i18ns.t('relay.providerIntervalDays')"
-          @update:model-value="(value: number | undefined) => update(index, { settlementIntervalDays: value })"
+          @update:model-value="
+            (value: number | undefined) => update(index, { settlementIntervalDays: value })
+          "
         />
         <el-time-picker
           v-else-if="provider.settlementMode === 'daily'"
@@ -66,10 +82,18 @@
           format="HH:mm"
           class="relay-provider-editor__extra"
           :placeholder="i18ns.t('relay.providerSettlementTime')"
-          @update:model-value="(value: string | undefined) => update(index, { settlementTime: value })"
+          @update:model-value="
+            (value: string | undefined) => update(index, { settlementTime: value })
+          "
         />
         <div v-else class="relay-provider-editor__extra" />
-        <el-button text type="danger" :icon="Delete" :aria-label="i18ns.t('delete')" @click="remove(index)" />
+        <el-button
+          text
+          type="danger"
+          :icon="Delete"
+          :aria-label="i18ns.t('delete')"
+          @click="remove(index)"
+        />
       </div>
     </div>
     <el-empty v-else :description="i18ns.t('relay.noProviders')" :image-size="56" />
@@ -102,10 +126,18 @@ const emit = defineEmits<{
   'search-users': [keyword: string]
 }>()
 const providers = computed(() => props.providers)
-const total = computed(() => providers.value.reduce((sum, provider) => sum + Number(provider.commissionPercent || 0), 0))
-const userLabel = (user: RelayProviderUserOption) => (user.name ? `${user.username} (${user.name})` : user.username)
+const total = computed(() =>
+  providers.value.reduce((sum, provider) => sum + Number(provider.commissionPercent || 0), 0),
+)
+const userLabel = (user: RelayProviderUserOption) =>
+  user.name ? `${user.username} (${user.name})` : user.username
 const update = (index: number, patch: Partial<RelayChannelProviderConfigRequest>) => {
-  emit('update:providers', providers.value.map((provider, itemIndex) => (itemIndex === index ? { ...provider, ...patch } : provider)))
+  emit(
+    'update:providers',
+    providers.value.map((provider, itemIndex) =>
+      itemIndex === index ? { ...provider, ...patch } : provider,
+    ),
+  )
 }
 const add = () => {
   emit('update:providers', [
@@ -113,19 +145,84 @@ const add = () => {
     { userId: '', commissionPercent: 0, settlementMode: 'manual' },
   ])
 }
-const remove = (index: number) => emit('update:providers', providers.value.filter((_, itemIndex) => itemIndex !== index))
+const remove = (index: number) =>
+  emit(
+    'update:providers',
+    providers.value.filter((_, itemIndex) => itemIndex !== index),
+  )
 </script>
 
 <style scoped lang="scss">
-.relay-provider-editor { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.relay-provider-editor__summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--el-text-color-secondary); font-size: 13px; }
-.relay-provider-editor__remainder { margin-left: 4px; }
-.relay-provider-editor__list { display: flex; flex-direction: column; gap: 10px; }
-.relay-provider-editor__row { display: grid; grid-template-columns: minmax(190px, 1.4fr) minmax(110px, .7fr) minmax(150px, 1fr) minmax(140px, .9fr) auto; gap: 8px; align-items: center; padding: 10px; border: 1px solid var(--el-border-color-lighter); border-radius: 8px; background: var(--el-fill-color-blank); }
-.relay-provider-editor__user, .relay-provider-editor__settlement, .relay-provider-editor__extra, .relay-provider-editor__percent { width: 100%; min-width: 0; }
-.relay-provider-editor__option { display: flex; gap: 8px; align-items: baseline; }
-.relay-provider-editor__option span { color: var(--el-text-color-secondary); font-size: 12px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.5; }
-@media (max-width: 900px) { .relay-provider-editor__row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .relay-provider-editor__user { grid-column: 1 / -1; } }
-@media (max-width: 560px) { .relay-provider-editor__row { grid-template-columns: 1fr; } .relay-provider-editor__user { grid-column: auto; } }
+.relay-provider-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.relay-provider-editor__summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+.relay-provider-editor__remainder {
+  margin-left: 4px;
+}
+.relay-provider-editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.relay-provider-editor__row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.4fr) minmax(110px, 0.7fr) minmax(150px, 1fr) minmax(
+      140px,
+      0.9fr
+    ) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+}
+.relay-provider-editor__user,
+.relay-provider-editor__settlement,
+.relay-provider-editor__extra,
+.relay-provider-editor__percent {
+  width: 100%;
+  min-width: 0;
+}
+.relay-provider-editor__option {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.relay-provider-editor__option span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+@media (max-width: 900px) {
+  .relay-provider-editor__row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .relay-provider-editor__user {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 560px) {
+  .relay-provider-editor__row {
+    grid-template-columns: 1fr;
+  }
+  .relay-provider-editor__user {
+    grid-column: auto;
+  }
+}
 </style>

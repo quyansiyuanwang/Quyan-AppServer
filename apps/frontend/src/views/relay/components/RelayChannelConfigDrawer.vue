@@ -215,7 +215,11 @@
       <div class="relay-config-drawer__footer">
         <el-button @click="close">{{ i18ns.t('cancel') }}</el-button>
         <el-button type="primary" :loading="submitting" @click="$emit('save')">
-          {{ mode === 'submit' ? i18ns.t('relay.submitChannel') : i18ns.t('relay.submitChangeRequest') }}
+          {{
+            mode === 'submit'
+              ? i18ns.t('relay.submitChannel')
+              : i18ns.t('relay.submitChangeRequest')
+          }}
         </el-button>
       </div>
     </template>
@@ -226,7 +230,9 @@
 import { computed, ref, type PropType } from 'vue'
 import { Delete, Plus, Search } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
-import RelayProviderShareEditor, { type RelayProviderUserOption } from './RelayProviderShareEditor.vue'
+import RelayProviderShareEditor, {
+  type RelayProviderUserOption,
+} from './RelayProviderShareEditor.vue'
 import type {
   RelayChannelUpstreamModelDto,
   RelayChannelProviderConfigRequest,

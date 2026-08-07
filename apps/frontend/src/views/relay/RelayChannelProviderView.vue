@@ -297,7 +297,9 @@ const hydrateForm = (channel: RelayChannelDto) => {
     ...channel.providers
       .filter((provider) => provider.userId && provider.username)
       .map((provider) => ({ id: provider.userId, username: provider.username!, name: null })),
-  ].filter((item, index, options) => options.findIndex((candidate) => candidate.id === item.id) === index)
+  ].filter(
+    (item, index, options) => options.findIndex((candidate) => candidate.id === item.id) === index,
+  )
   form.mappings = Object.entries(channel.modelMapping || {}).map(([source, target]) => ({
     source,
     target,
@@ -437,9 +439,12 @@ const loadProviderUsers = async (keyword = '') => {
   providerUsersLoading.value = true
   try {
     const data = await relayChannelService.listProviderUsers({ page: 1, pageSize: 30, keyword })
-    const selected = providerUserOptions.value.filter((item) => form.providers.some((provider) => provider.userId === item.id))
+    const selected = providerUserOptions.value.filter((item) =>
+      form.providers.some((provider) => provider.userId === item.id),
+    )
     providerUserOptions.value = [...selected, ...data.items].filter(
-      (item, index, options) => options.findIndex((candidate) => candidate.id === item.id) === index,
+      (item, index, options) =>
+        options.findIndex((candidate) => candidate.id === item.id) === index,
     )
   } catch (error: any) {
     ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))

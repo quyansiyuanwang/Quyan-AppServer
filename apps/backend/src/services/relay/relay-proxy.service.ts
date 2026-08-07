@@ -907,9 +907,7 @@ export class RelayProxyService {
       const channelScopedModels =
         channelAllowedModelNames == null
           ? []
-          : formatScopedModels.filter((model) =>
-              isModelNameAllowed(channelAllowedModelNames, model.model || ""),
-            );
+          : formatScopedModels.filter((model) => isModelNameAllowed(channelAllowedModelNames, model.model || ""));
 
       for (const model of channelScopedModels) {
         const modelId = resolveModelId(model);

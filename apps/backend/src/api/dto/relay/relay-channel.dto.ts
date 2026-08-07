@@ -633,7 +633,10 @@ export interface RelayChannelChangeRequestDto {
   reviewStatus: RelayChannelChangeRequestStatus;
   reviewedAt?: Date;
   reviewReason?: string;
-  config: Omit<CreateRelayChannelChangeRequest, "openaiUpstreamApiKey" | "anthropicUpstreamApiKey" | "geminiUpstreamApiKey"> & {
+  config: Omit<
+    CreateRelayChannelChangeRequest,
+    "openaiUpstreamApiKey" | "anthropicUpstreamApiKey" | "geminiUpstreamApiKey"
+  > & {
     hasOpenaiUpstreamApiKey: boolean;
     hasAnthropicUpstreamApiKey: boolean;
     hasGeminiUpstreamApiKey: boolean;

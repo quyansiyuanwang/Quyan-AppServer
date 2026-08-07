@@ -343,16 +343,22 @@ export const updateRelayChannelProviderConfigBodySchema = z.object({
   providers: z.array(providerConfigSchema).max(100).optional(),
 });
 
-export const relayChannelUpstreamModelsBodySchema = z.object({
-  format: z.enum(["openai", "anthropic", "gemini"]),
-  channelId: z.string().trim().min(1).optional(),
-  upstreamUrl: z.string().max(500).optional(),
-  apiKey: z.string().max(500).optional(),
-}).superRefine((value, context) => {
-  if (!value.channelId && (!value.upstreamUrl || !value.apiKey)) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["channelId"], message: "channelId or upstream credentials are required" });
-  }
-});
+export const relayChannelUpstreamModelsBodySchema = z
+  .object({
+    format: z.enum(["openai", "anthropic", "gemini"]),
+    channelId: z.string().trim().min(1).optional(),
+    upstreamUrl: z.string().max(500).optional(),
+    apiKey: z.string().max(500).optional(),
+  })
+  .superRefine((value, context) => {
+    if (!value.channelId && (!value.upstreamUrl || !value.apiKey)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["channelId"],
+        message: "channelId or upstream credentials are required",
+      });
+    }
+  });
 
 export const reviewRelayChannelSubmissionBodySchema = z.object({
   action: z.enum(["approve", "reject", "offboard"]),
