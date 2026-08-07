@@ -1726,8 +1726,16 @@ export class RelayProxyService {
 
   private getPoolFailoverRuntimeConfig(channel: RelayChannel, poolSize: number): RelayFailoverRuntimeConfig {
     const routingConfig = this.getChannelRoutingConfig(channel);
+    const configuredRetryStatusCodes = Array.isArray(routingConfig?.retryStatusCodes)
+      ? routingConfig.retryStatusCodes
+      : ["4xx", "5xx"];
+    // A 429 from one member is a transient capacity/rate-limit condition for an
+    // automatic pool. Keep it failover-eligible even when operators configured
+    // a narrower list such as only 503.
     const retryStatusCodes = normalizeRetryStatusRules(
-      Array.isArray(routingConfig?.retryStatusCodes) ? routingConfig.retryStatusCodes : ["4xx", "5xx"],
+      channel.channelType === "automatic-proxy-pool"
+        ? [...configuredRetryStatusCodes, "429"]
+        : configuredRetryStatusCodes,
     );
     const rawMaxRetries = Number(routingConfig?.maxRetries);
     const maxRetries =
