@@ -135,6 +135,11 @@ type RelayChannelProviderConfigInput = Omit<RelayChannelProviderConfigRequest, "
   userId?: string;
 };
 
+type RelayChannelChangeRequestSnapshot = CreateRelayChannelChangeRequest & {
+  previousSubmissionStatus?: RelayChannelSubmissionStatus;
+  previousChannelStatus?: RelayChannelStatus;
+};
+
 const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
 const DEFAULT_ROUTING_STRATEGY: RelayChannelRoutingStrategy = "priority";
 const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
@@ -265,7 +270,14 @@ export class RelayChannelService {
 
     if (query.keyword?.trim()) where.name = { contains: query.keyword.trim() };
     if (query.channelType) where.channelType = query.channelType;
-    if (query.submissionStatus) where.submissionStatus = query.submissionStatus;
+    if (query.submissionStatus === "pending") {
+      where.OR = [
+        { submissionStatus: "pending" },
+        { changeRequests: { some: { status: 1, reviewStatus: "pending" } } },
+      ];
+    } else if (query.submissionStatus) {
+      where.submissionStatus = query.submissionStatus;
+    }
 
     const visibilityWhere = await this.buildManagementVisibilityWhere(actorUserId);
     if (visibilityWhere) where.AND = [visibilityWhere];
@@ -282,6 +294,8 @@ export class RelayChannelService {
         return {
           id: channel.id,
           name: channel.name,
+          submittedByUserId: channel.submittedByUserId || undefined,
+          submittedByUsername: channel.submittedBy?.username || channel.submittedByUserId || undefined,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
           channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
           routingStrategy:
@@ -2147,6 +2161,12 @@ export class RelayChannelService {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing) throw new NotFoundError("Relay channel not found");
     if (!existing.submittedByUserId) throw new BadRequestError("Only submitted channels may be reviewed");
+    if (await this.changeRequestRepository.findPendingByChannelId(id))
+      throw new ConflictError("A pending change request must be reviewed before the channel submission");
+    const reason = body.reason?.trim();
+    if (body.action === "reject" && !reason) {
+      throw new BadRequestError("审核说明不能为空", undefined, { messageKey: "relay.reviewReasonRequired" });
+    }
     const approved = body.action === "approve";
     const existingWithProviders = existing as RelayChannel & {
       providers: Array<{
@@ -2162,7 +2182,7 @@ export class RelayChannelService {
       status: approved ? RELAY_CHANNEL_STATUS.ENABLED : RELAY_CHANNEL_STATUS.DISABLED,
       reviewedByUserId: actorUserId,
       reviewedAt: new Date(),
-      reviewReason: body.reason?.trim() || null,
+      reviewReason: reason || null,
     };
     const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
       const updated = await this.relayChannelRepository.updateById(id, data, tx);
@@ -2370,6 +2390,11 @@ export class RelayChannelService {
 
   private toChangeRequestDto(row: any): RelayChannelChangeRequestDto {
     const snapshot = (row.configSnapshot || {}) as Record<string, unknown>;
+    const {
+      previousSubmissionStatus: _previousSubmissionStatus,
+      previousChannelStatus: _previousChannelStatus,
+      ...publicSnapshot
+    } = snapshot;
     return {
       id: row.id,
       relayChannelId: row.relayChannelId,
@@ -2380,7 +2405,7 @@ export class RelayChannelService {
       reviewedAt: row.reviewedAt || undefined,
       reviewReason: row.reviewReason || undefined,
       config: {
-        ...(snapshot as Omit<
+        ...(publicSnapshot as Omit<
           CreateRelayChannelChangeRequest,
           "openaiUpstreamApiKey" | "anthropicUpstreamApiKey" | "geminiUpstreamApiKey"
         >),
@@ -2406,7 +2431,8 @@ export class RelayChannelService {
     const submissionStatus = existing.submissionStatus as RelayChannelSubmissionStatus;
     if (!(["pending", "approved", "rejected"] as RelayChannelSubmissionStatus[]).includes(submissionStatus))
       throw new BadRequestError("Only pending, approved, or rejected channels may accept change requests");
-    if (await this.changeRequestRepository.findPendingByChannelId(id))
+    const pendingChangeRequest = await this.changeRequestRepository.findPendingByChannelId(id);
+    if (pendingChangeRequest && submissionStatus !== "rejected")
       throw new ConflictError("A pending change request already exists for this channel");
 
     const validated = await this.buildValidatedChannelData({ ...data, channelType: "standalone" }, existing);
@@ -2432,16 +2458,45 @@ export class RelayChannelService {
         hasOpenaiUpstreamApiKey: Boolean(validated.openaiUpstreamApiKey),
         hasAnthropicUpstreamApiKey: Boolean(validated.anthropicUpstreamApiKey),
         hasGeminiUpstreamApiKey: Boolean(validated.geminiUpstreamApiKey),
+        previousSubmissionStatus: submissionStatus,
+        previousChannelStatus: existing.status as RelayChannelStatus,
       }),
     ) as Prisma.InputJsonObject;
-    const row = await this.changeRequestRepository.create({
-      relayChannelId: id,
-      submittedByUserId: actorUserId,
-      reviewStatus: "pending",
-      configSnapshot,
-      encryptedCredentials: encrypted?.ciphertext,
-      credentialIv: encrypted?.iv,
-      credentialAuthTag: encrypted?.authTag,
+    const row = await this.relayChannelRepository.withTransaction(async (tx) => {
+      if (pendingChangeRequest) {
+        await this.changeRequestRepository.updateById(
+          pendingChangeRequest.id,
+          {
+            status: -1,
+            reviewReason: "Superseded by a new submission",
+            reviewedAt: new Date(),
+          },
+          tx,
+        );
+      }
+      if (submissionStatus === "rejected") {
+        await this.relayChannelRepository.updateById(
+          id,
+          {
+            submissionStatus: "pending",
+            status: RELAY_CHANNEL_STATUS.DISABLED,
+            reviewReason: null,
+          },
+          tx,
+        );
+      }
+      return this.changeRequestRepository.create(
+        {
+          relayChannelId: id,
+          submittedByUserId: actorUserId,
+          reviewStatus: "pending",
+          configSnapshot,
+          encryptedCredentials: encrypted?.ciphertext,
+          credentialIv: encrypted?.iv,
+          credentialAuthTag: encrypted?.authTag,
+        },
+        tx,
+      );
     });
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CHANNEL_UPDATE,
@@ -2476,9 +2531,16 @@ export class RelayChannelService {
     const row = await this.changeRequestRepository.findById(changeRequestId);
     if (!row || row.status !== 1) throw new NotFoundError("Relay channel change request not found");
     if (row.reviewStatus !== "pending") return this.toChangeRequestDto(row);
+    const reason = body.reason?.trim();
+    if (body.action === "reject" && !reason) {
+      throw new BadRequestError("审核说明不能为空", undefined, { messageKey: "relay.reviewReasonRequired" });
+    }
     const channel = await this.relayChannelRepository.findVisibleById(row.relayChannelId);
     if (!channel) throw new NotFoundError("Relay channel not found");
-    const snapshot = row.configSnapshot as unknown as CreateRelayChannelChangeRequest;
+    const snapshot = row.configSnapshot as unknown as RelayChannelChangeRequestSnapshot;
+    const previousSubmissionStatus =
+      snapshot.previousSubmissionStatus ?? (channel.submissionStatus as RelayChannelSubmissionStatus);
+    const previousChannelStatus = snapshot.previousChannelStatus ?? (channel.status as RelayChannelStatus);
     const nextCredentials = this.decryptChangeCredentials(row);
     const validated = await this.buildValidatedChannelData(
       {
@@ -2490,13 +2552,36 @@ export class RelayChannelService {
     );
     const updated = await this.relayChannelRepository.withTransaction(async (tx) => {
       if (body.action === "approve") {
-        await this.relayChannelRepository.updateById(row.relayChannelId, this.toPersistenceInput(validated), tx);
+        await this.relayChannelRepository.updateById(
+          row.relayChannelId,
+          {
+            ...this.toPersistenceInput(validated),
+            submissionStatus: "approved",
+            status: RELAY_CHANNEL_STATUS.ENABLED,
+            reviewedByUserId: actorUserId,
+            reviewedAt: new Date(),
+            reviewReason: null,
+          },
+          tx,
+        );
         if (validated.providers !== undefined)
           await this.relayChannelRepository.replaceProvidersByChannelId(
             row.relayChannelId,
             await this.buildProviderRows(validated.providers),
             tx,
           );
+      } else {
+        await this.relayChannelRepository.updateById(
+          row.relayChannelId,
+          {
+            submissionStatus: previousSubmissionStatus,
+            status: previousChannelStatus,
+            reviewedByUserId: actorUserId,
+            reviewedAt: new Date(),
+            reviewReason: reason || null,
+          },
+          tx,
+        );
       }
       return this.changeRequestRepository.updateById(
         changeRequestId,
@@ -2504,7 +2589,7 @@ export class RelayChannelService {
           reviewStatus: body.action === "approve" ? "approved" : "rejected",
           reviewedByUserId: actorUserId,
           reviewedAt: new Date(),
-          reviewReason: body.reason?.trim() || null,
+          reviewReason: reason || null,
         },
         tx,
       );
@@ -3006,6 +3091,30 @@ export class RelayChannelService {
     });
   }
 
+  async deleteSubmittedChannel(id: string, actorUserId: string, request?: Request): Promise<void> {
+    const existing = await this.relayChannelRepository.findVisibleById(id);
+    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (existing.submittedByUserId !== actorUserId)
+      throw new ForbiddenError("Only the original submitter may delete this channel");
+
+    const submissionStatus = existing.submissionStatus as RelayChannelSubmissionStatus;
+    if (!(["pending", "rejected", "offboarded"] as RelayChannelSubmissionStatus[]).includes(submissionStatus))
+      throw new BadRequestError("Only pending, rejected, or offboarded submitted channels may be deleted");
+
+    await this.relayChannelRepository.softDeleteAndUnassignTokens(id);
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_DELETE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: existing.id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `删除了自己提交的中转渠道 '${existing.name}'`,
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+  }
+
   private async toDto(
     channel: RelayChannel,
     modelCatalog?: ModelPricingDto[],
@@ -3078,7 +3187,7 @@ export class RelayChannelService {
         ).providers?.map((provider) => ({
           id: provider.id,
           userId: provider.userId,
-          username: provider.user?.username,
+          username: provider.user?.username || provider.userId,
           commissionPercent: Number(provider.commissionPercent),
           settlementMode: provider.settlementMode,
           settlementIntervalDays: provider.settlementIntervalDays ?? undefined,

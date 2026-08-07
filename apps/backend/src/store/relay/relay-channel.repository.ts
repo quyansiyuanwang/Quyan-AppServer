@@ -163,6 +163,8 @@ export class RelayChannelRepository implements RelayChannelStore {
         select: {
           id: true,
           name: true,
+          submittedByUserId: true,
+          submittedBy: { select: { username: true } },
           status: true,
           channelType: true,
           routingStrategy: true,
@@ -283,6 +285,11 @@ export class RelayChannelRepository implements RelayChannelStore {
 
       await tx.relayChannelMember.deleteMany({
         where: { memberChannelId: id },
+      });
+
+      await tx.relayChannelChangeRequest.updateMany({
+        where: { relayChannelId: id, status: 1 },
+        data: { status: -1 },
       });
 
       await tx.relayChannel.update({

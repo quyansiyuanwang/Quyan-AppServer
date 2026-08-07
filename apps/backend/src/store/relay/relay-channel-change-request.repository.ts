@@ -1,4 +1,5 @@
 import { prisma } from "@/config/database";
+import { VISIBLE_RELAY_CHANNEL_STATUSES } from "@/constant/relay-channel";
 import type { Prisma } from "@prisma/client";
 import type { RelayChannelTransactionClient } from "./relay-channel.store";
 
@@ -32,7 +33,11 @@ export class RelayChannelChangeRequestRepository {
   }
 
   async listMine(userId: string, page: number, pageSize: number) {
-    const where = { submittedByUserId: userId, status: 1 };
+    const where = {
+      submittedByUserId: userId,
+      status: 1,
+      relayChannel: { status: { in: VISIBLE_RELAY_CHANNEL_STATUSES } },
+    };
     const [items, total] = await prisma.$transaction([
       prisma.relayChannelChangeRequest.findMany({
         where,
@@ -47,7 +52,11 @@ export class RelayChannelChangeRequestRepository {
   }
 
   async listAdmin(page: number, pageSize: number, reviewStatus?: string) {
-    const where = { status: 1, ...(reviewStatus ? { reviewStatus } : {}) };
+    const where = {
+      status: 1,
+      relayChannel: { status: { in: VISIBLE_RELAY_CHANNEL_STATUSES } },
+      ...(reviewStatus ? { reviewStatus } : {}),
+    };
     const [items, total] = await prisma.$transaction([
       prisma.relayChannelChangeRequest.findMany({
         where,

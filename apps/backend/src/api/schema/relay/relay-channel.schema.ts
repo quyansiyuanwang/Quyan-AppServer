@@ -171,7 +171,10 @@ export const relayChannelManagementQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
   keyword: z.string().trim().max(100).optional(),
   channelType: relayChannelTypeSchema.optional(),
-  enabled: z.coerce.boolean().optional(),
+  enabled: z.preprocess(
+    (value) => (value === "true" ? true : value === "false" ? false : value),
+    z.boolean().optional(),
+  ),
   submissionStatus: z.enum(["pending", "approved", "rejected", "offboarded"]).optional(),
 });
 
