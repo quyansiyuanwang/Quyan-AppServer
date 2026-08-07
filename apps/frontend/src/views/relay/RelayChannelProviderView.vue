@@ -330,7 +330,7 @@ const hydrateForm = (channel: RelayChannelDto) => {
     form.allowedModels = []
   }
   form.providers = channel.providers.map((provider) => ({
-    username: provider.username || '',
+    username: provider.username || provider.userId,
     commissionPercent: provider.commissionPercent,
     settlementMode: provider.settlementMode,
     settlementIntervalDays: provider.settlementIntervalDays,

@@ -3158,7 +3158,7 @@ export class RelayChannelService {
         ).providers?.map((provider) => ({
           id: provider.id,
           userId: provider.userId,
-          username: provider.user?.username,
+          username: provider.user?.username || provider.userId,
           commissionPercent: Number(provider.commissionPercent),
           settlementMode: provider.settlementMode,
           settlementIntervalDays: provider.settlementIntervalDays ?? undefined,

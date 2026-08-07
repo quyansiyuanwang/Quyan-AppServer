@@ -229,7 +229,12 @@ const submissionStatusLabel = (status: string) => {
   return i18ns.t('all')
 }
 const providerSummary = (providers?: RelayChannelProviderConfigRequest[]) =>
-  (providers || []).map((item) => `${item.username}: ${item.commissionPercent}%`).join(', ') || '-'
+  (providers || [])
+    .map(
+      (item) =>
+        `${item.username || ('userId' in item ? item.userId : '') || '-'}: ${item.commissionPercent}%`,
+    )
+    .join(', ') || '-'
 const credentialSummary = (config: any) =>
   (
     [
@@ -299,7 +304,7 @@ const openConfig = async (id: string) => {
     configChannel.value = await relayChannelService.getChannel(id)
     configMultiplier.value = configChannel.value.multiplier
     configProviders.value = configChannel.value.providers.map((provider) => ({
-      username: provider.username || '',
+      username: provider.username || provider.userId,
       commissionPercent: provider.commissionPercent,
       settlementMode: provider.settlementMode,
       settlementIntervalDays: provider.settlementIntervalDays,
