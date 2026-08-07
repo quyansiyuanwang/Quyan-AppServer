@@ -1,4 +1,5 @@
 import type { NotificationEvent } from "@/constant/notification-event";
+import type { NotificationDocument } from "./notification-template";
 
 export interface WebhookPayload {
   event: string;
@@ -6,6 +7,7 @@ export interface WebhookPayload {
   content: string;
   timestamp: string;
   data?: Record<string, unknown>;
+  document?: NotificationDocument;
 }
 
 /**
@@ -38,6 +40,7 @@ export class WebhookFormatter {
   }
 
   private static formatDiscord(payload: WebhookPayload): Record<string, unknown> {
+    const fields = payload.document ? this.documentFields(payload.document) : [];
     return {
       embeds: [
         {
@@ -45,19 +48,22 @@ export class WebhookFormatter {
           description: payload.content,
           color: 0xff6b6b,
           timestamp: payload.timestamp,
-          fields: payload.data
-            ? Object.entries(payload.data).map(([name, value]) => ({
-                name,
-                value: String(value),
-                inline: true,
-              }))
-            : [],
+          fields: fields.length
+            ? fields
+            : payload.data
+              ? Object.entries(payload.data).map(([name, value]) => ({
+                  name,
+                  value: String(value),
+                  inline: true,
+                }))
+              : [],
         },
       ],
     };
   }
 
   private static formatSlack(payload: WebhookPayload): Record<string, unknown> {
+    const fields = payload.document ? this.documentFields(payload.document) : [];
     return {
       text: payload.title,
       blocks: [
@@ -67,7 +73,12 @@ export class WebhookFormatter {
         },
         {
           type: "section",
-          text: { type: "mrkdwn", text: payload.content },
+          text: {
+            type: "mrkdwn",
+            text: fields.length
+              ? `${payload.content}\n${fields.map((field) => `*${field.name}*: ${field.value}`).join("\n")}`
+              : payload.content,
+          },
         },
         {
           type: "context",
@@ -78,12 +89,18 @@ export class WebhookFormatter {
   }
 
   private static formatFeishu(payload: WebhookPayload): Record<string, unknown> {
-    const fields = payload.data
-      ? Object.entries(payload.data).map(([key, value]) => ({
+    const documentFields = payload.document ? this.documentFields(payload.document) : [];
+    const fields = documentFields.length
+      ? documentFields.map(({ name, value }) => ({
           is_short: true,
-          text: { tag: "lark_md", content: `**${key}**: ${value}` },
+          text: { tag: "lark_md", content: `**${name}**: ${value}` },
         }))
-      : [];
+      : payload.data
+        ? Object.entries(payload.data).map(([key, value]) => ({
+            is_short: true,
+            text: { tag: "lark_md", content: `**${key}**: ${value}` },
+          }))
+        : [];
 
     return {
       msg_type: "interactive",
@@ -108,11 +125,14 @@ export class WebhookFormatter {
   }
 
   private static formatWechatWork(payload: WebhookPayload): Record<string, unknown> {
-    const extraLines = payload.data
-      ? Object.entries(payload.data)
-          .map(([k, v]) => `> **${k}**: ${v}`)
-          .join("\n")
-      : "";
+    const documentFields = payload.document ? this.documentFields(payload.document) : [];
+    const extraLines = documentFields.length
+      ? documentFields.map(({ name, value }) => `> **${name}**: ${value}`).join("\n")
+      : payload.data
+        ? Object.entries(payload.data)
+            .map(([k, v]) => `> **${k}**: ${v}`)
+            .join("\n")
+        : "";
 
     const content = extraLines
       ? `**${payload.title}**\n${payload.content}\n${extraLines}`
@@ -122,5 +142,13 @@ export class WebhookFormatter {
       msgtype: "markdown",
       markdown: { content },
     };
+  }
+
+  private static documentFields(document: NotificationDocument): Array<{ name: string; value: string }> {
+    return document.blocks.flatMap((block) => {
+      if (block.type === "status") return [{ name: block.label, value: block.value }];
+      if (block.type === "fields") return block.items.map((item) => ({ name: item.label, value: item.value }));
+      return [];
+    });
   }
 }

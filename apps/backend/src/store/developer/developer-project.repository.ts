@@ -1171,6 +1171,7 @@ export class DeveloperProjectRepository {
 
   private async performStatusCheck(monitor: {
     id: string;
+    name: string;
     targetUrl: string;
     method: string;
     requestBody?: string | null;
@@ -1242,9 +1243,15 @@ export class DeveloperProjectRepository {
         monitor.project.userId,
         recovered ? NotificationEvent.DEVELOPER_MONITOR_RECOVERED : NotificationEvent.DEVELOPER_MONITOR_DOWN,
         {
-          title: recovered ? "监控服务已恢复" : "监控服务异常",
-          content: `监控目标已${recovered ? "恢复可用" : "不可用"}`,
-          data: { monitorId: monitor.id, previousStatus: monitor.lastStatus, currentStatus: lastStatus, statusCode },
+          monitorName: monitor.name,
+          targetUrl: monitor.targetUrl,
+          method: monitor.method,
+          previousStatus: monitor.lastStatus,
+          currentStatus: lastStatus,
+          statusCode,
+          latencyMs,
+          checkedAt: checkedAt.toISOString(),
+          errorMessage,
         },
       );
     }

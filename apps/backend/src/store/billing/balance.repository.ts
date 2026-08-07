@@ -102,9 +102,8 @@ export class BalanceRepository implements BalanceStore {
       const balanceAfter = Number(account.balance);
       if (balanceAfter < balanceThreshold)
         NotificationService.getInstance().dispatch(userId, NotificationEvent.BALANCE_LOW, {
-          title: "余额不足提醒",
-          content: `您的账户余额已低于 ${balanceThreshold} 曲，当前余额为 ${balanceAfter.toFixed(4)} 曲，请及时充值。`,
-          data: { currentBalance: balanceAfter.toFixed(4), threshold: balanceThreshold },
+          currentBalance: balanceAfter.toFixed(4),
+          threshold: balanceThreshold,
         });
     } catch {
       // non-fatal
@@ -125,9 +124,8 @@ export class BalanceRepository implements BalanceStore {
       if (!subscribedEvents.includes(NotificationEvent.RECHARGE_SUCCESS)) return;
 
       NotificationService.getInstance().dispatch(userId, NotificationEvent.RECHARGE_SUCCESS, {
-        title: "充值成功",
-        content: `您的账户已成功充值 ${amount.toFixed(4)} 曲，当前余额为 ${balanceAfter.toFixed(4)} 曲。`,
-        data: { amount: amount.toFixed(4), balanceAfter: balanceAfter.toFixed(4) },
+        amount: amount.toFixed(4),
+        balanceAfter: balanceAfter.toFixed(4),
       });
     } catch {
       // non-fatal

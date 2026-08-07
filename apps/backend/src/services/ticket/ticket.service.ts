@@ -90,12 +90,14 @@ export class TicketService {
 
     if (autoAssigneeUserId)
       await this.notificationService.dispatch(autoAssigneeUserId, NotificationEvent.TICKET_ASSIGNED, {
-        title: "你有新的工单待处理",
-        content:
+        subject: "你有新的工单待处理",
+        summary:
           autoAssigneeUserId === userId
             ? `你创建的工单《${created.title}》已自动分配给你`
             : `工单《${created.title}》已自动分配给你`,
-        data: { ticketId: created.id, priority: created.priority, autoAssigned: true },
+        ticketId: created.id,
+        priority: created.priority,
+        autoAssigned: true,
       });
     else await this.notifyPendingReviewUsers(created.id, created.title, created.priority, userId);
 
@@ -294,9 +296,10 @@ export class TicketService {
 
       if (existing.userId !== reviewerUserId)
         await this.notificationService.dispatch(existing.userId, NotificationEvent.TICKET_STATUS_UPDATED, {
-          title: "工单状态已更新",
-          content: `你的工单《${updated.title}》状态已变更为 ${updated.workflowStatus}`,
-          data: { ticketId: updated.id, workflowStatus: updated.workflowStatus },
+          subject: "工单状态已更新",
+          summary: `你的工单《${updated.title}》状态已变更为 ${updated.workflowStatus}`,
+          ticketId: updated.id,
+          workflowStatus: updated.workflowStatus,
         });
     }
 
@@ -330,12 +333,13 @@ export class TicketService {
 
       if (updated.assigneeUserId)
         await this.notificationService.dispatch(updated.assigneeUserId, NotificationEvent.TICKET_ASSIGNED, {
-          title: "你有新的工单待处理",
-          content:
+          subject: "你有新的工单待处理",
+          summary:
             updated.assigneeUserId === reviewerUserId
               ? `你已将工单《${updated.title}》分配给自己`
               : `工单《${updated.title}》已分配给你`,
-          data: { ticketId: updated.id, priority: updated.priority },
+          ticketId: updated.id,
+          priority: updated.priority,
         });
     }
 
@@ -375,9 +379,9 @@ export class TicketService {
 
     if (body.visibility === PUBLIC_VISIBILITY && ticket.userId !== reviewerUserId)
       await this.notificationService.dispatch(ticket.userId, NotificationEvent.TICKET_PUBLIC_REPLY, {
-        title: "你的工单收到了新回复",
-        content: `工单《${ticket.title}》有新的处理回复`,
-        data: { ticketId: ticket.id },
+        subject: "你的工单收到了新回复",
+        summary: `工单《${ticket.title}》有新的处理回复`,
+        ticketId: ticket.id,
       });
 
     return this.toCommentDto({
@@ -615,9 +619,10 @@ export class TicketService {
     await Promise.allSettled(
       recipients.map((userId) =>
         this.notificationService.dispatch(userId, NotificationEvent.TICKET_PENDING_REVIEW, {
-          title: "有新工单等待分诊",
-          content: `新工单《${title}》等待具备处理权限的人员跟进`,
-          data: { ticketId, priority },
+          subject: "有新工单等待分诊",
+          summary: `新工单《${title}》等待具备处理权限的人员跟进`,
+          ticketId,
+          priority,
         }),
       ),
     );

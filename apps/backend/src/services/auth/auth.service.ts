@@ -498,13 +498,10 @@ export class AuthService {
 
       if (currentLocation !== previousLocation && currentLocation !== "未知地区" && previousLocation !== "未知地区")
         notificationService.dispatch(userId, NotificationEvent.ABNORMAL_LOGIN, {
-          title: "账户异常登录提醒",
-          content: `检测到您的账户从新地区登录，请确认是否为本人操作。`,
-          data: {
-            currentIp,
-            currentLocation,
-            previousLocation,
-          },
+          summary: "检测到您的账户从新地区登录，请确认是否为本人操作。",
+          currentIp,
+          currentLocation,
+          previousLocation,
         });
     } catch {
       // Non-fatal — never block login flow
@@ -631,9 +628,9 @@ export class AuthService {
 
       if (failCount >= 5)
         NotificationService.getInstance().dispatch(userId, NotificationEvent.LOGIN_FAILED_MULTIPLE, {
-          title: "多次登录失败提醒",
-          content: `您的账户在过去 30 分钟内发生了 ${failCount} 次登录失败，请确认账号安全。`,
-          data: { failCount, windowMinutes: 30 },
+          summary: `您的账户在过去 30 分钟内发生了 ${failCount} 次登录失败，请确认账号安全。`,
+          failCount,
+          windowMinutes: 30,
         });
     } catch {
       // Non-fatal
