@@ -305,6 +305,24 @@ export class RelayChannelController extends Controller {
     return this.channelService.listMySubmittedChannels(request.user!.userId, page, pageSize);
   }
 
+  @Delete("submissions/{id}")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(relayChannelIdParamsSchema),
+  )
+  public async deleteSubmittedChannel(
+    @Path() id: string,
+    @Request() request: TypedRequest,
+  ): Promise<{ message: string }> {
+    await this.channelService.deleteSubmittedChannel(id, request.user!.userId, request);
+    setResponseMessageKey(request, "relay.channelDeleted");
+    return { message: "渠道删除成功" };
+  }
+
   @Post("{id}/review-submission")
   @Security("jwt")
   @RequirePermission(Permission.RELAY_CHANNEL_REVIEW)

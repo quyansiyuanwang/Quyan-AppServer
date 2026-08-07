@@ -259,6 +259,11 @@ class RelayChannelService {
     return checkApiResult<any>(result, true).data
   }
 
+  async deleteSubmittedChannel(id: string): Promise<void> {
+    const result = await relayChannelApi.deleteSubmittedChannel({ path: { id } })
+    checkApiResult(result, false)
+  }
+
   async reviewChannelSubmission(
     id: string,
     data: ReviewRelayChannelSubmissionRequest,

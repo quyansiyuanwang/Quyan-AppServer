@@ -135,6 +135,11 @@ type RelayChannelProviderConfigInput = Omit<RelayChannelProviderConfigRequest, "
   userId?: string;
 };
 
+type RelayChannelChangeRequestSnapshot = CreateRelayChannelChangeRequest & {
+  previousSubmissionStatus?: RelayChannelSubmissionStatus;
+  previousChannelStatus?: RelayChannelStatus;
+};
+
 const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
 const DEFAULT_ROUTING_STRATEGY: RelayChannelRoutingStrategy = "priority";
 const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
@@ -2147,6 +2152,8 @@ export class RelayChannelService {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing) throw new NotFoundError("Relay channel not found");
     if (!existing.submittedByUserId) throw new BadRequestError("Only submitted channels may be reviewed");
+    if (await this.changeRequestRepository.findPendingByChannelId(id))
+      throw new ConflictError("A pending change request must be reviewed before the channel submission");
     const approved = body.action === "approve";
     const existingWithProviders = existing as RelayChannel & {
       providers: Array<{
@@ -2370,6 +2377,11 @@ export class RelayChannelService {
 
   private toChangeRequestDto(row: any): RelayChannelChangeRequestDto {
     const snapshot = (row.configSnapshot || {}) as Record<string, unknown>;
+    const {
+      previousSubmissionStatus: _previousSubmissionStatus,
+      previousChannelStatus: _previousChannelStatus,
+      ...publicSnapshot
+    } = snapshot;
     return {
       id: row.id,
       relayChannelId: row.relayChannelId,
@@ -2380,7 +2392,7 @@ export class RelayChannelService {
       reviewedAt: row.reviewedAt || undefined,
       reviewReason: row.reviewReason || undefined,
       config: {
-        ...(snapshot as Omit<
+        ...(publicSnapshot as Omit<
           CreateRelayChannelChangeRequest,
           "openaiUpstreamApiKey" | "anthropicUpstreamApiKey" | "geminiUpstreamApiKey"
         >),
@@ -2432,16 +2444,34 @@ export class RelayChannelService {
         hasOpenaiUpstreamApiKey: Boolean(validated.openaiUpstreamApiKey),
         hasAnthropicUpstreamApiKey: Boolean(validated.anthropicUpstreamApiKey),
         hasGeminiUpstreamApiKey: Boolean(validated.geminiUpstreamApiKey),
+        previousSubmissionStatus: submissionStatus,
+        previousChannelStatus: existing.status as RelayChannelStatus,
       }),
     ) as Prisma.InputJsonObject;
-    const row = await this.changeRequestRepository.create({
-      relayChannelId: id,
-      submittedByUserId: actorUserId,
-      reviewStatus: "pending",
-      configSnapshot,
-      encryptedCredentials: encrypted?.ciphertext,
-      credentialIv: encrypted?.iv,
-      credentialAuthTag: encrypted?.authTag,
+    const row = await this.relayChannelRepository.withTransaction(async (tx) => {
+      if (submissionStatus === "rejected") {
+        await this.relayChannelRepository.updateById(
+          id,
+          {
+            submissionStatus: "pending",
+            status: RELAY_CHANNEL_STATUS.DISABLED,
+            reviewReason: null,
+          },
+          tx,
+        );
+      }
+      return this.changeRequestRepository.create(
+        {
+          relayChannelId: id,
+          submittedByUserId: actorUserId,
+          reviewStatus: "pending",
+          configSnapshot,
+          encryptedCredentials: encrypted?.ciphertext,
+          credentialIv: encrypted?.iv,
+          credentialAuthTag: encrypted?.authTag,
+        },
+        tx,
+      );
     });
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CHANNEL_UPDATE,
@@ -2478,7 +2508,10 @@ export class RelayChannelService {
     if (row.reviewStatus !== "pending") return this.toChangeRequestDto(row);
     const channel = await this.relayChannelRepository.findVisibleById(row.relayChannelId);
     if (!channel) throw new NotFoundError("Relay channel not found");
-    const snapshot = row.configSnapshot as unknown as CreateRelayChannelChangeRequest;
+    const snapshot = row.configSnapshot as unknown as RelayChannelChangeRequestSnapshot;
+    const previousSubmissionStatus =
+      snapshot.previousSubmissionStatus ?? (channel.submissionStatus as RelayChannelSubmissionStatus);
+    const previousChannelStatus = snapshot.previousChannelStatus ?? (channel.status as RelayChannelStatus);
     const nextCredentials = this.decryptChangeCredentials(row);
     const validated = await this.buildValidatedChannelData(
       {
@@ -2490,13 +2523,36 @@ export class RelayChannelService {
     );
     const updated = await this.relayChannelRepository.withTransaction(async (tx) => {
       if (body.action === "approve") {
-        await this.relayChannelRepository.updateById(row.relayChannelId, this.toPersistenceInput(validated), tx);
+        await this.relayChannelRepository.updateById(
+          row.relayChannelId,
+          {
+            ...this.toPersistenceInput(validated),
+            submissionStatus: "approved",
+            status: RELAY_CHANNEL_STATUS.ENABLED,
+            reviewedByUserId: actorUserId,
+            reviewedAt: new Date(),
+            reviewReason: null,
+          },
+          tx,
+        );
         if (validated.providers !== undefined)
           await this.relayChannelRepository.replaceProvidersByChannelId(
             row.relayChannelId,
             await this.buildProviderRows(validated.providers),
             tx,
           );
+      } else {
+        await this.relayChannelRepository.updateById(
+          row.relayChannelId,
+          {
+            submissionStatus: previousSubmissionStatus,
+            status: previousChannelStatus,
+            reviewedByUserId: actorUserId,
+            reviewedAt: new Date(),
+            reviewReason: body.reason?.trim() || null,
+          },
+          tx,
+        );
       }
       return this.changeRequestRepository.updateById(
         changeRequestId,
@@ -3001,6 +3057,30 @@ export class RelayChannelService {
       targetResourceId: existing.id,
       targetResourceType: "RELAY_CHANNEL",
       description: `删除了中转渠道 '${existing.name}'`,
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+  }
+
+  async deleteSubmittedChannel(id: string, actorUserId: string, request?: Request): Promise<void> {
+    const existing = await this.relayChannelRepository.findVisibleById(id);
+    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (existing.submittedByUserId !== actorUserId)
+      throw new ForbiddenError("Only the original submitter may delete this channel");
+
+    const submissionStatus = existing.submissionStatus as RelayChannelSubmissionStatus;
+    if (!(["pending", "rejected", "offboarded"] as RelayChannelSubmissionStatus[]).includes(submissionStatus))
+      throw new BadRequestError("Only pending, rejected, or offboarded submitted channels may be deleted");
+
+    await this.relayChannelRepository.softDeleteAndUnassignTokens(id);
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_DELETE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: existing.id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `删除了自己提交的中转渠道 '${existing.name}'`,
       success: true,
       ...buildBusinessLogRequestContext(request),
     });

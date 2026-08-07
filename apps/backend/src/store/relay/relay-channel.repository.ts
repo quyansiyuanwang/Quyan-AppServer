@@ -285,6 +285,11 @@ export class RelayChannelRepository implements RelayChannelStore {
         where: { memberChannelId: id },
       });
 
+      await tx.relayChannelChangeRequest.updateMany({
+        where: { relayChannelId: id, status: 1 },
+        data: { status: -1 },
+      });
+
       await tx.relayChannel.update({
         where: { id },
         data: { status: RELAY_CHANNEL_STATUS.DELETED },

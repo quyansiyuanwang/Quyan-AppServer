@@ -22,6 +22,7 @@ describe("RelayChannelService", () => {
     updateById: vi.fn(),
     countDirectBusinessReferences: vi.fn(),
     replaceMembersByChannelId: vi.fn(),
+    replaceProvidersByChannelId: vi.fn(),
     deleteMembersByChannelId: vi.fn(),
     softDeleteAndUnassignTokens: vi.fn(),
     softDeleteAndUnassignTokensByIds: vi.fn(),
@@ -56,6 +57,14 @@ describe("RelayChannelService", () => {
     findManagedPoolsByOwnerUserId: vi.fn(),
     findManagedPoolByRelayChannelId: vi.fn(),
   };
+  const changeRequestRepository = {
+    findPendingByChannelId: vi.fn(),
+    create: vi.fn(),
+    findById: vi.fn(),
+    updateById: vi.fn(),
+    listMine: vi.fn(),
+    listAdmin: vi.fn(),
+  };
 
   const RelayChannelServiceCtor = RelayChannelService as unknown as new (...args: any[]) => RelayChannelService;
 
@@ -69,6 +78,7 @@ describe("RelayChannelService", () => {
     relayPoolResolver,
     relayChannelHealthService,
     relayConfigService,
+    changeRequestRepository,
   );
 
   const now = new Date("2026-01-01T00:00:00.000Z");
@@ -112,6 +122,18 @@ describe("RelayChannelService", () => {
     relayPoolResolver.preloadContext.mockResolvedValue({ graph: new Map(), modelCatalog: [] });
     relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([]);
     relayConfigService.getRelayConfig.mockResolvedValue({ apiCatalogPoolVisibility: "anonymous-range" });
+    changeRequestRepository.findPendingByChannelId.mockResolvedValue(null);
+    changeRequestRepository.create.mockResolvedValue({
+      id: "change-1",
+      status: 1,
+      relayChannelId: "channel-1",
+      submittedByUserId: "actor-user",
+      reviewStatus: "pending",
+      configSnapshot: {},
+      createTime: now,
+      updateTime: now,
+      channelName: "Main",
+    });
     relayChannelRepository.updateById.mockImplementation(async (id: string, data: Record<string, unknown>) => ({
       ...sampleChannel,
       id,
@@ -1614,6 +1636,126 @@ describe("RelayChannelService", () => {
     await service.deleteChannel("channel-1", "actor-user");
 
     expect(relayChannelRepository.softDeleteAndUnassignTokens).toHaveBeenCalledWith("channel-1");
+  });
+
+  it("allows the original submitter to delete an unlisted channel", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "actor-user",
+      submissionStatus: "rejected",
+      status: RELAY_CHANNEL_STATUS.DISABLED,
+    });
+
+    await service.deleteSubmittedChannel("channel-1", "actor-user");
+
+    expect(relayChannelRepository.softDeleteAndUnassignTokens).toHaveBeenCalledWith("channel-1");
+  });
+
+  it("rejects provider deletion for another submitter or a listed channel", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "someone-else",
+      submissionStatus: "rejected",
+      status: RELAY_CHANNEL_STATUS.DISABLED,
+    });
+    await expect(service.deleteSubmittedChannel("channel-1", "actor-user")).rejects.toThrow();
+
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "actor-user",
+      submissionStatus: "approved",
+      status: RELAY_CHANNEL_STATUS.ENABLED,
+    });
+    await expect(service.deleteSubmittedChannel("channel-1", "actor-user")).rejects.toThrow();
+    expect(relayChannelRepository.softDeleteAndUnassignTokens).not.toHaveBeenCalled();
+  });
+
+  it("moves a rejected submission back to pending when its submitter requests a change", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "actor-user",
+      submissionStatus: "rejected",
+      status: RELAY_CHANNEL_STATUS.DISABLED,
+    });
+
+    await service.createChangeRequest(
+      "channel-1",
+      {
+        name: "Main",
+        allowedFormats: "openai",
+        openaiUpstreamUrl: "https://upstream.example.com",
+      },
+      "actor-user",
+    );
+
+    expect(relayChannelRepository.updateById).toHaveBeenCalledWith(
+      "channel-1",
+      expect.objectContaining({
+        submissionStatus: "pending",
+        status: RELAY_CHANNEL_STATUS.DISABLED,
+        reviewReason: null,
+      }),
+      transactionClient,
+    );
+    expect(changeRequestRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configSnapshot: expect.objectContaining({ previousSubmissionStatus: "rejected" }),
+      }),
+      transactionClient,
+    );
+  });
+
+  it("approving a change request applies the configuration and enables the channel", async () => {
+    const pendingRequest = {
+      id: "change-1",
+      status: 1,
+      relayChannelId: "channel-1",
+      submittedByUserId: "actor-user",
+      reviewStatus: "pending",
+      configSnapshot: {
+        name: "Main revised",
+        allowedFormats: "openai",
+        openaiUpstreamUrl: "https://upstream.example.com",
+        multiplier: 1,
+        inputTokensIncludeCacheRead: false,
+        providers: [],
+        previousSubmissionStatus: "rejected",
+        previousChannelStatus: RELAY_CHANNEL_STATUS.DISABLED,
+      },
+      encryptedCredentials: null,
+      credentialIv: null,
+      credentialAuthTag: null,
+      relayChannel: { id: "channel-1", name: "Main" },
+      submittedBy: { username: "supplier" },
+      createTime: now,
+      updateTime: now,
+    };
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "actor-user",
+      submissionStatus: "pending",
+      status: RELAY_CHANNEL_STATUS.DISABLED,
+    });
+    changeRequestRepository.findById.mockResolvedValue(pendingRequest);
+    changeRequestRepository.updateById.mockResolvedValue({
+      ...pendingRequest,
+      reviewStatus: "approved",
+      reviewedAt: now,
+    });
+
+    await service.reviewChangeRequest("change-1", { action: "approve" }, "reviewer-user");
+
+    expect(relayChannelRepository.updateById).toHaveBeenCalledWith(
+      "channel-1",
+      expect.objectContaining({
+        name: "Main revised",
+        submissionStatus: "approved",
+        status: RELAY_CHANNEL_STATUS.ENABLED,
+        reviewedByUserId: "reviewer-user",
+        reviewReason: null,
+      }),
+      transactionClient,
+    );
   });
 
   it("batch deletes channels through the repository cleanup transaction", async () => {

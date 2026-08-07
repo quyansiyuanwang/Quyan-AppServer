@@ -47,7 +47,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('actions')" width="180" fixed="right"
+        <el-table-column :label="i18ns.t('actions')" width="280" fixed="right"
           ><template #default="{ row }"
             ><el-button
               v-if="['pending', 'approved', 'rejected'].includes(row.submissionStatus)"
@@ -56,6 +56,13 @@
               :disabled="changeRequestByChannel.get(row.id)?.reviewStatus === 'pending'"
               @click="openChangeRequest(row)"
               >{{ i18ns.t('relay.submitChangeRequest') }}</el-button
+            ><el-button
+              v-if="['pending', 'rejected', 'offboarded'].includes(row.submissionStatus)"
+              size="small"
+              type="danger"
+              :icon="Delete"
+              @click="deleteSubmission(row)"
+              >{{ i18ns.t('relay.deleteSubmittedChannel') }}</el-button
             ></template
           ></el-table-column
         >
@@ -160,8 +167,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Edit, Plus, Wallet } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, Edit, Plus, Wallet } from '@element-plus/icons-vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { i18ns } from '@/locales'
@@ -401,6 +408,21 @@ const saveForm = async () => {
     ElMessage.error(error?.message || i18ns.t('operationFailed'))
   } finally {
     submitting.value = false
+  }
+}
+const deleteSubmission = async (channel: RelayChannelDto) => {
+  try {
+    await ElMessageBox.confirm(
+      i18ns.t('relay.deleteSubmittedChannelConfirm'),
+      i18ns.t('relay.deleteSubmittedChannel'),
+      { type: 'warning' },
+    )
+    await relayChannelService.deleteSubmittedChannel(channel.id)
+    ElMessage.success(i18ns.t('relay.channelDeleted'))
+    await Promise.all([loadSubmissions(1), loadChangeRequests()])
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error?.message || i18ns.t('operationFailed'))
   }
 }
 const addTimeRule = () =>
