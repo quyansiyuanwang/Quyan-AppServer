@@ -2403,8 +2403,9 @@ export class RelayChannelService {
     if (!existing) throw new NotFoundError("Relay channel not found");
     if (existing.submittedByUserId !== actorUserId)
       throw new ForbiddenError("Only the original submitter may request changes");
-    if ((existing.submissionStatus as RelayChannelSubmissionStatus) !== "approved")
-      throw new BadRequestError("Only approved channels may accept change requests");
+    const submissionStatus = existing.submissionStatus as RelayChannelSubmissionStatus;
+    if (!(["pending", "approved", "rejected"] as RelayChannelSubmissionStatus[]).includes(submissionStatus))
+      throw new BadRequestError("Only pending, approved, or rejected channels may accept change requests");
     if (await this.changeRequestRepository.findPendingByChannelId(id))
       throw new ConflictError("A pending change request already exists for this channel");
 
