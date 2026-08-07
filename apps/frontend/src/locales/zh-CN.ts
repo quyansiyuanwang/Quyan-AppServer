@@ -2208,6 +2208,7 @@ const zhCN: DeepStringify<typeof en> = {
     providerPlatformRemainder: '平台剩余/补贴',
     providerCommissionWarning: '总分成比例可超过 100%，超出部分由平台补贴。',
     providerAdd: '添加提供者',
+    noProviders: '尚未添加提供用户',
     myChangeRequests: '我的修改申请',
     submitChangeRequest: '提交修改申请',
     changeRequestReviewOnly: '上线渠道只能提交修改申请，审核通过后才会应用。',

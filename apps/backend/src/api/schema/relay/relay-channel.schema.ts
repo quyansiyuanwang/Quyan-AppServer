@@ -365,3 +365,9 @@ export const providerEarningsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
 });
+
+export const relayChannelProviderUsersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(10000).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  keyword: z.string().trim().max(100).optional(),
+});

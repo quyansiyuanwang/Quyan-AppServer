@@ -56,6 +56,13 @@ export interface RelayChannelProviderConfigRequest {
   settlementTime?: string;
 }
 
+/** Safe user option used by relay provider selectors. */
+export interface RelayChannelProviderUserOptionDto {
+  id: string;
+  username: string;
+  name?: string | null;
+}
+
 export interface RelayChannelMemberDto {
   id?: string;
   memberChannelId: string;

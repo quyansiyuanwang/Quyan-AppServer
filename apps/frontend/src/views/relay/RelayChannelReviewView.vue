@@ -26,8 +26,7 @@
             :label="i18ns.t('relay.submissionStatusOffboarded')"
         /></el-select>
       </div>
-      <el-tabs v-model="activeTab">
-        <el-tab-pane name="submissions" :label="i18ns.t('relay.pendingSubmissions')">
+      <div class="review-table">
           <el-table v-loading="channelsLoading" :data="channels" size="small"
             ><el-table-column
               prop="name"
@@ -54,7 +53,22 @@
                           : 'warning'
                   "
                   >{{ row.submissionStatus }}</el-tag
-                ></template
+              ></template
+              ></el-table-column
+            ><el-table-column :label="i18ns.t('relay.pendingChangeRequests')" min-width="240"
+              ><template #default="{ row }"
+                ><template v-if="changeRequestByChannel.get(row.id)"
+                  ><el-tag type="warning">{{ i18ns.t('relay.changeStatusPending') }}</el-tag
+                  ><el-button text type="primary" :icon="View" @click="showChange(changeRequestByChannel.get(row.id)!)">{{
+                    i18ns.t('relay.viewChange')
+                  }}</el-button
+                  ><el-button size="small" type="success" :icon="Check" @click="reviewChange(changeRequestByChannel.get(row.id)!.id, 'approve')">{{
+                    i18ns.t('relay.reviewApprove')
+                  }}</el-button
+                  ><el-button size="small" type="danger" :icon="Close" @click="reviewChange(changeRequestByChannel.get(row.id)!.id, 'reject')">{{
+                    i18ns.t('relay.reviewReject')
+                  }}</el-button></template
+                ><span v-else>-</span></template
               ></el-table-column
             ><el-table-column :label="i18ns.t('actions')" min-width="300" fixed="right"
               ><template #default="{ row }"
@@ -94,62 +108,15 @@
             :total="channelPage.total"
             @update:current-page="loadChannels"
           />
-        </el-tab-pane>
-        <el-tab-pane name="changes" :label="i18ns.t('relay.pendingChangeRequests')">
-          <el-table v-loading="changesLoading" :data="changeRequests" size="small"
-            ><el-table-column
-              prop="channelName"
-              :label="i18ns.t('relay.channelName')"
-              min-width="180"
-            /><el-table-column
-              prop="submittedByUsername"
-              :label="i18ns.t('relay.providerUser')"
-              width="150"
-            /><el-table-column prop="createTime" :label="i18ns.t('relay.createTime')" width="180"
-              ><template #default="{ row }">{{
-                formatDateTime(row.createTime)
-              }}</template></el-table-column
-            ><el-table-column :label="i18ns.t('relay.reviewDiff')" min-width="180"
-              ><template #default="{ row }"
-                ><el-button text type="primary" :icon="View" @click="showChange(row)">{{
-                  i18ns.t('relay.viewChange')
-                }}</el-button></template
-              ></el-table-column
-            ><el-table-column :label="i18ns.t('actions')" width="220" fixed="right"
-              ><template #default="{ row }"
-                ><el-button
-                  size="small"
-                  type="success"
-                  :icon="Check"
-                  @click="reviewChange(row.id, 'approve')"
-                  >{{ i18ns.t('relay.reviewApprove') }}</el-button
-                ><el-button
-                  size="small"
-                  type="danger"
-                  :icon="Close"
-                  @click="reviewChange(row.id, 'reject')"
-                  >{{ i18ns.t('relay.reviewReject') }}</el-button
-                ></template
-              ></el-table-column
-            ></el-table
-          >
-          <el-pagination
-            class="pagination"
-            background
-            layout="total, prev, pager, next"
-            :current-page="changePage.page"
-            :page-size="changePage.pageSize"
-            :total="changePage.total"
-            @update:current-page="loadChanges"
-          />
-        </el-tab-pane>
-      </el-tabs>
+      </div>
     </el-card>
 
-    <el-dialog
+    <el-drawer
       v-model="configVisible"
       :title="i18ns.t('relay.reviewConfigure')"
-      width="min(720px, 94vw)"
+      direction="rtl"
+      size="min(760px, 94vw)"
+      class="relay-review-config-drawer"
       ><el-form v-if="configChannel" label-position="top"
         ><el-form-item :label="i18ns.t('relay.channelMultiplier')"
           ><el-input-number
@@ -164,64 +131,18 @@
           :title="i18ns.t('relay.providerCommissionWarning')"
           class="mb-3"
         />
-        <div class="provider-summary">
-          <el-tag :type="configTotal > 100 ? 'warning' : 'info'"
-            >{{ configTotal.toFixed(2) }}%</el-tag
-          ><span
-            >{{ i18ns.t('relay.providerPlatformRemainder') }}:
-            {{ (100 - configTotal).toFixed(2) }}%</span
-          >
-        </div>
-        <div v-for="(provider, index) in configProviders" :key="index" class="provider-row">
-          <el-input
-            v-model="provider.userId"
-            :placeholder="i18ns.t('relay.providerUserIdPlaceholder')"
-          /><el-input-number
-            v-model="provider.commissionPercent"
-            :min="0"
-            :max="100"
-            :precision="4"
-          /><el-select v-model="provider.settlementMode"
-            ><el-option
-              value="realtime"
-              :label="i18ns.t('relay.settlementModeRealtime')" /><el-option
-              value="interval"
-              :label="i18ns.t('relay.settlementModeInterval')" /><el-option
-              value="daily"
-              :label="i18ns.t('relay.settlementModeDaily')" /><el-option
-              value="manual"
-              :label="i18ns.t('relay.settlementModeManual')" /></el-select
-          ><el-input-number
-            v-if="provider.settlementMode === 'interval'"
-            v-model="provider.settlementIntervalDays"
-            :min="1"
-            :step="1"
-            :placeholder="i18ns.t('relay.providerIntervalDays')"
-          /><el-time-picker
-            v-else-if="provider.settlementMode === 'daily'"
-            v-model="provider.settlementTime"
-            value-format="HH:mm"
-            format="HH:mm"
-            :placeholder="i18ns.t('relay.providerSettlementTime')"
-          /><span v-else /><el-button
-            text
-            type="danger"
-            :icon="Delete"
-            @click="configProviders.splice(index, 1)"
-          />
-        </div>
-        <el-button
-          plain
-          :icon="Plus"
-          @click="
-            configProviders.push({ userId: '', commissionPercent: 0, settlementMode: 'manual' })
-          "
-          >{{ i18ns.t('relay.providerAdd') }}</el-button
-        ></el-form
-      ><template #footer
+        <RelayProviderShareEditor
+          :providers="configProviders"
+          :user-options="providerUserOptions"
+          :users-loading="providerUsersLoading"
+          @update:providers="configProviders = $event"
+          @search-users="loadProviderUsers"
+        />
+      </el-form
+      ><template #footer><div class="drawer-footer"
         ><el-button @click="configVisible = false">{{ i18ns.t('cancel') }}</el-button
-        ><el-button type="primary" @click="saveConfig">{{ i18ns.t('save') }}</el-button></template
-      ></el-dialog
+        ><el-button type="primary" @click="saveConfig">{{ i18ns.t('save') }}</el-button></div></template
+      ></el-drawer
     >
     <el-dialog v-model="changeVisible" :title="i18ns.t('relay.reviewDiff')" width="min(760px, 94vw)"
       ><el-descriptions v-if="selectedChange" :column="1" border
@@ -251,11 +172,12 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Check, Close, Delete, Plus, Refresh, Setting, View } from '@element-plus/icons-vue'
+import { Check, Close, Refresh, Setting, View } from '@element-plus/icons-vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { i18ns } from '@/locales'
 import { relayChannelService } from '@/service/relayChannelService'
+import RelayProviderShareEditor, { type RelayProviderUserOption } from './components/RelayProviderShareEditor.vue'
 import type {
   RelayChannelManagementListItemDto,
   RelayChannelDto,
@@ -264,24 +186,22 @@ import type {
 } from '@/client/types.gen'
 
 const { isDesktop } = usePageDevice()
-const activeTab = ref<'submissions' | 'changes'>('submissions')
 const submissionFilter = ref<'pending' | 'approved' | 'rejected' | 'offboarded'>('pending')
 const channels = ref<RelayChannelManagementListItemDto[]>([])
 const changeRequests = ref<RelayChannelChangeRequestDto[]>([])
 const channelsLoading = ref(false)
-const changesLoading = ref(false)
 const channelPage = reactive({ page: 1, pageSize: 20, total: 0 })
-const changePage = reactive({ page: 1, pageSize: 20, total: 0 })
 const configVisible = ref(false)
 const configChannel = ref<RelayChannelDto | null>(null)
 const configMultiplier = ref(1)
 const configProviders = ref<RelayChannelProviderConfigRequest[]>([])
 const changeVisible = ref(false)
 const selectedChange = ref<RelayChannelChangeRequestDto | null>(null)
-const configTotal = computed(() =>
-  configProviders.value.reduce((sum, provider) => sum + Number(provider.commissionPercent || 0), 0),
+const providerUserOptions = ref<RelayProviderUserOption[]>([])
+const providerUsersLoading = ref(false)
+const changeRequestByChannel = computed(
+  () => new Map(changeRequests.value.map((request) => [request.relayChannelId, request])),
 )
-const formatDateTime = (value: string) => new Date(value).toLocaleString()
 const providerSummary = (providers?: RelayChannelProviderConfigRequest[]) =>
   (providers || []).map((item) => `${item.userId}: ${item.commissionPercent}%`).join(', ') || '-'
 const credentialSummary = (config: any) =>
@@ -312,25 +232,21 @@ const loadChannels = async (page = channelPage.page) => {
     channelsLoading.value = false
   }
 }
-const loadChanges = async (page = changePage.page) => {
-  changesLoading.value = true
+const loadChanges = async () => {
   try {
     const data = await relayChannelService.listChangeRequests({
-      page,
-      pageSize: changePage.pageSize,
+      page: 1,
+      pageSize: 100,
       reviewStatus: 'pending',
     })
     changeRequests.value = data.items
-    Object.assign(changePage, { page: data.page, total: data.total })
   } catch (error: any) {
     ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
-  } finally {
-    changesLoading.value = false
   }
 }
 const refresh = () => {
   void loadChannels(1)
-  void loadChanges(1)
+  void loadChanges()
 }
 const reviewSubmission = async (id: string, action: 'approve' | 'reject' | 'offboard') => {
   try {
@@ -345,7 +261,7 @@ const reviewChange = async (id: string, action: 'approve' | 'reject') => {
   try {
     await relayChannelService.reviewChangeRequest(id, { action })
     ElMessage.success(i18ns.t('relay.reviewSuccess'))
-    await loadChanges(changePage.page)
+    await loadChanges()
   } catch (error: any) {
     ElMessage.error(error?.message || i18ns.t('operationFailed'))
   }
@@ -361,6 +277,12 @@ const openConfig = async (id: string) => {
       settlementIntervalDays: provider.settlementIntervalDays,
       settlementTime: provider.settlementTime,
     }))
+    providerUserOptions.value = [
+      ...providerUserOptions.value,
+      ...configChannel.value.providers
+        .filter((provider) => provider.userId && provider.username)
+        .map((provider) => ({ id: provider.userId, username: provider.username!, name: null })),
+    ].filter((item, index, options) => options.findIndex((candidate) => candidate.id === item.id) === index)
     configVisible.value = true
   } catch (error: any) {
     ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
@@ -380,6 +302,22 @@ const saveConfig = async () => {
     ElMessage.error(error?.message || i18ns.t('operationFailed'))
   }
 }
+const loadProviderUsers = async (keyword = '') => {
+  providerUsersLoading.value = true
+  try {
+    const data = await relayChannelService.listProviderUsers({ page: 1, pageSize: 30, keyword })
+    const selected = providerUserOptions.value.filter((item) =>
+      configProviders.value.some((provider) => provider.userId === item.id),
+    )
+    providerUserOptions.value = [...selected, ...data.items].filter(
+      (item, index, options) => options.findIndex((candidate) => candidate.id === item.id) === index,
+    )
+  } catch (error: any) {
+    ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+  } finally {
+    providerUsersLoading.value = false
+  }
+}
 const showChange = (request: RelayChannelChangeRequestDto) => {
   selectedChange.value = request
   changeVisible.value = true
@@ -387,6 +325,7 @@ const showChange = (request: RelayChannelChangeRequestDto) => {
 onMounted(() => {
   void loadChannels()
   void loadChanges()
+  void loadProviderUsers()
 })
 if (!isDesktop.value) useMobileTableCardLabels('.relay-review-page')
 </script>
@@ -429,21 +368,9 @@ if (!isDesktop.value) useMobileTableCardLabels('.relay-review-page')
   justify-content: flex-end;
   margin-top: 16px;
 }
-.provider-summary {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 10px;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-}
-.provider-row {
-  display: grid;
-  grid-template-columns: minmax(130px, 1fr) 120px 160px 140px auto;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
-}
+.review-table { min-width: 0; }
+.drawer-footer { display: flex; justify-content: flex-start; gap: 8px; width: 100%; }
+.relay-review-config-drawer :deep(.el-drawer__body) { padding: 20px 24px; overflow: auto; }
 .mobile-adapter {
   padding: 8px 6px 16px;
   overflow-x: hidden;
@@ -451,9 +378,6 @@ if (!isDesktop.value) useMobileTableCardLabels('.relay-review-page')
 @media (max-width: 768px) {
   .page-heading {
     flex-direction: column;
-  }
-  .provider-row {
-    grid-template-columns: 1fr;
   }
   .pagination {
     justify-content: center;

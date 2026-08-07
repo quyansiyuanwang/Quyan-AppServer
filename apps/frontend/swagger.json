@@ -15036,6 +15036,87 @@
 				}
 			}
 		},
+		"/v1/relay-channels/provider/users": {
+			"get": {
+				"operationId": "RelayChannelControllerListProviderUsers",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"pageSize": {
+											"type": "number",
+											"format": "double"
+										},
+										"page": {
+											"type": "number",
+											"format": "double"
+										},
+										"total": {
+											"type": "number",
+											"format": "double"
+										},
+										"items": {
+											"items": {
+												"$ref": "#/components/schemas/RelayChannelProviderUserOptionDto"
+											},
+											"type": "array"
+										}
+									},
+									"required": [
+										"pageSize",
+										"page",
+										"total",
+										"items"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/relay-channels/provider/earnings": {
 			"get": {
 				"operationId": "RelayChannelControllerGetMyProviderEarnings",
@@ -40699,6 +40780,27 @@
 				},
 				"required": [
 					"format"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProviderUserOptionDto": {
+				"description": "Safe user option used by relay provider selectors.",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"required": [
+					"id",
+					"username"
 				],
 				"type": "object",
 				"additionalProperties": false

@@ -631,80 +631,14 @@
         :title="i18ns.t('relay.providerCommissionWarning')"
         class="mb-3"
       />
-      <el-form-item :label="i18ns.t('relay.providerTotalCommission')">
-        <div class="flex items-center gap-2">
-          <el-tag :type="providerCommissionTotal > 100 ? 'warning' : 'info'">
-            {{ providerCommissionTotal.toFixed(2) }}%
-          </el-tag>
-          <span class="text-xs text-[#909399]"
-            >{{ i18ns.t('relay.providerPlatformRemainder') }}:
-            {{ (100 - providerCommissionTotal).toFixed(2) }}%</span
-          >
-        </div>
-      </el-form-item>
       <el-form-item label="">
-        <div class="w-full flex flex-col gap-2">
-          <div
-            v-for="(provider, index) in channelForm.providers"
-            :key="`${provider.userId}-${index}`"
-            class="grid grid-cols-1 md:grid-cols-[minmax(180px,1fr)_130px_150px_140px_auto] gap-2 items-center rounded border border-[var(--el-border-color-lighter)] p-2"
-          >
-            <el-select
-              v-model="provider.userId"
-              filterable
-              remote
-              :remote-method="handleVisibilityUserSearch"
-              :loading="visibilityUserOptionsLoading"
-              :placeholder="i18ns.t('relay.providerUser')"
-            >
-              <el-option
-                v-for="user in visibilityUserOptions"
-                :key="user.id"
-                :label="user.name ? `${user.username} (${user.name})` : user.username"
-                :value="user.id"
-              />
-            </el-select>
-            <el-input-number
-              v-model="provider.commissionPercent"
-              :min="0"
-              :max="100"
-              :precision="4"
-              :step="1"
-            />
-            <el-select v-model="provider.settlementMode"
-              ><el-option
-                value="realtime"
-                :label="i18ns.t('relay.settlementModeRealtime')" /><el-option
-                value="interval"
-                :label="i18ns.t('relay.settlementModeInterval')" /><el-option
-                value="daily"
-                :label="i18ns.t('relay.settlementModeDaily')" /><el-option
-                value="manual"
-                :label="i18ns.t('relay.settlementModeManual')"
-            /></el-select>
-            <el-input-number
-              v-if="provider.settlementMode === 'interval'"
-              v-model="provider.settlementIntervalDays"
-              :min="1"
-              :step="1"
-              :placeholder="i18ns.t('relay.providerIntervalDays')"
-            />
-            <el-time-picker
-              v-else-if="provider.settlementMode === 'daily'"
-              v-model="provider.settlementTime"
-              value-format="HH:mm"
-              format="HH:mm"
-              :placeholder="i18ns.t('relay.providerSettlementTime')"
-            />
-            <span v-else class="text-xs text-[#909399]">-</span>
-            <el-button text type="danger" @click="removeChannelProvider(index)"
-              ><el-icon><Delete /></el-icon
-            ></el-button>
-          </div>
-          <el-button plain size="small" @click="addChannelProvider">{{
-            i18ns.t('relay.providerAdd')
-          }}</el-button>
-        </div>
+        <RelayProviderShareEditor
+          :providers="channelForm.providers"
+          :user-options="visibilityUserOptions"
+          :users-loading="visibilityUserOptionsLoading"
+          @update:providers="channelForm.providers = $event"
+          @search-users="handleVisibilityUserSearch"
+        />
       </el-form-item>
 
       <el-divider content-position="left">{{ i18ns.t('relay.modelMappingSection') }}</el-divider>
@@ -1533,6 +1467,7 @@ import { useRouter } from 'vue-router'
 import { Delete, Rank, Top } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
+import RelayProviderShareEditor from '../../components/RelayProviderShareEditor.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
 
@@ -1554,7 +1489,6 @@ const {
   visibilityGroupOptions,
   visibilityRoleOptions,
   visibilityUserOptionsLoading,
-  providerCommissionTotal,
   visibilityGroupOptionsLoading,
   visibilityRoleOptionsLoading,
   filteredModels,
@@ -1594,8 +1528,6 @@ const {
   closeChannelDetailDialog,
   loadChannelHealth,
   handleVisibilityUserSearch,
-  addChannelProvider,
-  removeChannelProvider,
   getChannelAllowedModelsMode,
   handleImportChannels,
 } = state

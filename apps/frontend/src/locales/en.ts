@@ -2283,6 +2283,7 @@ export default {
     providerCommissionWarning:
       'Total commission may exceed 100%; the excess is subsidized by the platform.',
     providerAdd: 'Add provider',
+    noProviders: 'No providers added',
     myChangeRequests: 'My change requests',
     submitChangeRequest: 'Submit change request',
     changeRequestReviewOnly: 'Listed channels can only be changed through a review request.',

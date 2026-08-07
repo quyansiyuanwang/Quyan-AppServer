@@ -2382,6 +2382,7 @@ const emoji: DeepStringify<typeof en> = {
     providerPlatformRemainder: '🏢 💰',
     providerCommissionWarning: '⚠️ ∑ 🤝 > 100%',
     providerAdd: '➕ 👤',
+    noProviders: '👥 ∅',
     myChangeRequests: '📝 🔎',
     submitChangeRequest: '📝 ➡️',
     changeRequestReviewOnly: '🔒 📝 🔎',

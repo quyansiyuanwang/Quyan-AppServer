@@ -54,6 +54,7 @@ import type {
   RelayChannelChangeRequestStatus,
   RelayChannelUpstreamModelsRequest,
   RelayChannelUpstreamModelsResponse,
+  RelayChannelProviderUserOptionDto,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
 import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
@@ -2118,6 +2119,37 @@ export class RelayChannelService {
       total: result.total,
       page,
       pageSize,
+    };
+  }
+
+  async listProviderUsers(
+    actorUserId: string,
+    page = 1,
+    pageSize = 20,
+    keyword?: string,
+  ): Promise<{ items: RelayChannelProviderUserOptionDto[]; total: number; page: number; pageSize: number }> {
+    const [canSubmit, canReview] = await Promise.all([
+      this.permissionService.hasPermission(actorUserId, Permission.RELAY_CHANNEL_SUBMIT),
+      this.permissionService.hasPermission(actorUserId, Permission.RELAY_CHANNEL_REVIEW),
+    ]);
+    if (!canSubmit && !canReview) throw new ForbiddenError("Permission denied");
+    const normalizedPage = Math.max(1, page);
+    const normalizedPageSize = Math.min(100, Math.max(1, pageSize));
+    const filters = { keyword: keyword?.trim() || undefined };
+    const [users, total] = await Promise.all([
+      this.userRepository.listNonDeletedPaginated({
+        ...filters,
+        skip: (normalizedPage - 1) * normalizedPageSize,
+        take: normalizedPageSize,
+      }),
+      this.userRepository.countNonDeletedFiltered(filters),
+    ]);
+    const activeUsers = users.filter((user) => user.status === 1);
+    return {
+      items: activeUsers.map((user) => ({ id: user.id, username: user.username, name: user.name })),
+      total,
+      page: normalizedPage,
+      pageSize: normalizedPageSize,
     };
   }
 
