@@ -194,9 +194,8 @@ export class RedemptionCodeService {
       if (!subscribedEvents.includes(NotificationEvent.REDEMPTION_SUCCESS)) return;
 
       NotificationService.getInstance().dispatch(userId, NotificationEvent.REDEMPTION_SUCCESS, {
-        title: "兑换码兑换成功",
-        content: `您已成功兑换 ${amount.toFixed(4)} 曲，当前余额为 ${balanceAfter.toFixed(4)} 曲。`,
-        data: { amount: amount.toFixed(4), balanceAfter: balanceAfter.toFixed(4) },
+        amount: amount.toFixed(4),
+        balanceAfter: balanceAfter.toFixed(4),
       });
     } catch {
       // non-fatal

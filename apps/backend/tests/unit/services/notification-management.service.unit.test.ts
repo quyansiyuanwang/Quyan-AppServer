@@ -344,7 +344,7 @@ describe("NotificationManagementService", () => {
       expect(result.error).toBe("Connection refused");
     });
 
-    it("测试时应使用 BALANCE_LOW 事件和测试内容", async () => {
+    it("测试时应使用 BALANCE_LOW 事件和统一通知文档", async () => {
       repoMock.findWebhookById.mockResolvedValue(makeWebhookRecord());
       notifServiceMock.sendWebhook.mockResolvedValue(undefined);
 
@@ -352,8 +352,10 @@ describe("NotificationManagementService", () => {
 
       expect(notifServiceMock.sendWebhook).toHaveBeenCalledWith(
         expect.objectContaining({ id: "wh-1" }),
-        NotificationEvent.BALANCE_LOW,
-        expect.objectContaining({ title: expect.stringContaining("测试") }),
+        expect.objectContaining({
+          event: NotificationEvent.BALANCE_LOW,
+          subject: "余额不足提醒",
+        }),
       );
     });
   });

@@ -54,7 +54,6 @@ import type {
   RelayChannelChangeRequestStatus,
   RelayChannelUpstreamModelsRequest,
   RelayChannelUpstreamModelsResponse,
-  RelayChannelProviderUserOptionDto,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
 import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
@@ -124,6 +123,17 @@ interface ValidatedRelayChannelData {
   contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
   providers?: RelayChannelProviderConfigRequest[];
 }
+
+type ResolvedRelayChannelProviderConfig = Omit<RelayChannelProviderConfigRequest, "username"> & {
+  userId: string;
+  nextSettlementAt?: Date | null;
+};
+
+type RelayChannelProviderConfigInput = Omit<RelayChannelProviderConfigRequest, "username"> & {
+  username?: string;
+  /** Legacy change-request snapshots used an internal user ID. */
+  userId?: string;
+};
 
 const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
 const DEFAULT_ROUTING_STRATEGY: RelayChannelRoutingStrategy = "priority";
@@ -1919,24 +1929,32 @@ export class RelayChannelService {
   }
 
   private async buildProviderRows(
-    providers: RelayChannelProviderConfigRequest[],
-  ): Promise<Array<RelayChannelProviderConfigRequest & { nextSettlementAt?: Date | null }>> {
-    const userIds = providers.map((provider) => provider.userId.trim());
-    if (new Set(userIds).size !== userIds.length) throw new BadRequestError("Channel providers must be unique");
+    providers: RelayChannelProviderConfigInput[],
+  ): Promise<ResolvedRelayChannelProviderConfig[]> {
     const now = new Date();
-    return Promise.all(
+    const rows = await Promise.all(
       providers.map(async (provider) => {
-        const user = await this.userRepository.findById(provider.userId);
-        if (!user || user.status !== 1) throw new BadRequestError("Channel provider user is unavailable");
+        const username = provider.username?.trim();
+        const legacyUserId = provider.userId?.trim();
+        if (!username && !legacyUserId) throw new BadRequestError("Channel provider username is required");
+        const user = username
+          ? await this.userRepository.findByUsername(username)
+          : await this.userRepository.findById(legacyUserId!);
+        if (!user) throw new BadRequestError("Channel provider username is unavailable");
+        if (user.status !== 1) throw new BadRequestError("Channel provider username is unavailable");
         const nextSettlementAt =
           provider.settlementMode === "interval"
             ? new Date(now.getTime() + Number(provider.settlementIntervalDays) * 24 * 60 * 60 * 1000)
             : provider.settlementMode === "daily"
               ? nextDailyProviderSettlementAt(provider.settlementTime, now)
               : null;
-        return { ...provider, userId: provider.userId.trim(), nextSettlementAt };
+        const { username: _username, userId: _legacyUserId, ...config } = provider;
+        return { ...config, userId: user.id, nextSettlementAt };
       }),
     );
+    if (new Set(rows.map((provider) => provider.userId)).size !== rows.length)
+      throw new BadRequestError("Channel providers must be unique");
+    return rows;
   }
 
   private toPersistenceInput(data: ValidatedRelayChannelData): Prisma.RelayChannelUncheckedCreateInput {
@@ -2089,15 +2107,10 @@ export class RelayChannelService {
         },
         tx,
       );
-      const configuredProviders = validated.providers ?? [];
-      const providers = configuredProviders.some((provider) => provider.userId.trim() === actorUserId)
-        ? configuredProviders
-        : [...configuredProviders, { userId: actorUserId, commissionPercent: 0, settlementMode: "manual" as const }];
-      await this.relayChannelRepository.replaceProvidersByChannelId(
-        created.id,
-        await this.buildProviderRows(providers),
-        tx,
-      );
+      const providers = await this.buildProviderRows(validated.providers ?? []);
+      if (!providers.some((provider) => provider.userId === actorUserId))
+        providers.push({ userId: actorUserId, commissionPercent: 0, settlementMode: "manual" });
+      await this.relayChannelRepository.replaceProvidersByChannelId(created.id, providers, tx);
       return created;
     });
     await this.businessLogService.logOperation({
@@ -2122,37 +2135,6 @@ export class RelayChannelService {
       total: result.total,
       page,
       pageSize,
-    };
-  }
-
-  async listProviderUsers(
-    actorUserId: string,
-    page = 1,
-    pageSize = 20,
-    keyword?: string,
-  ): Promise<{ items: RelayChannelProviderUserOptionDto[]; total: number; page: number; pageSize: number }> {
-    const [canSubmit, canReview] = await Promise.all([
-      this.permissionService.hasPermission(actorUserId, Permission.RELAY_CHANNEL_SUBMIT),
-      this.permissionService.hasPermission(actorUserId, Permission.RELAY_CHANNEL_REVIEW),
-    ]);
-    if (!canSubmit && !canReview) throw new ForbiddenError("Permission denied");
-    const normalizedPage = Math.max(1, page);
-    const normalizedPageSize = Math.min(100, Math.max(1, pageSize));
-    const filters = { keyword: keyword?.trim() || undefined };
-    const [users, total] = await Promise.all([
-      this.userRepository.listNonDeletedPaginated({
-        ...filters,
-        skip: (normalizedPage - 1) * normalizedPageSize,
-        take: normalizedPageSize,
-      }),
-      this.userRepository.countNonDeletedFiltered(filters),
-    ]);
-    const activeUsers = users.filter((user) => user.status === 1);
-    return {
-      items: activeUsers.map((user) => ({ id: user.id, username: user.username, name: user.name })),
-      total,
-      page: normalizedPage,
-      pageSize: normalizedPageSize,
     };
   }
 
@@ -2190,7 +2172,7 @@ export class RelayChannelService {
       ) {
         await this.relayChannelRepository.replaceProvidersByChannelId(
           id,
-          await this.buildProviderRows([
+          [
             ...existingWithProviders.providers.map((provider) => ({
               userId: provider.userId,
               commissionPercent: Number(provider.commissionPercent),
@@ -2199,7 +2181,7 @@ export class RelayChannelService {
               settlementTime: provider.settlementTime ?? undefined,
             })),
             { userId: existing.submittedByUserId!, commissionPercent: 0, settlementMode: "manual" },
-          ]),
+          ],
           tx,
         );
       }

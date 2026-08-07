@@ -2076,7 +2076,7 @@ export const useRelaySettingsManagement = () => {
       timePeriodMultipliers: row.timePeriodMultipliers || [],
       contextLengthMultipliers: row.contextLengthMultipliers || [],
       providers: (row.providers || []).map((provider) => ({
-        userId: provider.userId,
+        username: provider.username || '',
         commissionPercent: provider.commissionPercent,
         settlementMode: provider.settlementMode,
         settlementIntervalDays: provider.settlementIntervalDays,
@@ -2309,9 +2309,9 @@ export const useRelaySettingsManagement = () => {
               )
             : null,
         providers: channelForm.value.providers
-          .filter((provider) => provider.userId.trim())
+          .filter((provider) => provider.username.trim())
           .map((provider) => ({
-            userId: provider.userId.trim(),
+            username: provider.username.trim(),
             commissionPercent: Math.min(100, Math.max(0, Number(provider.commissionPercent) || 0)),
             settlementMode: provider.settlementMode,
             settlementIntervalDays:
@@ -2600,7 +2600,7 @@ export const useRelaySettingsManagement = () => {
     handleVisibilityUserSearch,
     addChannelProvider: () => {
       channelForm.value.providers.push({
-        userId: '',
+        username: '',
         commissionPercent: 0,
         settlementMode: 'manual',
       })

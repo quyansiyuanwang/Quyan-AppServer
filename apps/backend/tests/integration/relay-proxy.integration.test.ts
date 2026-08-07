@@ -1406,12 +1406,13 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
 
       const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: token.id } });
       relayAIMockPlugin!.useOpenAI(async (ctx) => {
-        if (
-          ["Bearer test-automatic-pool-primary-key", "Bearer test-automatic-pool-secondary-key"].includes(
-            String(ctx.headers.authorization || ""),
-          )
-        )
-          return { status: 503, body: { error: { message: "automatic primary unavailable" } } };
+        if (String(ctx.headers.authorization || "") === "Bearer test-automatic-pool-primary-key")
+          return {
+            status: 429,
+            body: { error: { message: "Selected model is at capacity. Please try a different model." } },
+          };
+        if (String(ctx.headers.authorization || "") === "Bearer test-automatic-pool-secondary-key")
+          return { status: 503, body: { error: { message: "automatic secondary unavailable" } } };
         return {
           body: {
             id: "chatcmpl_automatic_pool_ok",
@@ -1448,7 +1449,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           orderBy: { createTime: "asc" },
         });
         const successfulUsage = usages.at(-1)!;
-        expect(usages.slice(-3).map((usage) => usage.statusCode)).toEqual([503, 503, 200]);
+        expect(usages.slice(-3).map((usage) => usage.statusCode)).toEqual([429, 503, 200]);
         expect(successfulUsage).toMatchObject({
           statusCode: 200,
           executionChannelId: tertiary.id,

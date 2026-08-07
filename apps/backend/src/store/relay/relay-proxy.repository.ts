@@ -575,9 +575,8 @@ export class RelayProxyRepository implements RelayProxyStore {
         const balanceThreshold = thresholds[NotificationEvent.BALANCE_LOW] ?? 10;
         if (ctx.balanceAfter < balanceThreshold)
           notificationService.dispatch(userId, NotificationEvent.BALANCE_LOW, {
-            title: "余额不足提醒",
-            content: `您的账户余额已低于 ${balanceThreshold} 曲，当前余额为 ${ctx.balanceAfter.toFixed(4)} 曲，请及时充值。`,
-            data: { currentBalance: ctx.balanceAfter.toFixed(4), threshold: balanceThreshold },
+            currentBalance: ctx.balanceAfter.toFixed(4),
+            threshold: balanceThreshold,
           });
       }
 
@@ -607,13 +606,11 @@ export class RelayProxyRepository implements RelayProxyStore {
             const quotaThreshold = thresholds[NotificationEvent.MONTHLY_PASS_QUOTA_LOW] ?? 20;
             if (remainingPct <= quotaThreshold)
               notificationService.dispatch(userId, NotificationEvent.MONTHLY_PASS_QUOTA_LOW, {
-                title: "月卡额度不足提醒",
-                content: `月卡「${pass.template?.name ?? pass.id}」剩余额度仅剩 ${remainingPct.toFixed(1)}%，请注意使用。`,
-                data: {
-                  passName: pass.template?.name ?? pass.id,
-                  remainingPct: remainingPct.toFixed(1),
-                  threshold: quotaThreshold,
-                },
+                subject: "月卡额度不足提醒",
+                summary: `月卡「${pass.template?.name ?? pass.id}」剩余额度仅剩 ${remainingPct.toFixed(1)}%，请注意使用。`,
+                passName: pass.template?.name ?? pass.id,
+                remainingPct: remainingPct.toFixed(1),
+                threshold: quotaThreshold,
               });
           }
 
@@ -642,13 +639,11 @@ export class RelayProxyRepository implements RelayProxyStore {
                 const dailyThreshold = thresholds[NotificationEvent.MONTHLY_PASS_DAILY_LIMIT] ?? 80;
                 if (usedPct >= dailyThreshold)
                   notificationService.dispatch(userId, NotificationEvent.MONTHLY_PASS_DAILY_LIMIT, {
-                    title: "月卡日限额提醒",
-                    content: `月卡「${pass.template?.name ?? pass.id}」今日已使用 ${usedPct.toFixed(1)}%，已达到设定阈值 ${dailyThreshold}%。`,
-                    data: {
-                      passName: pass.template?.name ?? pass.id,
-                      usedPct: usedPct.toFixed(1),
-                      threshold: dailyThreshold,
-                    },
+                    subject: "月卡日限额提醒",
+                    summary: `月卡「${pass.template?.name ?? pass.id}」今日已使用 ${usedPct.toFixed(1)}%，已达到设定阈值 ${dailyThreshold}%。`,
+                    passName: pass.template?.name ?? pass.id,
+                    usedPct: usedPct.toFixed(1),
+                    threshold: dailyThreshold,
                   });
               }
             }
@@ -666,12 +661,10 @@ export class RelayProxyRepository implements RelayProxyStore {
         const quotaThreshold = thresholds[NotificationEvent.RELAY_TOKEN_QUOTA_LOW] ?? 80;
         if (usedPct >= quotaThreshold)
           notificationService.dispatch(userId, NotificationEvent.RELAY_TOKEN_QUOTA_LOW, {
-            title: "中转令牌额度提醒",
-            content: `您的中转令牌已使用 ${usedPct.toFixed(1)}%，已达到设定阈值 ${quotaThreshold}%。`,
-            data: {
-              usedPct: usedPct.toFixed(1),
-              threshold: quotaThreshold,
-            },
+            subject: "中转令牌额度提醒",
+            summary: `您的中转令牌已使用 ${usedPct.toFixed(1)}%，已达到设定阈值 ${quotaThreshold}%。`,
+            usedPct: usedPct.toFixed(1),
+            threshold: quotaThreshold,
           });
       }
 
@@ -683,13 +676,11 @@ export class RelayProxyRepository implements RelayProxyStore {
         ctx.relayTokenUsedQuota >= ctx.relayTokenQuotaLimit
       )
         notificationService.dispatch(userId, NotificationEvent.RELAY_TOKEN_EXHAUSTED, {
-          title: "中转令牌额度耗尽",
-          content: `您的中转令牌「${ctx.relayTokenName}」额度已全部用完（${ctx.relayTokenUsedQuota.toFixed(4)} / ${ctx.relayTokenQuotaLimit.toFixed(4)}），请及时充值或更换令牌。`,
-          data: {
-            tokenName: ctx.relayTokenName,
-            usedQuota: ctx.relayTokenUsedQuota.toFixed(4),
-            quotaLimit: ctx.relayTokenQuotaLimit.toFixed(4),
-          },
+          subject: "中转令牌额度耗尽",
+          summary: `您的中转令牌「${ctx.relayTokenName}」额度已全部用完，请及时充值或更换令牌。`,
+          tokenName: ctx.relayTokenName,
+          usedQuota: ctx.relayTokenUsedQuota.toFixed(4),
+          quotaLimit: ctx.relayTokenQuotaLimit.toFixed(4),
         });
     } catch (err) {
       logger.warn(`[RelayProxyRepository] Notification dispatch error for user ${userId}: ${(err as Error).message}`);

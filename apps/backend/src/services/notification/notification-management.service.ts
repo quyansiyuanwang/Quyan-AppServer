@@ -21,6 +21,7 @@ import type {
   MarkNotificationInboxReadDto,
 } from "@/api/dto/notification/notification.dto";
 import { NotificationService } from "@/services/notification/notification.service";
+import { NotificationTemplateRegistry } from "@/services/notification/notification-template";
 import { NotificationPreferenceInitializerService } from "@/services/notification/notification-preference-initializer.service";
 import {
   NotificationEvent,
@@ -192,9 +193,9 @@ export class NotificationManagementService {
 
     try {
       await this.notificationService.dispatchAndAwaitEmail(userId, NotificationEvent.BALANCE_LOW, {
-        title: "邮件测试通知",
-        content: "这是一条测试通知，用于验证邮件配置是否正确。",
-        data: { source: "test", timestamp: new Date().toISOString() },
+        currentBalance: "100.0000",
+        threshold: "10.0000",
+        source: "test",
       });
       return { success: true };
     } catch (err) {
@@ -207,11 +208,14 @@ export class NotificationManagementService {
     if (!webhook) throw new NotFoundError("Webhook not found");
 
     try {
-      await this.notificationService["sendWebhook"](webhook, NotificationEvent.BALANCE_LOW, {
-        title: "Webhook 测试通知",
-        content: "这是一条测试通知，用于验证 Webhook 配置是否正确。",
-        data: { source: "test", timestamp: new Date().toISOString() },
-      });
+      await this.notificationService["sendWebhook"](
+        webhook,
+        NotificationTemplateRegistry.build(NotificationEvent.BALANCE_LOW, {
+          currentBalance: "100.0000",
+          threshold: "10.0000",
+          source: "test",
+        }),
+      );
       return { success: true };
     } catch (err) {
       return { success: false, error: (err as Error).message };

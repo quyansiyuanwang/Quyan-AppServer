@@ -634,10 +634,7 @@
       <el-form-item label="">
         <RelayProviderShareEditor
           :providers="channelForm.providers"
-          :user-options="visibilityUserOptions"
-          :users-loading="visibilityUserOptionsLoading"
           @update:providers="channelForm.providers = $event"
-          @search-users="handleVisibilityUserSearch"
         />
       </el-form-item>
 
