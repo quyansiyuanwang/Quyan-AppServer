@@ -30,10 +30,12 @@ import type {
   RelayAutomaticPoolRankingMode,
   RelayChannelHealthTrackingMode,
   RelayChannelType,
+  RelayChannelSubmissionStatus,
   RelayChannelTopologyMode,
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
   ContextLengthMultiplierRule,
+  RelayChannelProviderConfigRequest,
   TimePeriodMultiplierRule,
   UpdateRelayConfigRequest,
   BatchUpdateRelayChannelsRequest,
@@ -282,6 +284,18 @@ export const useRelaySettingsManagement = () => {
   )
   const canViewPoolMetadata = computed(() =>
     permissionStore.hasPermission(Permission.RELAY_CHANNEL_POOL_METADATA_READ),
+  )
+  const submissionStatusLabel = (status: RelayChannelManagementListItemDto['submissionStatus']) => {
+    const labels = {
+      pending: 'relay.submissionStatusPending',
+      approved: 'relay.submissionStatusApproved',
+      rejected: 'relay.submissionStatusRejected',
+      offboarded: 'relay.submissionStatusOffboarded',
+    } as const
+    return i18ns.t(labels[status])
+  }
+  const canReviewChannelSubmission = computed(() =>
+    permissionStore.hasPermission(Permission.RELAY_CHANNEL_REVIEW),
   )
   const loading = ref(false)
   const saving = ref(false)
@@ -722,6 +736,7 @@ export const useRelaySettingsManagement = () => {
     keyword: string
     channelType?: RelayChannelType
     enabled?: boolean
+    submissionStatus?: RelayChannelSubmissionStatus
   }>({ keyword: '', enabled: true })
   const channelPagination = ref({ page: 1, pageSize: 25, total: 0 })
   const channelLoading = ref(false)
@@ -802,6 +817,7 @@ export const useRelaySettingsManagement = () => {
     modelMapping: {} as Record<string, string>,
     timePeriodMultipliers: [] as TimePeriodMultiplierRule[],
     contextLengthMultipliers: [] as ContextLengthMultiplierRule[],
+    providers: [] as RelayChannelProviderConfigRequest[],
   })
 
   const ensureVisibilityUserOption = (
@@ -1278,6 +1294,12 @@ export const useRelaySettingsManagement = () => {
           routingStrategy: channel.routingStrategy,
           visibilityMode: channel.visibilityMode,
           poolMemberCount: channel.poolMembers?.length ?? 0,
+          submissionStatus: channel.submissionStatus,
+          providerCount: (channel.providers || []).length,
+          providerCommissionPercent: (channel.providers || []).reduce(
+            (total, provider) => total + provider.commissionPercent,
+            0,
+          ),
           multiplier: channel.multiplier,
           updateTime: channel.updateTime,
         }))
@@ -1774,6 +1796,27 @@ export const useRelaySettingsManagement = () => {
     }
   }
 
+  const handleReviewChannelSubmission = async (
+    row: Pick<RelayChannelManagementListItemDto, 'id'>,
+    action: 'approve' | 'reject' | 'offboard' = 'approve',
+  ) => {
+    try {
+      const reason =
+        action === 'approve'
+          ? undefined
+          : await ElMessageBox.prompt(
+              i18ns.t('relay.reviewReason'),
+              i18ns.t('relay.reviewSubmission'),
+              { inputPlaceholder: i18ns.t('relay.reviewReason') },
+            ).then(({ value }) => value)
+      await relayChannelService.reviewChannelSubmission(row.id, { action, reason })
+      ElMessage.success(i18ns.t('relay.reviewSuccess'))
+      await loadChannels()
+    } catch (error: any) {
+      if (error !== 'cancel') ElMessage.error(error.message || i18ns.t('operationFailed'))
+    }
+  }
+
   const ensureChannelsSelected = () => {
     if (selectedChannelIds.value.length > 0) return true
 
@@ -1885,6 +1928,7 @@ export const useRelaySettingsManagement = () => {
         keyword: channelFilters.value.keyword,
         channelType: channelFilters.value.channelType,
         enabled: channelFilters.value.enabled,
+        submissionStatus: channelFilters.value.submissionStatus,
       })
       if (requestVersion !== channelRequestVersion.value) return
       if (response.items.length === 0 && response.total > 0 && channelPagination.value.page > 1) {
@@ -2031,6 +2075,13 @@ export const useRelaySettingsManagement = () => {
       modelMapping: (row.modelMapping as Record<string, string>) || {},
       timePeriodMultipliers: row.timePeriodMultipliers || [],
       contextLengthMultipliers: row.contextLengthMultipliers || [],
+      providers: (row.providers || []).map((provider) => ({
+        userId: provider.userId,
+        commissionPercent: provider.commissionPercent,
+        settlementMode: provider.settlementMode,
+        settlementIntervalDays: provider.settlementIntervalDays,
+        settlementTime: provider.settlementTime,
+      })),
     }
     ensureSelectedVisibilityOptions(row.visibilityConfig)
     showChannelDialog.value = true
@@ -2257,6 +2308,19 @@ export const useRelaySettingsManagement = () => {
                 (left, right) => left.minTokens - right.minTokens,
               )
             : null,
+        providers: channelForm.value.providers
+          .filter((provider) => provider.userId.trim())
+          .map((provider) => ({
+            userId: provider.userId.trim(),
+            commissionPercent: Math.min(100, Math.max(0, Number(provider.commissionPercent) || 0)),
+            settlementMode: provider.settlementMode,
+            settlementIntervalDays:
+              provider.settlementMode === 'interval'
+                ? Math.max(1, Math.floor(Number(provider.settlementIntervalDays) || 1))
+                : undefined,
+            settlementTime:
+              provider.settlementMode === 'daily' ? provider.settlementTime || '00:00' : undefined,
+          })),
       }
 
       let savedChannelId = editingChannelId.value
@@ -2454,6 +2518,8 @@ export const useRelaySettingsManagement = () => {
     channelHealth,
     channelHealthLoading,
     canViewChannelHealth,
+    canReviewChannelSubmission,
+    submissionStatusLabel,
     canViewPoolMetadata,
     selectedChannelCount,
     selectedChannels: legacySelectedChannels,
@@ -2532,8 +2598,23 @@ export const useRelaySettingsManagement = () => {
     closeChannelDetailDialog,
     loadChannelHealth,
     handleVisibilityUserSearch,
+    addChannelProvider: () => {
+      channelForm.value.providers.push({
+        userId: '',
+        commissionPercent: 0,
+        settlementMode: 'manual',
+      })
+    },
+    removeChannelProvider: (index: number) => channelForm.value.providers.splice(index, 1),
+    providerCommissionTotal: computed(() =>
+      channelForm.value.providers.reduce(
+        (total, provider) => total + (Number(provider.commissionPercent) || 0),
+        0,
+      ),
+    ),
     handleImportChannels,
     handleDuplicateChannel,
+    handleReviewChannelSubmission,
     handleBatchDuplicateChannels,
     handleBatchSetChannelStatus,
     openChannelBatchEditDialog,

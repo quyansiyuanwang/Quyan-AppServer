@@ -14,6 +14,8 @@ export interface RelayChannelManagementRecord {
   routingStrategy: string | null;
   visibilityMode: string | null;
   multiplier: Prisma.Decimal;
+  submissionStatus: string;
+  providers: Array<{ commissionPercent: Prisma.Decimal }>;
   updateTime: Date;
   pooledParentId: string | null;
   pooledParent: { name: string } | null;
@@ -47,6 +49,11 @@ export interface RelayChannelQueryStore {
     records: RelayChannelManagementRecord[];
     total: number;
   }>;
+  listSubmittedByUser(
+    userId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<{ records: RelayChannel[]; total: number }>;
 }
 
 export interface RelayChannelMutationStore {
@@ -67,6 +74,18 @@ export interface RelayChannelMutationStore {
     tx?: RelayChannelTransactionClient,
   ): Promise<void>;
   deleteMembersByChannelId(relayChannelId: string, tx?: RelayChannelTransactionClient): Promise<void>;
+  replaceProvidersByChannelId(
+    relayChannelId: string,
+    providers: Array<{
+      userId: string;
+      commissionPercent: number;
+      settlementMode: string;
+      settlementIntervalDays?: number;
+      settlementTime?: string;
+      nextSettlementAt?: Date | null;
+    }>,
+    tx?: RelayChannelTransactionClient,
+  ): Promise<void>;
 }
 
 export type RelayChannelStore = RelayChannelQueryStore & RelayChannelMutationStore;

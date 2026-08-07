@@ -29,6 +29,7 @@ export type BalanceTransactionCategory =
   | "chat_usage"
   | "api_usage"
   | "monthly_pass_coverage"
+  | "channel_commission"
   | "recharge";
 
 export interface BalanceTransactionResponse {

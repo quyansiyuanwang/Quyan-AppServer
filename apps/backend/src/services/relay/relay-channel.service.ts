@@ -1,3 +1,5 @@
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
+import axios from "axios";
 import type {
   BatchDeleteRelayChannelsRequest,
   BatchRelayChannelsResultDto,
@@ -40,6 +42,19 @@ import type {
   RelayChannelType,
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
+  RelayChannelProviderConfigRequest,
+  RelayChannelProviderDto,
+  RelayChannelSubmissionStatus,
+  SubmitRelayChannelRequest,
+  ReviewRelayChannelSubmissionRequest,
+  UpdateRelayChannelProviderConfigRequest,
+  CreateRelayChannelChangeRequest,
+  ReviewRelayChannelChangeRequest,
+  RelayChannelChangeRequestDto,
+  RelayChannelChangeRequestStatus,
+  RelayChannelUpstreamModelsRequest,
+  RelayChannelUpstreamModelsResponse,
+  RelayChannelProviderUserOptionDto,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
 import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
@@ -62,6 +77,7 @@ import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { resolveModelId } from "@/util/model-resolution.util";
+import { assertSafeOutboundUrl } from "@/util/developer-outbound-url";
 import { Prisma, type RelayChannel } from "@prisma/client";
 import { formatRelayRequestFormats } from "@appserver/shared";
 import type { Request } from "express";
@@ -71,6 +87,8 @@ import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { RelayChannelHealthService, type RelayChannelHealthSnapshot } from "./relay-channel-health.service";
 import { RelayConfigService } from "./relay-config.service";
 import { resolveEffectiveRelayPoolMembers } from "./relay-pool-members.util";
+import { RelayChannelChangeRequestRepository } from "@/store/relay/relay-channel-change-request.repository";
+import { env } from "@/config/env";
 
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
@@ -104,12 +122,33 @@ interface ValidatedRelayChannelData {
   modelMapping?: Record<string, string> | null;
   timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
   contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
+  providers?: RelayChannelProviderConfigRequest[];
 }
 
 const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
 const DEFAULT_ROUTING_STRATEGY: RelayChannelRoutingStrategy = "priority";
 const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
 const DEFAULT_AUTOMATIC_POOL_RANKING_MODE = "price-first" as const;
+const UPSTREAM_MODELS_TIMEOUT_MS = 15_000;
+const UPSTREAM_MODELS_MAX_BYTES = 2 * 1024 * 1024;
+
+const nextDailyProviderSettlementAt = (settlementTime: string | undefined, now: Date): Date => {
+  const [hours, minutes] = (settlementTime || "00:00").split(":").map(Number);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .formatToParts(now)
+    .reduce<Record<string, number>>((result, part) => {
+      if (part.type === "year" || part.type === "month" || part.type === "day") result[part.type] = Number(part.value);
+      return result;
+    }, {});
+  let targetPseudoUtc = Date.UTC(parts.year, parts.month - 1, parts.day, hours || 0, minutes || 0);
+  if (new Date(targetPseudoUtc - 8 * 60 * 60 * 1000) <= now) targetPseudoUtc += 24 * 60 * 60 * 1000;
+  return new Date(targetPseudoUtc - 8 * 60 * 60 * 1000);
+};
 
 type RelayChannelWithMembers = RelayChannel & {
   poolMembers?: Array<{
@@ -134,6 +173,7 @@ export class RelayChannelService {
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
     private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
     private readonly relayConfigService: RelayConfigService = RelayConfigService.getInstance(),
+    private readonly changeRequestRepository: RelayChannelChangeRequestRepository = RelayChannelChangeRequestRepository.getInstance(),
   ) {}
 
   static getInstance() {
@@ -199,6 +239,7 @@ export class RelayChannelService {
       keyword?: string;
       channelType?: RelayChannelType;
       enabled?: boolean;
+      submissionStatus?: RelayChannelSubmissionStatus;
     },
   ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
     const page = query.page ?? 1;
@@ -214,6 +255,7 @@ export class RelayChannelService {
 
     if (query.keyword?.trim()) where.name = { contains: query.keyword.trim() };
     if (query.channelType) where.channelType = query.channelType;
+    if (query.submissionStatus) where.submissionStatus = query.submissionStatus;
 
     const visibilityWhere = await this.buildManagementVisibilityWhere(actorUserId);
     if (visibilityWhere) where.AND = [visibilityWhere];
@@ -225,23 +267,32 @@ export class RelayChannelService {
     });
 
     return {
-      items: records.map((channel) => ({
-        id: channel.id,
-        name: channel.name,
-        enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-        channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
-        routingStrategy:
-          (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
-        visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
-        poolMemberCount: new Set([
-          ...channel.poolMembers.map((member) => member.memberChannelId),
-          ...(channel.channelType === "pooled" ? channel.pooledChildren.map((member) => member.id) : []),
-        ]).size,
-        pooledParentId: channel.pooledParentId || undefined,
-        pooledParentName: channel.pooledParent?.name,
-        multiplier: Number(channel.multiplier),
-        updateTime: channel.updateTime,
-      })),
+      items: records.map((channel) => {
+        const providers = channel.providers ?? [];
+        return {
+          id: channel.id,
+          name: channel.name,
+          enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+          channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
+          routingStrategy:
+            (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
+          visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
+          poolMemberCount: new Set([
+            ...channel.poolMembers.map((member) => member.memberChannelId),
+            ...(channel.channelType === "pooled" ? channel.pooledChildren.map((member) => member.id) : []),
+          ]).size,
+          pooledParentId: channel.pooledParentId || undefined,
+          pooledParentName: channel.pooledParent?.name,
+          multiplier: Number(channel.multiplier),
+          submissionStatus: (channel.submissionStatus as RelayChannelSubmissionStatus) || "approved",
+          providerCount: providers.length,
+          providerCommissionPercent: providers.reduce(
+            (total, provider) => total + Number(provider.commissionPercent),
+            0,
+          ),
+          updateTime: channel.updateTime,
+        };
+      }),
       total,
       page,
       pageSize,
@@ -1175,6 +1226,7 @@ export class RelayChannelService {
       Permission.RELAY_CHANNEL_CREATE,
       Permission.RELAY_CHANNEL_UPDATE,
       Permission.RELAY_CHANNEL_DELETE,
+      Permission.RELAY_CHANNEL_REVIEW,
     ]);
   }
 
@@ -1862,7 +1914,29 @@ export class RelayChannelService {
       contextLengthMultipliers: contextLengthMultipliers
         ? [...contextLengthMultipliers].sort((left, right) => left.minTokens - right.minTokens)
         : undefined,
+      providers: data.providers,
     };
+  }
+
+  private async buildProviderRows(
+    providers: RelayChannelProviderConfigRequest[],
+  ): Promise<Array<RelayChannelProviderConfigRequest & { nextSettlementAt?: Date | null }>> {
+    const userIds = providers.map((provider) => provider.userId.trim());
+    if (new Set(userIds).size !== userIds.length) throw new BadRequestError("Channel providers must be unique");
+    const now = new Date();
+    return Promise.all(
+      providers.map(async (provider) => {
+        const user = await this.userRepository.findById(provider.userId);
+        if (!user || user.status !== 1) throw new BadRequestError("Channel provider user is unavailable");
+        const nextSettlementAt =
+          provider.settlementMode === "interval"
+            ? new Date(now.getTime() + Number(provider.settlementIntervalDays) * 24 * 60 * 60 * 1000)
+            : provider.settlementMode === "daily"
+              ? nextDailyProviderSettlementAt(provider.settlementTime, now)
+              : null;
+        return { ...provider, userId: provider.userId.trim(), nextSettlementAt };
+      }),
+    );
   }
 
   private toPersistenceInput(data: ValidatedRelayChannelData): Prisma.RelayChannelUncheckedCreateInput {
@@ -1972,6 +2046,12 @@ export class RelayChannelService {
 
       await this.assertPooledMemberParent(created.id, validated, tx);
       await this.syncPoolMembers(created.id, validated.channelType, validated.poolMembers, tx);
+      if (validated.providers !== undefined)
+        await this.relayChannelRepository.replaceProvidersByChannelId(
+          created.id,
+          await this.buildProviderRows(validated.providers),
+          tx,
+        );
 
       return created;
     });
@@ -1988,7 +2068,476 @@ export class RelayChannelService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    return this.toDto(channel);
+    const refreshed = await this.relayChannelRepository.findVisibleById(channel.id);
+    return this.toDto(refreshed ?? channel);
+  }
+
+  async submitChannel(
+    data: SubmitRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    const validated = await this.buildValidatedChannelData({ ...data, channelType: "standalone" });
+    await this.assertVisibleNameAvailable(validated.name);
+    const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
+      const created = await this.relayChannelRepository.create(
+        {
+          ...this.toPersistenceInput(validated),
+          status: RELAY_CHANNEL_STATUS.DISABLED,
+          submissionStatus: "pending",
+          submittedByUserId: actorUserId,
+        },
+        tx,
+      );
+      const configuredProviders = validated.providers ?? [];
+      const providers = configuredProviders.some((provider) => provider.userId.trim() === actorUserId)
+        ? configuredProviders
+        : [...configuredProviders, { userId: actorUserId, commissionPercent: 0, settlementMode: "manual" as const }];
+      await this.relayChannelRepository.replaceProvidersByChannelId(
+        created.id,
+        await this.buildProviderRows(providers),
+        tx,
+      );
+      return created;
+    });
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_CREATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: channel.id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `提交了中转渠道 '${channel.name}' 待审核`,
+      changes: maskSensitiveData(data),
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    const refreshed = await this.relayChannelRepository.findVisibleById(channel.id);
+    return this.toDto(refreshed ?? channel, undefined, true);
+  }
+
+  async listMySubmittedChannels(actorUserId: string, page = 1, pageSize = 20) {
+    const result = await this.relayChannelRepository.listSubmittedByUser(actorUserId, page, pageSize);
+    return {
+      items: await Promise.all(result.records.map((channel) => this.toDto(channel, undefined, true))),
+      total: result.total,
+      page,
+      pageSize,
+    };
+  }
+
+  async listProviderUsers(
+    actorUserId: string,
+    page = 1,
+    pageSize = 20,
+    keyword?: string,
+  ): Promise<{ items: RelayChannelProviderUserOptionDto[]; total: number; page: number; pageSize: number }> {
+    const [canSubmit, canReview] = await Promise.all([
+      this.permissionService.hasPermission(actorUserId, Permission.RELAY_CHANNEL_SUBMIT),
+      this.permissionService.hasPermission(actorUserId, Permission.RELAY_CHANNEL_REVIEW),
+    ]);
+    if (!canSubmit && !canReview) throw new ForbiddenError("Permission denied");
+    const normalizedPage = Math.max(1, page);
+    const normalizedPageSize = Math.min(100, Math.max(1, pageSize));
+    const filters = { keyword: keyword?.trim() || undefined };
+    const [users, total] = await Promise.all([
+      this.userRepository.listNonDeletedPaginated({
+        ...filters,
+        skip: (normalizedPage - 1) * normalizedPageSize,
+        take: normalizedPageSize,
+      }),
+      this.userRepository.countNonDeletedFiltered(filters),
+    ]);
+    const activeUsers = users.filter((user) => user.status === 1);
+    return {
+      items: activeUsers.map((user) => ({ id: user.id, username: user.username, name: user.name })),
+      total,
+      page: normalizedPage,
+      pageSize: normalizedPageSize,
+    };
+  }
+
+  async reviewSubmittedChannel(
+    id: string,
+    body: ReviewRelayChannelSubmissionRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    const existing = await this.relayChannelRepository.findVisibleById(id);
+    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (!existing.submittedByUserId) throw new BadRequestError("Only submitted channels may be reviewed");
+    const approved = body.action === "approve";
+    const existingWithProviders = existing as RelayChannel & {
+      providers: Array<{
+        userId: string;
+        commissionPercent: Prisma.Decimal | number;
+        settlementMode: string;
+        settlementIntervalDays: number | null;
+        settlementTime: string | null;
+      }>;
+    };
+    const data: Prisma.RelayChannelUncheckedUpdateInput = {
+      submissionStatus: approved ? "approved" : body.action === "reject" ? "rejected" : "offboarded",
+      status: approved ? RELAY_CHANNEL_STATUS.ENABLED : RELAY_CHANNEL_STATUS.DISABLED,
+      reviewedByUserId: actorUserId,
+      reviewedAt: new Date(),
+      reviewReason: body.reason?.trim() || null,
+    };
+    const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
+      const updated = await this.relayChannelRepository.updateById(id, data, tx);
+      if (
+        approved &&
+        !existingWithProviders.providers.some((provider) => provider.userId === existing.submittedByUserId)
+      ) {
+        await this.relayChannelRepository.replaceProvidersByChannelId(
+          id,
+          await this.buildProviderRows([
+            ...existingWithProviders.providers.map((provider) => ({
+              userId: provider.userId,
+              commissionPercent: Number(provider.commissionPercent),
+              settlementMode: provider.settlementMode as RelayChannelProviderConfigRequest["settlementMode"],
+              settlementIntervalDays: provider.settlementIntervalDays ?? undefined,
+              settlementTime: provider.settlementTime ?? undefined,
+            })),
+            { userId: existing.submittedByUserId!, commissionPercent: 0, settlementMode: "manual" },
+          ]),
+          tx,
+        );
+      }
+      return updated;
+    });
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `审核了中转渠道 '${channel.name}'`,
+      metadata: { action: body.action },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    const refreshed = await this.relayChannelRepository.findVisibleById(channel.id);
+    return this.toDto(refreshed ?? channel, undefined, true);
+  }
+
+  async updateProviderConfig(
+    id: string,
+    data: UpdateRelayChannelProviderConfigRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    const existing = await this.relayChannelRepository.findVisibleById(id);
+    if (!existing) throw new NotFoundError("Relay channel not found");
+    const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
+      const updated = await this.relayChannelRepository.updateById(
+        id,
+        data.multiplier === undefined ? {} : { multiplier: data.multiplier },
+        tx,
+      );
+      if (data.providers !== undefined)
+        await this.relayChannelRepository.replaceProvidersByChannelId(
+          id,
+          await this.buildProviderRows(data.providers),
+          tx,
+        );
+      return updated;
+    });
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `更新了中转渠道 '${channel.name}' 的提供者配置`,
+      metadata: { providerCount: data.providers?.length, multiplier: data.multiplier },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    const refreshed = await this.relayChannelRepository.findVisibleById(id);
+    return this.toDto(refreshed ?? channel);
+  }
+
+  async listUpstreamModels(
+    data: RelayChannelUpstreamModelsRequest,
+    actorUserId: string,
+  ): Promise<RelayChannelUpstreamModelsResponse> {
+    let upstreamUrl = data.upstreamUrl?.trim();
+    let apiKey = data.apiKey?.trim();
+    if (data.channelId) {
+      const channel = await this.relayChannelRepository.findVisibleById(data.channelId);
+      if (!channel) throw new NotFoundError("Relay channel not found");
+      const canReview = await this.permissionService.hasPermission(actorUserId, Permission.RELAY_CHANNEL_REVIEW);
+      const canUpdate = await this.permissionService.hasPermission(actorUserId, Permission.RELAY_CHANNEL_UPDATE);
+      if (!canReview && !canUpdate && channel.submittedByUserId !== actorUserId) {
+        throw new ForbiddenError("无权探测此渠道的上游模型");
+      }
+      if (data.format === "openai") {
+        upstreamUrl = channel.openaiUpstreamUrl || undefined;
+        apiKey = channel.openaiUpstreamApiKey || undefined;
+      } else if (data.format === "anthropic") {
+        upstreamUrl = channel.anthropicUpstreamUrl || undefined;
+        apiKey = channel.anthropicUpstreamApiKey || undefined;
+      } else {
+        upstreamUrl = channel.geminiUpstreamUrl || undefined;
+        apiKey = channel.geminiUpstreamApiKey || undefined;
+      }
+    }
+    if (!upstreamUrl || !apiKey) throw new BadRequestError("渠道缺少对应格式的上游配置");
+    const safe = await assertSafeOutboundUrl(upstreamUrl);
+    const endpoint = new URL(safe.url.toString());
+    const normalizedPath = endpoint.pathname.replace(/\/+$/, "");
+    endpoint.pathname = normalizedPath.endsWith("/v1") ? `${normalizedPath}/models` : `${normalizedPath}/v1/models`;
+    const headers: Record<string, string> =
+      data.format === "anthropic"
+        ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
+        : data.format === "gemini"
+          ? { "x-goog-api-key": apiKey }
+          : { Authorization: `Bearer ${apiKey}` };
+    try {
+      const response = await axios.get(endpoint.toString(), {
+        headers,
+        httpAgent: safe.httpAgent,
+        httpsAgent: safe.httpsAgent,
+        proxy: false,
+        timeout: UPSTREAM_MODELS_TIMEOUT_MS,
+        maxRedirects: 0,
+        maxContentLength: UPSTREAM_MODELS_MAX_BYTES,
+        validateStatus: (status) => status >= 200 && status < 300,
+      });
+      const payload = response.data as Record<string, unknown>;
+      const source = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : [];
+      const ids = source
+        .map((item) => {
+          if (typeof item === "string") return item;
+          if (!item || typeof item !== "object") return "";
+          const record = item as Record<string, unknown>;
+          return String(record.id || record.name || record.model || "");
+        })
+        .map((id) => id.trim())
+        .filter(Boolean);
+      const catalog = await this.modelPricingService.getModelPricing();
+      const seen = new Set<string>();
+      return {
+        format: data.format,
+        models: ids
+          .filter((id) => !seen.has(id) && seen.add(id))
+          .map((id) => {
+            const matched = catalog.find((model) => resolveModelId(model).trim() === id);
+            return {
+              id,
+              matched: Boolean(matched),
+              pricingModel: matched?.model,
+              pricingModelId: matched ? resolveModelId(matched) : undefined,
+            };
+          }),
+      };
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        throw new BadRequestError(`上游模型列表请求失败${status ? `（HTTP ${status}）` : ""}`);
+      }
+      throw new BadRequestError("上游模型列表请求失败");
+    }
+  }
+
+  private getChangeRequestEncryptionKey(): Buffer {
+    const secret = env.relay.channelChangeRequest.masterKey;
+    if (secret.length < 64) throw new BadRequestError("渠道修改申请加密密钥未配置");
+    return createHash("sha256").update(secret).digest();
+  }
+
+  private getLegacyChangeRequestEncryptionKey(): Buffer | undefined {
+    const secret = env.relay.channelProbe.masterKey;
+    return secret.length >= 64 ? createHash("sha256").update(secret).digest() : undefined;
+  }
+
+  private encryptChangeCredentials(credentials: Record<string, string>) {
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", this.getChangeRequestEncryptionKey(), iv);
+    const ciphertext = Buffer.concat([cipher.update(JSON.stringify(credentials), "utf8"), cipher.final()]).toString(
+      "base64",
+    );
+    return { ciphertext, iv: iv.toString("base64"), authTag: cipher.getAuthTag().toString("base64") };
+  }
+
+  private decryptChangeCredentials(row: {
+    encryptedCredentials: string | null;
+    credentialIv: string | null;
+    credentialAuthTag: string | null;
+  }): Record<string, string> {
+    if (!row.encryptedCredentials || !row.credentialIv || !row.credentialAuthTag) return {};
+    const keys = [this.getChangeRequestEncryptionKey(), this.getLegacyChangeRequestEncryptionKey()].filter(
+      (key): key is Buffer => Boolean(key),
+    );
+    for (const key of keys) {
+      try {
+        const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(row.credentialIv, "base64"));
+        decipher.setAuthTag(Buffer.from(row.credentialAuthTag, "base64"));
+        const parsed = JSON.parse(
+          Buffer.concat([decipher.update(Buffer.from(row.encryptedCredentials, "base64")), decipher.final()]).toString(
+            "utf8",
+          ),
+        );
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, string>;
+      } catch {
+        // Older change requests were encrypted with the channel-probe key.
+      }
+    }
+    throw new BadRequestError("渠道修改申请凭据无法解密");
+  }
+
+  private toChangeRequestDto(row: any): RelayChannelChangeRequestDto {
+    const snapshot = (row.configSnapshot || {}) as Record<string, unknown>;
+    return {
+      id: row.id,
+      relayChannelId: row.relayChannelId,
+      channelName: row.relayChannel?.name || "",
+      submittedByUserId: row.submittedByUserId,
+      submittedByUsername: row.submittedBy?.username,
+      reviewStatus: row.reviewStatus as RelayChannelChangeRequestStatus,
+      reviewedAt: row.reviewedAt || undefined,
+      reviewReason: row.reviewReason || undefined,
+      config: {
+        ...(snapshot as Omit<
+          CreateRelayChannelChangeRequest,
+          "openaiUpstreamApiKey" | "anthropicUpstreamApiKey" | "geminiUpstreamApiKey"
+        >),
+        hasOpenaiUpstreamApiKey: Boolean(snapshot.hasOpenaiUpstreamApiKey),
+        hasAnthropicUpstreamApiKey: Boolean(snapshot.hasAnthropicUpstreamApiKey),
+        hasGeminiUpstreamApiKey: Boolean(snapshot.hasGeminiUpstreamApiKey),
+      },
+      createTime: row.createTime,
+      updateTime: row.updateTime,
+    };
+  }
+
+  async createChangeRequest(
+    id: string,
+    data: CreateRelayChannelChangeRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelChangeRequestDto> {
+    const existing = await this.relayChannelRepository.findVisibleById(id);
+    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (existing.submittedByUserId !== actorUserId)
+      throw new ForbiddenError("Only the original submitter may request changes");
+    if ((existing.submissionStatus as RelayChannelSubmissionStatus) !== "approved")
+      throw new BadRequestError("Only approved channels may accept change requests");
+    if (await this.changeRequestRepository.findPendingByChannelId(id))
+      throw new ConflictError("A pending change request already exists for this channel");
+
+    const validated = await this.buildValidatedChannelData({ ...data, channelType: "standalone" }, existing);
+    const credentials: Record<string, string> = {};
+    if (data.openaiUpstreamApiKey?.trim()) credentials.openaiUpstreamApiKey = data.openaiUpstreamApiKey.trim();
+    if (data.anthropicUpstreamApiKey?.trim()) credentials.anthropicUpstreamApiKey = data.anthropicUpstreamApiKey.trim();
+    if (data.geminiUpstreamApiKey?.trim()) credentials.geminiUpstreamApiKey = data.geminiUpstreamApiKey.trim();
+    const encrypted = Object.keys(credentials).length ? this.encryptChangeCredentials(credentials) : undefined;
+    const configSnapshot = JSON.parse(
+      JSON.stringify({
+        name: validated.name,
+        openaiUpstreamUrl: validated.openaiUpstreamUrl,
+        anthropicUpstreamUrl: validated.anthropicUpstreamUrl,
+        geminiUpstreamUrl: validated.geminiUpstreamUrl,
+        multiplier: validated.multiplier,
+        allowedFormats: validated.allowedFormats,
+        allowedModels: validated.allowedModels,
+        inputTokensIncludeCacheRead: validated.inputTokensIncludeCacheRead,
+        modelMapping: validated.modelMapping,
+        timePeriodMultipliers: validated.timePeriodMultipliers,
+        contextLengthMultipliers: validated.contextLengthMultipliers,
+        providers: validated.providers,
+        hasOpenaiUpstreamApiKey: Boolean(validated.openaiUpstreamApiKey),
+        hasAnthropicUpstreamApiKey: Boolean(validated.anthropicUpstreamApiKey),
+        hasGeminiUpstreamApiKey: Boolean(validated.geminiUpstreamApiKey),
+      }),
+    ) as Prisma.InputJsonObject;
+    const row = await this.changeRequestRepository.create({
+      relayChannelId: id,
+      submittedByUserId: actorUserId,
+      reviewStatus: "pending",
+      configSnapshot,
+      encryptedCredentials: encrypted?.ciphertext,
+      credentialIv: encrypted?.iv,
+      credentialAuthTag: encrypted?.authTag,
+    });
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `提交了中转渠道 '${existing.name}' 的修改申请`,
+      changes: maskSensitiveData(data),
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return this.toChangeRequestDto(row);
+  }
+
+  async listMyChangeRequests(actorUserId: string, page = 1, pageSize = 20) {
+    const result = await this.changeRequestRepository.listMine(actorUserId, page, pageSize);
+    return { items: result.items.map((row) => this.toChangeRequestDto(row)), total: result.total, page, pageSize };
+  }
+
+  async listChangeRequests(page = 1, pageSize = 20, reviewStatus?: RelayChannelChangeRequestStatus) {
+    const result = await this.changeRequestRepository.listAdmin(page, pageSize, reviewStatus);
+    return { items: result.items.map((row) => this.toChangeRequestDto(row)), total: result.total, page, pageSize };
+  }
+
+  async reviewChangeRequest(
+    changeRequestId: string,
+    body: ReviewRelayChannelChangeRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelChangeRequestDto> {
+    const row = await this.changeRequestRepository.findById(changeRequestId);
+    if (!row || row.status !== 1) throw new NotFoundError("Relay channel change request not found");
+    if (row.reviewStatus !== "pending") return this.toChangeRequestDto(row);
+    const channel = await this.relayChannelRepository.findVisibleById(row.relayChannelId);
+    if (!channel) throw new NotFoundError("Relay channel not found");
+    const snapshot = row.configSnapshot as unknown as CreateRelayChannelChangeRequest;
+    const nextCredentials = this.decryptChangeCredentials(row);
+    const validated = await this.buildValidatedChannelData(
+      {
+        ...snapshot,
+        ...nextCredentials,
+        channelType: "standalone",
+      },
+      channel,
+    );
+    const updated = await this.relayChannelRepository.withTransaction(async (tx) => {
+      if (body.action === "approve") {
+        await this.relayChannelRepository.updateById(row.relayChannelId, this.toPersistenceInput(validated), tx);
+        if (validated.providers !== undefined)
+          await this.relayChannelRepository.replaceProvidersByChannelId(
+            row.relayChannelId,
+            await this.buildProviderRows(validated.providers),
+            tx,
+          );
+      }
+      return this.changeRequestRepository.updateById(
+        changeRequestId,
+        {
+          reviewStatus: body.action === "approve" ? "approved" : "rejected",
+          reviewedByUserId: actorUserId,
+          reviewedAt: new Date(),
+          reviewReason: body.reason?.trim() || null,
+        },
+        tx,
+      );
+    });
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: row.relayChannelId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `审核了中转渠道修改申请`,
+      metadata: { changeRequestId, action: body.action },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return this.toChangeRequestDto(updated);
   }
 
   async updateChannel(
@@ -2018,6 +2567,12 @@ export class RelayChannelService {
       const updated = await this.relayChannelRepository.updateById(id, this.toPersistenceInput(validated), tx);
 
       await this.syncPoolMembers(updated.id, validated.channelType, validated.poolMembers, tx);
+      if (data.providers !== undefined)
+        await this.relayChannelRepository.replaceProvidersByChannelId(
+          updated.id,
+          await this.buildProviderRows(data.providers),
+          tx,
+        );
 
       return updated;
     });
@@ -2034,7 +2589,10 @@ export class RelayChannelService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    return this.toDto(channel);
+    const refreshed = await this.relayChannelRepository.findVisibleById(channel.id);
+    // Keep relation data from the refreshed projection, while preserving the
+    // values returned by the transactional update when a stale read occurs.
+    return this.toDto(refreshed ? ({ ...refreshed, ...channel } as RelayChannel) : channel);
   }
 
   async batchUpdateChannels(
@@ -2514,6 +3072,36 @@ export class RelayChannelService {
       pooledPriority: channel.pooledPriority,
       pooledWeight: Number(channel.pooledWeight),
       pooledMemberEnabled: channel.pooledMemberEnabled,
+      submissionStatus: (channel.submissionStatus as RelayChannelSubmissionStatus) || "approved",
+      submittedByUserId: channel.submittedByUserId || undefined,
+      submittedByUsername: (channel as RelayChannel & { submittedBy?: { username?: string } | null }).submittedBy
+        ?.username,
+      reviewedAt: channel.reviewedAt || undefined,
+      reviewReason: channel.reviewReason || undefined,
+      providers:
+        (
+          channel as RelayChannel & {
+            providers?: Array<{
+              id: string;
+              userId: string;
+              commissionPercent: Prisma.Decimal | number;
+              settlementMode: RelayChannelProviderDto["settlementMode"];
+              settlementIntervalDays: number | null;
+              settlementTime: string | null;
+              nextSettlementAt: Date | null;
+              user?: { username: string } | null;
+            }>;
+          }
+        ).providers?.map((provider) => ({
+          id: provider.id,
+          userId: provider.userId,
+          username: provider.user?.username,
+          commissionPercent: Number(provider.commissionPercent),
+          settlementMode: provider.settlementMode,
+          settlementIntervalDays: provider.settlementIntervalDays ?? undefined,
+          settlementTime: provider.settlementTime ?? undefined,
+          nextSettlementAt: provider.nextSettlementAt ?? undefined,
+        })) ?? [],
       createTime: channel.createTime,
       updateTime: channel.updateTime,
     };

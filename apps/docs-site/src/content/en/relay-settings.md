@@ -311,6 +311,10 @@ Guidance:
 
 ## Operating guidance
 
+## Channel supply and revenue sharing
+
+Administrators can review channel status, add multiple providers in the channel editor, and configure each provider's 0% to 100% share and settlement mode. The total may exceed 100%; the editor shows the resulting platform subsidy. Earnings use the actual execution channel and an immutable percentage snapshot from the time of consumption. Users submit standalone channels and inspect earnings from the Channel supply and earnings page.
+
 1. For external production traffic, start with pooled channels plus priority failover and a small number of clear primary/backup members.
 2. Default testing channels to `private` or `whitelist` visibility so users do not consume them accidentally.
 3. When upstream compatibility differs, reduce risk with format restrictions and model allowlists.

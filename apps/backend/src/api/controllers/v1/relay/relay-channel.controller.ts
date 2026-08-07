@@ -15,6 +15,7 @@ import {
   Tags,
 } from "@tsoa/runtime";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
+import { RelayChannelProviderRevenueService } from "@/services/relay/relay-channel-provider-revenue.service";
 import type {
   BatchDeleteRelayChannelsRequest,
   BatchRelayChannelsResultDto,
@@ -39,6 +40,19 @@ import type {
   RelayAutomaticPoolHealthDto,
   UpdateRelayChannelHealthConfigRequest,
   UpdateRelayChannelRequest,
+  SubmitRelayChannelRequest,
+  ReviewRelayChannelSubmissionRequest,
+  UpdateRelayChannelProviderConfigRequest,
+  CreateRelayChannelChangeRequest,
+  ReviewRelayChannelChangeRequest,
+  RelayChannelChangeRequestDto,
+  RelayChannelChangeRequestStatus,
+  RelayChannelUpstreamModelsRequest,
+  RelayChannelUpstreamModelsResponse,
+  RelayChannelProviderEarningsResponse,
+  RelayChannelProviderUserOptionDto,
+  ClaimRelayChannelProviderEarningsResponse,
+  RelayChannelSubmissionStatus,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
 import { RequireAllPermissions, RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
@@ -58,6 +72,14 @@ import {
   relayChannelIdParamsSchema,
   updateRelayChannelHealthConfigBodySchema,
   updateRelayChannelBodySchema,
+  submitRelayChannelBodySchema,
+  reviewRelayChannelSubmissionBodySchema,
+  updateRelayChannelProviderConfigBodySchema,
+  createRelayChannelChangeRequestBodySchema,
+  reviewRelayChannelChangeRequestBodySchema,
+  relayChannelUpstreamModelsBodySchema,
+  providerEarningsQuerySchema,
+  relayChannelProviderUsersQuerySchema,
 } from "@/api/schema/relay/relay-channel.schema";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
@@ -69,10 +91,11 @@ import { setResponseMessageKey } from "@/util/response-wrapper";
 @Tags("Relay Channels")
 export class RelayChannelController extends Controller {
   private channelService = RelayChannelService.getInstance();
+  private providerRevenueService = RelayChannelProviderRevenueService.getInstance();
 
   @Get()
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @RequireAnyPermission([Permission.RELAY_CHANNEL_READ, Permission.RELAY_CHANNEL_REVIEW])
   public async listChannels(
     @Request() request: TypedRequest,
     @Query() includeDisabled?: boolean,
@@ -82,7 +105,7 @@ export class RelayChannelController extends Controller {
 
   @Get("management")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @RequireAnyPermission([Permission.RELAY_CHANNEL_READ, Permission.RELAY_CHANNEL_REVIEW])
   @Middlewares(validateQuery(relayChannelManagementQuerySchema))
   public async listManagementChannels(
     @Request() request: TypedRequest,
@@ -91,6 +114,7 @@ export class RelayChannelController extends Controller {
     @Query() keyword?: string,
     @Query() channelType?: RelayChannelManagementListItemDto["channelType"],
     @Query() enabled?: boolean,
+    @Query() submissionStatus?: RelayChannelSubmissionStatus,
   ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
     return this.channelService.listManagementChannels(request.user!.userId, {
       page,
@@ -98,6 +122,7 @@ export class RelayChannelController extends Controller {
       keyword,
       channelType,
       enabled,
+      submissionStatus,
     });
   }
 
@@ -259,9 +284,174 @@ export class RelayChannelController extends Controller {
     return this.channelService.batchClearChannelHealth(body.ids, request.user!.userId, request);
   }
 
+  @Post("submissions")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  @Middlewares(replayProtectionMiddleware, validateBody(submitRelayChannelBodySchema))
+  public async submitChannel(
+    @Body() body: SubmitRelayChannelRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelDto> {
+    return this.channelService.submitChannel(body, request.user!.userId, request);
+  }
+
+  @Get("submissions/mine")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  public async listMySubmittedChannels(
+    @Request() request: TypedRequest,
+    @Query() page: number = 1,
+    @Query() pageSize: number = 20,
+  ): Promise<PaginatedResponse<RelayChannelDto>> {
+    return this.channelService.listMySubmittedChannels(request.user!.userId, page, pageSize);
+  }
+
+  @Post("{id}/review-submission")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_REVIEW)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(relayChannelIdParamsSchema),
+    validateBody(reviewRelayChannelSubmissionBodySchema),
+  )
+  public async reviewChannelSubmission(
+    @Path() id: string,
+    @Body() body: ReviewRelayChannelSubmissionRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelDto> {
+    return this.channelService.reviewSubmittedChannel(id, body, request.user!.userId, request);
+  }
+
+  @Put("{id}/provider-config")
+  @Security("jwt")
+  @RequireAnyPermission([Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE])
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(relayChannelIdParamsSchema),
+    validateBody(updateRelayChannelProviderConfigBodySchema),
+  )
+  public async updateProviderConfig(
+    @Path() id: string,
+    @Body() body: UpdateRelayChannelProviderConfigRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelDto> {
+    return this.channelService.updateProviderConfig(id, body, request.user!.userId, request);
+  }
+
+  @Post("{id}/change-requests")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(relayChannelIdParamsSchema),
+    validateBody(createRelayChannelChangeRequestBodySchema),
+  )
+  public async createChangeRequest(
+    @Path() id: string,
+    @Body() body: CreateRelayChannelChangeRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelChangeRequestDto> {
+    return this.channelService.createChangeRequest(id, body, request.user!.userId, request);
+  }
+
+  @Get("change-requests/mine")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  public async listMyChangeRequests(
+    @Request() request: TypedRequest,
+    @Query() page: number = 1,
+    @Query() pageSize: number = 20,
+  ) {
+    return this.channelService.listMyChangeRequests(request.user!.userId, page, pageSize);
+  }
+
+  @Get("change-requests")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_REVIEW)
+  public async listChangeRequests(
+    @Query() page: number = 1,
+    @Query() pageSize: number = 20,
+    @Query() reviewStatus?: RelayChannelChangeRequestStatus,
+  ) {
+    return this.channelService.listChangeRequests(page, pageSize, reviewStatus);
+  }
+
+  @Post("change-requests/{id}/review")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_REVIEW)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(reviewRelayChannelChangeRequestBodySchema),
+  )
+  public async reviewChangeRequest(
+    @Path() id: string,
+    @Body() body: ReviewRelayChannelChangeRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelChangeRequestDto> {
+    return this.channelService.reviewChangeRequest(id, body, request.user!.userId, request);
+  }
+
+  @Post("upstream-models")
+  @Security("jwt")
+  @RequireAnyPermission([
+    Permission.RELAY_CHANNEL_REVIEW,
+    Permission.RELAY_CHANNEL_UPDATE,
+    Permission.RELAY_CHANNEL_SUBMIT,
+  ])
+  @Middlewares(validateBody(relayChannelUpstreamModelsBodySchema))
+  public async listUpstreamModels(
+    @Body() body: RelayChannelUpstreamModelsRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelUpstreamModelsResponse> {
+    return this.channelService.listUpstreamModels(body, request.user!.userId);
+  }
+
+  @Get("provider/users")
+  @Security("jwt")
+  @RequireAnyPermission([Permission.RELAY_CHANNEL_SUBMIT, Permission.RELAY_CHANNEL_REVIEW])
+  @Middlewares(validateQuery(relayChannelProviderUsersQuerySchema))
+  public async listProviderUsers(
+    @Request() request: TypedRequest,
+    @Query() page: number = 1,
+    @Query() pageSize: number = 20,
+    @Query() keyword?: string,
+  ): Promise<{ items: RelayChannelProviderUserOptionDto[]; total: number; page: number; pageSize: number }> {
+    return this.channelService.listProviderUsers(request.user!.userId, page, pageSize, keyword);
+  }
+
+  @Get("provider/earnings")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROVIDER_READ)
+  @Middlewares(validateQuery(providerEarningsQuerySchema))
+  public async getMyProviderEarnings(
+    @Request() request: TypedRequest,
+    @Query() page: number = 1,
+    @Query() pageSize: number = 20,
+  ): Promise<RelayChannelProviderEarningsResponse> {
+    return this.providerRevenueService.listOwnEarnings(request.user!.userId, page, pageSize);
+  }
+
+  @Post("provider/earnings/claim")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROVIDER_SETTLE)
+  @Middlewares(replayProtectionMiddleware)
+  public async claimMyProviderEarnings(
+    @Request() request: TypedRequest,
+  ): Promise<ClaimRelayChannelProviderEarningsResponse> {
+    return this.providerRevenueService.claimOwnEarnings(request.user!.userId);
+  }
+
   @Get("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @RequireAnyPermission([Permission.RELAY_CHANNEL_READ, Permission.RELAY_CHANNEL_REVIEW])
   @Middlewares(validateParams(relayChannelIdParamsSchema))
   public async getChannel(@Path() id: string, @Request() request: TypedRequest): Promise<RelayChannelDto> {
     return this.channelService.getChannel(id, request.user!.userId);

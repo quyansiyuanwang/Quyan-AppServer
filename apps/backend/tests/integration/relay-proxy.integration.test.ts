@@ -682,7 +682,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     }
   });
 
-  it("OpenAI models 列表只返回当前 token 在 openai 格式下真实可请求的模型", async () => {
+  it("OpenAI models 列表不会因未限制渠道而暴露全局定价模型", async () => {
     const extraOpenAIModel = `test-relay-openai-list-${suffix}`;
     const extraOpenAIModelId = `test-relay-openai-list-id-${suffix}`;
 
@@ -706,7 +706,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       expect(relayResponse.status).toBe(200);
 
       const modelIds = (relayResponse.body?.data || []).map((item: { id: string }) => item.id).sort();
-      expect(modelIds).toEqual([extraOpenAIModelId, openaiRelayModelId].sort());
+      expect(modelIds).toEqual([]);
       expect(modelIds).not.toContain(anthropicRelayModelId);
       expect(modelIds).not.toContain(geminiRelayModelId);
     } finally {

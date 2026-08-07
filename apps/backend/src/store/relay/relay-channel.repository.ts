@@ -17,6 +17,12 @@ const relayChannelInclude = {
   pooledChildren: {
     orderBy: { pooledPriority: "asc" },
   },
+  submittedBy: { select: { username: true } },
+  providers: {
+    where: { status: 1 },
+    include: { user: { select: { username: true } } },
+    orderBy: { createTime: "asc" },
+  },
 } satisfies Prisma.RelayChannelInclude;
 
 export class RelayChannelRepository implements RelayChannelStore {
@@ -167,11 +173,32 @@ export class RelayChannelRepository implements RelayChannelStore {
           pooledParent: { select: { name: true } },
           poolMembers: { select: { memberChannelId: true } },
           pooledChildren: { select: { id: true } },
+          submissionStatus: true,
+          providers: { where: { status: 1 }, select: { commissionPercent: true } },
         },
       }),
       prisma.relayChannel.count({ where }),
     ]);
 
+    return { records, total };
+  }
+
+  async listSubmittedByUser(
+    userId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<{ records: RelayChannel[]; total: number }> {
+    const where = { submittedByUserId: userId, status: { in: VISIBLE_RELAY_CHANNEL_STATUSES } };
+    const [records, total] = await prisma.$transaction([
+      prisma.relayChannel.findMany({
+        where,
+        orderBy: { createTime: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: relayChannelInclude,
+      }),
+      prisma.relayChannel.count({ where }),
+    ]);
     return { records, total };
   }
 
@@ -328,5 +355,46 @@ export class RelayChannelRepository implements RelayChannelStore {
     await client.relayChannelMember.deleteMany({
       where: { relayChannelId },
     });
+  }
+
+  async replaceProvidersByChannelId(
+    relayChannelId: string,
+    providers: Array<{
+      userId: string;
+      commissionPercent: number;
+      settlementMode: string;
+      settlementIntervalDays?: number;
+      settlementTime?: string;
+      nextSettlementAt?: Date | null;
+    }>,
+    tx?: RelayChannelTransactionClient,
+  ): Promise<void> {
+    const client = tx ?? prisma;
+    const userIds = providers.map((provider) => provider.userId);
+    await client.relayChannelProvider.updateMany({
+      where: { relayChannelId, status: 1, ...(userIds.length ? { userId: { notIn: userIds } } : {}) },
+      data: { status: 0 },
+    });
+    for (const provider of providers)
+      await client.relayChannelProvider.upsert({
+        where: { relayChannelId_userId: { relayChannelId, userId: provider.userId } },
+        create: {
+          relayChannelId,
+          userId: provider.userId,
+          commissionPercent: provider.commissionPercent,
+          settlementMode: provider.settlementMode,
+          settlementIntervalDays: provider.settlementIntervalDays ?? null,
+          settlementTime: provider.settlementTime ?? null,
+          nextSettlementAt: provider.nextSettlementAt ?? null,
+        },
+        update: {
+          status: 1,
+          commissionPercent: provider.commissionPercent,
+          settlementMode: provider.settlementMode,
+          settlementIntervalDays: provider.settlementIntervalDays ?? null,
+          settlementTime: provider.settlementTime ?? null,
+          nextSettlementAt: provider.nextSettlementAt ?? null,
+        },
+      });
   }
 }

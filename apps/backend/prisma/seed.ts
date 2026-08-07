@@ -51,6 +51,7 @@ async function main() {
         Permission.RELAY_CHANNEL_POOL_METADATA_READ,
         Permission.RELAY_CHANNEL_UPDATE,
         Permission.RELAY_CHANNEL_DELETE,
+        Permission.RELAY_CHANNEL_REVIEW,
         Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
         Permission.RELAY_REQUEST_ROUTE_TRACE_READ,
         Permission.REDEMPTION_CODE_CREATE,
@@ -168,7 +169,11 @@ async function main() {
     create: {
       username: "user",
       name: "普通用户",
-      permissions: JSON.stringify([]),
+      permissions: JSON.stringify([
+        Permission.RELAY_CHANNEL_SUBMIT,
+        Permission.RELAY_CHANNEL_PROVIDER_READ,
+        Permission.RELAY_CHANNEL_PROVIDER_SETTLE,
+      ]),
       level: 10,
       description: "普通用户组，无特殊权限",
     },

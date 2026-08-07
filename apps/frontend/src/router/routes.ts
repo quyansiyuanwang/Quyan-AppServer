@@ -744,6 +744,23 @@ export const routes = [
             },
           },
           {
+            path: 'relay/provider-channels',
+            name: 'relayChannelProvider',
+            component: () => import('@/views/relay/RelayChannelProviderView.vue'),
+            meta: {
+              anyPermissions: [
+                Permission.RELAY_CHANNEL_SUBMIT,
+                Permission.RELAY_CHANNEL_PROVIDER_READ,
+              ],
+            },
+          },
+          {
+            path: 'relay/channel-review',
+            name: 'relayChannelReview',
+            component: () => import('@/views/relay/RelayChannelReviewView.vue'),
+            meta: { permission: Permission.RELAY_CHANNEL_REVIEW },
+          },
+          {
             path: 'relay/settings',
             name: 'relaySettings',
             component: () => import('@/views/relay/RelaySettingsView.vue'),
