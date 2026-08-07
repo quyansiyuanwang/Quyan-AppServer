@@ -1677,6 +1677,7 @@ describe("RelayChannelService", () => {
       submissionStatus: "rejected",
       status: RELAY_CHANNEL_STATUS.DISABLED,
     });
+    changeRequestRepository.findPendingByChannelId.mockResolvedValue({ id: "stale-change-1" });
 
     await service.createChangeRequest(
       "channel-1",
@@ -1701,6 +1702,11 @@ describe("RelayChannelService", () => {
       expect.objectContaining({
         configSnapshot: expect.objectContaining({ previousSubmissionStatus: "rejected" }),
       }),
+      transactionClient,
+    );
+    expect(changeRequestRepository.updateById).toHaveBeenCalledWith(
+      "stale-change-1",
+      expect.objectContaining({ status: -1, reviewReason: "Superseded by a new submission" }),
       transactionClient,
     );
   });

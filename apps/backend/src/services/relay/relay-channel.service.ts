@@ -270,7 +270,14 @@ export class RelayChannelService {
 
     if (query.keyword?.trim()) where.name = { contains: query.keyword.trim() };
     if (query.channelType) where.channelType = query.channelType;
-    if (query.submissionStatus) where.submissionStatus = query.submissionStatus;
+    if (query.submissionStatus === "pending") {
+      where.OR = [
+        { submissionStatus: "pending" },
+        { changeRequests: { some: { status: 1, reviewStatus: "pending" } } },
+      ];
+    } else if (query.submissionStatus) {
+      where.submissionStatus = query.submissionStatus;
+    }
 
     const visibilityWhere = await this.buildManagementVisibilityWhere(actorUserId);
     if (visibilityWhere) where.AND = [visibilityWhere];
@@ -287,6 +294,8 @@ export class RelayChannelService {
         return {
           id: channel.id,
           name: channel.name,
+          submittedByUserId: channel.submittedByUserId || undefined,
+          submittedByUsername: channel.submittedBy?.username || channel.submittedByUserId || undefined,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
           channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
           routingStrategy:
@@ -2418,7 +2427,8 @@ export class RelayChannelService {
     const submissionStatus = existing.submissionStatus as RelayChannelSubmissionStatus;
     if (!(["pending", "approved", "rejected"] as RelayChannelSubmissionStatus[]).includes(submissionStatus))
       throw new BadRequestError("Only pending, approved, or rejected channels may accept change requests");
-    if (await this.changeRequestRepository.findPendingByChannelId(id))
+    const pendingChangeRequest = await this.changeRequestRepository.findPendingByChannelId(id);
+    if (pendingChangeRequest && submissionStatus !== "rejected")
       throw new ConflictError("A pending change request already exists for this channel");
 
     const validated = await this.buildValidatedChannelData({ ...data, channelType: "standalone" }, existing);
@@ -2449,6 +2459,17 @@ export class RelayChannelService {
       }),
     ) as Prisma.InputJsonObject;
     const row = await this.relayChannelRepository.withTransaction(async (tx) => {
+      if (pendingChangeRequest) {
+        await this.changeRequestRepository.updateById(
+          pendingChangeRequest.id,
+          {
+            status: -1,
+            reviewReason: "Superseded by a new submission",
+            reviewedAt: new Date(),
+          },
+          tx,
+        );
+      }
       if (submissionStatus === "rejected") {
         await this.relayChannelRepository.updateById(
           id,

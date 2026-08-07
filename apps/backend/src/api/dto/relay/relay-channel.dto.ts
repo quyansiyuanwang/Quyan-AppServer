@@ -73,6 +73,8 @@ export interface RelayChannelMemberDto {
 export interface RelayChannelManagementListItemDto {
   id: string;
   name: string;
+  submittedByUserId?: string;
+  submittedByUsername?: string;
   enabled: boolean;
   channelType: RelayChannelType;
   routingStrategy: RelayChannelRoutingStrategy;

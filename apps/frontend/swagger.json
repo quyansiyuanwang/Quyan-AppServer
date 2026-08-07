@@ -39185,6 +39185,12 @@
 					"name": {
 						"type": "string"
 					},
+					"submittedByUserId": {
+						"type": "string"
+					},
+					"submittedByUsername": {
+						"type": "string"
+					},
 					"enabled": {
 						"type": "boolean"
 					},

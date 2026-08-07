@@ -43,7 +43,11 @@
             prop="name"
             :label="i18ns.t('relay.channelName')"
             min-width="180"
-          /><el-table-column
+          /><el-table-column :label="i18ns.t('relay.providerUser')" min-width="160"
+            ><template #default="{ row }">
+              {{ row.submittedByUsername || row.submittedByUserId || '-' }}
+            </template></el-table-column
+          ><el-table-column
             prop="multiplier"
             :label="i18ns.t('relay.channelMultiplier')"
             width="110"
@@ -181,7 +185,7 @@
           providerSummary(selectedChange.config.providers)
         }}</el-descriptions-item
         ><el-descriptions-item :label="i18ns.t('relay.allowedModelsChannel')">{{
-          selectedChange.config.allowedModels || i18ns.t('relay.noModels')
+          formatAllowedModels(selectedChange.config.allowedModels)
         }}</el-descriptions-item></el-descriptions
       ></el-dialog
     >
@@ -235,6 +239,17 @@ const providerSummary = (providers?: RelayChannelProviderConfigRequest[]) =>
         `${item.username || ('userId' in item ? item.userId : '') || '-'}: ${item.commissionPercent}%`,
     )
     .join(', ') || '-'
+const formatAllowedModels = (value: unknown) => {
+  if (!value) return i18ns.t('relay.noModels')
+  if (Array.isArray(value)) return value.join(', ')
+  if (typeof value !== 'string') return String(value)
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.join(', ') || i18ns.t('relay.noModels') : value
+  } catch {
+    return value
+  }
+}
 const credentialSummary = (config: any) =>
   (
     [

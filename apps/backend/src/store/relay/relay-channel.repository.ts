@@ -163,6 +163,8 @@ export class RelayChannelRepository implements RelayChannelStore {
         select: {
           id: true,
           name: true,
+          submittedByUserId: true,
+          submittedBy: { select: { username: true } },
           status: true,
           channelType: true,
           routingStrategy: true,

@@ -9,11 +9,7 @@
     </div>
 
     <div v-if="providers.length" class="relay-provider-editor__list">
-      <div
-        v-for="(provider, index) in providers"
-        :key="`${provider.username}-${index}`"
-        class="relay-provider-editor__row"
-      >
+      <div v-for="(provider, index) in providers" :key="index" class="relay-provider-editor__row">
         <el-input
           :model-value="provider.username"
           class="relay-provider-editor__user"

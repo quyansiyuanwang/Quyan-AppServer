@@ -9,6 +9,8 @@ export interface RelayChannelManagementQuery {
 export interface RelayChannelManagementRecord {
   id: string;
   name: string;
+  submittedByUserId: string | null;
+  submittedBy: { username: string } | null;
   status: number;
   channelType: string | null;
   routingStrategy: string | null;
