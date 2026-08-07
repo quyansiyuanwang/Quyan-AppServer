@@ -139,6 +139,7 @@
       mode="provider"
       :submit-mode="formMode"
       :submitting="submitting"
+      :model-options="modelOptions"
       :probe-loading="probeLoading"
       :probe-results="probeResults"
       :selected-probe-models="selectedProbeModels"
@@ -167,6 +168,7 @@ import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { relayChannelService } from '@/service/relayChannelService'
+import { relayConfigService } from '@/service/relayConfigService'
 import RelayStandaloneChannelDrawer, {
   type StandaloneChannelFormState,
 } from './components/RelayStandaloneChannelDrawer.vue'
@@ -229,6 +231,33 @@ const selectedProbeModels = reactive<Record<Format, string[]>>({
   openai: [],
   anthropic: [],
   gemini: [],
+})
+type ProviderModelOption = {
+  model: string
+  modelId?: string
+  supportedFormats?: string
+}
+const availableModels = ref<ProviderModelOption[]>([])
+const modelOptions = computed(() => {
+  const selectedFormats = form.formats.length ? form.formats : formats
+  const seen = new Set<string>()
+  return availableModels.value
+    .filter((item) => {
+      const supported = (item.supportedFormats || 'all')
+        .split(',')
+        .map((format) => format.trim().toLowerCase())
+      return supported.includes('all') || selectedFormats.some((format) => supported.includes(format))
+    })
+    .filter((item) => {
+      const value = item.model.trim()
+      if (!value || seen.has(value)) return false
+      seen.add(value)
+      return true
+    })
+    .map((item) => ({
+      value: item.model.trim(),
+      label: item.modelId && item.modelId !== item.model ? `${item.model} (${item.modelId})` : item.model,
+    }))
 })
 const changeRequestByChannel = computed(
   () => new Map(changeRequests.value.map((request) => [request.relayChannelId, request])),
@@ -460,8 +489,17 @@ const claim = async () => {
     claiming.value = false
   }
 }
+const loadAvailableModels = async () => {
+  try {
+    const config = await relayConfigService.getRelayConfig()
+    availableModels.value = config.modelRates || []
+  } catch (error) {
+    console.error('加载中转模型列表失败:', error)
+  }
+}
 onMounted(() => {
   void loadSubmissions()
+  void loadAvailableModels()
   if (canSubmit) void loadChangeRequests()
   if (canReadEarnings) void loadEarnings()
 })
