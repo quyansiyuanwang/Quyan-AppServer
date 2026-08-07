@@ -168,7 +168,6 @@ import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { relayChannelService } from '@/service/relayChannelService'
-import { relayConfigService } from '@/service/relayConfigService'
 import RelayStandaloneChannelDrawer, {
   type StandaloneChannelFormState,
 } from './components/RelayStandaloneChannelDrawer.vue'
@@ -496,10 +495,27 @@ const claim = async () => {
 }
 const loadAvailableModels = async () => {
   try {
-    const config = await relayConfigService.getRelayConfig()
-    availableModels.value = config.modelRates || []
+    const catalog = await relayChannelService.listCatalogOptions()
+    const options = new Map<string, ProviderModelOption>()
+    for (const channel of catalog) {
+      for (const capability of channel.modelCapabilities) {
+        const model = capability.catalogModelName.trim()
+        if (!model) continue
+        const existing = options.get(model)
+        const supportedFormats = new Set([
+          ...(existing?.supportedFormats || '').split(',').filter(Boolean),
+          ...capability.supportedRequestFormats,
+        ])
+        options.set(model, {
+          model,
+          modelId: capability.requestModelId,
+          supportedFormats: [...supportedFormats].join(','),
+        })
+      }
+    }
+    availableModels.value = [...options.values()]
   } catch (error) {
-    console.error('加载中转模型列表失败:', error)
+    console.error('加载中转模型目录失败:', error)
   }
 }
 onMounted(() => {

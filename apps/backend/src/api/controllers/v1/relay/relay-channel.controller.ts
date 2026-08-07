@@ -181,6 +181,7 @@ export class RelayChannelController extends Controller {
   @Get("catalog")
   @Security("jwt")
   @RequireAnyPermission([
+    Permission.RELAY_CHANNEL_SUBMIT,
     Permission.RELAY_TOKEN_CREATE,
     Permission.RELAY_TOKEN_READ,
     Permission.MONTHLY_PASS_TEMPLATE_READ,
