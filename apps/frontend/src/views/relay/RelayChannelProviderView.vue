@@ -50,7 +50,7 @@
         <el-table-column :label="i18ns.t('actions')" width="180" fixed="right"
           ><template #default="{ row }"
             ><el-button
-              v-if="row.submissionStatus === 'approved'"
+              v-if="['pending', 'approved', 'rejected'].includes(row.submissionStatus)"
               size="small"
               :icon="Edit"
               :disabled="changeRequestByChannel.get(row.id)?.reviewStatus === 'pending'"
@@ -246,7 +246,9 @@ const modelOptions = computed(() => {
       const supported = (item.supportedFormats || 'all')
         .split(',')
         .map((format) => format.trim().toLowerCase())
-      return supported.includes('all') || selectedFormats.some((format) => supported.includes(format))
+      return (
+        supported.includes('all') || selectedFormats.some((format) => supported.includes(format))
+      )
     })
     .filter((item) => {
       const value = item.model.trim()
@@ -256,7 +258,10 @@ const modelOptions = computed(() => {
     })
     .map((item) => ({
       value: item.model.trim(),
-      label: item.modelId && item.modelId !== item.model ? `${item.model} (${item.modelId})` : item.model,
+      label:
+        item.modelId && item.modelId !== item.model
+          ? `${item.model} (${item.modelId})`
+          : item.model,
     }))
 })
 const changeRequestByChannel = computed(
