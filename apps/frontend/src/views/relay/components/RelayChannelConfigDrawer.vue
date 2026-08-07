@@ -130,10 +130,7 @@
             />
             <RelayProviderShareEditor
               :providers="form.providers"
-              :user-options="providerUserOptions"
-              :users-loading="providerUsersLoading"
               @update:providers="$emit('update-providers', $event)"
-              @search-users="$emit('search-provider-users', $event)"
             />
           </el-collapse-item>
           <el-collapse-item name="mapping" :title="i18ns.t('relay.modelMappingSection')"
@@ -230,9 +227,7 @@
 import { computed, ref, type PropType } from 'vue'
 import { Delete, Plus, Search } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
-import RelayProviderShareEditor, {
-  type RelayProviderUserOption,
-} from './RelayProviderShareEditor.vue'
+import RelayProviderShareEditor from './RelayProviderShareEditor.vue'
 import type {
   RelayChannelUpstreamModelDto,
   RelayChannelProviderConfigRequest,
@@ -273,8 +268,6 @@ const props = defineProps({
     type: Object as PropType<Record<'openai' | 'anthropic' | 'gemini', string[]>>,
     required: true,
   },
-  providerUserOptions: { type: Array as PropType<RelayProviderUserOption[]>, default: () => [] },
-  providerUsersLoading: { type: Boolean, default: false },
 })
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
@@ -282,7 +275,6 @@ const emit = defineEmits<{
   probe: [format: 'openai' | 'anthropic' | 'gemini']
   'add-probe-models': [format: 'openai' | 'anthropic' | 'gemini']
   'update-providers': [value: RelayChannelProviderConfigRequest[]]
-  'search-provider-users': [keyword: string]
   'add-time-rule': []
   'add-context-rule': []
 }>()

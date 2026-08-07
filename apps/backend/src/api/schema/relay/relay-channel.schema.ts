@@ -55,7 +55,7 @@ const visibilityModeSchema = z.enum(["public", "private", "whitelist", "hidden"]
 const providerSettlementModeSchema = z.enum(["realtime", "interval", "daily", "manual"]);
 const providerConfigSchema = z
   .object({
-    userId: z.string().trim().min(1),
+    username: z.string().trim().min(1).max(100),
     commissionPercent: z.coerce.number().min(0).max(100),
     settlementMode: providerSettlementModeSchema,
     settlementIntervalDays: z.coerce.number().int().min(1).max(365).optional(),
@@ -368,10 +368,4 @@ export const reviewRelayChannelSubmissionBodySchema = z.object({
 export const providerEarningsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
-});
-
-export const relayChannelProviderUsersQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).max(10000).optional(),
-  pageSize: z.coerce.number().int().min(1).max(100).optional(),
-  keyword: z.string().trim().max(100).optional(),
 });

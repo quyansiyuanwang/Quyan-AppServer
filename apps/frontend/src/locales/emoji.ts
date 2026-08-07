@@ -2394,7 +2394,7 @@ const emoji: DeepStringify<typeof en> = {
     channelParameters: '⚙️',
     apiKey: '🔑',
     credentialRetainHelp: '↩️ 🔑',
-    providerUserIdPlaceholder: '👤 ID',
+    providerUsernamePlaceholder: '👤 🪪',
     providerSubmitterAutoAdd: '👤 ➕ 0% ✋',
     mappingSource: '➡️ 🧠',
     mappingTarget: '💳 🧠',

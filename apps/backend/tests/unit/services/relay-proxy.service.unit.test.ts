@@ -943,7 +943,11 @@ describe("RelayProxyService failover", () => {
       secondMember.id,
       thirdMember.id,
     ]);
-    expect(result.failoverConfig).toMatchObject({ enabled: true, maxRetries: 2, retryStatusCodes: ["5xx"] });
+    expect(result.failoverConfig).toMatchObject({
+      enabled: true,
+      maxRetries: 2,
+      retryStatusCodes: ["5xx", "429"],
+    });
   });
 
   it("keeps nested pooled members reachable from an automatic pool", async () => {

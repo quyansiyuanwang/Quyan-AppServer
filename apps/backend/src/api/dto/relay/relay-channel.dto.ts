@@ -49,18 +49,12 @@ export interface RelayChannelProviderDto {
 }
 
 export interface RelayChannelProviderConfigRequest {
-  userId: string;
+  /** Provider username. The server resolves it to an internal user ID before persistence. */
+  username: string;
   commissionPercent: number;
   settlementMode: RelayChannelProviderSettlementMode;
   settlementIntervalDays?: number;
   settlementTime?: string;
-}
-
-/** Safe user option used by relay provider selectors. */
-export interface RelayChannelProviderUserOptionDto {
-  id: string;
-  username: string;
-  name?: string | null;
 }
 
 export interface RelayChannelMemberDto {

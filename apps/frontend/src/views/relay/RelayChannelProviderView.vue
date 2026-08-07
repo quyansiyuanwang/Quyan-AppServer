@@ -141,12 +141,9 @@
       :probe-loading="probeLoading"
       :probe-results="probeResults"
       :selected-probe-models="selectedProbeModels"
-      :provider-user-options="providerUserOptions"
-      :provider-users-loading="providerUsersLoading"
       @probe="probeModels"
       @add-probe-models="addProbeModels"
       @update-providers="form.providers = $event"
-      @search-provider-users="loadProviderUsers"
       @add-time-rule="addTimeRule"
       @add-context-rule="addContextRule"
       @save="saveForm"
@@ -167,7 +164,6 @@ import { relayChannelService } from '@/service/relayChannelService'
 import RelayChannelConfigDrawer, {
   type RelayChannelConfigFormState,
 } from './components/RelayChannelConfigDrawer.vue'
-import type { RelayProviderUserOption } from './components/RelayProviderShareEditor.vue'
 import type {
   RelayChannelDto,
   RelayChannelProviderConfigRequest,
@@ -227,8 +223,6 @@ const selectedProbeModels = reactive<Record<Format, string[]>>({
   anthropic: [],
   gemini: [],
 })
-const providerUserOptions = ref<RelayProviderUserOption[]>([])
-const providerUsersLoading = ref(false)
 const changeRequestByChannel = computed(
   () => new Map(changeRequests.value.map((request) => [request.relayChannelId, request])),
 )
@@ -288,20 +282,12 @@ const hydrateForm = (channel: RelayChannelDto) => {
     form.allowedModels = []
   }
   form.providers = channel.providers.map((provider) => ({
-    userId: provider.userId,
+    username: provider.username || '',
     commissionPercent: provider.commissionPercent,
     settlementMode: provider.settlementMode,
     settlementIntervalDays: provider.settlementIntervalDays,
     settlementTime: provider.settlementTime,
   }))
-  providerUserOptions.value = [
-    ...providerUserOptions.value,
-    ...channel.providers
-      .filter((provider) => provider.userId && provider.username)
-      .map((provider) => ({ id: provider.userId, username: provider.username!, name: null })),
-  ].filter(
-    (item, index, options) => options.findIndex((candidate) => candidate.id === item.id) === index,
-  )
   form.mappings = Object.entries(channel.modelMapping || {}).map(([source, target]) => ({
     source,
     target,
@@ -342,8 +328,8 @@ const payload = () => {
     timePeriodMultipliers: form.timePeriodMultipliers,
     contextLengthMultipliers: form.contextLengthMultipliers,
     providers: form.providers
-      .filter((provider) => provider.userId.trim())
-      .map((provider) => ({ ...provider, userId: provider.userId.trim() })),
+      .filter((provider) => provider.username.trim())
+      .map((provider) => ({ ...provider, username: provider.username.trim() })),
     openaiUpstreamUrl: form.urls.openai || undefined,
     openaiUpstreamApiKey: form.keys.openai || undefined,
     anthropicUpstreamUrl: form.urls.anthropic || undefined,
@@ -437,23 +423,6 @@ const loadChangeRequests = async () => {
     ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
   }
 }
-const loadProviderUsers = async (keyword = '') => {
-  providerUsersLoading.value = true
-  try {
-    const data = await relayChannelService.listProviderUsers({ page: 1, pageSize: 30, keyword })
-    const selected = providerUserOptions.value.filter((item) =>
-      form.providers.some((provider) => provider.userId === item.id),
-    )
-    providerUserOptions.value = [...selected, ...data.items].filter(
-      (item, index, options) =>
-        options.findIndex((candidate) => candidate.id === item.id) === index,
-    )
-  } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
-  } finally {
-    providerUsersLoading.value = false
-  }
-}
 const loadEarnings = async (page = earningsPage.page) => {
   earningsLoading.value = true
   try {
@@ -486,7 +455,6 @@ const claim = async () => {
 onMounted(() => {
   void loadSubmissions()
   if (canSubmit) void loadChangeRequests()
-  if (canSubmit) void loadProviderUsers()
   if (canReadEarnings) void loadEarnings()
 })
 if (!isDesktop.value) useMobileTableCardLabels('.relay-provider-page')

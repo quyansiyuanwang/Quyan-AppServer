@@ -50,7 +50,6 @@ import type {
   RelayChannelUpstreamModelsRequest,
   RelayChannelUpstreamModelsResponse,
   RelayChannelProviderEarningsResponse,
-  RelayChannelProviderUserOptionDto,
   ClaimRelayChannelProviderEarningsResponse,
   RelayChannelSubmissionStatus,
 } from "@/api/dto/relay/relay-channel.dto";
@@ -79,7 +78,6 @@ import {
   reviewRelayChannelChangeRequestBodySchema,
   relayChannelUpstreamModelsBodySchema,
   providerEarningsQuerySchema,
-  relayChannelProviderUsersQuerySchema,
 } from "@/api/schema/relay/relay-channel.schema";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
@@ -412,19 +410,6 @@ export class RelayChannelController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<RelayChannelUpstreamModelsResponse> {
     return this.channelService.listUpstreamModels(body, request.user!.userId);
-  }
-
-  @Get("provider/users")
-  @Security("jwt")
-  @RequireAnyPermission([Permission.RELAY_CHANNEL_SUBMIT, Permission.RELAY_CHANNEL_REVIEW])
-  @Middlewares(validateQuery(relayChannelProviderUsersQuerySchema))
-  public async listProviderUsers(
-    @Request() request: TypedRequest,
-    @Query() page: number = 1,
-    @Query() pageSize: number = 20,
-    @Query() keyword?: string,
-  ): Promise<{ items: RelayChannelProviderUserOptionDto[]; total: number; page: number; pageSize: number }> {
-    return this.channelService.listProviderUsers(request.user!.userId, page, pageSize, keyword);
   }
 
   @Get("provider/earnings")

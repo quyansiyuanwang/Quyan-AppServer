@@ -11,32 +11,15 @@
     <div v-if="providers.length" class="relay-provider-editor__list">
       <div
         v-for="(provider, index) in providers"
-        :key="`${provider.userId}-${index}`"
+        :key="`${provider.username}-${index}`"
         class="relay-provider-editor__row"
       >
-        <el-select
-          :model-value="provider.userId"
-          filterable
-          remote
-          reserve-keyword
-          :remote-method="(keyword: string) => emit('search-users', keyword)"
-          :loading="usersLoading"
+        <el-input
+          :model-value="provider.username"
           class="relay-provider-editor__user"
-          :placeholder="i18ns.t('relay.providerUser')"
-          @update:model-value="(value: string) => update(index, { userId: value })"
-        >
-          <el-option
-            v-for="user in userOptions"
-            :key="user.id"
-            :label="userLabel(user)"
-            :value="user.id"
-          >
-            <div class="relay-provider-editor__option">
-              <strong>{{ user.username }}</strong>
-              <span v-if="user.name">{{ user.name }}</span>
-            </div>
-          </el-option>
-        </el-select>
+          :placeholder="i18ns.t('relay.providerUsernamePlaceholder')"
+          @update:model-value="(value: string) => update(index, { username: value })"
+        />
         <el-input-number
           :model-value="provider.commissionPercent"
           :min="0"
@@ -111,26 +94,16 @@ import { Delete, Plus } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import type { RelayChannelProviderConfigRequest } from '@/client/types.gen'
 
-export type RelayProviderUserOption = { id: string; username: string; name?: string | null }
-
-const props = withDefaults(
-  defineProps<{
-    providers: RelayChannelProviderConfigRequest[]
-    userOptions?: RelayProviderUserOption[]
-    usersLoading?: boolean
-  }>(),
-  { userOptions: () => [], usersLoading: false },
-)
+const props = defineProps<{
+  providers: RelayChannelProviderConfigRequest[]
+}>()
 const emit = defineEmits<{
   'update:providers': [value: RelayChannelProviderConfigRequest[]]
-  'search-users': [keyword: string]
 }>()
 const providers = computed(() => props.providers)
 const total = computed(() =>
   providers.value.reduce((sum, provider) => sum + Number(provider.commissionPercent || 0), 0),
 )
-const userLabel = (user: RelayProviderUserOption) =>
-  user.name ? `${user.username} (${user.name})` : user.username
 const update = (index: number, patch: Partial<RelayChannelProviderConfigRequest>) => {
   emit(
     'update:providers',
@@ -142,7 +115,7 @@ const update = (index: number, patch: Partial<RelayChannelProviderConfigRequest>
 const add = () => {
   emit('update:providers', [
     ...providers.value,
-    { userId: '', commissionPercent: 0, settlementMode: 'manual' },
+    { username: '', commissionPercent: 0, settlementMode: 'manual' },
   ])
 }
 const remove = (index: number) =>
@@ -193,15 +166,6 @@ const remove = (index: number) =>
 .relay-provider-editor__percent {
   width: 100%;
   min-width: 0;
-}
-.relay-provider-editor__option {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-}
-.relay-provider-editor__option span {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
 }
 .hint {
   color: var(--el-text-color-secondary);
