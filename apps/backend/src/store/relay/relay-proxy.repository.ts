@@ -9,6 +9,7 @@ import { MANAGED_STATUS } from "@/constant/status";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationEvent } from "@/constant/notification-event";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
+import { RelayChannelProviderRevenueService } from "@/services/relay/relay-channel-provider-revenue.service";
 import type {
   RelayBalanceChargeMode,
   RelayFinalizeChargeInput,
@@ -34,6 +35,7 @@ const resolveBalanceChargeMode = (mode?: RelayBalanceChargeMode): RelayBalanceCh
 
 export class RelayProxyRepository implements RelayProxyStore {
   private static instance: RelayProxyRepository;
+  private readonly channelProviderRevenueService = RelayChannelProviderRevenueService.getInstance();
 
   public static getInstance(): RelayProxyRepository {
     if (!RelayProxyRepository.instance) RelayProxyRepository.instance = new RelayProxyRepository();
@@ -440,7 +442,7 @@ export class RelayProxyRepository implements RelayProxyStore {
             const currentTotalRecharged = Number(currentAccount!.totalRecharged);
             const currentTotalUsed = Number(currentAccount!.totalUsed);
             const newTotalUsed = currentTotalUsed + remainingCost;
-            const rawBalance = currentTotalRecharged - newTotalUsed;
+            const rawBalance = currentTotalRecharged + Number(currentAccount!.totalCommissionEarned) - newTotalUsed;
             const newBalance = balanceChargeMode === "skip-when-non-positive" ? Math.max(0, rawBalance) : rawBalance;
 
             const updatedAccount = await tx.balanceAccount.update({
@@ -491,6 +493,13 @@ export class RelayProxyRepository implements RelayProxyStore {
                 pricingType: data.pricingType || null,
                 fixedPrice: data.fixedPrice != null ? new Decimal(data.fixedPrice) : null,
               },
+            });
+
+          if (shouldChargeBalance)
+            await this.channelProviderRevenueService.recordChargedUsage(tx, {
+              relayUsageId: usageRecord.id,
+              relayChannelId: data.channelId,
+              grossAmount: remainingCost,
             });
 
           const usedQuotaIncrement = round4(coveredByMonthlyPass + remainingCost);

@@ -77,6 +77,7 @@ export function buildRelayConfig(source: EnvSnapshot) {
       imageResponseBodyLimitMb: sanitizeInt(source.RELAY_IMAGE_RESPONSE_BODY_LIMIT_MB, 16, 1, 64),
     },
     channelProbe: { masterKey: String(source.RELAY_CHANNEL_PROBE_MASTER_KEY || "").trim() },
+    channelChangeRequest: { masterKey: String(source.RELAY_CHANNEL_CHANGE_REQUEST_MASTER_KEY || "").trim() },
   };
 }
 

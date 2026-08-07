@@ -901,11 +901,13 @@ export class RelayProxyService {
 
     for (const channel of eligibleChannels) {
       const channelAllowedModelNames = parseRelayChannelAllowedModelNames(channel);
-      let channelScopedModels = formatScopedModels;
-      if (channelAllowedModelNames != null)
-        channelScopedModels = formatScopedModels.filter((model) =>
-          isModelNameAllowed(channelAllowedModelNames, model.model || ""),
-        );
+      // `/v1/models` describes the models explicitly configured on the token's
+      // channels. An unrestricted channel is still routable, but it must not
+      // turn the endpoint into a dump of the entire global pricing catalog.
+      const channelScopedModels =
+        channelAllowedModelNames == null
+          ? []
+          : formatScopedModels.filter((model) => isModelNameAllowed(channelAllowedModelNames, model.model || ""));
 
       for (const model of channelScopedModels) {
         const modelId = resolveModelId(model);
@@ -919,9 +921,25 @@ export class RelayProxyService {
       const chMapping = channel.modelMapping as Record<string, string> | null | undefined;
       if (chMapping)
         for (const key of Object.keys(chMapping)) {
-          // Only expose literal model names — skip wildcard patterns like "*" or "gpt-*"
-          if (key && !key.includes("*") && !key.includes("?")) modelIds.add(key);
-          if (chMapping[key]) modelIds.add(chMapping[key]);
+          // Only expose literal model names — skip wildcard patterns like "*" or "gpt-*".
+          if (!key || key.includes("*") || key.includes("?")) continue;
+          const target = String(chMapping[key] || "").trim();
+          const mappedConfigs = formatScopedModels.filter((model) => {
+            const modelName = (model.model || "").trim();
+            const modelId = resolveModelId(model).trim();
+            return modelName === target || modelId === target;
+          });
+          if (
+            tokenAllowedModelIds.length > 0 &&
+            mappedConfigs.length > 0 &&
+            !mappedConfigs.some((model) => isModelIdAllowed(tokenAllowedModelIds, model))
+          )
+            continue;
+          // Keep the request alias visible, together with the configured target
+          // and canonical provider id when they are known.
+          modelIds.add(key);
+          if (target && !target.includes("*") && !target.includes("?")) modelIds.add(target);
+          for (const model of mappedConfigs) modelIds.add(resolveModelId(model));
         }
     }
 
@@ -930,8 +948,22 @@ export class RelayProxyService {
     if (tokenMapping)
       for (const key of Object.keys(tokenMapping)) {
         // Only expose literal model names — skip wildcard patterns like "*" or "gpt-*"
-        if (key && !key.includes("*") && !key.includes("?")) modelIds.add(key);
-        if (tokenMapping[key]) modelIds.add(tokenMapping[key]);
+        if (!key || key.includes("*") || key.includes("?")) continue;
+        const target = String(tokenMapping[key] || "").trim();
+        const mappedConfigs = formatScopedModels.filter((model) => {
+          const modelName = (model.model || "").trim();
+          const modelId = resolveModelId(model).trim();
+          return modelName === target || modelId === target;
+        });
+        if (
+          tokenAllowedModelIds.length > 0 &&
+          mappedConfigs.length > 0 &&
+          !mappedConfigs.some((model) => isModelIdAllowed(tokenAllowedModelIds, model))
+        )
+          continue;
+        modelIds.add(key);
+        if (target && !target.includes("*") && !target.includes("?")) modelIds.add(target);
+        for (const model of mappedConfigs) modelIds.add(resolveModelId(model));
       }
 
     return [...modelIds].sort((left, right) => left.localeCompare(right));

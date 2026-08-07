@@ -624,6 +624,23 @@
         </div>
       </el-form-item>
 
+      <el-divider content-position="left">{{ i18ns.t('relay.providers') }}</el-divider>
+      <el-alert
+        type="warning"
+        :closable="false"
+        :title="i18ns.t('relay.providerCommissionWarning')"
+        class="mb-3"
+      />
+      <el-form-item label="">
+        <RelayProviderShareEditor
+          :providers="channelForm.providers"
+          :user-options="visibilityUserOptions"
+          :users-loading="visibilityUserOptionsLoading"
+          @update:providers="channelForm.providers = $event"
+          @search-users="handleVisibilityUserSearch"
+        />
+      </el-form-item>
+
       <el-divider content-position="left">{{ i18ns.t('relay.modelMappingSection') }}</el-divider>
       <el-form-item :label="i18ns.t('relay.modelMapping')">
         <div class="flex flex-col gap-1 w-full">
@@ -1450,6 +1467,7 @@ import { useRouter } from 'vue-router'
 import { Delete, Rank, Top } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
+import RelayProviderShareEditor from '../../components/RelayProviderShareEditor.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
 

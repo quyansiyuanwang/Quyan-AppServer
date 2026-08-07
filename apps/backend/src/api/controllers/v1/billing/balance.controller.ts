@@ -106,6 +106,7 @@ export class BalanceController extends Controller {
       return "monthly_pass_coverage";
 
     if (r.type === "redemption") return "redemption";
+    if (r.type === "channel_commission") return "channel_commission";
     if (
       r.type === "gift_code_create" ||
       r.type === "gift_code_redeem" ||

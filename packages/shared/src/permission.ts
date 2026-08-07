@@ -99,6 +99,10 @@ export enum Permission {
   RELAY_CHANNEL_PROBE_READ = 'relay:channel:probe:read',
   RELAY_CHANNEL_PROBE_EXECUTE = 'relay:channel:probe:execute',
   RELAY_CHANNEL_MULTIPLIER_ADJUST = 'relay:channel:multiplier:adjust',
+  RELAY_CHANNEL_SUBMIT = 'relay:channel:submit',
+  RELAY_CHANNEL_REVIEW = 'relay:channel:review',
+  RELAY_CHANNEL_PROVIDER_READ = 'relay:channel:provider:read',
+  RELAY_CHANNEL_PROVIDER_SETTLE = 'relay:channel:provider:settle',
   RELAY_REQUEST_DIAGNOSTICS_READ = 'relay:request_diagnostics:read',
   RELAY_REQUEST_ROUTE_TRACE_READ = 'relay:request_route_trace:read',
 

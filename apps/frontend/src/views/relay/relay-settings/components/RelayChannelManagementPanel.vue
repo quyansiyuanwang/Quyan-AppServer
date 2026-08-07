@@ -49,6 +49,17 @@
           />
         </el-select>
         <el-select
+          :model-value="channelFilters.submissionStatus"
+          clearable
+          :placeholder="i18ns.t('relay.submissionStatus')"
+          @update:model-value="updateChannelFilters({ submissionStatus: $event })"
+        >
+          <el-option :label="i18ns.t('relay.submissionStatusPending')" value="pending" />
+          <el-option :label="i18ns.t('relay.submissionStatusApproved')" value="approved" />
+          <el-option :label="i18ns.t('relay.submissionStatusRejected')" value="rejected" />
+          <el-option :label="i18ns.t('relay.submissionStatusOffboarded')" value="offboarded" />
+        </el-select>
+        <el-select
           :model-value="channelFilters.enabled"
           clearable
           :placeholder="i18ns.t('status')"
@@ -125,6 +136,25 @@
           <template #default="{ row }"
             ><el-tag size="small">{{ formatChannelTypeLabel(row.channelType) }}</el-tag></template
           >
+        </el-table-column>
+        <el-table-column :label="i18ns.t('relay.submissionStatus')" width="120">
+          <template #default="{ row }">
+            <el-tag
+              size="small"
+              :type="
+                row.submissionStatus === 'approved'
+                  ? 'success'
+                  : row.submissionStatus === 'pending'
+                    ? 'warning'
+                    : 'info'
+              "
+            >
+              {{ submissionStatusLabel(row.submissionStatus) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="i18ns.t('relay.providers')" width="100" align="center">
+          <template #default="{ row }">{{ row.providerCount }}</template>
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.channelMultiplier')" width="112" align="right">
           <template #default="{ row }">
@@ -242,6 +272,16 @@
             <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
               <el-button text @click="openEditChannelDialog(row)">{{ i18ns.t('edit') }}</el-button>
             </PermissionWrapper>
+            <PermissionWrapper :require="[Permission.RELAY_CHANNEL_REVIEW]">
+              <el-button
+                v-if="row.submissionStatus === 'pending'"
+                text
+                type="success"
+                @click="handleReviewChannelSubmission(row)"
+              >
+                {{ i18ns.t('relay.reviewSubmission') }}
+              </el-button>
+            </PermissionWrapper>
             <PermissionWrapper :require="[Permission.RELAY_CHANNEL_UPDATE]">
               <el-button
                 text
@@ -354,6 +394,7 @@ const {
   openChannelDetailDialog,
   openEditChannelDialog,
   handleDuplicateChannel,
+  handleReviewChannelSubmission,
   handleToggleChannelStatus,
   handleDeleteChannel,
   handleBatchDuplicateChannels,
@@ -362,6 +403,18 @@ const {
   openChannelModelPricingMigrationDialog,
   handleBatchDeleteChannels,
 } = state
+
+const submissionStatusLabel = (
+  status: (typeof channelRows.value)[number]['submissionStatus'] = 'approved',
+) => {
+  const labels = {
+    pending: 'relay.submissionStatusPending',
+    approved: 'relay.submissionStatusApproved',
+    rejected: 'relay.submissionStatusRejected',
+    offboarded: 'relay.submissionStatusOffboarded',
+  } as const
+  return i18ns.t(labels[status])
+}
 
 const handleRowCommand = (command: string, row: (typeof channelRows.value)[number]) => {
   if (command === 'duplicate') void handleDuplicateChannel(row)

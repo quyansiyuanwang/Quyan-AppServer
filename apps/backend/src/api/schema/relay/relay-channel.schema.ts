@@ -52,6 +52,32 @@ const allowedModelsModeSchema = z.enum(["all", "manual", "auto"]);
 const automaticPoolRankingModeSchema = z.enum(["price-first", "stability-first"]);
 const healthTrackingModeSchema = z.enum(["automatic", "manual", "disabled"]);
 const visibilityModeSchema = z.enum(["public", "private", "whitelist", "hidden"]);
+const providerSettlementModeSchema = z.enum(["realtime", "interval", "daily", "manual"]);
+const providerConfigSchema = z
+  .object({
+    userId: z.string().trim().min(1),
+    commissionPercent: z.coerce.number().min(0).max(100),
+    settlementMode: providerSettlementModeSchema,
+    settlementIntervalDays: z.coerce.number().int().min(1).max(365).optional(),
+    settlementTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+      .optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.settlementMode === "interval" && !value.settlementIntervalDays)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["settlementIntervalDays"],
+        message: "Required for interval settlement",
+      });
+    if (value.settlementMode === "daily" && !value.settlementTime)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["settlementTime"],
+        message: "Required for daily settlement",
+      });
+  });
 
 const relayChannelMemberSchema = z.object({
   id: z.string().trim().min(1).optional(),
@@ -127,6 +153,7 @@ const relayChannelBaseSchema = z.object({
     )
     .nullable()
     .optional(),
+  providers: z.array(providerConfigSchema).max(100).optional(),
 });
 
 const relayChannelIdsSchema = z
@@ -145,6 +172,7 @@ export const relayChannelManagementQuerySchema = z.object({
   keyword: z.string().trim().max(100).optional(),
   channelType: relayChannelTypeSchema.optional(),
   enabled: z.coerce.boolean().optional(),
+  submissionStatus: z.enum(["pending", "approved", "rejected", "offboarded"]).optional(),
 });
 
 export const createRelayChannelBodySchema = relayChannelBaseSchema;
@@ -277,4 +305,73 @@ export const importRelayChannelsBodySchema = z.object({
     )
     .min(1)
     .max(200),
+});
+
+export const submitRelayChannelBodySchema = relayChannelBaseSchema
+  .pick({
+    name: true,
+    openaiUpstreamUrl: true,
+    openaiUpstreamApiKey: true,
+    anthropicUpstreamUrl: true,
+    anthropicUpstreamApiKey: true,
+    geminiUpstreamUrl: true,
+    geminiUpstreamApiKey: true,
+    multiplier: true,
+    allowedFormats: true,
+    allowedModels: true,
+    inputTokensIncludeCacheRead: true,
+    modelMapping: true,
+    timePeriodMultipliers: true,
+    contextLengthMultipliers: true,
+  })
+  .extend({
+    channelType: z.literal("standalone").optional(),
+    providers: z.array(providerConfigSchema).max(100).optional(),
+  });
+
+export const createRelayChannelChangeRequestBodySchema = submitRelayChannelBodySchema.omit({
+  channelType: true,
+});
+
+export const reviewRelayChannelChangeRequestBodySchema = z.object({
+  action: z.enum(["approve", "reject"]),
+  reason: z.string().trim().max(1000).optional(),
+});
+
+export const updateRelayChannelProviderConfigBodySchema = z.object({
+  multiplier: channelMultiplierSchema.optional(),
+  providers: z.array(providerConfigSchema).max(100).optional(),
+});
+
+export const relayChannelUpstreamModelsBodySchema = z
+  .object({
+    format: z.enum(["openai", "anthropic", "gemini"]),
+    channelId: z.string().trim().min(1).optional(),
+    upstreamUrl: z.string().max(500).optional(),
+    apiKey: z.string().max(500).optional(),
+  })
+  .superRefine((value, context) => {
+    if (!value.channelId && (!value.upstreamUrl || !value.apiKey)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["channelId"],
+        message: "channelId or upstream credentials are required",
+      });
+    }
+  });
+
+export const reviewRelayChannelSubmissionBodySchema = z.object({
+  action: z.enum(["approve", "reject", "offboard"]),
+  reason: z.string().trim().max(1000).optional(),
+});
+
+export const providerEarningsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(10000).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+export const relayChannelProviderUsersQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(10000).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  keyword: z.string().trim().max(100).optional(),
 });
