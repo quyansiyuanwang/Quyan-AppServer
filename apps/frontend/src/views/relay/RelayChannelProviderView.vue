@@ -133,10 +133,11 @@
       />
     </el-card>
 
-    <RelayChannelConfigDrawer
+    <RelayStandaloneChannelDrawer
       v-model="formVisible"
       :form="form"
-      :mode="formMode"
+      mode="provider"
+      :submit-mode="formMode"
       :submitting="submitting"
       :probe-loading="probeLoading"
       :probe-results="probeResults"
@@ -147,6 +148,11 @@
       @add-time-rule="addTimeRule"
       @add-context-rule="addContextRule"
       @save="saveForm"
+      @key-touched="
+        (format) => {
+          if (form.keyTouched) form.keyTouched[format] = true
+        }
+      "
     />
   </div>
 </template>
@@ -161,9 +167,9 @@ import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { relayChannelService } from '@/service/relayChannelService'
-import RelayChannelConfigDrawer, {
-  type RelayChannelConfigFormState,
-} from './components/RelayChannelConfigDrawer.vue'
+import RelayStandaloneChannelDrawer, {
+  type StandaloneChannelFormState,
+} from './components/RelayStandaloneChannelDrawer.vue'
 import type {
   RelayChannelDto,
   RelayChannelProviderConfigRequest,
@@ -193,12 +199,13 @@ const submissionPage = reactive({ page: 1, pageSize: 20, total: 0 })
 const earningsPage = reactive({ page: 1, pageSize: 20, total: 0 })
 const pendingAmount = ref(0)
 const settledAmount = ref(0)
-const emptyForm = (): RelayChannelConfigFormState => ({
+const emptyForm = (): StandaloneChannelFormState => ({
   name: '',
   formats: ['openai'],
   urls: { openai: '', anthropic: '', gemini: '' },
   keys: { openai: '', anthropic: '', gemini: '' },
   hasKeys: { openai: false, anthropic: false, gemini: false },
+  keyTouched: { openai: false, anthropic: false, gemini: false },
   multiplier: 1,
   inputTokensIncludeCacheRead: false,
   allowedModels: [],
@@ -207,7 +214,7 @@ const emptyForm = (): RelayChannelConfigFormState => ({
   timePeriodMultipliers: [],
   contextLengthMultipliers: [],
 })
-const form = reactive<RelayChannelConfigFormState>(emptyForm())
+const form = reactive<StandaloneChannelFormState>(emptyForm())
 const probeLoading = reactive<Record<Format, boolean>>({
   openai: false,
   anthropic: false,
@@ -272,6 +279,7 @@ const hydrateForm = (channel: RelayChannelDto) => {
   form.hasKeys.openai = channel.hasOpenaiUpstreamApiKey
   form.hasKeys.anthropic = channel.hasAnthropicUpstreamApiKey
   form.hasKeys.gemini = channel.hasGeminiUpstreamApiKey
+  form.keyTouched = { openai: false, anthropic: false, gemini: false }
   form.multiplier = channel.multiplier
   form.inputTokensIncludeCacheRead = channel.inputTokensIncludeCacheRead === true
   try {
