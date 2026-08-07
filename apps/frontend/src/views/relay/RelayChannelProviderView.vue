@@ -270,9 +270,19 @@ const modelOptions = computed(() => {
           : item.model,
     }))
 })
-const changeRequestByChannel = computed(
-  () => new Map(changeRequests.value.map((request) => [request.relayChannelId, request])),
-)
+const changeRequestByChannel = computed(() => {
+  const latest = new Map<string, any>()
+  for (const request of changeRequests.value) {
+    const previous = latest.get(request.relayChannelId)
+    if (
+      !previous ||
+      new Date(request.createTime).getTime() > new Date(previous.createTime).getTime()
+    ) {
+      latest.set(request.relayChannelId, request)
+    }
+  }
+  return latest
+})
 const providerTotal = (
   providers?: RelayChannelProviderConfigRequest[] | RelayChannelDto['providers'],
 ) => (providers || []).reduce((sum, provider) => sum + Number(provider.commissionPercent || 0), 0)

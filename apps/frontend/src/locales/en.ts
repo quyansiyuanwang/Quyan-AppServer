@@ -2258,6 +2258,8 @@ export default {
     submissionStatusRejected: 'Rejected',
     submissionStatusOffboarded: 'Offboarded',
     reviewReason: 'Review note',
+    reviewReasonPrompt: 'Provide a reason for rejection. It will be shown to the channel provider.',
+    reviewReasonRequired: 'A review note is required',
     submissionRequired: 'Enter a channel name plus the URL and API key for every selected format.',
     submissionSuccess: 'Channel submitted for review.',
     changeRequestSubmitted: 'Change request submitted for review.',

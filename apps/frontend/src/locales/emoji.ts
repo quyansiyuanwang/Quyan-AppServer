@@ -2359,6 +2359,8 @@ const emoji: DeepStringify<typeof en> = {
     submissionStatusRejected: '🔴',
     submissionStatusOffboarded: '⚪',
     reviewReason: '🔎 📝',
+    reviewReasonPrompt: '📝 ❌ 👤',
+    reviewReasonRequired: '📝 ❗',
     submissionRequired: '⚠️ 📡 🏷️ + URL + 🔑',
     submissionSuccess: '📡 ⏳ 🔎',
     changeRequestSubmitted: '📝 ⏳ 🔎',

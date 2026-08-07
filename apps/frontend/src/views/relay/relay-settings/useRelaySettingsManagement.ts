@@ -1805,15 +1805,25 @@ export const useRelaySettingsManagement = () => {
         action === 'approve'
           ? undefined
           : await ElMessageBox.prompt(
-              i18ns.t('relay.reviewReason'),
+              action === 'reject'
+                ? i18ns.t('relay.reviewReasonPrompt')
+                : i18ns.t('relay.reviewReason'),
               i18ns.t('relay.reviewSubmission'),
-              { inputPlaceholder: i18ns.t('relay.reviewReason') },
-            ).then(({ value }) => value)
+              {
+                inputType: 'textarea',
+                inputPlaceholder: i18ns.t('relay.reviewReason'),
+                inputValidator: (value) =>
+                  action === 'reject' && !value.trim()
+                    ? i18ns.t('relay.reviewReasonRequired')
+                    : true,
+              },
+            ).then(({ value }) => value.trim())
       await relayChannelService.reviewChannelSubmission(row.id, { action, reason })
       ElMessage.success(i18ns.t('relay.reviewSuccess'))
       await loadChannels()
     } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || i18ns.t('operationFailed'))
+      if (error !== 'cancel' && error !== 'close')
+        ElMessage.error(error.message || i18ns.t('operationFailed'))
     }
   }
 

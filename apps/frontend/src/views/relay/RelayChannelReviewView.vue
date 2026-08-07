@@ -194,7 +194,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Close, Refresh, Setting, View } from '@element-plus/icons-vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
@@ -296,9 +296,28 @@ const refresh = () => {
   void loadChannels(1)
   void loadChanges()
 }
+const promptReviewReason = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      i18ns.t('relay.reviewReasonPrompt'),
+      i18ns.t('relay.reviewReject'),
+      {
+        inputType: 'textarea',
+        inputPlaceholder: i18ns.t('relay.reviewReason'),
+        inputValidator: (value) => (value.trim() ? true : i18ns.t('relay.reviewReasonRequired')),
+      },
+    )
+    return value.trim()
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') return undefined
+    throw error
+  }
+}
 const reviewSubmission = async (id: string, action: 'approve' | 'reject' | 'offboard') => {
   try {
-    await relayChannelService.reviewChannelSubmission(id, { action })
+    const reason = action === 'reject' ? await promptReviewReason() : undefined
+    if (action === 'reject' && reason === undefined) return
+    await relayChannelService.reviewChannelSubmission(id, { action, reason })
     ElMessage.success(i18ns.t('relay.reviewSuccess'))
     await Promise.all([loadChannels(channelPage.page), loadChanges()])
   } catch (error: any) {
@@ -307,7 +326,9 @@ const reviewSubmission = async (id: string, action: 'approve' | 'reject' | 'offb
 }
 const reviewChange = async (id: string, action: 'approve' | 'reject') => {
   try {
-    await relayChannelService.reviewChangeRequest(id, { action })
+    const reason = action === 'reject' ? await promptReviewReason() : undefined
+    if (action === 'reject' && reason === undefined) return
+    await relayChannelService.reviewChangeRequest(id, { action, reason })
     ElMessage.success(i18ns.t('relay.reviewSuccess'))
     await Promise.all([loadChannels(channelPage.page), loadChanges()])
   } catch (error: any) {

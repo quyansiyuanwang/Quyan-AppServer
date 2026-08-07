@@ -1711,6 +1711,29 @@ describe("RelayChannelService", () => {
     );
   });
 
+  it("requires a review reason when rejecting an initial submission", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "supplier-user",
+      submissionStatus: "pending",
+    });
+    await expect(
+      service.reviewSubmittedChannel("channel-1", { action: "reject", reason: "   " }, "reviewer-user"),
+    ).rejects.toThrow("审核说明不能为空");
+  });
+
+  it("requires a review reason when rejecting a change request", async () => {
+    changeRequestRepository.findById.mockResolvedValue({
+      id: "change-1",
+      status: 1,
+      reviewStatus: "pending",
+      relayChannelId: "channel-1",
+    });
+    await expect(
+      service.reviewChangeRequest("change-1", { action: "reject", reason: "" }, "reviewer-user"),
+    ).rejects.toThrow("审核说明不能为空");
+  });
+
   it("approving a change request applies the configuration and enables the channel", async () => {
     const pendingRequest = {
       id: "change-1",

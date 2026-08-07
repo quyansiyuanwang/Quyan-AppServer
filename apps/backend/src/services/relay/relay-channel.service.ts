@@ -2163,6 +2163,10 @@ export class RelayChannelService {
     if (!existing.submittedByUserId) throw new BadRequestError("Only submitted channels may be reviewed");
     if (await this.changeRequestRepository.findPendingByChannelId(id))
       throw new ConflictError("A pending change request must be reviewed before the channel submission");
+    const reason = body.reason?.trim();
+    if (body.action === "reject" && !reason) {
+      throw new BadRequestError("审核说明不能为空", undefined, { messageKey: "relay.reviewReasonRequired" });
+    }
     const approved = body.action === "approve";
     const existingWithProviders = existing as RelayChannel & {
       providers: Array<{
@@ -2178,7 +2182,7 @@ export class RelayChannelService {
       status: approved ? RELAY_CHANNEL_STATUS.ENABLED : RELAY_CHANNEL_STATUS.DISABLED,
       reviewedByUserId: actorUserId,
       reviewedAt: new Date(),
-      reviewReason: body.reason?.trim() || null,
+      reviewReason: reason || null,
     };
     const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
       const updated = await this.relayChannelRepository.updateById(id, data, tx);
@@ -2527,6 +2531,10 @@ export class RelayChannelService {
     const row = await this.changeRequestRepository.findById(changeRequestId);
     if (!row || row.status !== 1) throw new NotFoundError("Relay channel change request not found");
     if (row.reviewStatus !== "pending") return this.toChangeRequestDto(row);
+    const reason = body.reason?.trim();
+    if (body.action === "reject" && !reason) {
+      throw new BadRequestError("审核说明不能为空", undefined, { messageKey: "relay.reviewReasonRequired" });
+    }
     const channel = await this.relayChannelRepository.findVisibleById(row.relayChannelId);
     if (!channel) throw new NotFoundError("Relay channel not found");
     const snapshot = row.configSnapshot as unknown as RelayChannelChangeRequestSnapshot;
@@ -2570,7 +2578,7 @@ export class RelayChannelService {
             status: previousChannelStatus,
             reviewedByUserId: actorUserId,
             reviewedAt: new Date(),
-            reviewReason: body.reason?.trim() || null,
+            reviewReason: reason || null,
           },
           tx,
         );
@@ -2581,7 +2589,7 @@ export class RelayChannelService {
           reviewStatus: body.action === "approve" ? "approved" : "rejected",
           reviewedByUserId: actorUserId,
           reviewedAt: new Date(),
-          reviewReason: body.reason?.trim() || null,
+          reviewReason: reason || null,
         },
         tx,
       );

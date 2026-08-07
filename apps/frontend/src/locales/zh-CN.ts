@@ -2185,6 +2185,8 @@ const zhCN: DeepStringify<typeof en> = {
     submissionStatusRejected: '已拒绝',
     submissionStatusOffboarded: '已下架',
     reviewReason: '审核说明',
+    reviewReasonPrompt: '请填写拒绝原因，提交后将展示给渠道提供者。',
+    reviewReasonRequired: '审核说明不能为空',
     submissionRequired: '请填写渠道名称、已选格式的 URL 和 API Key。',
     submissionSuccess: '渠道已提交，等待审核。',
     changeRequestSubmitted: '修改申请已提交，等待审核。',
