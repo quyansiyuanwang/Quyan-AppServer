@@ -36,6 +36,7 @@ import type {
   RelayChannelUpstreamModelsRequest,
   RelayChannelUpstreamModelsResponse,
   UpdateRelayChannelProviderConfigRequest,
+  UpdateRelayChannelServiceStatusRequest,
 } from '@/client/types.gen'
 import { checkApiResult } from '@/utils/service-utils'
 import { cacheObject } from '@/utils/common'
@@ -262,6 +263,17 @@ class RelayChannelService {
   async deleteSubmittedChannel(id: string): Promise<void> {
     const result = await relayChannelApi.deleteSubmittedChannel({ path: { id } })
     checkApiResult(result, false)
+  }
+
+  async updateSubmittedChannelServiceStatus(
+    id: string,
+    data: UpdateRelayChannelServiceStatusRequest,
+  ): Promise<RelayChannelDto> {
+    const result = await relayChannelApi.updateSubmittedChannelServiceStatus({
+      path: { id },
+      body: data,
+    })
+    return checkApiResult<any>(result, true).data
   }
 
   async reviewChannelSubmission(

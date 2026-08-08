@@ -1290,6 +1290,8 @@ export const useRelaySettingsManagement = () => {
           id: channel.id,
           name: channel.name,
           enabled: channel.enabled,
+          providerServiceEnabled: channel.providerServiceEnabled,
+          serviceEnabled: channel.serviceEnabled,
           channelType: channel.channelType,
           routingStrategy: channel.routingStrategy,
           visibilityMode: channel.visibilityMode,

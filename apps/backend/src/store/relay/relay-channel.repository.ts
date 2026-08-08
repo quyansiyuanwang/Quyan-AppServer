@@ -43,6 +43,7 @@ export class RelayChannelRepository implements RelayChannelStore {
       where: {
         name,
         status: RELAY_CHANNEL_STATUS.ENABLED,
+        providerServiceEnabled: true,
       },
       include: relayChannelInclude,
     });
@@ -61,7 +62,7 @@ export class RelayChannelRepository implements RelayChannelStore {
   async listActive(tx?: RelayChannelTransactionClient): Promise<RelayChannel[]> {
     const client = tx ?? prisma;
     return client.relayChannel.findMany({
-      where: { status: RELAY_CHANNEL_STATUS.ENABLED },
+      where: { status: RELAY_CHANNEL_STATUS.ENABLED, providerServiceEnabled: true },
       orderBy: { createTime: "desc" },
       include: relayChannelInclude,
     });
@@ -81,6 +82,7 @@ export class RelayChannelRepository implements RelayChannelStore {
       where: {
         id,
         status: RELAY_CHANNEL_STATUS.ENABLED,
+        providerServiceEnabled: true,
       },
       include: relayChannelInclude,
     });
@@ -104,6 +106,7 @@ export class RelayChannelRepository implements RelayChannelStore {
       where: {
         id: { in: ids },
         status: RELAY_CHANNEL_STATUS.ENABLED,
+        providerServiceEnabled: true,
       },
       include: relayChannelInclude,
     });
@@ -126,6 +129,7 @@ export class RelayChannelRepository implements RelayChannelStore {
     return prisma.relayChannel.findMany({
       where: {
         status: RELAY_CHANNEL_STATUS.ENABLED,
+        providerServiceEnabled: true,
         channelType: "pooled",
         OR: [
           {
@@ -134,6 +138,7 @@ export class RelayChannelRepository implements RelayChannelStore {
                 id: memberChannelId,
                 pooledMemberEnabled: true,
                 status: RELAY_CHANNEL_STATUS.ENABLED,
+                providerServiceEnabled: true,
               },
             },
           },
@@ -142,7 +147,11 @@ export class RelayChannelRepository implements RelayChannelStore {
               some: {
                 memberChannelId,
                 enabled: true,
-                memberChannel: { pooledParentId: null },
+                memberChannel: {
+                  pooledParentId: null,
+                  status: RELAY_CHANNEL_STATUS.ENABLED,
+                  providerServiceEnabled: true,
+                },
               },
             },
           },
@@ -166,6 +175,7 @@ export class RelayChannelRepository implements RelayChannelStore {
           submittedByUserId: true,
           submittedBy: { select: { username: true } },
           status: true,
+          providerServiceEnabled: true,
           channelType: true,
           routingStrategy: true,
           visibilityMode: true,

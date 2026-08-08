@@ -1670,6 +1670,77 @@ describe("RelayChannelService", () => {
     expect(relayChannelRepository.softDeleteAndUnassignTokens).not.toHaveBeenCalled();
   });
 
+  it("allows the original submitter to pause an approved standalone channel", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "actor-user",
+      submissionStatus: "approved",
+      channelType: "standalone",
+      providerServiceEnabled: true,
+    });
+
+    const result = await service.updateSubmittedChannelServiceStatus("channel-1", { enabled: false }, "actor-user");
+
+    expect(relayChannelRepository.updateById).toHaveBeenCalledWith("channel-1", {
+      providerServiceEnabled: false,
+    });
+    expect(result).toMatchObject({ providerServiceEnabled: false, serviceEnabled: false });
+    expect(businessLogService.logOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changes: { providerServiceEnabled: false, serviceEnabled: false },
+      }),
+    );
+  });
+
+  it("rejects service changes for another submitter, non-approved, or non-standalone channels", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "another-user",
+      submissionStatus: "approved",
+      channelType: "standalone",
+    });
+    await expect(
+      service.updateSubmittedChannelServiceStatus("channel-1", { enabled: false }, "actor-user"),
+    ).rejects.toThrow();
+
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "actor-user",
+      submissionStatus: "pending",
+      channelType: "standalone",
+    });
+    await expect(
+      service.updateSubmittedChannelServiceStatus("channel-1", { enabled: false }, "actor-user"),
+    ).rejects.toThrow();
+
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "actor-user",
+      submissionStatus: "approved",
+      channelType: "pooled",
+    });
+    await expect(
+      service.updateSubmittedChannelServiceStatus("channel-1", { enabled: false }, "actor-user"),
+    ).rejects.toThrow();
+    expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
+  });
+
+  it("does not let a provider resume an administrator-disabled channel", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "actor-user",
+      submissionStatus: "approved",
+      channelType: "standalone",
+      status: RELAY_CHANNEL_STATUS.DISABLED,
+      providerServiceEnabled: false,
+    });
+
+    await expect(
+      service.updateSubmittedChannelServiceStatus("channel-1", { enabled: true }, "actor-user"),
+    ).rejects.toThrow("The administrator has disabled this channel");
+    expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
+  });
+
   it("moves a rejected submission back to pending when its submitter requests a change", async () => {
     relayChannelRepository.findVisibleById.mockResolvedValue({
       ...sampleChannel,
@@ -1780,6 +1851,7 @@ describe("RelayChannelService", () => {
         name: "Main revised",
         submissionStatus: "approved",
         status: RELAY_CHANNEL_STATUS.ENABLED,
+        providerServiceEnabled: true,
         reviewedByUserId: "reviewer-user",
         reviewReason: null,
       }),

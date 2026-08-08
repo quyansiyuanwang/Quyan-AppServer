@@ -26,6 +26,11 @@
             }}</el-tag></template
           ></el-table-column
         >
+        <el-table-column :label="i18ns.t('relay.serviceStatus')" width="150">
+          <template #default="{ row }">
+            <el-tag :type="serviceStatusType(row)">{{ serviceStatusLabel(row) }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column :label="i18ns.t('relay.providerTotalCommission')" width="150"
           ><template #default="{ row }"
             >{{ providerTotal(row.providers) }}%</template
@@ -47,7 +52,7 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('actions')" width="280" fixed="right"
+        <el-table-column :label="i18ns.t('actions')" width="380" fixed="right"
           ><template #default="{ row }"
             ><el-button
               v-if="['pending', 'approved', 'rejected'].includes(row.submissionStatus)"
@@ -56,6 +61,18 @@
               :disabled="changeRequestByChannel.get(row.id)?.reviewStatus === 'pending'"
               @click="openChangeRequest(row)"
               >{{ i18ns.t('relay.submitChangeRequest') }}</el-button
+            ><el-button
+              v-if="row.submissionStatus === 'approved'"
+              size="small"
+              :type="row.providerServiceEnabled ? 'warning' : 'success'"
+              :loading="serviceStatusChannelId === row.id"
+              :disabled="row.providerServiceEnabled === false && row.enabled === false"
+              @click="updateServiceStatus(row)"
+              >{{
+                row.providerServiceEnabled
+                  ? i18ns.t('relay.pauseService')
+                  : i18ns.t('relay.resumeService')
+              }}</el-button
             ><el-button
               v-if="['pending', 'rejected', 'offboarded'].includes(row.submissionStatus)"
               size="small"
@@ -200,6 +217,7 @@ const submissionsLoading = ref(false)
 const earningsLoading = ref(false)
 const submitting = ref(false)
 const claiming = ref(false)
+const serviceStatusChannelId = ref<string>()
 const formVisible = ref(false)
 const formMode = ref<'submit' | 'change'>('submit')
 const editingChannelId = ref<string>()
@@ -301,6 +319,15 @@ const submissionStatusLabel = (status: RelayChannelSubmissionStatus) =>
       } as const
     )[status],
   )
+const serviceStatusType = (channel: RelayChannelDto) => {
+  if (channel.serviceEnabled) return 'success'
+  return channel.enabled ? 'warning' : 'info'
+}
+const serviceStatusLabel = (channel: RelayChannelDto) => {
+  if (channel.serviceEnabled) return i18ns.t('relay.serviceOnline')
+  if (!channel.enabled) return i18ns.t('relay.serviceAdminDisabled')
+  return i18ns.t('relay.servicePaused')
+}
 const changeStatusType = (status: string) =>
   (({ approved: 'success', rejected: 'danger', pending: 'warning' })[status] || 'info') as any
 const changeStatusLabel = (status: string) =>
@@ -433,6 +460,25 @@ const deleteSubmission = async (channel: RelayChannelDto) => {
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
     ElMessage.error(error?.message || i18ns.t('operationFailed'))
+  }
+}
+const updateServiceStatus = async (channel: RelayChannelDto) => {
+  const enabled = channel.providerServiceEnabled === false
+  try {
+    await ElMessageBox.confirm(
+      i18ns.t(enabled ? 'relay.resumeServiceConfirm' : 'relay.pauseServiceConfirm'),
+      i18ns.t(enabled ? 'relay.resumeService' : 'relay.pauseService'),
+      { type: enabled ? 'info' : 'warning' },
+    )
+    serviceStatusChannelId.value = channel.id
+    await relayChannelService.updateSubmittedChannelServiceStatus(channel.id, { enabled })
+    ElMessage.success(i18ns.t('relay.serviceStatusUpdated'))
+    await Promise.all([loadSubmissions(), loadChangeRequests()])
+  } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(error?.message || i18ns.t('operationFailed'))
+  } finally {
+    serviceStatusChannelId.value = undefined
   }
 }
 const addTimeRule = () =>
