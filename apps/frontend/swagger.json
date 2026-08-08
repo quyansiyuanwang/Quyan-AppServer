@@ -10017,6 +10017,72 @@
 				"parameters": []
 			}
 		},
+		"/v1/data-lifecycle/schedule": {
+			"get": {
+				"operationId": "DataLifecycleControllerGetSchedule",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataLifecycleScheduleDTO"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataLifecycle"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "DataLifecycleControllerUpdateSchedule",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataLifecycleScheduleDTO"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataLifecycle"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDataLifecycleScheduleRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/data-lifecycle/policies/{dataset}": {
 			"put": {
 				"operationId": "DataLifecycleControllerUpdatePolicy",
@@ -10098,6 +10164,61 @@
 						"required": true,
 						"schema": {
 							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/data-lifecycle/policies/{dataset}/candidates": {
+			"get": {
+				"operationId": "DataLifecycleControllerListCandidates",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataLifecycleCandidateListResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataLifecycle"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "dataset",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
 						}
 					}
 				]
@@ -34892,6 +35013,10 @@
 						"type": "string",
 						"format": "date-time",
 						"nullable": true
+					},
+					"candidateCount": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
@@ -34900,7 +35025,44 @@
 					"enabled",
 					"hotRetentionDays",
 					"archiveRetentionDays",
-					"lastRunAt"
+					"lastRunAt",
+					"candidateCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DataLifecycleScheduleDTO": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"time": {
+						"type": "string"
+					},
+					"timezone": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"enabled",
+					"time",
+					"timezone"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateDataLifecycleScheduleRequest": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"time": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"enabled",
+					"time"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -34944,6 +35106,66 @@
 					"cutoffAt",
 					"candidateCount",
 					"enabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DataLifecycleCandidateDTO": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"summary": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"createTime",
+					"summary"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DataLifecycleCandidateListResponse": {
+				"properties": {
+					"dataset": {
+						"type": "string"
+					},
+					"cutoffAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"candidateCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/DataLifecycleCandidateDTO"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"dataset",
+					"cutoffAt",
+					"candidateCount",
+					"items",
+					"page",
+					"pageSize"
 				],
 				"type": "object",
 				"additionalProperties": false

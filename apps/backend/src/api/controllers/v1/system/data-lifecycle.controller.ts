@@ -17,11 +17,14 @@ import type {
   ArchiveArtifactListResponse,
   BatchDataLifecycleRunRequest,
   BatchDataLifecycleRunResponse,
+  DataLifecycleCandidateListResponse,
   DataLifecyclePolicyDTO,
   DataLifecyclePreviewResponse,
+  DataLifecycleScheduleDTO,
   DataLifecycleRunListResponse,
   DataLifecycleRunResultResponse,
   UpdateDataLifecyclePolicyRequest,
+  UpdateDataLifecycleScheduleRequest,
 } from "@/api/dto/system/data-lifecycle.dto";
 import { DataLifecycleService } from "@/services/system/data-lifecycle.service";
 import { DataLifecycleSchedulerService } from "@/services/system/data-lifecycle-scheduler.service";
@@ -34,10 +37,12 @@ import {
   lifecycleArtifactParamsSchema,
   batchLifecycleRunBodySchema,
   lifecycleArtifactsQuerySchema,
+  lifecycleCandidatesQuerySchema,
   lifecycleDatasetParamsSchema,
   lifecycleRunParamsSchema,
   lifecycleRunsQuerySchema,
   updateLifecyclePolicyBodySchema,
+  updateLifecycleScheduleBodySchema,
 } from "@/api/schema/system/data-lifecycle.schema";
 import type { TypedRequest } from "@/types/express";
 
@@ -51,7 +56,33 @@ export class DataLifecycleController extends Controller {
   @Security("jwt")
   @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
   public async listPolicies(): Promise<DataLifecyclePolicyDTO[]> {
-    return this.service.listPolicies();
+    return await this.service.listPolicies();
+  }
+
+  @Get("schedule")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  public async getSchedule(): Promise<DataLifecycleScheduleDTO> {
+    return this.service.getSchedule();
+  }
+
+  @Put("schedule")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(updateLifecycleScheduleBodySchema),
+  )
+  public async updateSchedule(
+    @Request() request: TypedRequest,
+    @Body() body: UpdateDataLifecycleScheduleRequest,
+  ): Promise<DataLifecycleScheduleDTO> {
+    const schedule = await this.service.updateSchedule(body, request.user?.userId, request);
+    await this.scheduler.refreshSchedule();
+    return schedule;
   }
 
   @Put("policies/{dataset}")
@@ -78,6 +109,19 @@ export class DataLifecycleController extends Controller {
   @Middlewares(validateParams(lifecycleDatasetParamsSchema))
   public async preview(@Path() dataset: string): Promise<DataLifecyclePreviewResponse> {
     return this.service.preview(dataset);
+  }
+
+  @Get("policies/{dataset}/candidates")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(validateParams(lifecycleDatasetParamsSchema), validateQuery(lifecycleCandidatesQuerySchema))
+  public async listCandidates(
+    @Path() dataset: string,
+    @Query() page: number = 1,
+    @Query() pageSize: number = 20,
+  ): Promise<DataLifecycleCandidateListResponse> {
+    const result = await this.service.listCandidates(dataset, page, pageSize);
+    return { ...result, page, pageSize };
   }
 
   @Post("policies/{dataset}/run")

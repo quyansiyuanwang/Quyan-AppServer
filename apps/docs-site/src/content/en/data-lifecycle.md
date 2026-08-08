@@ -16,9 +16,14 @@ Balance transactions are never automatically archived or deleted.
 
 ## Execution Rules
 
-1. Preview the candidate count.
-2. The server writes gzip NDJSON and uploads it to OSS.
-3. Hot rows are deleted in batches only after object size and SHA-256 verification succeeds.
-4. Run history reports candidate, archived, and deleted counts. Failures preserve source data and can be retried.
+1. The policy table shows how many records will be archived and deleted.
+2. Select “Run archive” to open a paginated preview dialog with record IDs, timestamps, and redacted summaries. Execution starts only after confirmation.
+3. The server writes gzip NDJSON and uploads it to OSS.
+4. Hot rows are deleted in batches only after object size and SHA-256 verification succeeds.
+5. Run history reports candidate, archived, and deleted counts. Failures preserve source data and can be retried.
+
+## Scheduled Archives
+
+The default schedule runs enabled policies daily at 03:20 (Asia/Shanghai). Administrators can change the time or disable the schedule on the page; saved changes take effect within about one minute.
 
 Archive details are available as administrator downloads in the first release, not as in-app full-text search. Expired archive objects are removed automatically.

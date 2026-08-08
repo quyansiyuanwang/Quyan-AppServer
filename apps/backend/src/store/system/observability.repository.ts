@@ -218,6 +218,21 @@ export class ObservabilityRepository {
     return delegate.findMany({ where: { createTime: { lt: cutoffAt } }, orderBy: { createTime: "asc" }, take });
   }
 
+  public listDatasetCandidates(
+    dataset: DatabaseLifecycleDataset,
+    cutoffAt: Date,
+    skip: number,
+    take: number,
+  ): Promise<Array<Record<string, unknown>>> {
+    const delegate = prisma[dataSetDelegates[dataset] as keyof typeof prisma] as any;
+    return delegate.findMany({
+      where: { createTime: { lt: cutoffAt } },
+      orderBy: { createTime: "asc" },
+      skip,
+      take,
+    });
+  }
+
   public deleteDatasetIds(dataset: DatabaseLifecycleDataset, ids: string[]): Promise<number> {
     const delegate = prisma[dataSetDelegates[dataset] as keyof typeof prisma] as any;
     return delegate.deleteMany({ where: { id: { in: ids } } }).then((result: { count: number }) => result.count);

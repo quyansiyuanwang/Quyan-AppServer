@@ -2,8 +2,10 @@ import { createHash } from "crypto";
 import { promises as fs } from "fs";
 import { gzipSync } from "zlib";
 import path from "path";
+import type { Request } from "express";
 import OSS from "ali-oss";
 import { env } from "@/config/env";
+import { CONFIG_KEYS } from "@/constant/config-keys";
 import { getLogger, LogCategory } from "@/util/logger";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import {
@@ -11,11 +13,14 @@ import {
   ObservabilityRepository,
   type DataLifecycleDataset,
 } from "@/store/system/observability.repository";
+import { ConfigService } from "@/services/system/config.service";
 
 const logger = getLogger("DataLifecycleService", LogCategory.SYSTEM);
 const ARCHIVE_BATCH_SIZE = 1000;
 const SERVER_LOG_DATASET = "server_logs" as const;
 const SERVER_LOG_FILE_PATTERN = /^(?:combined|error)-(\d{4}-\d{2}-\d{2})(?:-\d+)?\.log(?:\.gz)?$/;
+const DEFAULT_SCHEDULE_TIME = "03:20";
+const SCHEDULE_TIMEZONE = "Asia/Shanghai";
 
 const isDataset = (value: string): value is DataLifecycleDataset =>
   (DATA_LIFECYCLE_DATASETS as readonly string[]).includes(value);
@@ -24,11 +29,27 @@ function stringifyArchiveRow(row: Record<string, unknown>): string {
   return JSON.stringify(row, (_key, value) => (typeof value === "bigint" ? value.toString() : value));
 }
 
+function candidateSummaryValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value)
+    .replace(/Bearer\s+[^\s,]+/gi, "Bearer ***")
+    .replace(
+      /((?:authorization|access[_-]?token|refresh[_-]?token|api[_-]?key|apikey|password|secret|token))=([^&\s]+)/gi,
+      "$1=***",
+    )
+    .replace(/\b[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "***TOKEN***")
+    .replace(/\s+/g, " ")
+    .slice(0, 180);
+}
+
 export class DataLifecycleService {
   private static instance: DataLifecycleService;
   private ossClient: OSS | null = null;
 
-  private constructor(private readonly repository: ObservabilityRepository = ObservabilityRepository.getInstance()) {}
+  private constructor(
+    private readonly repository: ObservabilityRepository = ObservabilityRepository.getInstance(),
+    private readonly configService: ConfigService = ConfigService.getInstance(),
+  ) {}
 
   public static getInstance(): DataLifecycleService {
     if (!this.instance) this.instance = new DataLifecycleService();
@@ -39,15 +60,53 @@ export class DataLifecycleService {
     await this.repository.ensureLifecyclePolicies();
   }
 
-  public listPolicies() {
-    return this.repository.listLifecyclePolicies();
+  public async listPolicies() {
+    const policies = await this.repository.listLifecyclePolicies();
+    return Promise.all(
+      policies.map(async (policy) => ({
+        ...policy,
+        candidateCount: isDataset(policy.dataset)
+          ? await this.countCandidates(policy.dataset, this.cutoff(policy.hotRetentionDays))
+          : 0,
+      })),
+    );
+  }
+
+  public async getSchedule() {
+    const configs = await this.configService.getMultiple([
+      CONFIG_KEYS.DATA_LIFECYCLE.SCHEDULE_ENABLED,
+      CONFIG_KEYS.DATA_LIFECYCLE.SCHEDULE_TIME,
+    ]);
+    return {
+      enabled: configs[CONFIG_KEYS.DATA_LIFECYCLE.SCHEDULE_ENABLED] !== "false",
+      time: /^([01]\d|2[0-3]):[0-5]\d$/.test(configs[CONFIG_KEYS.DATA_LIFECYCLE.SCHEDULE_TIME] || "")
+        ? configs[CONFIG_KEYS.DATA_LIFECYCLE.SCHEDULE_TIME]
+        : DEFAULT_SCHEDULE_TIME,
+      timezone: SCHEDULE_TIMEZONE,
+    };
+  }
+
+  public async updateSchedule(input: { enabled: boolean; time: string }, actorUserId?: string, request?: Request) {
+    await this.configService.setMultiple(
+      {
+        [CONFIG_KEYS.DATA_LIFECYCLE.SCHEDULE_ENABLED]: String(input.enabled),
+        [CONFIG_KEYS.DATA_LIFECYCLE.SCHEDULE_TIME]: input.time,
+      },
+      actorUserId,
+      request,
+    );
+    return this.getSchedule();
   }
 
   public async updatePolicy(dataset: string, enabled: boolean, hotRetentionDays: number) {
     if (!isDataset(dataset)) throw new BadRequestError("Unsupported lifecycle dataset");
     if (!Number.isInteger(hotRetentionDays) || hotRetentionDays < 1 || hotRetentionDays > 3650)
       throw new BadRequestError("hotRetentionDays must be between 1 and 3650");
-    return this.repository.updateLifecyclePolicy(dataset, { enabled, hotRetentionDays });
+    const policy = await this.repository.updateLifecyclePolicy(dataset, { enabled, hotRetentionDays });
+    return {
+      ...policy,
+      candidateCount: await this.countCandidates(dataset, this.cutoff(hotRetentionDays)),
+    };
   }
 
   public async preview(dataset: string) {
@@ -55,16 +114,33 @@ export class DataLifecycleService {
     const policy = await this.repository.getLifecyclePolicy(dataset);
     if (!policy) throw new NotFoundError("Lifecycle policy not found");
     const cutoffAt = this.cutoff(policy.hotRetentionDays);
-    const candidateCount =
-      dataset === SERVER_LOG_DATASET
-        ? (await this.listServerLogCandidates(cutoffAt)).length
-        : await this.repository.countDatasetBefore(dataset, cutoffAt);
+    const candidateCount = await this.countCandidates(dataset, cutoffAt);
     return {
       dataset,
       cutoffAt,
       candidateCount,
       enabled: policy.enabled,
     };
+  }
+
+  public async listCandidates(dataset: string, page: number, pageSize: number) {
+    if (!isDataset(dataset)) throw new BadRequestError("Unsupported lifecycle dataset");
+    const policy = await this.repository.getLifecyclePolicy(dataset);
+    if (!policy) throw new NotFoundError("Lifecycle policy not found");
+    const cutoffAt = this.cutoff(policy.hotRetentionDays);
+    const candidateCount = await this.countCandidates(dataset, cutoffAt);
+    const skip = (page - 1) * pageSize;
+    const items =
+      dataset === SERVER_LOG_DATASET
+        ? (await this.listServerLogCandidates(cutoffAt))
+            .slice(skip, skip + pageSize)
+            .map((candidate) => ({ id: candidate.name, createTime: candidate.date, summary: candidate.name }))
+        : (await this.repository.listDatasetCandidates(dataset, cutoffAt, skip, pageSize)).map((record) => ({
+            id: String(record.id),
+            createTime: record.createTime as Date,
+            summary: this.candidateSummary(dataset, record),
+          }));
+    return { dataset, cutoffAt, candidateCount, items };
   }
 
   public async runPolicy(dataset: string, runType: "manual" | "scheduled", startedByUserId?: string) {
@@ -75,10 +151,7 @@ export class DataLifecycleService {
     if (!policy.enabled && runType === "scheduled") return null;
 
     const cutoffAt = this.cutoff(policy.hotRetentionDays);
-    const candidateCount =
-      dataset === SERVER_LOG_DATASET
-        ? (await this.listServerLogCandidates(cutoffAt)).length
-        : await this.repository.countDatasetBefore(dataset, cutoffAt);
+    const candidateCount = await this.countCandidates(dataset, cutoffAt);
     const run = await this.repository.createLifecycleRun({
       policyId: policy.id,
       dataset,
@@ -260,6 +333,36 @@ export class DataLifecycleService {
 
   private cutoff(days: number): Date {
     return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  }
+
+  private async countCandidates(dataset: DataLifecycleDataset, cutoffAt: Date): Promise<number> {
+    return dataset === SERVER_LOG_DATASET
+      ? (await this.listServerLogCandidates(cutoffAt)).length
+      : this.repository.countDatasetBefore(dataset, cutoffAt);
+  }
+
+  private candidateSummary(
+    dataset: Exclude<DataLifecycleDataset, typeof SERVER_LOG_DATASET>,
+    record: Record<string, unknown>,
+  ) {
+    switch (dataset) {
+      case "api_logs":
+        return `${candidateSummaryValue(record.method)} ${candidateSummaryValue(record.path)} · ${candidateSummaryValue(record.statusCode)} · ${candidateSummaryValue(record.requestID)}`;
+      case "business_logs":
+        return `${candidateSummaryValue(record.operationType)} · ${candidateSummaryValue(record.operationCategory)} · ${candidateSummaryValue(record.description)}`;
+      case "notification_logs":
+        return `${candidateSummaryValue(record.eventType)} · ${candidateSummaryValue(record.title)} · ${candidateSummaryValue(record.deliveryStatus)}`;
+      case "track_events":
+        return `${candidateSummaryValue(record.eventType)} · ${candidateSummaryValue(record.name)} · ${candidateSummaryValue(record.page)}`;
+      case "heatmap_points":
+        return `${candidateSummaryValue(record.pointType)} · ${candidateSummaryValue(record.page)} · ${candidateSummaryValue(record.sessionId)}`;
+      case "relay_usages":
+        return `${candidateSummaryValue(record.method)} ${candidateSummaryValue(record.path)} · ${candidateSummaryValue(record.statusCode)} · ${candidateSummaryValue(record.totalTokens)}`;
+      case "monthly_pass_usages":
+        return `${candidateSummaryValue(record.model)} · ${candidateSummaryValue(record.channelName)} · ${candidateSummaryValue(record.coveredTokens)}`;
+      default:
+        return "-";
+    }
   }
 
   private async listServerLogCandidates(cutoffAt: Date): Promise<Array<{ name: string; path: string; date: Date }>> {

@@ -10,6 +10,18 @@ export interface DataLifecyclePolicyDTO {
   hotRetentionDays: number;
   archiveRetentionDays: number;
   lastRunAt: Date | null;
+  candidateCount: number;
+}
+
+export interface DataLifecycleScheduleDTO {
+  enabled: boolean;
+  time: string;
+  timezone: string;
+}
+
+export interface UpdateDataLifecycleScheduleRequest {
+  enabled: boolean;
+  time: string;
 }
 
 export interface DataLifecyclePreviewResponse {
@@ -17,6 +29,21 @@ export interface DataLifecyclePreviewResponse {
   cutoffAt: Date;
   candidateCount: number;
   enabled: boolean;
+}
+
+export interface DataLifecycleCandidateDTO {
+  id: string;
+  createTime: Date;
+  summary: string;
+}
+
+export interface DataLifecycleCandidateListResponse {
+  dataset: string;
+  cutoffAt: Date;
+  candidateCount: number;
+  items: DataLifecycleCandidateDTO[];
+  page: number;
+  pageSize: number;
 }
 
 export interface DataLifecycleRunDTO {

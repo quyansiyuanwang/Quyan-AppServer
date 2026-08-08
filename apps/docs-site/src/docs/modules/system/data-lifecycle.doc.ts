@@ -11,6 +11,6 @@ export default defineDocsPage({
     'zh-CN': '配置热数据保留并查看已校验的 OSS 归档。',
   },
   tags: ['archive', 'cleanup', 'oss', 'retention'],
-  updatedAt: '2026-08-08',
+  updatedAt: '2026-08-09',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

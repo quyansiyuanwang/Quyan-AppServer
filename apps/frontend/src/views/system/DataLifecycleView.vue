@@ -9,6 +9,8 @@ const loading = ref(false)
 const policies = ref<any[]>([])
 const runs = ref<any[]>([])
 const selectedDatasets = ref<string[]>([])
+const schedule = ref({ enabled: true, time: '03:20', timezone: 'Asia/Shanghai' })
+const scheduleSaving = ref(false)
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
@@ -21,6 +23,14 @@ const archivePageSize = ref(20)
 const archiveLoading = ref(false)
 const archiveLoadFailed = ref(false)
 const batchLoading = ref(false)
+const previewVisible = ref(false)
+const previewPolicy = ref<any | null>(null)
+const previewCandidates = ref<any[]>([])
+const previewTotal = ref(0)
+const previewPage = ref(1)
+const previewPageSize = ref(20)
+const previewLoading = ref(false)
+const previewExecuting = ref(false)
 
 // Keep these aligned with DATA_LIFECYCLE_DEFAULTS on the backend.
 const defaultHotRetentionDays: Record<string, number> = {
@@ -101,16 +111,42 @@ const onPolicySelectionChange = (selection: any[]) => {
   selectedDatasets.value = selection.map((policy) => policy.dataset)
 }
 
+const loadCandidates = async () => {
+  if (!previewPolicy.value) return
+  previewLoading.value = true
+  try {
+    const data = await dataLifecycleService.listCandidates(previewPolicy.value.dataset, {
+      page: previewPage.value,
+      pageSize: previewPageSize.value,
+    })
+    previewCandidates.value = data?.items ?? []
+    previewTotal.value = data?.candidateCount ?? 0
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+const openRunPreview = async (policy: any) => {
+  previewPolicy.value = policy
+  previewCandidates.value = []
+  previewTotal.value = policy.candidateCount ?? 0
+  previewPage.value = 1
+  previewVisible.value = true
+  await loadCandidates()
+}
+
 const load = async () => {
   loading.value = true
   try {
-    const [policyData, runData] = await Promise.all([
+    const [policyData, runData, scheduleData] = await Promise.all([
       dataLifecycleService.listPolicies(),
       dataLifecycleService.listRuns({ page: page.value, pageSize: pageSize.value }),
+      dataLifecycleService.getSchedule(),
     ])
     policies.value = policyData
     runs.value = runData.items
     total.value = runData.total
+    schedule.value = scheduleData
   } finally {
     loading.value = false
   }
@@ -124,6 +160,19 @@ const savePolicy = async (policy: any) => {
   ElMessage.success(i18ns.t('dataLifecycle.saved'))
 }
 
+const saveSchedule = async () => {
+  scheduleSaving.value = true
+  try {
+    schedule.value = await dataLifecycleService.updateSchedule({
+      enabled: schedule.value.enabled,
+      time: schedule.value.time,
+    })
+    ElMessage.success(i18ns.t('dataLifecycle.scheduleSaved'))
+  } finally {
+    scheduleSaving.value = false
+  }
+}
+
 const resetRetention = async (policy: any) => {
   const defaultDays = defaultHotRetentionDays[policy.dataset]
   if (!defaultDays || Number(policy.hotRetentionDays) === defaultDays) return
@@ -131,15 +180,17 @@ const resetRetention = async (policy: any) => {
   await savePolicy(policy)
 }
 
-const runPolicy = async (policy: any) => {
-  const preview = await dataLifecycleService.preview(policy.dataset)
-  await ElMessageBox.confirm(
-    i18ns.t('dataLifecycle.confirmRun', { count: preview.candidateCount }),
-    i18ns.t('dataLifecycle.run'),
-  )
-  await dataLifecycleService.run(policy.dataset)
-  ElMessage.success(i18ns.t('dataLifecycle.started'))
-  await load()
+const runPolicy = async () => {
+  if (!previewPolicy.value) return
+  previewExecuting.value = true
+  try {
+    await dataLifecycleService.run(previewPolicy.value.dataset)
+    ElMessage.success(i18ns.t('dataLifecycle.started'))
+    previewVisible.value = false
+    await load()
+  } finally {
+    previewExecuting.value = false
+  }
 }
 
 const runBatch = async () => {
@@ -198,7 +249,25 @@ onMounted(load)
         <el-button :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
       </div>
     </div>
-    <el-alert type="info" :title="i18ns.t('dataLifecycle.schedule')" :closable="false" show-icon />
+    <section class="schedule-settings">
+      <div>
+        <h3>{{ i18ns.t('dataLifecycle.schedule') }}</h3>
+        <p>{{ schedule.timezone }}</p>
+      </div>
+      <el-switch
+        v-model="schedule.enabled"
+        :active-text="i18ns.t('dataLifecycle.scheduleEnabled')"
+      />
+      <el-time-picker
+        v-model="schedule.time"
+        value-format="HH:mm"
+        format="HH:mm"
+        :disabled="!schedule.enabled"
+      />
+      <el-button type="primary" :loading="scheduleSaving" @click="saveSchedule">
+        {{ i18ns.t('dataLifecycle.scheduleSave') }}
+      </el-button>
+    </section>
     <el-table
       :data="policies"
       v-loading="loading"
@@ -229,9 +298,19 @@ onMounted(load)
           </div></template
         ></el-table-column
       >
+      <el-table-column
+        prop="candidateCount"
+        :label="i18ns.t('dataLifecycle.toArchive')"
+        width="100"
+      />
+      <el-table-column
+        prop="candidateCount"
+        :label="i18ns.t('dataLifecycle.toDelete')"
+        width="100"
+      />
       <el-table-column :label="i18ns.t('dataLifecycle.actions')" width="100"
         ><template #default="{ row }"
-          ><el-button type="danger" @click="runPolicy(row)">{{
+          ><el-button type="danger" @click="openRunPreview(row)">{{
             i18ns.t('dataLifecycle.run')
           }}</el-button></template
         ></el-table-column
@@ -279,6 +358,57 @@ onMounted(load)
       layout="total, sizes, prev, pager, next"
       @change="load"
     />
+
+    <el-dialog
+      v-model="previewVisible"
+      :title="i18ns.t('dataLifecycle.previewTitle')"
+      width="min(1080px, 96%)"
+    >
+      <template v-if="previewPolicy">
+        <el-descriptions :column="1" border>
+          <el-descriptions-item :label="i18ns.t('dataLifecycle.dataset')">
+            {{ datasetLabel(previewPolicy.dataset) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('dataLifecycle.toArchive')">
+            {{ previewTotal }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('dataLifecycle.toDelete')">
+            {{ previewTotal }}
+          </el-descriptions-item>
+        </el-descriptions>
+        <el-table v-loading="previewLoading" :data="previewCandidates" class="candidate-table">
+          <el-table-column
+            prop="id"
+            :label="i18ns.t('dataLifecycle.candidateId')"
+            min-width="180"
+            show-overflow-tooltip
+          />
+          <el-table-column :label="i18ns.t('dataLifecycle.time')" width="180">
+            <template #default="{ row }">{{ formatDate(row.createTime) }}</template>
+          </el-table-column>
+          <el-table-column
+            prop="summary"
+            :label="i18ns.t('dataLifecycle.candidateSummary')"
+            min-width="360"
+            show-overflow-tooltip
+          />
+        </el-table>
+        <el-pagination
+          v-if="previewTotal > 0"
+          v-model:current-page="previewPage"
+          v-model:page-size="previewPageSize"
+          :total="previewTotal"
+          layout="total, sizes, prev, pager, next"
+          @change="loadCandidates"
+        />
+      </template>
+      <template #footer>
+        <el-button @click="previewVisible = false">{{ i18ns.t('cancel') }}</el-button>
+        <el-button type="danger" :loading="previewExecuting" @click="runPolicy">
+          {{ i18ns.t('dataLifecycle.run') }}
+        </el-button>
+      </template>
+    </el-dialog>
 
     <el-drawer
       v-model="archiveDrawerVisible"
@@ -411,6 +541,26 @@ onMounted(load)
   gap: 8px;
   align-items: center;
 }
+.schedule-settings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-block: 1px solid var(--el-border-color-lighter);
+}
+.schedule-settings > div:first-child {
+  margin-right: auto;
+}
+.schedule-settings h3,
+.schedule-settings p {
+  margin: 0;
+}
+.schedule-settings p {
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
 .page-toolbar h2,
 .page-toolbar p {
   margin: 0;
@@ -439,6 +589,10 @@ onMounted(load)
 }
 .artifact-table {
   width: 100%;
+}
+.candidate-table {
+  width: 100%;
+  margin-top: 16px;
 }
 .error-message {
   color: var(--el-color-danger);

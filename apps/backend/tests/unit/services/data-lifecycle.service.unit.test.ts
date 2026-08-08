@@ -33,6 +33,15 @@ vi.mock("@/store/system/observability.repository", () => ({
   ObservabilityRepository: { getInstance: vi.fn() },
 }));
 
+const configService = vi.hoisted(() => ({
+  getMultiple: vi.fn(),
+  setMultiple: vi.fn(),
+}));
+
+vi.mock("@/services/system/config.service", () => ({
+  ConfigService: { getInstance: vi.fn(() => configService) },
+}));
+
 import { DataLifecycleService } from "@/services/system/data-lifecycle.service";
 
 describe("DataLifecycleService", () => {
@@ -46,6 +55,7 @@ describe("DataLifecycleService", () => {
     listArchiveArtifacts: vi.fn(),
     updateLifecycleRun: vi.fn(),
     updateLifecyclePolicy: vi.fn(),
+    listDatasetCandidates: vi.fn(),
   };
   const ServiceCtor = DataLifecycleService as unknown as new (...args: any[]) => DataLifecycleService;
 
@@ -60,6 +70,57 @@ describe("DataLifecycleService", () => {
     });
     repository.countDatasetBefore.mockResolvedValue(2);
     repository.createLifecycleRun.mockResolvedValue({ id: "run-1" });
+    configService.getMultiple.mockResolvedValue({});
+  });
+
+  it("uses the default schedule when no schedule has been persisted", async () => {
+    const service = new ServiceCtor(repository);
+
+    await expect(service.getSchedule()).resolves.toEqual({
+      enabled: true,
+      time: "03:20",
+      timezone: "Asia/Shanghai",
+    });
+  });
+
+  it("reads and validates the persisted schedule", async () => {
+    configService.getMultiple.mockResolvedValue({
+      "dataLifecycle.schedule.enabled": "false",
+      "dataLifecycle.schedule.time": "09:45",
+    });
+    const service = new ServiceCtor(repository);
+
+    await expect(service.getSchedule()).resolves.toEqual({
+      enabled: false,
+      time: "09:45",
+      timezone: "Asia/Shanghai",
+    });
+  });
+
+  it("returns a redacted candidate summary", async () => {
+    repository.listDatasetCandidates.mockResolvedValue([
+      {
+        id: "log-1",
+        createTime: new Date("2026-01-01T00:00:00Z"),
+        method: "POST",
+        path: "/v1/example?api_key=secret",
+        statusCode: 500,
+        requestID: "req-1",
+        requestHeaders: { authorization: "Bearer secret" },
+        requestBody: { password: "secret" },
+        responseBody: { token: "secret" },
+      },
+    ]);
+    const service = new ServiceCtor(repository);
+
+    const result = await service.listCandidates("api_logs", 1, 20);
+
+    expect(result.items[0]).toEqual({
+      id: "log-1",
+      createTime: new Date("2026-01-01T00:00:00Z"),
+      summary: "POST /v1/example?api_key=*** · 500 · req-1",
+    });
+    expect(result.items[0].summary).not.toContain("secret");
   });
 
   it("does not delete source data when OSS is not configured", async () => {

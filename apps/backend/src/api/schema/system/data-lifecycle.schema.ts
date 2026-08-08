@@ -10,11 +10,16 @@ export const updateLifecyclePolicyBodySchema = z.object({
   enabled: z.boolean(),
   hotRetentionDays: z.number().int().min(1).max(3650),
 });
+export const updateLifecycleScheduleBodySchema = z.object({
+  enabled: z.boolean(),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+});
 export const lifecycleRunsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
 });
 export const lifecycleArtifactsQuerySchema = lifecycleRunsQuerySchema;
+export const lifecycleCandidatesQuerySchema = lifecycleRunsQuerySchema;
 export const batchLifecycleRunBodySchema = z.object({
   datasets: z.array(dataset).max(DATA_LIFECYCLE_DATASETS.length).optional(),
 });

@@ -8,7 +8,12 @@ const lifecycleApi = cacheObject(() =>
 
 export const dataLifecycleService = {
   listPolicies: async () => (await lifecycleApi.listPolicies()).data,
+  getSchedule: async () => (await lifecycleApi.getSchedule()).data,
+  updateSchedule: async (body: { enabled: boolean; time: string }) =>
+    (await lifecycleApi.updateSchedule({ body })).data,
   preview: async (dataset: string) => (await lifecycleApi.preview({ path: { dataset } })).data,
+  listCandidates: async (dataset: string, params: Record<string, unknown>) =>
+    (await lifecycleApi.listCandidates({ path: { dataset }, params: params as any })).data,
   updatePolicy: async (dataset: string, body: { enabled: boolean; hotRetentionDays: number }) =>
     (await lifecycleApi.updatePolicy({ path: { dataset }, body })).data,
   run: async (dataset: string) => (await lifecycleApi.run({ path: { dataset } })).data,
