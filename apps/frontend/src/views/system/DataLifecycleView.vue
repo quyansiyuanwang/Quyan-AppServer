@@ -96,7 +96,7 @@ onMounted(load)
               controls-position="right"
               @change="savePolicy(row)"
             />
-            <el-button text @click="resetRetention(row)">
+            <el-button @click="resetRetention(row)">
               {{ i18ns.t('dataLifecycle.reset') }}
             </el-button>
           </div></template
@@ -104,7 +104,7 @@ onMounted(load)
       >
       <el-table-column :label="i18ns.t('dataLifecycle.actions')" width="100"
         ><template #default="{ row }"
-          ><el-button text type="danger" @click="runPolicy(row)">{{
+          ><el-button type="danger" @click="runPolicy(row)">{{
             i18ns.t('dataLifecycle.run')
           }}</el-button></template
         ></el-table-column
@@ -126,7 +126,6 @@ onMounted(load)
           ><el-button
             v-for="artifact in row.artifacts"
             :key="artifact.id"
-            text
             @click="download(artifact.id)"
             >{{ i18ns.t('dataLifecycle.download', { count: artifact.recordCount }) }}</el-button
           ></template

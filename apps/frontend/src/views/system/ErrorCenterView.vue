@@ -164,7 +164,7 @@ onMounted(load)
           <el-option :label="sourceLabel('backend')" value="backend" />
         </el-select>
       </div>
-      <el-button class="clear-filters" text @click="clearFilters">
+      <el-button class="clear-filters" @click="clearFilters">
         {{ i18ns.t('errorCenter.clearFilters') }}
       </el-button>
     </div>
@@ -207,7 +207,7 @@ onMounted(load)
       <el-table-column prop="occurrenceCount" :label="i18ns.t('errorCenter.count')" width="100" />
       <el-table-column width="70" fixed="right">
         <template #default="{ row }">
-          <el-button text @click="openDetail(row)">
+          <el-button @click="openDetail(row)">
             {{ i18ns.t('errorCenter.view') }}
           </el-button>
         </template>
