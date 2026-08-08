@@ -54,6 +54,8 @@ const createState = () => ({
       id: 'physical-member-1',
       name: 'Claude-GWL-1',
       enabled: true,
+      providerServiceEnabled: false,
+      serviceEnabled: false,
       channelType: 'pooled-member',
       routingStrategy: 'priority',
       visibilityMode: 'hidden',
@@ -125,5 +127,6 @@ describe('RelayChannelManagementPanel', () => {
     const poolMemberCell = wrapper.find('.relay-channel-management__pool-members-trigger')
     expect(poolMemberCell.text()).toBe('Claude-GWL')
     expect(poolMemberCell.text()).not.toContain('0')
+    expect(wrapper.text()).toContain('供应者已暂停')
   })
 })

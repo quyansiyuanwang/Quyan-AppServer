@@ -76,6 +76,8 @@ export interface RelayChannelManagementListItemDto {
   submittedByUserId?: string;
   submittedByUsername?: string;
   enabled: boolean;
+  providerServiceEnabled: boolean;
+  serviceEnabled: boolean;
   channelType: RelayChannelType;
   routingStrategy: RelayChannelRoutingStrategy;
   visibilityMode: RelayChannelVisibilityMode;
@@ -138,6 +140,8 @@ export interface RelayChannelDto {
   id: string;
   name: string;
   enabled: boolean;
+  providerServiceEnabled: boolean;
+  serviceEnabled: boolean;
   channelType: RelayChannelType;
   routingStrategy: RelayChannelRoutingStrategy;
   routingConfig?: RelayChannelRoutingConfigDto;
@@ -594,6 +598,10 @@ export interface ReviewRelayChannelSubmissionRequest {
 export interface UpdateRelayChannelProviderConfigRequest {
   multiplier?: number;
   providers?: RelayChannelProviderConfigRequest[];
+}
+
+export interface UpdateRelayChannelServiceStatusRequest {
+  enabled: boolean;
 }
 
 /** Full standalone configuration proposed by the original channel submitter. */

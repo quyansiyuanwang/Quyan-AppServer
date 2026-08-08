@@ -695,18 +695,22 @@ export class RelayTokenService {
       poolMembers?: Array<{
         memberChannelId: string;
         enabled?: boolean;
-        memberChannel?: Pick<RelayChannel, "status"> | null;
+        memberChannel?: Pick<RelayChannel, "status" | "providerServiceEnabled"> | null;
       }>;
     }
   > {
     const channel = await this.relayChannelService.assertChannelAccessibleById(channelId, actorUserId);
-    if (channel.status !== MANAGED_STATUS.ENABLED || channel.channelType !== "automatic-proxy-pool")
+    if (
+      channel.status !== MANAGED_STATUS.ENABLED ||
+      channel.providerServiceEnabled === false ||
+      channel.channelType !== "automatic-proxy-pool"
+    )
       throw new BadRequestError("Automatic proxy pool not found or unavailable");
     return channel as RelayChannel & {
       poolMembers?: Array<{
         memberChannelId: string;
         enabled?: boolean;
-        memberChannel?: Pick<RelayChannel, "status"> | null;
+        memberChannel?: Pick<RelayChannel, "status" | "providerServiceEnabled"> | null;
       }>;
     };
   }
@@ -716,7 +720,7 @@ export class RelayTokenService {
       poolMembers?: Array<{
         memberChannelId: string;
         enabled?: boolean;
-        memberChannel?: Pick<RelayChannel, "status"> | null;
+        memberChannel?: Pick<RelayChannel, "status" | "providerServiceEnabled"> | null;
       }>;
     },
     blockedChannelIds?: string[],
@@ -728,7 +732,12 @@ export class RelayTokenService {
     ];
     const memberIds = new Set(
       (automaticPool.poolMembers ?? [])
-        .filter((member) => member.enabled !== false && member.memberChannel?.status === MANAGED_STATUS.ENABLED)
+        .filter(
+          (member) =>
+            member.enabled !== false &&
+            member.memberChannel?.status === MANAGED_STATUS.ENABLED &&
+            member.memberChannel.providerServiceEnabled !== false,
+        )
         .map((member) => member.memberChannelId),
     );
 

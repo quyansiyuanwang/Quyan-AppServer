@@ -43,6 +43,7 @@ import type {
   SubmitRelayChannelRequest,
   ReviewRelayChannelSubmissionRequest,
   UpdateRelayChannelProviderConfigRequest,
+  UpdateRelayChannelServiceStatusRequest,
   CreateRelayChannelChangeRequest,
   ReviewRelayChannelChangeRequest,
   RelayChannelChangeRequestDto,
@@ -74,6 +75,7 @@ import {
   submitRelayChannelBodySchema,
   reviewRelayChannelSubmissionBodySchema,
   updateRelayChannelProviderConfigBodySchema,
+  updateRelayChannelServiceStatusBodySchema,
   createRelayChannelChangeRequestBodySchema,
   reviewRelayChannelChangeRequestBodySchema,
   relayChannelUpstreamModelsBodySchema,
@@ -321,6 +323,24 @@ export class RelayChannelController extends Controller {
     await this.channelService.deleteSubmittedChannel(id, request.user!.userId, request);
     setResponseMessageKey(request, "relay.channelDeleted");
     return { message: "渠道删除成功" };
+  }
+
+  @Patch("submissions/{id}/service-status")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(relayChannelIdParamsSchema),
+    validateBody(updateRelayChannelServiceStatusBodySchema),
+  )
+  public async updateSubmittedChannelServiceStatus(
+    @Path() id: string,
+    @Body() body: UpdateRelayChannelServiceStatusRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelDto> {
+    return this.channelService.updateSubmittedChannelServiceStatus(id, body, request.user!.userId, request);
   }
 
   @Post("{id}/review-submission")

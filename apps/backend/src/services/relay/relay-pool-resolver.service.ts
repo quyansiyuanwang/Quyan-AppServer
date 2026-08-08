@@ -268,7 +268,12 @@ export class RelayPoolResolverService {
 
     for (const member of orderedMembers) {
       const memberChannel = graph.get(member.memberChannelId);
-      if (!memberChannel || (!includeDisabled && memberChannel.status !== RELAY_CHANNEL_STATUS.ENABLED)) continue;
+      if (
+        !memberChannel ||
+        (!includeDisabled &&
+          (memberChannel.status !== RELAY_CHANNEL_STATUS.ENABLED || memberChannel.providerServiceEnabled === false))
+      )
+        continue;
       leaves.push(
         ...(await this.resolveLeafPaths(
           memberChannel,

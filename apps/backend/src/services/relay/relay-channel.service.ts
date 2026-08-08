@@ -48,6 +48,7 @@ import type {
   SubmitRelayChannelRequest,
   ReviewRelayChannelSubmissionRequest,
   UpdateRelayChannelProviderConfigRequest,
+  UpdateRelayChannelServiceStatusRequest,
   CreateRelayChannelChangeRequest,
   ReviewRelayChannelChangeRequest,
   RelayChannelChangeRequestDto,
@@ -138,6 +139,7 @@ type RelayChannelProviderConfigInput = Omit<RelayChannelProviderConfigRequest, "
 type RelayChannelChangeRequestSnapshot = CreateRelayChannelChangeRequest & {
   previousSubmissionStatus?: RelayChannelSubmissionStatus;
   previousChannelStatus?: RelayChannelStatus;
+  previousProviderServiceEnabled?: boolean;
 };
 
 const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
@@ -146,6 +148,12 @@ const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
 const DEFAULT_AUTOMATIC_POOL_RANKING_MODE = "price-first" as const;
 const UPSTREAM_MODELS_TIMEOUT_MS = 15_000;
 const UPSTREAM_MODELS_MAX_BYTES = 2 * 1024 * 1024;
+
+const isProviderServiceEnabled = (channel: Pick<RelayChannel, "providerServiceEnabled">): boolean =>
+  channel.providerServiceEnabled !== false;
+
+const isChannelServiceEnabled = (channel: Pick<RelayChannel, "status" | "providerServiceEnabled">): boolean =>
+  channel.status === RELAY_CHANNEL_STATUS.ENABLED && isProviderServiceEnabled(channel);
 
 const nextDailyProviderSettlementAt = (settlementTime: string | undefined, now: Date): Date => {
   const [hours, minutes] = (settlementTime || "00:00").split(":").map(Number);
@@ -297,6 +305,8 @@ export class RelayChannelService {
           submittedByUserId: channel.submittedByUserId || undefined,
           submittedByUsername: channel.submittedBy?.username || channel.submittedByUserId || undefined,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+          providerServiceEnabled: channel.providerServiceEnabled !== false,
+          serviceEnabled: isChannelServiceEnabled(channel),
           channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
           routingStrategy:
             (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
@@ -666,7 +676,7 @@ export class RelayChannelService {
 
     for (const capability of resolvedCapabilities) {
       const leaf = activeChannelsById.get(capability.leafChannelId);
-      if (!leaf || leaf.status !== RELAY_CHANNEL_STATUS.ENABLED) continue;
+      if (!leaf || !isChannelServiceEnabled(leaf)) continue;
 
       const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
       const multipliers = this.getCatalogContextMultipliers(leaf, now);
@@ -722,7 +732,9 @@ export class RelayChannelService {
       routingStrategy: (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
       routingConfig: Object.keys(safeRoutingConfig).length > 0 ? safeRoutingConfig : undefined,
       members: (channel.poolMembers ?? [])
-        .filter((member) => member.enabled !== false && member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED)
+        .filter(
+          (member) => member.enabled !== false && member.memberChannel && isChannelServiceEnabled(member.memberChannel),
+        )
         .map((member) => {
           const memberChannel = member.memberChannel;
           const timePeriodMultiplier = memberChannel
@@ -881,7 +893,7 @@ export class RelayChannelService {
         return {
           id: member.memberChannelId,
           name: memberChannel?.name ?? member.memberChannelId,
-          enabled: member.enabled !== false && memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+          enabled: member.enabled !== false && Boolean(memberChannel && isChannelServiceEnabled(memberChannel)),
           priority: member.priority,
           weight: Number(member.weight),
           effectivePrice,
@@ -1717,7 +1729,7 @@ export class RelayChannelService {
       enabled: member.enabled,
       memberChannelName: member.memberChannel?.name,
       memberChannelType: member.memberChannel?.channelType as RelayChannelType | undefined,
-      memberChannelEnabled: member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+      memberChannelEnabled: member.memberChannel ? isChannelServiceEnabled(member.memberChannel) : false,
     };
   }
 
@@ -2072,6 +2084,7 @@ export class RelayChannelService {
         {
           ...this.toPersistenceInput(validated),
           status: RELAY_CHANNEL_STATUS.ENABLED,
+          providerServiceEnabled: true,
         },
         tx,
       );
@@ -2116,6 +2129,7 @@ export class RelayChannelService {
         {
           ...this.toPersistenceInput(validated),
           status: RELAY_CHANNEL_STATUS.DISABLED,
+          providerServiceEnabled: true,
           submissionStatus: "pending",
           submittedByUserId: actorUserId,
         },
@@ -2152,6 +2166,51 @@ export class RelayChannelService {
     };
   }
 
+  async updateSubmittedChannelServiceStatus(
+    id: string,
+    body: UpdateRelayChannelServiceStatusRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    const existing = await this.relayChannelRepository.findVisibleById(id);
+    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (existing.submittedByUserId !== actorUserId)
+      throw new ForbiddenError("Only the original submitter may update this channel service", undefined, {
+        messageKey: "relay.providerServiceOwnershipRequired",
+      });
+    if (existing.channelType !== "standalone")
+      throw new BadRequestError("Only standalone submitted channels may update service status", undefined, {
+        messageKey: "relay.providerServiceStandaloneRequired",
+      });
+    if (existing.submissionStatus !== "approved")
+      throw new BadRequestError("Only approved channels may update service status", undefined, {
+        messageKey: "relay.providerServiceApprovalRequired",
+      });
+    if (body.enabled && existing.status !== RELAY_CHANNEL_STATUS.ENABLED)
+      throw new ConflictError("The administrator has disabled this channel", undefined, {
+        messageKey: "relay.providerServiceAdminDisabled",
+      });
+
+    const channel = await this.relayChannelRepository.updateById(id, {
+      providerServiceEnabled: body.enabled,
+    });
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_STATUS_CHANGE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceId: id,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `${body.enabled ? "恢复" : "暂停"}了自己提交的中转渠道 '${existing.name}' 服务`,
+      changes: {
+        providerServiceEnabled: body.enabled,
+        serviceEnabled: isChannelServiceEnabled(channel),
+      },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return this.toDto(channel, undefined, true);
+  }
+
   async reviewSubmittedChannel(
     id: string,
     body: ReviewRelayChannelSubmissionRequest,
@@ -2180,6 +2239,7 @@ export class RelayChannelService {
     const data: Prisma.RelayChannelUncheckedUpdateInput = {
       submissionStatus: approved ? "approved" : body.action === "reject" ? "rejected" : "offboarded",
       status: approved ? RELAY_CHANNEL_STATUS.ENABLED : RELAY_CHANNEL_STATUS.DISABLED,
+      ...(approved ? { providerServiceEnabled: true } : {}),
       reviewedByUserId: actorUserId,
       reviewedAt: new Date(),
       reviewReason: reason || null,
@@ -2460,6 +2520,7 @@ export class RelayChannelService {
         hasGeminiUpstreamApiKey: Boolean(validated.geminiUpstreamApiKey),
         previousSubmissionStatus: submissionStatus,
         previousChannelStatus: existing.status as RelayChannelStatus,
+        previousProviderServiceEnabled: isProviderServiceEnabled(existing),
       }),
     ) as Prisma.InputJsonObject;
     const row = await this.relayChannelRepository.withTransaction(async (tx) => {
@@ -2541,6 +2602,8 @@ export class RelayChannelService {
     const previousSubmissionStatus =
       snapshot.previousSubmissionStatus ?? (channel.submissionStatus as RelayChannelSubmissionStatus);
     const previousChannelStatus = snapshot.previousChannelStatus ?? (channel.status as RelayChannelStatus);
+    const previousProviderServiceEnabled = snapshot.previousProviderServiceEnabled ?? isProviderServiceEnabled(channel);
+    const preserveCurrentServiceState = previousSubmissionStatus === "approved";
     const nextCredentials = this.decryptChangeCredentials(row);
     const validated = await this.buildValidatedChannelData(
       {
@@ -2557,7 +2620,8 @@ export class RelayChannelService {
           {
             ...this.toPersistenceInput(validated),
             submissionStatus: "approved",
-            status: RELAY_CHANNEL_STATUS.ENABLED,
+            status: preserveCurrentServiceState ? channel.status : RELAY_CHANNEL_STATUS.ENABLED,
+            providerServiceEnabled: preserveCurrentServiceState ? isProviderServiceEnabled(channel) : true,
             reviewedByUserId: actorUserId,
             reviewedAt: new Date(),
             reviewReason: null,
@@ -2575,7 +2639,10 @@ export class RelayChannelService {
           row.relayChannelId,
           {
             submissionStatus: previousSubmissionStatus,
-            status: previousChannelStatus,
+            status: preserveCurrentServiceState ? channel.status : previousChannelStatus,
+            providerServiceEnabled: preserveCurrentServiceState
+              ? isProviderServiceEnabled(channel)
+              : previousProviderServiceEnabled,
             reviewedByUserId: actorUserId,
             reviewedAt: new Date(),
             reviewReason: reason || null,
@@ -3128,7 +3195,7 @@ export class RelayChannelService {
         enabled: member.enabled,
         memberChannelName: member.memberChannel?.name,
         memberChannelType: member.memberChannel?.channelType as RelayChannelType | undefined,
-        memberChannelEnabled: member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+        memberChannelEnabled: member.memberChannel ? isChannelServiceEnabled(member.memberChannel) : false,
       }),
     );
 
@@ -3136,6 +3203,8 @@ export class RelayChannelService {
       id: channel.id,
       name: channel.name,
       enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+      providerServiceEnabled: channel.providerServiceEnabled !== false,
+      serviceEnabled: isChannelServiceEnabled(channel),
       openaiUpstreamUrl: channel.openaiUpstreamUrl || undefined,
       hasOpenaiUpstreamApiKey: Boolean(channel.openaiUpstreamApiKey),
       anthropicUpstreamUrl: channel.anthropicUpstreamUrl || undefined,

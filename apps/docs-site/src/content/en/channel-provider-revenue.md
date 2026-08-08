@@ -6,9 +6,11 @@ This page is for users who provide standalone relay channels. Submit a channel, 
 
 Only standalone channels can be submitted. Enter the upstream URL and API key for each enabled protocol format. Keys are sent to the server only for review and relay use; they are never shown in submission lists, earnings lists, or error messages.
 
-Submitted channels remain pending until an administrator lists, rejects, or offboards them. After listing, an administrator can change the sale multiplier, add providers, and configure each provider's commission and settlement mode.
+Submitted channels remain pending until an administrator lists, rejects, or offboards them. After listing, an administrator can change the sale multiplier, add providers, and configure each provider's commission and settlement mode. Review status and effective service status are shown separately: an approved channel serves traffic only when it is enabled by an administrator and not paused by its provider.
 
-The form also covers format and model restrictions, model mappings, cache-read accounting, time-period multipliers, and context-length multipliers. After a channel is listed, the original submitter cannot edit the live configuration directly. They can submit a complete configuration from My change requests; it stays pending, approved, or rejected with the operator's reason, and is applied atomically only after approval.
+The form also covers format and model restrictions, model mappings, cache-read accounting, time-period multipliers, and context-length multipliers. After a channel is listed, the original submitter cannot edit the live configuration directly. They can submit a complete configuration from My change requests; it stays pending, approved, or rejected with the operator's reason, and is applied atomically only after approval. While a configuration change is pending, the current live configuration and service status remain unchanged.
+
+The original submitter can pause or resume an approved standalone channel without another review. Pausing takes the channel out of service immediately. An administrator disable always takes precedence, so a provider cannot resume a channel until an administrator enables it again. Pausing or resuming does not alter the review result or a pending configuration change.
 
 A rejected channel can be revised and submitted again; it returns to pending review. Once approved, the updated configuration is applied and the channel is listed and enabled automatically. The original submitter may delete pending, rejected, or offboarded channels. Deletion cannot be undone, and deleted channels no longer appear in supply or review lists. Listed channels cannot be deleted directly by the provider.
 

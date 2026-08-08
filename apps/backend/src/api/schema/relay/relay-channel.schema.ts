@@ -346,6 +346,10 @@ export const updateRelayChannelProviderConfigBodySchema = z.object({
   providers: z.array(providerConfigSchema).max(100).optional(),
 });
 
+export const updateRelayChannelServiceStatusBodySchema = z.object({
+  enabled: z.preprocess((value) => (value === "true" ? true : value === "false" ? false : value), z.boolean()),
+});
+
 export const relayChannelUpstreamModelsBodySchema = z
   .object({
     format: z.enum(["openai", "anthropic", "gemini"]),
