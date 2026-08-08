@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { i18ns } from '@/locales'
 import { errorReportService } from '@/service/errorReportService'
-import { highlightCodeBlocks } from '@/utils/asyncMarkdown'
+import { highlightCode } from '@/utils/asyncMarkdown'
 import 'highlight.js/styles/github-dark.css'
 
 const loading = ref(false)
@@ -19,7 +19,8 @@ const occurrences = ref<any[]>([])
 const detailVisible = ref(false)
 const detailLoading = ref(false)
 const occurrenceLoadFailed = ref(false)
-const detailContent = ref<HTMLElement | null>(null)
+const highlightedMessage = ref('')
+const highlightedOccurrences = ref<Record<string, { stack?: string; context?: string }>>({})
 const statusOptions = ['open', 'acknowledged', 'resolved', 'ignored'] as const
 
 const statusLabel = (value: string) => {
@@ -68,6 +69,8 @@ const load = async () => {
 const openDetail = async (row: any) => {
   activeGroup.value = row
   occurrences.value = []
+  highlightedMessage.value = ''
+  highlightedOccurrences.value = {}
   occurrenceLoadFailed.value = false
   detailVisible.value = true
   detailLoading.value = true
@@ -105,8 +108,26 @@ const clearFilters = () => {
 }
 
 const highlightDetailCode = async () => {
-  await nextTick()
-  await highlightCodeBlocks(detailContent.value)
+  const group = activeGroup.value
+  const occurrenceItems = occurrences.value
+  const message = group?.message ? await highlightCode(group.message, 'typescript') : ''
+  const occurrenceHtml = await Promise.all(
+    occurrenceItems.map(
+      async (item) =>
+        [
+          item.id,
+          {
+            stack: item.stack ? await highlightCode(item.stack, 'typescript') : undefined,
+            context: item.context
+              ? await highlightCode(JSON.stringify(item.context, null, 2), 'json')
+              : undefined,
+          },
+        ] as const,
+    ),
+  )
+  if (group !== activeGroup.value || occurrenceItems !== occurrences.value) return
+  highlightedMessage.value = message
+  highlightedOccurrences.value = Object.fromEntries(occurrenceHtml)
 }
 
 watch([detailVisible, activeGroup, occurrences], ([visible]) => {
@@ -205,7 +226,7 @@ onMounted(load)
         show-overflow-tooltip
       />
       <el-table-column prop="occurrenceCount" :label="i18ns.t('errorCenter.count')" width="100" />
-      <el-table-column width="70" fixed="right">
+      <el-table-column width="240" fixed="right">
         <template #default="{ row }">
           <el-button @click="openDetail(row)">
             {{ i18ns.t('errorCenter.view') }}
@@ -226,7 +247,7 @@ onMounted(load)
       size="min(760px, 100%)"
       :title="i18ns.t('errorCenter.detail')"
     >
-      <div v-if="activeGroup" ref="detailContent" v-loading="detailLoading" class="error-detail">
+      <div v-if="activeGroup" v-loading="detailLoading" class="error-detail">
         <div class="detail-actions">
           <el-button
             v-for="item in statusOptions"
@@ -255,9 +276,11 @@ onMounted(load)
         </el-descriptions>
         <section class="detail-section">
           <h3>{{ i18ns.t('errorCenter.message') }}</h3>
-          <pre
-            class="code-panel"
-          ><code class="language-typescript">{{ activeGroup.message }}</code></pre>
+          <pre class="code-panel"><code
+              v-if="highlightedMessage"
+              class="language-typescript"
+              v-html="highlightedMessage"
+            /><code v-else class="language-typescript">{{ activeGroup.message }}</code></pre>
         </section>
         <section class="detail-section">
           <h3>{{ i18ns.t('errorCenter.occurrences') }}</h3>
@@ -280,15 +303,19 @@ onMounted(load)
             >
               <section v-if="item.stack" class="occurrence-section">
                 <h4>{{ i18ns.t('errorCenter.stack') }}</h4>
-                <pre
-                  class="code-panel"
-                ><code class="language-typescript">{{ item.stack }}</code></pre>
+                <pre class="code-panel"><code
+                    v-if="highlightedOccurrences[item.id]?.stack"
+                    class="language-typescript"
+                    v-html="highlightedOccurrences[item.id]?.stack ?? ''"
+                  /><code v-else class="language-typescript">{{ item.stack }}</code></pre>
               </section>
               <section v-if="item.context" class="occurrence-section">
                 <h4>{{ i18ns.t('errorCenter.context') }}</h4>
-                <pre
-                  class="code-panel"
-                ><code class="language-json">{{ JSON.stringify(item.context, null, 2) }}</code></pre>
+                <pre class="code-panel"><code
+                    v-if="highlightedOccurrences[item.id]?.context"
+                    class="language-json"
+                    v-html="highlightedOccurrences[item.id]?.context ?? ''"
+                  /><code v-else class="language-json">{{ JSON.stringify(item.context, null, 2) }}</code></pre>
               </section>
             </el-collapse-item>
           </el-collapse>
