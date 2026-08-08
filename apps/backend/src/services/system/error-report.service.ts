@@ -174,9 +174,12 @@ export class ErrorReportService {
     const origin = request.headers.origin;
     if (!origin || Array.isArray(origin)) return;
 
-    const allowedOrigins = [env.runtime.corsAllowedOrigins, env.auth.social.frontendBaseUrl].filter(Boolean).join(",");
+    // The CORS middleware is the source-of-truth for browser origins. An empty
+    // allowlist intentionally permits local/dev origins, so do not turn the
+    // optional FRONTEND_BASE_URL into an accidental production allowlist.
+    const allowedOrigins = env.runtime.corsAllowedOrigins;
     const allowlist = createCorsOriginAllowlist(allowedOrigins);
-    if (allowlist.length === 0 || !isCorsOriginAllowed(origin, allowlist))
+    if (allowlist.length > 0 && !isCorsOriginAllowed(origin, allowlist))
       throw new ForbiddenError("Client error report origin is not allowed");
   }
 
