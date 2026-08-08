@@ -31,16 +31,7 @@ export interface DataLifecycleRunDTO {
   errorMessage: string | null;
   completedAt: Date | null;
   createTime: Date;
-  artifacts: Array<{
-    id: string;
-    objectKey: string;
-    sha256: string;
-    recordCount: number;
-    byteSize: string;
-    createTime: Date;
-    expiresAt: Date;
-    deletedAt: Date | null;
-  }>;
+  artifactCount: number;
 }
 
 export interface DataLifecycleRunListResponse {
@@ -53,6 +44,24 @@ export interface DataLifecycleRunListResponse {
 export interface ArchiveDownloadResponse {
   url: string;
   expiresInSeconds: number;
+}
+
+export interface ArchiveArtifactDTO {
+  id: string;
+  objectKey: string;
+  sha256: string;
+  recordCount: number;
+  byteSize: string;
+  createTime: Date;
+  expiresAt: Date;
+  deletedAt: Date | null;
+}
+
+export interface ArchiveArtifactListResponse {
+  items: ArchiveArtifactDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface DataLifecycleRunResultResponse {

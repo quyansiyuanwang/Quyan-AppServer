@@ -14,6 +14,8 @@ export const dataLifecycleService = {
   run: async (dataset: string) => (await lifecycleApi.run({ path: { dataset } })).data,
   listRuns: async (params: Record<string, unknown>) =>
     (await lifecycleApi.listRuns({ params: params as any })).data,
+  listArtifacts: async (runId: string, params: Record<string, unknown>) =>
+    (await lifecycleApi.listArtifacts({ path: { runId }, params: params as any })).data,
   download: async (artifactId: string) =>
     (await lifecycleApi.download({ path: { artifactId } })).data,
 }

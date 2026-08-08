@@ -10191,6 +10191,61 @@
 				]
 			}
 		},
+		"/v1/data-lifecycle/runs/{runId}/artifacts": {
+			"get": {
+				"operationId": "DataLifecycleControllerListArtifacts",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ArchiveArtifactListResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataLifecycle"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "runId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/data-lifecycle/artifacts/{artifactId}/download": {
 			"post": {
 				"operationId": "DataLifecycleControllerDownload",
@@ -34924,52 +34979,9 @@
 						"type": "string",
 						"format": "date-time"
 					},
-					"artifacts": {
-						"items": {
-							"properties": {
-								"deletedAt": {
-									"type": "string",
-									"format": "date-time",
-									"nullable": true
-								},
-								"expiresAt": {
-									"type": "string",
-									"format": "date-time"
-								},
-								"createTime": {
-									"type": "string",
-									"format": "date-time"
-								},
-								"byteSize": {
-									"type": "string"
-								},
-								"recordCount": {
-									"type": "number",
-									"format": "double"
-								},
-								"sha256": {
-									"type": "string"
-								},
-								"objectKey": {
-									"type": "string"
-								},
-								"id": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"deletedAt",
-								"expiresAt",
-								"createTime",
-								"byteSize",
-								"recordCount",
-								"sha256",
-								"objectKey",
-								"id"
-							],
-							"type": "object"
-						},
-						"type": "array"
+					"artifactCount": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
@@ -34984,7 +34996,7 @@
 					"errorMessage",
 					"completedAt",
 					"createTime",
-					"artifacts"
+					"artifactCount"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -34994,6 +35006,81 @@
 					"items": {
 						"items": {
 							"$ref": "#/components/schemas/DataLifecycleRunDTO"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ArchiveArtifactDTO": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"objectKey": {
+						"type": "string"
+					},
+					"sha256": {
+						"type": "string"
+					},
+					"recordCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"byteSize": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"expiresAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"deletedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					}
+				},
+				"required": [
+					"id",
+					"objectKey",
+					"sha256",
+					"recordCount",
+					"byteSize",
+					"createTime",
+					"expiresAt",
+					"deletedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ArchiveArtifactListResponse": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/ArchiveArtifactDTO"
 						},
 						"type": "array"
 					},

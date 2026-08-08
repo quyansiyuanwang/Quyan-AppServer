@@ -42,6 +42,7 @@ describe("DataLifecycleService", () => {
     createLifecycleRun: vi.fn(),
     listDatasetBatch: vi.fn(),
     deleteDatasetIds: vi.fn(),
+    listArchiveArtifacts: vi.fn(),
     updateLifecycleRun: vi.fn(),
     updateLifecyclePolicy: vi.fn(),
   };
@@ -76,5 +77,14 @@ describe("DataLifecycleService", () => {
       "Unsupported lifecycle dataset",
     );
     await expect(service.updatePolicy("api_logs", true, 0)).rejects.toThrow("between 1 and 3650");
+  });
+
+  it("delegates archive artifact pagination", async () => {
+    const result = { items: [{ id: "artifact-1" }], total: 1 };
+    repository.listArchiveArtifacts.mockResolvedValue(result);
+    const service = new ServiceCtor(repository);
+
+    await expect(service.listArchiveArtifacts("run-1", 2, 10)).resolves.toBe(result);
+    expect(repository.listArchiveArtifacts).toHaveBeenCalledWith("run-1", 2, 10);
   });
 });

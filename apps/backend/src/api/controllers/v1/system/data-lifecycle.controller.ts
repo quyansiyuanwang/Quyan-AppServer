@@ -14,6 +14,7 @@ import {
 } from "@tsoa/runtime";
 import type {
   ArchiveDownloadResponse,
+  ArchiveArtifactListResponse,
   DataLifecyclePolicyDTO,
   DataLifecyclePreviewResponse,
   DataLifecycleRunListResponse,
@@ -28,7 +29,9 @@ import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/uti
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import {
   lifecycleArtifactParamsSchema,
+  lifecycleArtifactsQuerySchema,
   lifecycleDatasetParamsSchema,
+  lifecycleRunParamsSchema,
   lifecycleRunsQuerySchema,
   updateLifecyclePolicyBodySchema,
 } from "@/api/schema/system/data-lifecycle.schema";
@@ -107,10 +110,25 @@ export class DataLifecycleController extends Controller {
       ...result,
       page,
       pageSize,
-      items: result.items.map((run) => ({
-        ...run,
-        artifacts: run.artifacts.map((artifact) => ({ ...artifact, byteSize: artifact.byteSize.toString() })),
-      })),
+      items: result.items.map(({ _count, ...run }) => ({ ...run, artifactCount: _count.artifacts })),
+    };
+  }
+
+  @Get("runs/{runId}/artifacts")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(validateParams(lifecycleRunParamsSchema), validateQuery(lifecycleArtifactsQuerySchema))
+  public async listArtifacts(
+    @Path() runId: string,
+    @Query() page: number = 1,
+    @Query() pageSize: number = 20,
+  ): Promise<ArchiveArtifactListResponse> {
+    const result = await this.service.listArchiveArtifacts(runId, page, pageSize);
+    return {
+      ...result,
+      page,
+      pageSize,
+      items: result.items.map((artifact) => ({ ...artifact, byteSize: artifact.byteSize.toString() })),
     };
   }
 

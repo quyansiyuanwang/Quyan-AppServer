@@ -2165,6 +2165,7 @@ export default {
     viewArchives: 'View archives ({count})',
     archiveDetails: 'Archive details',
     noArchives: 'No archive files were created for this run',
+    archiveLoadFailed: 'Failed to load archive files',
     objectKey: 'OSS object key',
     checksum: 'SHA-256',
     records: 'Records',

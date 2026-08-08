@@ -2264,6 +2264,7 @@ const emoji: DeepStringify<typeof en> = {
     viewArchives: '📁 {count}',
     archiveDetails: '📁 🔎',
     noArchives: '📭 📁',
+    archiveLoadFailed: '⚠️ 📁',
     objectKey: '🗂️ 🔑',
     checksum: '#️⃣',
     records: '📄',

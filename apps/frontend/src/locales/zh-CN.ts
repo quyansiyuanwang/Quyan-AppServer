@@ -2089,6 +2089,7 @@ const zhCN: DeepStringify<typeof en> = {
     viewArchives: '查看归档（{count} 个）',
     archiveDetails: '归档详情',
     noArchives: '本次执行未生成归档文件',
+    archiveLoadFailed: '归档文件加载失败',
     objectKey: 'OSS 对象路径',
     checksum: 'SHA-256 校验和',
     records: '记录数',

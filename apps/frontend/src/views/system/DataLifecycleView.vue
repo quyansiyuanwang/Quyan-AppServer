@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { DataLifecycleRunDto } from '@/client/types.gen'
+import type { ArchiveArtifactDto, DataLifecycleRunDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
 import { dataLifecycleService } from '@/service/dataLifecycleService'
 
@@ -13,7 +13,12 @@ const page = ref(1)
 const pageSize = ref(20)
 const archiveDrawerVisible = ref(false)
 const selectedRun = ref<DataLifecycleRunDto | null>(null)
-const selectedArtifacts = computed(() => selectedRun.value?.artifacts ?? [])
+const archiveArtifacts = ref<ArchiveArtifactDto[]>([])
+const archiveTotal = ref(0)
+const archivePage = ref(1)
+const archivePageSize = ref(20)
+const archiveLoading = ref(false)
+const archiveLoadFailed = ref(false)
 
 // Keep these aligned with DATA_LIFECYCLE_DEFAULTS on the backend.
 const defaultHotRetentionDays: Record<string, number> = {
@@ -60,9 +65,34 @@ const runTypeLabel = (runType: string) => {
   return labels[runType as keyof typeof labels]?.() ?? runType
 }
 
-const openArchives = (run: DataLifecycleRunDto) => {
+const loadArtifacts = async () => {
+  if (!selectedRun.value) return
+  archiveLoading.value = true
+  archiveLoadFailed.value = false
+  try {
+    const data = await dataLifecycleService.listArtifacts(selectedRun.value.id, {
+      page: archivePage.value,
+      pageSize: archivePageSize.value,
+    })
+    archiveArtifacts.value = data?.items ?? []
+    archiveTotal.value = data?.total ?? 0
+  } catch {
+    archiveArtifacts.value = []
+    archiveTotal.value = 0
+    archiveLoadFailed.value = true
+  } finally {
+    archiveLoading.value = false
+  }
+}
+
+const openArchives = async (run: DataLifecycleRunDto) => {
   selectedRun.value = run
+  archiveArtifacts.value = []
+  archiveTotal.value = 0
+  archivePage.value = 1
+  archiveLoadFailed.value = false
   archiveDrawerVisible.value = true
+  await loadArtifacts()
 }
 
 const load = async () => {
@@ -184,8 +214,8 @@ onMounted(load)
       />
       <el-table-column :label="i18ns.t('dataLifecycle.archives')" width="180" fixed="right">
         <template #default="{ row }">
-          <el-button :disabled="row.artifacts.length === 0" @click="openArchives(row)">
-            {{ i18ns.t('dataLifecycle.viewArchives', { count: row.artifacts.length }) }}
+          <el-button :disabled="row.artifactCount === 0" @click="openArchives(row)">
+            {{ i18ns.t('dataLifecycle.viewArchives', { count: row.artifactCount }) }}
           </el-button>
         </template>
       </el-table-column>
@@ -239,11 +269,27 @@ onMounted(load)
 
         <section class="artifact-section">
           <h3>{{ i18ns.t('dataLifecycle.archives') }}</h3>
+          <el-alert
+            v-if="archiveLoadFailed"
+            type="warning"
+            :title="i18ns.t('dataLifecycle.archiveLoadFailed')"
+            :closable="false"
+            show-icon
+            ><el-button :loading="archiveLoading" @click="loadArtifacts">
+              {{ i18ns.t('reload') }}
+            </el-button></el-alert
+          >
           <el-empty
-            v-if="selectedArtifacts.length === 0"
+            v-else-if="archiveTotal === 0 && !archiveLoading"
             :description="i18ns.t('dataLifecycle.noArchives')"
           />
-          <el-table v-else :data="selectedArtifacts" border class="artifact-table">
+          <el-table
+            v-else
+            v-loading="archiveLoading"
+            :data="archiveArtifacts"
+            border
+            class="artifact-table"
+          >
             <el-table-column
               prop="objectKey"
               :label="i18ns.t('dataLifecycle.objectKey')"
@@ -282,6 +328,14 @@ onMounted(load)
               </template>
             </el-table-column>
           </el-table>
+          <el-pagination
+            v-if="archiveTotal > 0"
+            v-model:current-page="archivePage"
+            v-model:page-size="archivePageSize"
+            :total="archiveTotal"
+            layout="total, sizes, prev, pager, next"
+            @change="loadArtifacts"
+          />
         </section>
       </template>
     </el-drawer>

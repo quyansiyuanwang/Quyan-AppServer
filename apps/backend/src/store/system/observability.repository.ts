@@ -255,9 +255,22 @@ export class ObservabilityRepository {
         orderBy: { createTime: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        include: { artifacts: true },
+        include: { _count: { select: { artifacts: true } } },
       }),
       prisma.dataLifecycleRun.count(),
+    ]).then(([items, total]) => ({ items, total }));
+  }
+
+  public listArchiveArtifacts(runId: string, page: number, pageSize: number) {
+    const where = { lifecycleRunId: runId };
+    return Promise.all([
+      prisma.archiveArtifact.findMany({
+        where,
+        orderBy: { createTime: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.archiveArtifact.count({ where }),
     ]).then(([items, total]) => ({ items, total }));
   }
 

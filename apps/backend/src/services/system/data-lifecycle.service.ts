@@ -188,6 +188,10 @@ export class DataLifecycleService {
     return this.repository.listLifecycleRuns(page, pageSize);
   }
 
+  public listArchiveArtifacts(runId: string, page: number, pageSize: number) {
+    return this.repository.listArchiveArtifacts(runId, page, pageSize);
+  }
+
   public async getArchiveDownloadUrl(artifactId: string): Promise<string> {
     if (!env.integrations.archiveOss.enabled) throw new BadRequestError("Archive OSS is not configured");
     const artifact = await this.repository.getArchiveArtifact(artifactId);
