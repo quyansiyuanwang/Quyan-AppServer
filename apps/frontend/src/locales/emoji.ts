@@ -2235,6 +2235,7 @@ const emoji: DeepStringify<typeof en> = {
   dataLifecycle: {
     title: '🗃️',
     subtitle: '🧹',
+    schedule: '⏲️ 03:20 🌏',
     dataset: '🗂️',
     serverLogs: '🖥️ 🪵',
     enabled: '✅',
@@ -2242,6 +2243,9 @@ const emoji: DeepStringify<typeof en> = {
     reset: '↩️',
     actions: '⚙️',
     run: '▶️',
+    batchRun: '▶️ 📚',
+    batchConfirm: '⚠️ 📚',
+    batchResult: '📚 ✅ {completed} ❌ {failed} ⏭️ {skipped}',
     confirmRun: '⚠️',
     started: '🚀',
     saved: '💾',

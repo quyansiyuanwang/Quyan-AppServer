@@ -71,3 +71,24 @@ export interface DataLifecycleRunResultResponse {
   deletedCount: number;
   artifactId?: string;
 }
+
+export interface BatchDataLifecycleRunRequest {
+  datasets?: string[];
+}
+
+export interface BatchDataLifecycleRunItem {
+  dataset: string;
+  runId?: string;
+  status: "completed" | "failed" | "skipped";
+  candidateCount: number;
+  archivedCount: number;
+  deletedCount: number;
+  errorMessage?: string;
+}
+
+export interface BatchDataLifecycleRunResponse {
+  items: BatchDataLifecycleRunItem[];
+  completedCount: number;
+  failedCount: number;
+  skippedCount: number;
+}

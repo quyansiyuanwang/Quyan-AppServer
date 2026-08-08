@@ -2135,6 +2135,7 @@ export default {
     title: 'Data Archive',
     subtitle:
       'Hot data is removed only after its archive is uploaded and verified. Archive files are retained for one year.',
+    schedule: 'Scheduled archive runs every day at 03:20 (Asia/Shanghai) for enabled policies.',
     dataset: 'Dataset',
     serverLogs: 'Server file logs',
     enabled: 'Enabled',
@@ -2142,6 +2143,11 @@ export default {
     reset: 'Reset default',
     actions: 'Actions',
     run: 'Run archive',
+    batchRun: 'Run selected archives',
+    batchConfirm:
+      'Archive and delete {count} candidate records across {datasets} selected datasets? This cannot be undone.',
+    batchResult:
+      'Batch archive finished: {completed} completed, {failed} failed, {skipped} skipped.',
     confirmRun:
       'Archive and delete the current batch of {count} candidate records? This cannot be undone.',
     started: 'Archive task started',

@@ -8,6 +8,7 @@ import { dataLifecycleService } from '@/service/dataLifecycleService'
 const loading = ref(false)
 const policies = ref<any[]>([])
 const runs = ref<any[]>([])
+const selectedDatasets = ref<string[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
@@ -19,6 +20,7 @@ const archivePage = ref(1)
 const archivePageSize = ref(20)
 const archiveLoading = ref(false)
 const archiveLoadFailed = ref(false)
+const batchLoading = ref(false)
 
 // Keep these aligned with DATA_LIFECYCLE_DEFAULTS on the backend.
 const defaultHotRetentionDays: Record<string, number> = {
@@ -95,6 +97,10 @@ const openArchives = async (run: DataLifecycleRunDto) => {
   await loadArtifacts()
 }
 
+const onPolicySelectionChange = (selection: any[]) => {
+  selectedDatasets.value = selection.map((policy) => policy.dataset)
+}
+
 const load = async () => {
   loading.value = true
   try {
@@ -136,6 +142,35 @@ const runPolicy = async (policy: any) => {
   await load()
 }
 
+const runBatch = async () => {
+  if (selectedDatasets.value.length === 0) return
+  const selectedPolicies = policies.value.filter((policy) =>
+    selectedDatasets.value.includes(policy.dataset),
+  )
+  const previews = await Promise.all(
+    selectedPolicies.map((policy) => dataLifecycleService.preview(policy.dataset)),
+  )
+  const candidateCount = previews.reduce((sum, preview) => sum + preview.candidateCount, 0)
+  await ElMessageBox.confirm(
+    i18ns.t('dataLifecycle.batchConfirm', {
+      datasets: selectedPolicies.length,
+      count: candidateCount,
+    }),
+    i18ns.t('dataLifecycle.batchRun'),
+  )
+  batchLoading.value = true
+  try {
+    const result = await dataLifecycleService.runBatch(selectedDatasets.value)
+    const message = i18ns.t('dataLifecycle.batchResult', result)
+    if (result.failedCount > 0) ElMessage.warning(message)
+    else ElMessage.success(message)
+    selectedDatasets.value = []
+    await load()
+  } finally {
+    batchLoading.value = false
+  }
+}
+
 const download = async (artifactId: string) => {
   const response = await dataLifecycleService.download(artifactId)
   window.open(response.url, '_blank', 'noopener,noreferrer')
@@ -151,9 +186,26 @@ onMounted(load)
         <h2>{{ i18ns.t('dataLifecycle.title') }}</h2>
         <p>{{ i18ns.t('dataLifecycle.subtitle') }}</p>
       </div>
-      <el-button :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
+      <div class="toolbar-actions">
+        <el-button
+          type="primary"
+          :loading="batchLoading"
+          :disabled="selectedDatasets.length === 0"
+          @click="runBatch"
+        >
+          {{ i18ns.t('dataLifecycle.batchRun') }}
+        </el-button>
+        <el-button :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
+      </div>
     </div>
-    <el-table :data="policies" v-loading="loading" row-key="dataset">
+    <el-alert type="info" :title="i18ns.t('dataLifecycle.schedule')" :closable="false" show-icon />
+    <el-table
+      :data="policies"
+      v-loading="loading"
+      row-key="dataset"
+      @selection-change="onPolicySelectionChange"
+    >
+      <el-table-column type="selection" width="55" />
       <el-table-column prop="dataset" :label="i18ns.t('dataLifecycle.dataset')" min-width="170">
         <template #default="{ row }">{{ datasetLabel(row.dataset) }}</template>
       </el-table-column>
@@ -353,6 +405,11 @@ onMounted(load)
   gap: 12px;
   align-items: center;
   justify-content: space-between;
+}
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 .page-toolbar h2,
 .page-toolbar p {

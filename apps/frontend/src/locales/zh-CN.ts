@@ -2060,6 +2060,7 @@ const zhCN: DeepStringify<typeof en> = {
   dataLifecycle: {
     title: '数据归档',
     subtitle: '归档成功并校验后才会清理热数据；归档文件保留 1 年。',
+    schedule: '定时归档：每天 03:20（Asia/Shanghai）执行已启用的策略。',
     dataset: '数据集',
     serverLogs: '服务器文件日志',
     enabled: '启用',
@@ -2067,6 +2068,10 @@ const zhCN: DeepStringify<typeof en> = {
     reset: '恢复默认',
     actions: '操作',
     run: '执行归档',
+    batchRun: '批量归档所选策略',
+    batchConfirm:
+      '将归档并删除 {datasets} 个所选数据集中的 {count} 条候选数据，此操作不可撤销，是否继续？',
+    batchResult: '批量归档完成：成功 {completed} 个，失败 {failed} 个，跳过 {skipped} 个。',
     confirmRun: '将归档并删除当前批次的 {count} 条候选记录。此操作不可撤销，是否继续？',
     started: '归档任务已启动',
     saved: '策略已保存',

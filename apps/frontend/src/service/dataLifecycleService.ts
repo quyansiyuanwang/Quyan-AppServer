@@ -12,6 +12,8 @@ export const dataLifecycleService = {
   updatePolicy: async (dataset: string, body: { enabled: boolean; hotRetentionDays: number }) =>
     (await lifecycleApi.updatePolicy({ path: { dataset }, body })).data,
   run: async (dataset: string) => (await lifecycleApi.run({ path: { dataset } })).data,
+  runBatch: async (datasets: string[]) =>
+    (await lifecycleApi.runBatch({ body: { datasets } })).data,
   listRuns: async (params: Record<string, unknown>) =>
     (await lifecycleApi.listRuns({ params: params as any })).data,
   listArtifacts: async (runId: string, params: Record<string, unknown>) =>

@@ -30,22 +30,33 @@ export class DataLifecycleSchedulerService {
   }
 
   public async run(): Promise<void> {
+    await this.withLock(async () => {
+      await ErrorReportService.getInstance().cleanupExpired();
+      await DataLifecycleService.getInstance().runScheduledPolicies();
+      await DataLifecycleService.getInstance().deleteExpiredArtifacts();
+    });
+  }
+
+  public async runManualBatch(datasets: string[], startedByUserId?: string) {
+    return this.withLock(() => DataLifecycleService.getInstance().runPolicies(datasets, "manual", startedByUserId));
+  }
+
+  private async withLock<T>(task: () => Promise<T>): Promise<T | null> {
     const lockService = DistributedLockService.getInstance();
     const lock = await lockService.acquire(DistributedLockService.buildKey("system", "data-lifecycle"), {
       ttlMs: LOCK_TTL_MS,
       acquireTimeoutMs: 100,
       failClosed: false,
     });
-    if (!lock.acquired) return;
+    if (!lock.acquired) return null;
 
     const heartbeat = setInterval(() => void lockService.extend(lock, LOCK_TTL_MS), LOCK_TTL_MS / 3);
     heartbeat.unref?.();
     try {
-      await ErrorReportService.getInstance().cleanupExpired();
-      await DataLifecycleService.getInstance().runScheduledPolicies();
-      await DataLifecycleService.getInstance().deleteExpiredArtifacts();
+      return await task();
     } catch (error) {
       logger.error("Data lifecycle scheduler failed", { error: String(error) });
+      return null;
     } finally {
       clearInterval(heartbeat);
       await lockService.release(lock);

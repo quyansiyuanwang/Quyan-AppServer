@@ -10144,6 +10144,48 @@
 				}
 			}
 		},
+		"/v1/data-lifecycle/batch/run": {
+			"post": {
+				"operationId": "DataLifecycleControllerRunBatch",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BatchDataLifecycleRunResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataLifecycle"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BatchDataLifecycleRunRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/data-lifecycle/runs": {
 			"get": {
 				"operationId": "DataLifecycleControllerListRuns",
@@ -34933,6 +34975,90 @@
 					"archivedCount",
 					"deletedCount"
 				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchDataLifecycleRunItem": {
+				"properties": {
+					"dataset": {
+						"type": "string"
+					},
+					"runId": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"completed",
+							"failed",
+							"skipped"
+						]
+					},
+					"candidateCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"archivedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"deletedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"errorMessage": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"dataset",
+					"status",
+					"candidateCount",
+					"archivedCount",
+					"deletedCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchDataLifecycleRunResponse": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/BatchDataLifecycleRunItem"
+						},
+						"type": "array"
+					},
+					"completedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"failedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"skippedCount": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"completedCount",
+					"failedCount",
+					"skippedCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchDataLifecycleRunRequest": {
+				"properties": {
+					"datasets": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
 				"type": "object",
 				"additionalProperties": false
 			},

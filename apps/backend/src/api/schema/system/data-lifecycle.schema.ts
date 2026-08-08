@@ -15,3 +15,6 @@ export const lifecycleRunsQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
 });
 export const lifecycleArtifactsQuerySchema = lifecycleRunsQuerySchema;
+export const batchLifecycleRunBodySchema = z.object({
+  datasets: z.array(dataset).max(DATA_LIFECYCLE_DATASETS.length).optional(),
+});

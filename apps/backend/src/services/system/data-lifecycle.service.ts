@@ -168,6 +168,50 @@ export class DataLifecycleService {
     }
   }
 
+  public async runPolicies(datasets: string[] | undefined, runType: "manual" | "scheduled", startedByUserId?: string) {
+    const policies = await this.repository.listLifecyclePolicies();
+    const selected = datasets?.length
+      ? policies.filter((policy) => datasets.includes(policy.dataset))
+      : policies.filter((policy) => policy.enabled);
+    const selectedDatasets = new Set(selected.map((policy) => policy.dataset));
+    const results = [];
+
+    for (const dataset of datasets ?? []) {
+      if (!selectedDatasets.has(dataset))
+        results.push({ dataset, status: "skipped" as const, candidateCount: 0, archivedCount: 0, deletedCount: 0 });
+    }
+
+    for (const policy of selected) {
+      try {
+        const result = await this.runPolicy(policy.dataset, runType, startedByUserId);
+        results.push({
+          dataset: policy.dataset,
+          runId: result?.runId,
+          status: result ? ("completed" as const) : ("skipped" as const),
+          candidateCount: result?.candidateCount ?? 0,
+          archivedCount: result?.archivedCount ?? 0,
+          deletedCount: result?.deletedCount ?? 0,
+        });
+      } catch (error) {
+        results.push({
+          dataset: policy.dataset,
+          status: "failed" as const,
+          candidateCount: 0,
+          archivedCount: 0,
+          deletedCount: 0,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return {
+      items: results,
+      completedCount: results.filter((result) => result.status === "completed").length,
+      failedCount: results.filter((result) => result.status === "failed").length,
+      skippedCount: results.filter((result) => result.status === "skipped").length,
+    };
+  }
+
   public async runScheduledPolicies(): Promise<void> {
     await this.initialize();
     if (!env.integrations.archiveOss.enabled) {

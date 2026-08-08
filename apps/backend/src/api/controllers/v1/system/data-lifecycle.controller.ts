@@ -15,6 +15,8 @@ import {
 import type {
   ArchiveDownloadResponse,
   ArchiveArtifactListResponse,
+  BatchDataLifecycleRunRequest,
+  BatchDataLifecycleRunResponse,
   DataLifecyclePolicyDTO,
   DataLifecyclePreviewResponse,
   DataLifecycleRunListResponse,
@@ -22,6 +24,7 @@ import type {
   UpdateDataLifecyclePolicyRequest,
 } from "@/api/dto/system/data-lifecycle.dto";
 import { DataLifecycleService } from "@/services/system/data-lifecycle.service";
+import { DataLifecycleSchedulerService } from "@/services/system/data-lifecycle-scheduler.service";
 import { Permission } from "@/constant/permission";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
@@ -29,6 +32,7 @@ import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/uti
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import {
   lifecycleArtifactParamsSchema,
+  batchLifecycleRunBodySchema,
   lifecycleArtifactsQuerySchema,
   lifecycleDatasetParamsSchema,
   lifecycleRunParamsSchema,
@@ -41,6 +45,7 @@ import type { TypedRequest } from "@/types/express";
 @Tags("DataLifecycle")
 export class DataLifecycleController extends Controller {
   private readonly service = DataLifecycleService.getInstance();
+  private readonly scheduler = DataLifecycleSchedulerService.getInstance();
 
   @Get("policies")
   @Security("jwt")
@@ -95,6 +100,31 @@ export class DataLifecycleController extends Controller {
       deletedCount: result.deletedCount,
       artifactId: result.artifact?.id,
     };
+  }
+
+  @Post("batch/run")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(batchLifecycleRunBodySchema),
+  )
+  public async runBatch(
+    @Request() request: TypedRequest,
+    @Body() body: BatchDataLifecycleRunRequest,
+  ): Promise<BatchDataLifecycleRunResponse> {
+    const result = await this.scheduler.runManualBatch(body.datasets ?? [], request.user?.userId);
+    return (
+      result ?? {
+        items: [],
+        completedCount: 0,
+        failedCount: 0,
+        skippedCount: 0,
+      }
+    );
   }
 
   @Get("runs")

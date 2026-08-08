@@ -38,6 +38,7 @@ import { DataLifecycleService } from "@/services/system/data-lifecycle.service";
 describe("DataLifecycleService", () => {
   const repository = {
     getLifecyclePolicy: vi.fn(),
+    listLifecyclePolicies: vi.fn(),
     countDatasetBefore: vi.fn(),
     createLifecycleRun: vi.fn(),
     listDatasetBatch: vi.fn(),
@@ -86,5 +87,29 @@ describe("DataLifecycleService", () => {
 
     await expect(service.listArchiveArtifacts("run-1", 2, 10)).resolves.toBe(result);
     expect(repository.listArchiveArtifacts).toHaveBeenCalledWith("run-1", 2, 10);
+  });
+
+  it("runs selected policies independently and reports skipped datasets", async () => {
+    repository.listLifecyclePolicies.mockResolvedValue([
+      { dataset: "api_logs", enabled: true },
+      { dataset: "business_logs", enabled: true },
+    ]);
+    const service = new ServiceCtor(repository);
+    vi.spyOn(service, "runPolicy").mockResolvedValue({
+      runId: "run-1",
+      candidateCount: 3,
+      archivedCount: 3,
+      deletedCount: 3,
+    } as any);
+
+    const result = await service.runPolicies(["api_logs", "track_events"], "manual", "admin-1");
+
+    expect(result).toMatchObject({ completedCount: 1, failedCount: 0, skippedCount: 1 });
+    expect(result.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ dataset: "api_logs", status: "completed" }),
+        expect.objectContaining({ dataset: "track_events", status: "skipped" }),
+      ]),
+    );
   });
 });
