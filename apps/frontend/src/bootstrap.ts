@@ -72,6 +72,10 @@ export const bootstrapApp = async () => {
 
   app.mount('#app')
 
+  void import('@/service/errorReportService').then(({ installErrorReporter }) =>
+    installErrorReporter(),
+  )
+
   if (shouldSkipDeferredStartupWork()) {
     scheduleAfterLoad(
       () => {

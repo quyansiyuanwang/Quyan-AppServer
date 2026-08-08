@@ -344,6 +344,27 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows viewing business operation logs',
     category: 'system',
   },
+  [Permission.SYSTEM_ERROR_REPORT_READ]: {
+    label: '查看错误报告',
+    labelEn: 'View Error Reports',
+    tooltip: '允许查看聚合错误和发生记录',
+    tooltipEn: 'Allows viewing aggregated errors and occurrences',
+    category: 'system',
+  },
+  [Permission.SYSTEM_ERROR_REPORT_UPDATE]: {
+    label: '处置错误报告',
+    labelEn: 'Update Error Reports',
+    tooltip: '允许更新错误报告状态',
+    tooltipEn: 'Allows updating error report status',
+    category: 'system',
+  },
+  [Permission.SYSTEM_DATA_LIFECYCLE_MANAGE]: {
+    label: '管理数据归档',
+    labelEn: 'Manage Data Lifecycle',
+    tooltip: '允许修改保留策略、执行归档和下载归档文件',
+    tooltipEn: 'Allows changing retention, running archives, and downloading archive files',
+    category: 'system',
+  },
   [Permission.USER_ONLINE_MONITOR_READ]: {
     label: '查看在线监控',
     labelEn: 'View Online Monitor',

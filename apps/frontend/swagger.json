@@ -9533,6 +9533,705 @@
 				"parameters": []
 			}
 		},
+		"/v1/error-reports/client": {
+			"post": {
+				"operationId": "ErrorReportControllerReportClientError",
+				"responses": {
+					"202": {
+						"description": "Accepted",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"accepted": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"accepted"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Invalid request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"ErrorReport"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ClientErrorReportRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/error-reports": {
+			"get": {
+				"operationId": "ErrorReportControllerListGroups",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorGroupListResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Invalid request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"ErrorReport"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "resolutionStatus",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "source",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "search",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/error-reports/{id}": {
+			"get": {
+				"operationId": "ErrorReportControllerGetGroup",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"affectedUserCount": {
+											"type": "number",
+											"format": "double"
+										},
+										"occurrenceCount": {
+											"type": "number",
+											"format": "double"
+										},
+										"lastSeenAt": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"firstSeenAt": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"resolutionStatus": {
+											"type": "string"
+										},
+										"severity": {
+											"type": "string"
+										},
+										"route": {
+											"type": "string"
+										},
+										"message": {
+											"type": "string"
+										},
+										"errorType": {
+											"type": "string"
+										},
+										"source": {
+											"type": "string"
+										},
+										"fingerprint": {
+											"type": "string"
+										},
+										"updateTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"createTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"status": {
+											"type": "number",
+											"format": "double"
+										},
+										"id": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"affectedUserCount",
+										"occurrenceCount",
+										"lastSeenAt",
+										"firstSeenAt",
+										"resolutionStatus",
+										"severity",
+										"route",
+										"message",
+										"errorType",
+										"source",
+										"fingerprint",
+										"updateTime",
+										"createTime",
+										"status",
+										"id"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Invalid request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"ErrorReport"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/error-reports/{id}/occurrences": {
+			"get": {
+				"operationId": "ErrorReportControllerListOccurrences",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorOccurrenceListResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Invalid request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"ErrorReport"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/error-reports/{id}/status": {
+			"put": {
+				"operationId": "ErrorReportControllerUpdateStatus",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"affectedUserCount": {
+											"type": "number",
+											"format": "double"
+										},
+										"occurrenceCount": {
+											"type": "number",
+											"format": "double"
+										},
+										"lastSeenAt": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"firstSeenAt": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"resolutionStatus": {
+											"type": "string"
+										},
+										"severity": {
+											"type": "string"
+										},
+										"route": {
+											"type": "string"
+										},
+										"message": {
+											"type": "string"
+										},
+										"errorType": {
+											"type": "string"
+										},
+										"source": {
+											"type": "string"
+										},
+										"fingerprint": {
+											"type": "string"
+										},
+										"updateTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"createTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"status": {
+											"type": "number",
+											"format": "double"
+										},
+										"id": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"affectedUserCount",
+										"occurrenceCount",
+										"lastSeenAt",
+										"firstSeenAt",
+										"resolutionStatus",
+										"severity",
+										"route",
+										"message",
+										"errorType",
+										"source",
+										"fingerprint",
+										"updateTime",
+										"createTime",
+										"status",
+										"id"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Invalid request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"ErrorReport"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateErrorGroupStatusRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/data-lifecycle/policies": {
+			"get": {
+				"operationId": "DataLifecycleControllerListPolicies",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/DataLifecyclePolicyDTO"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataLifecycle"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/data-lifecycle/policies/{dataset}": {
+			"put": {
+				"operationId": "DataLifecycleControllerUpdatePolicy",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataLifecyclePolicyDTO"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataLifecycle"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "dataset",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDataLifecyclePolicyRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/data-lifecycle/policies/{dataset}/preview": {
+			"get": {
+				"operationId": "DataLifecycleControllerPreview",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataLifecyclePreviewResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataLifecycle"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "dataset",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/data-lifecycle/policies/{dataset}/run": {
+			"post": {
+				"operationId": "DataLifecycleControllerRun",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataLifecycleRunResultResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataLifecycle"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "dataset",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/data-lifecycle/runs": {
+			"get": {
+				"operationId": "DataLifecycleControllerListRuns",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataLifecycleRunListResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataLifecycle"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/data-lifecycle/artifacts/{artifactId}/download": {
+			"post": {
+				"operationId": "DataLifecycleControllerDownload",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ArchiveDownloadResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataLifecycle"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "artifactId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/config": {
 			"get": {
 				"operationId": "ConfigControllerGetAllConfigs",
@@ -29110,6 +29809,9 @@
 					"system:log:read",
 					"system:server_log:read",
 					"system:business_log:read",
+					"system:error_report:read",
+					"system:error_report:update",
+					"system:data_lifecycle:manage",
 					"user_online_monitor:read",
 					"user_online_monitor:force_offline",
 					"api_log:read",
@@ -33809,6 +34511,518 @@
 					"activeBans",
 					"recentActivity",
 					"topBannedIPs"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ClientErrorReportRequest": {
+				"properties": {
+					"errorType": {
+						"type": "string"
+					},
+					"message": {
+						"type": "string"
+					},
+					"route": {
+						"type": "string"
+					},
+					"severity": {
+						"type": "string",
+						"enum": [
+							"error",
+							"fatal",
+							"warning"
+						]
+					},
+					"requestId": {
+						"type": "string"
+					},
+					"httpMethod": {
+						"type": "string"
+					},
+					"httpStatus": {
+						"type": "number",
+						"format": "double"
+					},
+					"clientVersion": {
+						"type": "string"
+					},
+					"stack": {
+						"type": "string"
+					},
+					"context": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					}
+				},
+				"required": [
+					"errorType",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ErrorGroupDTO": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"fingerprint": {
+						"type": "string"
+					},
+					"source": {
+						"type": "string"
+					},
+					"errorType": {
+						"type": "string"
+					},
+					"message": {
+						"type": "string"
+					},
+					"route": {
+						"type": "string",
+						"nullable": true
+					},
+					"severity": {
+						"type": "string"
+					},
+					"resolutionStatus": {
+						"type": "string"
+					},
+					"firstSeenAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"lastSeenAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"occurrenceCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"affectedUserCount": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"id",
+					"fingerprint",
+					"source",
+					"errorType",
+					"message",
+					"route",
+					"severity",
+					"resolutionStatus",
+					"firstSeenAt",
+					"lastSeenAt",
+					"occurrenceCount",
+					"affectedUserCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ErrorGroupListResponse": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/ErrorGroupDTO"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ErrorOccurrenceDTO": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string",
+						"nullable": true
+					},
+					"requestId": {
+						"type": "string",
+						"nullable": true
+					},
+					"source": {
+						"type": "string"
+					},
+					"route": {
+						"type": "string",
+						"nullable": true
+					},
+					"httpMethod": {
+						"type": "string",
+						"nullable": true
+					},
+					"httpStatus": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"clientVersion": {
+						"type": "string",
+						"nullable": true
+					},
+					"userAgent": {
+						"type": "string",
+						"nullable": true
+					},
+					"ipAddress": {
+						"type": "string",
+						"nullable": true
+					},
+					"stack": {
+						"type": "string",
+						"nullable": true
+					},
+					"context": {},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"requestId",
+					"source",
+					"route",
+					"httpMethod",
+					"httpStatus",
+					"clientVersion",
+					"userAgent",
+					"ipAddress",
+					"stack",
+					"context",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ErrorOccurrenceListResponse": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/ErrorOccurrenceDTO"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ErrorResolutionStatus": {
+				"type": "string",
+				"enum": [
+					"open",
+					"acknowledged",
+					"resolved",
+					"ignored"
+				]
+			},
+			"UpdateErrorGroupStatusRequest": {
+				"properties": {
+					"resolutionStatus": {
+						"$ref": "#/components/schemas/ErrorResolutionStatus"
+					}
+				},
+				"required": [
+					"resolutionStatus"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DataLifecyclePolicyDTO": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"dataset": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"hotRetentionDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"archiveRetentionDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastRunAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					}
+				},
+				"required": [
+					"id",
+					"dataset",
+					"enabled",
+					"hotRetentionDays",
+					"archiveRetentionDays",
+					"lastRunAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateDataLifecyclePolicyRequest": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"hotRetentionDays": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"enabled",
+					"hotRetentionDays"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DataLifecyclePreviewResponse": {
+				"properties": {
+					"dataset": {
+						"type": "string"
+					},
+					"cutoffAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"candidateCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"enabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"dataset",
+					"cutoffAt",
+					"candidateCount",
+					"enabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DataLifecycleRunResultResponse": {
+				"properties": {
+					"runId": {
+						"type": "string"
+					},
+					"candidateCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"archivedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"deletedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"artifactId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"runId",
+					"candidateCount",
+					"archivedCount",
+					"deletedCount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DataLifecycleRunDTO": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"dataset": {
+						"type": "string"
+					},
+					"runType": {
+						"type": "string"
+					},
+					"runStatus": {
+						"type": "string"
+					},
+					"cutoffAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"candidateCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"archivedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"deletedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"errorMessage": {
+						"type": "string",
+						"nullable": true
+					},
+					"completedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"artifacts": {
+						"items": {
+							"properties": {
+								"deletedAt": {
+									"type": "string",
+									"format": "date-time",
+									"nullable": true
+								},
+								"expiresAt": {
+									"type": "string",
+									"format": "date-time"
+								},
+								"byteSize": {
+									"type": "string"
+								},
+								"recordCount": {
+									"type": "number",
+									"format": "double"
+								},
+								"objectKey": {
+									"type": "string"
+								},
+								"id": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"deletedAt",
+								"expiresAt",
+								"byteSize",
+								"recordCount",
+								"objectKey",
+								"id"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"dataset",
+					"runType",
+					"runStatus",
+					"cutoffAt",
+					"candidateCount",
+					"archivedCount",
+					"deletedCount",
+					"errorMessage",
+					"completedAt",
+					"createTime",
+					"artifacts"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DataLifecycleRunListResponse": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/DataLifecycleRunDTO"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ArchiveDownloadResponse": {
+				"properties": {
+					"url": {
+						"type": "string"
+					},
+					"expiresInSeconds": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"url",
+					"expiresInSeconds"
 				],
 				"type": "object",
 				"additionalProperties": false

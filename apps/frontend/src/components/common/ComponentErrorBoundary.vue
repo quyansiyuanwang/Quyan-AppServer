@@ -19,6 +19,7 @@
 <script setup lang="ts">
 import { onErrorCaptured, ref } from 'vue'
 import { i18ns } from '@/locales'
+import { reportClientError } from '@/service/errorReportService'
 
 const hasError = ref(false)
 const boundaryKey = ref(0)
@@ -32,6 +33,14 @@ onErrorCaptured((error, _instance, info) => {
   console.error('ComponentErrorBoundary captured an error', {
     error,
     info,
+  })
+  void reportClientError({
+    errorType: error instanceof Error ? error.name : 'VueRenderError',
+    message: error instanceof Error ? error.message : String(error),
+    route: window.location.pathname,
+    severity: 'error',
+    stack: error instanceof Error ? error.stack : undefined,
+    context: { vueInfo: info },
   })
   hasError.value = true
   return false

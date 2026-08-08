@@ -1,0 +1,62 @@
+export interface UpdateDataLifecyclePolicyRequest {
+  enabled: boolean;
+  hotRetentionDays: number;
+}
+
+export interface DataLifecyclePolicyDTO {
+  id: string;
+  dataset: string;
+  enabled: boolean;
+  hotRetentionDays: number;
+  archiveRetentionDays: number;
+  lastRunAt: Date | null;
+}
+
+export interface DataLifecyclePreviewResponse {
+  dataset: string;
+  cutoffAt: Date;
+  candidateCount: number;
+  enabled: boolean;
+}
+
+export interface DataLifecycleRunDTO {
+  id: string;
+  dataset: string;
+  runType: string;
+  runStatus: string;
+  cutoffAt: Date;
+  candidateCount: number;
+  archivedCount: number;
+  deletedCount: number;
+  errorMessage: string | null;
+  completedAt: Date | null;
+  createTime: Date;
+  artifacts: Array<{
+    id: string;
+    objectKey: string;
+    recordCount: number;
+    byteSize: string;
+    expiresAt: Date;
+    deletedAt: Date | null;
+  }>;
+}
+
+export interface DataLifecycleRunListResponse {
+  items: DataLifecycleRunDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface ArchiveDownloadResponse {
+  url: string;
+  expiresInSeconds: number;
+}
+
+export interface DataLifecycleRunResultResponse {
+  runId: string;
+  candidateCount: number;
+  archivedCount: number;
+  deletedCount: number;
+  artifactId?: string;
+}

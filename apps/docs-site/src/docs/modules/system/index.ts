@@ -13,6 +13,8 @@ const orderedModulePaths = [
   './consumption-statistics.doc.ts',
   './system-logs.doc.ts',
   './business-logs.doc.ts',
+  './error-center.doc.ts',
+  './data-lifecycle.doc.ts',
 ] as const
 
 export const registerSystemDocs = (registry: DocsRegistryBuilder) => {

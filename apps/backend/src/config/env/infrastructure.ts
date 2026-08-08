@@ -82,6 +82,17 @@ export function buildRelayConfig(source: EnvSnapshot) {
 }
 
 export function buildIntegrationsConfig(source: EnvSnapshot) {
+  const archiveOss = {
+    endpoint: String(source.ARCHIVE_OSS_ENDPOINT || "").trim(),
+    region: String(source.ARCHIVE_OSS_REGION || "").trim(),
+    bucket: String(source.ARCHIVE_OSS_BUCKET || "").trim(),
+    accessKeyId: String(source.ARCHIVE_OSS_ACCESS_KEY_ID || "").trim(),
+    accessKeySecret: String(source.ARCHIVE_OSS_ACCESS_KEY_SECRET || "").trim(),
+    prefix: String(source.ARCHIVE_OSS_PREFIX || "appserver-archives")
+      .trim()
+      .replace(/^\/+|\/+$/g, ""),
+  };
+
   return {
     anthropic: {
       apiKey: String(source.ANTHROPIC_API_KEY || "").trim(),
@@ -102,6 +113,16 @@ export function buildIntegrationsConfig(source: EnvSnapshot) {
       maxIntegerQuota: sanitizeInt(source.MONTHLY_PASS_MAX_INTEGER_QUOTA, 999999, 1, 2147483647),
     },
     baiduMap: { ipLocationAk: String(source.BAIDU_IP_LOCATION_AK || "").trim() },
+    archiveOss: {
+      ...archiveOss,
+      enabled: Boolean(
+        archiveOss.endpoint &&
+          archiveOss.region &&
+          archiveOss.bucket &&
+          archiveOss.accessKeyId &&
+          archiveOss.accessKeySecret,
+      ),
+    },
     distributedLock: {
       acquireTimeoutMs: sanitizeInt(source.DISTRIBUTED_LOCK_ACQUIRE_TIMEOUT_MS, 5000, 100, 60000),
       retryIntervalMs: sanitizeInt(source.DISTRIBUTED_LOCK_RETRY_INTERVAL_MS, 100, 10, 2000),

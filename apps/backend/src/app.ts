@@ -14,6 +14,7 @@ import { startMemoryMonitor } from "./middleware/memory-monitor";
 import { DeveloperMonitorSchedulerService } from "./services/developer/developer-monitor-scheduler.service";
 import { RelayChannelProbeService } from "./services/relay/relay-channel-probe.service";
 import { RelayChannelProviderSettlementSchedulerService } from "./services/relay/relay-channel-provider-settlement-scheduler.service";
+import { DataLifecycleSchedulerService } from "./services/system/data-lifecycle-scheduler.service";
 import { RegisterRoutes } from "@/build/routes";
 import { HttpStatusCode } from "axios";
 import { CustomCode } from "./constant/custom-code";
@@ -206,4 +207,5 @@ export function setupService() {
   DeveloperMonitorSchedulerService.getInstance().start();
   RelayChannelProbeService.getInstance().start();
   RelayChannelProviderSettlementSchedulerService.getInstance().start();
+  DataLifecycleSchedulerService.getInstance().start();
 }

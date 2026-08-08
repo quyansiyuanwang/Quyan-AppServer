@@ -2480,3 +2480,113 @@ model HeatmapPoint {
   @@index([page, pointType, status, serverTime])
   @@map("heatmap_points")
 }
+
+// ─── Error reporting and data lifecycle ────────────────────────────────────
+
+model ErrorGroup {
+  id                 String            @id @default(cuid())
+  status             Int               @default(1)
+  createTime         DateTime          @default(now())
+  updateTime         DateTime          @updatedAt
+  fingerprint        String            @unique @db.VarChar(128)
+  source             String            @db.VarChar(20)
+  errorType          String            @db.VarChar(120)
+  message            String            @db.Text
+  route              String?           @db.VarChar(1024)
+  severity           String            @default("error") @db.VarChar(20)
+  resolutionStatus   String            @default("open") @db.VarChar(20)
+  firstSeenAt        DateTime
+  lastSeenAt         DateTime
+  occurrenceCount    Int               @default(1)
+  affectedUserCount  Int               @default(0)
+  occurrences        ErrorOccurrence[]
+
+  @@index([resolutionStatus, lastSeenAt])
+  @@index([source, lastSeenAt])
+  @@map("error_groups")
+}
+
+model ErrorOccurrence {
+  id             String     @id @default(cuid())
+  status         Int        @default(1)
+  createTime     DateTime   @default(now())
+  updateTime     DateTime   @updatedAt
+  errorGroupId   String
+  userId         String?
+  requestId      String?    @db.VarChar(128)
+  source         String     @db.VarChar(20)
+  route          String?    @db.VarChar(1024)
+  httpMethod     String?    @db.VarChar(12)
+  httpStatus     Int?
+  clientVersion  String?    @db.VarChar(128)
+  userAgent      String?    @db.Text
+  ipAddress      String?    @db.VarChar(128)
+  stack          String?    @db.Text
+  context        Json?
+  errorGroup     ErrorGroup @relation(fields: [errorGroupId], references: [id], onDelete: Cascade)
+
+  @@index([errorGroupId, createTime])
+  @@index([userId, createTime])
+  @@index([requestId])
+  @@index([createTime])
+  @@map("error_occurrences")
+}
+
+model DataLifecyclePolicy {
+  id                String             @id @default(cuid())
+  status            Int                @default(1)
+  createTime        DateTime           @default(now())
+  updateTime        DateTime           @updatedAt
+  dataset           String             @unique @db.VarChar(80)
+  enabled           Boolean            @default(true)
+  hotRetentionDays  Int
+  archiveRetentionDays Int              @default(365)
+  lastRunAt         DateTime?
+  runs              DataLifecycleRun[]
+
+  @@map("data_lifecycle_policies")
+}
+
+model DataLifecycleRun {
+  id               String              @id @default(cuid())
+  status           Int                 @default(1)
+  createTime       DateTime            @default(now())
+  updateTime       DateTime            @updatedAt
+  policyId         String?
+  dataset          String              @db.VarChar(80)
+  runType          String              @db.VarChar(20)
+  runStatus        String              @default("running") @db.VarChar(20)
+  cutoffAt         DateTime
+  candidateCount   Int                 @default(0)
+  archivedCount    Int                 @default(0)
+  deletedCount     Int                 @default(0)
+  errorMessage     String?             @db.Text
+  startedByUserId  String?
+  completedAt      DateTime?
+  policy           DataLifecyclePolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  artifacts        ArchiveArtifact[]
+
+  @@index([dataset, createTime])
+  @@index([runStatus, createTime])
+  @@map("data_lifecycle_runs")
+}
+
+model ArchiveArtifact {
+  id               String            @id @default(cuid())
+  status           Int               @default(1)
+  createTime       DateTime          @default(now())
+  updateTime       DateTime          @updatedAt
+  lifecycleRunId   String
+  dataset          String            @db.VarChar(80)
+  objectKey        String            @unique @db.VarChar(512)
+  sha256           String            @db.VarChar(64)
+  recordCount      Int
+  byteSize         BigInt
+  expiresAt        DateTime
+  deletedAt        DateTime?
+  lifecycleRun     DataLifecycleRun  @relation(fields: [lifecycleRunId], references: [id], onDelete: Cascade)
+
+  @@index([dataset, expiresAt])
+  @@index([expiresAt, deletedAt])
+  @@map("archive_artifacts")
+}
