@@ -101,6 +101,8 @@
     "trusted-device:cleanup-legacy": "bun ./scripts/cleanup-legacy-trusted-device-keys.ts",
     "balance:cleanup-consumption-older-than-month": "bun ./scripts/cleanup-old-consumption-records.ts",
     "balance:cleanup-consumption-older-than-month:apply": "bun ./scripts/cleanup-old-consumption-records.ts --apply",
+    "archive:fixture": "bun ./scripts/create-archive-fixture.ts",
+    "archive:fixture:apply": "bun ./scripts/create-archive-fixture.ts --apply",
     "generate-operation-ids": "bun ./scripts/generate-operation-ids.ts"
   },
   "keywords": [],

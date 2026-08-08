@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { Refresh, View } from '@element-plus/icons-vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import { i18ns } from '@/locales'
 import { errorReportService } from '@/service/errorReportService'
+import { highlightCodeBlocks } from '@/utils/asyncMarkdown'
+import 'highlight.js/styles/github-dark.css'
 
 const loading = ref(false)
 const loadFailed = ref(false)
@@ -16,6 +17,9 @@ const search = ref('')
 const activeGroup = ref<any | null>(null)
 const occurrences = ref<any[]>([])
 const detailVisible = ref(false)
+const detailLoading = ref(false)
+const occurrenceLoadFailed = ref(false)
+const detailContent = ref<HTMLElement | null>(null)
 const statusOptions = ['open', 'acknowledged', 'resolved', 'ignored'] as const
 
 const statusLabel = (value: string) => {
@@ -62,10 +66,23 @@ const load = async () => {
 }
 
 const openDetail = async (row: any) => {
-  activeGroup.value = await errorReportService.getGroup(row.id)
-  const data = await errorReportService.listOccurrences(row.id, { page: 1, pageSize: 50 })
-  occurrences.value = data.items
+  activeGroup.value = row
+  occurrences.value = []
+  occurrenceLoadFailed.value = false
   detailVisible.value = true
+  detailLoading.value = true
+  try {
+    activeGroup.value = await errorReportService.getGroup(row.id)
+  } finally {
+    detailLoading.value = false
+  }
+
+  try {
+    const data = await errorReportService.listOccurrences(row.id, { page: 1, pageSize: 50 })
+    occurrences.value = data?.items ?? []
+  } catch {
+    occurrenceLoadFailed.value = true
+  }
 }
 
 const updateStatus = async (resolutionStatus: string) => {
@@ -87,6 +104,15 @@ const clearFilters = () => {
   resetPageAndLoad()
 }
 
+const highlightDetailCode = async () => {
+  await nextTick()
+  await highlightCodeBlocks(detailContent.value)
+}
+
+watch([detailVisible, activeGroup, occurrences], ([visible]) => {
+  if (visible) void highlightDetailCode()
+})
+
 onMounted(load)
 </script>
 
@@ -97,9 +123,7 @@ onMounted(load)
         <h2>{{ i18ns.t('errorCenter.title') }}</h2>
         <p>{{ i18ns.t('errorCenter.subtitle') }}</p>
       </div>
-      <el-button :icon="Refresh" :loading="loading" @click="load">{{
-        i18ns.t('refresh')
-      }}</el-button>
+      <el-button :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
     </div>
 
     <div class="filters" role="search">
@@ -182,13 +206,11 @@ onMounted(load)
       />
       <el-table-column prop="occurrenceCount" :label="i18ns.t('errorCenter.count')" width="100" />
       <el-table-column width="70" fixed="right">
-        <template #default="{ row }"
-          ><el-button
-            text
-            :icon="View"
-            :title="i18ns.t('errorCenter.view')"
-            @click="openDetail(row)"
-        /></template>
+        <template #default="{ row }">
+          <el-button text @click="openDetail(row)">
+            {{ i18ns.t('errorCenter.view') }}
+          </el-button>
+        </template>
       </el-table-column>
     </el-table>
     <el-pagination
@@ -204,7 +226,7 @@ onMounted(load)
       size="min(760px, 100%)"
       :title="i18ns.t('errorCenter.detail')"
     >
-      <template v-if="activeGroup">
+      <div v-if="activeGroup" ref="detailContent" v-loading="detailLoading" class="error-detail">
         <div class="detail-actions">
           <el-button
             v-for="item in statusOptions"
@@ -215,25 +237,63 @@ onMounted(load)
           >
         </div>
         <el-descriptions :column="1" border>
-          <el-descriptions-item :label="i18ns.t('errorCenter.message')">{{
-            activeGroup.message
-          }}</el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('errorCenter.type')">
+            {{ activeGroup.errorType }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('errorCenter.source')">
+            {{ sourceLabel(activeGroup.source) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('errorCenter.status')">
+            {{ statusLabel(activeGroup.resolutionStatus) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('errorCenter.route')">
+            {{ activeGroup.route || '-' }}
+          </el-descriptions-item>
           <el-descriptions-item :label="i18ns.t('errorCenter.fingerprint')">{{
             activeGroup.fingerprint
           }}</el-descriptions-item>
         </el-descriptions>
-        <h3>{{ i18ns.t('errorCenter.occurrences') }}</h3>
-        <el-collapse>
-          <el-collapse-item
-            v-for="item in occurrences"
-            :key="item.id"
-            :title="new Date(item.createTime).toLocaleString()"
-          >
-            <pre v-if="item.stack">{{ item.stack }}</pre>
-            <pre v-if="item.context">{{ JSON.stringify(item.context, null, 2) }}</pre>
-          </el-collapse-item>
-        </el-collapse>
-      </template>
+        <section class="detail-section">
+          <h3>{{ i18ns.t('errorCenter.message') }}</h3>
+          <pre
+            class="code-panel"
+          ><code class="language-typescript">{{ activeGroup.message }}</code></pre>
+        </section>
+        <section class="detail-section">
+          <h3>{{ i18ns.t('errorCenter.occurrences') }}</h3>
+          <el-alert
+            v-if="occurrenceLoadFailed"
+            type="warning"
+            :title="i18ns.t('errorCenter.occurrencesLoadFailed')"
+            :closable="false"
+            show-icon
+          />
+          <el-empty
+            v-else-if="!detailLoading && occurrences.length === 0"
+            :description="i18ns.t('errorCenter.noOccurrences')"
+          />
+          <el-collapse v-else @change="() => void highlightDetailCode()">
+            <el-collapse-item
+              v-for="item in occurrences"
+              :key="item.id"
+              :title="new Date(item.createTime).toLocaleString()"
+            >
+              <section v-if="item.stack" class="occurrence-section">
+                <h4>{{ i18ns.t('errorCenter.stack') }}</h4>
+                <pre
+                  class="code-panel"
+                ><code class="language-typescript">{{ item.stack }}</code></pre>
+              </section>
+              <section v-if="item.context" class="occurrence-section">
+                <h4>{{ i18ns.t('errorCenter.context') }}</h4>
+                <pre
+                  class="code-panel"
+                ><code class="language-json">{{ JSON.stringify(item.context, null, 2) }}</code></pre>
+              </section>
+            </el-collapse-item>
+          </el-collapse>
+        </section>
+      </div>
     </el-drawer>
   </section>
 </template>
@@ -286,9 +346,38 @@ onMounted(load)
   padding-inline: 4px;
 }
 pre {
+  margin: 0;
+}
+.error-detail {
+  display: grid;
+  gap: 20px;
+}
+.detail-section,
+.occurrence-section {
+  display: grid;
+  gap: 8px;
+}
+.detail-section h3,
+.occurrence-section h4 {
+  margin: 0;
+}
+.occurrence-section + .occurrence-section {
+  margin-top: 16px;
+}
+.code-panel {
+  max-height: 420px;
   overflow: auto;
+  border: 1px solid var(--el-border-color);
+  background: #0d1117;
+}
+.code-panel :deep(code) {
+  display: block;
+  padding: 14px;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-family: var(--el-font-family-monospace);
+  font-size: 12px;
+  line-height: 1.6;
 }
 @media (max-width: 700px) {
   .page-toolbar {

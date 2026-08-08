@@ -2120,11 +2120,16 @@ export default {
     lastSeen: 'Last seen',
     route: 'Route',
     message: 'Message',
+    type: 'Error type',
     count: 'Count',
     view: 'View detail',
     detail: 'Error detail',
     fingerprint: 'Fingerprint',
     occurrences: 'Occurrences',
+    noOccurrences: 'No occurrences',
+    occurrencesLoadFailed: 'Failed to load occurrences',
+    stack: 'Stack',
+    context: 'Context',
   },
   dataLifecycle: {
     title: 'Data Archive',
@@ -2133,6 +2138,7 @@ export default {
     dataset: 'Dataset',
     enabled: 'Enabled',
     hotRetention: 'Hot retention days',
+    reset: 'Reset default',
     actions: 'Actions',
     run: 'Run archive',
     confirmRun:
@@ -2145,6 +2151,7 @@ export default {
     archived: 'Archived',
     deleted: 'Deleted',
     archives: 'Archive files',
+    download: 'Download archive ({count})',
   },
   BusinessLogs: {
     title: 'Business Operation Logs',
