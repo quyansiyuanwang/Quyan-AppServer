@@ -166,12 +166,12 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('status')" width="96">
-          <template #default="{ row }"
-            ><el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
-              row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
-            }}</el-tag></template
-          >
+        <el-table-column :label="i18ns.t('relay.serviceStatus')" width="130">
+          <template #default="{ row }">
+            <el-tag :type="channelServiceStatusType(row)" size="small">{{
+              channelServiceStatusLabel(row)
+            }}</el-tag>
+          </template>
         </el-table-column>
         <el-table-column :label="i18ns.t('relay.visibilityMode')" width="120">
           <template #default="{ row }">{{
@@ -333,8 +333,8 @@
           class="relay-channel-management__mobile-multiplier"
           >{{ row.multiplier }}x</span
         >
-        <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{
-          row.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled')
+        <el-tag :type="channelServiceStatusType(row)" size="small">{{
+          channelServiceStatusLabel(row)
         }}</el-tag>
         <el-icon><ArrowRight /></el-icon>
       </button>
@@ -414,6 +414,17 @@ const submissionStatusLabel = (
     offboarded: 'relay.submissionStatusOffboarded',
   } as const
   return i18ns.t(labels[status])
+}
+
+const channelServiceStatusType = (row: (typeof channelRows.value)[number]) => {
+  if (row.serviceEnabled) return 'success'
+  return row.enabled ? 'warning' : 'info'
+}
+
+const channelServiceStatusLabel = (row: (typeof channelRows.value)[number]) => {
+  if (row.serviceEnabled) return i18ns.t('relay.serviceOnline')
+  if (!row.enabled) return i18ns.t('relay.serviceAdminDisabled')
+  return i18ns.t('relay.servicePaused')
 }
 
 const handleRowCommand = (command: string, row: (typeof channelRows.value)[number]) => {

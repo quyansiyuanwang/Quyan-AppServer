@@ -864,6 +864,7 @@ model TwoFactorCredential {
 model RelayChannel {
   id                          String   @id @default(cuid())
   status                      Int      @default(1)
+  providerServiceEnabled      Boolean  @default(true)
   createTime                  DateTime @default(now())
   updateTime                  DateTime @updatedAt
   name                        String

@@ -119,6 +119,10 @@ const zhCN: DeepStringify<typeof en> = {
   },
   relay: {
     channelDeleted: "渠道删除成功",
+    providerServiceOwnershipRequired: "只有原提交者可以调整该渠道服务状态",
+    providerServiceStandaloneRequired: "只有独立提交渠道可以调整服务状态",
+    providerServiceApprovalRequired: "只有审核通过的渠道可以调整服务状态",
+    providerServiceAdminDisabled: "该渠道已被管理员禁用，无法恢复服务",
     reviewReasonRequired: "拒绝渠道或修改申请时必须填写审核说明",
     tokenDeleted: "Token删除成功",
     customKeyPermissionDenied: "你没有权限设置自定义令牌",

@@ -12,6 +12,7 @@ export interface RelayChannelManagementRecord {
   submittedByUserId: string | null;
   submittedBy: { username: string } | null;
   status: number;
+  providerServiceEnabled: boolean;
   channelType: string | null;
   routingStrategy: string | null;
   visibilityMode: string | null;

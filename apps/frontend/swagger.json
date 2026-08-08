@@ -14691,6 +14691,57 @@
 				}
 			}
 		},
+		"/v1/relay-channels/submissions/{id}/service-status": {
+			"patch": {
+				"operationId": "RelayChannelControllerUpdateSubmittedChannelServiceStatus",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateRelayChannelServiceStatusRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/relay-channels/{id}/review-submission": {
 			"post": {
 				"operationId": "RelayChannelControllerReviewChannelSubmission",
@@ -39028,6 +39079,12 @@
 					"enabled": {
 						"type": "boolean"
 					},
+					"providerServiceEnabled": {
+						"type": "boolean"
+					},
+					"serviceEnabled": {
+						"type": "boolean"
+					},
 					"channelType": {
 						"$ref": "#/components/schemas/RelayChannelType"
 					},
@@ -39159,6 +39216,8 @@
 					"id",
 					"name",
 					"enabled",
+					"providerServiceEnabled",
+					"serviceEnabled",
 					"channelType",
 					"routingStrategy",
 					"visibilityMode",
@@ -39192,6 +39251,12 @@
 						"type": "string"
 					},
 					"enabled": {
+						"type": "boolean"
+					},
+					"providerServiceEnabled": {
+						"type": "boolean"
+					},
+					"serviceEnabled": {
 						"type": "boolean"
 					},
 					"channelType": {
@@ -39239,6 +39304,8 @@
 					"id",
 					"name",
 					"enabled",
+					"providerServiceEnabled",
+					"serviceEnabled",
 					"channelType",
 					"routingStrategy",
 					"visibilityMode",
@@ -40412,6 +40479,18 @@
 					"total",
 					"page",
 					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateRelayChannelServiceStatusRequest": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"enabled"
 				],
 				"type": "object",
 				"additionalProperties": false

@@ -725,14 +725,14 @@ export class RelayChannelProbeService {
             priority: number;
             weight: number;
             enabled: boolean;
-            memberChannel?: { status: number } | null;
+            memberChannel?: { status: number; providerServiceEnabled?: boolean } | null;
           }>;
         }
       ).poolMembers;
       return {
         id: channel.id,
         name: channel.name,
-        enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+        enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED && channel.providerServiceEnabled !== false,
         channelType: channel.channelType as RelayChannelType,
         poolMembers: members?.map(
           (member): RelayChannelMemberDto => ({
@@ -740,7 +740,9 @@ export class RelayChannelProbeService {
             priority: member.priority,
             weight: Number(member.weight),
             enabled: member.enabled,
-            memberChannelEnabled: member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+            memberChannelEnabled:
+              member.memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED &&
+              member.memberChannel.providerServiceEnabled !== false,
           }),
         ),
       };
@@ -788,6 +790,7 @@ export class RelayChannelProbeService {
           (member: RelayChannel) =>
             member.channelType === "pooled-member" &&
             member.status === RELAY_CHANNEL_STATUS.ENABLED &&
+            member.providerServiceEnabled !== false &&
             member.pooledMemberEnabled !== false,
         )
         .map((member: RelayChannel) => member.id);
@@ -1757,6 +1760,7 @@ export class RelayChannelProbeService {
       (member) =>
         member.channelType === "pooled-member" &&
         member.status === RELAY_CHANNEL_STATUS.ENABLED &&
+        member.providerServiceEnabled !== false &&
         member.pooledMemberEnabled !== false,
     );
     if (!members.length) throw new BadRequestError("逻辑混池没有可用的物理成员用于探针");

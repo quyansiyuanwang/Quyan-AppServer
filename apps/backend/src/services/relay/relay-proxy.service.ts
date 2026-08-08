@@ -1618,7 +1618,9 @@ export class RelayProxyService {
   private getTopLevelAttemptChannels(relayToken: RelayTokenAvailabilityInput): RelayChannelWithPool[] {
     if (relayToken.routingMode === "automatic-pool") {
       const channel = relayToken.automaticProxyPoolChannel;
-      return channel?.status === RELAY_CHANNEL_STATUS.ENABLED ? [channel as RelayChannelWithPool] : [];
+      return channel?.status === RELAY_CHANNEL_STATUS.ENABLED && channel.providerServiceEnabled !== false
+        ? [channel as RelayChannelWithPool]
+        : [];
     }
     const candidates = relayToken.channelConfigs?.length
       ? relayToken.channelConfigs.map((config) => config.channel).filter(Boolean)
@@ -1630,7 +1632,11 @@ export class RelayProxyService {
     return candidates.filter((channel): channel is RelayChannelWithPool => {
       if (!channel?.id || seen.has(channel.id)) return false;
       seen.add(channel.id);
-      return channel.status === RELAY_CHANNEL_STATUS.ENABLED && channel.channelType !== "automatic-proxy-pool";
+      return (
+        channel.status === RELAY_CHANNEL_STATUS.ENABLED &&
+        channel.providerServiceEnabled !== false &&
+        channel.channelType !== "automatic-proxy-pool"
+      );
     });
   }
 
@@ -1659,7 +1665,10 @@ export class RelayProxyService {
           return {
             id: member.memberChannelId,
             name: memberChannel?.name ?? member.memberChannelId,
-            enabled: member.enabled && memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED,
+            enabled:
+              member.enabled &&
+              memberChannel?.status === RELAY_CHANNEL_STATUS.ENABLED &&
+              memberChannel.providerServiceEnabled !== false,
             priority: member.priority,
             weight: Number(member.weight),
             effectivePrice:

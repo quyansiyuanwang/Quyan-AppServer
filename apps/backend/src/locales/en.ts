@@ -116,6 +116,10 @@ const en = {
   },
   relay: {
     channelDeleted: "Channel deleted successfully",
+    providerServiceOwnershipRequired: "Only the original submitter may update this channel service",
+    providerServiceStandaloneRequired: "Only standalone submitted channels may update service status",
+    providerServiceApprovalRequired: "Only approved channels may update service status",
+    providerServiceAdminDisabled: "The administrator has disabled this channel",
     reviewReasonRequired: "A review note is required when rejecting a channel or change request",
     tokenDeleted: "Token deleted successfully",
     customKeyPermissionDenied: "You do not have permission to set custom token keys",
