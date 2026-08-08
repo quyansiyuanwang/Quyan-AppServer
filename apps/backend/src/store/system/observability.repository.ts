@@ -9,6 +9,7 @@ export const DATA_LIFECYCLE_DATASETS = [
   "heatmap_points",
   "relay_usages",
   "monthly_pass_usages",
+  "server_logs",
 ] as const;
 
 export type DataLifecycleDataset = (typeof DATA_LIFECYCLE_DATASETS)[number];
@@ -21,9 +22,12 @@ export const DATA_LIFECYCLE_DEFAULTS: Record<DataLifecycleDataset, number> = {
   heatmap_points: 30,
   relay_usages: 180,
   monthly_pass_usages: 180,
+  server_logs: 14,
 };
 
-const dataSetDelegates: Record<DataLifecycleDataset, string> = {
+type DatabaseLifecycleDataset = Exclude<DataLifecycleDataset, "server_logs">;
+
+const dataSetDelegates: Record<DatabaseLifecycleDataset, string> = {
   api_logs: "aPILog",
   business_logs: "businessLog",
   notification_logs: "notificationLog",
@@ -200,13 +204,13 @@ export class ObservabilityRepository {
     return prisma.dataLifecyclePolicy.findUnique({ where: { dataset } });
   }
 
-  public countDatasetBefore(dataset: DataLifecycleDataset, cutoffAt: Date): Promise<number> {
+  public countDatasetBefore(dataset: DatabaseLifecycleDataset, cutoffAt: Date): Promise<number> {
     const delegate = prisma[dataSetDelegates[dataset] as keyof typeof prisma] as any;
     return delegate.count({ where: { createTime: { lt: cutoffAt } } });
   }
 
   public listDatasetBatch(
-    dataset: DataLifecycleDataset,
+    dataset: DatabaseLifecycleDataset,
     cutoffAt: Date,
     take: number,
   ): Promise<Array<Record<string, unknown>>> {
@@ -214,7 +218,7 @@ export class ObservabilityRepository {
     return delegate.findMany({ where: { createTime: { lt: cutoffAt } }, orderBy: { createTime: "asc" }, take });
   }
 
-  public deleteDatasetIds(dataset: DataLifecycleDataset, ids: string[]): Promise<number> {
+  public deleteDatasetIds(dataset: DatabaseLifecycleDataset, ids: string[]): Promise<number> {
     const delegate = prisma[dataSetDelegates[dataset] as keyof typeof prisma] as any;
     return delegate.deleteMany({ where: { id: { in: ids } } }).then((result: { count: number }) => result.count);
   }

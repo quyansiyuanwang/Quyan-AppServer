@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import type { DataLifecycleRunDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
 import { dataLifecycleService } from '@/service/dataLifecycleService'
 
@@ -10,6 +11,9 @@ const runs = ref<any[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
+const archiveDrawerVisible = ref(false)
+const selectedRun = ref<DataLifecycleRunDto | null>(null)
+const selectedArtifacts = computed(() => selectedRun.value?.artifacts ?? [])
 
 // Keep these aligned with DATA_LIFECYCLE_DEFAULTS on the backend.
 const defaultHotRetentionDays: Record<string, number> = {
@@ -20,6 +24,45 @@ const defaultHotRetentionDays: Record<string, number> = {
   heatmap_points: 30,
   relay_usages: 180,
   monthly_pass_usages: 180,
+  server_logs: 14,
+}
+
+const datasetLabel = (dataset: string) => {
+  if (dataset === 'server_logs') return i18ns.t('dataLifecycle.serverLogs')
+  return dataset
+}
+
+const formatDate = (value: string | null) => (value ? new Date(value).toLocaleString() : '-')
+
+const formatBytes = (value: string) => {
+  const bytes = Number(value)
+  if (!Number.isFinite(bytes) || bytes < 0) return '-'
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 2)} ${units[index]}`
+}
+
+const runStatusLabel = (status: string) => {
+  const labels = {
+    running: () => i18ns.t('dataLifecycle.runStatusRunning'),
+    completed: () => i18ns.t('dataLifecycle.runStatusCompleted'),
+    failed: () => i18ns.t('dataLifecycle.runStatusFailed'),
+  }
+  return labels[status as keyof typeof labels]?.() ?? status
+}
+
+const runTypeLabel = (runType: string) => {
+  const labels = {
+    manual: () => i18ns.t('dataLifecycle.runTypeManual'),
+    scheduled: () => i18ns.t('dataLifecycle.runTypeScheduled'),
+  }
+  return labels[runType as keyof typeof labels]?.() ?? runType
+}
+
+const openArchives = (run: DataLifecycleRunDto) => {
+  selectedRun.value = run
+  archiveDrawerVisible.value = true
 }
 
 const load = async () => {
@@ -81,7 +124,9 @@ onMounted(load)
       <el-button :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
     </div>
     <el-table :data="policies" v-loading="loading" row-key="dataset">
-      <el-table-column prop="dataset" :label="i18ns.t('dataLifecycle.dataset')" min-width="170" />
+      <el-table-column prop="dataset" :label="i18ns.t('dataLifecycle.dataset')" min-width="170">
+        <template #default="{ row }">{{ datasetLabel(row.dataset) }}</template>
+      </el-table-column>
       <el-table-column :label="i18ns.t('dataLifecycle.enabled')" width="110"
         ><template #default="{ row }"
           ><el-switch v-model="row.enabled" @change="savePolicy(row)" /></template
@@ -112,25 +157,38 @@ onMounted(load)
     </el-table>
     <h3>{{ i18ns.t('dataLifecycle.runs') }}</h3>
     <el-table :data="runs" v-loading="loading" row-key="id">
-      <el-table-column prop="createTime" :label="i18ns.t('dataLifecycle.time')" width="180"
-        ><template #default="{ row }">{{
-          new Date(row.createTime).toLocaleString()
-        }}</template></el-table-column
-      >
-      <el-table-column prop="dataset" :label="i18ns.t('dataLifecycle.dataset')" />
-      <el-table-column prop="runStatus" :label="i18ns.t('dataLifecycle.status')" />
+      <el-table-column prop="createTime" :label="i18ns.t('dataLifecycle.time')" width="180">
+        <template #default="{ row }">{{ formatDate(row.createTime) }}</template>
+      </el-table-column>
+      <el-table-column prop="dataset" :label="i18ns.t('dataLifecycle.dataset')">
+        <template #default="{ row }">{{ datasetLabel(row.dataset) }}</template>
+      </el-table-column>
+      <el-table-column :label="i18ns.t('dataLifecycle.runType')" width="100">
+        <template #default="{ row }">{{ runTypeLabel(row.runType) }}</template>
+      </el-table-column>
+      <el-table-column :label="i18ns.t('dataLifecycle.status')" width="100">
+        <template #default="{ row }">{{ runStatusLabel(row.runStatus) }}</template>
+      </el-table-column>
+      <el-table-column
+        prop="candidateCount"
+        :label="i18ns.t('dataLifecycle.candidates')"
+        width="90"
+      />
       <el-table-column prop="archivedCount" :label="i18ns.t('dataLifecycle.archived')" />
       <el-table-column prop="deletedCount" :label="i18ns.t('dataLifecycle.deleted')" />
-      <el-table-column :label="i18ns.t('dataLifecycle.archives')" min-width="150"
-        ><template #default="{ row }"
-          ><el-button
-            v-for="artifact in row.artifacts"
-            :key="artifact.id"
-            @click="download(artifact.id)"
-            >{{ i18ns.t('dataLifecycle.download', { count: artifact.recordCount }) }}</el-button
-          ></template
-        ></el-table-column
-      >
+      <el-table-column
+        prop="errorMessage"
+        :label="i18ns.t('dataLifecycle.errorMessage')"
+        min-width="180"
+        show-overflow-tooltip
+      />
+      <el-table-column :label="i18ns.t('dataLifecycle.archives')" width="180" fixed="right">
+        <template #default="{ row }">
+          <el-button :disabled="row.artifacts.length === 0" @click="openArchives(row)">
+            {{ i18ns.t('dataLifecycle.viewArchives', { count: row.artifacts.length }) }}
+          </el-button>
+        </template>
+      </el-table-column>
     </el-table>
     <el-pagination
       v-model:current-page="page"
@@ -139,6 +197,94 @@ onMounted(load)
       layout="total, sizes, prev, pager, next"
       @change="load"
     />
+
+    <el-drawer
+      v-model="archiveDrawerVisible"
+      size="min(80vw, 100%)"
+      :title="i18ns.t('dataLifecycle.archiveDetails')"
+    >
+      <template v-if="selectedRun">
+        <el-descriptions :column="1" border class="run-details">
+          <el-descriptions-item :label="i18ns.t('dataLifecycle.dataset')">
+            {{ datasetLabel(selectedRun.dataset) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('dataLifecycle.runType')">
+            {{ runTypeLabel(selectedRun.runType) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('dataLifecycle.status')">
+            {{ runStatusLabel(selectedRun.runStatus) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('dataLifecycle.cutoffAt')">
+            {{ formatDate(selectedRun.cutoffAt) }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('dataLifecycle.candidates')">
+            {{ selectedRun.candidateCount }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('dataLifecycle.archived')">
+            {{ selectedRun.archivedCount }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('dataLifecycle.deleted')">
+            {{ selectedRun.deletedCount }}
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('dataLifecycle.completedAt')">
+            {{ formatDate(selectedRun.completedAt) }}
+          </el-descriptions-item>
+          <el-descriptions-item
+            v-if="selectedRun.errorMessage"
+            :label="i18ns.t('dataLifecycle.errorMessage')"
+          >
+            <span class="error-message">{{ selectedRun.errorMessage }}</span>
+          </el-descriptions-item>
+        </el-descriptions>
+
+        <section class="artifact-section">
+          <h3>{{ i18ns.t('dataLifecycle.archives') }}</h3>
+          <el-empty
+            v-if="selectedArtifacts.length === 0"
+            :description="i18ns.t('dataLifecycle.noArchives')"
+          />
+          <el-table v-else :data="selectedArtifacts" border class="artifact-table">
+            <el-table-column
+              prop="objectKey"
+              :label="i18ns.t('dataLifecycle.objectKey')"
+              min-width="310"
+              show-overflow-tooltip
+            />
+            <el-table-column
+              prop="sha256"
+              :label="i18ns.t('dataLifecycle.checksum')"
+              min-width="210"
+              show-overflow-tooltip
+            />
+            <el-table-column
+              prop="recordCount"
+              :label="i18ns.t('dataLifecycle.records')"
+              width="90"
+            />
+            <el-table-column :label="i18ns.t('dataLifecycle.size')" width="110">
+              <template #default="{ row }">{{ formatBytes(row.byteSize) }}</template>
+            </el-table-column>
+            <el-table-column :label="i18ns.t('dataLifecycle.archiveTime')" width="180">
+              <template #default="{ row }">{{ formatDate(row.createTime) }}</template>
+            </el-table-column>
+            <el-table-column :label="i18ns.t('dataLifecycle.expiresAt')" width="180">
+              <template #default="{ row }">{{ formatDate(row.expiresAt) }}</template>
+            </el-table-column>
+            <el-table-column :label="i18ns.t('dataLifecycle.deletedAt')" width="180">
+              <template #default="{ row }">{{ formatDate(row.deletedAt) }}</template>
+            </el-table-column>
+            <el-table-column :label="i18ns.t('dataLifecycle.actions')" width="240" fixed="right">
+              <template #default="{ row }">
+                <el-button v-if="!row.deletedAt" @click="download(row.id)">
+                  {{ i18ns.t('dataLifecycle.download', { count: row.recordCount }) }}
+                </el-button>
+                <span v-else>{{ i18ns.t('dataLifecycle.archiveDeleted') }}</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </section>
+      </template>
+    </el-drawer>
   </section>
 </template>
 
@@ -170,5 +316,21 @@ onMounted(load)
 }
 .retention-cell :deep(.el-input-number) {
   width: 120px;
+}
+.run-details :deep(.el-descriptions__content) {
+  overflow-wrap: anywhere;
+}
+.artifact-section {
+  margin-top: 20px;
+}
+.artifact-section h3 {
+  margin: 0 0 12px;
+}
+.artifact-table {
+  width: 100%;
+}
+.error-message {
+  color: var(--el-color-danger);
+  overflow-wrap: anywhere;
 }
 </style>

@@ -113,6 +113,11 @@ if (!logConfig.disableConsoleLog)
 
 // 文件日志（仅在生产环境或明确启用时）
 if ((!isDev || logConfig.enableFileLogging) && canWriteLogsDir()) {
+  // When OSS archival is configured, lifecycle processing owns retention. Letting
+  // the transport delete files at 14 days can race the daily archive job and
+  // discard a log before its upload has been verified.
+  const archiveRetention = env.integrations.archiveOss.enabled ? {} : { maxFiles: "14d" };
+
   // 错误日志（每天轮换）
   transports.push(
     new DailyRotateFile({
@@ -121,8 +126,8 @@ if ((!isDev || logConfig.enableFileLogging) && canWriteLogsDir()) {
       level: LogLevel.ERROR,
       format: customFormat,
       maxSize: "20m",
-      maxFiles: "14d",
       zippedArchive: true,
+      ...archiveRetention,
     }),
   );
 
@@ -133,8 +138,8 @@ if ((!isDev || logConfig.enableFileLogging) && canWriteLogsDir()) {
       datePattern: "YYYY-MM-DD",
       format: customFormat,
       maxSize: "20m",
-      maxFiles: "14d",
       zippedArchive: true,
+      ...archiveRetention,
     }),
   );
 }

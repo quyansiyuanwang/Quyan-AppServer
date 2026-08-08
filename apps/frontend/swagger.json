@@ -34936,12 +34936,19 @@
 									"type": "string",
 									"format": "date-time"
 								},
+								"createTime": {
+									"type": "string",
+									"format": "date-time"
+								},
 								"byteSize": {
 									"type": "string"
 								},
 								"recordCount": {
 									"type": "number",
 									"format": "double"
+								},
+								"sha256": {
+									"type": "string"
 								},
 								"objectKey": {
 									"type": "string"
@@ -34953,8 +34960,10 @@
 							"required": [
 								"deletedAt",
 								"expiresAt",
+								"createTime",
 								"byteSize",
 								"recordCount",
+								"sha256",
 								"objectKey",
 								"id"
 							],

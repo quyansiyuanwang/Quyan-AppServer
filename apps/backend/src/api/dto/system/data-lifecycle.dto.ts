@@ -34,8 +34,10 @@ export interface DataLifecycleRunDTO {
   artifacts: Array<{
     id: string;
     objectKey: string;
+    sha256: string;
     recordCount: number;
     byteSize: string;
+    createTime: Date;
     expiresAt: Date;
     deletedAt: Date | null;
   }>;
