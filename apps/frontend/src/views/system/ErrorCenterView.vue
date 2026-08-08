@@ -16,6 +16,28 @@ const search = ref('')
 const activeGroup = ref<any | null>(null)
 const occurrences = ref<any[]>([])
 const detailVisible = ref(false)
+const statusOptions = ['open', 'acknowledged', 'resolved', 'ignored'] as const
+
+const statusLabel = (value: string) => {
+  switch (value) {
+    case 'open':
+      return i18ns.t('errorCenter.statusOpen')
+    case 'acknowledged':
+      return i18ns.t('errorCenter.statusAcknowledged')
+    case 'resolved':
+      return i18ns.t('errorCenter.statusResolved')
+    case 'ignored':
+      return i18ns.t('errorCenter.statusIgnored')
+    default:
+      return value
+  }
+}
+
+const sourceLabel = (value: string) => {
+  if (value === 'frontend') return i18ns.t('errorCenter.sourceFrontend')
+  if (value === 'backend') return i18ns.t('errorCenter.sourceBackend')
+  return value
+}
 
 const load = async () => {
   loading.value = true
@@ -99,9 +121,9 @@ onMounted(load)
           @change="resetPageAndLoad"
         >
           <el-option
-            v-for="item in ['open', 'acknowledged', 'resolved', 'ignored']"
+            v-for="item in statusOptions"
             :key="item"
-            :label="item"
+            :label="statusLabel(item)"
             :value="item"
           />
         </el-select>
@@ -114,8 +136,8 @@ onMounted(load)
           :placeholder="i18ns.t('errorCenter.allSources')"
           @change="resetPageAndLoad"
         >
-          <el-option label="Frontend" value="frontend" />
-          <el-option label="Backend" value="backend" />
+          <el-option :label="sourceLabel('frontend')" value="frontend" />
+          <el-option :label="sourceLabel('backend')" value="backend" />
         </el-select>
       </div>
       <el-button class="clear-filters" text @click="clearFilters">
@@ -136,11 +158,13 @@ onMounted(load)
       <el-table-column prop="lastSeenAt" :label="i18ns.t('errorCenter.lastSeen')" width="180">
         <template #default="{ row }">{{ new Date(row.lastSeenAt).toLocaleString() }}</template>
       </el-table-column>
-      <el-table-column prop="source" :label="i18ns.t('errorCenter.source')" width="100" />
+      <el-table-column prop="source" :label="i18ns.t('errorCenter.source')" width="100">
+        <template #default="{ row }">{{ sourceLabel(row.source) }}</template>
+      </el-table-column>
       <el-table-column prop="resolutionStatus" :label="i18ns.t('errorCenter.status')" width="130">
         <template #default="{ row }"
           ><el-tag :type="row.resolutionStatus === 'open' ? 'danger' : 'info'">{{
-            row.resolutionStatus
+            statusLabel(row.resolutionStatus)
           }}</el-tag></template
         >
       </el-table-column>
@@ -183,11 +207,11 @@ onMounted(load)
       <template v-if="activeGroup">
         <div class="detail-actions">
           <el-button
-            v-for="item in ['acknowledged', 'resolved', 'ignored']"
+            v-for="item in statusOptions"
             :key="item"
             size="small"
             @click="updateStatus(item)"
-            >{{ item }}</el-button
+            >{{ statusLabel(item) }}</el-button
           >
         </div>
         <el-descriptions :column="1" border>
