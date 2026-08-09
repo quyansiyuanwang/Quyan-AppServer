@@ -57,6 +57,14 @@ const formatDate = (value: string | null | undefined) =>
 const statusLabel = (status: string) =>
   i18ns.t(`dataMaintenance.${status}` as never) || status
 
+const showMaintenanceError = (error: unknown) => {
+  ElMessage.error(
+    error instanceof Error && error.message
+      ? error.message
+      : i18ns.t('dataMaintenance.executeFailed'),
+  )
+}
+
 const loadRuns = async () => {
   historyLoading.value = true
   try {
@@ -80,8 +88,8 @@ const previewOptimize = async () => {
     optimizePreview.value = await dataMaintenanceService.optimizePreview(
       selectedDatasets.value,
     )
-  } catch {
-    ElMessage.error(i18ns.t('dataMaintenance.executeFailed'))
+  } catch (error) {
+    showMaintenanceError(error)
   } finally {
     optimizeLoading.value = false
   }
@@ -103,11 +111,15 @@ const runOptimize = async () => {
         cancelButtonText: i18ns.t('common.cancel'),
       },
     )
+  } catch {
+    return
+  }
+  try {
     await dataMaintenanceService.optimize(selectedDatasets.value)
     ElMessage.success(i18ns.t('dataMaintenance.success'))
     await loadRuns()
-  } catch {
-    // cancel and validation errors are intentionally silent
+  } catch (error) {
+    showMaintenanceError(error)
   }
 }
 
@@ -129,8 +141,8 @@ const previewImport = async () => {
       importDataset.value,
       file,
     )
-  } catch {
-    ElMessage.error(i18ns.t('dataMaintenance.executeFailed'))
+  } catch (error) {
+    showMaintenanceError(error)
   } finally {
     importLoading.value = false
   }
@@ -153,11 +165,15 @@ const runImport = async () => {
         cancelButtonText: i18ns.t('common.cancel'),
       },
     )
+  } catch {
+    return
+  }
+  try {
     await dataMaintenanceService.createImport(importDataset.value, file)
     ElMessage.success(i18ns.t('dataMaintenance.success'))
     await loadRuns()
-  } catch {
-    // cancel and validation errors are intentionally silent
+  } catch (error) {
+    showMaintenanceError(error)
   }
 }
 

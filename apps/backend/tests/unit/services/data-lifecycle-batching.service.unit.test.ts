@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/config/env", () => ({
   env: {
+    database: { url: "mysql://test:test@localhost:3306/test" },
     runtime: { isDevelopment: false, logging: { disableConsoleLog: true, enableFileLogging: false } },
     integrations: {
       archiveOss: {
@@ -93,6 +94,10 @@ describe("DataLifecycleService archive batching", () => {
     const result = await service.runPolicy("api_logs", "manual", "admin-1");
 
     expect(ossClient.put).toHaveBeenCalledTimes(2);
+    expect(ossClient.put.mock.calls[0][2].headers).toMatchObject({
+      "Content-Type": "application/gzip",
+    });
+    expect(ossClient.put.mock.calls[0][2].headers).not.toHaveProperty("Content-Encoding");
     expect(repository.deleteDatasetIds).toHaveBeenNthCalledWith(1, "api_logs", ["log-1", "log-2"]);
     expect(repository.deleteDatasetIds).toHaveBeenNthCalledWith(2, "api_logs", ["log-3"]);
     expect(repository.createArchiveArtifact.mock.calls.map(([input]) => input.objectKey)).toEqual([

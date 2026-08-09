@@ -186,8 +186,10 @@ export class DataLifecycleService {
         const objectKey = this.objectKey(dataset, run.id, cutoffAt, batchNumber);
         await client.put(objectKey, compressed, {
           headers: {
-            "Content-Type": "application/x-ndjson",
-            "Content-Encoding": "gzip",
+            // These are downloadable archive files, not HTTP-compressed responses.
+            // Setting Content-Encoding makes browsers transparently decompress the
+            // payload while preserving the .gz filename, which breaks re-imports.
+            "Content-Type": "application/gzip",
             "x-oss-meta-sha256": sha256,
           },
         });

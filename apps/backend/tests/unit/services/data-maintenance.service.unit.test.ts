@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { gzipSync } from "zlib";
 import { describe, expect, it, vi } from "vitest";
 import { DataMaintenanceService } from "@/services/system/data-maintenance.service";
@@ -54,5 +55,38 @@ describe("DataMaintenanceService", () => {
     expect(result.totalCount).toBe(2);
     expect(result.invalidCount).toBe(1);
     expect(result.executable).toBe(false);
+  });
+
+  it("keeps an import task when OSS returns matching object metadata", async () => {
+    const payload = archive([{ id: "new" }]);
+    const repository = {
+      getDatasetDelegate: vi.fn().mockReturnValue({ findMany: vi.fn().mockResolvedValue([]) }),
+      getDelegateByName: vi.fn(),
+      createMaintenanceRun: vi.fn().mockResolvedValue({ id: "run-1" }),
+    };
+    const service = new (DataMaintenanceService as any)(repository) as DataMaintenanceService;
+    const ossClient = {
+      put: vi.fn(),
+      head: vi.fn().mockResolvedValue({
+        res: {
+          headers: {
+            "x-oss-meta-sha256": createHash("sha256").update(payload).digest("hex"),
+            "content-length": String(payload.length),
+          },
+        },
+      }),
+      delete: vi.fn(),
+    };
+    (service as any).ossClient = ossClient;
+
+    await expect(service.createImportRun("api_logs", payload, "admin-1", "request-1")).resolves.toEqual({ id: "run-1" });
+    expect(repository.createMaintenanceRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataset: "api_logs",
+        operation: "import",
+        totalCount: 1,
+      }),
+    );
+    expect(ossClient.delete).not.toHaveBeenCalled();
   });
 });

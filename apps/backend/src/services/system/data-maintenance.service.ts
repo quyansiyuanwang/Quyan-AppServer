@@ -66,6 +66,17 @@ function parseArchive(buffer: Buffer): ParsedArchive {
   return { rows, errors };
 }
 
+function getOssHeaders(result: unknown): Record<string, string | undefined> {
+  const headers = (result as { res?: { headers?: unknown } } | null)?.res?.headers;
+  if (!headers || typeof headers !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(headers as Record<string, unknown>).map(([key, value]) => [
+      key.toLowerCase(),
+      Array.isArray(value) ? String(value[0] ?? "") : String(value ?? ""),
+    ]),
+  );
+}
+
 function normalizeValue(value: unknown, type: string): unknown {
   if (value === null || value === undefined) return value;
   if (type === "DateTime") {
@@ -196,7 +207,7 @@ export class DataMaintenanceService {
     const objectKey = `${env.integrations.archiveOss.prefix}/maintenance/import/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${sha256}.ndjson.gz`;
     const client = this.getOssClient();
     await client.put(objectKey, buffer, { headers: { "Content-Type": "application/gzip", "x-oss-meta-sha256": sha256 } });
-    const metadata = (await client.head(objectKey)) as unknown as Record<string, string | undefined>;
+    const metadata = getOssHeaders(await client.head(objectKey));
     if (metadata["x-oss-meta-sha256"] !== sha256 || Number(metadata["content-length"] || 0) !== buffer.length) {
       await client.delete(objectKey).catch(() => undefined);
       throw new BadRequestError("Uploaded archive verification failed");

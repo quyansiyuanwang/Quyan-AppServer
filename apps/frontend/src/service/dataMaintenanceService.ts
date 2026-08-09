@@ -12,26 +12,47 @@ const captchaHeaders = async (action: string, extra: Record<string, string> = {}
   ...extra,
 })
 
+const isGzip = (body: Uint8Array) => body[0] === 0x1f && body[1] === 0x8b
+
+const unwrapResponseData = <T>(response: { data?: T; message?: unknown }): T => {
+  if (response.data !== undefined) return response.data
+  throw new Error(typeof response.message === 'string' ? response.message : 'Maintenance request failed')
+}
+
+const prepareGzipArchive = async (file: File): Promise<Uint8Array> => {
+  const body = new Uint8Array(await file.arrayBuffer())
+  if (isGzip(body)) return body
+
+  // Older archive downloads were served with Content-Encoding: gzip. Browsers
+  // transparently decompress those downloads but retain their .ndjson.gz name.
+  if (typeof CompressionStream === 'undefined') {
+    throw new Error('This browser cannot recompress a downloaded archive. Use a current browser.')
+  }
+
+  const compressed = new Blob([body]).stream().pipeThrough(new CompressionStream('gzip'))
+  return new Uint8Array(await new Response(compressed).arrayBuffer())
+}
+
 export const dataMaintenanceService = {
   optimizePreview: async (datasets: string[]) => {
     const captchaToken = await getCaptchaToken('data_maintenance_optimize_preview')
-    return (
+    return unwrapResponseData(
       await maintenanceApi.optimizePreview({
         body: { datasets, captchaToken },
-      })
-    ).data
+      }),
+    )
   },
   optimize: async (datasets: string[]) => {
     const captchaToken = await getCaptchaToken('data_maintenance_optimize')
-    return (
+    return unwrapResponseData(
       await maintenanceApi.optimize({
         body: { datasets, confirmation: 'OPTIMIZE', captchaToken },
-      })
-    ).data
+      }),
+    )
   },
   importPreview: async (dataset: string, file: File) => {
-    const body = new Uint8Array(await file.arrayBuffer())
-    return (
+    const body = await prepareGzipArchive(file)
+    return unwrapResponseData(
       await (maintenanceApi.importPreview as any)(
         { path: { dataset }, body },
         {
@@ -39,12 +60,12 @@ export const dataMaintenanceService = {
             'Content-Type': 'application/gzip',
           }),
         },
-      )
-    ).data
+      ),
+    )
   },
   createImport: async (dataset: string, file: File) => {
-    const body = new Uint8Array(await file.arrayBuffer())
-    return (
+    const body = await prepareGzipArchive(file)
+    return unwrapResponseData(
       await (maintenanceApi.createImport as any)(
         { path: { dataset }, body },
         {
@@ -54,12 +75,11 @@ export const dataMaintenanceService = {
             'X-Archive-Filename': file.name,
           }),
         },
-      )
-    ).data
+      ),
+    )
   },
   listRuns: async (params: Record<string, unknown>) =>
-    (await maintenanceApi.listRuns({ params: params as any })).data,
+    unwrapResponseData(await maintenanceApi.listRuns({ params: params as any })),
   getRun: async (runId: string) =>
-    (await maintenanceApi.getRun({ path: { runId } })).data,
+    unwrapResponseData(await maintenanceApi.getRun({ path: { runId } })),
 }
-
