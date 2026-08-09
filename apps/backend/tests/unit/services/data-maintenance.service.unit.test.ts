@@ -1,6 +1,67 @@
 import { createHash } from "crypto";
 import { gzipSync } from "zlib";
 import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/config/env", () => ({
+  env: {
+    runtime: {
+      isDevelopment: true,
+      logging: { disableConsoleLog: true, enableFileLogging: false },
+      requestSizeLimits: { archiveImportBodyLimitMb: 10 },
+    },
+    integrations: {
+      objectStorage: {
+        archive: {
+          enabled: false,
+          endpoint: "",
+          region: "",
+          bucket: "",
+          accessKeyId: "",
+          accessKeySecret: "",
+          prefix: "archive-test",
+        },
+        staging: {
+          enabled: true,
+          endpoint: "https://oss.example.test",
+          region: "oss-cn-test",
+          bucket: "maintenance-staging-test",
+          accessKeyId: "test-access-key",
+          accessKeySecret: "test-access-secret",
+          prefix: "staging-test",
+        },
+      },
+    },
+  },
+}));
+
+vi.mock("@/services/infrastructure/object-storage-client", () => ({
+  createObjectStorageClient: vi.fn(() => {
+    throw new Error("OSS client must be injected by the unit test");
+  }),
+}));
+
+vi.mock("@/store/system/observability.repository", () => ({
+  DATA_MAINTENANCE_DATASETS: [
+    "api_logs",
+    "business_logs",
+    "notification_logs",
+    "track_events",
+    "heatmap_points",
+    "relay_usages",
+    "monthly_pass_usages",
+  ],
+  DATA_MAINTENANCE_TABLES: {
+    api_logs: "api_logs",
+    business_logs: "business_logs",
+    notification_logs: "notification_logs",
+    track_events: "track_events",
+    heatmap_points: "heatmap_points",
+    relay_usages: "relay_usages",
+    monthly_pass_usages: "monthly_pass_usages",
+  },
+  ObservabilityRepository: { getInstance: vi.fn() },
+}));
+
 import { DataMaintenanceService } from "@/services/system/data-maintenance.service";
 
 function archive(rows: unknown[]): Buffer {

@@ -116,7 +116,7 @@ if ((!isDev || logConfig.enableFileLogging) && canWriteLogsDir()) {
   // When OSS archival is configured, lifecycle processing owns retention. Letting
   // the transport delete files at 14 days can race the daily archive job and
   // discard a log before its upload has been verified.
-  const archiveRetention = env.integrations.objectStorage.archive.enabled ? {} : { maxFiles: "14d" };
+  const archiveRetention = env.integrations?.objectStorage?.archive?.enabled ? {} : { maxFiles: "14d" };
 
   // 错误日志（每天轮换）
   transports.push(
