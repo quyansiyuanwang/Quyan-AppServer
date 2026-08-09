@@ -8,6 +8,7 @@ import { ValidateError } from "@tsoa/runtime";
 import { getLogger, LogCategory } from "@/util/logger";
 import { env } from "@/config/env";
 import { DEFAULT_BACKEND_LOCALE, translateKnownMessage, translateMessage, type BackendLocale } from "@/locales";
+import { ErrorReportService } from "@/services/system/error-report.service";
 
 const logger = getLogger("ExceptionMiddleware", LogCategory.SYSTEM);
 
@@ -177,6 +178,7 @@ export function exceptionMiddleware(err: Error, req: Request, res: Response, nex
   }
 
   // 处理未知错误
+  ErrorReportService.getInstance().reportServerExceptionSafely(req, err);
   const response: any = {
     code: CustomCode.INTERNAL_SERVER_ERROR,
     message: env.runtime.isProduction

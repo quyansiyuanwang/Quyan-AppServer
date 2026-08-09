@@ -32,10 +32,14 @@ export function responseWrapperMiddleware(req: Request, res: Response, next: Nex
     let explicitMessage: string | undefined;
     let hadMessageOnlyBody = false;
     if (body && typeof body === "object" && !Array.isArray(body) && typeof body.message === "string") {
-      explicitMessage = body.message;
       const { message: _message, ...rest } = body as Record<string, unknown>;
       hadMessageOnlyBody = Object.keys(rest).length === 0;
-      normalizedBody = Object.keys(rest).length > 0 ? rest : {};
+      // A domain object can legitimately have a `message` field (for example,
+      // an error report). Only a message-only response is an HTTP response message.
+      if (hadMessageOnlyBody) {
+        explicitMessage = body.message;
+        normalizedBody = {};
+      }
     }
 
     // 包装响应体

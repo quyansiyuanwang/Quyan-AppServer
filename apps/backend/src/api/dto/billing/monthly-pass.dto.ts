@@ -33,6 +33,7 @@ export interface MonthlyPassTemplateDto {
   dailyQuota?: number;
   quotaUnit: MonthlyPassQuotaUnit;
   quotaWindowHours?: number;
+  validityDays: number;
   quotaWindows: MonthlyPassQuotaWindowDto[];
   allowedModels?: string[];
   allowedChannels?: string[];
@@ -53,6 +54,7 @@ export interface CreateMonthlyPassTemplateRequest {
   dailyQuota?: number;
   quotaUnit?: MonthlyPassQuotaUnit;
   quotaWindowHours?: number;
+  validityDays?: number;
   quotaWindows?: MonthlyPassQuotaWindowInputDto[];
   allowedModels?: string[];
   allowedChannels?: string[];
@@ -70,6 +72,7 @@ export interface UpdateMonthlyPassTemplateRequest {
   dailyQuota?: number | null;
   quotaUnit?: MonthlyPassQuotaUnit;
   quotaWindowHours?: number | null;
+  validityDays?: number;
   quotaWindows?: MonthlyPassQuotaWindowInputDto[];
   allowedModels?: string[] | null;
   allowedChannels?: string[] | null;

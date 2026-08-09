@@ -8,6 +8,7 @@ import { i18ns, initializeI18n } from '@/locales'
 import { configureAll } from '@/config'
 import { useImpersonationStore } from '@/stores/impersonationStore'
 import { resetCurrentStorageScope, setCurrentStorageScopeForUserId } from '@/utils/storageScope'
+import { installErrorReporter, reportClientError } from '@/service/errorReportService'
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
@@ -56,6 +57,17 @@ export const bootstrapApp = async () => {
 
   configureAll()
 
+  app.config.errorHandler = (error, _instance, info) => {
+    void reportClientError({
+      errorType: error instanceof Error ? error.name : 'VueError',
+      message: error instanceof Error ? error.message : String(error),
+      route: window.location.pathname,
+      severity: 'error',
+      stack: error instanceof Error ? error.stack : undefined,
+      context: { vueInfo: info },
+    })
+  }
+
   const impersonationStore = useImpersonationStore()
   impersonationStore.hydrate()
 
@@ -70,6 +82,8 @@ export const bootstrapApp = async () => {
     impersonationService.registerExpiryHandlerOnRestore()
   }
 
+  // Install before mounting so render-time and startup event failures are captured.
+  installErrorReporter()
   app.mount('#app')
 
   if (shouldSkipDeferredStartupWork()) {

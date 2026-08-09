@@ -22,6 +22,7 @@ const StorageKey = {
     CLIENT_FINGERPRINT: 'Util-ClientFingerprint',
     HEARTBEAT_LEADER_ID: 'Util-HeartbeatLeaderId',
     HEARTBEAT_LEADER_EXPIRES_AT: 'Util-HeartbeatLeaderExpiresAt',
+    ERROR_REPORT_QUEUE: 'Util-ErrorReportQueue',
   },
   // Storage Scope
   Scope: {

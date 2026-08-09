@@ -1068,6 +1068,9 @@ const overviewSections = computed<OverviewSection[]>(() => {
             Permission.SYSTEM_LOG_READ,
             Permission.API_LOG_READ,
             Permission.SYSTEM_SERVER_LOG_READ,
+            Permission.SYSTEM_ERROR_REPORT_READ,
+            Permission.SYSTEM_DATA_LIFECYCLE_MANAGE,
+            Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
           ),
         },
         {
@@ -1076,6 +1079,27 @@ const overviewSections = computed<OverviewSection[]>(() => {
           icon: Notebook,
           route: 'businessLogs',
           visible: can(Permission.SYSTEM_BUSINESS_LOG_READ),
+        },
+        {
+          key: 'errorCenter',
+          label: i18ns.t('nav.errorCenter'),
+          icon: Document,
+          route: 'errorCenter',
+          visible: can(Permission.SYSTEM_ERROR_REPORT_READ),
+        },
+        {
+          key: 'dataLifecycle',
+          label: i18ns.t('nav.dataLifecycle'),
+          icon: Document,
+          route: 'dataLifecycle',
+          visible: can(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE),
+        },
+        {
+          key: 'dataMaintenance',
+          label: i18ns.t('nav.dataMaintenance'),
+          icon: Document,
+          route: 'dataMaintenance',
+          visible: can(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE),
         },
         {
           key: 'userOnlineMonitor',

@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { MONTHLY_PASS_MAX_AMOUNT_QUOTA, MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS } from "@/constant/monthly-pass";
+import {
+  MONTHLY_PASS_MAX_AMOUNT_QUOTA,
+  MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS,
+  MONTHLY_PASS_MAX_VALIDITY_DAYS,
+} from "@/constant/monthly-pass";
 import { MANAGED_STATUS } from "@/constant/status";
 import {
   getMonthlyPassDiscountPercentValidationError,
@@ -87,6 +91,7 @@ const monthlyPassTemplateBaseObjectSchema = z.object({
   dailyQuota: z.coerce.number().min(0.0001).max(MONTHLY_PASS_MAX_AMOUNT_QUOTA).optional(),
   quotaUnit: quotaUnitSchema.optional(),
   quotaWindowHours: quotaWindowHoursSchema.optional(),
+  validityDays: z.coerce.number().int().min(1).max(MONTHLY_PASS_MAX_VALIDITY_DAYS).optional(),
   quotaWindows: z.array(monthlyPassQuotaWindowSchema).max(20).optional(),
   allowedModels: z.array(z.string().trim().min(1).max(200)).max(500).optional(),
   allowedChannels: z.array(z.string().trim().min(1).max(100)).max(500).optional(),

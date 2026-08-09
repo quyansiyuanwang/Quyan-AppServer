@@ -14,7 +14,9 @@ export interface CaptchaMiddlewareOptions {
 function getCaptchaTokenFromBody(req: TypedRequest, tokenField: string): string {
   const body = req.body as Record<string, unknown> | undefined;
   const token = body?.[tokenField];
-  return typeof token === "string" ? token : "";
+  if (typeof token === "string") return token;
+  const header = req.headers["x-captcha-token"];
+  return typeof header === "string" ? header : Array.isArray(header) ? header[0] || "" : "";
 }
 
 export function captchaMiddleware(options: CaptchaMiddlewareOptions) {
@@ -24,7 +26,7 @@ export function captchaMiddleware(options: CaptchaMiddlewareOptions) {
   return async (req: TypedRequest, _res: Response, next: NextFunction): Promise<void> => {
     try {
       if (!(await captchaService.isEnabled())) return next();
-      if (await captchaService.shouldBypassForTrustedRequest(req)) return next();
+      if (!options.requireExplicitToken && (await captchaService.shouldBypassForTrustedRequest(req))) return next();
 
       if (options.trustOnly) throw new BadRequestError("需要先完成人机验证", CustomCode.CAPTCHA_TRUST_REQUIRED);
 

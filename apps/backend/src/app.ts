@@ -14,6 +14,7 @@ import { startMemoryMonitor } from "./middleware/memory-monitor";
 import { DeveloperMonitorSchedulerService } from "./services/developer/developer-monitor-scheduler.service";
 import { RelayChannelProbeService } from "./services/relay/relay-channel-probe.service";
 import { RelayChannelProviderSettlementSchedulerService } from "./services/relay/relay-channel-provider-settlement-scheduler.service";
+import { DataLifecycleSchedulerService } from "./services/system/data-lifecycle-scheduler.service";
 import { RegisterRoutes } from "@/build/routes";
 import { HttpStatusCode } from "axios";
 import { CustomCode } from "./constant/custom-code";
@@ -90,6 +91,7 @@ export function createApp() {
     createRequestSizeGuard({
       maxJsonBytes: requestSizeLimitConfig.jsonBodyLimitMb * 1024 * 1024,
       maxMultipartBytes: env.relay.resourceGuard.multipartBodyLimitMb * 1024 * 1024,
+      maxArchiveBytes: requestSizeLimitConfig.archiveImportBodyLimitMb * 1024 * 1024,
       maxOtherBytes: requestSizeLimitConfig.otherBodyLimitMb * 1024 * 1024,
     }),
   );
@@ -101,6 +103,13 @@ export function createApp() {
     express.raw({
       type: ["multipart/form-data"],
       limit: `${env.relay.resourceGuard.multipartBodyLimitMb}mb`,
+    }),
+  );
+  app.use(
+    "/v1/data-maintenance/imports",
+    express.raw({
+      type: ["application/gzip", "application/x-gzip", "application/octet-stream"],
+      limit: `${requestSizeLimitConfig.archiveImportBodyLimitMb}mb`,
     }),
   );
   app.use(express.json({ limit: `${requestSizeLimitConfig.jsonBodyLimitMb}mb` }));
@@ -206,4 +215,5 @@ export function setupService() {
   DeveloperMonitorSchedulerService.getInstance().start();
   RelayChannelProbeService.getInstance().start();
   RelayChannelProviderSettlementSchedulerService.getInstance().start();
+  DataLifecycleSchedulerService.getInstance().start();
 }

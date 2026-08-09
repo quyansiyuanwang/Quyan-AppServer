@@ -17,6 +17,10 @@ vi.mock("../../../src/config/env", () => ({
       baiduMap: {
         ipLocationAk: "test-ak",
       },
+      objectStorage: {
+        archive: { enabled: false },
+        staging: { enabled: false },
+      },
     },
   },
 }));

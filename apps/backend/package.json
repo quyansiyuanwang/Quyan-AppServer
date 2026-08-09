@@ -101,6 +101,8 @@
     "trusted-device:cleanup-legacy": "bun ./scripts/cleanup-legacy-trusted-device-keys.ts",
     "balance:cleanup-consumption-older-than-month": "bun ./scripts/cleanup-old-consumption-records.ts",
     "balance:cleanup-consumption-older-than-month:apply": "bun ./scripts/cleanup-old-consumption-records.ts --apply",
+    "archive:fixture": "bun ./scripts/create-archive-fixture.ts",
+    "archive:fixture:apply": "bun ./scripts/create-archive-fixture.ts --apply",
     "generate-operation-ids": "bun ./scripts/generate-operation-ids.ts"
   },
   "keywords": [],
@@ -112,6 +114,7 @@
     "@simplewebauthn/server": "^13.2.3",
     "@types/ioredis": "^4.28.10",
     "@types/node-cron": "^3.0.11",
+    "ali-oss": "^6.23.0",
     "app-root-path": "^3.1.0",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",

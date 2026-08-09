@@ -866,6 +866,30 @@ export const routes = [
             },
           },
           {
+            path: 'system/error-center',
+            name: 'errorCenter',
+            component: () => import('@/views/system/ErrorCenterView.vue'),
+            meta: {
+              permission: Permission.SYSTEM_ERROR_REPORT_READ,
+            },
+          },
+          {
+            path: 'system/data-lifecycle',
+            name: 'dataLifecycle',
+            component: () => import('@/views/system/DataLifecycleView.vue'),
+            meta: {
+              permission: Permission.SYSTEM_DATA_LIFECYCLE_MANAGE,
+            },
+          },
+          {
+            path: 'system/data-maintenance',
+            name: 'dataMaintenance',
+            component: () => import('@/views/system/DataMaintenanceView.vue'),
+            meta: {
+              permission: Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
+            },
+          },
+          {
             path: 'system/user-online-monitor',
             name: 'userOnlineMonitor',
             component: () => import('@/views/system/UserOnlineMonitorView.vue'),
