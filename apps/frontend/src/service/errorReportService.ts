@@ -28,7 +28,8 @@ const REPORT_BATCH_ENDPOINT = '/v1/error-reports/client/batch'
 const REPORT_BATCH_SIZE = 10
 const KEEPALIVE_BATCH_SIZE = 5
 const REPORT_FLUSH_DELAY_MS = 30_000
-const SENSITIVE_KEY = /(token|password|secret|cookie|authorization|api[-_]?key|access[-_]?key|credential|private[-_]?key)/i
+const SENSITIVE_KEY =
+  /(token|password|secret|cookie|authorization|api[-_]?key|access[-_]?key|credential|private[-_]?key)/i
 let flushPromise: Promise<void> | null = null
 let keepalivePromise: Promise<void> | null = null
 let reporterInstalled = false
@@ -54,7 +55,10 @@ const truncateValue = (value: unknown, depth = 0): unknown => {
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
       .slice(0, 50)
-      .map(([key, item]) => [key, SENSITIVE_KEY.test(key) ? '[redacted]' : truncateValue(item, depth + 1)]),
+      .map(([key, item]) => [
+        key,
+        SENSITIVE_KEY.test(key) ? '[redacted]' : truncateValue(item, depth + 1),
+      ]),
   )
 }
 
@@ -68,7 +72,9 @@ const normalizePayload = (payload: ClientErrorPayload): ClientErrorPayload => ({
   httpStatus: payload.httpStatus,
   clientVersion: payload.clientVersion?.slice(0, 128),
   stack: payload.stack ? redactText(payload.stack, 8000) : undefined,
-  context: payload.context ? (truncateValue(payload.context) as Record<string, unknown>) : undefined,
+  context: payload.context
+    ? (truncateValue(payload.context) as Record<string, unknown>)
+    : undefined,
 })
 
 const readQueue = (): QueuedReport[] => {
@@ -230,7 +236,7 @@ export const installErrorReporter = () => {
   })
 
   const flushOnPageExit = () => {
-    // Keepalive is best effort. Failed sends remain in sessionStorage.
+    // Keepalive is best effort. Failed sends remain in the browser-session queue.
     void flushPendingReports(true)
   }
   window.addEventListener('pagehide', flushOnPageExit)
