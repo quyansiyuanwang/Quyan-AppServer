@@ -39,8 +39,10 @@ import { BadRequestError, NotFoundError } from "@/util/errors";
 import {
   MONTHLY_PASS_DEFAULT_PAGE_SIZE,
   MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS,
+  MONTHLY_PASS_DEFAULT_VALIDITY_DAYS,
   MONTHLY_PASS_MAX_PAGE_SIZE,
   MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS,
+  MONTHLY_PASS_MAX_VALIDITY_DAYS,
 } from "@/constant/monthly-pass";
 import { MANAGED_STATUS } from "@/constant/status";
 import { AccountStatus } from "@/util/auth/account-status";
@@ -88,7 +90,6 @@ const normalizePagination = (page?: number, pageSize?: number): { page: number; 
 
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 const round2 = (value: number): number => Math.round(value * 100) / 100;
-const MONTHLY_PASS_SELF_CLAIM_DURATION_DAYS = 30;
 const BATCH_ASSIGNMENT_PAGE_SIZE = 100;
 const DEFAULT_NUMBER_STATUS_OPTIONS: MonthlyPassNumberFilterOptionDto[] = [
   { value: MANAGED_STATUS.ENABLED, label: "enabled" },
@@ -129,6 +130,13 @@ const normalizeQuotaValue = (value: number, unit: MonthlyPassQuotaUnit): number 
 const normalizePriceValue = (value: number): number => round4(value);
 
 const normalizeDiscountPercentValue = (value: number): number => round2(value);
+
+const normalizeValidityDays = (value?: number | null): number => {
+  const normalized = value ?? MONTHLY_PASS_DEFAULT_VALIDITY_DAYS;
+  if (!Number.isInteger(normalized) || normalized < 1 || normalized > MONTHLY_PASS_MAX_VALIDITY_DAYS)
+    throw new BadRequestError(`validityDays must be an integer between 1 and ${MONTHLY_PASS_MAX_VALIDITY_DAYS}`);
+  return normalized;
+};
 
 const validateOptionalPositiveIntegerOrNull = (fieldName: string, value?: number | null): number | null | undefined => {
   if (value === undefined) return undefined;
@@ -467,6 +475,7 @@ export class MonthlyPassService {
     dailyQuota: DecimalLike | null;
     quotaUnit: string;
     quotaWindowHours: number | null;
+    validityDays?: number | null;
     quotaWindows?: Array<{ id: string; quotaLimit: DecimalLike; quotaUnit: string; quotaWindowHours: DecimalLike }>;
     allowedModels: string | null;
     allowedChannels: string | null;
@@ -491,6 +500,7 @@ export class MonthlyPassService {
       dailyQuota: record.dailyQuota == null ? undefined : Number(record.dailyQuota),
       quotaUnit: normalizeQuotaUnit(record.quotaUnit),
       quotaWindowHours: record.quotaWindowHours == null ? undefined : Number(record.quotaWindowHours),
+      validityDays: normalizeValidityDays(record.validityDays),
       quotaWindows:
         record.quotaWindows && record.quotaWindows.length > 0
           ? record.quotaWindows.map((item) => this.toQuotaWindowDto(item))
@@ -846,6 +856,7 @@ export class MonthlyPassService {
 
     const hasPricingInput = data.originalPrice !== undefined || data.discountPercent !== undefined;
     const quotaWindowHours = normalizeQuotaWindowHours(data.quotaWindowHours, true);
+    const validityDays = normalizeValidityDays(data.validityDays);
     const purchaseLimitConfig = validatePurchaseLimitConfig(data.purchaseLimitPerUser, data.purchaseLimitWindowDays);
 
     const record = hasPricingInput
@@ -888,6 +899,7 @@ export class MonthlyPassService {
               dailyQuota: derivedPricing.dailyQuota,
               quotaUnit: "amount",
               quotaWindowHours: resolvedQuotaWindowHours,
+              validityDays,
               allowedModels: serializeStringArray(data.allowedModels),
               allowedChannels: serializeStringArray(data.allowedChannels),
               status: MANAGED_STATUS.ENABLED,
@@ -937,6 +949,7 @@ export class MonthlyPassService {
               dailyQuota,
               quotaUnit,
               quotaWindowHours: resolvedQuotaWindowHours,
+              validityDays,
               allowedModels: serializeStringArray(data.allowedModels),
               allowedChannels: serializeStringArray(data.allowedChannels),
               status: MANAGED_STATUS.ENABLED,
@@ -1051,6 +1064,7 @@ export class MonthlyPassService {
     const existingDailyQuota = existing.dailyQuota == null ? null : Number(existing.dailyQuota);
     const existingDefaultQuota = Number(existing.defaultQuota);
     const existingQuotaUnit = normalizeQuotaUnit(existing.quotaUnit);
+    const validityDays = normalizeValidityDays(data.validityDays ?? existing.validityDays);
 
     let derivedPricing:
       | {
@@ -1127,6 +1141,7 @@ export class MonthlyPassService {
         dailyQuota: finalDailyQuota,
         quotaUnit: "amount",
         quotaWindowHours: normalizedQuotaWindowHours,
+        validityDays,
         allowedModels: data.allowedModels === undefined ? undefined : serializeStringArray(data.allowedModels),
         allowedChannels: data.allowedChannels === undefined ? undefined : serializeStringArray(data.allowedChannels),
         status: data.status,
@@ -1177,6 +1192,7 @@ export class MonthlyPassService {
         dailyQuota: finalDailyQuota,
         quotaUnit: finalQuotaUnit,
         quotaWindowHours: normalizedQuotaWindowHours,
+        validityDays,
         allowedModels: data.allowedModels === undefined ? undefined : serializeStringArray(data.allowedModels),
         allowedChannels: data.allowedChannels === undefined ? undefined : serializeStringArray(data.allowedChannels),
         status: data.status,
@@ -1216,6 +1232,7 @@ export class MonthlyPassService {
           purchaseLimitConfig === undefined ? undefined : (purchaseLimitConfig.purchaseLimitWindowDays ?? null),
         dailyQuota: finalDailyQuota,
         quotaWindowHours: normalizedQuotaWindowHours,
+        validityDays,
         allowedModels: data.allowedModels === undefined ? undefined : serializeStringArray(data.allowedModels),
         allowedChannels: data.allowedChannels === undefined ? undefined : serializeStringArray(data.allowedChannels),
         status: data.status,
@@ -1340,7 +1357,7 @@ export class MonthlyPassService {
     });
 
     const startAt = new Date();
-    const endAt = new Date(startAt.getTime() + MONTHLY_PASS_SELF_CLAIM_DURATION_DAYS * 24 * 60 * 60 * 1000);
+    const endAt = new Date(startAt.getTime() + normalizeValidityDays(template.validityDays) * 24 * 60 * 60 * 1000);
 
     const record = await this.monthlyPassRepository.purchaseUserPass(
       {

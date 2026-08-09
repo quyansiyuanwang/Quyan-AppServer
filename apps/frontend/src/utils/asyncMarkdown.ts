@@ -149,3 +149,10 @@ export const highlightCodeBlocks = async (root: ParentNode | null | undefined): 
     hljs.highlightElement(block as HTMLElement)
   })
 }
+
+/** Return escaped, syntax-highlighted HTML for trusted display in a code block. */
+export const highlightCode = async (code: string, language: string): Promise<string> => {
+  if (!code) return ''
+  const hljs = await loadHighlighter()
+  return hljs.highlight(code, { language }).value
+}

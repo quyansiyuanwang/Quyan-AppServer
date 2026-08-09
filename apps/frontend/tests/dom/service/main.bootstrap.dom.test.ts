@@ -18,6 +18,7 @@ vi.mock('vue', () => ({
     use: useMock,
     mount: mountMock,
     directive: directiveMock,
+    config: {},
   })),
 }))
 
@@ -80,6 +81,11 @@ vi.mock('@/service/authorizationService', () => ({
     setPendingPolicyConsentChallenge: vi.fn(),
     clearPendingPolicyConsentChallenge: vi.fn(),
   },
+}))
+
+vi.mock('@/service/errorReportService', () => ({
+  installErrorReporter: vi.fn(),
+  reportClientError: vi.fn(),
 }))
 
 describe('main bootstrap impersonation restore', () => {

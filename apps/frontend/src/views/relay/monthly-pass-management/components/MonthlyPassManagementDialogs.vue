@@ -74,6 +74,19 @@
           </span>
         </div>
       </el-form-item>
+      <el-form-item :label="i18ns.t('monthlyPass.validityDays')" required>
+        <div class="template-validity-field">
+          <el-input-number
+            v-model="templateForm.validityDays"
+            :min="1"
+            :max="3650"
+            :step="1"
+            :precision="0"
+          />
+          <span class="template-validity-field__unit">{{ i18ns.t('monthlyPass.daysUnit') }}</span>
+        </div>
+        <div class="quota-window-value">{{ i18ns.t('monthlyPass.validityDaysHint') }}</div>
+      </el-form-item>
       <el-form-item :label="i18ns.t('monthlyPass.purchaseLimit')">
         <div class="template-purchase-limit-field">
           <div class="template-purchase-limit-field__row">
@@ -375,6 +388,7 @@
           :disabled="Boolean(editingAssignmentId)"
           :placeholder="i18ns.t('monthlyPass.selectTemplate')"
           style="width: 100%"
+          @change="handleAssignmentTemplateChange"
         >
           <el-option
             v-for="template in assignableTemplateOptions"
@@ -648,6 +662,7 @@ const {
   clearBatchUserSelection,
   submitTemplate,
   clearTemplatePurchaseLimit,
+  handleAssignmentTemplateChange,
   submitAssignment,
   applyQuickDuration,
   increaseAssignmentDuration,

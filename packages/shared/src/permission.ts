@@ -61,6 +61,10 @@ export enum Permission {
   SYSTEM_LOG_READ = 'system:log:read',
   SYSTEM_SERVER_LOG_READ = 'system:server_log:read',
   SYSTEM_BUSINESS_LOG_READ = 'system:business_log:read',
+  SYSTEM_ERROR_REPORT_READ = 'system:error_report:read',
+  SYSTEM_ERROR_REPORT_UPDATE = 'system:error_report:update',
+  SYSTEM_DATA_LIFECYCLE_MANAGE = 'system:data_lifecycle:manage',
+  SYSTEM_DATA_MAINTENANCE_MANAGE = 'system:data_maintenance:manage',
   USER_ONLINE_MONITOR_READ = 'user_online_monitor:read',
   USER_ONLINE_MONITOR_FORCE_OFFLINE = 'user_online_monitor:force_offline',
 

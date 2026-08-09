@@ -7,6 +7,10 @@ export const CONFIG_KEYS = {
     INTERVAL_SECONDS: "heartbeat.intervalSeconds",
     TIMEOUT_SECONDS: "heartbeat.timeoutSeconds",
   },
+  DATA_LIFECYCLE: {
+    SCHEDULE_ENABLED: "dataLifecycle.schedule.enabled",
+    SCHEDULE_TIME: "dataLifecycle.schedule.time",
+  },
   REMOTE_TERMINAL: {
     UNBIND_MAX_COUNT: "remoteTerminal.unbind.maxCount",
     UNBIND_WINDOW_HOURS: "remoteTerminal.unbind.windowHours",

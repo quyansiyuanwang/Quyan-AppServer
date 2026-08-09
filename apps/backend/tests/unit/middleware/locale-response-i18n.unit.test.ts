@@ -32,6 +32,10 @@ function createApp() {
     res.json({ ok: true });
   });
 
+  app.get("/resource-with-message", (_req, res) => {
+    res.json({ id: "error-group-1", message: "A captured application error" });
+  });
+
   app.get("/rate-limit", () => {
     throw new TooManyRequestsError();
   });
@@ -95,6 +99,22 @@ describe("backend locale-aware response messages", () => {
       .expect(({ body, headers }) => {
         expect(headers["x-locale"]).toBe("en");
         expect(body.message).toBe("Success");
+      });
+  });
+
+  it("preserves a domain object's message in response data", async () => {
+    const app = createApp();
+
+    await request(app)
+      .get("/resource-with-message")
+      .set("X-Locale", "en")
+      .expect(200)
+      .expect(({ body }) => {
+        expect(body).toMatchObject({
+          code: CustomCode.OK,
+          message: "Success",
+          data: { id: "error-group-1", message: "A captured application error" },
+        });
       });
   });
 

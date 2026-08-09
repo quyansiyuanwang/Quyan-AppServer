@@ -11,6 +11,10 @@ const secretKeys = [
   "RELAY_CHANNEL_CHANGE_REQUEST_MASTER_KEY",
   "REDIS_PASSWORD",
   "ANTHROPIC_API_KEY",
+  "ARCHIVE_OSS_ACCESS_KEY_ID",
+  "ARCHIVE_OSS_ACCESS_KEY_SECRET",
+  "STAGING_OSS_ACCESS_KEY_ID",
+  "STAGING_OSS_ACCESS_KEY_SECRET",
 ] as const;
 
 export function buildDiagnostics(source: EnvSnapshot) {

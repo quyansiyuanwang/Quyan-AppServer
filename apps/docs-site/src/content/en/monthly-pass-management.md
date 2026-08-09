@@ -26,7 +26,7 @@ Use this page to manage monthly-pass templates and user assignments.
 ## Common actions
 
 1. Create or copy the closest template for your need.
-2. Configure quotas, validity windows, channels, and models.
+2. Configure validity, quotas, usage windows, channels, and models.
 3. Publish the template when it is ready.
 4. Create assignments for target users.
 5. Unpublish or adjust assignments when a plan should stop.
@@ -40,6 +40,7 @@ Use this page to manage monthly-pass templates and user assignments.
 ## Notes
 
 - Templates define the rules, while assignments decide who can use them and when.
+- A template's validity sets the default duration for new claims and assignments. Administrators can still override start and end times for an individual or batch assignment. Changing template validity does not alter already-issued passes.
 - If a user reports a pass issue, inspect template status, assignment status, and the user-facing page together.
 - The user-facing equivalent is `my-monthly-passes`.
 

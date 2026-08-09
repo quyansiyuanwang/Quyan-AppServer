@@ -53,6 +53,8 @@ const docsRouteToSlug = {
   systemConsumptionStats: 'consumption-statistics',
   systemLogs: 'system-logs',
   businessLogs: 'business-logs',
+  errorCenter: 'error-center',
+  dataLifecycle: 'data-lifecycle',
   userOnlineMonitor: 'user-online-monitor',
   analyticsOverview: 'analytics',
   analyticsFunnel: 'analytics',

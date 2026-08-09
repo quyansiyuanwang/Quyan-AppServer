@@ -1,4 +1,5 @@
 import { Response, NextFunction } from "express";
+import { createHash } from "crypto";
 import type { TypedRequest } from "@/types/express";
 import { BadRequestError, UnauthorizedError } from "@/util/errors";
 import { RedisService } from "@/services/infrastructure/redis.service";
@@ -103,7 +104,11 @@ export async function replayProtectionMiddleware(req: TypedRequest, res: Respons
   const nonceKey = buildReplayNonceKey(sessionId, nonce);
 
   // 验证签名
-  const body = req.body ? JSON.stringify(req.body) : "";
+  const body = Buffer.isBuffer(req.body)
+    ? `sha256:${createHash("sha256").update(req.body).digest("hex")}`
+    : req.body
+      ? JSON.stringify(req.body)
+      : "";
   const expectedSign = generateReplaySign(nonce, timestamp, body, req.path, signingSession.signingKey);
 
   if (!verifyReplaySign(sign, expectedSign)) {

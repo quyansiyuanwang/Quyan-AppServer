@@ -8,6 +8,7 @@ import { DeveloperMonitorSchedulerService } from "./services/developer/developer
 import { RedisService } from "./services/infrastructure/redis.service";
 import { RelayChannelProbeService } from "./services/relay/relay-channel-probe.service";
 import { RelayChannelProviderSettlementSchedulerService } from "./services/relay/relay-channel-provider-settlement-scheduler.service";
+import { DataLifecycleSchedulerService } from "./services/system/data-lifecycle-scheduler.service";
 import { getLogger, LogCategory } from "./util/logger";
 
 const app = createApp();
@@ -72,6 +73,7 @@ const gracefulShutdown = async (signal: string) => {
     DeveloperMonitorSchedulerService.getInstance().stop();
     RelayChannelProbeService.getInstance().stop();
     RelayChannelProviderSettlementSchedulerService.getInstance().stop();
+    DataLifecycleSchedulerService.getInstance().stop();
     await remoteTerminalGatewayBootstrap.close();
     await closeHttpServer();
     await disposeRequestLogService();

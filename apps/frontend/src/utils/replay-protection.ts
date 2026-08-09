@@ -36,7 +36,12 @@ export class ReplayProtection {
   ): Record<string, string> {
     const nonce = this.generateNonce()
     const timestamp = Math.floor(Date.now() / 1000).toString()
-    const bodyStr = body ? JSON.stringify(body) : ''
+    const bodyStr =
+      body instanceof Uint8Array
+        ? `sha256:${CryptoJS.SHA256(CryptoJS.lib.WordArray.create(body as unknown as number[])).toString()}`
+        : body
+          ? JSON.stringify(body)
+          : ''
     const sign = this.generateSign(nonce, timestamp, path, bodyStr, signingMaterial.signingKey)
 
     return {
