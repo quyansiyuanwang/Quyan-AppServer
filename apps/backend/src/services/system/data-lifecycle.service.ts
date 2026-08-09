@@ -7,6 +7,7 @@ import OSS from "ali-oss";
 import { env } from "@/config/env";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { getLogger, LogCategory } from "@/util/logger";
+import { createObjectStorageClient } from "@/services/infrastructure/object-storage-client";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import {
   DATA_LIFECYCLE_DATASETS,
@@ -145,7 +146,7 @@ export class DataLifecycleService {
 
   public async runPolicy(dataset: string, runType: "manual" | "scheduled", startedByUserId?: string) {
     if (!isDataset(dataset)) throw new BadRequestError("Unsupported lifecycle dataset");
-    if (!env.integrations.archiveOss.enabled) throw new BadRequestError("Archive OSS is not configured");
+    if (!env.integrations.objectStorage.archive.enabled) throw new BadRequestError("Archive OSS is not configured");
     const policy = await this.repository.getLifecyclePolicy(dataset);
     if (!policy) throw new NotFoundError("Lifecycle policy not found");
     if (!policy.enabled && runType === "scheduled") return null;
@@ -289,7 +290,7 @@ export class DataLifecycleService {
 
   public async runScheduledPolicies(): Promise<void> {
     await this.initialize();
-    if (!env.integrations.archiveOss.enabled) {
+    if (!env.integrations.objectStorage.archive.enabled) {
       logger.info("Data lifecycle archive skipped because OSS is not configured");
       return;
     }
@@ -312,7 +313,7 @@ export class DataLifecycleService {
   }
 
   public async getArchiveDownloadInfo(artifactId: string) {
-    if (!env.integrations.archiveOss.enabled) throw new BadRequestError("Archive OSS is not configured");
+    if (!env.integrations.objectStorage.archive.enabled) throw new BadRequestError("Archive OSS is not configured");
     const artifact = await this.repository.getArchiveArtifact(artifactId);
     if (!artifact || artifact.deletedAt) throw new NotFoundError("Archive artifact not found");
     const client = this.getOssClient();
@@ -361,7 +362,7 @@ export class DataLifecycleService {
   }
 
   public async deleteExpiredArtifacts(): Promise<number> {
-    if (!env.integrations.archiveOss.enabled) return 0;
+    if (!env.integrations.objectStorage.archive.enabled) return 0;
     const artifacts = await this.repository.listExpiredArchiveArtifacts(new Date());
     let deleted = 0;
     for (const artifact of artifacts)
@@ -527,7 +528,7 @@ export class DataLifecycleService {
     fileName?: string,
   ): string {
     const month = cutoffAt.toISOString().slice(0, 7);
-    const prefix = env.integrations.archiveOss.prefix;
+    const prefix = env.integrations.objectStorage.archive.prefix;
     if (fileName) {
       const safeFileName = fileName.replace(/[^A-Za-z0-9._-]/g, "_");
       return `${prefix}/${dataset}/${month}/${runId}-${batchNumber}-${safeFileName.replace(/\.log$/, ".log.gz")}`;
@@ -537,16 +538,7 @@ export class DataLifecycleService {
 
   private getOssClient(): OSS {
     if (this.ossClient) return this.ossClient;
-    const config = env.integrations.archiveOss;
-    if (!config.enabled) throw new BadRequestError("Archive OSS is not configured");
-    this.ossClient = new OSS({
-      region: config.region,
-      endpoint: config.endpoint,
-      bucket: config.bucket,
-      accessKeyId: config.accessKeyId,
-      accessKeySecret: config.accessKeySecret,
-      secure: true,
-    });
+    this.ossClient = createObjectStorageClient(env.integrations.objectStorage.archive, "archive");
     return this.ossClient;
   }
 }

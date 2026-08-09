@@ -13,6 +13,8 @@ const secretKeys = [
   "ANTHROPIC_API_KEY",
   "ARCHIVE_OSS_ACCESS_KEY_ID",
   "ARCHIVE_OSS_ACCESS_KEY_SECRET",
+  "STAGING_OSS_ACCESS_KEY_ID",
+  "STAGING_OSS_ACCESS_KEY_SECRET",
 ] as const;
 
 export function buildDiagnostics(source: EnvSnapshot) {

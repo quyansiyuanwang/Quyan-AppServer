@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { env } from "@/config/env";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
+import { createObjectStorageClient } from "@/services/infrastructure/object-storage-client";
 import {
   DATA_MAINTENANCE_DATASETS,
   DATA_MAINTENANCE_TABLES,
@@ -205,7 +206,7 @@ export class DataMaintenanceService {
     const preview = await this.previewImport(dataset, buffer);
     if (!preview.executable) throw new BadRequestError(`Archive preview failed: ${preview.errors.join("; ") || "missing foreign key"}`);
     const sha256 = createHash("sha256").update(buffer).digest("hex");
-    const objectKey = `${env.integrations.archiveOss.prefix}/maintenance/import/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${sha256}.ndjson.gz`;
+    const objectKey = `${env.integrations.objectStorage.staging.prefix}/maintenance/import/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${sha256}.ndjson.gz`;
     const client = this.getOssClient();
     await client.put(objectKey, buffer, {
       headers: {
@@ -359,9 +360,7 @@ export class DataMaintenanceService {
 
   private getOssClient(): OSS {
     if (this.ossClient) return this.ossClient;
-    const config = env.integrations.archiveOss;
-    if (!config.enabled) throw new BadRequestError("Archive OSS is not configured");
-    this.ossClient = new OSS({ region: config.region, endpoint: config.endpoint, bucket: config.bucket, accessKeyId: config.accessKeyId, accessKeySecret: config.accessKeySecret, secure: true });
+    this.ossClient = createObjectStorageClient(env.integrations.objectStorage.staging, "staging");
     return this.ossClient;
   }
 }

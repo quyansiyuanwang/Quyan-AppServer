@@ -2,20 +2,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/config/env", () => ({
   env: {
+    database: { url: "mysql://test:test@localhost:3306/test" },
     runtime: {
       cwd: "D:/appserver",
       isDevelopment: false,
       logging: { disableConsoleLog: true, enableFileLogging: false },
     },
     integrations: {
-      archiveOss: {
-        enabled: true,
-        endpoint: "https://oss.example.test",
-        region: "oss-cn-test",
-        bucket: "archives",
-        accessKeyId: "test-key",
-        accessKeySecret: "test-secret",
-        prefix: "archives",
+      objectStorage: {
+        archive: {
+          enabled: true,
+          endpoint: "https://oss.example.test",
+          region: "oss-cn-test",
+          bucket: "archives",
+          accessKeyId: "test-key",
+          accessKeySecret: "test-secret",
+          prefix: "archives",
+        },
       },
     },
   },

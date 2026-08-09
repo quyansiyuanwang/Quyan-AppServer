@@ -1,6 +1,39 @@
 import { sanitizeInt } from "./common";
 import type { EnvSnapshot } from "./source";
 
+export interface ObjectStorageBucketConfig {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  accessKeySecret: string;
+  prefix: string;
+  enabled: boolean;
+}
+
+function buildObjectStorageBucketConfig(
+  source: EnvSnapshot,
+  variablePrefix: "ARCHIVE_OSS" | "STAGING_OSS",
+  defaultPrefix: string,
+): ObjectStorageBucketConfig {
+  const config = {
+    endpoint: String(source[`${variablePrefix}_ENDPOINT`] || "").trim(),
+    region: String(source[`${variablePrefix}_REGION`] || "").trim(),
+    bucket: String(source[`${variablePrefix}_BUCKET`] || "").trim(),
+    accessKeyId: String(source[`${variablePrefix}_ACCESS_KEY_ID`] || "").trim(),
+    accessKeySecret: String(source[`${variablePrefix}_ACCESS_KEY_SECRET`] || "").trim(),
+    prefix: String(source[`${variablePrefix}_PREFIX`] || defaultPrefix)
+      .trim()
+      .replace(/^\/+|\/+$/g, ""),
+  };
+  return {
+    ...config,
+    enabled: Boolean(
+      config.endpoint && config.region && config.bucket && config.accessKeyId && config.accessKeySecret,
+    ),
+  };
+}
+
 export function buildRedisConfig(source: EnvSnapshot) {
   return {
     host: source.REDIS_HOST,
@@ -82,16 +115,8 @@ export function buildRelayConfig(source: EnvSnapshot) {
 }
 
 export function buildIntegrationsConfig(source: EnvSnapshot) {
-  const archiveOss = {
-    endpoint: String(source.ARCHIVE_OSS_ENDPOINT || "").trim(),
-    region: String(source.ARCHIVE_OSS_REGION || "").trim(),
-    bucket: String(source.ARCHIVE_OSS_BUCKET || "").trim(),
-    accessKeyId: String(source.ARCHIVE_OSS_ACCESS_KEY_ID || "").trim(),
-    accessKeySecret: String(source.ARCHIVE_OSS_ACCESS_KEY_SECRET || "").trim(),
-    prefix: String(source.ARCHIVE_OSS_PREFIX || "appserver-archives")
-      .trim()
-      .replace(/^\/+|\/+$/g, ""),
-  };
+  const archive = buildObjectStorageBucketConfig(source, "ARCHIVE_OSS", "appserver-archives");
+  const staging = buildObjectStorageBucketConfig(source, "STAGING_OSS", "appserver-staging");
 
   return {
     anthropic: {
@@ -113,15 +138,9 @@ export function buildIntegrationsConfig(source: EnvSnapshot) {
       maxIntegerQuota: sanitizeInt(source.MONTHLY_PASS_MAX_INTEGER_QUOTA, 999999, 1, 2147483647),
     },
     baiduMap: { ipLocationAk: String(source.BAIDU_IP_LOCATION_AK || "").trim() },
-    archiveOss: {
-      ...archiveOss,
-      enabled: Boolean(
-        archiveOss.endpoint &&
-          archiveOss.region &&
-          archiveOss.bucket &&
-          archiveOss.accessKeyId &&
-          archiveOss.accessKeySecret,
-      ),
+    objectStorage: {
+      archive,
+      staging,
     },
     distributedLock: {
       acquireTimeoutMs: sanitizeInt(source.DISTRIBUTED_LOCK_ACQUIRE_TIMEOUT_MS, 5000, 100, 60000),

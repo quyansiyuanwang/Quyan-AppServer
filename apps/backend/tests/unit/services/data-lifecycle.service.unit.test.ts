@@ -7,14 +7,16 @@ vi.mock("@/config/env", () => ({
       logging: { disableConsoleLog: true, enableFileLogging: false },
     },
     integrations: {
-      archiveOss: {
-        enabled: false,
-        endpoint: "",
-        region: "",
-        bucket: "",
-        accessKeyId: "",
-        accessKeySecret: "",
-        prefix: "archives",
+      objectStorage: {
+        archive: {
+          enabled: false,
+          endpoint: "",
+          region: "",
+          bucket: "",
+          accessKeyId: "",
+          accessKeySecret: "",
+          prefix: "archives",
+        },
       },
     },
   },
