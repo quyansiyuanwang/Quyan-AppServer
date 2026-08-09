@@ -3814,6 +3814,10 @@ export default {
     allowBalanceRedemption: 'Allow balance redemption',
     allowBalanceRedemptionHint:
       'When enabled, users can purchase this monthly pass with site balance directly; when disabled, it remains visible but not redeemable.',
+    validityDays: 'Validity',
+    validityDaysHint:
+      'New claims and assignments use this duration by default. Individual assignments can still be adjusted.',
+    validityDaysInvalid: 'Validity must be a whole number between 1 and 3650 days',
     purchaseCenter: 'Monthly Pass Purchase Center',
     purchaseCenterHint:
       'Purchase monthly pass plans on a dedicated page with balance checks, limit prompts, and clearer redemption status.',

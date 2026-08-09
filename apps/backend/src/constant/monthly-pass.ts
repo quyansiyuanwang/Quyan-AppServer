@@ -27,3 +27,6 @@ export const MONTHLY_PASS_QUOTA_WINDOW_MS = 60 * 60 * 1000;
 export const MONTHLY_PASS_MAX_AMOUNT_QUOTA = env.integrations.monthlyPass.maxAmountQuota;
 
 export const MONTHLY_PASS_MAX_INTEGER_QUOTA = env.integrations.monthlyPass.maxIntegerQuota;
+
+export const MONTHLY_PASS_DEFAULT_VALIDITY_DAYS = 30;
+export const MONTHLY_PASS_MAX_VALIDITY_DAYS = 3650;

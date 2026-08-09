@@ -50,6 +50,7 @@ describe("MonthlyPassService publish flow", () => {
     dailyQuota: null,
     quotaUnit: "amount",
     quotaWindowHours: null,
+    validityDays: 30,
     allowBalanceRedemption: true,
     allowedModels: null,
     allowedChannels: null,
@@ -102,6 +103,7 @@ describe("MonthlyPassService publish flow", () => {
         name: "Discounted Pack",
         originalPrice: 100,
         discountPercent: 50,
+        validityDays: 45,
       },
       "actor-1",
     );
@@ -111,6 +113,7 @@ describe("MonthlyPassService publish flow", () => {
         discountedPrice: 50,
         rechargeRatio: 2,
         defaultQuota: 200,
+        validityDays: 45,
       }),
       expect.any(Array),
     );
@@ -272,6 +275,7 @@ describe("MonthlyPassService publish flow", () => {
       defaultQuota: 10,
       quotaWindows: [],
       allowBalanceRedemption: true,
+      validityDays: 45,
     });
     monthlyPassRepository.purchaseUserPass.mockResolvedValue({
       id: "pass-1",
@@ -302,6 +306,8 @@ describe("MonthlyPassService publish flow", () => {
       expect.any(Array),
       expect.objectContaining({ purchaseAmount: 37 }),
     );
+    const createdPass = monthlyPassRepository.purchaseUserPass.mock.calls[0][0];
+    expect(createdPass.endAt.getTime() - createdPass.startAt.getTime()).toBe(45 * 24 * 60 * 60 * 1000);
     expect(result.purchaseAmount).toBe(37);
     expect(result.userPass.templateName).toBe("Starter Pack");
     expect(businessLogService.logOperation).toHaveBeenCalledWith(

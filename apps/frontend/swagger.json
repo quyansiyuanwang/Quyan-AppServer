@@ -49019,6 +49019,10 @@
 						"type": "number",
 						"format": "double"
 					},
+					"validityDays": {
+						"type": "number",
+						"format": "double"
+					},
 					"quotaWindows": {
 						"items": {
 							"$ref": "#/components/schemas/MonthlyPassQuotaWindowDto"
@@ -49057,6 +49061,7 @@
 					"allowBalanceRedemption",
 					"defaultQuota",
 					"quotaUnit",
+					"validityDays",
 					"quotaWindows",
 					"status",
 					"createTime",
@@ -49161,6 +49166,10 @@
 						"type": "number",
 						"format": "double"
 					},
+					"validityDays": {
+						"type": "number",
+						"format": "double"
+					},
 					"quotaWindows": {
 						"items": {
 							"$ref": "#/components/schemas/MonthlyPassQuotaWindowInputDto"
@@ -49231,6 +49240,10 @@
 						"type": "number",
 						"format": "double",
 						"nullable": true
+					},
+					"validityDays": {
+						"type": "number",
+						"format": "double"
 					},
 					"quotaWindows": {
 						"items": {

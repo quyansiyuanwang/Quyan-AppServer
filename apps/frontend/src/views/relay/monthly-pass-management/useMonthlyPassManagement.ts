@@ -366,6 +366,7 @@ export const useMonthlyPassManagement = () => {
     originalPrice: 1,
     discountPercent: 100,
     allowBalanceRedemption: true,
+    validityDays: 30,
     purchaseLimitPerUser: undefined as number | undefined,
     purchaseLimitWindowDays: undefined as number | undefined,
     dailyQuota: undefined as number | undefined,
@@ -654,6 +655,15 @@ export const useMonthlyPassManagement = () => {
     const end = new Date(start.getTime() + days * DAY_MS)
     assignmentForm.startAt = toIso(start)
     assignmentForm.endAt = toIso(end)
+  }
+
+  const handleAssignmentTemplateChange = () => {
+    if (editingAssignmentId.value) return
+    const template = templateOptions.value.find((item) => item.id === assignmentForm.templateId)
+    if (!template) return
+    const validityDays = Math.max(1, Math.floor(Number(template.validityDays) || 30))
+    quickDurationDays.value = validityDays
+    setAssignmentDurationDays(validityDays)
   }
 
   const applyQuickDuration = () => {
@@ -1015,6 +1025,7 @@ export const useMonthlyPassManagement = () => {
     templateForm.originalPrice = 1
     templateForm.discountPercent = 100
     templateForm.allowBalanceRedemption = true
+    templateForm.validityDays = 30
     templateForm.purchaseLimitPerUser = undefined
     templateForm.purchaseLimitWindowDays = undefined
     templateForm.dailyQuota = undefined
@@ -1050,6 +1061,7 @@ export const useMonthlyPassManagement = () => {
     templateForm.discountPercent =
       row.discountPercent != null ? round2(Number(row.discountPercent)) : 100
     templateForm.allowBalanceRedemption = row.allowBalanceRedemption ?? true
+    templateForm.validityDays = row.validityDays ?? 30
     templateForm.purchaseLimitPerUser = row.purchaseLimitPerUser ?? undefined
     templateForm.purchaseLimitWindowDays = row.purchaseLimitWindowDays ?? undefined
     templateForm.dailyQuota =
@@ -1135,6 +1147,13 @@ export const useMonthlyPassManagement = () => {
     templateForm.discountPercent = discountPercent
     templateForm.dailyQuota = normalizedDailyQuota
 
+    const validityDays = Number(templateForm.validityDays)
+    if (!Number.isInteger(validityDays) || validityDays < 1 || validityDays > 3650) {
+      ElMessage.warning(i18ns.t('monthlyPass.validityDaysInvalid'))
+      return
+    }
+    templateForm.validityDays = validityDays
+
     const purchaseLimitPerUser = normalizeOptionalPositiveInteger(templateForm.purchaseLimitPerUser)
     const purchaseLimitWindowDays = normalizeOptionalPositiveInteger(
       templateForm.purchaseLimitWindowDays,
@@ -1162,6 +1181,7 @@ export const useMonthlyPassManagement = () => {
         originalPrice,
         discountPercent,
         allowBalanceRedemption: templateForm.allowBalanceRedemption,
+        validityDays,
         purchaseLimitPerUser: purchaseLimitPerUser ?? (isEditingTemplate ? null : undefined),
         purchaseLimitWindowDays: purchaseLimitWindowDays ?? (isEditingTemplate ? null : undefined),
         dailyQuota:
@@ -1194,6 +1214,7 @@ export const useMonthlyPassManagement = () => {
           originalPrice,
           discountPercent,
           allowBalanceRedemption: templateForm.allowBalanceRedemption,
+          validityDays,
           purchaseLimitPerUser,
           purchaseLimitWindowDays,
           dailyQuota: normalizedDailyQuota,
@@ -1637,6 +1658,7 @@ export const useMonthlyPassManagement = () => {
     publishTemplate,
     unpublishTemplate,
     clearTemplatePurchaseLimit,
+    handleAssignmentTemplateChange,
     openCreateAssignmentDialog,
     openEditAssignmentDialog,
     submitAssignment,

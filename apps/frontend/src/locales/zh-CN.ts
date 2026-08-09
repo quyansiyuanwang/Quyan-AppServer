@@ -3658,6 +3658,9 @@ const zhCN: DeepStringify<typeof en> = {
     allowBalanceRedemption: '允许站内余额兑换',
     allowBalanceRedemptionHint:
       '开启后，用户可用站内余额直接购买该月卡；关闭后仅展示不可兑换状态。',
+    validityDays: '有效期',
+    validityDaysHint: '新领取或新分配的月卡默认使用此有效期；单次分配时仍可调整。',
+    validityDaysInvalid: '有效期必须是 1 至 3650 天之间的整数',
     purchaseCenter: '月卡购买中心',
     purchaseCenterHint: '在独立页面完成月卡购买，展示余额校验、限购提示与更清晰的兑换状态。',
     goToPurchaseCenter: '前往购买中心',

@@ -69,6 +69,18 @@ describe("monthly pass zero-value and PATCH contracts", () => {
     expect(updateMonthlyPassTemplateBodySchema.safeParse({ purchaseLimitPerUser: 2 }).success).toBe(true);
   });
 
+  it("accepts a template validity between one day and ten years", () => {
+    expect(createMonthlyPassTemplateBodySchema.safeParse({ ...validPriceFirstTemplate, validityDays: 45 }).success).toBe(
+      true,
+    );
+    expect(createMonthlyPassTemplateBodySchema.safeParse({ ...validPriceFirstTemplate, validityDays: 0 }).success).toBe(
+      false,
+    );
+    expect(
+      createMonthlyPassTemplateBodySchema.safeParse({ ...validPriceFirstTemplate, validityDays: 3651 }).success,
+    ).toBe(false);
+  });
+
   it("checks duplicate user quota windows when quotaUnit is omitted", () => {
     const result = updateUserMonthlyPassBodySchema.safeParse({
       quotaWindows: [

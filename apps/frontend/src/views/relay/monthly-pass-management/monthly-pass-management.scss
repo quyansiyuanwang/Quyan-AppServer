@@ -127,6 +127,21 @@
   gap: 8px;
 }
 
+.template-validity-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.template-validity-field .el-input-number {
+  width: 160px;
+}
+
+.template-validity-field__unit {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
 .template-purchase-limit-field__row {
   display: flex;
   align-items: center;

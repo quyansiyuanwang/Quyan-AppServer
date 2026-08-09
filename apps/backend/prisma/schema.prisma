@@ -1757,6 +1757,7 @@ model MonthlyPassTemplate {
   dailyQuota              Decimal?  @db.Decimal(10, 4)
   quotaUnit               String    @default("amount") @db.VarChar(20)
   quotaWindowHours        Int?
+  validityDays            Int       @default(30)
   purchaseLimitPerUser    Int?
   purchaseLimitWindowDays Int?
   allowBalanceRedemption  Boolean   @default(true)
