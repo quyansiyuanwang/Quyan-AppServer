@@ -15,7 +15,6 @@ import {
   Tags,
 } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
-import type { ErrorResponse } from "@/api/response";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type {
   ClientErrorReportRequest,
