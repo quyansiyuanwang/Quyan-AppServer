@@ -882,6 +882,14 @@ export const routes = [
             },
           },
           {
+            path: 'system/data-maintenance',
+            name: 'dataMaintenance',
+            component: () => import('@/views/system/DataMaintenanceView.vue'),
+            meta: {
+              permission: Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
+            },
+          },
+          {
             path: 'system/user-online-monitor',
             name: 'userOnlineMonitor',
             component: () => import('@/views/system/UserOnlineMonitorView.vue'),

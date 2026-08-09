@@ -91,6 +91,7 @@ export function createApp() {
     createRequestSizeGuard({
       maxJsonBytes: requestSizeLimitConfig.jsonBodyLimitMb * 1024 * 1024,
       maxMultipartBytes: env.relay.resourceGuard.multipartBodyLimitMb * 1024 * 1024,
+      maxArchiveBytes: requestSizeLimitConfig.archiveImportBodyLimitMb * 1024 * 1024,
       maxOtherBytes: requestSizeLimitConfig.otherBodyLimitMb * 1024 * 1024,
     }),
   );
@@ -102,6 +103,13 @@ export function createApp() {
     express.raw({
       type: ["multipart/form-data"],
       limit: `${env.relay.resourceGuard.multipartBodyLimitMb}mb`,
+    }),
+  );
+  app.use(
+    "/v1/data-maintenance/imports",
+    express.raw({
+      type: ["application/gzip", "application/x-gzip", "application/octet-stream"],
+      limit: `${requestSizeLimitConfig.archiveImportBodyLimitMb}mb`,
     }),
   );
   app.use(express.json({ limit: `${requestSizeLimitConfig.jsonBodyLimitMb}mb` }));

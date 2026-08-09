@@ -9988,6 +9988,290 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/data-maintenance/optimize/preview": {
+			"post": {
+				"operationId": "DataMaintenanceControllerOptimizePreview",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OptimizePreviewResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataMaintenance"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/Pick_OptimizeRequest.datasets-or-captchaToken_"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/data-maintenance/optimize": {
+			"post": {
+				"operationId": "DataMaintenanceControllerOptimize",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataMaintenanceRunDTO"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataMaintenance"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/OptimizeRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/data-maintenance/imports/preview/{dataset}": {
+			"post": {
+				"operationId": "DataMaintenanceControllerImportPreview",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataMaintenanceImportPreviewResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataMaintenance"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "dataset",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/gzip": {
+							"schema": {
+								"$ref": "#/components/schemas/Record_string.unknown_"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/data-maintenance/imports/{dataset}": {
+			"post": {
+				"operationId": "DataMaintenanceControllerCreateImport",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataMaintenanceRunDTO"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataMaintenance"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "dataset",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/gzip": {
+							"schema": {
+								"$ref": "#/components/schemas/Record_string.unknown_"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/data-maintenance/runs": {
+			"get": {
+				"operationId": "DataMaintenanceControllerListRuns",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataMaintenanceRunListResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataMaintenance"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "operation",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "runStatus",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/data-maintenance/runs/{runId}": {
+			"get": {
+				"operationId": "DataMaintenanceControllerGetRun",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DataMaintenanceRunDTO"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"DataMaintenance"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "runId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/data-lifecycle/policies": {
 			"get": {
 				"operationId": "DataLifecycleControllerListPolicies",
@@ -30030,6 +30314,7 @@
 					"system:error_report:read",
 					"system:error_report:update",
 					"system:data_lifecycle:manage",
+					"system:data_maintenance:manage",
 					"user_online_monitor:read",
 					"user_online_monitor:force_offline",
 					"api_log:read",
@@ -34986,6 +35271,270 @@
 				},
 				"required": [
 					"resolutionStatus"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"OptimizePreviewItem": {
+				"properties": {
+					"dataset": {
+						"type": "string"
+					},
+					"tableName": {
+						"type": "string"
+					},
+					"rowCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"dataBytes": {
+						"type": "number",
+						"format": "double"
+					},
+					"indexBytes": {
+						"type": "number",
+						"format": "double"
+					},
+					"executable": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"dataset",
+					"tableName",
+					"rowCount",
+					"dataBytes",
+					"indexBytes",
+					"executable"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"OptimizePreviewResponse": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/OptimizePreviewItem"
+						},
+						"type": "array"
+					},
+					"totalRows": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalBytes": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"totalRows",
+					"totalBytes"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Pick_OptimizeRequest.datasets-or-captchaToken_": {
+				"properties": {
+					"datasets": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"captchaToken": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"datasets"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"DataMaintenanceRunDTO": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"operation": {
+						"type": "string"
+					},
+					"dataset": {
+						"type": "string",
+						"nullable": true
+					},
+					"tableNames": {},
+					"runStatus": {
+						"type": "string"
+					},
+					"startedByUserId": {
+						"type": "string",
+						"nullable": true
+					},
+					"requestId": {
+						"type": "string",
+						"nullable": true
+					},
+					"totalCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"insertedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"skippedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"invalidCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"failedCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"errorMessage": {
+						"type": "string",
+						"nullable": true
+					},
+					"result": {},
+					"startedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"completedAt": {
+						"type": "string",
+						"format": "date-time",
+						"nullable": true
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"operation",
+					"dataset",
+					"tableNames",
+					"runStatus",
+					"startedByUserId",
+					"requestId",
+					"totalCount",
+					"insertedCount",
+					"skippedCount",
+					"invalidCount",
+					"failedCount",
+					"errorMessage",
+					"result",
+					"startedAt",
+					"completedAt",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"OptimizeRequest": {
+				"properties": {
+					"datasets": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"confirmation": {
+						"type": "string"
+					},
+					"captchaToken": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"datasets",
+					"confirmation"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DataMaintenanceImportPreviewResponse": {
+				"properties": {
+					"dataset": {
+						"type": "string"
+					},
+					"totalCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"newCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"duplicateCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"invalidCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"missingForeignKeyCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"executable": {
+						"type": "boolean"
+					},
+					"errors": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"dataset",
+					"totalCount",
+					"newCount",
+					"duplicateCount",
+					"invalidCount",
+					"missingForeignKeyCount",
+					"executable",
+					"errors"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DataMaintenanceRunListResponse": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/DataMaintenanceRunDTO"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
 				],
 				"type": "object",
 				"additionalProperties": false

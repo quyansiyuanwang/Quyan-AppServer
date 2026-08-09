@@ -2590,3 +2590,30 @@ model ArchiveArtifact {
   @@index([expiresAt, deletedAt])
   @@map("archive_artifacts")
 }
+
+model DataMaintenanceRun {
+  id               String   @id @default(cuid())
+  status           Int      @default(1)
+  createTime       DateTime @default(now())
+  updateTime       DateTime @updatedAt
+  operation        String   @db.VarChar(20)
+  dataset          String?  @db.VarChar(80)
+  tableNames       Json?
+  runStatus        String   @default("queued") @db.VarChar(20)
+  startedByUserId  String?
+  requestId        String?  @db.VarChar(128)
+  tempObjectKey    String?  @db.VarChar(512)
+  totalCount       Int      @default(0)
+  insertedCount    Int      @default(0)
+  skippedCount     Int      @default(0)
+  invalidCount     Int      @default(0)
+  failedCount      Int      @default(0)
+  errorMessage     String?  @db.Text
+  result           Json?
+  startedAt        DateTime?
+  completedAt      DateTime?
+
+  @@index([runStatus, createTime])
+  @@index([operation, createTime])
+  @@map("data_maintenance_runs")
+}

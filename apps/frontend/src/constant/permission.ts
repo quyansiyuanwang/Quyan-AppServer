@@ -365,6 +365,13 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows changing retention, running archives, and downloading archive files',
     category: 'system',
   },
+  [Permission.SYSTEM_DATA_MAINTENANCE_MANAGE]: {
+    label: '危险数据维护',
+    labelEn: 'Dangerous Data Maintenance',
+    tooltip: '允许执行白名单表优化和归档导入',
+    tooltipEn: 'Allows optimizing allowlisted tables and importing archives',
+    category: 'system',
+  },
   [Permission.USER_ONLINE_MONITOR_READ]: {
     label: '查看在线监控',
     labelEn: 'View Online Monitor',

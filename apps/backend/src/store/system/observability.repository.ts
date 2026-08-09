@@ -14,6 +14,11 @@ export const DATA_LIFECYCLE_DATASETS = [
 
 export type DataLifecycleDataset = (typeof DATA_LIFECYCLE_DATASETS)[number];
 
+export const DATA_MAINTENANCE_DATASETS = DATA_LIFECYCLE_DATASETS.filter(
+  (dataset): dataset is Exclude<DataLifecycleDataset, "server_logs"> => dataset !== "server_logs",
+) as readonly Exclude<DataLifecycleDataset, "server_logs">[];
+export type DataMaintenanceDataset = (typeof DATA_MAINTENANCE_DATASETS)[number];
+
 export const DATA_LIFECYCLE_DEFAULTS: Record<DataLifecycleDataset, number> = {
   api_logs: 90,
   business_logs: 180,
@@ -35,6 +40,16 @@ const dataSetDelegates: Record<DatabaseLifecycleDataset, string> = {
   heatmap_points: "heatmapPoint",
   relay_usages: "relayUsage",
   monthly_pass_usages: "monthlyPassUsage",
+};
+
+export const DATA_MAINTENANCE_TABLES: Record<DataMaintenanceDataset, string> = {
+  api_logs: "api_logs",
+  business_logs: "business_logs",
+  notification_logs: "notification_logs",
+  track_events: "track_events",
+  heatmap_points: "heatmap_points",
+  relay_usages: "relay_usages",
+  monthly_pass_usages: "monthly_pass_usages",
 };
 
 export interface ErrorGroupQuery {
@@ -299,5 +314,60 @@ export class ObservabilityRepository {
 
   public markArchiveArtifactDeleted(id: string) {
     return prisma.archiveArtifact.update({ where: { id }, data: { deletedAt: new Date() } });
+  }
+
+  public async getMaintenanceTableStats(dataset: DataMaintenanceDataset) {
+    const tableName = DATA_MAINTENANCE_TABLES[dataset];
+    const rows = await prisma.$queryRawUnsafe<Array<{ TABLE_ROWS: bigint | number; DATA_LENGTH: bigint | number; INDEX_LENGTH: bigint | number }>>(
+      `SELECT TABLE_ROWS, DATA_LENGTH, INDEX_LENGTH FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${tableName}'`,
+    );
+    const row = rows[0];
+    return {
+      dataset,
+      tableName,
+      rowCount: Number(row?.TABLE_ROWS ?? 0),
+      dataBytes: Number(row?.DATA_LENGTH ?? 0),
+      indexBytes: Number(row?.INDEX_LENGTH ?? 0),
+    };
+  }
+
+  public optimizeTable(dataset: DataMaintenanceDataset) {
+    const tableName = DATA_MAINTENANCE_TABLES[dataset];
+    return prisma.$queryRawUnsafe(`OPTIMIZE TABLE \`${tableName}\``);
+  }
+
+  public createMaintenanceRun(data: Prisma.DataMaintenanceRunCreateInput) {
+    return prisma.dataMaintenanceRun.create({ data });
+  }
+
+  public getMaintenanceRun(id: string) {
+    return prisma.dataMaintenanceRun.findUnique({ where: { id } });
+  }
+
+  public updateMaintenanceRun(id: string, data: Prisma.DataMaintenanceRunUpdateInput) {
+    return prisma.dataMaintenanceRun.update({ where: { id }, data });
+  }
+
+  public listMaintenanceRuns(page: number, pageSize: number, filters?: { operation?: string; runStatus?: string }) {
+    const where: Prisma.DataMaintenanceRunWhereInput = {
+      ...(filters?.operation ? { operation: filters.operation } : {}),
+      ...(filters?.runStatus ? { runStatus: filters.runStatus } : {}),
+    };
+    return Promise.all([
+      prisma.dataMaintenanceRun.findMany({ where, orderBy: { createTime: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+      prisma.dataMaintenanceRun.count({ where }),
+    ]).then(([items, total]) => ({ items, total }));
+  }
+
+  public listQueuedMaintenanceRuns(limit = 10) {
+    return prisma.dataMaintenanceRun.findMany({ where: { runStatus: "queued" }, orderBy: { createTime: "asc" }, take: limit });
+  }
+
+  public getDatasetDelegate(dataset: DatabaseLifecycleDataset) {
+    return (prisma as any)[dataSetDelegates[dataset]];
+  }
+
+  public getDelegateByName(name: string) {
+    return (prisma as any)[name];
   }
 }

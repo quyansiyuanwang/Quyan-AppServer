@@ -40,6 +40,7 @@ async function main() {
         Permission.SYSTEM_ERROR_REPORT_READ,
         Permission.SYSTEM_ERROR_REPORT_UPDATE,
         Permission.SYSTEM_DATA_LIFECYCLE_MANAGE,
+        Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
         Permission.API_LOG_READ,
         Permission.IP_BLACKLIST_CREATE,
         Permission.IP_BLACKLIST_READ,

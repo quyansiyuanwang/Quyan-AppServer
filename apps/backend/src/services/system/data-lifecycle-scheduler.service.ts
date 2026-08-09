@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { DataLifecycleService } from "./data-lifecycle.service";
+import { DataMaintenanceService } from "./data-maintenance.service";
 import { ErrorReportService } from "./error-report.service";
 import { DistributedLockService } from "@/services/infrastructure/distributed-lock.service";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -21,7 +22,10 @@ export class DataLifecycleSchedulerService {
   public start(): void {
     if (this.refreshTimer) return;
     void this.refreshSchedule();
-    this.refreshTimer = setInterval(() => void this.refreshSchedule(), 60_000);
+    this.refreshTimer = setInterval(() => {
+      void this.refreshSchedule();
+      void this.withLock(() => DataMaintenanceService.getInstance().processQueuedRuns());
+    }, 60_000);
     this.refreshTimer.unref?.();
     void DataLifecycleService.getInstance()
       .initialize()
@@ -60,6 +64,7 @@ export class DataLifecycleSchedulerService {
       await ErrorReportService.getInstance().cleanupExpired();
       await DataLifecycleService.getInstance().runScheduledPolicies();
       await DataLifecycleService.getInstance().deleteExpiredArtifacts();
+      await DataMaintenanceService.getInstance().processQueuedRuns();
     });
   }
 

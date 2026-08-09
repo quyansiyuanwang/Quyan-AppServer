@@ -725,6 +725,7 @@
       Permission.SYSTEM_BUSINESS_LOG_READ,
       Permission.SYSTEM_ERROR_REPORT_READ,
       Permission.SYSTEM_DATA_LIFECYCLE_MANAGE,
+      Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
       Permission.SYSTEM_CONFIG,
       Permission.IP_BLACKLIST_READ,
       Permission.USER_ONLINE_MONITOR_READ,
@@ -813,6 +814,7 @@
               Permission.SYSTEM_SERVER_LOG_READ,
               Permission.SYSTEM_ERROR_REPORT_READ,
               Permission.SYSTEM_DATA_LIFECYCLE_MANAGE,
+              Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
             ]"
           >
             <el-menu-item
@@ -852,6 +854,16 @@
             >
               <el-icon><Document /></el-icon>
               <template #title>{{ i18ns.t('nav.dataLifecycle') }}</template>
+            </el-menu-item>
+          </PermissionWrapper>
+          <PermissionWrapper :require="[Permission.SYSTEM_DATA_MAINTENANCE_MANAGE]">
+            <el-menu-item
+              index="dataMaintenance"
+              @click="nav('dataMaintenance', $event)"
+              @contextmenu.prevent="openRouteMenu('dataMaintenance', $event)"
+            >
+              <el-icon><Document /></el-icon>
+              <template #title>{{ i18ns.t('nav.dataMaintenance') }}</template>
             </el-menu-item>
           </PermissionWrapper>
           <PermissionWrapper :require="[Permission.USER_ONLINE_MONITOR_READ]">
