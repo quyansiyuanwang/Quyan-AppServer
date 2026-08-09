@@ -72,6 +72,7 @@ describe("DataMaintenanceService", () => {
           headers: {
             "x-oss-meta-sha256": createHash("sha256").update(payload).digest("hex"),
             "content-length": String(payload.length),
+            "x-oss-storage-class": "Standard",
           },
         },
       }),
@@ -85,6 +86,13 @@ describe("DataMaintenanceService", () => {
         dataset: "api_logs",
         operation: "import",
         totalCount: 1,
+      }),
+    );
+    expect(ossClient.put).toHaveBeenCalledWith(
+      expect.any(String),
+      payload,
+      expect.objectContaining({
+        headers: expect.objectContaining({ "x-oss-storage-class": "Standard" }),
       }),
     );
     expect(ossClient.delete).not.toHaveBeenCalled();

@@ -17,6 +17,7 @@ const MAX_DECOMPRESSED_BYTES = 512 * 1024 * 1024;
 const MAX_LINE_BYTES = 2 * 1024 * 1024;
 const MAX_RECORDS = 2_000_000;
 const IMPORT_BATCH_SIZE = 500;
+const TEMPORARY_IMPORT_STORAGE_CLASS = "Standard";
 
 const modelMeta = new Map(
   Prisma.dmmf.datamodel.models
@@ -206,9 +207,19 @@ export class DataMaintenanceService {
     const sha256 = createHash("sha256").update(buffer).digest("hex");
     const objectKey = `${env.integrations.archiveOss.prefix}/maintenance/import/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${sha256}.ndjson.gz`;
     const client = this.getOssClient();
-    await client.put(objectKey, buffer, { headers: { "Content-Type": "application/gzip", "x-oss-meta-sha256": sha256 } });
+    await client.put(objectKey, buffer, {
+      headers: {
+        "Content-Type": "application/gzip",
+        "x-oss-meta-sha256": sha256,
+        "x-oss-storage-class": TEMPORARY_IMPORT_STORAGE_CLASS,
+      },
+    });
     const metadata = getOssHeaders(await client.head(objectKey));
-    if (metadata["x-oss-meta-sha256"] !== sha256 || Number(metadata["content-length"] || 0) !== buffer.length) {
+    if (
+      metadata["x-oss-meta-sha256"] !== sha256 ||
+      Number(metadata["content-length"] || 0) !== buffer.length ||
+      metadata["x-oss-storage-class"]?.toLowerCase() !== TEMPORARY_IMPORT_STORAGE_CLASS.toLowerCase()
+    ) {
       await client.delete(objectKey).catch(() => undefined);
       throw new BadRequestError("Uploaded archive verification failed");
     }
