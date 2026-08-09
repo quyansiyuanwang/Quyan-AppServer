@@ -4229,8 +4229,8 @@ export default {
     balanceRedeemInsufficient: 'Insufficient balance. This redemption requires {amount}.',
     balanceRedeemSuccess: 'Balance redemption succeeded and charged {amount}',
     balanceRedeemFailed: 'Balance redemption failed',
-    monthlyPassValidity30Days:
-      'Takes effect immediately after purchase and stays valid for 30 days',
+    monthlyPassValidityDays:
+      'Takes effect immediately after purchase and stays valid for {days} days',
     pricingNote: 'Price Unit: 曲/Million Tokens (Fixed price for per-request)',
     model: 'Model',
     pricingType: 'Pricing Type',

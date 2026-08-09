@@ -140,7 +140,7 @@
 
           <div class="monthly-pass-doc-actions">
             <div class="monthly-pass-doc-validity">
-              {{ i18ns.t('apiDoc.monthlyPassValidity30Days') }}
+              {{ formatMonthlyPassValidity(template) }}
             </div>
             <div
               v-if="getMonthlyPassClaimDisabledReason(template)"
@@ -355,6 +355,13 @@ const getMonthlyPassPurchaseAmount = (template: MonthlyPassTemplateDto) => {
 const formatMonthlyPassPurchaseAmount = (template: MonthlyPassTemplateDto) => {
   const amount = getMonthlyPassPurchaseAmount(template)
   return amount == null ? '-' : formatMonthlyPassPrice(amount)
+}
+
+const formatMonthlyPassValidity = (template: MonthlyPassTemplateDto) => {
+  const validityDays = Math.floor(Number(template.validityDays))
+  return i18ns.t('apiDoc.monthlyPassValidityDays', {
+    days: Number.isFinite(validityDays) && validityDays >= 1 ? validityDays : 30,
+  })
 }
 
 const formatPurchaseLimit = (template: MonthlyPassTemplateDto) => {
