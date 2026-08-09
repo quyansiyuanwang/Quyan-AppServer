@@ -186,13 +186,19 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="maintenance-page">
-    <div class="page-heading">
+  <div class="system-page maintenance-page">
+    <div class="page-toolbar">
       <div>
-        <h1>{{ i18ns.t('dataMaintenance.title') }}</h1>
+        <h2>{{ i18ns.t('dataMaintenance.title') }}</h2>
         <p>{{ i18ns.t('dataMaintenance.subtitle') }}</p>
       </div>
-      <el-alert :title="i18ns.t('dataMaintenance.warning')" type="warning" :closable="false" />
+      <el-alert
+        class="maintenance-warning"
+        :title="i18ns.t('dataMaintenance.warning')"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
     </div>
 
     <section class="maintenance-section">
@@ -208,7 +214,7 @@ onBeforeUnmount(() => {
           {{ label(dataset) }}
         </el-checkbox>
       </el-checkbox-group>
-      <div class="actions">
+      <div class="maintenance-actions">
         <el-button class="maintenance-button" :loading="optimizeLoading" @click="previewOptimize">
           {{ i18ns.t('dataMaintenance.optimizePreview') }}
         </el-button>
@@ -219,6 +225,11 @@ onBeforeUnmount(() => {
         >
           {{ i18ns.t('dataMaintenance.optimizeRun') }}
         </el-button>
+      </div>
+      <div v-if="optimizePreview" class="summary-strip">
+        <div class="summary-item"><span>{{ i18ns.t('dataMaintenance.total') }}</span><strong>{{ optimizePreview.totalRows }}</strong></div>
+        <div class="summary-item"><span>{{ i18ns.t('dataMaintenance.bytes') }}</span><strong>{{ formatBytes(optimizePreview.totalBytes) }}</strong></div>
+        <div class="summary-item"><span>{{ i18ns.t('dataMaintenance.datasets') }}</span><strong>{{ optimizePreview.items.length }}</strong></div>
       </div>
       <el-table v-if="optimizePreview" :data="optimizePreview.items" class="preview-table" border>
         <el-table-column prop="tableName" :label="i18ns.t('dataMaintenance.dataset')" />
@@ -240,9 +251,14 @@ onBeforeUnmount(() => {
         <el-select v-model="importDataset" :aria-label="i18ns.t('dataMaintenance.dataset')">
           <el-option v-for="dataset in datasets" :key="dataset" :label="label(dataset)" :value="dataset" />
         </el-select>
-        <input type="file" accept=".ndjson.gz,application/gzip" @change="onFileChange" />
+        <input
+          class="import-file-input"
+          type="file"
+          accept=".ndjson.gz,application/gzip"
+          @change="onFileChange"
+        />
       </div>
-      <div class="actions">
+      <div class="maintenance-actions">
         <el-button class="maintenance-button" :loading="importLoading" @click="previewImport">
           {{ i18ns.t('dataMaintenance.previewImport') }}
         </el-button>
@@ -315,20 +331,162 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.maintenance-page { padding: 24px; display: grid; gap: 20px; }
-.page-heading, .section-heading { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
-.page-heading h1, .section-heading h2 { margin: 0; }
-.page-heading p, .section-heading p { margin: 8px 0 0; color: var(--el-text-color-secondary); }
-.page-heading .el-alert { max-width: 560px; }
-.maintenance-section { background: var(--el-bg-color); border: 1px solid var(--el-border-color-light); padding: 20px; }
-.dataset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 16px; margin: 18px 0; }
-.actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
-.maintenance-button { background: #2563eb; border-color: #2563eb; color: #fff; }
-.maintenance-button.danger { background: #b42318; border-color: #b42318; }
-.maintenance-button:disabled { color: #9ca3af; background: #e5e7eb; border-color: #d1d5db; }
-.preview-table, .import-errors { margin-top: 16px; }
-.import-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 16px; }
-.import-controls input[type='file'] { max-width: 100%; }
-.pagination { justify-content: flex-end; margin-top: 16px; }
-@media (max-width: 680px) { .page-heading, .section-heading { flex-direction: column; } .page-heading .el-alert { max-width: none; width: 100%; } }
+.system-page {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+.maintenance-page {
+  min-width: 0;
+}
+.page-toolbar,
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.page-toolbar h2,
+.page-toolbar p,
+.section-heading h2,
+.section-heading p {
+  margin: 0;
+}
+.page-toolbar p,
+.section-heading p {
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.maintenance-warning {
+  max-width: 560px;
+}
+.maintenance-section {
+  min-width: 0;
+  padding: 18px 20px 20px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-bg-color);
+}
+.maintenance-section + .maintenance-section {
+  margin-top: 0;
+}
+.dataset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 18px;
+  margin: 18px 0 14px;
+  padding: 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  background: var(--el-fill-color-lighter);
+}
+.dataset-grid :deep(.el-checkbox) {
+  margin-right: 0;
+}
+.maintenance-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+.maintenance-button {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  inline-size: fit-content !important;
+  border-radius: 4px;
+  padding-inline: 14px;
+  background: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+  color: #fff;
+}
+.maintenance-button.danger {
+  background: var(--el-color-danger);
+  border-color: var(--el-color-danger);
+}
+.maintenance-button:disabled {
+  color: var(--el-text-color-placeholder);
+  background: var(--el-fill-color);
+  border-color: var(--el-border-color);
+}
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 14px 0;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  background: var(--el-border-color-lighter);
+}
+.summary-item {
+  display: grid;
+  gap: 4px;
+  padding: 11px 14px;
+  background: var(--el-bg-color);
+}
+.summary-item span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.summary-item strong {
+  color: var(--el-text-color-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+.preview-table,
+.import-errors {
+  margin-top: 14px;
+}
+.import-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+}
+.import-controls :deep(.el-select) {
+  width: 100%;
+}
+.import-file-input {
+  box-sizing: border-box;
+  justify-self: start;
+  width: min(320px, 100%);
+  max-width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  color: var(--el-text-color-regular);
+  background: var(--el-fill-color-blank);
+  font-size: 13px;
+}
+.pagination {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+@media (max-width: 700px) {
+  .system-page {
+    padding: 14px;
+  }
+  .page-toolbar,
+  .section-heading {
+    flex-direction: column;
+  }
+  .maintenance-warning {
+    width: 100%;
+    max-width: none;
+  }
+  .maintenance-section {
+    padding: 16px;
+  }
+  .summary-strip {
+    grid-template-columns: 1fr;
+  }
+  .import-controls {
+    grid-template-columns: 1fr;
+  }
+}
 </style>
