@@ -318,7 +318,9 @@ export class ObservabilityRepository {
 
   public async getMaintenanceTableStats(dataset: DataMaintenanceDataset) {
     const tableName = DATA_MAINTENANCE_TABLES[dataset];
-    const rows = await prisma.$queryRawUnsafe<Array<{ TABLE_ROWS: bigint | number; DATA_LENGTH: bigint | number; INDEX_LENGTH: bigint | number }>>(
+    const rows = await prisma.$queryRawUnsafe<
+      Array<{ TABLE_ROWS: bigint | number; DATA_LENGTH: bigint | number; INDEX_LENGTH: bigint | number }>
+    >(
       `SELECT TABLE_ROWS, DATA_LENGTH, INDEX_LENGTH FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '${tableName}'`,
     );
     const row = rows[0];
@@ -354,13 +356,22 @@ export class ObservabilityRepository {
       ...(filters?.runStatus ? { runStatus: filters.runStatus } : {}),
     };
     return Promise.all([
-      prisma.dataMaintenanceRun.findMany({ where, orderBy: { createTime: "desc" }, skip: (page - 1) * pageSize, take: pageSize }),
+      prisma.dataMaintenanceRun.findMany({
+        where,
+        orderBy: { createTime: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
       prisma.dataMaintenanceRun.count({ where }),
     ]).then(([items, total]) => ({ items, total }));
   }
 
   public listQueuedMaintenanceRuns(limit = 10) {
-    return prisma.dataMaintenanceRun.findMany({ where: { runStatus: "queued" }, orderBy: { createTime: "asc" }, take: limit });
+    return prisma.dataMaintenanceRun.findMany({
+      where: { runStatus: "queued" },
+      orderBy: { createTime: "asc" },
+      take: limit,
+    });
   }
 
   public getDatasetDelegate(dataset: DatabaseLifecycleDataset) {

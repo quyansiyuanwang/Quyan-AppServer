@@ -47,7 +47,10 @@ function parseArchive(buffer: Buffer): ParsedArchive {
     throw new BadRequestError("Invalid gzip archive");
   }
   if (decompressed.length > MAX_DECOMPRESSED_BYTES) throw new BadRequestError("Decompressed archive is too large");
-  const lines = decompressed.toString("utf8").split(/\r?\n/).filter((line) => line.trim().length > 0);
+  const lines = decompressed
+    .toString("utf8")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
   if (lines.length > MAX_RECORDS) throw new BadRequestError("Archive contains too many records");
   const errors: string[] = [];
   const rows = lines.map((line, index) => {
@@ -159,7 +162,9 @@ export class DataMaintenanceService {
     const meta = modelMeta.get(DATA_MAINTENANCE_TABLES[dataset]);
     if (!meta) throw new BadRequestError("Unsupported archive dataset");
 
-    const allowedFields = new Map(meta.fields.filter((field) => field.kind === "scalar").map((field) => [field.name, field]));
+    const allowedFields = new Map(
+      meta.fields.filter((field) => field.kind === "scalar").map((field) => [field.name, field]),
+    );
     const errors: string[] = [...parsed.errors];
     const normalizedRows: Array<Record<string, unknown>> = [];
     let invalidCount = 0;
@@ -170,11 +175,13 @@ export class DataMaintenanceService {
         const unknown = Object.keys(row).filter((key) => !allowedFields.has(key));
         if (unknown.length > 0) throw new Error(`unknown fields: ${unknown.join(", ")}`);
         const normalized: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(row)) normalized[key] = normalizeValue(value, allowedFields.get(key)!.type);
+        for (const [key, value] of Object.entries(row))
+          normalized[key] = normalizeValue(value, allowedFields.get(key)!.type);
         normalizedRows.push(normalized);
       } catch (error) {
         invalidCount += 1;
-        if (errors.length < 20) errors.push(`line ${index + 1}: ${String(error instanceof Error ? error.message : error)}`);
+        if (errors.length < 20)
+          errors.push(`line ${index + 1}: ${String(error instanceof Error ? error.message : error)}`);
       }
     }
 
@@ -204,7 +211,8 @@ export class DataMaintenanceService {
   public async createImportRun(dataset: string, buffer: Buffer, actorUserId?: string, requestId?: string) {
     assertDataset(dataset);
     const preview = await this.previewImport(dataset, buffer);
-    if (!preview.executable) throw new BadRequestError(`Archive preview failed: ${preview.errors.join("; ") || "missing foreign key"}`);
+    if (!preview.executable)
+      throw new BadRequestError(`Archive preview failed: ${preview.errors.join("; ") || "missing foreign key"}`);
     const sha256 = createHash("sha256").update(buffer).digest("hex");
     const objectKey = `${env.integrations.objectStorage.staging.prefix}/maintenance/import/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${sha256}.ndjson.gz`;
     const client = this.getOssClient();
@@ -240,7 +248,10 @@ export class DataMaintenanceService {
       try {
         await this.getOssClient().delete(objectKey);
       } catch (cleanupError) {
-        logger.warn("Failed to cleanup temporary archive after task creation failure", { objectKey, error: String(cleanupError) });
+        logger.warn("Failed to cleanup temporary archive after task creation failure", {
+          objectKey,
+          error: String(cleanupError),
+        });
       }
       throw error;
     }
@@ -270,13 +281,21 @@ export class DataMaintenanceService {
         const tables = Array.isArray(run.tableNames) ? run.tableNames.map(String) : [];
         let completed = 0;
         for (const table of tables) {
-          const dataset = (Object.keys(DATA_MAINTENANCE_TABLES) as DataMaintenanceDataset[]).find((key) => DATA_MAINTENANCE_TABLES[key] === table);
+          const dataset = (Object.keys(DATA_MAINTENANCE_TABLES) as DataMaintenanceDataset[]).find(
+            (key) => DATA_MAINTENANCE_TABLES[key] === table,
+          );
           if (!dataset) throw new BadRequestError("Invalid optimize table");
           await this.repository.optimizeTable(dataset);
           completed += 1;
-          await this.repository.updateMaintenanceRun(id, { result: { completedTables: completed, totalTables: tables.length } });
+          await this.repository.updateMaintenanceRun(id, {
+            result: { completedTables: completed, totalTables: tables.length },
+          });
         }
-        await this.repository.updateMaintenanceRun(id, { runStatus: "completed", completedAt: new Date(), result: { completedTables: completed } });
+        await this.repository.updateMaintenanceRun(id, {
+          runStatus: "completed",
+          completedAt: new Date(),
+          result: { completedTables: completed },
+        });
       } else if (run.operation === "import" && run.dataset && run.tempObjectKey) {
         const result = await this.importFromOss(id, run.dataset, run.tempObjectKey);
         await this.repository.updateMaintenanceRun(id, {
@@ -291,14 +310,21 @@ export class DataMaintenanceService {
         throw new BadRequestError("Invalid maintenance task");
       }
     } catch (error) {
-      await this.repository.updateMaintenanceRun(id, { runStatus: "failed", completedAt: new Date(), errorMessage: String(error instanceof Error ? error.message : error) });
+      await this.repository.updateMaintenanceRun(id, {
+        runStatus: "failed",
+        completedAt: new Date(),
+        errorMessage: String(error instanceof Error ? error.message : error),
+      });
       logger.error("Data maintenance task failed", { id, error: String(error) });
     } finally {
       if (run.tempObjectKey) {
         try {
           await this.getOssClient().delete(run.tempObjectKey);
         } catch (error) {
-          logger.warn("Failed to delete maintenance temporary object", { key: run.tempObjectKey, error: String(error) });
+          logger.warn("Failed to delete maintenance temporary object", {
+            key: run.tempObjectKey,
+            error: String(error),
+          });
         }
       }
     }
@@ -322,26 +348,42 @@ export class DataMaintenanceService {
         skippedCount: offset + batch.length - insertedCount,
       });
     }
-    return { totalCount: preview.totalCount, insertedCount, skippedCount: preview.totalCount - insertedCount, failedCount: 0 };
+    return {
+      totalCount: preview.totalCount,
+      insertedCount,
+      skippedCount: preview.totalCount - insertedCount,
+      failedCount: 0,
+    };
   }
 
   private async countMissingForeignKeys(dataset: string, rows: Array<Record<string, unknown>>): Promise<number> {
     const repository = this.repository as any;
     if (dataset === "relay_usages") {
-      const ids = [...new Set(rows.map((row) => row.relayTokenId).filter((value): value is string => typeof value === "string"))];
+      const ids = [
+        ...new Set(rows.map((row) => row.relayTokenId).filter((value): value is string => typeof value === "string")),
+      ];
       const set = await this.findExistingIds(repository.getDelegateByName("relayToken"), ids);
-      const logicalIds = [...new Set(rows.map((row) => row.logicalRequestId).filter((value): value is string => typeof value === "string"))];
+      const logicalIds = [
+        ...new Set(
+          rows.map((row) => row.logicalRequestId).filter((value): value is string => typeof value === "string"),
+        ),
+      ];
       const logicalSet = await this.findExistingIds(repository.getDelegateByName("relayLogicalRequest"), logicalIds);
       return rows.filter(
         (row) =>
           typeof row.relayTokenId !== "string" ||
           !set.has(row.relayTokenId) ||
-          (row.logicalRequestId !== null && row.logicalRequestId !== undefined &&
+          (row.logicalRequestId !== null &&
+            row.logicalRequestId !== undefined &&
             (typeof row.logicalRequestId !== "string" || !logicalSet.has(row.logicalRequestId))),
       ).length;
     }
     if (dataset === "monthly_pass_usages") {
-      const ids = [...new Set(rows.map((row) => row.userMonthlyPassId).filter((value): value is string => typeof value === "string"))];
+      const ids = [
+        ...new Set(
+          rows.map((row) => row.userMonthlyPassId).filter((value): value is string => typeof value === "string"),
+        ),
+      ];
       const set = await this.findExistingIds(repository.getDelegateByName("userMonthlyPass"), ids);
       return rows.filter((row) => typeof row.userMonthlyPassId !== "string" || !set.has(row.userMonthlyPassId)).length;
     }
@@ -352,7 +394,10 @@ export class DataMaintenanceService {
     const result = new Set<string>();
     if (!delegate || ids.length === 0) return result;
     for (let offset = 0; offset < ids.length; offset += 1000) {
-      const rows = await delegate.findMany({ where: { id: { in: ids.slice(offset, offset + 1000) } }, select: { id: true } });
+      const rows = await delegate.findMany({
+        where: { id: { in: ids.slice(offset, offset + 1000) } },
+        select: { id: true },
+      });
       for (const row of rows as Array<{ id: string }>) result.add(row.id);
     }
     return result;

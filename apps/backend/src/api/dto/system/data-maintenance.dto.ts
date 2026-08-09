@@ -59,4 +59,3 @@ export interface DataMaintenanceRunListResponse {
   page: number;
   pageSize: number;
 }
-

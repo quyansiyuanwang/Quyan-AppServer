@@ -21,4 +21,3 @@ export const maintenanceRunsQuerySchema = z.object({
   operation: z.enum(["optimize", "import"]).optional(),
   runStatus: z.enum(["queued", "running", "completed", "failed", "cancelled"]).optional(),
 });
-

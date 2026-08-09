@@ -16,7 +16,9 @@ function resolveLimit(
   if (ct.startsWith("multipart/form-data")) return opts.maxMultipartBytes;
   if (
     req.path.startsWith("/v1/data-maintenance/imports/") &&
-    (ct.startsWith("application/gzip") || ct.startsWith("application/x-gzip") || ct.startsWith("application/octet-stream"))
+    (ct.startsWith("application/gzip") ||
+      ct.startsWith("application/x-gzip") ||
+      ct.startsWith("application/octet-stream"))
   )
     return opts.maxArchiveBytes ?? opts.maxOtherBytes;
   return opts.maxOtherBytes;

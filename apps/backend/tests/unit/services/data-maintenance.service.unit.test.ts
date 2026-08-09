@@ -80,7 +80,9 @@ describe("DataMaintenanceService", () => {
     };
     (service as any).ossClient = ossClient;
 
-    await expect(service.createImportRun("api_logs", payload, "admin-1", "request-1")).resolves.toEqual({ id: "run-1" });
+    await expect(service.createImportRun("api_logs", payload, "admin-1", "request-1")).resolves.toEqual({
+      id: "run-1",
+    });
     expect(repository.createMaintenanceRun).toHaveBeenCalledWith(
       expect.objectContaining({
         dataset: "api_logs",

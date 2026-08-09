@@ -54,8 +54,7 @@ const formatBytes = (value: number) => {
 const formatDate = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleString() : '-'
 
-const statusLabel = (status: string) =>
-  i18ns.t(`dataMaintenance.${status}` as never) || status
+const statusLabel = (status: string) => i18ns.t(`dataMaintenance.${status}` as never) || status
 
 const showMaintenanceError = (error: unknown) => {
   ElMessage.error(
@@ -85,9 +84,7 @@ const previewOptimize = async () => {
   if (selectedDatasets.value.length === 0) return
   optimizeLoading.value = true
   try {
-    optimizePreview.value = await dataMaintenanceService.optimizePreview(
-      selectedDatasets.value,
-    )
+    optimizePreview.value = await dataMaintenanceService.optimizePreview(selectedDatasets.value)
   } catch (error) {
     showMaintenanceError(error)
   } finally {
@@ -137,10 +134,7 @@ const previewImport = async () => {
   }
   importLoading.value = true
   try {
-    importPreview.value = await dataMaintenanceService.importPreview(
-      importDataset.value,
-      file,
-    )
+    importPreview.value = await dataMaintenanceService.importPreview(importDataset.value, file)
   } catch (error) {
     showMaintenanceError(error)
   } finally {
@@ -243,9 +237,18 @@ onBeforeUnmount(() => {
         </el-button>
       </div>
       <div v-if="optimizePreview" class="summary-strip">
-        <div class="summary-item"><span>{{ i18ns.t('dataMaintenance.total') }}</span><strong>{{ optimizePreview.totalRows }}</strong></div>
-        <div class="summary-item"><span>{{ i18ns.t('dataMaintenance.bytes') }}</span><strong>{{ formatBytes(optimizePreview.totalBytes) }}</strong></div>
-        <div class="summary-item"><span>{{ i18ns.t('dataMaintenance.datasets') }}</span><strong>{{ optimizePreview.items.length }}</strong></div>
+        <div class="summary-item">
+          <span>{{ i18ns.t('dataMaintenance.total') }}</span
+          ><strong>{{ optimizePreview.totalRows }}</strong>
+        </div>
+        <div class="summary-item">
+          <span>{{ i18ns.t('dataMaintenance.bytes') }}</span
+          ><strong>{{ formatBytes(optimizePreview.totalBytes) }}</strong>
+        </div>
+        <div class="summary-item">
+          <span>{{ i18ns.t('dataMaintenance.datasets') }}</span
+          ><strong>{{ optimizePreview.items.length }}</strong>
+        </div>
       </div>
       <el-table v-if="optimizePreview" :data="optimizePreview.items" class="preview-table" border>
         <el-table-column prop="tableName" :label="i18ns.t('dataMaintenance.dataset')" />
@@ -265,7 +268,12 @@ onBeforeUnmount(() => {
       </div>
       <div class="import-controls">
         <el-select v-model="importDataset" :aria-label="i18ns.t('dataMaintenance.dataset')">
-          <el-option v-for="dataset in datasets" :key="dataset" :label="label(dataset)" :value="dataset" />
+          <el-option
+            v-for="dataset in datasets"
+            :key="dataset"
+            :label="label(dataset)"
+            :value="dataset"
+          />
         </el-select>
         <input
           class="import-file-input"
@@ -287,19 +295,36 @@ onBeforeUnmount(() => {
         </el-button>
       </div>
       <el-descriptions v-if="importPreview" :column="2" border>
-        <el-descriptions-item :label="i18ns.t('dataMaintenance.total')">{{ importPreview.totalCount }}</el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('dataMaintenance.newRecords')">{{ importPreview.newCount }}</el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('dataMaintenance.duplicates')">{{ importPreview.duplicateCount }}</el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('dataMaintenance.invalid')">{{ importPreview.invalidCount }}</el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('dataMaintenance.missingForeignKeys')">{{ importPreview.missingForeignKeyCount }}</el-descriptions-item>
+        <el-descriptions-item :label="i18ns.t('dataMaintenance.total')">{{
+          importPreview.totalCount
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="i18ns.t('dataMaintenance.newRecords')">{{
+          importPreview.newCount
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="i18ns.t('dataMaintenance.duplicates')">{{
+          importPreview.duplicateCount
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="i18ns.t('dataMaintenance.invalid')">{{
+          importPreview.invalidCount
+        }}</el-descriptions-item>
+        <el-descriptions-item :label="i18ns.t('dataMaintenance.missingForeignKeys')">{{
+          importPreview.missingForeignKeyCount
+        }}</el-descriptions-item>
       </el-descriptions>
-      <el-alert v-if="importPreview?.errors?.length" type="error" :closable="false" class="import-errors">
+      <el-alert
+        v-if="importPreview?.errors?.length"
+        type="error"
+        :closable="false"
+        class="import-errors"
+      >
         {{ importPreview.errors.join('; ') }}
       </el-alert>
     </section>
 
     <section class="maintenance-section">
-      <div class="section-heading"><h2>{{ i18ns.t('dataMaintenance.history') }}</h2></div>
+      <div class="section-heading">
+        <h2>{{ i18ns.t('dataMaintenance.history') }}</h2>
+      </div>
       <el-table :data="runs" v-loading="historyLoading" border>
         <el-table-column prop="operation" :label="i18ns.t('dataMaintenance.operation')" />
         <el-table-column prop="dataset" :label="i18ns.t('dataMaintenance.dataset')" />
@@ -319,17 +344,22 @@ onBeforeUnmount(() => {
         </el-table-column>
         <el-table-column :label="i18ns.t('dataMaintenance.result')">
           <template #default="{ row }">
-            {{ i18ns.t('dataMaintenance.resultSummary', {
-              total: row.totalCount,
-              inserted: row.insertedCount,
-              skipped: row.skippedCount,
-              failed: row.failedCount,
-            }) }}
+            {{
+              i18ns.t('dataMaintenance.resultSummary', {
+                total: row.totalCount,
+                inserted: row.insertedCount,
+                skipped: row.skippedCount,
+                failed: row.failedCount,
+              })
+            }}
           </template>
         </el-table-column>
         <el-table-column prop="errorMessage" :label="i18ns.t('dataLifecycle.errorMessage')" />
       </el-table>
-      <el-empty v-if="!historyLoading && runs.length === 0" :description="i18ns.t('dataMaintenance.noRecords')" />
+      <el-empty
+        v-if="!historyLoading && runs.length === 0"
+        :description="i18ns.t('dataMaintenance.noRecords')"
+      />
       <el-pagination
         v-if="total > 0"
         class="pagination"

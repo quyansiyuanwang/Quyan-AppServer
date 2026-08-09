@@ -2197,7 +2197,8 @@ export default {
   dataMaintenance: {
     title: 'Dangerous Data Maintenance',
     subtitle: 'Run allowlisted table optimization and import verified gzip NDJSON archives.',
-    warning: 'These operations can lock tables or insert historical records. Review the preview before running.',
+    warning:
+      'These operations can lock tables or insert historical records. Review the preview before running.',
     optimize: 'Optimize tables',
     optimizePreview: 'Preview table impact',
     optimizeRun: 'Start optimization',

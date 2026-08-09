@@ -28,9 +28,7 @@ function buildObjectStorageBucketConfig(
   };
   return {
     ...config,
-    enabled: Boolean(
-      config.endpoint && config.region && config.bucket && config.accessKeyId && config.accessKeySecret,
-    ),
+    enabled: Boolean(config.endpoint && config.region && config.bucket && config.accessKeyId && config.accessKeySecret),
   };
 }
 

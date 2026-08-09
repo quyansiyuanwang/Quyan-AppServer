@@ -16,7 +16,9 @@ const isGzip = (body: Uint8Array) => body[0] === 0x1f && body[1] === 0x8b
 
 const unwrapResponseData = <T>(response: { data?: T; message?: unknown }): T => {
   if (response.data !== undefined) return response.data
-  throw new Error(typeof response.message === 'string' ? response.message : 'Maintenance request failed')
+  throw new Error(
+    typeof response.message === 'string' ? response.message : 'Maintenance request failed',
+  )
 }
 
 const prepareGzipArchive = async (file: File): Promise<Uint8Array> => {

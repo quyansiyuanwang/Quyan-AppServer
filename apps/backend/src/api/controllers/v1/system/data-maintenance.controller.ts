@@ -1,4 +1,17 @@
-import { Body, Consumes, Controller, Get, Middlewares, Path, Post, Query, Request, Route, Security, Tags } from "@tsoa/runtime";
+import {
+  Body,
+  Consumes,
+  Controller,
+  Get,
+  Middlewares,
+  Path,
+  Post,
+  Query,
+  Request,
+  Route,
+  Security,
+  Tags,
+} from "@tsoa/runtime";
 import type {
   DataMaintenanceImportPreviewResponse,
   DataMaintenanceRunDTO,
@@ -40,7 +53,9 @@ export class DataMaintenanceController extends Controller {
     captchaMiddleware({ action: "data_maintenance_optimize_preview", requireExplicitToken: true }),
     validateBody(optimizePreviewBodySchema),
   )
-  public async optimizePreview(@Body() body: Pick<OptimizeRequest, "datasets" | "captchaToken">): Promise<OptimizePreviewResponse> {
+  public async optimizePreview(
+    @Body() body: Pick<OptimizeRequest, "datasets" | "captchaToken">,
+  ): Promise<OptimizePreviewResponse> {
     return this.service.optimizePreview(body.datasets);
   }
 
@@ -56,10 +71,17 @@ export class DataMaintenanceController extends Controller {
     captchaMiddleware({ action: "data_maintenance_optimize", requireExplicitToken: true }),
     validateBody(optimizeBodySchema),
   )
-  public async optimize(@Request() request: TypedRequest, @Body() body: OptimizeRequest): Promise<DataMaintenanceRunDTO> {
+  public async optimize(
+    @Request() request: TypedRequest,
+    @Body() body: OptimizeRequest,
+  ): Promise<DataMaintenanceRunDTO> {
     const confirmation = body.confirmation;
     if (confirmation !== "OPTIMIZE") throw new BadRequestError("Confirmation phrase is invalid");
-    return this.service.createOptimizeRun(body.datasets, request.user?.userId, request.headers["x-request-id"] as string | undefined) as any;
+    return this.service.createOptimizeRun(
+      body.datasets,
+      request.user?.userId,
+      request.headers["x-request-id"] as string | undefined,
+    ) as any;
   }
 
   @Post("imports/preview/{dataset}")
@@ -75,8 +97,15 @@ export class DataMaintenanceController extends Controller {
     captchaMiddleware({ action: "data_maintenance_import_preview", requireExplicitToken: true }),
     validateParams(importPreviewQuerySchema),
   )
-  public async importPreview(@Request() request: TypedRequest, @Path() dataset: string, @Body() _body: Record<string, unknown>): Promise<DataMaintenanceImportPreviewResponse> {
-    const result = await this.service.previewImport(dataset, Buffer.isBuffer(request.body) ? request.body : Buffer.from([]));
+  public async importPreview(
+    @Request() request: TypedRequest,
+    @Path() dataset: string,
+    @Body() _body: Record<string, unknown>,
+  ): Promise<DataMaintenanceImportPreviewResponse> {
+    const result = await this.service.previewImport(
+      dataset,
+      Buffer.isBuffer(request.body) ? request.body : Buffer.from([]),
+    );
     const { rows: _rows, ...response } = result;
     return response;
   }
@@ -94,7 +123,11 @@ export class DataMaintenanceController extends Controller {
     captchaMiddleware({ action: "data_maintenance_import", requireExplicitToken: true }),
     validateParams(importPreviewQuerySchema),
   )
-  public async createImport(@Request() request: TypedRequest, @Path() dataset: string, @Body() _body: Record<string, unknown>): Promise<DataMaintenanceRunDTO> {
+  public async createImport(
+    @Request() request: TypedRequest,
+    @Path() dataset: string,
+    @Body() _body: Record<string, unknown>,
+  ): Promise<DataMaintenanceRunDTO> {
     const confirmation = request.headers["x-maintenance-confirmation"];
     if (confirmation !== "IMPORT") throw new BadRequestError("Confirmation phrase is invalid");
     return this.service.createImportRun(
