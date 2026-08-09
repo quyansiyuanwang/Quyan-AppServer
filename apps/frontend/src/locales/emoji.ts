@@ -3929,7 +3929,7 @@ const emoji: DeepStringify<typeof en> = {
     balanceRedeemFailed: '💳 😛 ❌',
     balanceLoading: '💳 ⏳ 📥',
     balanceRedeemInsufficient: '💳 🚫，至少需要 {amount}',
-    monthlyPassValidity30Days: '🛒后立即生效，⏳固定 30 天',
+    monthlyPassValidityDays: '🛒后立即生效，⏳ {days} 天',
     pricingNote: '💰 ⏯️ 😄 🔎 🪙 😹 💰 🎁 💲 📨',
     model: '🤖',
     pricingType: '📙 🏷️',

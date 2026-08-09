@@ -4049,7 +4049,7 @@ const zhCN: DeepStringify<typeof en> = {
     balanceRedeemInsufficient: '余额不足，当前兑换需要 {amount}',
     balanceRedeemSuccess: '余额兑换成功，已扣除 {amount}',
     balanceRedeemFailed: '余额兑换失败',
-    monthlyPassValidity30Days: '购买后立即生效，有效期固定 30 天',
+    monthlyPassValidityDays: '购买后立即生效，有效期 {days} 天',
     pricingNote: '价格单位：曲/百万Token（按次计费为固定价格）',
     model: '模型',
     pricingType: '计费类型',
