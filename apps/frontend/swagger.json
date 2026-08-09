@@ -35457,16 +35457,30 @@
 			"ArchiveDownloadResponse": {
 				"properties": {
 					"url": {
-						"type": "string"
+						"type": "string",
+						"nullable": true
 					},
 					"expiresInSeconds": {
 						"type": "number",
 						"format": "double"
+					},
+					"restoreRequired": {
+						"type": "boolean"
+					},
+					"restoreStatus": {
+						"type": "string",
+						"enum": [
+							"requested",
+							"in-progress",
+							"ready"
+						]
 					}
 				},
 				"required": [
 					"url",
-					"expiresInSeconds"
+					"expiresInSeconds",
+					"restoreRequired",
+					"restoreStatus"
 				],
 				"type": "object",
 				"additionalProperties": false

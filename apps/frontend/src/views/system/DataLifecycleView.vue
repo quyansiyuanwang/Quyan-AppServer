@@ -223,8 +223,33 @@ const runBatch = async () => {
 }
 
 const download = async (artifactId: string) => {
-  const response = await dataLifecycleService.download(artifactId)
-  window.open(response.url, '_blank', 'noopener,noreferrer')
+  // Open synchronously while the click is still a user gesture; browsers block
+  // a new tab opened only after the authenticated URL request resolves.
+  const downloadWindow = window.open('about:blank', '_blank')
+  try {
+    const response = await dataLifecycleService.download(artifactId)
+    if (response?.restoreRequired) {
+      downloadWindow?.close()
+      ElMessage.info(
+        i18ns.t(
+          response.restoreStatus === 'in-progress'
+            ? 'dataLifecycle.restoreInProgress'
+            : 'dataLifecycle.restoreRequested',
+        ),
+      )
+      return
+    }
+    if (!response?.url) throw new Error('Archive download URL is empty')
+    if (downloadWindow) {
+      downloadWindow.opener = null
+      downloadWindow.location.href = response.url
+    } else {
+      window.location.href = response.url
+    }
+  } catch {
+    downloadWindow?.close()
+    ElMessage.error(i18ns.t('dataLifecycle.downloadFailed'))
+  }
 }
 
 onMounted(load)

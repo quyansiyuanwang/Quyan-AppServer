@@ -26,4 +26,8 @@ Balance transactions are never automatically archived or deleted.
 
 The default schedule runs enabled policies daily at 03:20 (Asia/Shanghai). Administrators can change the time or disable the schedule on the page; saved changes take effect within about one minute.
 
-Archive details are available as administrator downloads in the first release, not as in-app full-text search. Expired archive objects are removed automatically.
+Archive details are available as administrator downloads in the first release, not as in-app full-text search. The archive bucket is private by default, so a normal object URL copied from the OSS console has no signature and returns AccessDenied; use the page download button to generate a temporary signed URL. If OSS has transitioned an object to Archive or cold storage, the first download click requests a restore; download it again after OSS finishes restoring the object. Expired archive objects are removed automatically.
+
+Downloads are gzip-compressed NDJSON containing the original rows. The current release does not provide an in-app database import button. Before restoring, decompress the file, verify the dataset, and back up the database; an operator should import rows in batches using the corresponding table schema. `relay_usages` and `monthly_pass_usages` depend on token/pass rows that must still exist, and balance transactions are outside the archive scope.
+
+After database rows are deleted, InnoDB normally marks the pages reusable but does not immediately shrink the `.ibd` file. Reclaiming operating-system disk space requires a separate table rebuild or `OPTIMIZE TABLE` during a low-traffic window; archival runs do not do this automatically. Server log files are removed from local disk after the OSS upload is verified.

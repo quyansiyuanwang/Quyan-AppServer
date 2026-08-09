@@ -2112,6 +2112,9 @@ const zhCN: DeepStringify<typeof en> = {
     deletedAt: '删除时间',
     archiveDeleted: '已到期删除',
     download: '下载归档（{count} 条）',
+    downloadFailed: '归档下载地址无效或已过期，请重新下载',
+    restoreRequested: '归档文件正在从 OSS 恢复，请稍后重新点击下载',
+    restoreInProgress: '归档文件仍在 OSS 恢复中，请稍后重试',
   },
   BusinessLogs: {
     title: '业务操作日志',

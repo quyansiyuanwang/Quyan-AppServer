@@ -69,8 +69,10 @@ export interface DataLifecycleRunListResponse {
 }
 
 export interface ArchiveDownloadResponse {
-  url: string;
+  url: string | null;
   expiresInSeconds: number;
+  restoreRequired: boolean;
+  restoreStatus: "requested" | "in-progress" | "ready";
 }
 
 export interface ArchiveArtifactDTO {

@@ -2286,6 +2286,9 @@ const emoji: DeepStringify<typeof en> = {
     deletedAt: '🗑️ 🕒',
     archiveDeleted: '🗑️',
     download: '📥 {count}',
+    downloadFailed: '⚠️ 📥',
+    restoreRequested: '⏳ 📦',
+    restoreInProgress: '⏳ 📦',
   },
   BusinessLogs: {
     title: '☺️ 😔 🪵',

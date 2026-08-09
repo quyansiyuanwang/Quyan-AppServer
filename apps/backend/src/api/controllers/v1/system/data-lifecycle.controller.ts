@@ -217,6 +217,6 @@ export class DataLifecycleController extends Controller {
     validateParams(lifecycleArtifactParamsSchema),
   )
   public async download(@Path() artifactId: string): Promise<ArchiveDownloadResponse> {
-    return { url: await this.service.getArchiveDownloadUrl(artifactId), expiresInSeconds: 300 };
+    return this.service.getArchiveDownloadInfo(artifactId);
   }
 }

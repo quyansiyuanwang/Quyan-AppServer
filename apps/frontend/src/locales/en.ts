@@ -2189,6 +2189,9 @@ export default {
     deletedAt: 'Deleted at',
     archiveDeleted: 'Expired and deleted',
     download: 'Download archive ({count})',
+    downloadFailed: 'The archive URL is invalid or expired. Please try again.',
+    restoreRequested: 'The archive is being restored from OSS. Try downloading again later.',
+    restoreInProgress: 'The archive is still being restored by OSS. Please try again later.',
   },
   BusinessLogs: {
     title: 'Business Operation Logs',

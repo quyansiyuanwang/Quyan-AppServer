@@ -309,11 +309,53 @@ export class DataLifecycleService {
     return this.repository.listArchiveArtifacts(runId, page, pageSize);
   }
 
-  public async getArchiveDownloadUrl(artifactId: string): Promise<string> {
+  public async getArchiveDownloadInfo(artifactId: string) {
     if (!env.integrations.archiveOss.enabled) throw new BadRequestError("Archive OSS is not configured");
     const artifact = await this.repository.getArchiveArtifact(artifactId);
     if (!artifact || artifact.deletedAt) throw new NotFoundError("Archive artifact not found");
-    return this.getOssClient().signatureUrl(artifact.objectKey, { expires: 300, method: "GET" });
+    const client = this.getOssClient();
+    const head = (await client.head(artifact.objectKey)) as {
+      res?: { headers?: Record<string, string | string[] | undefined> };
+    };
+    const headers = head.res?.headers ?? {};
+    const storageClass = String(headers["x-oss-storage-class"] ?? "").toLowerCase();
+    const restoreHeader = String(headers["x-oss-restore"] ?? "");
+    const needsRestore = ["archive", "coldarchive", "deepcoldarchive"].includes(storageClass);
+
+    if (needsRestore && !/ongoing-request="false"/i.test(restoreHeader)) {
+      if (/ongoing-request="true"/i.test(restoreHeader))
+        return {
+          url: null,
+          expiresInSeconds: 0,
+          restoreRequired: true,
+          restoreStatus: "in-progress" as const,
+        };
+
+      const restoreType =
+        storageClass === "coldarchive"
+          ? "ColdArchive"
+          : storageClass === "deepcoldarchive"
+            ? "DeepColdArchive"
+            : "Archive";
+      const restore = client.restore.bind(client) as unknown as (
+        name: string,
+        options: { type: string },
+      ) => Promise<unknown>;
+      await restore(artifact.objectKey, { type: restoreType });
+      return {
+        url: null,
+        expiresInSeconds: 0,
+        restoreRequired: true,
+        restoreStatus: "requested" as const,
+      };
+    }
+
+    return {
+      url: client.signatureUrl(artifact.objectKey, { expires: 300, method: "GET" }),
+      expiresInSeconds: 300,
+      restoreRequired: false,
+      restoreStatus: "ready" as const,
+    };
   }
 
   public async deleteExpiredArtifacts(): Promise<number> {
