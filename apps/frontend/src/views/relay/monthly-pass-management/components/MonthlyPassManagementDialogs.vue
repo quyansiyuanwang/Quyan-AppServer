@@ -76,7 +76,13 @@
       </el-form-item>
       <el-form-item :label="i18ns.t('monthlyPass.validityDays')" required>
         <div class="template-validity-field">
-          <el-input-number v-model="templateForm.validityDays" :min="1" :max="3650" :step="1" :precision="0" />
+          <el-input-number
+            v-model="templateForm.validityDays"
+            :min="1"
+            :max="3650"
+            :step="1"
+            :precision="0"
+          />
           <span class="template-validity-field__unit">{{ i18ns.t('monthlyPass.daysUnit') }}</span>
         </div>
         <div class="quota-window-value">{{ i18ns.t('monthlyPass.validityDaysHint') }}</div>

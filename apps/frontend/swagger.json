@@ -9583,6 +9583,57 @@
 				}
 			}
 		},
+		"/v1/error-reports/client/batch": {
+			"post": {
+				"operationId": "ErrorReportControllerReportClientErrorBatch",
+				"responses": {
+					"202": {
+						"description": "Accepted",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"accepted": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"accepted"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Invalid request",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"ErrorReport"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ClientErrorReportBatchRequest"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/error-reports": {
 			"get": {
 				"operationId": "ErrorReportControllerListGroups",
@@ -35060,6 +35111,21 @@
 				"required": [
 					"errorType",
 					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ClientErrorReportBatchRequest": {
+				"properties": {
+					"reports": {
+						"items": {
+							"$ref": "#/components/schemas/ClientErrorReportRequest"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"reports"
 				],
 				"type": "object",
 				"additionalProperties": false

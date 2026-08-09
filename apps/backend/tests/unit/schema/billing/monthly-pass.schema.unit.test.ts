@@ -70,9 +70,9 @@ describe("monthly pass zero-value and PATCH contracts", () => {
   });
 
   it("accepts a template validity between one day and ten years", () => {
-    expect(createMonthlyPassTemplateBodySchema.safeParse({ ...validPriceFirstTemplate, validityDays: 45 }).success).toBe(
-      true,
-    );
+    expect(
+      createMonthlyPassTemplateBodySchema.safeParse({ ...validPriceFirstTemplate, validityDays: 45 }).success,
+    ).toBe(true);
     expect(createMonthlyPassTemplateBodySchema.safeParse({ ...validPriceFirstTemplate, validityDays: 0 }).success).toBe(
       false,
     );

@@ -18,6 +18,10 @@ export const clientErrorReportBodySchema = z.object({
   context: z.record(z.string(), z.unknown()).optional(),
 });
 
+export const clientErrorReportBatchBodySchema = z.object({
+  reports: z.array(clientErrorReportBodySchema).min(1).max(10),
+});
+
 export const errorGroupsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10000).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),

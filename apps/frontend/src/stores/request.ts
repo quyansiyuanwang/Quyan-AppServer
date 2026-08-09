@@ -959,6 +959,45 @@ class MyAxios {
   }
 
   /**
+   * Best-effort request for page lifecycle handlers. It deliberately uses only
+   * credentials already available in memory/session storage: refreshing a token
+   * or acquiring a replay session during unload is not reliable.
+   */
+  public async postKeepalive(path: string, body: unknown): Promise<boolean> {
+    let bodyText: string
+    try {
+      bodyText = JSON.stringify(body)
+    } catch {
+      return false
+    }
+
+    const accessToken = getAccessToken()
+    const signingMaterial = ReplaySigningService.getInstance().getStoredSigningMaterial()
+    const clientFingerprint = getOrCreateClientFingerprint()
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...getLocaleHeaders(),
+      ...(clientFingerprint ? { 'X-Client-Fingerprint': clientFingerprint } : {}),
+      ...(signingMaterial ? ReplayProtection.generateHeaders(body, path, signingMaterial) : {}),
+    }
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+
+    try {
+      const response = await fetch(this.buildRequestUrl(path), {
+        method: 'POST',
+        headers,
+        body: bodyText,
+        credentials: 'include',
+        keepalive: true,
+      })
+      return response.ok
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Some endpoints intentionally use fetch (for example SSE). Keep their URL,
    * locale/fingerprint and replay-protection headers identical to regular API calls.
    */

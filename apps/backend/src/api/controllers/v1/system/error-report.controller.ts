@@ -18,6 +18,7 @@ import { HttpStatusCode } from "axios";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type {
   ClientErrorReportRequest,
+  ClientErrorReportBatchRequest,
   ErrorGroupListResponse,
   ErrorOccurrenceListResponse,
   UpdateErrorGroupStatusRequest,
@@ -28,6 +29,7 @@ import { Permission } from "@/constant/permission";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import {
   clientErrorReportBodySchema,
+  clientErrorReportBatchBodySchema,
   errorGroupIdParamsSchema,
   errorGroupsQuerySchema,
   errorOccurrencesQuerySchema,
@@ -53,6 +55,21 @@ export class ErrorReportController extends Controller {
     await this.service.reportClientError(request, { ...body, source: "frontend" });
     this.setStatus(HttpStatusCode.Accepted);
     return { accepted: true };
+  }
+
+  @Post("client/batch")
+  @SuccessResponse(HttpStatusCode.Accepted, "Accepted")
+  @Middlewares(validateBody(clientErrorReportBatchBodySchema))
+  public async reportClientErrorBatch(
+    @Request() request: TypedRequest,
+    @Body() body: ClientErrorReportBatchRequest,
+  ): Promise<{ accepted: number }> {
+    await this.service.reportClientErrors(
+      request,
+      body.reports.map((report) => ({ ...report, source: "frontend" })),
+    );
+    this.setStatus(HttpStatusCode.Accepted);
+    return { accepted: body.reports.length };
   }
 
   @Get("")

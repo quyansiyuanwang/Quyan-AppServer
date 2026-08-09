@@ -72,14 +72,22 @@ export class ErrorReportService {
   }
 
   public async reportClientError(request: Request, input: ErrorReportInput): Promise<void> {
+    await this.reportClientErrors(request, [input]);
+  }
+
+  public async reportClientErrors(request: Request, inputs: ErrorReportInput[]): Promise<void> {
     this.assertClientOrigin(request);
     const ipAddress = extractClientIp(request);
-    await this.assertClientRateLimit(ipAddress);
-    await this.record(input, {
+    await this.assertClientRateLimit(ipAddress, inputs.length);
+    const requestContext = {
       userId: (request as Request & { user?: { userId?: string } }).user?.userId,
       userAgent: limitText(request.headers["user-agent"], 2000),
       ipAddress,
-    });
+    };
+
+    // Keep writes bounded and ordered to avoid a single browser batch causing
+    // concurrent transaction spikes on smaller database instances.
+    for (const input of inputs) await this.record(input, requestContext);
   }
 
   public async recordServerException(request: Request, error: Error): Promise<void> {
@@ -161,13 +169,13 @@ export class ErrorReportService {
     return this.repository.deleteErrorsBefore(cutoffAt);
   }
 
-  private async assertClientRateLimit(ipAddress: string): Promise<void> {
+  private async assertClientRateLimit(ipAddress: string, weight = 1): Promise<void> {
     if (!this.redisService.isRedisAvailable()) return;
     const key = `error-report:client:${ipAddress}`;
     const count = Number((await this.redisService.get(key)) || "0");
-    if (count >= CLIENT_REPORT_LIMIT)
+    if (count + weight > CLIENT_REPORT_LIMIT)
       throw new TooManyRequestsError("Error report rate limit exceeded", CLIENT_REPORT_WINDOW_SECONDS);
-    await this.redisService.increment(key, CLIENT_REPORT_WINDOW_SECONDS);
+    await this.redisService.increment(key, CLIENT_REPORT_WINDOW_SECONDS, weight);
   }
 
   private assertClientOrigin(request: Request): void {

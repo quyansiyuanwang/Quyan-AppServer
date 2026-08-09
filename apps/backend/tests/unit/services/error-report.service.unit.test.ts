@@ -69,6 +69,52 @@ describe("ErrorReportService", () => {
     expect(repository.createErrorOccurrence).not.toHaveBeenCalled();
   });
 
+  it("counts every batch item against the client rate limit", async () => {
+    redis.isRedisAvailable.mockReturnValue(true);
+    redis.get.mockResolvedValue("25");
+    const service = new ServiceCtor(repository, redis);
+    const request = {
+      headers: {},
+      method: "POST",
+      path: "/v1/error-reports/client/batch",
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as Request;
+
+    await expect(
+      service.reportClientErrors(
+        request,
+        Array.from({ length: 6 }, (_, index) => ({
+          source: "frontend" as const,
+          errorType: "Error",
+          message: `boom ${index}`,
+        })),
+      ),
+    ).rejects.toThrow("rate limit");
+    expect(repository.createErrorOccurrence).not.toHaveBeenCalled();
+    expect(redis.increment).not.toHaveBeenCalled();
+  });
+
+  it("writes a small client batch in order and charges its full rate-limit weight", async () => {
+    redis.isRedisAvailable.mockReturnValue(true);
+    const service = new ServiceCtor(repository, redis);
+    const request = {
+      headers: {},
+      method: "POST",
+      path: "/v1/error-reports/client/batch",
+      socket: { remoteAddress: "127.0.0.1" },
+    } as unknown as Request;
+
+    await service.reportClientErrors(request, [
+      { source: "frontend", errorType: "Error", message: "first" },
+      { source: "frontend", errorType: "Error", message: "second" },
+    ]);
+
+    expect(redis.increment).toHaveBeenCalledWith("error-report:client:127.0.0.1", 60, 2);
+    expect(repository.createErrorOccurrence).toHaveBeenCalledTimes(2);
+    expect(repository.createErrorOccurrence.mock.calls[0][0].message).toBe("first");
+    expect(repository.createErrorOccurrence.mock.calls[1][0].message).toBe("second");
+  });
+
   it("uses a strict 90-day cleanup cutoff", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-08T00:00:00.000Z"));

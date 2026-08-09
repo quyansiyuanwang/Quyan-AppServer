@@ -13,6 +13,10 @@ export interface ClientErrorReportRequest {
   context?: Record<string, unknown>;
 }
 
+export interface ClientErrorReportBatchRequest {
+  reports: ClientErrorReportRequest[];
+}
+
 export interface ErrorGroupDTO {
   id: string;
   fingerprint: string;
