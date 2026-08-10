@@ -58,21 +58,21 @@ describe('site registry', () => {
   })
 
   it('registers product consoles and hides inaccessible profiles from navigation', () => {
-    const profile = resolveSiteProfile('kv.console.qysyw.cn')
+    const profile = resolveSiteProfile('oj.console.qysyw.cn')
     const account = resolveSiteProfile('account.qysyw.cn')
     if (!isKnownSiteProfile(profile) || !isKnownSiteProfile(account)) {
       throw new Error('Expected product and account profiles to be registered')
     }
 
     expect(profile).toMatchObject({
-      id: 'product-kv',
-      hostname: 'kv.console.qysyw.cn',
-      defaultPath: '/products/kv',
+      id: 'product-oj',
+      hostname: 'oj.console.qysyw.cn',
+      defaultPath: '/oj/apikeys',
       kind: 'product',
     })
 
     const accessible = getAccessibleSiteProfiles(account, [profile.accessPermissions[0]!])
-    expect(accessible.map((item) => item.id)).toContain('product-kv')
+    expect(accessible.map((item) => item.id)).toContain('product-oj')
     expect(accessible.map((item) => item.id)).not.toContain('management-core')
   })
 

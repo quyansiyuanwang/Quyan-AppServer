@@ -5,5 +5,5 @@
 <script setup lang="ts">
 import App from '@/App.vue'
 
-defineOptions({ name: 'DeveloperApp' })
+defineOptions({ name: 'ConsoleProductOjApp' })
 </script>

@@ -246,17 +246,6 @@ const menuDefinition: readonly MenuNode[] = [
     Permission.AUTH_CENTER_CLIENT_READ,
   ]),
   relayMenu,
-  item(
-    'developerProducts',
-    'nav.productCatalog',
-    Connection,
-    [
-      ...DEVELOPER_PRODUCT_NAVIGATION.flatMap((product) => product.permissions),
-      Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
-      Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
-    ],
-    'any',
-  ),
   ...productUserMenu,
   ...productOperationsMenu,
   group(

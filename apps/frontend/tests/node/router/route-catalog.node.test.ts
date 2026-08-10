@@ -79,12 +79,10 @@ describe('route catalog', () => {
       profileId: 'management-ai',
       path: '/relay/settings',
     })
-    expect(resolveRouteMigration('/relay/tokens', getKnownProfile('developer.qysyw.test'))).toEqual(
-      {
-        profileId: 'console-ai',
-        path: '/relay/tokens',
-      },
-    )
+    expect(resolveRouteMigration('/relay/tokens', account)).toEqual({
+      profileId: 'console-ai',
+      path: '/relay/tokens',
+    })
     expect(resolveRouteMigration('/iam/ram', getKnownProfile('management.qysyw.test'))).toEqual({
       profileId: 'console-ram',
       path: '/users',
@@ -99,6 +97,10 @@ describe('route catalog', () => {
       profileId: 'management-developer',
       path: '/products/short_link/analytics/team-a/link-b',
     })
+    expect(resolveRouteMigration('/oj/apikeys', account)).toEqual({
+      profileId: 'product-oj',
+      path: '/oj/apikeys',
+    })
   })
 
   it('builds same-environment migration URLs and preserves query/hash', () => {
@@ -107,6 +109,9 @@ describe('route catalog', () => {
     expect(
       resolveRouteMigrationUrl('/management/permissions', '?tab=roles', '#member-1', account),
     ).toBe('https://management.qysyw.test:5173/iam/authorizations?tab=roles#member-1')
+    expect(resolveRouteMigrationUrl('/oj/usage', '?range=30d', '#requests', account)).toBe(
+      'https://oj.console.qysyw.test:5173/oj/usage?range=30d#requests',
+    )
     expect(resolveRouteMigrationUrl('/not-a-route', '', '', account)).toBeUndefined()
   })
 

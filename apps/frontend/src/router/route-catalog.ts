@@ -4,6 +4,7 @@ export type OverviewCategory =
   | 'account'
   | 'developer-products'
   | 'developer-applications'
+  | 'product-oj'
   | 'terminal'
   | 'console-iam'
   | 'console-operations'
@@ -118,18 +119,6 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     legacyPaths: ['/tools/scripts'],
   },
   {
-    name: 'developerProjects',
-    group: 'developer',
-    path: '/projects',
-    legacyPaths: ['/developer/projects', '/account/developer-projects'],
-  },
-  {
-    name: 'developerProducts',
-    group: 'developer',
-    path: '/products',
-    overviewCategory: 'developer-products',
-  },
-  {
     name: 'oauthClientManagement',
     group: 'console-developer',
     path: '/applications/oauth',
@@ -162,26 +151,26 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     overviewCategory: 'console-ai',
     legacyPaths: ['/relay/provider-channels'],
   },
-  { name: 'ojSubmitterRoot', group: 'developer', path: '/oj' },
+  { name: 'ojSubmitterRoot', group: 'product-oj', path: '/oj' },
   {
     name: 'ojAPIKeyManagement',
-    group: 'developer',
+    group: 'product-oj',
     path: '/oj/apikeys',
-    overviewCategory: 'developer-applications',
+    overviewCategory: 'product-oj',
     legacyPaths: ['/oj-submitter/apikeys'],
   },
   {
     name: 'ojUsageStatistics',
-    group: 'developer',
+    group: 'product-oj',
     path: '/oj/usage',
-    overviewCategory: 'developer-applications',
+    overviewCategory: 'product-oj',
     legacyPaths: ['/oj-submitter/usage'],
   },
   {
     name: 'ojPricingManagement',
-    group: 'developer',
+    group: 'product-oj',
     path: '/oj/pricing',
-    overviewCategory: 'developer-applications',
+    overviewCategory: 'product-oj',
     legacyPaths: ['/oj-submitter/pricing'],
   },
   ...productEntries.flatMap((product) => [

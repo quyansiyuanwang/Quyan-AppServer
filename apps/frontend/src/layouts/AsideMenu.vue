@@ -605,9 +605,10 @@ const overviewCategoryDefinitions: readonly {
   { key: 'account', title: () => i18ns.t('nav.settings'), icon: Setting },
   {
     key: 'developer-products',
-    title: () => i18ns.t('nav.developerProducts'),
+    title: () => i18ns.t('nav.products'),
     icon: Cpu,
   },
+  { key: 'product-oj', title: () => i18ns.t('nav.ojSubmitter'), icon: Cpu },
   {
     key: 'developer-applications',
     title: () => i18ns.t('nav.developerCenter'),
@@ -649,7 +650,6 @@ const siteLabelKeys: Record<SiteProfileId, I18nENAvailableKeys> = {
   identity: 'nav.siteIdentity',
   account: 'nav.siteAccount',
   chat: 'nav.siteChat',
-  developer: 'nav.siteDeveloper',
   terminal: 'nav.siteTerminal',
   'console-core': 'nav.siteConsoleCore',
   'console-ai': 'nav.siteConsoleAi',
@@ -663,6 +663,7 @@ const siteLabelKeys: Record<SiteProfileId, I18nENAvailableKeys> = {
   'product-verification': 'nav.productVerification',
   'product-ip_geolocation': 'nav.productIpGeolocation',
   'product-push': 'nav.productPush',
+  'product-oj': 'nav.ojSubmitter',
   'management-core': 'nav.siteManagementCore',
   'management-ai': 'nav.siteManagementAi',
   'management-developer': 'nav.siteManagementDeveloper',
@@ -674,7 +675,6 @@ const siteIcons: Record<SiteProfileId, Component> = {
   identity: User,
   account: User,
   chat: ChatDotRound,
-  developer: Connection,
   terminal: Monitor,
   'console-core': Setting,
   'console-ai': Connection,
@@ -688,6 +688,7 @@ const siteIcons: Record<SiteProfileId, Component> = {
   'product-verification': Key,
   'product-ip_geolocation': Connection,
   'product-push': Bell,
+  'product-oj': Cpu,
   'management-core': Setting,
   'management-ai': Connection,
   'management-developer': Grid,
@@ -924,17 +925,6 @@ const overviewSections = computed<OverviewSection[]>(() => {
       title: i18ns.t('nav.products'),
       icon: Cpu,
       items: [
-        {
-          key: 'developerProducts',
-          label: i18ns.t('nav.developerProducts'),
-          icon: Connection,
-          route: 'developerProducts',
-          visible: canAny(
-            ...DEVELOPER_PRODUCT_NAVIGATION.flatMap((product) => product.permissions),
-            Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
-            Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
-          ),
-        },
         ...DEVELOPER_PRODUCT_NAVIGATION.flatMap((product) => [
           {
             key: `product-${product.code}-user`,

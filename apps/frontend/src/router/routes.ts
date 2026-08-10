@@ -175,20 +175,6 @@ export const routes = [
             ],
           },
           {
-            path: 'account/developer-projects',
-            redirect: { name: 'developerProducts' },
-          },
-          {
-            path: 'projects',
-            name: 'developerProjects',
-            redirect: { name: 'developerProducts' },
-          },
-          {
-            path: 'products',
-            name: 'developerProducts',
-            component: () => import('@/views/products/DeveloperProductCatalogView.vue'),
-          },
-          {
             path: 'products/remote-terminal-cloud',
             name: 'myRemoteTerminalProducts',
             component: () =>
@@ -1047,6 +1033,7 @@ export const routes = [
           {
             path: 'oj',
             name: 'ojSubmitterRoot',
+            redirect: { name: 'ojAPIKeyManagement' },
             meta: {
               anyPermissions: [
                 Permission.OJ_APIKEY_READ,

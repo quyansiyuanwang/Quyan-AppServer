@@ -17,7 +17,7 @@ This is the public bilingual user manual for the site. The layout keeps the rhyt
 
 ## Multi-site navigation
 
-The application uses separate addresses by responsibility and product. `console` is the signed-in product portal; AI relay, developer applications, cloud terminal, and RAM each have a user console; KV, short links, secrets, status, verification, IP geolocation, and push each have their own product console. `management` and its product subdomains are for operations. The site switcher groups user sites, product consoles, user consoles, and operations, and shows only destinations for which you have at least one feature permission.
+The application uses separate addresses by responsibility and product. `console` is the signed-in product portal; AI relay, developer applications, cloud terminal, and RAM each have a user console; KV, short links, secrets, status, verification, IP geolocation, push, and OJ Submitter each have their own product console. There is no unified developer-product catalog. `management` and its product subdomains are for operations. The site switcher groups user sites, product consoles, user consoles, and operations, and shows only destinations for which you have at least one feature permission.
 
 Access control in the operations site is organized into Overview, Identity Management, and Permission Management. Identity Management contains users, groups, and roles; roles open in the RAM console. Permission Management separates user-level authorizations, permission-source inspection, and permission diagnostics into dedicated pages so that changes and investigation remain distinct.
 

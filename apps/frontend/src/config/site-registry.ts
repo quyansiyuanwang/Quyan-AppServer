@@ -53,10 +53,6 @@ const identityLocalOrigin = `https://auth.qysyw.test${localDevelopmentPort}`
 const profileAccessPermissions: Partial<Record<SiteProfileId, readonly Permission[]>> = {
   account: [Permission.USER_UPDATE_SELF_PROFILE, Permission.RELAY_TOKEN_READ],
   chat: [Permission.RELAY_TOKEN_READ],
-  developer: [
-    Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
-    Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
-  ],
   terminal: [Permission.REMOTE_TERMINAL_PRODUCT_READ, Permission.REMOTE_TERMINAL_DEVICE_READ],
   'console-ai': [
     Permission.RELAY_TOKEN_READ,
@@ -113,6 +109,7 @@ const profileAccessPermissions: Partial<Record<SiteProfileId, readonly Permissio
     Permission.PRODUCT_PUSH_DELIVERY_READ,
     Permission.PRODUCT_PUSH_MANAGE,
   ],
+  'product-oj': [Permission.OJ_APIKEY_READ, Permission.OJ_USAGE_READ, Permission.OJ_PRICING_READ],
   'management-core': [
     Permission.USER_READ,
     Permission.GROUP_READ,
@@ -172,14 +169,6 @@ export const siteDefinitions = [
     localHostname: 'chat.qysyw.test',
     defaultPath: '/chat',
     routeGroups: ['chat', 'shared'],
-    shell: 'application',
-  },
-  {
-    id: 'developer',
-    productionHostname: 'developer.qysyw.cn',
-    localHostname: 'developer.qysyw.test',
-    defaultPath: '/products',
-    routeGroups: ['developer', 'shared'],
     shell: 'application',
   },
   {
@@ -257,6 +246,15 @@ export const siteDefinitions = [
       shell: 'application' as const,
     }
   }),
+  {
+    id: 'product-oj',
+    app: 'console-product-oj',
+    productionHostname: 'oj.console.qysyw.cn',
+    localHostname: 'oj.console.qysyw.test',
+    defaultPath: '/oj/apikeys',
+    routeGroups: ['product-oj', 'shared'],
+    shell: 'application',
+  },
   {
     id: 'management-ai',
     productionHostname: 'ai.management.qysyw.cn',

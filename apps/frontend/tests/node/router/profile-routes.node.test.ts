@@ -71,8 +71,8 @@ describe('profile route factory', () => {
     const managementTerminalRouteNames = collectRouteNames(
       createRoutesForProfile(getKnownProfile('terminal.management.qysyw.cn')),
     )
-    const developerRouteNames = collectRouteNames(
-      createRoutesForProfile(getKnownProfile('developer.qysyw.cn')),
+    const accountRouteNames = collectRouteNames(
+      createRoutesForProfile(getKnownProfile('account.qysyw.cn')),
     )
 
     expect(aiRouteNames).toEqual(
@@ -81,7 +81,7 @@ describe('profile route factory', () => {
     expect(aiRouteNames).not.toContain('relaySettings')
     expect(managementAiRouteNames).toContain('relaySettings')
     expect(aiRouteNames).not.toContain('userManagement')
-    expect(developerRouteNames).not.toContain('relayTokenManagement')
+    expect(accountRouteNames).not.toContain('relayTokenManagement')
     expect(terminalRouteNames).toContain('remoteTerminal')
     expect(managementTerminalRouteNames).toContain('remoteTerminalProductManagement')
     expect(terminalRouteNames).not.toContain('relaySettings')
@@ -129,6 +129,22 @@ describe('profile route factory', () => {
     expect(collectRouteNames(productRoutes)).not.toContain('developerProducts')
     expect(collectRouteNames(productRoutes)).not.toContain('settingsProfile')
     expect(collectRouteNames(productRoutes)).not.toContain('myTickets')
+  })
+
+  it('registers all OJ Submitter pages only in the OJ product console', () => {
+    const ojRoutes = createRoutesForProfile(getKnownProfile('oj.console.qysyw.cn'))
+    const accountRoutes = createRoutesForProfile(getKnownProfile('account.qysyw.cn'))
+
+    expect(collectRouteNames(ojRoutes)).toEqual(
+      expect.arrayContaining([
+        'ojSubmitterRoot',
+        'ojAPIKeyManagement',
+        'ojUsageStatistics',
+        'ojPricingManagement',
+      ]),
+    )
+    expect(findRoute(ojRoutes, 'root')?.redirect).toBe('/oj/apikeys')
+    expect(collectRouteNames(accountRoutes)).not.toContain('ojAPIKeyManagement')
   })
 
   it('isolates RAM administration in the RAM console', () => {
