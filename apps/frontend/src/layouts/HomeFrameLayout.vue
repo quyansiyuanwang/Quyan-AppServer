@@ -1,5 +1,11 @@
 <template>
-  <div class="common-layout" :class="{ 'is-embedded': isEmbeddedShell }">
+  <div
+    class="common-layout"
+    :class="{
+      'is-account-profile': isAccountProfile,
+      'is-embedded': isEmbeddedShell,
+    }"
+  >
     <ImpersonationBanner />
     <el-container
       direction="vertical"
@@ -196,6 +202,7 @@ const route = useRoute()
 const isEmbeddedShell = computed(() => route.query.embed === '1')
 const isAuthenticated = computed(() => Boolean(AuthorizationService.getAccessToken()))
 const isPublicProfile = computed(() => currentSiteProfile.id === 'public')
+const isAccountProfile = computed(() => currentSiteProfile.id === 'account')
 const showAside = computed(() => !isEmbeddedShell.value && isAuthenticated.value)
 const showSiteHeader = computed(
   () =>
@@ -519,6 +526,42 @@ onMounted(async () => {
   background: var(--el-color-primary-light-3);
 }
 
+:global(.common-layout.is-account-profile) {
+  --account-card-min-width: 20rem;
+  --account-card-gap: 16px;
+}
+
+/* Account pages are form and record workspaces, not full-width dashboards. */
+:global(.common-layout.is-account-profile .main .settings-container),
+:global(.common-layout.is-account-profile .main .balance-container),
+:global(.common-layout.is-account-profile .main .ticket-layout),
+:global(.common-layout.is-account-profile .main .page-wrap) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--account-card-min-width), 1fr));
+  grid-auto-flow: row dense;
+  align-items: start;
+  gap: var(--account-card-gap);
+}
+
+:global(.common-layout.is-account-profile .main .settings-container .page-header),
+:global(.common-layout.is-account-profile .main .balance-container > header) {
+  grid-column: 1 / -1;
+}
+
+:global(.common-layout.is-account-profile .main .el-card) {
+  inline-size: 100%;
+  margin: 0;
+}
+
+:global(.common-layout.is-account-profile .main .settings-container > .el-card),
+:global(.common-layout.is-account-profile .main .balance-container > .el-card),
+:global(.common-layout.is-account-profile .main .page-wrap > .el-card),
+:global(.common-layout.is-account-profile .main .ticket-layout > *) {
+  min-inline-size: 0;
+  inline-size: 100%;
+  max-inline-size: none;
+}
+
 /* 移动端优化 */
 @media screen and (max-width: 768px) {
   .site-header {
@@ -559,6 +602,22 @@ onMounted(async () => {
   .main {
     padding: 16px;
     padding-bottom: calc(16px + env(safe-area-inset-bottom) + 72px); /* 留出底部 Tab Bar 空间 */
+  }
+
+  :global(.common-layout.is-account-profile .main .settings-container),
+  :global(.common-layout.is-account-profile .main .balance-container),
+  :global(.common-layout.is-account-profile .main .ticket-layout),
+  :global(.common-layout.is-account-profile .main .page-wrap) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :global(.common-layout.is-account-profile .main .el-card),
+  :global(.common-layout.is-account-profile .main .settings-container > .el-card),
+  :global(.common-layout.is-account-profile .main .balance-container > .el-card),
+  :global(.common-layout.is-account-profile .main .page-wrap > .el-card),
+  :global(.common-layout.is-account-profile .main .ticket-layout > *) {
+    inline-size: 100%;
+    max-inline-size: none;
   }
 
   .title {
