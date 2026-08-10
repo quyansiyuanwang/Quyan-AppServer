@@ -100,6 +100,8 @@ pnpm run dev:frontend
 
 多域名 SPA 与中心认证使用 `*.qysyw.test`。开发者无需手动编辑 hosts 或维护本地证书：
 
+`pnpm run dev` 会先自动执行 `local:setup`，随后启动 backend、frontend 和 docs-site；停止该开发命令或任一服务异常退出后，会自动执行 `local:teardown`。首次运行仍可能出现 mkcert、UAC 或 `sudo` 提示。
+
 ```powershell
 # 首次需要安装 mkcert；脚本会按当前平台请求 hosts 写入权限
 pnpm run local:setup
