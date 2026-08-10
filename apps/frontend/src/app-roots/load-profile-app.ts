@@ -1,30 +1,19 @@
 import type { Component } from 'vue'
-import type { ResolvedSiteProfile, SiteProfileId } from '@/config/site-registry'
+import type { ResolvedSiteProfile } from '@/config/site-registry'
 
 type AppRootModule = { default: Component }
-type AppRootLoader = () => Promise<AppRootModule>
-
-const businessAppLoader: AppRootLoader = () => import('@/App.vue')
-
-const profileAppLoaders: Readonly<Record<SiteProfileId, AppRootLoader>> = {
-  public: () => import('./PublicApp.vue'),
-  identity: () => import('./IdentityApp.vue'),
-  account: businessAppLoader,
-  chat: businessAppLoader,
-  developer: businessAppLoader,
-  terminal: businessAppLoader,
-  'console-core': businessAppLoader,
-  'console-ai': businessAppLoader,
-  'console-developer': businessAppLoader,
-  'console-terminal': businessAppLoader,
-  'console-ram': businessAppLoader,
-  'management-core': businessAppLoader,
-  'management-ai': businessAppLoader,
-  'management-developer': businessAppLoader,
-  'management-terminal': businessAppLoader,
-}
+const domainAppLoaders = import.meta.glob<AppRootModule>('./domains/*.vue')
 
 export const loadProfileApp = async (profile: ResolvedSiteProfile): Promise<Component> => {
   if (profile.id === 'rejected') return (await import('./RejectedHostApp.vue')).default
-  return (await profileAppLoaders[profile.id]()).default
+
+  if (profile.id === 'public') return (await import('./PublicApp.vue')).default
+  if (profile.id === 'identity') return (await import('./IdentityApp.vue')).default
+
+  const loader = domainAppLoaders['./domains/' + profile.app + '.vue']
+  if (!loader) {
+    throw new Error('No domain app is registered for site profile "' + profile.id + '".')
+  }
+
+  return (await loader()).default
 }

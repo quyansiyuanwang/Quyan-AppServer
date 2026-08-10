@@ -142,7 +142,7 @@ export const routes = [
           {
             path: 'dashboard',
             name: 'consoleDashboard',
-            component: () => import('@/views/article/ArticleViewerView.vue'),
+            component: () => import('@/views/console/ConsolePortalView.vue'),
           },
           {
             path: 'settings',
@@ -258,6 +258,19 @@ export const routes = [
 
           // --- Management ---
           {
+            path: 'iam/overview',
+            name: 'iamOverview',
+            component: () => import('@/views/management/IamOverviewView.vue'),
+            meta: {
+              anyPermissions: [
+                Permission.USER_READ,
+                Permission.GROUP_READ,
+                Permission.PERMISSION_VIEW,
+                Permission.RAM_ROLE_READ,
+              ],
+            },
+          },
+          {
             path: 'iam/users',
             name: 'userManagement',
             component: () => import('@/views/management/UserManagementView.vue'),
@@ -274,25 +287,112 @@ export const routes = [
             },
           },
           {
-            path: 'iam/permissions',
-            name: 'permission',
+            path: 'iam/roles',
+            name: 'roleManagement',
+            component: () => import('@/views/management/IamRoleAccessView.vue'),
+            meta: {
+              permission: Permission.RAM_ROLE_READ,
+            },
+          },
+          {
+            path: 'iam/authorizations',
+            name: 'iamAuthorizations',
             component: () => import('@/views/management/PermissionManagementView.vue'),
+            props: { mode: 'authorizations' },
             meta: {
               permission: Permission.PERMISSION_VIEW,
+            },
+          },
+          {
+            path: 'iam/permission-policies',
+            name: 'iamPermissionPolicies',
+            component: () => import('@/views/management/PermissionManagementView.vue'),
+            props: { mode: 'policies' },
+            meta: {
+              permission: Permission.PERMISSION_VIEW,
+            },
+          },
+          {
+            path: 'iam/permission-diagnostics',
+            name: 'iamPermissionDiagnostics',
+            component: () => import('@/views/management/PermissionManagementView.vue'),
+            props: { mode: 'diagnostics' },
+            meta: {
+              permission: Permission.PERMISSION_VIEW,
+            },
+          },
+          {
+            path: 'iam/permissions',
+            name: 'permission',
+            redirect: { name: 'iamAuthorizations' },
+            meta: {
+              permission: Permission.PERMISSION_VIEW,
+            },
+          },
+          {
+            path: 'overview',
+            name: 'ramOverview',
+            component: () => import('@/views/management/RamManagementView.vue'),
+            props: { section: 'overview' },
+            meta: {
+              anyPermissions: [
+                Permission.RAM_USER_READ,
+                Permission.RAM_ROLE_READ,
+                Permission.RAM_BINDING_READ,
+                Permission.RAM_POLICY_READ,
+                Permission.RAM_SESSION_READ,
+              ],
             },
           },
           {
             path: 'users',
             name: 'ramManagement',
             component: () => import('@/views/management/RamManagementView.vue'),
+            props: { section: 'users' },
             meta: {
               anyPermissions: [
                 Permission.RAM_USER_READ,
                 Permission.RAM_ROLE_READ,
                 Permission.RAM_BINDING_READ,
+                Permission.RAM_POLICY_READ,
                 Permission.RAM_SESSION_READ,
               ],
             },
+          },
+          {
+            path: 'roles',
+            name: 'ramRoles',
+            component: () => import('@/views/management/RamManagementView.vue'),
+            props: { section: 'roles' },
+            meta: { permission: Permission.RAM_ROLE_READ },
+          },
+          {
+            path: 'role-bindings',
+            name: 'ramBindings',
+            component: () => import('@/views/management/RamManagementView.vue'),
+            props: { section: 'bindings' },
+            meta: { permission: Permission.RAM_BINDING_READ },
+          },
+          {
+            path: 'policies',
+            name: 'ramPolicies',
+            component: () => import('@/views/management/RamManagementView.vue'),
+            props: { section: 'policies' },
+            meta: { permission: Permission.RAM_POLICY_READ },
+          },
+          {
+            path: 'authorizations',
+            name: 'ramAuthorization',
+            component: () => import('@/views/management/RamManagementView.vue'),
+            props: { section: 'authorization' },
+            meta: { permission: Permission.RAM_USER_READ },
+          },
+          {
+            path: 'sessions',
+            name: 'ramSessions',
+            component: () => import('@/views/management/RamManagementView.vue'),
+            props: { section: 'sessions' },
+            meta: { permission: Permission.RAM_SESSION_READ },
           },
           {
             path: 'products/kv',

@@ -109,6 +109,18 @@ function parseCentralLoginAllowedOrigins(source: EnvSnapshot, isProduction: bool
     "https://ai.console.qysyw.test:5173",
     "https://developer.console.qysyw.test:5173",
     "https://terminal.console.qysyw.test:5173",
+    "https://ram.console.qysyw.test:5173",
+    "https://kv.console.qysyw.test:5173",
+    "https://short-link.console.qysyw.test:5173",
+    "https://secret.console.qysyw.test:5173",
+    "https://status.console.qysyw.test:5173",
+    "https://verification.console.qysyw.test:5173",
+    "https://ip-geolocation.console.qysyw.test:5173",
+    "https://push.console.qysyw.test:5173",
+    "https://management.qysyw.test:5173",
+    "https://ai.management.qysyw.test:5173",
+    "https://developer.management.qysyw.test:5173",
+    "https://terminal.management.qysyw.test:5173",
   ];
 }
 

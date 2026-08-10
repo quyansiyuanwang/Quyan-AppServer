@@ -20,9 +20,17 @@ import { ramService } from '@/service/ramService'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { buildGrantablePermissionTree, filterGrantablePermissions } from '../ram-permission-tree'
 
-export function useRamManagement() {
+export type RamManagementSection =
+  | 'overview'
+  | 'users'
+  | 'roles'
+  | 'bindings'
+  | 'policies'
+  | 'authorization'
+  | 'sessions'
+
+export function useRamManagement(section: RamManagementSection) {
   const route = useRoute()
-  const activeTab = ref('users')
   const permissionStore = usePermissionStore()
   const users = ref<RamUserDto[]>([])
   const roles = ref<RamRoleDto[]>([])
@@ -403,10 +411,15 @@ export function useRamManagement() {
 
   const loadAll = async () => {
     try {
-      await Promise.all([loadUsers(), loadRoles(), loadGroups(), loadSessions(), loadPolicies()])
-      if (canReadBindings.value) {
+      if (section === 'users') await Promise.all([loadUsers(), loadGroups()])
+      if (section === 'roles') await Promise.all([loadRoles(), loadUsers(), loadGroups()])
+      if (section === 'bindings') {
+        await Promise.all([loadRoles(), loadUsers(), loadGroups()])
         await loadBindings()
       }
+      if (section === 'policies') await loadPolicies()
+      if (section === 'authorization') await loadUsers()
+      if (section === 'sessions') await loadSessions()
     } catch (error: any) {
       ElMessage.error(error.message || i18ns.t('loadFailed'))
     }
@@ -796,7 +809,7 @@ export function useRamManagement() {
     selectedPolicy.value = policy
     showAttachForm.value = false
     attachDrawerVisible.value = true
-    await loadPolicyAttachments(policy.id)
+    await Promise.all([loadPolicyAttachments(policy.id), loadUsers(), loadRoles(), loadGroups()])
   }
 
   const loadPolicyAttachments = async (policyId: string) => {
@@ -868,7 +881,6 @@ export function useRamManagement() {
 
   return {
     Refresh,
-    activeTab,
     attachDrawerVisible,
     attachForm,
     attachTargetOptions,
@@ -924,11 +936,14 @@ export function useRamManagement() {
     getPermLabel,
     getPermTooltip,
     groups,
-    loadAll,
     loadBindings,
     loadEffectivePermissions,
+    loadGroups,
     loadPolicyAttachments,
+    loadPolicies,
+    loadRoles,
     loadSessions,
+    loadUsers,
     loading,
     openBindDialog,
     openPolicyAttachments,

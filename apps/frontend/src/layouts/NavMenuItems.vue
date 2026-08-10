@@ -23,16 +23,33 @@
         <el-icon><component :is="node.icon" /></el-icon>
         <span>{{ i18ns.t(node.labelKey as any) }}</span>
       </template>
-      <el-menu-item
-        v-for="child in node.children"
-        :key="child.id"
-        :index="child.route!"
-        @click="nav(child.route!, $event)"
-        @contextmenu.prevent="openRouteMenu(child.route!, $event)"
-      >
-        <el-icon><component :is="child.icon" /></el-icon>
-        <template #title>{{ i18ns.t(child.labelKey as any) }}</template>
-      </el-menu-item>
+      <template v-for="child in node.children" :key="child.id">
+        <el-sub-menu v-if="child.children?.length" :index="child.id">
+          <template #title>
+            <el-icon><component :is="child.icon" /></el-icon>
+            <span>{{ i18ns.t(child.labelKey as any) }}</span>
+          </template>
+          <el-menu-item
+            v-for="entry in child.children"
+            :key="entry.id"
+            :index="entry.route!"
+            @click="nav(entry.route!, $event)"
+            @contextmenu.prevent="openRouteMenu(entry.route!, $event)"
+          >
+            <el-icon><component :is="entry.icon" /></el-icon>
+            <template #title>{{ i18ns.t(entry.labelKey as any) }}</template>
+          </el-menu-item>
+        </el-sub-menu>
+        <el-menu-item
+          v-else
+          :index="child.route!"
+          @click="nav(child.route!, $event)"
+          @contextmenu.prevent="openRouteMenu(child.route!, $event)"
+        >
+          <el-icon><component :is="child.icon" /></el-icon>
+          <template #title>{{ i18ns.t(child.labelKey as any) }}</template>
+        </el-menu-item>
+      </template>
     </el-sub-menu>
     <el-menu-item
       v-else
@@ -140,29 +157,38 @@ const group = (
   presentation: 'flat' | 'group' = 'group',
 ): MenuNode => ({ id, labelKey, icon, children, dividerBefore, presentation })
 
-const relayMenu = group('ai-relay', 'nav.relay', Connection, [
-  item('relayTokenManagement', 'nav.myTokens', Key, [Permission.RELAY_TOKEN_READ]),
-  item('apiDocumentation', 'nav.apiDocumentation', Document, [Permission.RELAY_TOKEN_READ]),
-  item(
-    'relayChannelProvider',
-    'nav.relayChannelProvider',
-    Wallet,
-    [Permission.RELAY_CHANNEL_SUBMIT, Permission.RELAY_CHANNEL_PROVIDER_READ],
-    'any',
-  ),
-  item('relayChannelReview', 'nav.relayChannelReview', Document, [Permission.RELAY_CHANNEL_REVIEW]),
-  item('relaySettings', 'nav.relaySettings', Tools, [Permission.MODEL_PRICING_UPDATE]),
-  item('relayChannelHealth', 'nav.relayChannelHealth', Monitor, [
-    Permission.RELAY_CHANNEL_HEALTH_READ,
-  ]),
-  item('relayRequestDiagnostics', 'nav.relayRequestDiagnostics', DataAnalysis, [
-    Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
-  ]),
-  item('relayChannelProbes', 'nav.relayChannelProbes', Monitor, [
-    Permission.RELAY_CHANNEL_PROBE_READ,
-  ]),
-  item('upstreamStatus', 'nav.upstreamStatus', Connection, [Permission.UPSTREAM_STATUS_READ]),
-], false, 'flat')
+const relayMenu = group(
+  'ai-relay',
+  'nav.relay',
+  Connection,
+  [
+    item('relayTokenManagement', 'nav.myTokens', Key, [Permission.RELAY_TOKEN_READ]),
+    item('apiDocumentation', 'nav.apiDocumentation', Document, [Permission.RELAY_TOKEN_READ]),
+    item(
+      'relayChannelProvider',
+      'nav.relayChannelProvider',
+      Wallet,
+      [Permission.RELAY_CHANNEL_SUBMIT, Permission.RELAY_CHANNEL_PROVIDER_READ],
+      'any',
+    ),
+    item('relayChannelReview', 'nav.relayChannelReview', Document, [
+      Permission.RELAY_CHANNEL_REVIEW,
+    ]),
+    item('relaySettings', 'nav.relaySettings', Tools, [Permission.MODEL_PRICING_UPDATE]),
+    item('relayChannelHealth', 'nav.relayChannelHealth', Monitor, [
+      Permission.RELAY_CHANNEL_HEALTH_READ,
+    ]),
+    item('relayRequestDiagnostics', 'nav.relayRequestDiagnostics', DataAnalysis, [
+      Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
+    ]),
+    item('relayChannelProbes', 'nav.relayChannelProbes', Monitor, [
+      Permission.RELAY_CHANNEL_PROBE_READ,
+    ]),
+    item('upstreamStatus', 'nav.upstreamStatus', Connection, [Permission.UPSTREAM_STATUS_READ]),
+  ],
+  false,
+  'flat',
+)
 
 const productUserMenu = DEVELOPER_PRODUCT_NAVIGATION.map((product) =>
   item(
@@ -233,13 +259,20 @@ const menuDefinition: readonly MenuNode[] = [
   ),
   ...productUserMenu,
   ...productOperationsMenu,
-  group('oj', 'nav.ojSubmitter', Cpu, [
-    item('ojAPIKeyManagement', 'nav.ojAPIKeyManagement', Key, [Permission.OJ_APIKEY_READ]),
-    item('ojUsageStatistics', 'nav.ojUsageStatistics', Histogram, [Permission.OJ_USAGE_READ]),
-    item('ojPricingManagement', 'nav.ojPricingManagement', TrendCharts, [
-      Permission.OJ_PRICING_READ,
-    ]),
-  ], false, 'flat'),
+  group(
+    'oj',
+    'nav.ojSubmitter',
+    Cpu,
+    [
+      item('ojAPIKeyManagement', 'nav.ojAPIKeyManagement', Key, [Permission.OJ_APIKEY_READ]),
+      item('ojUsageStatistics', 'nav.ojUsageStatistics', Histogram, [Permission.OJ_USAGE_READ]),
+      item('ojPricingManagement', 'nav.ojPricingManagement', TrendCharts, [
+        Permission.OJ_PRICING_READ,
+      ]),
+    ],
+    false,
+    'flat',
+  ),
   item('developerServiceManagement', 'nav.developerServiceManagement', Setting, [
     Permission.DEVELOPER_QUOTA_MANAGE,
   ]),
@@ -277,27 +310,57 @@ const menuDefinition: readonly MenuNode[] = [
   ),
   group(
     'iam',
-    'nav.userManagement',
+    'nav.iam',
     UserFilled,
     [
-      item('userManagement', 'nav.users', User, [Permission.USER_READ]),
-      item('groupManagement', 'nav.groups', Collection, [Permission.GROUP_READ]),
-      item('permission', 'nav.permissions', Operation, [Permission.PERMISSION_VIEW]),
       item(
-        'ramManagement',
-        'nav.ramManagement',
-        Key,
+        'iamOverview',
+        'nav.iamOverview',
+        HomeFilled,
         [
-          Permission.RAM_USER_READ,
+          Permission.USER_READ,
+          Permission.GROUP_READ,
+          Permission.PERMISSION_VIEW,
           Permission.RAM_ROLE_READ,
-          Permission.RAM_BINDING_READ,
-          Permission.RAM_SESSION_READ,
         ],
         'any',
       ),
+      group('iam-identity', 'nav.iamIdentityManagement', User, [
+        item('userManagement', 'nav.users', User, [Permission.USER_READ]),
+        item('groupManagement', 'nav.groups', Collection, [Permission.GROUP_READ]),
+        item('roleManagement', 'nav.roles', Key, [Permission.RAM_ROLE_READ]),
+      ]),
+      group('iam-permissions', 'nav.iamPermissionManagement', Operation, [
+        item('iamAuthorizations', 'nav.iamAuthorizations', Key, [Permission.PERMISSION_VIEW]),
+        item('iamPermissionPolicies', 'nav.iamPermissionPolicies', Document, [
+          Permission.PERMISSION_VIEW,
+        ]),
+        item('iamPermissionDiagnostics', 'nav.iamPermissionDiagnostics', DataAnalysis, [
+          Permission.PERMISSION_VIEW,
+        ]),
+      ]),
     ],
     true,
   ),
+  item(
+    'ramOverview',
+    'nav.ramOverview',
+    HomeFilled,
+    [
+      Permission.RAM_USER_READ,
+      Permission.RAM_ROLE_READ,
+      Permission.RAM_BINDING_READ,
+      Permission.RAM_POLICY_READ,
+      Permission.RAM_SESSION_READ,
+    ],
+    'any',
+  ),
+  item('ramManagement', 'nav.ramUsers', User, [Permission.RAM_USER_READ]),
+  item('ramRoles', 'nav.roles', Key, [Permission.RAM_ROLE_READ]),
+  item('ramBindings', 'nav.ramBindings', Key, [Permission.RAM_BINDING_READ]),
+  item('ramPolicies', 'nav.ramPolicies', Document, [Permission.RAM_POLICY_READ]),
+  item('ramAuthorization', 'nav.ramAuthorization', DataAnalysis, [Permission.RAM_USER_READ]),
+  item('ramSessions', 'nav.ramSessions', Monitor, [Permission.RAM_SESSION_READ]),
   group('billing', 'nav.financial', Wallet, [
     item('balanceManagement', 'nav.balanceManagement', CreditCard, [Permission.BALANCE_READ]),
     item(
@@ -410,7 +473,9 @@ const filterVisibleNodes = (nodes: readonly MenuNode[]): MenuNode[] => {
 
 const visibleMenuNodes = computed(() => filterVisibleNodes(menuDefinition))
 const isHomeRoute = (route?: RouteName): boolean => route === 'home' || route === 'consoleDashboard'
-const homeMenuNodes = computed(() => visibleMenuNodes.value.filter((node) => isHomeRoute(node.route)))
+const homeMenuNodes = computed(() =>
+  visibleMenuNodes.value.filter((node) => isHomeRoute(node.route)),
+)
 const navigationMenuNodes = computed(() =>
   visibleMenuNodes.value.filter((node) => !isHomeRoute(node.route)),
 )

@@ -1,4 +1,4 @@
-import type { SiteProfile, SiteProfileId, SiteRouteGroup } from '@/config/site-registry'
+import type { SiteProfile, SiteRouteGroup } from '@/config/site-registry'
 
 export type OverviewCategory =
   | 'account'
@@ -22,24 +22,6 @@ export interface RouteCatalogEntry {
   path: string
   overviewCategory?: OverviewCategory
   legacyPaths?: readonly string[]
-}
-
-export const siteProfileDefaultPaths: Readonly<Record<SiteProfileId, string>> = {
-  public: '/home',
-  identity: '/login',
-  account: '/settings/profile',
-  chat: '/chat',
-  developer: '/products',
-  terminal: '/products/remote-terminal-cloud',
-  'console-core': '/dashboard',
-  'console-ai': '/relay/tokens',
-  'console-developer': '/applications/oauth',
-  'console-terminal': '/console',
-  'console-ram': '/users',
-  'management-core': '/iam/users',
-  'management-ai': '/relay/settings',
-  'management-developer': '/services',
-  'management-terminal': '/products/remote-terminal',
 }
 
 const productEntries = [
@@ -205,7 +187,7 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   ...productEntries.flatMap((product) => [
     {
       name: `product-${product}`,
-      group: 'developer' as const,
+      group: ('product-' + product) as SiteRouteGroup,
       path: `/products/${product}`,
       overviewCategory: 'developer-products' as const,
       legacyPaths: [`/${product}`],
@@ -247,6 +229,12 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     legacyPaths: ['/relay/remote-terminal'],
   },
   {
+    name: 'iamOverview',
+    group: 'management-core',
+    path: '/iam/overview',
+    overviewCategory: 'console-iam',
+  },
+  {
     name: 'userManagement',
     group: 'management-core',
     path: '/iam/users',
@@ -261,11 +249,41 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     legacyPaths: ['/management/groups'],
   },
   {
+    name: 'roleManagement',
+    group: 'management-core',
+    path: '/iam/roles',
+    overviewCategory: 'console-iam',
+  },
+  {
+    name: 'iamAuthorizations',
+    group: 'management-core',
+    path: '/iam/authorizations',
+    overviewCategory: 'console-iam',
+    legacyPaths: ['/iam/permissions', '/management/permissions'],
+  },
+  {
+    name: 'iamPermissionPolicies',
+    group: 'management-core',
+    path: '/iam/permission-policies',
+    overviewCategory: 'console-iam',
+  },
+  {
+    name: 'iamPermissionDiagnostics',
+    group: 'management-core',
+    path: '/iam/permission-diagnostics',
+    overviewCategory: 'console-iam',
+  },
+  {
     name: 'permission',
     group: 'management-core',
     path: '/iam/permissions',
     overviewCategory: 'console-iam',
-    legacyPaths: ['/management/permissions'],
+  },
+  {
+    name: 'ramOverview',
+    group: 'console-ram',
+    path: '/overview',
+    overviewCategory: 'console-ram',
   },
   {
     name: 'ramManagement',
@@ -273,6 +291,36 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     path: '/users',
     overviewCategory: 'console-ram',
     legacyPaths: ['/iam/ram', '/management/ram'],
+  },
+  {
+    name: 'ramRoles',
+    group: 'console-ram',
+    path: '/roles',
+    overviewCategory: 'console-ram',
+  },
+  {
+    name: 'ramBindings',
+    group: 'console-ram',
+    path: '/role-bindings',
+    overviewCategory: 'console-ram',
+  },
+  {
+    name: 'ramPolicies',
+    group: 'console-ram',
+    path: '/policies',
+    overviewCategory: 'console-ram',
+  },
+  {
+    name: 'ramAuthorization',
+    group: 'console-ram',
+    path: '/authorizations',
+    overviewCategory: 'console-ram',
+  },
+  {
+    name: 'ramSessions',
+    group: 'console-ram',
+    path: '/sessions',
+    overviewCategory: 'console-ram',
   },
   {
     name: 'balanceManagement',
@@ -316,7 +364,12 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     overviewCategory: 'console-operations',
     legacyPaths: ['/management/legal-policies'],
   },
-  { name: 'debug', group: 'management-core', path: '/debug', overviewCategory: 'console-operations' },
+  {
+    name: 'debug',
+    group: 'management-core',
+    path: '/debug',
+    overviewCategory: 'console-operations',
+  },
   {
     name: 'serverConfig',
     group: 'management-core',

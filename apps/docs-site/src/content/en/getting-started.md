@@ -17,7 +17,9 @@ This is the public bilingual user manual for the site. The layout keeps the rhyt
 
 ## Multi-site navigation
 
-The application uses separate site addresses by responsibility: `developer` and `terminal` are product entry sites; account settings, billing, and tickets stay on the account site; `console`, `ai.console`, `developer.console`, `terminal.console`, and `ram.console` are user consoles; `management` and its product subdomains are for operations. The site switcher in the upper-left opens the full feature overview and takes each feature to its canonical address.
+The application uses separate addresses by responsibility and product. `console` is the signed-in product portal; AI relay, developer applications, cloud terminal, and RAM each have a user console; KV, short links, secrets, status, verification, IP geolocation, and push each have their own product console. `management` and its product subdomains are for operations. The site switcher groups user sites, product consoles, user consoles, and operations, and shows only destinations for which you have at least one feature permission.
+
+Access control in the operations site is organized into Overview, Identity Management, and Permission Management. Identity Management contains users, groups, and roles; roles open in the RAM console. Permission Management separates user-level authorizations, permission-source inspection, and permission diagnostics into dedicated pages so that changes and investigation remain distinct.
 
 On desktop after signing in, a bottom-aligned quick-action icon rail appears on the right. It shows permission-aware self-service, online tools, ticket, and documentation entries; hover an icon to see its name. The final arrow hides the rail completely and leaves only an expand button at the lower-right edge; drag that button vertically or select it to restore the rail. A cross-site entry opens its canonical site address directly.
 

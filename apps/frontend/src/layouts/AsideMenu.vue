@@ -153,24 +153,31 @@
               <span>{{ i18ns.t('nav.switchSite') }}</span>
             </div>
             <div class="overview-site-list">
-              <button
-                v-for="profile in availableSiteProfiles"
-                :key="profile.id"
-                type="button"
-                class="overview-site-item"
-                :class="{ 'is-active': profile.id === currentSiteProfile.id }"
-                :disabled="profile.id === currentSiteProfile.id"
-                @click="navigateToSiteProfile(profile.id)"
+              <section
+                v-for="group in siteSwitchGroups"
+                :key="group.key"
+                class="overview-site-group"
               >
-                <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
-                <span>{{ i18ns.t(siteLabelKeys[profile.id]) }}</span>
-                <el-icon
-                  v-if="profile.id === currentSiteProfile.id"
-                  class="overview-site-item__current"
+                <div class="overview-site-group__title">{{ i18ns.t(group.labelKey) }}</div>
+                <button
+                  v-for="profile in group.profiles"
+                  :key="profile.id"
+                  type="button"
+                  class="overview-site-item"
+                  :class="{ 'is-active': profile.id === currentSiteProfile.id }"
+                  :disabled="profile.id === currentSiteProfile.id"
+                  @click="navigateToSiteProfile(profile.id)"
                 >
-                  <Check />
-                </el-icon>
-              </button>
+                  <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
+                  <span>{{ i18ns.t(siteLabelKeys[profile.id]) }}</span>
+                  <el-icon
+                    v-if="profile.id === currentSiteProfile.id"
+                    class="overview-site-item__current"
+                  >
+                    <Check />
+                  </el-icon>
+                </button>
+              </section>
             </div>
           </nav>
 
@@ -449,8 +456,6 @@ import StorageKey from '@/constant/storagekey'
 import {
   ArrowDown,
   ArrowUp,
-  Expand,
-  Fold,
   Grid,
   Operation,
   HomeFilled,
@@ -512,7 +517,7 @@ import { Permission } from '@/constant/permission'
 import { currentSiteProfile } from '@/router'
 import { resolveCanonicalRouteUrl } from '@/router/routes'
 import { getRouteCatalogEntry, type OverviewCategory } from '@/router/route-catalog'
-import { getSiteProfilesForEnvironment, type SiteProfileId } from '@/config/site-registry'
+import { getAccessibleSiteProfiles, type SiteProfileId } from '@/config/site-registry'
 import {
   DEVELOPER_PRODUCT_NAVIGATION,
   developerProductConfigRoute,
@@ -609,7 +614,7 @@ const overviewCategoryDefinitions: readonly {
     icon: Key,
   },
   { key: 'terminal', title: () => i18ns.t('nav.remoteTerminal'), icon: Monitor },
-  { key: 'console-iam', title: () => i18ns.t('nav.userManagement'), icon: UserFilled },
+  { key: 'console-iam', title: () => i18ns.t('nav.iam'), icon: UserFilled },
   { key: 'console-operations', title: () => i18ns.t('nav.system'), icon: Monitor },
   { key: 'console-ai', title: () => i18ns.t('nav.relay'), icon: Connection },
   { key: 'console-developer', title: () => i18ns.t('nav.openPlatform'), icon: Grid },
@@ -651,6 +656,13 @@ const siteLabelKeys: Record<SiteProfileId, I18nENAvailableKeys> = {
   'console-developer': 'nav.siteConsoleDeveloper',
   'console-terminal': 'nav.siteConsoleTerminal',
   'console-ram': 'nav.siteConsoleRam',
+  'product-kv': 'nav.productKv',
+  'product-short_link': 'nav.productShortLink',
+  'product-secret': 'nav.productSecret',
+  'product-status': 'nav.productStatus',
+  'product-verification': 'nav.productVerification',
+  'product-ip_geolocation': 'nav.productIpGeolocation',
+  'product-push': 'nav.productPush',
   'management-core': 'nav.siteManagementCore',
   'management-ai': 'nav.siteManagementAi',
   'management-developer': 'nav.siteManagementDeveloper',
@@ -669,6 +681,13 @@ const siteIcons: Record<SiteProfileId, Component> = {
   'console-developer': Grid,
   'console-terminal': Monitor,
   'console-ram': Key,
+  'product-kv': Connection,
+  'product-short_link': Link,
+  'product-secret': Lock,
+  'product-status': Monitor,
+  'product-verification': Key,
+  'product-ip_geolocation': Connection,
+  'product-push': Bell,
   'management-core': Setting,
   'management-ai': Connection,
   'management-developer': Grid,
@@ -676,8 +695,31 @@ const siteIcons: Record<SiteProfileId, Component> = {
 }
 
 const availableSiteProfiles = computed(() =>
-  currentSiteProfile.id === 'rejected' ? [] : getSiteProfilesForEnvironment(currentSiteProfile),
+  currentSiteProfile.id === 'rejected'
+    ? []
+    : getAccessibleSiteProfiles(currentSiteProfile, permissionStore.effectivePermissions),
 )
+
+const siteSwitchGroups = computed(() => {
+  const labels = {
+    account: 'nav.siteGroupAccount',
+    products: 'nav.siteGroupProducts',
+    'user-console': 'nav.siteGroupConsole',
+    management: 'nav.siteGroupManagement',
+  } as const
+
+  return (Object.keys(labels) as Array<keyof typeof labels>)
+    .map((key) => ({
+      key,
+      labelKey: labels[key],
+      profiles: availableSiteProfiles.value.filter(
+        (profile) =>
+          profile.navigationGroup === key ||
+          (key === 'account' && profile.navigationGroup === 'public'),
+      ),
+    }))
+    .filter((group) => group.profiles.length > 0)
+})
 
 const navigateToSiteProfile = (siteId: SiteProfileId) => {
   const target = availableSiteProfiles.value.find((profile) => profile.id === siteId)
@@ -686,20 +728,6 @@ const navigateToSiteProfile = (siteId: SiteProfileId) => {
   showOverview.value = false
   showMobileDrawer.value = false
   window.location.assign(new URL(target.defaultPath, target.canonicalOrigin).toString())
-}
-
-const toggleCollapse = () => {
-  showOverview.value = false
-  isCollapse.value = !isCollapse.value
-}
-
-const toggleOverview = () => {
-  if (showOverview.value) {
-    showOverview.value = false
-    return
-  }
-
-  openOverview()
 }
 
 const openOverview = () => {
@@ -1191,10 +1219,22 @@ const overviewSections = computed<OverviewSection[]>(() => {
       ],
     },
     {
-      key: 'userManagement',
-      title: i18ns.t('nav.userManagement'),
+      key: 'iam',
+      title: i18ns.t('nav.iam'),
       icon: UserFilled,
       items: [
+        {
+          key: 'iamOverview',
+          label: i18ns.t('nav.iamOverview'),
+          icon: HomeFilled,
+          route: 'iamOverview',
+          visible: canAny(
+            Permission.USER_READ,
+            Permission.GROUP_READ,
+            Permission.PERMISSION_VIEW,
+            Permission.RAM_ROLE_READ,
+          ),
+        },
         {
           key: 'userManagement',
           label: i18ns.t('nav.users'),
@@ -1210,23 +1250,32 @@ const overviewSections = computed<OverviewSection[]>(() => {
           visible: can(Permission.GROUP_READ),
         },
         {
-          key: 'permission',
-          label: i18ns.t('nav.permissions'),
+          key: 'roleManagement',
+          label: i18ns.t('nav.roles'),
+          icon: Key,
+          route: 'roleManagement',
+          visible: can(Permission.RAM_ROLE_READ),
+        },
+        {
+          key: 'iamAuthorizations',
+          label: i18ns.t('nav.iamAuthorizations'),
           icon: Operation,
-          route: 'permission',
+          route: 'iamAuthorizations',
           visible: can(Permission.PERMISSION_VIEW),
         },
         {
-          key: 'ramManagement',
-          label: i18ns.t('nav.ramManagement'),
-          icon: Key,
-          route: 'ramManagement',
-          visible: canAny(
-            Permission.RAM_USER_READ,
-            Permission.RAM_ROLE_READ,
-            Permission.RAM_BINDING_READ,
-            Permission.RAM_SESSION_READ,
-          ),
+          key: 'iamPermissionPolicies',
+          label: i18ns.t('nav.iamPermissionPolicies'),
+          icon: Document,
+          route: 'iamPermissionPolicies',
+          visible: can(Permission.PERMISSION_VIEW),
+        },
+        {
+          key: 'iamPermissionDiagnostics',
+          label: i18ns.t('nav.iamPermissionDiagnostics'),
+          icon: DataAnalysis,
+          route: 'iamPermissionDiagnostics',
+          visible: can(Permission.PERMISSION_VIEW),
         },
       ],
     },
@@ -1827,6 +1876,22 @@ watch(
 .overview-site-list {
   display: grid;
   gap: 4px;
+}
+
+.overview-site-group {
+  display: grid;
+  gap: 4px;
+}
+
+.overview-site-group + .overview-site-group {
+  margin-top: 12px;
+}
+
+.overview-site-group__title {
+  padding: 4px 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .overview-site-item {

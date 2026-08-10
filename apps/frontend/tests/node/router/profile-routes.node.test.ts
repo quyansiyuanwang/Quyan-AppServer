@@ -98,8 +98,19 @@ describe('profile route factory', () => {
   it('redirects every management root entry to the management default path', () => {
     const managementRoutes = createRoutesForProfile(getKnownProfile('management.qysyw.cn'))
 
-    expect(findRoute(managementRoutes, 'root')?.redirect).toBe('/iam/users')
-    expect(findRoute(managementRoutes, 'index')?.redirect).toBe('/iam/users')
+    expect(findRoute(managementRoutes, 'root')?.redirect).toBe('/iam/overview')
+    expect(findRoute(managementRoutes, 'index')?.redirect).toBe('/iam/overview')
+    expect(collectRouteNames(managementRoutes)).toEqual(
+      expect.arrayContaining([
+        'iamOverview',
+        'userManagement',
+        'groupManagement',
+        'roleManagement',
+        'iamAuthorizations',
+        'iamPermissionPolicies',
+        'iamPermissionDiagnostics',
+      ]),
+    )
   })
 
   it('gives the general console an isolated user dashboard', () => {
@@ -109,11 +120,31 @@ describe('profile route factory', () => {
     expect(collectRouteNames(consoleRoutes)).not.toContain('userManagement')
   })
 
+  it('isolates each product console from the developer catalog and operations routes', () => {
+    const productRoutes = createRoutesForProfile(getKnownProfile('kv.console.qysyw.cn'))
+
+    expect(collectRouteNames(productRoutes)).toContain('product-kv')
+    expect(collectRouteNames(productRoutes)).not.toContain('product-short_link')
+    expect(collectRouteNames(productRoutes)).not.toContain('product-management-kv')
+    expect(collectRouteNames(productRoutes)).not.toContain('developerProducts')
+  })
+
   it('isolates RAM administration in the RAM console', () => {
     const ramRoutes = createRoutesForProfile(getKnownProfile('ram.console.qysyw.cn'))
     const managementRoutes = createRoutesForProfile(getKnownProfile('management.qysyw.cn'))
 
-    expect(collectRouteNames(ramRoutes)).toContain('ramManagement')
+    expect(collectRouteNames(ramRoutes)).toEqual(
+      expect.arrayContaining([
+        'ramOverview',
+        'ramManagement',
+        'ramRoles',
+        'ramBindings',
+        'ramPolicies',
+        'ramAuthorization',
+        'ramSessions',
+      ]),
+    )
+    expect(findRoute(ramRoutes, 'root')?.redirect).toBe('/overview')
     expect(collectRouteNames(ramRoutes)).not.toContain('userManagement')
     expect(collectRouteNames(managementRoutes)).not.toContain('ramManagement')
   })
@@ -140,6 +171,9 @@ describe('profile route factory', () => {
     )
     expect(resolveCanonicalRouteUrl('ramManagement', accountProfile)).toBe(
       'https://ram.console.qysyw.cn/users',
+    )
+    expect(resolveCanonicalRouteUrl('ramRoles', accountProfile)).toBe(
+      'https://ram.console.qysyw.cn/roles',
     )
     expect(resolveCanonicalRouteUrl('remoteTerminal', accountProfile)).toBe(
       'https://terminal.console.qysyw.cn/console',

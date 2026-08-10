@@ -1,5 +1,5 @@
 <template>
-  <el-tab-pane :label="i18ns.t('RamManagement.users')" name="users">
+  <section class="ram-section">
     <div v-if="canReadUsers" class="section-toolbar">
       <div class="toolbar-left">
         <el-button v-if="canCreateUsers" type="primary" :icon="Plus" @click="openUserDialog()">
@@ -13,6 +13,7 @@
         >
           {{ i18ns.t('RamManagement.batchDelete') }} ({{ selectedUsers.length }})
         </el-button>
+        <el-button :icon="Refresh" @click="refreshUsers">{{ i18ns.t('refresh') }}</el-button>
       </div>
       <el-input
         v-model="userSearch"
@@ -66,11 +67,11 @@
     </el-table>
 
     <el-empty v-else :description="i18ns.t('message.error.forbidden')" />
-  </el-tab-pane>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { Delete, Plus, Search } from '@element-plus/icons-vue'
+import { Delete, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import type { RamUserDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
@@ -84,10 +85,14 @@ const {
   deleteUser,
   filteredUsers,
   loading,
+  loadGroups,
+  loadUsers,
   openUserDialog,
   selectedUsers,
   userSearch,
 } = useRamManagementContext()
+
+const refreshUsers = () => void Promise.all([loadUsers(), loadGroups()])
 
 const handleSelectionChange = (value: RamUserDto[]) => {
   selectedUsers.value = value

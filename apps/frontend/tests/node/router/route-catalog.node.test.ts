@@ -2,12 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { resolveSiteProfile, siteProfiles } from '@/config/site-registry'
 import { createRoutesForProfile } from '@/router/routes'
 import type { RouteRecordRaw } from 'vue-router'
-import {
-  getRouteCatalogEntry,
-  resolveRouteMigration,
-  routeCatalog,
-  siteProfileDefaultPaths,
-} from '@/router/route-catalog'
+import { getRouteCatalogEntry, resolveRouteMigration, routeCatalog } from '@/router/route-catalog'
 import { resolveRouteMigrationUrl } from '@/router/route-migration'
 
 const getKnownProfile = (hostname: string) => {
@@ -48,9 +43,9 @@ describe('route catalog', () => {
     }
   })
 
-  it('uses the catalog default for every site profile', () => {
+  it('uses a registered default path for every site profile', () => {
     for (const profile of siteProfiles) {
-      expect(profile.defaultPath).toBe(siteProfileDefaultPaths[profile.id])
+      expect(profile.defaultPath).toMatch(/^\//)
     }
   })
 
@@ -94,6 +89,12 @@ describe('route catalog', () => {
       profileId: 'console-ram',
       path: '/users',
     })
+    expect(
+      resolveRouteMigration('/iam/permissions', getKnownProfile('management.qysyw.test')),
+    ).toEqual({
+      profileId: 'management-core',
+      path: '/iam/authorizations',
+    })
     expect(resolveRouteMigration('/short-link/analytics/team-a/link-b', account)).toEqual({
       profileId: 'management-developer',
       path: '/products/short_link/analytics/team-a/link-b',
@@ -103,9 +104,9 @@ describe('route catalog', () => {
   it('builds same-environment migration URLs and preserves query/hash', () => {
     const account = getKnownProfile('account.qysyw.test')
 
-    expect(resolveRouteMigrationUrl('/management/users', '?tab=roles', '#member-1', account)).toBe(
-      'https://management.qysyw.test:5173/iam/users?tab=roles#member-1',
-    )
+    expect(
+      resolveRouteMigrationUrl('/management/permissions', '?tab=roles', '#member-1', account),
+    ).toBe('https://management.qysyw.test:5173/iam/authorizations?tab=roles#member-1')
     expect(resolveRouteMigrationUrl('/not-a-route', '', '', account)).toBeUndefined()
   })
 
