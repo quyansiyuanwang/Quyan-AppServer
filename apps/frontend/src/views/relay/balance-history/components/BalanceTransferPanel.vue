@@ -372,7 +372,6 @@ onMounted(load)
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
-  margin-bottom: 20px;
 }
 .balance-transfer-panel__heading {
   display: flex;

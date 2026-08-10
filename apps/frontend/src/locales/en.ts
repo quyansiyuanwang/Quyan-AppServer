@@ -869,6 +869,8 @@ export default {
     quickAccess: 'Quick Access',
     expandUtilitySidebar: 'Expand quick actions',
     collapseUtilitySidebar: 'Collapse quick actions',
+    helpCenter: 'Help center',
+    backToTop: 'Back to top',
     accountMenu: 'Account',
     accountId: 'Account ID',
     copyAccountName: 'Copy account name',

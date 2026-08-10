@@ -1,5 +1,5 @@
 <template>
-  <div class="workspace-ticket-view page-shell">
+  <AccountProfileLayout class="workspace-ticket-view page-shell">
     <el-card v-if="!isLoggedIn" class="page-card login-card" shadow="never">
       <template #header>
         <div class="card-header-block">
@@ -85,7 +85,7 @@
       @start-edit="startEditingFromDetail"
       @submit-comment="submitComment"
     />
-  </div>
+  </AccountProfileLayout>
 </template>
 
 <script setup lang="ts">
@@ -93,6 +93,7 @@ import { ElMessage } from 'element-plus'
 import type { FormRules } from 'element-plus'
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import { i18ns } from '@/locales'
 import { ticketService } from '@/service/ticketService'
 import { Permission } from '@/constant/permission'
@@ -486,13 +487,11 @@ onMounted(() => {
 
 <style scoped>
 .workspace-ticket-view {
-  display: grid;
   gap: 18px;
 }
 
 .page-card {
   border-radius: 18px;
-  height: 100%;
 }
 
 .card-description,
@@ -510,8 +509,8 @@ onMounted(() => {
   gap: 18px;
   grid-template-columns: minmax(360px, 0.92fr) minmax(0, 1.48fr);
   align-items: start;
-  height: 95vh;
-  min-height: 0;
+  width: 100%;
+  min-width: 0;
 }
 
 .card-header-block {
@@ -533,8 +532,7 @@ onMounted(() => {
 
 @media (max-width: 1200px) {
   .ticket-layout {
-    grid-template-columns: 1fr;
-    height: auto;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

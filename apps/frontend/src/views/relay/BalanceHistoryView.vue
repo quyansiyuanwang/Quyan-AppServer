@@ -1,5 +1,5 @@
 <template>
-  <div
+  <AccountProfileLayout
     :class="[
       isDesktop ? 'desktop-page page-shell' : 'mobile-page',
       'balance-history-page-root',
@@ -17,11 +17,12 @@
         scope="account"
       />
     </div>
-  </div>
+  </AccountProfileLayout>
 </template>
 
 <script setup lang="ts">
 import { provide } from 'vue'
+import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import BalanceHistorySummary from './balance-history/components/BalanceHistorySummary.vue'
 import BalanceHistoryTransactions from './balance-history/components/BalanceHistoryTransactions.vue'
 import BalanceTransferPanel from './balance-history/components/BalanceTransferPanel.vue'

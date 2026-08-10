@@ -1,194 +1,189 @@
 <template>
   <div v-if="isDesktop" class="desktop-page page-shell">
     <div class="home-container">
-      <el-card class="page-card home-panel" shadow="never">
-        <template #header>
-          <div class="panel-header">
-            <div class="panel-header-main">
-              <div class="greeting-row">
-                <el-icon :size="18" class="greeting-icon">
-                  <Sunny v-if="timeOfDay === 'morning'" />
-                  <Sunset v-else-if="timeOfDay === 'afternoon'" />
-                  <Moon v-else />
-                </el-icon>
-                <span class="greeting-text">{{ timeGreeting }}</span>
+      <!-- Welcome banner -->
+      <section class="home-banner">
+        <div class="home-banner__main">
+          <div class="greeting-row">
+            <el-icon :size="18" class="greeting-icon">
+              <Sunny v-if="timeOfDay === 'morning'" />
+              <Sunset v-else-if="timeOfDay === 'afternoon'" />
+              <Moon v-else />
+            </el-icon>
+            <span class="greeting-text">{{ timeGreeting }}</span>
+          </div>
+          <div class="panel-title-row">
+            <h1 class="panel-title">{{ username }}</h1>
+            <el-tag :type="statusType" size="small">
+              <el-icon><CircleCheck /></el-icon>
+              {{ statusLabel }}
+            </el-tag>
+          </div>
+        </div>
+        <div class="home-banner__extra">
+          <div class="balance-label">{{ i18ns.t('home.balance') }}</div>
+          <div class="balance-value">
+            <span class="balance-currency">{{ i18ns.t('balance.yuan') }}</span>
+            <span class="balance-amount">{{ balance.toFixed(4) }}</span>
+          </div>
+          <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
+            <el-button
+              size="small"
+              type="primary"
+              link
+              @click="router.push({ name: 'balanceHistory' })"
+            >
+              {{ i18ns.t('home.viewDetails') }}
+            </el-button>
+          </PermissionWrapper>
+        </div>
+      </section>
+
+      <!-- System info -->
+      <section class="home-section">
+        <div class="section-header">
+          <span class="section-title">{{ i18ns.t('home.systemInfo') }}</span>
+        </div>
+        <div class="info-grid flow-grid">
+          <div class="info-card">
+            <div class="stat-inner">
+              <div class="stat-icon-wrap" style="background: #ecf5ff">
+                <el-icon :size="20" color="#409EFF"><User /></el-icon>
               </div>
-              <div class="panel-title-row">
-                <h1 class="panel-title">{{ username }}</h1>
-                <el-tag :type="statusType" size="small">
-                  <el-icon><CircleCheck /></el-icon>
-                  {{ statusLabel }}
-                </el-tag>
+              <div class="stat-body">
+                <div class="stat-label">{{ i18ns.t('home.accountId') }}</div>
+                <div class="stat-value mono">{{ shortId }}</div>
               </div>
-            </div>
-            <div class="panel-balance">
-              <div class="balance-label">{{ i18ns.t('home.balance') }}</div>
-              <div class="balance-value">
-                <span class="balance-currency">{{ i18ns.t('balance.yuan') }}</span>
-                <span class="balance-amount">{{ balance.toFixed(4) }}</span>
-              </div>
-              <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-                <el-button
-                  size="small"
-                  type="primary"
-                  link
-                  @click="router.push({ name: 'balanceHistory' })"
-                >
-                  {{ i18ns.t('home.viewDetails') }}
-                </el-button>
-              </PermissionWrapper>
             </div>
           </div>
-        </template>
-
-        <div class="desktop-sections">
-          <section class="desktop-section">
-            <div class="section-header">
-              <span class="section-title">{{ i18ns.t('home.systemInfo') }}</span>
-            </div>
-            <div class="info-grid">
-              <div class="info-card">
-                <div class="stat-inner">
-                  <div class="stat-icon-wrap" style="background: #ecf5ff">
-                    <el-icon :size="20" color="#409EFF"><User /></el-icon>
-                  </div>
-                  <div class="stat-body">
-                    <div class="stat-label">{{ i18ns.t('home.accountId') }}</div>
-                    <div class="stat-value mono">{{ shortId }}</div>
-                  </div>
-                </div>
+          <div class="info-card">
+            <div class="stat-inner">
+              <div class="stat-icon-wrap" style="background: #f0f9eb">
+                <el-icon :size="20" color="#67C23A"><Collection /></el-icon>
               </div>
-              <div class="info-card">
-                <div class="stat-inner">
-                  <div class="stat-icon-wrap" style="background: #f0f9eb">
-                    <el-icon :size="20" color="#67C23A"><Collection /></el-icon>
-                  </div>
-                  <div class="stat-body">
-                    <div class="stat-label">{{ i18ns.t('home.userGroup') }}</div>
-                    <div class="stat-value">{{ groupName || '—' }}</div>
-                  </div>
-                </div>
-              </div>
-              <div class="info-card">
-                <div class="stat-inner">
-                  <div class="stat-icon-wrap" style="background: #f4f4f5">
-                    <el-icon :size="20" color="#909399"><Calendar /></el-icon>
-                  </div>
-                  <div class="stat-body">
-                    <div class="stat-label">{{ i18ns.t('home.memberSince') }}</div>
-                    <div class="stat-value">{{ memberSince }}</div>
-                  </div>
-                </div>
+              <div class="stat-body">
+                <div class="stat-label">{{ i18ns.t('home.userGroup') }}</div>
+                <div class="stat-value">{{ groupName || '—' }}</div>
               </div>
             </div>
-          </section>
-
-          <section class="desktop-section">
-            <div class="section-header">
-              <span class="section-title">{{ i18ns.t('home.quickActions') }}</span>
-            </div>
-            <div class="actions-grid">
-              <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-                <div class="action-card" @click="router.push({ name: 'relayTokenManagement' })">
-                  <div class="action-icon-wrap" style="background: #ecf5ff">
-                    <el-icon :size="22" color="#409EFF"><Key /></el-icon>
-                  </div>
-                  <span class="action-label">{{ i18ns.t('nav.myTokens') }}</span>
-                </div>
-              </PermissionWrapper>
-              <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-                <div class="action-card" @click="router.push({ name: 'balanceHistory' })">
-                  <div class="action-icon-wrap" style="background: #f0f9eb">
-                    <el-icon :size="22" color="#67C23A"><Wallet /></el-icon>
-                  </div>
-                  <span class="action-label">{{ i18ns.t('nav.balanceHistory') }}</span>
-                </div>
-              </PermissionWrapper>
-              <PermissionWrapper :require="[Permission.JSON_ENDPOINT_READ]">
-                <div class="action-card" @click="router.push({ name: 'jsonEndpointManagement' })">
-                  <div class="action-icon-wrap" style="background: #fdf6ec">
-                    <el-icon :size="22" color="#E6A23C"><Document /></el-icon>
-                  </div>
-                  <span class="action-label">{{ i18ns.t('nav.jsonEndpoints') }}</span>
-                </div>
-              </PermissionWrapper>
-              <PermissionWrapper :require="[Permission.OJ_APIKEY_READ]">
-                <div class="action-card" @click="router.push({ name: 'ojAPIKeyManagement' })">
-                  <div class="action-icon-wrap" style="background: #f3eeff">
-                    <el-icon :size="22" color="#9B59B6"><Cpu /></el-icon>
-                  </div>
-                  <span class="action-label">{{ i18ns.t('nav.ojSubmitter') }}</span>
-                </div>
-              </PermissionWrapper>
-              <div class="action-card" @click="router.push({ name: 'apiDocumentation' })">
-                <div class="action-icon-wrap" style="background: #fef0f0">
-                  <el-icon :size="22" color="#F56C6C"><Reading /></el-icon>
-                </div>
-                <span class="action-label">{{ i18ns.t('nav.apiDocumentation') }}</span>
+          </div>
+          <div class="info-card">
+            <div class="stat-inner">
+              <div class="stat-icon-wrap" style="background: #f4f4f5">
+                <el-icon :size="20" color="#909399"><Calendar /></el-icon>
               </div>
-              <div class="action-card" @click="router.push({ name: 'settings' })">
-                <div class="action-icon-wrap" style="background: #f4f4f5">
-                  <el-icon :size="22" color="#909399"><Setting /></el-icon>
-                </div>
-                <span class="action-label">{{ i18ns.t('nav.settings') }}</span>
+              <div class="stat-body">
+                <div class="stat-label">{{ i18ns.t('home.memberSince') }}</div>
+                <div class="stat-value">{{ memberSince }}</div>
               </div>
             </div>
-          </section>
+          </div>
         </div>
-      </el-card>
+      </section>
+
+      <!-- Quick actions -->
+      <section class="home-section">
+        <div class="section-header">
+          <span class="section-title">{{ i18ns.t('home.quickActions') }}</span>
+        </div>
+        <div class="actions-grid flow-grid flow-grid--dense">
+          <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
+            <div class="action-card" @click="router.push({ name: 'relayTokenManagement' })">
+              <div class="action-icon-wrap" style="background: #ecf5ff">
+                <el-icon :size="22" color="#409EFF"><Key /></el-icon>
+              </div>
+              <span class="action-label">{{ i18ns.t('nav.myTokens') }}</span>
+            </div>
+          </PermissionWrapper>
+          <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
+            <div class="action-card" @click="router.push({ name: 'balanceHistory' })">
+              <div class="action-icon-wrap" style="background: #f0f9eb">
+                <el-icon :size="22" color="#67C23A"><Wallet /></el-icon>
+              </div>
+              <span class="action-label">{{ i18ns.t('nav.balanceHistory') }}</span>
+            </div>
+          </PermissionWrapper>
+          <PermissionWrapper :require="[Permission.JSON_ENDPOINT_READ]">
+            <div class="action-card" @click="router.push({ name: 'jsonEndpointManagement' })">
+              <div class="action-icon-wrap" style="background: #fdf6ec">
+                <el-icon :size="22" color="#E6A23C"><Document /></el-icon>
+              </div>
+              <span class="action-label">{{ i18ns.t('nav.jsonEndpoints') }}</span>
+            </div>
+          </PermissionWrapper>
+          <PermissionWrapper :require="[Permission.OJ_APIKEY_READ]">
+            <div class="action-card" @click="router.push({ name: 'ojAPIKeyManagement' })">
+              <div class="action-icon-wrap" style="background: #f3eeff">
+                <el-icon :size="22" color="#9B59B6"><Cpu /></el-icon>
+              </div>
+              <span class="action-label">{{ i18ns.t('nav.ojSubmitter') }}</span>
+            </div>
+          </PermissionWrapper>
+          <div class="action-card" @click="router.push({ name: 'apiDocumentation' })">
+            <div class="action-icon-wrap" style="background: #fef0f0">
+              <el-icon :size="22" color="#F56C6C"><Reading /></el-icon>
+            </div>
+            <span class="action-label">{{ i18ns.t('nav.apiDocumentation') }}</span>
+          </div>
+          <div class="action-card" @click="router.push({ name: 'settings' })">
+            <div class="action-icon-wrap" style="background: #f4f4f5">
+              <el-icon :size="22" color="#909399"><Setting /></el-icon>
+            </div>
+            <span class="action-label">{{ i18ns.t('nav.settings') }}</span>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
   <div v-else class="mobile-page mobile-adapter">
     <div class="home-container">
       <!-- Welcome Banner -->
-      <el-card class="welcome-card mobile-card" shadow="never">
-        <div class="welcome-content">
-          <div class="welcome-left">
-            <div class="greeting-row">
-              <el-icon :size="20" class="greeting-icon">
-                <Sunny v-if="timeOfDay === 'morning'" />
-                <Sunset v-else-if="timeOfDay === 'afternoon'" />
-                <Moon v-else />
-              </el-icon>
-              <span class="greeting-text">{{ timeGreeting }}</span>
-            </div>
-            <h1 class="welcome-title">{{ username }}</h1>
-            <div class="welcome-meta">
-              <el-tag :type="statusType" size="small" round>
-                <el-icon><CircleCheck /></el-icon>
-                {{ statusLabel }}
-              </el-tag>
-              <span class="meta-divider" />
-              <span class="meta-item">
-                <el-icon><Collection /></el-icon>
-                {{ groupName || i18ns.t('home.noGroup') }}
-              </span>
-              <span class="meta-divider" />
-              <span class="meta-item">
-                <el-icon><Calendar /></el-icon>
-                {{ i18ns.t('home.memberSince') }} {{ memberSince }}
-              </span>
-            </div>
+      <div class="welcome-banner">
+        <div class="welcome-left">
+          <div class="greeting-row">
+            <el-icon :size="20" class="greeting-icon">
+              <Sunny v-if="timeOfDay === 'morning'" />
+              <Sunset v-else-if="timeOfDay === 'afternoon'" />
+              <Moon v-else />
+            </el-icon>
+            <span class="greeting-text">{{ timeGreeting }}</span>
           </div>
-          <div class="welcome-balance">
-            <div class="balance-label">{{ i18ns.t('home.balance') }}</div>
-            <div class="balance-value">
-              <span class="balance-currency">{{ i18ns.t('balance.yuan') }}</span>
-              <span class="balance-amount">{{ balance.toFixed(4) }}</span>
-            </div>
-            <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-              <el-button
-                size="small"
-                text
-                type="primary"
-                @click="router.push({ name: 'balanceHistory' })"
-              >
-                {{ i18ns.t('home.viewDetails') }} →
-              </el-button>
-            </PermissionWrapper>
+          <h1 class="welcome-title">{{ username }}</h1>
+          <div class="welcome-meta">
+            <el-tag :type="statusType" size="small" round>
+              <el-icon><CircleCheck /></el-icon>
+              {{ statusLabel }}
+            </el-tag>
+            <span class="meta-divider" />
+            <span class="meta-item">
+              <el-icon><Collection /></el-icon>
+              {{ groupName || i18ns.t('home.noGroup') }}
+            </span>
+            <span class="meta-divider" />
+            <span class="meta-item">
+              <el-icon><Calendar /></el-icon>
+              {{ i18ns.t('home.memberSince') }} {{ memberSince }}
+            </span>
           </div>
         </div>
-      </el-card>
+        <div class="welcome-balance">
+          <div class="balance-label">{{ i18ns.t('home.balance') }}</div>
+          <div class="balance-value">
+            <span class="balance-currency">{{ i18ns.t('balance.yuan') }}</span>
+            <span class="balance-amount">{{ balance.toFixed(4) }}</span>
+          </div>
+          <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
+            <el-button
+              size="small"
+              text
+              type="primary"
+              @click="router.push({ name: 'balanceHistory' })"
+            >
+              {{ i18ns.t('home.viewDetails') }} →
+            </el-button>
+          </PermissionWrapper>
+        </div>
+      </div>
 
       <!-- Quick Actions -->
       <div class="section">
@@ -258,7 +253,7 @@
       <!-- Stats Row -->
       <el-row :gutter="12" class="stats-row">
         <el-col :xs="24" :sm="12" :md="8">
-          <el-card class="stat-card mobile-card" shadow="never">
+          <div class="stat-card">
             <div class="stat-inner">
               <div class="stat-icon-wrap" style="background: #ecf5ff">
                 <el-icon :size="20" color="#409EFF"><User /></el-icon>
@@ -268,10 +263,10 @@
                 <div class="stat-value mono">{{ shortId }}</div>
               </div>
             </div>
-          </el-card>
+          </div>
         </el-col>
         <el-col :xs="24" :sm="12" :md="8">
-          <el-card class="stat-card mobile-card" shadow="never">
+          <div class="stat-card">
             <div class="stat-inner">
               <div class="stat-icon-wrap" style="background: #f0f9eb">
                 <el-icon :size="20" color="#67C23A"><Collection /></el-icon>
@@ -281,10 +276,10 @@
                 <div class="stat-value">{{ groupName || '—' }}</div>
               </div>
             </div>
-          </el-card>
+          </div>
         </el-col>
         <el-col :xs="24" :sm="12" :md="8">
-          <el-card class="stat-card mobile-card" shadow="never">
+          <div class="stat-card">
             <div class="stat-inner">
               <div class="stat-icon-wrap" style="background: #f4f4f5">
                 <el-icon :size="20" color="#909399"><Calendar /></el-icon>
@@ -294,7 +289,7 @@
                 <div class="stat-value">{{ memberSince }}</div>
               </div>
             </div>
-          </el-card>
+          </div>
         </el-col>
       </el-row>
     </div>
@@ -384,35 +379,49 @@ if (!isDesktop.value) {
   min-width: 0;
   flex: 1 1 auto;
   align-self: stretch;
+  gap: 20px;
 }
 
-.home-panel {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  flex: 1 1 auto;
-  align-self: stretch;
-  margin: 0;
-}
-
-.panel-header {
+/* Desktop banner */
+.home-banner {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   gap: 24px;
   width: 100%;
+  min-width: 0;
+  padding: 20px 24px;
+  border-radius: 12px;
+  border: 1px solid var(--surface-card-border);
+  background: var(--surface-card-bg);
+  box-shadow: var(--surface-card-shadow);
 }
 
-.panel-header-main {
+.home-banner__main {
   flex: 1;
   min-width: 0;
 }
 
-.panel-title-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.home-banner__extra {
+  text-align: right;
+  flex-shrink: 0;
+  min-width: 180px;
+}
+
+/* Section blocks */
+.home-section {
+  width: 100%;
+  min-width: 0;
+}
+
+.section-header {
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
 .greeting-row {
@@ -431,17 +440,18 @@ if (!isDesktop.value) {
   color: var(--el-text-color-secondary);
 }
 
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .panel-title {
   font-size: 22px;
   font-weight: 600;
   color: var(--el-text-color-primary);
   margin: 0;
-}
-
-.panel-balance {
-  text-align: right;
-  flex-shrink: 0;
-  min-width: 180px;
 }
 
 .balance-label {
@@ -471,41 +481,20 @@ if (!isDesktop.value) {
   line-height: 1;
 }
 
-.desktop-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.section-header {
-  margin-bottom: 12px;
-}
-
-.section-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.info-grid,
-.actions-grid {
-  display: grid;
-  gap: 12px;
-  width: 100%;
-}
-
 .info-grid {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  --flow-item-min: 220px;
 }
 
 .actions-grid {
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  --flow-item-min: 120px;
 }
 
-.info-card {
+.info-card,
+.action-card,
+.stat-card {
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  background: var(--el-fill-color-blank);
+  border-radius: 10px;
+  background: var(--surface-card-bg);
   padding: 16px;
   min-width: 0;
 }
@@ -515,10 +504,6 @@ if (!isDesktop.value) {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 16px 8px;
-  border-radius: 10px;
-  border: 1px solid var(--el-border-color-lighter);
-  background: var(--el-bg-color);
   cursor: pointer;
   transition:
     border-color 0.2s ease,
@@ -526,7 +511,6 @@ if (!isDesktop.value) {
     transform 0.2s ease,
     background-color 0.2s ease;
   text-align: center;
-  min-width: 0;
 }
 
 .action-card:hover {
@@ -550,14 +534,6 @@ if (!isDesktop.value) {
   font-weight: 500;
   line-height: 1.3;
   word-break: break-word;
-}
-
-.stats-row {
-  margin-bottom: 20px;
-}
-
-.stat-card {
-  margin-bottom: 12px;
 }
 
 .stat-inner {
@@ -601,17 +577,15 @@ if (!isDesktop.value) {
   font-size: 13px;
 }
 
+/* Mobile */
 @media (max-width: 768px) {
-  .home-container {
-    padding: 12px;
-  }
-
-  .panel-header {
+  .home-banner {
     flex-direction: column;
     align-items: flex-start;
+    padding: 16px;
   }
 
-  .panel-balance {
+  .home-banner__extra {
     width: 100%;
     text-align: left;
   }
@@ -620,8 +594,45 @@ if (!isDesktop.value) {
     justify-content: flex-start;
   }
 
-  .panel-title {
+  .welcome-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    border-radius: 12px;
+    background: var(--surface-card-bg);
+    border: 1px solid var(--surface-card-border);
+  }
+
+  .welcome-title {
     font-size: 22px;
+    font-weight: 600;
+    margin: 0 0 8px;
+  }
+
+  .welcome-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+  }
+
+  .meta-divider {
+    width: 1px;
+    height: 12px;
+    background: var(--el-border-color-lighter);
+  }
+
+  .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .welcome-balance .balance-value {
+    justify-content: flex-start;
   }
 }
 
@@ -629,12 +640,15 @@ if (!isDesktop.value) {
   .panel-title {
     font-size: 20px;
   }
+
   .balance-amount {
     font-size: 24px;
   }
+
   .action-label {
     font-size: 11px;
   }
+
   .stat-value {
     font-size: 13px;
   }

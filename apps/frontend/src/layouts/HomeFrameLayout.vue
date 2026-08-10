@@ -23,30 +23,62 @@
           <span>{{ i18ns.t('nav.switchSite') }}</span>
         </button>
         <div class="site-header__actions">
-          <button type="button" class="site-header__text-button" @click="openDocs">
-            {{ i18ns.t('nav.docs') }}
-          </button>
-          <button
-            type="button"
-            class="site-header__text-button"
-            @click="navigateToRoute('balanceHistory')"
+          <div class="site-header__nav-links">
+            <button type="button" class="site-header__text-button" @click="openDocs">
+              {{ i18ns.t('nav.docs') }}
+            </button>
+            <button
+              type="button"
+              class="site-header__text-button"
+              @click="navigateToRoute('balanceHistory')"
+            >
+              {{ i18ns.t('nav.costAndBilling') }}
+            </button>
+            <button
+              type="button"
+              class="site-header__text-button"
+              @click="navigateToRoute('myTickets')"
+            >
+              {{ i18ns.t('nav.myTickets') }}
+            </button>
+            <button
+              type="button"
+              class="site-header__text-button"
+              @click="navigateToRoute('notificationSettings')"
+            >
+              {{ i18ns.t('nav.siteMessages') }}
+            </button>
+          </div>
+          <el-dropdown
+            class="site-header__nav-dropdown"
+            trigger="click"
+            placement="bottom-end"
+            popper-class="site-header__nav-dropdown-popper"
           >
-            {{ i18ns.t('nav.costAndBilling') }}
-          </button>
-          <button
-            type="button"
-            class="site-header__text-button"
-            @click="navigateToRoute('myTickets')"
-          >
-            {{ i18ns.t('nav.myTickets') }}
-          </button>
-          <button
-            type="button"
-            class="site-header__text-button"
-            @click="navigateToRoute('notificationSettings')"
-          >
-            {{ i18ns.t('nav.siteMessages') }}
-          </button>
+            <button
+              type="button"
+              class="site-header__icon-button"
+              :aria-label="i18ns.t('nav.more')"
+            >
+              <el-icon><MoreFilled /></el-icon>
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="openDocs">
+                  {{ i18ns.t('nav.docs') }}
+                </el-dropdown-item>
+                <el-dropdown-item @click="navigateToRoute('balanceHistory')">
+                  {{ i18ns.t('nav.costAndBilling') }}
+                </el-dropdown-item>
+                <el-dropdown-item @click="navigateToRoute('myTickets')">
+                  {{ i18ns.t('nav.myTickets') }}
+                </el-dropdown-item>
+                <el-dropdown-item @click="navigateToRoute('notificationSettings')">
+                  {{ i18ns.t('nav.siteMessages') }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-tooltip :content="themeButtonTitle" placement="bottom" :show-after="250">
             <button
               type="button"
@@ -96,7 +128,10 @@
                       class="account-menu__identity-value account-menu__identity-value--secondary"
                       @click="copyIdentity(userInfoStore.userInfo.id)"
                     >
-                      <span>{{ i18ns.t('nav.accountId') }}: {{ userInfoStore.userInfo.id || '—' }}</span>
+                      <span
+                        >{{ i18ns.t('nav.accountId') }}:
+                        {{ userInfoStore.userInfo.id || '—' }}</span
+                      >
                       <el-icon><CopyDocument /></el-icon>
                     </button>
                   </el-tooltip>
@@ -229,13 +264,14 @@ import {
   Key,
   Lock,
   Moon,
+  MoreFilled,
   Sunny,
   SwitchButton,
   Tools,
   UserFilled,
   Wallet,
 } from '@element-plus/icons-vue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import { useThemeToggleStore } from '@/stores/themeToggleStore'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { useUserInfoStore } from '@/stores/userInfoStore'
@@ -268,8 +304,8 @@ const showSiteHeader = computed(
     (isAuthenticated.value || isPublicProfile.value) &&
     currentSiteProfile.id !== 'rejected',
 )
-const asideMenuRef = ref<InstanceType<typeof AsideMenu> | null>(null)
-const utilitySidebarCollapsed = ref(false)
+const asideMenuRef = useTemplateRef<InstanceType<typeof AsideMenu>>('asideMenuRef')
+const utilitySidebarCollapsed = ref(true)
 const utilitySidebarReopenTop = ref<number | null>(null)
 const utilitySidebarReopenDragging = ref(false)
 const permissionStore = usePermissionStore()
@@ -319,8 +355,7 @@ const startUtilitySidebarReopenDrag = (event: PointerEvent) => {
   const button = event.currentTarget as HTMLButtonElement
   utilitySidebarReopenPointerId = event.pointerId
   utilitySidebarReopenStartY = event.clientY
-  utilitySidebarReopenStartTop =
-    utilitySidebarReopenTop.value ?? button.getBoundingClientRect().top
+  utilitySidebarReopenStartTop = utilitySidebarReopenTop.value ?? button.getBoundingClientRect().top
   button.setPointerCapture(event.pointerId)
 }
 
@@ -443,6 +478,26 @@ onMounted(async () => {
   align-items: center;
   gap: 4px;
   margin-left: auto;
+}
+
+.site-header__nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.site-header__nav-dropdown {
+  display: none;
+}
+
+@media screen and (max-width: 1024px) {
+  .site-header__nav-links {
+    display: none;
+  }
+
+  .site-header__nav-dropdown {
+    display: inline-flex;
+  }
 }
 
 .site-header__drawer-trigger {
@@ -660,6 +715,10 @@ onMounted(async () => {
   padding: 0;
 }
 
+:global(.site-header__nav-dropdown-popper .el-dropdown-menu__item) {
+  white-space: nowrap;
+}
+
 .with-banner {
   padding-top: 44px;
 }
@@ -697,19 +756,18 @@ onMounted(async () => {
 
 .utility-sidebar-reopen {
   position: fixed;
-  right: 0;
-  bottom: 18px;
+  right: 16px;
+  bottom: calc(72px + env(safe-area-inset-bottom));
   z-index: 2000;
   display: inline-grid;
   place-items: center;
-  width: 32px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   color: var(--el-text-color-secondary);
   background: var(--el-bg-color);
   border: 1px solid var(--surface-card-border);
-  border-right: 0;
-  border-radius: 4px 0 0 4px;
+  border-radius: 50%;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   touch-action: none;
@@ -760,65 +818,8 @@ onMounted(async () => {
   background: var(--el-color-primary-light-3);
 }
 
-:global(.common-layout.is-account-profile) {
-  --account-card-min-width: max(22rem, 25vw);
-  --account-card-gap: 16px;
-}
-
-/* Account pages are form and record workspaces, not full-width dashboards. */
-:global(.common-layout.is-account-profile .main .settings-container),
-:global(.common-layout.is-account-profile .main .balance-container),
-:global(.common-layout.is-account-profile .main .ticket-layout),
-:global(.common-layout.is-account-profile .main .page-wrap) {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--account-card-min-width), 1fr));
-  grid-auto-flow: row dense;
-  align-items: start;
-  gap: var(--account-card-gap);
-}
-
-:global(.common-layout.is-account-profile .main .settings-container .page-header),
-:global(.common-layout.is-account-profile .main .balance-container > header) {
-  grid-column: 1 / -1;
-}
-
-:global(.common-layout.is-account-profile .main .notification-settings-page) {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
-  gap: var(--account-card-gap);
-}
-
-:global(.common-layout.is-account-profile .main .balance-history-page-root--balance .balance-container) {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-:global(.common-layout.is-account-profile .main .balance-history-page-root--balance .balance-container > :nth-child(3)) {
-  grid-column: 1 / -1;
-  max-inline-size: none;
-}
-
-:global(.common-layout.is-account-profile .main .balance-history-page-root--consumption .balance-container) {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-:global(.common-layout.is-account-profile .main .balance-history-page-root--consumption .balance-container > .el-card) {
-  max-inline-size: none;
-}
-
-:global(.common-layout.is-account-profile .main .el-card) {
-  inline-size: 100%;
-  margin: 0;
-}
-
-:global(.common-layout.is-account-profile .main .settings-container > .el-card),
-:global(.common-layout.is-account-profile .main .balance-container > .el-card),
-:global(.common-layout.is-account-profile .main .page-wrap > .el-card),
-:global(.common-layout.is-account-profile .main .ticket-layout > *) {
-  min-inline-size: 0;
-  inline-size: 100%;
-  max-inline-size: none;
-}
+/* Account profile layout rules have moved to AccountProfileLayout.vue to reduce
+tight coupling between the shell and page class names. */
 
 /* 移动端优化 */
 @media screen and (max-width: 768px) {
@@ -874,20 +875,11 @@ onMounted(async () => {
   :global(.common-layout.is-account-profile .main .balance-container),
   :global(.common-layout.is-account-profile .main .ticket-layout),
   :global(.common-layout.is-account-profile .main .page-wrap) {
-    grid-template-columns: minmax(0, 1fr);
+    display: block;
   }
 
   :global(.common-layout.is-account-profile .main .notification-settings-page) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  :global(.common-layout.is-account-profile .main .el-card),
-  :global(.common-layout.is-account-profile .main .settings-container > .el-card),
-  :global(.common-layout.is-account-profile .main .balance-container > .el-card),
-  :global(.common-layout.is-account-profile .main .page-wrap > .el-card),
-  :global(.common-layout.is-account-profile .main .ticket-layout > *) {
-    inline-size: 100%;
-    max-inline-size: none;
+    display: block;
   }
 
   .title {

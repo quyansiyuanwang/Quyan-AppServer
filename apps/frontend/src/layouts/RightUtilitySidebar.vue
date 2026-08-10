@@ -36,17 +36,12 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowRight, ChatDotRound, Document } from '@element-plus/icons-vue'
+import { ArrowRight, Document, QuestionFilled, Top } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
-import { Permission } from '@/constant/permission'
 import { i18ns } from '@/locales'
-import router, { currentSiteProfile } from '@/router'
-import { resolveCanonicalRouteUrl } from '@/router/routes'
-import { usePermissionStore } from '@/stores/permissionStore'
-import type { RouteName } from '@/types/route-types.gen'
 
 type UtilityAction = {
   key: string
@@ -58,28 +53,6 @@ type UtilityAction = {
 defineProps<{ collapsed?: boolean }>()
 const emit = defineEmits<{ 'update:collapsed': [collapsed: boolean] }>()
 const route = useRoute()
-const permissionStore = usePermissionStore()
-
-const canUseTickets = computed(() =>
-  permissionStore.hasAnyPermission(
-    Permission.TICKET_SUBMIT,
-    Permission.TICKET_SELF_READ,
-    Permission.TICKET_SELF_UPDATE,
-    Permission.TICKET_COMMENT,
-  ),
-)
-
-const navigateToRoute = (routeName: RouteName) => {
-  if (currentSiteProfile.id !== 'rejected') {
-    const targetUrl = resolveCanonicalRouteUrl(routeName, currentSiteProfile)
-    if (targetUrl && new URL(targetUrl).origin !== window.location.origin) {
-      window.location.assign(targetUrl)
-      return
-    }
-  }
-
-  void router.push({ name: routeName } as any)
-}
 
 const openDocs = () => {
   const routeName = typeof route.name === 'string' ? route.name : undefined
@@ -90,21 +63,13 @@ const openDocs = () => {
   )
 }
 
-const visibleActions = computed<UtilityAction[]>(() => {
-  const actions: UtilityAction[] = []
+const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
-  if (canUseTickets.value) {
-    actions.push({
-      key: 'tickets',
-      labelKey: 'nav.myTickets',
-      icon: ChatDotRound,
-      open: () => navigateToRoute('myTickets'),
-    })
-  }
-
-  actions.push({ key: 'docs', labelKey: 'nav.docs', icon: Document, open: openDocs })
-  return actions
-})
+const visibleActions = computed<UtilityAction[]>(() => [
+  { key: 'docs', labelKey: 'nav.docs', icon: Document, open: openDocs },
+  { key: 'help', labelKey: 'nav.helpCenter', icon: QuestionFilled, open: openDocs },
+  { key: 'top', labelKey: 'nav.backToTop', icon: Top, open: scrollToTop },
+])
 </script>
 
 <style scoped>

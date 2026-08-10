@@ -829,6 +829,8 @@ const zhCN: DeepStringify<typeof en> = {
     quickAccess: '快捷入口',
     expandUtilitySidebar: '展开快捷栏',
     collapseUtilitySidebar: '收起快捷栏',
+    helpCenter: '帮助中心',
+    backToTop: '回到顶部',
     accountMenu: '账户',
     accountId: '账户 ID',
     copyAccountName: '复制账户名称',

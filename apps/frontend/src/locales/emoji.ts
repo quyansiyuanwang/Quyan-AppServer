@@ -811,6 +811,8 @@ const emoji: DeepStringify<typeof en> = {
     quickAccess: '⚡ 🚪',
     expandUtilitySidebar: '⬅️ ⚡',
     collapseUtilitySidebar: '➡️ ⚡',
+    helpCenter: '❓ 🆘',
+    backToTop: '⬆️ 🔝',
     accountMenu: '👤',
     accountId: '🪪',
     copyAccountName: '📋 👤',

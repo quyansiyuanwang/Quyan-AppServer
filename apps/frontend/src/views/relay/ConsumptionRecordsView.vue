@@ -1,5 +1,5 @@
 <template>
-  <div
+  <AccountProfileLayout
     :class="[
       isDesktop ? 'desktop-page page-shell' : 'mobile-page',
       'balance-history-page-root',
@@ -19,11 +19,12 @@
         scope="consumption"
       />
     </div>
-  </div>
+  </AccountProfileLayout>
 </template>
 
 <script setup lang="ts">
 import { provide } from 'vue'
+import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import BalanceHistorySummary from './balance-history/components/BalanceHistorySummary.vue'
 import BalanceHistoryTransactions from './balance-history/components/BalanceHistoryTransactions.vue'
 import { balanceHistoryContextKey } from './balance-history/context'
@@ -41,7 +42,7 @@ defineExpose(state)
 
 <style scoped>
 .consumption-records__heading {
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .consumption-records__heading h1 {
