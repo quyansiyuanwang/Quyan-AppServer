@@ -66,71 +66,6 @@
           </div>
         </el-card>
 
-        <!-- Quick Actions -->
-        <div class="section">
-          <div class="section-header">
-            <span class="section-title">{{ i18ns.t('home.quickActions') }}</span>
-          </div>
-          <el-row :gutter="12">
-            <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-              <el-col :xs="12" :sm="8" :md="6" :lg="4">
-                <div class="action-card" @click="router.push({ name: 'relayTokenManagement' })">
-                  <div class="action-icon-wrap" style="background: #ecf5ff">
-                    <el-icon :size="22" color="#409EFF"><Key /></el-icon>
-                  </div>
-                  <span class="action-label">{{ i18ns.t('nav.myTokens') }}</span>
-                </div>
-              </el-col>
-            </PermissionWrapper>
-            <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-              <el-col :xs="12" :sm="8" :md="6" :lg="4">
-                <div class="action-card" @click="router.push({ name: 'balanceHistory' })">
-                  <div class="action-icon-wrap" style="background: #f0f9eb">
-                    <el-icon :size="22" color="#67C23A"><Wallet /></el-icon>
-                  </div>
-                  <span class="action-label">{{ i18ns.t('nav.balanceHistory') }}</span>
-                </div>
-              </el-col>
-            </PermissionWrapper>
-            <PermissionWrapper :require="[Permission.JSON_ENDPOINT_READ]">
-              <el-col :xs="12" :sm="8" :md="6" :lg="4">
-                <div class="action-card" @click="router.push({ name: 'jsonEndpointManagement' })">
-                  <div class="action-icon-wrap" style="background: #fdf6ec">
-                    <el-icon :size="22" color="#E6A23C"><Document /></el-icon>
-                  </div>
-                  <span class="action-label">{{ i18ns.t('nav.jsonEndpoints') }}</span>
-                </div>
-              </el-col>
-            </PermissionWrapper>
-            <PermissionWrapper :require="[Permission.OJ_APIKEY_READ]">
-              <el-col :xs="12" :sm="8" :md="6" :lg="4">
-                <div class="action-card" @click="router.push({ name: 'ojAPIKeyManagement' })">
-                  <div class="action-icon-wrap" style="background: #f3eeff">
-                    <el-icon :size="22" color="#9B59B6"><Cpu /></el-icon>
-                  </div>
-                  <span class="action-label">{{ i18ns.t('nav.ojSubmitter') }}</span>
-                </div>
-              </el-col>
-            </PermissionWrapper>
-            <el-col :xs="12" :sm="8" :md="6" :lg="4">
-              <div class="action-card" @click="router.push({ name: 'apiDocumentation' })">
-                <div class="action-icon-wrap" style="background: #fef0f0">
-                  <el-icon :size="22" color="#F56C6C"><Reading /></el-icon>
-                </div>
-                <span class="action-label">{{ i18ns.t('nav.apiDocumentation') }}</span>
-              </div>
-            </el-col>
-            <el-col :xs="12" :sm="8" :md="6" :lg="4">
-              <div class="action-card" @click="router.push({ name: 'settings' })">
-                <div class="action-icon-wrap" style="background: #f4f4f5">
-                  <el-icon :size="22" color="#909399"><Setting /></el-icon>
-                </div>
-                <span class="action-label">{{ i18ns.t('nav.settings') }}</span>
-              </div>
-            </el-col>
-          </el-row>
-        </div>
-
         <!-- Stats Row -->
         <el-row :gutter="12" class="stats-row">
           <el-col :xs="24" :sm="12" :md="8">
@@ -189,10 +124,6 @@ import StorageKey from '@/constant/storagekey'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import {
-  Key,
-  Wallet,
-  Document,
-  Setting,
   CircleCheck,
   User,
   Calendar,
@@ -200,8 +131,6 @@ import {
   Sunset,
   Moon,
   Collection,
-  Cpu,
-  Reading,
 } from '@element-plus/icons-vue'
 const storedDefault = TypedLocalStorage.getItem(StorageKey.Home.DASHBOARD_DEFAULT_OPEN)
 const dashboardDefault = ref<'open' | 'closed'>(storedDefault === 'closed' ? 'closed' : 'open')

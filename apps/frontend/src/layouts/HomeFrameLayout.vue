@@ -7,41 +7,49 @@
       :class="{ 'with-banner': impersonationStore.isImpersonating }"
     >
       <el-header v-if="showSiteHeader" class="site-header">
-        <button type="button" class="site-header__drawer-trigger" @click="openSiteDrawer">
+        <button
+          v-if="!isPublicProfile"
+          type="button"
+          class="site-header__drawer-trigger"
+          @click="openSiteDrawer"
+        >
           <el-icon><Grid /></el-icon>
           <span>{{ i18ns.t('nav.switchSite') }}</span>
         </button>
         <div class="site-header__actions">
-          <el-tooltip :content="i18ns.t('nav.docs')" placement="bottom" :show-after="250">
-            <button type="button" class="site-header__icon-button" @click="openDocs">
-              <el-icon><Document /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip :content="i18ns.t('nav.costAndBilling')" placement="bottom" :show-after="250">
+          <button type="button" class="site-header__text-button" @click="openDocs">
+            {{ i18ns.t('nav.docs') }}
+          </button>
+          <button
+            type="button"
+            class="site-header__text-button"
+            @click="navigateToRoute('balanceHistory')"
+          >
+            {{ i18ns.t('nav.costAndBilling') }}
+          </button>
+          <button
+            type="button"
+            class="site-header__text-button"
+            @click="navigateToRoute('myTickets')"
+          >
+            {{ i18ns.t('nav.myTickets') }}
+          </button>
+          <button
+            type="button"
+            class="site-header__text-button"
+            @click="navigateToRoute('notificationSettings')"
+          >
+            {{ i18ns.t('nav.siteMessages') }}
+          </button>
+          <el-tooltip :content="themeButtonTitle" placement="bottom" :show-after="250">
             <button
               type="button"
               class="site-header__icon-button"
-              @click="navigateToRoute('balanceHistory')"
+              :title="themeButtonTitle"
+              :aria-label="themeButtonTitle"
+              @click="toggleTheme"
             >
-              <el-icon><Wallet /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip :content="i18ns.t('nav.myTickets')" placement="bottom" :show-after="250">
-            <button
-              type="button"
-              class="site-header__icon-button"
-              @click="navigateToRoute('myTickets')"
-            >
-              <el-icon><ChatDotRound /></el-icon>
-            </button>
-          </el-tooltip>
-          <el-tooltip :content="i18ns.t('nav.siteMessages')" placement="bottom" :show-after="250">
-            <button
-              type="button"
-              class="site-header__icon-button"
-              @click="navigateToRoute('notificationSettings')"
-            >
-              <el-icon><Bell /></el-icon>
+              <el-icon><component :is="themeIcon" /></el-icon>
             </button>
           </el-tooltip>
           <LanguageSwitcher compact />
@@ -139,7 +147,9 @@
         </div>
       </el-header>
       <el-container class="content-container">
-        <el-aside v-if="showAside" class="aside"><AsideMenu ref="asideMenuRef" /></el-aside>
+        <el-aside v-if="showAside" class="aside">
+          <AsideMenu ref="asideMenuRef" :show-logout="isAuthenticated" />
+        </el-aside>
         <el-main class="main" :class="{ 'is-embedded': isEmbeddedShell }">
           <slot />
         </el-main>
@@ -153,18 +163,18 @@ import AsideMenu from '@/layouts/AsideMenu.vue'
 import ImpersonationBanner from '@/components/common/ImpersonationBanner.vue'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import {
-  Bell,
-  ChatDotRound,
-  Document,
   Grid,
   Key,
   Lock,
+  Moon,
+  Sunny,
   SwitchButton,
   Tools,
   UserFilled,
   Wallet,
 } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
+import { useThemeToggleStore } from '@/stores/themeToggleStore'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
@@ -181,16 +191,30 @@ import type { RouteName } from '@/types/route-types.gen'
 
 const waterMarkTextStore = useWaterMarkTextStore()
 const impersonationStore = useImpersonationStore()
+const themeToggleStore = useThemeToggleStore()
 const route = useRoute()
 const isEmbeddedShell = computed(() => route.query.embed === '1')
 const isAuthenticated = computed(() => Boolean(AuthorizationService.getAccessToken()))
+const isPublicProfile = computed(() => currentSiteProfile.id === 'public')
 const showAside = computed(() => !isEmbeddedShell.value && isAuthenticated.value)
 const showSiteHeader = computed(
-  () => !isEmbeddedShell.value && isAuthenticated.value && currentSiteProfile.id !== 'rejected',
+  () =>
+    !isEmbeddedShell.value &&
+    (isAuthenticated.value || isPublicProfile.value) &&
+    currentSiteProfile.id !== 'rejected',
 )
 const asideMenuRef = ref<InstanceType<typeof AsideMenu> | null>(null)
 const permissionStore = usePermissionStore()
 const userInfoStore = useUserInfoStore()
+
+const isDark = themeToggleStore.useIsDark()
+const themeIcon = computed(() => (isDark.value ? Sunny : Moon))
+const themeButtonTitle = computed(() =>
+  isDark.value
+    ? i18ns.t('floatingOverlay.switchToLightTheme')
+    : i18ns.t('floatingOverlay.switchToDarkTheme'),
+)
+const toggleTheme = () => themeToggleStore.toggleTheme()
 
 const accountName = computed(
   () => userInfoStore.userInfo.name?.trim() || userInfoStore.userInfo.username || '—',
@@ -324,6 +348,28 @@ onMounted(async () => {
   border: 0;
   border-radius: 4px;
   cursor: pointer;
+}
+
+.site-header__text-button {
+  min-width: 0;
+  height: 34px;
+  padding: 0 8px;
+  color: var(--el-text-color-regular);
+  font: inherit;
+  font-size: 13px;
+  line-height: 34px;
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.site-header__text-button:hover,
+.site-header__text-button:focus-visible {
+  color: var(--el-text-color-primary);
+  background: var(--el-fill-color-light);
+  outline: none;
 }
 
 .site-header__icon-button:hover,
@@ -484,7 +530,12 @@ onMounted(async () => {
   }
 
   .site-header__actions {
-    gap: 2px;
+    gap: 0;
+  }
+
+  .site-header__text-button {
+    padding: 0 5px;
+    font-size: 12px;
   }
 
   .header {

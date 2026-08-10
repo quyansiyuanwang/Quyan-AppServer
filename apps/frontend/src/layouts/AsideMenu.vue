@@ -42,7 +42,7 @@
     <el-menu ref="menuRef" :collapse="showIsDesktopIcon" class="aside-nav">
       <NavMenuItems
         :show-spacer="true"
-        :show-logout="true"
+        :show-logout="props.showLogout"
         :show-pinned-section="currentSitePinnedItems.length > 0 && !showIsDesktopIcon"
         :on-route-navigate="handleRouteNavigation"
         :on-route-context-menu="openRouteContextMenu"
@@ -337,6 +337,7 @@
       </div>
 
       <div
+        v-if="router.hasRoute('settings')"
         class="tab-item"
         :class="{ active: router.currentRoute.value.name === 'settings' }"
         @click="handleRouteNavigation('settings')"
@@ -345,7 +346,7 @@
         <span>{{ i18ns.t('nav.settings') }}</span>
       </div>
 
-      <div class="tab-item" @click="authorizationService.logout()">
+      <div v-if="props.showLogout" class="tab-item" @click="authorizationService.logout()">
         <el-icon><LogoutIcon :size="22" /></el-icon>
         <span>{{ i18ns.t('logout') }}</span>
       </div>
@@ -384,7 +385,7 @@
         <el-menu ref="mobileMenuRef" class="mobile-aside-nav" @select="showMobileDrawer = false">
           <NavMenuItems
             :show-spacer="false"
-            :show-logout="true"
+            :show-logout="props.showLogout"
             :show-pinned-section="currentSitePinnedItems.length > 0"
             :on-route-navigate="handleRouteNavigation"
           >
@@ -523,6 +524,13 @@ import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
 
 const isDesktopStore = useIsDesktopStore()
 const isDesktop = isDesktopStore.useIsDesktop()
+
+const props = withDefaults(
+  defineProps<{
+    showLogout?: boolean
+  }>(),
+  { showLogout: true },
+)
 
 const themeToggleStore = useThemeToggleStore()
 const isDark = themeToggleStore.useIsDark()
