@@ -42,11 +42,11 @@ describe('site registry', () => {
     const localProfiles = getSiteProfilesForEnvironment(localAccount)
     const productionProfiles = getSiteProfilesForEnvironment(productionAccount)
 
-    expect(localProfiles).toHaveLength(13)
+    expect(localProfiles).toHaveLength(14)
     expect(localProfiles.every((profile) => profile.hostname.endsWith('.test'))).toBe(true)
     expect(localProfiles.every((profile) => profile.canonicalOrigin.endsWith(':5173'))).toBe(true)
     expect(localProfiles.some((profile) => profile.id === 'identity')).toBe(false)
-    expect(productionProfiles).toHaveLength(13)
+    expect(productionProfiles).toHaveLength(14)
     expect(productionProfiles.every((profile) => profile.hostname.endsWith('.cn'))).toBe(true)
     expect(productionProfiles.every((profile) => !profile.canonicalOrigin.includes(':5173'))).toBe(
       true,

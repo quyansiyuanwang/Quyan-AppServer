@@ -611,6 +611,11 @@ const overviewCategoryDefinitions: readonly {
     icon: Monitor,
   },
   {
+    key: 'console-ram',
+    title: () => i18ns.t('nav.ramManagement'),
+    icon: Key,
+  },
+  {
     key: 'management-developer',
     title: () => i18ns.t('nav.developerServiceManagement'),
     icon: Grid,
@@ -637,6 +642,7 @@ const siteLabelKeys: Record<SiteProfileId, I18nENAvailableKeys> = {
   'console-ai': 'nav.siteConsoleAi',
   'console-developer': 'nav.siteConsoleDeveloper',
   'console-terminal': 'nav.siteConsoleTerminal',
+  'console-ram': 'nav.siteConsoleRam',
   'management-core': 'nav.siteManagementCore',
   'management-ai': 'nav.siteManagementAi',
   'management-developer': 'nav.siteManagementDeveloper',
@@ -654,6 +660,7 @@ const siteIcons: Record<SiteProfileId, Component> = {
   'console-ai': Connection,
   'console-developer': Grid,
   'console-terminal': Monitor,
+  'console-ram': Key,
   'management-core': Setting,
   'management-ai': Connection,
   'management-developer': Grid,

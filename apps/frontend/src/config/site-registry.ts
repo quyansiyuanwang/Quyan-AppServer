@@ -11,6 +11,7 @@ export const siteProfileIds = [
   'console-ai',
   'console-developer',
   'console-terminal',
+  'console-ram',
   'management-core',
   'management-ai',
   'management-developer',
@@ -135,6 +136,14 @@ const siteDefinitions: readonly SiteDefinition[] = [
     localHostname: 'terminal.console.qysyw.test',
     defaultPath: siteProfileDefaultPaths['console-terminal'],
     routeGroups: ['console-terminal', 'shared'],
+    shell: 'console',
+  },
+  {
+    id: 'console-ram',
+    productionHostname: 'ram.console.qysyw.cn',
+    localHostname: 'ram.console.qysyw.test',
+    defaultPath: siteProfileDefaultPaths['console-ram'],
+    routeGroups: ['console-ram', 'shared'],
     shell: 'console',
   },
   {

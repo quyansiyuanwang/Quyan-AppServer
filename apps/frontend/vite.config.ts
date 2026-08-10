@@ -47,6 +47,7 @@ export default defineConfig(({ mode }) => {
     'ai.console.qysyw.test',
     'developer.console.qysyw.test',
     'terminal.console.qysyw.test',
+    'ram.console.qysyw.test',
     'management.qysyw.test',
     'ai.management.qysyw.test',
     'developer.management.qysyw.test',

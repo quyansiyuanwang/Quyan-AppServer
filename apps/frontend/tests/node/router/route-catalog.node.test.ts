@@ -90,6 +90,10 @@ describe('route catalog', () => {
         path: '/relay/tokens',
       },
     )
+    expect(resolveRouteMigration('/iam/ram', getKnownProfile('management.qysyw.test'))).toEqual({
+      profileId: 'console-ram',
+      path: '/users',
+    })
     expect(resolveRouteMigration('/short-link/analytics/team-a/link-b', account)).toEqual({
       profileId: 'management-developer',
       path: '/products/short_link/analytics/team-a/link-b',

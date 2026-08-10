@@ -17,7 +17,7 @@ This is the public bilingual user manual for the site. The layout keeps the rhyt
 
 ## Multi-site navigation
 
-The application uses separate site addresses by responsibility: `developer` and `terminal` are product entry sites; account settings, billing, and tickets stay on the account site; `console`, `ai.console`, `developer.console`, and `terminal.console` are user consoles; `management` and its product subdomains are for operations. The site switcher in the upper-left opens the full feature overview and takes each feature to its canonical address.
+The application uses separate site addresses by responsibility: `developer` and `terminal` are product entry sites; account settings, billing, and tickets stay on the account site; `console`, `ai.console`, `developer.console`, `terminal.console`, and `ram.console` are user consoles; `management` and its product subdomains are for operations. The site switcher in the upper-left opens the full feature overview and takes each feature to its canonical address.
 
 Known legacy links, or known pages opened on the wrong site, automatically move to the correct page while retaining filters and anchors. An unrecognized address still shows the not-found page.
 

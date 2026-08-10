@@ -766,6 +766,7 @@ export default {
     siteConsoleAi: 'AI Relay Console',
     siteConsoleDeveloper: 'Developer Console',
     siteConsoleTerminal: 'Terminal Console',
+    siteConsoleRam: 'RAM Console',
     siteManagementCore: 'Management Console',
     siteManagementAi: 'AI Relay Management',
     siteManagementDeveloper: 'Developer Operations',

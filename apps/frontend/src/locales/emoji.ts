@@ -707,6 +707,7 @@ const emoji: DeepStringify<typeof en> = {
     siteConsoleAi: '🤖 🔁',
     siteConsoleDeveloper: '🧑‍💻 🛠️',
     siteConsoleTerminal: '🖥️ 🎛️',
+    siteConsoleRam: '👥 🔑',
     siteManagementCore: '🛠️ 🏢',
     siteManagementAi: '🤖 🔧',
     siteManagementDeveloper: '🧑‍💻 📊',

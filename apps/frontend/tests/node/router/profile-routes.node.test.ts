@@ -101,6 +101,15 @@ describe('profile route factory', () => {
     expect(collectRouteNames(consoleRoutes)).not.toContain('userManagement')
   })
 
+  it('isolates RAM administration in the RAM console', () => {
+    const ramRoutes = createRoutesForProfile(getKnownProfile('ram.console.qysyw.cn'))
+    const managementRoutes = createRoutesForProfile(getKnownProfile('management.qysyw.cn'))
+
+    expect(collectRouteNames(ramRoutes)).toContain('ramManagement')
+    expect(collectRouteNames(ramRoutes)).not.toContain('userManagement')
+    expect(collectRouteNames(managementRoutes)).not.toContain('ramManagement')
+  })
+
   it('resolves foreign route names to their registered canonical host', () => {
     const accountProfile = getKnownProfile('account.qysyw.cn')
 
@@ -120,6 +129,9 @@ describe('profile route factory', () => {
     )
     expect(resolveCanonicalRouteUrl('userManagement', accountProfile)).toBe(
       'https://management.qysyw.cn/iam/users',
+    )
+    expect(resolveCanonicalRouteUrl('ramManagement', accountProfile)).toBe(
+      'https://ram.console.qysyw.cn/users',
     )
     expect(resolveCanonicalRouteUrl('remoteTerminal', accountProfile)).toBe(
       'https://terminal.console.qysyw.cn/console',

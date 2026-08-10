@@ -726,6 +726,7 @@ const zhCN: DeepStringify<typeof en> = {
     siteConsoleAi: 'AI 中转控制台',
     siteConsoleDeveloper: '开发者控制台',
     siteConsoleTerminal: '云终端控制台',
+    siteConsoleRam: 'RAM 控制台',
     siteManagementCore: '管理控制台',
     siteManagementAi: 'AI 中转运营',
     siteManagementDeveloper: '开发者运营',

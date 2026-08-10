@@ -282,7 +282,7 @@ export const routes = [
             },
           },
           {
-            path: 'iam/ram',
+            path: 'users',
             name: 'ramManagement',
             component: () => import('@/views/management/RamManagementView.vue'),
             meta: {

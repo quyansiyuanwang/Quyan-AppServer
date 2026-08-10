@@ -120,7 +120,7 @@ type MenuNode = {
   permissionMode?: 'all' | 'any'
   children?: readonly MenuNode[]
   dividerBefore?: boolean
-  flattenWhenAtMost?: number
+  presentation?: 'flat' | 'group'
 }
 
 const item = (
@@ -137,8 +137,8 @@ const group = (
   icon: Component,
   children: readonly MenuNode[],
   dividerBefore = false,
-  flattenWhenAtMost?: number,
-): MenuNode => ({ id, labelKey, icon, children, dividerBefore, flattenWhenAtMost })
+  presentation: 'flat' | 'group' = 'group',
+): MenuNode => ({ id, labelKey, icon, children, dividerBefore, presentation })
 
 const relayMenu = group('ai-relay', 'nav.relay', Connection, [
   item('relayTokenManagement', 'nav.myTokens', Key, [Permission.RELAY_TOKEN_READ]),
@@ -162,7 +162,7 @@ const relayMenu = group('ai-relay', 'nav.relay', Connection, [
     Permission.RELAY_CHANNEL_PROBE_READ,
   ]),
   item('upstreamStatus', 'nav.upstreamStatus', Connection, [Permission.UPSTREAM_STATUS_READ]),
-], false, 9)
+], false, 'flat')
 
 const productUserMenu = DEVELOPER_PRODUCT_NAVIGATION.map((product) =>
   item(
@@ -240,7 +240,7 @@ const menuDefinition: readonly MenuNode[] = [
     item('ojPricingManagement', 'nav.ojPricingManagement', TrendCharts, [
       Permission.OJ_PRICING_READ,
     ]),
-  ], false, 3),
+  ], false, 'flat'),
   item('developerServiceManagement', 'nav.developerServiceManagement', Setting, [
     Permission.DEVELOPER_QUOTA_MANAGE,
   ]),
@@ -391,7 +391,7 @@ const filterVisibleNodes = (nodes: readonly MenuNode[]): MenuNode[] => {
     if (!isAllowed(node)) continue
     const children = node.children ? filterVisibleNodes(node.children) : undefined
     if (children?.length) {
-      if (node.flattenWhenAtMost != null && children.length <= node.flattenWhenAtMost) {
+      if (node.presentation === 'flat' || children.length === 1) {
         visibleNodes.push(
           ...children.map((child, index) => ({
             ...child,

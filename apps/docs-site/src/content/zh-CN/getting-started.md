@@ -17,7 +17,7 @@
 
 ## 多站点导航
 
-应用按职责使用独立的站点地址：`developer` 与 `terminal` 是产品入口；账户设置、账单和工单位于账户站点；`console`、`ai.console`、`developer.console` 和 `terminal.console` 是用户控制台；`management` 及其产品子域是运营管理站点。左上角的站点切换器会打开全部功能总览，并在打开目标功能时跳转到它的规范地址。
+应用按职责使用独立的站点地址：`developer` 与 `terminal` 是产品入口；账户设置、账单和工单位于账户站点；`console`、`ai.console`、`developer.console`、`terminal.console` 和 `ram.console` 是用户控制台；`management` 及其产品子域是运营管理站点。左上角的站点切换器会打开全部功能总览，并在打开目标功能时跳转到它的规范地址。
 
 旧版链接或复制到错误站点的已知页面会自动迁移到正确页面，并保留链接中的筛选参数和锚点。无法识别的地址仍会显示未找到页面。
 

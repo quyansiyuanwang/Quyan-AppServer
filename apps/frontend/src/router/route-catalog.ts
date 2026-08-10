@@ -10,6 +10,7 @@ export type OverviewCategory =
   | 'console-ai'
   | 'console-developer'
   | 'console-terminal'
+  | 'console-ram'
   | 'management-core'
   | 'management-ai'
   | 'management-developer'
@@ -34,6 +35,7 @@ export const siteProfileDefaultPaths: Readonly<Record<SiteProfileId, string>> = 
   'console-ai': '/relay/tokens',
   'console-developer': '/applications/oauth',
   'console-terminal': '/console',
+  'console-ram': '/users',
   'management-core': '/iam/users',
   'management-ai': '/relay/settings',
   'management-developer': '/services',
@@ -267,10 +269,10 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   },
   {
     name: 'ramManagement',
-    group: 'management-core',
-    path: '/iam/ram',
-    overviewCategory: 'console-iam',
-    legacyPaths: ['/management/ram'],
+    group: 'console-ram',
+    path: '/users',
+    overviewCategory: 'console-ram',
+    legacyPaths: ['/iam/ram', '/management/ram'],
   },
   {
     name: 'balanceManagement',
