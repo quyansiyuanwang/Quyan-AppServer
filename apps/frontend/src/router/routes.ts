@@ -1050,7 +1050,7 @@ const cloneRouteForProfile = (
     clonedRoute.component = () => import('@/app-roots/RouteOutlet.vue')
   }
 
-  if (route.name === 'root') {
+  if (route.name === 'root' || route.name === 'index') {
     clonedRoute.redirect = profile.defaultPath
   }
 

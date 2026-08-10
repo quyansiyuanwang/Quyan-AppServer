@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { RouteRecordRaw } from 'vue-router'
 import { resolveSiteProfile } from '@/config/site-registry'
 import { createRoutesForProfile } from '@/router/routes'
 import { resolveCanonicalRouteUrl } from '@/router/routes'
@@ -18,7 +19,7 @@ const collectRouteNames = (routes: ReturnType<typeof createRoutesForProfile>): s
 const findRoute = (
   routes: ReturnType<typeof createRoutesForProfile>,
   routeName: string,
-): { path: string } | undefined => {
+): RouteRecordRaw | undefined => {
   for (const route of routes) {
     if (route.name === routeName) return route
     const nestedRoute = findRoute(route.children ?? [], routeName)
@@ -92,6 +93,13 @@ describe('profile route factory', () => {
 
     expect(landingRoute?.path).toBe('products/remote-terminal-cloud')
     expect(collectRouteNames(terminalRoutes)).toContain('myRemoteTerminalProducts')
+  })
+
+  it('redirects every management root entry to the management default path', () => {
+    const managementRoutes = createRoutesForProfile(getKnownProfile('management.qysyw.cn'))
+
+    expect(findRoute(managementRoutes, 'root')?.redirect).toBe('/iam/users')
+    expect(findRoute(managementRoutes, 'index')?.redirect).toBe('/iam/users')
   })
 
   it('gives the general console an isolated user dashboard', () => {
