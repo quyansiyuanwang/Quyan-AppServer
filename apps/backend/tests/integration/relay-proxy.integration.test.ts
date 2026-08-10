@@ -5,7 +5,11 @@ import { randomUUID } from "crypto";
 import { createApp } from "../../src/app";
 import { prisma } from "../../src/config/database";
 import { hashPassword } from "../../src/util/crypto";
-import { createRelayAIMockPlugin, RelayAIMockPlugin } from "../util/relay-ai-mock-plugin";
+import {
+  createRelayAIMockPlugin,
+  RelayAIMockPlugin,
+  type RelayAIMockRequestContext,
+} from "../util/relay-ai-mock-plugin";
 import { ConsumptionStatsRepository } from "../../src/store/system/consumption-stats.repository";
 
 const RELAY_LOG_PERSISTENCE_TEST_TIMEOUT_MS = 15000;
@@ -13,6 +17,7 @@ const RELAY_LOG_PERSISTENCE_TEST_TIMEOUT_MS = 15000;
 describe("中转 AI 集成测试（插件化模拟上游）", () => {
   let app: Express;
   let relayAIMockPlugin: RelayAIMockPlugin | null = null;
+  const observedUpstreamRequests: RelayAIMockRequestContext[] = [];
   const apiLogRequestIds: string[] = [];
 
   let testGroupId = "";
@@ -95,6 +100,9 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     relayAIMockPlugin = createRelayAIMockPlugin({
       defaultModel: openaiRelayModelId,
       contentPrefix: "模拟AI输出-",
+      onRequest: (ctx) => {
+        observedUpstreamRequests.push(ctx);
+      },
     });
     await relayAIMockPlugin.start();
 
@@ -1526,8 +1534,47 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     RELAY_LOG_PERSISTENCE_TEST_TIMEOUT_MS,
   );
 
-  it("Anthropic 非流式 messages 请求成功并记录 usage", async () => {
+  it("OpenAI Responses 图生图完整转发多个 input_image", async () => {
+    const beforeCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
+    const imageUrls = [
+      "https://example.com/relay-image-one.png",
+      "https://example.com/relay-image-two.png",
+      "https://example.com/relay-image-three.png",
+    ];
+
+    const relayResponse = await request(app)
+      .post("/relay/proxy/v1/responses")
+      .set("Authorization", `Bearer ${openaiRelayTokenValue}`)
+      .send({
+        model: openaiRelayModelId,
+        input: [
+          {
+            role: "user",
+            content: [
+              { type: "input_text", text: "Combine every reference image." },
+              ...imageUrls.map((image_url) => ({ type: "input_image", image_url })),
+            ],
+          },
+        ],
+        tools: [{ type: "image_generation" }],
+      });
+
+    expect(relayResponse.status).toBe(200);
+    const upstream = [...observedUpstreamRequests]
+      .reverse()
+      .find((ctx) => ctx.pathname === "/v1/responses" && JSON.stringify(ctx.body).includes(imageUrls[0]));
+    const receivedImages = ((upstream?.body.input as any[])?.[0]?.content || [])
+      .filter((item: any) => item.type === "input_image")
+      .map((item: any) => item.image_url);
+    expect(receivedImages).toEqual(imageUrls);
+
+    const usage = await getLatestUsage(openaiRelayTokenId, beforeCount + 1);
+    expect(usage?.totalTokens ?? 0).toBeGreaterThan(0);
+  });
+
+  it("Anthropic 图像理解完整转发多个 image block", async () => {
     const beforeCount = await prisma.relayUsage.count({ where: { relayTokenId: anthropicRelayTokenId } });
+    const imageData = ["anthropic-image-one", "anthropic-image-two", "anthropic-image-three"];
 
     const relayResponse = await request(app)
       .post("/relay/proxy/v1/messages")
@@ -1535,12 +1582,30 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       .send({
         model: anthropicRelayModelId,
         max_tokens: 64,
-        messages: [{ role: "user", content: "请简短回复" }],
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Describe all three images." },
+              ...imageData.map((data) => ({
+                type: "image",
+                source: { type: "base64", media_type: "image/png", data },
+              })),
+            ],
+          },
+        ],
       });
 
     expect(relayResponse.status).toBe(200);
     expect(relayResponse.body?.type).toBe("message");
     expect(relayResponse.body?.content?.[0]?.text).toContain("模拟AI输出-");
+    const upstream = [...observedUpstreamRequests]
+      .reverse()
+      .find((ctx) => ctx.pathname === "/v1/messages" && JSON.stringify(ctx.body).includes(imageData[0]));
+    const receivedImages = ((upstream?.body.messages as any[])?.[0]?.content || [])
+      .filter((item: any) => item.type === "image")
+      .map((item: any) => item.source?.data);
+    expect(receivedImages).toEqual(imageData);
 
     const usage = await getLatestUsage(anthropicRelayTokenId, beforeCount + 1);
     expect(usage?.isStreaming).toBe(false);
@@ -1572,18 +1637,33 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     );
   });
 
-  it("Gemini 非流式 generateContent 请求成功并记录 usage", async () => {
+  it("Gemini 图像理解完整转发多个 inlineData part", async () => {
     const beforeCount = await prisma.relayUsage.count({ where: { relayTokenId: geminiRelayTokenId } });
+    const imageData = ["gemini-image-one", "gemini-image-two", "gemini-image-three"];
 
     const relayResponse = await request(app)
       .post(`/relay/proxy/v1/models/${geminiRelayModelId}:generateContent`)
       .set("Authorization", `Bearer ${geminiRelayTokenValue}`)
       .send({
-        contents: [{ parts: [{ text: "请回复一段简短内容" }] }],
+        contents: [
+          {
+            parts: [
+              { text: "Describe all three images." },
+              ...imageData.map((data) => ({ inlineData: { mimeType: "image/png", data } })),
+            ],
+          },
+        ],
       });
 
     expect(relayResponse.status).toBe(200);
     expect(relayResponse.body?.candidates?.[0]?.content?.parts?.[0]?.text).toContain("模拟AI输出-");
+    const upstream = [...observedUpstreamRequests]
+      .reverse()
+      .find((ctx) => ctx.pathname.includes(":generateContent") && JSON.stringify(ctx.body).includes(imageData[0]));
+    const receivedImages = ((upstream?.body.contents as any[])?.[0]?.parts || [])
+      .filter((item: any) => item.inlineData)
+      .map((item: any) => item.inlineData.data);
+    expect(receivedImages).toEqual(imageData);
 
     const usage = await getLatestUsage(geminiRelayTokenId, beforeCount + 1);
     expect(usage?.isStreaming).toBe(false);

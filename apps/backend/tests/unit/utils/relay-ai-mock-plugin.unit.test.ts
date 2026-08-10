@@ -150,4 +150,39 @@ describe("relay-ai-mock-plugin", () => {
     expect(data.path).toBe("/chat/completions");
     expect(data.model).toBe("handler-model");
   });
+
+  it("captures raw multipart bytes without treating them as JSON", async () => {
+    let capturedRequest: { rawBody: Buffer; body: Record<string, unknown> } | null = null;
+    const boundary = "----relay-mock-test";
+    const rawBody = Buffer.from(
+      [
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="image"; filename="example.png"',
+        "Content-Type: image/png",
+        "",
+        "image-bytes",
+        `--${boundary}--`,
+        "",
+      ].join("\r\n"),
+    );
+
+    plugin = createRelayAIMockPlugin({
+      onRequest: (ctx) => {
+        capturedRequest = { rawBody: ctx.rawBody, body: ctx.body };
+      },
+    });
+    await plugin.start();
+
+    const response = await fetch(`${plugin.baseUrl}/images/edits`, {
+      method: "POST",
+      headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` },
+      body: rawBody,
+    });
+
+    expect(response.status).toBe(200);
+    const observedRequest = capturedRequest as { rawBody: Buffer; body: Record<string, unknown> } | null;
+    expect(observedRequest).not.toBeNull();
+    expect(observedRequest?.rawBody).toEqual(rawBody);
+    expect(observedRequest?.body).toEqual({});
+  });
 });
