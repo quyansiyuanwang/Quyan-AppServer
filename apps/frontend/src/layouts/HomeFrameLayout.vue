@@ -527,7 +527,7 @@ onMounted(async () => {
 }
 
 :global(.common-layout.is-account-profile) {
-  --account-card-min-width: 20rem;
+  --account-card-min-width: max(22rem, 25vw);
   --account-card-gap: 16px;
 }
 
@@ -546,6 +546,30 @@ onMounted(async () => {
 :global(.common-layout.is-account-profile .main .settings-container .page-header),
 :global(.common-layout.is-account-profile .main .balance-container > header) {
   grid-column: 1 / -1;
+}
+
+:global(.common-layout.is-account-profile .main .notification-settings-page) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--account-card-gap);
+}
+
+:global(.common-layout.is-account-profile .main .balance-history-page-root--balance .balance-container) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:global(.common-layout.is-account-profile .main .balance-history-page-root--balance .balance-container > :nth-child(3)) {
+  grid-column: 1 / -1;
+  max-inline-size: none;
+}
+
+:global(.common-layout.is-account-profile .main .balance-history-page-root--consumption .balance-container) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+:global(.common-layout.is-account-profile .main .balance-history-page-root--consumption .balance-container > .el-card) {
+  max-inline-size: none;
 }
 
 :global(.common-layout.is-account-profile .main .el-card) {
@@ -608,6 +632,10 @@ onMounted(async () => {
   :global(.common-layout.is-account-profile .main .balance-container),
   :global(.common-layout.is-account-profile .main .ticket-layout),
   :global(.common-layout.is-account-profile .main .page-wrap) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  :global(.common-layout.is-account-profile .main .notification-settings-page) {
     grid-template-columns: minmax(0, 1fr);
   }
 

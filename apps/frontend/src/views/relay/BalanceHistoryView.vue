@@ -1,6 +1,10 @@
 <template>
   <div
-    :class="[isDesktop ? 'desktop-page page-shell' : 'mobile-page', 'balance-history-page-root']"
+    :class="[
+      isDesktop ? 'desktop-page page-shell' : 'mobile-page',
+      'balance-history-page-root',
+      'balance-history-page-root--balance',
+    ]"
   >
     <div class="balance-container">
       <BalanceHistorySummary
