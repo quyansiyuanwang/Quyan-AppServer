@@ -227,6 +227,42 @@ describe("Relay Channel API Integration", () => {
     expect(diagnosticsRes.status).toBe(403);
   });
 
+  it("filters management channels by multiple types and rejects ambiguous type filters", async () => {
+    const standalone = await prisma.relayChannel.create({
+      data: {
+        name: `${channelName}_management_standalone`,
+        openaiUpstreamUrl: "https://management-standalone.example.com",
+        openaiUpstreamApiKey: "management-standalone-key",
+        allowedFormats: "openai",
+      },
+    });
+    const pooled = await prisma.relayChannel.create({
+      data: {
+        name: `${channelName}_management_pooled`,
+        channelType: "pooled",
+      },
+    });
+
+    const filteredRes = await request(app)
+      .get("/v1/relay-channels/management?channelTypes=pooled&channelTypes=standalone&page=1&pageSize=100")
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(filteredRes.status).toBe(200);
+    expect(filteredRes.body.data.total).toBeGreaterThanOrEqual(2);
+    expect(filteredRes.body.data.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: standalone.id, channelType: "standalone" }),
+        expect.objectContaining({ id: pooled.id, channelType: "pooled" }),
+      ]),
+    );
+
+    const ambiguousRes = await request(app)
+      .get("/v1/relay-channels/management?channelType=pooled&channelTypes=standalone")
+      .set("Authorization", `Bearer ${accessToken}`);
+
+    expect(ambiguousRes.status).toBe(422);
+  });
+
   it("rejects channel creation with duplicate model IDs in allowedModels", async () => {
     // First, create model pricing entries with same model ID
     const modelId = "test-model-id";

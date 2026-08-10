@@ -15368,6 +15368,17 @@
 					},
 					{
 						"in": "query",
+						"name": "channelTypes",
+						"required": false,
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/components/schemas/RelayChannelType"
+							}
+						}
+					},
+					{
+						"in": "query",
 						"name": "enabled",
 						"required": false,
 						"schema": {

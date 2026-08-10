@@ -138,7 +138,7 @@ const en = {
     poolCycle: "Pooled channels cannot contain an indirect cycle",
     strictPoolMembersForbidden: "Logical pooled channels use physical member parent assignments instead of poolMembers",
     poolMembersRequired: "A pooled channel must contain at least one member channel",
-    automaticPoolMembersMustBeLogical: "Automatic proxy pool members must be logical pooled channels",
+    automaticPoolMembersMustBePooledOrStandalone: "Automatic proxy pool members must be pooled or standalone channels",
     pooledParentOnlyForPhysical: "Only physical pooled channels may have a logical pooled parent",
   },
   ram: {

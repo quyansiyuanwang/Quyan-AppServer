@@ -140,7 +140,7 @@ const zhCN: DeepStringify<typeof en> = {
     poolCycle: "混池渠道不能形成间接循环",
     strictPoolMembersForbidden: "逻辑混池渠道使用物理成员的所属关系，不支持 poolMembers",
     poolMembersRequired: "混池渠道至少需要一个成员渠道",
-    automaticPoolMembersMustBeLogical: "自动代理池成员必须是逻辑混池渠道",
+    automaticPoolMembersMustBePooledOrStandalone: "自动代理池成员只能是混池渠道或独立渠道",
     pooledParentOnlyForPhysical: "只有物理混池渠道可以设置所属逻辑混池",
   },
   ram: {

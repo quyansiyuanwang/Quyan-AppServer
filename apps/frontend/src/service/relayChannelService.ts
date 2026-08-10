@@ -70,6 +70,7 @@ class RelayChannelService {
     pageSize: number
     keyword?: string
     channelType?: RelayChannelManagementListItemDto['channelType']
+    channelTypes?: RelayChannelManagementListItemDto['channelType'][]
     enabled?: boolean
     submissionStatus?: RelayChannelSubmissionStatus
   }): Promise<PaginatedResponseRelayChannelManagementListItemDto> {
@@ -79,6 +80,7 @@ class RelayChannelService {
         pageSize: options.pageSize,
         keyword: options.keyword?.trim() || undefined,
         channelType: options.channelType,
+        channelTypes: options.channelTypes,
         enabled: options.enabled,
         submissionStatus: options.submissionStatus,
       },

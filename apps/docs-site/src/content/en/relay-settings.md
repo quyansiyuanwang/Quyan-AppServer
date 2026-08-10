@@ -80,7 +80,7 @@ Each channel is a logical route that tokens or system workflows can use. Channel
 #### Automatic proxy pool
 
 - Best for: centrally managed or automated member updates without requiring every token to be reconfigured.
-- Members: logical pooled channels are added as members; standalone channels and other automatic proxy pools cannot be added directly.
+- Members: logical pooled and standalone channels can be added together; physical pooled members and other automatic proxy pools cannot be added.
 - Billing: the resolved member supplies the model pricing and channel/time multipliers; the token owner pays the resulting charge.
 - Visibility: token users select the automatic proxy pool, not its underlying members.
 
