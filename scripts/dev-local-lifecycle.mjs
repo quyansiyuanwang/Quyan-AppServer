@@ -1,26 +1,34 @@
 import { spawn } from 'node:child_process'
-import { dirname } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const scriptPath = fileURLToPath(import.meta.url)
 const projectRoot = dirname(dirname(scriptPath))
-const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+const require = createRequire(import.meta.url)
+const concurrentlyCli = join(
+  dirname(require.resolve('concurrently/package.json')),
+  'dist',
+  'bin',
+  'concurrently.js',
+)
+const localDomainsScript = join(projectRoot, 'scripts', 'setup-local-domains.mjs')
 
 let activeChild = null
 let teardownPromise = null
 let setupCompleted = false
 let shutdownRequested = false
 
-const runPnpm = (arguments_) =>
+const runNode = (arguments_) =>
   new Promise((resolve) => {
-    const child = spawn(pnpmCommand, arguments_, {
+    const child = spawn(process.execPath, arguments_, {
       cwd: projectRoot,
       stdio: 'inherit',
     })
     activeChild = child
 
     child.once('error', (error) => {
-      console.error(`[local-lifecycle] Failed to start pnpm: ${error.message}`)
+      console.error(`[local-lifecycle] Failed to start process: ${error.message}`)
       if (activeChild === child) activeChild = null
       resolve(1)
     })
@@ -30,11 +38,13 @@ const runPnpm = (arguments_) =>
     })
   })
 
+const runLocalDomains = (arguments_ = []) => runNode([localDomainsScript, ...arguments_])
+
 const teardown = async () => {
   if (!setupCompleted) return 0
   if (!teardownPromise) {
     console.log('[local-lifecycle] Tearing down local domains and certificates...')
-    teardownPromise = runPnpm(['run', 'local:teardown'])
+    teardownPromise = runLocalDomains(['--uninstall', '--remove-certificates'])
   }
   return teardownPromise
 }
@@ -52,7 +62,7 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
 
 const main = async () => {
   console.log('[local-lifecycle] Setting up local domains and HTTPS certificates...')
-  const setupExitCode = await runPnpm(['run', 'local:setup'])
+  const setupExitCode = await runLocalDomains()
   if (setupExitCode !== 0) {
     process.exitCode = setupExitCode
     return
@@ -65,9 +75,8 @@ const main = async () => {
   }
 
   console.log('[local-lifecycle] Starting backend, frontend, and docs services...')
-  const devExitCode = await runPnpm([
-    'exec',
-    'concurrently',
+  const devExitCode = await runNode([
+    concurrentlyCli,
     '--kill-others-on-fail',
     '--names',
     'backend,frontend,docs',

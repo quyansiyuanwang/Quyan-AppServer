@@ -80,12 +80,37 @@
               <div class="account-menu__identity">
                 <el-avatar :size="42">{{ avatarLabel }}</el-avatar>
                 <div class="account-menu__identity-copy">
-                  <strong>{{ accountName }}</strong>
-                  <span
-                    >{{ i18ns.t('nav.accountId') }}: {{ userInfoStore.userInfo.id || '—' }}</span
-                  >
+                  <el-tooltip :content="i18ns.t('nav.copyAccountName')" placement="left">
+                    <button
+                      type="button"
+                      class="account-menu__identity-value"
+                      @click="copyIdentity(accountName)"
+                    >
+                      <strong>{{ accountName }}</strong>
+                      <el-icon><CopyDocument /></el-icon>
+                    </button>
+                  </el-tooltip>
+                  <el-tooltip :content="i18ns.t('nav.copyAccountId')" placement="left">
+                    <button
+                      type="button"
+                      class="account-menu__identity-value account-menu__identity-value--secondary"
+                      @click="copyIdentity(userInfoStore.userInfo.id)"
+                    >
+                      <span>{{ i18ns.t('nav.accountId') }}: {{ userInfoStore.userInfo.id || '—' }}</span>
+                      <el-icon><CopyDocument /></el-icon>
+                    </button>
+                  </el-tooltip>
                 </div>
               </div>
+
+              <button
+                type="button"
+                class="account-menu__balance"
+                @click="navigateToRoute('balanceHistory')"
+              >
+                <span>{{ i18ns.t('relay.accountBalance') }}</span>
+                <strong>{{ i18ns.t('balance.yuan') }} {{ accountBalance }}</strong>
+              </button>
 
               <div class="account-menu__section">
                 <div class="account-menu__section-title">{{ i18ns.t('nav.accountMenu') }}</div>
@@ -159,16 +184,47 @@
         <el-main class="main" :class="{ 'is-embedded': isEmbeddedShell }">
           <slot />
         </el-main>
+        <el-aside
+          v-if="showUtilityAside && !utilitySidebarCollapsed"
+          width="48px"
+          class="utility-aside"
+        >
+          <RightUtilitySidebar v-model:collapsed="utilitySidebarCollapsed" />
+        </el-aside>
       </el-container>
+      <el-tooltip
+        v-if="showUtilityAside && utilitySidebarCollapsed"
+        :content="i18ns.t('nav.expandUtilitySidebar')"
+        placement="left"
+        :show-after="250"
+      >
+        <button
+          type="button"
+          class="utility-sidebar-reopen"
+          :class="{ 'is-dragging': utilitySidebarReopenDragging }"
+          :style="utilitySidebarReopenStyle"
+          :aria-label="i18ns.t('nav.expandUtilitySidebar')"
+          @click="handleUtilitySidebarReopenClick"
+          @pointerdown="startUtilitySidebarReopenDrag"
+          @pointermove="moveUtilitySidebarReopenDrag"
+          @pointerup="endUtilitySidebarReopenDrag"
+          @pointercancel="endUtilitySidebarReopenDrag"
+        >
+          <el-icon><ArrowLeft /></el-icon>
+        </button>
+      </el-tooltip>
     </el-container>
   </div>
 </template>
 
 <script setup lang="ts">
 import AsideMenu from '@/layouts/AsideMenu.vue'
+import RightUtilitySidebar from '@/layouts/RightUtilitySidebar.vue'
 import ImpersonationBanner from '@/components/common/ImpersonationBanner.vue'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import {
+  ArrowLeft,
+  CopyDocument,
   Grid,
   Key,
   Lock,
@@ -194,6 +250,7 @@ import { resolveCanonicalRouteUrl } from '@/router/routes'
 import router from '@/router'
 import { Permission } from '@/constant/permission'
 import type { RouteName } from '@/types/route-types.gen'
+import { copyToClipboard } from '@/utils/common'
 
 const waterMarkTextStore = useWaterMarkTextStore()
 const impersonationStore = useImpersonationStore()
@@ -204,6 +261,7 @@ const isAuthenticated = computed(() => Boolean(AuthorizationService.getAccessTok
 const isPublicProfile = computed(() => currentSiteProfile.id === 'public')
 const isAccountProfile = computed(() => currentSiteProfile.id === 'account')
 const showAside = computed(() => !isEmbeddedShell.value && isAuthenticated.value)
+const showUtilityAside = computed(() => !isEmbeddedShell.value && isAuthenticated.value)
 const showSiteHeader = computed(
   () =>
     !isEmbeddedShell.value &&
@@ -211,6 +269,9 @@ const showSiteHeader = computed(
     currentSiteProfile.id !== 'rejected',
 )
 const asideMenuRef = ref<InstanceType<typeof AsideMenu> | null>(null)
+const utilitySidebarCollapsed = ref(false)
+const utilitySidebarReopenTop = ref<number | null>(null)
+const utilitySidebarReopenDragging = ref(false)
 const permissionStore = usePermissionStore()
 const userInfoStore = useUserInfoStore()
 
@@ -227,6 +288,7 @@ const accountName = computed(
   () => userInfoStore.userInfo.name?.trim() || userInfoStore.userInfo.username || '—',
 )
 const avatarLabel = computed(() => accountName.value.slice(0, 1).toUpperCase())
+const accountBalance = computed(() => Number(userInfoStore.userInfo.balance ?? 0).toFixed(4))
 const canUseRelayTokens = computed(() => permissionStore.hasPermission(Permission.RELAY_TOKEN_READ))
 const canUseScripts = computed(() => permissionStore.hasPermission(Permission.SCRIPT_READ))
 const canUseRam = computed(() =>
@@ -240,6 +302,61 @@ const canUseRam = computed(() =>
 const hasCommonTools = computed(
   () => canUseRelayTokens.value || canUseScripts.value || canUseRam.value,
 )
+const utilitySidebarReopenStyle = computed(() =>
+  utilitySidebarReopenTop.value === null
+    ? undefined
+    : { top: `${utilitySidebarReopenTop.value}px`, bottom: 'auto' },
+)
+
+let utilitySidebarReopenPointerId: number | null = null
+let utilitySidebarReopenStartY = 0
+let utilitySidebarReopenStartTop = 0
+let suppressUtilitySidebarReopenClick = false
+
+const startUtilitySidebarReopenDrag = (event: PointerEvent) => {
+  if (event.button !== 0) return
+
+  const button = event.currentTarget as HTMLButtonElement
+  utilitySidebarReopenPointerId = event.pointerId
+  utilitySidebarReopenStartY = event.clientY
+  utilitySidebarReopenStartTop =
+    utilitySidebarReopenTop.value ?? button.getBoundingClientRect().top
+  button.setPointerCapture(event.pointerId)
+}
+
+const moveUtilitySidebarReopenDrag = (event: PointerEvent) => {
+  if (utilitySidebarReopenPointerId !== event.pointerId) return
+
+  const offset = event.clientY - utilitySidebarReopenStartY
+  if (Math.abs(offset) > 3) suppressUtilitySidebarReopenClick = true
+
+  const maxTop = Math.max(12, window.innerHeight - 52)
+  utilitySidebarReopenTop.value = Math.min(
+    maxTop,
+    Math.max(12, utilitySidebarReopenStartTop + offset),
+  )
+  utilitySidebarReopenDragging.value = true
+}
+
+const endUtilitySidebarReopenDrag = (event: PointerEvent) => {
+  if (utilitySidebarReopenPointerId !== event.pointerId) return
+
+  const button = event.currentTarget as HTMLButtonElement
+  if (button.hasPointerCapture(event.pointerId)) {
+    button.releasePointerCapture(event.pointerId)
+  }
+  utilitySidebarReopenPointerId = null
+  utilitySidebarReopenDragging.value = false
+}
+
+const handleUtilitySidebarReopenClick = () => {
+  if (suppressUtilitySidebarReopenClick) {
+    suppressUtilitySidebarReopenClick = false
+    return
+  }
+
+  utilitySidebarCollapsed.value = false
+}
 
 const openSiteDrawer = () => asideMenuRef.value?.openOverview()
 
@@ -262,6 +379,11 @@ const openDocs = () => {
     '_blank',
     'noopener,noreferrer',
   )
+}
+
+const copyIdentity = (value?: string | null) => {
+  if (!value?.trim()) return
+  void copyToClipboard(value)
 }
 
 const logout = () => void authorizationService.logout()
@@ -422,6 +544,81 @@ onMounted(async () => {
   font-size: 12px;
 }
 
+.account-menu__identity-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  color: var(--el-text-color-primary);
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.account-menu__identity-value strong,
+.account-menu__identity-value span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu__identity-value .el-icon {
+  flex: 0 0 auto;
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.account-menu__identity-value:hover .el-icon,
+.account-menu__identity-value:focus-visible .el-icon {
+  opacity: 1;
+}
+
+.account-menu__identity-value:focus-visible {
+  outline: 2px solid var(--el-color-primary-light-5);
+  outline-offset: 2px;
+}
+
+.account-menu__identity-value--secondary {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.account-menu__balance {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  width: calc(100% - 24px);
+  margin: 0 12px 10px;
+  padding: 10px 12px;
+  color: var(--el-text-color-regular);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  background: var(--el-fill-color-light);
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.account-menu__balance strong {
+  color: var(--el-text-color-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.account-menu__balance:hover,
+.account-menu__balance:focus-visible {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  outline: none;
+}
+
 .account-menu__section,
 .account-menu__footer {
   padding: 10px 6px;
@@ -491,6 +688,43 @@ onMounted(async () => {
   overflow: hidden;
   border-right: 1px solid var(--surface-card-border);
   transition: width 0.24s ease;
+}
+
+.utility-aside {
+  overflow: hidden;
+  border-left: 1px solid var(--surface-card-border);
+}
+
+.utility-sidebar-reopen {
+  position: fixed;
+  right: 0;
+  bottom: 18px;
+  z-index: 2000;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 40px;
+  padding: 0;
+  color: var(--el-text-color-secondary);
+  background: var(--el-bg-color);
+  border: 1px solid var(--surface-card-border);
+  border-right: 0;
+  border-radius: 4px 0 0 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+
+.utility-sidebar-reopen.is-dragging {
+  cursor: grabbing;
+}
+
+.utility-sidebar-reopen:hover,
+.utility-sidebar-reopen:focus-visible {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  outline: none;
 }
 
 .main {
@@ -621,6 +855,14 @@ onMounted(async () => {
     border-right: none;
     border-top: 1px solid var(--surface-card-border);
     background: var(--el-bg-color);
+  }
+
+  .utility-aside {
+    display: none;
+  }
+
+  .utility-sidebar-reopen {
+    display: none;
   }
 
   .main {
