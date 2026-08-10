@@ -187,7 +187,6 @@ const productOperationsMenu = DEVELOPER_PRODUCT_NAVIGATION.map((product) =>
 
 const menuDefinition: readonly MenuNode[] = [
   item('home', 'nav.home', HomeFilled),
-  item('consoleDashboard', 'nav.home', HomeFilled),
   item('settingsProfile', 'nav.settingsProfile', User),
   item('settingsSecurity', 'nav.settingsSecurity', Lock),
   item('notificationSettings', 'nav.notificationSettings', Bell),

@@ -11,6 +11,132 @@
           <el-icon><Grid /></el-icon>
           <span>{{ i18ns.t('nav.switchSite') }}</span>
         </button>
+        <div class="site-header__actions">
+          <el-tooltip :content="i18ns.t('nav.docs')" placement="bottom" :show-after="250">
+            <button type="button" class="site-header__icon-button" @click="openDocs">
+              <el-icon><Document /></el-icon>
+            </button>
+          </el-tooltip>
+          <el-tooltip :content="i18ns.t('nav.costAndBilling')" placement="bottom" :show-after="250">
+            <button
+              type="button"
+              class="site-header__icon-button"
+              @click="navigateToRoute('balanceHistory')"
+            >
+              <el-icon><Wallet /></el-icon>
+            </button>
+          </el-tooltip>
+          <el-tooltip :content="i18ns.t('nav.myTickets')" placement="bottom" :show-after="250">
+            <button
+              type="button"
+              class="site-header__icon-button"
+              @click="navigateToRoute('myTickets')"
+            >
+              <el-icon><ChatDotRound /></el-icon>
+            </button>
+          </el-tooltip>
+          <el-tooltip :content="i18ns.t('nav.siteMessages')" placement="bottom" :show-after="250">
+            <button
+              type="button"
+              class="site-header__icon-button"
+              @click="navigateToRoute('notificationSettings')"
+            >
+              <el-icon><Bell /></el-icon>
+            </button>
+          </el-tooltip>
+          <LanguageSwitcher compact />
+          <el-popover
+            placement="bottom-end"
+            :width="300"
+            trigger="hover"
+            :show-after="150"
+            :hide-after="120"
+            popper-class="topbar-account-popover"
+          >
+            <template #reference>
+              <button
+                type="button"
+                class="site-header__avatar-button"
+                :aria-label="i18ns.t('nav.accountMenu')"
+              >
+                <el-avatar :size="32">{{ avatarLabel }}</el-avatar>
+              </button>
+            </template>
+            <section class="account-menu">
+              <div class="account-menu__identity">
+                <el-avatar :size="42">{{ avatarLabel }}</el-avatar>
+                <div class="account-menu__identity-copy">
+                  <strong>{{ accountName }}</strong>
+                  <span
+                    >{{ i18ns.t('nav.accountId') }}: {{ userInfoStore.userInfo.id || '—' }}</span
+                  >
+                </div>
+              </div>
+
+              <div class="account-menu__section">
+                <div class="account-menu__section-title">{{ i18ns.t('nav.accountMenu') }}</div>
+                <button
+                  type="button"
+                  class="account-menu__action"
+                  @click="navigateToRoute('settingsSecurity')"
+                >
+                  <el-icon><Lock /></el-icon>
+                  <span>{{ i18ns.t('nav.settingsSecurity') }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="account-menu__action"
+                  @click="navigateToRoute('balanceHistory')"
+                >
+                  <el-icon><Wallet /></el-icon>
+                  <span>{{ i18ns.t('nav.costAndBilling') }}</span>
+                </button>
+              </div>
+
+              <div v-if="hasCommonTools" class="account-menu__section">
+                <div class="account-menu__section-title">{{ i18ns.t('nav.commonTools') }}</div>
+                <button
+                  v-if="canUseRelayTokens"
+                  type="button"
+                  class="account-menu__action"
+                  @click="navigateToRoute('relayTokenManagement')"
+                >
+                  <el-icon><Key /></el-icon>
+                  <span>{{ i18ns.t('nav.myTokens') }}</span>
+                </button>
+                <button
+                  v-if="canUseScripts"
+                  type="button"
+                  class="account-menu__action"
+                  @click="navigateToRoute('scriptManager')"
+                >
+                  <el-icon><Tools /></el-icon>
+                  <span>{{ i18ns.t('nav.scriptManager') }}</span>
+                </button>
+                <button
+                  v-if="canUseRam"
+                  type="button"
+                  class="account-menu__action"
+                  @click="navigateToRoute('ramManagement')"
+                >
+                  <el-icon><UserFilled /></el-icon>
+                  <span>{{ i18ns.t('nav.ramManagement') }}</span>
+                </button>
+              </div>
+
+              <div class="account-menu__footer">
+                <button
+                  type="button"
+                  class="account-menu__action account-menu__action--danger"
+                  @click="logout"
+                >
+                  <el-icon><SwitchButton /></el-icon>
+                  <span>{{ i18ns.t('logout') }}</span>
+                </button>
+              </div>
+            </section>
+          </el-popover>
+        </div>
       </el-header>
       <el-container class="content-container">
         <el-aside v-if="showAside" class="aside"><AsideMenu ref="asideMenuRef" /></el-aside>
@@ -25,17 +151,33 @@
 <script setup lang="ts">
 import AsideMenu from '@/layouts/AsideMenu.vue'
 import ImpersonationBanner from '@/components/common/ImpersonationBanner.vue'
-import { Grid } from '@element-plus/icons-vue'
-import { onMounted, ref } from 'vue'
+import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
+import {
+  Bell,
+  ChatDotRound,
+  Document,
+  Grid,
+  Key,
+  Lock,
+  SwitchButton,
+  Tools,
+  UserFilled,
+  Wallet,
+} from '@element-plus/icons-vue'
+import { computed, onMounted, ref } from 'vue'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
 import { useImpersonationStore } from '@/stores/impersonationStore'
-import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { AuthorizationService } from '@/service/authorizationService'
+import { AuthorizationService, authorizationService } from '@/service/authorizationService'
 import { currentSiteProfile } from '@/router'
 import { i18ns } from '@/locales'
+import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
+import { resolveCanonicalRouteUrl } from '@/router/routes'
+import router from '@/router'
+import { Permission } from '@/constant/permission'
+import type { RouteName } from '@/types/route-types.gen'
 
 const waterMarkTextStore = useWaterMarkTextStore()
 const impersonationStore = useImpersonationStore()
@@ -47,17 +189,57 @@ const showSiteHeader = computed(
   () => !isEmbeddedShell.value && isAuthenticated.value && currentSiteProfile.id !== 'rejected',
 )
 const asideMenuRef = ref<InstanceType<typeof AsideMenu> | null>(null)
+const permissionStore = usePermissionStore()
+const userInfoStore = useUserInfoStore()
+
+const accountName = computed(
+  () => userInfoStore.userInfo.name?.trim() || userInfoStore.userInfo.username || '—',
+)
+const avatarLabel = computed(() => accountName.value.slice(0, 1).toUpperCase())
+const canUseRelayTokens = computed(() => permissionStore.hasPermission(Permission.RELAY_TOKEN_READ))
+const canUseScripts = computed(() => permissionStore.hasPermission(Permission.SCRIPT_READ))
+const canUseRam = computed(() =>
+  permissionStore.hasAnyPermission(
+    Permission.RAM_USER_READ,
+    Permission.RAM_ROLE_READ,
+    Permission.RAM_BINDING_READ,
+    Permission.RAM_SESSION_READ,
+  ),
+)
+const hasCommonTools = computed(
+  () => canUseRelayTokens.value || canUseScripts.value || canUseRam.value,
+)
 
 const openSiteDrawer = () => asideMenuRef.value?.openOverview()
+
+const navigateToRoute = (routeName: RouteName) => {
+  if (currentSiteProfile.id !== 'rejected') {
+    const targetUrl = resolveCanonicalRouteUrl(routeName, currentSiteProfile)
+    if (targetUrl && new URL(targetUrl).origin !== window.location.origin) {
+      window.location.assign(targetUrl)
+      return
+    }
+  }
+
+  void router.push({ name: routeName } as any)
+}
+
+const openDocs = () => {
+  const routeName = typeof route.name === 'string' ? route.name : undefined
+  window.open(
+    resolveDocsUrl(routeName, normalizeDocsLocale(i18ns.refer.value)),
+    '_blank',
+    'noopener,noreferrer',
+  )
+}
+
+const logout = () => void authorizationService.logout()
 
 onMounted(async () => {
   if (!isAuthenticated.value) {
     waterMarkTextStore.clearText()
     return
   }
-
-  const permissionStore = usePermissionStore()
-  const userInfoStore = useUserInfoStore()
 
   await userInfoStore.init().then(permissionStore.init)
   waterMarkTextStore.setText(`${userInfoStore.userInfo.username}`)
@@ -103,6 +285,13 @@ onMounted(async () => {
   box-sizing: border-box;
 }
 
+.site-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
 .site-header__drawer-trigger {
   display: inline-flex;
   align-items: center;
@@ -121,6 +310,104 @@ onMounted(async () => {
 .site-header__drawer-trigger:focus-visible {
   background: var(--el-fill-color-light);
   outline: none;
+}
+
+.site-header__icon-button,
+.site-header__avatar-button {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  color: var(--el-text-color-regular);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.site-header__icon-button:hover,
+.site-header__icon-button:focus-visible,
+.site-header__avatar-button:hover,
+.site-header__avatar-button:focus-visible {
+  color: var(--el-text-color-primary);
+  background: var(--el-fill-color-light);
+  outline: none;
+}
+
+.site-header__avatar-button {
+  margin-left: 4px;
+}
+
+.account-menu {
+  padding: 4px 0;
+}
+
+.account-menu__identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 14px;
+}
+
+.account-menu__identity-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.account-menu__identity-copy strong,
+.account-menu__identity-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu__identity-copy span,
+.account-menu__section-title {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.account-menu__section,
+.account-menu__footer {
+  padding: 10px 6px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.account-menu__section-title {
+  padding: 0 8px 6px;
+}
+
+.account-menu__action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 8px;
+  color: var(--el-text-color-primary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.account-menu__action:hover,
+.account-menu__action:focus-visible {
+  background: var(--el-fill-color-light);
+  outline: none;
+}
+
+.account-menu__action--danger {
+  color: var(--el-color-danger);
+}
+
+:global(.topbar-account-popover.el-popover) {
+  padding: 0;
 }
 
 .with-banner {
@@ -188,6 +475,18 @@ onMounted(async () => {
 
 /* 移动端优化 */
 @media screen and (max-width: 768px) {
+  .site-header {
+    padding: 0 10px;
+  }
+
+  .site-header__drawer-trigger span {
+    display: none;
+  }
+
+  .site-header__actions {
+    gap: 2px;
+  }
+
   .header {
     padding: 0 12px;
     height: auto !important;
