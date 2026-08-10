@@ -15,6 +15,19 @@ const collectRouteNames = (routes: ReturnType<typeof createRoutesForProfile>): s
     ...collectRouteNames(route.children ?? []),
   ])
 
+const findRoute = (
+  routes: ReturnType<typeof createRoutesForProfile>,
+  routeName: string,
+): { path: string } | undefined => {
+  for (const route of routes) {
+    if (route.name === routeName) return route
+    const nestedRoute = findRoute(route.children ?? [], routeName)
+    if (nestedRoute) return nestedRoute
+  }
+
+  return undefined
+}
+
 describe('profile route factory', () => {
   it('keeps only account and shared routes for the account profile', () => {
     const routeNames = collectRouteNames(
@@ -56,6 +69,14 @@ describe('profile route factory', () => {
     expect(aiRouteNames).not.toContain('userManagement')
     expect(terminalRouteNames).toContain('remoteTerminalProductManagement')
     expect(terminalRouteNames).not.toContain('relaySettings')
+  })
+
+  it('exposes the terminal profile default path without changing the legacy route', () => {
+    const terminalRoutes = createRoutesForProfile(getKnownProfile('terminal.qysyw.cn'))
+    const landingRoute = findRoute(terminalRoutes, 'remoteTerminalProductsLanding')
+
+    expect(landingRoute?.path).toBe('products/remote-terminal-cloud')
+    expect(collectRouteNames(terminalRoutes)).toContain('myRemoteTerminalProducts')
   })
 
   it('resolves foreign route names to their registered canonical host', () => {

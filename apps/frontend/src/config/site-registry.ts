@@ -165,6 +165,16 @@ const registeredProfiles = siteDefinitions.flatMap((definition) => [
 
 export const siteProfiles: readonly SiteProfile[] = registeredProfiles
 
+export const getSiteProfilesForEnvironment = (
+  currentProfile: SiteProfile,
+): readonly SiteProfile[] => {
+  const hostnameSuffix = currentProfile.hostname.endsWith('.test') ? '.test' : '.cn'
+
+  return siteProfiles.filter(
+    (profile) => profile.id !== 'identity' && profile.hostname.endsWith(hostnameSuffix),
+  )
+}
+
 const profilesByHostname = new Map(siteProfiles.map((profile) => [profile.hostname, profile]))
 const profilesByOrigin = new Map(siteProfiles.map((profile) => [profile.canonicalOrigin, profile]))
 

@@ -49,6 +49,7 @@ const routeGroupsByName: Readonly<Record<string, SiteRouteGroup>> = {
   'product-ip_geolocation': 'developer',
   'product-push': 'developer',
   myRemoteTerminalProducts: 'terminal',
+  remoteTerminalProductsLanding: 'terminal',
   remoteTerminal: 'terminal',
   userManagement: 'console-core',
   groupManagement: 'console-core',
@@ -287,6 +288,12 @@ export const routes = [
             path: 'products',
             name: 'developerProducts',
             component: () => import('@/views/products/DeveloperProductCatalogView.vue'),
+          },
+          {
+            path: 'products/remote-terminal-cloud',
+            name: 'remoteTerminalProductsLanding',
+            component: () =>
+              import('@/views/products/remote-terminal-cloud/MyRemoteTerminalProductsView.vue'),
           },
           {
             path: 'developer/management',

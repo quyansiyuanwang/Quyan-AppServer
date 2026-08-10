@@ -755,6 +755,17 @@ export default {
   },
 
   nav: {
+    switchSite: 'Switch site',
+    sitePublic: 'Website',
+    siteIdentity: 'Identity Center',
+    siteAccount: 'Account Center',
+    siteChat: 'AI Chat',
+    siteDeveloper: 'Developer Center',
+    siteTerminal: 'Cloud Terminal',
+    siteConsoleCore: 'Admin Console',
+    siteConsoleAi: 'AI Relay Console',
+    siteConsoleDeveloper: 'Developer Console',
+    siteConsoleTerminal: 'Terminal Administration',
     home: 'Home',
     chat: 'AI Chat',
     permission: 'Permission',

@@ -7,8 +7,8 @@
     }"
   >
     <!-- Brand header (desktop only) -->
-    <div v-if="isDesktop" class="aside-header">
-      <div class="aside-brand">
+    <!-- <div v-if="isDesktop" class="aside-header">
+      <div v-if="!isCollapse" class="aside-brand">
         <el-icon size="18"><Grid /></el-icon>
         <span class="brand-name">AppServer</span>
       </div>
@@ -26,6 +26,7 @@
           :content="i18ns.t(showOverview ? 'nav.collapseOverview' : 'nav.expandOverview')"
         >
           <button
+            v-if="!isCollapse"
             type="button"
             class="header-icon-button"
             :class="{ 'is-active': showOverview }"
@@ -35,14 +36,14 @@
           </button>
         </el-tooltip>
       </div>
-    </div>
+    </div> -->
 
     <!-- Desktop sidebar menu -->
     <el-menu ref="menuRef" :collapse="showIsDesktopIcon" class="aside-nav">
       <NavMenuItems
         :show-spacer="true"
         :show-logout="true"
-        :show-pinned-section="pinnedItems.length > 0 && !showIsDesktopIcon"
+        :show-pinned-section="currentSitePinnedItems.length > 0 && !showIsDesktopIcon"
         :on-route-navigate="handleRouteNavigation"
         :on-route-context-menu="openRouteContextMenu"
       >
@@ -53,7 +54,7 @@
             </div>
             <div ref="desktopPinnedListRef" class="pinned-menu-list">
               <div
-                v-for="item in pinnedItems"
+                v-for="item in currentSitePinnedItems"
                 :key="item.key"
                 :data-route-name="item.route"
                 class="pinned-menu-link"
@@ -145,122 +146,181 @@
           </button>
         </div>
 
-        <div class="overview-sections">
-          <div class="overview-toolbar">
-            <el-input
-              v-model="categoryKeyword"
-              clearable
-              size="large"
-              class="overview-search"
-              :placeholder="i18ns.t('nav.categorySearchPlaceholder')"
-            >
-              <template #prefix>
-                <el-icon><Search /></el-icon>
-              </template>
-            </el-input>
-            <el-input
-              v-model="featureKeyword"
-              clearable
-              size="large"
-              class="overview-search"
-              :placeholder="i18ns.t('nav.featureSearchPlaceholder')"
-            >
-              <template #prefix>
-                <el-icon><Search /></el-icon>
-              </template>
-            </el-input>
-          </div>
-
-          <div v-if="pinnedItems.length > 0" class="overview-pinned-strip">
-            <div class="overview-pinned-strip__title">
-              <el-icon><StarFilled /></el-icon>
-              <span>{{ i18ns.t('nav.pinnedPages') }}</span>
+        <div class="overview-drawer-columns">
+          <nav class="overview-site-panel" :aria-label="i18ns.t('nav.switchSite')">
+            <div class="overview-site-panel__title">
+              <el-icon><Grid /></el-icon>
+              <span>{{ i18ns.t('nav.switchSite') }}</span>
             </div>
-            <div class="overview-pinned-strip__hint">{{ i18ns.t('nav.pinnedPagesHint') }}</div>
-            <div ref="overviewPinnedListRef" class="overview-pinned-strip__list">
-              <div
-                v-for="item in pinnedItems"
-                :key="item.key"
-                :data-route-name="item.route"
-                class="overview-chip"
-                :class="{
-                  'is-active': item.route ? router.currentRoute.value.name === item.route : false,
-                }"
-                @contextmenu.prevent="item.route && openRouteContextMenu(item.route, $event)"
+            <div class="overview-site-list">
+              <button
+                v-for="profile in availableSiteProfiles"
+                :key="profile.id"
+                type="button"
+                class="overview-site-item"
+                :class="{ 'is-active': profile.id === currentSiteProfile.id }"
+                :disabled="profile.id === currentSiteProfile.id"
+                @click="navigateToSiteProfile(profile.id)"
               >
-                <button
-                  type="button"
-                  class="overview-chip__drag"
-                  :aria-label="i18ns.t('nav.dragPinnedPage')"
-                  @click.stop
+                <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
+                <span>{{ i18ns.t(siteLabelKeys[profile.id]) }}</span>
+                <el-icon
+                  v-if="profile.id === currentSiteProfile.id"
+                  class="overview-site-item__current"
                 >
-                  <el-icon><Rank /></el-icon>
-                </button>
-                <button type="button" class="overview-chip__main" @click="handleOverviewItem(item)">
-                  <el-icon><component :is="item.icon" /></el-icon>
-                  <span>{{ item.label }}</span>
-                </button>
-                <button
-                  v-if="item.route"
-                  type="button"
-                  class="overview-chip__remove"
-                  :aria-label="i18ns.t('nav.unpinPage')"
-                  @click.stop="confirmTogglePinnedRoute(item.route)"
-                >
-                  <el-icon><Close /></el-icon>
-                </button>
-              </div>
+                  <Check />
+                </el-icon>
+              </button>
             </div>
-          </div>
+          </nav>
 
-          <div v-if="filteredOverviewSections.length > 0" class="overview-table-grid">
-            <section
-              v-for="section in filteredOverviewSections"
-              :key="section.key"
-              class="overview-card"
-            >
-              <header class="overview-card__header">
-                <div class="overview-card__title">
-                  <el-icon><component :is="section.icon" /></el-icon>
-                  <span>{{ section.title }}</span>
-                </div>
-              </header>
-              <div class="overview-card__body">
+          <div class="overview-sections">
+            <div class="overview-toolbar">
+              <el-input
+                v-model="categoryKeyword"
+                clearable
+                size="large"
+                class="overview-search"
+                :placeholder="i18ns.t('nav.categorySearchPlaceholder')"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
+              <el-input
+                v-model="featureKeyword"
+                clearable
+                size="large"
+                class="overview-search"
+                :placeholder="i18ns.t('nav.featureSearchPlaceholder')"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
+            </div>
+
+            <div v-if="pinnedItems.length > 0" class="overview-pinned-strip">
+              <div class="overview-pinned-strip__title">
+                <el-icon><StarFilled /></el-icon>
+                <span>{{ i18ns.t('nav.pinnedPages') }}</span>
+              </div>
+              <div class="overview-pinned-strip__hint">{{ i18ns.t('nav.pinnedPagesHint') }}</div>
+              <div ref="overviewPinnedListRef" class="overview-pinned-strip__list">
                 <div
-                  v-for="item in section.items"
+                  v-for="item in pinnedItems"
                   :key="item.key"
-                  class="overview-link"
+                  :data-route-name="item.route"
+                  class="overview-chip"
                   :class="{
                     'is-active': item.route ? router.currentRoute.value.name === item.route : false,
                   }"
+                  @contextmenu.prevent="item.route && openRouteContextMenu(item.route, $event)"
                 >
                   <button
                     type="button"
-                    class="overview-link__main"
-                    @contextmenu.prevent="item.route && openRouteContextMenu(item.route, $event)"
+                    class="overview-chip__drag"
+                    :aria-label="i18ns.t('nav.dragPinnedPage')"
+                    @click.stop
+                  >
+                    <el-icon><Rank /></el-icon>
+                  </button>
+                  <button
+                    type="button"
+                    class="overview-chip__main"
                     @click="handleOverviewItem(item)"
                   >
-                    <span class="overview-link__content">
-                      <el-icon><component :is="item.icon" /></el-icon>
-                      <span>{{ item.label }}</span>
-                    </span>
+                    <el-icon><component :is="item.icon" /></el-icon>
+                    <span>{{ item.label }}</span>
                   </button>
                   <button
                     v-if="item.route"
                     type="button"
-                    class="overview-pin-button"
-                    :class="{ 'is-pinned': isPinned(item.route) }"
-                    :aria-label="i18ns.t(isPinned(item.route) ? 'nav.unpinPage' : 'nav.pinPage')"
+                    class="overview-chip__remove"
+                    :aria-label="i18ns.t('nav.unpinPage')"
                     @click.stop="confirmTogglePinnedRoute(item.route)"
                   >
-                    <el-icon><component :is="isPinned(item.route) ? StarFilled : Star" /></el-icon>
+                    <el-icon><Close /></el-icon>
                   </button>
                 </div>
               </div>
-            </section>
-          </div>
+            </div>
 
-          <el-empty v-else :description="i18ns.t('nav.noMatchedFeatures')" />
+            <div v-if="filteredOverviewSections.length > 0" class="overview-table-grid">
+              <section
+                v-for="section in filteredOverviewSections"
+                :key="section.key"
+                class="overview-card"
+              >
+                <header class="overview-card__header">
+                  <div class="overview-card__title">
+                    <el-icon><component :is="section.icon" /></el-icon>
+                    <span>{{ section.title }}</span>
+                  </div>
+                  <el-tooltip
+                    :content="i18ns.t(isOverviewSectionExpanded(section) ? 'collapse' : 'expand')"
+                  >
+                    <button
+                      v-if="section.items.length > OVERVIEW_SECTION_COLLAPSE_THRESHOLD"
+                      type="button"
+                      class="overview-card__toggle"
+                      :aria-label="
+                        i18ns.t(isOverviewSectionExpanded(section) ? 'collapse' : 'expand')
+                      "
+                      @click.stop="toggleOverviewSection(section)"
+                    >
+                      <el-icon>
+                        <component :is="isOverviewSectionExpanded(section) ? ArrowUp : ArrowDown" />
+                      </el-icon>
+                    </button>
+                  </el-tooltip>
+                </header>
+                <TransitionGroup
+                  name="overview-links"
+                  tag="div"
+                  class="overview-card__body"
+                  :class="{ 'is-collapsed': isOverviewSectionCollapsed(section) }"
+                >
+                  <div
+                    v-for="item in visibleOverviewSectionItems(section)"
+                    :key="item.key"
+                    class="overview-link"
+                    :class="{
+                      'is-active': item.route
+                        ? router.currentRoute.value.name === item.route
+                        : false,
+                    }"
+                  >
+                    <button
+                      type="button"
+                      class="overview-link__main"
+                      @contextmenu.prevent="item.route && openRouteContextMenu(item.route, $event)"
+                      @click="handleOverviewItem(item)"
+                    >
+                      <span class="overview-link__content">
+                        <el-icon><component :is="item.icon" /></el-icon>
+                        <span>{{ item.label }}</span>
+                      </span>
+                    </button>
+                    <button
+                      v-if="item.route"
+                      type="button"
+                      class="overview-pin-button"
+                      :class="{ 'is-pinned': isPinned(item.route) }"
+                      :aria-label="i18ns.t(isPinned(item.route) ? 'nav.unpinPage' : 'nav.pinPage')"
+                      @click.stop="confirmTogglePinnedRoute(item.route)"
+                    >
+                      <el-icon
+                        ><component :is="isPinned(item.route) ? StarFilled : Star"
+                      /></el-icon>
+                    </button>
+                  </div>
+                </TransitionGroup>
+              </section>
+            </div>
+
+            <el-empty v-else :description="i18ns.t('nav.noMatchedFeatures')" />
+          </div>
         </div>
       </div>
     </el-drawer>
@@ -325,7 +385,7 @@
           <NavMenuItems
             :show-spacer="false"
             :show-logout="true"
-            :show-pinned-section="pinnedItems.length > 0"
+            :show-pinned-section="currentSitePinnedItems.length > 0"
             :on-route-navigate="handleRouteNavigation"
           >
             <template #pinned>
@@ -335,7 +395,7 @@
                 </div>
                 <div ref="mobilePinnedListRef" class="pinned-menu-list">
                   <div
-                    v-for="item in pinnedItems"
+                    v-for="item in currentSitePinnedItems"
                     :key="item.key"
                     :data-route-name="item.route"
                     class="pinned-menu-link"
@@ -386,6 +446,8 @@
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import StorageKey from '@/constant/storagekey'
 import {
+  ArrowDown,
+  ArrowUp,
   Expand,
   Fold,
   Grid,
@@ -420,12 +482,13 @@ import {
   Box,
   Cpu,
   Bell,
+  Check,
   Link,
   Lock,
 } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import { ElMessageBox } from 'element-plus'
-import { i18ns } from '@/locales'
+import { i18ns, type I18nENAvailableKeys } from '@/locales'
 import {
   computed,
   nextTick,
@@ -447,6 +510,7 @@ import { usePermissionStore } from '@/stores/permissionStore'
 import { Permission } from '@/constant/permission'
 import { currentSiteProfile } from '@/router'
 import { resolveCanonicalRouteUrl } from '@/router/routes'
+import { getSiteProfilesForEnvironment, type SiteProfileId } from '@/config/site-registry'
 import {
   DEVELOPER_PRODUCT_NAVIGATION,
   developerProductConfigRoute,
@@ -478,8 +542,9 @@ const showMobileDrawer = ref(false)
 const categoryKeyword = ref('')
 const featureKeyword = ref('')
 const pinnedRouteNames = ref<RouteName[]>([])
+const overviewSectionExpansion = ref<Record<string, boolean>>({})
 const hasRestoredPinnedRoutes = ref(false)
-const overviewDrawerSize = 'min(80vw, calc(100vw - 72px))'
+const overviewDrawerSize = 'min(96vw, 1440px)'
 const routeContextMenu = ref<{
   visible: boolean
   x: number
@@ -515,10 +580,51 @@ type OverviewSection = {
   items: OverviewItem[]
 }
 
+const OVERVIEW_SECTION_COLLAPSE_THRESHOLD = 6
+const OVERVIEW_SECTION_PREVIEW_ITEM_COUNT = 3
+
 const can = (permission: Permission) => permissionStore.hasPermission(permission)
 const canAny = (...permissions: Permission[]) => permissionStore.hasAnyPermission(...permissions)
-const isRouteVisible = (routeName?: RouteName): boolean =>
-  !routeName || router.hasRoute(routeName)
+const isRouteVisible = (routeName?: RouteName): boolean => !routeName || router.hasRoute(routeName)
+
+const siteLabelKeys: Record<SiteProfileId, I18nENAvailableKeys> = {
+  public: 'nav.sitePublic',
+  identity: 'nav.siteIdentity',
+  account: 'nav.siteAccount',
+  chat: 'nav.siteChat',
+  developer: 'nav.siteDeveloper',
+  terminal: 'nav.siteTerminal',
+  'console-core': 'nav.siteConsoleCore',
+  'console-ai': 'nav.siteConsoleAi',
+  'console-developer': 'nav.siteConsoleDeveloper',
+  'console-terminal': 'nav.siteConsoleTerminal',
+}
+
+const siteIcons: Record<SiteProfileId, Component> = {
+  public: HomeFilled,
+  identity: User,
+  account: User,
+  chat: ChatDotRound,
+  developer: Connection,
+  terminal: Monitor,
+  'console-core': Setting,
+  'console-ai': Connection,
+  'console-developer': Grid,
+  'console-terminal': Monitor,
+}
+
+const availableSiteProfiles = computed(() =>
+  currentSiteProfile.id === 'rejected' ? [] : getSiteProfilesForEnvironment(currentSiteProfile),
+)
+
+const navigateToSiteProfile = (siteId: SiteProfileId) => {
+  const target = availableSiteProfiles.value.find((profile) => profile.id === siteId)
+  if (!target || target.id === currentSiteProfile.id) return
+
+  showOverview.value = false
+  showMobileDrawer.value = false
+  window.location.assign(new URL(target.defaultPath, target.canonicalOrigin).toString())
+}
 
 const toggleCollapse = () => {
   showOverview.value = false
@@ -526,11 +632,20 @@ const toggleCollapse = () => {
 }
 
 const toggleOverview = () => {
-  showOverview.value = !showOverview.value
   if (showOverview.value) {
-    isCollapse.value = false
+    showOverview.value = false
+    return
   }
+
+  openOverview()
 }
+
+const openOverview = () => {
+  showOverview.value = true
+  isCollapse.value = false
+}
+
+defineExpose({ openOverview })
 
 const closeRouteContextMenu = () => {
   routeContextMenu.value.visible = false
@@ -601,6 +716,29 @@ const handlePinnedMobileItem = (item: OverviewItem) => {
 }
 
 const normalizeKeyword = (value: string) => value.trim().toLocaleLowerCase()
+
+const isOverviewSectionExpanded = (section: OverviewSection): boolean => {
+  if (categoryKeyword.value || featureKeyword.value) return true
+  return (
+    overviewSectionExpansion.value[section.key] ??
+    section.items.length <= OVERVIEW_SECTION_COLLAPSE_THRESHOLD
+  )
+}
+
+const isOverviewSectionCollapsed = (section: OverviewSection): boolean =>
+  section.items.length > OVERVIEW_SECTION_COLLAPSE_THRESHOLD && !isOverviewSectionExpanded(section)
+
+const visibleOverviewSectionItems = (section: OverviewSection): OverviewItem[] =>
+  isOverviewSectionCollapsed(section)
+    ? section.items.slice(0, OVERVIEW_SECTION_PREVIEW_ITEM_COUNT)
+    : section.items
+
+const toggleOverviewSection = (section: OverviewSection) => {
+  overviewSectionExpansion.value = {
+    ...overviewSectionExpansion.value,
+    [section.key]: !isOverviewSectionExpanded(section),
+  }
+}
 
 const openDocs = () => {
   const routeName =
@@ -1133,7 +1271,7 @@ const overviewSections = computed<OverviewSection[]>(() => {
   return sections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => item.visible && isRouteVisible(item.route)),
+      items: section.items.filter((item) => item.visible),
     }))
     .filter((section) => section.items.length > 0)
 })
@@ -1182,6 +1320,9 @@ const pinnedItems = computed(() =>
   pinnedRouteNames.value
     .map((routeName) => pinnableItemsByRoute.value.get(routeName))
     .filter((item): item is OverviewItem => Boolean(item)),
+)
+const currentSitePinnedItems = computed(() =>
+  pinnedItems.value.filter((item) => !item.route || isRouteVisible(item.route)),
 )
 
 const routeContextMenuItem = computed(() => {
@@ -1561,6 +1702,79 @@ watch(
   overflow: hidden;
 }
 
+.overview-drawer-columns {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.overview-site-panel {
+  min-width: 0;
+  padding: 14px 10px;
+  overflow-y: auto;
+  border-right: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-light);
+}
+
+.overview-site-panel__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 10px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.overview-site-list {
+  display: grid;
+  gap: 4px;
+}
+
+.overview-site-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 10px;
+  color: var(--el-text-color-primary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.overview-site-item:hover:not(:disabled),
+.overview-site-item:focus-visible:not(:disabled) {
+  background: var(--el-fill-color-blank);
+  outline: none;
+}
+
+.overview-site-item.is-active {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.overview-site-item__current {
+  margin-left: auto;
+}
+
+@media screen and (max-width: 920px) {
+  .overview-drawer-columns {
+    grid-template-columns: 180px minmax(0, 1fr);
+  }
+
+  .overview-site-item {
+    gap: 8px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+}
+
 .overview-drawer :deep(.el-drawer__body) {
   padding: 0;
 }
@@ -1723,22 +1937,27 @@ watch(
 }
 
 .overview-table-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px;
-  align-items: start;
+  column-width: 200px;
+  column-gap: 12px;
 }
 
 .overview-card {
+  display: inline-block;
+  width: 100%;
+  margin-bottom: 12px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 14px;
   background: var(--el-bg-color);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+  break-inside: avoid;
   overflow: hidden;
-  min-height: 100%;
 }
 
 .overview-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 12px 14px 10px;
   border-bottom: 1px solid var(--el-border-color-lighter);
   background: var(--el-fill-color-light);
@@ -1753,11 +1972,48 @@ watch(
   color: var(--el-text-color-primary);
 }
 
+.overview-card__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--el-text-color-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.overview-card__toggle:hover,
+.overview-card__toggle:focus-visible {
+  color: var(--el-text-color-primary);
+  background: var(--el-fill-color-blank);
+  outline: none;
+}
+
 .overview-card__body {
   padding: 12px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+}
+
+.overview-links-enter-active,
+.overview-links-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.overview-links-enter-from,
+.overview-links-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.overview-links-move {
+  transition: transform 180ms ease;
 }
 
 .overview-link {

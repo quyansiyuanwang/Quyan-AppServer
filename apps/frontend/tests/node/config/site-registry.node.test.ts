@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getSiteProfilesForEnvironment,
   isKnownSiteProfile,
   normalizeSiteHostname,
   resolveSiteProfile,
@@ -28,6 +29,28 @@ describe('site registry', () => {
       canonicalOrigin: 'https://developer.console.qysyw.test:5173',
       authOrigin: 'https://auth.qysyw.test:5173',
     })
+  })
+
+  it('keeps first-level site navigation in the current environment', () => {
+    const localAccount = resolveSiteProfile('account.qysyw.test')
+    const productionAccount = resolveSiteProfile('account.qysyw.cn')
+
+    if (!isKnownSiteProfile(localAccount) || !isKnownSiteProfile(productionAccount)) {
+      throw new Error('Expected account profiles to be registered')
+    }
+
+    const localProfiles = getSiteProfilesForEnvironment(localAccount)
+    const productionProfiles = getSiteProfilesForEnvironment(productionAccount)
+
+    expect(localProfiles).toHaveLength(9)
+    expect(localProfiles.every((profile) => profile.hostname.endsWith('.test'))).toBe(true)
+    expect(localProfiles.every((profile) => profile.canonicalOrigin.endsWith(':5173'))).toBe(true)
+    expect(localProfiles.some((profile) => profile.id === 'identity')).toBe(false)
+    expect(productionProfiles).toHaveLength(9)
+    expect(productionProfiles.every((profile) => profile.hostname.endsWith('.cn'))).toBe(true)
+    expect(productionProfiles.every((profile) => !profile.canonicalOrigin.includes(':5173'))).toBe(
+      true,
+    )
   })
 
   it('accepts only registered canonical origins and normalizes default ports', () => {

@@ -715,6 +715,17 @@ const zhCN: DeepStringify<typeof en> = {
   },
 
   nav: {
+    switchSite: '切换站点',
+    sitePublic: '官网',
+    siteIdentity: '认证中心',
+    siteAccount: '账户中心',
+    siteChat: 'AI 对话',
+    siteDeveloper: '开发者中心',
+    siteTerminal: '云终端',
+    siteConsoleCore: '管理控制台',
+    siteConsoleAi: 'AI 中转控制台',
+    siteConsoleDeveloper: '开发者控制台',
+    siteConsoleTerminal: '云终端管理',
     home: '首页',
     chat: 'AI对话',
     permission: '权限',
