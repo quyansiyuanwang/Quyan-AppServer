@@ -166,17 +166,32 @@ export const relayChannelIdParamsSchema = z.object({
   id: z.string().trim().min(1),
 });
 
-export const relayChannelManagementQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).optional(),
-  pageSize: z.coerce.number().int().min(1).max(100).optional(),
-  keyword: z.string().trim().max(100).optional(),
-  channelType: relayChannelTypeSchema.optional(),
-  enabled: z.preprocess(
-    (value) => (value === "true" ? true : value === "false" ? false : value),
-    z.boolean().optional(),
-  ),
-  submissionStatus: z.enum(["pending", "approved", "rejected", "offboarded"]).optional(),
-});
+export const relayChannelManagementQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).optional(),
+    pageSize: z.coerce.number().int().min(1).max(100).optional(),
+    keyword: z.string().trim().max(100).optional(),
+    channelType: relayChannelTypeSchema.optional(),
+    channelTypes: z
+      .preprocess(
+        (value) => (Array.isArray(value) ? value : value === undefined ? undefined : [value]),
+        z
+          .array(relayChannelTypeSchema)
+          .min(1)
+          .max(4)
+          .refine((types) => new Set(types).size === types.length, "channelTypes must not contain duplicates"),
+      )
+      .optional(),
+    enabled: z.preprocess(
+      (value) => (value === "true" ? true : value === "false" ? false : value),
+      z.boolean().optional(),
+    ),
+    submissionStatus: z.enum(["pending", "approved", "rejected", "offboarded"]).optional(),
+  })
+  .refine((query) => !(query.channelType && query.channelTypes?.length), {
+    message: "channelType and channelTypes cannot be used together",
+    path: ["channelTypes"],
+  });
 
 export const createRelayChannelBodySchema = relayChannelBaseSchema;
 
