@@ -1,5 +1,12 @@
 import { fileURLToPath, URL } from 'node:url'
-import { copyFileSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { resolve } from 'node:path'
 import { brotliCompressSync, constants as zlibConstants } from 'node:zlib'
 
@@ -28,8 +35,37 @@ export default defineConfig(({ mode }) => {
 
   const enableObfuscation = isProd && readBooleanEnv(env.VITE_ENABLE_OBFUSCATION, false)
   const enableVueDevTools = readBooleanEnv(env.VITE_ENABLE_VUE_DEVTOOLS, !isProd)
+  const allowedHosts = [
+    'localhost',
+    'www.qysyw.test',
+    'auth.qysyw.test',
+    'account.qysyw.test',
+    'chat.qysyw.test',
+    'developer.qysyw.test',
+    'terminal.qysyw.test',
+    'console.qysyw.test',
+    'ai.console.qysyw.test',
+    'developer.console.qysyw.test',
+    'terminal.console.qysyw.test',
+  ]
+  const defaultHttpsKeyPath = '.certs/qysyw.test-key.pem'
+  const defaultHttpsCertPath = '.certs/qysyw.test.pem'
+  const httpsKeyPath = env.VITE_HTTPS_KEY_PATH?.trim() || defaultHttpsKeyPath
+  const httpsCertPath = env.VITE_HTTPS_CERT_PATH?.trim() || defaultHttpsCertPath
+  const https =
+    existsSync(resolve(httpsKeyPath)) && existsSync(resolve(httpsCertPath))
+      ? {
+          key: readFileSync(resolve(httpsKeyPath)),
+          cert: readFileSync(resolve(httpsCertPath)),
+        }
+      : undefined
 
-  const stripOriginHeader = (proxy: { on: (event: 'proxyReq', handler: (proxyReq: { removeHeader: (header: string) => void }) => void) => void }) => {
+  const stripOriginHeader = (proxy: {
+    on: (
+      event: 'proxyReq',
+      handler: (proxyReq: { removeHeader: (header: string) => void }) => void,
+    ) => void
+  }) => {
     proxy.on('proxyReq', (proxyReq) => {
       proxyReq.removeHeader('origin')
     })
@@ -94,10 +130,7 @@ export default defineConfig(({ mode }) => {
     }
 
     // Markdown/rendering stack is heavy and should stay route-local/on-demand.
-    if (
-      moduleId.includes('/marked/') ||
-      moduleId.includes('/highlight.js/')
-    ) {
+    if (moduleId.includes('/marked/') || moduleId.includes('/highlight.js/')) {
       return 'lib-markdown'
     }
 
@@ -123,7 +156,15 @@ export default defineConfig(({ mode }) => {
   }
 
   const writeBrotliAssets = (rootDir: string, threshold: number) => {
-    const compressibleExtensions = new Set(['.css', '.html', '.js', '.json', '.svg', '.txt', '.xml'])
+    const compressibleExtensions = new Set([
+      '.css',
+      '.html',
+      '.js',
+      '.json',
+      '.svg',
+      '.txt',
+      '.xml',
+    ])
 
     const walk = (dirPath: string) => {
       for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
@@ -136,7 +177,11 @@ export default defineConfig(({ mode }) => {
 
         const extensionIndex = entry.name.lastIndexOf('.')
         const extension = extensionIndex >= 0 ? entry.name.slice(extensionIndex) : ''
-        if (!compressibleExtensions.has(extension) || entry.name.endsWith('.br') || entry.name.endsWith('.gz')) {
+        if (
+          !compressibleExtensions.has(extension) ||
+          entry.name.endsWith('.br') ||
+          entry.name.endsWith('.gz')
+        ) {
           continue
         }
 
@@ -163,7 +208,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       autoRouteTypes({
         routesFile: 'src/router/routes.ts',
-        outFile: 'src/types/route-types.gen.d.ts'
+        outFile: 'src/types/route-types.gen.d.ts',
       }),
       buildInfoPlugin(),
       vue(),
@@ -226,7 +271,8 @@ export default defineConfig(({ mode }) => {
     ].filter(Boolean),
     server: {
       host: true,
-      allowedHosts: true,
+      allowedHosts,
+      https,
       proxy: {
         '/api': {
           target: 'http://localhost:10001',

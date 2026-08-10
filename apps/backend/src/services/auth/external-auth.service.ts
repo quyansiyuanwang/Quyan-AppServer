@@ -236,9 +236,11 @@ export class ExternalAuthService {
     const normalizedRedirect = String(options?.redirectUri || "").trim();
 
     if (options?.action === "bind" && normalizedRedirect) {
-      if (/^https?:\/\//i.test(normalizedRedirect)) return normalizedRedirect;
-      if (normalizedRedirect.startsWith("/"))
-        return new URL(normalizedRedirect, this.getFrontendOrigin(config, request)).toString();
+      const authOrigin = this.getFrontendOrigin(config, request);
+      const callbackUrl = new URL(normalizedRedirect, authOrigin);
+      if (callbackUrl.origin !== new URL(authOrigin).origin)
+        throw new BadRequestError("External account binding callback must use the central auth origin");
+      return callbackUrl.toString();
     }
 
     const configuredCallbackPath = String(providerConfig.callbackPath || "").trim();

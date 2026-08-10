@@ -16,6 +16,8 @@ import {
   getSafeAuthRedirect,
   isQrApprovalRedirect,
 } from '@/utils/auth-routes'
+import { completeCentralLogin, getDefaultAccountDestination } from '@/service/centralLoginService'
+import { resolveCurrentSiteProfile } from '@/config/site-registry'
 import { usePageDevice } from '@/composables/usePageDevice'
 import type {
   AuthData,
@@ -481,8 +483,20 @@ export function useLoginOrRegister() {
   const redirectAfterSuccessfulLogin = async (userData?: Record<string, any>) => {
     const { authorizationService } = await loadAuthorizationService()
     await authorizationService.reloadAuthStoresAfterLogin(userData)
-
     const postLoginRoute = buildPostLoginRoute()
+
+    if (await completeCentralLogin(route.query.flowId)) return
+
+    if (resolveCurrentSiteProfile().id === 'identity' && postLoginRoute !== '/') {
+      await router.push(postLoginRoute)
+      return
+    }
+
+    if (resolveCurrentSiteProfile().id === 'identity') {
+      window.location.replace(getDefaultAccountDestination())
+      return
+    }
+
     await preloadRouteLocation(router, postLoginRoute)
 
     Notification.notify(
@@ -494,6 +508,9 @@ export function useLoginOrRegister() {
     await router.push(postLoginRoute)
     queueBusinessRoutePreload(router)
   }
+
+  const getCentralFlowId = (): string | undefined =>
+    typeof route.query.flowId === 'string' ? route.query.flowId : undefined
 
   const clearQrSessionQuery = async () => {
     if (!getQrSessionIdFromRoute()) return
@@ -516,6 +533,7 @@ export function useLoginOrRegister() {
         query: {
           method: 'code',
           authEntry: 'login',
+          ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
           ...(redirect ? { redirect } : {}),
         },
       })
@@ -802,6 +820,7 @@ export function useLoginOrRegister() {
         query: {
           method: 'code',
           authEntry: 'login',
+          ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
           ...(redirect ? { redirect } : {}),
         },
       })
@@ -887,6 +906,7 @@ export function useLoginOrRegister() {
         query: {
           method: 'code',
           authEntry: 'register',
+          ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
           ...(redirect ? { redirect } : {}),
         },
       })
@@ -1153,6 +1173,7 @@ export function useLoginOrRegister() {
           query: {
             method: 'code',
             authEntry: 'login',
+            ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
             ...(redirect ? { redirect } : {}),
           },
         })

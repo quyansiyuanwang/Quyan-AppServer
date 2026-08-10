@@ -53,7 +53,6 @@ const { isDesktop } = usePageDevice()
 const { isHidden: floatingOverlayHidden } = useFloatingOverlayVisibility()
 const isEmbeddedShell = computed(() => route.query.embed === '1')
 const isPublicStatus = computed(() => route.meta.publicStatus === true)
-
 const isDark = themeToggleStore.useIsDark()
 const toggleDark = () => themeToggleStore.toggleTheme()
 

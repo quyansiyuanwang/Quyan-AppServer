@@ -82,6 +82,26 @@ export interface CaptchaTrustStatusResponse {
   expiresInSeconds: number;
 }
 
+/** A short-lived opaque continuation for a cross-origin central login. */
+export interface CreateCentralLoginFlowDto {
+  /** Absolute HTTPS URL on an explicitly allowed first-party origin. */
+  returnTo: string;
+}
+
+export interface CentralLoginFlowContextDto {
+  /** Opaque identifier. Never contains an access or refresh token. */
+  flowId: string;
+}
+
+export interface ConsumeCentralLoginFlowDto {
+  flowId: string;
+}
+
+export interface ConsumedCentralLoginFlowDto {
+  /** Canonical, server-validated destination URL. */
+  returnTo: string;
+}
+
 export type ExternalAuthProvider = "github" | "wechat-open" | "wechat-web";
 
 export type ExternalAuthAction = "login" | "bind";
@@ -468,3 +488,7 @@ export type ReplaySigningSessionResponse = ReplaySigningSessionData;
 export type ListExternalIdentitiesResponse = ExternalIdentityItem[];
 export type BindExternalIdentityResponse = ExternalIdentityItem;
 export type UnbindExternalIdentityResponse = { message: string };
+export type CreateCentralLoginFlowResponse = CentralLoginFlowContextDto;
+export type CreateAuthenticatedCentralLoginFlowResponse = CentralLoginFlowContextDto;
+export type GetCentralLoginFlowContextResponse = CentralLoginFlowContextDto;
+export type ConsumeCentralLoginFlowResponse = ConsumedCentralLoginFlowDto;

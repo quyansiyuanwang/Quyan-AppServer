@@ -270,7 +270,7 @@
       <div
         class="tab-item"
         :class="{ active: router.currentRoute.value.name === 'home' }"
-        @click="router.push({ name: 'home' })"
+        @click="handleRouteNavigation('home')"
       >
         <el-icon><HomeFilled /></el-icon>
         <span>{{ i18ns.t('nav.home') }}</span>
@@ -279,7 +279,7 @@
       <div
         class="tab-item"
         :class="{ active: router.currentRoute.value.name === 'settings' }"
-        @click="router.push({ name: 'settings' })"
+        @click="handleRouteNavigation('settings')"
       >
         <el-icon><Setting /></el-icon>
         <span>{{ i18ns.t('nav.settings') }}</span>
@@ -445,6 +445,8 @@ import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import { useThemeToggleStore } from '@/stores/themeToggleStore'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { Permission } from '@/constant/permission'
+import { currentSiteProfile } from '@/router'
+import { resolveCanonicalRouteUrl } from '@/router/routes'
 import {
   DEVELOPER_PRODUCT_NAVIGATION,
   developerProductConfigRoute,
@@ -490,7 +492,7 @@ const routeContextMenu = ref<{
   routeName: null,
 })
 
-const PINNED_ROUTE_STORAGE_KEY = StorageKey.Navigation.PINNED_ROUTES
+const PINNED_ROUTE_STORAGE_KEY = `${StorageKey.Navigation.PINNED_ROUTES}:${currentSiteProfile.id}`
 const PINNED_ROUTE_SELECTOR = '[data-route-name]'
 
 let desktopPinnedSortable: Sortable | null = null
@@ -515,6 +517,8 @@ type OverviewSection = {
 
 const can = (permission: Permission) => permissionStore.hasPermission(permission)
 const canAny = (...permissions: Permission[]) => permissionStore.hasAnyPermission(...permissions)
+const isRouteVisible = (routeName?: RouteName): boolean =>
+  !routeName || router.hasRoute(routeName)
 
 const toggleCollapse = () => {
   showOverview.value = false
@@ -534,8 +538,15 @@ const closeRouteContextMenu = () => {
 }
 
 const openRouteInNewTab = (routeName: RouteName) => {
-  const resolvedRoute = router.resolve({ name: routeName } as any)
-  window.open(resolvedRoute.href, '_blank', 'noopener,noreferrer')
+  if (currentSiteProfile.id !== 'rejected') {
+    const targetUrl = resolveCanonicalRouteUrl(routeName, currentSiteProfile)
+    if (targetUrl) {
+      window.open(targetUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+  }
+
+  window.open(router.resolve({ name: routeName } as any).href, '_blank', 'noopener,noreferrer')
 }
 
 const handleRouteNavigation = (routeName: RouteName, event?: MouseEvent) => {
@@ -546,6 +557,13 @@ const handleRouteNavigation = (routeName: RouteName, event?: MouseEvent) => {
   }
 
   closeRouteContextMenu()
+  if (currentSiteProfile.id !== 'rejected') {
+    const targetUrl = resolveCanonicalRouteUrl(routeName, currentSiteProfile)
+    if (targetUrl && new URL(targetUrl).origin !== currentSiteProfile.canonicalOrigin) {
+      window.location.assign(targetUrl)
+      return
+    }
+  }
   router.push({ name: routeName } as any)
 }
 
@@ -573,7 +591,7 @@ const handleOverviewItem = (item: OverviewItem) => {
   }
 
   if (item.route) {
-    router.push({ name: item.route } as any)
+    handleRouteNavigation(item.route)
   }
 }
 
@@ -1115,7 +1133,7 @@ const overviewSections = computed<OverviewSection[]>(() => {
   return sections
     .map((section) => ({
       ...section,
-      items: section.items.filter((item) => item.visible),
+      items: section.items.filter((item) => item.visible && isRouteVisible(item.route)),
     }))
     .filter((section) => section.items.length > 0)
 })

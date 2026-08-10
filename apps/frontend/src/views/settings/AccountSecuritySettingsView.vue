@@ -149,7 +149,10 @@
         </el-card>
 
         <el-drawer v-model="showPasskeyDrawer" :title="i18ns.t('passkey.management')" size="60%">
-          <PasskeyManagement />
+          <PasskeyManagement
+            :allow-registration="false"
+            @request-registration="openCentralPasskeyManagement"
+          />
         </el-drawer>
       </div>
     </div>
@@ -307,7 +310,10 @@
           size="100%"
           direction="btt"
         >
-          <PasskeyManagement />
+          <PasskeyManagement
+            :allow-registration="false"
+            @request-registration="openCentralPasskeyManagement"
+          />
         </el-drawer>
       </div>
     </div>
@@ -410,6 +416,10 @@ import { Permission } from '@/constant/permission'
 import { twoFactorManagementService } from '@/service/twoFactor/twoFactorManagementService'
 import { CustomCode } from '@/constant/custom-code'
 import { validateTwoFactorCode } from '@/utils/validation'
+import {
+  redirectToCentralExternalBinding,
+  redirectToCentralPasskeyManagement,
+} from '@/service/centralLoginService'
 
 const passwordForm = ref({ new_password: '', confirm_password: '' })
 const userInfoStore = useUserInfoStore()
@@ -468,6 +478,14 @@ const twoFactorSetupData = ref<null | {
 const twoFactorSetupCode = ref('')
 const twoFactorRecoveryCodes = ref<string[]>([])
 
+const openCentralPasskeyManagement = async () => {
+  try {
+    await redirectToCentralPasskeyManagement()
+  } catch (error: any) {
+    ElMessage.error(error?.message || i18ns.t('unknownError'))
+  }
+}
+
 const loadExternalIdentities = async () => {
   try {
     externalIdentities.value = await socialAuthService.listExternalIdentities()
@@ -513,9 +531,7 @@ const consumePendingExternalBinding = async () => {
 const handleBindExternalIdentity = async (provider: 'github' | 'wechat-open' | 'wechat-web') => {
   externalBindingProvider.value = provider
   try {
-    const redirect = `${window.location.origin}/auth/external/${provider}/callback`
-    const { authorizeUrl } = await socialAuthService.startExternalAuth(provider, 'bind', redirect)
-    window.location.href = authorizeUrl
+    await redirectToCentralExternalBinding(provider)
   } catch (error: any) {
     ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsBindFailed'))
   } finally {

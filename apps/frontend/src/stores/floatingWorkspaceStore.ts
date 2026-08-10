@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import localStorageKeys from '@/constant/storagekey'
 import { i18ns } from '@/locales'
 import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
+import { resolveCurrentSiteProfile } from '@/config/site-registry'
 
 export type FloatingWorkspaceTabType = 'docs' | 'swagger' | 'internal'
 
@@ -36,6 +37,7 @@ const DEFAULT_RECT = {
 }
 
 const FLOATING_WORKSPACE_MAX_VIEWPORT_RATIO = 0.8
+const FLOATING_WORKSPACE_STORAGE_KEY = `${localStorageKeys.Overlay.FLOATING_WORKSPACE_STATE}:${resolveCurrentSiteProfile().id}`
 
 const getViewportLimits = () => {
   if (typeof window === 'undefined') {
@@ -133,7 +135,7 @@ const loadState = (): FloatingWorkspaceState => {
   }
 
   try {
-    const rawValue = TypedLocalStorage.getItem(localStorageKeys.Overlay.FLOATING_WORKSPACE_STATE)
+    const rawValue = TypedLocalStorage.getItem(FLOATING_WORKSPACE_STORAGE_KEY)
     if (!rawValue) {
       return createDefaultState()
     }
@@ -152,10 +154,7 @@ export const useFloatingWorkspaceStore = defineStore('floatingWorkspace', () => 
       return
     }
 
-    TypedLocalStorage.setItem(
-      localStorageKeys.Overlay.FLOATING_WORKSPACE_STATE,
-      JSON.stringify(state.value),
-    )
+    TypedLocalStorage.setItem(FLOATING_WORKSPACE_STORAGE_KEY, JSON.stringify(state.value))
   }
 
   const activeTab = computed(

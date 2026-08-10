@@ -6,6 +6,7 @@ import { i18ns } from '@/locales'
 import { socialAuthService } from '@/service/socialAuthService'
 import { authorizationService } from '@/service/authorizationService'
 import { getLoginRoute, getSafeAuthRedirect } from '@/utils/auth-routes'
+import { completeCentralLogin, getDefaultAccountDestination } from '@/service/centralLoginService'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,7 +37,8 @@ onMounted(async () => {
     if (socialAuthService.isAuthData(result)) {
       authorizationService.completeLogin(result)
       await authorizationService.reloadAuthStoresAfterLogin(result.user)
-      await router.replace(redirect || '/home')
+      if (await completeCentralLogin(route.query.flowId)) return
+      window.location.replace(getDefaultAccountDestination())
       return
     }
 
@@ -66,6 +68,15 @@ onMounted(async () => {
         name: 'settingsSecurity',
         query: { bindProvider: provider, bindingToken: result.bindingToken },
       })
+      return
+    }
+
+    if (socialAuthService.isExternalIdentity(result)) {
+      const token = await authorizationService.bootstrapSession()
+      if (!token || !(await completeCentralLogin(route.query.flowId))) {
+        ElMessage.error(i18ns.t('SettingsView.externalAccountsBindFailed'))
+        await router.replace(getLoginRoute())
+      }
       return
     }
 

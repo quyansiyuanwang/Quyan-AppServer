@@ -406,7 +406,8 @@ resolve: {
 **配置文件**: `.env` (参考 `.env.sample`)
 
 ```bash
-VITE_BACKEND_URL=http://localhost:10001
+VITE_BACKEND_URL=/api
+VITE_AI_PROXY_URL=/api/relay/proxy
 ```
 
 **使用方式**:

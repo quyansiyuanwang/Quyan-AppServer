@@ -26518,6 +26518,183 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/auth/central-login/flows": {
+			"post": {
+				"operationId": "AuthControllerCreateCentralLoginFlow",
+				"responses": {
+					"200": {
+						"description": "中央登录续接已创建",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreateCentralLoginFlowResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateCentralLoginFlowDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/auth/central-login/secure-flows": {
+			"post": {
+				"operationId": "AuthControllerCreateAuthenticatedCentralLoginFlow",
+				"responses": {
+					"200": {
+						"description": "中央登录安全续接已创建",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreateAuthenticatedCentralLoginFlowResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateCentralLoginFlowDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/auth/central-login/flows/{flowId}": {
+			"get": {
+				"operationId": "AuthControllerGetCentralLoginFlowContext",
+				"responses": {
+					"200": {
+						"description": "中央登录续接有效",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/GetCentralLoginFlowContextResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "flowId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/auth/central-login/flows/consume": {
+			"post": {
+				"operationId": "AuthControllerConsumeCentralLoginFlow",
+				"responses": {
+					"200": {
+						"description": "中央登录续接已消费",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ConsumeCentralLoginFlowResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ConsumeCentralLoginFlowDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/auth/login": {
 			"post": {
 				"operationId": "AuthControllerLogin",
@@ -50817,6 +50994,70 @@
 					"captchaToken",
 					"action",
 					"provider"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CentralLoginFlowContextDto": {
+				"properties": {
+					"flowId": {
+						"type": "string",
+						"description": "Opaque identifier. Never contains an access or refresh token."
+					}
+				},
+				"required": [
+					"flowId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateCentralLoginFlowResponse": {
+				"$ref": "#/components/schemas/CentralLoginFlowContextDto"
+			},
+			"CreateCentralLoginFlowDto": {
+				"description": "A short-lived opaque continuation for a cross-origin central login.",
+				"properties": {
+					"returnTo": {
+						"type": "string",
+						"description": "Absolute HTTPS URL on an explicitly allowed first-party origin."
+					}
+				},
+				"required": [
+					"returnTo"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateAuthenticatedCentralLoginFlowResponse": {
+				"$ref": "#/components/schemas/CentralLoginFlowContextDto"
+			},
+			"GetCentralLoginFlowContextResponse": {
+				"$ref": "#/components/schemas/CentralLoginFlowContextDto"
+			},
+			"ConsumedCentralLoginFlowDto": {
+				"properties": {
+					"returnTo": {
+						"type": "string",
+						"description": "Canonical, server-validated destination URL."
+					}
+				},
+				"required": [
+					"returnTo"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ConsumeCentralLoginFlowResponse": {
+				"$ref": "#/components/schemas/ConsumedCentralLoginFlowDto"
+			},
+			"ConsumeCentralLoginFlowDto": {
+				"properties": {
+					"flowId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"flowId"
 				],
 				"type": "object",
 				"additionalProperties": false

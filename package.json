@@ -56,6 +56,8 @@
     "test:frontend": "pnpm --filter @appserver/frontend test",
     "_10_util": "",
     "clean": "pnpm -r --filter @appserver/* exec rimraf dist",
+    "local:setup": "node scripts/setup-local-domains.mjs",
+    "local:teardown": "node scripts/setup-local-domains.mjs --uninstall --remove-certificates",
     "_11_spell": "",
     "spell:check": "cspell lint . --no-progress",
     "spell:check:packages": "pnpm -r --filter @appserver/* run spell:check",

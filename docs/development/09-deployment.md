@@ -17,12 +17,14 @@ pnpm --filter @appserver/backend build
 ```
 
 **构建工具：esbuild**
+
 - 入口：`src/main.ts`
 - 输出：`dist/index.cjs` (CommonJS)
 - 原生模块标记为 external：Prisma client, Sharp
 - 路径别名通过 `tsc-alias` 在构建时解析
 
 **生产构建**：
+
 ```bash
 pnpm --filter @appserver/backend build:prod
 # NODE_ENV=production
@@ -41,6 +43,7 @@ pnpm --filter @appserver/frontend build
 ```
 
 **构建工具：Rolldown-Vite**
+
 - 目标：ES2018 (Chrome 63+)
 - 压缩：Terser（生产环境移除 console/debugger）
 - 代码分割：按 node_modules 自动分包
@@ -49,6 +52,7 @@ pnpm --filter @appserver/frontend build
 - 分析报告：`stats.html`
 
 **生产构建**：
+
 ```bash
 pnpm --filter @appserver/frontend build:prod
 ```
@@ -92,6 +96,37 @@ pnpm run dev:frontend
 # /api/* 请求代理到 localhost:10001
 ```
 
+### 多域名本地开发
+
+多域名 SPA 与中心认证使用 `*.qysyw.test`。开发者无需手动编辑 hosts 或维护本地证书：
+
+```powershell
+# 首次需要安装 mkcert；脚本会按当前平台请求 hosts 写入权限
+pnpm run local:setup
+
+# 移除本项目添加的 hosts 记录和本地证书（不会移除 mkcert 根证书）
+pnpm run local:teardown
+
+# 只移除 hosts 记录，保留本地证书
+node scripts/setup-local-domains.mjs --uninstall
+```
+
+`local:setup` 会在 hosts 文件中维护一个专用标记区块，并生成 `apps/frontend/.certs/` 中的本地 HTTPS 证书。重复执行可安全更新该区块；卸载不会修改其他项目的 hosts 记录或系统信任根。脚本在 Windows 通过 UAC、在 macOS/Linux 通过 `sudo` 写入 hosts，但始终以开发者自己的用户身份安装并生成 `mkcert` 证书，确保浏览器能信任它。请直接执行 `pnpm run local:setup`，不要以 `sudo pnpm` 启动。`mkcert` 未安装时会给出当前平台的安装提示。证书文件存在时，前端 Vite 配置会自动启用 HTTPS。
+
+启动前端后，请从站点注册表中的完整域名访问，例如 `https://www.qysyw.test:5173/` 或 `https://auth.qysyw.test:5173/`；`localhost` 与未注册 hostname 会显示拒绝页面，这是多域名隔离的预期行为。
+
+如果本机设置了 HTTP(S) 代理，必须将本地域名绕过代理。Windows Schannel 还可能需要关闭本地开发证书的吊销检查：
+
+```powershell
+$env:NO_PROXY = 'localhost,127.0.0.1,.qysyw.test'
+$env:no_proxy = $env:NO_PROXY
+curl.exe --noproxy '*' --ssl-no-revoke -I https://www.qysyw.test:5173/
+```
+
+不要用 `http://` 访问 HTTPS Vite 端口；否则会得到 `HTTP/0.9` 或类似协议错误。
+
+本地前端仍通过 Vite 的 `/api` 代理访问 `http://localhost:10001`。若需要验证 API host-only Cookie 或真实跨源部署行为，应使用独立的本地 HTTPS 反向代理，而不是把 API 域名指向 Vite。
+
 ## PM2 部署
 
 ### 配置文件
@@ -100,23 +135,25 @@ pnpm run dev:frontend
 
 ```javascript
 module.exports = {
-  apps: [{
-    name: "backend",
-    script: "./dist/index.cjs",
-    interpreter: "bun",
-    instances: 1,
-    exec_mode: "cluster",
-    wait_ready: true,
-    listen_timeout: 8000,
-    env: {
-      NODE_ENV: "development"
+  apps: [
+    {
+      name: 'backend',
+      script: './dist/index.cjs',
+      interpreter: 'bun',
+      instances: 1,
+      exec_mode: 'cluster',
+      wait_ready: true,
+      listen_timeout: 8000,
+      env: {
+        NODE_ENV: 'development',
+      },
+      env_production: {
+        NODE_ENV: 'production',
+        ENV_FILE_PATH: '/home/service/Quyan-Backend/.env',
+      },
     },
-    env_production: {
-      NODE_ENV: "production",
-      ENV_FILE_PATH: "/home/service/Quyan-Backend/.env"
-    }
-  }]
-};
+  ],
+}
 ```
 
 ### PM2 命令
@@ -143,6 +180,7 @@ pnpm --filter @appserver/backend pm2:rebuild
 ### 优雅关闭
 
 服务监听 `SIGTERM`/`SIGINT`：
+
 1. 关闭 HTTP 服务器（12 分钟强制超时）
 2. 清理连接（Redis 等）
 3. 在 PM2 集群模式下发送 `ready` 信号
@@ -175,8 +213,13 @@ REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
 
-# CORS
-CORS_ALLOWED_ORIGINS=http://localhost:5173
+# CORS and central login continuation: exact origins only, no wildcards.
+CORS_ALLOWED_ORIGINS=https://www.qysyw.cn,https://auth.qysyw.cn,https://account.qysyw.cn,https://chat.qysyw.cn,https://developer.qysyw.cn,https://terminal.qysyw.cn,https://console.qysyw.cn,https://ai.console.qysyw.cn,https://developer.console.qysyw.cn,https://terminal.console.qysyw.cn
+CENTRAL_LOGIN_ALLOWED_ORIGINS=https://www.qysyw.cn,https://auth.qysyw.cn,https://account.qysyw.cn,https://chat.qysyw.cn,https://developer.qysyw.cn,https://terminal.qysyw.cn,https://console.qysyw.cn,https://ai.console.qysyw.cn,https://developer.console.qysyw.cn,https://terminal.console.qysyw.cn
+CENTRAL_LOGIN_FLOW_TTL_SECONDS=600
+WEBAUTHN_RP_ID=qysyw.cn
+WEBAUTHN_ORIGIN=https://auth.qysyw.cn
+FRONTEND_BASE_URL=https://auth.qysyw.cn
 
 # 安全 (>= 64 字符，必须与 JWT 密钥不同)
 REPLAY_SIGNING_MASTER_SECRET=<64+字符>
@@ -186,7 +229,8 @@ TWO_FACTOR_TRUSTED_DEVICE_SECRET=<64+字符>
 ### 前端 (`.env`)
 
 ```bash
-VITE_BACKEND_URL=http://localhost:10001
+VITE_BACKEND_URL=/api
+VITE_AI_PROXY_URL=/api/relay/proxy
 VITE_RECAPTCHA_SITE_KEY=
 VITE_TURNSTILE_SITE_KEY=
 ```
@@ -208,6 +252,7 @@ pnpm run precommit
 ```
 
 执行步骤：
+
 1. `openapi:gen:all` — OpenAPI 生成流水线
 2. `validate:permissions` — 权限一致性校验
 3. `lint:check` — 所有项目 ESLint 检查
@@ -216,12 +261,12 @@ pnpm run precommit
 
 ## 后端脚本
 
-| 脚本 | 用途 |
-|------|------|
-| `relay-token:backfill-used-quota` | 回填 relay token 已用配额（`--apply` 执行） |
-| `trusted-device:cleanup-legacy` | 清理旧版信任设备记录 |
+| 脚本                                           | 用途                                        |
+| ---------------------------------------------- | ------------------------------------------- |
+| `relay-token:backfill-used-quota`              | 回填 relay token 已用配额（`--apply` 执行） |
+| `trusted-device:cleanup-legacy`                | 清理旧版信任设备记录                        |
 | `balance:cleanup-consumption-older-than-month` | 清理超过 1 个月的消费记录（`--apply` 执行） |
-| `generate-operation-ids` | 生成操作 ID |
+| `generate-operation-ids`                       | 生成操作 ID                                 |
 
 ## 部署检查清单
 
@@ -230,6 +275,10 @@ pnpm run precommit
 - [ ] Prisma client 已生成 (`pnpm run db:generate`)
 - [ ] 生产构建成功 (`pnpm run build:full`)
 - [ ] CORS 允许源已更新为生产域名
+- [ ] 每个 SPA host 都在边缘层精确 allowlist 中，未知 host 被拒绝；`qysyw.cn` 301 到 `www.qysyw.cn`
+- [ ] 每个 SPA host 都有 HTTPS、SPA fallback 和深链刷新验证；`docs`、`api`、`ai` 不指向 SPA
+- [ ] CORS 与 `CENTRAL_LOGIN_ALLOWED_ORIGINS` 只包含精确 origin，未使用通配符
+- [ ] refresh/session Cookie 保持 API host-only；URL 中不含 access token、refresh token 或裸 return URL
 - [ ] JWT 过期时间已调整为生产值
 - [ ] Redis 连接可访问
 - [ ] PM2 配置正确（`ecosystem.config.cjs`）

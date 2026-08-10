@@ -1,5 +1,107 @@
 import { Permission } from '@/constant/permission'
+import { siteProfiles, type SiteProfile, type SiteRouteGroup } from '@/config/site-registry'
 import type { RouteRecordRaw } from 'vue-router'
+
+const routeGroupsByName: Readonly<Record<string, SiteRouteGroup>> = {
+  root: 'shared',
+  home: 'public',
+  publicStatus: 'public',
+  login: 'identity',
+  register: 'identity',
+  forgotPassword: 'identity',
+  authVerification: 'identity',
+  oauthAuthorize: 'identity',
+  externalAuthCallback: 'identity',
+  qrApproval: 'identity',
+  authPasskeyManagement: 'identity',
+  externalAuthBindStart: 'identity',
+  captchaVerification: 'identity',
+  chat: 'chat',
+  settings: 'account',
+  settingsProfile: 'account',
+  settingsPreferences: 'account',
+  settingsSecurity: 'account',
+  notificationSettings: 'account',
+  accesskeyManagement: 'account',
+  workspaceSuggestions: 'account',
+  balanceHistory: 'account',
+  consumptionRecords: 'account',
+  myTickets: 'account',
+  myMonthlyPasses: 'account',
+  monthlyPassPurchase: 'account',
+  scriptManager: 'account',
+  developerProjects: 'developer',
+  developerProducts: 'developer',
+  oauthClientManagement: 'developer',
+  authCenterClientManagement: 'developer',
+  relayTokenManagement: 'developer',
+  apiDocumentation: 'developer',
+  relayChannelProvider: 'developer',
+  ojSubmitterRoot: 'developer',
+  ojAPIKeyManagement: 'developer',
+  ojUsageStatistics: 'developer',
+  ojPricingManagement: 'developer',
+  'product-kv': 'developer',
+  'product-short_link': 'developer',
+  'product-secret': 'developer',
+  'product-status': 'developer',
+  'product-verification': 'developer',
+  'product-ip_geolocation': 'developer',
+  'product-push': 'developer',
+  myRemoteTerminalProducts: 'terminal',
+  remoteTerminal: 'terminal',
+  userManagement: 'console-core',
+  groupManagement: 'console-core',
+  permission: 'console-core',
+  ramManagement: 'console-core',
+  balanceManagement: 'console-core',
+  monthlyPassManagement: 'console-core',
+  redemptionCodes: 'console-core',
+  jsonEndpointManagement: 'console-core',
+  articleManagement: 'console-core',
+  legalPolicyManagement: 'console-core',
+  debug: 'console-core',
+  serverConfig: 'console-core',
+  ipMonitoring: 'console-core',
+  systemStats: 'console-core',
+  systemConsumptionStats: 'console-core',
+  systemLogs: 'console-core',
+  businessLogs: 'console-core',
+  errorCenter: 'console-core',
+  dataLifecycle: 'console-core',
+  dataMaintenance: 'console-core',
+  userOnlineMonitor: 'console-core',
+  analyticsOverview: 'console-core',
+  analyticsFunnel: 'console-core',
+  analyticsHeatmap: 'console-core',
+  relayChannelReview: 'console-ai',
+  relaySettings: 'console-ai',
+  relayChannelHealth: 'console-ai',
+  relayRequestDiagnostics: 'console-ai',
+  relayChannelProbes: 'console-ai',
+  upstreamStatus: 'console-ai',
+  developerServiceManagement: 'console-developer',
+  developerServiceConfig: 'console-developer',
+  oauthClientReviewManagement: 'console-developer',
+  authCenterClientReviewManagement: 'console-developer',
+  ticketReviewManagement: 'console-developer',
+  'product-management-kv': 'console-developer',
+  'product-config-kv': 'console-developer',
+  'product-management-short_link': 'console-developer',
+  'product-config-short_link': 'console-developer',
+  'product-short_link-analytics': 'console-developer',
+  'product-management-secret': 'console-developer',
+  'product-config-secret': 'console-developer',
+  'product-management-status': 'console-developer',
+  'product-config-status': 'console-developer',
+  'product-management-verification': 'console-developer',
+  'product-config-verification': 'console-developer',
+  'product-management-ip_geolocation': 'console-developer',
+  'product-config-ip_geolocation': 'console-developer',
+  'product-management-push': 'console-developer',
+  'product-config-push': 'console-developer',
+  remoteTerminalProductManagement: 'console-terminal',
+}
 
 export const routes = [
   {
@@ -72,6 +174,19 @@ export const routes = [
           requiresCaptchaPreflight: true,
         },
         component: () => import('@/views/auth/QrApprovalView.vue'),
+      },
+      {
+        path: '/auth/passkeys',
+        name: 'authPasskeyManagement',
+        component: () => import('@/views/settings/PasskeyManagementView.vue'),
+      },
+      {
+        path: '/auth/external/bind',
+        name: 'externalAuthBindStart',
+        meta: {
+          isAuthEntry: true,
+        },
+        component: () => import('@/views/auth/ExternalAuthBindStartView.vue'),
       },
       {
         path: '/auth/captcha',
@@ -969,5 +1084,88 @@ export const routes = [
   {
     path: '/:catchAll(.*)',
     component: () => import('@/views/common/404View.vue'),
+    meta: {
+      allowGuest: true,
+    },
   },
 ] as const satisfies RouteRecordRaw[]
+
+const isRouteRecord = (route: RouteRecordRaw | undefined): route is RouteRecordRaw => route != null
+
+const getRouteGroup = (route: RouteRecordRaw): SiteRouteGroup | undefined => {
+  if (typeof route.name === 'string') return routeGroupsByName[route.name]
+
+  if (typeof route.redirect === 'object' && route.redirect && 'name' in route.redirect) {
+    const routeName = route.redirect.name
+    return typeof routeName === 'string' ? routeGroupsByName[routeName] : undefined
+  }
+
+  return undefined
+}
+
+const joinRoutePath = (parentPath: string, path: string): string => {
+  if (path.startsWith('/')) return path
+  const parent = parentPath.replace(/\/$/, '')
+  return `${parent}/${path}`.replace(/\/+/g, '/') || '/'
+}
+
+const findRoutePath = (
+  records: readonly RouteRecordRaw[],
+  routeName: string,
+  parentPath = '',
+): string | undefined => {
+  for (const route of records) {
+    const path = joinRoutePath(parentPath, route.path)
+    if (route.name === routeName) return path
+    const childPath = findRoutePath(route.children ?? [], routeName, path)
+    if (childPath) return childPath
+  }
+  return undefined
+}
+
+export const resolveCanonicalRouteUrl = (
+  routeName: string,
+  currentProfile: SiteProfile,
+): string | undefined => {
+  const group = routeGroupsByName[routeName]
+  const path = findRoutePath(routes, routeName)
+  if (!group || !path) return undefined
+
+  const targetProfile =
+    group === 'shared' || currentProfile.routeGroups.includes(group)
+      ? currentProfile
+      : siteProfiles.find(
+          (profile) =>
+            profile.id === group &&
+            profile.hostname.endsWith(currentProfile.hostname.endsWith('.test') ? '.test' : '.cn'),
+        )
+
+  return targetProfile ? new URL(path, targetProfile.canonicalOrigin).toString() : undefined
+}
+
+const cloneRouteForProfile = (
+  route: RouteRecordRaw,
+  profile: SiteProfile,
+): RouteRecordRaw | undefined => {
+  const group = getRouteGroup(route)
+  const children = route.children
+    ?.map((child) => cloneRouteForProfile(child, profile))
+    .filter(isRouteRecord)
+
+  if (group && !profile.routeGroups.includes(group)) return undefined
+  if (!group && route.children?.length && !children?.length) return undefined
+
+  const clonedRoute = {
+    ...route,
+    ...(children ? { children } : {}),
+  } as RouteRecordRaw
+
+  if (route.name === 'root') {
+    clonedRoute.redirect = profile.defaultPath
+  }
+
+  return clonedRoute
+}
+
+export const createRoutesForProfile = (profile: SiteProfile): RouteRecordRaw[] =>
+  routes.map((route) => cloneRouteForProfile(route, profile)).filter(isRouteRecord)

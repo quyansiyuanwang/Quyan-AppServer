@@ -3,6 +3,8 @@ import { createPinia } from 'pinia'
 
 import App from '@/App.vue'
 import router from '@/router'
+import { currentSiteProfile } from '@/router'
+import { isKnownSiteProfile } from '@/config/site-registry'
 import { queueBusinessRoutePreload } from '@/router/preload'
 import { i18ns, initializeI18n } from '@/locales'
 import { configureAll } from '@/config'
@@ -85,6 +87,8 @@ export const bootstrapApp = async () => {
   // Install before mounting so render-time and startup event failures are captured.
   installErrorReporter()
   app.mount('#app')
+
+  if (!isKnownSiteProfile(currentSiteProfile)) return
 
   if (shouldSkipDeferredStartupWork()) {
     scheduleAfterLoad(

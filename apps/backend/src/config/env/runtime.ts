@@ -12,6 +12,17 @@ export function buildRuntimeConfig(source: EnvSnapshot) {
   if (trustProxyHops < 0 || trustProxyHops > 10)
     throw new Error("TRUST_PROXY_HOPS must be an integer between 0 and 10");
 
+  const corsAllowedOrigins = String(source.CORS_ALLOWED_ORIGINS || "").trim();
+  if (nodeEnv === "production" && !corsAllowedOrigins)
+    throw new Error("CORS_ALLOWED_ORIGINS must list exact origins in production");
+  if (
+    corsAllowedOrigins
+      .split(",")
+      .map((origin) => origin.trim())
+      .some((origin) => origin.includes("*") || origin.startsWith("regex:"))
+  )
+    throw new Error("CORS_ALLOWED_ORIGINS only supports exact origins");
+
   return {
     isProduction: nodeEnv === "production",
     isDevelopment: nodeEnv === "development",
@@ -19,7 +30,7 @@ export function buildRuntimeConfig(source: EnvSnapshot) {
     nodeEnv,
     port: Number.parseInt(port, 10),
     trustProxyHops,
-    corsAllowedOrigins: String(source.CORS_ALLOWED_ORIGINS || ""),
+    corsAllowedOrigins,
     cwd: process.cwd(),
     logging: {
       disableConsoleLog: source.DISABLE_CONSOLE_LOG === "true",

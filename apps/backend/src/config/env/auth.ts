@@ -89,6 +89,29 @@ function buildSocialConfig(source: EnvSnapshot) {
   };
 }
 
+function parseCentralLoginAllowedOrigins(source: EnvSnapshot, isProduction: boolean): string[] {
+  const configuredOrigins = String(source.CENTRAL_LOGIN_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (configuredOrigins.length > 0) return configuredOrigins;
+  if (isProduction) throw new Error("CENTRAL_LOGIN_ALLOWED_ORIGINS must list exact origins in production");
+
+  return [
+    "https://www.qysyw.test:5173",
+    "https://auth.qysyw.test:5173",
+    "https://account.qysyw.test:5173",
+    "https://chat.qysyw.test:5173",
+    "https://developer.qysyw.test:5173",
+    "https://terminal.qysyw.test:5173",
+    "https://console.qysyw.test:5173",
+    "https://ai.console.qysyw.test:5173",
+    "https://developer.console.qysyw.test:5173",
+    "https://terminal.console.qysyw.test:5173",
+  ];
+}
+
 export function buildAuthConfig(
   source: EnvSnapshot,
   runtime: { isProduction: boolean; isTest: boolean; port: number },
@@ -100,6 +123,7 @@ export function buildAuthConfig(
   const trustedDeviceSameSite = normalizeCookieSameSite(source.TWO_FACTOR_TRUSTED_DEVICE_COOKIE_SAMESITE, "strict");
   const refreshSameSite = normalizeCookieSameSite(source.AUTH_REFRESH_COOKIE_SAMESITE, "strict");
   const sessionSameSite = normalizeCookieSameSite(source.AUTH_SESSION_COOKIE_SAMESITE, "strict");
+  const localCookieDomain = !runtime.isProduction && !runtime.isTest ? ".qysyw.test" : undefined;
   const twoFactor = {
     trustWindowMinutes: sanitizeInt(source.TWO_FACTOR_TRUST_WINDOW_MINUTES, 1440, 0, 525600),
     totpIntervalSeconds: sanitizeInt(source.TWO_FACTOR_TOTP_INTERVAL_SECONDS, 30, 15, 300),
@@ -123,18 +147,22 @@ export function buildAuthConfig(
     refreshCookie: {
       name: String(source.AUTH_REFRESH_COOKIE_NAME || "").trim() || "refresh_token",
       sameSite: refreshSameSite,
-      domain: String(source.AUTH_REFRESH_COOKIE_DOMAIN || "").trim() || undefined,
+      domain: String(source.AUTH_REFRESH_COOKIE_DOMAIN || "").trim() || localCookieDomain,
     },
     sessionCookie: {
       name: String(source.AUTH_SESSION_COOKIE_NAME || "").trim() || "auth_session_id",
       sameSite: sessionSameSite,
-      domain: String(source.AUTH_SESSION_COOKIE_DOMAIN || "").trim() || undefined,
+      domain: String(source.AUTH_SESSION_COOKIE_DOMAIN || "").trim() || localCookieDomain,
       forceOfflineTtlDays: sanitizeInt(source.AUTH_SESSION_FORCE_OFFLINE_TTL_DAYS, 30, 1, 3650),
     },
     webAuthn: {
       rpName: source.WEBAUTHN_RP_NAME || "AppServer",
       rpId: source.WEBAUTHN_RP_ID || "localhost",
       origin: source.WEBAUTHN_ORIGIN || `https://${source.WEBAUTHN_RP_ID || "localhost"}`,
+    },
+    centralLogin: {
+      allowedOrigins: parseCentralLoginAllowedOrigins(source, runtime.isProduction),
+      flowTtlSeconds: sanitizeInt(source.CENTRAL_LOGIN_FLOW_TTL_SECONDS, 600, 60, 1800),
     },
     recaptcha: {
       enabled: source.RECAPTCHA_ENABLED === "true",
