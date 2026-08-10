@@ -120,13 +120,15 @@ describe('profile route factory', () => {
     expect(collectRouteNames(consoleRoutes)).not.toContain('userManagement')
   })
 
-  it('isolates each product console from the developer catalog and operations routes', () => {
-    const productRoutes = createRoutesForProfile(getKnownProfile('kv.console.qysyw.cn'))
+  it('isolates each product console from account, catalog, and operations routes', () => {
+    const productRoutes = createRoutesForProfile(getKnownProfile('verification.console.qysyw.cn'))
 
-    expect(collectRouteNames(productRoutes)).toContain('product-kv')
+    expect(collectRouteNames(productRoutes)).toContain('product-verification')
     expect(collectRouteNames(productRoutes)).not.toContain('product-short_link')
-    expect(collectRouteNames(productRoutes)).not.toContain('product-management-kv')
+    expect(collectRouteNames(productRoutes)).not.toContain('product-management-verification')
     expect(collectRouteNames(productRoutes)).not.toContain('developerProducts')
+    expect(collectRouteNames(productRoutes)).not.toContain('settingsProfile')
+    expect(collectRouteNames(productRoutes)).not.toContain('myTickets')
   })
 
   it('isolates RAM administration in the RAM console', () => {

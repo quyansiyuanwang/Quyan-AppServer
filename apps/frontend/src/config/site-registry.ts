@@ -253,11 +253,7 @@ export const siteDefinitions = [
       productionHostname: slug + '.console.qysyw.cn',
       localHostname: slug + '.console.qysyw.test',
       defaultPath: '/products/' + product,
-      routeGroups: [
-        ('product-' + product) as `product-${typeof product}`,
-        'account',
-        'shared',
-      ] as const,
+      routeGroups: [('product-' + product) as `product-${typeof product}`, 'shared'] as const,
       shell: 'application' as const,
     }
   }),
