@@ -7,11 +7,16 @@ import { join } from "path";
 import { createApp } from "../../src/app";
 import { prisma } from "../../src/config/database";
 import { hashPassword } from "../../src/util/crypto";
-import { createRelayAIMockPlugin, RelayAIMockPlugin } from "../util/relay-ai-mock-plugin";
+import {
+  createRelayAIMockPlugin,
+  RelayAIMockPlugin,
+  type RelayAIMockRequestContext,
+} from "../util/relay-ai-mock-plugin";
 
 describe("中转 AI 图片接口集成测试", () => {
   let app: Express;
   let relayAIMockPlugin: RelayAIMockPlugin | null = null;
+  let latestOpenAIRequest: RelayAIMockRequestContext | null = null;
 
   let testGroupId = "";
   let testUserId = "";
@@ -62,6 +67,8 @@ describe("中转 AI 图片接口集成测试", () => {
 
     // 添加图片接口的mock处理器
     relayAIMockPlugin.useOpenAI(async (ctx) => {
+      latestOpenAIRequest = ctx;
+
       // 图片生成接口 (文生图)
       if (ctx.pathname.includes("/images/generations"))
         return {
@@ -308,6 +315,47 @@ describe("中转 AI 图片接口集成测试", () => {
     expect(usage).toBeDefined();
   });
 
+  it("图生图: 多个 legacy image 字段会以 image[] 完整转发", async () => {
+    const beforeCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
+    const boundary = `----relay-multi-image-${suffix}`;
+    const buildImagePart = (filename: string, value: string) =>
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="image"; filename="${filename}"\r\nContent-Type: image/png\r\n\r\n${value}\r\n`,
+      );
+    const multipartBody = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\n${openaiRelayModelId}\r\n`),
+      buildImagePart("first.png", "first-image-bytes"),
+      buildImagePart("second.png", "second-image-bytes"),
+      buildImagePart("third.png", "third-image-bytes"),
+      Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="mask"; filename="mask.png"\r\nContent-Type: image/png\r\n\r\nmask-bytes\r\n--${boundary}--\r\n`,
+      ),
+    ]);
+    latestOpenAIRequest = null;
+
+    const relayResponse = await request(app)
+      .post("/relay/proxy/v1/images/edits")
+      .set("Authorization", `Bearer ${openaiRelayTokenValue}`)
+      .set("Content-Type", `multipart/form-data; boundary=${boundary}`)
+      .send(multipartBody);
+
+    expect(relayResponse.status).toBe(200);
+    expect(relayResponse.body?.data?.[0]?.url).toContain("mock-edited-image-url.com");
+    const forwardedRequest = latestOpenAIRequest as RelayAIMockRequestContext | null;
+    expect(forwardedRequest).not.toBeNull();
+    expect(forwardedRequest?.headers["content-type"]).toContain(`boundary=${boundary}`);
+
+    const forwardedBody = forwardedRequest?.rawBody.toString("latin1") || "";
+    expect(forwardedBody.match(/name="image\[\]"/g)).toHaveLength(3);
+    expect(forwardedBody).toContain('name="mask"; filename="mask.png"');
+    expect(forwardedBody).toContain("first-image-bytes");
+    expect(forwardedBody).toContain("second-image-bytes");
+    expect(forwardedBody).toContain("third-image-bytes");
+
+    const usage = await getLatestUsage(openaiRelayTokenId, beforeCount + 1);
+    expect(usage).toBeDefined();
+  });
+
   it("图生文: POST /chat/completions 使用vision模型分析图片", async () => {
     const beforeCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
 
@@ -350,6 +398,7 @@ describe("中转 AI 图片接口集成测试", () => {
     const beforeCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
 
     const base64Image = testImageBuffer.toString("base64");
+    latestOpenAIRequest = null;
 
     const relayResponse = await request(app)
       .post("/relay/proxy/v1/chat/completions")
@@ -376,6 +425,12 @@ describe("中转 AI 图片接口集成测试", () => {
                   url: `data:image/png;base64,${base64Image}`,
                 },
               },
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:image/png;base64,${base64Image}`,
+                },
+              },
             ],
           },
         ],
@@ -383,6 +438,10 @@ describe("中转 AI 图片接口集成测试", () => {
 
     expect(relayResponse.status).toBe(200);
     expect(relayResponse.body?.choices?.[0]?.message?.content).toBeDefined();
+    const forwardedRequest = latestOpenAIRequest as RelayAIMockRequestContext | null;
+    expect(forwardedRequest).not.toBeNull();
+    const content = forwardedRequest?.body.messages as Array<{ content?: Array<{ type?: string }> }> | undefined;
+    expect(content?.[0]?.content?.filter((item) => item.type === "image_url")).toHaveLength(3);
 
     const usage = await getLatestUsage(openaiRelayTokenId, beforeCount + 1);
     expect(usage).toBeDefined();

@@ -16,6 +16,7 @@ export interface RelayAIMockRequestContext {
   pathname: string;
   query: URLSearchParams;
   headers: IncomingMessage["headers"];
+  rawBody: Buffer;
   body: Record<string, unknown>;
   model: string;
 }
@@ -34,6 +35,7 @@ export interface RelayAIMockPluginOptions {
   defaultModel?: string;
   contentPrefix?: string;
   usage?: Partial<RelayAIMockUsage>;
+  onRequest?: (ctx: RelayAIMockRequestContext) => void | Promise<void>;
 }
 
 const DEFAULT_USAGE: RelayAIMockUsage = {
@@ -55,7 +57,7 @@ const OPENAI_PATHS = new Set([
 
 const ANTHROPIC_PATHS = new Set(["/messages", "/v1/messages"]);
 
-const readJsonBody = async (req: IncomingMessage): Promise<Record<string, unknown>> => {
+const readRequestBody = async (req: IncomingMessage): Promise<Buffer> => {
   const chunks: Buffer[] = [];
 
   await new Promise<void>((resolve, reject) => {
@@ -66,7 +68,11 @@ const readJsonBody = async (req: IncomingMessage): Promise<Record<string, unknow
     req.on("error", reject);
   });
 
-  const text = Buffer.concat(chunks).toString("utf8").trim();
+  return Buffer.concat(chunks);
+};
+
+const parseJsonBody = (rawBody: Buffer): Record<string, unknown> => {
+  const text = rawBody.toString("utf8").trim();
   if (!text) return {};
 
   try {
@@ -104,6 +110,7 @@ export class RelayAIMockPlugin {
   private readonly defaultModel: string;
   private readonly contentPrefix: string;
   private readonly usage: RelayAIMockUsage;
+  private readonly onRequest?: RelayAIMockPluginOptions["onRequest"];
 
   private server: http.Server | null = null;
   private port = 0;
@@ -119,6 +126,7 @@ export class RelayAIMockPlugin {
     this.defaultModel = options.defaultModel || "test-mock-model";
     this.contentPrefix = options.contentPrefix || "模拟AI输出-";
     this.usage = resolveUsage(options.usage);
+    this.onRequest = options.onRequest;
 
     this.openaiHandler = async (ctx) => ({
       ...(this.isStreamRequest(ctx) ? this.buildOpenAIStreamReply(ctx) : { body: this.buildOpenAIBody(ctx) }),
@@ -214,7 +222,8 @@ export class RelayAIMockPlugin {
       return;
     }
 
-    const body = await readJsonBody(req);
+    const rawBody = await readRequestBody(req);
+    const body = parseJsonBody(rawBody);
     const format = this.resolveFormat(pathname);
     if (!format) {
       this.sendJson(res, 404, { error: `mock upstream path not found: ${pathname}` });
@@ -230,9 +239,12 @@ export class RelayAIMockPlugin {
       pathname,
       query: url.searchParams,
       headers: req.headers,
+      rawBody,
       body,
       model,
     };
+
+    await this.onRequest?.(ctx);
 
     let reply: RelayAIMockReply;
     if (format === "openai") reply = await this.openaiHandler(ctx);

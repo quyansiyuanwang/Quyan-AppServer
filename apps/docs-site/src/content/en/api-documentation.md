@@ -98,6 +98,21 @@ export function unwrapApi<T>(response: ApiResponse<T>): T {
 
 If this page is intended for external integrators, each authentication mode should ideally include at least one curl sample and one SDK example.
 
+## OpenAI image-edit relay
+
+When calling the OpenAI-compatible `/relay/proxy/v1/images/edits` endpoint with a Relay Token, send multiple reference images as repeated `image[]` fields. The relay also accepts repeated legacy `image` fields and normalizes them to `image[]` before forwarding, while preserving image order, masks, and other form fields.
+
+```bash
+curl -X POST "https://api.qysyw.cn/relay/proxy/v1/images/edits" \
+	-H "Authorization: Bearer <relay_token>" \
+	-F "model=gpt-image-2" \
+	-F "image[]=@first.png" \
+	-F "image[]=@second.png" \
+	-F "prompt=Combine the subjects from both reference images into a new image"
+```
+
+New integrations should always use `image[]`. Whether a selected model actually understands or combines multiple references still depends on that model and its upstream channel.
+
 ## Minimal curl examples
 
 ### 1. JWT-authenticated request
