@@ -1,108 +1,7 @@
 import { Permission } from '@/constant/permission'
 import { siteProfiles, type SiteProfile, type SiteRouteGroup } from '@/config/site-registry'
+import { getRouteCatalogEntry, getRouteGroup } from '@/router/route-catalog'
 import type { RouteRecordRaw } from 'vue-router'
-
-const routeGroupsByName: Readonly<Record<string, SiteRouteGroup>> = {
-  root: 'shared',
-  home: 'public',
-  publicStatus: 'public',
-  login: 'identity',
-  register: 'identity',
-  forgotPassword: 'identity',
-  authVerification: 'identity',
-  oauthAuthorize: 'identity',
-  externalAuthCallback: 'identity',
-  qrApproval: 'identity',
-  authPasskeyManagement: 'identity',
-  externalAuthBindStart: 'identity',
-  captchaVerification: 'identity',
-  chat: 'chat',
-  settings: 'account',
-  settingsProfile: 'account',
-  settingsPreferences: 'account',
-  settingsSecurity: 'account',
-  notificationSettings: 'account',
-  accesskeyManagement: 'account',
-  workspaceSuggestions: 'account',
-  balanceHistory: 'account',
-  consumptionRecords: 'account',
-  myTickets: 'account',
-  myMonthlyPasses: 'account',
-  monthlyPassPurchase: 'account',
-  scriptManager: 'account',
-  developerProjects: 'developer',
-  developerProducts: 'developer',
-  oauthClientManagement: 'developer',
-  authCenterClientManagement: 'developer',
-  relayTokenManagement: 'developer',
-  apiDocumentation: 'developer',
-  relayChannelProvider: 'developer',
-  ojSubmitterRoot: 'developer',
-  ojAPIKeyManagement: 'developer',
-  ojUsageStatistics: 'developer',
-  ojPricingManagement: 'developer',
-  'product-kv': 'developer',
-  'product-short_link': 'developer',
-  'product-secret': 'developer',
-  'product-status': 'developer',
-  'product-verification': 'developer',
-  'product-ip_geolocation': 'developer',
-  'product-push': 'developer',
-  myRemoteTerminalProducts: 'terminal',
-  remoteTerminalProductsLanding: 'terminal',
-  remoteTerminal: 'terminal',
-  userManagement: 'console-core',
-  groupManagement: 'console-core',
-  permission: 'console-core',
-  ramManagement: 'console-core',
-  balanceManagement: 'console-core',
-  monthlyPassManagement: 'console-core',
-  redemptionCodes: 'console-core',
-  jsonEndpointManagement: 'console-core',
-  articleManagement: 'console-core',
-  legalPolicyManagement: 'console-core',
-  debug: 'console-core',
-  serverConfig: 'console-core',
-  ipMonitoring: 'console-core',
-  systemStats: 'console-core',
-  systemConsumptionStats: 'console-core',
-  systemLogs: 'console-core',
-  businessLogs: 'console-core',
-  errorCenter: 'console-core',
-  dataLifecycle: 'console-core',
-  dataMaintenance: 'console-core',
-  userOnlineMonitor: 'console-core',
-  analyticsOverview: 'console-core',
-  analyticsFunnel: 'console-core',
-  analyticsHeatmap: 'console-core',
-  relayChannelReview: 'console-ai',
-  relaySettings: 'console-ai',
-  relayChannelHealth: 'console-ai',
-  relayRequestDiagnostics: 'console-ai',
-  relayChannelProbes: 'console-ai',
-  upstreamStatus: 'console-ai',
-  developerServiceManagement: 'console-developer',
-  developerServiceConfig: 'console-developer',
-  oauthClientReviewManagement: 'console-developer',
-  authCenterClientReviewManagement: 'console-developer',
-  ticketReviewManagement: 'console-developer',
-  'product-management-kv': 'console-developer',
-  'product-config-kv': 'console-developer',
-  'product-management-short_link': 'console-developer',
-  'product-config-short_link': 'console-developer',
-  'product-short_link-analytics': 'console-developer',
-  'product-management-secret': 'console-developer',
-  'product-config-secret': 'console-developer',
-  'product-management-status': 'console-developer',
-  'product-config-status': 'console-developer',
-  'product-management-verification': 'console-developer',
-  'product-config-verification': 'console-developer',
-  'product-management-ip_geolocation': 'console-developer',
-  'product-config-ip_geolocation': 'console-developer',
-  'product-management-push': 'console-developer',
-  'product-config-push': 'console-developer',
-  remoteTerminalProductManagement: 'console-terminal',
-}
 
 export const routes = [
   {
@@ -271,7 +170,7 @@ export const routes = [
             ],
           },
           {
-            path: 'account/access-keys',
+            path: 'access-keys',
             name: 'accesskeyManagement',
             component: () => import('@/views/settings/AccessKeyManagementView.vue'),
           },
@@ -280,7 +179,7 @@ export const routes = [
             redirect: { name: 'developerProducts' },
           },
           {
-            path: 'developer/projects',
+            path: 'projects',
             name: 'developerProjects',
             redirect: { name: 'developerProducts' },
           },
@@ -291,12 +190,12 @@ export const routes = [
           },
           {
             path: 'products/remote-terminal-cloud',
-            name: 'remoteTerminalProductsLanding',
+            name: 'myRemoteTerminalProducts',
             component: () =>
               import('@/views/products/remote-terminal-cloud/MyRemoteTerminalProductsView.vue'),
           },
           {
-            path: 'developer/management',
+            path: 'services',
             name: 'developerServiceManagement',
             component: () => import('@/views/developer/DeveloperServiceManagementView.vue'),
             meta: {
@@ -304,7 +203,7 @@ export const routes = [
             },
           },
           {
-            path: 'developer/config',
+            path: 'services/configuration',
             name: 'developerServiceConfig',
             component: () => import('@/views/developer/DeveloperServiceConfigView.vue'),
             meta: {
@@ -312,7 +211,7 @@ export const routes = [
             },
           },
           {
-            path: 'account/oauth-apps',
+            path: 'applications/oauth',
             name: 'oauthClientManagement',
             component: () => import('@/views/settings/OAuthClientManagementView.vue'),
             meta: {
@@ -320,7 +219,7 @@ export const routes = [
             },
           },
           {
-            path: 'account/auth-center-apps',
+            path: 'applications/auth-center',
             name: 'authCenterClientManagement',
             component: () => import('@/views/settings/AuthCenterClientManagementView.vue'),
             meta: {
@@ -328,7 +227,7 @@ export const routes = [
             },
           },
           {
-            path: 'open-platform/oauth-app-reviews',
+            path: 'reviews/oauth',
             name: 'oauthClientReviewManagement',
             component: () => import('@/views/settings/OAuthClientReviewManagementView.vue'),
             meta: {
@@ -336,7 +235,7 @@ export const routes = [
             },
           },
           {
-            path: 'open-platform/auth-center-app-reviews',
+            path: 'reviews/auth-center',
             name: 'authCenterClientReviewManagement',
             component: () => import('@/views/settings/AuthCenterClientReviewManagementView.vue'),
             meta: {
@@ -344,7 +243,7 @@ export const routes = [
             },
           },
           {
-            path: 'open-platform/ticket-reviews',
+            path: 'reviews/tickets',
             name: 'ticketReviewManagement',
             component: () => import('@/views/settings/TicketReviewManagementView.vue'),
             meta: {
@@ -359,7 +258,7 @@ export const routes = [
 
           // --- Management ---
           {
-            path: 'management/users',
+            path: 'iam/users',
             name: 'userManagement',
             component: () => import('@/views/management/UserManagementView.vue'),
             meta: {
@@ -367,7 +266,7 @@ export const routes = [
             },
           },
           {
-            path: 'management/groups',
+            path: 'iam/groups',
             name: 'groupManagement',
             component: () => import('@/views/management/GroupManagementView.vue'),
             meta: {
@@ -375,7 +274,7 @@ export const routes = [
             },
           },
           {
-            path: 'management/permissions',
+            path: 'iam/permissions',
             name: 'permission',
             component: () => import('@/views/management/PermissionManagementView.vue'),
             meta: {
@@ -383,7 +282,7 @@ export const routes = [
             },
           },
           {
-            path: 'management/ram',
+            path: 'iam/ram',
             name: 'ramManagement',
             component: () => import('@/views/management/RamManagementView.vue'),
             meta: {
@@ -396,7 +295,7 @@ export const routes = [
             },
           },
           {
-            path: 'kv',
+            path: 'products/kv',
             children: [
               {
                 path: '',
@@ -419,7 +318,7 @@ export const routes = [
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
-                path: 'config',
+                path: 'configuration',
                 name: 'product-config-kv',
                 component: () => import('@/views/products/kv/KvConfigPage.vue'),
                 props: { product: 'kv' },
@@ -428,7 +327,7 @@ export const routes = [
             ],
           },
           {
-            path: 'short-link',
+            path: 'products/short_link',
             children: [
               {
                 path: '',
@@ -451,7 +350,7 @@ export const routes = [
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
-                path: 'config',
+                path: 'configuration',
                 name: 'product-config-short_link',
                 component: () => import('@/views/products/short-link/ShortLinkConfigPage.vue'),
                 props: { product: 'short_link' },
@@ -466,7 +365,7 @@ export const routes = [
             ],
           },
           {
-            path: 'secret',
+            path: 'products/secret',
             children: [
               {
                 path: '',
@@ -490,7 +389,7 @@ export const routes = [
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
-                path: 'config',
+                path: 'configuration',
                 name: 'product-config-secret',
                 component: () => import('@/views/products/secret/SecretConfigPage.vue'),
                 props: { product: 'secret' },
@@ -499,7 +398,7 @@ export const routes = [
             ],
           },
           {
-            path: 'status',
+            path: 'products/status',
             children: [
               {
                 path: '',
@@ -523,7 +422,7 @@ export const routes = [
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
-                path: 'config',
+                path: 'configuration',
                 name: 'product-config-status',
                 component: () => import('@/views/products/status/StatusConfigPage.vue'),
                 props: { product: 'status' },
@@ -532,7 +431,7 @@ export const routes = [
             ],
           },
           {
-            path: 'verification',
+            path: 'products/verification',
             children: [
               {
                 path: '',
@@ -556,7 +455,7 @@ export const routes = [
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
-                path: 'config',
+                path: 'configuration',
                 name: 'product-config-verification',
                 component: () => import('@/views/products/verification/VerificationConfigPage.vue'),
                 props: { product: 'verification' },
@@ -565,7 +464,7 @@ export const routes = [
             ],
           },
           {
-            path: 'ip-geolocation',
+            path: 'products/ip_geolocation',
             children: [
               {
                 path: '',
@@ -589,7 +488,7 @@ export const routes = [
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
-                path: 'config',
+                path: 'configuration',
                 name: 'product-config-ip_geolocation',
                 component: () =>
                   import('@/views/products/ip-geolocation/IpGeolocationConfigPage.vue'),
@@ -599,7 +498,7 @@ export const routes = [
             ],
           },
           {
-            path: 'push',
+            path: 'products/push',
             children: [
               {
                 path: '',
@@ -623,7 +522,7 @@ export const routes = [
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
-                path: 'config',
+                path: 'configuration',
                 name: 'product-config-push',
                 component: () => import('@/views/products/push/PushConfigPage.vue'),
                 props: { product: 'push' },
@@ -632,31 +531,31 @@ export const routes = [
             ],
           },
           {
-            path: 'products/kv',
+            path: 'kv',
             redirect: { name: 'product-kv' },
           },
           {
-            path: 'products/short_link',
+            path: 'short-link',
             redirect: { name: 'product-short_link' },
           },
           {
-            path: 'products/secret',
+            path: 'secret',
             redirect: { name: 'product-secret' },
           },
           {
-            path: 'products/status',
+            path: 'status',
             redirect: { name: 'product-status' },
           },
           {
-            path: 'products/verification',
+            path: 'verification',
             redirect: { name: 'product-verification' },
           },
           {
-            path: 'products/ip_geolocation',
+            path: 'ip-geolocation',
             redirect: { name: 'product-ip_geolocation' },
           },
           {
-            path: 'products/push',
+            path: 'push',
             redirect: { name: 'product-push' },
           },
           {
@@ -716,7 +615,7 @@ export const routes = [
             redirect: { name: 'product-config-push' },
           },
           {
-            path: 'management/balance',
+            path: 'billing/balance',
             name: 'balanceManagement',
             component: () => import('@/views/relay/BalanceManagementView.vue'),
             meta: {
@@ -724,7 +623,7 @@ export const routes = [
             },
           },
           {
-            path: 'management/monthly-passes',
+            path: 'billing/monthly-passes',
             name: 'monthlyPassManagement',
             component: () => import('@/views/relay/MonthlyPassManagementView.vue'),
             meta: {
@@ -736,7 +635,7 @@ export const routes = [
             },
           },
           {
-            path: 'management/remote-terminal-products',
+            path: 'products/remote-terminal',
             name: 'remoteTerminalProductManagement',
             component: () =>
               import(
@@ -751,7 +650,7 @@ export const routes = [
             },
           },
           {
-            path: 'management/redemption-codes',
+            path: 'billing/redemption-codes',
             name: 'redemptionCodes',
             component: () => import('@/views/relay/RedemptionCodeManagementView.vue'),
             meta: {
@@ -759,7 +658,7 @@ export const routes = [
             },
           },
           {
-            path: 'management/json-endpoints',
+            path: 'content/json-endpoints',
             name: 'jsonEndpointManagement',
             component: () => import('@/views/json-endpoint/JsonEndpointManagementView.vue'),
             meta: {
@@ -767,7 +666,7 @@ export const routes = [
             },
           },
           {
-            path: 'management/articles',
+            path: 'content/articles',
             name: 'articleManagement',
             component: () => import('@/views/article/ArticleManagementView.vue'),
             meta: {
@@ -775,7 +674,7 @@ export const routes = [
             },
           },
           {
-            path: 'management/legal-policies',
+            path: 'content/legal-policies',
             name: 'legalPolicyManagement',
             component: () => import('@/views/management/LegalPolicyManagementView.vue'),
             meta: {
@@ -785,7 +684,7 @@ export const routes = [
 
           // --- Tools ---
           {
-            path: 'tools/scripts',
+            path: 'scripts',
             name: 'scriptManager',
             component: () => import('@/views/user-script/UserScriptManagerView.vue'),
             meta: {
@@ -795,17 +694,17 @@ export const routes = [
 
           // --- Account ---
           {
-            path: 'account/balance',
+            path: 'billing/balance',
             name: 'balanceHistory',
             component: () => import('@/views/relay/BalanceHistoryView.vue'),
           },
           {
-            path: 'account/consumption',
+            path: 'billing/consumption',
             name: 'consumptionRecords',
             component: () => import('@/views/relay/ConsumptionRecordsView.vue'),
           },
           {
-            path: 'account/tickets',
+            path: 'support/tickets',
             name: 'myTickets',
             component: () => import('@/views/workspace/WorkspaceTicketView.vue'),
             meta: {
@@ -818,7 +717,7 @@ export const routes = [
             },
           },
           {
-            path: 'account/product-subscriptions',
+            path: 'subscriptions',
             children: [
               {
                 path: '',
@@ -841,9 +740,7 @@ export const routes = [
               },
               {
                 path: 'remote-terminal-products',
-                name: 'myRemoteTerminalProducts',
-                component: () =>
-                  import('@/views/products/remote-terminal-cloud/MyRemoteTerminalProductsView.vue'),
+                redirect: { name: 'myRemoteTerminalProducts' },
               },
             ],
           },
@@ -866,7 +763,7 @@ export const routes = [
             },
           },
           {
-            path: 'relay/provider-channels',
+            path: 'relay/channels',
             name: 'relayChannelProvider',
             component: () => import('@/views/relay/RelayChannelProviderView.vue'),
             meta: {
@@ -877,7 +774,7 @@ export const routes = [
             },
           },
           {
-            path: 'relay/channel-review',
+            path: 'channels/review',
             name: 'relayChannelReview',
             component: () => import('@/views/relay/RelayChannelReviewView.vue'),
             meta: { permission: Permission.RELAY_CHANNEL_REVIEW },
@@ -891,7 +788,7 @@ export const routes = [
             },
           },
           {
-            path: 'relay/channel-health',
+            path: 'channels/health',
             name: 'relayChannelHealth',
             component: () => import('@/views/relay/RelayChannelHealthView.vue'),
             meta: {
@@ -899,13 +796,13 @@ export const routes = [
             },
           },
           {
-            path: 'relay/request-diagnostics',
+            path: 'diagnostics/requests',
             name: 'relayRequestDiagnostics',
             component: () => import('@/views/relay/RelayRequestDiagnosticsView.vue'),
             meta: { permission: Permission.RELAY_REQUEST_DIAGNOSTICS_READ },
           },
           {
-            path: 'relay/channel-probes',
+            path: 'channels/probes',
             name: 'relayChannelProbes',
             component: () => import('@/views/relay/RelayChannelProbeView.vue'),
             meta: {
@@ -913,7 +810,7 @@ export const routes = [
             },
           },
           {
-            path: 'relay/upstream-status',
+            path: 'upstreams',
             name: 'upstreamStatus',
             component: () => import('@/views/relay/UpstreamStatusView.vue'),
             meta: {
@@ -921,7 +818,7 @@ export const routes = [
             },
           },
           {
-            path: 'relay/remote-terminal',
+            path: 'console',
             name: 'remoteTerminal',
             component: () =>
               import('@/views/products/remote-terminal-cloud/RemoteTerminalView.vue'),
@@ -1048,7 +945,7 @@ export const routes = [
 
           // --- OJ Submitter ---
           {
-            path: 'oj-submitter',
+            path: 'oj',
             name: 'ojSubmitterRoot',
             meta: {
               anyPermissions: [
@@ -1099,34 +996,14 @@ export const routes = [
 
 const isRouteRecord = (route: RouteRecordRaw | undefined): route is RouteRecordRaw => route != null
 
-const getRouteGroup = (route: RouteRecordRaw): SiteRouteGroup | undefined => {
-  if (typeof route.name === 'string') return routeGroupsByName[route.name]
+const getRouteRecordGroup = (route: RouteRecordRaw): SiteRouteGroup | undefined => {
+  if (typeof route.name === 'string') return getRouteGroup(route.name)
 
   if (typeof route.redirect === 'object' && route.redirect && 'name' in route.redirect) {
     const routeName = route.redirect.name
-    return typeof routeName === 'string' ? routeGroupsByName[routeName] : undefined
+    return typeof routeName === 'string' ? getRouteGroup(routeName) : undefined
   }
 
-  return undefined
-}
-
-const joinRoutePath = (parentPath: string, path: string): string => {
-  if (path.startsWith('/')) return path
-  const parent = parentPath.replace(/\/$/, '')
-  return `${parent}/${path}`.replace(/\/+/g, '/') || '/'
-}
-
-const findRoutePath = (
-  records: readonly RouteRecordRaw[],
-  routeName: string,
-  parentPath = '',
-): string | undefined => {
-  for (const route of records) {
-    const path = joinRoutePath(parentPath, route.path)
-    if (route.name === routeName) return path
-    const childPath = findRoutePath(route.children ?? [], routeName, path)
-    if (childPath) return childPath
-  }
   return undefined
 }
 
@@ -1134,27 +1011,25 @@ export const resolveCanonicalRouteUrl = (
   routeName: string,
   currentProfile: SiteProfile,
 ): string | undefined => {
-  const group = routeGroupsByName[routeName]
-  const path = findRoutePath(routes, routeName)
-  if (!group || !path) return undefined
+  const entry = getRouteCatalogEntry(routeName)
+  if (!entry || entry.group === 'shared' || entry.path.includes(':')) return undefined
 
-  const targetProfile =
-    group === 'shared' || currentProfile.routeGroups.includes(group)
-      ? currentProfile
-      : siteProfiles.find(
-          (profile) =>
-            profile.id === group &&
-            profile.hostname.endsWith(currentProfile.hostname.endsWith('.test') ? '.test' : '.cn'),
-        )
+  const targetProfile = currentProfile.routeGroups.includes(entry.group)
+    ? currentProfile
+    : siteProfiles.find(
+        (profile) =>
+          profile.id === entry.group &&
+          profile.hostname.endsWith(currentProfile.hostname.endsWith('.test') ? '.test' : '.cn'),
+      )
 
-  return targetProfile ? new URL(path, targetProfile.canonicalOrigin).toString() : undefined
+  return targetProfile ? new URL(entry.path, targetProfile.canonicalOrigin).toString() : undefined
 }
 
 const cloneRouteForProfile = (
   route: RouteRecordRaw,
   profile: SiteProfile,
 ): RouteRecordRaw | undefined => {
-  const group = getRouteGroup(route)
+  const group = getRouteRecordGroup(route)
   const children = route.children
     ?.map((child) => cloneRouteForProfile(child, profile))
     .filter(isRouteRecord)

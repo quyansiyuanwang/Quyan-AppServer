@@ -15,6 +15,12 @@ This is the public bilingual user manual for the site. The layout keeps the rhyt
 3. Switch language without losing the current manual page.
 4. Copy the page link when you need to share guidance.
 
+## Multi-site navigation
+
+The application uses separate site addresses by responsibility: account settings, billing, and tickets are on the account site; products, applications, and Relay development are on the developer site; cloud terminals are on the terminal site; operational features are on their respective console sites. The site switcher in the upper-left opens the full feature overview and takes each feature to its canonical address.
+
+Known legacy links, or known pages opened on the wrong site, automatically move to the correct page while retaining filters and anchors. An unrecognized address still shows the not-found page.
+
 ## What is covered
 
 - Login, verification, and password recovery

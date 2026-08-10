@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import { queueBusinessRoutePreload } from './preload'
 import { createRoutesForProfile } from './routes'
+import { resolveRouteMigrationUrl } from './route-migration'
 import {
   isKnownSiteProfile,
   resolveCurrentSiteProfile,
@@ -71,6 +72,20 @@ function installNavigationGuards(
       next()
       return
     }
+
+    const requestedUrl = new URL(to.fullPath, profile.canonicalOrigin)
+    const migrationUrl = resolveRouteMigrationUrl(
+      to.path,
+      requestedUrl.search,
+      requestedUrl.hash,
+      profile,
+    )
+    if (migrationUrl) {
+      window.location.replace(migrationUrl)
+      next(false)
+      return
+    }
+
     if (isAuthEntryRoute(to)) {
       next()
       return

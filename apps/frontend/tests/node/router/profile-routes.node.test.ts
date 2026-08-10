@@ -71,9 +71,9 @@ describe('profile route factory', () => {
     expect(terminalRouteNames).not.toContain('relaySettings')
   })
 
-  it('exposes the terminal profile default path without changing the legacy route', () => {
+  it('exposes the terminal profile default path at its canonical route', () => {
     const terminalRoutes = createRoutesForProfile(getKnownProfile('terminal.qysyw.cn'))
-    const landingRoute = findRoute(terminalRoutes, 'remoteTerminalProductsLanding')
+    const landingRoute = findRoute(terminalRoutes, 'myRemoteTerminalProducts')
 
     expect(landingRoute?.path).toBe('products/remote-terminal-cloud')
     expect(collectRouteNames(terminalRoutes)).toContain('myRemoteTerminalProducts')
@@ -92,6 +92,12 @@ describe('profile route factory', () => {
     const localAccountProfile = getKnownProfile('account.qysyw.test')
     expect(resolveCanonicalRouteUrl('settingsProfile', localAccountProfile)).toBe(
       'https://account.qysyw.test:5173/settings/profile',
+    )
+    expect(resolveCanonicalRouteUrl('userManagement', accountProfile)).toBe(
+      'https://console.qysyw.cn/iam/users',
+    )
+    expect(resolveCanonicalRouteUrl('remoteTerminal', accountProfile)).toBe(
+      'https://terminal.qysyw.cn/console',
     )
   })
 })

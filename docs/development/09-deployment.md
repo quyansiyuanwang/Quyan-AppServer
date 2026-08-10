@@ -127,6 +127,12 @@ curl.exe --noproxy '*' --ssl-no-revoke -I https://www.qysyw.test:5173/
 
 本地前端仍通过 Vite 的 `/api` 代理访问 `http://localhost:10001`。若需要验证 API host-only Cookie 或真实跨源部署行为，应使用独立的本地 HTTPS 反向代理，而不是把 API 域名指向 Vite。
 
+### 多域名路由与迁移
+
+前端产物由 10 个精确 hostname 共享，但每个 hostname 只注册其所属的业务路由。账户功能位于 `account`，开发者产品和应用位于 `developer`，云终端使用 `terminal`，运营功能分别位于四个 `*.console` hostname。边缘层必须对旧路径和落在错误 hostname 的已知路径返回临时 `302` 到规范 origin/path，并保留 query string；未知 hostname 或未知路径仍应拒绝或返回 404。
+
+SPA 的迁移守卫覆盖本地开发和边缘 SPA fallback，并在浏览器可见时保留 query string 与 hash。HTTP 请求不包含 hash，因此生产部署仍应优先在边缘层完成路径和 query 的迁移，避免用户下载错误站点的应用壳层。不得把认证 token、refresh token 或不受验证的回跳 URL 放入迁移地址。
+
 ## PM2 部署
 
 ### 配置文件
@@ -277,6 +283,7 @@ pnpm run precommit
 - [ ] CORS 允许源已更新为生产域名
 - [ ] 每个 SPA host 都在边缘层精确 allowlist 中，未知 host 被拒绝；`qysyw.cn` 301 到 `www.qysyw.cn`
 - [ ] 每个 SPA host 都有 HTTPS、SPA fallback 和深链刷新验证；`docs`、`api`、`ai` 不指向 SPA
+- [ ] 已知旧路径和错误 hostname 返回保留 query 的临时迁移；SPA fallback 保留 hash，未知 hostname 与未知路径保持拒绝
 - [ ] CORS 与 `CENTRAL_LOGIN_ALLOWED_ORIGINS` 只包含精确 origin，未使用通配符
 - [ ] refresh/session Cookie 保持 API host-only；URL 中不含 access token、refresh token 或裸 return URL
 - [ ] JWT 过期时间已调整为生产值

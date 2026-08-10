@@ -510,6 +510,7 @@ import { usePermissionStore } from '@/stores/permissionStore'
 import { Permission } from '@/constant/permission'
 import { currentSiteProfile } from '@/router'
 import { resolveCanonicalRouteUrl } from '@/router/routes'
+import { getRouteCatalogEntry, type OverviewCategory } from '@/router/route-catalog'
 import { getSiteProfilesForEnvironment, type SiteProfileId } from '@/config/site-registry'
 import {
   DEVELOPER_PRODUCT_NAVIGATION,
@@ -582,6 +583,34 @@ type OverviewSection = {
 
 const OVERVIEW_SECTION_COLLAPSE_THRESHOLD = 6
 const OVERVIEW_SECTION_PREVIEW_ITEM_COUNT = 3
+
+const overviewCategoryDefinitions: readonly {
+  key: OverviewCategory
+  title: () => string
+  icon: Component
+}[] = [
+  { key: 'account', title: () => i18ns.t('nav.settings'), icon: Setting },
+  {
+    key: 'developer-products',
+    title: () => i18ns.t('nav.developerProducts'),
+    icon: Cpu,
+  },
+  {
+    key: 'developer-applications',
+    title: () => i18ns.t('nav.developerCenter'),
+    icon: Key,
+  },
+  { key: 'terminal', title: () => i18ns.t('nav.remoteTerminal'), icon: Monitor },
+  { key: 'console-iam', title: () => i18ns.t('nav.userManagement'), icon: UserFilled },
+  { key: 'console-operations', title: () => i18ns.t('nav.system'), icon: Monitor },
+  { key: 'console-ai', title: () => i18ns.t('nav.relay'), icon: Connection },
+  { key: 'console-developer', title: () => i18ns.t('nav.openPlatform'), icon: Grid },
+  {
+    key: 'console-terminal',
+    title: () => i18ns.t('nav.remoteTerminalProductManagement'),
+    icon: Monitor,
+  },
+]
 
 const can = (permission: Permission) => permissionStore.hasPermission(permission)
 const canAny = (...permissions: Permission[]) => permissionStore.hasAnyPermission(...permissions)
@@ -1268,12 +1297,46 @@ const overviewSections = computed<OverviewSection[]>(() => {
     },
   ]
 
-  return sections
+  const visibleItems = sections
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => item.visible),
     }))
     .filter((section) => section.items.length > 0)
+    .flatMap((section) => section.items)
+
+  const seenItemKeys = new Set<string>()
+  const uniqueItems = visibleItems.filter((item) => {
+    if (seenItemKeys.has(item.key)) return false
+    seenItemKeys.add(item.key)
+    return true
+  })
+
+  const categorySections: OverviewSection[] = overviewCategoryDefinitions
+    .map((definition) => ({
+      key: definition.key,
+      title: definition.title(),
+      icon: definition.icon,
+      items: uniqueItems.filter(
+        (item) =>
+          item.route && getRouteCatalogEntry(item.route)?.overviewCategory === definition.key,
+      ),
+    }))
+    .filter((section) => section.items.length > 0)
+
+  const uncategorizedItems = uniqueItems.filter(
+    (item) => !item.route || !getRouteCatalogEntry(item.route)?.overviewCategory,
+  )
+  if (uncategorizedItems.length > 0) {
+    categorySections.unshift({
+      key: 'quickAccess',
+      title: i18ns.t('nav.quickAccess'),
+      icon: HomeFilled,
+      items: uncategorizedItems,
+    })
+  }
+
+  return categorySections
 })
 
 const filteredOverviewSections = computed<OverviewSection[]>(() => {
