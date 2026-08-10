@@ -1018,6 +1018,100 @@ export class RelayProxyService {
     return clonedBody;
   }
 
+  private isOpenAIImageEditsPath(requestPath: string): boolean {
+    const normalizedPath = requestPath.replace(/^\/relay\/proxy/, "");
+    return /^\/(?:v\d+(?:beta)?\/)?images\/edits(?:\/|$)/.test(normalizedPath);
+  }
+
+  private getMultipartBoundary(contentType: unknown): string | null {
+    const rawContentType = Array.isArray(contentType) ? contentType.join(";") : String(contentType || "");
+    const match = rawContentType.match(/(?:^|;)\s*boundary=(?:"([^"]+)"|([^;\s]+))/i);
+    const boundary = match?.[1] || match?.[2];
+
+    return boundary && !/[\r\n]/.test(boundary) ? boundary : null;
+  }
+
+  private findMultipartBoundary(body: Buffer, marker: Buffer, offset: number): number {
+    let index = body.indexOf(marker, offset);
+
+    while (index !== -1) {
+      const followsPart = body[index + marker.length] === 13 && body[index + marker.length + 1] === 10;
+      const followsClosing = body[index + marker.length] === 45 && body[index + marker.length + 1] === 45;
+      const startsOnBoundaryLine = index === 0 || (body[index - 2] === 13 && body[index - 1] === 10);
+
+      if (startsOnBoundaryLine && (followsPart || followsClosing)) return index;
+      index = body.indexOf(marker, index + marker.length);
+    }
+
+    return -1;
+  }
+
+  private normalizeOpenAIImageEditsMultipartBody(
+    requestBody: any,
+    requestFormat: "openai" | "anthropic" | "gemini",
+    requestPath: string,
+    contentType: unknown,
+  ): any {
+    if (
+      requestFormat !== "openai" ||
+      !Buffer.isBuffer(requestBody) ||
+      !this.isOpenAIImageEditsPath(requestPath) ||
+      !String(contentType || "")
+        .toLowerCase()
+        .startsWith("multipart/form-data")
+    )
+      return requestBody;
+
+    const boundary = this.getMultipartBoundary(contentType);
+    if (!boundary) return requestBody;
+
+    const marker = Buffer.from(`--${boundary}`, "ascii");
+    const headerSeparator = Buffer.from("\r\n\r\n", "ascii");
+    const replacements: Array<{ start: number; end: number; value: Buffer }> = [];
+    let sourceImageCount = 0;
+    let boundaryOffset = this.findMultipartBoundary(requestBody, marker, 0);
+
+    while (boundaryOffset !== -1) {
+      const boundaryEnd = boundaryOffset + marker.length;
+      if (requestBody[boundaryEnd] === 45 && requestBody[boundaryEnd + 1] === 45) break;
+      if (requestBody[boundaryEnd] !== 13 || requestBody[boundaryEnd + 1] !== 10) return requestBody;
+
+      const headerStart = boundaryEnd + 2;
+      const headerEnd = requestBody.indexOf(headerSeparator, headerStart);
+      if (headerEnd === -1) return requestBody;
+
+      const headerText = requestBody.subarray(headerStart, headerEnd).toString("latin1");
+      const dispositionMatch = /(?:^|\r\n)content-disposition\s*:\s*form-data[^\r\n]*/i.exec(headerText);
+      const nameMatch = dispositionMatch?.[0].match(/\bname\s*=\s*(?:"([^"]*)"|([^;\s]*))/i);
+      const fieldName = nameMatch?.[1] ?? nameMatch?.[2];
+
+      if (fieldName === "image" || fieldName === "image[]") {
+        sourceImageCount += 1;
+
+        if (fieldName === "image" && dispositionMatch && nameMatch?.index !== undefined) {
+          const dispositionOffset = dispositionMatch.index ?? 0;
+          const valueOffsetInMatch = nameMatch[0].lastIndexOf(fieldName);
+          const valueStart = headerStart + dispositionOffset + nameMatch.index + valueOffsetInMatch;
+          replacements.push({ start: valueStart, end: valueStart + fieldName.length, value: Buffer.from("image[]") });
+        }
+      }
+
+      boundaryOffset = this.findMultipartBoundary(requestBody, marker, headerEnd + headerSeparator.length);
+    }
+
+    if (sourceImageCount < 2 || replacements.length === 0) return requestBody;
+
+    const chunks: Buffer[] = [];
+    let offset = 0;
+    for (const replacement of replacements) {
+      chunks.push(requestBody.subarray(offset, replacement.start), replacement.value);
+      offset = replacement.end;
+    }
+    chunks.push(requestBody.subarray(offset));
+
+    return Buffer.concat(chunks);
+  }
+
   private isOpenAIChatCompletionsPath(requestPath: string): boolean {
     const normalizedPath = requestPath.replace(/^\/relay\/proxy/, "");
     return /^\/(?:v\d+(?:beta)?\/)?chat\/completions(?:\/|$)/.test(normalizedPath);
@@ -2895,7 +2989,12 @@ export class RelayProxyService {
               headers["anthropic-version"] = "2023-06-01";
             }
 
-            const forwardedBody = this.buildForwardBody(req.body, requestFormat, selectedModelId);
+            const forwardedBody = this.normalizeOpenAIImageEditsMultipartBody(
+              this.buildForwardBody(req.body, requestFormat, selectedModelId),
+              requestFormat,
+              req.path,
+              req.headers["content-type"],
+            );
             let { body: convertedBody, autoInjected: autoInjectedStreamUsageOption } = this.addOpenAIStreamUsageOption(
               forwardedBody,
               requestFormat,

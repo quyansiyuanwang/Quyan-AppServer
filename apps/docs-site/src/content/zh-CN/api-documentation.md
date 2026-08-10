@@ -100,6 +100,21 @@ export function unwrapApi<T>(response: ApiResponse<T>): T {
 
 如果你的目标是“给外部开发者一套真正可跑的接入说明”，建议每种鉴权都至少提供 1 段 curl 和 1 段 SDK 示例。
 
+## OpenAI 图片编辑中转
+
+通过 Relay Token 调用 OpenAI 兼容的 `/relay/proxy/v1/images/edits` 时，多张参考图应使用重复的 `image[]` 字段。中转也会兼容多个旧式 `image` 字段，并在转发前将其规范为 `image[]`，保留图片顺序、mask 和其他表单字段。
+
+```bash
+curl -X POST "https://api.qysyw.cn/relay/proxy/v1/images/edits" \
+	-H "Authorization: Bearer <relay_token>" \
+	-F "model=gpt-image-2" \
+	-F "image[]=@first.png" \
+	-F "image[]=@second.png" \
+	-F "prompt=将两张参考图中的主体组合为一张新图"
+```
+
+建议新接入始终使用 `image[]`。能否实际理解或融合多张参考图仍取决于所选模型和上游渠道的能力。
+
 ## 最小 curl 示例
 
 ### 1. JWT 用户态请求

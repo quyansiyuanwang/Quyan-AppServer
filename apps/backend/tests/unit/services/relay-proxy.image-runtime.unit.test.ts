@@ -165,7 +165,7 @@ describe("RelayProxyService image runtime", () => {
     axiosMock.mockReset();
   });
 
-  it("extracts model from multipart buffers and forwards the raw body unchanged", async () => {
+  it("normalizes multiple legacy image fields and preserves multipart file data", async () => {
     const relayToken = createRelayToken();
     const multipartBody = Buffer.from(
       [
@@ -177,7 +177,22 @@ describe("RelayProxyService image runtime", () => {
         'Content-Disposition: form-data; name="image"; filename="cat.png"',
         "Content-Type: image/png",
         "",
-        "fake-image-bytes",
+        "fake-image-one",
+        "------test-boundary",
+        'Content-Disposition: form-data; name="image"; filename="dog.png"',
+        "Content-Type: image/png",
+        "",
+        "fake-image-two",
+        "------test-boundary",
+        'Content-Disposition: form-data; name="image"; filename="bird.png"',
+        "Content-Type: image/png",
+        "",
+        "fake-image-three",
+        "------test-boundary",
+        'Content-Disposition: form-data; name="mask"; filename="mask.png"',
+        "Content-Type: image/png",
+        "",
+        "fake-mask",
         "------test-boundary--",
         "",
       ].join("\r\n"),
@@ -219,10 +234,18 @@ describe("RelayProxyService image runtime", () => {
       expect.objectContaining({
         url: "https://primary.example.com/v1/images/edits",
         responseType: "stream",
-        data: multipartBody,
-        maxBodyLength: multipartBody.length,
+        data: expect.any(Buffer),
       }),
     );
+    const axiosConfig = axiosMock.mock.calls[0][0] as any;
+    const forwardedBody = axiosConfig.data as Buffer;
+    expect(forwardedBody).not.toBe(multipartBody);
+    expect(forwardedBody.toString("utf8").match(/name="image\[\]"/g)).toHaveLength(3);
+    expect(forwardedBody.toString("utf8")).toContain('name="mask"; filename="mask.png"');
+    expect(forwardedBody.toString("utf8")).toContain("fake-image-one");
+    expect(forwardedBody.toString("utf8")).toContain("fake-image-two");
+    expect(forwardedBody.toString("utf8")).toContain("fake-image-three");
+    expect(axiosConfig.headers["Content-Length"]).toBe(forwardedBody.length);
     expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         relayTokenId: "token-1",
@@ -236,6 +259,44 @@ describe("RelayProxyService image runtime", () => {
       channelId: "channel-primary",
       success: true,
     });
+  });
+
+  it("leaves standard and single-image multipart requests unchanged", () => {
+    const { service } = createService();
+    const normalize = (body: Buffer) =>
+      (service as any).normalizeOpenAIImageEditsMultipartBody(
+        body,
+        "openai",
+        "/relay/proxy/v1/images/edits",
+        "multipart/form-data; boundary=----test-boundary",
+      );
+    const standardBody = Buffer.from(
+      [
+        "------test-boundary",
+        'Content-Disposition: form-data; name="image[]"; filename="cat.png"',
+        "",
+        "standard-image",
+        "------test-boundary",
+        'Content-Disposition: form-data; name="image[]"; filename="dog.png"',
+        "",
+        "standard-image-two",
+        "------test-boundary--",
+        "",
+      ].join("\r\n"),
+    );
+    const singleLegacyBody = Buffer.from(
+      [
+        "------test-boundary",
+        'Content-Disposition: form-data; name="image"; filename="cat.png"',
+        "",
+        "single-image",
+        "------test-boundary--",
+        "",
+      ].join("\r\n"),
+    );
+
+    expect(normalize(standardBody)).toBe(standardBody);
+    expect(normalize(singleLegacyBody)).toBe(singleLegacyBody);
   });
 
   it("rejects oversized streamed image responses before charging usage", async () => {
