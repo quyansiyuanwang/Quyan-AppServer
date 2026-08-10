@@ -47,6 +47,10 @@ export default defineConfig(({ mode }) => {
     'ai.console.qysyw.test',
     'developer.console.qysyw.test',
     'terminal.console.qysyw.test',
+    'management.qysyw.test',
+    'ai.management.qysyw.test',
+    'developer.management.qysyw.test',
+    'terminal.management.qysyw.test',
   ]
   const defaultHttpsKeyPath = '.certs/qysyw.test-key.pem'
   const defaultHttpsCertPath = '.certs/qysyw.test.pem'

@@ -610,6 +610,16 @@ const overviewCategoryDefinitions: readonly {
     title: () => i18ns.t('nav.remoteTerminalProductManagement'),
     icon: Monitor,
   },
+  {
+    key: 'management-developer',
+    title: () => i18ns.t('nav.developerServiceManagement'),
+    icon: Grid,
+  },
+  {
+    key: 'management-terminal',
+    title: () => i18ns.t('nav.remoteTerminalProductManagement'),
+    icon: Monitor,
+  },
 ]
 
 const can = (permission: Permission) => permissionStore.hasPermission(permission)
@@ -627,6 +637,10 @@ const siteLabelKeys: Record<SiteProfileId, I18nENAvailableKeys> = {
   'console-ai': 'nav.siteConsoleAi',
   'console-developer': 'nav.siteConsoleDeveloper',
   'console-terminal': 'nav.siteConsoleTerminal',
+  'management-core': 'nav.siteManagementCore',
+  'management-ai': 'nav.siteManagementAi',
+  'management-developer': 'nav.siteManagementDeveloper',
+  'management-terminal': 'nav.siteManagementTerminal',
 }
 
 const siteIcons: Record<SiteProfileId, Component> = {
@@ -640,6 +654,10 @@ const siteIcons: Record<SiteProfileId, Component> = {
   'console-ai': Connection,
   'console-developer': Grid,
   'console-terminal': Monitor,
+  'management-core': Setting,
+  'management-ai': Connection,
+  'management-developer': Grid,
+  'management-terminal': Monitor,
 }
 
 const availableSiteProfiles = computed(() =>

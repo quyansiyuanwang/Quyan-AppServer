@@ -140,6 +140,11 @@ export const routes = [
             component: () => import('@/views/chat/ChatView.vue'),
           },
           {
+            path: 'dashboard',
+            name: 'consoleDashboard',
+            component: () => import('@/views/article/ArticleViewerView.vue'),
+          },
+          {
             path: 'settings',
             children: [
               {
@@ -168,11 +173,6 @@ export const routes = [
                 component: () => import('@/views/settings/NotificationSettingsView.vue'),
               },
             ],
-          },
-          {
-            path: 'access-keys',
-            name: 'accesskeyManagement',
-            component: () => import('@/views/settings/AccessKeyManagementView.vue'),
           },
           {
             path: 'account/developer-projects',

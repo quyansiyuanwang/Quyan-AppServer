@@ -113,7 +113,7 @@ node scripts/setup-local-domains.mjs --uninstall
 
 `local:setup` 会在 hosts 文件中维护一个专用标记区块，并生成 `apps/frontend/.certs/` 中的本地 HTTPS 证书。重复执行可安全更新该区块；卸载不会修改其他项目的 hosts 记录或系统信任根。脚本在 Windows 通过 UAC、在 macOS/Linux 通过 `sudo` 写入 hosts，但始终以开发者自己的用户身份安装并生成 `mkcert` 证书，确保浏览器能信任它。请直接执行 `pnpm run local:setup`，不要以 `sudo pnpm` 启动。`mkcert` 未安装时会给出当前平台的安装提示。证书文件存在时，前端 Vite 配置会自动启用 HTTPS。
 
-启动前端后，请从站点注册表中的完整域名访问，例如 `https://www.qysyw.test:5173/` 或 `https://auth.qysyw.test:5173/`；`localhost` 与未注册 hostname 会显示拒绝页面，这是多域名隔离的预期行为。
+启动前端后，请从站点注册表中的完整域名访问，例如 `https://www.qysyw.test:5173/`、`https://terminal.console.qysyw.test:5173/` 或 `https://management.qysyw.test:5173/`；`localhost` 与未注册 hostname 会显示拒绝页面，这是多域名隔离的预期行为。
 
 如果本机设置了 HTTP(S) 代理，必须将本地域名绕过代理。Windows Schannel 还可能需要关闭本地开发证书的吊销检查：
 
@@ -129,7 +129,7 @@ curl.exe --noproxy '*' --ssl-no-revoke -I https://www.qysyw.test:5173/
 
 ### 多域名路由与迁移
 
-前端产物由 10 个精确 hostname 共享，但每个 hostname 只注册其所属的业务路由。账户功能位于 `account`，开发者产品和应用位于 `developer`，云终端使用 `terminal`，运营功能分别位于四个 `*.console` hostname。边缘层必须对旧路径和落在错误 hostname 的已知路径返回临时 `302` 到规范 origin/path，并保留 query string；未知 hostname 或未知路径仍应拒绝或返回 404。
+前端产物由产品、用户 console 和 management 三类精确 hostname 共享，但每个 hostname 只注册其所属的业务路由。`developer` 与 `terminal` 负责产品入口；`console`、`ai.console`、`developer.console`、`terminal.console` 面向用户；`management`、`ai.management`、`developer.management`、`terminal.management` 面向运营管理。边缘层必须对旧路径和落在错误 hostname 的已知路径返回临时 `302` 到规范 origin/path，并保留 query string；未知 hostname 或未知路径仍应拒绝或返回 404。
 
 SPA 的迁移守卫覆盖本地开发和边缘 SPA fallback，并在浏览器可见时保留 query string 与 hash。HTTP 请求不包含 hash，因此生产部署仍应优先在边缘层完成路径和 query 的迁移，避免用户下载错误站点的应用壳层。不得把认证 token、refresh token 或不受验证的回跳 URL 放入迁移地址。
 

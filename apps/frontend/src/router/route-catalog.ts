@@ -10,6 +10,10 @@ export type OverviewCategory =
   | 'console-ai'
   | 'console-developer'
   | 'console-terminal'
+  | 'management-core'
+  | 'management-ai'
+  | 'management-developer'
+  | 'management-terminal'
 
 export interface RouteCatalogEntry {
   name: string
@@ -26,10 +30,14 @@ export const siteProfileDefaultPaths: Readonly<Record<SiteProfileId, string>> = 
   chat: '/chat',
   developer: '/products',
   terminal: '/products/remote-terminal-cloud',
-  'console-core': '/iam/users',
-  'console-ai': '/relay/settings',
-  'console-developer': '/services',
-  'console-terminal': '/products/remote-terminal',
+  'console-core': '/dashboard',
+  'console-ai': '/relay/tokens',
+  'console-developer': '/applications/oauth',
+  'console-terminal': '/console',
+  'management-core': '/iam/users',
+  'management-ai': '/relay/settings',
+  'management-developer': '/services',
+  'management-terminal': '/products/remote-terminal',
 }
 
 const productEntries = [
@@ -57,6 +65,7 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   { name: 'externalAuthBindStart', group: 'identity', path: '/auth/external/bind' },
   { name: 'captchaVerification', group: 'identity', path: '/auth/captcha' },
   { name: 'chat', group: 'chat', path: '/chat' },
+  { name: 'consoleDashboard', group: 'console-core', path: '/dashboard' },
   { name: 'settings', group: 'account', path: '/settings' },
   {
     name: 'settingsProfile',
@@ -81,13 +90,6 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     group: 'account',
     path: '/settings/notifications',
     overviewCategory: 'account',
-  },
-  {
-    name: 'accesskeyManagement',
-    group: 'account',
-    path: '/access-keys',
-    overviewCategory: 'account',
-    legacyPaths: ['/account/access-keys'],
   },
   { name: 'workspaceSuggestions', group: 'account', path: '/workspace/suggestions' },
   {
@@ -145,35 +147,35 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   },
   {
     name: 'oauthClientManagement',
-    group: 'developer',
+    group: 'console-developer',
     path: '/applications/oauth',
     overviewCategory: 'developer-applications',
     legacyPaths: ['/account/oauth-apps'],
   },
   {
     name: 'authCenterClientManagement',
-    group: 'developer',
+    group: 'console-developer',
     path: '/applications/auth-center',
     overviewCategory: 'developer-applications',
     legacyPaths: ['/account/auth-center-apps'],
   },
   {
     name: 'relayTokenManagement',
-    group: 'developer',
+    group: 'console-ai',
     path: '/relay/tokens',
-    overviewCategory: 'developer-applications',
+    overviewCategory: 'console-ai',
   },
   {
     name: 'apiDocumentation',
-    group: 'developer',
+    group: 'console-ai',
     path: '/relay/api-docs',
-    overviewCategory: 'developer-applications',
+    overviewCategory: 'console-ai',
   },
   {
     name: 'relayChannelProvider',
-    group: 'developer',
+    group: 'console-ai',
     path: '/relay/channels',
-    overviewCategory: 'developer-applications',
+    overviewCategory: 'console-ai',
     legacyPaths: ['/relay/provider-channels'],
   },
   { name: 'ojSubmitterRoot', group: 'developer', path: '/oj' },
@@ -208,24 +210,24 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     },
     {
       name: `product-management-${product}`,
-      group: 'console-developer' as const,
+      group: 'management-developer' as const,
       path: `/products/${product}/management`,
-      overviewCategory: 'console-developer' as const,
+      overviewCategory: 'management-developer' as const,
       legacyPaths: [`/${product}/management`, `/management/products/${product}`],
     },
     {
       name: `product-config-${product}`,
-      group: 'console-developer' as const,
+      group: 'management-developer' as const,
       path: `/products/${product}/configuration`,
-      overviewCategory: 'console-developer' as const,
+      overviewCategory: 'management-developer' as const,
       legacyPaths: [`/${product}/config`, `/system/products/${product}`],
     },
   ]),
   {
     name: 'product-short_link-analytics',
-    group: 'console-developer',
+    group: 'management-developer',
     path: '/products/short_link/analytics/:instanceId/:linkId',
-    overviewCategory: 'console-developer',
+    overviewCategory: 'management-developer',
     legacyPaths: ['/short-link/analytics/:instanceId/:linkId'],
   },
   {
@@ -237,239 +239,239 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   },
   {
     name: 'remoteTerminal',
-    group: 'terminal',
+    group: 'console-terminal',
     path: '/console',
     overviewCategory: 'terminal',
     legacyPaths: ['/relay/remote-terminal'],
   },
   {
     name: 'userManagement',
-    group: 'console-core',
+    group: 'management-core',
     path: '/iam/users',
     overviewCategory: 'console-iam',
     legacyPaths: ['/management/users'],
   },
   {
     name: 'groupManagement',
-    group: 'console-core',
+    group: 'management-core',
     path: '/iam/groups',
     overviewCategory: 'console-iam',
     legacyPaths: ['/management/groups'],
   },
   {
     name: 'permission',
-    group: 'console-core',
+    group: 'management-core',
     path: '/iam/permissions',
     overviewCategory: 'console-iam',
     legacyPaths: ['/management/permissions'],
   },
   {
     name: 'ramManagement',
-    group: 'console-core',
+    group: 'management-core',
     path: '/iam/ram',
     overviewCategory: 'console-iam',
     legacyPaths: ['/management/ram'],
   },
   {
     name: 'balanceManagement',
-    group: 'console-core',
+    group: 'management-core',
     path: '/billing/balance',
     overviewCategory: 'console-operations',
     legacyPaths: ['/management/balance'],
   },
   {
     name: 'monthlyPassManagement',
-    group: 'console-core',
+    group: 'management-core',
     path: '/billing/monthly-passes',
     overviewCategory: 'console-operations',
     legacyPaths: ['/management/monthly-passes'],
   },
   {
     name: 'redemptionCodes',
-    group: 'console-core',
+    group: 'management-core',
     path: '/billing/redemption-codes',
     overviewCategory: 'console-operations',
     legacyPaths: ['/management/redemption-codes'],
   },
   {
     name: 'jsonEndpointManagement',
-    group: 'console-core',
+    group: 'management-core',
     path: '/content/json-endpoints',
     overviewCategory: 'console-operations',
     legacyPaths: ['/management/json-endpoints'],
   },
   {
     name: 'articleManagement',
-    group: 'console-core',
+    group: 'management-core',
     path: '/content/articles',
     overviewCategory: 'console-operations',
     legacyPaths: ['/management/articles'],
   },
   {
     name: 'legalPolicyManagement',
-    group: 'console-core',
+    group: 'management-core',
     path: '/content/legal-policies',
     overviewCategory: 'console-operations',
     legacyPaths: ['/management/legal-policies'],
   },
-  { name: 'debug', group: 'console-core', path: '/debug', overviewCategory: 'console-operations' },
+  { name: 'debug', group: 'management-core', path: '/debug', overviewCategory: 'console-operations' },
   {
     name: 'serverConfig',
-    group: 'console-core',
+    group: 'management-core',
     path: '/system/config',
     overviewCategory: 'console-operations',
   },
   {
     name: 'ipMonitoring',
-    group: 'console-core',
+    group: 'management-core',
     path: '/system/ip-monitoring',
     overviewCategory: 'console-operations',
   },
   {
     name: 'systemStats',
-    group: 'console-core',
+    group: 'management-core',
     path: '/system/stats',
     overviewCategory: 'console-operations',
   },
   {
     name: 'systemConsumptionStats',
-    group: 'console-core',
+    group: 'management-core',
     path: '/system/consumption-stats',
     overviewCategory: 'console-operations',
   },
   {
     name: 'systemLogs',
-    group: 'console-core',
+    group: 'management-core',
     path: '/system/logs',
     overviewCategory: 'console-operations',
   },
   {
     name: 'businessLogs',
-    group: 'console-core',
+    group: 'management-core',
     path: '/system/business-logs',
     overviewCategory: 'console-operations',
   },
   {
     name: 'errorCenter',
-    group: 'console-core',
+    group: 'management-core',
     path: '/system/error-center',
     overviewCategory: 'console-operations',
   },
   {
     name: 'dataLifecycle',
-    group: 'console-core',
+    group: 'management-core',
     path: '/system/data-lifecycle',
     overviewCategory: 'console-operations',
   },
   {
     name: 'dataMaintenance',
-    group: 'console-core',
+    group: 'management-core',
     path: '/system/data-maintenance',
     overviewCategory: 'console-operations',
   },
   {
     name: 'userOnlineMonitor',
-    group: 'console-core',
+    group: 'management-core',
     path: '/system/user-online-monitor',
     overviewCategory: 'console-operations',
   },
   {
     name: 'analyticsOverview',
-    group: 'console-core',
+    group: 'management-core',
     path: '/analytics/overview',
     overviewCategory: 'console-operations',
   },
   {
     name: 'analyticsFunnel',
-    group: 'console-core',
+    group: 'management-core',
     path: '/analytics/funnel',
     overviewCategory: 'console-operations',
   },
   {
     name: 'analyticsHeatmap',
-    group: 'console-core',
+    group: 'management-core',
     path: '/analytics/heatmap',
     overviewCategory: 'console-operations',
   },
   {
     name: 'relayChannelReview',
-    group: 'console-ai',
+    group: 'management-ai',
     path: '/channels/review',
     overviewCategory: 'console-ai',
     legacyPaths: ['/relay/channel-review'],
   },
   {
     name: 'relaySettings',
-    group: 'console-ai',
+    group: 'management-ai',
     path: '/relay/settings',
     overviewCategory: 'console-ai',
   },
   {
     name: 'relayChannelHealth',
-    group: 'console-ai',
+    group: 'management-ai',
     path: '/channels/health',
     overviewCategory: 'console-ai',
     legacyPaths: ['/relay/channel-health'],
   },
   {
     name: 'relayRequestDiagnostics',
-    group: 'console-ai',
+    group: 'management-ai',
     path: '/diagnostics/requests',
     overviewCategory: 'console-ai',
     legacyPaths: ['/relay/request-diagnostics'],
   },
   {
     name: 'relayChannelProbes',
-    group: 'console-ai',
+    group: 'management-ai',
     path: '/channels/probes',
     overviewCategory: 'console-ai',
     legacyPaths: ['/relay/channel-probes'],
   },
   {
     name: 'upstreamStatus',
-    group: 'console-ai',
+    group: 'management-ai',
     path: '/upstreams',
     overviewCategory: 'console-ai',
     legacyPaths: ['/relay/upstream-status'],
   },
   {
     name: 'developerServiceManagement',
-    group: 'console-developer',
+    group: 'management-developer',
     path: '/services',
     overviewCategory: 'console-developer',
     legacyPaths: ['/developer/management'],
   },
   {
     name: 'developerServiceConfig',
-    group: 'console-developer',
+    group: 'management-developer',
     path: '/services/configuration',
     overviewCategory: 'console-developer',
     legacyPaths: ['/developer/config'],
   },
   {
     name: 'oauthClientReviewManagement',
-    group: 'console-developer',
+    group: 'management-developer',
     path: '/reviews/oauth',
     overviewCategory: 'console-developer',
     legacyPaths: ['/open-platform/oauth-app-reviews'],
   },
   {
     name: 'authCenterClientReviewManagement',
-    group: 'console-developer',
+    group: 'management-developer',
     path: '/reviews/auth-center',
     overviewCategory: 'console-developer',
     legacyPaths: ['/open-platform/auth-center-app-reviews'],
   },
   {
     name: 'ticketReviewManagement',
-    group: 'console-developer',
+    group: 'management-developer',
     path: '/reviews/tickets',
     overviewCategory: 'console-developer',
     legacyPaths: ['/open-platform/ticket-reviews'],
   },
   {
     name: 'remoteTerminalProductManagement',
-    group: 'console-terminal',
+    group: 'management-terminal',
     path: '/products/remote-terminal',
     overviewCategory: 'console-terminal',
     legacyPaths: ['/management/remote-terminal-products'],
@@ -477,6 +479,15 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
 ]
 
 const entriesByName = new Map(routeCatalog.map((entry) => [entry.name, entry]))
+
+const legacyRouteMigrations: readonly RouteCatalogEntry[] = [
+  {
+    name: 'legacy-access-keys',
+    group: 'account',
+    path: '/settings/security',
+    legacyPaths: ['/access-keys', '/account/access-keys'],
+  },
+]
 
 export const getRouteCatalogEntry = (routeName: string): RouteCatalogEntry | undefined =>
   entriesByName.get(routeName)
@@ -508,7 +519,7 @@ export const resolveRouteMigration = (
   pathname: string,
   profile: SiteProfile,
 ): { profileId: SiteRouteGroup; path: string } | undefined => {
-  for (const entry of routeCatalog) {
+  for (const entry of [...routeCatalog, ...legacyRouteMigrations]) {
     if (entry.group === 'shared') continue
     const matchingTemplate = [entry.path, ...(entry.legacyPaths ?? [])].find((template) =>
       matchPathTemplate(template, pathname),

@@ -1,924 +1,67 @@
 <template>
-  <!-- Home -->
-  <el-menu-item
-    v-if="isRouteVisible('home')"
-    index="home"
-    @click="nav('home', $event)"
-    @contextmenu.prevent="openRouteMenu('home', $event)"
-  >
-    <el-icon><HomeFilled /></el-icon>
-    <template #title>{{ i18ns.t('nav.home') }}</template>
-  </el-menu-item>
-
-  <template v-if="showPinnedSection && hasPinnedSlot">
-    <li v-if="hasHomeNavigation" class="menu-divider" />
-    <!-- Pinned -->
-    <slot name="pinned" />
-    <li v-if="hasNavigationAfterPinned" class="menu-divider" />
+  <template v-for="node in homeMenuNodes" :key="node.id">
+    <el-menu-item
+      :index="node.route!"
+      @click="nav(node.route!, $event)"
+      @contextmenu.prevent="openRouteMenu(node.route!, $event)"
+    >
+      <el-icon><component :is="node.icon" /></el-icon>
+      <template #title>{{ i18ns.t(node.labelKey as any) }}</template>
+    </el-menu-item>
   </template>
 
-  <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-    <el-menu-item
-      v-if="isRouteVisible('balanceHistory')"
-      index="balanceHistory"
-      @click="nav('balanceHistory', $event)"
-      @contextmenu.prevent="openRouteMenu('balanceHistory', $event)"
-    >
-      <el-icon><Wallet /></el-icon>
-      <template #title>{{ i18ns.t('relay.accountBalance') }}</template>
-    </el-menu-item>
-    <el-menu-item
-      v-if="isRouteVisible('consumptionRecords')"
-      index="consumptionRecords"
-      @click="nav('consumptionRecords', $event)"
-      @contextmenu.prevent="openRouteMenu('consumptionRecords', $event)"
-    >
-      <el-icon><TrendCharts /></el-icon>
-      <template #title>{{ i18ns.t('nav.consumptionRecords') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-  <PermissionWrapper
-    :any-require="[
-      Permission.TICKET_SUBMIT,
-      Permission.TICKET_SELF_READ,
-      Permission.TICKET_SELF_UPDATE,
-      Permission.TICKET_COMMENT,
-    ]"
-  >
-    <el-menu-item
-      v-if="isRouteVisible('myTickets')"
-      index="myTickets"
-      @click="nav('myTickets', $event)"
-      @contextmenu.prevent="openRouteMenu('myTickets', $event)"
-    >
-      <el-icon><ChatDotRound /></el-icon>
-      <template #title>{{ i18ns.t('nav.myTickets') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
+  <template v-if="showPinnedSection && hasPinnedSlot">
+    <li v-if="homeMenuNodes.length" class="menu-divider" />
+    <slot name="pinned" />
+    <li v-if="navigationMenuNodes.length" class="menu-divider" />
+  </template>
 
-  <!-- Account -->
-  <el-menu-item
-    v-if="isRouteVisible('settingsProfile')"
-    index="settingsProfile"
-    @click="nav('settingsProfile', $event)"
-    @contextmenu.prevent="openRouteMenu('settingsProfile', $event)"
-  >
-    <el-icon><User /></el-icon>
-    <template #title>{{ i18ns.t('nav.settingsProfile') }}</template>
-  </el-menu-item>
-  <el-menu-item
-    v-if="isRouteVisible('settingsSecurity')"
-    index="settingsSecurity"
-    @click="nav('settingsSecurity', $event)"
-    @contextmenu.prevent="openRouteMenu('settingsSecurity', $event)"
-  >
-    <el-icon><Lock /></el-icon>
-    <template #title>{{ i18ns.t('nav.settingsSecurity') }}</template>
-  </el-menu-item>
-  <el-menu-item
-    v-if="isRouteVisible('notificationSettings')"
-    index="notificationSettings"
-    @click="nav('notificationSettings', $event)"
-    @contextmenu.prevent="openRouteMenu('notificationSettings', $event)"
-  >
-    <el-icon><Bell /></el-icon>
-    <template #title>{{ i18ns.t('nav.notificationSettings') }}</template>
-  </el-menu-item>
-  <el-menu-item
-    v-if="isRouteVisible('settingsPreferences')"
-    index="settingsPreferences"
-    @click="nav('settingsPreferences', $event)"
-    @contextmenu.prevent="openRouteMenu('settingsPreferences', $event)"
-  >
-    <el-icon><Tools /></el-icon>
-    <template #title>{{ i18ns.t('nav.preferences') }}</template>
-  </el-menu-item>
-  <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-    <el-menu-item
-      v-if="isRouteVisible('myMonthlyPasses')"
-      index="myMonthlyPasses"
-      @click="nav('myMonthlyPasses', $event)"
-      @contextmenu.prevent="openRouteMenu('myMonthlyPasses', $event)"
-    >
-      <el-icon><CreditCard /></el-icon>
-      <template #title>{{ i18ns.t('nav.myMonthlyPasses') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-  <el-menu-item
-    v-if="isRouteVisible('myRemoteTerminalProducts')"
-    index="myRemoteTerminalProducts"
-    @click="nav('myRemoteTerminalProducts', $event)"
-    @contextmenu.prevent="openRouteMenu('myRemoteTerminalProducts', $event)"
-  >
-    <el-icon><Monitor /></el-icon>
-    <template #title>{{ i18ns.t('nav.myRemoteTerminalProducts') }}</template>
-  </el-menu-item>
-
-  <!-- AI & Tools -->
-  <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-    <el-menu-item
-      v-if="isRouteVisible('chat')"
-      index="chat"
-      @click="nav('chat', $event)"
-      @contextmenu.prevent="openRouteMenu('chat', $event)"
-    >
-      <el-icon><ChatDotRound /></el-icon>
-      <template #title>{{ i18ns.t('nav.chat') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-  <PermissionWrapper :require="[Permission.SCRIPT_READ]">
-    <el-menu-item
-      v-if="isRouteVisible('scriptManager')"
-      index="scriptManager"
-      @click="nav('scriptManager', $event)"
-      @contextmenu.prevent="openRouteMenu('scriptManager', $event)"
-    >
-      <el-icon><Cpu /></el-icon>
-      <template #title>{{ i18ns.t('nav.scriptManager') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-
-  <li v-if="hasPrimaryNavigation && hasSecondaryNavigation" class="menu-divider" />
-
-  <!-- Developer & Integrations -->
-  <PermissionWrapper :require="[Permission.OAUTH_CLIENT_READ]">
-    <el-menu-item
-      v-if="isRouteVisible('oauthClientManagement')"
-      index="oauthClientManagement"
-      @click="nav('oauthClientManagement', $event)"
-      @contextmenu.prevent="openRouteMenu('oauthClientManagement', $event)"
-    >
-      <el-icon><Link /></el-icon>
-      <template #title>{{ i18ns.t('nav.oauthClientManagement') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-  <PermissionWrapper :require="[Permission.AUTH_CENTER_CLIENT_READ]">
-    <el-menu-item
-      v-if="isRouteVisible('authCenterClientManagement')"
-      index="authCenterClientManagement"
-      @click="nav('authCenterClientManagement', $event)"
-      @contextmenu.prevent="openRouteMenu('authCenterClientManagement', $event)"
-    >
-      <el-icon><Key /></el-icon>
-      <template #title>{{ i18ns.t('nav.authCenterClientManagement') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-
-  <!-- Reviews -->
-  <PermissionWrapper :require="[Permission.OAUTH_CLIENT_REVIEW_READ]">
-    <el-menu-item
-      v-if="isRouteVisible('oauthClientReviewManagement')"
-      index="oauthClientReviewManagement"
-      @click="nav('oauthClientReviewManagement', $event)"
-      @contextmenu.prevent="openRouteMenu('oauthClientReviewManagement', $event)"
-    >
-      <el-icon><Document /></el-icon>
-      <template #title>{{ i18ns.t('nav.oauthClientReviewManagement') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-  <PermissionWrapper :require="[Permission.AUTH_CENTER_CLIENT_REVIEW_READ]">
-    <el-menu-item
-      v-if="isRouteVisible('authCenterClientReviewManagement')"
-      index="authCenterClientReviewManagement"
-      @click="nav('authCenterClientReviewManagement', $event)"
-      @contextmenu.prevent="openRouteMenu('authCenterClientReviewManagement', $event)"
-    >
-      <el-icon><Document /></el-icon>
-      <template #title>{{ i18ns.t('nav.authCenterClientReviewManagement') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-  <PermissionWrapper :require="[Permission.TICKET_REVIEW_READ]">
-    <el-menu-item
-      v-if="isRouteVisible('ticketReviewManagement')"
-      index="ticketReviewManagement"
-      @click="nav('ticketReviewManagement', $event)"
-      @contextmenu.prevent="openRouteMenu('ticketReviewManagement', $event)"
-    >
-      <el-icon><ChatDotRound /></el-icon>
-      <template #title>{{ i18ns.t('nav.ticketReviewManagement') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-
-  <!-- Billing -->
-  <PermissionWrapper :require="[Permission.BALANCE_READ]">
-    <el-menu-item
-      v-if="isRouteVisible('balanceManagement')"
-      index="balanceManagement"
-      @click="nav('balanceManagement', $event)"
-      @contextmenu.prevent="openRouteMenu('balanceManagement', $event)"
-    >
-      <el-icon><CreditCard /></el-icon>
-      <template #title>{{ i18ns.t('nav.balanceManagement') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-  <PermissionWrapper
-    :any-require="[
-      Permission.MONTHLY_PASS_TEMPLATE_READ,
-      Permission.MONTHLY_PASS_ASSIGNMENT_READ,
-      Permission.MONTHLY_PASS_USAGE_READ,
-    ]"
-  >
-    <el-menu-item
-      v-if="isRouteVisible('monthlyPassManagement')"
-      index="monthlyPassManagement"
-      @click="nav('monthlyPassManagement', $event)"
-      @contextmenu.prevent="openRouteMenu('monthlyPassManagement', $event)"
-    >
-      <el-icon><CreditCard /></el-icon>
-      <template #title>{{ i18ns.t('nav.monthlyPassManagement') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-  <PermissionWrapper :require="[Permission.REDEMPTION_CODE_READ]">
-    <el-menu-item
-      v-if="isRouteVisible('redemptionCodes')"
-      index="redemptionCodes"
-      @click="nav('redemptionCodes', $event)"
-      @contextmenu.prevent="openRouteMenu('redemptionCodes', $event)"
-    >
-      <el-icon><Postcard /></el-icon>
-      <template #title>{{ i18ns.t('nav.redemptionCodes') }}</template>
-    </el-menu-item>
-  </PermissionWrapper>
-
-  <!-- Product and platform modules -->
-  <PermissionWrapper
-    :any-require="[
-      Permission.REMOTE_TERMINAL_DEVICE_READ,
-      Permission.REMOTE_TERMINAL_PRODUCT_READ,
-      Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
-      Permission.REMOTE_TERMINAL_SESSION_READ,
-      Permission.REMOTE_TERMINAL_SESSION_CREATE,
-    ]"
-  >
-    <el-sub-menu
-      v-if="hasAnyVisibleRoutes('remoteTerminal', 'remoteTerminalProductManagement')"
-      index="remoteTerminalProducts"
-    >
+  <template v-for="(node, index) in navigationMenuNodes" :key="node.id">
+    <li v-if="node.dividerBefore && index > 0" class="menu-divider" />
+    <el-sub-menu v-if="node.children?.length" :index="node.id">
       <template #title>
-        <el-icon><Monitor /></el-icon>
-        <span>{{ i18ns.t('nav.remoteTerminal') }}</span>
-      </template>
-      <PermissionWrapper
-        :any-require="[
-          Permission.REMOTE_TERMINAL_DEVICE_READ,
-          Permission.REMOTE_TERMINAL_SESSION_READ,
-          Permission.REMOTE_TERMINAL_SESSION_CREATE,
-        ]"
-      >
-        <el-menu-item
-          v-if="isRouteVisible('remoteTerminal')"
-          index="remoteTerminal"
-          @click="nav('remoteTerminal', $event)"
-          @contextmenu.prevent="openRouteMenu('remoteTerminal', $event)"
-        >
-          <el-icon><Monitor /></el-icon>
-          <template #title>{{ i18ns.t('nav.remoteTerminal') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper
-        :any-require="[
-          Permission.REMOTE_TERMINAL_PRODUCT_READ,
-          Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
-          Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
-        ]"
-      >
-        <el-menu-item
-          v-if="isRouteVisible('remoteTerminalProductManagement')"
-          index="remoteTerminalProductManagement"
-          @click="nav('remoteTerminalProductManagement', $event)"
-          @contextmenu.prevent="openRouteMenu('remoteTerminalProductManagement', $event)"
-        >
-          <el-icon><Setting /></el-icon>
-          <template #title>{{ i18ns.t('nav.remoteTerminalProductManagement') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-    </el-sub-menu>
-  </PermissionWrapper>
-  <PermissionWrapper
-    :any-require="[
-      Permission.MODEL_PRICING_UPDATE,
-      Permission.UPSTREAM_STATUS_READ,
-      Permission.RELAY_TOKEN_READ,
-      Permission.RELAY_CHANNEL_READ,
-      Permission.RELAY_CHANNEL_SUBMIT,
-      Permission.RELAY_CHANNEL_PROVIDER_READ,
-      Permission.RELAY_CHANNEL_REVIEW,
-      Permission.RELAY_CHANNEL_HEALTH_READ,
-      Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
-    ]"
-  >
-    <el-sub-menu
-      v-if="
-        hasAnyVisibleRoutes(
-          'relayTokenManagement',
-          'apiDocumentation',
-          'relayChannelProvider',
-          'relayChannelReview',
-          'relaySettings',
-          'relayChannelHealth',
-          'relayRequestDiagnostics',
-          'relayChannelProbes',
-          'upstreamStatus',
-        )
-      "
-      index="relay"
-    >
-      <template #title>
-        <el-icon><Connection /></el-icon>
-        <span>{{ i18ns.t('nav.relay') }}</span>
-      </template>
-      <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('relayTokenManagement')"
-          index="relayTokenManagement"
-          @click="nav('relayTokenManagement', $event)"
-          @contextmenu.prevent="openRouteMenu('relayTokenManagement', $event)"
-        >
-          <el-icon><Key /></el-icon>
-          <template #title>{{ i18ns.t('nav.myTokens') }}</template>
-        </el-menu-item>
-        <el-menu-item
-          v-if="isRouteVisible('apiDocumentation')"
-          index="apiDocumentation"
-          @click="nav('apiDocumentation', $event)"
-          @contextmenu.prevent="openRouteMenu('apiDocumentation', $event)"
-        >
-          <el-icon><Document /></el-icon>
-          <template #title>{{ i18ns.t('nav.apiDocumentation') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper
-        :any-require="[Permission.RELAY_CHANNEL_SUBMIT, Permission.RELAY_CHANNEL_PROVIDER_READ]"
-      >
-        <el-menu-item
-          v-if="isRouteVisible('relayChannelProvider')"
-          index="relayChannelProvider"
-          @click="nav('relayChannelProvider', $event)"
-          @contextmenu.prevent="openRouteMenu('relayChannelProvider', $event)"
-        >
-          <el-icon><Wallet /></el-icon>
-          <template #title>{{ i18ns.t('nav.relayChannelProvider') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.RELAY_CHANNEL_REVIEW]">
-        <el-menu-item
-          v-if="isRouteVisible('relayChannelReview')"
-          index="relayChannelReview"
-          @click="nav('relayChannelReview', $event)"
-          @contextmenu.prevent="openRouteMenu('relayChannelReview', $event)"
-        >
-          <el-icon><Document /></el-icon>
-          <template #title>{{ i18ns.t('nav.relayChannelReview') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.MODEL_PRICING_UPDATE]">
-        <el-menu-item
-          v-if="isRouteVisible('relaySettings')"
-          index="relaySettings"
-          @click="nav('relaySettings', $event)"
-          @contextmenu.prevent="openRouteMenu('relaySettings', $event)"
-        >
-          <el-icon><Tools /></el-icon>
-          <template #title>{{ i18ns.t('nav.relaySettings') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.RELAY_CHANNEL_HEALTH_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('relayChannelHealth')"
-          index="relayChannelHealth"
-          @click="nav('relayChannelHealth', $event)"
-          @contextmenu.prevent="openRouteMenu('relayChannelHealth', $event)"
-        >
-          <el-icon><Monitor /></el-icon>
-          <template #title>{{ i18ns.t('nav.relayChannelHealth') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.RELAY_REQUEST_DIAGNOSTICS_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('relayRequestDiagnostics')"
-          index="relayRequestDiagnostics"
-          @click="nav('relayRequestDiagnostics', $event)"
-          @contextmenu.prevent="openRouteMenu('relayRequestDiagnostics', $event)"
-        >
-          <el-icon><Monitor /></el-icon>
-          <template #title>{{ i18ns.t('nav.relayRequestDiagnostics') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.RELAY_CHANNEL_PROBE_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('relayChannelProbes')"
-          index="relayChannelProbes"
-          @click="nav('relayChannelProbes', $event)"
-          @contextmenu.prevent="openRouteMenu('relayChannelProbes', $event)"
-        >
-          <el-icon><Monitor /></el-icon>
-          <template #title>{{ i18ns.t('nav.relayChannelProbes') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.UPSTREAM_STATUS_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('upstreamStatus')"
-          index="upstreamStatus"
-          @click="nav('upstreamStatus', $event)"
-          @contextmenu.prevent="openRouteMenu('upstreamStatus', $event)"
-        >
-          <el-icon><Connection /></el-icon>
-          <template #title>{{ i18ns.t('nav.upstreamStatus') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-    </el-sub-menu>
-  </PermissionWrapper>
-  <PermissionWrapper :any-require="developerProductPlatformPermissions">
-    <el-sub-menu v-if="hasAnyVisibleRoutes('developerProducts')" index="developerProductCatalog">
-      <template #title>
-        <el-icon><Connection /></el-icon>
-        <span>{{ i18ns.t('nav.developerProducts') }}</span>
+        <el-icon><component :is="node.icon" /></el-icon>
+        <span>{{ i18ns.t(node.labelKey as any) }}</span>
       </template>
       <el-menu-item
-        v-if="isRouteVisible('developerProducts')"
-        index="developerProducts"
-        @click="nav('developerProducts', $event)"
-        @contextmenu.prevent="openRouteMenu('developerProducts', $event)"
+        v-for="child in node.children"
+        :key="child.id"
+        :index="child.route!"
+        @click="nav(child.route!, $event)"
+        @contextmenu.prevent="openRouteMenu(child.route!, $event)"
       >
-        <el-icon><Connection /></el-icon>
-        <template #title>{{ i18ns.t('nav.productCatalog') }}</template>
-      </el-menu-item>
-      <PermissionWrapper
-        v-for="product in developerProducts"
-        :key="product.code"
-        :any-require="[
-          ...product.permissions,
-          Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
-          Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
-        ]"
-      >
-        <el-sub-menu
-          v-if="
-            hasAnyVisibleRoutes(
-              developerProductUserRoute(product.code),
-              developerProductManagementRoute(product.code),
-              developerProductConfigRoute(product.code),
-            )
-          "
-          :index="`developer-product-${product.code}`"
-        >
-          <template #title>
-            <el-icon><component :is="product.icon" /></el-icon>
-            <span>{{ i18ns.t(product.labelKey as any) }}</span>
-          </template>
-          <PermissionWrapper :any-require="product.permissions">
-            <el-menu-item
-              v-if="isRouteVisible(developerProductUserRoute(product.code))"
-              :index="developerProductUserRoute(product.code)"
-              @click="nav(developerProductUserRoute(product.code), $event)"
-              @contextmenu.prevent="openRouteMenu(developerProductUserRoute(product.code), $event)"
-            >
-              <el-icon><User /></el-icon>
-              <template #title>{{ i18ns.t('nav.productUserPage') }}</template>
-            </el-menu-item>
-          </PermissionWrapper>
-          <PermissionWrapper :require="[Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE]">
-            <el-menu-item
-              v-if="isRouteVisible(developerProductManagementRoute(product.code))"
-              :index="developerProductManagementRoute(product.code)"
-              @click="nav(developerProductManagementRoute(product.code), $event)"
-              @contextmenu.prevent="
-                openRouteMenu(developerProductManagementRoute(product.code), $event)
-              "
-            >
-              <el-icon><DataAnalysis /></el-icon>
-              <template #title>{{ i18ns.t('nav.productManagementPage') }}</template>
-            </el-menu-item>
-          </PermissionWrapper>
-          <PermissionWrapper :require="[Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE]">
-            <el-menu-item
-              v-if="isRouteVisible(developerProductConfigRoute(product.code))"
-              :index="developerProductConfigRoute(product.code)"
-              @click="nav(developerProductConfigRoute(product.code), $event)"
-              @contextmenu.prevent="
-                openRouteMenu(developerProductConfigRoute(product.code), $event)
-              "
-            >
-              <el-icon><Tools /></el-icon>
-              <template #title>{{ i18ns.t('nav.productConfigPage') }}</template>
-            </el-menu-item>
-          </PermissionWrapper>
-        </el-sub-menu>
-      </PermissionWrapper>
-    </el-sub-menu>
-  </PermissionWrapper>
-  <PermissionWrapper
-    :any-require="[Permission.OJ_APIKEY_READ, Permission.OJ_USAGE_READ, Permission.OJ_PRICING_READ]"
-  >
-    <el-sub-menu
-      v-if="hasAnyVisibleRoutes('ojAPIKeyManagement', 'ojUsageStatistics', 'ojPricingManagement')"
-      index="ojSubmitter"
-    >
-      <template #title>
-        <el-icon><Cpu /></el-icon>
-        <span>{{ i18ns.t('nav.ojSubmitter') }}</span>
-      </template>
-      <PermissionWrapper :require="[Permission.OJ_APIKEY_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('ojAPIKeyManagement')"
-          index="ojAPIKeyManagement"
-          @click="nav('ojAPIKeyManagement', $event)"
-          @contextmenu.prevent="openRouteMenu('ojAPIKeyManagement', $event)"
-        >
-          <el-icon><Key /></el-icon>
-          <template #title>{{ i18ns.t('nav.ojAPIKeyManagement') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.OJ_USAGE_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('ojUsageStatistics')"
-          index="ojUsageStatistics"
-          @click="nav('ojUsageStatistics', $event)"
-          @contextmenu.prevent="openRouteMenu('ojUsageStatistics', $event)"
-        >
-          <el-icon><Histogram /></el-icon>
-          <template #title>{{ i18ns.t('nav.ojUsageStatistics') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.OJ_PRICING_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('ojPricingManagement')"
-          index="ojPricingManagement"
-          @click="nav('ojPricingManagement', $event)"
-          @contextmenu.prevent="openRouteMenu('ojPricingManagement', $event)"
-        >
-          <el-icon><TrendCharts /></el-icon>
-          <template #title>{{ i18ns.t('nav.ojPricingManagement') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-    </el-sub-menu>
-  </PermissionWrapper>
-
-  <!-- Content & Data -->
-  <PermissionWrapper
-    :any-require="[
-      Permission.JSON_ENDPOINT_READ,
-      Permission.ARTICLE_READ,
-      Permission.LEGAL_POLICY_READ,
-    ]"
-  >
-    <el-sub-menu
-      v-if="
-        hasAnyVisibleRoutes('jsonEndpointManagement', 'articleManagement', 'legalPolicyManagement')
-      "
-      index="dataServices"
-    >
-      <template #title>
-        <el-icon><FolderOpened /></el-icon>
-        <span>{{ i18ns.t('nav.dataServices') }}</span>
-      </template>
-      <PermissionWrapper :require="[Permission.JSON_ENDPOINT_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('jsonEndpointManagement')"
-          index="jsonEndpointManagement"
-          @click="nav('jsonEndpointManagement', $event)"
-          @contextmenu.prevent="openRouteMenu('jsonEndpointManagement', $event)"
-        >
-          <el-icon><Document /></el-icon>
-          <template #title>{{ i18ns.t('nav.jsonEndpoints') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.ARTICLE_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('articleManagement')"
-          index="articleManagement"
-          @click="nav('articleManagement', $event)"
-          @contextmenu.prevent="openRouteMenu('articleManagement', $event)"
-        >
-          <el-icon><Notebook /></el-icon>
-          <template #title>{{ i18ns.t('nav.articleManagement') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.LEGAL_POLICY_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('legalPolicyManagement')"
-          index="legalPolicyManagement"
-          @click="nav('legalPolicyManagement', $event)"
-          @contextmenu.prevent="openRouteMenu('legalPolicyManagement', $event)"
-        >
-          <el-icon><Document /></el-icon>
-          <template #title>{{ i18ns.t('nav.legalPolicyManagement') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-    </el-sub-menu>
-  </PermissionWrapper>
-
-  <!-- Analytics -->
-  <PermissionWrapper :require="[Permission.ANALYTICS_READ]">
-    <el-sub-menu
-      v-if="hasAnyVisibleRoutes('analyticsOverview', 'analyticsFunnel', 'analyticsHeatmap')"
-      index="analytics"
-    >
-      <template #title>
-        <el-icon><DataAnalysis /></el-icon>
-        <span>{{ i18ns.t('nav.analytics') }}</span>
-      </template>
-      <el-menu-item
-        v-if="isRouteVisible('analyticsOverview')"
-        index="analyticsOverview"
-        @click="nav('analyticsOverview', $event)"
-        @contextmenu.prevent="openRouteMenu('analyticsOverview', $event)"
-      >
-        <el-icon><TrendCharts /></el-icon>
-        <template #title>{{ i18ns.t('nav.analyticsOverview') }}</template>
-      </el-menu-item>
-      <el-menu-item
-        v-if="isRouteVisible('analyticsFunnel')"
-        index="analyticsFunnel"
-        @click="nav('analyticsFunnel', $event)"
-        @contextmenu.prevent="openRouteMenu('analyticsFunnel', $event)"
-      >
-        <el-icon><Histogram /></el-icon>
-        <template #title>{{ i18ns.t('nav.analyticsFunnel') }}</template>
-      </el-menu-item>
-      <el-menu-item
-        v-if="isRouteVisible('analyticsHeatmap')"
-        index="analyticsHeatmap"
-        @click="nav('analyticsHeatmap', $event)"
-        @contextmenu.prevent="openRouteMenu('analyticsHeatmap', $event)"
-      >
-        <el-icon><DataAnalysis /></el-icon>
-        <template #title>{{ i18ns.t('nav.analyticsHeatmap') }}</template>
+        <el-icon><component :is="child.icon" /></el-icon>
+        <template #title>{{ i18ns.t(child.labelKey as any) }}</template>
       </el-menu-item>
     </el-sub-menu>
-  </PermissionWrapper>
-
-  <!-- Users & Access -->
-  <PermissionWrapper
-    :any-require="[
-      Permission.USER_READ,
-      Permission.PERMISSION_VIEW,
-      Permission.GROUP_READ,
-      Permission.RAM_USER_READ,
-      Permission.RAM_ROLE_READ,
-      Permission.RAM_BINDING_READ,
-      Permission.RAM_SESSION_READ,
-    ]"
-  >
-    <el-sub-menu
-      v-if="hasAnyVisibleRoutes('userManagement', 'groupManagement', 'permission', 'ramManagement')"
-      index="userManagement"
+    <el-menu-item
+      v-else
+      :index="node.route!"
+      @click="nav(node.route!, $event)"
+      @contextmenu.prevent="openRouteMenu(node.route!, $event)"
     >
-      <template #title>
-        <el-icon><UserFilled /></el-icon>
-        <span>{{ i18ns.t('nav.userManagement') }}</span>
-      </template>
-      <PermissionWrapper :require="[Permission.USER_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('userManagement')"
-          index="users"
-          @click="nav('userManagement', $event)"
-          @contextmenu.prevent="openRouteMenu('userManagement', $event)"
-        >
-          <el-icon><User /></el-icon>
-          <template #title>{{ i18ns.t('nav.users') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.GROUP_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('groupManagement')"
-          index="groupManagement"
-          @click="nav('groupManagement', $event)"
-          @contextmenu.prevent="openRouteMenu('groupManagement', $event)"
-        >
-          <el-icon><Collection /></el-icon>
-          <template #title>{{ i18ns.t('nav.groups') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.PERMISSION_VIEW]">
-        <el-menu-item
-          v-if="isRouteVisible('permission')"
-          index="permission"
-          @click="nav('permission', $event)"
-          @contextmenu.prevent="openRouteMenu('permission', $event)"
-        >
-          <el-icon><Operation /></el-icon>
-          <template #title>{{ i18ns.t('nav.permissions') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper
-        :any-require="[
-          Permission.RAM_USER_READ,
-          Permission.RAM_ROLE_READ,
-          Permission.RAM_BINDING_READ,
-          Permission.RAM_SESSION_READ,
-        ]"
-      >
-        <el-menu-item
-          v-if="isRouteVisible('ramManagement')"
-          index="ramManagement"
-          @click="nav('ramManagement', $event)"
-          @contextmenu.prevent="openRouteMenu('ramManagement', $event)"
-        >
-          <el-icon><Key /></el-icon>
-          <template #title>{{ i18ns.t('nav.ramManagement') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-    </el-sub-menu>
-  </PermissionWrapper>
+      <el-icon><component :is="node.icon" /></el-icon>
+      <template #title>{{ i18ns.t(node.labelKey as any) }}</template>
+    </el-menu-item>
+  </template>
 
-  <li v-if="hasNavigationBeforeSystem && hasSystemNavigation" class="menu-divider" />
-
-  <!-- System -->
-  <PermissionWrapper :any-require="[Permission.SYSTEM_CONFIG, Permission.IP_BLACKLIST_READ]">
-    <el-sub-menu
-      v-if="hasAnyVisibleRoutes('serverConfig', 'ipMonitoring')"
-      index="systemConfigSecurity"
-    >
-      <template #title>
-        <el-icon><Tools /></el-icon>
-        <span>{{ i18ns.t('nav.systemConfigSecurity') }}</span>
-      </template>
-      <PermissionWrapper :require="[Permission.SYSTEM_CONFIG]">
-        <el-menu-item
-          v-if="isRouteVisible('serverConfig')"
-          index="serverConfig"
-          @click="nav('serverConfig', $event)"
-          @contextmenu.prevent="openRouteMenu('serverConfig', $event)"
-        >
-          <el-icon><Tools /></el-icon>
-          <template #title>{{ i18ns.t('nav.serverConfig') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.IP_BLACKLIST_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('ipMonitoring')"
-          index="ipMonitoring"
-          @click="nav('ipMonitoring', $event)"
-          @contextmenu.prevent="openRouteMenu('ipMonitoring', $event)"
-        >
-          <el-icon><DataAnalysis /></el-icon>
-          <template #title>{{ i18ns.t('nav.ipMonitoring') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-    </el-sub-menu>
-  </PermissionWrapper>
-  <PermissionWrapper
-    :any-require="[Permission.SYSTEM_STATS_READ, Permission.SYSTEM_CONSUMPTION_STATS_READ]"
-  >
-    <el-sub-menu
-      v-if="hasAnyVisibleRoutes('systemStats', 'systemConsumptionStats')"
-      index="systemMonitoring"
-    >
-      <template #title>
-        <el-icon><TrendCharts /></el-icon>
-        <span>{{ i18ns.t('nav.systemMonitoring') }}</span>
-      </template>
-      <PermissionWrapper :require="[Permission.SYSTEM_STATS_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('systemStats')"
-          index="systemStats"
-          @click="nav('systemStats', $event)"
-          @contextmenu.prevent="openRouteMenu('systemStats', $event)"
-        >
-          <el-icon><TrendCharts /></el-icon>
-          <template #title>{{ i18ns.t('nav.systemStats') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.SYSTEM_CONSUMPTION_STATS_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('systemConsumptionStats')"
-          index="systemConsumptionStats"
-          @click="nav('systemConsumptionStats', $event)"
-          @contextmenu.prevent="openRouteMenu('systemConsumptionStats', $event)"
-        >
-          <el-icon><Histogram /></el-icon>
-          <template #title>{{ i18ns.t('nav.systemConsumptionStats') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-    </el-sub-menu>
-  </PermissionWrapper>
-  <PermissionWrapper
-    :any-require="[
-      Permission.SYSTEM_LOG_READ,
-      Permission.API_LOG_READ,
-      Permission.SYSTEM_SERVER_LOG_READ,
-      Permission.SYSTEM_BUSINESS_LOG_READ,
-    ]"
-  >
-    <el-sub-menu
-      v-if="
-        hasAnyVisibleRoutes(
-          'systemLogs',
-          'businessLogs',
-          'errorCenter',
-          'dataLifecycle',
-          'dataMaintenance',
-          'userOnlineMonitor',
-        )
-      "
-      index="systemAudit"
-    >
-      <template #title>
-        <el-icon><Document /></el-icon>
-        <span>{{ i18ns.t('nav.systemAudit') }}</span>
-      </template>
-      <PermissionWrapper
-        :any-require="[
-          Permission.SYSTEM_LOG_READ,
-          Permission.API_LOG_READ,
-          Permission.SYSTEM_SERVER_LOG_READ,
-          Permission.SYSTEM_ERROR_REPORT_READ,
-          Permission.SYSTEM_DATA_LIFECYCLE_MANAGE,
-          Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
-        ]"
-      >
-        <el-menu-item
-          v-if="isRouteVisible('systemLogs')"
-          index="systemLogs"
-          @click="nav('systemLogs', $event)"
-          @contextmenu.prevent="openRouteMenu('systemLogs', $event)"
-        >
-          <el-icon><Document /></el-icon>
-          <template #title>{{ i18ns.t('nav.systemLogs') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.SYSTEM_BUSINESS_LOG_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('businessLogs')"
-          index="businessLogs"
-          @click="nav('businessLogs', $event)"
-          @contextmenu.prevent="openRouteMenu('businessLogs', $event)"
-        >
-          <el-icon><Notebook /></el-icon>
-          <template #title>{{ i18ns.t('nav.businessLogs') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.SYSTEM_ERROR_REPORT_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('errorCenter')"
-          index="errorCenter"
-          @click="nav('errorCenter', $event)"
-          @contextmenu.prevent="openRouteMenu('errorCenter', $event)"
-        >
-          <el-icon><Document /></el-icon>
-          <template #title>{{ i18ns.t('nav.errorCenter') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.SYSTEM_DATA_LIFECYCLE_MANAGE]">
-        <el-menu-item
-          v-if="isRouteVisible('dataLifecycle')"
-          index="dataLifecycle"
-          @click="nav('dataLifecycle', $event)"
-          @contextmenu.prevent="openRouteMenu('dataLifecycle', $event)"
-        >
-          <el-icon><Document /></el-icon>
-          <template #title>{{ i18ns.t('nav.dataLifecycle') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.SYSTEM_DATA_MAINTENANCE_MANAGE]">
-        <el-menu-item
-          v-if="isRouteVisible('dataMaintenance')"
-          index="dataMaintenance"
-          @click="nav('dataMaintenance', $event)"
-          @contextmenu.prevent="openRouteMenu('dataMaintenance', $event)"
-        >
-          <el-icon><Document /></el-icon>
-          <template #title>{{ i18ns.t('nav.dataMaintenance') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-      <PermissionWrapper :require="[Permission.USER_ONLINE_MONITOR_READ]">
-        <el-menu-item
-          v-if="isRouteVisible('userOnlineMonitor')"
-          index="userOnlineMonitor"
-          @click="nav('userOnlineMonitor', $event)"
-          @contextmenu.prevent="openRouteMenu('userOnlineMonitor', $event)"
-        >
-          <el-icon><Monitor /></el-icon>
-          <template #title>{{ i18ns.t('nav.userOnlineMonitor') }}</template>
-        </el-menu-item>
-      </PermissionWrapper>
-    </el-sub-menu>
-  </PermissionWrapper>
-
-  <li v-if="hasAnyRegularNavigation && hasTrailingNavigation" class="menu-divider" />
-
+  <li v-if="visibleMenuNodes.length && hasTrailingNavigation" class="menu-divider" />
   <div v-if="showSpacer" class="menu-spacer" />
 
   <PermissionWrapper :require="[Permission.DEBUG_ACCESS]">
     <el-menu-item
-      v-if="isRouteVisible('debug')"
+      v-if="router.hasRoute('debug')"
       index="debug"
+      class="item-muted"
       @click="nav('debug', $event)"
       @contextmenu.prevent="openRouteMenu('debug', $event)"
-      class="item-muted"
     >
       <el-icon><Operation /></el-icon>
       <template #title>{{ i18ns.t('nav.debug') }}</template>
     </el-menu-item>
   </PermissionWrapper>
 
-  <el-menu-item
-    v-if="showLogout"
-    index="logout"
-    @click="authorizationService.logout()"
-    class="item-logout"
-  >
+  <el-menu-item v-if="showLogout" index="logout" class="item-logout" @click="logout">
     <el-icon><LogoutIcon :size="16" /></el-icon>
     <template #title>{{ i18ns.t('logout') }}</template>
   </el-menu-item>
@@ -926,35 +69,34 @@
 
 <script lang="ts" setup>
 import {
-  HomeFilled,
-  ChatDotRound,
-  Setting,
-  Operation,
-  DataAnalysis,
-  TrendCharts,
-  Document,
-  Notebook,
-  User,
-  UserFilled,
-  Collection,
-  Tools,
-  Monitor,
-  Key,
-  CreditCard,
-  Connection,
-  Postcard,
-  Wallet,
-  Histogram,
-  FolderOpened,
-  Cpu,
   Bell,
+  ChatDotRound,
+  Collection,
+  Connection,
+  Cpu,
+  CreditCard,
+  DataAnalysis,
+  Document,
+  FolderOpened,
+  HomeFilled,
+  Histogram,
+  Key,
   Link,
   Lock,
+  Monitor,
+  Notebook,
+  Operation,
+  Postcard,
+  Setting,
+  Tools,
+  TrendCharts,
+  User,
+  UserFilled,
+  Wallet,
 } from '@element-plus/icons-vue'
+import type { Component } from 'vue'
+import { computed, useSlots } from 'vue'
 import { i18ns } from '@/locales'
-import { authorizationService } from '@/service/authorizationService'
-import LogoutIcon from '@/components/icons/LogoutIcon.vue'
-import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { Permission } from '@/constant/permission'
 import {
   DEVELOPER_PRODUCT_NAVIGATION,
@@ -962,9 +104,263 @@ import {
   developerProductManagementRoute,
   developerProductUserRoute,
 } from '@/constant/developer-product-navigation'
+import LogoutIcon from '@/components/icons/LogoutIcon.vue'
+import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import router from '@/router'
+import { authorizationService } from '@/service/authorizationService'
+import { usePermissionStore } from '@/stores/permissionStore'
 import type { RouteName } from '@/types/route-types.gen'
-import { computed, useSlots } from 'vue'
+
+type MenuNode = {
+  id: string
+  labelKey: string
+  icon: Component
+  route?: RouteName
+  permissions?: readonly Permission[]
+  permissionMode?: 'all' | 'any'
+  children?: readonly MenuNode[]
+  dividerBefore?: boolean
+  flattenWhenAtMost?: number
+}
+
+const item = (
+  route: RouteName,
+  labelKey: string,
+  icon: Component,
+  permissions?: readonly Permission[],
+  permissionMode: 'all' | 'any' = 'all',
+): MenuNode => ({ id: route, route, labelKey, icon, permissions, permissionMode })
+
+const group = (
+  id: string,
+  labelKey: string,
+  icon: Component,
+  children: readonly MenuNode[],
+  dividerBefore = false,
+  flattenWhenAtMost?: number,
+): MenuNode => ({ id, labelKey, icon, children, dividerBefore, flattenWhenAtMost })
+
+const relayMenu = group('ai-relay', 'nav.relay', Connection, [
+  item('relayTokenManagement', 'nav.myTokens', Key, [Permission.RELAY_TOKEN_READ]),
+  item('apiDocumentation', 'nav.apiDocumentation', Document, [Permission.RELAY_TOKEN_READ]),
+  item(
+    'relayChannelProvider',
+    'nav.relayChannelProvider',
+    Wallet,
+    [Permission.RELAY_CHANNEL_SUBMIT, Permission.RELAY_CHANNEL_PROVIDER_READ],
+    'any',
+  ),
+  item('relayChannelReview', 'nav.relayChannelReview', Document, [Permission.RELAY_CHANNEL_REVIEW]),
+  item('relaySettings', 'nav.relaySettings', Tools, [Permission.MODEL_PRICING_UPDATE]),
+  item('relayChannelHealth', 'nav.relayChannelHealth', Monitor, [
+    Permission.RELAY_CHANNEL_HEALTH_READ,
+  ]),
+  item('relayRequestDiagnostics', 'nav.relayRequestDiagnostics', DataAnalysis, [
+    Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
+  ]),
+  item('relayChannelProbes', 'nav.relayChannelProbes', Monitor, [
+    Permission.RELAY_CHANNEL_PROBE_READ,
+  ]),
+  item('upstreamStatus', 'nav.upstreamStatus', Connection, [Permission.UPSTREAM_STATUS_READ]),
+], false, 9)
+
+const productUserMenu = DEVELOPER_PRODUCT_NAVIGATION.map((product) =>
+  item(
+    developerProductUserRoute(product.code),
+    product.labelKey,
+    product.icon,
+    product.permissions,
+    'any',
+  ),
+)
+
+const productOperationsMenu = DEVELOPER_PRODUCT_NAVIGATION.map((product) =>
+  group(`product-operations-${product.code}`, product.labelKey, product.icon, [
+    item(developerProductManagementRoute(product.code), 'nav.productManagementPage', DataAnalysis, [
+      Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
+    ]),
+    item(developerProductConfigRoute(product.code), 'nav.productConfigPage', Tools, [
+      Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
+    ]),
+  ]),
+)
+
+const menuDefinition: readonly MenuNode[] = [
+  item('home', 'nav.home', HomeFilled),
+  item('consoleDashboard', 'nav.home', HomeFilled),
+  item('settingsProfile', 'nav.settingsProfile', User),
+  item('settingsSecurity', 'nav.settingsSecurity', Lock),
+  item('notificationSettings', 'nav.notificationSettings', Bell),
+  item('settingsPreferences', 'nav.preferences', Tools),
+  item('balanceHistory', 'relay.accountBalance', Wallet, [Permission.RELAY_TOKEN_READ]),
+  item('consumptionRecords', 'nav.consumptionRecords', TrendCharts, [Permission.RELAY_TOKEN_READ]),
+  item(
+    'myTickets',
+    'nav.myTickets',
+    ChatDotRound,
+    [
+      Permission.TICKET_SUBMIT,
+      Permission.TICKET_SELF_READ,
+      Permission.TICKET_SELF_UPDATE,
+      Permission.TICKET_COMMENT,
+    ],
+    'any',
+  ),
+  item('myMonthlyPasses', 'nav.myMonthlyPasses', CreditCard, [Permission.RELAY_TOKEN_READ]),
+  item('scriptManager', 'nav.scriptManager', Cpu, [Permission.SCRIPT_READ]),
+  item('myRemoteTerminalProducts', 'nav.myRemoteTerminalProducts', Monitor),
+  item('chat', 'nav.chat', ChatDotRound, [Permission.RELAY_TOKEN_READ]),
+  item(
+    'oauthClientManagement',
+    'nav.oauthClientManagement',
+    Link,
+    [Permission.OAUTH_CLIENT_READ],
+    'all',
+  ),
+  item('authCenterClientManagement', 'nav.authCenterClientManagement', Key, [
+    Permission.AUTH_CENTER_CLIENT_READ,
+  ]),
+  relayMenu,
+  item(
+    'developerProducts',
+    'nav.productCatalog',
+    Connection,
+    [
+      ...DEVELOPER_PRODUCT_NAVIGATION.flatMap((product) => product.permissions),
+      Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
+      Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
+    ],
+    'any',
+  ),
+  ...productUserMenu,
+  ...productOperationsMenu,
+  group('oj', 'nav.ojSubmitter', Cpu, [
+    item('ojAPIKeyManagement', 'nav.ojAPIKeyManagement', Key, [Permission.OJ_APIKEY_READ]),
+    item('ojUsageStatistics', 'nav.ojUsageStatistics', Histogram, [Permission.OJ_USAGE_READ]),
+    item('ojPricingManagement', 'nav.ojPricingManagement', TrendCharts, [
+      Permission.OJ_PRICING_READ,
+    ]),
+  ], false, 3),
+  item('developerServiceManagement', 'nav.developerServiceManagement', Setting, [
+    Permission.DEVELOPER_QUOTA_MANAGE,
+  ]),
+  item('developerServiceConfig', 'nav.developerServiceConfig', Tools, [Permission.SYSTEM_CONFIG]),
+  item('oauthClientReviewManagement', 'nav.oauthClientReviewManagement', Document, [
+    Permission.OAUTH_CLIENT_REVIEW_READ,
+  ]),
+  item('authCenterClientReviewManagement', 'nav.authCenterClientReviewManagement', Document, [
+    Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
+  ]),
+  item('ticketReviewManagement', 'nav.ticketReviewManagement', ChatDotRound, [
+    Permission.TICKET_REVIEW_READ,
+  ]),
+  item(
+    'remoteTerminal',
+    'nav.remoteTerminal',
+    Monitor,
+    [
+      Permission.REMOTE_TERMINAL_DEVICE_READ,
+      Permission.REMOTE_TERMINAL_SESSION_READ,
+      Permission.REMOTE_TERMINAL_SESSION_CREATE,
+    ],
+    'any',
+  ),
+  item(
+    'remoteTerminalProductManagement',
+    'nav.remoteTerminalProductManagement',
+    Setting,
+    [
+      Permission.REMOTE_TERMINAL_PRODUCT_READ,
+      Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
+      Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
+    ],
+    'any',
+  ),
+  group(
+    'iam',
+    'nav.userManagement',
+    UserFilled,
+    [
+      item('userManagement', 'nav.users', User, [Permission.USER_READ]),
+      item('groupManagement', 'nav.groups', Collection, [Permission.GROUP_READ]),
+      item('permission', 'nav.permissions', Operation, [Permission.PERMISSION_VIEW]),
+      item(
+        'ramManagement',
+        'nav.ramManagement',
+        Key,
+        [
+          Permission.RAM_USER_READ,
+          Permission.RAM_ROLE_READ,
+          Permission.RAM_BINDING_READ,
+          Permission.RAM_SESSION_READ,
+        ],
+        'any',
+      ),
+    ],
+    true,
+  ),
+  group('billing', 'nav.financial', Wallet, [
+    item('balanceManagement', 'nav.balanceManagement', CreditCard, [Permission.BALANCE_READ]),
+    item(
+      'monthlyPassManagement',
+      'nav.monthlyPassManagement',
+      CreditCard,
+      [
+        Permission.MONTHLY_PASS_TEMPLATE_READ,
+        Permission.MONTHLY_PASS_ASSIGNMENT_READ,
+        Permission.MONTHLY_PASS_USAGE_READ,
+      ],
+      'any',
+    ),
+    item('redemptionCodes', 'nav.redemptionCodes', Postcard, [Permission.REDEMPTION_CODE_READ]),
+  ]),
+  group('content', 'nav.dataServices', FolderOpened, [
+    item('jsonEndpointManagement', 'nav.jsonEndpoints', Document, [Permission.JSON_ENDPOINT_READ]),
+    item('articleManagement', 'nav.articleManagement', Notebook, [Permission.ARTICLE_READ]),
+    item('legalPolicyManagement', 'nav.legalPolicyManagement', Document, [
+      Permission.LEGAL_POLICY_READ,
+    ]),
+  ]),
+  group('analytics', 'nav.analytics', DataAnalysis, [
+    item('analyticsOverview', 'nav.analyticsOverview', TrendCharts, [Permission.ANALYTICS_READ]),
+    item('analyticsFunnel', 'nav.analyticsFunnel', Histogram, [Permission.ANALYTICS_READ]),
+    item('analyticsHeatmap', 'nav.analyticsHeatmap', DataAnalysis, [Permission.ANALYTICS_READ]),
+  ]),
+  group(
+    'system-configuration',
+    'nav.systemConfigSecurity',
+    Tools,
+    [
+      item('serverConfig', 'nav.serverConfig', Tools, [Permission.SYSTEM_CONFIG]),
+      item('ipMonitoring', 'nav.ipMonitoring', DataAnalysis, [Permission.IP_BLACKLIST_READ]),
+    ],
+    true,
+  ),
+  group('system-monitoring', 'nav.systemMonitoring', TrendCharts, [
+    item('systemStats', 'nav.systemStats', TrendCharts, [Permission.SYSTEM_STATS_READ]),
+    item('systemConsumptionStats', 'nav.systemConsumptionStats', Histogram, [
+      Permission.SYSTEM_CONSUMPTION_STATS_READ,
+    ]),
+  ]),
+  group('system-audit', 'nav.systemAudit', Document, [
+    item(
+      'systemLogs',
+      'nav.systemLogs',
+      Document,
+      [Permission.SYSTEM_LOG_READ, Permission.API_LOG_READ, Permission.SYSTEM_SERVER_LOG_READ],
+      'any',
+    ),
+    item('businessLogs', 'nav.businessLogs', Notebook, [Permission.SYSTEM_BUSINESS_LOG_READ]),
+    item('errorCenter', 'nav.errorCenter', Document, [Permission.SYSTEM_ERROR_REPORT_READ]),
+    item('dataLifecycle', 'nav.dataLifecycle', Document, [Permission.SYSTEM_DATA_LIFECYCLE_MANAGE]),
+    item('dataMaintenance', 'nav.dataMaintenance', Document, [
+      Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
+    ]),
+    item('userOnlineMonitor', 'nav.userOnlineMonitor', Monitor, [
+      Permission.USER_ONLINE_MONITOR_READ,
+    ]),
+  ]),
+]
 
 const props = withDefaults(
   defineProps<{
@@ -974,173 +370,89 @@ const props = withDefaults(
     onRouteNavigate?: (name: RouteName, event?: MouseEvent) => void
     onRouteContextMenu?: (name: RouteName, event: MouseEvent) => void
   }>(),
-  {
-    showSpacer: false,
-    showLogout: false,
-    showPinnedSection: false,
-  },
+  { showSpacer: false, showLogout: false, showPinnedSection: false },
 )
 
+const permissionStore = usePermissionStore()
 const slots = useSlots()
 const hasPinnedSlot = computed(() => Boolean(slots.pinned))
-const developerProducts = DEVELOPER_PRODUCT_NAVIGATION
-const developerProductPermissions = developerProducts.flatMap((product) => product.permissions)
-const developerProductPlatformPermissions = [
-  ...developerProductPermissions,
-  Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
-  Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
-]
-const isRouteVisible = (routeName: string): boolean => router.hasRoute(routeName)
-const hasAnyVisibleRoutes = (...routeNames: string[]): boolean => routeNames.some(isRouteVisible)
 
-const primaryNavigationRouteNames = [
-  'home',
-  'balanceHistory',
-  'consumptionRecords',
-  'myTickets',
-  'settingsProfile',
-  'settingsSecurity',
-  'notificationSettings',
-  'settingsPreferences',
-  'accesskeyManagement',
-  'myMonthlyPasses',
-  'myRemoteTerminalProducts',
-  'chat',
-  'scriptManager',
-]
-const secondaryNavigationRouteNames = [
-  'oauthClientManagement',
-  'authCenterClientManagement',
-  'oauthClientReviewManagement',
-  'authCenterClientReviewManagement',
-  'ticketReviewManagement',
-  'balanceManagement',
-  'monthlyPassManagement',
-  'redemptionCodes',
-  'remoteTerminal',
-  'remoteTerminalProductManagement',
-  'relayTokenManagement',
-  'apiDocumentation',
-  'relayChannelProvider',
-  'relayChannelReview',
-  'relaySettings',
-  'relayChannelHealth',
-  'relayRequestDiagnostics',
-  'relayChannelProbes',
-  'upstreamStatus',
-  'developerProducts',
-  'ojAPIKeyManagement',
-  'ojUsageStatistics',
-  'ojPricingManagement',
-  'jsonEndpointManagement',
-  'articleManagement',
-  'legalPolicyManagement',
-  'analyticsOverview',
-  'analyticsFunnel',
-  'analyticsHeatmap',
-]
-const userManagementRouteNames = [
-  'userManagement',
-  'groupManagement',
-  'permission',
-  'ramManagement',
-]
-const systemRouteNames = [
-  'serverConfig',
-  'ipMonitoring',
-  'systemStats',
-  'systemConsumptionStats',
-  'systemLogs',
-  'businessLogs',
-  'errorCenter',
-  'dataLifecycle',
-  'dataMaintenance',
-  'userOnlineMonitor',
-]
+const isAllowed = (node: MenuNode): boolean => {
+  if (!node.permissions?.length) return true
+  return node.permissionMode === 'any'
+    ? permissionStore.hasAnyPermission(...node.permissions)
+    : permissionStore.hasAllPermissions(...node.permissions)
+}
 
-const hasHomeNavigation = computed(() => isRouteVisible('home'))
-const hasPrimaryNavigation = computed(() => hasAnyVisibleRoutes(...primaryNavigationRouteNames))
-const hasSecondaryNavigation = computed(() => hasAnyVisibleRoutes(...secondaryNavigationRouteNames))
-const hasUserManagementNavigation = computed(() => hasAnyVisibleRoutes(...userManagementRouteNames))
-const hasSystemNavigation = computed(() => hasAnyVisibleRoutes(...systemRouteNames))
-const hasNavigationAfterPinned = computed(
-  () =>
-    hasAnyVisibleRoutes(
-      ...primaryNavigationRouteNames.filter((routeName) => routeName !== 'home'),
-    ) ||
-    hasSecondaryNavigation.value ||
-    hasUserManagementNavigation.value ||
-    hasSystemNavigation.value,
+const filterVisibleNodes = (nodes: readonly MenuNode[]): MenuNode[] => {
+  const visibleNodes: MenuNode[] = []
+
+  for (const node of nodes) {
+    if (!isAllowed(node)) continue
+    const children = node.children ? filterVisibleNodes(node.children) : undefined
+    if (children?.length) {
+      if (node.flattenWhenAtMost != null && children.length <= node.flattenWhenAtMost) {
+        visibleNodes.push(
+          ...children.map((child, index) => ({
+            ...child,
+            dividerBefore: index === 0 ? node.dividerBefore : child.dividerBefore,
+          })),
+        )
+      } else {
+        visibleNodes.push({ ...node, children })
+      }
+    } else if (node.route && router.hasRoute(node.route)) {
+      visibleNodes.push({ ...node, children: undefined })
+    }
+  }
+
+  return visibleNodes
+}
+
+const visibleMenuNodes = computed(() => filterVisibleNodes(menuDefinition))
+const isHomeRoute = (route?: RouteName): boolean => route === 'home' || route === 'consoleDashboard'
+const homeMenuNodes = computed(() => visibleMenuNodes.value.filter((node) => isHomeRoute(node.route)))
+const navigationMenuNodes = computed(() =>
+  visibleMenuNodes.value.filter((node) => !isHomeRoute(node.route)),
 )
-const hasNavigationBeforeSystem = computed(
-  () =>
-    hasPrimaryNavigation.value || hasSecondaryNavigation.value || hasUserManagementNavigation.value,
-)
-const hasAnyRegularNavigation = computed(
-  () =>
-    hasPrimaryNavigation.value ||
-    hasSecondaryNavigation.value ||
-    hasUserManagementNavigation.value ||
-    hasSystemNavigation.value,
-)
-const hasTrailingNavigation = computed(() => props.showLogout || isRouteVisible('debug'))
+const hasTrailingNavigation = computed(() => props.showLogout || router.hasRoute('debug'))
 
 const nav = (name: RouteName, event?: MouseEvent) => {
   props.onRouteNavigate?.(name, event)
-  if (!props.onRouteNavigate) {
-    router.push({ name } as any)
-  }
+  if (!props.onRouteNavigate) router.push({ name } as any)
 }
 
-const openRouteMenu = (name: RouteName, event: MouseEvent) => {
+const openRouteMenu = (name: RouteName, event: MouseEvent) =>
   props.onRouteContextMenu?.(name, event)
-}
+const logout = () => authorizationService.logout()
 </script>
 
 <style scoped>
 .menu-divider {
   height: 1px;
   margin: 4px 12px;
-  background-color: var(--el-border-color-lighter);
+  background: var(--el-border-color-lighter);
   list-style: none;
   flex-shrink: 0;
 }
-
 .menu-spacer {
   flex: 1;
   min-height: 12px;
 }
-
 .item-muted {
   opacity: 0.55;
   font-size: 12px;
 }
-
 .item-muted:hover {
   opacity: 0.8;
 }
-
 .item-logout {
   color: var(--el-color-danger) !important;
 }
-
 .item-logout :deep(.el-icon) {
   color: var(--el-color-danger) !important;
 }
-
 .item-logout:hover {
-  background-color: var(--el-color-danger-light-9) !important;
-}
-
-.item-docs {
-  color: var(--el-color-primary) !important;
-}
-
-.item-docs :deep(.el-icon) {
-  color: var(--el-color-primary) !important;
-}
-
-.item-docs:hover {
-  background-color: var(--el-color-primary-light-9) !important;
+  background: var(--el-color-danger-light-9) !important;
 }
 </style>

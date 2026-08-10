@@ -11,6 +11,10 @@ export const siteProfileIds = [
   'console-ai',
   'console-developer',
   'console-terminal',
+  'management-core',
+  'management-ai',
+  'management-developer',
+  'management-terminal',
 ] as const
 
 export type SiteProfileId = (typeof siteProfileIds)[number]
@@ -106,8 +110,8 @@ const siteDefinitions: readonly SiteDefinition[] = [
     productionHostname: 'console.qysyw.cn',
     localHostname: 'console.qysyw.test',
     defaultPath: siteProfileDefaultPaths['console-core'],
-    routeGroups: ['console-core', 'shared'],
-    shell: 'console',
+    routeGroups: ['console-core', 'account', 'shared'],
+    shell: 'application',
   },
   {
     id: 'console-ai',
@@ -131,6 +135,38 @@ const siteDefinitions: readonly SiteDefinition[] = [
     localHostname: 'terminal.console.qysyw.test',
     defaultPath: siteProfileDefaultPaths['console-terminal'],
     routeGroups: ['console-terminal', 'shared'],
+    shell: 'console',
+  },
+  {
+    id: 'management-core',
+    productionHostname: 'management.qysyw.cn',
+    localHostname: 'management.qysyw.test',
+    defaultPath: siteProfileDefaultPaths['management-core'],
+    routeGroups: ['management-core', 'shared'],
+    shell: 'console',
+  },
+  {
+    id: 'management-ai',
+    productionHostname: 'ai.management.qysyw.cn',
+    localHostname: 'ai.management.qysyw.test',
+    defaultPath: siteProfileDefaultPaths['management-ai'],
+    routeGroups: ['management-ai', 'shared'],
+    shell: 'console',
+  },
+  {
+    id: 'management-developer',
+    productionHostname: 'developer.management.qysyw.cn',
+    localHostname: 'developer.management.qysyw.test',
+    defaultPath: siteProfileDefaultPaths['management-developer'],
+    routeGroups: ['management-developer', 'shared'],
+    shell: 'console',
+  },
+  {
+    id: 'management-terminal',
+    productionHostname: 'terminal.management.qysyw.cn',
+    localHostname: 'terminal.management.qysyw.test',
+    defaultPath: siteProfileDefaultPaths['management-terminal'],
+    routeGroups: ['management-terminal', 'shared'],
     shell: 'console',
   },
 ]

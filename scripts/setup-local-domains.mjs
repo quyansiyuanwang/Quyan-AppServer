@@ -23,6 +23,10 @@ const localHosts = [
   'ai.console.qysyw.test',
   'developer.console.qysyw.test',
   'terminal.console.qysyw.test',
+  'management.qysyw.test',
+  'ai.management.qysyw.test',
+  'developer.management.qysyw.test',
+  'terminal.management.qysyw.test',
 ]
 
 const arguments_ = new Set(process.argv.slice(2))

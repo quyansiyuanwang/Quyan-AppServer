@@ -64,10 +64,25 @@ describe('profile route factory', () => {
     const terminalRouteNames = collectRouteNames(
       createRoutesForProfile(getKnownProfile('terminal.console.qysyw.cn')),
     )
+    const managementAiRouteNames = collectRouteNames(
+      createRoutesForProfile(getKnownProfile('ai.management.qysyw.cn')),
+    )
+    const managementTerminalRouteNames = collectRouteNames(
+      createRoutesForProfile(getKnownProfile('terminal.management.qysyw.cn')),
+    )
+    const developerRouteNames = collectRouteNames(
+      createRoutesForProfile(getKnownProfile('developer.qysyw.cn')),
+    )
 
-    expect(aiRouteNames).toContain('relaySettings')
+    expect(aiRouteNames).toEqual(
+      expect.arrayContaining(['relayTokenManagement', 'apiDocumentation', 'relayChannelProvider']),
+    )
+    expect(aiRouteNames).not.toContain('relaySettings')
+    expect(managementAiRouteNames).toContain('relaySettings')
     expect(aiRouteNames).not.toContain('userManagement')
-    expect(terminalRouteNames).toContain('remoteTerminalProductManagement')
+    expect(developerRouteNames).not.toContain('relayTokenManagement')
+    expect(terminalRouteNames).toContain('remoteTerminal')
+    expect(managementTerminalRouteNames).toContain('remoteTerminalProductManagement')
     expect(terminalRouteNames).not.toContain('relaySettings')
   })
 
@@ -79,11 +94,21 @@ describe('profile route factory', () => {
     expect(collectRouteNames(terminalRoutes)).toContain('myRemoteTerminalProducts')
   })
 
+  it('gives the general console an isolated user dashboard', () => {
+    const consoleRoutes = createRoutesForProfile(getKnownProfile('console.qysyw.cn'))
+
+    expect(collectRouteNames(consoleRoutes)).toContain('consoleDashboard')
+    expect(collectRouteNames(consoleRoutes)).not.toContain('userManagement')
+  })
+
   it('resolves foreign route names to their registered canonical host', () => {
     const accountProfile = getKnownProfile('account.qysyw.cn')
 
     expect(resolveCanonicalRouteUrl('relaySettings', accountProfile)).toBe(
-      'https://ai.console.qysyw.cn/relay/settings',
+      'https://ai.management.qysyw.cn/relay/settings',
+    )
+    expect(resolveCanonicalRouteUrl('relayTokenManagement', accountProfile)).toBe(
+      'https://ai.console.qysyw.cn/relay/tokens',
     )
     expect(resolveCanonicalRouteUrl('settingsProfile', accountProfile)).toBe(
       'https://account.qysyw.cn/settings/profile',
@@ -94,10 +119,10 @@ describe('profile route factory', () => {
       'https://account.qysyw.test:5173/settings/profile',
     )
     expect(resolveCanonicalRouteUrl('userManagement', accountProfile)).toBe(
-      'https://console.qysyw.cn/iam/users',
+      'https://management.qysyw.cn/iam/users',
     )
     expect(resolveCanonicalRouteUrl('remoteTerminal', accountProfile)).toBe(
-      'https://terminal.qysyw.cn/console',
+      'https://terminal.console.qysyw.cn/console',
     )
   })
 })

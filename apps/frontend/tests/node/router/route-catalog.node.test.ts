@@ -76,12 +76,22 @@ describe('route catalog', () => {
       profileId: 'account',
       path: '/billing/balance',
     })
+    expect(resolveRouteMigration('/access-keys', account)).toEqual({
+      profileId: 'account',
+      path: '/settings/security',
+    })
     expect(resolveRouteMigration('/relay/settings', account)).toEqual({
-      profileId: 'console-ai',
+      profileId: 'management-ai',
       path: '/relay/settings',
     })
+    expect(resolveRouteMigration('/relay/tokens', getKnownProfile('developer.qysyw.test'))).toEqual(
+      {
+        profileId: 'console-ai',
+        path: '/relay/tokens',
+      },
+    )
     expect(resolveRouteMigration('/short-link/analytics/team-a/link-b', account)).toEqual({
-      profileId: 'console-developer',
+      profileId: 'management-developer',
       path: '/products/short_link/analytics/team-a/link-b',
     })
   })
@@ -90,7 +100,7 @@ describe('route catalog', () => {
     const account = getKnownProfile('account.qysyw.test')
 
     expect(resolveRouteMigrationUrl('/management/users', '?tab=roles', '#member-1', account)).toBe(
-      'https://console.qysyw.test:5173/iam/users?tab=roles#member-1',
+      'https://management.qysyw.test:5173/iam/users?tab=roles#member-1',
     )
     expect(resolveRouteMigrationUrl('/not-a-route', '', '', account)).toBeUndefined()
   })
