@@ -23,6 +23,15 @@ export const getCentralAuthUrl = (profile: SiteProfile, path: string, flowId: st
 export const getCentralLoginUrl = (profile: SiteProfile, flowId: string): string =>
   getCentralAuthUrl(profile, '/login', flowId)
 
+/**
+ * Builds the deterministic authentication entry used when the central-login
+ * flow service is temporarily unavailable. The fallback intentionally omits a
+ * cross-origin redirect parameter; only a server-created flow can safely
+ * resume a business URL after authentication.
+ */
+export const getCentralLoginFallbackUrl = (profile: SiteProfile): string =>
+  new URL('/login', profile.authOrigin).toString()
+
 export const createCentralLoginFlow = async (
   returnPath = getCurrentRelativeLocation(),
 ): Promise<string> => {

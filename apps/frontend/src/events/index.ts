@@ -15,6 +15,7 @@ let sessionExpiredUnlockTimer: ReturnType<typeof setTimeout> | null = null
 let twoFactorRedirecting = false
 let twoFactorRedirectUnlockTimer: ReturnType<typeof setTimeout> | null = null
 let ipBlacklistDialogPromise: Promise<unknown> | null = null
+let unauthorizedRedirecting = false
 
 type TwoFactorMethod = 'passkey' | 'code' | 'email'
 type TwoFactorPurpose = 'login' | 'disable2fa' | 'stepup'
@@ -273,6 +274,29 @@ export function registerGlobalEvents() {
       `${i18ns.t('message.error.unauthorized')}${suffix}`,
       'error',
     )
+
+    if (unauthorizedRedirecting) return
+
+    void import('@/config/site-registry')
+      .then(({ isKnownSiteProfile, resolveCurrentSiteProfile }) => {
+        const profile = resolveCurrentSiteProfile()
+        if (!isKnownSiteProfile(profile) || profile.id === 'identity') return
+
+        unauthorizedRedirecting = true
+        return import('@/service/centralLoginService').then(
+          async ({ getCentralLoginFallbackUrl, redirectToCentralLogin }) => {
+            try {
+              await redirectToCentralLogin(router.currentRoute.value.fullPath)
+            } catch (error) {
+              console.warn('[events] Central login redirect failed:', error)
+              window.location.replace(getCentralLoginFallbackUrl(profile))
+            }
+          },
+        )
+      })
+      .catch((error) => {
+        console.warn('[events] Failed to resolve central login redirect:', error)
+      })
   })
 }
 

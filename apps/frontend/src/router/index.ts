@@ -7,7 +7,10 @@ import {
 } from '@/config/site-registry'
 import { globalEventBus } from '@/stores/globalInstance'
 import { usePermissionStore } from '@/stores/permissionStore'
-import { redirectToCentralLogin } from '@/service/centralLoginService'
+import {
+  getCentralLoginFallbackUrl,
+  redirectToCentralLogin,
+} from '@/service/centralLoginService'
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
@@ -149,6 +152,11 @@ function installNavigationGuards(
         await redirectToCentralLogin(to.fullPath)
       } catch (error) {
         console.error('Failed to start central login:', error)
+
+        // A failed flow request must not leave the user on a protected page.
+        // Fall back to the same environment's auth origin; the auth app will
+        // establish the session and send the user to its default destination.
+        window.location.replace(getCentralLoginFallbackUrl(profile))
       }
       next(false)
       return

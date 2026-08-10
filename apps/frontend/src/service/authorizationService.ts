@@ -534,7 +534,27 @@ export class AuthorizationService {
       authEventBus.emit('USER_LOGGED_OUT')
       resetCurrentStorageScope()
 
-      // 如果提供了 redirect 路径，则携带到登录页
+      // Business profiles do not register a local /login route. Continue to
+      // the central identity app after local cleanup; the auth app owns the
+      // login UI for every non-identity hostname.
+      const { isKnownSiteProfile, resolveCurrentSiteProfile } = await import(
+        '@/config/site-registry'
+      )
+      const currentProfile = resolveCurrentSiteProfile()
+      if (isKnownSiteProfile(currentProfile) && currentProfile.id !== 'identity') {
+        const { getCentralLoginFallbackUrl, redirectToCentralLogin } = await import(
+          '@/service/centralLoginService'
+        )
+        try {
+          await redirectToCentralLogin(redirectPath)
+        } catch (error) {
+          console.warn('Central login redirect failed after logout:', error)
+          window.location.replace(getCentralLoginFallbackUrl(currentProfile))
+        }
+        return
+      }
+
+      // Identity profile keeps the in-app login route and its relative return.
       await router.push(getLoginRoute(redirectPath))
     })().finally(() => {
       this.logoutPromise = null
