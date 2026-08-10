@@ -3,7 +3,7 @@ import StorageKey from '@/constant/storagekey'
 import { CustomCode } from '@/constant/custom-code'
 import { i18ns } from '@/locales'
 import router from '@/router'
-import { preloadRouteLocation, queueBusinessRoutePreload } from '@/router/preload'
+import { preloadRouteLocation } from '@/router/preload'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
 import { md5 } from '@/utils/encryption'
 import { Notification } from '@/utils/notification'
@@ -506,7 +506,6 @@ export function useLoginOrRegister() {
     )
 
     await router.push(postLoginRoute)
-    queueBusinessRoutePreload(router)
   }
 
   const getCentralFlowId = (): string | undefined =>

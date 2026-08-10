@@ -11,7 +11,7 @@ const resetCurrentStorageScopeMock = vi.fn()
 const useMock = vi.fn()
 const mountMock = vi.fn()
 const directiveMock = vi.fn()
-const queueBusinessRoutePreloadMock = vi.fn()
+const installProfileRoutesMock = vi.fn(async () => undefined)
 
 vi.mock('vue', () => ({
   createApp: vi.fn(() => ({
@@ -26,19 +26,25 @@ vi.mock('pinia', () => ({
   createPinia: vi.fn(() => ({ __pinia: true })),
 }))
 
-vi.mock('@/App.vue', () => ({
-  default: {},
-}))
-
 vi.mock('@/router', () => ({
   default: {
     __router: true,
     resolve: vi.fn(() => ({ matched: [] })),
   },
+  currentSiteProfile: {
+    id: 'account',
+    hostname: 'account.qysyw.test',
+    canonicalOrigin: 'https://account.qysyw.test:5173',
+    authOrigin: 'https://auth.qysyw.test:5173',
+    defaultPath: '/settings/profile',
+    routeGroups: ['account', 'shared'],
+    shell: 'application',
+  },
+  installProfileRoutes: installProfileRoutesMock,
 }))
 
-vi.mock('@/router/preload', () => ({
-  queueBusinessRoutePreload: queueBusinessRoutePreloadMock,
+vi.mock('@/app-roots/load-profile-app', () => ({
+  loadProfileApp: vi.fn(async () => ({})),
 }))
 
 vi.mock('@/locales', () => ({
@@ -124,7 +130,7 @@ describe('main bootstrap impersonation restore', () => {
     expect(localStorage.getItem(StorageKey.Impersonation.SESSION_INFO)).not.toBeNull()
   })
 
-  it('queues business route preloading after restoring a valid session', async () => {
+  it('restores a valid session without eagerly loading every business route', async () => {
     bootstrapSessionMock.mockResolvedValueOnce('access-token')
 
     const { bootstrapApp } = await import('@/bootstrap')
@@ -134,6 +140,9 @@ describe('main bootstrap impersonation restore', () => {
     await Promise.resolve()
 
     expect(bootstrapSessionMock).toHaveBeenCalledTimes(1)
-    expect(queueBusinessRoutePreloadMock).toHaveBeenCalledWith(expect.objectContaining({ __router: true }))
+    expect(installProfileRoutesMock).toHaveBeenCalledWith(
+      expect.objectContaining({ __router: true }),
+      expect.objectContaining({ id: 'account' }),
+    )
   })
 })

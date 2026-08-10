@@ -1,11 +1,9 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 
-import App from '@/App.vue'
-import router from '@/router'
-import { currentSiteProfile } from '@/router'
+import router, { currentSiteProfile, installProfileRoutes } from '@/router'
 import { isKnownSiteProfile } from '@/config/site-registry'
-import { queueBusinessRoutePreload } from '@/router/preload'
+import { loadProfileApp } from '@/app-roots/load-profile-app'
 import { i18ns, initializeI18n } from '@/locales'
 import { configureAll } from '@/config'
 import { useImpersonationStore } from '@/stores/impersonationStore'
@@ -50,7 +48,9 @@ export const bootstrapApp = async () => {
     console.error('[i18n] Failed to initialize locale messages:', error)
   }
 
-  const app = createApp(App)
+  await installProfileRoutes(router, currentSiteProfile)
+
+  const app = createApp(await loadProfileApp(currentSiteProfile))
   const pinia = createPinia()
 
   app.use(pinia)
@@ -128,8 +128,7 @@ export const bootstrapApp = async () => {
       () => {
         void import('@/service/authorizationService')
           .then(async ({ authorizationService }) => {
-            const token = await authorizationService.bootstrapSession()
-            if (token) queueBusinessRoutePreload(router)
+            await authorizationService.bootstrapSession()
           })
           .catch((error) => {
             console.warn('[bootstrap] Failed to restore heartbeat session:', error)

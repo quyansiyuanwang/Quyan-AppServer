@@ -131,6 +131,8 @@ curl.exe --noproxy '*' --ssl-no-revoke -I https://www.qysyw.test:5173/
 
 前端产物由产品、用户 console 和 management 三类精确 hostname 共享，但每个 hostname 只注册其所属的业务路由。`developer` 与 `terminal` 负责产品入口；`console`、`ai.console`、`developer.console`、`terminal.console` 和 `ram.console` 面向用户；`management`、`ai.management`、`developer.management`、`terminal.management` 面向运营管理。边缘层必须对旧路径和落在错误 hostname 的已知路径返回临时 `302` 到规范 origin/path，并保留 query string；未知 hostname 或未知路径仍应拒绝或返回 404。
 
+构建仍输出一个可部署构件，但浏览器会先按完整 hostname 解析 profile，再异步挂载该 profile 的应用根和路由树。公共站与认证站使用轻量根，不加载业务壳；业务站只注册当前 profile 的业务路由。禁止在启动、登录完成或空闲回调中预加载全部业务页面；仅可在用户明确指向的下一目标上进行按需预加载。
+
 SPA 的迁移守卫覆盖本地开发和边缘 SPA fallback，并在浏览器可见时保留 query string 与 hash。HTTP 请求不包含 hash，因此生产部署仍应优先在边缘层完成路径和 query 的迁移，避免用户下载错误站点的应用壳层。不得把认证 token、refresh token 或不受验证的回跳 URL 放入迁移地址。
 
 ## PM2 部署

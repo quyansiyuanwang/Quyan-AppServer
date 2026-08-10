@@ -1,6 +1,4 @@
 import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
-import { queueBusinessRoutePreload } from './preload'
-import { createRoutesForProfile } from './routes'
 import { resolveRouteMigrationUrl } from './route-migration'
 import {
   isKnownSiteProfile,
@@ -52,7 +50,7 @@ const rejectedHostRoutes = [
 export const createAppRouter = (profile: ResolvedSiteProfile) => {
   const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
-    routes: isKnownSiteProfile(profile) ? createRoutesForProfile(profile) : rejectedHostRoutes,
+    routes: [],
   })
 
   installNavigationGuards(router, profile)
@@ -61,6 +59,19 @@ export const createAppRouter = (profile: ResolvedSiteProfile) => {
 
 export const currentSiteProfile = resolveCurrentSiteProfile()
 export const router = createAppRouter(currentSiteProfile)
+
+export const installProfileRoutes = async (
+  router: ReturnType<typeof createRouter>,
+  profile: ResolvedSiteProfile,
+): Promise<void> => {
+  const profileRoutes = isKnownSiteProfile(profile)
+    ? await import('./routes').then(({ createRoutesForProfile }) => createRoutesForProfile(profile))
+    : rejectedHostRoutes
+
+  for (const route of profileRoutes) {
+    router.addRoute(route)
+  }
+}
 
 function installNavigationGuards(
   router: ReturnType<typeof createRouter>,
@@ -179,10 +190,6 @@ function installNavigationGuards(
 
   router.afterEach((to, from) => {
     if (isAuthEntryRoute(to)) return
-
-    scheduleAnalyticsTrack(() => {
-      queueBusinessRoutePreload(router)
-    })
 
     scheduleAnalyticsTrack(() => {
       void import('@/utils/tracker')

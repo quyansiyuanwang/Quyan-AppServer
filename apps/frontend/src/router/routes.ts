@@ -1042,6 +1042,14 @@ const cloneRouteForProfile = (
     ...(children ? { children } : {}),
   } as RouteRecordRaw
 
+  const isLightweightProfile = profile.id === 'public' || profile.id === 'identity'
+  if (isLightweightProfile && route.path === '' && !route.name && route.component) {
+    clonedRoute.component = () => import('@/app-roots/RouteOutlet.vue')
+  }
+  if (profile.id === 'public' && route.name === 'indexDirect') {
+    clonedRoute.component = () => import('@/app-roots/RouteOutlet.vue')
+  }
+
   if (route.name === 'root') {
     clonedRoute.redirect = profile.defaultPath
   }
