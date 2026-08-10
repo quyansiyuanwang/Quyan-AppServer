@@ -113,6 +113,7 @@ export class RelayChannelController extends Controller {
     @Query() pageSize?: number,
     @Query() keyword?: string,
     @Query() channelType?: RelayChannelManagementListItemDto["channelType"],
+    @Query() channelTypes?: RelayChannelManagementListItemDto["channelType"][],
     @Query() enabled?: boolean,
     @Query() submissionStatus?: RelayChannelSubmissionStatus,
   ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
@@ -121,6 +122,7 @@ export class RelayChannelController extends Controller {
       pageSize,
       keyword,
       channelType,
+      channelTypes,
       enabled,
       submissionStatus,
     });

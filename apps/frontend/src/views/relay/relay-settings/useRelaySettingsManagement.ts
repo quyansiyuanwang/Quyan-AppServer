@@ -1217,7 +1217,7 @@ export const useRelaySettingsManagement = () => {
       return false
     const expectedTypes =
       channelForm.value.channelType === 'automatic-proxy-pool'
-        ? ['pooled']
+        ? ['pooled', 'standalone']
         : channelForm.value.channelType === 'pooled'
           ? channelTopologyMode.value === 'strict-two-tier'
             ? ['pooled-member']
@@ -1232,13 +1232,15 @@ export const useRelaySettingsManagement = () => {
       pageSize: poolMemberPickerPagination.value.pageSize,
       keyword: poolMemberPickerKeyword.value,
       channelType:
+        channelForm.value.channelType === 'pooled'
+          ? channelTopologyMode.value === 'strict-two-tier'
+            ? 'pooled-member'
+            : 'standalone'
+          : undefined,
+      channelTypes:
         channelForm.value.channelType === 'automatic-proxy-pool'
-          ? 'pooled'
-          : channelForm.value.channelType === 'pooled'
-            ? channelTopologyMode.value === 'strict-two-tier'
-              ? 'pooled-member'
-              : 'standalone'
-            : undefined,
+          ? ['pooled', 'standalone']
+          : undefined,
     })
     poolMemberPickerRows.value = response.items.filter(isPoolMemberCandidateEligible)
     poolMemberPickerPagination.value.total = response.total

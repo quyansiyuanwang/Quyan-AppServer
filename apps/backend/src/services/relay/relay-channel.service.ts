@@ -261,6 +261,7 @@ export class RelayChannelService {
       pageSize?: number;
       keyword?: string;
       channelType?: RelayChannelType;
+      channelTypes?: RelayChannelType[];
       enabled?: boolean;
       submissionStatus?: RelayChannelSubmissionStatus;
     },
@@ -277,7 +278,10 @@ export class RelayChannelService {
     };
 
     if (query.keyword?.trim()) where.name = { contains: query.keyword.trim() };
-    if (query.channelType) where.channelType = query.channelType;
+    if (query.channelType && query.channelTypes?.length)
+      throw new BadRequestError("channelType and channelTypes cannot be used together");
+    if (query.channelTypes?.length) where.channelType = { in: query.channelTypes };
+    else if (query.channelType) where.channelType = query.channelType;
     if (query.submissionStatus === "pending") {
       where.OR = [
         { submissionStatus: "pending" },
@@ -1690,13 +1694,9 @@ export class RelayChannelService {
         members.map((member) => member.memberChannelId),
         tx,
       );
-      const topology = await this.relayConfigService.getRelayConfig();
-      if (
-        topology.channelTopologyMode === "strict-two-tier" &&
-        channels.some((channel) => channel.channelType !== "pooled")
-      )
-        throw new BadRequestError("automatic proxy pool members must be pooled channels", undefined, {
-          messageKey: "relay.automaticPoolMembersMustBeLogical",
+      if (channels.some((channel) => !["pooled", "standalone"].includes(channel.channelType || "standalone")))
+        throw new BadRequestError("automatic proxy pool members must be pooled or standalone channels", undefined, {
+          messageKey: "relay.automaticPoolMembersMustBePooledOrStandalone",
         });
     }
 

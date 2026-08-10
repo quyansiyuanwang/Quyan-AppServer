@@ -15,6 +15,19 @@ describe("relay token import schema", () => {
     expect(relayChannelManagementQuerySchema.parse({ enabled: "true" }).enabled).toBe(true);
   });
 
+  it("accepts management multi-type filters and rejects ambiguous filters", () => {
+    expect(relayChannelManagementQuerySchema.parse({ channelTypes: ["pooled", "standalone"] }).channelTypes).toEqual([
+      "pooled",
+      "standalone",
+    ]);
+    expect(relayChannelManagementQuerySchema.parse({ channelTypes: "standalone" }).channelTypes).toEqual([
+      "standalone",
+    ]);
+    expect(() =>
+      relayChannelManagementQuerySchema.parse({ channelType: "pooled", channelTypes: ["standalone"] }),
+    ).toThrow("channelType and channelTypes cannot be used together");
+  });
+
   it("preserves false when parsing a provider service status update", () => {
     expect(updateRelayChannelServiceStatusBodySchema.parse({ enabled: "false" }).enabled).toBe(false);
     expect(updateRelayChannelServiceStatusBodySchema.parse({ enabled: "true" }).enabled).toBe(true);

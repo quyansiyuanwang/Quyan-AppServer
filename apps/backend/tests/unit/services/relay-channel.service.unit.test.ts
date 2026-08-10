@@ -200,6 +200,28 @@ describe("RelayChannelService", () => {
     });
   });
 
+  it("uses an IN filter for management multi-type queries while preserving the single-type filter", async () => {
+    await service.listManagementChannels("actor-user", {
+      page: 1,
+      pageSize: 25,
+      channelTypes: ["pooled", "standalone"],
+    });
+
+    expect(relayChannelRepository.listManagementPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ channelType: { in: ["pooled", "standalone"] } }) }),
+    );
+
+    await service.listManagementChannels("actor-user", {
+      page: 1,
+      pageSize: 25,
+      channelType: "pooled",
+    });
+
+    expect(relayChannelRepository.listManagementPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ channelType: "pooled" }) }),
+    );
+  });
+
   it("merges a model pricing migration without changing the upstream request model", async () => {
     const channel = {
       ...sampleChannel,
@@ -1263,9 +1285,14 @@ describe("RelayChannelService", () => {
     expect(relayChannelRepository.replaceMembersByChannelId).not.toHaveBeenCalled();
   });
 
-  it("allows logical pooled channels as automatic proxy pool members", async () => {
+  it("allows logical pooled and standalone channels as automatic proxy pool members in strict topology", async () => {
+    relayConfigService.getRelayConfig.mockResolvedValue({
+      apiCatalogPoolVisibility: "anonymous-range",
+      channelTopologyMode: "strict-two-tier",
+    });
     relayChannelRepository.listVisibleByIds.mockResolvedValue([
       { ...sampleChannel, id: "ordinary-pool", channelType: "pooled" },
+      { ...sampleChannel, id: "standalone-channel", channelType: "standalone" },
     ]);
     relayChannelRepository.create.mockResolvedValue({
       ...sampleChannel,
@@ -1278,16 +1305,44 @@ describe("RelayChannelService", () => {
         {
           name: "Automatic pool",
           channelType: "automatic-proxy-pool",
-          poolMembers: [{ memberChannelId: "ordinary-pool", priority: 0, weight: 1, enabled: true }],
+          poolMembers: [
+            { memberChannelId: "ordinary-pool", priority: 0, weight: 1, enabled: true },
+            { memberChannelId: "standalone-channel", priority: 1, weight: 1, enabled: true },
+          ],
         },
         "actor-user",
       ),
     ).resolves.toBeTruthy();
     expect(relayChannelRepository.replaceMembersByChannelId).toHaveBeenCalledWith(
       "automatic-pool",
-      [{ memberChannelId: "ordinary-pool", priority: 0, weight: 1, enabled: true }],
+      [
+        { memberChannelId: "ordinary-pool", priority: 0, weight: 1, enabled: true },
+        { memberChannelId: "standalone-channel", priority: 1, weight: 1, enabled: true },
+      ],
       transactionClient,
     );
+  });
+
+  it("rejects physical members and nested automatic pools in automatic proxy pools", async () => {
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([
+      { ...sampleChannel, id: "physical-member", channelType: "pooled-member" },
+    ]);
+    relayChannelRepository.create.mockResolvedValue({
+      ...sampleChannel,
+      id: "automatic-pool",
+      channelType: "automatic-proxy-pool",
+    });
+
+    await expect(
+      service.createChannel(
+        {
+          name: "Automatic pool",
+          channelType: "automatic-proxy-pool",
+          poolMembers: [{ memberChannelId: "physical-member", priority: 0, weight: 1, enabled: true }],
+        },
+        "actor-user",
+      ),
+    ).rejects.toThrow("automatic proxy pool members must be pooled or standalone channels");
   });
 
   it("uses member-derived formats for automatic proxy pools", async () => {

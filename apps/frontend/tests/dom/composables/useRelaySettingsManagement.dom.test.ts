@@ -314,6 +314,60 @@ describe('useRelaySettingsManagement', () => {
     wrapper.unmount()
   })
 
+  it('loads pooled and standalone candidates for automatic proxy pools and saves standalone members', async () => {
+    const { api, wrapper } = await mountComposable()
+    api.channelForm.value = {
+      ...api.channelForm.value,
+      name: 'Automatic Pool',
+      channelType: 'automatic-proxy-pool',
+      poolMembers: [],
+    }
+    listManagementChannelsMock.mockResolvedValue({
+      items: [
+        {
+          id: 'standalone-member-1',
+          name: 'Standalone Member 1',
+          enabled: true,
+          channelType: 'standalone',
+        },
+        {
+          id: 'logical-pool-1',
+          name: 'Logical Pool 1',
+          enabled: true,
+          channelType: 'pooled',
+        },
+      ],
+      page: 1,
+      pageSize: 25,
+      total: 2,
+    })
+    createChannelMock.mockResolvedValue({ id: 'automatic-pool-1' })
+
+    await api.openPoolMemberPicker()
+
+    expect(listManagementChannelsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channelTypes: ['pooled', 'standalone'], channelType: undefined }),
+    )
+    expect(api.poolMemberPickerRows.value.map((row) => row.id)).toEqual([
+      'standalone-member-1',
+      'logical-pool-1',
+    ])
+
+    api.selectedPoolMemberCandidateIds.value = ['standalone-member-1']
+    api.addSelectedPoolMembers()
+    await api.handleSaveChannel()
+
+    expect(createChannelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        channelType: 'automatic-proxy-pool',
+        poolMembers: [
+          { memberChannelId: 'standalone-member-1', priority: 1, weight: 1, enabled: true },
+        ],
+      }),
+    )
+    wrapper.unmount()
+  })
+
   it('falls back to full channel details when logical pool options cannot be loaded from management', async () => {
     const { api, wrapper } = await mountComposable()
     listManagementChannelsMock.mockRejectedValue(new Error('management unavailable'))
