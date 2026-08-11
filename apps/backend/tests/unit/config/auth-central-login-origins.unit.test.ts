@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildAuthConfig } from "@src/config/env/auth";
-import type { EnvSnapshot } from "@src/config/env/source";
+import { buildAuthConfig } from "@/config/env/auth";
+import type { EnvSnapshot } from "@/config/env/source";
 
 describe("central-login default origins", () => {
   it("allows the local legacy frontend as an exact first-party origin", () => {
