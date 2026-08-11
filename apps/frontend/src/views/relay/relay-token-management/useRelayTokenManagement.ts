@@ -724,6 +724,11 @@ export const useRelayTokenManagement = () => {
     const selectedChannelIds = new Set(
       editForm.value.channelConfigs.map((config) => config.channelId.trim()).filter(Boolean),
     )
+    if (editForm.value.routingMode === 'automatic-pool') {
+      const automaticProxyPoolChannelId = editForm.value.automaticProxyPoolChannelId.trim()
+      if (automaticProxyPoolChannelId) selectedChannelIds.add(automaticProxyPoolChannelId)
+    }
+
     const resolvedModels = channels.value
       .filter((channel) => selectedChannelIds.has(channel.id))
       .flatMap((channel) =>
