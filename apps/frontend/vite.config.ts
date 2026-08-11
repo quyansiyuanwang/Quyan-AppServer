@@ -45,6 +45,11 @@ export default defineConfig(({ mode }) => {
   if (isProd && !rootDomain)
     throw new Error('ROOT_DOMAIN must be defined for a production frontend build')
   const resolvedRootDomain = rootDomain || 'qysyw.cn'
+  const configuredBackendUrl = env.VITE_BACKEND_URL?.trim()
+  const productionApiOrigin =
+    env.API_ORIGIN?.trim() ||
+    (/^https?:\/\//.test(configuredBackendUrl || '') ? configuredBackendUrl : undefined) ||
+    `https://api.${resolvedRootDomain}`
   const localRootDomain =
     normalizeRootDomain(env.LOCAL_ROOT_DOMAIN, 'LOCAL_ROOT_DOMAIN') || 'qysyw.test'
   const firstPartyHostPrefixes = [
@@ -315,24 +320,23 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api(?=\/|$)/, ''),
         },
-        ...(isProd
-          ? {
-              '/prod-api': {
-                target: `https://api.${resolvedRootDomain}`,
-                changeOrigin: true,
-                secure: true,
-                configure: stripOriginHeader,
-                rewrite: (path) => path.replace(/^\/prod-api/, ''),
-              },
-              '/prod-ai': {
-                target: `https://ai.${resolvedRootDomain}`,
-                changeOrigin: true,
-                secure: true,
-                configure: stripOriginHeader,
-                rewrite: (path) => path.replace(/^\/prod-ai/, ''),
-              },
-            }
-          : {}),
+        // Keep the production prefixes usable during local development too. This
+        // prevents an accidentally selected `.env.prod.local` from sending local
+        // requests to a remote service; only the `prod` mode uses public hosts.
+        '/prod-api': {
+          target: isProd ? productionApiOrigin : 'http://localhost:10001',
+          changeOrigin: true,
+          secure: isProd,
+          ...(isProd ? { configure: stripOriginHeader } : {}),
+          rewrite: (path) => path.replace(/^\/prod-api/, ''),
+        },
+        '/prod-ai': {
+          target: isProd ? `https://ai.${resolvedRootDomain}` : 'http://localhost:10001',
+          changeOrigin: true,
+          secure: isProd,
+          ...(isProd ? { configure: stripOriginHeader } : {}),
+          rewrite: (path) => path.replace(/^\/prod-ai/, isProd ? '' : '/relay/proxy'),
+        },
       },
     },
     resolve: {
