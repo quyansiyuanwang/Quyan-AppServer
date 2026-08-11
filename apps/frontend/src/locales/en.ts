@@ -761,7 +761,6 @@ export default {
     siteAccount: 'Account Center',
     siteChat: 'AI Chat',
     siteTerminal: 'Cloud Terminal',
-    siteConsoleCore: 'Console Portal',
     siteConsoleAi: 'AI Relay Console',
     siteConsoleDeveloper: 'Developer Console',
     siteConsoleTerminal: 'Terminal Console',
@@ -1079,6 +1078,12 @@ export default {
     },
   },
   remoteTerminal: {
+    overview: 'Product Overview',
+    overviewDescription: 'Review Cloud Terminal devices, session capacity, and subscriptions.',
+    subscriptions: 'Active subscriptions',
+    openWorkspace: 'Open workspace',
+    manageSubscriptions: 'Manage subscriptions and devices',
+    overviewLoadFailed: 'Some overview data is unavailable. Try again shortly.',
     description: 'Connect to your registered device shell through the relay gateway.',
     newTab: 'New Tab',
     terminalTab: 'Terminal {index}',
@@ -1817,12 +1822,6 @@ export default {
     authorizationsDescription: 'Adjust user-level grants and removals for an individual user.',
     policiesDescription: 'Inspect permission sources and final effective permissions for a user.',
     diagnosticsDescription: 'Investigate why a user has or lacks a permission.',
-  },
-  IamRoleAccess: {
-    title: 'Role Management',
-    description:
-      'Roles belong to RAM access control and are managed in its dedicated console, separate from platform users and groups.',
-    openRoles: 'Open RAM role management',
   },
   IamPermissionPages: {
     authorizationsTitle: 'Authorizations',

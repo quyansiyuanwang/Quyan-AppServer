@@ -14,6 +14,8 @@ import type {
   RemoteTerminalUserEntitlementDto,
 } from '@/client/types.gen'
 
+export type RemoteTerminalProductManagementSection = 'templates' | 'entitlements' | 'devices'
+
 interface UserOption {
   id: string
   username: string
@@ -21,13 +23,12 @@ interface UserOption {
 
 const USER_OPTIONS_PAGE_SIZE = 20
 
-export function useRemoteTerminalProductManagement() {
+export function useRemoteTerminalProductManagement(section: RemoteTerminalProductManagementSection) {
   const permissionStore = usePermissionStore()
 
   const loading = ref(false)
   const dialogSubmitting = ref(false)
   const resettingUnbind = ref(false)
-  const activeTab = ref<'templates' | 'entitlements' | 'devices'>('templates')
 
   const templates = ref<RemoteTerminalProductTemplateDto[]>([])
   const entitlements = ref<RemoteTerminalUserEntitlementDto[]>([])
@@ -275,14 +276,6 @@ export function useRemoteTerminalProductManagement() {
     () => canReadTemplate.value || canReadAssignment.value || canReadDevice.value,
   )
 
-  const visibleTabs = computed<Array<'templates' | 'entitlements' | 'devices'>>(() => {
-    const tabs: Array<'templates' | 'entitlements' | 'devices'> = []
-    if (canReadTemplate.value) tabs.push('templates')
-    if (canReadAssignment.value) tabs.push('entitlements')
-    if (canReadDevice.value) tabs.push('devices')
-    return tabs
-  })
-
   const canWriteTemplate = computed(() =>
     permissionStore.hasPermission(Permission.REMOTE_TERMINAL_PRODUCT_WRITE),
   )
@@ -468,13 +461,11 @@ export function useRemoteTerminalProductManagement() {
     try {
       await Promise.all([
         loadFilterOptions(),
-        canReadAssignment.value || canReadDevice.value ? loadUserOptions() : Promise.resolve(),
+        section === 'entitlements' || section === 'devices' ? loadUserOptions() : Promise.resolve(),
       ])
-      await Promise.all([
-        canReadTemplate.value ? loadTemplates() : Promise.resolve(),
-        canReadAssignment.value ? loadEntitlements() : Promise.resolve(),
-        canReadDevice.value ? loadDevices() : Promise.resolve(),
-      ])
+      if (section === 'templates') await loadTemplates()
+      if (section === 'entitlements') await loadEntitlements()
+      if (section === 'devices') await Promise.all([loadEntitlements(), loadDevices()])
     } catch (error) {
       ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.refreshFailed')))
     } finally {
@@ -769,23 +760,12 @@ export function useRemoteTerminalProductManagement() {
     },
   )
 
-  watch(
-    visibleTabs,
-    (tabs) => {
-      if (!tabs.includes(activeTab.value)) {
-        activeTab.value = tabs[0] ?? 'templates'
-      }
-    },
-    { immediate: true },
-  )
-
   onMounted(async () => {
     await permissionService.ensureLoaded()
     await refreshAll()
   })
 
   return {
-    activeTab,
     canReadAssignment,
     canReadDevice,
     canReadTemplate,
@@ -856,7 +836,6 @@ export function useRemoteTerminalProductManagement() {
     tokenForm,
     userOptions,
     userOptionsLoading,
-    visibleTabs,
   }
 }
 

@@ -42,10 +42,8 @@ export default defineConfig(({ mode }) => {
     'account.qysyw.test',
     'chat.qysyw.test',
     'terminal.qysyw.test',
-    'console.qysyw.test',
     'ai.console.qysyw.test',
     'developer.console.qysyw.test',
-    'terminal.console.qysyw.test',
     'ram.console.qysyw.test',
     'kv.console.qysyw.test',
     'short-link.console.qysyw.test',
@@ -286,10 +284,10 @@ export default defineConfig(({ mode }) => {
       allowedHosts,
       https,
       proxy: {
-        '/api': {
+        '^/api(?:/|$)': {
           target: 'http://localhost:10001',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, ''),
+          rewrite: (path) => path.replace(/^\/api(?=\/|$)/, ''),
         },
         ...(isProd
           ? {

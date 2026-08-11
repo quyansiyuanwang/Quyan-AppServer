@@ -233,6 +233,18 @@ const menuDefinition: readonly MenuNode[] = [
   ),
   item('myMonthlyPasses', 'nav.myMonthlyPasses', CreditCard, [Permission.RELAY_TOKEN_READ]),
   item('scriptManager', 'nav.scriptManager', Cpu, [Permission.SCRIPT_READ]),
+  item(
+    'terminalOverview',
+    'remoteTerminal.overview',
+    HomeFilled,
+    [
+      Permission.REMOTE_TERMINAL_PRODUCT_READ,
+      Permission.REMOTE_TERMINAL_DEVICE_READ,
+      Permission.REMOTE_TERMINAL_SESSION_READ,
+      Permission.REMOTE_TERMINAL_SESSION_CREATE,
+    ],
+    'any',
+  ),
   item('myRemoteTerminalProducts', 'nav.myRemoteTerminalProducts', Monitor),
   item('chat', 'nav.chat', ChatDotRound, [Permission.RELAY_TOKEN_READ]),
   item(
@@ -287,15 +299,22 @@ const menuDefinition: readonly MenuNode[] = [
     'any',
   ),
   item(
-    'remoteTerminalProductManagement',
-    'nav.remoteTerminalProductManagement',
+    'remoteTerminalProductTemplates',
+    'remoteTerminalProduct.templateManagement',
     Setting,
-    [
-      Permission.REMOTE_TERMINAL_PRODUCT_READ,
-      Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
-      Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
-    ],
-    'any',
+    [Permission.REMOTE_TERMINAL_PRODUCT_READ],
+  ),
+  item(
+    'remoteTerminalProductEntitlements',
+    'remoteTerminalProduct.entitlementManagement',
+    User,
+    [Permission.REMOTE_TERMINAL_ASSIGNMENT_READ],
+  ),
+  item(
+    'remoteTerminalProductDevices',
+    'remoteTerminalProduct.deviceManagement',
+    Monitor,
+    [Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ],
   ),
   group(
     'iam',
@@ -317,7 +336,6 @@ const menuDefinition: readonly MenuNode[] = [
       group('iam-identity', 'nav.iamIdentityManagement', User, [
         item('userManagement', 'nav.users', User, [Permission.USER_READ]),
         item('groupManagement', 'nav.groups', Collection, [Permission.GROUP_READ]),
-        item('roleManagement', 'nav.roles', Key, [Permission.RAM_ROLE_READ]),
       ]),
       group('iam-permissions', 'nav.iamPermissionManagement', Operation, [
         item('iamAuthorizations', 'nav.iamAuthorizations', Key, [Permission.PERMISSION_VIEW]),
@@ -461,7 +479,7 @@ const filterVisibleNodes = (nodes: readonly MenuNode[]): MenuNode[] => {
 }
 
 const visibleMenuNodes = computed(() => filterVisibleNodes(menuDefinition))
-const isHomeRoute = (route?: RouteName): boolean => route === 'home' || route === 'consoleDashboard'
+const isHomeRoute = (route?: RouteName): boolean => route === 'home'
 const homeMenuNodes = computed(() =>
   visibleMenuNodes.value.filter((node) => isHomeRoute(node.route)),
 )

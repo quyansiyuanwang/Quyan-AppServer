@@ -6,37 +6,14 @@
       'is-mobile': !isDesktop,
     }"
   >
-    <!-- Brand header (desktop only) -->
-    <!-- <div v-if="isDesktop" class="aside-header">
-      <div v-if="!isCollapse" class="aside-brand">
-        <el-icon size="18"><Grid /></el-icon>
-        <span class="brand-name">AppServer</span>
-      </div>
-      <div class="header-actions">
-        <el-tooltip
-          :content="i18ns.t(showIsDesktopIcon ? 'nav.expandSidebar' : 'nav.collapseSidebar')"
-        >
-          <button type="button" class="header-icon-button" @click.stop="toggleCollapse">
-            <el-icon class="toggle-icon" size="14">
-              <component :is="showIsDesktopIcon ? Expand : Fold" />
-            </el-icon>
-          </button>
-        </el-tooltip>
-        <el-tooltip
-          :content="i18ns.t(showOverview ? 'nav.collapseOverview' : 'nav.expandOverview')"
-        >
-          <button
-            v-if="!isCollapse"
-            type="button"
-            class="header-icon-button"
-            :class="{ 'is-active': showOverview }"
-            @click.stop="toggleOverview"
-          >
-            <el-icon size="14"><Operation /></el-icon>
-          </button>
-        </el-tooltip>
-      </div>
-    </div> -->
+    <div v-if="isDesktop" class="functional-area" :class="{ 'is-collapsed': showIsDesktopIcon }">
+      <el-tooltip :disabled="!showIsDesktopIcon" :content="functionalAreaTooltip" placement="right">
+        <div class="functional-area__content">
+          <el-icon><component :is="currentSiteIcon" /></el-icon>
+          <span v-if="!showIsDesktopIcon">{{ functionalAreaName }}</span>
+        </div>
+      </el-tooltip>
+    </div>
 
     <!-- Desktop sidebar menu -->
     <el-menu ref="menuRef" :collapse="showIsDesktopIcon" class="aside-nav">
@@ -169,7 +146,7 @@
                   @click="navigateToSiteProfile(profile.id)"
                 >
                   <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
-                  <span>{{ i18ns.t(siteLabelKeys[profile.id]) }}</span>
+                  <span>{{ i18ns.t(profile.labelKey as I18nENAvailableKeys) }}</span>
                   <el-icon
                     v-if="profile.id === currentSiteProfile.id"
                     class="overview-site-item__current"
@@ -374,9 +351,9 @@
     >
       <div class="mobile-drawer-content">
         <div class="drawer-header">
-          <div class="aside-brand">
-            <el-icon size="20"><Grid /></el-icon>
-            <span class="brand-name">AppServer</span>
+          <div class="functional-area functional-area--mobile">
+            <el-icon size="20"><component :is="currentSiteIcon" /></el-icon>
+            <span>{{ functionalAreaName }}</span>
           </div>
           <el-icon class="close-icon" @click="showMobileDrawer = false"><Close /></el-icon>
         </div>
@@ -620,11 +597,6 @@ const overviewCategoryDefinitions: readonly {
   { key: 'console-ai', title: () => i18ns.t('nav.relay'), icon: Connection },
   { key: 'console-developer', title: () => i18ns.t('nav.openPlatform'), icon: Grid },
   {
-    key: 'console-terminal',
-    title: () => i18ns.t('nav.remoteTerminalProductManagement'),
-    icon: Monitor,
-  },
-  {
     key: 'console-ram',
     title: () => i18ns.t('nav.ramManagement'),
     icon: Key,
@@ -645,41 +617,14 @@ const can = (permission: Permission) => permissionStore.hasPermission(permission
 const canAny = (...permissions: Permission[]) => permissionStore.hasAnyPermission(...permissions)
 const isRouteVisible = (routeName?: RouteName): boolean => !routeName || router.hasRoute(routeName)
 
-const siteLabelKeys: Record<SiteProfileId, I18nENAvailableKeys> = {
-  public: 'nav.sitePublic',
-  identity: 'nav.siteIdentity',
-  account: 'nav.siteAccount',
-  chat: 'nav.siteChat',
-  terminal: 'nav.siteTerminal',
-  'console-core': 'nav.siteConsoleCore',
-  'console-ai': 'nav.siteConsoleAi',
-  'console-developer': 'nav.siteConsoleDeveloper',
-  'console-terminal': 'nav.siteConsoleTerminal',
-  'console-ram': 'nav.siteConsoleRam',
-  'product-kv': 'nav.productKv',
-  'product-short_link': 'nav.productShortLink',
-  'product-secret': 'nav.productSecret',
-  'product-status': 'nav.productStatus',
-  'product-verification': 'nav.productVerification',
-  'product-ip_geolocation': 'nav.productIpGeolocation',
-  'product-push': 'nav.productPush',
-  'product-oj': 'nav.ojSubmitter',
-  'management-core': 'nav.siteManagementCore',
-  'management-ai': 'nav.siteManagementAi',
-  'management-developer': 'nav.siteManagementDeveloper',
-  'management-terminal': 'nav.siteManagementTerminal',
-}
-
 const siteIcons: Record<SiteProfileId, Component> = {
   public: HomeFilled,
   identity: User,
   account: User,
   chat: ChatDotRound,
   terminal: Monitor,
-  'console-core': Setting,
   'console-ai': Connection,
   'console-developer': Grid,
-  'console-terminal': Monitor,
   'console-ram': Key,
   'product-kv': Connection,
   'product-short_link': Link,
@@ -694,6 +639,16 @@ const siteIcons: Record<SiteProfileId, Component> = {
   'management-developer': Grid,
   'management-terminal': Monitor,
 }
+
+const currentSiteIcon = computed<Component>(() =>
+  currentSiteProfile.id === 'rejected' ? Grid : siteIcons[currentSiteProfile.id],
+)
+const functionalAreaName = computed(() =>
+  i18ns.t(currentSiteProfile.labelKey as I18nENAvailableKeys),
+)
+const functionalAreaTooltip = computed(
+  () => `${functionalAreaName.value} (${currentSiteProfile.hostname})`,
+)
 
 const availableSiteProfiles = computed(() =>
   currentSiteProfile.id === 'rejected'
@@ -960,16 +915,25 @@ const overviewSections = computed<OverviewSection[]>(() => {
           ),
         },
         {
-          key: 'remoteTerminalProductManagement',
-          label: i18ns.t('nav.remoteTerminalProductManagement'),
+          key: 'remoteTerminalProductTemplates',
+          label: i18ns.t('remoteTerminalProduct.templateManagement'),
           icon: Setting,
-          route: 'remoteTerminalProductManagement',
-          visible: canAny(
-            Permission.REMOTE_TERMINAL_PRODUCT_READ,
-            Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
-            Permission.REMOTE_TERMINAL_REGISTRATION_TOKEN_READ,
-            Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
-          ),
+          route: 'remoteTerminalProductTemplates',
+          visible: can(Permission.REMOTE_TERMINAL_PRODUCT_READ),
+        },
+        {
+          key: 'remoteTerminalProductEntitlements',
+          label: i18ns.t('remoteTerminalProduct.entitlementManagement'),
+          icon: User,
+          route: 'remoteTerminalProductEntitlements',
+          visible: can(Permission.REMOTE_TERMINAL_ASSIGNMENT_READ),
+        },
+        {
+          key: 'remoteTerminalProductDevices',
+          label: i18ns.t('remoteTerminalProduct.deviceManagement'),
+          icon: Monitor,
+          route: 'remoteTerminalProductDevices',
+          visible: can(Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ),
         },
         {
           key: 'relaySettings',
@@ -1238,13 +1202,6 @@ const overviewSections = computed<OverviewSection[]>(() => {
           icon: Collection,
           route: 'groupManagement',
           visible: can(Permission.GROUP_READ),
-        },
-        {
-          key: 'roleManagement',
-          label: i18ns.t('nav.roles'),
-          icon: Key,
-          route: 'roleManagement',
-          visible: can(Permission.RAM_ROLE_READ),
         },
         {
           key: 'iamAuthorizations',
@@ -1750,6 +1707,38 @@ watch(
       opacity: 0.5;
     }
   }
+}
+
+.functional-area {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.functional-area__content,
+.functional-area--mobile {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.functional-area__content span,
+.functional-area--mobile span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.functional-area.is-collapsed .functional-area__content {
+  justify-content: center;
+  padding: 0;
 }
 
 .aside-header {

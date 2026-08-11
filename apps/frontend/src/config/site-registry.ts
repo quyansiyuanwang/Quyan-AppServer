@@ -17,6 +17,7 @@ export interface SiteProfile {
   kind: SiteKind
   navigationGroup: 'public' | 'account' | 'products' | 'user-console' | 'management'
   accessPermissions: readonly Permission[]
+  labelKey: string
 }
 
 export interface RejectedSiteProfile {
@@ -29,6 +30,7 @@ export interface RejectedSiteProfile {
   kind: 'public'
   navigationGroup: 'public'
   accessPermissions: readonly []
+  labelKey: 'nav.sitePublic'
 }
 
 export type ResolvedSiteProfile = SiteProfile | RejectedSiteProfile
@@ -40,6 +42,7 @@ interface SiteDefinition {
   defaultPath: string
   routeGroups: readonly string[]
   shell: SiteShell
+  labelKey: string
   app?: string
   kind?: SiteKind
   navigationGroup?: 'public' | 'account' | 'products' | 'user-console' | 'management'
@@ -60,11 +63,6 @@ const profileAccessPermissions: Partial<Record<SiteProfileId, readonly Permissio
     Permission.RELAY_CHANNEL_SUBMIT,
   ],
   'console-developer': [Permission.OAUTH_CLIENT_READ, Permission.AUTH_CENTER_CLIENT_READ],
-  'console-terminal': [
-    Permission.REMOTE_TERMINAL_DEVICE_READ,
-    Permission.REMOTE_TERMINAL_SESSION_READ,
-    Permission.REMOTE_TERMINAL_SESSION_CREATE,
-  ],
   'console-ram': [
     Permission.RAM_USER_READ,
     Permission.RAM_ROLE_READ,
@@ -146,6 +144,7 @@ export const siteDefinitions = [
     defaultPath: '/home',
     routeGroups: ['public', 'shared'],
     shell: 'public',
+    labelKey: 'nav.sitePublic',
   },
   {
     id: 'identity',
@@ -154,6 +153,7 @@ export const siteDefinitions = [
     defaultPath: '/login',
     routeGroups: ['identity', 'shared'],
     shell: 'identity',
+    labelKey: 'nav.siteIdentity',
   },
   {
     id: 'account',
@@ -162,6 +162,7 @@ export const siteDefinitions = [
     defaultPath: '/settings/profile',
     routeGroups: ['account', 'shared'],
     shell: 'application',
+    labelKey: 'nav.siteAccount',
   },
   {
     id: 'chat',
@@ -170,22 +171,16 @@ export const siteDefinitions = [
     defaultPath: '/chat',
     routeGroups: ['chat', 'shared'],
     shell: 'application',
+    labelKey: 'nav.siteChat',
   },
   {
     id: 'terminal',
     productionHostname: 'terminal.qysyw.cn',
     localHostname: 'terminal.qysyw.test',
-    defaultPath: '/products/remote-terminal-cloud',
+    defaultPath: '/overview',
     routeGroups: ['terminal', 'shared'],
     shell: 'application',
-  },
-  {
-    id: 'console-core',
-    productionHostname: 'console.qysyw.cn',
-    localHostname: 'console.qysyw.test',
-    defaultPath: '/dashboard',
-    routeGroups: ['console-core', 'account', 'shared'],
-    shell: 'application',
+    labelKey: 'nav.siteTerminal',
   },
   {
     id: 'console-ai',
@@ -194,6 +189,7 @@ export const siteDefinitions = [
     defaultPath: '/relay/tokens',
     routeGroups: ['console-ai', 'shared'],
     shell: 'console',
+    labelKey: 'nav.siteConsoleAi',
   },
   {
     id: 'console-developer',
@@ -202,14 +198,7 @@ export const siteDefinitions = [
     defaultPath: '/applications/oauth',
     routeGroups: ['console-developer', 'shared'],
     shell: 'console',
-  },
-  {
-    id: 'console-terminal',
-    productionHostname: 'terminal.console.qysyw.cn',
-    localHostname: 'terminal.console.qysyw.test',
-    defaultPath: '/console',
-    routeGroups: ['console-terminal', 'shared'],
-    shell: 'console',
+    labelKey: 'nav.siteConsoleDeveloper',
   },
   {
     id: 'console-ram',
@@ -218,6 +207,7 @@ export const siteDefinitions = [
     defaultPath: '/overview',
     routeGroups: ['console-ram', 'shared'],
     shell: 'console',
+    labelKey: 'nav.siteConsoleRam',
   },
   {
     id: 'management-core',
@@ -226,6 +216,7 @@ export const siteDefinitions = [
     defaultPath: '/iam/overview',
     routeGroups: ['management-core', 'shared'],
     shell: 'console',
+    labelKey: 'nav.siteManagementCore',
   },
   ...(
     ['kv', 'short_link', 'secret', 'status', 'verification', 'ip_geolocation', 'push'] as const
@@ -241,9 +232,36 @@ export const siteDefinitions = [
       app: 'console-product-' + product,
       productionHostname: slug + '.console.qysyw.cn',
       localHostname: slug + '.console.qysyw.test',
-      defaultPath: '/products/' + product,
+      defaultPath:
+        product === 'kv'
+          ? '/entries'
+          : product === 'short_link'
+            ? '/links'
+            : product === 'secret'
+              ? '/secrets'
+              : product === 'status'
+                ? '/monitors'
+                : product === 'verification'
+                  ? '/verification'
+                  : product === 'ip_geolocation'
+                    ? '/lookup'
+                    : '/channels',
       routeGroups: [('product-' + product) as `product-${typeof product}`, 'shared'] as const,
       shell: 'application' as const,
+      labelKey:
+        product === 'kv'
+          ? 'nav.productKv'
+          : product === 'short_link'
+            ? 'nav.productShortLink'
+            : product === 'secret'
+              ? 'nav.productSecret'
+              : product === 'status'
+                ? 'nav.productStatus'
+                : product === 'verification'
+                  ? 'nav.productVerification'
+                  : product === 'ip_geolocation'
+                    ? 'nav.productIpGeolocation'
+                    : 'nav.productPush',
     }
   }),
   {
@@ -251,9 +269,10 @@ export const siteDefinitions = [
     app: 'console-product-oj',
     productionHostname: 'oj.console.qysyw.cn',
     localHostname: 'oj.console.qysyw.test',
-    defaultPath: '/oj/apikeys',
+    defaultPath: '/api-keys',
     routeGroups: ['product-oj', 'shared'],
     shell: 'application',
+    labelKey: 'nav.ojSubmitter',
   },
   {
     id: 'management-ai',
@@ -262,6 +281,7 @@ export const siteDefinitions = [
     defaultPath: '/relay/settings',
     routeGroups: ['management-ai', 'shared'],
     shell: 'console',
+    labelKey: 'nav.siteManagementAi',
   },
   {
     id: 'management-developer',
@@ -270,14 +290,16 @@ export const siteDefinitions = [
     defaultPath: '/services',
     routeGroups: ['management-developer', 'shared'],
     shell: 'console',
+    labelKey: 'nav.siteManagementDeveloper',
   },
   {
     id: 'management-terminal',
     productionHostname: 'terminal.management.qysyw.cn',
     localHostname: 'terminal.management.qysyw.test',
-    defaultPath: '/products/remote-terminal',
+    defaultPath: '/products/remote-terminal/templates',
     routeGroups: ['management-terminal', 'shared'],
     shell: 'console',
+    labelKey: 'nav.siteManagementTerminal',
   },
 ] as const satisfies readonly SiteDefinition[]
 
@@ -318,9 +340,7 @@ const toSiteProfile = (
     defaultPath: definition.defaultPath,
     routeGroups: definition.routeGroups as readonly SiteRouteGroup[],
     shell: definition.shell,
-    app:
-      configuredDefinition.app ??
-      (definition.id === 'console-core' ? 'console-portal' : definition.id),
+    app: configuredDefinition.app ?? definition.id,
     kind:
       configuredDefinition.kind ??
       (definition.id.startsWith('management-')
@@ -338,7 +358,7 @@ const toSiteProfile = (
       configuredDefinition.navigationGroup ??
       (definition.id.startsWith('management-')
         ? 'management'
-        : definition.id.startsWith('product-') || ['developer', 'terminal'].includes(definition.id)
+        : definition.id.startsWith('product-') || definition.id === 'terminal'
           ? 'products'
           : definition.id === 'public' || definition.id === 'identity'
             ? 'public'
@@ -347,6 +367,7 @@ const toSiteProfile = (
               : 'account'),
     accessPermissions:
       configuredDefinition.accessPermissions ?? profileAccessPermissions[definition.id] ?? [],
+    labelKey: configuredDefinition.labelKey,
   }
 }
 
@@ -420,6 +441,7 @@ export const getRejectedSiteProfile = (hostname: string): RejectedSiteProfile =>
   kind: 'public',
   navigationGroup: 'public',
   accessPermissions: [],
+  labelKey: 'nav.sitePublic',
 })
 
 export const resolveSiteProfile = (hostname: string): ResolvedSiteProfile => {

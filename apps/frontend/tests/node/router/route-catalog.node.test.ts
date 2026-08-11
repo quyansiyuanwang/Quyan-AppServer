@@ -87,6 +87,10 @@ describe('route catalog', () => {
       profileId: 'console-ram',
       path: '/users',
     })
+    expect(resolveRouteMigration('/iam/roles', getKnownProfile('management.qysyw.test'))).toEqual({
+      profileId: 'console-ram',
+      path: '/roles',
+    })
     expect(
       resolveRouteMigration('/iam/permissions', getKnownProfile('management.qysyw.test')),
     ).toEqual({
@@ -94,12 +98,30 @@ describe('route catalog', () => {
       path: '/iam/authorizations',
     })
     expect(resolveRouteMigration('/short-link/analytics/team-a/link-b', account)).toEqual({
-      profileId: 'management-developer',
-      path: '/products/short_link/analytics/team-a/link-b',
+      profileId: 'product-short_link',
+      path: '/links/team-a/link-b/analytics',
     })
     expect(resolveRouteMigration('/oj/apikeys', account)).toEqual({
       profileId: 'product-oj',
-      path: '/oj/apikeys',
+      path: '/api-keys',
+    })
+    expect(
+      resolveRouteMigration(
+        '/products/remote-terminal-cloud',
+        getKnownProfile('terminal.qysyw.test'),
+      ),
+    ).toEqual({
+      profileId: 'terminal',
+      path: '/subscriptions',
+    })
+    expect(
+      resolveRouteMigration(
+        '/products/remote-terminal',
+        getKnownProfile('terminal.management.qysyw.test'),
+      ),
+    ).toEqual({
+      profileId: 'management-terminal',
+      path: '/products/remote-terminal/templates',
     })
   })
 
@@ -110,13 +132,21 @@ describe('route catalog', () => {
       resolveRouteMigrationUrl('/management/permissions', '?tab=roles', '#member-1', account),
     ).toBe('https://management.qysyw.test:5173/iam/authorizations?tab=roles#member-1')
     expect(resolveRouteMigrationUrl('/oj/usage', '?range=30d', '#requests', account)).toBe(
-      'https://oj.console.qysyw.test:5173/oj/usage?range=30d#requests',
+      'https://oj.console.qysyw.test:5173/usage?range=30d#requests',
     )
+    expect(
+      resolveRouteMigrationUrl(
+        '/oj/usage',
+        '?range=30d&access_token=secret&return_url=https%3A%2F%2Fevil.example',
+        '',
+        account,
+      ),
+    ).toBe('https://oj.console.qysyw.test:5173/usage?range=30d')
     expect(resolveRouteMigrationUrl('/not-a-route', '', '', account)).toBeUndefined()
   })
 
   it('does not migrate a canonical path that already belongs to the current profile', () => {
     const terminal = getKnownProfile('terminal.qysyw.cn')
-    expect(resolveRouteMigration('/products/remote-terminal-cloud', terminal)).toBeUndefined()
+    expect(resolveRouteMigration('/overview', terminal)).toBeUndefined()
   })
 })

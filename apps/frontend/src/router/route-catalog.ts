@@ -10,7 +10,6 @@ export type OverviewCategory =
   | 'console-operations'
   | 'console-ai'
   | 'console-developer'
-  | 'console-terminal'
   | 'console-ram'
   | 'management-core'
   | 'management-ai'
@@ -35,6 +34,16 @@ const productEntries = [
   'push',
 ] as const
 
+const productUserPaths: Record<(typeof productEntries)[number], string> = {
+  kv: '/entries',
+  short_link: '/links',
+  secret: '/secrets',
+  status: '/monitors',
+  verification: '/verification',
+  ip_geolocation: '/lookup',
+  push: '/channels',
+}
+
 export const routeCatalog: readonly RouteCatalogEntry[] = [
   { name: 'root', group: 'shared', path: '/' },
   { name: 'home', group: 'public', path: '/home' },
@@ -50,7 +59,6 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   { name: 'externalAuthBindStart', group: 'identity', path: '/auth/external/bind' },
   { name: 'captchaVerification', group: 'identity', path: '/auth/captcha' },
   { name: 'chat', group: 'chat', path: '/chat' },
-  { name: 'consoleDashboard', group: 'console-core', path: '/dashboard' },
   { name: 'settings', group: 'account', path: '/settings' },
   {
     name: 'settingsProfile',
@@ -151,35 +159,35 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     overviewCategory: 'console-ai',
     legacyPaths: ['/relay/provider-channels'],
   },
-  { name: 'ojSubmitterRoot', group: 'product-oj', path: '/oj' },
+  { name: 'ojSubmitterRoot', group: 'product-oj', path: '/api-keys', legacyPaths: ['/oj'] },
   {
     name: 'ojAPIKeyManagement',
     group: 'product-oj',
-    path: '/oj/apikeys',
+    path: '/api-keys',
     overviewCategory: 'product-oj',
-    legacyPaths: ['/oj-submitter/apikeys'],
+    legacyPaths: ['/oj/apikeys', '/oj-submitter/apikeys'],
   },
   {
     name: 'ojUsageStatistics',
     group: 'product-oj',
-    path: '/oj/usage',
+    path: '/usage',
     overviewCategory: 'product-oj',
-    legacyPaths: ['/oj-submitter/usage'],
+    legacyPaths: ['/oj/usage', '/oj-submitter/usage'],
   },
   {
     name: 'ojPricingManagement',
     group: 'product-oj',
-    path: '/oj/pricing',
+    path: '/pricing',
     overviewCategory: 'product-oj',
-    legacyPaths: ['/oj-submitter/pricing'],
+    legacyPaths: ['/oj/pricing', '/oj-submitter/pricing'],
   },
   ...productEntries.flatMap((product) => [
     {
       name: `product-${product}`,
       group: ('product-' + product) as SiteRouteGroup,
-      path: `/products/${product}`,
+      path: productUserPaths[product],
       overviewCategory: 'developer-products' as const,
-      legacyPaths: [`/${product}`],
+      legacyPaths: [`/products/${product}`, `/${product}`],
     },
     {
       name: `product-management-${product}`,
@@ -198,24 +206,37 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
   ]),
   {
     name: 'product-short_link-analytics',
-    group: 'management-developer',
-    path: '/products/short_link/analytics/:instanceId/:linkId',
-    overviewCategory: 'management-developer',
-    legacyPaths: ['/short-link/analytics/:instanceId/:linkId'],
+    group: 'product-short_link',
+    path: '/links/:instanceId/:linkId/analytics',
+    overviewCategory: 'developer-products',
+    legacyPaths: [
+      '/products/short_link/analytics/:instanceId/:linkId',
+      '/short-link/analytics/:instanceId/:linkId',
+    ],
+  },
+  {
+    name: 'terminalOverview',
+    group: 'terminal',
+    path: '/overview',
+    overviewCategory: 'terminal',
   },
   {
     name: 'myRemoteTerminalProducts',
     group: 'terminal',
-    path: '/products/remote-terminal-cloud',
+    path: '/subscriptions',
     overviewCategory: 'terminal',
-    legacyPaths: ['/account/product-subscriptions/remote-terminal-products'],
+    legacyPaths: [
+      '/products/remote-terminal-cloud',
+      '/subscriptions/remote-terminal-products',
+      '/account/product-subscriptions/remote-terminal-products',
+    ],
   },
   {
     name: 'remoteTerminal',
-    group: 'console-terminal',
-    path: '/console',
+    group: 'terminal',
+    path: '/workspace',
     overviewCategory: 'terminal',
-    legacyPaths: ['/relay/remote-terminal'],
+    legacyPaths: ['/console', '/relay/remote-terminal'],
   },
   {
     name: 'iamOverview',
@@ -236,12 +257,6 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     path: '/iam/groups',
     overviewCategory: 'console-iam',
     legacyPaths: ['/management/groups'],
-  },
-  {
-    name: 'roleManagement',
-    group: 'management-core',
-    path: '/iam/roles',
-    overviewCategory: 'console-iam',
   },
   {
     name: 'iamAuthorizations',
@@ -514,11 +529,23 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     legacyPaths: ['/open-platform/ticket-reviews'],
   },
   {
-    name: 'remoteTerminalProductManagement',
+    name: 'remoteTerminalProductTemplates',
     group: 'management-terminal',
-    path: '/products/remote-terminal',
-    overviewCategory: 'console-terminal',
-    legacyPaths: ['/management/remote-terminal-products'],
+    path: '/products/remote-terminal/templates',
+    overviewCategory: 'management-terminal',
+    legacyPaths: ['/products/remote-terminal', '/management/remote-terminal-products'],
+  },
+  {
+    name: 'remoteTerminalProductEntitlements',
+    group: 'management-terminal',
+    path: '/products/remote-terminal/entitlements',
+    overviewCategory: 'management-terminal',
+  },
+  {
+    name: 'remoteTerminalProductDevices',
+    group: 'management-terminal',
+    path: '/products/remote-terminal/devices',
+    overviewCategory: 'management-terminal',
   },
 ]
 
@@ -530,6 +557,12 @@ const legacyRouteMigrations: readonly RouteCatalogEntry[] = [
     group: 'account',
     path: '/settings/security',
     legacyPaths: ['/access-keys', '/account/access-keys'],
+  },
+  {
+    name: 'legacy-iam-roles',
+    group: 'console-ram',
+    path: '/roles',
+    legacyPaths: ['/iam/roles'],
   },
 ]
 

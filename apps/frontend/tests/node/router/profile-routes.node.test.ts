@@ -63,7 +63,7 @@ describe('profile route factory', () => {
       createRoutesForProfile(getKnownProfile('ai.console.qysyw.cn')),
     )
     const terminalRouteNames = collectRouteNames(
-      createRoutesForProfile(getKnownProfile('terminal.console.qysyw.cn')),
+      createRoutesForProfile(getKnownProfile('terminal.qysyw.cn')),
     )
     const managementAiRouteNames = collectRouteNames(
       createRoutesForProfile(getKnownProfile('ai.management.qysyw.cn')),
@@ -83,16 +83,25 @@ describe('profile route factory', () => {
     expect(aiRouteNames).not.toContain('userManagement')
     expect(accountRouteNames).not.toContain('relayTokenManagement')
     expect(terminalRouteNames).toContain('remoteTerminal')
-    expect(managementTerminalRouteNames).toContain('remoteTerminalProductManagement')
+    expect(managementTerminalRouteNames).toEqual(
+      expect.arrayContaining([
+        'remoteTerminalProductTemplates',
+        'remoteTerminalProductEntitlements',
+        'remoteTerminalProductDevices',
+      ]),
+    )
     expect(terminalRouteNames).not.toContain('relaySettings')
   })
 
   it('exposes the terminal profile default path at its canonical route', () => {
     const terminalRoutes = createRoutesForProfile(getKnownProfile('terminal.qysyw.cn'))
-    const landingRoute = findRoute(terminalRoutes, 'myRemoteTerminalProducts')
+    const landingRoute = findRoute(terminalRoutes, 'terminalOverview')
 
-    expect(landingRoute?.path).toBe('products/remote-terminal-cloud')
-    expect(collectRouteNames(terminalRoutes)).toContain('myRemoteTerminalProducts')
+    expect(landingRoute?.path).toBe('overview')
+    expect(findRoute(terminalRoutes, 'root')?.redirect).toBe('/overview')
+    expect(collectRouteNames(terminalRoutes)).toEqual(
+      expect.arrayContaining(['terminalOverview', 'remoteTerminal', 'myRemoteTerminalProducts']),
+    )
   })
 
   it('redirects every management root entry to the management default path', () => {
@@ -105,7 +114,6 @@ describe('profile route factory', () => {
         'iamOverview',
         'userManagement',
         'groupManagement',
-        'roleManagement',
         'iamAuthorizations',
         'iamPermissionPolicies',
         'iamPermissionDiagnostics',
@@ -113,11 +121,23 @@ describe('profile route factory', () => {
     )
   })
 
-  it('gives the general console an isolated user dashboard', () => {
-    const consoleRoutes = createRoutesForProfile(getKnownProfile('console.qysyw.cn'))
+  it('redirects the legacy terminal-management root to the templates route', () => {
+    const terminalManagementRoutes = createRoutesForProfile(
+      getKnownProfile('terminal.management.qysyw.cn'),
+    )
 
-    expect(collectRouteNames(consoleRoutes)).toContain('consoleDashboard')
-    expect(collectRouteNames(consoleRoutes)).not.toContain('userManagement')
+    expect(findRoute(terminalManagementRoutes, 'root')?.redirect).toBe(
+      '/products/remote-terminal/templates',
+    )
+    expect(findRoute(terminalManagementRoutes, 'remoteTerminalProductTemplates')?.path).toBe(
+      'products/remote-terminal/templates',
+    )
+    expect(findRoute(terminalManagementRoutes, 'remoteTerminalProductEntitlements')?.path).toBe(
+      'products/remote-terminal/entitlements',
+    )
+    expect(findRoute(terminalManagementRoutes, 'remoteTerminalProductDevices')?.path).toBe(
+      'products/remote-terminal/devices',
+    )
   })
 
   it('isolates each product console from account, catalog, and operations routes', () => {
@@ -143,7 +163,7 @@ describe('profile route factory', () => {
         'ojPricingManagement',
       ]),
     )
-    expect(findRoute(ojRoutes, 'root')?.redirect).toBe('/oj/apikeys')
+    expect(findRoute(ojRoutes, 'root')?.redirect).toBe('/api-keys')
     expect(collectRouteNames(accountRoutes)).not.toContain('ojAPIKeyManagement')
   })
 
@@ -194,7 +214,7 @@ describe('profile route factory', () => {
       'https://ram.console.qysyw.cn/roles',
     )
     expect(resolveCanonicalRouteUrl('remoteTerminal', accountProfile)).toBe(
-      'https://terminal.console.qysyw.cn/console',
+      'https://terminal.qysyw.cn/workspace',
     )
   })
 })

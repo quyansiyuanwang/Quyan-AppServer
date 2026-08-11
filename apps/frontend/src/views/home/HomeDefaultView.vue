@@ -31,7 +31,7 @@
               size="small"
               type="primary"
               link
-              @click="router.push({ name: 'balanceHistory' })"
+              @click="navigateToCanonicalRoute('balanceHistory')"
             >
               {{ i18ns.t('home.viewDetails') }}
             </el-button>
@@ -88,7 +88,7 @@
         </div>
         <div class="actions-grid flow-grid flow-grid--dense">
           <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-            <div class="action-card" @click="router.push({ name: 'relayTokenManagement' })">
+            <div class="action-card" @click="navigateToCanonicalRoute('relayTokenManagement')">
               <div class="action-icon-wrap" style="background: #ecf5ff">
                 <el-icon :size="22" color="#409EFF"><Key /></el-icon>
               </div>
@@ -96,7 +96,7 @@
             </div>
           </PermissionWrapper>
           <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
-            <div class="action-card" @click="router.push({ name: 'balanceHistory' })">
+            <div class="action-card" @click="navigateToCanonicalRoute('balanceHistory')">
               <div class="action-icon-wrap" style="background: #f0f9eb">
                 <el-icon :size="22" color="#67C23A"><Wallet /></el-icon>
               </div>
@@ -104,7 +104,7 @@
             </div>
           </PermissionWrapper>
           <PermissionWrapper :require="[Permission.JSON_ENDPOINT_READ]">
-            <div class="action-card" @click="router.push({ name: 'jsonEndpointManagement' })">
+            <div class="action-card" @click="navigateToCanonicalRoute('jsonEndpointManagement')">
               <div class="action-icon-wrap" style="background: #fdf6ec">
                 <el-icon :size="22" color="#E6A23C"><Document /></el-icon>
               </div>
@@ -112,20 +112,20 @@
             </div>
           </PermissionWrapper>
           <PermissionWrapper :require="[Permission.OJ_APIKEY_READ]">
-            <div class="action-card" @click="router.push({ name: 'ojAPIKeyManagement' })">
+            <div class="action-card" @click="navigateToCanonicalRoute('ojAPIKeyManagement')">
               <div class="action-icon-wrap" style="background: #f3eeff">
                 <el-icon :size="22" color="#9B59B6"><Cpu /></el-icon>
               </div>
               <span class="action-label">{{ i18ns.t('nav.ojSubmitter') }}</span>
             </div>
           </PermissionWrapper>
-          <div class="action-card" @click="router.push({ name: 'apiDocumentation' })">
+          <div class="action-card" @click="navigateToCanonicalRoute('apiDocumentation')">
             <div class="action-icon-wrap" style="background: #fef0f0">
               <el-icon :size="22" color="#F56C6C"><Reading /></el-icon>
             </div>
             <span class="action-label">{{ i18ns.t('nav.apiDocumentation') }}</span>
           </div>
-          <div class="action-card" @click="router.push({ name: 'settings' })">
+          <div class="action-card" @click="navigateToCanonicalRoute('settings')">
             <div class="action-icon-wrap" style="background: #f4f4f5">
               <el-icon :size="22" color="#909399"><Setting /></el-icon>
             </div>
@@ -177,7 +177,7 @@
               size="small"
               text
               type="primary"
-              @click="router.push({ name: 'balanceHistory' })"
+              @click="navigateToCanonicalRoute('balanceHistory')"
             >
               {{ i18ns.t('home.viewDetails') }} →
             </el-button>
@@ -193,7 +193,7 @@
         <el-row :gutter="12">
           <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
             <el-col :xs="8" :sm="8" :md="6" :lg="4">
-              <div class="action-card" @click="router.push({ name: 'relayTokenManagement' })">
+              <div class="action-card" @click="navigateToCanonicalRoute('relayTokenManagement')">
                 <div class="action-icon-wrap" style="background: #ecf5ff">
                   <el-icon :size="22" color="#409EFF"><Key /></el-icon>
                 </div>
@@ -203,7 +203,7 @@
           </PermissionWrapper>
           <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
             <el-col :xs="8" :sm="8" :md="6" :lg="4">
-              <div class="action-card" @click="router.push({ name: 'balanceHistory' })">
+              <div class="action-card" @click="navigateToCanonicalRoute('balanceHistory')">
                 <div class="action-icon-wrap" style="background: #f0f9eb">
                   <el-icon :size="22" color="#67C23A"><Wallet /></el-icon>
                 </div>
@@ -213,7 +213,7 @@
           </PermissionWrapper>
           <PermissionWrapper :require="[Permission.JSON_ENDPOINT_READ]">
             <el-col :xs="8" :sm="8" :md="6" :lg="4">
-              <div class="action-card" @click="router.push({ name: 'jsonEndpointManagement' })">
+              <div class="action-card" @click="navigateToCanonicalRoute('jsonEndpointManagement')">
                 <div class="action-icon-wrap" style="background: #fdf6ec">
                   <el-icon :size="22" color="#E6A23C"><Document /></el-icon>
                 </div>
@@ -223,7 +223,7 @@
           </PermissionWrapper>
           <PermissionWrapper :require="[Permission.OJ_APIKEY_READ]">
             <el-col :xs="8" :sm="8" :md="6" :lg="4">
-              <div class="action-card" @click="router.push({ name: 'ojAPIKeyManagement' })">
+              <div class="action-card" @click="navigateToCanonicalRoute('ojAPIKeyManagement')">
                 <div class="action-icon-wrap" style="background: #f3eeff">
                   <el-icon :size="22" color="#9B59B6"><Cpu /></el-icon>
                 </div>
@@ -232,7 +232,7 @@
             </el-col>
           </PermissionWrapper>
           <el-col :xs="8" :sm="8" :md="6" :lg="4">
-            <div class="action-card" @click="router.push({ name: 'apiDocumentation' })">
+            <div class="action-card" @click="navigateToCanonicalRoute('apiDocumentation')">
               <div class="action-icon-wrap" style="background: #fef0f0">
                 <el-icon :size="22" color="#F56C6C"><Reading /></el-icon>
               </div>
@@ -240,7 +240,7 @@
             </div>
           </el-col>
           <el-col :xs="8" :sm="8" :md="6" :lg="4">
-            <div class="action-card" @click="router.push({ name: 'settings' })">
+            <div class="action-card" @click="navigateToCanonicalRoute('settings')">
               <div class="action-icon-wrap" style="background: #f4f4f5">
                 <el-icon :size="22" color="#909399"><Setting /></el-icon>
               </div>
@@ -302,7 +302,7 @@ import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { onMounted, computed } from 'vue'
-import router from '@/router'
+import { navigateToCanonicalRoute } from '@/router/canonical-navigation'
 import { Permission } from '@/constant/permission'
 import { ACCOUNT_STATUS } from '@/constant/status'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'

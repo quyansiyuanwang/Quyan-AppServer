@@ -140,11 +140,6 @@ export const routes = [
             component: () => import('@/views/chat/ChatView.vue'),
           },
           {
-            path: 'dashboard',
-            name: 'consoleDashboard',
-            component: () => import('@/views/console/ConsolePortalView.vue'),
-          },
-          {
             path: 'settings',
             children: [
               {
@@ -175,7 +170,7 @@ export const routes = [
             ],
           },
           {
-            path: 'products/remote-terminal-cloud',
+            path: 'subscriptions',
             name: 'myRemoteTerminalProducts',
             component: () =>
               import('@/views/products/remote-terminal-cloud/MyRemoteTerminalProductsView.vue'),
@@ -270,14 +265,6 @@ export const routes = [
             component: () => import('@/views/management/GroupManagementView.vue'),
             meta: {
               permission: Permission.GROUP_READ,
-            },
-          },
-          {
-            path: 'iam/roles',
-            name: 'roleManagement',
-            component: () => import('@/views/management/IamRoleAccessView.vue'),
-            meta: {
-              permission: Permission.RAM_ROLE_READ,
             },
           },
           {
@@ -443,7 +430,7 @@ export const routes = [
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
               {
-                path: 'analytics/:instanceId/:linkId',
+                path: ':instanceId/:linkId/analytics',
                 name: 'product-short_link-analytics',
                 component: () => import('@/views/products/short-link/ShortLinkAnalyticsPage.vue'),
                 meta: { permission: Permission.PRODUCT_SHORT_LINK_READ },
@@ -722,17 +709,37 @@ export const routes = [
           },
           {
             path: 'products/remote-terminal',
-            name: 'remoteTerminalProductManagement',
+            redirect: { name: 'remoteTerminalProductTemplates' },
+          },
+          {
+            path: 'products/remote-terminal/templates',
+            name: 'remoteTerminalProductTemplates',
             component: () =>
               import(
-                '@/views/products/remote-terminal-cloud/RemoteTerminalProductManagementView.vue'
+                '@/views/products/remote-terminal-cloud/RemoteTerminalProductTemplatesView.vue'
               ),
             meta: {
-              anyPermissions: [
-                Permission.REMOTE_TERMINAL_PRODUCT_READ,
-                Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
-                Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
-              ],
+              permission: Permission.REMOTE_TERMINAL_PRODUCT_READ,
+            },
+          },
+          {
+            path: 'products/remote-terminal/entitlements',
+            name: 'remoteTerminalProductEntitlements',
+            component: () =>
+              import(
+                '@/views/products/remote-terminal-cloud/RemoteTerminalProductEntitlementsView.vue'
+              ),
+            meta: {
+              permission: Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
+            },
+          },
+          {
+            path: 'products/remote-terminal/devices',
+            name: 'remoteTerminalProductDevices',
+            component: () =>
+              import('@/views/products/remote-terminal-cloud/RemoteTerminalProductDevicesView.vue'),
+            meta: {
+              permission: Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
             },
           },
           {
@@ -904,7 +911,21 @@ export const routes = [
             },
           },
           {
-            path: 'console',
+            path: 'overview',
+            name: 'terminalOverview',
+            component: () =>
+              import('@/views/products/remote-terminal-cloud/TerminalOverviewView.vue'),
+            meta: {
+              anyPermissions: [
+                Permission.REMOTE_TERMINAL_PRODUCT_READ,
+                Permission.REMOTE_TERMINAL_DEVICE_READ,
+                Permission.REMOTE_TERMINAL_SESSION_READ,
+                Permission.REMOTE_TERMINAL_SESSION_CREATE,
+              ],
+            },
+          },
+          {
+            path: 'workspace',
             name: 'remoteTerminal',
             component: () =>
               import('@/views/products/remote-terminal-cloud/RemoteTerminalView.vue'),
@@ -1031,7 +1052,7 @@ export const routes = [
 
           // --- OJ Submitter ---
           {
-            path: 'oj',
+            path: 'api-keys',
             name: 'ojSubmitterRoot',
             redirect: { name: 'ojAPIKeyManagement' },
             meta: {
@@ -1043,30 +1064,30 @@ export const routes = [
             },
             children: [
               {
-                path: 'apikeys',
+                path: '',
                 name: 'ojAPIKeyManagement',
                 component: () => import('@/views/oj-submitter/APIKeyManagementView.vue'),
                 meta: {
                   permission: Permission.OJ_APIKEY_READ,
                 },
               },
-              {
-                path: 'usage',
-                name: 'ojUsageStatistics',
-                component: () => import('@/views/oj-submitter/UsageStatisticsView.vue'),
-                meta: {
-                  permission: Permission.OJ_USAGE_READ,
-                },
-              },
-              {
-                path: 'pricing',
-                name: 'ojPricingManagement',
-                component: () => import('@/views/oj-submitter/PricingManagementView.vue'),
-                meta: {
-                  permission: Permission.OJ_PRICING_READ,
-                },
-              },
             ],
+          },
+          {
+            path: 'usage',
+            name: 'ojUsageStatistics',
+            component: () => import('@/views/oj-submitter/UsageStatisticsView.vue'),
+            meta: {
+              permission: Permission.OJ_USAGE_READ,
+            },
+          },
+          {
+            path: 'pricing',
+            name: 'ojPricingManagement',
+            component: () => import('@/views/oj-submitter/PricingManagementView.vue'),
+            meta: {
+              permission: Permission.OJ_PRICING_READ,
+            },
           },
         ],
       },
@@ -1128,6 +1149,21 @@ const cloneRouteForProfile = (
     ...route,
     ...(children ? { children } : {}),
   } as RouteRecordRaw
+
+  // Product users get a capability path, while the same source branch keeps
+  // the /products/* path for developer-management children.
+  if (profile.kind === 'product' && children) {
+    const productRoot = children.find(
+      (child) =>
+        child.path === '' &&
+        typeof child.name === 'string' &&
+        getRouteCatalogEntry(child.name)?.group === profile.id,
+    )
+    const productEntry = productRoot ? getRouteCatalogEntry(String(productRoot.name)) : undefined
+    if (productEntry) {
+      clonedRoute.path = productEntry.path.replace(/^\//, '')
+    }
+  }
 
   const isLightweightProfile = profile.id === 'public' || profile.id === 'identity'
   if (isLightweightProfile && route.path === '' && !route.name && route.component) {

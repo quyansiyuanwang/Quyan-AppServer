@@ -46,11 +46,11 @@ describe('site registry', () => {
     const localProfiles = getSiteProfilesForEnvironment(localAccount)
     const productionProfiles = getSiteProfilesForEnvironment(productionAccount)
 
-    expect(localProfiles).toHaveLength(21)
+    expect(localProfiles).toHaveLength(19)
     expect(localProfiles.every((profile) => profile.hostname.endsWith('.test'))).toBe(true)
     expect(localProfiles.every((profile) => profile.canonicalOrigin.endsWith(':5173'))).toBe(true)
     expect(localProfiles.some((profile) => profile.id === 'identity')).toBe(false)
-    expect(productionProfiles).toHaveLength(21)
+    expect(productionProfiles).toHaveLength(19)
     expect(productionProfiles.every((profile) => profile.hostname.endsWith('.cn'))).toBe(true)
     expect(productionProfiles.every((profile) => !profile.canonicalOrigin.includes(':5173'))).toBe(
       true,
@@ -67,7 +67,7 @@ describe('site registry', () => {
     expect(profile).toMatchObject({
       id: 'product-oj',
       hostname: 'oj.console.qysyw.cn',
-      defaultPath: '/oj/apikeys',
+      defaultPath: '/api-keys',
       kind: 'product',
     })
 
@@ -82,10 +82,7 @@ describe('site registry', () => {
     expect(new Set(productionProfiles.map((profile) => profile.app)).size).toBe(
       productionProfiles.length,
     )
-    expect(productionProfiles.find((profile) => profile.id === 'console-core')).toMatchObject({
-      app: 'console-portal',
-      kind: 'user-console',
-    })
+    expect(resolveSiteProfile('console.qysyw.cn')).toMatchObject({ id: 'rejected' })
   })
 
   it('derives profile IDs from the site registry', () => {
@@ -114,5 +111,6 @@ describe('site registry', () => {
     expect(isKnownSiteProfile(profile)).toBe(false)
     expect(normalizeSiteHostname('auth.qysyw.cn:443')).toBeUndefined()
     expect(normalizeSiteHostname('https://auth.qysyw.cn')).toBeUndefined()
+    expect(resolveSiteProfile('terminal.console.qysyw.cn')).toMatchObject({ id: 'rejected' })
   })
 })

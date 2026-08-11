@@ -115,7 +115,7 @@ node scripts/setup-local-domains.mjs --uninstall
 
 `local:setup` 会在 hosts 文件中维护一个专用标记区块，并生成 `apps/frontend/.certs/` 中的本地 HTTPS 证书。重复执行可安全更新该区块；卸载不会修改其他项目的 hosts 记录或系统信任根。脚本在 Windows 通过 UAC、在 macOS/Linux 通过 `sudo` 写入 hosts，但始终以开发者自己的用户身份安装并生成 `mkcert` 证书，确保浏览器能信任它。请直接执行 `pnpm run local:setup`，不要以 `sudo pnpm` 启动。`mkcert` 未安装时会给出当前平台的安装提示。证书文件存在时，前端 Vite 配置会自动启用 HTTPS。
 
-启动前端后，请从站点注册表中的完整域名访问，例如 `https://www.qysyw.test:5173/`、`https://terminal.console.qysyw.test:5173/` 或 `https://management.qysyw.test:5173/`；`localhost` 与未注册 hostname 会显示拒绝页面，这是多域名隔离的预期行为。
+启动前端后，请从站点注册表中的完整域名访问，例如 `https://www.qysyw.test:5173/`、`https://terminal.qysyw.test:5173/` 或 `https://management.qysyw.test:5173/`；`localhost` 与未注册 hostname 会显示拒绝页面，这是多域名隔离的预期行为。
 
 如果本机设置了 HTTP(S) 代理，必须将本地域名绕过代理。Windows Schannel 还可能需要关闭本地开发证书的吊销检查：
 
@@ -131,7 +131,7 @@ curl.exe --noproxy '*' --ssl-no-revoke -I https://www.qysyw.test:5173/
 
 ### 多域名路由与迁移
 
-前端按完整 hostname 动态挂载对应 app，只注册该站点所属的路由。`console` 是登录后的产品门户；`ai.console`、`developer.console`、`terminal.console` 与 `ram.console` 是用户控制台；`kv.console`、`short-link.console`、`secret.console`、`status.console`、`verification.console`、`ip-geolocation.console`、`push.console` 与 `oj.console` 是独立产品入口。开发者产品目录不再提供入口；OJ Submitter 的 API 密钥、用量和定价统一由 `oj.console` 承载。`management`、`ai.management`、`developer.management`、`terminal.management` 面向运营管理。站点选择器仅显示当前用户拥有任一功能权限的入口，路由和服务端授权仍独立生效。边缘层必须对旧路径和落在错误 hostname 的已知路径返回临时 `302` 到规范 origin/path，并保留 query string；未知 hostname 或未知路径仍应拒绝或返回 404。
+前端按完整 hostname 动态挂载对应 app，只注册该站点所属的路由。`ai.console`、`developer.console` 与 `ram.console` 是用户控制台；`terminal` 是云终端的唯一用户入口，默认显示 `/overview`，工作区与订阅页分别为 `/workspace` 和 `/subscriptions`。`kv.console`、`short-link.console`、`secret.console`、`status.console`、`verification.console`、`ip-geolocation.console`、`push.console` 与 `oj.console` 是独立产品入口，并分别使用其能力路径。开发者产品目录不再提供入口；OJ Submitter 的 API 密钥、用量和定价统一由 `oj.console` 的 `/api-keys`、`/usage` 和 `/pricing` 承载。`management`、`ai.management`、`developer.management`、`terminal.management` 面向运营管理。站点选择器仅显示当前用户拥有任一功能权限的入口，路由和服务端授权仍独立生效。活动域名的旧路径可临时 `302` 到规范 origin/path 并保留 query string；停用的 `console`、`terminal.console` 与 `developer` 域名、未知 hostname 均拒绝访问。
 
 构建仍输出一个可部署构件，但浏览器会先按完整 hostname 解析 profile，再异步挂载该 profile 的应用根和路由树。公共站与认证站使用轻量根，不加载业务壳；业务站只注册当前 profile 的业务路由。禁止在启动、登录完成或空闲回调中预加载全部业务页面；仅可在用户明确指向的下一目标上进行按需预加载。
 
@@ -224,8 +224,8 @@ REDIS_PORT=6379
 REDIS_PASSWORD=
 
 # CORS and central login continuation: exact origins only, no wildcards.
-CORS_ALLOWED_ORIGINS=https://www.qysyw.cn,https://auth.qysyw.cn,https://account.qysyw.cn,https://chat.qysyw.cn,https://terminal.qysyw.cn,https://console.qysyw.cn,https://ai.console.qysyw.cn,https://developer.console.qysyw.cn,https://terminal.console.qysyw.cn,https://ram.console.qysyw.cn,https://kv.console.qysyw.cn,https://short-link.console.qysyw.cn,https://secret.console.qysyw.cn,https://status.console.qysyw.cn,https://verification.console.qysyw.cn,https://ip-geolocation.console.qysyw.cn,https://push.console.qysyw.cn,https://oj.console.qysyw.cn,https://management.qysyw.cn,https://ai.management.qysyw.cn,https://developer.management.qysyw.cn,https://terminal.management.qysyw.cn
-CENTRAL_LOGIN_ALLOWED_ORIGINS=https://www.qysyw.cn,https://auth.qysyw.cn,https://account.qysyw.cn,https://chat.qysyw.cn,https://terminal.qysyw.cn,https://console.qysyw.cn,https://ai.console.qysyw.cn,https://developer.console.qysyw.cn,https://terminal.console.qysyw.cn,https://ram.console.qysyw.cn,https://kv.console.qysyw.cn,https://short-link.console.qysyw.cn,https://secret.console.qysyw.cn,https://status.console.qysyw.cn,https://verification.console.qysyw.cn,https://ip-geolocation.console.qysyw.cn,https://push.console.qysyw.cn,https://oj.console.qysyw.cn,https://management.qysyw.cn,https://ai.management.qysyw.cn,https://developer.management.qysyw.cn,https://terminal.management.qysyw.cn
+CORS_ALLOWED_ORIGINS=https://www.qysyw.cn,https://auth.qysyw.cn,https://account.qysyw.cn,https://chat.qysyw.cn,https://terminal.qysyw.cn,https://ai.console.qysyw.cn,https://developer.console.qysyw.cn,https://ram.console.qysyw.cn,https://kv.console.qysyw.cn,https://short-link.console.qysyw.cn,https://secret.console.qysyw.cn,https://status.console.qysyw.cn,https://verification.console.qysyw.cn,https://ip-geolocation.console.qysyw.cn,https://push.console.qysyw.cn,https://oj.console.qysyw.cn,https://management.qysyw.cn,https://ai.management.qysyw.cn,https://developer.management.qysyw.cn,https://terminal.management.qysyw.cn
+CENTRAL_LOGIN_ALLOWED_ORIGINS=https://www.qysyw.cn,https://auth.qysyw.cn,https://account.qysyw.cn,https://chat.qysyw.cn,https://terminal.qysyw.cn,https://ai.console.qysyw.cn,https://developer.console.qysyw.cn,https://ram.console.qysyw.cn,https://kv.console.qysyw.cn,https://short-link.console.qysyw.cn,https://secret.console.qysyw.cn,https://status.console.qysyw.cn,https://verification.console.qysyw.cn,https://ip-geolocation.console.qysyw.cn,https://push.console.qysyw.cn,https://oj.console.qysyw.cn,https://management.qysyw.cn,https://ai.management.qysyw.cn,https://developer.management.qysyw.cn,https://terminal.management.qysyw.cn
 CENTRAL_LOGIN_FLOW_TTL_SECONDS=600
 WEBAUTHN_RP_ID=qysyw.cn
 WEBAUTHN_ORIGIN=https://auth.qysyw.cn

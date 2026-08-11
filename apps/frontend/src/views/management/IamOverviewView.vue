@@ -18,7 +18,7 @@
             :key="entry.route"
             type="button"
             class="iam-overview__entry"
-            @click="router.push({ name: entry.route } as any)"
+            @click="navigate(entry.route)"
           >
             <el-icon><component :is="entry.icon" /></el-icon>
             <span>
@@ -40,6 +40,8 @@ import { computed } from 'vue'
 import { Permission } from '@/constant/permission'
 import { i18ns, type I18nENAvailableKeys } from '@/locales'
 import router from '@/router'
+import { currentSiteProfile } from '@/router'
+import { resolveCanonicalRouteUrl } from '@/router/routes'
 import { usePermissionStore } from '@/stores/permissionStore'
 import type { RouteName } from '@/types/route-types.gen'
 
@@ -52,6 +54,17 @@ type IamEntry = {
 }
 
 const permissionStore = usePermissionStore()
+
+const navigate = (route: RouteName) => {
+  if (router.hasRoute(route)) {
+    void router.push({ name: route } as any)
+    return
+  }
+
+  if (currentSiteProfile.id === 'rejected') return
+  const target = resolveCanonicalRouteUrl(route, currentSiteProfile)
+  if (target) window.location.assign(target)
+}
 
 const sections: readonly {
   key: string
@@ -77,7 +90,7 @@ const sections: readonly {
         permissions: [Permission.GROUP_READ],
       },
       {
-        route: 'roleManagement',
+        route: 'ramRoles',
         labelKey: 'nav.roles',
         descriptionKey: 'IamOverview.rolesDescription',
         icon: Key,

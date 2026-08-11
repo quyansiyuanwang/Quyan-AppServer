@@ -721,7 +721,6 @@ const zhCN: DeepStringify<typeof en> = {
     siteAccount: '账户中心',
     siteChat: 'AI 对话',
     siteTerminal: '云终端',
-    siteConsoleCore: '控制台门户',
     siteConsoleAi: 'AI 中转控制台',
     siteConsoleDeveloper: '开发者控制台',
     siteConsoleTerminal: '云终端控制台',
@@ -1036,6 +1035,12 @@ const zhCN: DeepStringify<typeof en> = {
     },
   },
   remoteTerminal: {
+    overview: '产品概览',
+    overviewDescription: '查看云终端设备、会话额度和订阅状态。',
+    subscriptions: '有效订阅',
+    openWorkspace: '打开工作区',
+    manageSubscriptions: '管理订阅与设备',
+    overviewLoadFailed: '部分概览数据暂时无法加载，请稍后重试。',
     description: '通过中转网关连接到已注册设备的命令行环境。',
     newTab: '新建终端',
     terminalTab: '终端 {index}',
@@ -1745,11 +1750,6 @@ const zhCN: DeepStringify<typeof en> = {
     authorizationsDescription: '为单个用户调整额外授予和移除项。',
     policiesDescription: '查看用户的权限来源和最终有效权限。',
     diagnosticsDescription: '排查用户为什么拥有或失去某项权限。',
-  },
-  IamRoleAccess: {
-    title: '角色管理',
-    description: '角色属于 RAM 访问控制，使用独立控制台管理，避免与平台用户和用户组混在同一页面。',
-    openRoles: '打开 RAM 角色管理',
   },
   IamPermissionPages: {
     authorizationsTitle: '授权',

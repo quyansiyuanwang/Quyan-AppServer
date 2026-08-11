@@ -702,7 +702,6 @@ const emoji: DeepStringify<typeof en> = {
     siteAccount: '👤',
     siteChat: '🤖 💬',
     siteTerminal: '🖥️',
-    siteConsoleCore: '🧭',
     siteConsoleAi: '🤖 🔁',
     siteConsoleDeveloper: '🧑‍💻 🛠️',
     siteConsoleTerminal: '🖥️ 🎛️',
@@ -1014,6 +1013,12 @@ const emoji: DeepStringify<typeof en> = {
     },
   },
   remoteTerminal: {
+    overview: '📊 🖥️',
+    overviewDescription: '🖥️ · ⌨️ · 📦 📊',
+    subscriptions: '✅ 📦',
+    openWorkspace: '↗️ ⌨️',
+    manageSubscriptions: '⚙️ 📦 🖥️',
+    overviewLoadFailed: '⚠️ 📊 ⏳',
     description: '🔌 🧾 ➜ 🖥️ ⌨️',
     newTab: '🆕 ⌨️',
     terminalTab: '⌨️ {index}',
@@ -1928,11 +1933,6 @@ const emoji: DeepStringify<typeof en> = {
     authorizationsDescription: '👤 🈁 / 😖 🛂',
     policiesDescription: '🔎 🛂 📚 + 🪆 🛂',
     diagnosticsDescription: '🔎 🛂 ✅ / 🚫',
-  },
-  IamRoleAccess: {
-    title: '🎭 ⚙️',
-    description: '🎭 ➜ 🐏 🔐 🛂',
-    openRoles: '🐏 🎭 ⚙️',
   },
   IamPermissionPages: {
     authorizationsTitle: '✅ 🛂',

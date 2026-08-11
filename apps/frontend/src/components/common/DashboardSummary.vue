@@ -57,7 +57,7 @@
                   size="small"
                   text
                   type="primary"
-                  @click="router.push({ name: 'balanceHistory' })"
+                  @click="navigateToCanonicalRoute('balanceHistory')"
                 >
                   {{ i18ns.t('home.viewDetails') }} →
                 </el-button>
@@ -117,7 +117,7 @@
 import { computed, ref } from 'vue'
 import { i18ns } from '@/locales'
 import { useUserInfoStore } from '@/stores/userInfoStore'
-import router from '@/router'
+import { navigateToCanonicalRoute } from '@/router/canonical-navigation'
 import { Permission } from '@/constant/permission'
 import { ACCOUNT_STATUS } from '@/constant/status'
 import StorageKey from '@/constant/storagekey'
