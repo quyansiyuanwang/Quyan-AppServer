@@ -3,7 +3,7 @@ const trimTrailingSlash = (value: string) => value.replace(/\/$/, '')
 const backendBaseUrl = trimTrailingSlash(import.meta.env.VITE_BACKEND_URL || window.location.origin)
 
 export const APP_BASE_URL = trimTrailingSlash(
-  import.meta.env.VITE_APP_BASE_URL || 'https://qysyw.cn',
+  import.meta.env.VITE_APP_BASE_URL || window.location.origin,
 )
 export const DOCS_BASE_URL = trimTrailingSlash(
   import.meta.env.VITE_APP_DOCS_BASE_URL || window.location.origin,

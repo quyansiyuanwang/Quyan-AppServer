@@ -1,4 +1,5 @@
 import { sanitizeInt } from "./common";
+import { buildFirstPartyOrigins, resolveRootDomain } from "./domain";
 import type { EnvSnapshot } from "./source";
 
 export function buildRuntimeConfig(source: EnvSnapshot) {
@@ -12,9 +13,11 @@ export function buildRuntimeConfig(source: EnvSnapshot) {
   if (trustProxyHops < 0 || trustProxyHops > 10)
     throw new Error("TRUST_PROXY_HOPS must be an integer between 0 and 10");
 
-  const corsAllowedOrigins = String(source.CORS_ALLOWED_ORIGINS || "").trim();
-  if (nodeEnv === "production" && !corsAllowedOrigins)
-    throw new Error("CORS_ALLOWED_ORIGINS must list exact origins in production");
+  const isProduction = nodeEnv === "production";
+  const rootDomain = resolveRootDomain(source, isProduction);
+  const configuredCorsAllowedOrigins = String(source.CORS_ALLOWED_ORIGINS || "").trim();
+  const corsAllowedOrigins =
+    configuredCorsAllowedOrigins || buildFirstPartyOrigins(rootDomain, isProduction ? undefined : ":5173").join(",");
   if (
     corsAllowedOrigins
       .split(",")
@@ -24,10 +27,11 @@ export function buildRuntimeConfig(source: EnvSnapshot) {
     throw new Error("CORS_ALLOWED_ORIGINS only supports exact origins");
 
   return {
-    isProduction: nodeEnv === "production",
+    isProduction,
     isDevelopment: nodeEnv === "development",
     isTest: nodeEnv === "test",
     nodeEnv,
+    rootDomain,
     port: Number.parseInt(port, 10),
     trustProxyHops,
     corsAllowedOrigins,

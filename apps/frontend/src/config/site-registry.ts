@@ -49,9 +49,14 @@ interface SiteDefinition {
   accessPermissions?: readonly Permission[]
 }
 
-const identityProductionOrigin = 'https://auth.qysyw.cn'
+const productionRootDomain = import.meta.env.VITE_ROOT_DOMAIN
+const localRootDomain = import.meta.env.VITE_LOCAL_ROOT_DOMAIN
 const localDevelopmentPort = ':5173'
-const identityLocalOrigin = `https://auth.qysyw.test${localDevelopmentPort}`
+const hostnameFor = (prefix: string, rootDomain: string) => `${prefix}.${rootDomain}`
+const productionHostnameFor = (prefix: string) => hostnameFor(prefix, productionRootDomain)
+const localHostnameFor = (prefix: string) => hostnameFor(prefix, localRootDomain)
+const identityProductionOrigin = `https://${productionHostnameFor('auth')}`
+const identityLocalOrigin = `https://${localHostnameFor('auth')}${localDevelopmentPort}`
 
 const profileAccessPermissions: Partial<Record<SiteProfileId, readonly Permission[]>> = {
   account: [Permission.USER_UPDATE_SELF_PROFILE, Permission.RELAY_TOKEN_READ],
@@ -139,8 +144,8 @@ const profileAccessPermissions: Partial<Record<SiteProfileId, readonly Permissio
 export const siteDefinitions = [
   {
     id: 'public',
-    productionHostname: 'www.qysyw.cn',
-    localHostname: 'www.qysyw.test',
+    productionHostname: productionHostnameFor('www'),
+    localHostname: localHostnameFor('www'),
     defaultPath: '/home',
     routeGroups: ['public', 'shared'],
     shell: 'public',
@@ -148,8 +153,8 @@ export const siteDefinitions = [
   },
   {
     id: 'identity',
-    productionHostname: 'auth.qysyw.cn',
-    localHostname: 'auth.qysyw.test',
+    productionHostname: productionHostnameFor('auth'),
+    localHostname: localHostnameFor('auth'),
     defaultPath: '/login',
     routeGroups: ['identity', 'shared'],
     shell: 'identity',
@@ -157,8 +162,8 @@ export const siteDefinitions = [
   },
   {
     id: 'account',
-    productionHostname: 'account.qysyw.cn',
-    localHostname: 'account.qysyw.test',
+    productionHostname: productionHostnameFor('account'),
+    localHostname: localHostnameFor('account'),
     defaultPath: '/settings/profile',
     routeGroups: ['account', 'shared'],
     shell: 'application',
@@ -166,8 +171,8 @@ export const siteDefinitions = [
   },
   {
     id: 'chat',
-    productionHostname: 'chat.qysyw.cn',
-    localHostname: 'chat.qysyw.test',
+    productionHostname: productionHostnameFor('chat'),
+    localHostname: localHostnameFor('chat'),
     defaultPath: '/chat',
     routeGroups: ['chat', 'shared'],
     shell: 'application',
@@ -175,8 +180,8 @@ export const siteDefinitions = [
   },
   {
     id: 'terminal',
-    productionHostname: 'terminal.qysyw.cn',
-    localHostname: 'terminal.qysyw.test',
+    productionHostname: productionHostnameFor('terminal'),
+    localHostname: localHostnameFor('terminal'),
     defaultPath: '/overview',
     routeGroups: ['terminal', 'shared'],
     shell: 'application',
@@ -184,8 +189,8 @@ export const siteDefinitions = [
   },
   {
     id: 'console-ai',
-    productionHostname: 'ai.console.qysyw.cn',
-    localHostname: 'ai.console.qysyw.test',
+    productionHostname: productionHostnameFor('ai.console'),
+    localHostname: localHostnameFor('ai.console'),
     defaultPath: '/relay/tokens',
     routeGroups: ['console-ai', 'shared'],
     shell: 'console',
@@ -193,8 +198,8 @@ export const siteDefinitions = [
   },
   {
     id: 'console-developer',
-    productionHostname: 'developer.console.qysyw.cn',
-    localHostname: 'developer.console.qysyw.test',
+    productionHostname: productionHostnameFor('developer.console'),
+    localHostname: localHostnameFor('developer.console'),
     defaultPath: '/applications/oauth',
     routeGroups: ['console-developer', 'shared'],
     shell: 'console',
@@ -202,8 +207,8 @@ export const siteDefinitions = [
   },
   {
     id: 'console-ram',
-    productionHostname: 'ram.console.qysyw.cn',
-    localHostname: 'ram.console.qysyw.test',
+    productionHostname: productionHostnameFor('ram.console'),
+    localHostname: localHostnameFor('ram.console'),
     defaultPath: '/overview',
     routeGroups: ['console-ram', 'shared'],
     shell: 'console',
@@ -211,8 +216,8 @@ export const siteDefinitions = [
   },
   {
     id: 'management-core',
-    productionHostname: 'management.qysyw.cn',
-    localHostname: 'management.qysyw.test',
+    productionHostname: productionHostnameFor('management'),
+    localHostname: localHostnameFor('management'),
     defaultPath: '/iam/overview',
     routeGroups: ['management-core', 'shared'],
     shell: 'console',
@@ -230,8 +235,8 @@ export const siteDefinitions = [
     return {
       id: ('product-' + product) as `product-${typeof product}`,
       app: 'console-product-' + product,
-      productionHostname: slug + '.console.qysyw.cn',
-      localHostname: slug + '.console.qysyw.test',
+      productionHostname: productionHostnameFor(`${slug}.console`),
+      localHostname: localHostnameFor(`${slug}.console`),
       defaultPath:
         product === 'kv'
           ? '/entries'
@@ -267,8 +272,8 @@ export const siteDefinitions = [
   {
     id: 'product-oj',
     app: 'console-product-oj',
-    productionHostname: 'oj.console.qysyw.cn',
-    localHostname: 'oj.console.qysyw.test',
+    productionHostname: productionHostnameFor('oj.console'),
+    localHostname: localHostnameFor('oj.console'),
     defaultPath: '/api-keys',
     routeGroups: ['product-oj', 'shared'],
     shell: 'application',
@@ -276,8 +281,8 @@ export const siteDefinitions = [
   },
   {
     id: 'management-ai',
-    productionHostname: 'ai.management.qysyw.cn',
-    localHostname: 'ai.management.qysyw.test',
+    productionHostname: productionHostnameFor('ai.management'),
+    localHostname: localHostnameFor('ai.management'),
     defaultPath: '/relay/settings',
     routeGroups: ['management-ai', 'shared'],
     shell: 'console',
@@ -285,8 +290,8 @@ export const siteDefinitions = [
   },
   {
     id: 'management-developer',
-    productionHostname: 'developer.management.qysyw.cn',
-    localHostname: 'developer.management.qysyw.test',
+    productionHostname: productionHostnameFor('developer.management'),
+    localHostname: localHostnameFor('developer.management'),
     defaultPath: '/services',
     routeGroups: ['management-developer', 'shared'],
     shell: 'console',
@@ -294,8 +299,8 @@ export const siteDefinitions = [
   },
   {
     id: 'management-terminal',
-    productionHostname: 'terminal.management.qysyw.cn',
-    localHostname: 'terminal.management.qysyw.test',
+    productionHostname: productionHostnameFor('terminal.management'),
+    localHostname: localHostnameFor('terminal.management'),
     defaultPath: '/products/remote-terminal/templates',
     routeGroups: ['management-terminal', 'shared'],
     shell: 'console',
@@ -391,7 +396,9 @@ export const siteProfiles: readonly SiteProfile[] = registeredProfiles
 export const getSiteProfilesForEnvironment = (
   currentProfile: SiteProfile,
 ): readonly SiteProfile[] => {
-  const hostnameSuffix = currentProfile.hostname.endsWith('.test') ? '.test' : '.cn'
+  const hostnameSuffix = currentProfile.hostname.endsWith(`.${localRootDomain}`)
+    ? `.${localRootDomain}`
+    : `.${productionRootDomain}`
 
   return siteProfiles.filter(
     (profile) => profile.id !== 'identity' && profile.hostname.endsWith(hostnameSuffix),

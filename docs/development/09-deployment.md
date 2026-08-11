@@ -115,16 +115,16 @@ node scripts/setup-local-domains.mjs --uninstall
 
 `local:setup` 会在 hosts 文件中维护一个专用标记区块，并生成 `apps/frontend/.certs/` 中的本地 HTTPS 证书。重复执行可安全更新该区块；卸载不会修改其他项目的 hosts 记录或系统信任根。脚本在 Windows 通过 UAC、在 macOS/Linux 通过 `sudo` 写入 hosts，但始终以开发者自己的用户身份安装并生成 `mkcert` 证书，确保浏览器能信任它。请直接执行 `pnpm run local:setup`，不要以 `sudo pnpm` 启动。`mkcert` 未安装时会给出当前平台的安装提示。证书文件存在时，前端 Vite 配置会自动启用 HTTPS。
 
-启动前端后，请从站点注册表中的完整域名访问，例如 `https://www.qysyw.test:5173/`、`https://terminal.qysyw.test:5173/` 或 `https://management.qysyw.test:5173/`；`localhost` 与未注册 hostname 会显示拒绝页面，这是多域名隔离的预期行为。
+启动前端后，请从站点注册表中的完整域名访问，例如 `https://www.<LOCAL_ROOT_DOMAIN>:5173/`、`https://terminal.<LOCAL_ROOT_DOMAIN>:5173/` 或 `https://management.<LOCAL_ROOT_DOMAIN>:5173/`；`localhost` 与未注册 hostname 会显示拒绝页面，这是多域名隔离的预期行为。
 
-原版单域名前端使用独立的 `legacy.qysyw.test` Host，不由多域名 Vite 进程提供。先启动当前分支的前端于 `5173`，再在 `origin/master` 的独立工作树中使用同一套本地证书启动前端于 `5174`。原版工作树设置 `VITE_HTTPS_KEY_PATH` 和 `VITE_HTTPS_CERT_PATH` 指向生成的证书，并设置 `VITE_MULTI_DOMAIN_ENTRY_ORIGIN=https://www.qysyw.test:5173`；多域名工作树设置 `VITE_LEGACY_APP_ORIGIN=https://legacy.qysyw.test:5174`。
+原版单域名前端使用独立的 `legacy.<LOCAL_ROOT_DOMAIN>` Host，不由多域名 Vite 进程提供。先启动当前分支的前端于 `5173`，再在 `origin/master` 的独立工作树中使用同一套本地证书启动前端于 `5174`。原版工作树设置 `VITE_HTTPS_KEY_PATH` 和 `VITE_HTTPS_CERT_PATH` 指向生成的证书，并设置 `VITE_MULTI_DOMAIN_ENTRY_ORIGIN=https://www.<LOCAL_ROOT_DOMAIN>:5173`；多域名工作树可选设置 `VITE_LEGACY_APP_ORIGIN=https://legacy.<LOCAL_ROOT_DOMAIN>:5174`。
 
 如果本机设置了 HTTP(S) 代理，必须将本地域名绕过代理。Windows Schannel 还可能需要关闭本地开发证书的吊销检查：
 
 ```powershell
-$env:NO_PROXY = 'localhost,127.0.0.1,.qysyw.test'
+$env:NO_PROXY = 'localhost,127.0.0.1,.<LOCAL_ROOT_DOMAIN>'
 $env:no_proxy = $env:NO_PROXY
-curl.exe --noproxy '*' --ssl-no-revoke -I https://www.qysyw.test:5173/
+curl.exe --noproxy '*' --ssl-no-revoke -I https://www.<LOCAL_ROOT_DOMAIN>:5173/
 ```
 
 不要用 `http://` 访问 HTTPS Vite 端口；否则会得到 `HTTP/0.9` 或类似协议错误。
@@ -135,7 +135,7 @@ curl.exe --noproxy '*' --ssl-no-revoke -I https://www.qysyw.test:5173/
 
 前端按完整 hostname 动态挂载对应 app，只注册该站点所属的路由。`ai.console`、`developer.console` 与 `ram.console` 是用户控制台；`terminal` 是云终端的唯一用户入口，默认显示 `/overview`，工作区与订阅页分别为 `/workspace` 和 `/subscriptions`。`kv.console`、`short-link.console`、`secret.console`、`status.console`、`verification.console`、`ip-geolocation.console`、`push.console` 与 `oj.console` 是独立产品入口，并分别使用其能力路径。开发者产品目录不再提供入口；OJ Submitter 的 API 密钥、用量和定价统一由 `oj.console` 的 `/api-keys`、`/usage` 和 `/pricing` 承载。`management`、`ai.management`、`developer.management`、`terminal.management` 面向运营管理。站点选择器仅显示当前用户拥有任一功能权限的入口，路由和服务端授权仍独立生效。活动域名的旧路径可临时 `302` 到规范 origin/path 并保留 query string；停用的 `console`、`terminal.console` 与 `developer` 域名、未知 hostname 均拒绝访问。
 
-`legacy.qysyw.cn` 是唯一例外：它由 `origin/master` 的独立静态前端构建提供完整的单域名 UI，而不是多域名构建注册的 profile。两个版本均在已登录用户的侧栏登出入口之前显示版本切换按钮。新版使用受控的单一路径映射回原版；原版把当前安全路径交给新版主站，由新版迁移规则解析最终 Host。切换保留普通 query string 与 hash，但会删除 token、refresh token 和未验证回跳参数。生产反向代理必须将 `legacy.qysyw.cn` 指向原版静态构建，其余已注册 Host 指向多域名构建；两份环境配置中的 CORS 与中央登录精确 Origin 白名单都必须包含 `https://legacy.qysyw.cn`。
+`legacy.<ROOT_DOMAIN>` 是唯一例外：它由 `origin/master` 的独立静态前端构建提供完整的单域名 UI，而不是多域名构建注册的 profile。两个版本均在已登录用户的侧栏登出入口之前显示版本切换按钮。新版使用受控的单一路径映射回原版；原版把当前安全路径交给新版主站，由新版迁移规则解析最终 Host。切换保留普通 query string 与 hash，但会删除 token、refresh token 和未验证回跳参数。生产反向代理必须将 `legacy.<ROOT_DOMAIN>` 指向原版静态构建，其余已注册 Host 指向多域名构建；留空的 CORS 与中央登录白名单会自动包含其精确 Origin。
 
 构建仍输出一个可部署构件，但浏览器会先按完整 hostname 解析 profile，再异步挂载该 profile 的应用根和路由树。公共站与认证站使用轻量根，不加载业务壳；业务站只注册当前 profile 的业务路由。禁止在启动、登录完成或空闲回调中预加载全部业务页面；仅可在用户明确指向的下一目标上进行按需预加载。
 
@@ -212,6 +212,8 @@ pnpm --filter @appserver/backend pm2:rebuild
 ```bash
 # 服务器
 PORT=10001
+NODE_ENV=production
+ROOT_DOMAIN=md.qysyw.cn
 
 # 数据库
 DATABASE_URL=mysql://user:password@localhost:3306/database
@@ -227,13 +229,16 @@ REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_PASSWORD=
 
-# CORS and central login continuation: exact origins only, no wildcards.
-CORS_ALLOWED_ORIGINS=https://www.qysyw.cn,https://auth.qysyw.cn,https://account.qysyw.cn,https://chat.qysyw.cn,https://terminal.qysyw.cn,https://ai.console.qysyw.cn,https://developer.console.qysyw.cn,https://ram.console.qysyw.cn,https://kv.console.qysyw.cn,https://short-link.console.qysyw.cn,https://secret.console.qysyw.cn,https://status.console.qysyw.cn,https://verification.console.qysyw.cn,https://ip-geolocation.console.qysyw.cn,https://push.console.qysyw.cn,https://oj.console.qysyw.cn,https://management.qysyw.cn,https://ai.management.qysyw.cn,https://developer.management.qysyw.cn,https://terminal.management.qysyw.cn
-CENTRAL_LOGIN_ALLOWED_ORIGINS=https://www.qysyw.cn,https://auth.qysyw.cn,https://account.qysyw.cn,https://chat.qysyw.cn,https://terminal.qysyw.cn,https://ai.console.qysyw.cn,https://developer.console.qysyw.cn,https://ram.console.qysyw.cn,https://kv.console.qysyw.cn,https://short-link.console.qysyw.cn,https://secret.console.qysyw.cn,https://status.console.qysyw.cn,https://verification.console.qysyw.cn,https://ip-geolocation.console.qysyw.cn,https://push.console.qysyw.cn,https://oj.console.qysyw.cn,https://management.qysyw.cn,https://ai.management.qysyw.cn,https://developer.management.qysyw.cn,https://terminal.management.qysyw.cn
+# CORS and central login continuation: leave blank to derive every exact first-party
+# origin from ROOT_DOMAIN. Overrides must remain exact Origins; wildcards are rejected.
+CORS_ALLOWED_ORIGINS=
+CENTRAL_LOGIN_ALLOWED_ORIGINS=
 CENTRAL_LOGIN_FLOW_TTL_SECONDS=600
-WEBAUTHN_RP_ID=qysyw.cn
-WEBAUTHN_ORIGIN=https://auth.qysyw.cn
-FRONTEND_BASE_URL=https://auth.qysyw.cn
+# These production defaults derive from ROOT_DOMAIN. Set only to override them.
+WEBAUTHN_RP_ID=
+WEBAUTHN_ORIGIN=
+FRONTEND_BASE_URL=
+AUTH_CENTER_ISSUER=
 
 # 安全 (>= 64 字符，必须与 JWT 密钥不同)
 REPLAY_SIGNING_MASTER_SECRET=<64+字符>
@@ -252,6 +257,10 @@ VITE_TURNSTILE_SITE_KEY=
 ### 生产环境建议
 
 ```bash
+# 前端和 docs-site 构建均需传入同一个 ROOT_DOMAIN；本地多域名可另设 LOCAL_ROOT_DOMAIN。
+# ROOT_DOMAIN=md.qysyw.cn pnpm --filter @appserver/frontend run build:prod
+# ROOT_DOMAIN=md.qysyw.cn pnpm --filter @appserver/docs-site run build:prod
+
 # 生产环境调整
 JWT_ACCESS_EXPIRES_IN=900        # 15 分钟
 JWT_REFRESH_EXPIRES_IN=604800    # 7 天
@@ -288,8 +297,8 @@ pnpm run precommit
 - [ ] 数据库迁移已运行 (`pnpm run db:migrate`)
 - [ ] Prisma client 已生成 (`pnpm run db:generate`)
 - [ ] 生产构建成功 (`pnpm run build:full`)
-- [ ] CORS 允许源已更新为生产域名
-- [ ] 每个 SPA host 都在边缘层精确 allowlist 中，未知 host 被拒绝；`qysyw.cn` 301 到 `www.qysyw.cn`
+- [ ] `ROOT_DOMAIN` 已传给后端、前端和 docs-site 的生产构建
+- [ ] 每个 SPA host 都在边缘层精确 allowlist 中，未知 host 被拒绝；根域名 301 到 `www.<ROOT_DOMAIN>`
 - [ ] 每个 SPA host 都有 HTTPS、SPA fallback 和深链刷新验证；`docs`、`api`、`ai` 不指向 SPA
 - [ ] 已知旧路径和错误 hostname 返回保留 query 的临时迁移；SPA fallback 保留 hash，未知 hostname 与未知路径保持拒绝
 - [ ] CORS 与 `CENTRAL_LOGIN_ALLOWED_ORIGINS` 只包含精确 origin，未使用通配符

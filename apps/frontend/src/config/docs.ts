@@ -1,4 +1,5 @@
-const DOCS_BASE_URL = import.meta.env.VITE_APP_DOCS_BASE_URL || 'https://docs.appserver.dev'
+const DOCS_BASE_URL =
+  import.meta.env.VITE_APP_DOCS_BASE_URL || `https://docs.${import.meta.env.VITE_ROOT_DOMAIN}`
 
 type DocsLocale = 'en' | 'zh-CN'
 

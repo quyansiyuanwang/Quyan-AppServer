@@ -8,33 +8,34 @@ const scriptPath = fileURLToPath(import.meta.url)
 const projectRoot = dirname(dirname(scriptPath))
 const frontendRoot = join(projectRoot, 'apps', 'frontend')
 const certificateDirectory = join(frontendRoot, '.certs')
-const certificatePath = join(certificateDirectory, 'qysyw.test.pem')
-const keyPath = join(certificateDirectory, 'qysyw.test-key.pem')
+const localRootDomain = (process.env.LOCAL_ROOT_DOMAIN || 'qysyw.test').trim().toLowerCase()
+const certificatePath = join(certificateDirectory, `${localRootDomain}.pem`)
+const keyPath = join(certificateDirectory, `${localRootDomain}-key.pem`)
 const beginMarker = '# BEGIN APPSERVER LOCAL DOMAINS'
 const endMarker = '# END APPSERVER LOCAL DOMAINS'
 const localHosts = [
-  'www.qysyw.test',
-  'legacy.qysyw.test',
-  'auth.qysyw.test',
-  'account.qysyw.test',
-  'chat.qysyw.test',
-  'terminal.qysyw.test',
-  'ai.console.qysyw.test',
-  'developer.console.qysyw.test',
-  'ram.console.qysyw.test',
-  'kv.console.qysyw.test',
-  'short-link.console.qysyw.test',
-  'secret.console.qysyw.test',
-  'status.console.qysyw.test',
-  'verification.console.qysyw.test',
-  'ip-geolocation.console.qysyw.test',
-  'push.console.qysyw.test',
-  'oj.console.qysyw.test',
-  'management.qysyw.test',
-  'ai.management.qysyw.test',
-  'developer.management.qysyw.test',
-  'terminal.management.qysyw.test',
-]
+  'www',
+  'legacy',
+  'auth',
+  'account',
+  'chat',
+  'terminal',
+  'ai.console',
+  'developer.console',
+  'ram.console',
+  'kv.console',
+  'short-link.console',
+  'secret.console',
+  'status.console',
+  'verification.console',
+  'ip-geolocation.console',
+  'push.console',
+  'oj.console',
+  'management',
+  'ai.management',
+  'developer.management',
+  'terminal.management',
+].map((prefix) => `${prefix}.${localRootDomain}`)
 
 const arguments_ = new Set(process.argv.slice(2))
 const uninstall = arguments_.has('--uninstall')
@@ -129,10 +130,14 @@ function warnProxyConfiguration() {
   if (!proxy) return
 
   const bypass = process.env.NO_PROXY || process.env.no_proxy || ''
-  if (bypass.includes('*') || /(^|[,;\s])\.?qysyw\.test([,;\s]|$)/i.test(bypass)) return
+  if (
+    bypass.includes('*') ||
+    bypass.split(/[,;\s]+/).some((entry) => entry.replace(/^\./, '') === localRootDomain)
+  )
+    return
 
   console.warn(
-    `A local HTTP(S) proxy is configured (${proxy}), but .qysyw.test is not in NO_PROXY. Add localhost,127.0.0.1,.qysyw.test to your proxy bypass list before opening the local sites.`,
+    `A local HTTP(S) proxy is configured (${proxy}), but .${localRootDomain} is not in NO_PROXY. Add localhost,127.0.0.1,.${localRootDomain} to your proxy bypass list before opening the local sites.`,
   )
 }
 

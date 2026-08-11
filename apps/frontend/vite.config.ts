@@ -28,6 +28,47 @@ import { autoRouteTypes } from './scripts/plugins/vite-plugin-auto-route-types'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const isProd = mode === 'production' || mode === 'prod'
+  const normalizeRootDomain = (value: string | undefined, name: string): string | undefined => {
+    const normalized = value?.trim().toLowerCase().replace(/\.$/, '')
+    if (!normalized) return undefined
+    const labels = normalized.split('.')
+    if (
+      normalized.length > 253 ||
+      labels.length < 2 ||
+      labels.some((label) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+    ) {
+      throw new Error(`${name} must be a hostname such as example.com`)
+    }
+    return normalized
+  }
+  const rootDomain = normalizeRootDomain(env.ROOT_DOMAIN, 'ROOT_DOMAIN')
+  if (isProd && !rootDomain)
+    throw new Error('ROOT_DOMAIN must be defined for a production frontend build')
+  const resolvedRootDomain = rootDomain || 'qysyw.cn'
+  const localRootDomain =
+    normalizeRootDomain(env.LOCAL_ROOT_DOMAIN, 'LOCAL_ROOT_DOMAIN') || 'qysyw.test'
+  const firstPartyHostPrefixes = [
+    'www',
+    'auth',
+    'account',
+    'chat',
+    'terminal',
+    'ai.console',
+    'developer.console',
+    'ram.console',
+    'kv.console',
+    'short-link.console',
+    'secret.console',
+    'status.console',
+    'verification.console',
+    'ip-geolocation.console',
+    'push.console',
+    'oj.console',
+    'management',
+    'ai.management',
+    'developer.management',
+    'terminal.management',
+  ]
   const readBooleanEnv = (value: string | undefined, defaultValue: boolean): boolean => {
     if (value == null || value.trim() === '') return defaultValue
     return value === 'true'
@@ -37,29 +78,10 @@ export default defineConfig(({ mode }) => {
   const enableVueDevTools = readBooleanEnv(env.VITE_ENABLE_VUE_DEVTOOLS, !isProd)
   const allowedHosts = [
     'localhost',
-    'www.qysyw.test',
-    'auth.qysyw.test',
-    'account.qysyw.test',
-    'chat.qysyw.test',
-    'terminal.qysyw.test',
-    'ai.console.qysyw.test',
-    'developer.console.qysyw.test',
-    'ram.console.qysyw.test',
-    'kv.console.qysyw.test',
-    'short-link.console.qysyw.test',
-    'secret.console.qysyw.test',
-    'status.console.qysyw.test',
-    'verification.console.qysyw.test',
-    'ip-geolocation.console.qysyw.test',
-    'push.console.qysyw.test',
-    'oj.console.qysyw.test',
-    'management.qysyw.test',
-    'ai.management.qysyw.test',
-    'developer.management.qysyw.test',
-    'terminal.management.qysyw.test',
+    ...firstPartyHostPrefixes.map((prefix) => `${prefix}.${localRootDomain}`),
   ]
-  const defaultHttpsKeyPath = '.certs/qysyw.test-key.pem'
-  const defaultHttpsCertPath = '.certs/qysyw.test.pem'
+  const defaultHttpsKeyPath = `.certs/${localRootDomain}-key.pem`
+  const defaultHttpsCertPath = `.certs/${localRootDomain}.pem`
   const httpsKeyPath = env.VITE_HTTPS_KEY_PATH?.trim() || defaultHttpsKeyPath
   const httpsCertPath = env.VITE_HTTPS_CERT_PATH?.trim() || defaultHttpsCertPath
   const https =
@@ -215,6 +237,10 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
+    define: {
+      'import.meta.env.VITE_ROOT_DOMAIN': JSON.stringify(resolvedRootDomain),
+      'import.meta.env.VITE_LOCAL_ROOT_DOMAIN': JSON.stringify(localRootDomain),
+    },
     plugins: [
       autoRouteTypes({
         routesFile: 'src/router/routes.ts',
@@ -292,14 +318,14 @@ export default defineConfig(({ mode }) => {
         ...(isProd
           ? {
               '/prod-api': {
-                target: 'https://api.qysyw.cn',
+                target: `https://api.${resolvedRootDomain}`,
                 changeOrigin: true,
                 secure: true,
                 configure: stripOriginHeader,
                 rewrite: (path) => path.replace(/^\/prod-api/, ''),
               },
               '/prod-ai': {
-                target: 'https://ai.qysyw.cn',
+                target: `https://ai.${resolvedRootDomain}`,
                 changeOrigin: true,
                 secure: true,
                 configure: stripOriginHeader,

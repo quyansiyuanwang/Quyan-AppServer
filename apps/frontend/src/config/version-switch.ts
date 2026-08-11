@@ -49,7 +49,9 @@ export const sanitizeVersionSwitchSearch = (search: string): string => {
 }
 
 export const getLegacyAppOrigin = (): string | undefined =>
-  normalizeRootHttpsOrigin(import.meta.env.VITE_LEGACY_APP_ORIGIN)
+  normalizeRootHttpsOrigin(
+    import.meta.env.VITE_LEGACY_APP_ORIGIN || `https://legacy.${import.meta.env.VITE_ROOT_DOMAIN}`,
+  )
 
 export const resolveMultiDomainToLegacyUrl = (
   legacyOrigin: string | undefined,
