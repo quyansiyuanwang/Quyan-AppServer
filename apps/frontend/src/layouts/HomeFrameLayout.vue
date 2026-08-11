@@ -14,7 +14,6 @@
     >
       <el-header v-if="showSiteHeader" class="site-header">
         <button
-          v-if="!isPublicProfile"
           type="button"
           class="site-header__drawer-trigger"
           @click="openSiteDrawer"
@@ -213,6 +212,13 @@
         </div>
       </el-header>
       <el-container class="content-container">
+        <AsideMenu
+          v-if="isPublicProfile && !showAside"
+          ref="asideMenuRef"
+          class="site-switcher-only"
+          :show-logout="false"
+          :show-navigation="false"
+        />
         <el-aside v-if="showAside" class="aside">
           <AsideMenu ref="asideMenuRef" :show-logout="isAuthenticated" />
         </el-aside>
@@ -441,6 +447,12 @@ onMounted(async () => {
   min-width: 0;
   background: var(--color-background);
   color: var(--color-text);
+}
+
+.site-switcher-only {
+  position: fixed;
+  width: 0;
+  height: 0;
 }
 
 .common-layout.is-embedded {

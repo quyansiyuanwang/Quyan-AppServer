@@ -6,7 +6,11 @@
       'is-mobile': !isDesktop,
     }"
   >
-    <div v-if="isDesktop" class="functional-area" :class="{ 'is-collapsed': showIsDesktopIcon }">
+    <div
+      v-if="props.showNavigation && isDesktop"
+      class="functional-area"
+      :class="{ 'is-collapsed': showIsDesktopIcon }"
+    >
       <el-tooltip :disabled="!showIsDesktopIcon" :content="functionalAreaTooltip" placement="right">
         <div class="functional-area__content">
           <el-icon><component :is="currentSiteIcon" /></el-icon>
@@ -16,7 +20,12 @@
     </div>
 
     <!-- Desktop sidebar menu -->
-    <el-menu ref="menuRef" :collapse="showIsDesktopIcon" class="aside-nav">
+    <el-menu
+      v-if="props.showNavigation"
+      ref="menuRef"
+      :collapse="showIsDesktopIcon"
+      class="aside-nav"
+    >
       <NavMenuItems
         :show-spacer="true"
         :show-logout="props.showLogout"
@@ -107,6 +116,8 @@
       v-model="showOverview"
       direction="ltr"
       :size="overviewDrawerSize"
+      append-to-body
+      :z-index="3000"
       class="overview-drawer"
       :with-header="false"
     >
@@ -346,6 +357,7 @@
 
     <!-- Mobile side drawer -->
     <el-drawer
+      v-if="props.showNavigation"
       v-model="showMobileDrawer"
       direction="rtl"
       size="82%"
@@ -517,8 +529,9 @@ const isDesktop = isDesktopStore.useIsDesktop()
 const props = withDefaults(
   defineProps<{
     showLogout?: boolean
+    showNavigation?: boolean
   }>(),
-  { showLogout: true },
+  { showLogout: true, showNavigation: true },
 )
 
 const themeToggleStore = useThemeToggleStore()
