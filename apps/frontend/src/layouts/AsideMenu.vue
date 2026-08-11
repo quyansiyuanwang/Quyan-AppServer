@@ -83,9 +83,6 @@
             </div>
           </li>
         </template>
-        <template #before-logout>
-          <VersionModeSwitcher />
-        </template>
       </NavMenuItems>
     </el-menu>
 
@@ -435,9 +432,6 @@
                 </div>
               </li>
             </template>
-            <template #before-logout>
-              <VersionModeSwitcher />
-            </template>
           </NavMenuItems>
         </el-menu>
       </div>
@@ -506,7 +500,6 @@ import { authorizationService } from '@/service/authorizationService'
 import LogoutIcon from '@/components/icons/LogoutIcon.vue'
 import NavMenuItems from '@/layouts/NavMenuItems.vue'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
-import VersionModeSwitcher from '@/components/common/VersionModeSwitcher.vue'
 import { useThemeToggleStore } from '@/stores/themeToggleStore'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { Permission } from '@/constant/permission'

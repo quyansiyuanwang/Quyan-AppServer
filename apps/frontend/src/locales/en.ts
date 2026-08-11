@@ -756,7 +756,6 @@ export default {
 
   nav: {
     switchSite: 'Switch site',
-    switchToLegacy: 'Switch to legacy frontend',
     switchToMultiDomain: 'Switch to multi-domain frontend',
     sitePublic: 'Website',
     siteIdentity: 'Identity Center',
