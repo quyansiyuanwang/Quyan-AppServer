@@ -23,7 +23,9 @@ interface UserOption {
 
 const USER_OPTIONS_PAGE_SIZE = 20
 
-export function useRemoteTerminalProductManagement(section: RemoteTerminalProductManagementSection) {
+export function useRemoteTerminalProductManagement(
+  section: RemoteTerminalProductManagementSection,
+) {
   const permissionStore = usePermissionStore()
 
   const loading = ref(false)

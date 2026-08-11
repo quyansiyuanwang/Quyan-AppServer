@@ -7,10 +7,7 @@ import {
 } from '@/config/site-registry'
 import { globalEventBus } from '@/stores/globalInstance'
 import { usePermissionStore } from '@/stores/permissionStore'
-import {
-  getCentralLoginFallbackUrl,
-  redirectToCentralLogin,
-} from '@/service/centralLoginService'
+import { getCentralLoginFallbackUrl, redirectToCentralLogin } from '@/service/centralLoginService'
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
