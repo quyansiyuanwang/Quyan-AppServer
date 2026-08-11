@@ -78,6 +78,8 @@
     </el-menu-item>
   </PermissionWrapper>
 
+  <slot name="before-logout" />
+
   <el-menu-item v-if="showLogout" index="logout" class="item-logout" @click="logout">
     <el-icon><LogoutIcon :size="16" /></el-icon>
     <template #title>{{ i18ns.t('logout') }}</template>
@@ -298,24 +300,15 @@ const menuDefinition: readonly MenuNode[] = [
     ],
     'any',
   ),
-  item(
-    'remoteTerminalProductTemplates',
-    'remoteTerminalProduct.templateManagement',
-    Setting,
-    [Permission.REMOTE_TERMINAL_PRODUCT_READ],
-  ),
-  item(
-    'remoteTerminalProductEntitlements',
-    'remoteTerminalProduct.entitlementManagement',
-    User,
-    [Permission.REMOTE_TERMINAL_ASSIGNMENT_READ],
-  ),
-  item(
-    'remoteTerminalProductDevices',
-    'remoteTerminalProduct.deviceManagement',
-    Monitor,
-    [Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ],
-  ),
+  item('remoteTerminalProductTemplates', 'remoteTerminalProduct.templateManagement', Setting, [
+    Permission.REMOTE_TERMINAL_PRODUCT_READ,
+  ]),
+  item('remoteTerminalProductEntitlements', 'remoteTerminalProduct.entitlementManagement', User, [
+    Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
+  ]),
+  item('remoteTerminalProductDevices', 'remoteTerminalProduct.deviceManagement', Monitor, [
+    Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
+  ]),
   group(
     'iam',
     'nav.iam',

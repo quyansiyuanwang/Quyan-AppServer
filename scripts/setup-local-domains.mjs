@@ -14,6 +14,7 @@ const beginMarker = '# BEGIN APPSERVER LOCAL DOMAINS'
 const endMarker = '# END APPSERVER LOCAL DOMAINS'
 const localHosts = [
   'www.qysyw.test',
+  'legacy.qysyw.test',
   'auth.qysyw.test',
   'account.qysyw.test',
   'chat.qysyw.test',

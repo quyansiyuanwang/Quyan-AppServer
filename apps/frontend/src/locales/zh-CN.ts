@@ -716,6 +716,8 @@ const zhCN: DeepStringify<typeof en> = {
 
   nav: {
     switchSite: '切换站点',
+    switchToLegacy: '切换至原版前端',
+    switchToMultiDomain: '切换至多域名前端',
     sitePublic: '官网',
     siteIdentity: '认证中心',
     siteAccount: '账户中心',

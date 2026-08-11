@@ -21,8 +21,106 @@ export interface RouteCatalogEntry {
   group: SiteRouteGroup
   path: string
   overviewCategory?: OverviewCategory
+  /** The single route registered by the standalone origin/master frontend. */
+  legacyPath?: string
   legacyPaths?: readonly string[]
 }
+
+const legacyRoutePathByName: Record<string, string> = {
+  home: '/home',
+  chat: '/chat',
+  settings: '/settings/profile',
+  settingsProfile: '/settings/profile',
+  settingsPreferences: '/settings/preferences',
+  settingsSecurity: '/settings/security',
+  notificationSettings: '/settings/notifications',
+  workspaceSuggestions: '/workspace/suggestions',
+  balanceHistory: '/account/balance',
+  consumptionRecords: '/account/consumption',
+  myTickets: '/account/tickets',
+  myMonthlyPasses: '/account/product-subscriptions/monthly-passes',
+  monthlyPassPurchase: '/account/product-subscriptions/monthly-pass-purchase',
+  scriptManager: '/tools/scripts',
+  oauthClientManagement: '/account/oauth-apps',
+  authCenterClientManagement: '/account/auth-center-apps',
+  relayTokenManagement: '/relay/tokens',
+  apiDocumentation: '/relay/api-docs',
+  relayChannelProvider: '/relay/provider-channels',
+  ojSubmitterRoot: '/oj-submitter/apikeys',
+  ojAPIKeyManagement: '/oj-submitter/apikeys',
+  ojUsageStatistics: '/oj-submitter/usage',
+  ojPricingManagement: '/oj-submitter/pricing',
+  terminalOverview: '/console',
+  myRemoteTerminalProducts: '/products/remote-terminal-cloud',
+  remoteTerminal: '/console',
+  userManagement: '/management/users',
+  groupManagement: '/management/groups',
+  iamAuthorizations: '/management/permissions',
+  iamPermissionPolicies: '/management/permissions?tab=policies',
+  iamPermissionDiagnostics: '/management/permissions?tab=diagnostics',
+  permission: '/management/permissions',
+  ramOverview: '/iam/ram',
+  ramManagement: '/iam/ram',
+  ramRoles: '/iam/ram?tab=roles',
+  ramBindings: '/iam/ram?tab=bindings',
+  ramPolicies: '/iam/ram?tab=policies',
+  ramAuthorization: '/iam/ram?tab=authorization',
+  ramSessions: '/iam/ram?tab=sessions',
+  balanceManagement: '/management/balance',
+  monthlyPassManagement: '/management/monthly-passes',
+  redemptionCodes: '/management/redemption-codes',
+  jsonEndpointManagement: '/management/json-endpoints',
+  articleManagement: '/management/articles',
+  legalPolicyManagement: '/management/legal-policies',
+  debug: '/debug',
+  serverConfig: '/system/config',
+  ipMonitoring: '/system/ip-monitoring',
+  systemStats: '/system/stats',
+  systemConsumptionStats: '/system/consumption-stats',
+  systemLogs: '/system/logs',
+  businessLogs: '/system/business-logs',
+  errorCenter: '/system/error-center',
+  dataLifecycle: '/system/data-lifecycle',
+  dataMaintenance: '/system/data-maintenance',
+  userOnlineMonitor: '/system/user-online-monitor',
+  analyticsOverview: '/analytics/overview',
+  analyticsFunnel: '/analytics/funnel',
+  analyticsHeatmap: '/analytics/heatmap',
+  relayChannelReview: '/relay/channel-review',
+  relaySettings: '/relay/settings',
+  relayChannelHealth: '/relay/channel-health',
+  relayRequestDiagnostics: '/relay/request-diagnostics',
+  relayChannelProbes: '/relay/channel-probes',
+  upstreamStatus: '/relay/upstream-status',
+  developerServiceManagement: '/developer/management',
+  developerServiceConfig: '/developer/config',
+  oauthClientReviewManagement: '/open-platform/oauth-app-reviews',
+  authCenterClientReviewManagement: '/open-platform/auth-center-app-reviews',
+  ticketReviewManagement: '/open-platform/ticket-reviews',
+  remoteTerminalProductTemplates: '/products/remote-terminal',
+  remoteTerminalProductEntitlements: '/products/remote-terminal',
+  remoteTerminalProductDevices: '/products/remote-terminal',
+}
+
+for (const product of [
+  'kv',
+  'short_link',
+  'secret',
+  'status',
+  'verification',
+  'ip_geolocation',
+  'push',
+]) {
+  legacyRoutePathByName[`product-${product}`] = `/products/${product}`
+  legacyRoutePathByName[`product-management-${product}`] = `/products/${product}/management`
+  legacyRoutePathByName[`product-config-${product}`] = `/products/${product}/config`
+}
+
+legacyRoutePathByName['product-short_link-analytics'] =
+  '/products/short_link/analytics/:instanceId/:linkId'
+
+const attachLegacyPaths = (entries: readonly RouteCatalogEntry[]): readonly RouteCatalogEntry[] =>
+  entries.map((entry) => ({ ...entry, legacyPath: legacyRoutePathByName[entry.name] }))
 
 const productEntries = [
   'kv',
@@ -44,7 +142,7 @@ const productUserPaths: Record<(typeof productEntries)[number], string> = {
   push: '/channels',
 }
 
-export const routeCatalog: readonly RouteCatalogEntry[] = [
+export const routeCatalog = attachLegacyPaths([
   { name: 'root', group: 'shared', path: '/' },
   { name: 'home', group: 'public', path: '/home' },
   { name: 'publicStatus', group: 'public', path: '/status/:slug' },
@@ -547,7 +645,7 @@ export const routeCatalog: readonly RouteCatalogEntry[] = [
     path: '/products/remote-terminal/devices',
     overviewCategory: 'management-terminal',
   },
-]
+] satisfies readonly RouteCatalogEntry[])
 
 const entriesByName = new Map(routeCatalog.map((entry) => [entry.name, entry]))
 
@@ -610,6 +708,22 @@ export const resolveRouteMigration = (
     if (isCanonicalOnCurrentProfile) return undefined
 
     return { profileId: entry.group, path: fillPathParams(entry.path, params) }
+  }
+
+  return undefined
+}
+
+/** Resolves a multi-domain capability URL to the matching origin/master route. */
+export const resolveLegacyRoutePath = (
+  pathname: string,
+  allowedGroups?: readonly SiteRouteGroup[],
+): string | undefined => {
+  for (const entry of routeCatalog) {
+    if (allowedGroups && !allowedGroups.includes(entry.group)) continue
+    if (!entry.legacyPath) continue
+    const params = matchPathTemplate(entry.path, pathname)
+    if (!params) continue
+    return fillPathParams(entry.legacyPath, params)
   }
 
   return undefined

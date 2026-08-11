@@ -117,6 +117,8 @@ node scripts/setup-local-domains.mjs --uninstall
 
 启动前端后，请从站点注册表中的完整域名访问，例如 `https://www.qysyw.test:5173/`、`https://terminal.qysyw.test:5173/` 或 `https://management.qysyw.test:5173/`；`localhost` 与未注册 hostname 会显示拒绝页面，这是多域名隔离的预期行为。
 
+原版单域名前端使用独立的 `legacy.qysyw.test` Host，不由多域名 Vite 进程提供。先启动当前分支的前端于 `5173`，再在 `origin/master` 的独立工作树中使用同一套本地证书启动前端于 `5174`。原版工作树设置 `VITE_HTTPS_KEY_PATH` 和 `VITE_HTTPS_CERT_PATH` 指向生成的证书，并设置 `VITE_MULTI_DOMAIN_ENTRY_ORIGIN=https://www.qysyw.test:5173`；多域名工作树设置 `VITE_LEGACY_APP_ORIGIN=https://legacy.qysyw.test:5174`。
+
 如果本机设置了 HTTP(S) 代理，必须将本地域名绕过代理。Windows Schannel 还可能需要关闭本地开发证书的吊销检查：
 
 ```powershell
@@ -132,6 +134,8 @@ curl.exe --noproxy '*' --ssl-no-revoke -I https://www.qysyw.test:5173/
 ### 多域名路由与迁移
 
 前端按完整 hostname 动态挂载对应 app，只注册该站点所属的路由。`ai.console`、`developer.console` 与 `ram.console` 是用户控制台；`terminal` 是云终端的唯一用户入口，默认显示 `/overview`，工作区与订阅页分别为 `/workspace` 和 `/subscriptions`。`kv.console`、`short-link.console`、`secret.console`、`status.console`、`verification.console`、`ip-geolocation.console`、`push.console` 与 `oj.console` 是独立产品入口，并分别使用其能力路径。开发者产品目录不再提供入口；OJ Submitter 的 API 密钥、用量和定价统一由 `oj.console` 的 `/api-keys`、`/usage` 和 `/pricing` 承载。`management`、`ai.management`、`developer.management`、`terminal.management` 面向运营管理。站点选择器仅显示当前用户拥有任一功能权限的入口，路由和服务端授权仍独立生效。活动域名的旧路径可临时 `302` 到规范 origin/path 并保留 query string；停用的 `console`、`terminal.console` 与 `developer` 域名、未知 hostname 均拒绝访问。
+
+`legacy.qysyw.cn` 是唯一例外：它由 `origin/master` 的独立静态前端构建提供完整的单域名 UI，而不是多域名构建注册的 profile。两个版本均在已登录用户的侧栏登出入口之前显示版本切换按钮。新版使用受控的单一路径映射回原版；原版把当前安全路径交给新版主站，由新版迁移规则解析最终 Host。切换保留普通 query string 与 hash，但会删除 token、refresh token 和未验证回跳参数。生产反向代理必须将 `legacy.qysyw.cn` 指向原版静态构建，其余已注册 Host 指向多域名构建；两份环境配置中的 CORS 与中央登录精确 Origin 白名单都必须包含 `https://legacy.qysyw.cn`。
 
 构建仍输出一个可部署构件，但浏览器会先按完整 hostname 解析 profile，再异步挂载该 profile 的应用根和路由树。公共站与认证站使用轻量根，不加载业务壳；业务站只注册当前 profile 的业务路由。禁止在启动、登录完成或空闲回调中预加载全部业务页面；仅可在用户明确指向的下一目标上进行按需预加载。
 

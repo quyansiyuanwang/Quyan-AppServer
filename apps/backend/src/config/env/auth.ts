@@ -100,6 +100,7 @@ function parseCentralLoginAllowedOrigins(source: EnvSnapshot, isProduction: bool
 
   return [
     "https://www.qysyw.test:5173",
+    "https://legacy.qysyw.test:5174",
     "https://auth.qysyw.test:5173",
     "https://account.qysyw.test:5173",
     "https://chat.qysyw.test:5173",

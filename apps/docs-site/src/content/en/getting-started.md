@@ -27,6 +27,8 @@ Hover the avatar in the top bar to open the account menu, which shows the accoun
 
 Known legacy links, or known pages opened on the wrong site, automatically move to the correct page while retaining filters and anchors. An unrecognized address still shows the not-found page.
 
+Signed-in users can switch between the legacy frontend and the multi-domain frontend from the bottom of the left sidebar. The legacy frontend runs on a separate `legacy` address and does not appear in the product site switcher. The switch keeps an equivalent page where one exists; legacy-only pages fall back to the multi-domain home page. Login tokens and untrusted return parameters are never carried across the version switch.
+
 ## What is covered
 
 - Login, verification, and password recovery

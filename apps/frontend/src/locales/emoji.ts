@@ -696,6 +696,8 @@ const emoji: DeepStringify<typeof en> = {
     },
   },
   nav: {
+    switchToLegacy: '🔁 🏛️',
+    switchToMultiDomain: '🔁 🌐',
     switchSite: '🔀 🌐',
     sitePublic: '🌐',
     siteIdentity: '🪪',
