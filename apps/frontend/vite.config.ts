@@ -55,6 +55,11 @@ export default defineConfig(({ mode }) => {
     `https://api.${resolvedRootDomain}`
   const localRootDomain =
     normalizeRootDomain(env.LOCAL_ROOT_DOMAIN, 'LOCAL_ROOT_DOMAIN') || 'qysyw.test'
+  const localApiHostname = `api.${localRootDomain}`
+  const bypassNonApiHost = (request: { headers: { host?: string }; url?: string }) => {
+    const hostname = request.headers.host?.split(':', 1)[0]?.toLowerCase()
+    return hostname === localApiHostname ? undefined : (request.url ?? '/')
+  }
   const firstPartyHostPrefixes = [
     'www',
     'api',
@@ -329,18 +334,22 @@ export default defineConfig(({ mode }) => {
               '^/v1(?:/|$)': {
                 target: 'http://localhost:10001',
                 changeOrigin: true,
+                bypass: bypassNonApiHost,
               },
               '^/relay(?:/|$)': {
                 target: 'http://localhost:10001',
                 changeOrigin: true,
+                bypass: bypassNonApiHost,
               },
               '^/auth-center(?:/|$)': {
                 target: 'http://localhost:10001',
                 changeOrigin: true,
+                bypass: bypassNonApiHost,
               },
               '^/docs(?:/|$)': {
                 target: 'http://localhost:10001',
                 changeOrigin: true,
+                bypass: bypassNonApiHost,
               },
             }
           : {}),
