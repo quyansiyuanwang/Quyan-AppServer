@@ -24,8 +24,8 @@ cp .env.sample .env
 2. 编辑 `.env` 文件:
 
 ```bash
-VITE_BACKEND_URL=/api
-VITE_AI_PROXY_URL=/api/relay/proxy
+VITE_BACKEND_URL=https://api.qysyw.test:5173
+VITE_AI_PROXY_URL=https://api.qysyw.test:5173/relay/proxy
 ```
 
 3. 安装依赖:

@@ -248,8 +248,8 @@ TWO_FACTOR_TRUSTED_DEVICE_SECRET=<64+字符>
 ### 前端 (`.env`)
 
 ```bash
-VITE_BACKEND_URL=/api
-VITE_AI_PROXY_URL=/api/relay/proxy
+VITE_BACKEND_URL=https://api.qysyw.cn
+VITE_AI_PROXY_URL=https://ai.qysyw.cn
 VITE_RECAPTCHA_SITE_KEY=
 VITE_TURNSTILE_SITE_KEY=
 ```
@@ -257,9 +257,10 @@ VITE_TURNSTILE_SITE_KEY=
 ### 生产环境建议
 
 ```bash
-# 前端和 docs-site 构建均需传入同一个 ROOT_DOMAIN；本地多域名可另设 LOCAL_ROOT_DOMAIN。
-# ROOT_DOMAIN=md.qysyw.cn pnpm --filter @appserver/frontend run build:prod
-# ROOT_DOMAIN=md.qysyw.cn pnpm --filter @appserver/docs-site run build:prod
+# 正式环境：站点 www.qysyw.cn，API 固定为 api.qysyw.cn。
+# ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=www.qysyw.cn API_ORIGIN=https://api.qysyw.cn pnpm --filter @appserver/frontend run build:prod
+# 预览环境：站点 staging.qysyw.cn，共用同一个 API。
+# ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=staging.qysyw.cn API_ORIGIN=https://api.qysyw.cn pnpm --filter @appserver/frontend run build:staging
 
 # 生产环境调整
 JWT_ACCESS_EXPIRES_IN=900        # 15 分钟

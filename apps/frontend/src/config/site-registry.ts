@@ -55,6 +55,7 @@ const localDevelopmentPort = ':5173'
 const hostnameFor = (prefix: string, rootDomain: string) => `${prefix}.${rootDomain}`
 const productionHostnameFor = (prefix: string) => hostnameFor(prefix, productionRootDomain)
 const localHostnameFor = (prefix: string) => hostnameFor(prefix, localRootDomain)
+const publicProductionHostname = import.meta.env.VITE_PUBLIC_SITE_HOST || productionHostnameFor('www')
 const identityProductionOrigin = `https://${productionHostnameFor('auth')}`
 const identityLocalOrigin = `https://${localHostnameFor('auth')}${localDevelopmentPort}`
 
@@ -144,7 +145,7 @@ const profileAccessPermissions: Partial<Record<SiteProfileId, readonly Permissio
 export const siteDefinitions = [
   {
     id: 'public',
-    productionHostname: productionHostnameFor('www'),
+    productionHostname: publicProductionHostname,
     localHostname: localHostnameFor('www'),
     defaultPath: '/home',
     routeGroups: ['public', 'shared'],

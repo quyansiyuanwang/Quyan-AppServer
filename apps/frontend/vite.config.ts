@@ -27,7 +27,7 @@ import { autoRouteTypes } from './scripts/plugins/vite-plugin-auto-route-types'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const isProd = mode === 'production' || mode === 'prod'
+  const isProd = mode === 'production' || mode === 'prod' || mode === 'staging'
   const normalizeRootDomain = (value: string | undefined, name: string): string | undefined => {
     const normalized = value?.trim().toLowerCase().replace(/\.$/, '')
     if (!normalized) return undefined
@@ -45,6 +45,9 @@ export default defineConfig(({ mode }) => {
   if (isProd && !rootDomain)
     throw new Error('ROOT_DOMAIN must be defined for a production frontend build')
   const resolvedRootDomain = rootDomain || 'qysyw.cn'
+  const publicSiteHostname =
+    normalizeRootDomain(env.VITE_PUBLIC_SITE_HOST, 'VITE_PUBLIC_SITE_HOST') ||
+    `www.${resolvedRootDomain}`
   const configuredBackendUrl = env.VITE_BACKEND_URL?.trim()
   const productionApiOrigin =
     env.API_ORIGIN?.trim() ||
@@ -54,6 +57,7 @@ export default defineConfig(({ mode }) => {
     normalizeRootDomain(env.LOCAL_ROOT_DOMAIN, 'LOCAL_ROOT_DOMAIN') || 'qysyw.test'
   const firstPartyHostPrefixes = [
     'www',
+    'api',
     'auth',
     'account',
     'chat',
@@ -83,6 +87,7 @@ export default defineConfig(({ mode }) => {
   const enableVueDevTools = readBooleanEnv(env.VITE_ENABLE_VUE_DEVTOOLS, !isProd)
   const allowedHosts = [
     'localhost',
+    publicSiteHostname,
     ...firstPartyHostPrefixes.map((prefix) => `${prefix}.${localRootDomain}`),
   ]
   const defaultHttpsKeyPath = `.certs/${localRootDomain}-key.pem`
@@ -245,6 +250,7 @@ export default defineConfig(({ mode }) => {
     define: {
       'import.meta.env.VITE_ROOT_DOMAIN': JSON.stringify(resolvedRootDomain),
       'import.meta.env.VITE_LOCAL_ROOT_DOMAIN': JSON.stringify(localRootDomain),
+      'import.meta.env.VITE_PUBLIC_SITE_HOST': JSON.stringify(publicSiteHostname),
     },
     plugins: [
       autoRouteTypes({
@@ -315,11 +321,29 @@ export default defineConfig(({ mode }) => {
       allowedHosts,
       https,
       proxy: {
-        '^/api(?:/|$)': {
-          target: 'http://localhost:10001',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api(?=\/|$)/, ''),
-        },
+        // `api.<local root>:5173` is the local API origin. Keep the browser
+        // request shape identical to deployment while forwarding it to the
+        // backend development server.
+        ...(!isProd
+          ? {
+              '^/v1(?:/|$)': {
+                target: 'http://localhost:10001',
+                changeOrigin: true,
+              },
+              '^/relay(?:/|$)': {
+                target: 'http://localhost:10001',
+                changeOrigin: true,
+              },
+              '^/auth-center(?:/|$)': {
+                target: 'http://localhost:10001',
+                changeOrigin: true,
+              },
+              '^/docs(?:/|$)': {
+                target: 'http://localhost:10001',
+                changeOrigin: true,
+              },
+            }
+          : {}),
         // Keep the production prefixes usable during local development too. This
         // prevents an accidentally selected `.env.prod.local` from sending local
         // requests to a remote service; only the `prod` mode uses public hosts.

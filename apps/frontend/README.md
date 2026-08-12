@@ -78,8 +78,8 @@ pnpm run test:coverage
 参考 `frontend/.env.example`：
 
 ```env
-VITE_BACKEND_URL=/api
-VITE_AI_PROXY_URL=/api/relay/proxy
+VITE_BACKEND_URL=https://api.qysyw.test:5173
+VITE_AI_PROXY_URL=https://api.qysyw.test:5173/relay/proxy
 VITE_RECAPTCHA_SITE_KEY=
 VITE_TURNSTILE_SITE_KEY=
 ```

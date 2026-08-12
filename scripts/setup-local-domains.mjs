@@ -15,6 +15,7 @@ const beginMarker = '# BEGIN APPSERVER LOCAL DOMAINS'
 const endMarker = '# END APPSERVER LOCAL DOMAINS'
 const localHosts = [
   'www',
+  'api',
   'legacy',
   'auth',
   'account',
