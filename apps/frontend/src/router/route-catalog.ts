@@ -694,6 +694,17 @@ export const resolveRouteMigration = (
   pathname: string,
   profile: SiteProfile,
 ): { profileId: SiteRouteGroup; path: string } | undefined => {
+  // Multiple sites may deliberately use the same canonical path (for example,
+  // `/overview`). A route that is canonical on the current host must win over
+  // an earlier catalog entry owned by a different site.
+  const hasCanonicalPathOnCurrentProfile = routeCatalog.some(
+    (entry) => entry.group === profile.id && Boolean(matchPathTemplate(entry.path, pathname)),
+  )
+  const hasCanonicalPathOnAnotherProfile = routeCatalog.some(
+    (entry) => entry.group !== profile.id && Boolean(matchPathTemplate(entry.path, pathname)),
+  )
+  if (hasCanonicalPathOnCurrentProfile && hasCanonicalPathOnAnotherProfile) return undefined
+
   for (const entry of [...routeCatalog, ...legacyRouteMigrations]) {
     if (entry.group === 'shared') continue
     const matchingTemplate = [entry.path, ...(entry.legacyPaths ?? [])].find((template) =>
@@ -703,10 +714,6 @@ export const resolveRouteMigration = (
 
     const params = matchPathTemplate(matchingTemplate, pathname)
     if (!params) continue
-    const isCanonicalOnCurrentProfile =
-      entry.group === profile.id && matchingTemplate === entry.path
-    if (isCanonicalOnCurrentProfile) return undefined
-
     return { profileId: entry.group, path: fillPathParams(entry.path, params) }
   }
 
