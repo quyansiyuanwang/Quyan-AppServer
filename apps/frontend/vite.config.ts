@@ -60,6 +60,20 @@ export default defineConfig(({ mode }) => {
     const hostname = request.headers.host?.split(':', 1)[0]?.toLowerCase()
     return hostname === localApiHostname ? undefined : (request.url ?? '/')
   }
+  const preserveBrowserOrigin = (proxy: {
+    on: (
+      event: 'proxyReq',
+      handler: (
+        proxyReq: { setHeader: (name: string, value: string) => void },
+        request: { headers?: { origin?: string } },
+      ) => void,
+    ) => void
+  }) => {
+    proxy.on('proxyReq', (proxyReq, request) => {
+      const origin = request.headers?.origin
+      if (origin) proxyReq.setHeader('origin', origin)
+    })
+  }
   const firstPartyHostPrefixes = [
     'www',
     'api',
@@ -99,11 +113,13 @@ export default defineConfig(({ mode }) => {
   const defaultHttpsCertPath = `.certs/${localRootDomain}.pem`
   const httpsKeyPath = env.VITE_HTTPS_KEY_PATH?.trim() || defaultHttpsKeyPath
   const httpsCertPath = env.VITE_HTTPS_CERT_PATH?.trim() || defaultHttpsCertPath
+  const resolvedHttpsKeyPath = resolve(__dirname, httpsKeyPath)
+  const resolvedHttpsCertPath = resolve(__dirname, httpsCertPath)
   const https =
-    existsSync(resolve(httpsKeyPath)) && existsSync(resolve(httpsCertPath))
+    existsSync(resolvedHttpsKeyPath) && existsSync(resolvedHttpsCertPath)
       ? {
-          key: readFileSync(resolve(httpsKeyPath)),
-          cert: readFileSync(resolve(httpsCertPath)),
+          key: readFileSync(resolvedHttpsKeyPath),
+          cert: readFileSync(resolvedHttpsCertPath),
         }
       : undefined
 
@@ -325,6 +341,10 @@ export default defineConfig(({ mode }) => {
       host: true,
       allowedHosts,
       https,
+      // Let the API proxy forward browser preflight requests to the backend.
+      // Vite's built-in CORS middleware otherwise ends OPTIONS before the
+      // backend can return its first-party-origin credentials policy.
+      cors: false,
       proxy: {
         // `api.<local root>:5173` is the local API origin. Keep the browser
         // request shape identical to deployment while forwarding it to the
@@ -333,23 +353,27 @@ export default defineConfig(({ mode }) => {
           ? {
               '^/v1(?:/|$)': {
                 target: 'http://localhost:10001',
-                changeOrigin: true,
+                changeOrigin: false,
                 bypass: bypassNonApiHost,
+                configure: preserveBrowserOrigin,
               },
               '^/relay(?:/|$)': {
                 target: 'http://localhost:10001',
-                changeOrigin: true,
+                changeOrigin: false,
                 bypass: bypassNonApiHost,
+                configure: preserveBrowserOrigin,
               },
               '^/auth-center(?:/|$)': {
                 target: 'http://localhost:10001',
-                changeOrigin: true,
+                changeOrigin: false,
                 bypass: bypassNonApiHost,
+                configure: preserveBrowserOrigin,
               },
               '^/docs(?:/|$)': {
                 target: 'http://localhost:10001',
-                changeOrigin: true,
+                changeOrigin: false,
                 bypass: bypassNonApiHost,
+                configure: preserveBrowserOrigin,
               },
             }
           : {}),

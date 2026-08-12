@@ -1,8 +1,8 @@
 import { createAuthControllerApi } from '@/client/services/auth-controller.gen'
 import {
   isKnownSiteProfile,
+  getSiteProfileForEnvironment,
   resolveCurrentSiteProfile,
-  siteProfiles,
   type SiteProfile,
 } from '@/config/site-registry'
 import { useRequestStore } from '@/stores/request'
@@ -105,11 +105,9 @@ export const completeCentralLogin = async (flowId: unknown): Promise<boolean> =>
 
 export const getDefaultAccountDestination = (): string => {
   const currentProfile = resolveCurrentSiteProfile()
-  const useLocalDomain = currentProfile.hostname.endsWith('.test')
-  const accountProfile = siteProfiles.find(
-    (profile) =>
-      profile.id === 'account' && profile.hostname.endsWith(useLocalDomain ? '.test' : '.cn'),
-  )
+  if (!isKnownSiteProfile(currentProfile)) throw new Error('Current site profile is not registered')
+
+  const accountProfile = getSiteProfileForEnvironment('account', currentProfile)
   if (!accountProfile) throw new Error('Account profile is not registered')
   return new URL(accountProfile.defaultPath, accountProfile.canonicalOrigin).toString()
 }

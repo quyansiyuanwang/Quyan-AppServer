@@ -24,7 +24,7 @@ const firstPartyHostPrefixes = [
   "terminal.management",
 ] as const;
 
-function normalizeRootDomain(value: string | undefined): string | undefined {
+export function normalizeRootDomain(value: string | undefined): string | undefined {
   const normalized = String(value || "")
     .trim()
     .toLowerCase()
@@ -49,9 +49,21 @@ export function resolveRootDomain(source: EnvSnapshot, isProduction: boolean): s
   return "qysyw.test";
 }
 
+/** Additional trusted deployment roots, expanded to exact first-party origins only. */
+export function resolveTrustedRootDomains(source: EnvSnapshot, isProduction: boolean): string[] {
+  const primaryRootDomain = resolveRootDomain(source, isProduction);
+  const additionalRootDomains = String(source.ADDITIONAL_ROOT_DOMAINS || "")
+    .split(",")
+    .map((value) => normalizeRootDomain(value))
+    .filter((value): value is string => Boolean(value));
+
+  return [...new Set([primaryRootDomain, ...additionalRootDomains])];
+}
+
 export function buildFirstPartyOrigins(rootDomain: string, localPort?: string): string[] {
-  return firstPartyHostPrefixes.map((prefix) => {
+  return ["", ...firstPartyHostPrefixes].map((prefix) => {
     const port = localPort ? (prefix === "legacy" ? ":5174" : localPort) : "";
-    return `https://${prefix}.${rootDomain}${port}`;
+    const hostname = prefix ? `${prefix}.${rootDomain}` : rootDomain;
+    return `https://${hostname}${port}`;
   });
 }

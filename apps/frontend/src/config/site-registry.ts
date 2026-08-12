@@ -49,8 +49,8 @@ interface SiteDefinition {
   accessPermissions?: readonly Permission[]
 }
 
-const productionRootDomain = import.meta.env.VITE_ROOT_DOMAIN
-const localRootDomain = import.meta.env.VITE_LOCAL_ROOT_DOMAIN
+const productionRootDomain = import.meta.env.VITE_ROOT_DOMAIN || 'qysyw.cn'
+const localRootDomain = import.meta.env.VITE_LOCAL_ROOT_DOMAIN || 'qysyw.test'
 const localDevelopmentPort = ':5173'
 const hostnameFor = (prefix: string, rootDomain: string) => `${prefix}.${rootDomain}`
 const productionHostnameFor = (prefix: string) => hostnameFor(prefix, productionRootDomain)
@@ -394,17 +394,118 @@ const registeredProfiles = siteDefinitions.flatMap((definition) => [
 
 export const siteProfiles: readonly SiteProfile[] = registeredProfiles
 
+const staticProfilesByHostname = new Map(siteProfiles.map((profile) => [profile.hostname, profile]))
+const staticProfilesByOrigin = new Map(siteProfiles.map((profile) => [profile.canonicalOrigin, profile]))
+const dynamicProductionProfiles = new Map<string, readonly SiteProfile[]>()
+
+const isValidRootDomain = (hostname: string): boolean => {
+  const labels = hostname.split('.')
+  return (
+    hostname.length <= 253 &&
+    labels.length >= 2 &&
+    labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+  )
+}
+
+const getProductionPrefix = (definition: (typeof siteDefinitions)[number]): string | undefined => {
+  if (definition.id === 'public') return ''
+
+  const suffix = `.${productionRootDomain}`
+  if (!definition.productionHostname.endsWith(suffix)) return undefined
+  return definition.productionHostname.slice(0, -suffix.length)
+}
+
+const productionPrefixes = siteDefinitions
+  .map((definition) => getProductionPrefix(definition))
+  .filter((prefix): prefix is string => Boolean(prefix))
+  .sort((left, right) => right.length - left.length)
+const retiredRootLabels = new Set(['console', 'developer'])
+
+const createDynamicProductionProfiles = (rootDomain: string): readonly SiteProfile[] => {
+  const existing = dynamicProductionProfiles.get(rootDomain)
+  if (existing) return existing
+
+  const identityOrigin = `https://${hostnameFor('auth', rootDomain)}`
+  const profiles = siteDefinitions.flatMap((definition) => {
+    const prefix = getProductionPrefix(definition)
+    if (prefix === undefined) return []
+
+    const hostname = prefix ? hostnameFor(prefix, rootDomain) : rootDomain
+    return [toSiteProfile(definition, hostname, `https://${hostname}`, identityOrigin)]
+  })
+
+  dynamicProductionProfiles.set(rootDomain, profiles)
+  return profiles
+}
+
+/**
+ * Derives a deployment root from a known site prefix. This keeps one static
+ * build portable across delegated roots such as `md.qysyw.cn` without turning
+ * arbitrary subdomains into product routes.
+ */
+const inferProductionRootDomain = (hostname: string): string | undefined => {
+  if (!isValidRootDomain(hostname) || hostname.endsWith(`.${localRootDomain}`)) return undefined
+
+  for (const prefix of productionPrefixes) {
+    const prefixWithDot = `${prefix}.`
+    if (!hostname.startsWith(prefixWithDot)) continue
+
+    const rootDomain = hostname.slice(prefixWithDot.length)
+    if (isValidRootDomain(rootDomain) && !retiredRootLabels.has(rootDomain.split('.')[0]!))
+      return rootDomain
+  }
+
+  if (hostname.startsWith('www.')) {
+    const rootDomain = hostname.slice('www.'.length)
+    if (isValidRootDomain(rootDomain)) return rootDomain
+  }
+
+  // EO only serves this static bundle for domains explicitly bound to the
+  // project. A single delegated label, e.g. `md.qysyw.cn`, is therefore a
+  // valid public root; deeper unknown hosts stay rejected unless they match a
+  // known site prefix above.
+  if (hostname.endsWith(`.${productionRootDomain}`)) {
+    const delegatedLabel = hostname.slice(0, -(productionRootDomain.length + 1))
+    return delegatedLabel &&
+      !delegatedLabel.includes('.') &&
+      !retiredRootLabels.has(delegatedLabel)
+      ? hostname
+      : undefined
+  }
+
+  return hostname === productionRootDomain ? hostname : undefined
+}
+
+const resolveDynamicProductionProfile = (hostname: string): SiteProfile | undefined => {
+  const rootDomain = inferProductionRootDomain(hostname)
+  if (!rootDomain) return undefined
+  return createDynamicProductionProfiles(rootDomain).find((profile) => profile.hostname === hostname)
+}
+
+const getProfilesForEnvironment = (profile: SiteProfile): readonly SiteProfile[] => {
+  if (profile.hostname.endsWith(`.${localRootDomain}`)) {
+    return siteProfiles.filter(
+      (candidate) => candidate.hostname.endsWith(`.${localRootDomain}`),
+    )
+  }
+
+  const rootDomain = inferProductionRootDomain(profile.hostname)
+  if (rootDomain && rootDomain !== productionRootDomain) return createDynamicProductionProfiles(rootDomain)
+
+  return siteProfiles.filter((candidate) => candidate.hostname.endsWith(`.${productionRootDomain}`))
+}
+
 export const getSiteProfilesForEnvironment = (
   currentProfile: SiteProfile,
 ): readonly SiteProfile[] => {
-  const hostnameSuffix = currentProfile.hostname.endsWith(`.${localRootDomain}`)
-    ? `.${localRootDomain}`
-    : `.${productionRootDomain}`
-
-  return siteProfiles.filter(
-    (profile) => profile.id !== 'identity' && profile.hostname.endsWith(hostnameSuffix),
-  )
+  return getProfilesForEnvironment(currentProfile).filter((profile) => profile.id !== 'identity')
 }
+
+export const getSiteProfileForEnvironment = (
+  profileId: SiteProfileId,
+  currentProfile: SiteProfile,
+): SiteProfile | undefined =>
+  getProfilesForEnvironment(currentProfile).find((profile) => profile.id === profileId)
 
 /** Returns only destinations exposed to the current user in the site switcher. */
 export const getAccessibleSiteProfiles = (
@@ -421,9 +522,6 @@ export const getAccessibleSiteProfiles = (
       profile.accessPermissions.some((permission) => permissionSet.has(permission)),
   )
 }
-
-const profilesByHostname = new Map(siteProfiles.map((profile) => [profile.hostname, profile]))
-const profilesByOrigin = new Map(siteProfiles.map((profile) => [profile.canonicalOrigin, profile]))
 
 export const normalizeSiteHostname = (hostname: string): string | undefined => {
   const normalized = hostname.trim().toLowerCase().replace(/\.$/, '')
@@ -456,7 +554,11 @@ export const resolveSiteProfile = (hostname: string): ResolvedSiteProfile => {
   const normalizedHostname = normalizeSiteHostname(hostname)
   if (!normalizedHostname) return getRejectedSiteProfile(hostname)
 
-  return profilesByHostname.get(normalizedHostname) ?? getRejectedSiteProfile(normalizedHostname)
+  return (
+    staticProfilesByHostname.get(normalizedHostname) ??
+    resolveDynamicProductionProfile(normalizedHostname) ??
+    getRejectedSiteProfile(normalizedHostname)
+  )
 }
 
 export const resolveSiteProfileFromOrigin = (origin: string): ResolvedSiteProfile => {
@@ -472,7 +574,12 @@ export const resolveSiteProfileFromOrigin = (origin: string): ResolvedSiteProfil
       return getRejectedSiteProfile(parsed.hostname)
     }
 
-    return profilesByOrigin.get(parsed.origin) ?? getRejectedSiteProfile(parsed.hostname)
+    const normalizedHostname = normalizeSiteHostname(parsed.hostname)
+    if (!normalizedHostname) return getRejectedSiteProfile(parsed.hostname)
+
+    const profile =
+      staticProfilesByOrigin.get(parsed.origin) ?? resolveDynamicProductionProfile(normalizedHostname)
+    return profile?.canonicalOrigin === parsed.origin ? profile : getRejectedSiteProfile(parsed.hostname)
   } catch {
     return getRejectedSiteProfile('')
   }

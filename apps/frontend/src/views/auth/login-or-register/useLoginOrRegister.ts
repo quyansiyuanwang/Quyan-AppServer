@@ -482,10 +482,14 @@ export function useLoginOrRegister() {
 
   const redirectAfterSuccessfulLogin = async (userData?: Record<string, any>) => {
     const { authorizationService } = await loadAuthorizationService()
+    // A central-login flow must be consumed while this auth origin still has
+    // the newly issued access token. In development that token is deliberately
+    // short lived, while user/permission preloading can take long enough to
+    // expire it and restart the cross-domain redirect loop.
+    if (await completeCentralLogin(route.query.flowId)) return
+
     await authorizationService.reloadAuthStoresAfterLogin(userData)
     const postLoginRoute = buildPostLoginRoute()
-
-    if (await completeCentralLogin(route.query.flowId)) return
 
     if (resolveCurrentSiteProfile().id === 'identity' && postLoginRoute !== '/') {
       await router.push(postLoginRoute)

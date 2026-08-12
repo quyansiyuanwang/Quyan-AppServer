@@ -41,4 +41,24 @@ describe("central-login default origins", () => {
     expect(auth.social.frontendBaseUrl).toBe("https://auth.md.qysyw.cn");
     expect(auth.authCenter.issuer).toBe("https://api.md.qysyw.cn/auth-center");
   });
+
+  it("expands additional trusted roots into exact origins", () => {
+    const source = {
+      NODE_ENV: "production",
+      PORT: "10001",
+      ROOT_DOMAIN: "qysyw.cn",
+      ADDITIONAL_ROOT_DOMAINS: "md.qysyw.cn",
+      JWT_ACCESS_SECRET: "test-access-secret",
+      JWT_REFRESH_SECRET: "test-refresh-secret",
+      AUTH_CENTER_JWT_PRIVATE_KEY: "test-private-key",
+      AUTH_CENTER_JWT_PUBLIC_KEY: "test-public-key",
+    } as EnvSnapshot;
+    const runtime = buildRuntimeConfig(source);
+    const auth = buildAuthConfig(source, runtime);
+
+    expect(runtime.trustedRootDomains).toEqual(["qysyw.cn", "md.qysyw.cn"]);
+    expect(runtime.corsAllowedOrigins).toContain("https://terminal.md.qysyw.cn");
+    expect(auth.centralLogin.allowedOrigins).toContain("https://auth.md.qysyw.cn");
+    expect(auth.centralLogin.allowedOrigins).not.toContain("https://*.md.qysyw.cn");
+  });
 });

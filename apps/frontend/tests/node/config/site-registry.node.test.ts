@@ -35,6 +35,24 @@ describe('site registry', () => {
     })
   })
 
+  it('derives delegated production roots from the current hostname', () => {
+    expect(resolveSiteProfile('terminal.md.qysyw.cn')).toMatchObject({
+      id: 'terminal',
+      hostname: 'terminal.md.qysyw.cn',
+      canonicalOrigin: 'https://terminal.md.qysyw.cn',
+      authOrigin: 'https://auth.md.qysyw.cn',
+    })
+    expect(resolveSiteProfile('md.qysyw.cn')).toMatchObject({
+      id: 'public',
+      hostname: 'md.qysyw.cn',
+      canonicalOrigin: 'https://md.qysyw.cn',
+    })
+    expect(resolveSiteProfileFromOrigin('https://auth.md.qysyw.cn')).toMatchObject({
+      id: 'identity',
+      canonicalOrigin: 'https://auth.md.qysyw.cn',
+    })
+  })
+
   it('keeps first-level site navigation in the current environment', () => {
     const localAccount = resolveSiteProfile('account.qysyw.test')
     const productionAccount = resolveSiteProfile('account.qysyw.cn')
@@ -55,6 +73,22 @@ describe('site registry', () => {
     expect(productionProfiles.every((profile) => !profile.canonicalOrigin.includes(':5173'))).toBe(
       true,
     )
+  })
+
+  it('keeps delegated-root navigation on the same inferred deployment root', () => {
+    const terminal = resolveSiteProfile('terminal.md.qysyw.cn')
+    if (!isKnownSiteProfile(terminal)) throw new Error('Expected delegated terminal profile')
+
+    const profiles = getSiteProfilesForEnvironment(terminal)
+    expect(profiles).toHaveLength(19)
+    expect(
+      profiles.every(
+        (profile) => profile.hostname === 'md.qysyw.cn' || profile.hostname.endsWith('.md.qysyw.cn'),
+      ),
+    ).toBe(true)
+    expect(profiles.find((profile) => profile.id === 'public')).toMatchObject({
+      hostname: 'md.qysyw.cn',
+    })
   })
 
   it('registers product consoles and hides inaccessible profiles from navigation', () => {

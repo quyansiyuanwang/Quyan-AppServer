@@ -1,5 +1,5 @@
 import { sanitizeInt } from "./common";
-import { buildFirstPartyOrigins, resolveRootDomain } from "./domain";
+import { buildFirstPartyOrigins, resolveRootDomain, resolveTrustedRootDomains } from "./domain";
 import type { EnvSnapshot } from "./source";
 
 export function buildRuntimeConfig(source: EnvSnapshot) {
@@ -15,9 +15,13 @@ export function buildRuntimeConfig(source: EnvSnapshot) {
 
   const isProduction = nodeEnv === "production";
   const rootDomain = resolveRootDomain(source, isProduction);
+  const trustedRootDomains = resolveTrustedRootDomains(source, isProduction);
   const configuredCorsAllowedOrigins = String(source.CORS_ALLOWED_ORIGINS || "").trim();
   const corsAllowedOrigins =
-    configuredCorsAllowedOrigins || buildFirstPartyOrigins(rootDomain, isProduction ? undefined : ":5173").join(",");
+    configuredCorsAllowedOrigins ||
+    trustedRootDomains
+      .flatMap((domain) => buildFirstPartyOrigins(domain, isProduction ? undefined : ":5173"))
+      .join(",");
   if (
     corsAllowedOrigins
       .split(",")
@@ -32,6 +36,7 @@ export function buildRuntimeConfig(source: EnvSnapshot) {
     isTest: nodeEnv === "test",
     nodeEnv,
     rootDomain,
+    trustedRootDomains,
     port: Number.parseInt(port, 10),
     trustProxyHops,
     corsAllowedOrigins,

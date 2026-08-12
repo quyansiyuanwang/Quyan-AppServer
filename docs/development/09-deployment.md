@@ -137,6 +137,8 @@ curl.exe --noproxy '*' --ssl-no-revoke -I https://www.<LOCAL_ROOT_DOMAIN>:5173/
 
 `legacy.<ROOT_DOMAIN>` 是唯一例外：它由 `origin/master` 的独立静态前端构建提供完整的单域名 UI，而不是多域名构建注册的 profile。两个版本均在已登录用户的侧栏登出入口之前显示版本切换按钮。新版使用受控的单一路径映射回原版；原版把当前安全路径交给新版主站，由新版迁移规则解析最终 Host。切换保留普通 query string 与 hash，但会删除 token、refresh token 和未验证回跳参数。生产反向代理必须将 `legacy.<ROOT_DOMAIN>` 指向原版静态构建，其余已注册 Host 指向多域名构建；留空的 CORS 与中央登录白名单会自动包含其精确 Origin。
 
+同一份多域名前端构件可自动从当前 Host 推导已部署根域：例如根域 `md.qysyw.cn`、`terminal.md.qysyw.cn`、`auth.md.qysyw.cn` 会组成同一个站点族，不需要为前端构建额外填写 `VITE_PUBLIC_SITE_HOST`。EO 仍必须将根域及站点子域实际绑定到该静态构件，并为深链配置 SPA fallback。后端不会根据任意请求 Origin 自动放行认证和 CORS；新增根域时，将它追加到 `ADDITIONAL_ROOT_DOMAINS`（或设为主 `ROOT_DOMAIN`），服务端会生成该根域全部站点的精确 CORS 与中央登录 Origin，不接受通配符。
+
 构建仍输出一个可部署构件，但浏览器会先按完整 hostname 解析 profile，再异步挂载该 profile 的应用根和路由树。公共站与认证站使用轻量根，不加载业务壳；业务站只注册当前 profile 的业务路由。禁止在启动、登录完成或空闲回调中预加载全部业务页面；仅可在用户明确指向的下一目标上进行按需预加载。
 
 SPA 的迁移守卫覆盖本地开发和边缘 SPA fallback，并在浏览器可见时保留 query string 与 hash。HTTP 请求不包含 hash，因此生产部署仍应优先在边缘层完成路径和 query 的迁移，避免用户下载错误站点的应用壳层。不得把认证 token、refresh token 或不受验证的回跳 URL 放入迁移地址。
@@ -214,6 +216,8 @@ pnpm --filter @appserver/backend pm2:rebuild
 PORT=10001
 NODE_ENV=production
 ROOT_DOMAIN=md.qysyw.cn
+# 同一 API 还需服务其他根域时，使用逗号分隔的可信根域列表。
+ADDITIONAL_ROOT_DOMAINS=qysyw.cn,md.qysyw.cn
 
 # 数据库
 DATABASE_URL=mysql://user:password@localhost:3306/database
@@ -299,7 +303,7 @@ pnpm run precommit
 - [ ] Prisma client 已生成 (`pnpm run db:generate`)
 - [ ] 生产构建成功 (`pnpm run build:full`)
 - [ ] `ROOT_DOMAIN` 已传给后端、前端和 docs-site 的生产构建
-- [ ] 每个 SPA host 都在边缘层精确 allowlist 中，未知 host 被拒绝；根域名 301 到 `www.<ROOT_DOMAIN>`
+- [ ] 根域及每个 SPA host 都已在边缘层绑定到静态构件；根域可直接作为公共站点，未知 host 被拒绝
 - [ ] 每个 SPA host 都有 HTTPS、SPA fallback 和深链刷新验证；`docs`、`api`、`ai` 不指向 SPA
 - [ ] 已知旧路径和错误 hostname 返回保留 query 的临时迁移；SPA fallback 保留 hash，未知 hostname 与未知路径保持拒绝
 - [ ] CORS 与 `CENTRAL_LOGIN_ALLOWED_ORIGINS` 只包含精确 origin，未使用通配符

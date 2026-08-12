@@ -309,9 +309,11 @@ const getSafeStepUpRedirect = (): string => {
 }
 
 const completeAndRedirect = async (userData?: Record<string, any>) => {
-  await authorizationService.reloadAuthStoresAfterLogin(userData)
-
+  // Consume a central-login flow before optional profile/permission loading;
+  // development access tokens are intentionally short lived.
   if (await completeCentralLogin(route.query.flowId)) return
+
+  await authorizationService.reloadAuthStoresAfterLogin(userData)
 
   if (resolveCurrentSiteProfile().id === 'identity') {
     window.location.replace(getDefaultAccountDestination())

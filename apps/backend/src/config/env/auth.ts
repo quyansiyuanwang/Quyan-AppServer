@@ -102,7 +102,7 @@ function buildSocialConfig(source: EnvSnapshot, runtime: { isProduction: boolean
 
 function parseCentralLoginAllowedOrigins(
   source: EnvSnapshot,
-  runtime: { isProduction: boolean; rootDomain: string },
+  runtime: { isProduction: boolean; rootDomain: string; trustedRootDomains?: readonly string[] },
 ): string[] {
   const configuredOrigins = String(source.CENTRAL_LOGIN_ALLOWED_ORIGINS || "")
     .split(",")
@@ -110,7 +110,9 @@ function parseCentralLoginAllowedOrigins(
     .filter(Boolean);
 
   if (configuredOrigins.length > 0) return configuredOrigins;
-  return buildFirstPartyOrigins(runtime.rootDomain, runtime.isProduction ? undefined : ":5173");
+  return (runtime.trustedRootDomains ?? [runtime.rootDomain]).flatMap((domain) =>
+    buildFirstPartyOrigins(domain, runtime.isProduction ? undefined : ":5173"),
+  );
 }
 
 export function buildAuthConfig(

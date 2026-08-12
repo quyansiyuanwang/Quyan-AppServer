@@ -1,4 +1,4 @@
-import { siteProfiles, type SiteProfile } from '@/config/site-registry'
+import { getSiteProfileForEnvironment, type SiteProfile } from '@/config/site-registry'
 import { resolveRouteMigration } from '@/router/route-catalog'
 
 const unsafeMigrationQueryKeys = new Set([
@@ -31,11 +31,7 @@ export const resolveRouteMigrationUrl = (
   const migration = resolveRouteMigration(pathname, profile)
   if (!migration || migration.profileId === 'shared') return undefined
 
-  const hostnameSuffix = profile.hostname.endsWith('.test') ? '.test' : '.cn'
-  const targetProfile = siteProfiles.find(
-    (candidate) =>
-      candidate.id === migration.profileId && candidate.hostname.endsWith(hostnameSuffix),
-  )
+  const targetProfile = getSiteProfileForEnvironment(migration.profileId, profile)
   if (!targetProfile) return undefined
 
   const target = new URL(migration.path, targetProfile.canonicalOrigin)

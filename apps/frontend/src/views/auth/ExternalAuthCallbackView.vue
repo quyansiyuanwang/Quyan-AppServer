@@ -36,8 +36,8 @@ onMounted(async () => {
 
     if (socialAuthService.isAuthData(result)) {
       authorizationService.completeLogin(result)
-      await authorizationService.reloadAuthStoresAfterLogin(result.user)
       if (await completeCentralLogin(route.query.flowId)) return
+      await authorizationService.reloadAuthStoresAfterLogin(result.user)
       window.location.replace(getDefaultAccountDestination())
       return
     }
