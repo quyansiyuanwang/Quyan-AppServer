@@ -1139,7 +1139,7 @@ describe("RelayChannelService", () => {
           name: "Channel",
           openaiUpstreamUrl: "https://upstream.example.com",
           openaiUpstreamApiKey: "openai-key",
-          allowedFormats: "all",
+          allowedFormats: undefined,
         },
         "actor-user",
       ),

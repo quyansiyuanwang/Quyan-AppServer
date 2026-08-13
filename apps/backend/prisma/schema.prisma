@@ -2008,7 +2008,7 @@ model ModelPricing {
   provider                String?
   cacheCreationMultiplier Decimal  @default(1.25) @db.Decimal(10, 2)
   cacheReadMultiplier     Decimal  @default(0.10) @db.Decimal(10, 2)
-  supportedFormats        String?  @db.VarChar(20)
+  supportedFormats        String?  @db.VarChar(100)
 
   @@index([model])
   @@map("model_pricing")

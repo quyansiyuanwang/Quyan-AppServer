@@ -895,8 +895,12 @@ export class RelayProxyService {
           ),
         ),
       ].join(",");
+      const formatLabel =
+        requestFormat === "openai-chat-completions"
+          ? "openai format requests (openai-chat-completions format requests)"
+          : `${requestFormat} format requests`;
       throw new BadRequestError(
-        `Channel does not support ${requestFormat} format requests. Allowed formats: ${allowedFormats || "none"}`,
+        `Channel does not support ${formatLabel}. Allowed formats: ${allowedFormats || "none"}`,
       );
     }
 

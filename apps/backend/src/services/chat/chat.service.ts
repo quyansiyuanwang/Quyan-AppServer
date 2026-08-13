@@ -322,13 +322,15 @@ export class ChatService {
 
       effectiveCandidate = candidate;
       try {
+        const streamRequestFormat =
+          candidate.requestFormat === "openai-chat-completions" ? "openai" : candidate.requestFormat;
         const stream = requestMeta?.signal
           ? this.aiProvider.streamChat(
               messages,
               selectedModelId,
               candidate.upstreamApiKey,
               candidate.upstreamUrl,
-              candidate.requestFormat,
+              streamRequestFormat,
               requestMeta.signal,
             )
           : this.aiProvider.streamChat(
@@ -336,7 +338,7 @@ export class ChatService {
               selectedModelId,
               candidate.upstreamApiKey,
               candidate.upstreamUrl,
-              candidate.requestFormat,
+              streamRequestFormat,
             );
         for await (const chunk of stream) {
           if (!chunk.done && chunk.content) {

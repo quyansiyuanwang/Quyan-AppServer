@@ -80,11 +80,14 @@ export const requireRelayChannelForFormat = (
   if (typeof channel.status === "number" && channel.status !== RELAY_CHANNEL_STATUS.ENABLED)
     throw new ForbiddenError("The assigned relay channel is disabled. Please contact an administrator.");
 
-  const allowedFormats = channel.allowedFormats?.trim() || undefined;
-  if (!supportsRelayRequestFormat(allowedFormats, requestFormat))
-    throw new BadRequestError(
-      `Channel does not support ${requestFormat} format requests. Allowed formats: ${allowedFormats || "none"}`,
-    );
+  const allowedFormats = channel.allowedFormats?.trim() || "openai-chat-completions,openai-responses,anthropic,gemini";
+  if (!supportsRelayRequestFormat(allowedFormats, requestFormat)) {
+    const formatLabel =
+      requestFormat === "openai-chat-completions"
+        ? "openai format requests (openai-chat-completions format requests)"
+        : `${requestFormat} format requests`;
+    throw new BadRequestError(`Channel does not support ${formatLabel}. Allowed formats: ${allowedFormats}`);
+  }
 
   return channel;
 };

@@ -9,7 +9,7 @@ const createChannel = (id: string, overrides: Record<string, unknown> = {}) =>
     name: id,
     status: RELAY_CHANNEL_STATUS.ENABLED,
     channelType: "standalone",
-    allowedFormats: "all",
+    allowedFormats: null,
     allowedModels: null,
     routingConfig: { allowedModelsMode: "all" },
     poolMembers: [],
@@ -108,7 +108,7 @@ describe("RelayPoolResolverService", () => {
 
     const [resolvedLeaf] = await resolver.resolveActiveLeaves([pool]);
 
-    expect(resolvedLeaf.allowedFormats).toBe("openai");
+    expect(resolvedLeaf.allowedFormats).toBe("openai-chat-completions");
     expect(resolvedLeaf.allowedModels).toBe(JSON.stringify(["gpt-4o"]));
     expect((resolvedLeaf.routingConfig as any).allowedModelsMode).toBe("manual");
   });
@@ -246,7 +246,7 @@ describe("RelayPoolResolverService", () => {
         mapping: channel.modelMapping,
       })),
     ).toEqual([
-      { formats: "openai", models: ["model-a"], mapping: { "request-a": "upstream-a" } },
+      { formats: "openai-chat-completions", models: ["model-a"], mapping: { "request-a": "upstream-a" } },
       { formats: "anthropic", models: ["model-b"], mapping: { "request-b": "upstream-b" } },
     ]);
   });
@@ -310,7 +310,7 @@ describe("RelayPoolResolverService", () => {
         leafChannelId: leaf.id,
         catalogModelName: "GPT 4o",
         requestModelId: "gpt-4o",
-        supportedRequestFormats: ["openai"],
+        supportedRequestFormats: ["openai-chat-completions"],
         modelMapping: { "gpt-4o": "upstream-gpt-4o" },
       },
     ]);

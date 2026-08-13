@@ -48,7 +48,7 @@ export const clearRelayChannelProbeRunHistoryQuerySchema = z.object({
 export const upsertRelayChannelProbeProfileBodySchema = z
   .object({
     enabled: z.boolean(),
-    probeFormat: z.enum(["openai-chat-completions", "openai-responses", "anthropic", "gemini"]),
+    probeFormat: z.enum(["openai", "openai-chat-completions", "openai-responses", "anthropic", "gemini"]),
     probeEndpoint: probeEndpointSchema.optional(),
     probeModel: z.string().trim().min(1).max(200),
     probePayload: z.record(z.string(), z.unknown()),
@@ -90,7 +90,7 @@ export const upsertRelayChannelProbeProfileBodySchema = z
     const endpoint = value.probeEndpoint;
     if (
       endpoint &&
-      ((endpoint === "openai-chat-completions" && value.probeFormat !== "openai-chat-completions") ||
+      ((endpoint === "openai-chat-completions" && !["openai", "openai-chat-completions"].includes(value.probeFormat)) ||
         (endpoint === "openai-responses" && value.probeFormat !== "openai-responses") ||
         (endpoint === "anthropic-messages" && value.probeFormat !== "anthropic") ||
         (endpoint === "gemini-generate-content" && value.probeFormat !== "gemini"))

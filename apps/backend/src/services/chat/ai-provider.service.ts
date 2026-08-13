@@ -110,10 +110,10 @@ export class AIProviderService {
   }
 
   getProvider(model: string): RelayRequestFormat {
-    if (model.startsWith("gpt-") || model.startsWith("o1-")) return "openai-chat-completions";
+    if (model.startsWith("gpt-") || model.startsWith("o1-")) return "openai";
     if (model.startsWith("claude-")) return "anthropic";
     if (model.startsWith("gemini-")) return "gemini";
-    return "openai-chat-completions";
+    return "openai";
   }
 
   private resolveProvider(model: string, requestFormat?: RelayRequestFormat): RelayRequestFormat {

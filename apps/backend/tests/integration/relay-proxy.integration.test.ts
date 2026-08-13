@@ -146,7 +146,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           name: `test_relay_openai_channel_${suffix}`,
           openaiUpstreamUrl: relayAIMockPlugin.baseUrl,
           openaiUpstreamApiKey: "test-openai-key",
-          allowedFormats: "openai",
+          allowedFormats: "openai-chat-completions,openai-responses",
           multiplier: 1,
         },
       })
@@ -158,7 +158,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           name: `test_relay_openai_failover_primary_${suffix}`,
           openaiUpstreamUrl: relayAIMockPlugin.baseUrl,
           openaiUpstreamApiKey: "test-openai-failover-primary-key",
-          allowedFormats: "openai",
+          allowedFormats: "openai-chat-completions,openai-responses",
           multiplier: 1,
         },
       })
@@ -170,7 +170,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           name: `test_relay_openai_failover_secondary_${suffix}`,
           openaiUpstreamUrl: relayAIMockPlugin.baseUrl,
           openaiUpstreamApiKey: "test-openai-failover-secondary-key",
-          allowedFormats: "openai",
+          allowedFormats: "openai-chat-completions,openai-responses",
           multiplier: 1,
         },
       })
@@ -264,7 +264,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         pricingType: "token-based",
         inputPrice: 10,
         outputPrice: 10,
-        supportedFormats: "openai",
+        supportedFormats: "openai-chat-completions,openai-responses",
         status: 1,
       },
     });
@@ -403,7 +403,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         inputPrice: 0,
         outputPrice: 0,
         fixedPrice: 0.25,
-        supportedFormats: "openai",
+        supportedFormats: "openai-chat-completions,openai-responses",
         status: 1,
       },
     });
@@ -524,7 +524,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         pricingType: "token-based",
         inputPrice: 10,
         outputPrice: 10,
-        supportedFormats: "openai",
+        supportedFormats: "openai-chat-completions,openai-responses",
         status: 1,
       },
     });
@@ -570,7 +570,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         pricingType: "token-based",
         inputPrice: 10,
         outputPrice: 10,
-        supportedFormats: "openai",
+        supportedFormats: "openai-chat-completions,openai-responses",
         status: 1,
       },
     });
@@ -631,7 +631,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         pricingType: "token-based",
         inputPrice: 10,
         outputPrice: 10,
-        supportedFormats: "openai",
+        supportedFormats: "openai-chat-completions,openai-responses",
         status: 1,
       },
     });
@@ -736,7 +736,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           pricingType: "token-based",
           inputPrice: 10,
           outputPrice: 10,
-          supportedFormats: "openai",
+          supportedFormats: "openai-chat-completions,openai-responses",
           status: 1,
         },
         {
@@ -745,7 +745,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           pricingType: "token-based",
           inputPrice: 10,
           outputPrice: 10,
-          supportedFormats: "openai",
+          supportedFormats: "openai-chat-completions,openai-responses",
           status: 1,
         },
       ],
@@ -803,7 +803,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         pricingType: "token-based",
         inputPrice: 10,
         outputPrice: 10,
-        supportedFormats: "openai",
+        supportedFormats: "openai-chat-completions,openai-responses",
         status: 1,
       },
     });
@@ -851,7 +851,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           pricingType: "token-based",
           inputPrice: 10,
           outputPrice: 10,
-          supportedFormats: "openai",
+          supportedFormats: "openai-chat-completions,openai-responses",
           status: 1,
         },
         {
@@ -859,7 +859,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           pricingType: "token-based",
           inputPrice: 10,
           outputPrice: 10,
-          supportedFormats: "openai",
+          supportedFormats: "openai-chat-completions,openai-responses",
           status: 1,
         },
       ],
