@@ -3632,6 +3632,8 @@ export default {
     allowedFormatsHelp: 'Select API formats this channel supports',
     formatAll: 'All Formats',
     formatOpenAI: 'OpenAI',
+    formatOpenAIChatCompletions: 'OpenAI Chat Completions',
+    formatOpenAIResponses: 'OpenAI Responses',
     formatAnthropic: 'Anthropic',
     formatGemini: 'Gemini',
     allModels: 'All',
@@ -4401,7 +4403,7 @@ export default {
     endpointDesc:
       'Use your token as Authorization Bearer Token. All requests must include a valid token to access the API.',
     openaiNote:
-      'Compatible with OpenAI Chat Completions API, supports /v1/chat/completions and other endpoints',
+      'Supports /v1/chat/completions and /v1/responses separately; channels and models must enable each format explicitly.',
     anthropicNote:
       'Compatible with Anthropic Messages API, supports /v1/messages and other endpoints',
     geminiNote:

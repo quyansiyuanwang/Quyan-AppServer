@@ -1,4 +1,15 @@
-export const SUPPORTED_RELAY_FORMATS = ['openai', 'anthropic', 'gemini'] as const
+export const SUPPORTED_RELAY_FORMATS = [
+  'openai-chat-completions',
+  'openai-responses',
+  'anthropic',
+  'gemini',
+] as const
+
+const LEGACY_ALL_RELAY_FORMATS: RelayFormat[] = [
+  'openai-chat-completions',
+  'anthropic',
+  'gemini',
+]
 
 export type RelayFormat = (typeof SUPPORTED_RELAY_FORMATS)[number]
 
@@ -18,6 +29,7 @@ export const parseConfiguredRelayFormats = (formats?: string | null): RelayForma
 
   const parsed = formats
     .split(',')
+    .map((format) => (format.trim().toLowerCase() === 'openai' ? 'openai-chat-completions' : format))
     .map((format) => normalizeRelayFormat(format))
     .filter((format): format is RelayFormat => Boolean(format))
 
@@ -26,13 +38,15 @@ export const parseConfiguredRelayFormats = (formats?: string | null): RelayForma
 
 export const normalizeRelayFormats = (formats?: string | null): RelayFormat[] => {
   const configured = parseConfiguredRelayFormats(formats)
-  return configured.length > 0 ? configured : [...SUPPORTED_RELAY_FORMATS]
+  if (configured.length > 0) return configured
+  return !formats?.trim() ? [...LEGACY_ALL_RELAY_FORMATS] : []
 }
 
 export const normalizeRelayFormatArray = (formats?: string[] | null): RelayFormat[] => {
   if (!formats?.length) return []
 
   const normalized = formats
+    .map((format) => (String(format).trim().toLowerCase() === 'openai' ? 'openai-chat-completions' : format))
     .map((format) => normalizeRelayFormat(String(format)))
     .filter((format): format is RelayFormat => Boolean(format))
 
@@ -46,5 +60,5 @@ export const toConfiguredRelayFormats = (formats?: string[] | string | null): Re
 
 export const serializeRelayFormats = (formats?: string[] | string | null): string => {
   const configured = toConfiguredRelayFormats(formats)
-  return configured.length > 0 ? configured.join(',') : 'all'
+  return configured.join(',')
 }

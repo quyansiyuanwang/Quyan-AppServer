@@ -202,7 +202,7 @@ export interface RelayChannelOptionDto {
 export interface RelayChannelModelCapabilityDto {
   catalogModelName: string;
   requestModelId: string;
-  supportedRequestFormats: Array<"openai" | "anthropic" | "gemini">;
+  supportedRequestFormats: Array<"openai-chat-completions" | "openai-responses" | "anthropic" | "gemini">;
 }
 
 /** Model-specific multiplier range for a logical channel with variable upstream pricing. */

@@ -406,7 +406,8 @@
           :max-collapse-tags="2"
           style="width: 100%"
         >
-          <el-option :label="i18ns.t('relay.formatOpenAI')" value="openai" />
+          <el-option :label="i18ns.t('relay.formatOpenAIChatCompletions')" value="openai-chat-completions" />
+          <el-option :label="i18ns.t('relay.formatOpenAIResponses')" value="openai-responses" />
           <el-option :label="i18ns.t('relay.formatAnthropic')" value="anthropic" />
           <el-option :label="i18ns.t('relay.formatGemini')" value="gemini" />
         </el-select>
@@ -1153,31 +1154,30 @@
               {{ i18ns.t('relay.supportedFormats') }}
             </div>
             <div class="flex flex-wrap gap-2">
-              <template v-if="currentChannelDetail.allowedFormats === 'all'">
-                <el-tag type="success" size="small">OpenAI</el-tag>
-                <el-tag type="warning" size="small">Anthropic</el-tag>
-                <el-tag type="primary" size="small">Gemini</el-tag>
-              </template>
-              <template v-else>
-                <el-tag
-                  v-if="currentChannelDetail.allowedFormats.includes('openai')"
-                  type="success"
-                  size="small"
-                  >OpenAI</el-tag
-                >
-                <el-tag
-                  v-if="currentChannelDetail.allowedFormats.includes('anthropic')"
-                  type="warning"
-                  size="small"
-                  >Anthropic</el-tag
-                >
-                <el-tag
-                  v-if="currentChannelDetail.allowedFormats.includes('gemini')"
-                  type="primary"
-                  size="small"
-                  >Gemini</el-tag
-                >
-              </template>
+              <el-tag
+                v-if="currentChannelDetail.allowedFormats.includes('openai-chat-completions')"
+                type="success"
+                size="small"
+                >OpenAI Chat</el-tag
+              >
+              <el-tag
+                v-if="currentChannelDetail.allowedFormats.includes('openai-responses')"
+                type="success"
+                size="small"
+                >OpenAI Responses</el-tag
+              >
+              <el-tag
+                v-if="currentChannelDetail.allowedFormats.includes('anthropic')"
+                type="warning"
+                size="small"
+                >Anthropic</el-tag
+              >
+              <el-tag
+                v-if="currentChannelDetail.allowedFormats.includes('gemini')"
+                type="primary"
+                size="small"
+                >Gemini</el-tag
+              >
             </div>
           </div>
           <div>

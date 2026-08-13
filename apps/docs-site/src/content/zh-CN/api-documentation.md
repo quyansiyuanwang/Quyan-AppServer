@@ -115,6 +115,15 @@ curl -X POST "https://api.qysyw.cn/relay/proxy/v1/images/edits" \
 
 建议新接入始终使用 `image[]`。能否实际理解或融合多张参考图仍取决于所选模型和上游渠道的能力。
 
+## OpenAI 文本中转格式
+
+Relay 将 OpenAI 的两种 v1 文本接口作为独立格式管理：
+
+- **OpenAI Chat Completions**：`/relay/proxy/v1/chat/completions`，请求体使用 `messages`。
+- **OpenAI Responses**：`/relay/proxy/v1/responses`，请求体使用 `input`。
+
+使用任一接口前，Relay Token 所属渠道和所选模型都必须显式启用对应格式。旧 OpenAI 配置仅兼容为 Chat Completions；Responses 不会自动启用。
+
 ## 最小 curl 示例
 
 ### 1. JWT 用户态请求

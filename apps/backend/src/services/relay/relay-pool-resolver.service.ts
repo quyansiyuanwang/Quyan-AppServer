@@ -1,5 +1,9 @@
 import type { Prisma, RelayChannel } from "@prisma/client";
-import { parseRelayModelNameConstraint, resolveModelId, type RelayRequestFormat } from "@appserver/shared";
+import {
+  parseRelayModelNameConstraint,
+  resolveModelId,
+  type RelayConfiguredRequestFormat,
+} from "@appserver/shared";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { BadRequestError } from "@/util/errors";
 import logger from "@/util/logger";
@@ -32,7 +36,7 @@ export interface RelayChannelGraphNode extends RelayChannel {
 }
 
 interface EffectiveChannelConstraints {
-  formats: Set<RelayRequestFormat>;
+  formats: Set<RelayConfiguredRequestFormat>;
   allowedModelNames: string[] | null;
   modelMapping: Record<string, string>;
 }
@@ -57,7 +61,7 @@ export interface RelayChannelModelCapability {
   leafChannelId: string;
   catalogModelName: string;
   requestModelId: string;
-  supportedRequestFormats: RelayRequestFormat[];
+  supportedRequestFormats: RelayConfiguredRequestFormat[];
   modelMapping: Record<string, string>;
 }
 
@@ -78,7 +82,12 @@ interface ResolvedLeafPath {
   constraints: EffectiveChannelConstraints;
 }
 
-const ALL_FORMATS = new Set<RelayRequestFormat>(["openai", "anthropic", "gemini"]);
+const ALL_FORMATS = new Set<RelayConfiguredRequestFormat>([
+  "openai-chat-completions",
+  "openai-responses",
+  "anthropic",
+  "gemini",
+]);
 
 export class RelayPoolResolverService {
   private static instance: RelayPoolResolverService;
@@ -344,12 +353,7 @@ export class RelayPoolResolverService {
     const routingConfig = (channel.routingConfig as Record<string, unknown> | null) ?? {};
     return {
       ...channel,
-      allowedFormats:
-        constraints.formats.size === ALL_FORMATS.size
-          ? "all"
-          : constraints.formats.size === 0
-            ? "none"
-            : [...constraints.formats].join(","),
+      allowedFormats: constraints.formats.size === 0 ? "none" : [...constraints.formats].join(","),
       allowedModels: constraints.allowedModelNames === null ? null : JSON.stringify(constraints.allowedModelNames),
       modelMapping: constraints.modelMapping as Prisma.JsonObject,
       routingConfig: {
@@ -368,11 +372,16 @@ export class RelayPoolResolverService {
     return JSON.stringify([channel.id, formats, models, mapping]);
   }
 
-  private sortFormats(formats: RelayRequestFormat[]): RelayRequestFormat[] {
+  private sortFormats(formats: RelayConfiguredRequestFormat[]): RelayConfiguredRequestFormat[] {
     return [...formats].sort(
       (left, right) => ALL_RELAY_FORMAT_ORDER.indexOf(left) - ALL_RELAY_FORMAT_ORDER.indexOf(right),
     );
   }
 }
 
-const ALL_RELAY_FORMAT_ORDER: RelayRequestFormat[] = ["openai", "anthropic", "gemini"];
+const ALL_RELAY_FORMAT_ORDER: RelayConfiguredRequestFormat[] = [
+  "openai-chat-completions",
+  "openai-responses",
+  "anthropic",
+  "gemini",
+];

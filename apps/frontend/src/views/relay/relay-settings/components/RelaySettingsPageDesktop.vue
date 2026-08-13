@@ -302,7 +302,8 @@
                           :max-collapse-tags="2"
                           style="width: 100%"
                         >
-                          <el-option label="OpenAI" value="openai" />
+                          <el-option label="OpenAI Chat Completions" value="openai-chat-completions" />
+                          <el-option label="OpenAI Responses" value="openai-responses" />
                           <el-option label="Anthropic" value="anthropic" />
                           <el-option label="Gemini" value="gemini" />
                         </el-select>
@@ -610,31 +611,24 @@
               >
                 <template #default="{ row }">
                   <div style="display: flex; gap: 4px; flex-wrap: wrap">
-                    <template v-if="row.allowedFormats === 'all'">
-                      <el-tag type="success" size="small">OpenAI</el-tag>
-                      <el-tag type="warning" size="small">Anthropic</el-tag>
-                      <el-tag type="primary" size="small">Gemini</el-tag>
-                    </template>
-                    <template v-else>
-                      <el-tag
-                        v-if="row.allowedFormats.includes('openai')"
-                        type="success"
-                        size="small"
-                        >OpenAI</el-tag
-                      >
-                      <el-tag
-                        v-if="row.allowedFormats.includes('anthropic')"
-                        type="warning"
-                        size="small"
-                        >Anthropic</el-tag
-                      >
-                      <el-tag
-                        v-if="row.allowedFormats.includes('gemini')"
-                        type="primary"
-                        size="small"
-                        >Gemini</el-tag
-                      >
-                    </template>
+                    <el-tag
+                      v-if="row.allowedFormats.includes('openai-chat-completions')"
+                      type="success"
+                      size="small"
+                      >OpenAI Chat</el-tag
+                    >
+                    <el-tag
+                      v-if="row.allowedFormats.includes('openai-responses')"
+                      type="success"
+                      size="small"
+                      >OpenAI Responses</el-tag
+                    >
+                    <el-tag v-if="row.allowedFormats.includes('anthropic')" type="warning" size="small"
+                      >Anthropic</el-tag
+                    >
+                    <el-tag v-if="row.allowedFormats.includes('gemini')" type="primary" size="small"
+                      >Gemini</el-tag
+                    >
                   </div>
                 </template>
               </el-table-column>

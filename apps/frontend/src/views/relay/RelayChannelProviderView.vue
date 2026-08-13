@@ -203,8 +203,11 @@ import type {
   RelayChannelUpstreamModelDto,
 } from '@/client/types.gen'
 
-type Format = 'openai' | 'anthropic' | 'gemini'
-const formats: Format[] = ['openai', 'anthropic', 'gemini']
+type Format = 'openai-chat-completions' | 'openai-responses' | 'anthropic' | 'gemini'
+type UpstreamFormat = 'openai' | 'anthropic' | 'gemini'
+const formats: Format[] = ['openai-chat-completions', 'openai-responses', 'anthropic', 'gemini']
+const toUpstreamFormat = (format: Format): UpstreamFormat =>
+  format === 'openai-chat-completions' || format === 'openai-responses' ? 'openai' : format
 const { isDesktop } = usePageDevice()
 const permissionStore = usePermissionStore()
 const canSubmit = permissionStore.hasPermission(Permission.RELAY_CHANNEL_SUBMIT)
@@ -227,7 +230,7 @@ const pendingAmount = ref(0)
 const settledAmount = ref(0)
 const emptyForm = (): StandaloneChannelFormState => ({
   name: '',
-  formats: ['openai'],
+  formats: ['openai-chat-completions'],
   urls: { openai: '', anthropic: '', gemini: '' },
   keys: { openai: '', anthropic: '', gemini: '' },
   hasKeys: { openai: false, anthropic: false, gemini: false },
@@ -241,17 +244,17 @@ const emptyForm = (): StandaloneChannelFormState => ({
   contextLengthMultipliers: [],
 })
 const form = reactive<StandaloneChannelFormState>(emptyForm())
-const probeLoading = reactive<Record<Format, boolean>>({
+const probeLoading = reactive<Record<UpstreamFormat, boolean>>({
   openai: false,
   anthropic: false,
   gemini: false,
 })
-const probeResults = reactive<Record<Format, RelayChannelUpstreamModelDto[]>>({
+const probeResults = reactive<Record<UpstreamFormat, RelayChannelUpstreamModelDto[]>>({
   openai: [],
   anthropic: [],
   gemini: [],
 })
-const selectedProbeModels = reactive<Record<Format, string[]>>({
+const selectedProbeModels = reactive<Record<UpstreamFormat, string[]>>({
   openai: [],
   anthropic: [],
   gemini: [],
@@ -267,12 +270,10 @@ const modelOptions = computed(() => {
   const seen = new Set<string>()
   return availableModels.value
     .filter((item) => {
-      const supported = (item.supportedFormats || 'all')
+      const supported = (item.supportedFormats || 'openai-chat-completions,anthropic,gemini')
         .split(',')
         .map((format) => format.trim().toLowerCase())
-      return (
-        supported.includes('all') || selectedFormats.some((format) => supported.includes(format))
-      )
+      return selectedFormats.some((format) => supported.includes(format))
     })
     .filter((item) => {
       const value = item.model.trim()
@@ -344,11 +345,9 @@ const resetForm = () => Object.assign(form, emptyForm())
 const hydrateForm = (channel: RelayChannelDto) => {
   resetForm()
   form.name = channel.name
-  form.formats =
-    channel.allowedFormats === 'all'
-      ? [...formats]
-      : channel.allowedFormats
-          .split(',')
+  form.formats = channel.allowedFormats
+    .split(',')
+          .map((value) => (value === 'openai' ? 'openai-chat-completions' : value))
           .filter((value): value is Format => formats.includes(value as Format))
   form.urls.openai = channel.openaiUpstreamUrl || ''
   form.urls.anthropic = channel.anthropicUpstreamUrl || ''
@@ -426,7 +425,7 @@ const payload = () => {
 const saveForm = async () => {
   if (!form.name.trim() || !form.formats.length)
     return ElMessage.error(i18ns.t('relay.submissionRequired'))
-  for (const format of form.formats)
+  for (const format of new Set<UpstreamFormat>(form.formats.map(toUpstreamFormat)))
     if (!form.urls[format] || (formMode.value === 'submit' && !form.keys[format]))
       return ElMessage.error(i18ns.t('relay.submissionRequired'))
   submitting.value = true
@@ -492,7 +491,7 @@ const addTimeRule = () =>
   })
 const addContextRule = () =>
   form.contextLengthMultipliers.push({ name: '', enabled: true, minTokens: 0, multiplier: 1 })
-const probeModels = async (format: Format) => {
+const probeModels = async (format: UpstreamFormat) => {
   probeLoading[format] = true
   try {
     const result = await relayChannelService.listUpstreamModels({
@@ -512,7 +511,7 @@ const probeModels = async (format: Format) => {
     probeLoading[format] = false
   }
 }
-const addProbeModels = (format: Format) => {
+const addProbeModels = (format: UpstreamFormat) => {
   form.allowedModels = [...new Set([...form.allowedModels, ...selectedProbeModels[format]])]
   ElMessage.success(i18ns.t('relay.modelsAdded'))
 }

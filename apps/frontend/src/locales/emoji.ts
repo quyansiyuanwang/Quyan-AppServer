@@ -3601,6 +3601,8 @@ const emoji: DeepStringify<typeof en> = {
     allowedFormatsHelp: '👆 🔌 🎨 👇 📡 📉',
     formatAll: '🌌 🎨',
     formatOpenAI: '🛄',
+    formatOpenAIChatCompletions: '🛄 💬',
+    formatOpenAIResponses: '🛄 ↩️',
     formatAnthropic: '🚷',
     formatGemini: '😦',
     allModels: '🌌',

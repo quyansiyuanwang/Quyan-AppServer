@@ -113,6 +113,15 @@ curl -X POST "https://api.qysyw.cn/relay/proxy/v1/images/edits" \
 
 New integrations should always use `image[]`. Whether a selected model actually understands or combines multiple references still depends on that model and its upstream channel.
 
+## OpenAI text relay formats
+
+Relay manages the two OpenAI v1 text APIs as separate formats:
+
+- **OpenAI Chat Completions**: `/relay/proxy/v1/chat/completions`, with a `messages` request body.
+- **OpenAI Responses**: `/relay/proxy/v1/responses`, with an `input` request body.
+
+Before calling either API, both the Relay Token's channel and the selected model must explicitly enable that format. Legacy OpenAI entries remain compatible as Chat Completions only; Responses are never enabled automatically.
+
 ## Minimal curl examples
 
 ### 1. JWT-authenticated request

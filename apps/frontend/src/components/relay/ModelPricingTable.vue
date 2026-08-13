@@ -557,11 +557,18 @@
       >
         <template #default="{ row }">
           <el-tag
-            v-if="normalizeFormats(row.supportedFormats).includes('openai')"
+            v-if="normalizeFormats(row.supportedFormats).includes('openai-chat-completions')"
             size="small"
             type="success"
           >
-            OpenAI
+            OpenAI Chat
+          </el-tag>
+          <el-tag
+            v-if="normalizeFormats(row.supportedFormats).includes('openai-responses')"
+            size="small"
+            type="success"
+          >
+            OpenAI Responses
           </el-tag>
           <el-tag
             v-if="normalizeFormats(row.supportedFormats).includes('anthropic')"

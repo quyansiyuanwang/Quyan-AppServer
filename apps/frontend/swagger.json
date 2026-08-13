@@ -41890,7 +41890,8 @@
 						"items": {
 							"type": "string",
 							"enum": [
-								"openai",
+								"openai-chat-completions",
+								"openai-responses",
 								"anthropic",
 								"gemini"
 							]
@@ -44285,7 +44286,8 @@
 			"RelayChannelProbeFormat": {
 				"type": "string",
 				"enum": [
-					"openai",
+					"openai-chat-completions",
+					"openai-responses",
 					"anthropic",
 					"gemini"
 				]

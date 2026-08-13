@@ -57,7 +57,7 @@ export class RelayConfigRepository implements RelayConfigStore {
           provider: rate.modelId || rate.model,
           cacheCreationMultiplier: rate.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER,
           cacheReadMultiplier: rate.cacheReadMultiplier ?? DEFAULT_CACHE_READ_MULTIPLIER,
-          supportedFormats: rate.supportedFormats || "all",
+          supportedFormats: rate.supportedFormats || "openai-chat-completions,anthropic,gemini",
         };
 
         const found = existingActiveMap.get(rate.model);

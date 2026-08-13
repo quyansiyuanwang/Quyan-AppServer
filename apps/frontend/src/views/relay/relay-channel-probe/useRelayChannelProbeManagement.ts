@@ -413,7 +413,7 @@ export const useRelayChannelProbeManagement = () => {
   function emptyForm(): ProbeForm {
     return {
       enabled: true,
-      probeFormat: 'openai',
+      probeFormat: 'openai-chat-completions',
       probeEndpoint: 'openai-chat-completions',
       cacheMode: 'cache-bust',
       sampleCount: 3,
@@ -434,6 +434,8 @@ export const useRelayChannelProbeManagement = () => {
     return selectedProbeFormats.value.length === 0 || selectedProbeFormats.value.includes(format)
   }
   const probeEndpointOptions = computed<RelayChannelProbeEndpoint[]>(() => {
+    if (form.value.probeFormat === 'openai-chat-completions') return ['openai-chat-completions']
+    if (form.value.probeFormat === 'openai-responses') return ['openai-responses']
     if (form.value.probeFormat === 'anthropic') return ['anthropic-messages']
     if (form.value.probeFormat === 'gemini') return ['gemini-generate-content']
     return ['openai-chat-completions', 'openai-responses']
@@ -464,7 +466,11 @@ export const useRelayChannelProbeManagement = () => {
     return i18ns.t(key)
   }
   function defaultEndpointForFormat(format: RelayChannelProbeFormat): RelayChannelProbeEndpoint {
-    return format === 'anthropic'
+    return format === 'openai-responses'
+      ? 'openai-responses'
+      : format === 'openai-chat-completions'
+        ? 'openai-chat-completions'
+        : format === 'anthropic'
       ? 'anthropic-messages'
       : format === 'gemini'
         ? 'gemini-generate-content'
@@ -617,7 +623,7 @@ export const useRelayChannelProbeManagement = () => {
       > & { preventCache?: boolean }
       if (
         !source ||
-        !['openai', 'anthropic', 'gemini'].includes(String(source.probeFormat)) ||
+        !['openai-chat-completions', 'openai-responses', 'anthropic', 'gemini'].includes(String(source.probeFormat)) ||
         typeof source.probeModel !== 'string' ||
         !source.probePayload ||
         typeof source.probePayload !== 'object' ||
@@ -1396,8 +1402,8 @@ export const useRelayChannelProbeManagement = () => {
         }
       : {
           ...emptyForm(),
-          probeFormat: row.allowedProbeFormats[0] ?? 'openai',
-          probeEndpoint: defaultEndpointForFormat(row.allowedProbeFormats[0] ?? 'openai'),
+          probeFormat: row.allowedProbeFormats[0] ?? 'openai-chat-completions',
+          probeEndpoint: defaultEndpointForFormat(row.allowedProbeFormats[0] ?? 'openai-chat-completions'),
         }
     payloadText.value = JSON.stringify(
       profile?.probePayload ??

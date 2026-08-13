@@ -39,6 +39,7 @@ export {
 export type { DeveloperProductCode, DeveloperProductDefinition } from './developer-product'
 export {
   ALL_RELAY_REQUEST_FORMATS,
+  RELAY_REQUEST_FORMATS,
   isModelIdAllowed,
   isModelNameAllowed,
   normalizeAllowedModelEntriesToModelNames,
@@ -59,4 +60,5 @@ export type {
   ModelIdentityLike,
   RelayModelNameConstraint,
   RelayRequestFormat,
+  RelayConfiguredRequestFormat,
 } from './relay-model-availability'

@@ -703,7 +703,7 @@ export const useRelaySettingsManagement = () => {
           const formats = item.supportedFormats || existing.supportedFormats
           existing.supportedFormats = toSupportedFormatsArray(formats)
         } else {
-          const formats = item.supportedFormats || 'all'
+          const formats = item.supportedFormats || 'openai-chat-completions,anthropic,gemini'
           modelRates.value.push({
             model: key,
             modelId:
@@ -1103,7 +1103,7 @@ export const useRelaySettingsManagement = () => {
         return {
           model: modelName,
           modelId: modelId || modelName,
-          supportedFormats: m.supportedFormats || 'all',
+          supportedFormats: m.supportedFormats || 'openai-chat-completions,anthropic,gemini',
         }
       })
     } catch (error) {
@@ -1119,8 +1119,7 @@ export const useRelaySettingsManagement = () => {
     }
 
     return availableModels.value.filter((model) => {
-      const formats = model.supportedFormats || 'all'
-      if (formats === 'all') return true
+      const formats = model.supportedFormats || 'openai-chat-completions,anthropic,gemini'
       const modelFormats = formats.split(',').map((format: string) => format.trim())
       return selectedFormats.some((selectedFormat) => modelFormats.includes(selectedFormat))
     })
@@ -2079,7 +2078,7 @@ export const useRelaySettingsManagement = () => {
       hasGeminiUpstreamApiKey: row.hasGeminiUpstreamApiKey,
       geminiUpstreamApiKeyTouched: false,
       multiplier: row.multiplier,
-      allowedFormats: normalizeSupportedFormats(row.allowedFormats || 'all'),
+      allowedFormats: normalizeSupportedFormats(row.allowedFormats || 'openai-chat-completions,anthropic,gemini'),
       allowedModelsArray: parsedModels,
       restrictModels:
         !isPooledChannel &&
@@ -2194,9 +2193,9 @@ export const useRelaySettingsManagement = () => {
     const formats =
       Array.isArray(channelForm.value.allowedFormats) && channelForm.value.allowedFormats.length > 0
         ? channelForm.value.allowedFormats
-        : ['openai', 'anthropic', 'gemini']
+        : ['openai-chat-completions', 'anthropic', 'gemini']
 
-    if (isUpstreamChannel && formats.includes('openai')) {
+    if (isUpstreamChannel && formats.some((format) => format.startsWith('openai-'))) {
       if (!channelForm.value.openaiUpstreamUrl) {
         ElMessage.error(i18ns.t('relay.openaiFormatNoUrl'))
         return
@@ -2299,7 +2298,7 @@ export const useRelaySettingsManagement = () => {
           Array.isArray(channelForm.value.allowedFormats) &&
           channelForm.value.allowedFormats.length > 0
             ? channelForm.value.allowedFormats.join(',')
-            : 'all',
+            : 'openai-chat-completions,anthropic,gemini',
         allowedModels: isPooledChannel
           ? channelForm.value.pooledAllowedModelsMode === 'manual'
             ? JSON.stringify(channelForm.value.allowedModelsArray)

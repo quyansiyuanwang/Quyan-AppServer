@@ -11,6 +11,7 @@ import {
   parseRelayTokenAllowedModelIds,
   resolveModelId,
   supportsRelayRequestFormat,
+  type RelayConfiguredRequestFormat,
   type RelayRequestFormat,
 } from "@appserver/shared";
 
@@ -20,7 +21,7 @@ export {
   parseRelayTokenAllowedModelIds,
   supportsRelayRequestFormat,
 };
-export type { RelayRequestFormat };
+export type { RelayConfiguredRequestFormat, RelayRequestFormat };
 
 export interface RelayModelFormatLike {
   model?: string | null;

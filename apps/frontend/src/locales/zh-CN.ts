@@ -3477,6 +3477,8 @@ const zhCN: DeepStringify<typeof en> = {
     allowedFormatsHelp: '限制此渠道接受的 API 请求格式',
     formatAll: 'All (OpenAI + Anthropic + Gemini)',
     formatOpenAI: 'OpenAI 格式',
+    formatOpenAIChatCompletions: 'OpenAI Chat Completions',
+    formatOpenAIResponses: 'OpenAI Responses',
     formatAnthropic: 'Anthropic 格式',
     formatGemini: 'Gemini 格式',
     allowedModelsChannel: '允许的模型',
@@ -4214,7 +4216,7 @@ const zhCN: DeepStringify<typeof en> = {
     endpointNote: '重要提示',
     endpointDesc:
       '请将您的令牌作为 Authorization Bearer Token 使用。所有请求必须包含有效的令牌才能访问API。',
-    openaiNote: '兼容 OpenAI Chat Completions API，支持 /v1/chat/completions 等端点',
+    openaiNote: '分别支持 /v1/chat/completions 和 /v1/responses；渠道与模型须分别启用对应格式。',
     anthropicNote: '兼容 Anthropic Messages API，支持 /v1/messages 等端点',
     geminiNote: "兼容 Google Gemini API，支持 /v1beta/models/{'{model}'}/generateContent 等端点",
     balanceEndpoint: 'Relay 用量查询端点',

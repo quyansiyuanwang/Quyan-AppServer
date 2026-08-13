@@ -110,10 +110,10 @@ export class AIProviderService {
   }
 
   getProvider(model: string): RelayRequestFormat {
-    if (model.startsWith("gpt-") || model.startsWith("o1-")) return "openai";
+    if (model.startsWith("gpt-") || model.startsWith("o1-")) return "openai-chat-completions";
     if (model.startsWith("claude-")) return "anthropic";
     if (model.startsWith("gemini-")) return "gemini";
-    return "openai";
+    return "openai-chat-completions";
   }
 
   private resolveProvider(model: string, requestFormat?: RelayRequestFormat): RelayRequestFormat {
@@ -210,7 +210,8 @@ export class AIProviderService {
   ): AsyncGenerator<StreamChunk> {
     const provider = this.resolveProvider(model, requestFormat);
 
-    if (provider === "openai") yield* this.streamOpenAI(messages, model, apiKey, upstreamUrl, signal);
+    if (provider === "openai" || provider === "openai-chat-completions")
+      yield* this.streamOpenAI(messages, model, apiKey, upstreamUrl, signal);
     else if (provider === "anthropic") yield* this.streamAnthropic(messages, model, apiKey, upstreamUrl, signal);
     else if (provider === "gemini") yield* this.streamGemini(messages, model, apiKey, upstreamUrl, signal);
     else throw new Error(`Provider ${provider} not yet implemented`);

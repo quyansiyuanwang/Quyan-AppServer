@@ -98,19 +98,24 @@ export type RelayChannelProbeTopologyItem = Pick<
   "id" | "name" | "enabled" | "channelType" | "poolMembers"
 >;
 
-type ProbeFormat = "openai" | "anthropic" | "gemini";
+type ProbeFormat = "openai" | "openai-chat-completions" | "openai-responses" | "anthropic" | "gemini";
+type ConfiguredProbeFormat = Exclude<ProbeFormat, "openai">;
 type ProbeBalanceSnapshot = { balance: number; observedAt: string };
 
 /** Keep probe format availability aligned with the channel request-format contract. */
-export function resolveAllowedProbeFormats(value: string | null | undefined): ProbeFormat[] {
-  return parseRelayRequestFormats(value) as ProbeFormat[];
+export function resolveAllowedProbeFormats(value: string | null | undefined): ConfiguredProbeFormat[] {
+  return parseRelayRequestFormats(value);
 }
 
 const isProbeableChannelType = (channelType: RelayChannelType | undefined): boolean =>
   channelType === "standalone" || channelType === "pooled";
 
 export function defaultProbeEndpoint(format: ProbeFormat): RelayChannelProbeEndpoint {
-  return format === "anthropic"
+  return format === "openai-responses"
+    ? "openai-responses"
+    : format === "openai" || format === "openai-chat-completions"
+      ? "openai-chat-completions"
+      : format === "anthropic"
     ? "anthropic-messages"
     : format === "gemini"
       ? "gemini-generate-content"
@@ -124,7 +129,8 @@ export function assertProbeEndpointCompatibility(endpoint: RelayChannelProbeEndp
 
 export function isProbeEndpointCompatible(endpoint: RelayChannelProbeEndpoint, format: ProbeFormat): boolean {
   return (
-    (endpoint.startsWith("openai-") && format === "openai") ||
+    (endpoint === "openai-chat-completions" && (format === "openai" || format === "openai-chat-completions")) ||
+    (endpoint === "openai-responses" && format === "openai-responses") ||
     (endpoint === "anthropic-messages" && format === "anthropic") ||
     (endpoint === "gemini-generate-content" && format === "gemini")
   );
@@ -185,7 +191,7 @@ export function injectProbeCacheBuster(
     return payload;
   }
 
-  if (format === "openai") {
+  if (format === "openai" || format === "openai-chat-completions") {
     if (!Array.isArray(payload.messages)) return undefined;
     payload.messages = [{ role: "system", content: marker }, ...payload.messages];
     return payload;
@@ -269,7 +275,8 @@ export function injectProbeMeasurementInput(
     }
     return appendToMessages("input") ? payload : undefined;
   }
-  if (format === "openai" || format === "anthropic") return appendToMessages("messages") ? payload : undefined;
+  if (format === "openai" || format === "openai-chat-completions" || format === "anthropic")
+    return appendToMessages("messages") ? payload : undefined;
   if (!Array.isArray(payload.contents)) return undefined;
   for (let index = payload.contents.length - 1; index >= 0; index -= 1) {
     const content = payload.contents[index];
@@ -571,7 +578,7 @@ type ProbeUsage = {
  */
 export function buildProbeUpstreamEndpoint(
   upstreamUrl: string,
-  format: "openai" | "anthropic" | "gemini",
+    format: ProbeFormat,
   model: string,
   endpoint: RelayChannelProbeEndpoint = defaultProbeEndpoint(format),
 ): string {
@@ -1501,7 +1508,7 @@ export class RelayChannelProbeService {
     cacheBusterId?: string,
     configuredEndpoint?: RelayChannelProbeEndpoint,
   ): Promise<{ response: Record<string, unknown>; cacheBusterId?: string; measurementInputInjected: boolean }> {
-    const format = profile.probeFormat as "openai" | "anthropic" | "gemini";
+    const format = profile.probeFormat as ProbeFormat;
     const endpoint = normalizeProbeEndpoint(configuredEndpoint ?? profile.probeEndpoint, format);
     assertProbeEndpointCompatibility(endpoint, format);
     const upstreamUrl =
@@ -1887,7 +1894,7 @@ export class RelayChannelProbeService {
     return group || null;
   }
 
-  private toAllowedProbeFormats(value: string): Array<"openai" | "anthropic" | "gemini"> {
+  private toAllowedProbeFormats(value: string): ConfiguredProbeFormat[] {
     return resolveAllowedProbeFormats(value);
   }
 
@@ -1908,7 +1915,7 @@ export class RelayChannelProbeService {
       throw new BadRequestError(`渠道不支持探针模型 ${model}，请从渠道已配置模型中选择`);
 
     const upstreamConfigured =
-      format === "openai"
+      format.startsWith("openai-")
         ? Boolean(channel.openaiUpstreamUrl && channel.hasOpenaiUpstreamApiKey)
         : format === "anthropic"
           ? Boolean(channel.anthropicUpstreamUrl && channel.hasAnthropicUpstreamApiKey)
