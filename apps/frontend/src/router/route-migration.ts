@@ -37,5 +37,13 @@ export const resolveRouteMigrationUrl = (
   const target = new URL(migration.path, targetProfile.canonicalOrigin)
   target.search = sanitizeMigrationSearch(search)
   target.hash = hash
+  const current = new URL(pathname, profile.canonicalOrigin)
+  current.search = search
+  current.hash = hash
+
+  // A catalog entry can describe the current site's canonical URL. Returning
+  // it would make the navigation guard repeatedly replace the page with itself.
+  if (target.toString() === current.toString()) return undefined
+
   return target.toString()
 }

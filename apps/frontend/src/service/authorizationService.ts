@@ -580,6 +580,11 @@ export class AuthorizationService {
         })
         return accessToken
       }
+
+      // Public pages commonly bootstrap without any stored session. Avoid
+      // sending an empty refresh request, which emits a refresh-failed event
+      // and can incorrectly start the central-login redirect flow.
+      if (!accessToken && !AuthorizationService.getRefreshToken()) return null
     }
 
     if (!this.bootstrapPromise) {

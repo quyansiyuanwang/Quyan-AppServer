@@ -78,7 +78,6 @@ export class CentralLoginFlowService {
       parsed.protocol !== "https:" ||
       parsed.username ||
       parsed.password ||
-      parsed.port ||
       !this.allowedOrigins.has(parsed.origin)
     )
       throw new BadRequestError("Central login return URL is not allowed");

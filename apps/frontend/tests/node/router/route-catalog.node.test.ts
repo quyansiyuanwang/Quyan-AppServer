@@ -146,6 +146,9 @@ describe('route catalog', () => {
   })
 
   it('does not migrate a canonical path that already belongs to the current profile', () => {
+    const publicProfile = getKnownProfile('www.qysyw.test')
+    expect(resolveRouteMigrationUrl('/home', '', '', publicProfile)).toBeUndefined()
+
     const terminal = getKnownProfile('terminal.qysyw.cn')
     expect(resolveRouteMigration('/overview', terminal)).toBeUndefined()
 

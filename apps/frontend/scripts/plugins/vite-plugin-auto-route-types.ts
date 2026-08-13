@@ -23,7 +23,7 @@ export function autoRouteTypes(options?: OptionsType): Plugin {
   function run() {
     const routesFile = path.resolve(root, options?.routesFile || 'src/router/index.ts')
     const outFile = path.resolve(root, options?.outFile || 'auto-route.d.ts')
-    generateRouteTypes(routesFile, outFile)
+    return generateRouteTypes(routesFile, outFile)
   }
 
   return {
@@ -39,8 +39,10 @@ export function autoRouteTypes(options?: OptionsType): Plugin {
       server.watcher.add(routesFile)
       server.watcher.on('change', (file) => {
         if (path.resolve(file) === routesFile) {
+          // Route types are compile-time metadata. Vite already handles the
+          // route module's normal HMR update; regenerating this declaration
+          // file must never trigger a top-level browser navigation.
           run()
-          server.ws.send({ type: 'full-reload' })
         }
       })
     },

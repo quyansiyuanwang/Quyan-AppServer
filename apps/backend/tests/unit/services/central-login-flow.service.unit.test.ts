@@ -36,6 +36,21 @@ describe("CentralLoginFlowService", () => {
     await expect(createService().createFlow(returnTo)).rejects.toThrow("Central login return URL");
   });
 
+  it("allows an exact local HTTPS origin with its configured development port", async () => {
+    const values = new Map<string, string>();
+    const redis = {
+      isRedisAvailable: () => true,
+      set: async (key: string, value: string | number) => void values.set(key, String(value)),
+      get: async (key: string) => values.get(key) ?? null,
+      getAndDelete: async (key: string) => values.get(key) ?? null,
+    };
+    const service = new CentralLoginFlowService(redis, ["https://www.qysyw.test:5173"]);
+
+    await expect(service.createFlow("https://www.qysyw.test:5173/home")).resolves.toMatchObject({
+      flowId: expect.any(String),
+    });
+  });
+
   it("consumes a flow only once", async () => {
     const service = createService();
     const { flowId } = await service.createFlow("https://account.qysyw.cn/settings/profile");

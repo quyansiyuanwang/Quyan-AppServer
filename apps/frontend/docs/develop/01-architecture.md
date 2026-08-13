@@ -406,8 +406,8 @@ resolve: {
 **配置文件**: `.env` (参考 `.env.sample`)
 
 ```bash
-VITE_BACKEND_URL=https://api.qysyw.test:5173
-VITE_AI_PROXY_URL=https://api.qysyw.test:5173/relay/proxy
+VITE_BACKEND_URL=
+VITE_AI_PROXY_URL=/relay/proxy
 ```
 
 **使用方式**:

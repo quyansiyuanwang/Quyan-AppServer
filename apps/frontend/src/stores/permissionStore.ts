@@ -8,6 +8,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useUserInfoStore } from './userInfoStore'
 import { permissionService } from '@/service/permissionService'
+import { getAccessToken, isTokenExpired } from '@/stores/request'
 
 /**
  * 权限管理 Store
@@ -356,6 +357,14 @@ export const usePermissionStore = defineStore('permissionStore', () => {
   const init = async () => {
     if (isLoaded.value) return
     if (initPromise) return initPromise
+
+    // Public shells also render navigation components that consult this store.
+    // Do not turn that UI initialization into an authenticated API request.
+    const accessToken = getAccessToken()
+    if (!accessToken || isTokenExpired({ bufferSeconds: 2 })) {
+      clearCurrentUserPermissions()
+      return
+    }
 
     initPromise = (async () => {
       error.value = null
