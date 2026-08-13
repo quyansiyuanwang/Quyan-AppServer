@@ -13,11 +13,7 @@
       :class="{ 'with-banner': impersonationStore.isImpersonating }"
     >
       <el-header v-if="showSiteHeader" class="site-header">
-        <button
-          type="button"
-          class="site-header__drawer-trigger"
-          @click="openSiteDrawer"
-        >
+        <button type="button" class="site-header__drawer-trigger" @click="openSiteDrawer">
           <el-icon><Grid /></el-icon>
           <span>{{ i18ns.t('nav.switchSite') }}</span>
         </button>

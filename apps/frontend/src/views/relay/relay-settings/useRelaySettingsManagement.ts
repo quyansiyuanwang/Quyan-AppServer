@@ -2078,7 +2078,9 @@ export const useRelaySettingsManagement = () => {
       hasGeminiUpstreamApiKey: row.hasGeminiUpstreamApiKey,
       geminiUpstreamApiKeyTouched: false,
       multiplier: row.multiplier,
-      allowedFormats: normalizeSupportedFormats(row.allowedFormats || 'openai-chat-completions,anthropic,gemini'),
+      allowedFormats: normalizeSupportedFormats(
+        row.allowedFormats || 'openai-chat-completions,anthropic,gemini',
+      ),
       allowedModelsArray: parsedModels,
       restrictModels:
         !isPooledChannel &&

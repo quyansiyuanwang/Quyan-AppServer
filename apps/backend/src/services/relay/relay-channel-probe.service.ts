@@ -116,10 +116,10 @@ export function defaultProbeEndpoint(format: ProbeFormat): RelayChannelProbeEndp
     : format === "openai" || format === "openai-chat-completions"
       ? "openai-chat-completions"
       : format === "anthropic"
-    ? "anthropic-messages"
-    : format === "gemini"
-      ? "gemini-generate-content"
-      : "openai-chat-completions";
+        ? "anthropic-messages"
+        : format === "gemini"
+          ? "gemini-generate-content"
+          : "openai-chat-completions";
 }
 
 export function assertProbeEndpointCompatibility(endpoint: RelayChannelProbeEndpoint, format: ProbeFormat): void {
@@ -578,7 +578,7 @@ type ProbeUsage = {
  */
 export function buildProbeUpstreamEndpoint(
   upstreamUrl: string,
-    format: ProbeFormat,
+  format: ProbeFormat,
   model: string,
   endpoint: RelayChannelProbeEndpoint = defaultProbeEndpoint(format),
 ): string {
@@ -1914,12 +1914,11 @@ export class RelayChannelProbeService {
     if (channel.allowedModels.length && !channel.allowedModels.includes(model))
       throw new BadRequestError(`渠道不支持探针模型 ${model}，请从渠道已配置模型中选择`);
 
-    const upstreamConfigured =
-      format.startsWith("openai-")
-        ? Boolean(channel.openaiUpstreamUrl && channel.hasOpenaiUpstreamApiKey)
-        : format === "anthropic"
-          ? Boolean(channel.anthropicUpstreamUrl && channel.hasAnthropicUpstreamApiKey)
-          : Boolean(channel.geminiUpstreamUrl && channel.hasGeminiUpstreamApiKey);
+    const upstreamConfigured = format.startsWith("openai-")
+      ? Boolean(channel.openaiUpstreamUrl && channel.hasOpenaiUpstreamApiKey)
+      : format === "anthropic"
+        ? Boolean(channel.anthropicUpstreamUrl && channel.hasAnthropicUpstreamApiKey)
+        : Boolean(channel.geminiUpstreamUrl && channel.hasGeminiUpstreamApiKey);
     if (!upstreamConfigured) throw new BadRequestError(`渠道缺少 ${format} 格式的上游地址或凭据`);
   }
 

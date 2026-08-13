@@ -27,8 +27,12 @@
       }}</el-divider>
       <el-form-item :label="i18ns.t('relay.allowedFormats')" required>
         <el-checkbox-group v-model="editorForm.formats">
-          <el-checkbox value="openai-chat-completions">{{ i18ns.t('relay.formatOpenAIChatCompletions') }}</el-checkbox>
-          <el-checkbox value="openai-responses">{{ i18ns.t('relay.formatOpenAIResponses') }}</el-checkbox>
+          <el-checkbox value="openai-chat-completions">{{
+            i18ns.t('relay.formatOpenAIChatCompletions')
+          }}</el-checkbox>
+          <el-checkbox value="openai-responses">{{
+            i18ns.t('relay.formatOpenAIResponses')
+          }}</el-checkbox>
           <el-checkbox value="anthropic">{{ i18ns.t('relay.formatAnthropic') }}</el-checkbox>
           <el-checkbox value="gemini">{{ i18ns.t('relay.formatGemini') }}</el-checkbox>
         </el-checkbox-group>
@@ -319,14 +323,15 @@ const open = computed({
   set: (value) => emit('update:modelValue', value),
 })
 const editorForm = computed(() => props.form)
-const upstreamFormats = computed<UpstreamFormat[]>(() =>
-  Array.from(
-    new Set(
-      editorForm.value.formats.map((format) =>
-        format.startsWith('openai-') ? 'openai' : format,
+const upstreamFormats = computed<UpstreamFormat[]>(
+  () =>
+    Array.from(
+      new Set(
+        editorForm.value.formats.map((format) =>
+          format.startsWith('openai-') ? 'openai' : format,
+        ),
       ),
-    ),
-  ) as UpstreamFormat[],
+    ) as UpstreamFormat[],
 )
 const title = computed(() =>
   props.mode === 'provider'

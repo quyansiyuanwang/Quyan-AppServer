@@ -693,8 +693,7 @@ const submit = async () => {
     assertRuleNames()
     const patch: BatchUpdateRelayChannelPatch = {}
     if (enabled.multiplier) patch.multiplier = form.multiplier
-    if (enabled.formats)
-      patch.allowedFormats = form.allowedFormats.join(',')
+    if (enabled.formats) patch.allowedFormats = form.allowedFormats.join(',')
     if (enabled.userIdentifier) patch.addUserIdentifier = form.addUserIdentifier
     if (enabled.cacheRead) patch.inputTokensIncludeCacheRead = form.inputTokensIncludeCacheRead
     if (enabled.allowedModels)

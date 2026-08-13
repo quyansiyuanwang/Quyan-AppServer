@@ -64,7 +64,8 @@ export class ModelPricingService {
 
     // Validate supportedFormats - can be a single format or comma-separated formats.
     if (data.supportedFormats) {
-      if (["all", "both"].includes(data.supportedFormats)) throw new Error("supportedFormats must list explicit formats");
+      if (["all", "both"].includes(data.supportedFormats))
+        throw new Error("supportedFormats must list explicit formats");
 
       const formats = data.supportedFormats.split(",").map((f) => f.trim());
       const validFormats = ["openai-chat-completions", "openai-responses", "anthropic", "gemini"];
@@ -156,7 +157,8 @@ export class ModelPricingService {
 
     // Validate supportedFormats - can be a single format or comma-separated formats.
     if (data.supportedFormats) {
-      if (["all", "both"].includes(data.supportedFormats)) throw new Error("supportedFormats must list explicit formats");
+      if (["all", "both"].includes(data.supportedFormats))
+        throw new Error("supportedFormats must list explicit formats");
 
       const formats = data.supportedFormats.split(",").map((f) => f.trim());
       const validFormats = ["openai-chat-completions", "openai-responses", "anthropic", "gemini"];

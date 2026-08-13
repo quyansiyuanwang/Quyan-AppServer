@@ -406,7 +406,10 @@
           :max-collapse-tags="2"
           style="width: 100%"
         >
-          <el-option :label="i18ns.t('relay.formatOpenAIChatCompletions')" value="openai-chat-completions" />
+          <el-option
+            :label="i18ns.t('relay.formatOpenAIChatCompletions')"
+            value="openai-chat-completions"
+          />
           <el-option :label="i18ns.t('relay.formatOpenAIResponses')" value="openai-responses" />
           <el-option :label="i18ns.t('relay.formatAnthropic')" value="anthropic" />
           <el-option :label="i18ns.t('relay.formatGemini')" value="gemini" />

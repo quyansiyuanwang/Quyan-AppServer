@@ -347,8 +347,8 @@ const hydrateForm = (channel: RelayChannelDto) => {
   form.name = channel.name
   form.formats = channel.allowedFormats
     .split(',')
-          .map((value) => (value === 'openai' ? 'openai-chat-completions' : value))
-          .filter((value): value is Format => formats.includes(value as Format))
+    .map((value) => (value === 'openai' ? 'openai-chat-completions' : value))
+    .filter((value): value is Format => formats.includes(value as Format))
   form.urls.openai = channel.openaiUpstreamUrl || ''
   form.urls.anthropic = channel.anthropicUpstreamUrl || ''
   form.urls.gemini = channel.geminiUpstreamUrl || ''

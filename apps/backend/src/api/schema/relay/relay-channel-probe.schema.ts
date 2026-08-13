@@ -90,10 +90,10 @@ export const upsertRelayChannelProbeProfileBodySchema = z
     const endpoint = value.probeEndpoint;
     if (
       endpoint &&
-      (((endpoint === "openai-chat-completions" && value.probeFormat !== "openai-chat-completions") ||
+      ((endpoint === "openai-chat-completions" && value.probeFormat !== "openai-chat-completions") ||
         (endpoint === "openai-responses" && value.probeFormat !== "openai-responses") ||
         (endpoint === "anthropic-messages" && value.probeFormat !== "anthropic") ||
-        (endpoint === "gemini-generate-content" && value.probeFormat !== "gemini")))
+        (endpoint === "gemini-generate-content" && value.probeFormat !== "gemini"))
     )
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

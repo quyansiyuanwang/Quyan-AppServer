@@ -1002,21 +1002,13 @@ export class RelayProxyService {
     return path.replace(/(\/models\/)([^/:]+)(?=[:/])/, `$1${encodeURIComponent(upstreamModelId)}`);
   }
 
-  private buildUpstreamPath(
-    requestPath: string,
-    requestFormat: RelayRequestFormat,
-    upstreamModelId: string,
-  ): string {
+  private buildUpstreamPath(requestPath: string, requestFormat: RelayRequestFormat, upstreamModelId: string): string {
     const normalizedPath = requestPath.replace(/^\/relay\/proxy/, "");
     if (requestFormat !== "gemini") return normalizedPath;
     return this.rewriteGeminiModelPath(normalizedPath, upstreamModelId);
   }
 
-  private buildForwardBody(
-    requestBody: any,
-    requestFormat: RelayRequestFormat,
-    upstreamModelId: string,
-  ): any {
+  private buildForwardBody(requestBody: any, requestFormat: RelayRequestFormat, upstreamModelId: string): any {
     if (Buffer.isBuffer(requestBody)) return requestBody;
     if (!requestBody || typeof requestBody !== "object") return requestBody;
 

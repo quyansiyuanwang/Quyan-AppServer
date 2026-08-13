@@ -231,9 +231,9 @@ describe("relay channel probe helpers", () => {
     expect(buildProbeUpstreamEndpoint("https://generativelanguage.example.com/v1beta", "gemini", "gemini-test")).toBe(
       "https://generativelanguage.example.com/v1beta/models/gemini-test:generateContent",
     );
-    expect(buildProbeUpstreamEndpoint("https://api.example.com/v1", "openai-responses", "gpt-test", "openai-responses")).toBe(
-      "https://api.example.com/v1/responses",
-    );
+    expect(
+      buildProbeUpstreamEndpoint("https://api.example.com/v1", "openai-responses", "gpt-test", "openai-responses"),
+    ).toBe("https://api.example.com/v1/responses");
     expect(defaultProbeEndpoint("anthropic")).toBe("anthropic-messages");
     expect(normalizeProbeEndpoint("openai-chat-completions", "anthropic")).toBe("anthropic-messages");
   });

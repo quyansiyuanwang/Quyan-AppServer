@@ -302,7 +302,10 @@
                           :max-collapse-tags="2"
                           style="width: 100%"
                         >
-                          <el-option label="OpenAI Chat Completions" value="openai-chat-completions" />
+                          <el-option
+                            label="OpenAI Chat Completions"
+                            value="openai-chat-completions"
+                          />
                           <el-option label="OpenAI Responses" value="openai-responses" />
                           <el-option label="Anthropic" value="anthropic" />
                           <el-option label="Gemini" value="gemini" />
@@ -623,7 +626,10 @@
                       size="small"
                       >OpenAI Responses</el-tag
                     >
-                    <el-tag v-if="row.allowedFormats.includes('anthropic')" type="warning" size="small"
+                    <el-tag
+                      v-if="row.allowedFormats.includes('anthropic')"
+                      type="warning"
+                      size="small"
                       >Anthropic</el-tag
                     >
                     <el-tag v-if="row.allowedFormats.includes('gemini')" type="primary" size="small"

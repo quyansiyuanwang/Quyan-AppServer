@@ -471,10 +471,10 @@ export const useRelayChannelProbeManagement = () => {
       : format === 'openai-chat-completions'
         ? 'openai-chat-completions'
         : format === 'anthropic'
-      ? 'anthropic-messages'
-      : format === 'gemini'
-        ? 'gemini-generate-content'
-        : 'openai-chat-completions'
+          ? 'anthropic-messages'
+          : format === 'gemini'
+            ? 'gemini-generate-content'
+            : 'openai-chat-completions'
   }
   function makeStep(): WorkflowFormStep {
     return {
@@ -623,7 +623,9 @@ export const useRelayChannelProbeManagement = () => {
       > & { preventCache?: boolean }
       if (
         !source ||
-        !['openai-chat-completions', 'openai-responses', 'anthropic', 'gemini'].includes(String(source.probeFormat)) ||
+        !['openai-chat-completions', 'openai-responses', 'anthropic', 'gemini'].includes(
+          String(source.probeFormat),
+        ) ||
         typeof source.probeModel !== 'string' ||
         !source.probePayload ||
         typeof source.probePayload !== 'object' ||
@@ -1403,7 +1405,9 @@ export const useRelayChannelProbeManagement = () => {
       : {
           ...emptyForm(),
           probeFormat: row.allowedProbeFormats[0] ?? 'openai-chat-completions',
-          probeEndpoint: defaultEndpointForFormat(row.allowedProbeFormats[0] ?? 'openai-chat-completions'),
+          probeEndpoint: defaultEndpointForFormat(
+            row.allowedProbeFormats[0] ?? 'openai-chat-completions',
+          ),
         }
     payloadText.value = JSON.stringify(
       profile?.probePayload ??

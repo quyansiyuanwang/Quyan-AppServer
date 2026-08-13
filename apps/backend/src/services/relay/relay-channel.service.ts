@@ -1386,8 +1386,7 @@ export class RelayChannelService {
   }
 
   private normalizeAllowedFormats(value: string): { normalized: string; formats: string[] } {
-    if (value === "both" || value === "all")
-      throw new BadRequestError("allowedFormats must list explicit formats");
+    if (value === "both" || value === "all") throw new BadRequestError("allowedFormats must list explicit formats");
 
     const formats = value
       .split(",")
@@ -1877,7 +1876,6 @@ export class RelayChannelService {
         if (!geminiUpstreamApiKey)
           throw new BadRequestError("Gemini API key is required when allowedFormats includes 'gemini'");
       }
-
     }
 
     if (channelType === "automatic-proxy-pool") {

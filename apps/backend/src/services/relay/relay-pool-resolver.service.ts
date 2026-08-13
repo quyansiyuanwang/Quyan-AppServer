@@ -1,9 +1,5 @@
 import type { Prisma, RelayChannel } from "@prisma/client";
-import {
-  parseRelayModelNameConstraint,
-  resolveModelId,
-  type RelayConfiguredRequestFormat,
-} from "@appserver/shared";
+import { parseRelayModelNameConstraint, resolveModelId, type RelayConfiguredRequestFormat } from "@appserver/shared";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { BadRequestError } from "@/util/errors";
 import logger from "@/util/logger";

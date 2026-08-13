@@ -5,11 +5,7 @@ export const SUPPORTED_RELAY_FORMATS = [
   'gemini',
 ] as const
 
-const LEGACY_ALL_RELAY_FORMATS: RelayFormat[] = [
-  'openai-chat-completions',
-  'anthropic',
-  'gemini',
-]
+const LEGACY_ALL_RELAY_FORMATS: RelayFormat[] = ['openai-chat-completions', 'anthropic', 'gemini']
 
 export type RelayFormat = (typeof SUPPORTED_RELAY_FORMATS)[number]
 
@@ -29,7 +25,9 @@ export const parseConfiguredRelayFormats = (formats?: string | null): RelayForma
 
   const parsed = formats
     .split(',')
-    .map((format) => (format.trim().toLowerCase() === 'openai' ? 'openai-chat-completions' : format))
+    .map((format) =>
+      format.trim().toLowerCase() === 'openai' ? 'openai-chat-completions' : format,
+    )
     .map((format) => normalizeRelayFormat(format))
     .filter((format): format is RelayFormat => Boolean(format))
 
@@ -46,7 +44,9 @@ export const normalizeRelayFormatArray = (formats?: string[] | null): RelayForma
   if (!formats?.length) return []
 
   const normalized = formats
-    .map((format) => (String(format).trim().toLowerCase() === 'openai' ? 'openai-chat-completions' : format))
+    .map((format) =>
+      String(format).trim().toLowerCase() === 'openai' ? 'openai-chat-completions' : format,
+    )
     .map((format) => normalizeRelayFormat(String(format)))
     .filter((format): format is RelayFormat => Boolean(format))
 
