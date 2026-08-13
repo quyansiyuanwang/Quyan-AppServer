@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  SUPPORTED_RELAY_FORMATS,
   normalizeRelayFormatArray,
   normalizeRelayFormats,
   parseConfiguredRelayFormats,

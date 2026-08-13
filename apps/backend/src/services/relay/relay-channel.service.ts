@@ -1811,7 +1811,7 @@ export class RelayChannelService {
       data.geminiUpstreamUrl !== undefined ? data.geminiUpstreamUrl : existing?.geminiUpstreamUrl || undefined;
     const geminiUpstreamApiKey =
       data.geminiUpstreamApiKey !== undefined ? data.geminiUpstreamApiKey : existing?.geminiUpstreamApiKey || undefined;
-    if (data.allowedFormats === "all" || data.allowedFormats === "both")
+    if (data.allowedFormats === null || data.allowedFormats === "all" || data.allowedFormats === "both")
       throw new BadRequestError("allowedFormats must list explicit formats");
     const allowedFormatsInput = isPoolType(channelType)
       ? "openai-chat-completions,anthropic,gemini"
