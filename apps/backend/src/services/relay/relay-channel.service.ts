@@ -397,7 +397,7 @@ export class RelayChannelService {
             ? formatRelayRequestFormats([
                 ...new Set([...modelCapabilities.values()].flatMap((item) => item.supportedRequestFormats)),
               ])
-            : channel.allowedFormats,
+            : channel.allowedFormats ?? "openai-chat-completions,anthropic,gemini",
           modelCapabilities: [...modelCapabilities.values()].sort(
             (left, right) =>
               left.catalogModelName.localeCompare(right.catalogModelName) ||
@@ -624,7 +624,7 @@ export class RelayChannelService {
               ? formatRelayRequestFormats([
                   ...new Set(modelCapabilities.flatMap((item) => item.supportedRequestFormats)),
                 ])
-              : channel.allowedFormats,
+              : channel.allowedFormats ?? "openai-chat-completions,anthropic,gemini",
           modelCapabilities,
           pricingMode: "fixed" as const,
           multiplier:

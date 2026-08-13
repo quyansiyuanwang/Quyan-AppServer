@@ -95,6 +95,8 @@
     "--- m_scripts ---------------------": "",
     "relay-token:backfill-used-quota": "bun ./scripts/backfill-relay-token-used-quota.ts",
     "relay-token:backfill-used-quota:apply": "bun ./scripts/backfill-relay-token-used-quota.ts --apply",
+    "relay-format:all-to-null": "bun ./scripts/migrate-relay-format-all-to-null.ts",
+    "relay-format:all-to-null:apply": "bun ./scripts/migrate-relay-format-all-to-null.ts --apply",
     "json-endpoint:backfill-root-slugs": "bun ./scripts/backfill-json-endpoint-root-slugs.ts",
     "json-endpoint:backfill-root-slugs:apply": "bun ./scripts/backfill-json-endpoint-root-slugs.ts --apply",
     "relay-history:diagnose-display-snapshots": "bun ./scripts/diagnose-relay-display-channel-snapshots.ts",

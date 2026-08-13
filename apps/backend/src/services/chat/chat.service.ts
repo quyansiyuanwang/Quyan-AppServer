@@ -135,7 +135,7 @@ export class ChatService {
     for (const candidate of candidateChannels) {
       for (const requestFormat of orderedFormats) {
         const channel = candidate.resolvedChannel;
-        const channelAllowedFormats = channel.allowedFormats || "openai-chat-completions,anthropic,gemini";
+        const channelAllowedFormats = channel.allowedFormats ?? "openai-chat-completions,anthropic,gemini";
         if (!supportsRelayRequestFormat(channelAllowedFormats, requestFormat)) continue;
 
         const channelAllowedModels = parseRelayChannelAllowedModelNames(channel);
