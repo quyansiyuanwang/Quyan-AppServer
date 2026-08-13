@@ -8,6 +8,7 @@ import {
 import { useRequestStore } from '@/stores/request'
 import { cache } from '@/utils/common'
 import { toServiceError } from '@/utils/error-utils'
+import { assignDocument, replaceDocument } from '@/service/navigationService'
 
 const getAuthControllerApi = cache(() => createAuthControllerApi(useRequestStore().getAxios()))
 
@@ -55,7 +56,7 @@ export const redirectToCentralLogin = async (returnPath?: string): Promise<void>
   if (!isKnownSiteProfile(profile) || profile.id === 'identity') return
 
   const flowId = await createCentralLoginFlow(returnPath)
-  window.location.assign(getCentralLoginUrl(profile, flowId))
+  assignDocument(getCentralLoginUrl(profile, flowId))
 }
 
 export const redirectToCentralPasskeyManagement = async (): Promise<void> => {
@@ -68,7 +69,7 @@ export const redirectToCentralPasskeyManagement = async (): Promise<void> => {
   })
   if (!result.data?.flowId)
     throw toServiceError(result, 'Failed to create passkey registration flow')
-  window.location.assign(getCentralAuthUrl(profile, '/auth/passkeys', result.data.flowId))
+  assignDocument(getCentralAuthUrl(profile, '/auth/passkeys', result.data.flowId))
 }
 
 export const redirectToCentralExternalBinding = async (
@@ -87,7 +88,7 @@ export const redirectToCentralExternalBinding = async (
   const target = new URL('/auth/external/bind', profile.authOrigin)
   target.searchParams.set('provider', provider)
   target.searchParams.set('flowId', result.data.flowId)
-  window.location.assign(target.toString())
+  assignDocument(target.toString())
 }
 
 export const consumeCentralLoginFlow = async (flowId: string): Promise<string> => {
@@ -99,7 +100,7 @@ export const consumeCentralLoginFlow = async (flowId: string): Promise<string> =
 export const completeCentralLogin = async (flowId: unknown): Promise<boolean> => {
   if (typeof flowId !== 'string' || !flowId) return false
   const returnTo = await consumeCentralLoginFlow(flowId)
-  window.location.replace(returnTo)
+  replaceDocument(returnTo)
   return true
 }
 

@@ -44,6 +44,7 @@ import { currentSiteProfile } from '@/router'
 import { resolveCanonicalRouteUrl } from '@/router/routes'
 import { usePermissionStore } from '@/stores/permissionStore'
 import type { RouteName } from '@/types/route-types.gen'
+import { assignDocument } from '@/service/navigationService'
 
 type IamEntry = {
   route: RouteName
@@ -63,7 +64,7 @@ const navigate = (route: RouteName) => {
 
   if (currentSiteProfile.id === 'rejected') return
   const target = resolveCanonicalRouteUrl(route, currentSiteProfile)
-  if (target) window.location.assign(target)
+  if (target) assignDocument(target)
 }
 
 const sections: readonly {

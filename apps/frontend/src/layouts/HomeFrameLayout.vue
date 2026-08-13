@@ -280,7 +280,9 @@ import { useUserInfoStore } from '@/stores/userInfoStore'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
 import { useImpersonationStore } from '@/stores/impersonationStore'
 import { useRoute } from 'vue-router'
-import { AuthorizationService, authorizationService } from '@/service/authorizationService'
+import { authorizationService } from '@/service/authorizationService'
+import { useSessionStore } from '@/stores/sessionStore'
+import { assignDocument } from '@/service/navigationService'
 import { currentSiteProfile } from '@/router'
 import { i18ns } from '@/locales'
 import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
@@ -295,7 +297,8 @@ const impersonationStore = useImpersonationStore()
 const themeToggleStore = useThemeToggleStore()
 const route = useRoute()
 const isEmbeddedShell = computed(() => route.query.embed === '1')
-const isAuthenticated = computed(() => Boolean(AuthorizationService.getAccessToken()))
+const sessionStore = useSessionStore()
+const isAuthenticated = computed(() => sessionStore.isAuthenticated)
 const isPublicProfile = computed(() => currentSiteProfile.id === 'public')
 const isAccountProfile = computed(() => currentSiteProfile.id === 'account')
 const showAside = computed(() => !isEmbeddedShell.value && isAuthenticated.value)
@@ -401,7 +404,7 @@ const navigateToRoute = (routeName: RouteName) => {
   if (currentSiteProfile.id !== 'rejected') {
     const targetUrl = resolveCanonicalRouteUrl(routeName, currentSiteProfile)
     if (targetUrl && new URL(targetUrl).origin !== window.location.origin) {
-      window.location.assign(targetUrl)
+      assignDocument(targetUrl)
       return
     }
   }
@@ -425,13 +428,12 @@ const copyIdentity = (value?: string | null) => {
 
 const logout = () => void authorizationService.logout()
 
-onMounted(async () => {
+onMounted(() => {
   if (!isAuthenticated.value) {
     waterMarkTextStore.clearText()
     return
   }
 
-  await userInfoStore.init().then(permissionStore.init)
   waterMarkTextStore.setText(`${userInfoStore.userInfo.username}`)
 })
 </script>

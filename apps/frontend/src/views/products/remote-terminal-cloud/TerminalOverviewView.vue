@@ -99,7 +99,6 @@ const loadOverview = async () => {
   errorMessage.value = ''
 
   try {
-    await permissionStore.untilReady()
     const [usageResult, entitlementsResult] = await Promise.allSettled([
       canReadDevices.value || canReadSessions.value
         ? remoteTerminalService.getUsageSummary()

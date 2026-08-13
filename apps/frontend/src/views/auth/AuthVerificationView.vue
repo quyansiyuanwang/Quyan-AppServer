@@ -197,6 +197,7 @@ import type { LegalPolicyType, PublicLegalPolicyDto } from '@/client/types.gen'
 import { getLoginRoute, getRegisterRoute } from '@/utils/auth-routes'
 import { getSafeAuthRedirect } from '@/utils/auth-routes'
 import { completeCentralLogin, getDefaultAccountDestination } from '@/service/centralLoginService'
+import { replaceDocument } from '@/service/navigationService'
 import { resolveCurrentSiteProfile } from '@/config/site-registry'
 
 const TwoFactorChallengeCard = defineAsyncComponent(
@@ -316,7 +317,7 @@ const completeAndRedirect = async (userData?: Record<string, any>) => {
   await authorizationService.reloadAuthStoresAfterLogin(userData)
 
   if (resolveCurrentSiteProfile().id === 'identity') {
-    window.location.replace(getDefaultAccountDestination())
+    replaceDocument(getDefaultAccountDestination())
     return
   }
 

@@ -1,5 +1,4 @@
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
-import { authEventBus } from '@/stores/globalInstance'
 import { useRequestStore } from '@/stores/request'
 import StorageKey from '@/constant/storagekey'
 import { cache } from '@/utils/common'
@@ -28,7 +27,6 @@ export class HeartbeatService {
       document.addEventListener('visibilitychange', this.handleVisibilityChange)
     }
 
-    authEventBus.on('USER_LOGGED_OUT', this.handleLogout)
   }
 
   static getInstance() {
@@ -170,9 +168,6 @@ export class HeartbeatService {
     }
   }
 
-  private handleLogout = () => {
-    this.stop()
-  }
 }
 
 export const heartbeatService = HeartbeatService.getInstance()

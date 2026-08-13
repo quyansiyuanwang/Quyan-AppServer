@@ -1,5 +1,6 @@
 import { i18ns } from '@/locales'
 import { ElMessageBox } from 'element-plus'
+import { reloadDocument } from '@/service/navigationService'
 
 export const extractEntryModule = (html: string): string | undefined => {
   const moduleScript = html.match(/<script\b[^>]*\btype=(["'])module\1[^>]*>/i)?.[0]
@@ -63,9 +64,7 @@ export const configureWatchDog = () => {
               type: 'info',
             },
           )
-            .then(() => {
-              window.location.reload()
-            })
+            .then(reloadDocument)
             .catch(() => {
               // 用户选择稍后刷新，不做任何操作
             })

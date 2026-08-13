@@ -8,7 +8,6 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useUserInfoStore } from './userInfoStore'
 import { permissionService } from '@/service/permissionService'
-import { getAccessToken, isTokenExpired } from '@/stores/request'
 
 /**
  * 权限管理 Store
@@ -31,9 +30,6 @@ export const usePermissionStore = defineStore('permissionStore', () => {
 
   /** 错误信息 */
   const error = ref<string | null>(null)
-
-  /** 避免并发重复初始化 */
-  let initPromise: Promise<void> | null = null
 
   const isLoaded = computed(() => {
     const currentUserId = useUserInfoStore().userInfo.id
@@ -100,20 +96,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
    */
   const loadCurrentUserPermissions = async () => {
     const userInfoStore = useUserInfoStore()
-    let userId: string | null = userInfoStore.userInfo.id || null
-
-    if (!userId) {
-      userId = userInfoStore.loadFromStorage()?.id || null
-    }
-
-    if (!userId && !userInfoStore.hasUserInfoFetched()) {
-      try {
-        await userInfoStore.fetchUserInfo()
-        userId = userInfoStore.userInfo.id || null
-      } catch (err) {
-        console.warn('恢复用户信息失败，权限初始化将等待后续重试', err)
-      }
-    }
+    const userId: string | null = userInfoStore.userInfo.id || null
 
     if (!userId) {
       clearCurrentUserPermissions()
@@ -354,37 +337,6 @@ export const usePermissionStore = defineStore('permissionStore', () => {
     error.value = null
   }
 
-  const init = async () => {
-    if (isLoaded.value) return
-    if (initPromise) return initPromise
-
-    // Public shells also render navigation components that consult this store.
-    // Do not turn that UI initialization into an authenticated API request.
-    const accessToken = getAccessToken()
-    if (!accessToken || isTokenExpired({ bufferSeconds: 2 })) {
-      clearCurrentUserPermissions()
-      return
-    }
-
-    initPromise = (async () => {
-      error.value = null
-      if (allPermissions.value.length === 0) {
-        await loadAllPermissions()
-      }
-      await loadCurrentUserPermissions()
-    })().finally(() => {
-      initPromise = null
-    })
-
-    return initPromise
-  }
-
-  const untilReady = async () => {
-    if (isLoaded.value) return
-
-    await init()
-  }
-
   return {
     // State
     allPermissions,
@@ -422,10 +374,8 @@ export const usePermissionStore = defineStore('permissionStore', () => {
     setGroupPermissions,
 
     // Utilities
-    init,
     getPermissionsByCategory,
     clearCurrentUserPermissions,
     clearError,
-    untilReady,
   }
 })

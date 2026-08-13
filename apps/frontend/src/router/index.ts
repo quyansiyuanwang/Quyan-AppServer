@@ -5,9 +5,9 @@ import {
   resolveCurrentSiteProfile,
   type ResolvedSiteProfile,
 } from '@/config/site-registry'
-import { globalEventBus } from '@/stores/globalInstance'
-import { usePermissionStore } from '@/stores/permissionStore'
 import { getCentralLoginFallbackUrl, redirectToCentralLogin } from '@/service/centralLoginService'
+import { replaceDocument } from '@/service/navigationService'
+import { sessionCoordinator } from '@/service/sessionCoordinator'
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
@@ -92,7 +92,7 @@ function installNavigationGuards(
       profile,
     )
     if (migrationUrl) {
-      window.location.replace(migrationUrl)
+      replaceDocument(migrationUrl)
       next(false)
       return
     }
@@ -128,18 +128,14 @@ function installNavigationGuards(
       }
     }
 
-    const { authorizationService, AuthorizationService } = await import(
-      '@/service/authorizationService'
-    )
-    const accessToken = AuthorizationService.getAccessToken()
-    const token = accessToken || (await authorizationService.bootstrapSession())
+    if (allowGuestWhenEmbedded || allowGuest) {
+      next()
+      return
+    }
+
+    const token = await sessionCoordinator.ensureSession()
 
     if (!token) {
-      if (allowGuestWhenEmbedded || allowGuest) {
-        next()
-        return
-      }
-
       if (profile.id === 'identity') {
         next({ name: 'login', query: { redirect: to.fullPath } })
         return
@@ -153,43 +149,18 @@ function installNavigationGuards(
         // A failed flow request must not leave the user on a protected page.
         // Fall back to the same environment's auth origin; the auth app will
         // establish the session and send the user to its default destination.
-        window.location.replace(getCentralLoginFallbackUrl(profile))
+        replaceDocument(getCentralLoginFallbackUrl(profile))
       }
       next(false)
       return
     }
 
-    const permissionStore = usePermissionStore()
-    const requiredPermission = to.meta.permission as string | undefined
-    const anyPermissions = to.meta.anyPermissions as string[] | undefined
-
-    if (requiredPermission || (anyPermissions && anyPermissions.length > 0)) {
-      try {
-        await permissionStore.untilReady()
-
-        const hasRequiredPermission = requiredPermission
-          ? permissionStore.hasPermission(requiredPermission)
-          : true
-        const hasAnyPermission = anyPermissions?.length
-          ? permissionStore.hasAnyPermission(...anyPermissions)
-          : true
-
-        if (!hasRequiredPermission || !hasAnyPermission) {
-          globalEventBus.emit('FORBIDDEN')
-          if (from.name) {
-            next(false)
-            return
-          }
-
-          next({ name: 'home' })
-          return
-        }
-      } catch (error) {
-        console.error('Failed to initialize permission guard:', error)
-      }
-    }
-
-    // 其他情况正常导航
+    // Permissions hydrate after the authenticated route is entered. Components
+    // consume the coordinator-backed pending/ready state rather than initiating
+    // their own network initialization.
+    void sessionCoordinator.hydrateUserAndPermissions().catch((error) => {
+      console.warn('[router] Failed to hydrate authenticated session:', error)
+    })
     next()
   })
 

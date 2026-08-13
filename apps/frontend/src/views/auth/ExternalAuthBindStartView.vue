@@ -10,6 +10,7 @@ import { i18ns } from '@/locales'
 import { socialAuthService } from '@/service/socialAuthService'
 import { authorizationService } from '@/service/authorizationService'
 import { getLoginRoute } from '@/utils/auth-routes'
+import { replaceDocument } from '@/service/navigationService'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,7 +37,7 @@ onMounted(async () => {
       'bind',
       callbackPath,
     )
-    window.location.replace(authorizeUrl)
+    replaceDocument(authorizeUrl)
   } catch (error: any) {
     ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsBindFailed'))
     await router.replace(getLoginRoute())

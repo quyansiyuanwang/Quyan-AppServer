@@ -515,6 +515,7 @@ import {
 } from '@/constant/developer-product-navigation'
 import type { RouteName } from '@/types/route-types.gen'
 import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
+import { assignDocument } from '@/service/navigationService'
 
 const isDesktopStore = useIsDesktopStore()
 const isDesktop = isDesktopStore.useIsDesktop()
@@ -696,7 +697,7 @@ const navigateToSiteProfile = (siteId: SiteProfileId) => {
 
   showOverview.value = false
   showMobileDrawer.value = false
-  window.location.assign(new URL(target.defaultPath, target.canonicalOrigin).toString())
+  assignDocument(new URL(target.defaultPath, target.canonicalOrigin).toString())
 }
 
 const openOverview = () => {
@@ -734,7 +735,7 @@ const handleRouteNavigation = (routeName: RouteName, event?: MouseEvent) => {
   if (currentSiteProfile.id !== 'rejected') {
     const targetUrl = resolveCanonicalRouteUrl(routeName, currentSiteProfile)
     if (targetUrl && new URL(targetUrl).origin !== currentSiteProfile.canonicalOrigin) {
-      window.location.assign(targetUrl)
+      assignDocument(targetUrl)
       return
     }
   }
@@ -1629,7 +1630,6 @@ onMounted(async () => {
   loadPinnedRoutes()
 
   try {
-    await permissionStore.untilReady()
     syncPinnedRoutes()
   } catch (error) {
     console.warn('Pinned routes restore skipped permission sync:', error)

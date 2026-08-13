@@ -438,10 +438,16 @@ const handleClearSelected = async () => {
 
     if (needsSignOut) {
       ElMessage.warning(i18ns.t('SettingsView.clearCacheSignOutWarning'))
-      setTimeout(() => window.location.reload(), 1500)
+      setTimeout(async () => {
+        const { reloadDocument } = await import('@/service/navigationService')
+        reloadDocument()
+      }, 1500)
     } else if (needsReload) {
       ElMessage.success(i18ns.t('SettingsView.clearCacheReloadWarning'))
-      setTimeout(() => window.location.reload(), 1500)
+      setTimeout(async () => {
+        const { reloadDocument } = await import('@/service/navigationService')
+        reloadDocument()
+      }, 1500)
     } else {
       ElMessage.success(i18ns.t('SettingsView.clearCacheSuccess'))
     }

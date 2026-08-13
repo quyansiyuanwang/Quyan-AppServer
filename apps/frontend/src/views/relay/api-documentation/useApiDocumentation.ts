@@ -320,7 +320,8 @@ export function useApiDocumentation() {
         return
       }
 
-      window.location.assign(targetUrl)
+      const { assignDocument } = await import('@/service/navigationService')
+      assignDocument(targetUrl)
     } catch (error) {
       previewWindow?.close()
       ElMessage.error(toErrorMessage(error, i18ns.t('apiDoc.openSwaggerDocsFailed')))
@@ -338,8 +339,6 @@ export function useApiDocumentation() {
   }
 
   onMounted(() => {
-    void permissionStore.init()
-
     if (activeTabName.value === 'pricing') {
       void ensurePricingTabReady()
     }

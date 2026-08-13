@@ -17,6 +17,7 @@ import {
   isQrApprovalRedirect,
 } from '@/utils/auth-routes'
 import { completeCentralLogin, getDefaultAccountDestination } from '@/service/centralLoginService'
+import { replaceDocument } from '@/service/navigationService'
 import { resolveCurrentSiteProfile } from '@/config/site-registry'
 import { usePageDevice } from '@/composables/usePageDevice'
 import type {
@@ -497,7 +498,7 @@ export function useLoginOrRegister() {
     }
 
     if (resolveCurrentSiteProfile().id === 'identity') {
-      window.location.replace(getDefaultAccountDestination())
+      replaceDocument(getDefaultAccountDestination())
       return
     }
 

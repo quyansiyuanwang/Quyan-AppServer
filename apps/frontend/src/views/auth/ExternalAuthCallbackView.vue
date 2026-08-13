@@ -7,6 +7,7 @@ import { socialAuthService } from '@/service/socialAuthService'
 import { authorizationService } from '@/service/authorizationService'
 import { getLoginRoute, getSafeAuthRedirect } from '@/utils/auth-routes'
 import { completeCentralLogin, getDefaultAccountDestination } from '@/service/centralLoginService'
+import { replaceDocument } from '@/service/navigationService'
 
 const route = useRoute()
 const router = useRouter()
@@ -38,7 +39,7 @@ onMounted(async () => {
       authorizationService.completeLogin(result)
       if (await completeCentralLogin(route.query.flowId)) return
       await authorizationService.reloadAuthStoresAfterLogin(result.user)
-      window.location.replace(getDefaultAccountDestination())
+      replaceDocument(getDefaultAccountDestination())
       return
     }
 

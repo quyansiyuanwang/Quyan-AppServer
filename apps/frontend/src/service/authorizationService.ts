@@ -2,33 +2,19 @@ import { TypedSessionStorage } from '@/utils/typedSessionStorage'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import {
   useRequestStore,
-  saveTokenExpiration,
-  clearTokenExpiration,
-  setAccessToken,
   getAccessToken,
-  clearAccessToken,
-  isTokenExpired,
 } from '@/stores/request'
 import StorageKey from '@/constant/storagekey'
-import { authEventBus, customCodeBus } from '@/stores/globalInstance'
 import router from '@/router'
 import { CustomCode } from '@/constant/custom-code'
 import { useTopLoadingProgressStore } from '@/stores/topLoadingProgressStore'
-import { useUserInfoStore } from '@/stores/userInfoStore'
-import { usePermissionStore } from '@/stores/permissionStore'
 import { useImpersonationStore } from '@/stores/impersonationStore'
 import type { AuthData, PolicyConsentRequiredData, UserDto } from '@/client/types.gen'
 import { toServiceError } from '@/utils/error-utils'
-import {
-  getUserIdFromToken,
-  setCurrentStorageScopeForUserId,
-  syncCurrentStorageScopeFromToken,
-  resetCurrentStorageScope,
-} from '@/utils/storageScope'
-import { ReplaySigningService } from '@/service/replaySigningService'
 import { ensureCaptchaTrust } from '@/service/captchaDialogService'
 import { getLoginRoute } from '@/utils/auth-routes'
-import { heartbeatService } from '@/service/heartbeatService'
+import { sessionCoordinator } from '@/service/sessionCoordinator'
+import { replaceDocument } from '@/service/navigationService'
 import { cache } from '@/utils/common'
 import { createAuthControllerApi } from '@/client/services/auth-controller.gen'
 
@@ -79,15 +65,6 @@ interface CompleteLoginOptions {
   clearPendingTwoFactorChallenge?: boolean
 }
 
-interface ClearAuthStateOptions {
-  clearRefreshToken?: boolean
-  clearImpersonationArtifacts?: boolean
-}
-
-interface RefreshTokenOptions {
-  suppressFailureEvent?: boolean
-}
-
 interface ServiceResultLike {
   code?: number
   message?: string
@@ -95,9 +72,6 @@ interface ServiceResultLike {
 
 export class AuthorizationService {
   private static instance: AuthorizationService | null = null
-  private logoutPromise: Promise<void> | null = null
-  private bootstrapPromise: Promise<string | null> | null = null
-
   private constructor() {}
 
   static getInstance() {
@@ -233,40 +207,6 @@ export class AuthorizationService {
     return !!data && typeof data === 'object' && 'access_token' in data
   }
 
-  private clearStoredRefreshToken() {
-    TypedLocalStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN)
-    clearTokenExpiration(true)
-  }
-
-  private clearImpersonationArtifacts() {
-    useImpersonationStore().clearSession()
-    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN)
-    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN)
-    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_ACCESS_EXPIRY)
-    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_REFRESH_EXPIRY)
-    TypedLocalStorage.removeItem(StorageKey.Impersonation.ORIGINAL_STORAGE_SCOPE)
-  }
-
-  private applyAuthenticatedTokens(
-    authData: { access_token: string; refresh_token?: string; user?: Partial<UserDto> },
-    options: CompleteLoginOptions = {},
-  ) {
-    const { preserveRefreshTokenIfMissing = false } = options
-
-    clearTokenExpiration()
-
-    setAccessToken(authData.access_token)
-
-    const normalizedRefreshToken = authData.refresh_token?.trim()
-    if (normalizedRefreshToken) {
-      clearTokenExpiration(true)
-      TypedLocalStorage.setItem(StorageKey.Auth.REFRESH_TOKEN, normalizedRefreshToken)
-      saveTokenExpiration(normalizedRefreshToken, true)
-    } else if (!preserveRefreshTokenIfMissing) {
-      this.clearStoredRefreshToken()
-    }
-  }
-
   completeLogin(
     authData: { access_token: string; refresh_token?: string; user?: Partial<UserDto> },
     options: CompleteLoginOptions = {},
@@ -277,54 +217,11 @@ export class AuthorizationService {
       this.clearPendingTwoFactorChallenge()
     }
 
-    this.applyAuthenticatedTokens(authData, options)
-
-    const userIdFromToken = getUserIdFromToken(authData.access_token)
-    if (userIdFromToken) {
-      setCurrentStorageScopeForUserId(userIdFromToken)
-    } else {
-      setCurrentStorageScopeForUserId((authData as { user?: Partial<UserDto> }).user?.id)
-    }
-
-    void ReplaySigningService.getInstance()
-      .refreshSigningMaterial()
-      .catch((error) => {
-        console.warn('Failed to refresh replay signing session after login:', error)
-      })
-
-    authEventBus.emit('USER_LOGGED_IN', {
-      userId: getUserIdFromToken(authData.access_token) || authData.user?.id || null,
-    })
-
-    void heartbeatService.start().catch((error) => {
-      console.warn('Failed to start heartbeat service after login:', error)
-    })
+    sessionCoordinator.completeLogin(authData)
   }
 
   async reloadAuthStoresAfterLogin(userData?: Partial<UserDto>) {
-    const userInfoStore = useUserInfoStore()
-    const permissionStore = usePermissionStore()
-
-    userInfoStore.clear()
-    permissionStore.clearCurrentUserPermissions()
-
-    if (userData) {
-      setCurrentStorageScopeForUserId(userData.id)
-      userInfoStore.setUserInfo(userData)
-    }
-
-    try {
-      await userInfoStore.fetchUserInfo()
-      setCurrentStorageScopeForUserId(userInfoStore.userInfo.id)
-    } catch (error) {
-      console.error('Failed to refresh user info after login:', error)
-    }
-
-    try {
-      await permissionStore.init()
-    } catch (error) {
-      console.error('Failed to refresh permissions after login:', error)
-    }
+    await sessionCoordinator.hydrateUserAndPermissions(userData)
   }
 
   setPendingTwoFactorChallenge(
@@ -404,85 +301,9 @@ export class AuthorizationService {
     TypedSessionStorage.removeItem(StorageKey.Auth.PENDING_POLICY_CONSENT_CHALLENGE)
   }
 
-  async refreshToken(refresh_token?: string, options: RefreshTokenOptions = {}) {
-    const impersonationStore = useImpersonationStore()
-
-    const clearAuthState = (options: ClearAuthStateOptions = {}) => {
-      const { clearRefreshToken = true, clearImpersonationArtifacts = true } = options
-
-      clearAccessToken()
-      clearTokenExpiration()
-      if (clearRefreshToken) {
-        this.clearStoredRefreshToken()
-      }
-      if (clearImpersonationArtifacts) {
-        this.clearImpersonationArtifacts()
-      }
-      this.clearPendingTwoFactorChallenge()
-      ReplaySigningService.getInstance().clearSigningMaterial()
-      heartbeatService.stop()
-    }
-
-    if (impersonationStore.isImpersonating) {
-      const error = new Error('Impersonation access token cannot be refreshed')
-      clearAuthState({ clearRefreshToken: false, clearImpersonationArtifacts: false })
-      if (!options.suppressFailureEvent) authEventBus.emit('ACCESS_TOKEN_REFRESH_FAILED', error)
-      throw error
-    }
-
-    try {
-      const normalizedRefreshToken =
-        refresh_token?.trim() || AuthorizationService.getRefreshToken()?.trim()
-      const refreshBody = normalizedRefreshToken
-        ? { refresh_token: normalizedRefreshToken }
-        : undefined
-
-      const res = await getAuthControllerApi().refresh(
-        { body: (refreshBody ?? {}) as any },
-        { retry: false, requestWrapper: async (x: any) => x },
-      )
-
-      if (res.code === CustomCode.OK && res.data?.access_token) {
-        setAccessToken(res.data.access_token)
-        saveTokenExpiration(res.data.access_token)
-        if (res.data.refresh_token) {
-          TypedLocalStorage.setItem(StorageKey.Auth.REFRESH_TOKEN, res.data.refresh_token)
-          saveTokenExpiration(res.data.refresh_token, true)
-        }
-        syncCurrentStorageScopeFromToken(res.data.access_token)
-        await ReplaySigningService.getInstance().refreshSigningMaterial()
-        authEventBus.emit('ACCESS_TOKEN_REFRESHED', res.data.access_token)
-      } else if (res.code === CustomCode.AUTH_FAILED) {
-        clearAuthState()
-        if (!options.suppressFailureEvent)
-          authEventBus.emit('ACCESS_TOKEN_REFRESH_FAILED', new Error('Token refresh failed'))
-      } else if (res.code === CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE) {
-        clearAuthState()
-        customCodeBus.emit('TOKEN_EXPIRED_DUE_TO_UPDATE')
-        if (!options.suppressFailureEvent)
-          authEventBus.emit(
-            'ACCESS_TOKEN_REFRESH_FAILED',
-            new Error('Token expired due to account update'),
-          )
-      } else {
-        clearAuthState()
-        if (!options.suppressFailureEvent)
-          authEventBus.emit(
-            'ACCESS_TOKEN_REFRESH_FAILED',
-            new Error('Token refresh returned unexpected response'),
-          )
-      }
-
-      return res.data
-    } catch (error) {
-      clearAuthState()
-      if (!options.suppressFailureEvent)
-        authEventBus.emit(
-          'ACCESS_TOKEN_REFRESH_FAILED',
-          error instanceof Error ? error : new Error('Token refresh failed unexpectedly'),
-        )
-      throw error
-    }
+  async refreshToken(_refreshToken?: string) {
+    const token = await sessionCoordinator.refresh()
+    return token ? { access_token: token } : undefined
   }
 
   async verifyToken(token: string): Promise<boolean> {
@@ -515,32 +336,10 @@ export class AuthorizationService {
   }
 
   async logout(redirectPath?: string) {
-    if (this.logoutPromise) return this.logoutPromise
-
-    this.logoutPromise = (async () => {
-      const accessToken = AuthorizationService.getAccessToken()
-
-      try {
-        if (accessToken)
-          await getAuthControllerApi().logout(
-            {
-              body: { access_token: accessToken },
-            },
-            { retry: false, requestWrapper: async (x: any) => x },
-          )
-      } catch (error) {
-        console.warn('Logout request failed, continue local logout flow:', error)
-      }
-
-      clearAccessToken()
-      this.clearStoredRefreshToken()
-      this.clearImpersonationArtifacts()
-      AuthorizationService.getInstance().clearPendingTwoFactorChallenge()
-      AuthorizationService.getInstance().clearPendingPolicyConsentChallenge()
-      ReplaySigningService.getInstance().clearSigningMaterial()
-      heartbeatService.stop()
-      authEventBus.emit('USER_LOGGED_OUT')
-      resetCurrentStorageScope()
+    await sessionCoordinator.logout()
+    useImpersonationStore().clearSession()
+    this.clearPendingTwoFactorChallenge()
+    this.clearPendingPolicyConsentChallenge()
 
       // Business profiles do not register a local /login route. Continue to
       // the central identity app after local cleanup; the auth app owns the
@@ -557,67 +356,22 @@ export class AuthorizationService {
           await redirectToCentralLogin(redirectPath)
         } catch (error) {
           console.warn('Central login redirect failed after logout:', error)
-          window.location.replace(getCentralLoginFallbackUrl(currentProfile))
+          replaceDocument(getCentralLoginFallbackUrl(currentProfile))
         }
         return
       }
 
       // Identity profile keeps the in-app login route and its relative return.
       await router.push(getLoginRoute(redirectPath))
-    })().finally(() => {
-      this.logoutPromise = null
-    })
 
-    return this.logoutPromise
   }
 
   static getAccessToken(): string | null {
     return getAccessToken()
   }
 
-  static getRefreshToken(): string | null {
-    return TypedLocalStorage.getItem(StorageKey.Auth.REFRESH_TOKEN)
-  }
-
-  async bootstrapSession(force = false): Promise<string | null> {
-    if (!force) {
-      const accessToken = AuthorizationService.getAccessToken()
-      if (accessToken && !isTokenExpired({ bufferSeconds: 2 })) {
-        void heartbeatService.start().catch((error) => {
-          console.warn('Failed to start heartbeat service during bootstrap:', error)
-        })
-        return accessToken
-      }
-
-      // A refresh token may be held only in the shared HttpOnly cookie after a
-      // central-login redirect, so an empty-body refresh is required to restore
-      // the in-memory access token on the destination subdomain. Callers that
-      // allow guests must avoid invoking bootstrapSession themselves.
-    }
-
-    if (!this.bootstrapPromise) {
-      this.bootstrapPromise = (async () => {
-        try {
-          const result = await this.refreshToken(undefined, { suppressFailureEvent: true })
-          if (result?.access_token) {
-            // A central-login return lands on a new subdomain with empty Pinia
-            // state. Restore identity and permissions before its route guard
-            // continues so the destination does not render as an anonymous UI.
-            await this.reloadAuthStoresAfterLogin()
-            void heartbeatService.start().catch((error) => {
-              console.warn('Failed to start heartbeat service after bootstrap refresh:', error)
-            })
-          }
-          return result?.access_token ?? null
-        } catch {
-          return null
-        } finally {
-          this.bootstrapPromise = null
-        }
-      })()
-    }
-
-    return this.bootstrapPromise
+  async bootstrapSession(): Promise<string | null> {
+    return sessionCoordinator.ensureSession()
   }
 
   async sendRegisterVerificationCode(

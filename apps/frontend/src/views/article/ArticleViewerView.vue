@@ -210,7 +210,7 @@ import { User, Calendar, View, Search } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { articleService } from '@/service/articleService'
-import { AuthorizationService } from '@/service/authorizationService'
+import { useSessionStore } from '@/stores/sessionStore'
 import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
 import ArticleTOC from '@/components/common/ArticleTOC.vue'
 import DashboardSummary from '@/components/common/DashboardSummary.vue'
@@ -223,7 +223,8 @@ const searchQuery = ref('')
 const activeTocId = ref('')
 
 const userInfoStore = useUserInfoStore()
-const isAuthenticated = computed(() => Boolean(AuthorizationService.getAccessToken()))
+const sessionStore = useSessionStore()
+const isAuthenticated = computed(() => sessionStore.isAuthenticated)
 const showDashboardSummary = computed(() => isAuthenticated.value)
 
 const filteredArticles = computed(() => {

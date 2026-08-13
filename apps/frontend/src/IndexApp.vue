@@ -34,12 +34,11 @@ import OverLay from '@/components/layout/OverLay.vue'
 import WaterMark from '@/components/layout/WaterMark.vue'
 import FloatingWorkspaceManager from '@/components/workspace/FloatingWorkspaceManager.vue'
 import { useThemeToggleStore } from '@/stores/themeToggleStore'
-import { computed, onMounted } from 'vue'
+import { computed } from 'vue'
 import TopLoadingProgress from '@/components/layout/TopLoadingProgress.vue'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import DocsQuickLink from '@/components/common/DocsQuickLink.vue'
-import { authEventBus } from '@/stores/globalInstance'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { useFloatingOverlayVisibility } from '@/composables/useFloatingOverlayVisibility'
 import { i18ns } from '@/locales'
@@ -83,12 +82,6 @@ const getViewTransitionKey = (route: RouteLocationNormalizedLoaded) => {
   const primaryChildName = matchedRecords[1]?.name
   return String(primaryChildName ?? route.name ?? '')
 }
-
-onMounted(async () => {
-  authEventBus.on('USER_LOGGED_OUT', () => {
-    waterMarkTextStore.clearText()
-  })
-})
 
 onBeforeUnmount(() => {
   heartbeatService.stop()

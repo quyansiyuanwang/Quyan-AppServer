@@ -469,11 +469,7 @@ async function initPage() {
     return
   }
 
-  try {
-    await permissionStore.untilReady()
-  } finally {
-    permissionReady.value = true
-  }
+  permissionReady.value = true
 
   if (canReadTickets.value) {
     await loadMyTickets()
