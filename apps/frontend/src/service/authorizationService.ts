@@ -84,6 +84,10 @@ interface ClearAuthStateOptions {
   clearImpersonationArtifacts?: boolean
 }
 
+interface RefreshTokenOptions {
+  suppressFailureEvent?: boolean
+}
+
 interface ServiceResultLike {
   code?: number
   message?: string
@@ -400,7 +404,7 @@ export class AuthorizationService {
     TypedSessionStorage.removeItem(StorageKey.Auth.PENDING_POLICY_CONSENT_CHALLENGE)
   }
 
-  async refreshToken(refresh_token?: string) {
+  async refreshToken(refresh_token?: string, options: RefreshTokenOptions = {}) {
     const impersonationStore = useImpersonationStore()
 
     const clearAuthState = (options: ClearAuthStateOptions = {}) => {
@@ -422,7 +426,7 @@ export class AuthorizationService {
     if (impersonationStore.isImpersonating) {
       const error = new Error('Impersonation access token cannot be refreshed')
       clearAuthState({ clearRefreshToken: false, clearImpersonationArtifacts: false })
-      authEventBus.emit('ACCESS_TOKEN_REFRESH_FAILED', error)
+      if (!options.suppressFailureEvent) authEventBus.emit('ACCESS_TOKEN_REFRESH_FAILED', error)
       throw error
     }
 
@@ -450,29 +454,33 @@ export class AuthorizationService {
         authEventBus.emit('ACCESS_TOKEN_REFRESHED', res.data.access_token)
       } else if (res.code === CustomCode.AUTH_FAILED) {
         clearAuthState()
-        authEventBus.emit('ACCESS_TOKEN_REFRESH_FAILED', new Error('Token refresh failed'))
+        if (!options.suppressFailureEvent)
+          authEventBus.emit('ACCESS_TOKEN_REFRESH_FAILED', new Error('Token refresh failed'))
       } else if (res.code === CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE) {
         clearAuthState()
         customCodeBus.emit('TOKEN_EXPIRED_DUE_TO_UPDATE')
-        authEventBus.emit(
-          'ACCESS_TOKEN_REFRESH_FAILED',
-          new Error('Token expired due to account update'),
-        )
+        if (!options.suppressFailureEvent)
+          authEventBus.emit(
+            'ACCESS_TOKEN_REFRESH_FAILED',
+            new Error('Token expired due to account update'),
+          )
       } else {
         clearAuthState()
-        authEventBus.emit(
-          'ACCESS_TOKEN_REFRESH_FAILED',
-          new Error('Token refresh returned unexpected response'),
-        )
+        if (!options.suppressFailureEvent)
+          authEventBus.emit(
+            'ACCESS_TOKEN_REFRESH_FAILED',
+            new Error('Token refresh returned unexpected response'),
+          )
       }
 
       return res.data
     } catch (error) {
       clearAuthState()
-      authEventBus.emit(
-        'ACCESS_TOKEN_REFRESH_FAILED',
-        error instanceof Error ? error : new Error('Token refresh failed unexpectedly'),
-      )
+      if (!options.suppressFailureEvent)
+        authEventBus.emit(
+          'ACCESS_TOKEN_REFRESH_FAILED',
+          error instanceof Error ? error : new Error('Token refresh failed unexpectedly'),
+        )
       throw error
     }
   }
@@ -581,17 +589,21 @@ export class AuthorizationService {
         return accessToken
       }
 
-      // Public pages commonly bootstrap without any stored session. Avoid
-      // sending an empty refresh request, which emits a refresh-failed event
-      // and can incorrectly start the central-login redirect flow.
-      if (!accessToken && !AuthorizationService.getRefreshToken()) return null
+      // A refresh token may be held only in the shared HttpOnly cookie after a
+      // central-login redirect, so an empty-body refresh is required to restore
+      // the in-memory access token on the destination subdomain. Callers that
+      // allow guests must avoid invoking bootstrapSession themselves.
     }
 
     if (!this.bootstrapPromise) {
       this.bootstrapPromise = (async () => {
         try {
-          const result = await this.refreshToken()
+          const result = await this.refreshToken(undefined, { suppressFailureEvent: true })
           if (result?.access_token) {
+            // A central-login return lands on a new subdomain with empty Pinia
+            // state. Restore identity and permissions before its route guard
+            // continues so the destination does not render as an anonymous UI.
+            await this.reloadAuthStoresAfterLogin()
             void heartbeatService.start().catch((error) => {
               console.warn('Failed to start heartbeat service after bootstrap refresh:', error)
             })

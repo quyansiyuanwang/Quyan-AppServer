@@ -17,6 +17,8 @@ const {
   clearSessionMock,
   setSessionMock,
   impersonationState,
+  userInfoStoreMock,
+  permissionStoreMock,
 } = vi.hoisted(() => ({
   requestMock: {
     post: vi.fn(),
@@ -52,6 +54,16 @@ const {
   impersonationState: {
     isImpersonating: false,
   },
+  userInfoStoreMock: {
+    userInfo: { id: 'user-1' },
+    clear: vi.fn(),
+    setUserInfo: vi.fn(),
+    fetchUserInfo: vi.fn(),
+  },
+  permissionStoreMock: {
+    clearCurrentUserPermissions: vi.fn(),
+    init: vi.fn(),
+  },
 }))
 
 vi.mock('@/stores/request', () => ({
@@ -86,18 +98,11 @@ vi.mock('@/stores/topLoadingProgressStore', () => ({
 }))
 
 vi.mock('@/stores/userInfoStore', () => ({
-  useUserInfoStore: () => ({
-    clear: vi.fn(),
-    setUserInfo: vi.fn(),
-    fetchUserInfo: vi.fn(),
-  }),
+  useUserInfoStore: () => userInfoStoreMock,
 }))
 
 vi.mock('@/stores/permissionStore', () => ({
-  usePermissionStore: () => ({
-    clearCurrentUserPermissions: vi.fn(),
-    init: vi.fn(),
-  }),
+  usePermissionStore: () => permissionStoreMock,
 }))
 
 vi.mock('@/stores/impersonationStore', () => ({
@@ -295,6 +300,29 @@ describe('authorizationService', () => {
       { retry: false, requestWrapper: expect.any(Function) },
     )
     expect(localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN)).toBe('refreshed-access-token')
+  })
+
+  it('restores the destination subdomain session from the shared refresh cookie', async () => {
+    requestMock.post.mockResolvedValueOnce({
+      code: CustomCode.OK,
+      data: {
+        access_token: 'cookie-refreshed-access-token',
+      },
+    })
+
+    await expect(authorizationService.bootstrapSession()).resolves.toBe('cookie-refreshed-access-token')
+
+    expect(requestMock.post).toHaveBeenCalledWith(
+      expectOperation('AuthControllerRefresh'),
+      { body: {} },
+      { retry: false, requestWrapper: expect.any(Function) },
+    )
+    expect(authEventBusMock.emit).toHaveBeenCalledWith(
+      'ACCESS_TOKEN_REFRESHED',
+      'cookie-refreshed-access-token',
+    )
+    expect(userInfoStoreMock.fetchUserInfo).toHaveBeenCalledTimes(1)
+    expect(permissionStoreMock.init).toHaveBeenCalledTimes(1)
   })
 
   it('does not clear impersonation session during bootstrap restore when access token is only in memory', async () => {

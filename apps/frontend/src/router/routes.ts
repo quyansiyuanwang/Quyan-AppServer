@@ -130,9 +130,6 @@ export const routes = [
             path: 'home',
             name: 'home',
             component: () => import('@/views/article/ArticleViewerView.vue'),
-            meta: {
-              allowGuest: true,
-            },
           },
           {
             path: 'chat',
