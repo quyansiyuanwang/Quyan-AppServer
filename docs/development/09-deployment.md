@@ -209,6 +209,39 @@ pnpm --filter @appserver/backend pm2:rebuild
 
 ## 环境变量
 
+### 域名、Cookie 与 CORS 上线清单
+
+部署前先确定一个站点族根域，例如 `qysyw.example.com`。同一份前端构件由完整 hostname 选择对应应用，至少应为实际启用的站点配置 DNS 和 HTTPS：
+
+- 公共与认证：`www.<ROOT_DOMAIN>`、`auth.<ROOT_DOMAIN>`。
+- 账户与用户控制台：`account`、`chat`、`terminal`、`ai.console`、`developer.console`、`ram.console`。
+- 产品控制台：`kv.console`、`short-link.console`、`secret.console`、`status.console`、`verification.console`、`ip-geolocation.console`、`push.console`、`oj.console`。
+- 运营：`management`、`ai.management`、`developer.management`、`terminal.management`。
+- API：`api.<ROOT_DOMAIN>`，只承载后端接口，不部署前端 SPA。
+
+所有 SPA hostname 指向同一静态前端构件，并为未知的应用内路径返回该构件的 `index.html`（SPA fallback）。不要把 `api.<ROOT_DOMAIN>` 指向前端静态站，也不要把 `/relay/tokens`、`/relay/settings` 这类前端路径代理到后端；只有 `/relay/proxy/*` 是中转 API 路径。边缘层应将 `/v1/*`、`/auth-center/*`、`/docs/*` 和 `/relay/proxy/*` 转发到后端，并保留 `Host`、`X-Forwarded-Proto` 与真实客户端 IP 链。
+
+后端使用 HttpOnly Cookie 保存刷新令牌和认证会话 ID，浏览器侧只在内存中保存 access token。Cookie 跨同一站点族的认证跳转需要父域作用域，生产环境推荐：
+
+```bash
+ROOT_DOMAIN=qysyw.example.com
+AUTH_REFRESH_COOKIE_DOMAIN=.qysyw.example.com
+AUTH_SESSION_COOKIE_DOMAIN=.qysyw.example.com
+AUTH_REFRESH_COOKIE_SAMESITE=strict
+AUTH_SESSION_COOKIE_SAMESITE=strict
+```
+
+留空两个 `*_COOKIE_DOMAIN` 时，当前后端也会默认使用 `.${ROOT_DOMAIN}`。仅当登录页面与 API 处于不同**站点**时才使用 `SameSite=none`；这要求 HTTPS，并应只与精确 CORS Origin 一起使用。不要用 `*`，不要把刷新令牌写入前端环境变量、localStorage 或反向代理日志。
+
+`CORS_ALLOWED_ORIGINS` 和 `CENTRAL_LOGIN_ALLOWED_ORIGINS` 都必须是逗号分隔的精确 origin，例如：
+
+```bash
+CORS_ALLOWED_ORIGINS=https://www.qysyw.example.com,https://auth.qysyw.example.com,https://ai.console.qysyw.example.com,https://ai.management.qysyw.example.com
+CENTRAL_LOGIN_ALLOWED_ORIGINS=https://www.qysyw.example.com,https://auth.qysyw.example.com,https://ai.console.qysyw.example.com,https://ai.management.qysyw.example.com
+```
+
+若所有站点均为本应用的同一根域，推荐两项留空，由 `ROOT_DOMAIN`（以及可选 `ADDITIONAL_ROOT_DOMAINS`）自动生成完整的精确第一方 origin 清单。新增第二个根域时，将其加入 `ADDITIONAL_ROOT_DOMAINS`，不要手工添加通配符。每次域名、Cookie 或 CORS 变更后，依次验证：登录后从 `auth` 返回业务站、刷新页面后的 Cookie 会话恢复、登出后 Cookie 清除，以及浏览器 Network 面板中跨域请求具有 `Access-Control-Allow-Credentials: true` 和精确的 `Access-Control-Allow-Origin`。
+
 ### 后端 (`.env`)
 
 ```bash

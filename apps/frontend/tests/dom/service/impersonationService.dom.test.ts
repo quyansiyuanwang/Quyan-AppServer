@@ -3,25 +3,41 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import StorageKey from '@/constant/storagekey'
 
-const { requestMock, refreshMock, pushMock, userInfoStore, permissionStore, sessionState } = vi.hoisted(
-  () => ({
-    requestMock: { post: vi.fn() },
-    refreshMock: vi.fn(),
-    pushMock: vi.fn(),
-    userInfoStore: { clear: vi.fn(), fetchUserInfo: vi.fn(async () => undefined) },
-    permissionStore: {
-      clearCurrentUserPermissions: vi.fn(),
-      loadCurrentUserPermissions: vi.fn(async () => undefined),
-    },
-    sessionState: { isImpersonating: false },
-  }),
-)
+const {
+  requestMock,
+  refreshMock,
+  pushMock,
+  userInfoStore,
+  permissionStore,
+  sessionCoordinator,
+  sessionState,
+} = vi.hoisted(() => ({
+  requestMock: { post: vi.fn() },
+  refreshMock: vi.fn(),
+  pushMock: vi.fn(),
+  userInfoStore: { clear: vi.fn(), fetchUserInfo: vi.fn(async () => undefined) },
+  permissionStore: {
+    clearCurrentUserPermissions: vi.fn(),
+    loadCurrentUserPermissions: vi.fn(async () => undefined),
+  },
+  sessionCoordinator: {
+    completeLogin: vi.fn(),
+    hydrateUserAndPermissions: vi.fn(async () => undefined),
+    refresh: vi.fn(),
+  },
+  sessionState: { isImpersonating: false },
+}))
 
 vi.mock('@/stores/request', () => ({
   useRequestStore: () => ({ getAxios: () => requestMock }),
   setAccessToken: vi.fn(),
 }))
-vi.mock('@/service/sessionCoordinator', () => ({ sessionCoordinator: { refresh: refreshMock } }))
+vi.mock('@/service/sessionCoordinator', () => ({
+  sessionCoordinator: {
+    ...sessionCoordinator,
+    refresh: refreshMock,
+  },
+}))
 vi.mock('@/stores/impersonationStore', () => ({
   useImpersonationStore: () => ({
     get isImpersonating() {
@@ -54,12 +70,22 @@ describe('impersonationService', () => {
   })
 
   it('keeps both original and impersonated bearer tokens out of browser storage', async () => {
-    requestMock.post.mockResolvedValue({ data: { access_token: 'impersonation-access', mode: 'view' } })
-    await impersonationService.startImpersonation({ id: 'target-user-1', username: 'target', name: 'Target' })
+    requestMock.post.mockResolvedValue({
+      data: { access_token: 'impersonation-access', mode: 'view' },
+    })
+    await impersonationService.startImpersonation({
+      id: 'target-user-1',
+      username: 'target',
+      name: 'Target',
+    })
 
     expect(localStorage.getItem(StorageKey.Impersonation.ORIGINAL_ACCESS_TOKEN)).toBeNull()
     expect(localStorage.getItem(StorageKey.Impersonation.ORIGINAL_REFRESH_TOKEN)).toBeNull()
-    expect(permissionStore.loadCurrentUserPermissions).toHaveBeenCalledOnce()
+    expect(sessionCoordinator.completeLogin).toHaveBeenCalledWith({
+      access_token: 'impersonation-access',
+      user: { id: 'target-user-1', username: 'target', name: 'Target' },
+    })
+    expect(sessionCoordinator.hydrateUserAndPermissions).toHaveBeenCalledOnce()
   })
 
   it('restores the original session through the shared refresh cookie when exiting', async () => {

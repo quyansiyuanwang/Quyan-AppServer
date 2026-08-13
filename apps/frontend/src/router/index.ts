@@ -155,12 +155,13 @@ function installNavigationGuards(
       return
     }
 
-    // Permissions hydrate after the authenticated route is entered. Components
-    // consume the coordinator-backed pending/ready state rather than initiating
-    // their own network initialization.
-    void sessionCoordinator.hydrateUserAndPermissions().catch((error) => {
+    // The coordinator coalesces this with startup and later navigations. Do not
+    // enter a protected shell until its identity and menu permissions are ready.
+    try {
+      await sessionCoordinator.hydrateUserAndPermissions()
+    } catch (error) {
       console.warn('[router] Failed to hydrate authenticated session:', error)
-    })
+    }
     next()
   })
 

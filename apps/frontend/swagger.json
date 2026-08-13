@@ -19845,7 +19845,7 @@
 				"X-Replay-Protected": true
 			}
 		},
-		"/v1/developer/admin/quota-overrides": {
+		"/v1/products/admin/quota-overrides": {
 			"get": {
 				"operationId": "DeveloperQuotaAdminControllerList",
 				"responses": {
@@ -19909,7 +19909,7 @@
 				"X-Replay-Protected": true
 			}
 		},
-		"/v1/developer/admin/quota-overrides/{id}": {
+		"/v1/products/admin/quota-overrides/{id}": {
 			"delete": {
 				"operationId": "DeveloperQuotaAdminControllerRemove",
 				"responses": {
@@ -42884,7 +42884,8 @@
 						"format": "double"
 					},
 					"allowedFormats": {
-						"type": "string"
+						"type": "string",
+						"nullable": true
 					},
 					"allowedModels": {
 						"type": "string",
@@ -43179,7 +43180,8 @@
 						"format": "double"
 					},
 					"allowedFormats": {
-						"type": "string"
+						"type": "string",
+						"nullable": true
 					},
 					"allowedModels": {
 						"type": "string",
@@ -43509,6 +43511,7 @@
 					},
 					"allowedFormats": {
 						"type": "string",
+						"nullable": true,
 						"description": "允许的格式"
 					},
 					"allowedModels": {
@@ -43734,6 +43737,7 @@
 					},
 					"allowedFormats": {
 						"type": "string",
+						"nullable": true,
 						"description": "允许的格式"
 					},
 					"allowedModels": {
@@ -43900,6 +43904,7 @@
 					},
 					"allowedFormats": {
 						"type": "string",
+						"nullable": true,
 						"description": "允许的格式"
 					},
 					"allowedModels": {
@@ -44043,6 +44048,7 @@
 					},
 					"allowedFormats": {
 						"type": "string",
+						"nullable": true,
 						"description": "允许的格式"
 					},
 					"allowedModels": {
@@ -44138,7 +44144,8 @@
 						"format": "double"
 					},
 					"allowedFormats": {
-						"type": "string"
+						"type": "string",
+						"nullable": true
 					},
 					"allowedModels": {
 						"type": "string",

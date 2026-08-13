@@ -1,17 +1,11 @@
-import { TypedLocalStorage } from '@/utils/typedLocalStorage'
-import { useRequestStore, setAccessToken } from '@/stores/request'
+import { useRequestStore } from '@/stores/request'
 import { useImpersonationStore } from '@/stores/impersonationStore'
-import { useUserInfoStore } from '@/stores/userInfoStore'
-import { usePermissionStore } from '@/stores/permissionStore'
 import router from '@/router'
 import type { UserDto } from '@/client/types.gen'
 import { toServiceError } from '@/utils/error-utils'
 import { sessionCoordinator } from '@/service/sessionCoordinator'
 import { cacheObject } from '@/utils/common'
 import { createImpersonationControllerApi } from '@/client/services/impersonation-controller.gen'
-import {
-  setCurrentStorageScopeForUserId,
-} from '@/utils/storageScope'
 
 const impersonationApi = cacheObject(() =>
   createImpersonationControllerApi(useRequestStore().getAxios()),
@@ -54,8 +48,9 @@ export class ImpersonationService {
       mode: 'view' | 'act'
     }
 
-    setAccessToken(access_token)
-    setCurrentStorageScopeForUserId(targetUser.id)
+    // Pass the target identity as well as the token. This switches the scoped
+    // UI cache before a later hydration request fills in the full profile.
+    sessionCoordinator.completeLogin({ access_token, user: targetUser })
 
     // 记录模拟会话信息
     impersonationStore.setSession({
@@ -91,15 +86,7 @@ export class ImpersonationService {
   }
 
   private async reloadStores() {
-    const userInfoStore = useUserInfoStore()
-    const permissionStore = usePermissionStore()
-
-    userInfoStore.clear()
-    permissionStore.clearCurrentUserPermissions()
-
-    // Fetch identity before its permissions; the coordinator owns this sequence.
-    await userInfoStore.fetchUserInfo()
-    await permissionStore.loadCurrentUserPermissions()
+    await sessionCoordinator.hydrateUserAndPermissions()
   }
 }
 

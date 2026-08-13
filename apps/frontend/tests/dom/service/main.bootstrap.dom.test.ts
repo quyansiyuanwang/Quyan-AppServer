@@ -14,11 +14,22 @@ vi.mock('@/router', () => ({
 }))
 vi.mock('@/config/site-registry', () => ({ isKnownSiteProfile: () => true }))
 vi.mock('@/app-roots/load-profile-app', () => ({ loadProfileApp: vi.fn(async () => ({})) }))
-vi.mock('@/locales', () => ({ i18ns: { plugin: {} }, initializeI18n: vi.fn(async () => undefined) }))
+vi.mock('@/locales', () => ({
+  i18ns: { plugin: {} },
+  initializeI18n: vi.fn(async () => undefined),
+}))
 vi.mock('@/config', () => ({ configureAll: vi.fn() }))
-vi.mock('@/service/errorReportService', () => ({ installErrorReporter: vi.fn(), reportClientError: vi.fn() }))
+vi.mock('@/service/errorReportService', () => ({
+  installErrorReporter: vi.fn(),
+  reportClientError: vi.fn(),
+}))
 vi.mock('@/stores/request', () => ({ clearLegacyAuthStorage: vi.fn() }))
-vi.mock('@/service/sessionCoordinator', () => ({ sessionCoordinator: { ensureSession: ensureSessionMock } }))
+vi.mock('@/service/sessionCoordinator', () => ({
+  sessionCoordinator: {
+    ensureSession: ensureSessionMock,
+    hydrateUserAndPermissions: vi.fn(async () => undefined),
+  },
+}))
 
 describe('AppRuntime', () => {
   beforeEach(() => {

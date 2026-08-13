@@ -32,6 +32,9 @@ const StorageKey = {
   User: {
     INFO: 'User-Info',
   },
+  Permission: {
+    CURRENT_USER: 'Permission-CurrentUser',
+  },
   // Home
   Home: {
     DASHBOARD_DEFAULT_OPEN: 'Home-DashboardDefaultOpen',

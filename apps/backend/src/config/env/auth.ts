@@ -126,7 +126,10 @@ export function buildAuthConfig(
   const trustedDeviceSameSite = normalizeCookieSameSite(source.TWO_FACTOR_TRUSTED_DEVICE_COOKIE_SAMESITE, "strict");
   const refreshSameSite = normalizeCookieSameSite(source.AUTH_REFRESH_COOKIE_SAMESITE, "strict");
   const sessionSameSite = normalizeCookieSameSite(source.AUTH_SESSION_COOKIE_SAMESITE, "strict");
-  const localCookieDomain = !runtime.isProduction && !runtime.isTest ? `.${runtime.rootDomain}` : undefined;
+  // The central login flow returns users to sibling first-party applications.
+  // Scope session cookies to the configured service family unless an operator
+  // explicitly narrows them to a host.
+  const defaultCookieDomain = !runtime.isTest ? `.${runtime.rootDomain}` : undefined;
   const twoFactor = {
     trustWindowMinutes: sanitizeInt(source.TWO_FACTOR_TRUST_WINDOW_MINUTES, 1440, 0, 525600),
     totpIntervalSeconds: sanitizeInt(source.TWO_FACTOR_TOTP_INTERVAL_SECONDS, 30, 15, 300),
@@ -145,17 +148,17 @@ export function buildAuthConfig(
     twoFactorTrustWindowMinutes: twoFactor.trustWindowMinutes,
     trustedDeviceCookie: {
       sameSite: trustedDeviceSameSite,
-      domain: String(source.TWO_FACTOR_TRUSTED_DEVICE_COOKIE_DOMAIN || "").trim() || undefined,
+      domain: String(source.TWO_FACTOR_TRUSTED_DEVICE_COOKIE_DOMAIN || "").trim() || defaultCookieDomain,
     },
     refreshCookie: {
       name: String(source.AUTH_REFRESH_COOKIE_NAME || "").trim() || "refresh_token",
       sameSite: refreshSameSite,
-      domain: String(source.AUTH_REFRESH_COOKIE_DOMAIN || "").trim() || localCookieDomain,
+      domain: String(source.AUTH_REFRESH_COOKIE_DOMAIN || "").trim() || defaultCookieDomain,
     },
     sessionCookie: {
       name: String(source.AUTH_SESSION_COOKIE_NAME || "").trim() || "auth_session_id",
       sameSite: sessionSameSite,
-      domain: String(source.AUTH_SESSION_COOKIE_DOMAIN || "").trim() || localCookieDomain,
+      domain: String(source.AUTH_SESSION_COOKIE_DOMAIN || "").trim() || defaultCookieDomain,
       forceOfflineTtlDays: sanitizeInt(source.AUTH_SESSION_FORCE_OFFLINE_TTL_DAYS, 30, 1, 3650),
     },
     webAuthn: {

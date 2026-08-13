@@ -8,6 +8,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useUserInfoStore } from './userInfoStore'
 import { permissionService } from '@/service/permissionService'
+import StorageKey from '@/constant/storagekey'
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
+import { getScopedStorageKey } from '@/utils/storageScope'
+
+type CachedPermissionState = Pick<AllPermissionsDto, 'permissions'> & {
+  currentUserPermissions: UserFullPermissionsDto
+}
 
 /**
  * 权限管理 Store
@@ -40,6 +47,31 @@ export const usePermissionStore = defineStore('permissionStore', () => {
       currentPermissionUserId.value === currentUserId
     )
   })
+
+  const getCacheKey = (userId: string) =>
+    getScopedStorageKey(StorageKey.Permission.CURRENT_USER, `user:${userId}`)
+
+  const saveCurrentUserPermissionsCache = (userId: string) => {
+    if (!currentUserPermissions.value) return
+    TypedLocalStorage.set<CachedPermissionState>(getCacheKey(userId), {
+      permissions: allPermissions.value,
+      currentUserPermissions: currentUserPermissions.value,
+    })
+  }
+
+  const restoreCurrentUserPermissionsCache = (userId: string) => {
+    const cached = TypedLocalStorage.get<CachedPermissionState>(getCacheKey(userId))
+    if (
+      !cached?.currentUserPermissions ||
+      cached.currentUserPermissions.userId !== userId ||
+      !Array.isArray(cached.permissions)
+    )
+      return false
+    allPermissions.value = cached.permissions
+    currentUserPermissions.value = cached.currentUserPermissions
+    currentPermissionUserId.value = userId
+    return true
+  }
 
   // ========== Computed ==========
 
@@ -124,6 +156,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
       if (userId === currentUserId) {
         currentUserPermissions.value = data.data || null
         currentPermissionUserId.value = data.data ? userId : null
+        if (data.data) saveCurrentUserPermissionsCache(userId)
       }
 
       return data
@@ -376,6 +409,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
     // Utilities
     getPermissionsByCategory,
     clearCurrentUserPermissions,
+    restoreCurrentUserPermissionsCache,
     clearError,
   }
 })

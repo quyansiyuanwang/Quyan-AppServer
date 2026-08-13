@@ -13,7 +13,7 @@ interface HeatPoint {
 }
 
 const FLUSH_INTERVAL = 5000
-const ENDPOINT = `${import.meta.env.VITE_BACKEND_URL || ''}/v1/heatmap/collect`
+const ENDPOINT = '/v1/heatmap/collect'
 
 function getSessionId(): string {
   return TypedSessionStorage.getItem(StorageKey.Tracking.SESSION_ID) ?? ''

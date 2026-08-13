@@ -9,12 +9,7 @@ import { installErrorReporter, reportClientError } from '@/service/errorReportSe
 import { clearLegacyAuthStorage } from '@/stores/request'
 import { sessionCoordinator } from '@/service/sessionCoordinator'
 
-export type AppRuntimePhase =
-  | 'created'
-  | 'routes-ready'
-  | 'session-ready'
-  | 'mounted'
-  | 'running'
+export type AppRuntimePhase = 'created' | 'routes-ready' | 'session-ready' | 'mounted' | 'running'
 
 const isAuthEntryPath = () =>
   router.resolve(window.location.pathname).matched.some((route) => route.meta.isAuthEntry === true)
@@ -63,7 +58,8 @@ export class AppRuntime {
     if (isKnownSiteProfile(currentSiteProfile) && !isAuthEntryPath()) {
       const initialRoute = router.resolve(window.location.pathname)
       if (initialRoute.matched.some((route) => route.meta.allowGuest !== true)) {
-        await sessionCoordinator.ensureSession()
+        const token = await sessionCoordinator.ensureSession()
+        if (token) await sessionCoordinator.hydrateUserAndPermissions()
       }
     }
     this.phase = 'session-ready'

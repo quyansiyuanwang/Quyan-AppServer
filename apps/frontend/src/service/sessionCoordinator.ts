@@ -16,7 +16,11 @@ import { useSessionStore, type SessionStatus } from '@/stores/sessionStore'
 import { useTopLoadingProgressStore } from '@/stores/topLoadingProgressStore'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
-import { getUserIdFromToken, resetCurrentStorageScope, setCurrentStorageScopeForUserId } from '@/utils/storageScope'
+import {
+  getUserIdFromToken,
+  resetCurrentStorageScope,
+  setCurrentStorageScopeForUserId,
+} from '@/utils/storageScope'
 import { cache } from '@/utils/common'
 
 export class SessionExpiredError extends Error {
@@ -54,13 +58,28 @@ export class SessionCoordinator {
     setAccessToken(token)
     saveTokenExpiration(token)
     const userId = getUserIdFromToken(token) || user?.id
-    if (userId) setCurrentStorageScopeForUserId(userId)
+    if (userId) {
+      const userInfoStore = useUserInfoStore()
+      const permissionStore = usePermissionStore()
+      if (userInfoStore.userInfo.id && userInfoStore.userInfo.id !== userId) {
+        userInfoStore.clear()
+        permissionStore.clearCurrentUserPermissions()
+        useSessionStore().setPermissionsStatus('idle')
+      }
+      setCurrentStorageScopeForUserId(userId)
+      userInfoStore.loadFromStorage()
+      if (!permissionStore.restoreCurrentUserPermissionsCache(userId)) {
+        permissionStore.clearCurrentUserPermissions()
+      }
+    }
     useSessionStore().setAuthenticated(token)
   }
 
   completeLogin(auth: { access_token: string; user?: Partial<UserDto> }) {
     this.applyAccessToken(auth.access_token, auth.user)
-    void ReplaySigningService.getInstance().refreshSigningMaterial().catch(() => undefined)
+    void ReplaySigningService.getInstance()
+      .refreshSigningMaterial()
+      .catch(() => undefined)
     void heartbeatService.start().catch(() => undefined)
   }
 
@@ -88,7 +107,9 @@ export class SessionCoordinator {
           throw new SessionExpiredError()
         }
         this.applyAccessToken(result.data.access_token)
-        void ReplaySigningService.getInstance().refreshSigningMaterial().catch(() => undefined)
+        void ReplaySigningService.getInstance()
+          .refreshSigningMaterial()
+          .catch(() => undefined)
         void heartbeatService.start().catch(() => undefined)
         return result.data.access_token
       } catch (error) {
@@ -108,9 +129,16 @@ export class SessionCoordinator {
       const session = useSessionStore()
       const userInfoStore = useUserInfoStore()
       const permissionStore = usePermissionStore()
+
+      if (
+        session.permissionsStatus === 'ready' &&
+        permissionStore.isLoaded &&
+        userInfoStore.isUserInfoFetched
+      ) {
+        return
+      }
+
       session.setPermissionsStatus('loading')
-      userInfoStore.clear()
-      permissionStore.clearCurrentUserPermissions()
       try {
         if (user) userInfoStore.setUserInfo(user)
         await userInfoStore.fetchUserInfo()

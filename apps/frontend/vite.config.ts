@@ -356,7 +356,11 @@ export default defineConfig(({ mode }) => {
                 changeOrigin: false,
                 configure: preserveBrowserOrigin,
               },
-              '^/relay(?:/|$)': {
+              // `/relay/*` also contains SPA routes such as `/relay/tokens` and
+              // `/relay/settings`. Only the actual relay API belongs to the
+              // backend; proxying the broad prefix makes Vite return the backend
+              // JSON 404 instead of the console application.
+              '^/relay/proxy(?:/|$)': {
                 target: 'http://localhost:10001',
                 changeOrigin: false,
                 configure: preserveBrowserOrigin,
