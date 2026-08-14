@@ -17,6 +17,7 @@
           <el-icon><Grid /></el-icon>
           <span>{{ i18ns.t('nav.switchSite') }}</span>
         </button>
+        <GlobalNavigationSearch />
         <div class="site-header__actions">
           <div class="site-header__nav-links">
             <button type="button" class="site-header__text-button" @click="openDocs">
@@ -260,6 +261,7 @@
 import AsideMenu from '@/layouts/AsideMenu.vue'
 import RightUtilitySidebar from '@/layouts/RightUtilitySidebar.vue'
 import ImpersonationBanner from '@/components/common/ImpersonationBanner.vue'
+import GlobalNavigationSearch from '@/components/navigation/GlobalNavigationSearch.vue'
 import {
   ArrowLeft,
   CopyDocument,
