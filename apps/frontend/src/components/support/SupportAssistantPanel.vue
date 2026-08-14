@@ -3,7 +3,7 @@
     <header class="support-panel__header">
       <strong>{{ i18ns.t('support.title') }}</strong>
       <div class="support-panel__header-actions">
-        <el-button text size="small" :disabled="sending" @click="messages = []">
+        <el-button text size="small" :disabled="sending" @click="clear">
           {{ i18ns.t('support.clear') }}
         </el-button>
         <el-button plain size="small" type="primary" :disabled="sending" @click="handoff">
@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { i18ns } from '@/locales'
 import router, { currentSiteProfile } from '@/router'
@@ -59,6 +59,37 @@ const citations = ref<Citation[]>([])
 const draft = ref('')
 const sending = ref(false)
 const error = ref('')
+const api = () => createSupportControllerApi(useRequestStore().getAxios())
+
+const responseData = (response: any) => response?.data?.data ?? response?.data ?? response
+
+const loadConversation = async () => {
+  try {
+    const conversation = responseData(await api().conversation())
+    const stored = Array.isArray(conversation?.messages) ? conversation.messages : []
+    messages.value = stored
+      .filter(
+        (message: { role?: string; content?: string }) =>
+          (message.role === 'user' || message.role === 'assistant') &&
+          typeof message.content === 'string',
+      )
+      .map((message: { role: 'user' | 'assistant'; content: string }, index: number) => ({
+        id: `stored-${index}`,
+        role: message.role,
+        content: message.content,
+      }))
+  } catch {
+    // A transient read failure must not block a new support conversation.
+  }
+}
+
+const clear = async () => {
+  if (sending.value) return
+  await api().clearConversation()
+  messages.value = []
+  citations.value = []
+  error.value = ''
+}
 
 const captureVisiblePageText = () => {
   const root =
@@ -147,10 +178,12 @@ const handoff = async () => {
   const description = messages.value
     .map((message) => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.content}`)
     .join('\n\n')
-  await createSupportControllerApi(useRequestStore().getAxios()).handoff({
+  await api().handoff({
     body: { title: value.trim(), description, sourcePage: window.location.pathname },
   })
 }
+
+onMounted(() => void loadConversation())
 </script>
 
 <style scoped>

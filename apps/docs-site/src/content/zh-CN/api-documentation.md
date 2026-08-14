@@ -53,6 +53,34 @@ OpenAPI JSON: https://api.qysyw.cn/docs/openapi.json
 
 如果只是临时调试，可先用 Swagger；如果要真正接入业务，建议直接参考下面的代码模板。
 
+## AI 中转快速接入
+
+想调用 AI 时，使用 **AI 中转控制台**，而不是浏览器登录接口。最短流程如下：
+
+1. 进入 **中转令牌管理**，点击“创建令牌”，选择可用渠道或自动代理池后保存令牌。
+2. 在创建抽屉顶部或 **API 文档** 页的端点标签中复制 **Relay Base URL**。它是你的部署对外提供的中转地址，可能与管理后台或后端 API 地址不同。
+3. 将令牌仅放在服务端环境变量中，并用 `Authorization: Bearer <relay_token>` 请求中转接口。
+4. 先调用 `/v1/models` 查看当前令牌能使用的模型，再选择相应的请求格式。
+
+以下示例中的 `https://relay.example.com` 必须替换为控制台显示的 Relay Base URL；不要猜测或把管理站域名当作中转地址。
+
+```bash
+# 查看此令牌可调用的模型
+curl "https://relay.example.com/v1/models" \
+  -H "Authorization: Bearer <relay_token>"
+
+# OpenAI Chat Completions 兼容调用
+curl "https://relay.example.com/v1/chat/completions" \
+  -H "Authorization: Bearer <relay_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "your-enabled-model",
+    "messages": [{"role": "user", "content": "你好"}]
+  }'
+```
+
+中转令牌只用于中转请求，不用于登录管理后台。令牌所属渠道、启用模型、请求格式、额度、IP 白名单和状态都会影响实际能否调用；遇到 `401`、`403` 或模型不可用时，先在中转令牌管理页面检查这些配置。
+
 ## 统一响应格式
 
 后端大多数接口遵循统一结构：
@@ -123,6 +151,20 @@ Relay 将 OpenAI 的两种 v1 文本接口作为独立格式管理：
 - **OpenAI Responses**：`/relay/proxy/v1/responses`，请求体使用 `input`。
 
 使用任一接口前，Relay Token 所属渠道和所选模型都必须显式启用对应格式。旧 OpenAI 配置仅兼容为 Chat Completions；Responses 不会自动启用。
+
+### OpenAI Responses 示例
+
+```bash
+curl "https://relay.example.com/v1/responses" \
+  -H "Authorization: Bearer <relay_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "your-enabled-model",
+    "input": "你好"
+  }'
+```
+
+其他兼容格式（Anthropic 或 Gemini）仅在令牌渠道显式启用后可用。接口路径和字段以控制台的 API 文档页面为准。
 
 ## 最小 curl 示例
 

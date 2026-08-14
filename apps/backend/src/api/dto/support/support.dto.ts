@@ -30,6 +30,10 @@ export interface SupportAvailabilityDto {
   enabled: boolean;
 }
 
+export interface SupportConversationDto {
+  messages: SupportMessageDto[];
+}
+
 export interface SupportHandoffDto {
   title: string;
   description: string;
@@ -49,6 +53,9 @@ export interface SupportAiConfigDto {
   systemPrompt: string;
   maxRequests: number;
   windowSeconds: number;
+  sessionRetentionDays: number;
+  inputPricePerMillion: number;
+  outputPricePerMillion: number;
 }
 
 export interface UpdateSupportAiConfigDto {
@@ -61,4 +68,46 @@ export interface UpdateSupportAiConfigDto {
   systemPrompt?: string;
   maxRequests: number;
   windowSeconds: number;
+  sessionRetentionDays?: number;
+  inputPricePerMillion?: number;
+  outputPricePerMillion?: number;
+}
+
+export interface SupportAiAnalyticsQueryDto {
+  page?: number;
+  pageSize?: number;
+  startAt?: string;
+  endAt?: string;
+  userId?: string;
+}
+
+export interface SupportAiUsageUserDto {
+  userId: string;
+  username: string;
+  requestCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCost: number;
+  lastRequestAt: Date;
+}
+
+export interface SupportAiUsageTrendDto {
+  date: string;
+  requestCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  estimatedCost: number;
+}
+
+export interface SupportAiAnalyticsDto {
+  totalRequests: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  totalEstimatedCost: number;
+  trends: SupportAiUsageTrendDto[];
+  users: SupportAiUsageUserDto[];
+  totalUsers: number;
 }

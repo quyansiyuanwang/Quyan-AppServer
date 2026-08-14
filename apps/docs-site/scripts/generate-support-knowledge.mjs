@@ -8,10 +8,11 @@ const outputPath = join(docsDirectory, 'public', 'support-knowledge.json')
 
 const clean = (markdown) =>
   markdown
-    .replace(/```[\s\S]*?```/g, ' ')
+    // Keep command and request examples searchable by support; only Markdown fences are presentation syntax.
+    .replace(/```[^\r\n]*(?:\r?\n|$)/g, '')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/<[^>]+>/g, ' ')
+    .replace(/<\/?([a-zA-Z][\w-]*)(?:\s[^>]*)?>/g, ' $1 ')
     .replace(/^\s{0,3}#{1,6}\s*/gm, '')
     .replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, '')
     .replace(/[>*_`|]/g, ' ')

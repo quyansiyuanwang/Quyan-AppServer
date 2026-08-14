@@ -316,6 +316,13 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows configuring platform-hosted AI support',
     category: 'system',
   },
+  [Permission.SUPPORT_AI_ANALYTICS_READ]: {
+    label: 'AI 客服分析',
+    labelEn: 'AI Support Analytics',
+    tooltip: '允许查看 AI 客服对话窗口和用量统计',
+    tooltipEn: 'Allows viewing AI support conversations and usage statistics',
+    category: 'system',
+  },
   [Permission.SYSTEM_STATS_READ]: {
     label: '查看系统统计',
     labelEn: 'View System Stats',

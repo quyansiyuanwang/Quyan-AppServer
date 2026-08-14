@@ -12409,6 +12409,161 @@
 				"parameters": []
 			}
 		},
+		"/v1/support/conversation": {
+			"get": {
+				"operationId": "SupportControllerConversation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportConversationDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"delete": {
+				"operationId": "SupportControllerClearConversation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_void_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/support/analytics": {
+			"get": {
+				"operationId": "SupportControllerAnalytics",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportAiAnalyticsDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startAt",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endAt",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "userId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/support/analytics/users/{userId}/conversation": {
+			"get": {
+				"operationId": "SupportControllerAnalyticsConversation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportConversationDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/support/messages": {
 			"post": {
 				"operationId": "SupportControllerMessages",
@@ -30700,6 +30855,7 @@
 					"ram:policy:detach",
 					"system:config",
 					"support:ai:config",
+					"support:ai:analytics:read",
 					"system:stats:read",
 					"system:consumption:read",
 					"system:log:read",
@@ -37898,6 +38054,214 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"SupportConversationDto": {
+				"properties": {
+					"messages": {
+						"items": {
+							"$ref": "#/components/schemas/SupportMessageDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"messages"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_SupportConversationDto_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/SupportConversationDto"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_void_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportAiUsageTrendDto": {
+				"properties": {
+					"date": {
+						"type": "string"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"inputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"outputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"estimatedCost": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"date",
+					"requestCount",
+					"inputTokens",
+					"outputTokens",
+					"totalTokens",
+					"estimatedCost"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportAiUsageUserDto": {
+				"properties": {
+					"userId": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"inputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"outputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"estimatedCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastRequestAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"userId",
+					"username",
+					"requestCount",
+					"inputTokens",
+					"outputTokens",
+					"totalTokens",
+					"estimatedCost",
+					"lastRequestAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportAiAnalyticsDto": {
+				"properties": {
+					"totalRequests": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalOutputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalEstimatedCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"trends": {
+						"items": {
+							"$ref": "#/components/schemas/SupportAiUsageTrendDto"
+						},
+						"type": "array"
+					},
+					"users": {
+						"items": {
+							"$ref": "#/components/schemas/SupportAiUsageUserDto"
+						},
+						"type": "array"
+					},
+					"totalUsers": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"totalRequests",
+					"totalInputTokens",
+					"totalOutputTokens",
+					"totalTokens",
+					"totalEstimatedCost",
+					"trends",
+					"users",
+					"totalUsers"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_SupportAiAnalyticsDto_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/SupportAiAnalyticsDto"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"SupportPageContextDto": {
 				"properties": {
 					"site": {
@@ -38036,6 +38400,18 @@
 					"windowSeconds": {
 						"type": "number",
 						"format": "double"
+					},
+					"sessionRetentionDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"inputPricePerMillion": {
+						"type": "number",
+						"format": "double"
+					},
+					"outputPricePerMillion": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [
@@ -38046,7 +38422,10 @@
 					"requestFormat",
 					"systemPrompt",
 					"maxRequests",
-					"windowSeconds"
+					"windowSeconds",
+					"sessionRetentionDays",
+					"inputPricePerMillion",
+					"outputPricePerMillion"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -38099,6 +38478,18 @@
 						"format": "double"
 					},
 					"windowSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"sessionRetentionDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"inputPricePerMillion": {
+						"type": "number",
+						"format": "double"
+					},
+					"outputPricePerMillion": {
 						"type": "number",
 						"format": "double"
 					}
@@ -49180,24 +49571,6 @@
 						"type": "string"
 					}
 				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"SuccessResponse_void_": {
-				"description": "成功响应格式\n用于所有成功情况（2xx）",
-				"properties": {
-					"code": {
-						"$ref": "#/components/schemas/CustomCode"
-					},
-					"message": {
-						"type": "string"
-					},
-					"data": {}
-				},
-				"required": [
-					"code",
-					"message"
-				],
 				"type": "object",
 				"additionalProperties": false
 			},

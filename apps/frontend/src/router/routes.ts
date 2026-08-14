@@ -1037,6 +1037,12 @@ export const routes = [
             meta: { permission: Permission.SUPPORT_AI_CONFIG },
           },
           {
+            path: 'system/ai-support-analytics',
+            name: 'supportAiAnalytics',
+            component: () => import('@/views/system/SupportAiAnalyticsView.vue'),
+            meta: { permission: Permission.SUPPORT_AI_ANALYTICS_READ },
+          },
+          {
             path: 'system/ip-monitoring',
             name: 'ipMonitoring',
             component: () => import('@/views/system/IPMonitoringDashboardView.vue'),

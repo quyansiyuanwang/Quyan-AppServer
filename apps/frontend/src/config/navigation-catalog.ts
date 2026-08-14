@@ -295,6 +295,9 @@ export const navigationMenuDefinition: readonly NavigationNode[] = [
     [
       item('serverConfig', 'nav.serverConfig', Tools, [Permission.SYSTEM_CONFIG]),
       item('supportAiConfig', 'nav.supportAiConfig', ChatDotRound, [Permission.SUPPORT_AI_CONFIG]),
+      item('supportAiAnalytics', 'nav.supportAiAnalytics', DataAnalysis, [
+        Permission.SUPPORT_AI_ANALYTICS_READ,
+      ]),
       item('ipMonitoring', 'nav.ipMonitoring', DataAnalysis, [Permission.IP_BLACKLIST_READ]),
     ],
     true,

@@ -28,7 +28,11 @@ vi.mock('@/router', () => ({
 }))
 
 vi.mock('@/client/services/support-controller.gen', () => ({
-  createSupportControllerApi: () => ({ handoff: vi.fn() }),
+  createSupportControllerApi: () => ({
+    handoff: vi.fn(),
+    conversation: vi.fn().mockResolvedValue({ data: { data: { messages: [] } } }),
+    clearConversation: vi.fn(),
+  }),
 }))
 
 import SupportAssistantPanel from '@/components/support/SupportAssistantPanel.vue'

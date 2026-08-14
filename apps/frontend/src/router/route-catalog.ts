@@ -75,6 +75,7 @@ const legacyRoutePathByName: Record<string, string> = {
   debug: '/debug',
   serverConfig: '/system/config',
   supportAiConfig: '/system/ai-support',
+  supportAiAnalytics: '/system/ai-support-analytics',
   ipMonitoring: '/system/ip-monitoring',
   systemStats: '/system/stats',
   systemConsumptionStats: '/system/consumption-stats',

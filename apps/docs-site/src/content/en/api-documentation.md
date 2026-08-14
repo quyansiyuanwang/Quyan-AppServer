@@ -51,6 +51,34 @@ OpenAPI JSON: https://api.qysyw.cn/docs/openapi.json
 
 Swagger is suitable for inspection and quick testing. For real integration work, the templates below are usually more valuable.
 
+## AI relay quick start
+
+Use the **AI Relay Console**, not the browser-login API, when you need to call an AI model. The shortest path is:
+
+1. Open **Relay token management**, select **Create token**, choose available channels or an automatic proxy pool, and save the token.
+2. Copy the **Relay Base URL** from the top of the creation drawer or the endpoint tab in **API documentation**. It is the public relay address for your deployment and can differ from the admin site and backend API address.
+3. Keep the token in a server-side environment variable and send it as `Authorization: Bearer <relay_token>` to relay endpoints.
+4. Call `/v1/models` first to see the models available to this token, then choose a matching request format.
+
+Replace `https://relay.example.com` below with the Relay Base URL displayed by the console. Do not guess it or substitute an admin-site domain.
+
+```bash
+# List the models available to this token
+curl "https://relay.example.com/v1/models" \
+  -H "Authorization: Bearer <relay_token>"
+
+# OpenAI Chat Completions-compatible request
+curl "https://relay.example.com/v1/chat/completions" \
+  -H "Authorization: Bearer <relay_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "your-enabled-model",
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+A Relay Token is only for relay requests, not for signing in to the admin site. Its channels, enabled models, request formats, quotas, IP allowlist, and status determine whether a request can run. For `401`, `403`, or unavailable-model errors, inspect those settings in Relay token management first.
+
 ## Unified response format
 
 Most backend APIs follow a consistent wrapper:
@@ -121,6 +149,20 @@ Relay manages the two OpenAI v1 text APIs as separate formats:
 - **OpenAI Responses**: `/relay/proxy/v1/responses`, with an `input` request body.
 
 Before calling either API, both the Relay Token's channel and the selected model must explicitly enable that format. Legacy OpenAI entries remain compatible as Chat Completions only; Responses are never enabled automatically.
+
+### OpenAI Responses example
+
+```bash
+curl "https://relay.example.com/v1/responses" \
+  -H "Authorization: Bearer <relay_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "your-enabled-model",
+    "input": "Hello"
+  }'
+```
+
+Other compatible formats (Anthropic or Gemini) are available only when explicitly enabled for the token's channels. Use the API documentation page in the console as the source of truth for paths and request fields.
 
 ## Minimal curl examples
 

@@ -46,6 +46,15 @@
         ><el-form-item :label="i18ns.t('support.windowSeconds')"
           ><el-input-number v-model="form.windowSeconds" :min="10"
         /></el-form-item>
+        <el-form-item :label="i18ns.t('support.sessionRetentionDays')"
+          ><el-input-number v-model="form.sessionRetentionDays" :min="1" :max="7"
+        /></el-form-item>
+        <el-form-item :label="i18ns.t('support.inputPricePerMillion')"
+          ><el-input-number v-model="form.inputPricePerMillion" :min="0" :precision="6"
+        /></el-form-item>
+        <el-form-item :label="i18ns.t('support.outputPricePerMillion')"
+          ><el-input-number v-model="form.outputPricePerMillion" :min="0" :precision="6"
+        /></el-form-item>
       </div>
       <el-button type="primary" :loading="saving" @click="save">{{ i18ns.t('save') }}</el-button>
     </el-form>
@@ -71,6 +80,9 @@ const form = reactive<SupportAiConfigDto>({
   systemPrompt: '',
   maxRequests: 20,
   windowSeconds: 600,
+  sessionRetentionDays: 3,
+  inputPricePerMillion: 0,
+  outputPricePerMillion: 0,
 })
 const api = () => createSupportControllerApi(useRequestStore().getAxios())
 const load = async () => {
@@ -94,6 +106,9 @@ const save = async () => {
         systemPrompt: form.systemPrompt,
         maxRequests: form.maxRequests,
         windowSeconds: form.windowSeconds,
+        sessionRetentionDays: form.sessionRetentionDays,
+        inputPricePerMillion: form.inputPricePerMillion,
+        outputPricePerMillion: form.outputPricePerMillion,
         apiKey: apiKey.value || undefined,
         clearApiKey: clearApiKey.value,
       },
