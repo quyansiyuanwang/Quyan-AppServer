@@ -214,6 +214,11 @@ describe('profile route factory', () => {
     expect(resolveCanonicalRouteUrl('remoteTerminal', accountProfile)).toBe(
       'https://terminal.qysyw.cn/workspace',
     )
+
+    const stagingAccountProfile = getKnownProfile('account.staging.qysyw.cn')
+    expect(resolveCanonicalRouteUrl('relayTokenManagement', stagingAccountProfile)).toBe(
+      'https://ai.console.staging.qysyw.cn/relay/tokens',
+    )
   })
 
   it('keeps AI and developer operational deep links in the SPA route catalog', () => {

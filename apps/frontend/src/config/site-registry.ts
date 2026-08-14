@@ -25,6 +25,7 @@ export {
   deploymentTopologies,
   localTopology,
   releaseTopology,
+  stagingTopology,
   type DeploymentId,
   type DeploymentTopology,
 } from './deployment-topology'

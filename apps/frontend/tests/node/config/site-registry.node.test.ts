@@ -78,12 +78,11 @@ describe('site registry', () => {
     expect(accessible.map((item) => item.id)).not.toContain('management-core')
   })
 
-  it('assigns every production host to a distinct domain app', () => {
-    const productionProfiles = siteProfiles.filter((profile) => profile.hostname.endsWith('.cn'))
-
-    expect(new Set(productionProfiles.map((profile) => profile.app)).size).toBe(
-      productionProfiles.length,
-    )
+  it('assigns every deployment host to a distinct domain app', () => {
+    for (const deploymentId of ['release', 'staging'] as const) {
+      const profiles = siteProfiles.filter((profile) => profile.deploymentId === deploymentId)
+      expect(new Set(profiles.map((profile) => profile.app)).size).toBe(profiles.length)
+    }
     expect(resolveSiteProfile('console.qysyw.cn')).toMatchObject({ id: 'rejected' })
   })
 
@@ -129,6 +128,26 @@ describe('site registry', () => {
       id: 'public',
       canonicalOrigin: 'https://www.qysyw.test:5173',
     })
+    expect(getPublicSiteProfile('noexist.staging.qysyw.cn')).toMatchObject({
+      id: 'public',
+      canonicalOrigin: 'https://staging.qysyw.cn',
+    })
+  })
+
+  it('registers staging hosts as a closed deployment family', () => {
+    const staging = resolveSiteProfile('staging.qysyw.cn')
+    const stagingAccount = resolveSiteProfile('account.staging.qysyw.cn')
+    if (!isKnownSiteProfile(staging) || !isKnownSiteProfile(stagingAccount)) {
+      throw new Error('Expected staging site profiles to be registered')
+    }
+
+    expect(staging).toMatchObject({ id: 'public', deploymentId: 'staging' })
+    expect(stagingAccount).toMatchObject({ id: 'account', deploymentId: 'staging' })
+    expect(getSiteProfilesForEnvironment(stagingAccount).every((profile) =>
+      profile.hostname === 'staging.qysyw.cn' ||
+      profile.hostname.endsWith('.staging.qysyw.cn'),
+    )).toBe(true)
+    expect(resolveSiteProfile('noexist.staging.qysyw.cn')).toMatchObject({ id: 'rejected' })
   })
 
   it('uses an injected staging topology without accepting arbitrary delegated roots', () => {

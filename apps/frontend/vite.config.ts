@@ -53,6 +53,7 @@ export default defineConfig(({ mode }) => {
   const publicSiteHostname =
     normalizeRootDomain(env.VITE_PUBLIC_SITE_HOST, 'VITE_PUBLIC_SITE_HOST') ||
     `www.${resolvedSiteRootDomain}`
+  const stagingSiteRootDomain = `staging.${resolvedPlatformRootDomain}`
   const configuredBackendUrl = env.VITE_BACKEND_URL?.trim()
   const expectedProductionApiOrigin = `https://api.${resolvedPlatformRootDomain}`
   const configuredAiProxyUrl = env.VITE_AI_PROXY_URL?.trim()
@@ -122,7 +123,9 @@ export default defineConfig(({ mode }) => {
   const allowedHosts = [
     'localhost',
     publicSiteHostname,
+    stagingSiteRootDomain,
     ...firstPartyHostPrefixes.map((prefix) => `${prefix}.${localRootDomain}`),
+    ...firstPartyHostPrefixes.map((prefix) => `${prefix}.${stagingSiteRootDomain}`),
   ]
   const defaultHttpsKeyPath = `.certs/${localRootDomain}-key.pem`
   const defaultHttpsCertPath = `.certs/${localRootDomain}.pem`

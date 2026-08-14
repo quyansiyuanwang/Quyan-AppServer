@@ -142,10 +142,12 @@ export const createSiteRegistry = (
   const profilesByOrigin = new Map(profiles.map((profile) => [profile.canonicalOrigin, profile]))
 
   const topologyForUnknownHostname = (hostname: string): DeploymentTopology =>
-    topologies.find(
-      (topology) =>
-        hostname === topology.siteRootDomain || hostname.endsWith(`.${topology.siteRootDomain}`),
-    ) ??
+    [...topologies]
+      .filter(
+        (topology) =>
+          hostname === topology.siteRootDomain || hostname.endsWith(`.${topology.siteRootDomain}`),
+      )
+      .sort((left, right) => right.siteRootDomain.length - left.siteRootDomain.length)[0] ??
     topologies.find((topology) => topology.id === 'release') ??
     topologies[0]!
 
