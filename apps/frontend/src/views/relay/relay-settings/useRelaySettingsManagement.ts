@@ -1126,7 +1126,9 @@ export const useRelaySettingsManagement = () => {
     }
 
     return availableModels.value.filter((model) => {
-      return selectedFormats.some((selectedFormat) => model.supportedFormats.includes(selectedFormat))
+      return selectedFormats.some((selectedFormat) =>
+        model.supportedFormats.includes(selectedFormat),
+      )
     })
   })
 
