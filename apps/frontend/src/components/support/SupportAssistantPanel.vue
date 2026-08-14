@@ -137,8 +137,8 @@ const send = async () => {
   error.value = ''
   citations.value = []
   messages.value.push({ id: `u-${Date.now()}`, role: 'user', content })
-  const assistant: Message = { id: `a-${Date.now()}`, role: 'assistant', content: '' }
-  messages.value.push(assistant)
+  const assistantId = `a-${Date.now()}`
+  messages.value.push({ id: assistantId, role: 'assistant', content: '' })
   draft.value = ''
   try {
     const requestStore = useRequestStore()
@@ -175,7 +175,8 @@ const send = async () => {
           if (frame.type !== 'data') continue
           if (frame.value.type === 'delta') {
             streamStatus.value = 'generating'
-            assistant.content += frame.value.content || ''
+            const assistant = messages.value.find((message) => message.id === assistantId)
+            if (assistant) assistant.content += frame.value.content || ''
           }
           if (frame.value.type === 'citations') {
             citations.value = frame.value.citations || []
@@ -196,7 +197,7 @@ const send = async () => {
         throw cause
       }
     }
-    if (!assistant.content) messages.value.pop()
+    if (!messages.value.find((message) => message.id === assistantId)?.content) messages.value.pop()
   } catch (cause) {
     messages.value.pop()
     error.value = cause instanceof Error ? cause.message : i18ns.t('support.unavailable')

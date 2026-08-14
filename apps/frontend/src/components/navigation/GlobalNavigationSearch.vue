@@ -1,7 +1,7 @@
 <template>
   <el-popover
     :visible="isOpen"
-    trigger="focus"
+    trigger="click"
     placement="bottom-start"
     :width="640"
     :show-arrow="false"
@@ -11,15 +11,18 @@
     <template #reference>
       <el-input
         ref="searchInput"
-        v-model="query"
+        :model-value="inputQuery"
         class="global-navigation-search"
         clearable
         :placeholder="i18ns.t('nav.globalSearchPlaceholder')"
-        @focus="open"
+        @click="open"
+        @update:model-value="handleInput"
+        @compositionstart="handleCompositionStart"
+        @compositionend="handleCompositionEnd"
         @keydown.down.prevent="moveSelection(1)"
         @keydown.up.prevent="moveSelection(-1)"
-        @keydown.enter.prevent="activateSelected"
-        @keydown.esc.prevent="isOpen = false"
+        @keydown.enter="handleEnter"
+        @keydown.esc.prevent="close"
       >
         <template #prefix>
           <el-icon><Search /></el-icon>
@@ -79,6 +82,10 @@ import {
 const isOpen = ref(false)
 const searchInput = useTemplateRef<{ focus?: () => void }>('searchInput')
 const { query, results, selectedIndex, moveSelection, reset } = useGlobalNavigationSearch()
+const inputQuery = ref('')
+const isComposing = ref(false)
+const SEARCH_DEBOUNCE_MS = 120
+let queryDebounceTimer: ReturnType<typeof setTimeout> | undefined
 const shortcutHint = computed(() => (navigator.userAgent.includes('Mac') ? '⌘ K' : 'Ctrl K'))
 const selectedResult = computed(() => results.value[selectedIndex.value])
 const groupedResults = computed(() => {
@@ -101,9 +108,53 @@ const open = () => {
   isOpen.value = true
 }
 
+const clearSearch = () => {
+  if (queryDebounceTimer) clearTimeout(queryDebounceTimer)
+  queryDebounceTimer = undefined
+  inputQuery.value = ''
+  isComposing.value = false
+  reset()
+}
+
+const close = () => {
+  isOpen.value = false
+  clearSearch()
+}
+
+const scheduleQueryUpdate = () => {
+  if (queryDebounceTimer) clearTimeout(queryDebounceTimer)
+  queryDebounceTimer = setTimeout(() => {
+    query.value = inputQuery.value
+    queryDebounceTimer = undefined
+  }, SEARCH_DEBOUNCE_MS)
+}
+
+const flushQueryUpdate = () => {
+  if (queryDebounceTimer) clearTimeout(queryDebounceTimer)
+  queryDebounceTimer = undefined
+  query.value = inputQuery.value
+}
+
+const handleInput = (value: string | number) => {
+  inputQuery.value = String(value)
+  open()
+  if (!isComposing.value) scheduleQueryUpdate()
+}
+
+const handleCompositionStart = () => {
+  isComposing.value = true
+  if (queryDebounceTimer) clearTimeout(queryDebounceTimer)
+  queryDebounceTimer = undefined
+}
+
+const handleCompositionEnd = () => {
+  isComposing.value = false
+  scheduleQueryUpdate()
+}
+
 const handlePopoverVisibility = (visible: boolean) => {
   isOpen.value = visible
-  if (!visible) reset()
+  if (!visible) clearSearch()
 }
 
 const openDocs = () => {
@@ -118,8 +169,7 @@ const openDocs = () => {
 
 const activate = (result?: GlobalNavigationSearchResult) => {
   if (!result) return
-  isOpen.value = false
-  reset()
+  close()
 
   if (result.kind === 'command') {
     openDocs()
@@ -149,6 +199,13 @@ const activate = (result?: GlobalNavigationSearchResult) => {
 
 const activateSelected = () => activate(selectedResult.value)
 
+const handleEnter = (event: KeyboardEvent) => {
+  if (event.isComposing || isComposing.value) return
+  event.preventDefault()
+  flushQueryUpdate()
+  activateSelected()
+}
+
 const handleShortcut = (event: KeyboardEvent) => {
   if (
     event.defaultPrevented ||
@@ -162,7 +219,10 @@ const handleShortcut = (event: KeyboardEvent) => {
 }
 
 onMounted(() => window.addEventListener('keydown', handleShortcut))
-onBeforeUnmount(() => window.removeEventListener('keydown', handleShortcut))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleShortcut)
+  if (queryDebounceTimer) clearTimeout(queryDebounceTimer)
+})
 </script>
 
 <style scoped>

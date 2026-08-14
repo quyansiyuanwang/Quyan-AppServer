@@ -10,8 +10,11 @@ export class SSEStreamService {
 
   initStream(res: Response) {
     res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
     res.setHeader("Connection", "keep-alive");
+    // Nginx honors this response header even when an older deployment does not
+    // yet contain a dedicated `proxy_buffering off` location for the SSE route.
+    res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
   }
 

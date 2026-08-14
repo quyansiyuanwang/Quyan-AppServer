@@ -92,11 +92,12 @@ pnpm run dev:docs         # 启动文档站点
 ### 构建
 
 ```bash
-pnpm run build            # 构建所有项目（含类型检查）
 pnpm run build:backend    # 只构建后端
 pnpm run build:frontend   # 只构建前端
 pnpm run build:docs       # 只构建文档站点
-pnpm run build:full       # 完整构建（OpenAPI 生成 + 构建）
+pnpm run build            # 后端与前端并行构建（文档站使用空出的构建槽）
+pnpm run build:full       # 先生成 OpenAPI，再并行构建所有应用
+pnpm run build:full:production # production 版完整构建
 ```
 
 ### 代码质量

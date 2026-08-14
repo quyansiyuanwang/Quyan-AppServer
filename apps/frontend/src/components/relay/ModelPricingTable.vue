@@ -840,11 +840,7 @@ const props = defineProps<{
   normalizeFormats: (formats?: string) => string[]
   getRequestModelId: (item: Pick<PricingModelRow, 'model' | 'modelId' | 'provider'>) => string
   getHighlightParts: (rawText?: string) => HighlightPart[]
-  getChannelsForModel: (
-    modelName: string,
-    modelId: string,
-    modelFormat?: string,
-  ) => RelayCatalogOptionDto[]
+  getChannelsForModel: (modelName: string, modelFormat?: string) => RelayCatalogOptionDto[]
   getDisplayedPriceMultiplier: (item: PricingModelRow) => number
   getChannelPriceCell: (item: PricingModelRow, channel: RelayCatalogOptionDto) => ChannelPriceCell
   customPriceMultiplier?: number | null
@@ -1034,11 +1030,7 @@ const formatCacheMultiplier = (creation?: number, read?: number): string => {
 }
 
 const getAvailableChannels = (item: PricingModelRow): RelayCatalogOptionDto[] =>
-  props.getChannelsForModel(
-    (item.model || '').trim(),
-    props.getRequestModelId(item),
-    item.supportedFormats,
-  )
+  props.getChannelsForModel((item.model || '').trim(), item.supportedFormats)
 
 const getChannelPriceCellValue = (
   item: PricingModelRow,

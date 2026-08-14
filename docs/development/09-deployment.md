@@ -9,11 +9,9 @@
 pnpm --filter @appserver/backend build
 
 # 构建步骤：
-# 1. type-check (tsc --noEmit)
-# 2. clean (rimraf dist/)
-# 3. build:info:inject (注入构建信息)
-# 4. compile (esbuild)
-# 5. copy:static (复制 JSON/HTML/CSS 到 dist/)
+# 1. clean (rimraf dist/) 与 build:info:inject（注入构建信息）
+# 2. 并行执行 type-check (tsc --noEmit) 与打包
+# 3. 打包内顺序执行 compile (esbuild) 与 copy:static（复制 JSON/HTML/CSS 到 dist/）
 ```
 
 **构建工具：esbuild**
@@ -38,18 +36,18 @@ pnpm --filter @appserver/frontend build
 
 # 构建步骤：
 # 1. type:generate (生成路由类型)
-# 2. type-check (vue-tsc)
-# 3. compile (vite build)
+# 2. 并行执行 type-check (vue-tsc) 与 compile (vite build)
 ```
 
 **构建工具：Rolldown-Vite**
 
 - 目标：ES2018 (Chrome 63+)
-- 压缩：Terser（生产环境移除 console/debugger）
+- 压缩：Rolldown/esbuild（生产环境快速压缩）
 - 代码分割：按 node_modules 自动分包
 - Gzip 压缩：>10KB 的文件
 - 混淆：javascript-obfuscator（生产环境）
-- 分析报告：`stats.html`
+- 仅在 `VITE_BUILD_ANALYZE=true` 时生成分析报告 `stats.html`
+- 仅在静态主机已配置 `gzip_static` 或 `brotli_static` 时设置 `VITE_PRECOMPRESS_ASSETS=true`；默认由静态主机/CDN 动态压缩，以缩短构建时间
 
 **生产构建**：
 
@@ -62,11 +60,18 @@ pnpm --filter @appserver/frontend build:production
 ```bash
 # 构建所有项目
 pnpm run build
+# 后端与前端优先并行；文档站随后占用空出的构建槽，避免在小型 CI
+# runner 上同时启动过多 CPU 密集型任务。
 
 # 完整构建（含 OpenAPI 生成）
 pnpm run build:full
 # = openapi:gen:all + build
+
+# 完整生产构建：OpenAPI 必须先生成，随后各应用以 production 模式并行构建。
+pnpm run build:full:production
 ```
+
+完整构建会先串行完成 OpenAPI 流水线，因为前端 SDK 依赖后端生成的规范；此后后端、前端和文档站不再互相等待。单独执行前端 `build`、`build:production` 或 `build:staging` 时，路由类型生成后类型检查与 Vite 打包也会并行执行。若构建环境资源很少，可分别执行 `build:backend`、`build:frontend`、`build:docs`，以降低 CPU 与内存竞争。
 
 ## 运行
 
