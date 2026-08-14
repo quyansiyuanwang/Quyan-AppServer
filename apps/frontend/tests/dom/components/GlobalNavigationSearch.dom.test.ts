@@ -52,9 +52,9 @@ const stubs = {
   },
   'el-input': {
     props: ['modelValue'],
-    emits: ['update:modelValue'],
+    emits: ['update:modelValue', 'focus'],
     template:
-      '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+      '<input :value="modelValue" @focus="$emit(\'focus\', $event)" @input="$emit(\'update:modelValue\', $event.target.value)" />',
   },
   'el-empty': { template: '<div />' },
 }
@@ -90,5 +90,15 @@ describe('GlobalNavigationSearch', () => {
     await Promise.resolve()
 
     expect(document.querySelector('input')).toBeNull()
+  })
+
+  it('opens from input focus without relying on the popover click trigger', async () => {
+    const wrapper = mount(GlobalNavigationSearch, { global: { stubs } })
+    const input = wrapper.find('input')
+
+    await input.trigger('focus')
+
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(true)
+    wrapper.unmount()
   })
 })
