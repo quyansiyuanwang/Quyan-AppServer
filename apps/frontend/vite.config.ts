@@ -41,18 +41,23 @@ export default defineConfig(({ mode }) => {
     }
     return normalized
   }
-  const rootDomain = normalizeRootDomain(env.ROOT_DOMAIN, 'ROOT_DOMAIN')
-  if (isProd && !rootDomain)
-    throw new Error('ROOT_DOMAIN must be defined for a production frontend build')
-  const resolvedRootDomain = rootDomain || 'qysyw.cn'
+  const platformRootDomain = normalizeRootDomain(env.PLATFORM_ROOT_DOMAIN, 'PLATFORM_ROOT_DOMAIN')
+  const siteRootDomain = normalizeRootDomain(env.SITE_ROOT_DOMAIN, 'SITE_ROOT_DOMAIN')
+  if (isProd && (!platformRootDomain || !siteRootDomain)) {
+    throw new Error(
+      'PLATFORM_ROOT_DOMAIN and SITE_ROOT_DOMAIN must be defined for a release frontend build',
+    )
+  }
+  const resolvedPlatformRootDomain = platformRootDomain || 'qysyw.cn'
+  const resolvedSiteRootDomain = siteRootDomain || resolvedPlatformRootDomain
   const publicSiteHostname =
     normalizeRootDomain(env.VITE_PUBLIC_SITE_HOST, 'VITE_PUBLIC_SITE_HOST') ||
-    `www.${resolvedRootDomain}`
+    `www.${resolvedSiteRootDomain}`
   const configuredBackendUrl = env.VITE_BACKEND_URL?.trim()
-  const expectedProductionApiOrigin = `https://api.${resolvedRootDomain}`
+  const expectedProductionApiOrigin = `https://api.${resolvedPlatformRootDomain}`
   const configuredAiProxyUrl = env.VITE_AI_PROXY_URL?.trim()
   const configuredRelayPublicBaseUrl = env.VITE_RELAY_PUBLIC_BASE_URL?.trim()
-  const expectedRelayGatewayOrigin = `https://ai.${resolvedRootDomain}`
+  const expectedRelayGatewayOrigin = `https://ai.${resolvedPlatformRootDomain}`
   if (isProd && configuredBackendUrl !== expectedProductionApiOrigin) {
     throw new Error(
       `VITE_BACKEND_URL must be ${expectedProductionApiOrigin} for ${mode} builds; ` +
@@ -268,7 +273,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     define: {
-      'import.meta.env.VITE_ROOT_DOMAIN': JSON.stringify(resolvedRootDomain),
+      'import.meta.env.VITE_PLATFORM_ROOT_DOMAIN': JSON.stringify(resolvedPlatformRootDomain),
+      'import.meta.env.VITE_SITE_ROOT_DOMAIN': JSON.stringify(resolvedSiteRootDomain),
       'import.meta.env.VITE_LOCAL_ROOT_DOMAIN': JSON.stringify(localRootDomain),
       'import.meta.env.VITE_PUBLIC_SITE_HOST': JSON.stringify(publicSiteHostname),
     },

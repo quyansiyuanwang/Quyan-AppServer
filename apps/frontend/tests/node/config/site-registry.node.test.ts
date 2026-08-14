@@ -5,6 +5,7 @@ import {
   getPublicSiteProfile,
   isKnownSiteProfile,
   normalizeSiteHostname,
+  createSiteRegistry,
   resolveSiteProfile,
   resolveSiteProfileFromOrigin,
   siteDefinitions,
@@ -127,6 +128,31 @@ describe('site registry', () => {
     expect(getPublicSiteProfile('noexist.qysyw.test')).toMatchObject({
       id: 'public',
       canonicalOrigin: 'https://www.qysyw.test:5173',
+    })
+  })
+
+  it('uses an injected staging topology without accepting arbitrary delegated roots', () => {
+    const registry = createSiteRegistry([
+      {
+        id: 'release',
+        platformRootDomain: 'qysyw.cn',
+        siteRootDomain: 'staging.qysyw.cn',
+        publicHostname: 'staging.qysyw.cn',
+        protocol: 'https',
+      },
+    ])
+
+    expect(registry.resolveHost('auth.staging.qysyw.cn')).toMatchObject({
+      id: 'identity',
+      canonicalOrigin: 'https://auth.staging.qysyw.cn',
+    })
+    expect(registry.resolveHost('ai.console.staging.qysyw.cn')).toMatchObject({
+      id: 'console-ai',
+      canonicalOrigin: 'https://ai.console.staging.qysyw.cn',
+    })
+    expect(registry.resolveHost('noexist.qysyw.cn')).toMatchObject({ id: 'rejected' })
+    expect(registry.getPublicSite('noexist.qysyw.cn')).toMatchObject({
+      canonicalOrigin: 'https://staging.qysyw.cn',
     })
   })
 })

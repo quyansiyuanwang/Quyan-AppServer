@@ -135,9 +135,9 @@ curl.exe --noproxy '*' --ssl-no-revoke -I https://www.<LOCAL_ROOT_DOMAIN>:5173/
 
 前端按完整 hostname 动态挂载对应 app，只注册该站点所属的路由。`ai.console`、`developer.console` 与 `ram.console` 是用户控制台；`terminal` 是云终端的唯一用户入口，默认显示 `/overview`，工作区与订阅页分别为 `/workspace` 和 `/subscriptions`。`kv.console`、`short-link.console`、`secret.console`、`status.console`、`verification.console`、`ip-geolocation.console`、`push.console` 与 `oj.console` 是独立产品入口，并分别使用其能力路径。开发者产品目录不再提供入口；OJ Submitter 的 API 密钥、用量和定价统一由 `oj.console` 的 `/api-keys`、`/usage` 和 `/pricing` 承载。`management`、`ai.management`、`developer.management`、`terminal.management` 面向运营管理。站点选择器仅显示当前用户拥有任一功能权限的入口，路由和服务端授权仍独立生效。活动域名的旧路径可临时 `302` 到规范 origin/path 并保留 query string；停用的 `console`、`terminal.console` 与 `developer` 域名、未知 hostname 均拒绝访问。
 
-`legacy.<ROOT_DOMAIN>` 是唯一例外：它由 `origin/master` 的独立静态前端构建提供完整的单域名 UI，而不是多域名构建注册的 profile。两个版本均在已登录用户的侧栏登出入口之前显示版本切换按钮。新版使用受控的单一路径映射回原版；原版把当前安全路径交给新版主站，由新版迁移规则解析最终 Host。切换保留普通 query string 与 hash，但会删除 token、refresh token 和未验证回跳参数。生产反向代理必须将 `legacy.<ROOT_DOMAIN>` 指向原版静态构建，其余已注册 Host 指向多域名构建；留空的 CORS 与中央登录白名单会自动包含其精确 Origin。
+`legacy.<SITE_ROOT_DOMAIN>` 是唯一例外：它由 `origin/master` 的独立静态前端构建提供完整的单域名 UI，而不是多域名构建注册的 profile。两个版本均在已登录用户的侧栏登出入口之前显示版本切换按钮。新版使用受控的单一路径映射回原版；原版把当前安全路径交给新版主站，由新版迁移规则解析最终 Host。切换保留普通 query string 与 hash，但会删除 token、refresh token 和未验证回跳参数。生产反向代理必须将 `legacy.<SITE_ROOT_DOMAIN>` 指向原版静态构建，其余已注册 Host 指向多域名构建；留空的 CORS 与中央登录白名单会自动包含其精确 Origin。
 
-同一份多域名前端构件可自动从当前 Host 推导已部署根域：例如根域 `md.qysyw.cn`、`terminal.md.qysyw.cn`、`auth.md.qysyw.cn` 会组成同一个站点族，不需要为前端构建额外填写 `VITE_PUBLIC_SITE_HOST`。EO 仍必须将根域及站点子域实际绑定到该静态构件，并为深链配置 SPA fallback。后端不会根据任意请求 Origin 自动放行认证和 CORS；新增根域时，将它追加到 `ADDITIONAL_ROOT_DOMAINS`（或设为主 `ROOT_DOMAIN`），服务端会生成该根域全部站点的精确 CORS 与中央登录 Origin，不接受通配符。
+前端构建使用闭合站点注册表：`SITE_ROOT_DOMAIN` 明确指定该构件的站点族根域，`VITE_PUBLIC_SITE_HOST` 明确指定公共站 hostname。浏览器仅接受公共站以及目录中声明的 `<prefix>.<SITE_ROOT_DOMAIN>`；例如 `noexist.qysyw.cn` 不会被推断为新站点，而是显示 404。EO 仍必须将已注册的根域及站点子域实际绑定到静态构件，并为深链配置 SPA fallback。后端不会根据任意请求 Origin 自动放行认证和 CORS；新增根域时，将它追加到 `ADDITIONAL_ROOT_DOMAINS`（或设为主 `ROOT_DOMAIN`），服务端会生成该根域全部站点的精确 CORS 与中央登录 Origin，不接受通配符。
 
 构建仍输出一个可部署构件，但浏览器会先按完整 hostname 解析 profile，再异步挂载该 profile 的应用根和路由树。公共站与认证站使用轻量根，不加载业务壳；业务站只注册当前 profile 的业务路由。禁止在启动、登录完成或空闲回调中预加载全部业务页面；仅可在用户明确指向的下一目标上进行按需预加载。
 
@@ -312,9 +312,9 @@ VITE_TURNSTILE_SITE_KEY=
 
 ```bash
 # 正式环境：浏览器直接调用受 CORS 保护的公共 API。
-# ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=www.qysyw.cn pnpm --filter @appserver/frontend run build:production
+# PLATFORM_ROOT_DOMAIN=qysyw.cn SITE_ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=www.qysyw.cn pnpm --filter @appserver/frontend run build:production
 # 预览环境：同样调用受 CORS 保护的公共 API。
-# ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=staging.qysyw.cn pnpm --filter @appserver/frontend run build:staging
+# PLATFORM_ROOT_DOMAIN=qysyw.cn SITE_ROOT_DOMAIN=staging.qysyw.cn VITE_PUBLIC_SITE_HOST=staging.qysyw.cn pnpm --filter @appserver/frontend run build:staging
 
 # 生产环境调整
 JWT_ACCESS_EXPIRES_IN=900        # 15 分钟
@@ -352,7 +352,7 @@ pnpm run precommit
 - [ ] 数据库迁移已运行 (`pnpm run db:migrate`)
 - [ ] Prisma client 已生成 (`pnpm run db:generate`)
 - [ ] 生产构建成功 (`pnpm run build:full`)
-- [ ] `ROOT_DOMAIN` 已传给后端、前端和 docs-site 的生产构建
+- [ ] 后端与 docs-site 已配置 `ROOT_DOMAIN`；前端已配置 `PLATFORM_ROOT_DOMAIN`、`SITE_ROOT_DOMAIN` 与 `VITE_PUBLIC_SITE_HOST`
 - [ ] 根域及每个 SPA host 都已在边缘层绑定到静态构件；根域可直接作为公共站点，未知 host 被拒绝
 - [ ] 每个 SPA host 都有 HTTPS、SPA fallback 和深链刷新验证；`docs`、`api`、`ai` 不指向 SPA
 - [ ] 已知旧路径和错误 hostname 返回保留 query 的临时迁移；SPA fallback 保留 hash，未知 hostname 与未知路径保持拒绝
