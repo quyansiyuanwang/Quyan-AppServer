@@ -19,7 +19,7 @@ const logger = getLogger("PasskeyService", LogCategory.APPLICATION);
 
 const RP_NAME = env.auth.webAuthn?.rpName;
 const RP_ID = env.auth.webAuthn?.rpId;
-const ORIGIN = env.auth.webAuthn?.origin;
+const ORIGINS = env.auth.webAuthn?.origins;
 const CHALLENGE_TTL = 300; // 5 minutes
 
 export class PasskeyService {
@@ -78,7 +78,7 @@ export class PasskeyService {
       verification = await verifyRegistrationResponse({
         response,
         expectedChallenge: challenge,
-        expectedOrigin: ORIGIN,
+        expectedOrigin: ORIGINS,
         expectedRPID: RP_ID,
       });
     } catch (err) {
@@ -134,7 +134,7 @@ export class PasskeyService {
       verification = await verifyAuthenticationResponse({
         response,
         expectedChallenge: challenge,
-        expectedOrigin: ORIGIN,
+        expectedOrigin: ORIGINS,
         expectedRPID: RP_ID,
         credential: {
           id: credential.credentialId,

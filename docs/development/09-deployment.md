@@ -284,6 +284,10 @@ CENTRAL_LOGIN_ALLOWED_ORIGINS=
 CENTRAL_LOGIN_FLOW_TTL_SECONDS=600
 # These production defaults derive from ROOT_DOMAIN. Set only to override them.
 WEBAUTHN_RP_ID=
+# 留空时只允许 auth.<ROOT_DOMAIN>。预发布共用后端时使用精确列表，例如：
+# https://auth.qysyw.example,https://auth.staging.qysyw.example
+WEBAUTHN_ALLOWED_ORIGINS=
+# 旧版单 Origin 配置；新部署请使用 WEBAUTHN_ALLOWED_ORIGINS。
 WEBAUTHN_ORIGIN=
 FRONTEND_BASE_URL=
 AUTH_CENTER_ISSUER=
