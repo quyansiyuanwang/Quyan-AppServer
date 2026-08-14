@@ -37898,6 +37898,27 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"SupportPageContextDto": {
+				"properties": {
+					"site": {
+						"type": "string"
+					},
+					"route": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"url": {
+						"type": "string"
+					},
+					"visibleText": {
+						"type": "string"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
 			"SendSupportMessageDto": {
 				"properties": {
 					"content": {
@@ -37915,6 +37936,9 @@
 							"zh-CN",
 							"en"
 						]
+					},
+					"page": {
+						"$ref": "#/components/schemas/SupportPageContextDto"
 					}
 				},
 				"required": [

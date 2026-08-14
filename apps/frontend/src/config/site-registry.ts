@@ -121,6 +121,7 @@ const profileAccessPermissions: Partial<Record<SiteProfileId, readonly Permissio
     Permission.PERMISSION_VIEW,
     Permission.RAM_ROLE_READ,
     Permission.SYSTEM_CONFIG,
+    Permission.SUPPORT_AI_CONFIG,
     Permission.ANALYTICS_READ,
   ],
   'management-ai': [

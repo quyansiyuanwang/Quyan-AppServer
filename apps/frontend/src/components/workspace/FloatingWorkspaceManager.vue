@@ -288,7 +288,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .floating-workspace {
   position: fixed;
-  z-index: 2600;
+  z-index: 1900;
   display: flex;
   flex-direction: column;
   border: 1px solid rgba(148, 163, 184, 0.2);

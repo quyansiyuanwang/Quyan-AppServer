@@ -74,6 +74,7 @@ const legacyRoutePathByName: Record<string, string> = {
   legalPolicyManagement: '/management/legal-policies',
   debug: '/debug',
   serverConfig: '/system/config',
+  supportAiConfig: '/system/ai-support',
   ipMonitoring: '/system/ip-monitoring',
   systemStats: '/system/stats',
   systemConsumptionStats: '/system/consumption-stats',
@@ -494,6 +495,12 @@ export const routeCatalog = attachLegacyPaths([
     name: 'serverConfig',
     group: 'management-core',
     path: '/system/config',
+    overviewCategory: 'console-operations',
+  },
+  {
+    name: 'supportAiConfig',
+    group: 'management-core',
+    path: '/system/ai-support',
     overviewCategory: 'console-operations',
   },
   {

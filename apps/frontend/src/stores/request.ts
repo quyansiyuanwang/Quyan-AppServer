@@ -411,8 +411,8 @@ class MyAxios {
           return token
         })
         .finally(() => {
-        MyAxios.refreshTokenPromise = null
-      })
+          MyAxios.refreshTokenPromise = null
+        })
     }
     return MyAxios.refreshTokenPromise
   }
@@ -918,13 +918,29 @@ class MyAxios {
     path: string,
     body: unknown,
   ): Promise<{ url: string; headers: Record<string, string> }> {
+    if (getAccessToken() && isTokenExpired({ bufferSeconds: 2 })) {
+      await MyAxios.getRefreshPromise()
+    }
+
+    const headers = await this._generateHeaderOptions(
+      { endpoint: undefined, body, finalUrl: path },
+      { enableReplayProtection: true, skipProgressBar: true },
+    )
+    const accessToken = getAccessToken()
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+
     return {
       url: this.buildRequestUrl(path),
-      headers: await this._generateHeaderOptions(
-        { endpoint: undefined, body, finalUrl: path },
-        { enableReplayProtection: true, skipProgressBar: true },
-      ),
+      headers,
     }
+  }
+
+  /**
+   * SSE uses fetch for incremental responses, so it cannot use Axios response
+   * interceptors. Reuse the same shared session refresh promise on a 401.
+   */
+  async refreshStreamingSession(): Promise<string> {
+    return MyAxios.getRefreshPromise()
   }
 
   private buildRequestUrl(
@@ -976,8 +992,15 @@ export const useRequestStore = defineStore('Request', () => {
 
   const prepareStreamingRequest = (path: string, body: unknown) =>
     instance.prepareStreamingRequest(path, body)
+  const refreshStreamingSession = () => instance.refreshStreamingSession()
 
-  return { createAxios, getAxios, prepareStreamingRequest, retryPendingTwoFactorRequests }
+  return {
+    createAxios,
+    getAxios,
+    prepareStreamingRequest,
+    refreshStreamingSession,
+    retryPendingTwoFactorRequests,
+  }
 })
 
 export type RequestStore = ReturnType<typeof useRequestStore>

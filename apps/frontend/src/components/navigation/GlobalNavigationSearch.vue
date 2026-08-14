@@ -15,7 +15,6 @@
         class="global-navigation-search"
         clearable
         :placeholder="i18ns.t('nav.globalSearchPlaceholder')"
-        @focus="open"
         @input="open"
         @keydown.down.prevent="moveSelection(1)"
         @keydown.up.prevent="moveSelection(-1)"
