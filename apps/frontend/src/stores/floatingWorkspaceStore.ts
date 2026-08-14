@@ -235,7 +235,13 @@ export const useFloatingWorkspaceStore = defineStore('floatingWorkspace', () => 
   }
 
   const openSupport = () =>
-    upsertTab({ type: 'support', pageKey: 'support', title: i18ns.t('nav.helpCenter'), src: '', closable: true })
+    upsertTab({
+      type: 'support',
+      pageKey: 'support',
+      title: i18ns.t('nav.helpCenter'),
+      src: '',
+      closable: true,
+    })
 
   const openInternalPage = (pageKey: string, title: string, routePath: string) => {
     const url = new URL(routePath, window.location.origin)

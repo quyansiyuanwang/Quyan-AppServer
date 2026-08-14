@@ -69,7 +69,11 @@ export class SupportController extends Controller {
     @Query() endAt?: string,
     @Query() userId?: string,
   ): Promise<SuccessResponse<SupportAiAnalyticsDto>> {
-    return { code: 0, message: "Success", data: await this.supportService.getAnalytics({ page, pageSize, startAt, endAt, userId }) };
+    return {
+      code: 0,
+      message: "Success",
+      data: await this.supportService.getAnalytics({ page, pageSize, startAt, endAt, userId }),
+    };
   }
 
   @Get("analytics/users/{userId}/conversation")

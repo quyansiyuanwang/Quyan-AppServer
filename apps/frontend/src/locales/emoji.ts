@@ -1743,9 +1743,6 @@ const emoji: DeepStringify<typeof en> = {
     balance: '🏦 💳',
     viewDetails: '👁️ 📜',
     accountId: '🏦 ▶️',
-    dashboardDefaultOpen: '📈💻🔧🖥️⚙️🔄💡✨📊🚀',
-    dashboardDefaultOpenOn: '🔓🌍✨👀💻📂📁📊🚀💡🔍🔒',
-    dashboardDefaultOpenOff: '🔒🚪😞🌌🌧️🔑✨🔓🎉🌞🌈🗝️🚪🌍💖',
   },
   notFound: {
     title: '📄 🙂 👺',
@@ -4758,7 +4755,6 @@ const emoji: DeepStringify<typeof en> = {
     search: '🔍 😞',
     noArticles: '👎 😞 👺',
     toc: '📊 🔗 📜',
-    dashboard: '🎛️',
   },
   legalPolicy: {
     management: '📜⚖️🛠️',

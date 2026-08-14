@@ -1,9 +1,6 @@
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
-import {
-  useRequestStore,
-  getAccessToken,
-} from '@/stores/request'
+import { useRequestStore, getAccessToken } from '@/stores/request'
 import StorageKey from '@/constant/storagekey'
 import router from '@/router'
 import { CustomCode } from '@/constant/custom-code'
@@ -341,29 +338,26 @@ export class AuthorizationService {
     this.clearPendingTwoFactorChallenge()
     this.clearPendingPolicyConsentChallenge()
 
-      // Business profiles do not register a local /login route. Continue to
-      // the central identity app after local cleanup; the auth app owns the
-      // login UI for every non-identity hostname.
-      const { isKnownSiteProfile, resolveCurrentSiteProfile } = await import(
-        '@/config/site-registry'
+    // Business profiles do not register a local /login route. Continue to
+    // the central identity app after local cleanup; the auth app owns the
+    // login UI for every non-identity hostname.
+    const { isKnownSiteProfile, resolveCurrentSiteProfile } = await import('@/config/site-registry')
+    const currentProfile = resolveCurrentSiteProfile()
+    if (isKnownSiteProfile(currentProfile) && currentProfile.id !== 'identity') {
+      const { getCentralLoginFallbackUrl, redirectToCentralLogin } = await import(
+        '@/service/centralLoginService'
       )
-      const currentProfile = resolveCurrentSiteProfile()
-      if (isKnownSiteProfile(currentProfile) && currentProfile.id !== 'identity') {
-        const { getCentralLoginFallbackUrl, redirectToCentralLogin } = await import(
-          '@/service/centralLoginService'
-        )
-        try {
-          await redirectToCentralLogin(redirectPath)
-        } catch (error) {
-          console.warn('Central login redirect failed after logout:', error)
-          replaceDocument(getCentralLoginFallbackUrl(currentProfile))
-        }
-        return
+      try {
+        await redirectToCentralLogin(redirectPath)
+      } catch (error) {
+        console.warn('Central login redirect failed after logout:', error)
+        replaceDocument(getCentralLoginFallbackUrl(currentProfile))
       }
+      return
+    }
 
-      // Identity profile keeps the in-app login route and its relative return.
-      await router.push(getLoginRoute(redirectPath))
-
+    // Identity profile keeps the in-app login route and its relative return.
+    await router.push(getLoginRoute(redirectPath))
   }
 
   static getAccessToken(): string | null {

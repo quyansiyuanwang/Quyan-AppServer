@@ -1597,9 +1597,6 @@ export default {
     balance: 'Account Balance',
     viewDetails: 'View Details',
     accountId: 'Account ID',
-    dashboardDefaultOpen: 'Dashboard default',
-    dashboardDefaultOpenOn: 'Default open',
-    dashboardDefaultOpenOff: 'Default closed',
   },
 
   notFound: {
@@ -5118,7 +5115,6 @@ export default {
     search: 'Search articles...',
     noArticles: 'No articles found',
     toc: 'Table of Contents',
-    dashboard: 'Dashboard',
   },
 
   legalPolicy: {

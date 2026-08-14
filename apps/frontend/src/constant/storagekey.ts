@@ -35,10 +35,6 @@ const StorageKey = {
   Permission: {
     CURRENT_USER: 'Permission-CurrentUser',
   },
-  // Home
-  Home: {
-    DASHBOARD_DEFAULT_OPEN: 'Home-DashboardDefaultOpen',
-  },
   // Overlay
   Overlay: {
     FLOATING_PANEL_POSITION: 'Overlay-FloatingPanelPosition',

@@ -26,7 +26,6 @@ export class HeartbeatService {
       window.addEventListener('storage', this.handleStorage)
       document.addEventListener('visibilitychange', this.handleVisibilityChange)
     }
-
   }
 
   static getInstance() {
@@ -167,7 +166,6 @@ export class HeartbeatService {
       void this.sendHeartbeat()
     }
   }
-
 }
 
 export const heartbeatService = HeartbeatService.getInstance()

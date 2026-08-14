@@ -41,7 +41,7 @@
         </div>
       </div>
 
-    <div class="floating-workspace__frame-shell">
+      <div class="floating-workspace__frame-shell">
         <SupportAssistantPanel v-if="activeTab?.type === 'support'" />
         <iframe
           v-else-if="activeTab"

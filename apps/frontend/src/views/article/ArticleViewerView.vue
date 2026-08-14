@@ -1,9 +1,6 @@
 <template>
   <div v-if="isDesktop" class="desktop-page">
     <div class="article-viewer">
-      <!-- Dashboard Summary (collapsible) -->
-      <DashboardSummary v-if="showDashboardSummary" />
-
       <div class="viewer-layout">
         <!-- Main Content -->
         <div class="viewer-main">
@@ -101,9 +98,6 @@
   </div>
   <div v-else class="mobile-page mobile-adapter">
     <div class="article-viewer">
-      <!-- Dashboard Summary (collapsible) -->
-      <DashboardSummary v-if="showDashboardSummary" />
-
       <div class="viewer-layout">
         <!-- Main Content -->
         <div class="viewer-main">
@@ -208,12 +202,10 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Calendar, View, Search } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
-import { useUserInfoStore } from '@/stores/userInfoStore'
 import { articleService } from '@/service/articleService'
 import { useSessionStore } from '@/stores/sessionStore'
 import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
 import ArticleTOC from '@/components/common/ArticleTOC.vue'
-import DashboardSummary from '@/components/common/DashboardSummary.vue'
 import type { ArticleDto, ArticleListItemDto } from '@/client/types.gen'
 
 const loading = ref(false)
@@ -222,10 +214,8 @@ const selectedArticle = ref<ArticleDto | null>(null)
 const searchQuery = ref('')
 const activeTocId = ref('')
 
-const userInfoStore = useUserInfoStore()
 const sessionStore = useSessionStore()
 const isAuthenticated = computed(() => sessionStore.isAuthenticated)
-const showDashboardSummary = computed(() => isAuthenticated.value)
 
 const filteredArticles = computed(() => {
   if (!searchQuery.value) return articles.value
@@ -273,10 +263,6 @@ async function selectArticle(item: ArticleListItemDto) {
 }
 
 onMounted(async () => {
-  if (isAuthenticated.value) {
-    await userInfoStore.fetchUserInfo()
-  }
-
   await loadArticles()
   // Try to open the designated default article first, fallback to first in list
   const defaultArticle = await (

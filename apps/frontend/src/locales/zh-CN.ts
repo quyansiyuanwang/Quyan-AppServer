@@ -1542,9 +1542,6 @@ const zhCN: DeepStringify<typeof en> = {
     balance: '账户余额',
     viewDetails: '查看详情',
     accountId: '账户 ID',
-    dashboardDefaultOpen: '控制面板默认',
-    dashboardDefaultOpenOn: '默认展开',
-    dashboardDefaultOpenOff: '默认收起',
   },
   notFound: {
     title: '页面未找到',
@@ -4900,7 +4897,6 @@ const zhCN: DeepStringify<typeof en> = {
     search: '搜索文章...',
     noArticles: '暂无文章',
     toc: '目录',
-    dashboard: '控制面板',
   },
 
   legalPolicy: {

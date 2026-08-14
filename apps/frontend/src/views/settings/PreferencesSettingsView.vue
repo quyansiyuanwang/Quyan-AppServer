@@ -262,17 +262,6 @@ const cacheTreeData = computed<CacheNode[]>(() => {
           ],
         },
         {
-          id: 'group:home',
-          label: zh ? '主页 (Home)' : 'Home',
-          children: [
-            ls(
-              StorageKey.Home.DASHBOARD_DEFAULT_OPEN,
-              '仪表板默认展开状态',
-              'Dashboard default open state',
-            ),
-          ],
-        },
-        {
           id: 'group:overlay',
           label: zh ? '浮层 (Overlay)' : 'Overlay',
           children: [
@@ -356,7 +345,6 @@ const refreshSizeMap = () => {
   scanGroup(StorageKey.Util)
   scanGroup(StorageKey.Scope)
   scanGroup(StorageKey.User)
-  scanGroup(StorageKey.Home)
   scanGroup(StorageKey.Overlay)
   scanGroup(StorageKey.Chat)
   scanGroup(StorageKey.Relay)

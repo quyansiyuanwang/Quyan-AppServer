@@ -2,10 +2,7 @@ import cron from "node-cron";
 import { DataLifecycleService } from "./data-lifecycle.service";
 import { DataMaintenanceService } from "./data-maintenance.service";
 import { ErrorReportService } from "./error-report.service";
-import {
-  DistributedLockService,
-  type DistributedLockHandle,
-} from "@/services/infrastructure/distributed-lock.service";
+import { DistributedLockService, type DistributedLockHandle } from "@/services/infrastructure/distributed-lock.service";
 import { ResourceLockedError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 

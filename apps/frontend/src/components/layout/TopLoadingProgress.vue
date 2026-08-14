@@ -14,7 +14,6 @@ const topLoadingProgressStore = useTopLoadingProgressStore()
 
 const progress = computed(() => Math.max(0, topLoadingProgressStore.progress))
 const visible = computed(() => topLoadingProgressStore.isVisible)
-
 </script>
 
 <style scoped>
