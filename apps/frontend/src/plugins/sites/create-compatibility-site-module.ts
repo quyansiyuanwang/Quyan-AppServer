@@ -24,7 +24,10 @@ const loadApplicationRoot = async (
  * every canonical page as a feature manifest. The route table is imported only
  * after this exact site module has been selected from the hostname.
  */
-export const createCompatibilitySiteModule = (siteId: SiteProfileId, appRoot?: string): SiteModule => {
+export const createCompatibilitySiteModule = (
+  siteId: SiteProfileId,
+  appRoot?: string,
+): SiteModule => {
   const entries = getFeatureManifestEntries(siteId)
 
   return defineSiteModule({

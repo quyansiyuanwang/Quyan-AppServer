@@ -67,9 +67,7 @@ export const useGlobalNavigationSearch = () => {
         effectivePermissions,
         (route) => {
           const entry = getRouteCatalogEntry(route)
-          return Boolean(
-            entry && hasFeatureRoute(profile, route) && !entry.path.includes(':'),
-          )
+          return Boolean(entry && hasFeatureRoute(profile, route) && !entry.path.includes(':'))
         },
       )
 

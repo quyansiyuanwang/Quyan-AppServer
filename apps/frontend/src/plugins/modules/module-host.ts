@@ -23,16 +23,23 @@ export class ModuleHost {
   private readonly siteLoads = new Map<SiteProfileId, Promise<SiteModule>>()
   private readonly featureLoads = new Map<string, Promise<FeatureModuleRuntime>>()
   private readonly featureActivations = new Map<string, Promise<void>>()
-  private activeFeature?: { feature: FeatureModule; runtime: FeatureModuleRuntime; profile: SiteProfile }
+  private activeFeature?: {
+    feature: FeatureModule
+    runtime: FeatureModuleRuntime
+    profile: SiteProfile
+  }
 
-  constructor(private readonly siteLoaders: Readonly<Partial<Record<SiteProfileId, SiteModuleLoader>>>) {}
+  constructor(
+    private readonly siteLoaders: Readonly<Partial<Record<SiteProfileId, SiteModuleLoader>>>,
+  ) {}
 
   loadSite(profile: SiteProfile): Promise<SiteModule> {
     const existing = this.siteLoads.get(profile.id)
     if (existing) return existing
 
     const loader = this.siteLoaders[profile.id]
-    if (!loader) return Promise.reject(new Error(`No site module is registered for "${profile.id}".`))
+    if (!loader)
+      return Promise.reject(new Error(`No site module is registered for "${profile.id}".`))
 
     const loading = loader().then(({ default: module }) => {
       if (module.id !== profile.id) {
@@ -44,7 +51,10 @@ export class ModuleHost {
     return loading
   }
 
-  async loadApp(profile: ResolvedSiteProfile, rejectedApp: () => Promise<Component>): Promise<Component> {
+  async loadApp(
+    profile: ResolvedSiteProfile,
+    rejectedApp: () => Promise<Component>,
+  ): Promise<Component> {
     if (profile.id === 'rejected') return rejectedApp()
     return (await this.loadSite(profile)).loadApp()
   }
@@ -56,7 +66,11 @@ export class ModuleHost {
     for (const route of await site.loadRoutes(context)) router.addRoute(route)
   }
 
-  async activateRoute(router: Router, profile: ResolvedSiteProfile, routeName: string | symbol | null | undefined) {
+  async activateRoute(
+    router: Router,
+    profile: ResolvedSiteProfile,
+    routeName: string | symbol | null | undefined,
+  ) {
     if (profile.id === 'rejected' || typeof routeName !== 'string') return
     const site = await this.loadSite(profile)
     const feature = site.features.find((candidate) => candidate.routeNames.includes(routeName))
