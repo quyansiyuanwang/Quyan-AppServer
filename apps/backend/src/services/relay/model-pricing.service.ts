@@ -62,19 +62,15 @@ export class ModelPricingService {
     // Validate model name
     if (!data.model || !data.model.trim()) throw new Error("model is required and cannot be empty");
 
-    // Validate supportedFormats - can be single format, comma-separated formats, or "all"
+    // Validate supportedFormats - can be a single format or comma-separated formats.
     if (data.supportedFormats) {
-      if (data.supportedFormats === "both") throw new Error("supportedFormats 'both' is deprecated, use 'all' instead");
+      if (["all", "both"].includes(data.supportedFormats))
+        throw new Error("supportedFormats must list explicit formats");
 
-      if (data.supportedFormats !== "all") {
-        const formats = data.supportedFormats.split(",").map((f) => f.trim());
-        const validFormats = ["openai", "anthropic", "gemini"];
-        for (const format of formats)
-          if (!validFormats.includes(format))
-            throw new Error(
-              `Invalid format '${format}' in supportedFormats. Must be 'openai', 'anthropic', 'gemini', or 'all'`,
-            );
-      }
+      const formats = data.supportedFormats.split(",").map((f) => f.trim());
+      const validFormats = ["openai-chat-completions", "openai-responses", "anthropic", "gemini"];
+      for (const format of formats)
+        if (!validFormats.includes(format)) throw new Error(`Invalid format '${format}' in supportedFormats`);
     }
 
     // Validate pricingType - must be explicitly provided
@@ -112,7 +108,7 @@ export class ModelPricingService {
       provider: data.provider,
       cacheCreationMultiplier: data.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER,
       cacheReadMultiplier: data.cacheReadMultiplier ?? DEFAULT_CACHE_READ_MULTIPLIER,
-      supportedFormats: data.supportedFormats || "all",
+      supportedFormats: data.supportedFormats || "openai-chat-completions,anthropic,gemini",
     };
 
     const existingModel = await this.modelPricingRepository.findByModel(normalizedModelName);
@@ -159,19 +155,15 @@ export class ModelPricingService {
     // Validate model name if provided
     if (data.model !== undefined && (!data.model || !data.model.trim())) throw new Error("model cannot be empty");
 
-    // Validate supportedFormats - can be single format, comma-separated formats, or "all"
+    // Validate supportedFormats - can be a single format or comma-separated formats.
     if (data.supportedFormats) {
-      if (data.supportedFormats === "both") throw new Error("supportedFormats 'both' is deprecated, use 'all' instead");
+      if (["all", "both"].includes(data.supportedFormats))
+        throw new Error("supportedFormats must list explicit formats");
 
-      if (data.supportedFormats !== "all") {
-        const formats = data.supportedFormats.split(",").map((f) => f.trim());
-        const validFormats = ["openai", "anthropic", "gemini"];
-        for (const format of formats)
-          if (!validFormats.includes(format))
-            throw new Error(
-              `Invalid format '${format}' in supportedFormats. Must be 'openai', 'anthropic', 'gemini', or 'all'`,
-            );
-      }
+      const formats = data.supportedFormats.split(",").map((f) => f.trim());
+      const validFormats = ["openai-chat-completions", "openai-responses", "anthropic", "gemini"];
+      for (const format of formats)
+        if (!validFormats.includes(format)) throw new Error(`Invalid format '${format}' in supportedFormats`);
     }
 
     // Validate pricingType if provided

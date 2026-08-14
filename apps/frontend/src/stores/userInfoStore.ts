@@ -26,6 +26,7 @@ export const useUserInfoStore = defineStore('userInfo', () => {
 
       if (checkTypesMatch(parsed, DefaultUserInfo)) {
         userInfo.value = parsed
+        isUserInfoFetched.value = Boolean(parsed.id)
         return parsed
       }
       return null

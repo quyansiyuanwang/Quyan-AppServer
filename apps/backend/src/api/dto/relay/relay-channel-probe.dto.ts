@@ -1,6 +1,6 @@
 import type { RelayChannelVisibilityMode } from "@/api/dto/relay/relay-channel.dto";
 
-export type RelayChannelProbeFormat = "openai" | "anthropic" | "gemini";
+export type RelayChannelProbeFormat = "openai-chat-completions" | "openai-responses" | "anthropic" | "gemini";
 export type RelayChannelProbeEndpoint =
   | "openai-chat-completions"
   | "openai-responses"

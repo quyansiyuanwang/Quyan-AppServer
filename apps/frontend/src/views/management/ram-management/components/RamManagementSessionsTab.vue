@@ -1,5 +1,5 @@
 <template>
-  <el-tab-pane :label="i18ns.t('RamManagement.sessions')" name="sessions">
+  <section class="ram-section">
     <div v-if="canReadSessions" class="section-toolbar">
       <el-button :icon="Refresh" @click="loadSessions">{{ i18ns.t('refresh') }}</el-button>
     </div>
@@ -34,7 +34,7 @@
     </el-table>
 
     <el-empty v-else :description="i18ns.t('message.error.forbidden')" />
-  </el-tab-pane>
+  </section>
 </template>
 
 <script setup lang="ts">

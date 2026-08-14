@@ -7,7 +7,8 @@
   },
   "scripts": {
     "_1_dev": "",
-    "dev": "concurrently \"pnpm --filter @appserver/backend dev\" \"pnpm --filter @appserver/frontend dev\" \"pnpm --filter @appserver/docs-site dev\"",
+    "dev": "node scripts/dev-local-lifecycle.mjs",
+    "dev:local-lifecycle": "node scripts/dev-local-lifecycle.mjs",
     "dev:backend": "pnpm --filter @appserver/backend dev",
     "dev:frontend": "pnpm --filter @appserver/frontend dev",
     "prod:frontend": "pnpm --filter @appserver/frontend prod",
@@ -56,6 +57,8 @@
     "test:frontend": "pnpm --filter @appserver/frontend test",
     "_10_util": "",
     "clean": "pnpm -r --filter @appserver/* exec rimraf dist",
+    "local:setup": "node scripts/setup-local-domains.mjs",
+    "local:teardown": "node scripts/setup-local-domains.mjs --uninstall --remove-certificates",
     "_11_spell": "",
     "spell:check": "cspell lint . --no-progress",
     "spell:check:packages": "pnpm -r --filter @appserver/* run spell:check",

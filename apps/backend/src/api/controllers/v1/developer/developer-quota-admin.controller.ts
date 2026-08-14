@@ -8,7 +8,7 @@ import { validateBody, validateParams } from "@/middleware/validation";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 
-@Route("v1/developer/admin/quota-overrides")
+@Route("v1/products/admin/quota-overrides")
 @Tags("Developer Quota Administration")
 @Security("jwt")
 export class DeveloperQuotaAdminController extends Controller {

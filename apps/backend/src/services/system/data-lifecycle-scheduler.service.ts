@@ -2,7 +2,8 @@ import cron from "node-cron";
 import { DataLifecycleService } from "./data-lifecycle.service";
 import { DataMaintenanceService } from "./data-maintenance.service";
 import { ErrorReportService } from "./error-report.service";
-import { DistributedLockService } from "@/services/infrastructure/distributed-lock.service";
+import { DistributedLockService, type DistributedLockHandle } from "@/services/infrastructure/distributed-lock.service";
+import { ResourceLockedError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 
 const logger = getLogger("DataLifecycleScheduler", LogCategory.SYSTEM);
@@ -74,11 +75,22 @@ export class DataLifecycleSchedulerService {
 
   private async withLock<T>(task: () => Promise<T>): Promise<T | null> {
     const lockService = DistributedLockService.getInstance();
-    const lock = await lockService.acquire(DistributedLockService.buildKey("system", "data-lifecycle"), {
-      ttlMs: LOCK_TTL_MS,
-      acquireTimeoutMs: 100,
-      failClosed: false,
-    });
+    let lock: DistributedLockHandle;
+    try {
+      lock = await lockService.acquire(DistributedLockService.buildKey("system", "data-lifecycle"), {
+        ttlMs: LOCK_TTL_MS,
+        acquireTimeoutMs: 100,
+        failClosed: false,
+      });
+    } catch (error) {
+      if (error instanceof ResourceLockedError) {
+        logger.warn("Data lifecycle scheduler skipped because another worker holds the lock", {
+          key: DistributedLockService.buildKey("system", "data-lifecycle"),
+        });
+        return null;
+      }
+      throw error;
+    }
     if (!lock.acquired) return null;
 
     const heartbeat = setInterval(() => void lockService.extend(lock, LOCK_TTL_MS), LOCK_TTL_MS / 3);

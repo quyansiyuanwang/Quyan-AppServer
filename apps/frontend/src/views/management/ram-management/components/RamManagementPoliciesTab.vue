@@ -1,10 +1,11 @@
 <template>
-  <el-tab-pane :label="i18ns.t('RamManagement.policies')" name="policies">
+  <section class="ram-section">
     <div v-if="canReadPolicies" class="section-toolbar">
       <div class="toolbar-left">
         <el-button v-if="canCreatePolicies" type="primary" :icon="Plus" @click="openPolicyDialog()">
           {{ i18ns.t('RamManagement.createPolicy') }}
         </el-button>
+        <el-button :icon="Refresh" @click="loadPolicies">{{ i18ns.t('refresh') }}</el-button>
       </div>
       <el-input
         v-model="policySearch"
@@ -57,11 +58,11 @@
     </el-table>
 
     <el-empty v-else :description="i18ns.t('message.error.forbidden')" />
-  </el-tab-pane>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { Plus, Search } from '@element-plus/icons-vue'
+import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
 
@@ -73,6 +74,7 @@ const {
   deletePolicy,
   filteredPolicies,
   loading,
+  loadPolicies,
   openPolicyAttachments,
   openPolicyDialog,
   policySearch,

@@ -5,20 +5,25 @@ import type {
   PermissionControllerSetGroupPermissionsApiType,
 } from '@/client/api-types-map.gen'
 
-const { requestMock, userInfoStoreMock, permissionStoreMock } = vi.hoisted(() => ({
-  requestMock: {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-  },
-  userInfoStoreMock: {
-    init: vi.fn(),
-    userInfo: { id: 'user-1' },
-  },
-  permissionStoreMock: {
-    untilReady: vi.fn(),
-  },
-}))
+const { requestMock, userInfoStoreMock, permissionStoreMock, sessionCoordinatorMock } = vi.hoisted(
+  () => ({
+    requestMock: {
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+    },
+    userInfoStoreMock: {
+      init: vi.fn(),
+      userInfo: { id: 'user-1' },
+    },
+    permissionStoreMock: {
+      untilReady: vi.fn(),
+    },
+    sessionCoordinatorMock: {
+      hydrateUserAndPermissions: vi.fn(),
+    },
+  }),
+)
 
 vi.mock('@/stores/request', () => ({
   useRequestStore: () => ({
@@ -32,6 +37,10 @@ vi.mock('@/stores/userInfoStore', () => ({
 
 vi.mock('@/stores/permissionStore', () => ({
   usePermissionStore: () => permissionStoreMock,
+}))
+
+vi.mock('@/service/sessionCoordinator', () => ({
+  sessionCoordinator: sessionCoordinatorMock,
 }))
 
 import { PermissionService, permissionService } from '@/service/permissionService'
@@ -184,7 +193,7 @@ describe('permissionService', () => {
 
     const result = await permissionService.loadCurrentUserPermissions()
 
-    expect(userInfoStoreMock.init).toHaveBeenCalledTimes(1)
+    expect(userInfoStoreMock.init).not.toHaveBeenCalled()
     expect(requestMock.get).toHaveBeenCalledWith(
       expectOperation('PermissionControllerGetUserPermissions'),
       {
@@ -198,14 +207,16 @@ describe('permissionService', () => {
   it('loadCurrentUserPermissions throws when user id is missing', async () => {
     userInfoStoreMock.userInfo.id = ''
 
-    await expect(permissionService.loadCurrentUserPermissions()).rejects.toThrow('无法获取当前用户ID')
+    await expect(permissionService.loadCurrentUserPermissions()).rejects.toThrow(
+      '无法获取当前用户ID',
+    )
   })
 
-  it('ensureLoaded delegates to permission store untilReady', async () => {
-    permissionStoreMock.untilReady.mockResolvedValue(undefined)
+  it('ensureLoaded delegates to the session coordinator', async () => {
+    sessionCoordinatorMock.hydrateUserAndPermissions.mockResolvedValue(undefined)
 
     await permissionService.ensureLoaded()
 
-    expect(permissionStoreMock.untilReady).toHaveBeenCalledTimes(1)
+    expect(sessionCoordinatorMock.hydrateUserAndPermissions).toHaveBeenCalledTimes(1)
   })
 })

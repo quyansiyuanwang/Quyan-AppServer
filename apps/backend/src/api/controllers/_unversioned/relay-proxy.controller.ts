@@ -70,7 +70,10 @@ export class RelayProxyController extends Controller {
     if (!token) throw new UnauthorizedError("Invalid relay token");
 
     const relayToken = await this.relayTokenService.validateToken(token, request);
-    const filteredModelNames = await this.relayProxyService.getAvailableModelsForToken(relayToken, "openai");
+    const filteredModelNames = await this.relayProxyService.getAvailableModelsForToken(
+      relayToken,
+      "openai-chat-completions",
+    );
 
     const created = Math.floor(Date.now() / 1000);
     const response = {

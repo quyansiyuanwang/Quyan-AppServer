@@ -35,7 +35,8 @@
                   }}</el-checkbox></template
                 >
                 <el-checkbox-group v-model="form.allowedFormats" :disabled="!enabled.formats">
-                  <el-checkbox value="openai">OpenAI</el-checkbox>
+                  <el-checkbox value="openai-chat-completions">OpenAI Chat Completions</el-checkbox>
+                  <el-checkbox value="openai-responses">OpenAI Responses</el-checkbox>
                   <el-checkbox value="anthropic">Anthropic</el-checkbox>
                   <el-checkbox value="gemini">Gemini</el-checkbox>
                 </el-checkbox-group>
@@ -585,7 +586,7 @@ const enabled = reactive({
 })
 const createForm = () => ({
   multiplier: 1,
-  allowedFormats: ['openai'] as string[],
+  allowedFormats: ['openai-chat-completions'] as string[],
   restrictModels: false,
   allowedModels: [] as string[],
   addUserIdentifier: true,
@@ -692,9 +693,7 @@ const submit = async () => {
     assertRuleNames()
     const patch: BatchUpdateRelayChannelPatch = {}
     if (enabled.multiplier) patch.multiplier = form.multiplier
-    if (enabled.formats)
-      patch.allowedFormats =
-        form.allowedFormats.length === 3 ? 'all' : form.allowedFormats.join(',')
+    if (enabled.formats) patch.allowedFormats = form.allowedFormats.join(',')
     if (enabled.userIdentifier) patch.addUserIdentifier = form.addUserIdentifier
     if (enabled.cacheRead) patch.inputTokensIncludeCacheRead = form.inputTokensIncludeCacheRead
     if (enabled.allowedModels)

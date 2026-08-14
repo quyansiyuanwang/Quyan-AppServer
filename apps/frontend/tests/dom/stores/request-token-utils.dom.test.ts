@@ -2,10 +2,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import StorageKey from '@/constant/storagekey'
 import {
+  clearAccessToken,
   clearTokenExpiration,
+  getAccessToken,
   isTokenExpired,
   parseJWT,
   saveTokenExpiration,
+  setAccessToken,
 } from '@/stores/request'
 
 const toBase64Url = (value: string): string => {
@@ -33,6 +36,7 @@ const buildTokenWithoutExpiration = (): string => {
 describe('request token helpers', () => {
   beforeEach(() => {
     localStorage.clear()
+    clearAccessToken()
     vi.restoreAllMocks()
   })
 
@@ -51,12 +55,14 @@ describe('request token helpers', () => {
     expect(parseJWT('a.@@@.c')).toBeNull()
   })
 
-  it('saves and clears access token expiration key', () => {
+  it('saves and clears access token expiration in memory', () => {
     saveTokenExpiration(buildToken(1_800_000_000))
-    expect(localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)).toBe('1800000000')
+    vi.spyOn(Date, 'now').mockReturnValue(1_800_000_001 * 1000)
+    expect(isTokenExpired()).toBe(true)
+    expect(localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)).toBeNull()
 
     clearTokenExpiration()
-    expect(localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)).toBeNull()
+    expect(isTokenExpired()).toBe(false)
   })
 
   it('does not persist expiration when parsed payload has no expiration field', () => {
@@ -65,7 +71,7 @@ describe('request token helpers', () => {
     expect(localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)).toBeNull()
   })
 
-  it('supports refresh-token expiration save/check/clear flow', () => {
+  it('does not persist or inspect refresh token expiration', () => {
     const refreshExpiration = 1_800_000_100
     const refreshToken = buildToken(refreshExpiration)
 
@@ -73,23 +79,23 @@ describe('request token helpers', () => {
     localStorage.setItem(StorageKey.Auth.REFRESH_TOKEN, refreshToken)
     vi.spyOn(Date, 'now').mockReturnValue(1_800_000_200 * 1000)
 
-    expect(isTokenExpired({ isRefresh: true, bufferSeconds: 1 })).toBe(true)
-    expect(localStorage.getItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION)).toBe(
-      String(refreshExpiration),
-    )
+    expect(isTokenExpired({ isRefresh: true, bufferSeconds: 1 })).toBe(false)
+    expect(localStorage.getItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION)).toBeNull()
 
     clearTokenExpiration(true)
     expect(localStorage.getItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION)).toBeNull()
   })
 
-  it('derives expiration from token when cache key is missing', () => {
+  it('derives expiration from the in-memory access token without reading legacy storage', () => {
     const expiration = 1_700_000_010
     localStorage.setItem(StorageKey.Auth.ACCESS_TOKEN, buildToken(expiration))
+    setAccessToken(buildToken(expiration))
 
     vi.spyOn(Date, 'now').mockReturnValue(1_700_000_013 * 1000)
 
     expect(isTokenExpired({ bufferSeconds: 2 })).toBe(true)
-    expect(localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)).toBe(String(expiration))
+    expect(getAccessToken()).toBe(buildToken(expiration))
+    expect(localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)).toBeNull()
   })
 
   it('returns false when no token expiration can be resolved', () => {

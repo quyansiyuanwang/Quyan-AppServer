@@ -6,6 +6,7 @@ const modules = import.meta.glob<DocsPageModule>('./*.doc.ts', {
 })
 
 const orderedModulePaths = [
+  './ai-relay-quickstart.doc.ts',
   './relay-token-management.doc.ts',
   './channel-provider-revenue.doc.ts',
   './relay-settings.doc.ts',

@@ -1,7 +1,7 @@
 <template>
   <div class="settings-view-root">
-    <div v-if="isDesktop" class="desktop-page">
-      <div class="settings-container">
+    <AccountProfileLayout>
+      <div v-if="isDesktop" class="desktop-page">
         <div class="page-header">
           <h1 class="page-title">{{ i18ns.t('nav.settingsSecurity') }}</h1>
         </div>
@@ -149,168 +149,174 @@
         </el-card>
 
         <el-drawer v-model="showPasskeyDrawer" :title="i18ns.t('passkey.management')" size="60%">
-          <PasskeyManagement />
+          <PasskeyManagement
+            :allow-registration="false"
+            @request-registration="openCentralPasskeyManagement"
+          />
         </el-drawer>
       </div>
-    </div>
-    <div v-else class="mobile-page">
-      <div class="settings-mobile">
-        <h1 class="page-title">{{ i18ns.t('nav.settingsSecurity') }}</h1>
+      <div v-else class="mobile-page">
+        <div class="settings-mobile">
+          <h1 class="page-title">{{ i18ns.t('nav.settingsSecurity') }}</h1>
 
-        <el-card class="section-card mobile-card">
-          <h3>{{ i18ns.t('SettingsView.passwordTitle') }}</h3>
-          <PermissionWrapper :require="Permission.USER_CHANGE_SELF_PASSWORD" mode="disabled">
-            <el-form :model="passwordForm" label-position="top">
-              <el-form-item :label="i18ns.t('newPassword')">
-                <el-input v-model="passwordForm.new_password" type="password" />
-              </el-form-item>
-              <el-form-item :label="i18ns.t('confirmPassword')">
-                <el-input v-model="passwordForm.confirm_password" type="password" />
-              </el-form-item>
-              <el-form-item>
-                <el-button class="w-full" type="primary" @click="changePassword">{{
-                  i18ns.t('changePassword')
-                }}</el-button>
-              </el-form-item>
-            </el-form>
-          </PermissionWrapper>
-        </el-card>
+          <el-card class="section-card mobile-card">
+            <h3>{{ i18ns.t('SettingsView.passwordTitle') }}</h3>
+            <PermissionWrapper :require="Permission.USER_CHANGE_SELF_PASSWORD" mode="disabled">
+              <el-form :model="passwordForm" label-position="top">
+                <el-form-item :label="i18ns.t('newPassword')">
+                  <el-input v-model="passwordForm.new_password" type="password" />
+                </el-form-item>
+                <el-form-item :label="i18ns.t('confirmPassword')">
+                  <el-input v-model="passwordForm.confirm_password" type="password" />
+                </el-form-item>
+                <el-form-item>
+                  <el-button class="w-full" type="primary" @click="changePassword">{{
+                    i18ns.t('changePassword')
+                  }}</el-button>
+                </el-form-item>
+              </el-form>
+            </PermissionWrapper>
+          </el-card>
 
-        <el-card class="section-card mobile-card">
-          <h3>{{ i18ns.t('accesskey.management') }}</h3>
-          <p class="section-desc">{{ i18ns.t('accesskey.description') }}</p>
-          <PermissionWrapper :require="Permission.ACCESSKEY_READ" mode="disabled">
-            <el-button class="w-full" type="primary" @click="showAccessKeyDrawer = true">
-              {{ i18ns.t('accesskey.manage') }}
+          <el-card class="section-card mobile-card">
+            <h3>{{ i18ns.t('accesskey.management') }}</h3>
+            <p class="section-desc">{{ i18ns.t('accesskey.description') }}</p>
+            <PermissionWrapper :require="Permission.ACCESSKEY_READ" mode="disabled">
+              <el-button class="w-full" type="primary" @click="showAccessKeyDrawer = true">
+                {{ i18ns.t('accesskey.manage') }}
+              </el-button>
+            </PermissionWrapper>
+          </el-card>
+
+          <el-card class="section-card mobile-card">
+            <h3>{{ i18ns.t('passkey.management') }}</h3>
+            <p class="section-desc">{{ i18ns.t('passkey.description') }}</p>
+            <el-button class="w-full" type="primary" @click="showPasskeyDrawer = true">
+              {{ i18ns.t('passkey.manage') }}
             </el-button>
-          </PermissionWrapper>
-        </el-card>
+          </el-card>
 
-        <el-card class="section-card mobile-card">
-          <h3>{{ i18ns.t('passkey.management') }}</h3>
-          <p class="section-desc">{{ i18ns.t('passkey.description') }}</p>
-          <el-button class="w-full" type="primary" @click="showPasskeyDrawer = true">
-            {{ i18ns.t('passkey.manage') }}
-          </el-button>
-        </el-card>
-
-        <el-card class="section-card mobile-card">
-          <h3>{{ i18ns.t('SettingsView.externalAccountsTitle') }}</h3>
-          <p class="section-desc">{{ i18ns.t('SettingsView.externalAccountsDesc') }}</p>
-          <div class="stack">
-            <div v-for="item in externalIdentities" :key="item.id" class="stack" style="gap: 6px">
-              <div>
-                <strong>{{ item.provider }}</strong>
-              </div>
-              <div class="section-desc">
-                {{ item.providerUsername || item.providerEmail || item.providerUserId }}
+          <el-card class="section-card mobile-card">
+            <h3>{{ i18ns.t('SettingsView.externalAccountsTitle') }}</h3>
+            <p class="section-desc">{{ i18ns.t('SettingsView.externalAccountsDesc') }}</p>
+            <div class="stack">
+              <div v-for="item in externalIdentities" :key="item.id" class="stack" style="gap: 6px">
+                <div>
+                  <strong>{{ item.provider }}</strong>
+                </div>
+                <div class="section-desc">
+                  {{ item.providerUsername || item.providerEmail || item.providerUserId }}
+                </div>
+                <el-button
+                  class="w-full"
+                  type="danger"
+                  plain
+                  :loading="externalBindingProvider === item.provider"
+                  :disabled="externalBindingProvider !== null"
+                  @click="handleUnbindExternalIdentity(item.provider)"
+                >
+                  {{ i18ns.t('common.delete') }}
+                </el-button>
               </div>
               <el-button
+                v-if="publicSocialAuthConfig?.githubEnabled"
                 class="w-full"
-                type="danger"
-                plain
-                :loading="externalBindingProvider === item.provider"
+                :loading="externalBindingProvider === 'github'"
                 :disabled="externalBindingProvider !== null"
-                @click="handleUnbindExternalIdentity(item.provider)"
+                @click="handleBindExternalIdentity('github')"
               >
-                {{ i18ns.t('common.delete') }}
+                GitHub
+              </el-button>
+              <el-button
+                v-if="publicSocialAuthConfig?.wechatOpenEnabled"
+                class="w-full"
+                :loading="externalBindingProvider === 'wechat-open'"
+                :disabled="externalBindingProvider !== null"
+                @click="handleBindExternalIdentity('wechat-open')"
+              >
+                {{ i18ns.t('SettingsView.wechatOpenBind') }}
+              </el-button>
+              <el-button
+                v-if="publicSocialAuthConfig?.wechatWebEnabled"
+                class="w-full"
+                :loading="externalBindingProvider === 'wechat-web'"
+                :disabled="externalBindingProvider !== null"
+                @click="handleBindExternalIdentity('wechat-web')"
+              >
+                {{ i18ns.t('SettingsView.wechatWebBind') }}
               </el-button>
             </div>
-            <el-button
-              v-if="publicSocialAuthConfig?.githubEnabled"
-              class="w-full"
-              :loading="externalBindingProvider === 'github'"
-              :disabled="externalBindingProvider !== null"
-              @click="handleBindExternalIdentity('github')"
-            >
-              GitHub
-            </el-button>
-            <el-button
-              v-if="publicSocialAuthConfig?.wechatOpenEnabled"
-              class="w-full"
-              :loading="externalBindingProvider === 'wechat-open'"
-              :disabled="externalBindingProvider !== null"
-              @click="handleBindExternalIdentity('wechat-open')"
-            >
-              {{ i18ns.t('SettingsView.wechatOpenBind') }}
-            </el-button>
-            <el-button
-              v-if="publicSocialAuthConfig?.wechatWebEnabled"
-              class="w-full"
-              :loading="externalBindingProvider === 'wechat-web'"
-              :disabled="externalBindingProvider !== null"
-              @click="handleBindExternalIdentity('wechat-web')"
-            >
-              {{ i18ns.t('SettingsView.wechatWebBind') }}
-            </el-button>
-          </div>
-        </el-card>
+          </el-card>
 
-        <el-card class="section-card mobile-card twofa-card">
-          <h3>{{ i18ns.t('twoFactor.title') }}</h3>
-          <p class="section-desc">
-            {{
-              twoFactorState.enabled
-                ? i18ns.t('twoFactor.enabledDesc')
-                : i18ns.t('twoFactor.disabledDesc')
-            }}
-          </p>
-          <div class="stack twofa-content">
-            <div class="twofa-status-row">
-              <el-tag :type="twoFactorState.enabled ? 'success' : 'info'" size="small">
-                {{
-                  twoFactorState.enabled
-                    ? i18ns.t('twoFactor.enabled')
-                    : i18ns.t('twoFactor.disabled')
-                }}
-              </el-tag>
-            </div>
-
-            <el-button
-              v-if="!twoFactorState.enabled"
-              class="w-full twofa-primary-btn"
-              type="primary"
-              :loading="twoFactorLoading"
-              @click="handleBeginTwoFactorSetup"
-            >
-              {{ i18ns.t('twoFactor.enableNow') }}
-            </el-button>
-
-            <template v-else>
-              <div class="twofa-policy-row">
-                <el-switch
-                  v-model="twoFactorState.passkeyRequired"
-                  :loading="twoFactorPolicySaving"
-                  :active-text="i18ns.t('twoFactor.passkeyRequireOn')"
-                  :inactive-text="i18ns.t('twoFactor.passkeyRequireOff')"
-                  @change="handleTogglePasskeyTwoFactorPolicy"
-                />
+          <el-card class="section-card mobile-card twofa-card">
+            <h3>{{ i18ns.t('twoFactor.title') }}</h3>
+            <p class="section-desc">
+              {{
+                twoFactorState.enabled
+                  ? i18ns.t('twoFactor.enabledDesc')
+                  : i18ns.t('twoFactor.disabledDesc')
+              }}
+            </p>
+            <div class="stack twofa-content">
+              <div class="twofa-status-row">
+                <el-tag :type="twoFactorState.enabled ? 'success' : 'info'" size="small">
+                  {{
+                    twoFactorState.enabled
+                      ? i18ns.t('twoFactor.enabled')
+                      : i18ns.t('twoFactor.disabled')
+                  }}
+                </el-tag>
               </div>
 
-              <TrustedDeviceEntryView @manage="showTrustedDevicesDrawer = true" />
-
               <el-button
-                class="w-full twofa-danger-btn"
-                type="danger"
+                v-if="!twoFactorState.enabled"
+                class="w-full twofa-primary-btn"
+                type="primary"
                 :loading="twoFactorLoading"
-                @click="handleGoDisableTwoFactor"
+                @click="handleBeginTwoFactorSetup"
               >
-                {{ i18ns.t('twoFactor.disableNow') }}
+                {{ i18ns.t('twoFactor.enableNow') }}
               </el-button>
-            </template>
-          </div>
-        </el-card>
 
-        <el-drawer
-          v-model="showPasskeyDrawer"
-          :title="i18ns.t('passkey.management')"
-          size="100%"
-          direction="btt"
-        >
-          <PasskeyManagement />
-        </el-drawer>
+              <template v-else>
+                <div class="twofa-policy-row">
+                  <el-switch
+                    v-model="twoFactorState.passkeyRequired"
+                    :loading="twoFactorPolicySaving"
+                    :active-text="i18ns.t('twoFactor.passkeyRequireOn')"
+                    :inactive-text="i18ns.t('twoFactor.passkeyRequireOff')"
+                    @change="handleTogglePasskeyTwoFactorPolicy"
+                  />
+                </div>
+
+                <TrustedDeviceEntryView @manage="showTrustedDevicesDrawer = true" />
+
+                <el-button
+                  class="w-full twofa-danger-btn"
+                  type="danger"
+                  :loading="twoFactorLoading"
+                  @click="handleGoDisableTwoFactor"
+                >
+                  {{ i18ns.t('twoFactor.disableNow') }}
+                </el-button>
+              </template>
+            </div>
+          </el-card>
+
+          <el-drawer
+            v-model="showPasskeyDrawer"
+            :title="i18ns.t('passkey.management')"
+            size="100%"
+            direction="btt"
+          >
+            <PasskeyManagement
+              :allow-registration="false"
+              @request-registration="openCentralPasskeyManagement"
+            />
+          </el-drawer>
+        </div>
       </div>
-    </div>
+    </AccountProfileLayout>
 
     <el-drawer
       v-model="showAccessKeyDrawer"
@@ -390,6 +396,7 @@
 
 <script setup lang="ts">
 import { usePageDevice } from '@/composables/usePageDevice'
+import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
@@ -410,6 +417,10 @@ import { Permission } from '@/constant/permission'
 import { twoFactorManagementService } from '@/service/twoFactor/twoFactorManagementService'
 import { CustomCode } from '@/constant/custom-code'
 import { validateTwoFactorCode } from '@/utils/validation'
+import {
+  redirectToCentralExternalBinding,
+  redirectToCentralPasskeyManagement,
+} from '@/service/centralLoginService'
 
 const passwordForm = ref({ new_password: '', confirm_password: '' })
 const userInfoStore = useUserInfoStore()
@@ -468,6 +479,14 @@ const twoFactorSetupData = ref<null | {
 const twoFactorSetupCode = ref('')
 const twoFactorRecoveryCodes = ref<string[]>([])
 
+const openCentralPasskeyManagement = async () => {
+  try {
+    await redirectToCentralPasskeyManagement()
+  } catch (error: any) {
+    ElMessage.error(error?.message || i18ns.t('unknownError'))
+  }
+}
+
 const loadExternalIdentities = async () => {
   try {
     externalIdentities.value = await socialAuthService.listExternalIdentities()
@@ -513,9 +532,7 @@ const consumePendingExternalBinding = async () => {
 const handleBindExternalIdentity = async (provider: 'github' | 'wechat-open' | 'wechat-web') => {
   externalBindingProvider.value = provider
   try {
-    const redirect = `${window.location.origin}/auth/external/${provider}/callback`
-    const { authorizeUrl } = await socialAuthService.startExternalAuth(provider, 'bind', redirect)
-    window.location.href = authorizeUrl
+    await redirectToCentralExternalBinding(provider)
   } catch (error: any) {
     ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsBindFailed'))
   } finally {
@@ -723,8 +740,14 @@ const { isDesktop } = usePageDevice()
   min-width: 0;
 }
 
+.desktop-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .page-header {
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 
 .page-title {
@@ -735,7 +758,7 @@ const { isDesktop } = usePageDevice()
 }
 
 .section-card {
-  margin-top: 16px;
+  margin-top: 0;
 }
 
 h3 {
@@ -818,7 +841,7 @@ h3 {
 }
 
 @media (max-width: 768px) {
-  .settings-container {
+  .settings-view-root :deep(.account-profile-page) {
     max-width: 100%;
     padding: 0 4px;
   }
@@ -827,17 +850,20 @@ h3 {
 
 <style scoped lang="scss">
 .settings-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 4px;
 }
 
 .page-title {
-  margin: 4px 0 16px;
+  margin: 4px 0 4px;
   font-size: 22px;
   font-weight: 600;
 }
 
 .section-card {
-  margin-top: 12px;
+  margin-top: 0;
 }
 
 h3 {

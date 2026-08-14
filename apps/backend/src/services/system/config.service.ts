@@ -230,7 +230,7 @@ export class ConfigService {
         actorUserId,
         targetResourceType: "SERVER_CONFIG",
         description: `配置项 '${key}' 已更新`,
-        changes: { key, value: key.includes("password") ? "***" : value },
+        changes: { key, value: /password|apiKey/i.test(key) ? "***" : value },
         success: true,
         ipAddress: this.getClientIP(request),
         userAgent: request?.headers["user-agent"],

@@ -12,6 +12,7 @@
 
 | Store              | 文件                         | 职责                    |
 | ------------------ | ---------------------------- | ----------------------- |
+| Session            | `sessionStore.ts`            | 会话状态的响应式投影    |
 | Request            | `request.ts`                 | HTTP 客户端、Token 管理 |
 | GlobalInstance     | `globalInstance.ts`          | 事件总线实例            |
 | Permission         | `permissionStore.ts`         | 权限状态、本地权限检查  |
@@ -24,16 +25,19 @@
 
 ## 核心 Stores 详解
 
-### 1. Request Store (request.ts)
+### 1. Session Store (`sessionStore.ts`)
+
+会话 Store 只暴露 `SessionCoordinator` 写入的状态，组件通过它判断 authenticated、资料和权限水合状态。组件不得写入 Access Token 或主动请求当前会话。
+
+### 2. Request Store (request.ts)
 
 **职责**: 管理 HTTP 客户端和 Token 刷新逻辑
 
 **核心功能**:
 
 - 创建和管理 MyAxios 实例
-- Token 自动注入和刷新
+- Token 自动注入；401 时等待协调器的共享 Cookie refresh
 - 请求/响应拦截
-- 事件总线集成
 
 **使用示例**:
 
@@ -42,7 +46,7 @@ const request = useRequestStore().getAxios()
 const result = await request.post<LoginApiType>(url, data)
 ```
 
-### 2. UserInfo Store (userInfoStore.ts)
+### 3. UserInfo Store (userInfoStore.ts)
 
 **职责**: 管理用户信息并持久化到 localStorage
 
@@ -74,7 +78,7 @@ watch(
 )
 ```
 
-### 3. Permission Store (permissionStore.ts)
+### 4. Permission Store (permissionStore.ts)
 
 详见 [认证与授权文档](./03-auth.md#授权系统权限管理)
 
@@ -179,12 +183,8 @@ const init = () => {
 **事件总线类型**:
 
 ```typescript
-export const webEventBus = new EventBus<keyof typeof HttpStatusCode, ...>()
-export const authEventBus = new EventBus<AUTH_EVENTS, ...>()
-export const customCodeBus = new EventBus<keyof typeof CustomCode, ...>()
 export const i18nEventBus = new EventBus<I18N_EVENTS, ...>()
 export const windowEventBus = new EventBus<WINDOW_EVENTS, ...>()
-export const globalEventBus = new EventBus<GLOBAL_EVENTS, ...>()
 ```
 
 **EventBus 类方法**:
@@ -197,16 +197,8 @@ export const globalEventBus = new EventBus<GLOBAL_EVENTS, ...>()
 **使用示例**:
 
 ```typescript
-// 注册监听器
-authEventBus.on('USER_LOGGED_OUT', () => {
-  console.log('User logged out')
-})
-
-// 触发事件
-authEventBus.emit('USER_LOGGED_OUT')
-
-// 在组件中自动管理生命周期
-authEventBus.auto('USER_LOGGED_OUT', handleLogout)
+// 只用于非认证的局部 UI 事件
+i18nEventBus.on('LOCALE_CHANGED', handleLocaleChanged)
 ```
 
 ## Store 初始化
@@ -219,12 +211,7 @@ const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
 
-// 某些 Store 需要手动初始化
-// 例如在 overLay.vue 中
-onMounted(async () => {
-  await useUserInfoStore().init()
-  await usePermissionStore().init()
-})
+// 认证资料与权限仅由 SessionCoordinator 水合。
 ```
 
 ## 最佳实践

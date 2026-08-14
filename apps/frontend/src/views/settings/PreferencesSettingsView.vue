@@ -1,7 +1,7 @@
 <template>
   <div class="settings-view-root">
-    <div v-if="isDesktop" class="desktop-page">
-      <div class="settings-container">
+    <AccountProfileLayout>
+      <div v-if="isDesktop" class="desktop-page">
         <div class="page-header">
           <h1 class="page-title">{{ i18ns.t('nav.preferences') }}</h1>
         </div>
@@ -25,39 +25,39 @@
           </el-button>
         </el-card>
       </div>
-    </div>
 
-    <div v-else class="mobile-page">
-      <div class="settings-mobile">
-        <h1 class="page-title">{{ i18ns.t('nav.preferences') }}</h1>
+      <div v-else class="mobile-page">
+        <div class="settings-mobile">
+          <h1 class="page-title">{{ i18ns.t('nav.preferences') }}</h1>
 
-        <el-card class="section-card mobile-card">
-          <h3>{{ i18ns.t('SettingsView.themeLanguageTitle') }}</h3>
-          <div class="stack">
-            <el-button class="w-full" @click="toggleDark">
-              <el-icon><component :is="iconRef" /></el-icon>
-              <span>{{ i18ns.t('SettingsView.themeLabel') }}</span>
-            </el-button>
-            <div class="w-full lang-wrap">
-              <LanguageSwitcher />
+          <el-card class="section-card mobile-card">
+            <h3>{{ i18ns.t('SettingsView.themeLanguageTitle') }}</h3>
+            <div class="stack">
+              <el-button class="w-full" @click="toggleDark">
+                <el-icon><component :is="iconRef" /></el-icon>
+                <span>{{ i18ns.t('SettingsView.themeLabel') }}</span>
+              </el-button>
+              <div class="w-full lang-wrap">
+                <LanguageSwitcher />
+              </div>
             </div>
-          </div>
-        </el-card>
+          </el-card>
 
-        <el-card class="section-card mobile-card">
-          <h3>{{ i18ns.t('SettingsView.clearCacheTitle') }}</h3>
-          <p class="section-desc">{{ i18ns.t('SettingsView.clearCacheDesc') }}</p>
-          <el-button
-            class="w-full"
-            type="warning"
-            :loading="dialogOpening"
-            @click="openCacheDialog"
-          >
-            {{ i18ns.t('SettingsView.clearCacheButton') }}
-          </el-button>
-        </el-card>
+          <el-card class="section-card mobile-card">
+            <h3>{{ i18ns.t('SettingsView.clearCacheTitle') }}</h3>
+            <p class="section-desc">{{ i18ns.t('SettingsView.clearCacheDesc') }}</p>
+            <el-button
+              class="w-full"
+              type="warning"
+              :loading="dialogOpening"
+              @click="openCacheDialog"
+            >
+              {{ i18ns.t('SettingsView.clearCacheButton') }}
+            </el-button>
+          </el-card>
+        </div>
       </div>
-    </div>
+    </AccountProfileLayout>
 
     <!-- Cache cleaner dialog -->
     <el-dialog
@@ -104,6 +104,7 @@
 <script setup lang="ts">
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { usePageDevice } from '@/composables/usePageDevice'
+import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import { computed, ref } from 'vue'
 import { i18ns } from '@/locales'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
@@ -261,17 +262,6 @@ const cacheTreeData = computed<CacheNode[]>(() => {
           ],
         },
         {
-          id: 'group:home',
-          label: zh ? '主页 (Home)' : 'Home',
-          children: [
-            ls(
-              StorageKey.Home.DASHBOARD_DEFAULT_OPEN,
-              '仪表板默认展开状态',
-              'Dashboard default open state',
-            ),
-          ],
-        },
-        {
           id: 'group:overlay',
           label: zh ? '浮层 (Overlay)' : 'Overlay',
           children: [
@@ -355,7 +345,6 @@ const refreshSizeMap = () => {
   scanGroup(StorageKey.Util)
   scanGroup(StorageKey.Scope)
   scanGroup(StorageKey.User)
-  scanGroup(StorageKey.Home)
   scanGroup(StorageKey.Overlay)
   scanGroup(StorageKey.Chat)
   scanGroup(StorageKey.Relay)
@@ -437,10 +426,16 @@ const handleClearSelected = async () => {
 
     if (needsSignOut) {
       ElMessage.warning(i18ns.t('SettingsView.clearCacheSignOutWarning'))
-      setTimeout(() => window.location.reload(), 1500)
+      setTimeout(async () => {
+        const { reloadDocument } = await import('@/service/navigationService')
+        reloadDocument()
+      }, 1500)
     } else if (needsReload) {
       ElMessage.success(i18ns.t('SettingsView.clearCacheReloadWarning'))
-      setTimeout(() => window.location.reload(), 1500)
+      setTimeout(async () => {
+        const { reloadDocument } = await import('@/service/navigationService')
+        reloadDocument()
+      }, 1500)
     } else {
       ElMessage.success(i18ns.t('SettingsView.clearCacheSuccess'))
     }
@@ -458,8 +453,14 @@ const handleClearSelected = async () => {
   min-width: 0;
 }
 
+.desktop-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .page-header {
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 
 .page-title {
@@ -470,7 +471,7 @@ const handleClearSelected = async () => {
 }
 
 .section-card {
-  margin-top: 16px;
+  margin-top: 0;
 }
 
 h3 {
@@ -508,7 +509,7 @@ h3 {
 }
 
 @media (max-width: 768px) {
-  .settings-container {
+  .settings-view-root :deep(.account-profile-page) {
     max-width: 100%;
     padding: 0 4px;
   }
@@ -517,17 +518,20 @@ h3 {
 
 <style scoped lang="scss">
 .settings-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 4px;
 }
 
 .page-title {
-  margin: 4px 0 16px;
+  margin: 4px 0 4px;
   font-size: 22px;
   font-weight: 600;
 }
 
 .section-card {
-  margin-top: 12px;
+  margin-top: 0;
 }
 
 h3 {

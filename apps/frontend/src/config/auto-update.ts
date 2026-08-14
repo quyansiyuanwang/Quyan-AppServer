@@ -1,45 +1,61 @@
 import { i18ns } from '@/locales'
 import { ElMessageBox } from 'element-plus'
+import { reloadDocument } from '@/service/navigationService'
 
-/**
- * 计算字符串的简单哈希值
- */
-const simpleHash = (str: string): string => {
-  let hash = 0
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i)
-    hash = (hash << 5) - hash + char
-    hash = hash & hash // Convert to 32bit integer
-  }
-  return hash.toString(36)
+export const extractEntryModule = (html: string): string | undefined => {
+  const moduleScript = html.match(/<script\b[^>]*\btype=(["'])module\1[^>]*>/i)?.[0]
+  return moduleScript?.match(/\bsrc=(["'])([^"']+)\1/i)?.[2]
 }
 
-let isInitialHashSet = false
-let initialIndexHash: string | null = null
+let initialEntryModule: string | undefined
+let pendingEntryModule: string | undefined
+let pendingEntryModuleChecks = 0
 let isRefreshPromptShown = false
+let watchDogTimer: number | undefined
 
 export const configureWatchDog = () => {
+  if (watchDogTimer !== undefined) return
+
   /**
-   * 监听服务器前端页面是否更新
-   * 通过定期请求 index.html 并比较内容哈希值来检测更新
+   * 监听服务器前端构建是否更新。只比较入口模块，而不是完整 HTML，
+   * 并要求连续两次观察到同一新入口，避免边缘节点短暂不一致时误提示。
    */
-  setInterval(() => {
-    if (isInitialHashSet && (!initialIndexHash || isRefreshPromptShown)) return
+  const checkForUpdate = () => {
+    if (isRefreshPromptShown) return
 
-    fetch('/', { cache: 'no-cache' })
-      .then((response) => response.text())
+    fetch('/', { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Unexpected index response: ${response.status}`)
+        return await response.text()
+      })
       .then((html) => {
-        const currentHash = simpleHash(html)
-
-        if (!isInitialHashSet) {
-          initialIndexHash = currentHash
-          isInitialHashSet = true
-          console.info('[WatchDog] Initial index.html hash set:', initialIndexHash)
+        const currentEntryModule = extractEntryModule(html)
+        if (!currentEntryModule) {
+          console.warn('[WatchDog] Unable to identify the index entry module')
           return
         }
 
-        if (currentHash !== initialIndexHash) {
-          console.info('[WatchDog] Detected index.html change, prompting user to refresh')
+        if (!initialEntryModule) {
+          initialEntryModule = currentEntryModule
+          console.info('[WatchDog] Initial entry module set:', initialEntryModule)
+          return
+        }
+
+        if (currentEntryModule === initialEntryModule) {
+          pendingEntryModule = undefined
+          pendingEntryModuleChecks = 0
+          return
+        }
+
+        if (currentEntryModule !== pendingEntryModule) {
+          pendingEntryModule = currentEntryModule
+          pendingEntryModuleChecks = 1
+          return
+        }
+
+        pendingEntryModuleChecks += 1
+        if (pendingEntryModuleChecks >= 2) {
+          console.info('[WatchDog] Detected a stable new entry module, prompting user to refresh')
           isRefreshPromptShown = true
 
           ElMessageBox.confirm(
@@ -51,9 +67,7 @@ export const configureWatchDog = () => {
               type: 'info',
             },
           )
-            .then(() => {
-              window.location.reload()
-            })
+            .then(reloadDocument)
             .catch(() => {
               // 用户选择稍后刷新，不做任何操作
             })
@@ -62,5 +76,8 @@ export const configureWatchDog = () => {
       .catch((error) => {
         console.error('[WatchDog] Failed to check index.html:', error)
       })
-  }, 5 * 1000)
+  }
+
+  void checkForUpdate()
+  watchDogTimer = window.setInterval(checkForUpdate, 5 * 1000)
 }

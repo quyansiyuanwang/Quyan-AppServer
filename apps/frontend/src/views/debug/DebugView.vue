@@ -356,11 +356,9 @@ const userInfoStore = useUserInfoStore()
 const permissionStore = usePermissionStore()
 
 onMounted(async () => {
-  await permissionStore.init().then(async () => {
-    if (permissionStore.hasPermission(Permission.DEBUG_ACCESS)) {
-      backendBuildInfo.value = await systemService.getBackendBuildInfo()
-    }
-  })
+  if (permissionStore.hasPermission(Permission.DEBUG_ACCESS)) {
+    backendBuildInfo.value = await systemService.getBackendBuildInfo()
+  }
 })
 
 const toErrorMessage = (error: unknown, fallback: string) => {
@@ -393,7 +391,8 @@ const openProtectedDebugUrl = async (resourceUrl: string) => {
       return
     }
 
-    window.location.assign(targetUrl)
+    const { assignDocument } = await import('@/service/navigationService')
+    assignDocument(targetUrl)
   } catch (error) {
     previewWindow?.close()
     ElMessage.error(toErrorMessage(error, i18ns.t('apiDoc.openSwaggerDocsFailed')))

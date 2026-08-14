@@ -39,6 +39,7 @@ export {
 export type { DeveloperProductCode, DeveloperProductDefinition } from './developer-product'
 export {
   ALL_RELAY_REQUEST_FORMATS,
+  RELAY_REQUEST_FORMATS,
   isModelIdAllowed,
   isModelNameAllowed,
   normalizeAllowedModelEntriesToModelNames,
@@ -53,10 +54,12 @@ export {
   unionUniqueModelIds,
 } from './relay-model-availability'
 export type { ChatStreamEvent, ChatStreamMessage } from './chat-stream'
+export type { SupportCitation, SupportMessageRole, SupportStreamEvent } from './support-stream'
 export { applySseRequestMiddlewares } from './sse'
 export type { SseRequest, SseRequestMiddleware } from './sse'
 export type {
   ModelIdentityLike,
   RelayModelNameConstraint,
   RelayRequestFormat,
+  RelayConfiguredRequestFormat,
 } from './relay-model-availability'

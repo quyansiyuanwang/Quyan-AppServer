@@ -1,19 +1,16 @@
 .balance-history-page-root {
   .balance-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
     width: 100%;
     min-width: 0;
   }
 
   .info-card {
-    margin-bottom: 20px;
-
     :deep(.el-card__body) {
       padding: 24px;
     }
-  }
-
-  .transaction-card {
-    margin-bottom: 20px;
   }
 
   .card-header-section {

@@ -37,6 +37,41 @@
     @apply flex flex-wrap items-center gap-2;
   }
 
+  /* Layout primitives for lower visual burden */
+  .page-block {
+    @apply box-border w-full min-w-0 rounded-xl border border-slate-200 bg-white/95 shadow-sm dark:border-slate-800 dark:bg-slate-900/90;
+  }
+
+  .page-block__header {
+    @apply flex items-center justify-between gap-4 border-b border-slate-200/70 px-5 py-3.5 dark:border-slate-800/70;
+  }
+
+  .page-block__body {
+    @apply w-full min-w-0 px-5 py-4;
+  }
+
+  .split-header {
+    @apply flex flex-wrap items-center justify-between gap-4;
+  }
+
+  .split-header__main {
+    @apply min-w-0 flex-1;
+  }
+
+  .split-header__extra {
+    @apply flex flex-shrink-0 items-center gap-3;
+  }
+
+  .flow-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(var(--flow-item-min, 220px), 1fr));
+    gap: var(--flow-gap, 12px);
+  }
+
+  .flow-grid--dense {
+    --flow-item-min: 140px;
+  }
+
   /* Dual-end visual system */
   .desktop-page :where(.el-card) {
     @apply w-full min-w-0 rounded-xl border border-slate-200 bg-white/95 shadow-sm dark:border-slate-800 dark:bg-slate-900/90;

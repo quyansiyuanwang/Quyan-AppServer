@@ -23,6 +23,7 @@ import {
   parseRelayChannelAllowedModelNames,
   parseRelayTokenAllowedModelIds,
   requireRelayChannelForFormat,
+  type RelayConfiguredRequestFormat,
   type RelayRequestFormat,
   supportsRelayRequestFormat,
 } from "@/util/relay-model-availability.util";
@@ -76,10 +77,18 @@ export class ChatService {
     return pricingList.find((pricing) => pricing.model.trim() === normalizedRequestedModel) || null;
   }
 
-  private getPreferredRequestFormatOrder(modelId: string, supportedFormats?: string | null): RelayRequestFormat[] {
+  private getPreferredRequestFormatOrder(
+    modelId: string,
+    supportedFormats?: string | null,
+  ): RelayConfiguredRequestFormat[] {
     const preferredFormat = this.aiProvider.getProvider(modelId);
     const supported = parseRelayRequestFormats(supportedFormats);
-    const fallbackOrder: RelayRequestFormat[] = [preferredFormat, "openai", "anthropic", "gemini"];
+    const fallbackOrder: RelayConfiguredRequestFormat[] = [
+      preferredFormat === "openai" ? "openai-chat-completions" : preferredFormat,
+      "openai-chat-completions",
+      "anthropic",
+      "gemini",
+    ];
     return fallbackOrder.filter(
       (format, index) => supported.includes(format) && fallbackOrder.indexOf(format) === index,
     );
@@ -90,7 +99,7 @@ export class ChatService {
     channel: RelayChannel | null,
     requestFormat: RelayRequestFormat,
   ): { upstreamUrl?: string | null; upstreamApiKey?: string | null } {
-    if (requestFormat === "openai")
+    if (requestFormat.startsWith("openai-"))
       return {
         upstreamUrl: token.upstreamUrl || channel?.openaiUpstreamUrl,
         upstreamApiKey: token.upstreamApiKey || channel?.openaiUpstreamApiKey,
@@ -126,7 +135,7 @@ export class ChatService {
     for (const candidate of candidateChannels) {
       for (const requestFormat of orderedFormats) {
         const channel = candidate.resolvedChannel;
-        const channelAllowedFormats = channel.allowedFormats || "all";
+        const channelAllowedFormats = channel.allowedFormats ?? "openai-chat-completions,anthropic,gemini";
         if (!supportsRelayRequestFormat(channelAllowedFormats, requestFormat)) continue;
 
         const channelAllowedModels = parseRelayChannelAllowedModelNames(channel);
@@ -152,7 +161,7 @@ export class ChatService {
 
     throw new BadRequestError(
       `Model ${modelPricing.model.trim()} has no compatible upstream configuration. Supported formats: ${
-        modelPricing.supportedFormats || "all"
+        modelPricing.supportedFormats || "openai-chat-completions,anthropic,gemini"
       }`,
     );
   }
@@ -313,13 +322,15 @@ export class ChatService {
 
       effectiveCandidate = candidate;
       try {
+        const streamRequestFormat =
+          candidate.requestFormat === "openai-chat-completions" ? "openai" : candidate.requestFormat;
         const stream = requestMeta?.signal
           ? this.aiProvider.streamChat(
               messages,
               selectedModelId,
               candidate.upstreamApiKey,
               candidate.upstreamUrl,
-              candidate.requestFormat,
+              streamRequestFormat,
               requestMeta.signal,
             )
           : this.aiProvider.streamChat(
@@ -327,7 +338,7 @@ export class ChatService {
               selectedModelId,
               candidate.upstreamApiKey,
               candidate.upstreamUrl,
-              candidate.requestFormat,
+              streamRequestFormat,
             );
         for await (const chunk of stream) {
           if (!chunk.done && chunk.content) {

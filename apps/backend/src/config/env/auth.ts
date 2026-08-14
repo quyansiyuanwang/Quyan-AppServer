@@ -1,5 +1,6 @@
 import { createHash, generateKeyPairSync } from "crypto";
 import { normalizeCookieSameSite, sanitizeInt } from "./common";
+import { buildFirstPartyOrigins } from "./domain";
 import type { EnvSnapshot } from "./source";
 
 let generatedKeyPair: { privateKey: string; publicKey: string } | null = null;
@@ -24,7 +25,10 @@ function getGeneratedKeyPair(isProduction: boolean, isTest: boolean): { privateK
   return generatedKeyPair;
 }
 
-function buildAuthCenterConfig(source: EnvSnapshot, runtime: { isProduction: boolean; isTest: boolean; port: number }) {
+function buildAuthCenterConfig(
+  source: EnvSnapshot,
+  runtime: { isProduction: boolean; isTest: boolean; port: number; rootDomain: string },
+) {
   const publicKey = normalizePem(source.AUTH_CENTER_JWT_PUBLIC_KEY);
   const privateKey = normalizePem(source.AUTH_CENTER_JWT_PRIVATE_KEY);
   if (runtime.isProduction && !publicKey)
@@ -35,7 +39,12 @@ function buildAuthCenterConfig(source: EnvSnapshot, runtime: { isProduction: boo
   const resolvedPublicKey = publicKey || generated!.publicKey;
 
   return {
-    issuer: String(source.AUTH_CENTER_ISSUER || `http://localhost:${runtime.port}/auth-center`).trim(),
+    issuer: String(
+      source.AUTH_CENTER_ISSUER ||
+        (runtime.isProduction
+          ? `https://api.${runtime.rootDomain}/auth-center`
+          : `http://localhost:${runtime.port}/auth-center`),
+    ).trim(),
     algorithm: "RS256" as const,
     privateKey: privateKey || generated!.privateKey,
     publicKey: resolvedPublicKey,
@@ -47,9 +56,11 @@ function buildAuthCenterConfig(source: EnvSnapshot, runtime: { isProduction: boo
   };
 }
 
-function buildSocialConfig(source: EnvSnapshot) {
+function buildSocialConfig(source: EnvSnapshot, runtime: { isProduction: boolean; rootDomain: string }) {
   return {
-    frontendBaseUrl: String(source.FRONTEND_BASE_URL || "").trim(),
+    frontendBaseUrl: String(
+      source.FRONTEND_BASE_URL || (runtime.isProduction ? `https://auth.${runtime.rootDomain}` : ""),
+    ).trim(),
     github: {
       enabled: source.GITHUB_OAUTH_ENABLED === "true",
       clientId: String(source.GITHUB_OAUTH_CLIENT_ID || "").trim(),
@@ -89,9 +100,29 @@ function buildSocialConfig(source: EnvSnapshot) {
   };
 }
 
+function parseCentralLoginAllowedOrigins(
+  source: EnvSnapshot,
+  runtime: { isProduction: boolean; rootDomain: string; trustedRootDomains?: readonly string[] },
+): string[] {
+  const configuredOrigins = String(source.CENTRAL_LOGIN_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (configuredOrigins.length > 0) return configuredOrigins;
+  return (runtime.trustedRootDomains ?? [runtime.rootDomain]).flatMap((domain) =>
+    buildFirstPartyOrigins(domain, runtime.isProduction ? undefined : ":5173"),
+  );
+}
+
+function resolveCookieDomain(value: string | undefined, defaultCookieDomain: string | undefined) {
+  if (value === undefined) return defaultCookieDomain;
+  return String(value).trim() || undefined;
+}
+
 export function buildAuthConfig(
   source: EnvSnapshot,
-  runtime: { isProduction: boolean; isTest: boolean; port: number },
+  runtime: { isProduction: boolean; isTest: boolean; port: number; rootDomain: string },
 ) {
   const accessTokenSecret = source.JWT_ACCESS_SECRET;
   const refreshTokenSecret = source.JWT_REFRESH_SECRET;
@@ -100,6 +131,10 @@ export function buildAuthConfig(
   const trustedDeviceSameSite = normalizeCookieSameSite(source.TWO_FACTOR_TRUSTED_DEVICE_COOKIE_SAMESITE, "strict");
   const refreshSameSite = normalizeCookieSameSite(source.AUTH_REFRESH_COOKIE_SAMESITE, "strict");
   const sessionSameSite = normalizeCookieSameSite(source.AUTH_SESSION_COOKIE_SAMESITE, "strict");
+  // The central login flow returns users to sibling first-party applications.
+  // Scope session cookies to the configured service family unless an operator
+  // explicitly narrows them to a host.
+  const defaultCookieDomain = !runtime.isTest ? `.${runtime.rootDomain}` : undefined;
   const twoFactor = {
     trustWindowMinutes: sanitizeInt(source.TWO_FACTOR_TRUST_WINDOW_MINUTES, 1440, 0, 525600),
     totpIntervalSeconds: sanitizeInt(source.TWO_FACTOR_TOTP_INTERVAL_SECONDS, 30, 15, 300),
@@ -118,23 +153,31 @@ export function buildAuthConfig(
     twoFactorTrustWindowMinutes: twoFactor.trustWindowMinutes,
     trustedDeviceCookie: {
       sameSite: trustedDeviceSameSite,
-      domain: String(source.TWO_FACTOR_TRUSTED_DEVICE_COOKIE_DOMAIN || "").trim() || undefined,
+      domain: resolveCookieDomain(source.TWO_FACTOR_TRUSTED_DEVICE_COOKIE_DOMAIN, defaultCookieDomain),
     },
     refreshCookie: {
       name: String(source.AUTH_REFRESH_COOKIE_NAME || "").trim() || "refresh_token",
       sameSite: refreshSameSite,
-      domain: String(source.AUTH_REFRESH_COOKIE_DOMAIN || "").trim() || undefined,
+      domain: resolveCookieDomain(source.AUTH_REFRESH_COOKIE_DOMAIN, defaultCookieDomain),
     },
     sessionCookie: {
       name: String(source.AUTH_SESSION_COOKIE_NAME || "").trim() || "auth_session_id",
       sameSite: sessionSameSite,
-      domain: String(source.AUTH_SESSION_COOKIE_DOMAIN || "").trim() || undefined,
+      domain: resolveCookieDomain(source.AUTH_SESSION_COOKIE_DOMAIN, defaultCookieDomain),
       forceOfflineTtlDays: sanitizeInt(source.AUTH_SESSION_FORCE_OFFLINE_TTL_DAYS, 30, 1, 3650),
     },
     webAuthn: {
       rpName: source.WEBAUTHN_RP_NAME || "AppServer",
-      rpId: source.WEBAUTHN_RP_ID || "localhost",
-      origin: source.WEBAUTHN_ORIGIN || `https://${source.WEBAUTHN_RP_ID || "localhost"}`,
+      rpId: source.WEBAUTHN_RP_ID || (runtime.isProduction ? runtime.rootDomain : "localhost"),
+      origin:
+        source.WEBAUTHN_ORIGIN ||
+        (runtime.isProduction
+          ? `https://auth.${runtime.rootDomain}`
+          : `https://${source.WEBAUTHN_RP_ID || "localhost"}`),
+    },
+    centralLogin: {
+      allowedOrigins: parseCentralLoginAllowedOrigins(source, runtime),
+      flowTtlSeconds: sanitizeInt(source.CENTRAL_LOGIN_FLOW_TTL_SECONDS, 600, 60, 1800),
     },
     recaptcha: {
       enabled: source.RECAPTCHA_ENABLED === "true",
@@ -142,7 +185,7 @@ export function buildAuthConfig(
       minScore: Number.parseFloat(source.RECAPTCHA_MIN_SCORE || "0.5"),
     },
     turnstile: { siteKey: source.TURNSTILE_SITE_KEY || "", secretKey: source.TURNSTILE_SECRET_KEY || "" },
-    social: buildSocialConfig(source),
+    social: buildSocialConfig(source, runtime),
     authCenter: buildAuthCenterConfig(source, runtime),
   };
 }

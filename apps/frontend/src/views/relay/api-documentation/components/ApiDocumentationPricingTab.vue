@@ -141,7 +141,8 @@ const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
           clearable
           class="pricing-filter"
         >
-          <el-option label="OpenAI" value="openai" />
+          <el-option label="OpenAI Chat Completions" value="openai-chat-completions" />
+          <el-option label="OpenAI Responses" value="openai-responses" />
           <el-option label="Anthropic" value="anthropic" />
           <el-option label="Gemini" value="gemini" />
         </el-select>
@@ -443,7 +444,8 @@ const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
               clearable
               class="pricing-filter"
             >
-              <el-option label="OpenAI" value="openai" />
+              <el-option label="OpenAI Chat Completions" value="openai-chat-completions" />
+              <el-option label="OpenAI Responses" value="openai-responses" />
               <el-option label="Anthropic" value="anthropic" />
               <el-option label="Gemini" value="gemini" />
             </el-select>

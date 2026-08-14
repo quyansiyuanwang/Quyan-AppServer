@@ -1,5 +1,5 @@
 <template>
-  <el-tab-pane :label="i18ns.t('RamManagement.authorization')" name="authorization">
+  <section class="ram-section">
     <div class="section-toolbar">
       <el-select
         v-model="authUserId"
@@ -70,7 +70,7 @@
     </div>
 
     <el-empty v-else-if="!authUserId" :description="i18ns.t('RamManagement.selectUser')" />
-  </el-tab-pane>
+  </section>
 </template>
 
 <script setup lang="ts">

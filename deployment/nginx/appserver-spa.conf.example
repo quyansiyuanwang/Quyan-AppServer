@@ -1,0 +1,39 @@
+# Replace the domains, paths and upstream address before enabling this file.
+# Every SPA hostname serves the same built frontend directory. The API host is
+# a backend-only virtual host and must not serve this static application.
+
+upstream appserver_backend {
+  server 127.0.0.1:10001;
+  keepalive 32;
+}
+
+server {
+  listen 443 ssl http2;
+  server_name
+    www.example.com auth.example.com account.example.com chat.example.com terminal.example.com
+    ai.console.example.com developer.console.example.com ram.console.example.com
+    kv.console.example.com short-link.console.example.com secret.console.example.com
+    status.console.example.com verification.console.example.com ip-geolocation.console.example.com
+    push.console.example.com oj.console.example.com management.example.com
+    ai.management.example.com developer.management.example.com terminal.management.example.com;
+
+  root /srv/appserver/frontend;
+  index index.html;
+
+  # Only backend API namespaces are proxied. In particular, do not proxy the
+  # broad /relay/ prefix: /relay/tokens and /relay/settings are SPA pages.
+  location ^~ /v1/ { include /etc/nginx/proxy_params; proxy_pass http://appserver_backend; }
+  location ^~ /auth-center/ { include /etc/nginx/proxy_params; proxy_pass http://appserver_backend; }
+  location ^~ /relay/proxy/ { include /etc/nginx/proxy_params; proxy_pass http://appserver_backend; }
+  location ^~ /docs/ { include /etc/nginx/proxy_params; proxy_pass http://appserver_backend; }
+
+  location /assets/ { try_files $uri =404; access_log off; expires 1y; }
+  location / { try_files $uri $uri/ /index.html; }
+}
+
+server {
+  listen 443 ssl http2;
+  server_name api.example.com;
+
+  location / { include /etc/nginx/proxy_params; proxy_pass http://appserver_backend; }
+}

@@ -6,7 +6,11 @@
     :disabled="dropdownVisible"
   >
     <el-dropdown @command="handleCommand" @visible-change="handleVisibleChange">
-      <el-button :title="languageButtonTitle" :aria-label="languageButtonTitle">
+      <el-button
+        :title="languageButtonTitle"
+        :aria-label="languageButtonTitle"
+        :class="{ 'is-compact': compact }"
+      >
         <span class="language-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false">
             <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8" />
@@ -20,7 +24,7 @@
             />
           </svg>
         </span>
-        <span>{{ currentLocaleName }}</span>
+        <span v-if="!compact">{{ currentLocaleName }}</span>
       </el-button>
       <template #dropdown>
         <el-dropdown-menu>
@@ -44,6 +48,8 @@ import { computed, ref } from 'vue'
 import { useI18nStore } from '@/stores/i18nStore'
 import { i18ns } from '@/locales'
 import type { Locale } from '@/locales'
+
+withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
 
 const i18nStore = useI18nStore()
 const dropdownVisible = ref(false)
@@ -75,6 +81,11 @@ const handleVisibleChange = (visible: boolean) => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.el-button.is-compact {
+  width: 34px;
+  padding: 0;
 }
 
 .language-icon {

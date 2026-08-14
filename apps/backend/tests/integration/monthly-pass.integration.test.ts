@@ -138,7 +138,7 @@ describe("月卡功能 + 中转模拟AI输出 集成测试", () => {
           name: `test_monthly_channel_${suffix}`,
           openaiUpstreamUrl: relayAIMockPlugin.baseUrl,
           openaiUpstreamApiKey: "test-openai-key",
-          allowedFormats: "all",
+          allowedFormats: null,
           multiplier: 1,
         },
       })

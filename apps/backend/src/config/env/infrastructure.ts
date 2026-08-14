@@ -136,6 +136,10 @@ export function buildIntegrationsConfig(source: EnvSnapshot) {
       maxIntegerQuota: sanitizeInt(source.MONTHLY_PASS_MAX_INTEGER_QUOTA, 999999, 1, 2147483647),
     },
     baiduMap: { ipLocationAk: String(source.BAIDU_IP_LOCATION_AK || "").trim() },
+    supportKnowledge: {
+      url: String(source.SUPPORT_KNOWLEDGE_URL || "").trim(),
+      cacheTtlSeconds: sanitizeInt(source.SUPPORT_KNOWLEDGE_CACHE_TTL_SECONDS, 300, 30, 3600),
+    },
     objectStorage: {
       archive,
       staging,

@@ -107,6 +107,14 @@ export const verifyCaptchaTrustBodySchema = z.object({
   provider: z.enum(["recaptcha", "turnstile"]),
 });
 
+export const createCentralLoginFlowBodySchema = z.object({
+  returnTo: z.string().trim().min(1).max(2000),
+});
+
+export const consumeCentralLoginFlowBodySchema = z.object({
+  flowId: z.string().uuid(),
+});
+
 export const startExternalAuthBodySchema = z.object({
   provider: z.enum(externalAuthProviders),
   action: z.enum(externalAuthActions).optional(),

@@ -3,11 +3,9 @@ import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import axios, { type Axios, type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { defineStore } from 'pinia'
 import { HttpStatusCode } from 'axios'
-import { webEventBus, authEventBus, customCodeBus } from '@/stores/globalInstance'
 import StorageKey from '@/constant/storagekey'
 import { EXCLUDED_URLS, OPTION_KEYS } from '@/constant/request'
 import type { ApiEndpointDescriptor, ApiMethod } from '@/client/api-types-map.gen'
-import { getCustomCodeText, getHttpStatusText } from '@/utils/status-and-codes'
 import { CustomCode } from '@/constant/custom-code'
 import type { PromDeResp } from '@/types/responseData'
 import type { WithoutNever } from '@/types/common'
@@ -57,36 +55,6 @@ const authMemoryState = {
   accessTokenExpiration: null as number | null,
 }
 
-const getTokenExpirationStorageKey = (isRefresh: boolean): string =>
-  isRefresh ? StorageKey.Auth.REFRESH_TOKEN_EXPIRATION : StorageKey.Auth.ACCESS_TOKEN_EXPIRATION
-
-const getStoredTokenKey = (isRefresh: boolean): string =>
-  isRefresh ? StorageKey.Auth.REFRESH_TOKEN : StorageKey.Auth.ACCESS_TOKEN
-
-const readStorageValue = (key: string): string | null => {
-  try {
-    return TypedLocalStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-const writeStorageValue = (key: string, value: string): void => {
-  try {
-    TypedLocalStorage.setItem(key, value)
-  } catch {
-    // ignore storage failures in restricted environments
-  }
-}
-
-const removeStorageValue = (key: string): void => {
-  try {
-    TypedLocalStorage.removeItem(key)
-  } catch {
-    // ignore storage failures in restricted environments
-  }
-}
-
 // Token 解析相关工具函数
 interface TokenPayload<T = Record<string, unknown>> {
   data: T
@@ -126,14 +94,11 @@ const parseJWT = <T = Record<string, unknown>>(token: string): TokenPayload<T> |
 }
 
 /**
- * 从 token 中提取过期时间并存储到 localStorage
+ * Extract the expiry into process memory. Browser storage must never contain bearer tokens.
  */
 const saveTokenExpiration = (token: string, isRefresh: boolean = false): void => {
   const payload = parseJWT(token)
-  if (payload?.expiration) {
-    writeStorageValue(getTokenExpirationStorageKey(isRefresh), String(payload.expiration))
-    if (!isRefresh) authMemoryState.accessTokenExpiration = payload.expiration
-  }
+  if (payload?.expiration && !isRefresh) authMemoryState.accessTokenExpiration = payload.expiration
 }
 
 /**
@@ -141,40 +106,11 @@ const saveTokenExpiration = (token: string, isRefresh: boolean = false): void =>
  */
 const isTokenExpired = (options: { bufferSeconds?: number; isRefresh?: boolean } = {}): boolean => {
   const { bufferSeconds = 3, isRefresh = false } = { ...options }
+  if (isRefresh || !authMemoryState.accessTokenExpiration) return false
 
-  const expirationStorageKey = getTokenExpirationStorageKey(isRefresh)
-  let expiration = readStorageValue(expirationStorageKey) ?? undefined
-
-  const sourceToken = isRefresh
-    ? readStorageValue(getStoredTokenKey(true))
-    : authMemoryState.accessToken || readStorageValue(getStoredTokenKey(false))
-
-  if (!expiration && sourceToken) {
-    const payload = parseJWT(sourceToken)
-    console.debug('[Token] Parsed payload from token:', payload)
-    if (payload?.expiration) {
-      expiration = payload.expiration.toString()
-      writeStorageValue(expirationStorageKey, expiration)
-      if (!isRefresh) authMemoryState.accessTokenExpiration = payload.expiration
-    }
-  }
-
-  if (!expiration) {
-    console.debug('[Token] No expiration found, assuming not expired')
-    return false
-  }
-
-  const expirationTime = parseFloat(expiration)
+  const expirationTime = authMemoryState.accessTokenExpiration
   const currentTime = Date.now() / 1000 // 转换为秒
   const isExpired = currentTime >= expirationTime - bufferSeconds
-
-  console.debug('[Token] Expiration check:', {
-    expirationTime,
-    currentTime,
-    bufferSeconds,
-    isExpired,
-    remainingSeconds: expirationTime - currentTime,
-  })
 
   return isExpired
 }
@@ -183,7 +119,6 @@ const isTokenExpired = (options: { bufferSeconds?: number; isRefresh?: boolean }
  * 清除 token 过期时间
  */
 const clearTokenExpiration = (isRefresh: boolean = false): void => {
-  removeStorageValue(getTokenExpirationStorageKey(isRefresh))
   if (!isRefresh) authMemoryState.accessTokenExpiration = null
 }
 
@@ -200,6 +135,13 @@ const getAccessToken = (): string | null => authMemoryState.accessToken
 const clearAccessToken = (): void => {
   authMemoryState.accessToken = null
   clearTokenExpiration()
+}
+
+export const clearLegacyAuthStorage = (): void => {
+  TypedLocalStorage.removeItem(StorageKey.Auth.ACCESS_TOKEN)
+  TypedLocalStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN)
+  TypedLocalStorage.removeItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)
+  TypedLocalStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION)
 }
 
 const getLocaleHeaders = (): Record<string, string> => {
@@ -455,27 +397,19 @@ class MyAxios {
     return results
   }
 
-  // 获取或创建刷新 token 的 Promise（保证只创建一次）
+  // Delegates refresh ownership to the session coordinator while preserving a
+  // transport-local shared promise for concurrent interceptor retries.
   private static getRefreshPromise(): Promise<string> {
     if (!MyAxios.refreshTokenPromise) {
-      MyAxios.refreshTokenPromise = new Promise<string>((resolve, reject) => {
-        const onSuccess = (newToken: string) => {
-          authEventBus.off('ACCESS_TOKEN_REFRESHED', onSuccess)
-          authEventBus.off('ACCESS_TOKEN_REFRESH_FAILED', onFailed)
-          resolve(newToken)
-        }
-        const onFailed = (error: Error) => {
-          authEventBus.off('ACCESS_TOKEN_REFRESHED', onSuccess)
-          authEventBus.off('ACCESS_TOKEN_REFRESH_FAILED', onFailed)
-          reject(error)
-        }
-
-        authEventBus.on('ACCESS_TOKEN_REFRESHED', onSuccess, false)
-        authEventBus.on('ACCESS_TOKEN_REFRESH_FAILED', onFailed, false)
-        authEventBus.emit('REQUEST_REFRESH_TOKEN')
-      }).finally(() => {
-        MyAxios.refreshTokenPromise = null
-      })
+      MyAxios.refreshTokenPromise = import('@/service/sessionCoordinator')
+        .then(async ({ sessionCoordinator, SessionExpiredError }) => {
+          const token = await sessionCoordinator.refresh()
+          if (!token) throw new SessionExpiredError()
+          return token
+        })
+        .finally(() => {
+          MyAxios.refreshTokenPromise = null
+        })
     }
     return MyAxios.refreshTokenPromise
   }
@@ -589,14 +523,6 @@ class MyAxios {
     // 响应拦截
     this.instance.interceptors.response.use(
       (response) => {
-        // 检查自定义响应码
-        const codeMsg = getCustomCodeText(response.data?.code)
-        if (codeMsg) customCodeBus.emit(codeMsg as keyof typeof CustomCode, response.data)
-
-        // 检查 HTTP 状态码
-        const statusMsg = getHttpStatusText(response.status)
-        if (statusMsg) webEventBus.emit(statusMsg as keyof typeof HttpStatusCode, response)
-
         // 特殊处理：2FA 要求不应该被当作错误，而是正常的业务流程
         if (response.data?.code === CustomCode.TWO_FACTOR_REQUIRED) {
           const originalRequest = response.config as RetryAxiosRequest
@@ -680,10 +606,6 @@ class MyAxios {
             MyAxios.savePendingTwoFactorRequest(originalRequest)
           }
 
-          // 触发 2FA 事件
-          const codeMsg = getCustomCodeText(responseData.code)
-          if (codeMsg) customCodeBus.emit(codeMsg as keyof typeof CustomCode, responseData)
-
           // 返回 2FA 响应数据（不要抛出错误）
           return responseData
         }
@@ -719,21 +641,9 @@ class MyAxios {
             // 重试原始请求
             return this.instance.request(originalRequest)
           } catch (refreshError) {
-            // 触发未授权事件，可能需要跳转到登录页
-            const codeMsg = getHttpStatusText(HttpStatusCode.Unauthorized)
-            if (codeMsg) webEventBus.emit(codeMsg as keyof typeof HttpStatusCode, error)
-
             return Promise.reject(refreshError)
           }
         }
-
-        // 处理其他错误
-        const customCode = getCustomCodeText((error.response?.data as any)?.code)
-        if (customCode)
-          customCodeBus.emit(customCode as keyof typeof CustomCode, error.response?.data)
-
-        const codeMsg = getHttpStatusText(error.status || 0)
-        if (codeMsg) webEventBus.emit(codeMsg as keyof typeof HttpStatusCode, error)
 
         const responseMessage =
           typeof responseData?.message === 'string' && responseData.message.trim()
@@ -1005,13 +915,29 @@ class MyAxios {
     path: string,
     body: unknown,
   ): Promise<{ url: string; headers: Record<string, string> }> {
+    if (getAccessToken() && isTokenExpired({ bufferSeconds: 2 })) {
+      await MyAxios.getRefreshPromise()
+    }
+
+    const headers = await this._generateHeaderOptions(
+      { endpoint: undefined, body, finalUrl: path },
+      { enableReplayProtection: true, skipProgressBar: true },
+    )
+    const accessToken = getAccessToken()
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+
     return {
       url: this.buildRequestUrl(path),
-      headers: await this._generateHeaderOptions(
-        { endpoint: undefined, body, finalUrl: path },
-        { enableReplayProtection: true, skipProgressBar: true },
-      ),
+      headers,
     }
+  }
+
+  /**
+   * SSE uses fetch for incremental responses, so it cannot use Axios response
+   * interceptors. Reuse the same shared session refresh promise on a 401.
+   */
+  async refreshStreamingSession(): Promise<string> {
+    return MyAxios.getRefreshPromise()
   }
 
   private buildRequestUrl(
@@ -1063,8 +989,15 @@ export const useRequestStore = defineStore('Request', () => {
 
   const prepareStreamingRequest = (path: string, body: unknown) =>
     instance.prepareStreamingRequest(path, body)
+  const refreshStreamingSession = () => instance.refreshStreamingSession()
 
-  return { createAxios, getAxios, prepareStreamingRequest, retryPendingTwoFactorRequests }
+  return {
+    createAxios,
+    getAxios,
+    prepareStreamingRequest,
+    refreshStreamingSession,
+    retryPendingTwoFactorRequests,
+  }
 })
 
 export type RequestStore = ReturnType<typeof useRequestStore>

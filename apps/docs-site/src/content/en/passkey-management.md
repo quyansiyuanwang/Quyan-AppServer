@@ -1,10 +1,10 @@
 # Passkey management
 
-Passkeys let you sign in without typing a password, using your device's biometric sensor (fingerprint, face scan) or PIN. This page manages the passkeys registered to your account, separately from the general 2FA settings page.
+Passkeys let you sign in without typing a password, using your device's biometric sensor (fingerprint, face scan) or PIN. Account Security lets you review and delete existing passkeys. Adding one securely opens the authentication site for the browser ceremony, then returns to Account Security.
 
 ## Page purpose
 
-- Register a new passkey for this device or browser.
+- Register a new passkey for this device or browser on the authentication site.
 - View all passkeys registered to your account.
 - Remove passkeys you no longer use or do not recognize.
 
@@ -26,9 +26,10 @@ A table (or card list on mobile) of registered passkeys, each showing:
 
 ## Common actions
 
-1. Click **Register**, complete your device's biometric or PIN prompt, then name the new passkey when asked.
-2. Review the list periodically and delete passkeys tied to devices you no longer own.
-3. If your browser reports "not supported", use password + 2FA sign-in instead, or switch to a browser with WebAuthn support.
+1. Click **Register** from the list in Account Security; the authentication site opens.
+2. Complete your device's biometric or PIN prompt, then name the new passkey when asked.
+3. Back in Account Security, review the list periodically and delete passkeys tied to devices you no longer own.
+4. If your browser reports "not supported", use password + 2FA sign-in instead, or switch to a browser with WebAuthn support.
 
 ## Notes
 

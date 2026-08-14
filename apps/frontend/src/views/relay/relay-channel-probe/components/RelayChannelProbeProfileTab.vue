@@ -18,9 +18,12 @@
             <el-form-item :label="i18ns.t('relay.channelProbeFormat')"
               ><el-select v-model="form.probeFormat" :disabled="!canExecute"
                 ><el-option
-                  value="openai"
-                  label="OpenAI"
-                  :disabled="!isProbeFormatAvailable('openai')" /><el-option
+                  value="openai-chat-completions"
+                  label="OpenAI Chat Completions"
+                  :disabled="!isProbeFormatAvailable('openai-chat-completions')" /><el-option
+                  value="openai-responses"
+                  label="OpenAI Responses"
+                  :disabled="!isProbeFormatAvailable('openai-responses')" /><el-option
                   value="anthropic"
                   label="Anthropic"
                   :disabled="!isProbeFormatAvailable('anthropic')" /><el-option

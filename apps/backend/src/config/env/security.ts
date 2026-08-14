@@ -11,6 +11,9 @@ export function buildSecurityConfig(source: EnvSnapshot) {
       masterSecret: String(source.REPLAY_SIGNING_MASTER_SECRET || "").trim(),
       signingSessionTtlSeconds: sanitizeInt(source.REPLAY_SIGNING_SESSION_TTL_SECONDS, 600, 60, 3600),
     },
+    supportAiConfig: {
+      masterSecret: String(source.SUPPORT_AI_CONFIG_MASTER_SECRET || "").trim(),
+    },
     captchaTrust: {
       windowMinutes: sanitizeInt(source.CAPTCHA_TRUST_WINDOW_MINUTES, 30, 0, 1440),
       cookieName: String(source.CAPTCHA_TRUST_COOKIE_NAME || "captcha_trust").trim() || "captcha_trust",

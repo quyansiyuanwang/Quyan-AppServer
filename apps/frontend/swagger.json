@@ -12383,6 +12383,315 @@
 				]
 			}
 		},
+		"/v1/support/availability": {
+			"get": {
+				"operationId": "SupportControllerAvailability",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportAvailabilityDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/support/conversation": {
+			"get": {
+				"operationId": "SupportControllerConversation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportConversationDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"delete": {
+				"operationId": "SupportControllerClearConversation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_void_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/support/analytics": {
+			"get": {
+				"operationId": "SupportControllerAnalytics",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportAiAnalyticsDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startAt",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endAt",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "userId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/support/analytics/users/{userId}/conversation": {
+			"get": {
+				"operationId": "SupportControllerAnalyticsConversation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportConversationDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/support/messages": {
+			"post": {
+				"operationId": "SupportControllerMessages",
+				"responses": {
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SendSupportMessageDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/support/handoff": {
+			"post": {
+				"operationId": "SupportControllerHandoff",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportHandoffResultDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SupportHandoffDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/support/config": {
+			"get": {
+				"operationId": "SupportControllerGetConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportAiConfigDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "SupportControllerUpdateConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportAiConfigDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateSupportAiConfigDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/remote-terminal/devices": {
 			"get": {
 				"operationId": "RemoteTerminalControllerListDevices",
@@ -19845,7 +20154,7 @@
 				"X-Replay-Protected": true
 			}
 		},
-		"/v1/developer/admin/quota-overrides": {
+		"/v1/products/admin/quota-overrides": {
 			"get": {
 				"operationId": "DeveloperQuotaAdminControllerList",
 				"responses": {
@@ -19909,7 +20218,7 @@
 				"X-Replay-Protected": true
 			}
 		},
-		"/v1/developer/admin/quota-overrides/{id}": {
+		"/v1/products/admin/quota-overrides/{id}": {
 			"delete": {
 				"operationId": "DeveloperQuotaAdminControllerRemove",
 				"responses": {
@@ -26518,6 +26827,183 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/auth/central-login/flows": {
+			"post": {
+				"operationId": "AuthControllerCreateCentralLoginFlow",
+				"responses": {
+					"200": {
+						"description": "中央登录续接已创建",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreateCentralLoginFlowResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateCentralLoginFlowDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/auth/central-login/secure-flows": {
+			"post": {
+				"operationId": "AuthControllerCreateAuthenticatedCentralLoginFlow",
+				"responses": {
+					"200": {
+						"description": "中央登录安全续接已创建",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CreateAuthenticatedCentralLoginFlowResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateCentralLoginFlowDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/auth/central-login/flows/{flowId}": {
+			"get": {
+				"operationId": "AuthControllerGetCentralLoginFlowContext",
+				"responses": {
+					"200": {
+						"description": "中央登录续接有效",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/GetCentralLoginFlowContextResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "flowId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/auth/central-login/flows/consume": {
+			"post": {
+				"operationId": "AuthControllerConsumeCentralLoginFlow",
+				"responses": {
+					"200": {
+						"description": "中央登录续接已消费",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ConsumeCentralLoginFlowResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Authentication"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ConsumeCentralLoginFlowDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/auth/login": {
 			"post": {
 				"operationId": "AuthControllerLogin",
@@ -30368,6 +30854,8 @@
 					"ram:policy:attach",
 					"ram:policy:detach",
 					"system:config",
+					"support:ai:config",
+					"support:ai:analytics:read",
 					"system:stats:read",
 					"system:consumption:read",
 					"system:log:read",
@@ -37514,6 +38002,509 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"SupportAvailabilityDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"enabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_SupportAvailabilityDto_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/SupportAvailabilityDto"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportMessageDto": {
+				"properties": {
+					"role": {
+						"type": "string",
+						"enum": [
+							"user",
+							"assistant"
+						]
+					},
+					"content": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"role",
+					"content"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportConversationDto": {
+				"properties": {
+					"messages": {
+						"items": {
+							"$ref": "#/components/schemas/SupportMessageDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"messages"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_SupportConversationDto_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/SupportConversationDto"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_void_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportAiUsageTrendDto": {
+				"properties": {
+					"date": {
+						"type": "string"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"inputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"outputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"estimatedCost": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"date",
+					"requestCount",
+					"inputTokens",
+					"outputTokens",
+					"totalTokens",
+					"estimatedCost"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportAiUsageUserDto": {
+				"properties": {
+					"userId": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"inputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"outputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"estimatedCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastRequestAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"userId",
+					"username",
+					"requestCount",
+					"inputTokens",
+					"outputTokens",
+					"totalTokens",
+					"estimatedCost",
+					"lastRequestAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportAiAnalyticsDto": {
+				"properties": {
+					"totalRequests": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalOutputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalEstimatedCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"trends": {
+						"items": {
+							"$ref": "#/components/schemas/SupportAiUsageTrendDto"
+						},
+						"type": "array"
+					},
+					"users": {
+						"items": {
+							"$ref": "#/components/schemas/SupportAiUsageUserDto"
+						},
+						"type": "array"
+					},
+					"totalUsers": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"totalRequests",
+					"totalInputTokens",
+					"totalOutputTokens",
+					"totalTokens",
+					"totalEstimatedCost",
+					"trends",
+					"users",
+					"totalUsers"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_SupportAiAnalyticsDto_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/SupportAiAnalyticsDto"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportPageContextDto": {
+				"properties": {
+					"site": {
+						"type": "string"
+					},
+					"route": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"url": {
+						"type": "string"
+					},
+					"visibleText": {
+						"type": "string"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SendSupportMessageDto": {
+				"properties": {
+					"content": {
+						"type": "string"
+					},
+					"history": {
+						"items": {
+							"$ref": "#/components/schemas/SupportMessageDto"
+						},
+						"type": "array"
+					},
+					"locale": {
+						"type": "string",
+						"enum": [
+							"zh-CN",
+							"en"
+						]
+					},
+					"page": {
+						"$ref": "#/components/schemas/SupportPageContextDto"
+					}
+				},
+				"required": [
+					"content"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportHandoffResultDto": {
+				"properties": {
+					"ticketId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"ticketId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_SupportHandoffResultDto_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/SupportHandoffResultDto"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportHandoffDto": {
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"sourcePage": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"title",
+					"description"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayRequestFormat": {
+				"type": "string",
+				"enum": [
+					"openai",
+					"openai-chat-completions",
+					"openai-responses",
+					"anthropic",
+					"gemini"
+				],
+				"description": "`openai` is retained only for internal legacy-call compatibility and normalizes to Chat Completions."
+			},
+			"SupportAiConfigDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"upstreamUrl": {
+						"type": "string"
+					},
+					"apiKeyConfigured": {
+						"type": "boolean"
+					},
+					"model": {
+						"type": "string"
+					},
+					"requestFormat": {
+						"$ref": "#/components/schemas/RelayRequestFormat"
+					},
+					"systemPrompt": {
+						"type": "string"
+					},
+					"maxRequests": {
+						"type": "number",
+						"format": "double"
+					},
+					"windowSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"sessionRetentionDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"inputPricePerMillion": {
+						"type": "number",
+						"format": "double"
+					},
+					"outputPricePerMillion": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"enabled",
+					"upstreamUrl",
+					"apiKeyConfigured",
+					"model",
+					"requestFormat",
+					"systemPrompt",
+					"maxRequests",
+					"windowSeconds",
+					"sessionRetentionDays",
+					"inputPricePerMillion",
+					"outputPricePerMillion"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_SupportAiConfigDto_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/SupportAiConfigDto"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateSupportAiConfigDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"upstreamUrl": {
+						"type": "string"
+					},
+					"apiKey": {
+						"type": "string"
+					},
+					"clearApiKey": {
+						"type": "boolean"
+					},
+					"model": {
+						"type": "string"
+					},
+					"requestFormat": {
+						"$ref": "#/components/schemas/RelayRequestFormat"
+					},
+					"systemPrompt": {
+						"type": "string"
+					},
+					"maxRequests": {
+						"type": "number",
+						"format": "double"
+					},
+					"windowSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"sessionRetentionDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"inputPricePerMillion": {
+						"type": "number",
+						"format": "double"
+					},
+					"outputPricePerMillion": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"enabled",
+					"upstreamUrl",
+					"model",
+					"requestFormat",
+					"maxRequests",
+					"windowSeconds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RemoteTerminalPlatform": {
 				"type": "string",
 				"enum": [
@@ -41713,7 +42704,8 @@
 						"items": {
 							"type": "string",
 							"enum": [
-								"openai",
+								"openai-chat-completions",
+								"openai-responses",
 								"anthropic",
 								"gemini"
 							]
@@ -42706,7 +43698,8 @@
 						"format": "double"
 					},
 					"allowedFormats": {
-						"type": "string"
+						"type": "string",
+						"nullable": true
 					},
 					"allowedModels": {
 						"type": "string",
@@ -43001,7 +43994,8 @@
 						"format": "double"
 					},
 					"allowedFormats": {
-						"type": "string"
+						"type": "string",
+						"nullable": true
 					},
 					"allowedModels": {
 						"type": "string",
@@ -43331,6 +44325,7 @@
 					},
 					"allowedFormats": {
 						"type": "string",
+						"nullable": true,
 						"description": "允许的格式"
 					},
 					"allowedModels": {
@@ -43556,6 +44551,7 @@
 					},
 					"allowedFormats": {
 						"type": "string",
+						"nullable": true,
 						"description": "允许的格式"
 					},
 					"allowedModels": {
@@ -43722,6 +44718,7 @@
 					},
 					"allowedFormats": {
 						"type": "string",
+						"nullable": true,
 						"description": "允许的格式"
 					},
 					"allowedModels": {
@@ -43865,6 +44862,7 @@
 					},
 					"allowedFormats": {
 						"type": "string",
+						"nullable": true,
 						"description": "允许的格式"
 					},
 					"allowedModels": {
@@ -43960,7 +44958,8 @@
 						"format": "double"
 					},
 					"allowedFormats": {
-						"type": "string"
+						"type": "string",
+						"nullable": true
 					},
 					"allowedModels": {
 						"type": "string",
@@ -44108,7 +45107,8 @@
 			"RelayChannelProbeFormat": {
 				"type": "string",
 				"enum": [
-					"openai",
+					"openai-chat-completions",
+					"openai-responses",
 					"anthropic",
 					"gemini"
 				]
@@ -48574,24 +49574,6 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"SuccessResponse_void_": {
-				"description": "成功响应格式\n用于所有成功情况（2xx）",
-				"properties": {
-					"code": {
-						"$ref": "#/components/schemas/CustomCode"
-					},
-					"message": {
-						"type": "string"
-					},
-					"data": {}
-				},
-				"required": [
-					"code",
-					"message"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
 			"MessageResponse": {
 				"properties": {
 					"id": {
@@ -50817,6 +51799,70 @@
 					"captchaToken",
 					"action",
 					"provider"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CentralLoginFlowContextDto": {
+				"properties": {
+					"flowId": {
+						"type": "string",
+						"description": "Opaque identifier. Never contains an access or refresh token."
+					}
+				},
+				"required": [
+					"flowId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateCentralLoginFlowResponse": {
+				"$ref": "#/components/schemas/CentralLoginFlowContextDto"
+			},
+			"CreateCentralLoginFlowDto": {
+				"description": "A short-lived opaque continuation for a cross-origin central login.",
+				"properties": {
+					"returnTo": {
+						"type": "string",
+						"description": "Absolute HTTPS URL on an explicitly allowed first-party origin."
+					}
+				},
+				"required": [
+					"returnTo"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateAuthenticatedCentralLoginFlowResponse": {
+				"$ref": "#/components/schemas/CentralLoginFlowContextDto"
+			},
+			"GetCentralLoginFlowContextResponse": {
+				"$ref": "#/components/schemas/CentralLoginFlowContextDto"
+			},
+			"ConsumedCentralLoginFlowDto": {
+				"properties": {
+					"returnTo": {
+						"type": "string",
+						"description": "Canonical, server-validated destination URL."
+					}
+				},
+				"required": [
+					"returnTo"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ConsumeCentralLoginFlowResponse": {
+				"$ref": "#/components/schemas/ConsumedCentralLoginFlowDto"
+			},
+			"ConsumeCentralLoginFlowDto": {
+				"properties": {
+					"flowId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"flowId"
 				],
 				"type": "object",
 				"additionalProperties": false

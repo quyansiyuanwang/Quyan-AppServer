@@ -8,7 +8,21 @@
 
 本项目采用 JWT (JSON Web Token) 进行身份认证，配合基于角色和权限的授权系统，实现完整的认证授权流程。
 
-## 认证系统
+## 当前认证模型
+
+Refresh Token 仅由 HttpOnly Cookie 保存；Access Token 只保存在进程内存。启动时会清除历史 localStorage token 键，旧登录状态必须通过 Cookie refresh 重新建立。
+
+`SessionCoordinator` 是唯一认证生命周期入口：
+
+- `ensureSession()`：受保护导航的幂等 Cookie 会话恢复。
+- `completeLogin()`：接收登录响应中的 Access Token 并启动会话依赖。
+- `hydrateUserAndPermissions()`：按用户资料、全权限目录、当前用户权限的固定顺序水合状态。
+- `refresh()`：所有并发 401 重试共享同一 Cookie refresh Promise。
+- `logout()`：清理内存状态和会话依赖；页面再由导航服务进入认证入口。
+
+游客页面不得调用上述恢复接口。路由守卫只判断会话，页面基于 `sessionStore.permissionsStatus` 表达权限 pending、ready 或 failed。
+
+## 历史实现
 
 ### JWT Token 体系
 

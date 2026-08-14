@@ -27,7 +27,12 @@
       }}</el-divider>
       <el-form-item :label="i18ns.t('relay.allowedFormats')" required>
         <el-checkbox-group v-model="editorForm.formats">
-          <el-checkbox value="openai">{{ i18ns.t('relay.formatOpenAI') }}</el-checkbox>
+          <el-checkbox value="openai-chat-completions">{{
+            i18ns.t('relay.formatOpenAIChatCompletions')
+          }}</el-checkbox>
+          <el-checkbox value="openai-responses">{{
+            i18ns.t('relay.formatOpenAIResponses')
+          }}</el-checkbox>
           <el-checkbox value="anthropic">{{ i18ns.t('relay.formatAnthropic') }}</el-checkbox>
           <el-checkbox value="gemini">{{ i18ns.t('relay.formatGemini') }}</el-checkbox>
         </el-checkbox-group>
@@ -67,7 +72,7 @@
       <el-divider data-section="upstreams" content-position="left">{{
         i18ns.t('relay.upstreamSettings')
       }}</el-divider>
-      <template v-for="format in editorForm.formats" :key="format">
+      <template v-for="format in upstreamFormats" :key="format">
         <el-form-item :label="`${format.toUpperCase()} URL`" required>
           <el-input v-model="editorForm.urls[format]" />
         </el-form-item>
@@ -260,7 +265,7 @@ import type {
 
 export type StandaloneChannelFormState = {
   name: string
-  formats: Array<'openai' | 'anthropic' | 'gemini'>
+  formats: Array<'openai-chat-completions' | 'openai-responses' | 'anthropic' | 'gemini'>
   urls: Record<'openai' | 'anthropic' | 'gemini', string>
   keys: Record<'openai' | 'anthropic' | 'gemini', string>
   hasKeys: Record<'openai' | 'anthropic' | 'gemini', boolean>
@@ -274,6 +279,8 @@ export type StandaloneChannelFormState = {
   timePeriodMultipliers: TimePeriodMultiplierRule[]
   contextLengthMultipliers: ContextLengthMultiplierRule[]
 }
+
+type UpstreamFormat = 'openai' | 'anthropic' | 'gemini'
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },
@@ -316,6 +323,16 @@ const open = computed({
   set: (value) => emit('update:modelValue', value),
 })
 const editorForm = computed(() => props.form)
+const upstreamFormats = computed<UpstreamFormat[]>(
+  () =>
+    Array.from(
+      new Set(
+        editorForm.value.formats.map((format) =>
+          format.startsWith('openai-') ? 'openai' : format,
+        ),
+      ),
+    ) as UpstreamFormat[],
+)
 const title = computed(() =>
   props.mode === 'provider'
     ? props.submitMode === 'change'

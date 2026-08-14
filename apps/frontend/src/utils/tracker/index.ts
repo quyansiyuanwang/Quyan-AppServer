@@ -24,7 +24,6 @@ interface TrackEvent {
 
 const FLUSH_INTERVAL = 3000
 const BATCH_SIZE = 10
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? ''
 const ENDPOINT = '/v1/track/batch'
 
 /** Keepalive 请求体大小上限（Chrome 64KB，留余量） */
@@ -34,7 +33,9 @@ const KEEPALIVE_BODY_LIMIT = 60000
 const MAX_QUEUE_SIZE = 500
 
 const httpClient = new HttpClient({
-  baseUrl: BACKEND_URL,
+  // Browser API requests are same-origin. Production reverse proxies forward
+  // `/v1` to the backend, so tracking does not require exposing an API host.
+  baseUrl: '',
   timeout: 3000,
   retry: { maxRetries: 2, baseDelay: 1000 },
 })
@@ -47,9 +48,6 @@ class Tracker {
   private totalDropped = 0
 
   constructor() {
-    if (!BACKEND_URL) {
-      console.warn('[Tracker] VITE_BACKEND_URL is not set, tracking disabled')
-    }
     this.sessionId = this.getOrCreateSession()
     this.setup()
   }
@@ -100,7 +98,7 @@ class Tracker {
   }
 
   async flush(): Promise<void> {
-    if (!BACKEND_URL || this.queue.length === 0 || this.flushing) return
+    if (this.queue.length === 0 || this.flushing) return
     this.flushing = true
     try {
       const events = this.queue.splice(0)
@@ -122,7 +120,7 @@ class Tracker {
   }
 
   private flushKeepalive(): void {
-    if (!BACKEND_URL || this.queue.length === 0) return
+    if (this.queue.length === 0) return
     const events = this.queue.splice(0)
     const body = JSON.stringify({ events })
 
