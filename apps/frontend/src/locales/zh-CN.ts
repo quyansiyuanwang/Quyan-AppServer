@@ -880,6 +880,7 @@ const zhCN: DeepStringify<typeof en> = {
     openInNewTab: '在新标签页打开',
     noMatchedFeatures: '当前筛选条件下没有匹配的分类或功能。',
   },
+  support: { title: 'AI 客服', clear: '清空会话', intro: '我会基于平台文档协助解答；无法解决时可转人工工单。', handoff: '转人工', handoffPrompt: '确认工单标题后，将附上当前对话上下文。', defaultTitle: '需要人工协助', unavailable: 'AI 客服暂不可用。' },
   siteOverview: {
     partialFailure: '部分概览数据暂时不可用。',
     unlimited: '不限',

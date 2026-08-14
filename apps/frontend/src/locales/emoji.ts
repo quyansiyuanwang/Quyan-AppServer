@@ -861,6 +861,7 @@ const emoji: DeepStringify<typeof en> = {
     openInNewTab: '🆕 🏷️',
     noMatchedFeatures: '🙈 🧩',
   },
+  support: { title: '🤖 💬', clear: '🧹', intro: '📚 🤖 💬', handoff: '👤', handoffPrompt: '📝 👤', defaultTitle: '👤 🆘', unavailable: '🤖 🚫' },
   siteOverview: {
     partialFailure: '⚠️ 📊 ⏳',
     unlimited: '♾️',

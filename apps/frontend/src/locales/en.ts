@@ -920,6 +920,7 @@ export default {
     openInNewTab: 'Open in new tab',
     noMatchedFeatures: 'No categories or features matched the current filters.',
   },
+  support: { title: 'AI Support', clear: 'Clear', intro: 'I answer from platform documentation. Escalate to a ticket when needed.', handoff: 'Escalate to human support', handoffPrompt: 'Confirm a ticket title to attach this conversation.', defaultTitle: 'Human support needed', unavailable: 'AI support is unavailable.' },
   siteOverview: {
     partialFailure: 'Some overview data is currently unavailable.',
     unlimited: 'Unlimited',

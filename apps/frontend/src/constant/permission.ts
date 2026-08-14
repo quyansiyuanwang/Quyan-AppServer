@@ -309,6 +309,13 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows viewing and modifying system configuration',
     category: 'system',
   },
+  [Permission.SUPPORT_AI_CONFIG]: {
+    label: 'AI 客服配置',
+    labelEn: 'AI Support Configuration',
+    tooltip: '允许配置平台托管 AI 客服',
+    tooltipEn: 'Allows configuring platform-hosted AI support',
+    category: 'system',
+  },
   [Permission.SYSTEM_STATS_READ]: {
     label: '查看系统统计',
     labelEn: 'View System Stats',

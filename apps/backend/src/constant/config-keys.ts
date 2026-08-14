@@ -75,6 +75,16 @@ export const CONFIG_KEYS = {
   SITE: {
     BACKEND_PUBLIC_URL: "site.backendPublicUrl",
   },
+  SUPPORT_AI: {
+    ENABLED: 'supportAi.enabled',
+    UPSTREAM_URL: 'supportAi.upstreamUrl',
+    API_KEY: 'supportAi.apiKey',
+    MODEL: 'supportAi.model',
+    REQUEST_FORMAT: 'supportAi.requestFormat',
+    SYSTEM_PROMPT: 'supportAi.systemPrompt',
+    MAX_REQUESTS: 'supportAi.maxRequests',
+    WINDOW_SECONDS: 'supportAi.windowSeconds',
+  },
   SOCIAL_AUTH: {
     FRONTEND_BASE_URL: "socialAuth.frontendBaseUrl",
     QR_LOGIN_ENABLED: "socialAuth.qrLoginEnabled",

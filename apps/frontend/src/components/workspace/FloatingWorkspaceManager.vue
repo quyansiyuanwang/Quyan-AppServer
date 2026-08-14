@@ -41,9 +41,10 @@
         </div>
       </div>
 
-      <div class="floating-workspace__frame-shell">
+    <div class="floating-workspace__frame-shell">
+        <SupportAssistantPanel v-if="activeTab?.type === 'support'" />
         <iframe
-          v-if="activeTab"
+          v-else-if="activeTab"
           :key="activeTab.id"
           class="floating-workspace__frame"
           :src="activeTab.src"
@@ -73,6 +74,7 @@ import router from '@/router'
 import { i18ns } from '@/locales'
 import { useFloatingWorkspaceStore } from '@/stores/floatingWorkspaceStore'
 import { swaggerDocsService } from '@/service/swaggerDocsService'
+import SupportAssistantPanel from '@/components/support/SupportAssistantPanel.vue'
 
 const workspaceStore = useFloatingWorkspaceStore()
 const workspaceState = computed(() => workspaceStore.state)

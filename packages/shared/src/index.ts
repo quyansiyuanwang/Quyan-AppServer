@@ -54,6 +54,7 @@ export {
   unionUniqueModelIds,
 } from './relay-model-availability'
 export type { ChatStreamEvent, ChatStreamMessage } from './chat-stream'
+export type { SupportCitation, SupportMessageRole, SupportStreamEvent } from './support-stream'
 export { applySseRequestMiddlewares } from './sse'
 export type { SseRequest, SseRequestMiddleware } from './sse'
 export type {

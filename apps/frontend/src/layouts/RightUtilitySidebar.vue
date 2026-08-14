@@ -81,7 +81,6 @@ import {
   Top,
 } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
-import { ElMessage } from 'element-plus'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { i18ns } from '@/locales'
@@ -127,7 +126,7 @@ const openDocs = () => {
   const routeName = typeof route.name === 'string' ? route.name : undefined
   floatingWorkspaceStore.openDocs(routeName)
 }
-const openSupport = () => ElMessage.info(i18ns.t('utility.customerSupportComingSoon'))
+const openSupport = () => floatingWorkspaceStore.openSupport()
 const openPreferences = () => (showPreferences.value = true)
 
 let scrollAnimationFrame: number | undefined

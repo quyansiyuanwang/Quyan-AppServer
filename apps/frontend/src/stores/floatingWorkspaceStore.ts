@@ -6,7 +6,7 @@ import { i18ns } from '@/locales'
 import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
 import { resolveCurrentSiteProfile } from '@/config/site-registry'
 
-export type FloatingWorkspaceTabType = 'docs' | 'swagger' | 'internal'
+export type FloatingWorkspaceTabType = 'docs' | 'swagger' | 'internal' | 'support'
 
 export type FloatingWorkspaceTab = {
   id: string
@@ -78,7 +78,7 @@ const createTabId = () => `workspace-tab-${Date.now()}-${Math.random().toString(
 const cloneTab = (tab: FloatingWorkspaceTab): FloatingWorkspaceTab => ({ ...tab })
 
 const isSupportedTabType = (type: unknown): type is FloatingWorkspaceTabType =>
-  type === 'docs' || type === 'swagger' || type === 'internal'
+  type === 'docs' || type === 'swagger' || type === 'internal' || type === 'support'
 
 const normalizeState = (input: unknown): FloatingWorkspaceState => {
   const fallback = createDefaultState()
@@ -234,6 +234,9 @@ export const useFloatingWorkspaceStore = defineStore('floatingWorkspace', () => 
     })
   }
 
+  const openSupport = () =>
+    upsertTab({ type: 'support', pageKey: 'support', title: i18ns.t('nav.helpCenter'), src: '', closable: true })
+
   const openInternalPage = (pageKey: string, title: string, routePath: string) => {
     const url = new URL(routePath, window.location.origin)
     url.searchParams.set('embed', '1')
@@ -296,6 +299,7 @@ export const useFloatingWorkspaceStore = defineStore('floatingWorkspace', () => 
     setActiveTab,
     openDocs,
     openSwagger,
+    openSupport,
     openInternalPage,
     closeTab,
     show,

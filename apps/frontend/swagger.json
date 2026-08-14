@@ -12383,6 +12383,160 @@
 				]
 			}
 		},
+		"/v1/support/availability": {
+			"get": {
+				"operationId": "SupportControllerAvailability",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportAvailabilityDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/support/messages": {
+			"post": {
+				"operationId": "SupportControllerMessages",
+				"responses": {
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SendSupportMessageDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/support/handoff": {
+			"post": {
+				"operationId": "SupportControllerHandoff",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportHandoffResultDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SupportHandoffDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/support/config": {
+			"get": {
+				"operationId": "SupportControllerGetConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportAiConfigDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "SupportControllerUpdateConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_SupportAiConfigDto_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Support"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateSupportAiConfigDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/remote-terminal/devices": {
 			"get": {
 				"operationId": "RemoteTerminalControllerListDevices",
@@ -30545,6 +30699,7 @@
 					"ram:policy:attach",
 					"ram:policy:detach",
 					"system:config",
+					"support:ai:config",
 					"system:stats:read",
 					"system:consumption:read",
 					"system:log:read",
@@ -37687,6 +37842,250 @@
 					"total",
 					"page",
 					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportAvailabilityDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"enabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_SupportAvailabilityDto_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/SupportAvailabilityDto"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportMessageDto": {
+				"properties": {
+					"role": {
+						"type": "string",
+						"enum": [
+							"user",
+							"assistant"
+						]
+					},
+					"content": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"role",
+					"content"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SendSupportMessageDto": {
+				"properties": {
+					"content": {
+						"type": "string"
+					},
+					"history": {
+						"items": {
+							"$ref": "#/components/schemas/SupportMessageDto"
+						},
+						"type": "array"
+					},
+					"locale": {
+						"type": "string",
+						"enum": [
+							"zh-CN",
+							"en"
+						]
+					}
+				},
+				"required": [
+					"content"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportHandoffResultDto": {
+				"properties": {
+					"ticketId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"ticketId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_SupportHandoffResultDto_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/SupportHandoffResultDto"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SupportHandoffDto": {
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"sourcePage": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"title",
+					"description"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayRequestFormat": {
+				"type": "string",
+				"enum": [
+					"openai",
+					"openai-chat-completions",
+					"openai-responses",
+					"anthropic",
+					"gemini"
+				],
+				"description": "`openai` is retained only for internal legacy-call compatibility and normalizes to Chat Completions."
+			},
+			"SupportAiConfigDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"upstreamUrl": {
+						"type": "string"
+					},
+					"apiKeyConfigured": {
+						"type": "boolean"
+					},
+					"model": {
+						"type": "string"
+					},
+					"requestFormat": {
+						"$ref": "#/components/schemas/RelayRequestFormat"
+					},
+					"systemPrompt": {
+						"type": "string"
+					},
+					"maxRequests": {
+						"type": "number",
+						"format": "double"
+					},
+					"windowSeconds": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"enabled",
+					"upstreamUrl",
+					"apiKeyConfigured",
+					"model",
+					"requestFormat",
+					"systemPrompt",
+					"maxRequests",
+					"windowSeconds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_SupportAiConfigDto_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/SupportAiConfigDto"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateSupportAiConfigDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"upstreamUrl": {
+						"type": "string"
+					},
+					"apiKey": {
+						"type": "string"
+					},
+					"clearApiKey": {
+						"type": "boolean"
+					},
+					"model": {
+						"type": "string"
+					},
+					"requestFormat": {
+						"$ref": "#/components/schemas/RelayRequestFormat"
+					},
+					"systemPrompt": {
+						"type": "string"
+					},
+					"maxRequests": {
+						"type": "number",
+						"format": "double"
+					},
+					"windowSeconds": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"enabled",
+					"upstreamUrl",
+					"model",
+					"requestFormat",
+					"maxRequests",
+					"windowSeconds"
 				],
 				"type": "object",
 				"additionalProperties": false
