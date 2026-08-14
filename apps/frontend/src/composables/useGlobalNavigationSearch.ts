@@ -10,9 +10,10 @@ import {
 } from '@/config/navigation-catalog'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { useSessionStore } from '@/stores/sessionStore'
+import { hasFeatureRoute } from '@/plugins/modules'
 import type { RouteName } from '@/types/route-types.gen'
 import type { Component } from 'vue'
-import { Document, Grid, Search } from '@element-plus/icons-vue'
+import { Document, Grid } from '@element-plus/icons-vue'
 
 export type GlobalNavigationSearchResult = {
   id: string
@@ -67,7 +68,7 @@ export const useGlobalNavigationSearch = () => {
         (route) => {
           const entry = getRouteCatalogEntry(route)
           return Boolean(
-            entry && profile.routeGroups.includes(entry.group) && !entry.path.includes(':'),
+            entry && hasFeatureRoute(profile, route) && !entry.path.includes(':'),
           )
         },
       )

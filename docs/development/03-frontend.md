@@ -67,6 +67,8 @@ App.vue
 | `schemas/` | Zod 校验 schema | 可编辑 |
 | `events/` | 事件总线注册 | 可编辑 |
 | `router/` | Vue Router 配置 | 可编辑 |
+| `plugins/modules/` | 站点/功能插件契约、宿主与轻量功能清单 | 可编辑 |
+| `plugins/sites/` | 按精确域名异步加载的站点插件入口 | 可编辑 |
 
 ## 数据流
 
@@ -138,9 +140,22 @@ View 组件
 
 事件注册在 `src/events/index.ts` 的 `registerAllEvents()` 中集中管理。
 
+## 站点与功能模块
+
+前端启动遵循“内核 → 站点插件 → 功能页面”的加载顺序：
+
+1. `site-registry` 根据浏览器的精确 hostname 解析唯一站点；未知 hostname 不会推算为有效站点。
+2. `AppRuntime` 初始化会话、Pinia、i18n、请求层和 Router 后，通过 `ModuleHost` 动态导入当前站点插件。
+3. 站点插件延迟导入站点根组件与当前站点路由。页面组件继续使用 Vue Router 的异步 `import()`，因此其服务、局部 Store、图表和编辑器仅在进入页面时加载。
+4. 功能清单只包含 route name/path 等元数据，是侧栏、全局搜索和路由可用性判断的共同来源；不得在清单中导入 Vue 页面、Service 或 Store。
+
+新增站点时必须同时注册精确域名、`plugins/sites/<site-id>/site.ts` 和相应功能清单。新增页面必须保持异步组件加载，并注册为所属站点功能；禁止从 `main.ts`、`AppRuntime` 或通用布局静态导入页面模块。站点/功能运行时提供 `activate` 和 `dispose` 钩子，长连接、定时器和临时订阅必须在 `dispose` 中释放。
+
+兼容迁移期间，既有 `routes.ts` 仍是路由记录适配器，但它仅由已选中的站点插件异步导入。构建阶段会拒绝将 `plugins/sites/` 或 `app-roots/domains/` 静态纳入入口图。
+
 ## 路由 (`src/router/`)
 
-- `routes.ts` — 扁平路由数组 (~16KB)，包含所有页面路由及其权限元数据
+- `routes.ts` — 既有路由记录适配器，仅由当前站点插件按需导入
 - `index.ts` — 路由实例 + 全局守卫
 
 ## 表格与列表分页

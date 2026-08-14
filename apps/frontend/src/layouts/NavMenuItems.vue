@@ -102,6 +102,7 @@ import LogoutIcon from '@/components/icons/LogoutIcon.vue'
 import router from '@/router'
 import { currentSiteProfile } from '@/router'
 import { authorizationService } from '@/service/authorizationService'
+import { hasFeatureRoute } from '@/plugins/modules'
 import { usePermissionStore } from '@/stores/permissionStore'
 import {
   debugNavigationNode,
@@ -130,7 +131,7 @@ const overviewRoute = computed(() =>
 )
 const visibleMenuNodes = computed(() =>
   filterNavigationNodes(navigationMenuDefinition, permissionStore.effectivePermissions, (route) =>
-    router.hasRoute(route),
+    hasFeatureRoute(currentSiteProfile, route),
   ),
 )
 const homeMenuNodes = computed(() => visibleMenuNodes.value.filter((node) => node.route === 'home'))
@@ -141,7 +142,7 @@ const isDebugVisible = computed(
   () =>
     router.hasRoute('debug') &&
     filterNavigationNodes([debugNavigationNode], permissionStore.effectivePermissions, (route) =>
-      router.hasRoute(route),
+      hasFeatureRoute(currentSiteProfile, route),
     ).length > 0,
 )
 const hasTrailingNavigation = computed(() => props.showLogout || isDebugVisible.value)
