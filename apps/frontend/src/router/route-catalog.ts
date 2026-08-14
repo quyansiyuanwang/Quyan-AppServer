@@ -505,6 +505,12 @@ export const routeCatalog = attachLegacyPaths([
     overviewCategory: 'console-operations',
   },
   {
+    name: 'supportAiAnalytics',
+    group: 'management-core',
+    path: '/system/ai-support-analytics',
+    overviewCategory: 'console-operations',
+  },
+  {
     name: 'ipMonitoring',
     group: 'management-core',
     path: '/system/ip-monitoring',

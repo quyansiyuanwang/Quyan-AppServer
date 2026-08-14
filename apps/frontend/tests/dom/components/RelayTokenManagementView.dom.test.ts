@@ -72,6 +72,7 @@ vi.mock('@element-plus/icons-vue', () => ({
   ArrowDown: defineComponent({ name: 'ArrowDownIcon', template: '<span />' }),
   ArrowRight: defineComponent({ name: 'ArrowRightIcon', template: '<span />' }),
   ArrowUp: defineComponent({ name: 'ArrowUpIcon', template: '<span />' }),
+  CopyDocument: defineComponent({ name: 'CopyDocumentIcon', template: '<span />' }),
   DocumentCopy: defineComponent({ name: 'DocumentCopyIcon', template: '<span />' }),
   Clock: defineComponent({ name: 'ClockIcon', template: '<span />' }),
   Delete: defineComponent({ name: 'DeleteIcon', template: '<span />' }),

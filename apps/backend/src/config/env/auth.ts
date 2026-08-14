@@ -115,6 +115,11 @@ function parseCentralLoginAllowedOrigins(
   );
 }
 
+function resolveCookieDomain(value: string | undefined, defaultCookieDomain: string | undefined) {
+  if (value === undefined) return defaultCookieDomain;
+  return String(value).trim() || undefined;
+}
+
 export function buildAuthConfig(
   source: EnvSnapshot,
   runtime: { isProduction: boolean; isTest: boolean; port: number; rootDomain: string },
@@ -148,17 +153,17 @@ export function buildAuthConfig(
     twoFactorTrustWindowMinutes: twoFactor.trustWindowMinutes,
     trustedDeviceCookie: {
       sameSite: trustedDeviceSameSite,
-      domain: String(source.TWO_FACTOR_TRUSTED_DEVICE_COOKIE_DOMAIN || "").trim() || defaultCookieDomain,
+      domain: resolveCookieDomain(source.TWO_FACTOR_TRUSTED_DEVICE_COOKIE_DOMAIN, defaultCookieDomain),
     },
     refreshCookie: {
       name: String(source.AUTH_REFRESH_COOKIE_NAME || "").trim() || "refresh_token",
       sameSite: refreshSameSite,
-      domain: String(source.AUTH_REFRESH_COOKIE_DOMAIN || "").trim() || defaultCookieDomain,
+      domain: resolveCookieDomain(source.AUTH_REFRESH_COOKIE_DOMAIN, defaultCookieDomain),
     },
     sessionCookie: {
       name: String(source.AUTH_SESSION_COOKIE_NAME || "").trim() || "auth_session_id",
       sameSite: sessionSameSite,
-      domain: String(source.AUTH_SESSION_COOKIE_DOMAIN || "").trim() || defaultCookieDomain,
+      domain: resolveCookieDomain(source.AUTH_SESSION_COOKIE_DOMAIN, defaultCookieDomain),
       forceOfflineTtlDays: sanitizeInt(source.AUTH_SESSION_FORCE_OFFLINE_TTL_DAYS, 30, 1, 3650),
     },
     webAuthn: {

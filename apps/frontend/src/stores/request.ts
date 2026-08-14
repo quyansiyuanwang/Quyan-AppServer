@@ -1,4 +1,5 @@
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import axios, { type Axios, type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { defineStore } from 'pinia'
 import { HttpStatusCode } from 'axios'
@@ -137,14 +138,10 @@ const clearAccessToken = (): void => {
 }
 
 export const clearLegacyAuthStorage = (): void => {
-  try {
-    localStorage.removeItem(StorageKey.Auth.ACCESS_TOKEN)
-    localStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN)
-    localStorage.removeItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)
-    localStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION)
-  } catch {
-    // Storage can be unavailable in hardened browser contexts.
-  }
+  TypedLocalStorage.removeItem(StorageKey.Auth.ACCESS_TOKEN)
+  TypedLocalStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN)
+  TypedLocalStorage.removeItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)
+  TypedLocalStorage.removeItem(StorageKey.Auth.REFRESH_TOKEN_EXPIRATION)
 }
 
 const getLocaleHeaders = (): Record<string, string> => {

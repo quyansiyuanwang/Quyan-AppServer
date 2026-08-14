@@ -133,7 +133,7 @@ export class SupportAiService {
   }
 
   private encryptionKey() {
-    const secret = process.env.SUPPORT_AI_CONFIG_MASTER_SECRET || "";
+    const secret = env.security.supportAiConfig.masterSecret;
     if (secret.length < 64) throw new BadRequestError("AI support encryption key is not configured");
     return createHash("sha256").update(secret).digest();
   }

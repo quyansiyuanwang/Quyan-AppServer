@@ -83,7 +83,8 @@ describe('site registry', () => {
     expect(profiles).toHaveLength(19)
     expect(
       profiles.every(
-        (profile) => profile.hostname === 'md.qysyw.cn' || profile.hostname.endsWith('.md.qysyw.cn'),
+        (profile) =>
+          profile.hostname === 'md.qysyw.cn' || profile.hostname.endsWith('.md.qysyw.cn'),
       ),
     ).toBe(true)
     expect(profiles.find((profile) => profile.id === 'public')).toMatchObject({
@@ -101,7 +102,7 @@ describe('site registry', () => {
     expect(profile).toMatchObject({
       id: 'product-oj',
       hostname: 'oj.console.qysyw.cn',
-      defaultPath: '/api-keys',
+      defaultPath: '/overview',
       kind: 'product',
     })
 
