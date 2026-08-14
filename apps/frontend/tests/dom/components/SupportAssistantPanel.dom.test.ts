@@ -145,4 +145,42 @@ describe('SupportAssistantPanel', () => {
     await Promise.resolve()
     wrapper.unmount()
   })
+
+  it('renders every support delta before the SSE response completes', async () => {
+    vi.clearAllMocks()
+    prepareStreamingRequest.mockResolvedValue({
+      url: 'https://backend.example.test/v1/support/messages',
+      headers: { Authorization: 'Bearer access-token' },
+    })
+    const encoder = new TextEncoder()
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(streamController) {
+              controller = streamController
+            },
+          }),
+          { headers: { 'Content-Type': 'text/event-stream' } },
+        ),
+      ),
+    )
+
+    const wrapper = mount(SupportAssistantPanel, { global: { stubs } })
+    await wrapper.find('textarea').setValue('Stream the answer')
+    await wrapper.find('textarea').trigger('keydown', { key: 'Enter' })
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1))
+
+    controller.enqueue(encoder.encode('data: {"type":"delta","content":"first "}\n\n'))
+    await vi.waitFor(() => expect(wrapper.text()).toContain('first'))
+
+    controller.enqueue(encoder.encode('data: {"type":"delta","content":"second"}\n\n'))
+    await vi.waitFor(() => expect(wrapper.text()).toContain('first second'))
+
+    controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+    controller.close()
+    wrapper.unmount()
+  })
 })
