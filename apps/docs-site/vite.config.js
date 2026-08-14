@@ -5,7 +5,7 @@ import { copyFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
-    const isProd = mode === 'production' || mode === 'prod';
+    const isProd = mode === 'production';
     const rootDomain = env.ROOT_DOMAIN?.trim().toLowerCase().replace(/\.$/, '');
     if (isProd && !rootDomain)
         throw new Error('ROOT_DOMAIN must be defined for a production docs build');
@@ -31,18 +31,6 @@ export default defineConfig(({ mode }) => {
         server: {
             host: '0.0.0.0',
             port: 4173,
-            proxy: {
-                ...(isProd
-                    ? {
-                        '/prod-api': {
-                            target: `https://api.${resolvedRootDomain}`,
-                            changeOrigin: true,
-                            secure: true,
-                            rewrite: (path) => path.replace(/^\/prod-api/, ''),
-                        },
-                    }
-                    : {}),
-            },
         },
     };
 });

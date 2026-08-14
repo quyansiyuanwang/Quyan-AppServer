@@ -54,7 +54,7 @@ pnpm --filter @appserver/frontend build
 **生产构建**：
 
 ```bash
-pnpm --filter @appserver/frontend build:prod
+pnpm --filter @appserver/frontend build:production
 ```
 
 ### Monorepo 构建
@@ -219,7 +219,7 @@ pnpm --filter @appserver/backend pm2:rebuild
 - 运营：`management`、`ai.management`、`developer.management`、`terminal.management`。
 - API：`api.<ROOT_DOMAIN>`，只承载后端接口，不部署前端 SPA。
 
-所有 SPA hostname 指向同一静态前端构件，并为未知的应用内路径返回该构件的 `index.html`（SPA fallback）。不要把 `api.<ROOT_DOMAIN>` 指向前端静态站，也不要把 `/relay/tokens`、`/relay/settings` 这类前端路径代理到后端；只有 `/relay/proxy/*` 是中转 API 路径。边缘层应将 `/v1/*`、`/auth-center/*`、`/docs/*` 和 `/relay/proxy/*` 转发到后端，并保留 `Host`、`X-Forwarded-Proto` 与真实客户端 IP 链。
+所有 SPA hostname 指向同一静态前端构件，并为未知的应用内路径返回该构件的 `index.html`（SPA fallback）。不要把 `api.<ROOT_DOMAIN>` 指向前端静态站，也不要把 `/relay/tokens`、`/relay/settings` 这类前端路径代理到后端；只有 `/relay/proxy/*` 是中转 API 路径。`api.<ROOT_DOMAIN>` 承载 `/v1/*`、`/auth-center/*`、`/docs/*` 和 `/relay/proxy/*`，并保留 `Host`、`X-Forwarded-Proto` 与真实客户端 IP 链；SPA 域名不代理这些后端路径。
 
 可从 [`deployment/nginx/appserver-spa.conf.example`](../../deployment/nginx/appserver-spa.conf.example) 复制 Nginx 路由边界。替换示例域名、静态目录、证书和后端地址后，用 `nginx -t` 验证并 reload；该示例特意不代理宽泛的 `/relay/` 或 `/services`，从而避免页面深链直接显示后端 JSON。完整的多域名、Cookie 和精确 CORS 配置见 [14-domain-deployment.md](./14-domain-deployment.md)。
 
@@ -241,6 +241,15 @@ AUTH_SESSION_COOKIE_SAMESITE=strict
 CORS_ALLOWED_ORIGINS=https://www.qysyw.example.com,https://auth.qysyw.example.com,https://ai.console.qysyw.example.com,https://ai.management.qysyw.example.com
 CENTRAL_LOGIN_ALLOWED_ORIGINS=https://www.qysyw.example.com,https://auth.qysyw.example.com,https://ai.console.qysyw.example.com,https://ai.management.qysyw.example.com
 ```
+
+如果预发布站使用 `auth.staging.qysyw.example.com` 这类两级子域，必须显式配置实际 Origin，不能依赖 `ROOT_DOMAIN=qysyw.example.com` 的默认一层域名推导：
+
+```bash
+CORS_ALLOWED_ORIGINS=https://staging.qysyw.example.com,https://auth.staging.qysyw.example.com
+CENTRAL_LOGIN_ALLOWED_ORIGINS=https://staging.qysyw.example.com,https://auth.staging.qysyw.example.com
+```
+
+修改 CORS 或中央登录白名单后重启后端；浏览器请求会从这些站点直接发送到 `https://api.qysyw.example.com`。
 
 若所有站点均为本应用的同一根域，推荐两项留空，由 `ROOT_DOMAIN`（以及可选 `ADDITIONAL_ROOT_DOMAINS`）自动生成完整的精确第一方 origin 清单。新增第二个根域时，将其加入 `ADDITIONAL_ROOT_DOMAINS`，不要手工添加通配符。每次域名、Cookie 或 CORS 变更后，依次验证：登录后从 `auth` 返回业务站、刷新页面后的 Cookie 会话恢复、登出后 Cookie 清除，以及浏览器 Network 面板中跨域请求具有 `Access-Control-Allow-Credentials: true` 和精确的 `Access-Control-Allow-Origin`。
 
@@ -290,10 +299,11 @@ TWO_FACTOR_TRUSTED_DEVICE_SECRET=<64+字符>
 ### 前端 (`.env`)
 
 ```bash
-# 浏览器请求同源的 /v1、/auth-center 和 /relay/proxy；不要把 api.*
-# 写入 VITE_*，真实后端地址只配置在反向代理。
-VITE_BACKEND_URL=
-VITE_AI_PROXY_URL=/relay/proxy
+# 浏览器请求统一发送到公共 API 域名，不能回退到当前 SPA host。
+VITE_BACKEND_URL=https://api.qysyw.example
+# ai.qysyw.example forwards requests to api.qysyw.example/relay/proxy.
+VITE_AI_PROXY_URL=https://ai.qysyw.example
+VITE_RELAY_PUBLIC_BASE_URL=https://ai.qysyw.example
 VITE_RECAPTCHA_SITE_KEY=
 VITE_TURNSTILE_SITE_KEY=
 ```
@@ -301,9 +311,9 @@ VITE_TURNSTILE_SITE_KEY=
 ### 生产环境建议
 
 ```bash
-# 正式环境：同源 API 由边缘代理转发。
-# ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=www.qysyw.cn pnpm --filter @appserver/frontend run build:prod
-# 预览环境：同样通过边缘代理连接后端。
+# 正式环境：浏览器直接调用受 CORS 保护的公共 API。
+# ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=www.qysyw.cn pnpm --filter @appserver/frontend run build:production
+# 预览环境：同样调用受 CORS 保护的公共 API。
 # ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=staging.qysyw.cn pnpm --filter @appserver/frontend run build:staging
 
 # 生产环境调整

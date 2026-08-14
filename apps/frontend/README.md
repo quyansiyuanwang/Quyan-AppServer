@@ -36,13 +36,13 @@ pnpm run dev
 
 ```bash
 pnpm run dev
-pnpm run prod
+pnpm run production
 pnpm run preview
 pnpm run build
-pnpm run build:prod
+pnpm run build:production
 pnpm run build-only
 pnpm run build-only:prod
-pnpm run build:full:prod
+pnpm run build:full:production
 ```
 
 ### 类型与格式校验

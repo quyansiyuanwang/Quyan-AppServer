@@ -27,7 +27,7 @@ import { autoRouteTypes } from './scripts/plugins/vite-plugin-auto-route-types'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const isProd = mode === 'production' || mode === 'prod' || mode === 'staging'
+  const isProd = mode === 'production' || mode === 'staging'
   const normalizeRootDomain = (value: string | undefined, name: string): string | undefined => {
     const normalized = value?.trim().toLowerCase().replace(/\.$/, '')
     if (!normalized) return undefined
@@ -49,10 +49,26 @@ export default defineConfig(({ mode }) => {
     normalizeRootDomain(env.VITE_PUBLIC_SITE_HOST, 'VITE_PUBLIC_SITE_HOST') ||
     `www.${resolvedRootDomain}`
   const configuredBackendUrl = env.VITE_BACKEND_URL?.trim()
-  const productionApiOrigin =
-    env.API_ORIGIN?.trim() ||
-    (/^https?:\/\//.test(configuredBackendUrl || '') ? configuredBackendUrl : undefined) ||
-    'http://localhost:10001'
+  const expectedProductionApiOrigin = `https://api.${resolvedRootDomain}`
+  const configuredAiProxyUrl = env.VITE_AI_PROXY_URL?.trim()
+  const configuredRelayPublicBaseUrl = env.VITE_RELAY_PUBLIC_BASE_URL?.trim()
+  const expectedRelayGatewayOrigin = `https://ai.${resolvedRootDomain}`
+  if (isProd && configuredBackendUrl !== expectedProductionApiOrigin) {
+    throw new Error(
+      `VITE_BACKEND_URL must be ${expectedProductionApiOrigin} for ${mode} builds; ` +
+        'browser backend requests must not use an SPA or authentication origin',
+    )
+  }
+  if (
+    isProd &&
+    (configuredAiProxyUrl !== expectedRelayGatewayOrigin ||
+      configuredRelayPublicBaseUrl !== expectedRelayGatewayOrigin)
+  ) {
+    throw new Error(
+      `VITE_AI_PROXY_URL and VITE_RELAY_PUBLIC_BASE_URL must be ${expectedRelayGatewayOrigin} ` +
+        `for ${mode} builds`,
+    )
+  }
   const localRootDomain =
     normalizeRootDomain(env.LOCAL_ROOT_DOMAIN, 'LOCAL_ROOT_DOMAIN') || 'qysyw.test'
   const preserveBrowserOrigin = (proxy: {
@@ -116,17 +132,6 @@ export default defineConfig(({ mode }) => {
           cert: readFileSync(resolvedHttpsCertPath),
         }
       : undefined
-
-  const stripOriginHeader = (proxy: {
-    on: (
-      event: 'proxyReq',
-      handler: (proxyReq: { removeHeader: (header: string) => void }) => void,
-    ) => void
-  }) => {
-    proxy.on('proxyReq', (proxyReq) => {
-      proxyReq.removeHeader('origin')
-    })
-  }
 
   const shouldSkipModulePreload = (dep: string): boolean =>
     dep.includes('lib-echarts-') ||
@@ -377,23 +382,6 @@ export default defineConfig(({ mode }) => {
               },
             }
           : {}),
-        // Keep the production prefixes usable during local development too. This
-        // prevents an accidentally selected `.env.prod.local` from sending local
-        // requests to a remote service; only the `prod` mode uses public hosts.
-        '/prod-api': {
-          target: isProd ? productionApiOrigin : 'http://localhost:10001',
-          changeOrigin: true,
-          secure: isProd,
-          ...(isProd ? { configure: stripOriginHeader } : {}),
-          rewrite: (path) => path.replace(/^\/prod-api/, ''),
-        },
-        '/prod-ai': {
-          target: isProd ? `https://ai.${resolvedRootDomain}` : 'http://localhost:10001',
-          changeOrigin: true,
-          secure: isProd,
-          ...(isProd ? { configure: stripOriginHeader } : {}),
-          rewrite: (path) => path.replace(/^\/prod-ai/, isProd ? '' : '/relay/proxy'),
-        },
       },
     },
     resolve: {

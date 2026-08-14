@@ -22,7 +22,7 @@
 pnpm install
 pnpm run dev
 pnpm run build
-pnpm run build:prod
+pnpm run build:production
 pnpm run preview
 pnpm run lint
 pnpm run lint-format-check
@@ -30,7 +30,7 @@ pnpm run lint-format-check
 
 ## 环境变量
 
-项目已支持 `.env`、`.env.prod`、`.env.prod.local`。
+项目已支持 `.env`、`.env.production`、`.env.production.local`。
 
 常用变量：
 
