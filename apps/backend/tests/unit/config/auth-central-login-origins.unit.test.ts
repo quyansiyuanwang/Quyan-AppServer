@@ -19,6 +19,7 @@ describe("central-login default origins", () => {
     expect(runtime.corsAllowedOrigins).toContain("https://ai.console.qysyw.test:5173");
     expect(config.refreshCookie.domain).toBe(".qysyw.test");
     expect(config.sessionCookie.domain).toBe(".qysyw.test");
+    expect(config.webAuthn.origins).toEqual(["https://auth.qysyw.test:5173"]);
   });
 
   it("derives exact production origins from ROOT_DOMAIN", () => {

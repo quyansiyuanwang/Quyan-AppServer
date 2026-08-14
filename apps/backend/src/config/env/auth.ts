@@ -129,10 +129,9 @@ function normalizeWebAuthnOrigin(value: string): string {
     origin.password ||
     origin.pathname !== "/" ||
     origin.search ||
-    origin.hash ||
-    origin.port
+    origin.hash
   )
-    throw new Error("WEBAUTHN_ALLOWED_ORIGINS must contain exact HTTPS origins without paths or ports");
+    throw new Error("WEBAUTHN_ALLOWED_ORIGINS must contain exact HTTPS origins without paths, queries, or fragments");
 
   return origin.origin;
 }
@@ -141,8 +140,10 @@ function resolveWebAuthnOrigins(
   source: EnvSnapshot,
   runtime: { isProduction: boolean; rootDomain: string; trustedRootDomains?: readonly string[] },
 ): string[] {
-  const expectedOrigins = (runtime.trustedRootDomains ?? [runtime.rootDomain]).map(
-    (domain) => `https://auth.${domain}`,
+  const expectedOrigins = (runtime.trustedRootDomains ?? [runtime.rootDomain]).flatMap((domain) =>
+    buildFirstPartyOrigins(domain, runtime.isProduction ? undefined : ":5173").filter(
+      (origin) => new URL(origin).hostname === `auth.${domain}`,
+    ),
   );
   const configuredValue = String(source.WEBAUTHN_ALLOWED_ORIGINS || source.WEBAUTHN_ORIGIN || "").trim();
   if (!configuredValue) return expectedOrigins;
