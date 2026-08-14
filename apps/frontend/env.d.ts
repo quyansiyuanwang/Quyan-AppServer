@@ -3,7 +3,8 @@
 interface ImportMetaEnv {
   readonly VITE_BACKEND_URL: string
   readonly VITE_AI_PROXY_URL: string
-  readonly VITE_ROOT_DOMAIN: string
+  readonly VITE_PLATFORM_ROOT_DOMAIN: string
+  readonly VITE_SITE_ROOT_DOMAIN: string
   readonly VITE_LOCAL_ROOT_DOMAIN: string
   readonly VITE_PUBLIC_SITE_HOST: string
   readonly VITE_RELAY_PUBLIC_BASE_URL?: string

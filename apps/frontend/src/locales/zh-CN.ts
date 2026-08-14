@@ -1546,6 +1546,7 @@ const zhCN: DeepStringify<typeof en> = {
   notFound: {
     title: '页面未找到',
     description: '您访问的页面不存在。可能已被移动、删除或您输入了错误的URL。',
+    unknownHostDescription: '“{host}”不是已注册的 Qysyw 站点，请返回官网后继续访问。',
     goHome: '返回首页',
     goBack: '返回上页',
     miniGameTitle: '404 彩蛋小游戏',

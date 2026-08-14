@@ -8,6 +8,7 @@ import {
 import { getCentralLoginFallbackUrl, redirectToCentralLogin } from '@/service/centralLoginService'
 import { replaceDocument } from '@/service/navigationService'
 import { sessionCoordinator } from '@/service/sessionCoordinator'
+import { moduleHost } from '@/plugins/modules'
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
@@ -64,13 +65,12 @@ export const installProfileRoutes = async (
   router: ReturnType<typeof createRouter>,
   profile: ResolvedSiteProfile,
 ): Promise<void> => {
-  const profileRoutes = isKnownSiteProfile(profile)
-    ? await import('./routes').then(({ createRoutesForProfile }) => createRoutesForProfile(profile))
-    : rejectedHostRoutes
-
-  for (const route of profileRoutes) {
-    router.addRoute(route)
+  if (!isKnownSiteProfile(profile)) {
+    for (const route of rejectedHostRoutes) router.addRoute(route)
+    return
   }
+
+  await moduleHost.installSiteRoutes(router, profile)
 }
 
 function installNavigationGuards(
@@ -181,6 +181,10 @@ function installNavigationGuards(
         .catch((error) => {
           console.warn('[router] Failed to record page view:', error)
         })
+    })
+
+    void moduleHost.activateRoute(router, profile, to.name).catch((error) => {
+      console.warn('[router] Failed to activate feature module:', error)
     })
   })
 }

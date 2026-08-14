@@ -37,7 +37,8 @@ api.qysyw.example                 后端 API，供浏览器、服务端和外部
 前端浏览器请求必须显式使用公共 API 域名，不能回退到当前 SPA 或认证站点：
 
 ```bash
-ROOT_DOMAIN=qysyw.example
+PLATFORM_ROOT_DOMAIN=qysyw.example
+SITE_ROOT_DOMAIN=qysyw.example
 VITE_PUBLIC_SITE_HOST=www.qysyw.example
 VITE_BACKEND_URL=https://api.qysyw.example
 # The AI gateway forwards this traffic to api.qysyw.example/relay/proxy.
@@ -46,11 +47,11 @@ VITE_RELAY_PUBLIC_BASE_URL=https://ai.qysyw.example
 pnpm --filter @appserver/frontend run build:production
 ```
 
-`VITE_*` 会被打包进浏览器，因此不能包含密钥。`api.<ROOT_DOMAIN>` 是公开 API 边界而非内部拓扑；所有认证、配置、业务和 Relay 请求都应发送到它。SPA 域名不再代理 `/v1/*`、`/auth-center/*`、`/docs/*` 或 `/relay/proxy/*`。
+`VITE_*` 会被打包进浏览器，因此不能包含密钥。`PLATFORM_ROOT_DOMAIN` 只描述 API、Cookie 与公共基础设施域；`SITE_ROOT_DOMAIN` 只描述当前 SPA 站群。`api.<PLATFORM_ROOT_DOMAIN>` 是公开 API 边界而非内部拓扑；所有认证、配置、业务和 Relay 请求都应发送到它。SPA 域名不再代理 `/v1/*`、`/auth-center/*`、`/docs/*` 或 `/relay/proxy/*`。
 
 ## 3. Nginx 路由边界
 
-从 [`deployment/nginx/appserver-spa.conf.example`](../../deployment/nginx/appserver-spa.conf.example) 开始配置。后端命名空间只配置在 `api` 虚拟主机，SPA 虚拟主机只返回前端资源：
+后端网关分别使用 [`deployment/nginx/appserver-api.conf.example`](../../deployment/nginx/appserver-api.conf.example) 与 [`deployment/nginx/appserver-ai.conf.example`](../../deployment/nginx/appserver-ai.conf.example)。后端命名空间只配置在 `api` 虚拟主机，SPA 虚拟主机只返回前端资源：
 
 ```nginx
 server {

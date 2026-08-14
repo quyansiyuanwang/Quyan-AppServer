@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   getSiteProfilesForEnvironment,
   getAccessibleSiteProfiles,
+  getPublicSiteProfile,
   isKnownSiteProfile,
   normalizeSiteHostname,
+  createSiteRegistry,
   resolveSiteProfile,
   resolveSiteProfileFromOrigin,
   siteDefinitions,
@@ -35,24 +37,6 @@ describe('site registry', () => {
     })
   })
 
-  it('derives delegated production roots from the current hostname', () => {
-    expect(resolveSiteProfile('terminal.md.qysyw.cn')).toMatchObject({
-      id: 'terminal',
-      hostname: 'terminal.md.qysyw.cn',
-      canonicalOrigin: 'https://terminal.md.qysyw.cn',
-      authOrigin: 'https://auth.md.qysyw.cn',
-    })
-    expect(resolveSiteProfile('md.qysyw.cn')).toMatchObject({
-      id: 'public',
-      hostname: 'md.qysyw.cn',
-      canonicalOrigin: 'https://md.qysyw.cn',
-    })
-    expect(resolveSiteProfileFromOrigin('https://auth.md.qysyw.cn')).toMatchObject({
-      id: 'identity',
-      canonicalOrigin: 'https://auth.md.qysyw.cn',
-    })
-  })
-
   it('keeps first-level site navigation in the current environment', () => {
     const localAccount = resolveSiteProfile('account.qysyw.test')
     const productionAccount = resolveSiteProfile('account.qysyw.cn')
@@ -73,23 +57,6 @@ describe('site registry', () => {
     expect(productionProfiles.every((profile) => !profile.canonicalOrigin.includes(':5173'))).toBe(
       true,
     )
-  })
-
-  it('keeps delegated-root navigation on the same inferred deployment root', () => {
-    const terminal = resolveSiteProfile('terminal.md.qysyw.cn')
-    if (!isKnownSiteProfile(terminal)) throw new Error('Expected delegated terminal profile')
-
-    const profiles = getSiteProfilesForEnvironment(terminal)
-    expect(profiles).toHaveLength(19)
-    expect(
-      profiles.every(
-        (profile) =>
-          profile.hostname === 'md.qysyw.cn' || profile.hostname.endsWith('.md.qysyw.cn'),
-      ),
-    ).toBe(true)
-    expect(profiles.find((profile) => profile.id === 'public')).toMatchObject({
-      hostname: 'md.qysyw.cn',
-    })
   })
 
   it('registers product consoles and hides inaccessible profiles from navigation', () => {
@@ -147,5 +114,45 @@ describe('site registry', () => {
     expect(normalizeSiteHostname('auth.qysyw.cn:443')).toBeUndefined()
     expect(normalizeSiteHostname('https://auth.qysyw.cn')).toBeUndefined()
     expect(resolveSiteProfile('terminal.console.qysyw.cn')).toMatchObject({ id: 'rejected' })
+    expect(resolveSiteProfile('noexist.qysyw.cn')).toMatchObject({
+      id: 'rejected',
+      hostname: 'noexist.qysyw.cn',
+    })
+  })
+
+  it('resolves the canonical public site for rejected release and local hosts', () => {
+    expect(getPublicSiteProfile('noexist.qysyw.cn')).toMatchObject({
+      id: 'public',
+      canonicalOrigin: 'https://www.qysyw.cn',
+    })
+    expect(getPublicSiteProfile('noexist.qysyw.test')).toMatchObject({
+      id: 'public',
+      canonicalOrigin: 'https://www.qysyw.test:5173',
+    })
+  })
+
+  it('uses an injected staging topology without accepting arbitrary delegated roots', () => {
+    const registry = createSiteRegistry([
+      {
+        id: 'release',
+        platformRootDomain: 'qysyw.cn',
+        siteRootDomain: 'staging.qysyw.cn',
+        publicHostname: 'staging.qysyw.cn',
+        protocol: 'https',
+      },
+    ])
+
+    expect(registry.resolveHost('auth.staging.qysyw.cn')).toMatchObject({
+      id: 'identity',
+      canonicalOrigin: 'https://auth.staging.qysyw.cn',
+    })
+    expect(registry.resolveHost('ai.console.staging.qysyw.cn')).toMatchObject({
+      id: 'console-ai',
+      canonicalOrigin: 'https://ai.console.staging.qysyw.cn',
+    })
+    expect(registry.resolveHost('noexist.qysyw.cn')).toMatchObject({ id: 'rejected' })
+    expect(registry.getPublicSite('noexist.qysyw.cn')).toMatchObject({
+      canonicalOrigin: 'https://staging.qysyw.cn',
+    })
   })
 })
