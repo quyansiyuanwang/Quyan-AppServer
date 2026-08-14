@@ -1,6 +1,6 @@
 # 14 - 多域名部署指南
 
-本指南说明 AppServer 在一个根域名下部署多个前端站点、同源 API 网关和中央登录时的域名、反向代理、Cookie 与 CORS 配置。示例使用 `qysyw.example`；请将其替换为实际的受控域名。
+本指南说明 AppServer 在一个根域名下部署多个前端站点、公共 API 网关和中央登录时的域名、反向代理、Cookie 与 CORS 配置。示例使用 `qysyw.example`；请将其替换为实际的受控域名。
 
 ## 1. 域名清单
 
@@ -27,44 +27,54 @@ management.qysyw.example          核心管理站
 ai.management.qysyw.example       AI 中转运营站
 developer.management.qysyw.example 开发者运营站
 terminal.management.qysyw.example 云终端运营站
-api.qysyw.example                 后端 API，仅供服务端和外部 API 调用
+api.qysyw.example                 后端 API，供浏览器、服务端和外部 API 调用
 ```
 
 生产环境应为这些 host 签发覆盖所有名称的证书，例如包含 `*.qysyw.example` 和 `*.console.qysyw.example`、`*.management.qysyw.example` 的证书。DNS 不应把 `api.qysyw.example` 指向前端静态站。
 
 ## 2. 前端构建
 
-前端浏览器请求使用同源路径，不能把 `api.*` 写进 `VITE_*` 环境变量：
+前端浏览器请求必须显式使用公共 API 域名，不能回退到当前 SPA 或认证站点：
 
 ```bash
 ROOT_DOMAIN=qysyw.example
 VITE_PUBLIC_SITE_HOST=www.qysyw.example
-VITE_BACKEND_URL=
-VITE_AI_PROXY_URL=/relay/proxy
-VITE_RELAY_PUBLIC_BASE_URL=/relay/proxy
-pnpm --filter @appserver/frontend run build:prod
+VITE_BACKEND_URL=https://api.qysyw.example
+# The AI gateway forwards this traffic to api.qysyw.example/relay/proxy.
+VITE_AI_PROXY_URL=https://ai.qysyw.example
+VITE_RELAY_PUBLIC_BASE_URL=https://ai.qysyw.example
+pnpm --filter @appserver/frontend run build:production
 ```
 
-`VITE_*` 会被打包进浏览器，因此不能包含密钥，也不应暴露内部后端拓扑。前端访问 `/v1/*`、`/auth-center/*`、`/docs/*` 和 `/relay/proxy/*`，由边缘代理转发到后端。
+`VITE_*` 会被打包进浏览器，因此不能包含密钥。`api.<ROOT_DOMAIN>` 是公开 API 边界而非内部拓扑；所有认证、配置、业务和 Relay 请求都应发送到它。SPA 域名不再代理 `/v1/*`、`/auth-center/*`、`/docs/*` 或 `/relay/proxy/*`。
 
 ## 3. Nginx 路由边界
 
-从 [`deployment/nginx/appserver-spa.conf.example`](../../deployment/nginx/appserver-spa.conf.example) 开始配置。关键点如下：
+从 [`deployment/nginx/appserver-spa.conf.example`](../../deployment/nginx/appserver-spa.conf.example) 开始配置。后端命名空间只配置在 `api` 虚拟主机，SPA 虚拟主机只返回前端资源：
 
 ```nginx
-# 仅这些后端命名空间进入 API 服务。
-location ^~ /v1/          { proxy_pass http://appserver_backend; }
-location ^~ /auth-center/ { proxy_pass http://appserver_backend; }
-location ^~ /docs/        { proxy_pass http://appserver_backend; }
-location ^~ /relay/proxy/ { proxy_pass http://appserver_backend; }
+server {
+  server_name api.qysyw.example;
+  location ^~ /v1/          { proxy_pass http://appserver_backend; }
+  location ^~ /auth-center/ { proxy_pass http://appserver_backend; }
+  location ^~ /docs/        { proxy_pass http://appserver_backend; }
+  location ^~ /relay/proxy/ { proxy_pass http://appserver_backend; }
+}
 
-# 所有 SPA 页面和深链均返回前端入口。
-location / { try_files $uri $uri/ /index.html; }
+server {
+  server_name www.qysyw.example auth.qysyw.example;
+  location / { try_files $uri $uri/ /index.html; }
+}
+
+server {
+  server_name ai.qysyw.example;
+  location / { proxy_pass http://appserver_backend/relay/proxy/; }
+}
 ```
 
 不得使用 `location /relay/` 或 `location /services` 代理到后端。`/relay/tokens`、`/relay/settings` 和 `/services` 分别是 AI 控制台、AI 运营站和开发者运营站的页面路径；错误地代理它们会直接显示后端 JSON，例如 `Resource not found` 或“旧 DeveloperProject API 已停用”。修改后执行 `nginx -t`，再 reload，并在每个 SPA hostname 上直接刷新一个深链验证 fallback。
 
-`api.qysyw.example` 可配置为纯后端虚拟主机。前端 SPA host 需要透传 `Host`、`X-Forwarded-Proto` 和真实客户端 IP；后端的 `TRUST_PROXY_HOPS` 必须等于实际可信反代层数。
+`api.qysyw.example` 是纯后端虚拟主机。`ai.qysyw.example` 只转发 Relay 路径到 `api.qysyw.example/relay/proxy/*`；它不提供 SPA 静态资源。两个网关都必须透传 `Host`、`X-Forwarded-Proto` 和真实客户端 IP；后端的 `TRUST_PROXY_HOPS` 必须等于实际可信反代层数。
 
 ## 4. 后端 Cookie 与 CORS
 
@@ -97,6 +107,15 @@ TWO_FACTOR_TRUSTED_DEVICE_COOKIE_SAMESITE=strict
 CORS_ALLOWED_ORIGINS=https://www.qysyw.example,https://auth.qysyw.example,https://ai.console.qysyw.example,https://ai.management.qysyw.example
 CENTRAL_LOGIN_ALLOWED_ORIGINS=https://www.qysyw.example,https://auth.qysyw.example,https://ai.console.qysyw.example,https://ai.management.qysyw.example
 ```
+
+预发布环境若使用 `auth.staging.qysyw.example` 这类两级子域，它不属于默认从 `qysyw.example` 推导的一层站点列表。必须将实际部署的每个 SPA Origin 显式加入两项白名单，例如：
+
+```bash
+CORS_ALLOWED_ORIGINS=https://staging.qysyw.example,https://auth.staging.qysyw.example,https://ai.console.staging.qysyw.example
+CENTRAL_LOGIN_ALLOWED_ORIGINS=https://staging.qysyw.example,https://auth.staging.qysyw.example,https://ai.console.staging.qysyw.example
+```
+
+该配置使 `https://auth.staging.qysyw.example` 可以携带 Cookie 调用 `https://api.qysyw.example`；两项都必须配置，并在修改后重启后端。
 
 本地多域名开发时使用 `ROOT_DOMAIN=qysyw.test`，前端站点运行在 `https://*.qysyw.test:5173`，后端默认会生成带 `:5173` 的精确 origin。不要混用生产 Cookie 和本地域名。
 

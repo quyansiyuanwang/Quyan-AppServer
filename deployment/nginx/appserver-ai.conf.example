@@ -1,0 +1,57 @@
+# Replace the ai.qysyw.cn BaoTa site configuration with this server block.
+server {
+  listen 80;
+  listen 443 ssl;
+  listen 443 quic;
+  http2 on;
+  server_name ai.qysyw.cn;
+
+  client_max_body_size 100M;
+  client_body_timeout 600s;
+  send_timeout 600s;
+
+  set $isRedcert 1;
+  if ($server_port != 443) { set $isRedcert 2; }
+  if ($uri ~ /\.well-known/) { set $isRedcert 1; }
+  if ($isRedcert != 1) { rewrite ^(/.*)$ https://$host$1 permanent; }
+
+  ssl_certificate /www/server/panel/vhost/cert/ai.qysyw.cn/fullchain.pem;
+  ssl_certificate_key /www/server/panel/vhost/cert/ai.qysyw.cn/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_ciphers EECDH+CHACHA20:EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:!MD5;
+  ssl_prefer_server_ciphers on;
+  ssl_session_tickets on;
+  ssl_session_cache shared:SSL:10m;
+  ssl_session_timeout 10m;
+  add_header Strict-Transport-Security "max-age=31536000" always;
+  add_header Alt-Svc 'quic=":443"; h3=":443"; h3-29=":443"' always;
+  error_page 497 https://$host$request_uri;
+
+  # https://ai.qysyw.cn/v1/... -> backend /relay/proxy/v1/...
+  location / {
+    proxy_pass http://127.0.0.1:10001/relay/proxy/;
+    proxy_http_version 1.1;
+    proxy_set_header Host api.qysyw.cn;
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Port $server_port;
+    proxy_set_header Connection "";
+    proxy_set_header Accept-Encoding "";
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_connect_timeout 600s;
+    proxy_send_timeout 600s;
+    proxy_read_timeout 600s;
+    add_header X-Accel-Buffering no always;
+  }
+
+  add_header X-Frame-Options "SAMEORIGIN" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-XSS-Protection "1; mode=block" always;
+
+  access_log /www/wwwlogs/ai.qysyw.cn.log;
+  error_log /www/wwwlogs/ai.qysyw.cn.error.log;
+}
