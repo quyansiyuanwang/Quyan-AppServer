@@ -74,10 +74,7 @@ describe('SupportAssistantPanel', () => {
 
     const wrapper = mount(SupportAssistantPanel, { global: { stubs } })
     await wrapper.find('textarea').setValue('Need help')
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'confirm')
-      ?.trigger('click')
+    await wrapper.find('textarea').trigger('keydown', { key: 'Enter' })
     await Promise.resolve()
     await Promise.resolve()
 
@@ -100,5 +97,52 @@ describe('SupportAssistantPanel', () => {
     })
     wrapper.unmount()
     document.querySelector('.el-main')?.remove()
+  })
+
+  it('keeps Shift+Enter and Ctrl+Enter available for a newline', async () => {
+    vi.clearAllMocks()
+    const wrapper = mount(SupportAssistantPanel, { global: { stubs } })
+    const textarea = wrapper.find('textarea')
+    await textarea.setValue('A multi-line question')
+
+    await textarea.trigger('keydown', { key: 'Enter', shiftKey: true })
+    await textarea.trigger('keydown', { key: 'Enter', ctrlKey: true })
+
+    expect(prepareStreamingRequest).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('shows document retrieval while the streamed reply is pending', async () => {
+    vi.clearAllMocks()
+    prepareStreamingRequest.mockResolvedValue({
+      url: 'https://backend.example.test/v1/support/messages',
+      headers: { Authorization: 'Bearer access-token' },
+    })
+    let resolveResponse!: (value: Response) => void
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveResponse = resolve
+          }),
+      ),
+    )
+
+    const wrapper = mount(SupportAssistantPanel, { global: { stubs } })
+    await wrapper.find('textarea').setValue('Where can I create a token?')
+    await wrapper.find('textarea').trigger('keydown', { key: 'Enter' })
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1))
+
+    expect(wrapper.text()).toContain('support.searching')
+
+    resolveResponse(
+      new Response('data: {"type":"delta","content":"answer"}\n\ndata: [DONE]\n\n', {
+        headers: { 'Content-Type': 'text/event-stream' },
+      }),
+    )
+    await Promise.resolve()
+    await Promise.resolve()
+    wrapper.unmount()
   })
 })

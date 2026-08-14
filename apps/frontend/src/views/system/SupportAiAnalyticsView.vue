@@ -65,7 +65,11 @@
     >
       <div class="support-analytics__conversation">
         <article v-for="(message, index) in conversation" :key="index" :class="message.role">
-          <MarkdownRenderer v-if="message.role === 'assistant'" :content="message.content" variant="chat" />
+          <MarkdownRenderer
+            v-if="message.role === 'assistant'"
+            :content="message.content"
+            variant="chat"
+          />
           <template v-else>{{ message.content }}</template>
         </article>
         <el-empty v-if="!conversation.length" />

@@ -890,6 +890,8 @@ const zhCN: DeepStringify<typeof en> = {
     handoffPrompt: '确认工单标题后，将附上当前对话上下文。',
     defaultTitle: '需要人工协助',
     unavailable: 'AI 客服暂不可用。',
+    searching: '正在检索相关文档…',
+    generating: '正在生成回复…',
     configDescription:
       '配置平台托管客服模型、知识提示和每位用户的请求限流。API 密钥只可更新或清除，不能读取。',
     configEnabled: '已启用',

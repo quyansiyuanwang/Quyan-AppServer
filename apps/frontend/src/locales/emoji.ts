@@ -871,6 +871,8 @@ const emoji: DeepStringify<typeof en> = {
     handoffPrompt: '📝 👤',
     defaultTitle: '👤 🆘',
     unavailable: '🤖 🚫',
+    searching: '🔎 📚 ⏳',
+    generating: '🤖 ✍️ ⏳',
     configDescription: '🤖 ⚙️',
     configEnabled: '✅',
     configDisabled: '⏸️',

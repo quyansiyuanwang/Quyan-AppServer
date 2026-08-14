@@ -930,6 +930,8 @@ export default {
     handoffPrompt: 'Confirm a ticket title to attach this conversation.',
     defaultTitle: 'Human support needed',
     unavailable: 'AI support is unavailable.',
+    searching: 'Searching relevant documentation…',
+    generating: 'Generating a response…',
     configDescription:
       'Configure the hosted support model, knowledge prompt, and per-user request limits. API keys can only be replaced or cleared.',
     configEnabled: 'Enabled',

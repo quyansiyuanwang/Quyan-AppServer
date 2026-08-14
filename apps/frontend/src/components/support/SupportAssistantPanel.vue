@@ -14,7 +14,19 @@
     <div class="support-panel__messages">
       <p v-if="!messages.length" class="support-panel__empty">{{ i18ns.t('support.intro') }}</p>
       <article v-for="message in messages" :key="message.id" :class="message.role">
-        <MarkdownRenderer v-if="message.role === 'assistant'" :content="message.content" variant="chat" />
+        <div
+          v-if="isActiveAssistant(message)"
+          class="support-panel__stream-status"
+          aria-live="polite"
+        >
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>{{ streamStatusLabel }}</span>
+        </div>
+        <MarkdownRenderer
+          v-if="message.role === 'assistant'"
+          :content="message.content"
+          variant="chat"
+        />
         <template v-else>{{ message.content }}</template>
       </article>
       <div v-if="citations.length" class="support-panel__citations">
@@ -36,7 +48,7 @@
         :rows="2"
         resize="none"
         :disabled="sending"
-        @keydown.ctrl.enter.prevent="send"
+        @keydown.enter.exact.prevent="send"
       /><el-button type="primary" :loading="sending" :disabled="!draft.trim()" @click="send">{{
         i18ns.t('confirm')
       }}</el-button>
@@ -45,8 +57,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
+import { Loading } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import router, { currentSiteProfile } from '@/router'
 import { useRequestStore } from '@/stores/request'
@@ -61,7 +74,22 @@ const citations = ref<Citation[]>([])
 const draft = ref('')
 const sending = ref(false)
 const error = ref('')
+const streamStatus = ref<'searching' | 'generating' | null>(null)
 const api = () => createSupportControllerApi(useRequestStore().getAxios())
+
+const streamStatusLabel = computed(() =>
+  streamStatus.value === 'generating'
+    ? i18ns.t('support.generating')
+    : i18ns.t('support.searching'),
+)
+
+const isActiveAssistant = (message: Message) =>
+  Boolean(
+    sending.value &&
+      streamStatus.value &&
+      messages.value[messages.value.length - 1]?.id === message.id &&
+      message.role === 'assistant',
+  )
 
 const responseData = (response: any) => response?.data?.data ?? response?.data ?? response
 
@@ -105,6 +133,7 @@ const send = async () => {
   const content = draft.value.trim()
   if (!content || sending.value) return
   sending.value = true
+  streamStatus.value = 'searching'
   error.value = ''
   citations.value = []
   messages.value.push({ id: `u-${Date.now()}`, role: 'user', content })
@@ -144,8 +173,14 @@ const send = async () => {
             JSON.parse(data) as { type: string; content?: string; citations?: Citation[] },
         })) {
           if (frame.type !== 'data') continue
-          if (frame.value.type === 'delta') assistant.content += frame.value.content || ''
-          if (frame.value.type === 'citations') citations.value = frame.value.citations || []
+          if (frame.value.type === 'delta') {
+            streamStatus.value = 'generating'
+            assistant.content += frame.value.content || ''
+          }
+          if (frame.value.type === 'citations') {
+            citations.value = frame.value.citations || []
+            streamStatus.value = 'generating'
+          }
         }
         break
       } catch (cause) {
@@ -167,6 +202,7 @@ const send = async () => {
     error.value = cause instanceof Error ? cause.message : i18ns.t('support.unavailable')
   } finally {
     sending.value = false
+    streamStatus.value = null
   }
 }
 
@@ -231,6 +267,19 @@ onMounted(() => void loadConversation())
 }
 .support-panel article.assistant {
   background: var(--el-fill-color-light);
+}
+.support-panel__stream-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 18px;
+  margin-bottom: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+.support-panel__stream-status .el-icon {
+  color: var(--el-color-primary);
 }
 .support-panel__empty {
   color: var(--el-text-color-secondary);
