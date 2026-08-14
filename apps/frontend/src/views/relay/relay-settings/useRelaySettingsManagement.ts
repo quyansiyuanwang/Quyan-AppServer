@@ -1172,6 +1172,12 @@ export const useRelaySettingsManagement = () => {
 
     if (normalizedFormats.length === 0) return false
 
+    // OpenAI has two explicit wire formats. They share the same upstream URL
+    // and credential, whereas Anthropic and Gemini each map one-to-one.
+    if (upstream === 'openai') {
+      return normalizedFormats.some((format) => format.startsWith('openai-'))
+    }
+
     return normalizedFormats.includes(upstream)
   }
 

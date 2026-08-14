@@ -115,6 +115,49 @@ function parseCentralLoginAllowedOrigins(
   );
 }
 
+function normalizeWebAuthnOrigin(value: string): string {
+  let origin: URL;
+  try {
+    origin = new URL(value.trim());
+  } catch {
+    throw new Error("WEBAUTHN_ALLOWED_ORIGINS must contain valid HTTPS origins");
+  }
+
+  if (
+    origin.protocol !== "https:" ||
+    origin.username ||
+    origin.password ||
+    origin.pathname !== "/" ||
+    origin.search ||
+    origin.hash
+  )
+    throw new Error("WEBAUTHN_ALLOWED_ORIGINS must contain exact HTTPS origins without paths, queries, or fragments");
+
+  return origin.origin;
+}
+
+function resolveWebAuthnOrigins(
+  source: EnvSnapshot,
+  runtime: { isProduction: boolean; rootDomain: string; trustedRootDomains?: readonly string[] },
+): string[] {
+  const expectedOrigins = (runtime.trustedRootDomains ?? [runtime.rootDomain]).flatMap((domain) =>
+    buildFirstPartyOrigins(domain, runtime.isProduction ? undefined : ":5173").filter(
+      (origin) => new URL(origin).hostname === `auth.${domain}`,
+    ),
+  );
+  const configuredValue = String(source.WEBAUTHN_ALLOWED_ORIGINS || source.WEBAUTHN_ORIGIN || "").trim();
+  if (!configuredValue) return expectedOrigins;
+
+  const allowedOrigins = [...new Set(configuredValue.split(",").map(normalizeWebAuthnOrigin))];
+  const expectedOriginSet = new Set(expectedOrigins);
+  if (allowedOrigins.some((origin) => !expectedOriginSet.has(origin)))
+    throw new Error(
+      "WEBAUTHN_ALLOWED_ORIGINS may only include exact auth origins for ROOT_DOMAIN or ADDITIONAL_ROOT_DOMAINS",
+    );
+
+  return allowedOrigins;
+}
+
 function resolveCookieDomain(value: string | undefined, defaultCookieDomain: string | undefined) {
   if (value === undefined) return defaultCookieDomain;
   return String(value).trim() || undefined;
@@ -169,11 +212,7 @@ export function buildAuthConfig(
     webAuthn: {
       rpName: source.WEBAUTHN_RP_NAME || "AppServer",
       rpId: source.WEBAUTHN_RP_ID || (runtime.isProduction ? runtime.rootDomain : "localhost"),
-      origin:
-        source.WEBAUTHN_ORIGIN ||
-        (runtime.isProduction
-          ? `https://auth.${runtime.rootDomain}`
-          : `https://${source.WEBAUTHN_RP_ID || "localhost"}`),
+      origins: resolveWebAuthnOrigins(source, runtime),
     },
     centralLogin: {
       allowedOrigins: parseCentralLoginAllowedOrigins(source, runtime),
