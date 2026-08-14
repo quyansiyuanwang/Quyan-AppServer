@@ -1747,6 +1747,7 @@ const emoji: DeepStringify<typeof en> = {
   notFound: {
     title: '📄 🙂 👺',
     description: '✨ 📄 🫵 ⚖️ 📅 🎁 👾 🙂 🈂️ 🖌️ 🆒 🩵 ⚖️ ⚱️ 😙 🩵 🫵 🧿 ✨ 🩶 🩺',
+    unknownHostDescription: '“{host}” 🚫 🏠 🧭 🪜 🏠 ➡️',
     goHome: '🚶 🏠',
     goBack: '🚶 🔙',
     miniGameTitle: '4️⃣0️⃣4️⃣🎮',

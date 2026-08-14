@@ -59,6 +59,18 @@ const publicProductionHostname =
   import.meta.env.VITE_PUBLIC_SITE_HOST || productionHostnameFor('www')
 const identityProductionOrigin = `https://${productionHostnameFor('auth')}`
 const identityLocalOrigin = `https://${localHostnameFor('auth')}${localDevelopmentPort}`
+const defaultPublicProductionHostname = productionHostnameFor('www')
+
+/**
+ * A deployment may use a dedicated public root such as `staging.qysyw.cn`.
+ * It is explicit configuration, never an arbitrary delegated subdomain.
+ */
+const acceptedProductionRootDomains = new Set([
+  productionRootDomain,
+  ...(publicProductionHostname === defaultPublicProductionHostname
+    ? []
+    : [publicProductionHostname]),
+])
 
 const profileAccessPermissions: Partial<Record<SiteProfileId, readonly Permission[]>> = {
   account: [Permission.USER_UPDATE_SELF_PROFILE, Permission.RELAY_TOKEN_READ],
@@ -430,9 +442,9 @@ const createDynamicProductionProfiles = (rootDomain: string): readonly SiteProfi
 }
 
 /**
- * Derives a deployment root from a known site prefix. This keeps one static
- * build portable across delegated roots such as `md.qysyw.cn` without turning
- * arbitrary subdomains into product routes.
+ * Derives an explicitly configured deployment root from a known site prefix.
+ * Do not infer arbitrary delegated roots: a wildcard DNS record must not turn
+ * an unregistered hostname into a usable application site.
  */
 const inferProductionRootDomain = (hostname: string): string | undefined => {
   if (!isValidRootDomain(hostname) || hostname.endsWith(`.${localRootDomain}`)) return undefined
@@ -442,27 +454,15 @@ const inferProductionRootDomain = (hostname: string): string | undefined => {
     if (!hostname.startsWith(prefixWithDot)) continue
 
     const rootDomain = hostname.slice(prefixWithDot.length)
-    if (isValidRootDomain(rootDomain) && !retiredRootLabels.has(rootDomain.split('.')[0]!))
+    if (
+      isValidRootDomain(rootDomain) &&
+      acceptedProductionRootDomains.has(rootDomain) &&
+      !retiredRootLabels.has(rootDomain.split('.')[0]!)
+    )
       return rootDomain
   }
 
-  if (hostname.startsWith('www.')) {
-    const rootDomain = hostname.slice('www.'.length)
-    if (isValidRootDomain(rootDomain)) return rootDomain
-  }
-
-  // EO only serves this static bundle for domains explicitly bound to the
-  // project. A single delegated label, e.g. `md.qysyw.cn`, is therefore a
-  // valid public root; deeper unknown hosts stay rejected unless they match a
-  // known site prefix above.
-  if (hostname.endsWith(`.${productionRootDomain}`)) {
-    const delegatedLabel = hostname.slice(0, -(productionRootDomain.length + 1))
-    return delegatedLabel && !delegatedLabel.includes('.') && !retiredRootLabels.has(delegatedLabel)
-      ? hostname
-      : undefined
-  }
-
-  return hostname === productionRootDomain ? hostname : undefined
+  return acceptedProductionRootDomains.has(hostname) ? hostname : undefined
 }
 
 const resolveDynamicProductionProfile = (hostname: string): SiteProfile | undefined => {
@@ -581,6 +581,22 @@ export const resolveSiteProfileFromOrigin = (origin: string): ResolvedSiteProfil
 export const resolveCurrentSiteProfile = (): ResolvedSiteProfile => {
   if (typeof window === 'undefined') return getRejectedSiteProfile('')
   return resolveSiteProfile(window.location.hostname)
+}
+
+/** Returns the canonical public site for the current local or release environment. */
+export const getPublicSiteProfile = (hostname?: string): SiteProfile => {
+  const normalizedHostname = hostname ? normalizeSiteHostname(hostname) : undefined
+  const useLocalProfile = Boolean(normalizedHostname?.endsWith(`.${localRootDomain}`))
+  const profile = siteProfiles.find(
+    (candidate) =>
+      candidate.id === 'public' &&
+      (useLocalProfile
+        ? candidate.hostname === localHostnameFor('www')
+        : candidate.hostname === publicProductionHostname),
+  )
+
+  if (!profile) throw new Error('Public site profile is not registered')
+  return profile
 }
 
 export const isKnownSiteProfile = (profile: ResolvedSiteProfile): profile is SiteProfile =>

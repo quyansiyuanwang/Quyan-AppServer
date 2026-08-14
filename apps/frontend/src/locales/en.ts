@@ -1603,6 +1603,8 @@ export default {
     title: 'Page Not Found',
     description:
       'The page you are looking for does not exist. It may have been moved, deleted or you entered the wrong URL.',
+    unknownHostDescription:
+      '“{host}” is not a recognized Qysyw site. Return to the official homepage to continue.',
     goHome: 'Go Home',
     goBack: 'Go Back',
     miniGameTitle: '404 Easter Mini Game',
