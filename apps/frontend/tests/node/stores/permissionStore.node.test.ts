@@ -57,13 +57,38 @@ describe('permissionStore', () => {
         removedPermissions: [],
         effectivePermissions: ['user:read'],
       },
+      userUpdatedAt: '2026-08-14T00:00:00.000Z',
     })
     setCurrentStorageScopeForUserId('user-b')
     const store = usePermissionStore()
 
-    expect(store.restoreCurrentUserPermissionsCache('user-b')).toBe(false)
+    expect(store.restoreCurrentUserPermissionsCache('user-b', '2026-08-14T00:00:00.000Z')).toBe(
+      false,
+    )
     expect(store.currentUserPermissions).toBeNull()
-    expect(store.restoreCurrentUserPermissionsCache('user-a')).toBe(true)
+    expect(store.restoreCurrentUserPermissionsCache('user-a', '2026-08-14T00:00:00.000Z')).toBe(
+      true,
+    )
     expect(store.effectivePermissions).toEqual(['user:read'])
+  })
+
+  it('invalidates a cached permission projection when the user version changes', () => {
+    const cacheKey = `${StorageKey.Permission.CURRENT_USER}::user:user-a`
+    TypedLocalStorage.set(cacheKey, {
+      permissions: [],
+      currentUserPermissions: {
+        userId: 'user-a',
+        groupPermissions: [],
+        additionalPermissions: [],
+        removedPermissions: [],
+        effectivePermissions: [],
+      },
+      userUpdatedAt: '2026-08-14T00:00:00.000Z',
+    })
+    const store = usePermissionStore()
+
+    expect(store.restoreCurrentUserPermissionsCache('user-a', '2026-08-14T00:00:01.000Z')).toBe(
+      false,
+    )
   })
 })

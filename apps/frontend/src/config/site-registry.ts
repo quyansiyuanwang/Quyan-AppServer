@@ -166,7 +166,7 @@ export const siteDefinitions = [
     id: 'account',
     productionHostname: productionHostnameFor('account'),
     localHostname: localHostnameFor('account'),
-    defaultPath: '/settings/profile',
+    defaultPath: '/overview',
     routeGroups: ['account', 'shared'],
     shell: 'application',
     labelKey: 'nav.siteAccount',
@@ -175,7 +175,7 @@ export const siteDefinitions = [
     id: 'chat',
     productionHostname: productionHostnameFor('chat'),
     localHostname: localHostnameFor('chat'),
-    defaultPath: '/chat',
+    defaultPath: '/overview',
     routeGroups: ['chat', 'shared'],
     shell: 'application',
     labelKey: 'nav.siteChat',
@@ -193,7 +193,7 @@ export const siteDefinitions = [
     id: 'console-ai',
     productionHostname: productionHostnameFor('ai.console'),
     localHostname: localHostnameFor('ai.console'),
-    defaultPath: '/relay/tokens',
+    defaultPath: '/overview',
     routeGroups: ['console-ai', 'shared'],
     shell: 'console',
     labelKey: 'nav.siteConsoleAi',
@@ -202,7 +202,7 @@ export const siteDefinitions = [
     id: 'console-developer',
     productionHostname: productionHostnameFor('developer.console'),
     localHostname: localHostnameFor('developer.console'),
-    defaultPath: '/applications/oauth',
+    defaultPath: '/overview',
     routeGroups: ['console-developer', 'shared'],
     shell: 'console',
     labelKey: 'nav.siteConsoleDeveloper',
@@ -220,7 +220,7 @@ export const siteDefinitions = [
     id: 'management-core',
     productionHostname: productionHostnameFor('management'),
     localHostname: localHostnameFor('management'),
-    defaultPath: '/iam/overview',
+    defaultPath: '/overview',
     routeGroups: ['management-core', 'shared'],
     shell: 'console',
     labelKey: 'nav.siteManagementCore',
@@ -239,20 +239,7 @@ export const siteDefinitions = [
       app: 'console-product-' + product,
       productionHostname: productionHostnameFor(`${slug}.console`),
       localHostname: localHostnameFor(`${slug}.console`),
-      defaultPath:
-        product === 'kv'
-          ? '/entries'
-          : product === 'short_link'
-            ? '/links'
-            : product === 'secret'
-              ? '/secrets'
-              : product === 'status'
-                ? '/monitors'
-                : product === 'verification'
-                  ? '/verification'
-                  : product === 'ip_geolocation'
-                    ? '/lookup'
-                    : '/channels',
+      defaultPath: '/overview',
       routeGroups: [('product-' + product) as `product-${typeof product}`, 'shared'] as const,
       shell: 'application' as const,
       labelKey:
@@ -276,7 +263,7 @@ export const siteDefinitions = [
     app: 'console-product-oj',
     productionHostname: productionHostnameFor('oj.console'),
     localHostname: localHostnameFor('oj.console'),
-    defaultPath: '/api-keys',
+    defaultPath: '/overview',
     routeGroups: ['product-oj', 'shared'],
     shell: 'application',
     labelKey: 'nav.ojSubmitter',
@@ -285,7 +272,7 @@ export const siteDefinitions = [
     id: 'management-ai',
     productionHostname: productionHostnameFor('ai.management'),
     localHostname: localHostnameFor('ai.management'),
-    defaultPath: '/relay/settings',
+    defaultPath: '/overview',
     routeGroups: ['management-ai', 'shared'],
     shell: 'console',
     labelKey: 'nav.siteManagementAi',
@@ -294,7 +281,7 @@ export const siteDefinitions = [
     id: 'management-developer',
     productionHostname: productionHostnameFor('developer.management'),
     localHostname: localHostnameFor('developer.management'),
-    defaultPath: '/services',
+    defaultPath: '/overview',
     routeGroups: ['management-developer', 'shared'],
     shell: 'console',
     labelKey: 'nav.siteManagementDeveloper',
@@ -303,7 +290,7 @@ export const siteDefinitions = [
     id: 'management-terminal',
     productionHostname: productionHostnameFor('terminal.management'),
     localHostname: localHostnameFor('terminal.management'),
-    defaultPath: '/products/remote-terminal/templates',
+    defaultPath: '/overview',
     routeGroups: ['management-terminal', 'shared'],
     shell: 'console',
     labelKey: 'nav.siteManagementTerminal',

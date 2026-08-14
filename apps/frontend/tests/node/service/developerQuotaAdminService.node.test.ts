@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CustomCode } from '@/constant/custom-code'
+import { DeveloperQuotaAdminControllerList } from '@/client/api-types-map.gen'
 
 const { requestMock } = vi.hoisted(() => ({
   requestMock: {
@@ -39,6 +40,7 @@ describe('DeveloperQuotaAdminService', () => {
       {},
       undefined,
     )
+    expect(DeveloperQuotaAdminControllerList.url).toBe('/v1/products/admin/quota-overrides')
   })
 
   it('passes updates through the replay-protected quota endpoint', async () => {

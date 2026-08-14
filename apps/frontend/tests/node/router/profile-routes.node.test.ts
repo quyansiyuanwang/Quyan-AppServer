@@ -104,11 +104,11 @@ describe('profile route factory', () => {
     )
   })
 
-  it('redirects every management root entry to the management default path', () => {
+  it('redirects every management root entry to the management overview', () => {
     const managementRoutes = createRoutesForProfile(getKnownProfile('management.qysyw.cn'))
 
-    expect(findRoute(managementRoutes, 'root')?.redirect).toBe('/iam/overview')
-    expect(findRoute(managementRoutes, 'index')?.redirect).toBe('/iam/overview')
+    expect(findRoute(managementRoutes, 'root')?.redirect).toBe('/overview')
+    expect(findRoute(managementRoutes, 'index')?.redirect).toBe('/overview')
     expect(collectRouteNames(managementRoutes)).toEqual(
       expect.arrayContaining([
         'iamOverview',
@@ -121,14 +121,12 @@ describe('profile route factory', () => {
     )
   })
 
-  it('redirects the legacy terminal-management root to the templates route', () => {
+  it('redirects the terminal-management root to its overview', () => {
     const terminalManagementRoutes = createRoutesForProfile(
       getKnownProfile('terminal.management.qysyw.cn'),
     )
 
-    expect(findRoute(terminalManagementRoutes, 'root')?.redirect).toBe(
-      '/products/remote-terminal/templates',
-    )
+    expect(findRoute(terminalManagementRoutes, 'root')?.redirect).toBe('/overview')
     expect(findRoute(terminalManagementRoutes, 'remoteTerminalProductTemplates')?.path).toBe(
       'products/remote-terminal/templates',
     )
@@ -163,7 +161,7 @@ describe('profile route factory', () => {
         'ojPricingManagement',
       ]),
     )
-    expect(findRoute(ojRoutes, 'root')?.redirect).toBe('/api-keys')
+    expect(findRoute(ojRoutes, 'root')?.redirect).toBe('/overview')
     expect(collectRouteNames(accountRoutes)).not.toContain('ojAPIKeyManagement')
   })
 
@@ -215,6 +213,20 @@ describe('profile route factory', () => {
     )
     expect(resolveCanonicalRouteUrl('remoteTerminal', accountProfile)).toBe(
       'https://terminal.qysyw.cn/workspace',
+    )
+  })
+
+  it('keeps AI and developer operational deep links in the SPA route catalog', () => {
+    const aiConsoleRoutes = createRoutesForProfile(getKnownProfile('ai.console.qysyw.cn'))
+    const aiManagementRoutes = createRoutesForProfile(getKnownProfile('ai.management.qysyw.cn'))
+    const developerManagementRoutes = createRoutesForProfile(
+      getKnownProfile('developer.management.qysyw.cn'),
+    )
+
+    expect(findRoute(aiConsoleRoutes, 'relayTokenManagement')?.path).toBe('relay/tokens')
+    expect(findRoute(aiManagementRoutes, 'relaySettings')?.path).toBe('relay/settings')
+    expect(findRoute(developerManagementRoutes, 'developerServiceManagement')?.path).toBe(
+      'services',
     )
   })
 })

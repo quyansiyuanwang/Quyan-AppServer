@@ -14,6 +14,7 @@ import { getScopedStorageKey } from '@/utils/storageScope'
 
 type CachedPermissionState = Pick<AllPermissionsDto, 'permissions'> & {
   currentUserPermissions: UserFullPermissionsDto
+  userUpdatedAt: string
 }
 
 /**
@@ -51,20 +52,24 @@ export const usePermissionStore = defineStore('permissionStore', () => {
   const getCacheKey = (userId: string) =>
     getScopedStorageKey(StorageKey.Permission.CURRENT_USER, `user:${userId}`)
 
-  const saveCurrentUserPermissionsCache = (userId: string) => {
+  const saveCurrentUserPermissionsCache = (userId: string, userUpdatedAt: string | null) => {
     if (!currentUserPermissions.value) return
+    if (!userUpdatedAt) return
     TypedLocalStorage.set<CachedPermissionState>(getCacheKey(userId), {
       permissions: allPermissions.value,
       currentUserPermissions: currentUserPermissions.value,
+      userUpdatedAt,
     })
   }
 
-  const restoreCurrentUserPermissionsCache = (userId: string) => {
+  const restoreCurrentUserPermissionsCache = (userId: string, userUpdatedAt: string | null) => {
     const cached = TypedLocalStorage.get<CachedPermissionState>(getCacheKey(userId))
     if (
       !cached?.currentUserPermissions ||
       cached.currentUserPermissions.userId !== userId ||
-      !Array.isArray(cached.permissions)
+      !Array.isArray(cached.permissions) ||
+      !userUpdatedAt ||
+      cached.userUpdatedAt !== userUpdatedAt
     )
       return false
     allPermissions.value = cached.permissions
@@ -156,7 +161,6 @@ export const usePermissionStore = defineStore('permissionStore', () => {
       if (userId === currentUserId) {
         currentUserPermissions.value = data.data || null
         currentPermissionUserId.value = data.data ? userId : null
-        if (data.data) saveCurrentUserPermissionsCache(userId)
       }
 
       return data
@@ -408,6 +412,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
 
     // Utilities
     getPermissionsByCategory,
+    saveCurrentUserPermissionsCache,
     clearCurrentUserPermissions,
     restoreCurrentUserPermissionsCache,
     clearError,

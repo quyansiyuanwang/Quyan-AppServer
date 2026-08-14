@@ -4,6 +4,7 @@ import { createRoutesForProfile } from '@/router/routes'
 import type { RouteRecordRaw } from 'vue-router'
 import { getRouteCatalogEntry, resolveRouteMigration, routeCatalog } from '@/router/route-catalog'
 import { resolveRouteMigrationUrl } from '@/router/route-migration'
+import { siteOverviewMetricProfileIds } from '@/config/site-overview'
 
 const getKnownProfile = (hostname: string) => {
   const profile = resolveSiteProfile(hostname)
@@ -34,6 +35,15 @@ const collectRoutePaths = (
   return paths
 }
 
+const collectRouteNames = (routes: readonly RouteRecordRaw[]): Set<string> => {
+  const names = new Set<string>()
+  for (const route of routes) {
+    if (typeof route.name === 'string') names.add(route.name)
+    for (const name of collectRouteNames(route.children ?? [])) names.add(name)
+  }
+  return names
+}
+
 describe('route catalog', () => {
   it('provides a route group and canonical path for every registered route', () => {
     for (const entry of routeCatalog) {
@@ -46,6 +56,27 @@ describe('route catalog', () => {
   it('uses a registered default path for every site profile', () => {
     for (const profile of siteProfiles) {
       expect(profile.defaultPath).toMatch(/^\//)
+      const routes = createRoutesForProfile(profile)
+      const root = routes
+        .flatMap((route) => [route, ...(route.children ?? [])])
+        .find((route) => route.name === 'root')
+      expect(root?.redirect).toBe(profile.defaultPath)
+    }
+  })
+
+  it('provides an overview route for every site profile', () => {
+    for (const profile of siteProfiles) {
+      const routeNames = collectRouteNames(createRoutesForProfile(profile))
+      expect([...routeNames].some((name) => name.toLowerCase().includes('overview'))).toBe(true)
+    }
+  })
+
+  it('uses a data overview projection for every non-terminal site profile', () => {
+    const metricProfiles = new Set<string>(siteOverviewMetricProfileIds)
+
+    for (const profile of siteProfiles) {
+      if (profile.id === 'terminal') continue
+      expect(metricProfiles.has(profile.id), profile.id).toBe(true)
     }
   })
 

@@ -221,6 +221,8 @@ pnpm --filter @appserver/backend pm2:rebuild
 
 所有 SPA hostname 指向同一静态前端构件，并为未知的应用内路径返回该构件的 `index.html`（SPA fallback）。不要把 `api.<ROOT_DOMAIN>` 指向前端静态站，也不要把 `/relay/tokens`、`/relay/settings` 这类前端路径代理到后端；只有 `/relay/proxy/*` 是中转 API 路径。边缘层应将 `/v1/*`、`/auth-center/*`、`/docs/*` 和 `/relay/proxy/*` 转发到后端，并保留 `Host`、`X-Forwarded-Proto` 与真实客户端 IP 链。
 
+可从 [`deployment/nginx/appserver-spa.conf.example`](../../deployment/nginx/appserver-spa.conf.example) 复制 Nginx 路由边界。替换示例域名、静态目录、证书和后端地址后，用 `nginx -t` 验证并 reload；该示例特意不代理宽泛的 `/relay/` 或 `/services`，从而避免页面深链直接显示后端 JSON。完整的多域名、Cookie 和精确 CORS 配置见 [14-domain-deployment.md](./14-domain-deployment.md)。
+
 后端使用 HttpOnly Cookie 保存刷新令牌和认证会话 ID，浏览器侧只在内存中保存 access token。Cookie 跨同一站点族的认证跳转需要父域作用域，生产环境推荐：
 
 ```bash
@@ -285,8 +287,10 @@ TWO_FACTOR_TRUSTED_DEVICE_SECRET=<64+字符>
 ### 前端 (`.env`)
 
 ```bash
-VITE_BACKEND_URL=https://api.qysyw.cn
-VITE_AI_PROXY_URL=https://ai.qysyw.cn
+# 浏览器请求同源的 /v1、/auth-center 和 /relay/proxy；不要把 api.*
+# 写入 VITE_*，真实后端地址只配置在反向代理。
+VITE_BACKEND_URL=
+VITE_AI_PROXY_URL=/relay/proxy
 VITE_RECAPTCHA_SITE_KEY=
 VITE_TURNSTILE_SITE_KEY=
 ```
@@ -294,10 +298,10 @@ VITE_TURNSTILE_SITE_KEY=
 ### 生产环境建议
 
 ```bash
-# 正式环境：站点 www.qysyw.cn，API 固定为 api.qysyw.cn。
-# ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=www.qysyw.cn API_ORIGIN=https://api.qysyw.cn pnpm --filter @appserver/frontend run build:prod
-# 预览环境：站点 staging.qysyw.cn，共用同一个 API。
-# ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=staging.qysyw.cn API_ORIGIN=https://api.qysyw.cn pnpm --filter @appserver/frontend run build:staging
+# 正式环境：同源 API 由边缘代理转发。
+# ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=www.qysyw.cn pnpm --filter @appserver/frontend run build:prod
+# 预览环境：同样通过边缘代理连接后端。
+# ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=staging.qysyw.cn pnpm --filter @appserver/frontend run build:staging
 
 # 生产环境调整
 JWT_ACCESS_EXPIRES_IN=900        # 15 分钟
@@ -340,7 +344,7 @@ pnpm run precommit
 - [ ] 每个 SPA host 都有 HTTPS、SPA fallback 和深链刷新验证；`docs`、`api`、`ai` 不指向 SPA
 - [ ] 已知旧路径和错误 hostname 返回保留 query 的临时迁移；SPA fallback 保留 hash，未知 hostname 与未知路径保持拒绝
 - [ ] CORS 与 `CENTRAL_LOGIN_ALLOWED_ORIGINS` 只包含精确 origin，未使用通配符
-- [ ] refresh/session Cookie 保持 API host-only；URL 中不含 access token、refresh token 或裸 return URL
+- [ ] refresh/session Cookie 使用 `.${ROOT_DOMAIN}`（或显式的更窄作用域）；URL 中不含 access token、refresh token 或裸 return URL
 - [ ] JWT 过期时间已调整为生产值
 - [ ] Redis 连接可访问
 - [ ] PM2 配置正确（`ecosystem.config.cjs`）

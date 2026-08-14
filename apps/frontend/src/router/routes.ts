@@ -127,6 +127,93 @@ export const routes = [
 
           // --- Top-level ---
           {
+            path: 'overview',
+            name: 'publicOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+            meta: { allowGuest: true },
+          },
+          {
+            path: 'overview',
+            name: 'identityOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+            meta: { allowGuest: true },
+          },
+          {
+            path: 'overview',
+            name: 'accountOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'chatOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'consoleAiOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'consoleDeveloperOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'productKvOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'productShortLinkOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'productSecretOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'productStatusOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'productVerificationOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'productIpGeolocationOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'productPushOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'ojOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'managementAiOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'managementDeveloperOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
+            name: 'managementTerminalOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
             path: 'home',
             name: 'home',
             component: () => import('@/views/article/ArticleViewerView.vue'),
@@ -236,9 +323,9 @@ export const routes = [
 
           // --- Management ---
           {
-            path: 'iam/overview',
+            path: 'overview',
             name: 'iamOverview',
-            component: () => import('@/views/management/IamOverviewView.vue'),
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
             meta: {
               anyPermissions: [
                 Permission.USER_READ,
@@ -302,8 +389,7 @@ export const routes = [
           {
             path: 'overview',
             name: 'ramOverview',
-            component: () => import('@/views/management/RamManagementView.vue'),
-            props: { section: 'overview' },
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
             meta: {
               anyPermissions: [
                 Permission.RAM_USER_READ,

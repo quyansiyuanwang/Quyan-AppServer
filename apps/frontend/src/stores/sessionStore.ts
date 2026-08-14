@@ -21,8 +21,15 @@ export const useSessionStore = defineStore('session', () => {
 
   const isAuthenticated = computed(() => status.value === 'authenticated')
 
-  const beginRestore = () => {
-    status.value = 'restoring'
+  /**
+   * A cold Cookie restore has no trusted UI state yet. A token rotation during
+   * an established session does, so keep that projection mounted until the
+   * refresh either succeeds or conclusively expires.
+   */
+  const beginRestore = (preserveAuthenticatedState = false) => {
+    if (!preserveAuthenticatedState || status.value !== 'authenticated') {
+      status.value = 'restoring'
+    }
     error.value = null
   }
 
@@ -32,7 +39,9 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
   }
 
-  const setAnonymous = (nextStatus: Extract<SessionStatus, 'anonymous' | 'expired'> = 'anonymous') => {
+  const setAnonymous = (
+    nextStatus: Extract<SessionStatus, 'anonymous' | 'expired'> = 'anonymous',
+  ) => {
     accessToken.value = null
     user.value = null
     permissionsStatus.value = 'idle'

@@ -1,4 +1,14 @@
 <template>
+  <el-menu-item
+    v-if="overviewRoute && router.hasRoute(overviewRoute)"
+    :index="overviewRoute"
+    @click="nav(overviewRoute, $event)"
+    @contextmenu.prevent="openRouteMenu(overviewRoute, $event)"
+  >
+    <el-icon><HomeFilled /></el-icon>
+    <template #title>{{ i18ns.t('nav.overviewTitle') }}</template>
+  </el-menu-item>
+
   <template v-for="node in homeMenuNodes" :key="node.id">
     <el-menu-item
       :index="node.route!"
@@ -126,6 +136,8 @@ import {
 import LogoutIcon from '@/components/icons/LogoutIcon.vue'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import router from '@/router'
+import { currentSiteProfile } from '@/router'
+import type { SiteProfileId } from '@/config/site-registry'
 import { authorizationService } from '@/service/authorizationService'
 import { usePermissionStore } from '@/stores/permissionStore'
 import type { RouteName } from '@/types/route-types.gen'
@@ -423,6 +435,33 @@ const menuDefinition: readonly MenuNode[] = [
     ]),
   ]),
 ]
+
+const overviewRouteByProfile: Partial<Record<SiteProfileId, RouteName>> = {
+  public: 'publicOverview',
+  identity: 'identityOverview',
+  account: 'accountOverview',
+  chat: 'chatOverview',
+  terminal: 'terminalOverview',
+  'console-ai': 'consoleAiOverview',
+  'console-developer': 'consoleDeveloperOverview',
+  'console-ram': 'ramOverview',
+  'product-kv': 'productKvOverview',
+  'product-short_link': 'productShortLinkOverview',
+  'product-secret': 'productSecretOverview',
+  'product-status': 'productStatusOverview',
+  'product-verification': 'productVerificationOverview',
+  'product-ip_geolocation': 'productIpGeolocationOverview',
+  'product-push': 'productPushOverview',
+  'product-oj': 'ojOverview',
+  'management-core': 'iamOverview',
+  'management-ai': 'managementAiOverview',
+  'management-developer': 'managementDeveloperOverview',
+  'management-terminal': 'managementTerminalOverview',
+}
+
+const overviewRoute = computed(() =>
+  currentSiteProfile.id === 'rejected' ? undefined : overviewRouteByProfile[currentSiteProfile.id],
+)
 
 const props = withDefaults(
   defineProps<{

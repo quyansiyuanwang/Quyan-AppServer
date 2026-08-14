@@ -52,7 +52,7 @@ export default defineConfig(({ mode }) => {
   const productionApiOrigin =
     env.API_ORIGIN?.trim() ||
     (/^https?:\/\//.test(configuredBackendUrl || '') ? configuredBackendUrl : undefined) ||
-    `https://api.${resolvedRootDomain}`
+    'http://localhost:10001'
   const localRootDomain =
     normalizeRootDomain(env.LOCAL_ROOT_DOMAIN, 'LOCAL_ROOT_DOMAIN') || 'qysyw.test'
   const preserveBrowserOrigin = (proxy: {
