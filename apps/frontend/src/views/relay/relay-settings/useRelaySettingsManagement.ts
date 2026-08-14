@@ -3,7 +3,7 @@ import { Permission } from '@/constant/permission'
 import { i18ns } from '@/locales'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { configService } from '@/service/configService'
 import { groupService } from '@/service/groupService'
 import { ramService } from '@/service/ramService'
@@ -30,6 +30,7 @@ import type {
   RelayAutomaticPoolRankingMode,
   RelayChannelHealthTrackingMode,
   RelayChannelType,
+  RelayChannelUpstreamModelDto,
   RelayChannelSubmissionStatus,
   RelayChannelTopologyMode,
   RelayChannelVisibilityConfigDto,
@@ -63,6 +64,7 @@ type ModelIdentitySource = {
 type RelayConfigModelRateItem = ModelPricingItemDto & { provider?: string | null }
 
 type RelayChannelAllowedModelsMode = 'all' | 'manual' | 'auto'
+type UpstreamFormat = 'openai' | 'anthropic' | 'gemini'
 
 type RelayChannelRoutingConfigFormDto = Omit<
   RelayChannelRoutingConfigDto,
@@ -776,6 +778,23 @@ export const useRelaySettingsManagement = () => {
   const currentChannelDetail = ref<RelayChannelDto | null>(null)
   const channelHealth = ref<RelayChannelHealthDto | RelayAutomaticPoolHealthDto | null>(null)
   const channelHealthLoading = ref(false)
+  const upstreamModelProbeLoading = reactive<Record<UpstreamFormat, boolean>>({
+    openai: false,
+    anthropic: false,
+    gemini: false,
+  })
+  const upstreamModelProbeResults = reactive<
+    Record<UpstreamFormat, RelayChannelUpstreamModelDto[]>
+  >({
+    openai: [],
+    anthropic: [],
+    gemini: [],
+  })
+  const selectedUpstreamProbeModels = reactive<Record<UpstreamFormat, string[]>>({
+    openai: [],
+    anthropic: [],
+    gemini: [],
+  })
 
   const hasChannelSelection = computed(() => selectedChannelIds.value.length > 0)
   const selectedChannelCount = computed(() => selectedChannelIds.value.length)
@@ -982,6 +1001,77 @@ export const useRelaySettingsManagement = () => {
   }
 
   const channelForm = ref(defaultChannelForm())
+
+  const resetUpstreamModelProbes = () => {
+    ;(['openai', 'anthropic', 'gemini'] as const).forEach((format) => {
+      upstreamModelProbeLoading[format] = false
+      upstreamModelProbeResults[format] = []
+      selectedUpstreamProbeModels[format] = []
+    })
+  }
+
+  const getUpstreamProbeConfiguration = (format: UpstreamFormat) => {
+    switch (format) {
+      case 'anthropic':
+        return {
+          upstreamUrl: channelForm.value.anthropicUpstreamUrl,
+          apiKey: channelForm.value.anthropicUpstreamApiKey,
+        }
+      case 'gemini':
+        return {
+          upstreamUrl: channelForm.value.geminiUpstreamUrl,
+          apiKey: channelForm.value.geminiUpstreamApiKey,
+        }
+      case 'openai':
+      default:
+        return {
+          upstreamUrl: channelForm.value.openaiUpstreamUrl,
+          apiKey: channelForm.value.openaiUpstreamApiKey,
+        }
+    }
+  }
+
+  const probeUpstreamModels = async (format: UpstreamFormat) => {
+    upstreamModelProbeLoading[format] = true
+    try {
+      const configuration = getUpstreamProbeConfiguration(format)
+      const result = await relayChannelService.listUpstreamModels({
+        format,
+        upstreamUrl: configuration.upstreamUrl.trim() || undefined,
+        apiKey: configuration.apiKey.trim() || undefined,
+        // Existing channels resolve their retained encrypted key on the server;
+        // a new channel uses only the values entered in this drawer.
+        channelId: isEditingChannel.value ? editingChannelId.value : undefined,
+      })
+      upstreamModelProbeResults[format] = result.models
+      selectedUpstreamProbeModels[format] = result.models
+        .filter((model) => model.matched)
+        .map((model) => model.pricingModel || model.id)
+      ElMessage.success(i18ns.t('relay.modelDiscoverySuccess'))
+    } catch (error: any) {
+      upstreamModelProbeResults[format] = []
+      selectedUpstreamProbeModels[format] = []
+      ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+    } finally {
+      upstreamModelProbeLoading[format] = false
+    }
+  }
+
+  const addUpstreamProbeModels = (format: UpstreamFormat) => {
+    const selectedModels = selectedUpstreamProbeModels[format]
+    if (selectedModels.length === 0) return
+
+    if (['pooled', 'automatic-proxy-pool'].includes(channelForm.value.channelType)) {
+      channelForm.value.pooledAllowedModelsMode = 'manual'
+    } else {
+      channelForm.value.restrictModels = true
+    }
+    channelForm.value.allowedModelsArray = [
+      ...new Set([...channelForm.value.allowedModelsArray, ...selectedModels]),
+    ]
+    ElMessage.success(i18ns.t('relay.modelsAdded'))
+  }
+
   const timeRuleDialogVisible = ref(false)
   const editingTimeRuleIndex = ref(-1)
   const timeRuleFormRef = ref<FormInstance>()
@@ -2026,6 +2116,7 @@ export const useRelaySettingsManagement = () => {
     isEditingChannel.value = false
     editingChannelId.value = ''
     channelForm.value = defaultChannelForm()
+    resetUpstreamModelProbes()
     ensureSelectedVisibilityOptions(channelForm.value.visibilityConfig)
     showChannelDialog.value = true
     void ensureVisibilityOptionsLoaded()
@@ -2057,6 +2148,7 @@ export const useRelaySettingsManagement = () => {
   const openChannelEditor = (row: RelayChannelDto) => {
     isEditingChannel.value = true
     editingChannelId.value = row.id
+    resetUpstreamModelProbes()
     const parsedModels = parseAllowedModels(row.configuredAllowedModels)
     const isPooledChannel = ['pooled', 'automatic-proxy-pool'].includes(row.channelType)
     const pooledAllowedModelsMode = isPooledChannel
@@ -2578,6 +2670,11 @@ export const useRelaySettingsManagement = () => {
     filteredModels,
     formatModelOptionLabel,
     isModelDisabled,
+    upstreamModelProbeLoading,
+    upstreamModelProbeResults,
+    selectedUpstreamProbeModels,
+    probeUpstreamModels,
+    addUpstreamProbeModels,
     computeShowUpstream,
     getChannelNameById,
     availablePoolMemberChannels: legacyAvailablePoolMemberChannels,

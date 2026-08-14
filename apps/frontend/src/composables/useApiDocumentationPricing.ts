@@ -137,18 +137,17 @@ export const useApiDocumentationPricing = () => {
 
   const getChannelsForModel = (
     modelName: string,
-    modelId: string,
     modelFormat?: string,
   ): RelayCatalogOptionDto[] => {
     const normalizedModelName = modelName.trim()
-    const normalizedModelId = modelId.trim()
     const modelFormats = normalizeFormats(modelFormat)
+
+    if (!normalizedModelName) return []
 
     return visibleChannels.value.filter((channel) => {
       return channel.modelCapabilities.some(
         (capability) =>
-          (capability.catalogModelName === normalizedModelName ||
-            capability.requestModelId === normalizedModelId) &&
+          capability.catalogModelName === normalizedModelName &&
           normalizeRelayFormatArray(capability.supportedRequestFormats).some((format) =>
             modelFormats.includes(format),
           ),
@@ -157,11 +156,7 @@ export const useApiDocumentationPricing = () => {
   }
 
   const getSelectedChannelsForModel = (item: PricingModelRow): RelayCatalogOptionDto[] => {
-    const availableChannels = getChannelsForModel(
-      item.model || '',
-      getRequestModelId(item),
-      item.supportedFormats,
-    )
+    const availableChannels = getChannelsForModel(item.model || '', item.supportedFormats)
 
     if (selectedChannelIdsSet.value.size === 0) return []
 
@@ -193,9 +188,7 @@ export const useApiDocumentationPricing = () => {
     }
 
     const modelRange = channel.modelPriceRanges?.find(
-      (range) =>
-        range.catalogModelName === (item.model || '').trim() ||
-        range.requestModelId === getRequestModelId(item),
+      (range) => range.catalogModelName === (item.model || '').trim(),
     )
     return modelRange ? [modelRange.minMultiplier, modelRange.maxMultiplier] : []
   }
@@ -209,11 +202,7 @@ export const useApiDocumentationPricing = () => {
   }
 
   const getLowestMultiplierForModel = (item: PricingModelRow): number | null => {
-    const availableChannels = getChannelsForModel(
-      item.model || '',
-      getRequestModelId(item),
-      item.supportedFormats,
-    )
+    const availableChannels = getChannelsForModel(item.model || '', item.supportedFormats)
 
     if (availableChannels.length === 0) return null
 
@@ -254,11 +243,9 @@ export const useApiDocumentationPricing = () => {
     item: PricingModelRow,
     channel: RelayCatalogOptionDto,
   ): ChannelPriceCell => {
-    const availableChannel = getChannelsForModel(
-      item.model || '',
-      getRequestModelId(item),
-      item.supportedFormats,
-    ).find((candidate) => candidate.id === channel.id)
+    const availableChannel = getChannelsForModel(item.model || '', item.supportedFormats).find(
+      (candidate) => candidate.id === channel.id,
+    )
 
     const customMultiplier = customPriceMultiplier.value ?? 1
     const divisor = getTokenPriceUnitDivisor()
@@ -432,9 +419,7 @@ export const useApiDocumentationPricing = () => {
 
     if (onlyModelsWithChannels.value) {
       result = result.filter(
-        (item) =>
-          getChannelsForModel(item.model || '', getRequestModelId(item), item.supportedFormats)
-            .length > 0,
+        (item) => getChannelsForModel(item.model || '', item.supportedFormats).length > 0,
       )
     }
 

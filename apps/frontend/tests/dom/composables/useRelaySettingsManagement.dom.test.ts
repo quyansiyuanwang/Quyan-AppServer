@@ -15,6 +15,7 @@ const {
   listChannelsMock,
   listManagementChannelsMock,
   getChannelMock,
+  listUpstreamModelsMock,
   exportChannelsMock,
   batchDuplicateChannelsMock,
   batchUpdateChannelsMock,
@@ -34,6 +35,7 @@ const {
   listChannelsMock: vi.fn(),
   listManagementChannelsMock: vi.fn(),
   getChannelMock: vi.fn(),
+  listUpstreamModelsMock: vi.fn(),
   exportChannelsMock: vi.fn(),
   batchDuplicateChannelsMock: vi.fn(),
   batchUpdateChannelsMock: vi.fn(),
@@ -65,6 +67,7 @@ vi.mock('@/service/relayChannelService', () => ({
     listChannels: listChannelsMock,
     listManagementChannels: listManagementChannelsMock,
     getChannel: getChannelMock,
+    listUpstreamModels: listUpstreamModelsMock,
     createChannel: createChannelMock,
     updateChannel: updateChannelMock,
     exportChannels: exportChannelsMock,
@@ -213,6 +216,7 @@ describe('useRelaySettingsManagement', () => {
     listChannelsMock.mockResolvedValue([])
     listManagementChannelsMock.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 25 })
     getChannelMock.mockResolvedValue(createChannelRow())
+    listUpstreamModelsMock.mockResolvedValue({ format: 'openai', models: [] })
     exportChannelsMock.mockResolvedValue({ channels: [] })
     createChannelMock.mockResolvedValue({ id: 'created-channel' })
     updateChannelMock.mockResolvedValue({ id: 'updated-channel' })
@@ -241,6 +245,43 @@ describe('useRelaySettingsManagement', () => {
 
     expect(api.filteredModels.value.map((model) => model.model)).toEqual(['gpt-4o-mini'])
 
+    wrapper.unmount()
+  })
+
+  it('discovers /v1/models for the channel upstream and adds selected catalog matches', async () => {
+    const { api, wrapper } = await mountComposable()
+    api.openEditChannelDialog(
+      createChannelRow({
+        id: 'channel-for-probe',
+        allowedFormats: 'openai-chat-completions',
+        openaiUpstreamUrl: 'https://openai.example.com/v1',
+        hasOpenaiUpstreamApiKey: true,
+      }),
+    )
+    listUpstreamModelsMock.mockResolvedValue({
+      format: 'openai',
+      models: [
+        { id: 'gpt-4o-mini', matched: true, pricingModel: 'gpt-4o-mini' },
+        { id: 'unpriced-model', matched: false },
+      ],
+    })
+
+    await api.probeUpstreamModels('openai')
+
+    expect(listUpstreamModelsMock).toHaveBeenCalledWith({
+      format: 'openai',
+      upstreamUrl: 'https://openai.example.com/v1',
+      apiKey: undefined,
+      channelId: 'channel-for-probe',
+    })
+    expect(api.upstreamModelProbeResults.openai).toHaveLength(2)
+    expect(api.selectedUpstreamProbeModels.openai).toEqual(['gpt-4o-mini'])
+
+    api.addUpstreamProbeModels('openai')
+
+    expect(api.channelForm.value.allowedModelsArray).toEqual(['gpt-4o-mini'])
+    expect(api.channelForm.value.restrictModels).toBe(true)
+    expect(messageSuccessMock).toHaveBeenCalledWith('已加入模型限制。')
     wrapper.unmount()
   })
 
