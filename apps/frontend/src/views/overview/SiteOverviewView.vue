@@ -168,9 +168,10 @@ const breakdownPercent = (value: number) =>
 .site-overview {
   display: grid;
   gap: 20px;
-  max-width: 1120px;
-  margin: 0 auto;
-  padding: 24px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 0 24px;
+  box-sizing: border-box;
 }
 
 .site-overview__header {

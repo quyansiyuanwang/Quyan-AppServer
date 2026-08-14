@@ -17,6 +17,19 @@
           <span v-if="!showIsDesktopIcon">{{ functionalAreaName }}</span>
         </div>
       </el-tooltip>
+      <el-tooltip
+        :content="i18ns.t(showIsDesktopIcon ? 'nav.expandSidebar' : 'nav.collapseSidebar')"
+        placement="right"
+      >
+        <button
+          type="button"
+          class="functional-area__toggle"
+          :aria-label="i18ns.t(showIsDesktopIcon ? 'nav.expandSidebar' : 'nav.collapseSidebar')"
+          @click="isCollapse = !isCollapse"
+        >
+          <el-icon><component :is="showIsDesktopIcon ? ArrowRight : ArrowLeft" /></el-icon>
+        </button>
+      </el-tooltip>
     </div>
 
     <!-- Desktop sidebar menu -->
@@ -444,6 +457,8 @@ import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import StorageKey from '@/constant/storagekey'
 import {
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   ArrowUp,
   Grid,
   Operation,
@@ -524,9 +539,11 @@ const props = withDefaults(
   defineProps<{
     showLogout?: boolean
     showNavigation?: boolean
+    collapsed?: boolean
   }>(),
-  { showLogout: true, showNavigation: true },
+  { showLogout: true, showNavigation: true, collapsed: false },
 )
+const emit = defineEmits<{ 'update:collapsed': [collapsed: boolean] }>()
 
 const themeToggleStore = useThemeToggleStore()
 const isDark = themeToggleStore.useIsDark()
@@ -534,7 +551,10 @@ const toggleDark = () => themeToggleStore.toggleTheme()
 const iconRef = computed(() => (isDark.value ? Sunny : Moon))
 const permissionStore = usePermissionStore()
 
-const isCollapse = ref(false)
+const isCollapse = computed({
+  get: () => props.collapsed,
+  set: (collapsed: boolean) => emit('update:collapsed', collapsed),
+})
 const showOverview = ref(false)
 const showIsDesktopIcon = computed(() => (!isDesktop.value ? true : isCollapse.value))
 const menuRef = useTemplateRef('menuRef')
@@ -1742,6 +1762,15 @@ watch(
   font-weight: 600;
 }
 
+.functional-area__content {
+  flex: 1;
+  width: auto;
+}
+
+.functional-area--mobile {
+  width: 100%;
+}
+
 .functional-area__content span,
 .functional-area--mobile span {
   overflow: hidden;
@@ -1750,8 +1779,39 @@ watch(
 }
 
 .functional-area.is-collapsed .functional-area__content {
+  flex: 0 0 32px;
   justify-content: center;
   padding: 0;
+}
+
+.functional-area__toggle {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin-right: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.24s ease;
+}
+
+.functional-area__toggle:hover,
+.functional-area__toggle:focus-visible {
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
+  outline: none;
+}
+
+.functional-area.is-collapsed .functional-area__toggle {
+  margin-right: 0;
 }
 
 .aside-header {

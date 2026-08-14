@@ -5333,4 +5333,7 @@ export default {
     monthly_pass_daily_limit: '% of daily limit used',
     relay_token_quota_low: '% used',
   },
+  utility: {
+    customerSupportComingSoon: 'Live support is coming soon.',
+  },
 }

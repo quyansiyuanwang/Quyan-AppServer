@@ -4,7 +4,7 @@
       v-for="chart in charts"
       :key="chart.id"
       class="site-overview-charts__panel"
-      :class="{ 'is-wide': chart.kind === 'line' }"
+      :class="{ 'is-wide': chart.kind !== 'donut' }"
       shadow="never"
     >
       <template #header>

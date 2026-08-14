@@ -4959,6 +4959,9 @@ const emoji: DeepStringify<typeof en> = {
     monthly_pass_daily_limit: '%',
     relay_token_quota_low: '%',
   },
+  utility: {
+    customerSupportComingSoon: '💬 ⏳',
+  },
 }
 
 export default emoji

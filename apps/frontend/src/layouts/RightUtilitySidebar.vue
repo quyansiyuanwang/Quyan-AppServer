@@ -33,15 +33,65 @@
       </el-tooltip>
     </div>
   </aside>
+
+  <el-dialog
+    v-model="showPreferences"
+    :title="i18ns.t('nav.preferences')"
+    width="min(360px, calc(100vw - 40px))"
+    append-to-body
+    class="utility-preferences-dialog"
+  >
+    <section class="utility-preferences">
+      <div class="utility-preferences__row">
+        <div>
+          <strong>{{ i18ns.t('SettingsView.themeLabel') }}</strong>
+          <small>{{ themeButtonTitle }}</small>
+        </div>
+        <el-tooltip :content="themeButtonTitle" placement="top">
+          <el-button circle :aria-label="themeButtonTitle" @click="toggleTheme">
+            <el-icon><component :is="themeIcon" /></el-icon>
+          </el-button>
+        </el-tooltip>
+      </div>
+      <div class="utility-preferences__row">
+        <div>
+          <strong>{{ i18ns.t('localeName.zhCN') }} / {{ i18ns.t('localeName.en') }}</strong>
+          <small>{{ i18ns.t('SettingsView.themeLanguageTitle') }}</small>
+        </div>
+        <LanguageSwitcher />
+      </div>
+    </section>
+    <template #footer>
+      <el-button @click="showPreferences = false">{{ i18ns.t('close') }}</el-button>
+      <el-button type="primary" @click="openFullPreferences">
+        {{ i18ns.t('nav.preferences') }}
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ArrowRight, Document, QuestionFilled, Top } from '@element-plus/icons-vue'
+import {
+  ArrowRight,
+  Document,
+  Moon,
+  QuestionFilled,
+  Setting,
+  Sunny,
+  Top,
+} from '@element-plus/icons-vue'
 import type { Component } from 'vue'
-import { computed } from 'vue'
+import { ElMessage } from 'element-plus'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
 import { i18ns } from '@/locales'
+import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
+import { currentSiteProfile } from '@/router'
+import router from '@/router'
+import { resolveCanonicalRouteUrl } from '@/router/routes'
+import { assignDocument } from '@/service/navigationService'
+import { useThemeToggleStore } from '@/stores/themeToggleStore'
+import { useFloatingWorkspaceStore } from '@/stores/floatingWorkspaceStore'
 
 type UtilityAction = {
   key: string
@@ -50,26 +100,115 @@ type UtilityAction = {
   open: () => void
 }
 
-defineProps<{ collapsed?: boolean }>()
+type ScrollContainer = HTMLElement | { $el?: Element | null }
+
+const props = withDefaults(
+  defineProps<{
+    collapsed?: boolean
+    scrollContainer?: ScrollContainer | null
+  }>(),
+  { collapsed: false, scrollContainer: null },
+)
 const emit = defineEmits<{ 'update:collapsed': [collapsed: boolean] }>()
 const route = useRoute()
+const themeToggleStore = useThemeToggleStore()
+const floatingWorkspaceStore = useFloatingWorkspaceStore()
+const isDark = themeToggleStore.useIsDark()
+const showPreferences = ref(false)
 
+const themeIcon = computed(() => (isDark.value ? Sunny : Moon))
+const themeButtonTitle = computed(() =>
+  isDark.value
+    ? i18ns.t('floatingOverlay.switchToLightTheme')
+    : i18ns.t('floatingOverlay.switchToDarkTheme'),
+)
+const toggleTheme = () => themeToggleStore.toggleTheme()
 const openDocs = () => {
   const routeName = typeof route.name === 'string' ? route.name : undefined
-  window.open(
-    resolveDocsUrl(routeName, normalizeDocsLocale(i18ns.refer.value)),
-    '_blank',
-    'noopener,noreferrer',
-  )
+  floatingWorkspaceStore.openDocs(routeName)
+}
+const openSupport = () => ElMessage.info(i18ns.t('utility.customerSupportComingSoon'))
+const openPreferences = () => (showPreferences.value = true)
+
+let scrollAnimationFrame: number | undefined
+
+const resolveScrollContainer = (): HTMLElement | null => {
+  const candidate = props.scrollContainer
+  if (candidate instanceof HTMLElement) return candidate
+  if (candidate?.$el instanceof HTMLElement) return candidate.$el
+
+  return document.querySelector<HTMLElement>('.common-layout .main')
 }
 
-const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
+const animateScrollToTop = (container: HTMLElement) => {
+  const initialScrollTop = container.scrollTop
+  if (initialScrollTop <= 0) return
+
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  if (reduceMotion || typeof window.requestAnimationFrame !== 'function') {
+    container.scrollTop = 0
+    return
+  }
+
+  if (scrollAnimationFrame !== undefined) {
+    window.cancelAnimationFrame(scrollAnimationFrame)
+  }
+
+  const duration = Math.min(460, Math.max(220, initialScrollTop * 0.18))
+  let startTime: number | undefined
+  const step = (timestamp: number) => {
+    startTime ??= timestamp
+    const progress = Math.min((timestamp - startTime) / duration, 1)
+    const easedProgress = 1 - Math.pow(1 - progress, 3)
+    container.scrollTop = Math.round(initialScrollTop * (1 - easedProgress))
+
+    if (progress < 1) {
+      scrollAnimationFrame = window.requestAnimationFrame(step)
+      return
+    }
+
+    scrollAnimationFrame = undefined
+  }
+
+  scrollAnimationFrame = window.requestAnimationFrame(step)
+}
+
+const scrollToTop = () => {
+  const container = resolveScrollContainer()
+  if (container) {
+    animateScrollToTop(container)
+    return
+  }
+
+  if (document.scrollingElement instanceof HTMLElement) {
+    animateScrollToTop(document.scrollingElement)
+  }
+}
+
+const openFullPreferences = () => {
+  showPreferences.value = false
+  if (router.hasRoute('settingsPreferences')) {
+    void router.push({ name: 'settingsPreferences' })
+    return
+  }
+
+  if (currentSiteProfile.id === 'rejected') return
+  const targetUrl = resolveCanonicalRouteUrl('settingsPreferences', currentSiteProfile)
+  if (targetUrl) assignDocument(targetUrl)
+}
 
 const visibleActions = computed<UtilityAction[]>(() => [
   { key: 'docs', labelKey: 'nav.docs', icon: Document, open: openDocs },
-  { key: 'help', labelKey: 'nav.helpCenter', icon: QuestionFilled, open: openDocs },
+  { key: 'help', labelKey: 'nav.helpCenter', icon: QuestionFilled, open: openSupport },
+  { key: 'preferences', labelKey: 'nav.preferences', icon: Setting, open: openPreferences },
   { key: 'top', labelKey: 'nav.backToTop', icon: Top, open: scrollToTop },
 ])
+
+onBeforeUnmount(() => {
+  if (scrollAnimationFrame !== undefined) {
+    window.cancelAnimationFrame(scrollAnimationFrame)
+  }
+})
 </script>
 
 <style scoped>
@@ -106,5 +245,35 @@ const visibleActions = computed<UtilityAction[]>(() => [
   color: var(--el-color-primary);
   background: var(--el-color-primary-light-9);
   outline: none;
+}
+
+.utility-preferences {
+  display: grid;
+  gap: 12px;
+}
+
+.utility-preferences__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+}
+
+.utility-preferences__row > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.utility-preferences__row strong {
+  font-size: 14px;
+}
+
+.utility-preferences__row small {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 </style>

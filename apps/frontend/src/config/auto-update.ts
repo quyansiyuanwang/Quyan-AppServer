@@ -11,13 +11,16 @@ let initialEntryModule: string | undefined
 let pendingEntryModule: string | undefined
 let pendingEntryModuleChecks = 0
 let isRefreshPromptShown = false
+let watchDogTimer: number | undefined
 
 export const configureWatchDog = () => {
+  if (watchDogTimer !== undefined) return
+
   /**
    * 监听服务器前端构建是否更新。只比较入口模块，而不是完整 HTML，
    * 并要求连续两次观察到同一新入口，避免边缘节点短暂不一致时误提示。
    */
-  setInterval(() => {
+  const checkForUpdate = () => {
     if (isRefreshPromptShown) return
 
     fetch('/', { cache: 'no-store' })
@@ -73,5 +76,8 @@ export const configureWatchDog = () => {
       .catch((error) => {
         console.error('[WatchDog] Failed to check index.html:', error)
       })
-  }, 5 * 1000)
+  }
+
+  void checkForUpdate()
+  watchDogTimer = window.setInterval(checkForUpdate, 5 * 1000)
 }

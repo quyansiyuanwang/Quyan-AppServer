@@ -46,10 +46,6 @@ const configureTopProgress = () => {
 }
 
 const scheduleWatchDog = () => {
-  // Vite already owns reload/HMR in development. Deployment version checks only
-  // apply to immutable production assets and must never initiate local reloads.
-  if (import.meta.env.DEV) return
-
   const startWatchDog = () => {
     void import('./auto-update')
       .then(({ configureWatchDog }) => {

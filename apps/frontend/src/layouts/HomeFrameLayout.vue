@@ -74,18 +74,6 @@
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-          <el-tooltip :content="themeButtonTitle" placement="bottom" :show-after="250">
-            <button
-              type="button"
-              class="site-header__icon-button"
-              :title="themeButtonTitle"
-              :aria-label="themeButtonTitle"
-              @click="toggleTheme"
-            >
-              <el-icon><component :is="themeIcon" /></el-icon>
-            </button>
-          </el-tooltip>
-          <LanguageSwitcher compact />
           <el-popover
             placement="bottom-end"
             :width="300"
@@ -215,19 +203,33 @@
           :show-logout="false"
           :show-navigation="false"
         />
-        <el-aside v-if="showAside" class="aside">
-          <AsideMenu ref="asideMenuRef" :show-logout="isAuthenticated" />
+        <el-aside
+          v-if="showAside"
+          class="aside"
+          :class="{ 'is-collapsed': sidebarCollapsed }"
+          :width="sidebarCollapsed ? '64px' : '220px'"
+        >
+          <AsideMenu
+            ref="asideMenuRef"
+            v-model:collapsed="sidebarCollapsed"
+            :show-logout="isAuthenticated"
+          />
         </el-aside>
-        <el-main class="main" :class="{ 'is-embedded': isEmbeddedShell }">
+        <el-main ref="mainElement" class="main" :class="{ 'is-embedded': isEmbeddedShell }">
           <slot />
         </el-main>
-        <el-aside
-          v-if="showUtilityAside && !utilitySidebarCollapsed"
-          width="48px"
-          class="utility-aside"
-        >
-          <RightUtilitySidebar v-model:collapsed="utilitySidebarCollapsed" />
-        </el-aside>
+        <Transition name="utility-sidebar">
+          <el-aside
+            v-if="showUtilityAside && !utilitySidebarCollapsed"
+            width="48px"
+            class="utility-aside"
+          >
+            <RightUtilitySidebar
+              v-model:collapsed="utilitySidebarCollapsed"
+              :scroll-container="mainElement"
+            />
+          </el-aside>
+        </Transition>
       </el-container>
       <el-tooltip
         v-if="showUtilityAside && utilitySidebarCollapsed"
@@ -258,23 +260,19 @@
 import AsideMenu from '@/layouts/AsideMenu.vue'
 import RightUtilitySidebar from '@/layouts/RightUtilitySidebar.vue'
 import ImpersonationBanner from '@/components/common/ImpersonationBanner.vue'
-import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import {
   ArrowLeft,
   CopyDocument,
   Grid,
   Key,
   Lock,
-  Moon,
   MoreFilled,
-  Sunny,
   SwitchButton,
   Tools,
   UserFilled,
   Wallet,
 } from '@element-plus/icons-vue'
 import { computed, onMounted, ref, useTemplateRef } from 'vue'
-import { useThemeToggleStore } from '@/stores/themeToggleStore'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
@@ -294,7 +292,6 @@ import { copyToClipboard } from '@/utils/common'
 
 const waterMarkTextStore = useWaterMarkTextStore()
 const impersonationStore = useImpersonationStore()
-const themeToggleStore = useThemeToggleStore()
 const route = useRoute()
 const isEmbeddedShell = computed(() => route.query.embed === '1')
 const sessionStore = useSessionStore()
@@ -314,20 +311,13 @@ const showSiteHeader = computed(
     currentSiteProfile.id !== 'rejected',
 )
 const asideMenuRef = useTemplateRef<InstanceType<typeof AsideMenu>>('asideMenuRef')
-const utilitySidebarCollapsed = ref(true)
+const mainElement = useTemplateRef<HTMLElement>('mainElement')
+const sidebarCollapsed = ref(false)
+const utilitySidebarCollapsed = ref(false)
 const utilitySidebarReopenTop = ref<number | null>(null)
 const utilitySidebarReopenDragging = ref(false)
 const permissionStore = usePermissionStore()
 const userInfoStore = useUserInfoStore()
-
-const isDark = themeToggleStore.useIsDark()
-const themeIcon = computed(() => (isDark.value ? Sunny : Moon))
-const themeButtonTitle = computed(() =>
-  isDark.value
-    ? i18ns.t('floatingOverlay.switchToLightTheme')
-    : i18ns.t('floatingOverlay.switchToDarkTheme'),
-)
-const toggleTheme = () => themeToggleStore.toggleTheme()
 
 const accountName = computed(
   () => userInfoStore.userInfo.name?.trim() || userInfoStore.userInfo.username || '—',
@@ -760,12 +750,30 @@ onMounted(() => {
   width: auto;
   overflow: hidden;
   border-right: 1px solid var(--surface-card-border);
-  transition: width 0.24s ease;
+  transition: width 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: width;
 }
 
 .utility-aside {
   overflow: hidden;
   border-left: 1px solid var(--surface-card-border);
+  will-change: width, opacity, transform;
+}
+
+.utility-sidebar-enter-active,
+.utility-sidebar-leave-active {
+  overflow: hidden;
+  transition:
+    width 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.18s ease,
+    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.utility-sidebar-enter-from,
+.utility-sidebar-leave-to {
+  width: 0 !important;
+  opacity: 0;
+  transform: translateX(10px);
 }
 
 .utility-sidebar-reopen {

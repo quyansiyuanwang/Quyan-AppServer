@@ -5110,6 +5110,9 @@ const zhCN: DeepStringify<typeof en> = {
     monthly_pass_daily_limit: '% 已用',
     relay_token_quota_low: '% 已用',
   },
+  utility: {
+    customerSupportComingSoon: '在线客服即将上线。',
+  },
 }
 
 export default zhCN
