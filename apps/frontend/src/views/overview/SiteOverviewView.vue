@@ -47,6 +47,56 @@
       </article>
     </section>
 
+    <SiteOverviewCharts :charts="charts" />
+
+    <SiteOverviewFeatureGrid :previews="featurePreviews" />
+
+    <section v-if="details.length || breakdown.length" class="site-overview__detail-grid">
+      <el-card v-if="details.length" shadow="never" class="site-overview__detail-panel">
+        <template #header>
+          <div class="site-overview__panel-heading">
+            <span>{{ i18ns.t('siteOverview.details.title') }}</span>
+            <el-tag size="small" type="info">{{ details.length }}</el-tag>
+          </div>
+        </template>
+        <div class="site-overview__detail-list">
+          <div v-for="detail in details" :key="detail.id" class="site-overview__detail-row">
+            <span>{{ detail.label || (detail.labelKey ? i18ns.t(detail.labelKey) : '') }}</span>
+            <strong>{{ formatDetailValue(detail.value) }}</strong>
+            <small v-if="detail.secondary">{{ detail.secondary }}</small>
+          </div>
+        </div>
+      </el-card>
+
+      <el-card v-if="breakdown.length" shadow="never" class="site-overview__detail-panel">
+        <template #header>
+          <div class="site-overview__panel-heading">
+            <span>{{ i18ns.t('siteOverview.details.distribution') }}</span>
+            <el-icon><DataAnalysis /></el-icon>
+          </div>
+        </template>
+        <div
+          class="site-overview__breakdown"
+          role="img"
+          :aria-label="i18ns.t('siteOverview.details.distribution')"
+        >
+          <div v-for="item in breakdown" :key="item.id" class="site-overview__breakdown-row">
+            <div class="site-overview__breakdown-label">
+              <span>{{ item.label }}</span>
+              <strong>{{ formatMetricValue(item.value) }}</strong>
+            </div>
+            <div class="site-overview__bar-track">
+              <span
+                class="site-overview__bar"
+                :class="`is-${item.tone}`"
+                :style="{ width: `${breakdownPercent(item.value)}%` }"
+              />
+            </div>
+          </div>
+        </div>
+      </el-card>
+    </section>
+
     <section v-if="actions.length" class="site-overview__actions">
       <el-button
         v-for="action in actions"
@@ -68,12 +118,24 @@ import { i18ns, type I18nENAvailableKeys } from '@/locales'
 import { currentSiteProfile } from '@/router'
 import router from '@/router'
 import { useSiteOverview } from '@/composables/useSiteOverview'
+import SiteOverviewCharts from '@/components/overview/SiteOverviewCharts.vue'
+import SiteOverviewFeatureGrid from '@/components/overview/SiteOverviewFeatureGrid.vue'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 
 const permissionStore = usePermissionStore()
 const userInfoStore = useUserInfoStore()
-const { actions, loading, metrics, partialFailure, load } = useSiteOverview()
+const {
+  actions,
+  breakdown,
+  charts,
+  details,
+  featurePreviews,
+  loading,
+  metrics,
+  partialFailure,
+  load,
+} = useSiteOverview()
 
 const siteName = computed(() => i18ns.t(currentSiteProfile.labelKey as I18nENAvailableKeys))
 const isGuestSite = computed(
@@ -89,6 +151,17 @@ const userLabel = computed(
 
 const formatMetricValue = (value: string | number) =>
   value === 'unlimited' ? i18ns.t('siteOverview.unlimited') : value
+
+const formatDetailValue = (value: string | number) => {
+  if (value === 'unlimited') return i18ns.t('siteOverview.unlimited')
+  if (value === 'enabled') return i18ns.t('siteOverview.details.enabled')
+  if (value === 'disabled') return i18ns.t('siteOverview.details.disabled')
+  return value
+}
+
+const breakdownMax = computed(() => Math.max(...breakdown.value.map((item) => item.value), 1))
+const breakdownPercent = (value: number) =>
+  Math.max(4, Math.round((value / breakdownMax.value) * 100))
 </script>
 
 <style scoped>
@@ -168,9 +241,105 @@ const formatMetricValue = (value: string | number) =>
   gap: 10px;
 }
 
+.site-overview__detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+  gap: 16px;
+}
+
+.site-overview__detail-panel {
+  min-width: 0;
+}
+
+.site-overview__panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.site-overview__detail-list,
+.site-overview__breakdown {
+  display: grid;
+  gap: 14px;
+}
+
+.site-overview__detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.site-overview__detail-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.site-overview__detail-row span,
+.site-overview__detail-row small {
+  color: var(--el-text-color-secondary);
+}
+
+.site-overview__detail-row small {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-overview__breakdown-row {
+  display: grid;
+  gap: 8px;
+}
+
+.site-overview__breakdown-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.site-overview__breakdown-label strong {
+  color: var(--el-text-color-primary);
+}
+
+.site-overview__bar-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--el-fill-color-light);
+}
+
+.site-overview__bar {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  transition: width 240ms ease;
+}
+
+.site-overview__bar.is-primary {
+  background: var(--el-color-primary);
+}
+
+.site-overview__bar.is-success {
+  background: var(--el-color-success);
+}
+
+.site-overview__bar.is-warning {
+  background: var(--el-color-warning);
+}
+
 @media (max-width: 640px) {
   .site-overview {
     padding: 16px;
+  }
+
+  .site-overview__detail-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

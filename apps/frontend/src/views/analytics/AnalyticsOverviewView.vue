@@ -75,6 +75,8 @@
           <el-table-column prop="count" label="PV" width="100" />
         </el-table>
       </el-card>
+
+      <SiteOverviewFeatureGrid :previews="featurePreviews" />
     </div>
   </div>
 </template>
@@ -82,6 +84,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { analyticsService, type TrackStatsResponse } from '@/service/analyticsService'
+import SiteOverviewFeatureGrid from '@/components/overview/SiteOverviewFeatureGrid.vue'
+import { useSiteOverview } from '@/composables/useSiteOverview'
 import { Notification } from '@/utils/notification'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
@@ -110,6 +114,7 @@ function applyShortcut(s: { label: string; days: number }) {
   loadStats()
 }
 const stats = ref<TrackStatsResponse | null>(null)
+const { featurePreviews } = useSiteOverview()
 const timelineChartEl = ref<HTMLElement | null>(null)
 let chart: echarts.ECharts | null = null
 
@@ -200,5 +205,9 @@ onUnmounted(() => {
   font-size: 28px;
   font-weight: 700;
   color: var(--el-text-color-primary);
+}
+
+.analytics-content :deep(.site-overview-features) {
+  margin-top: 16px;
 }
 </style>

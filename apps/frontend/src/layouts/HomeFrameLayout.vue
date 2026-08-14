@@ -301,8 +301,12 @@ const sessionStore = useSessionStore()
 const isAuthenticated = computed(() => sessionStore.isAuthenticated)
 const isPublicProfile = computed(() => currentSiteProfile.id === 'public')
 const isAccountProfile = computed(() => currentSiteProfile.id === 'account')
-const showAside = computed(() => !isEmbeddedShell.value && isAuthenticated.value)
-const showUtilityAside = computed(() => !isEmbeddedShell.value && isAuthenticated.value)
+const showAside = computed(
+  () => !isEmbeddedShell.value && isAuthenticated.value && !isPublicProfile.value,
+)
+const showUtilityAside = computed(
+  () => !isEmbeddedShell.value && isAuthenticated.value && !isPublicProfile.value,
+)
 const showSiteHeader = computed(
   () =>
     !isEmbeddedShell.value &&
@@ -447,14 +451,14 @@ onMounted(() => {
   color: var(--color-text);
 }
 
+.common-layout.is-embedded {
+  min-height: 100vh;
+}
+
 .site-switcher-only {
   position: fixed;
   width: 0;
   height: 0;
-}
-
-.common-layout.is-embedded {
-  min-height: 100vh;
 }
 
 .title {

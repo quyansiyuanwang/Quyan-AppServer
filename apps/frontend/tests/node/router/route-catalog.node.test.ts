@@ -5,6 +5,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import { getRouteCatalogEntry, resolveRouteMigration, routeCatalog } from '@/router/route-catalog'
 import { resolveRouteMigrationUrl } from '@/router/route-migration'
 import { siteOverviewMetricProfileIds } from '@/config/site-overview'
+import { siteOverviewFeatures } from '@/config/site-overview-features'
 
 const getKnownProfile = (hostname: string) => {
   const profile = resolveSiteProfile(hostname)
@@ -77,6 +78,50 @@ describe('route catalog', () => {
     for (const profile of siteProfiles) {
       if (profile.id === 'terminal') continue
       expect(metricProfiles.has(profile.id), profile.id).toBe(true)
+    }
+  })
+
+  it('keeps every overview feature preview bound to a route on its owning site', () => {
+    const featureKeys = new Set<string>()
+
+    for (const feature of siteOverviewFeatures) {
+      const entry = getRouteCatalogEntry(feature.route)
+      expect(entry, feature.route).toBeDefined()
+
+      for (const profileId of feature.profiles) {
+        const key = `${profileId}:${feature.route}`
+        expect(featureKeys.has(key), `Duplicate feature preview: ${key}`).toBe(false)
+        featureKeys.add(key)
+        expect(entry?.group, feature.route).toBe(profileId)
+        const profile = siteProfiles.find((candidate) => candidate.id === profileId)
+        expect(profile, profileId).toBeDefined()
+        expect(collectRouteNames(createRoutesForProfile(profile!))).toContain(feature.route)
+      }
+    }
+  })
+
+  it('covers every non-overview leaf exposed through a site sidebar category', () => {
+    const sidebarRedirectAliases = new Set(['permission'])
+
+    for (const profile of siteProfiles) {
+      const expectedRoutes = routeCatalog
+        .filter(
+          (entry) =>
+            profile.routeGroups.includes(entry.group) &&
+            Boolean(entry.overviewCategory) &&
+            entry.path !== '/overview' &&
+            !entry.path.includes(':') &&
+            !sidebarRedirectAliases.has(entry.name),
+        )
+        .map((entry) => entry.name)
+
+      const previewRoutes = siteOverviewFeatures
+        .filter((feature) => feature.profiles.includes(profile.id))
+        .map((feature) => feature.route)
+
+      for (const route of expectedRoutes) {
+        expect(previewRoutes, `${profile.id}:${route}`).toContain(route)
+      }
     }
   })
 
