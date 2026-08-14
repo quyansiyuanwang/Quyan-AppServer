@@ -1,4 +1,5 @@
 import { sanitizeInt } from "./common";
+import { buildFirstPartyOrigins, resolveRootDomain, resolveTrustedRootDomains } from "./domain";
 import type { EnvSnapshot } from "./source";
 
 export function buildRuntimeConfig(source: EnvSnapshot) {
@@ -12,14 +13,33 @@ export function buildRuntimeConfig(source: EnvSnapshot) {
   if (trustProxyHops < 0 || trustProxyHops > 10)
     throw new Error("TRUST_PROXY_HOPS must be an integer between 0 and 10");
 
+  const isProduction = nodeEnv === "production";
+  const rootDomain = resolveRootDomain(source, isProduction);
+  const trustedRootDomains = resolveTrustedRootDomains(source, isProduction);
+  const configuredCorsAllowedOrigins = String(source.CORS_ALLOWED_ORIGINS || "").trim();
+  const corsAllowedOrigins =
+    configuredCorsAllowedOrigins ||
+    trustedRootDomains
+      .flatMap((domain) => buildFirstPartyOrigins(domain, isProduction ? undefined : ":5173"))
+      .join(",");
+  if (
+    corsAllowedOrigins
+      .split(",")
+      .map((origin) => origin.trim())
+      .some((origin) => origin.includes("*") || origin.startsWith("regex:"))
+  )
+    throw new Error("CORS_ALLOWED_ORIGINS only supports exact origins");
+
   return {
-    isProduction: nodeEnv === "production",
+    isProduction,
     isDevelopment: nodeEnv === "development",
     isTest: nodeEnv === "test",
     nodeEnv,
+    rootDomain,
+    trustedRootDomains,
     port: Number.parseInt(port, 10),
     trustProxyHops,
-    corsAllowedOrigins: String(source.CORS_ALLOWED_ORIGINS || ""),
+    corsAllowedOrigins,
     cwd: process.cwd(),
     logging: {
       disableConsoleLog: source.DISABLE_CONSOLE_LOG === "true",

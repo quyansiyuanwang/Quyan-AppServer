@@ -1,6 +1,6 @@
 # Permission management
 
-Use this page to inspect effective user permissions and adjust user-level overrides.
+Access control is split into overview, identity management, and permission management. Use these permission pages to inspect effective user permissions and adjust user-level overrides.
 
 ## Page purpose
 
@@ -16,12 +16,22 @@ Use this page to inspect effective user permissions and adjust user-level overri
 - Refresh action.
 - Paginated list.
 
-### Permission details
+### Authorizations
+
+- Handles only user-level grants and removals.
+- Editing requires `PERMISSION_ADD` or `PERMISSION_REMOVE`.
+
+### Permission policies
 
 - Effective permissions.
 - Group-provided permissions.
 - Individually added permissions.
 - Individually removed permissions.
+
+### Permission diagnostics
+
+- Uses the same live data as permission policies, displayed continuously by source.
+- Helps establish whether final access comes from a group, a user-level grant, or a user-level removal.
 
 ### Edit actions
 
@@ -32,7 +42,7 @@ Use this page to inspect effective user permissions and adjust user-level overri
 ## Common actions
 
 1. Find the target user.
-2. Open permission details to see the source of each permission.
+2. Open Permission Policies or Permission Diagnostics to see the source of each permission.
 3. Add user-level permissions for special access.
 4. Remove user-level permissions to restrict a specific capability.
 
@@ -57,4 +67,5 @@ Changing a group's permission set additionally requires a fresh 2FA step-up chal
 
 - `user-management`
 - `group-management`
+- `ram-management` (roles)
 - `legal-policy-management`

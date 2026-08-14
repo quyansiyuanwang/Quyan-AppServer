@@ -36,13 +36,13 @@ pnpm run dev
 
 ```bash
 pnpm run dev
-pnpm run prod
+pnpm run production
 pnpm run preview
 pnpm run build
-pnpm run build:prod
+pnpm run build:production
 pnpm run build-only
 pnpm run build-only:prod
-pnpm run build:full:prod
+pnpm run build:full:production
 ```
 
 ### 类型与格式校验
@@ -78,7 +78,8 @@ pnpm run test:coverage
 参考 `frontend/.env.example`：
 
 ```env
-VITE_BACKEND_URL=http://localhost:10001
+VITE_BACKEND_URL=
+VITE_AI_PROXY_URL=/relay/proxy
 VITE_RECAPTCHA_SITE_KEY=
 VITE_TURNSTILE_SITE_KEY=
 ```

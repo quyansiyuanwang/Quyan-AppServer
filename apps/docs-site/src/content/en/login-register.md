@@ -2,6 +2,8 @@
 
 Use this page to sign in to an existing account or create a new one.
 
+Sign-in, registration, password recovery, social-login callbacks, two-factor verification, and passkey authentication all finish on the authentication site. When you open a protected page from a product site, you are sent there and then returned safely to the original page. Login tokens are never placed in the URL.
+
 ## Page purpose
 
 - Switch between login mode and register mode on the same screen.
@@ -36,6 +38,7 @@ Use this page to sign in to an existing account or create a new one.
 - Registration normally needs a valid email address and verification code.
 - If passkey sign-in is available, it can reduce repeated password entry.
 - If you cannot remember your password, use the dedicated recovery page instead of creating a duplicate account.
+- After authentication, each product site restores its own protected session. Do not treat browser storage as a cross-site sign-in mechanism.
 
 ## Related pages
 

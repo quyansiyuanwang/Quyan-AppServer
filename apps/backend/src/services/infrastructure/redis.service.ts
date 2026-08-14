@@ -225,6 +225,18 @@ export class RedisService {
     return this.executeWithCircuit("delete", null, async () => this.client!.del(key));
   }
 
+  /** Atomically returns a value and removes its key. */
+  public async getAndDelete(key: string): Promise<string | null> {
+    return this.executeWithCircuit("getAndDelete", null, async () => {
+      const result = await this.client!.eval(
+        "local value = redis.call('GET', KEYS[1]); if value then redis.call('DEL', KEYS[1]); end; return value;",
+        1,
+        key,
+      );
+      return typeof result === "string" ? result : null;
+    });
+  }
+
   /**
    * Check if a key exists in Redis
    * @param key Redis key

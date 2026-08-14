@@ -67,6 +67,7 @@ import {
   parseRelayChannelAllowedModelNames,
   parseRelayTokenAllowedModelIds,
   supportsRelayRequestFormat,
+  type RelayRequestFormat,
 } from "@/util/relay-model-availability.util";
 import {
   DEFAULT_CACHE_CREATION_MULTIPLIER,
@@ -411,13 +412,13 @@ export class RelayProxyService {
     return parts.map((item) => item.trim()).filter(Boolean);
   }
 
-  private extractPromptPreview(req: any, requestFormat: "openai" | "anthropic" | "gemini"): string | null {
+  private extractPromptPreview(req: any, requestFormat: RelayRequestFormat): string | null {
     const body = req?.body;
     if (!body || Buffer.isBuffer(body)) return null;
 
     const chunks: string[] = [];
 
-    if (requestFormat === "openai") {
+    if (this.isOpenAIRequestFormat(requestFormat)) {
       if (Array.isArray(body.messages))
         for (const message of body.messages) {
           if (message?.role !== "user") continue;
@@ -455,7 +456,7 @@ export class RelayProxyService {
   private async logRelayBusinessOperation(params: {
     relayToken: RelayTokenWithChannel;
     req: any;
-    requestFormat: "openai" | "anthropic" | "gemini";
+    requestFormat: RelayRequestFormat;
     selectedModelName: string;
     selectedModelId: string;
     channelId?: string | null;
@@ -531,10 +532,10 @@ export class RelayProxyService {
     return match?.[1]?.trim() || null;
   }
 
-  private extractRequestedModel(req: any, requestFormat: "openai" | "anthropic" | "gemini"): string | null {
+  private extractRequestedModel(req: any, requestFormat: RelayRequestFormat): string | null {
     if (typeof req.body?.model === "string") return req.body.model;
 
-    if (requestFormat === "openai" && this.isMultipartRequest(req))
+    if (requestFormat === "openai-chat-completions" && this.isMultipartRequest(req))
       return this.extractRequestedModelFromMultipartBody(req);
 
     if (requestFormat === "gemini") {
@@ -578,6 +579,10 @@ export class RelayProxyService {
     return false;
   }
 
+  private isOpenAIRequestFormat(requestFormat: RelayRequestFormat): boolean {
+    return requestFormat === "openai" || requestFormat.startsWith("openai-");
+  }
+
   private isGeminiFormat(req: any): boolean {
     return (
       req.path.includes("/models/") &&
@@ -600,10 +605,12 @@ export class RelayProxyService {
     return false;
   }
 
-  private getRequestFormat(req: any): "openai" | "anthropic" | "gemini" {
+  private getRequestFormat(req: any): RelayRequestFormat {
     if (this.isGeminiFormat(req)) return "gemini";
 
-    if (this.isOpenAIFormat(req)) return "openai";
+    const requestPath = String(req.path || "");
+    if (/\/(?:v\d+(?:beta)?\/)?responses(?:$|[/?])/.test(requestPath)) return "openai-responses";
+    if (this.isOpenAIFormat(req)) return "openai-chat-completions";
 
     if (this.isAnthropicFormat(req)) return "anthropic";
 
@@ -676,7 +683,7 @@ export class RelayProxyService {
 
   private resolveChannelUpstreamConfig(
     channel: RelayChannel,
-    requestFormat: "openai" | "anthropic" | "gemini",
+    requestFormat: RelayRequestFormat,
   ): {
     upstreamUrl: string;
     upstreamApiKey: string;
@@ -692,7 +699,7 @@ export class RelayProxyService {
       channelMultiplier: Number(channel.multiplier),
     };
 
-    if (requestFormat === "openai") {
+    if (this.isOpenAIRequestFormat(requestFormat)) {
       if (!effectiveConfig.openaiUpstreamUrl)
         throw new RelayChannelSkipError("Channel does not have OpenAI upstream configured", "channel-upstream-missing");
       if (!effectiveConfig.openaiUpstreamApiKey)
@@ -872,7 +879,7 @@ export class RelayProxyService {
 
   async getAvailableModelsForToken(
     relayToken: RelayTokenAvailabilityInput,
-    requestFormat: "openai" | "anthropic" | "gemini",
+    requestFormat: RelayRequestFormat,
   ): Promise<string[]> {
     const modelPricing = await this.modelPricingService.getModelPricing();
     const attemptPlan = await this.buildAttemptPlan(relayToken);
@@ -888,8 +895,12 @@ export class RelayProxyService {
           ),
         ),
       ].join(",");
+      const formatLabel =
+        requestFormat === "openai-chat-completions"
+          ? "openai format requests (openai-chat-completions format requests)"
+          : `${requestFormat} format requests`;
       throw new BadRequestError(
-        `Channel does not support ${requestFormat} format requests. Allowed formats: ${allowedFormats || "none"}`,
+        `Channel does not support ${formatLabel}. Allowed formats: ${allowedFormats || "none"}`,
       );
     }
 
@@ -974,7 +985,7 @@ export class RelayProxyService {
     anthropic: string[];
     gemini: string[];
   }> {
-    const getModels = async (requestFormat: "openai" | "anthropic" | "gemini") => {
+    const getModels = async (requestFormat: RelayRequestFormat) => {
       try {
         return await this.getAvailableModelsForToken(relayToken, requestFormat);
       } catch (error) {
@@ -984,7 +995,7 @@ export class RelayProxyService {
     };
 
     const [openai, anthropic, gemini] = await Promise.all([
-      getModels("openai"),
+      getModels("openai-chat-completions"),
       getModels("anthropic"),
       getModels("gemini"),
     ]);
@@ -995,21 +1006,13 @@ export class RelayProxyService {
     return path.replace(/(\/models\/)([^/:]+)(?=[:/])/, `$1${encodeURIComponent(upstreamModelId)}`);
   }
 
-  private buildUpstreamPath(
-    requestPath: string,
-    requestFormat: "openai" | "anthropic" | "gemini",
-    upstreamModelId: string,
-  ): string {
+  private buildUpstreamPath(requestPath: string, requestFormat: RelayRequestFormat, upstreamModelId: string): string {
     const normalizedPath = requestPath.replace(/^\/relay\/proxy/, "");
     if (requestFormat !== "gemini") return normalizedPath;
     return this.rewriteGeminiModelPath(normalizedPath, upstreamModelId);
   }
 
-  private buildForwardBody(
-    requestBody: any,
-    requestFormat: "openai" | "anthropic" | "gemini",
-    upstreamModelId: string,
-  ): any {
+  private buildForwardBody(requestBody: any, requestFormat: RelayRequestFormat, upstreamModelId: string): any {
     if (Buffer.isBuffer(requestBody)) return requestBody;
     if (!requestBody || typeof requestBody !== "object") return requestBody;
 
@@ -1048,12 +1051,12 @@ export class RelayProxyService {
 
   private normalizeOpenAIImageEditsMultipartBody(
     requestBody: any,
-    requestFormat: "openai" | "anthropic" | "gemini",
+    requestFormat: RelayRequestFormat,
     requestPath: string,
     contentType: unknown,
   ): any {
     if (
-      requestFormat !== "openai" ||
+      !["openai", "openai-chat-completions"].includes(requestFormat) ||
       !Buffer.isBuffer(requestBody) ||
       !this.isOpenAIImageEditsPath(requestPath) ||
       !String(contentType || "")
@@ -1119,11 +1122,11 @@ export class RelayProxyService {
 
   private addOpenAIStreamUsageOption(
     requestBody: any,
-    requestFormat: "openai" | "anthropic" | "gemini",
+    requestFormat: RelayRequestFormat,
     requestPath: string,
   ): { body: any; autoInjected: boolean } {
     if (
-      requestFormat !== "openai" ||
+      !["openai", "openai-chat-completions"].includes(requestFormat) ||
       !this.isOpenAIChatCompletionsPath(requestPath) ||
       !requestBody ||
       typeof requestBody !== "object" ||
@@ -1237,9 +1240,9 @@ export class RelayProxyService {
     });
   }
 
-  private isImageRequest(req: any, requestFormat: "openai" | "anthropic" | "gemini"): boolean {
+  private isImageRequest(req: any, requestFormat: RelayRequestFormat): boolean {
     const rawPath = String(req.path || req.originalUrl || req.url || "");
-    if (requestFormat === "openai") {
+    if (this.isOpenAIRequestFormat(requestFormat)) {
       if (/\/images\/(generations|edits|variations)(?:$|[/?])/.test(rawPath)) return true;
 
       if (/\/responses(?:$|[/?])/.test(rawPath)) {
@@ -1919,7 +1922,7 @@ export class RelayProxyService {
 
   private buildFailoverStickyChannelKey(
     relayTokenId: string,
-    requestFormat: "openai" | "anthropic" | "gemini",
+    requestFormat: RelayRequestFormat,
     requestedModel: string,
   ): string {
     const normalizedModel = encodeURIComponent(requestedModel.trim() || "_");
@@ -1928,7 +1931,7 @@ export class RelayProxyService {
 
   private async clearStickyPreferredChannel(params: {
     relayTokenId: string;
-    requestFormat: "openai" | "anthropic" | "gemini";
+    requestFormat: RelayRequestFormat;
     requestedModel: string;
   }): Promise<void> {
     const stickyKey = this.buildFailoverStickyChannelKey(
@@ -1950,7 +1953,7 @@ export class RelayProxyService {
 
   private async getStickyPreferredChannelId(params: {
     relayTokenId: string;
-    requestFormat: "openai" | "anthropic" | "gemini";
+    requestFormat: RelayRequestFormat;
     requestedModel: string;
     failbackCooldownMinutes: number;
   }): Promise<string | null> {
@@ -1979,7 +1982,7 @@ export class RelayProxyService {
   private async setStickyPreferredChannel(params: {
     relayTokenId: string;
     channelId: string;
-    requestFormat: "openai" | "anthropic" | "gemini";
+    requestFormat: RelayRequestFormat;
     requestedModel: string;
     failbackCooldownMinutes: number;
   }): Promise<void> {
@@ -2008,7 +2011,7 @@ export class RelayProxyService {
 
   private isStickyPreferredChannelEligible(params: {
     channel: RelayChannel;
-    requestFormat: "openai" | "anthropic" | "gemini";
+    requestFormat: RelayRequestFormat;
     requestedModel: string;
     candidateModelConfigs: ModelPricingDto[];
   }): boolean {
@@ -2029,7 +2032,7 @@ export class RelayProxyService {
   private async prioritizeStickyPreferredChannel(params: {
     relayToken: RelayTokenWithChannel;
     channels: RelayResolvedChannelCandidate[];
-    requestFormat: "openai" | "anthropic" | "gemini";
+    requestFormat: RelayRequestFormat;
     requestedModel: string;
     candidateModelConfigs: ModelPricingDto[];
     failbackCooldownMinutes: number;
@@ -2117,7 +2120,7 @@ export class RelayProxyService {
     requestPath: string;
     method: string;
     modelName?: string;
-    requestFormat?: "openai" | "anthropic" | "gemini";
+    requestFormat?: RelayRequestFormat;
     requestedModel?: string;
     failbackCooldownMinutes?: number;
     allowStickyFailover?: boolean;
@@ -2752,7 +2755,7 @@ export class RelayProxyService {
     if (!supportsRelayRequestFormat(firstModelConfig.supportedFormats, requestFormat))
       throw new BadRequestError(
         `Model ${normalizedRequestedModel} does not support ${requestFormat} format. Supported formats: ${
-          firstModelConfig.supportedFormats || "all"
+          firstModelConfig.supportedFormats || "openai-chat-completions,anthropic,gemini"
         }`,
       );
 
@@ -2983,7 +2986,7 @@ export class RelayProxyService {
             for (const key of ALLOWED_HEADERS) if (req.headers[key]) headers[key] = req.headers[key];
 
             if (requestFormat === "gemini") headers["x-goog-api-key"] = upstreamApiKey;
-            else if (requestFormat === "openai") headers["Authorization"] = `Bearer ${upstreamApiKey}`;
+            else if (this.isOpenAIRequestFormat(requestFormat)) headers["Authorization"] = `Bearer ${upstreamApiKey}`;
             else {
               headers["x-api-key"] = upstreamApiKey;
               headers["anthropic-version"] = "2023-06-01";
@@ -3862,7 +3865,7 @@ export class RelayProxyService {
     timeMultiplier: number,
     contextLengthMultipliers: ContextLengthMultiplierRule[] | undefined,
     convertedBody: any,
-    requestFormat: "openai" | "anthropic" | "gemini",
+    requestFormat: RelayRequestFormat,
     relayGlobalMultiplier: number = globalMultiplier,
     channelMultiplier: number = 1,
     executionChannelId: string,

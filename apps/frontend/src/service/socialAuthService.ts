@@ -170,6 +170,10 @@ export class SocialAuthService {
   isBindingRequiredData(data: unknown): data is ExternalAuthBindingRequiredData {
     return isBindingRequiredData(data)
   }
+
+  isExternalIdentity(data: unknown): data is ExternalIdentityItem {
+    return !!data && typeof data === 'object' && 'id' in data && 'provider' in data
+  }
 }
 
 export const socialAuthService = SocialAuthService.getInstance()

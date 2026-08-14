@@ -241,7 +241,8 @@ const handleDecision = async (approve: boolean) => {
   try {
     const result = await oauthAuthorizationService.decide(authorizeQuery.value, approve)
     const redirectTo = result.data.redirectTo
-    window.location.assign(redirectTo)
+    const { assignDocument } = await import('@/service/navigationService')
+    assignDocument(redirectTo)
   } catch (error) {
     ElMessage.error(i18ns.t('oauthAuthorize.submitFailed'))
     throw error

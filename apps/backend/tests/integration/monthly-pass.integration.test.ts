@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import request from "supertest";
 import { createApp } from "../../src/app";
 import { prisma } from "../../src/config/database";
@@ -130,15 +130,13 @@ describe("月卡功能 + 中转模拟AI输出 集成测试", () => {
       })
     ).id;
 
-    await reauthenticate();
-
     relayChannelId = (
       await prisma.relayChannel.create({
         data: {
           name: `test_monthly_channel_${suffix}`,
           openaiUpstreamUrl: relayAIMockPlugin.baseUrl,
           openaiUpstreamApiKey: "test-openai-key",
-          allowedFormats: "all",
+          allowedFormats: null,
           multiplier: 1,
         },
       })
@@ -179,6 +177,10 @@ describe("月卡功能 + 中转模拟AI输出 集成测试", () => {
         status: 1,
       },
     });
+  });
+
+  beforeEach(async () => {
+    await reauthenticate();
   });
 
   afterAll(async () => {

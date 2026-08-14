@@ -9,38 +9,12 @@
   <div v-if="$slots['bottom-left']" class="overlay-item bottom-left" :style="overlayStyle">
     <slot name="bottom-left" />
   </div>
-  <div
-    v-if="$slots['bottom-right']"
-    ref="bottomRightRef"
-    class="overlay-item bottom-right is-draggable"
-    :class="{ 'is-dragging': isDragging }"
-    :style="bottomRightStyle"
-    :title="overlayDragTitle"
-    @pointerdown="onPointerDown"
-    @click.capture="onClickCapture"
-  >
-    <slot name="bottom-right" />
-    <el-tooltip :content="overlayResetTitle" placement="top" :show-after="250">
-      <el-button
-        circle
-        class="overlay-reset-button"
-        :aria-label="overlayResetTitle"
-        :title="overlayResetTitle"
-        @pointerdown.stop
-        @click.stop="resetBottomRightPosition"
-      >
-        <el-icon><RefreshRight /></el-icon>
-      </el-button>
-    </el-tooltip>
-  </div>
 </template>
 
 <script setup lang="ts">
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
-import { RefreshRight } from '@element-plus/icons-vue'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import localStorageKeys from '@/constant/storagekey'
-import { i18ns } from '@/locales'
 
 type OverlayPosition = {
   left: number
@@ -75,25 +49,6 @@ const positions = ref<OverlayPositionMap>(loadSavedPositions())
 const overlayStyle = computed(() => ({
   zIndex: props.zIndex,
 }))
-
-const bottomRightStyle = computed(() => {
-  const position = positions.value['bottom-right']
-
-  if (!position) {
-    return overlayStyle.value
-  }
-
-  return {
-    ...overlayStyle.value,
-    left: `${position.left}px`,
-    top: `${position.top}px`,
-    right: 'auto',
-    bottom: 'auto',
-  }
-})
-
-const overlayDragTitle = computed(() => i18ns.t('floatingOverlay.dragHint'))
-const overlayResetTitle = computed(() => i18ns.t('floatingOverlay.resetPosition'))
 
 function loadSavedPositions(): OverlayPositionMap {
   if (typeof window === 'undefined') {
@@ -188,44 +143,6 @@ const onPointerUp = (event: PointerEvent) => {
   if (shouldSavePosition) {
     savePositions()
   }
-}
-
-const onPointerDown = (event: PointerEvent) => {
-  if (event.button !== 0 || !bottomRightRef.value) {
-    return
-  }
-
-  const rect = bottomRightRef.value.getBoundingClientRect()
-  pointerStartX.value = event.clientX
-  pointerStartY.value = event.clientY
-  pointerOffsetX.value = event.clientX - rect.left
-  pointerOffsetY.value = event.clientY - rect.top
-  activePointerId.value = event.pointerId
-  isDragging.value = false
-  shouldSuppressClick.value = false
-
-  window.addEventListener('pointermove', onPointerMove)
-  window.addEventListener('pointerup', onPointerUp)
-  window.addEventListener('pointercancel', onPointerUp)
-}
-
-const onClickCapture = (event: MouseEvent) => {
-  if (!shouldSuppressClick.value) {
-    return
-  }
-
-  event.preventDefault()
-  event.stopPropagation()
-  shouldSuppressClick.value = false
-}
-
-const resetBottomRightPosition = () => {
-  positions.value = {
-    ...positions.value,
-    'bottom-right': undefined,
-  }
-  shouldSuppressClick.value = false
-  savePositions()
 }
 
 onBeforeUnmount(() => {

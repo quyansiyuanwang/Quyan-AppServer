@@ -989,7 +989,6 @@ const setChannelListRef = (element: Element | ComponentPublicInstance | null) =>
 
 const channelLimitReached = computed(() => tokenChannelBatchAddOptions.value.length === 0)
 const showTokenChannelBatchAddDialog = ref(false)
-
 const resetTokenChannelBatchAddSelection = () => {
   tokenChannelBatchAddIds.value = []
 }
@@ -1005,3 +1004,24 @@ const confirmTokenChannelBatchAdd = () => {
   showTokenChannelBatchAddDialog.value = false
 }
 </script>
+
+<style scoped>
+.relay-token-base-url {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  margin: 0 0 12px;
+  padding: 0 4px 10px;
+  color: var(--el-text-color-regular);
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.relay-token-base-url code {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--el-color-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>

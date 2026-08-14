@@ -724,6 +724,11 @@ export const useRelayTokenManagement = () => {
     const selectedChannelIds = new Set(
       editForm.value.channelConfigs.map((config) => config.channelId.trim()).filter(Boolean),
     )
+    if (editForm.value.routingMode === 'automatic-pool') {
+      const automaticProxyPoolChannelId = editForm.value.automaticProxyPoolChannelId.trim()
+      if (automaticProxyPoolChannelId) selectedChannelIds.add(automaticProxyPoolChannelId)
+    }
+
     const resolvedModels = channels.value
       .filter((channel) => selectedChannelIds.has(channel.id))
       .flatMap((channel) =>
@@ -1927,7 +1932,8 @@ export const useRelayTokenManagement = () => {
 
   const RELAY_FORMAT_TO_CCSWITCH_APP: Record<RelayFormat, CcswitchApp> = {
     anthropic: 'claude',
-    openai: 'codex',
+    'openai-chat-completions': 'codex',
+    'openai-responses': 'codex',
     gemini: 'gemini',
   }
 
@@ -1958,7 +1964,8 @@ export const useRelayTokenManagement = () => {
 
   const getCcswitchLaunchLabel = (format: RelayFormat) => {
     switch (format) {
-      case 'openai':
+      case 'openai-chat-completions':
+      case 'openai-responses':
         return i18ns.t('relay.launchGptToCcswitch')
       case 'gemini':
         return i18ns.t('relay.launchGeminiToCcswitch')
@@ -1982,7 +1989,7 @@ export const useRelayTokenManagement = () => {
     let endpoint: string
     if (format === 'anthropic') {
       endpoint = `${baseEndpoint}`
-    } else if (format === 'openai') {
+    } else if (format === 'openai-chat-completions' || format === 'openai-responses') {
       endpoint = `${baseEndpoint}/v1`
     } else if (format === 'gemini') {
       endpoint = `${baseEndpoint}/v1beta`
@@ -2039,7 +2046,12 @@ export const useRelayTokenManagement = () => {
   const handleMoreCommand = async (command: string, row: RelayTokenDto) => {
     if (command.startsWith('launch-ccswitch-')) {
       const format = command.replace('launch-ccswitch-', '') as RelayFormat
-      if (format === 'anthropic' || format === 'openai' || format === 'gemini') {
+      if (
+        format === 'anthropic' ||
+        format === 'openai-chat-completions' ||
+        format === 'openai-responses' ||
+        format === 'gemini'
+      ) {
         await handleLaunchToCcswitch(row, format)
       }
     } else if (command === 'duplicate') {

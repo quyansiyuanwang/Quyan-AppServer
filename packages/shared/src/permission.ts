@@ -56,6 +56,8 @@ export enum Permission {
 
   // 系统管理权限
   SYSTEM_CONFIG = 'system:config',
+  SUPPORT_AI_CONFIG = 'support:ai:config',
+  SUPPORT_AI_ANALYTICS_READ = 'support:ai:analytics:read',
   SYSTEM_STATS_READ = 'system:stats:read',
   SYSTEM_CONSUMPTION_STATS_READ = 'system:consumption:read',
   SYSTEM_LOG_READ = 'system:log:read',

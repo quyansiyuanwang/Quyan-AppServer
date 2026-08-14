@@ -6,7 +6,16 @@
 
 ## 概述
 
-本项目是一个基于 Vue 3 + TypeScript 的现代化前端应用，采用 Vite 构建工具，使用 Pinia 进行状态管理，Element Plus 作为 UI 组件库。项目具有完整的认证授权系统、权限管理系统、国际化支持和事件驱动架构。
+本项目是一个基于 Vue 3 + TypeScript 的现代化前端应用，采用 Vite 构建工具，使用 Pinia 进行状态管理，Element Plus 作为 UI 组件库。启动、会话、路由和权限由单一运行时协调，避免组件或全局事件隐式改变认证流程。
+
+## 运行时与会话边界
+
+- `main.ts` 仅启动 `AppRuntime`；`AppRuntime.start()` 幂等地完成 i18n、路由、Pinia、错误报告与挂载。
+- `SessionCoordinator` 是登录、Cookie 刷新、登出、用户资料、权限与心跳的唯一所有者；页面不得恢复会话或加载当前用户权限。
+- `sessionStore` 是会话状态的响应式投影，状态为 `unknown`、`restoring`、`authenticated`、`anonymous`、`expired` 或 `failed`。
+- 游客路由不主动请求 Cookie 会话；受保护路由只等待 `ensureSession()`，资料和权限在进入后由协调器水合。
+- `navigationService` 是跨文档跳转的唯一入口，拒绝跳转至当前 URL，防止自刷新循环。
+- EventBus 仅保留 i18n、窗口和活动组件等非认证用途；认证、HTTP 重试和跳转不经过 EventBus。
 
 ## 技术栈
 
@@ -406,7 +415,8 @@ resolve: {
 **配置文件**: `.env` (参考 `.env.sample`)
 
 ```bash
-VITE_BACKEND_URL=http://localhost:10001
+VITE_BACKEND_URL=
+VITE_AI_PROXY_URL=/relay/proxy
 ```
 
 **使用方式**:

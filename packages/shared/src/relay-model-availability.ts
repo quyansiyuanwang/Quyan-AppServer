@@ -1,6 +1,18 @@
-export type RelayRequestFormat = 'openai' | 'anthropic' | 'gemini';
+/** `openai` is retained only for internal legacy-call compatibility and normalizes to Chat Completions. */
+export type RelayRequestFormat = 'openai' | 'openai-chat-completions' | 'openai-responses' | 'anthropic' | 'gemini';
+export type RelayConfiguredRequestFormat = Exclude<RelayRequestFormat, 'openai'>;
 
-export const ALL_RELAY_REQUEST_FORMATS: RelayRequestFormat[] = ['openai', 'anthropic', 'gemini'];
+export const ALL_RELAY_REQUEST_FORMATS: RelayConfiguredRequestFormat[] = [
+  'openai-chat-completions',
+  'anthropic',
+  'gemini',
+];
+
+export const RELAY_REQUEST_FORMATS: RelayConfiguredRequestFormat[] = [
+  ...ALL_RELAY_REQUEST_FORMATS.slice(0, 1),
+  'openai-responses',
+  ...ALL_RELAY_REQUEST_FORMATS.slice(1),
+];
 
 export interface ModelIdentityLike {
   model?: string | null;
@@ -55,20 +67,21 @@ export const parseRelayTokenAllowedModelIds = (allowedModels?: string | null): s
   return allowedModels.split(',').map(normalizeModelEntry).filter(Boolean);
 };
 
-export const parseRelayRequestFormats = (allowedFormats?: string | null): RelayRequestFormat[] => {
+export const parseRelayRequestFormats = (allowedFormats?: string | null): RelayConfiguredRequestFormat[] => {
   const normalizedFormats = normalizeModelEntry(allowedFormats).toLowerCase();
-  if (!normalizedFormats || normalizedFormats === 'all') return [...ALL_RELAY_REQUEST_FORMATS];
+  if (!normalizedFormats) return [...RELAY_REQUEST_FORMATS];
 
-  const validFormats = new Set<RelayRequestFormat>(ALL_RELAY_REQUEST_FORMATS);
+  const validFormats = new Set<RelayConfiguredRequestFormat>(RELAY_REQUEST_FORMATS);
   return normalizedFormats
     .split(',')
     .map(normalizeModelEntry)
-    .filter((item): item is RelayRequestFormat => validFormats.has(item as RelayRequestFormat));
+    .map((item) => (item === 'openai' ? 'openai-chat-completions' : item))
+    .filter((item): item is RelayConfiguredRequestFormat => validFormats.has(item as RelayConfiguredRequestFormat));
 };
 
 export const formatRelayRequestFormats = (formats: ReadonlyArray<RelayRequestFormat>): string => {
-  const selected = ALL_RELAY_REQUEST_FORMATS.filter((format) => formats.includes(format));
-  return selected.length === ALL_RELAY_REQUEST_FORMATS.length ? 'all' : selected.join(',');
+  const selected = RELAY_REQUEST_FORMATS.filter((format) => formats.includes(format));
+  return selected.join(',');
 };
 
 export const supportsRelayRequestFormat = (
@@ -76,7 +89,8 @@ export const supportsRelayRequestFormat = (
   requestFormat: RelayRequestFormat,
 ): boolean => {
   const normalizedFormats = normalizeModelEntry(allowedFormats).toLowerCase();
-  return !normalizedFormats || normalizedFormats === 'all' || parseRelayRequestFormats(normalizedFormats).includes(requestFormat);
+  const normalizedRequestFormat = requestFormat === 'openai' ? 'openai-chat-completions' : requestFormat;
+  return parseRelayRequestFormats(normalizedFormats).includes(normalizedRequestFormat);
 };
 
 export const isModelNameAllowed = (allowedEntries: string[] | null | undefined, modelName: string): boolean => {

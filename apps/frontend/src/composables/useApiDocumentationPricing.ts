@@ -6,7 +6,7 @@ import { modelPricingService } from '@/service/modelPricingService'
 import { relayChannelService } from '@/service/relayChannelService'
 import { LruCache } from '@/utils/lru-cache'
 import { copyTextWithFallback } from '@/utils/clipboard'
-import { normalizeRelayFormats } from '../utils/relay-formats'
+import { normalizeRelayFormatArray, normalizeRelayFormats } from '../utils/relay-formats'
 
 export type HighlightPart = {
   text: string
@@ -149,7 +149,9 @@ export const useApiDocumentationPricing = () => {
         (capability) =>
           (capability.catalogModelName === normalizedModelName ||
             capability.requestModelId === normalizedModelId) &&
-          capability.supportedRequestFormats.some((format) => modelFormats.includes(format)),
+          normalizeRelayFormatArray(capability.supportedRequestFormats).some((format) =>
+            modelFormats.includes(format),
+          ),
       )
     })
   }

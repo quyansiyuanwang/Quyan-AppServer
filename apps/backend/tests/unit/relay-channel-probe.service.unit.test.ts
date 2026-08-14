@@ -37,9 +37,10 @@ describe("relay channel probe helpers", () => {
 
   it("uses the shared channel format parser for probe endpoint availability", () => {
     expect(resolveAllowedProbeFormats("anthropic")).toEqual(["anthropic"]);
-    expect(resolveAllowedProbeFormats("openai, anthropic")).toEqual(["openai", "anthropic"]);
-    expect(resolveAllowedProbeFormats("OpenAI, Anthropic")).toEqual(["openai", "anthropic"]);
-    expect(resolveAllowedProbeFormats("all")).toEqual(["openai", "anthropic", "gemini"]);
+    expect(resolveAllowedProbeFormats("openai, anthropic")).toEqual(["openai-chat-completions", "anthropic"]);
+    expect(resolveAllowedProbeFormats("OpenAI, Anthropic")).toEqual(["openai-chat-completions", "anthropic"]);
+    expect(resolveAllowedProbeFormats("all")).toEqual([]);
+    expect(resolveAllowedProbeFormats("openai-responses")).toEqual(["openai-responses"]);
   });
 
   it("uses public pooled channel names instead of their standalone upstream members", () => {
@@ -221,18 +222,18 @@ describe("relay channel probe helpers", () => {
   });
 
   it("builds the expected model endpoint from root and versioned upstream base URLs", () => {
-    expect(buildProbeUpstreamEndpoint("https://api.example.com", "openai", "gpt-test")).toBe(
+    expect(buildProbeUpstreamEndpoint("https://api.example.com", "openai-chat-completions", "gpt-test")).toBe(
       "https://api.example.com/v1/chat/completions",
     );
-    expect(buildProbeUpstreamEndpoint("https://api.example.com/v1", "openai", "gpt-test")).toBe(
+    expect(buildProbeUpstreamEndpoint("https://api.example.com/v1", "openai-chat-completions", "gpt-test")).toBe(
       "https://api.example.com/v1/chat/completions",
     );
     expect(buildProbeUpstreamEndpoint("https://generativelanguage.example.com/v1beta", "gemini", "gemini-test")).toBe(
       "https://generativelanguage.example.com/v1beta/models/gemini-test:generateContent",
     );
-    expect(buildProbeUpstreamEndpoint("https://api.example.com/v1", "openai", "gpt-test", "openai-responses")).toBe(
-      "https://api.example.com/v1/responses",
-    );
+    expect(
+      buildProbeUpstreamEndpoint("https://api.example.com/v1", "openai-responses", "gpt-test", "openai-responses"),
+    ).toBe("https://api.example.com/v1/responses");
     expect(defaultProbeEndpoint("anthropic")).toBe("anthropic-messages");
     expect(normalizeProbeEndpoint("openai-chat-completions", "anthropic")).toBe("anthropic-messages");
   });

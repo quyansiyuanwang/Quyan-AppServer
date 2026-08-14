@@ -14,11 +14,12 @@
 | [06-api-development.md](./06-api-development.md)           | API 开发流程：添加 Controller、DTO、Service、Repository       |
 | [07-authentication.md](./07-authentication.md)             | 认证与授权：JWT、OAuth 2.0、RAM 权限、2FA、重放保护           |
 | [08-openapi-pipeline.md](./08-openapi-pipeline.md)         | OpenAPI 生成流水线：TSOA → swagger.json → 前端 typed SDK      |
-| [09-deployment.md](./09-deployment.md)                     | 构建与部署：esbuild、PM2、环境变量、生产注意事项              |
+| [09-deployment.md](./09-deployment.md)                     | 构建与部署：域名、SPA 回退、Cookie、CORS、反向代理与 PM2      |
 | [10-pr-management.md](./10-pr-management.md)               | GitHub PR 读取、风格对齐、编辑与标签流程                      |
 | [11-testing-and-ci.md](./11-testing-and-ci.md)             | 测试分类、并行隔离、数据库 worker 与 GitHub Actions 策略      |
 | [12-git-workflow-and-mcp.md](./12-git-workflow-and-mcp.md) | Git 交付、commit hook 与项目 MCP                              |
 | [13-docs-site.md](./13-docs-site.md)                       | docs-site 文档同步、写作规范与验证                            |
+| [14-domain-deployment.md](./14-domain-deployment.md)       | 多域名、反代、Cookie 与 CORS 运维部署                         |
 
 ## 快速导航
 
@@ -37,6 +38,7 @@
 - **如何选择和运行测试** → [11-testing-and-ci.md](./11-testing-and-ci.md)
 - **如何规范提交和使用项目 MCP** → [12-git-workflow-and-mcp.md](./12-git-workflow-and-mcp.md)
 - **如何同步和编写 docs-site 文档** → [13-docs-site.md](./13-docs-site.md)
+- **如何配置多域名与认证 Cookie** → [14-domain-deployment.md](./14-domain-deployment.md)
 - **开源前如何检查安全配置** → [SECURITY.md](../../SECURITY.md)
 
 ### 常用命令速查

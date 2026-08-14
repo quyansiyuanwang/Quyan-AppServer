@@ -1,15 +1,31 @@
 <template>
   <div class="card-header toolbar-row">
-    <span class="card-title">{{ i18ns.t('RamManagement.title') }}</span>
-    <div class="header-actions">
-      <el-button :icon="Refresh" @click="loadAll">{{ i18ns.t('refresh') }}</el-button>
+    <div>
+      <span class="card-title">{{ i18ns.t(titleKey) }}</span>
+      <p v-if="section === 'overview'" class="ram-section-description">
+        {{ i18ns.t('RamManagement.overviewDescription') }}
+      </p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { i18ns } from '@/locales'
-import { useRamManagementContext } from '../context'
+import { computed } from 'vue'
+import { i18ns, type I18nENAvailableKeys } from '@/locales'
+import type { RamManagementSection } from '../useRamManagement'
 
-const { Refresh, loadAll } = useRamManagementContext()
+const props = defineProps<{ section: RamManagementSection }>()
+
+const titleKey = computed<I18nENAvailableKeys>(() => {
+  const titles: Record<RamManagementSection, I18nENAvailableKeys> = {
+    overview: 'RamManagement.overview',
+    users: 'RamManagement.users',
+    roles: 'RamManagement.roles',
+    bindings: 'RamManagement.bindings',
+    policies: 'RamManagement.policies',
+    authorization: 'RamManagement.authorization',
+    sessions: 'RamManagement.sessions',
+  }
+  return titles[props.section]
+})
 </script>

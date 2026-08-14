@@ -3,7 +3,7 @@ import StorageKey from '@/constant/storagekey'
 import { CustomCode } from '@/constant/custom-code'
 import { i18ns } from '@/locales'
 import router from '@/router'
-import { preloadRouteLocation, queueBusinessRoutePreload } from '@/router/preload'
+import { preloadRouteLocation } from '@/router/preload'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
 import { md5 } from '@/utils/encryption'
 import { Notification } from '@/utils/notification'
@@ -16,6 +16,9 @@ import {
   getSafeAuthRedirect,
   isQrApprovalRedirect,
 } from '@/utils/auth-routes'
+import { completeCentralLogin, getDefaultAccountDestination } from '@/service/centralLoginService'
+import { replaceDocument } from '@/service/navigationService'
+import { resolveCurrentSiteProfile } from '@/config/site-registry'
 import { usePageDevice } from '@/composables/usePageDevice'
 import type {
   AuthData,
@@ -480,9 +483,25 @@ export function useLoginOrRegister() {
 
   const redirectAfterSuccessfulLogin = async (userData?: Record<string, any>) => {
     const { authorizationService } = await loadAuthorizationService()
-    await authorizationService.reloadAuthStoresAfterLogin(userData)
+    // A central-login flow must be consumed while this auth origin still has
+    // the newly issued access token. In development that token is deliberately
+    // short lived, while user/permission preloading can take long enough to
+    // expire it and restart the cross-domain redirect loop.
+    if (await completeCentralLogin(route.query.flowId)) return
 
+    await authorizationService.reloadAuthStoresAfterLogin(userData)
     const postLoginRoute = buildPostLoginRoute()
+
+    if (resolveCurrentSiteProfile().id === 'identity' && postLoginRoute !== '/') {
+      await router.push(postLoginRoute)
+      return
+    }
+
+    if (resolveCurrentSiteProfile().id === 'identity') {
+      replaceDocument(getDefaultAccountDestination())
+      return
+    }
+
     await preloadRouteLocation(router, postLoginRoute)
 
     Notification.notify(
@@ -492,8 +511,10 @@ export function useLoginOrRegister() {
     )
 
     await router.push(postLoginRoute)
-    queueBusinessRoutePreload(router)
   }
+
+  const getCentralFlowId = (): string | undefined =>
+    typeof route.query.flowId === 'string' ? route.query.flowId : undefined
 
   const clearQrSessionQuery = async () => {
     if (!getQrSessionIdFromRoute()) return
@@ -516,6 +537,7 @@ export function useLoginOrRegister() {
         query: {
           method: 'code',
           authEntry: 'login',
+          ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
           ...(redirect ? { redirect } : {}),
         },
       })
@@ -802,6 +824,7 @@ export function useLoginOrRegister() {
         query: {
           method: 'code',
           authEntry: 'login',
+          ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
           ...(redirect ? { redirect } : {}),
         },
       })
@@ -887,6 +910,7 @@ export function useLoginOrRegister() {
         query: {
           method: 'code',
           authEntry: 'register',
+          ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
           ...(redirect ? { redirect } : {}),
         },
       })
@@ -1153,6 +1177,7 @@ export function useLoginOrRegister() {
           query: {
             method: 'code',
             authEntry: 'login',
+            ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
             ...(redirect ? { redirect } : {}),
           },
         })

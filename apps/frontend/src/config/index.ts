@@ -47,30 +47,16 @@ const configureTopProgress = () => {
 
 const scheduleWatchDog = () => {
   const startWatchDog = () => {
-    void import('./auto-update').then(({ configureWatchDog }) => {
-      configureWatchDog()
-    })
+    void import('./auto-update')
+      .then(({ configureWatchDog }) => {
+        configureWatchDog()
+      })
+      .catch((error) => {
+        console.warn('[config] Failed to initialize update watchdog:', error)
+      })
   }
 
-  const scheduleAfterLoad = () => {
-    const idleWindow = window as IdleWindow
-
-    // Push update-checking logic out of the first-screen critical path.
-    setTimeout(() => {
-      if (typeof idleWindow.requestIdleCallback === 'function') {
-        idleWindow.requestIdleCallback(startWatchDog, { timeout: 8000 })
-        return
-      }
-      startWatchDog()
-    }, 4000)
-  }
-
-  if (document.readyState === 'complete') {
-    scheduleAfterLoad()
-    return
-  }
-
-  window.addEventListener('load', scheduleAfterLoad, { once: true })
+  scheduleAfterLoad(startWatchDog, 4000, 8000)
 }
 
 export function configureAll() {

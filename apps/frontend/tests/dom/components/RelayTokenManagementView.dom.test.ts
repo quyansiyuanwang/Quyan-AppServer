@@ -72,6 +72,7 @@ vi.mock('@element-plus/icons-vue', () => ({
   ArrowDown: defineComponent({ name: 'ArrowDownIcon', template: '<span />' }),
   ArrowRight: defineComponent({ name: 'ArrowRightIcon', template: '<span />' }),
   ArrowUp: defineComponent({ name: 'ArrowUpIcon', template: '<span />' }),
+  CopyDocument: defineComponent({ name: 'CopyDocumentIcon', template: '<span />' }),
   DocumentCopy: defineComponent({ name: 'DocumentCopyIcon', template: '<span />' }),
   Clock: defineComponent({ name: 'ClockIcon', template: '<span />' }),
   Delete: defineComponent({ name: 'DeleteIcon', template: '<span />' }),
@@ -300,7 +301,7 @@ const automaticProxyPool = {
   name: 'Automatic Pool',
   multiplier: 1,
   channelType: 'automatic-proxy-pool',
-  modelCapabilities: [],
+  modelCapabilities: [...channelPrimary.modelCapabilities],
   automaticProxyPool: {
     members: [
       { id: 'channel-primary', name: 'Primary', enabled: true },
@@ -636,6 +637,19 @@ describe('RelayTokenManagementView', () => {
     vm.openCreateDialog()
     await flushPromises()
     expect(wrapper.find('.blocked-automatic-pool-channel-select').exists()).toBe(false)
+  })
+
+  it('uses the selected automatic proxy pool models as token model options', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreateDialog()
+    vm.editForm.routingMode = 'automatic-pool'
+    vm.editForm.automaticProxyPoolChannelId = automaticProxyPool.id
+    await flushPromises()
+
+    expect(vm.filteredModelIds).toEqual(['gpt-4o', 'provider/model-a'])
   })
 
   it('does not expose disabled automatic proxy pool members as blockable channels', async () => {

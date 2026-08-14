@@ -72,6 +72,14 @@ export const getUserIdFromToken = (token?: string | null): string | null => {
   return normalizeUserId(payload?.data?.userId)
 }
 
+/** The backend rotates this value whenever a user's authorization changes. */
+export const getUserUpdatedAtFromToken = (token?: string | null): string | null => {
+  if (!token) return null
+  const payload = parseTokenPayload<{ updatedAt?: string }>(token)
+  const updatedAt = payload?.data?.updatedAt
+  return typeof updatedAt === 'string' && updatedAt.trim() ? updatedAt : null
+}
+
 export const syncCurrentStorageScopeFromToken = (token?: string | null): string => {
   const userId = getUserIdFromToken(token)
   return userId ? setCurrentStorageScopeForUserId(userId) : getCurrentStorageScope()

@@ -55,6 +55,12 @@ import type {
   ScanQrLoginDto,
   ConfirmQrLoginDto,
   QrLoginSessionStatusResponse,
+  CreateCentralLoginFlowDto,
+  CreateCentralLoginFlowResponse,
+  CreateAuthenticatedCentralLoginFlowResponse,
+  GetCentralLoginFlowContextResponse,
+  ConsumeCentralLoginFlowDto,
+  ConsumeCentralLoginFlowResponse,
 } from "@/api/dto/auth/auth.dto";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { Request as ExpressRequest } from "express";
@@ -81,6 +87,8 @@ import {
   scanQrLoginBodySchema,
   confirmQrLoginBodySchema,
   qrLoginStatusQuerySchema,
+  createCentralLoginFlowBodySchema,
+  consumeCentralLoginFlowBodySchema,
 } from "@/api/schema/auth/auth.schema";
 import { validateBody, validateQuery } from "@/middleware/validation";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
@@ -91,6 +99,7 @@ import { ConfigService } from "@/services/system/config.service";
 import { setResponseMessageKey, skipResponseWrapper } from "@/util/response-wrapper";
 import { Security } from "@tsoa/runtime";
 import { ExternalAuthService } from "@/services/auth/external-auth.service";
+import { CentralLoginFlowService } from "@/services/auth/central-login-flow.service";
 import {
   emailVerificationRateLimitMiddleware,
   passwordResetCodeRateLimitMiddleware,
@@ -112,6 +121,7 @@ export class AuthController extends Controller {
   private businessLogService = BusinessLogService.getInstance();
   private captchaService = CaptchaService.getInstance();
   private configService = ConfigService.getInstance();
+  private centralLoginFlowService = CentralLoginFlowService.getInstance();
 
   /**
    * 获取防重放签名会话
@@ -156,6 +166,46 @@ export class AuthController extends Controller {
       trusted: true,
       expiresInSeconds: Math.max(0, config.trustWindowMinutes) * 60,
     };
+  }
+
+  @Post("central-login/flows")
+  @SuccessResponse(HttpStatusCode.Ok, "中央登录续接已创建")
+  @Middlewares(validateBody(createCentralLoginFlowBodySchema))
+  public async createCentralLoginFlow(
+    @Body() requestBody: CreateCentralLoginFlowDto,
+    @Request() request: TypedRequest,
+  ): Promise<CreateCentralLoginFlowResponse> {
+    return this.centralLoginFlowService.createFlow(requestBody.returnTo, request.user?.userId);
+  }
+
+  @Post("central-login/secure-flows")
+  @Security("jwt")
+  @ReplayProtected()
+  @SuccessResponse(HttpStatusCode.Ok, "中央登录安全续接已创建")
+  @Middlewares(replayProtectionMiddleware, validateBody(createCentralLoginFlowBodySchema))
+  public async createAuthenticatedCentralLoginFlow(
+    @Body() requestBody: CreateCentralLoginFlowDto,
+    @Request() request: TypedRequest,
+  ): Promise<CreateAuthenticatedCentralLoginFlowResponse> {
+    return this.centralLoginFlowService.createFlow(requestBody.returnTo, request.user!.userId);
+  }
+
+  @Get("central-login/flows/{flowId}")
+  @SuccessResponse(HttpStatusCode.Ok, "中央登录续接有效")
+  public async getCentralLoginFlowContext(@Path() flowId: string): Promise<GetCentralLoginFlowContextResponse> {
+    return this.centralLoginFlowService.getFlowContext(flowId);
+  }
+
+  @Post("central-login/flows/consume")
+  @Security("jwt")
+  @ReplayProtected()
+  @SuccessResponse(HttpStatusCode.Ok, "中央登录续接已消费")
+  @Middlewares(replayProtectionMiddleware, validateBody(consumeCentralLoginFlowBodySchema))
+  public async consumeCentralLoginFlow(
+    @Body() requestBody: ConsumeCentralLoginFlowDto,
+    @Request() request: TypedRequest,
+  ): Promise<ConsumeCentralLoginFlowResponse> {
+    return this.centralLoginFlowService.consumeFlow(requestBody.flowId, request.user!.userId);
   }
 
   /**

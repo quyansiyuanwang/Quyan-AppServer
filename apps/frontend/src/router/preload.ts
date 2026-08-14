@@ -9,18 +9,10 @@ type RouteComponentLoader = () => unknown
 
 let routeComponentPreloadPromises = new WeakMap<RouteComponentLoader, Promise<void>>()
 let preloadedRouteComponents = new WeakSet<RouteComponentLoader>()
-let businessRoutePreloadQueued = false
-
 const getRouteComponentLoader = (record: RouteRecordNormalized): RouteComponentLoader | null => {
   const component = record.components?.default
   return typeof component === 'function' ? (component as RouteComponentLoader) : null
 }
-
-const isBusinessRoute = (record: RouteRecordNormalized): boolean =>
-  record.meta.isAuthEntry !== true &&
-  record.path !== '/:catchAll(.*)' &&
-  !record.redirect &&
-  getRouteComponentLoader(record) !== null
 
 const preloadRouteComponent = async (loader: RouteComponentLoader): Promise<void> => {
   if (preloadedRouteComponents.has(loader)) return
@@ -58,10 +50,6 @@ export const preloadRouteComponents = async (
   await Promise.all(loaders.map((loader) => preloadRouteComponent(loader)))
 }
 
-export const preloadAllBusinessRouteComponents = async (router: Router): Promise<void> => {
-  await preloadRouteComponents(router.getRoutes().filter(isBusinessRoute))
-}
-
 export const preloadResolvedRouteComponents = async (
   resolved: RouteLocationResolvedGeneric,
 ): Promise<void> => {
@@ -75,19 +63,7 @@ export const preloadRouteLocation = async (
   await preloadResolvedRouteComponents(router.resolve(target))
 }
 
-export const queueBusinessRoutePreload = (router: Router): void => {
-  if (businessRoutePreloadQueued) return
-
-  businessRoutePreloadQueued = true
-
-  void preloadAllBusinessRouteComponents(router).catch((error) => {
-    businessRoutePreloadQueued = false
-    console.warn('[router] Failed to preload business routes:', error)
-  })
-}
-
 export const __resetRoutePreloadStateForTests = (): void => {
   routeComponentPreloadPromises = new WeakMap<RouteComponentLoader, Promise<void>>()
   preloadedRouteComponents = new WeakSet<RouteComponentLoader>()
-  businessRoutePreloadQueued = false
 }

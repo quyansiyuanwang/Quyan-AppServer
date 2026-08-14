@@ -1,7 +1,7 @@
 <template>
   <div class="settings-view-root">
-    <div v-if="isDesktop" class="desktop-page">
-      <div class="settings-container">
+    <AccountProfileLayout>
+      <div v-if="isDesktop" class="desktop-page">
         <div class="page-header">
           <h1 class="page-title">{{ i18ns.t('SettingsView.profileTitle') }}</h1>
         </div>
@@ -91,91 +91,94 @@
           </el-form>
         </el-card>
       </div>
-    </div>
-    <div v-else class="mobile-page">
-      <div class="settings-mobile">
-        <h1 class="page-title">{{ i18ns.t('SettingsView.profileTitle') }}</h1>
+      <div v-else class="mobile-page">
+        <div class="settings-mobile">
+          <h1 class="page-title">{{ i18ns.t('SettingsView.profileTitle') }}</h1>
 
-        <el-card class="section-card mobile-card">
-          <el-form :model="profileForm" label-position="top">
-            <el-form-item :label="i18ns.t('username')">
-              <el-input :value="userInfoStore.userInfo.username" disabled />
-            </el-form-item>
+          <el-card class="section-card mobile-card">
+            <el-form :model="profileForm" label-position="top">
+              <el-form-item :label="i18ns.t('username')">
+                <el-input :value="userInfoStore.userInfo.username" disabled />
+              </el-form-item>
 
-            <el-form-item :label="i18ns.t('SettingsView.nameLabel')">
-              <el-input
-                v-model="profileForm.name"
-                :placeholder="i18ns.t('SettingsView.namePlaceholder')"
-                :disabled="!canUpdateProfile"
-                clearable
-              />
-              <el-button
-                class="mt-12"
-                type="primary"
-                :disabled="!canUpdateProfile"
-                :loading="profileSaving"
-                @click="handleUpdateProfile"
-              >
-                {{ i18ns.t('save') }}
-              </el-button>
-            </el-form-item>
-
-            <el-form-item :label="i18ns.t('SettingsView.emailLabel')">
-              <div class="email-current">
-                {{ i18ns.t('SettingsView.currentEmail') }}:
-                <el-tag v-if="userInfoStore.userInfo.email" type="info">
-                  {{ userInfoStore.userInfo.email }}
-                </el-tag>
-                <el-tag v-else type="warning">{{ i18ns.t('SettingsView.noEmail') }}</el-tag>
-              </div>
-
-              <div class="stack email-stack">
+              <el-form-item :label="i18ns.t('SettingsView.nameLabel')">
                 <el-input
-                  v-model="emailForm.newEmail"
-                  :placeholder="i18ns.t('SettingsView.emailPlaceholder')"
-                  :disabled="!canUpdateEmail"
-                  type="email"
-                  class="w-full"
+                  v-model="profileForm.name"
+                  :placeholder="i18ns.t('SettingsView.namePlaceholder')"
+                  :disabled="!canUpdateProfile"
+                  clearable
                 />
                 <el-button
-                  class="w-full"
-                  :disabled="!canUpdateEmail || !emailForm.newEmail || codeCooldown > 0"
-                  :loading="sendingCode"
-                  @click="handleSendEmailCode"
-                >
-                  {{
-                    codeCooldown > 0
-                      ? i18ns.t('SettingsView.resendAfter', { seconds: codeCooldown })
-                      : i18ns.t('SettingsView.sendCode')
-                  }}
-                </el-button>
-
-                <el-input
-                  v-model="emailForm.verificationCode"
-                  :placeholder="i18ns.t('SettingsView.verificationCode')"
-                  :disabled="!canUpdateEmail"
-                  maxlength="6"
-                  class="w-full"
-                />
-                <el-button
-                  class="w-full"
+                  class="mt-12"
                   type="primary"
-                  :disabled="!canUpdateEmail || !emailForm.newEmail || !emailForm.verificationCode"
-                  :loading="emailChanging"
-                  @click="handleChangeEmail"
+                  :disabled="!canUpdateProfile"
+                  :loading="profileSaving"
+                  @click="handleUpdateProfile"
                 >
-                  {{ i18ns.t('SettingsView.changeEmail') }}
+                  {{ i18ns.t('save') }}
                 </el-button>
-              </div>
-            </el-form-item>
-          </el-form>
-        </el-card>
+              </el-form-item>
+
+              <el-form-item :label="i18ns.t('SettingsView.emailLabel')">
+                <div class="email-current">
+                  {{ i18ns.t('SettingsView.currentEmail') }}:
+                  <el-tag v-if="userInfoStore.userInfo.email" type="info">
+                    {{ userInfoStore.userInfo.email }}
+                  </el-tag>
+                  <el-tag v-else type="warning">{{ i18ns.t('SettingsView.noEmail') }}</el-tag>
+                </div>
+
+                <div class="stack email-stack">
+                  <el-input
+                    v-model="emailForm.newEmail"
+                    :placeholder="i18ns.t('SettingsView.emailPlaceholder')"
+                    :disabled="!canUpdateEmail"
+                    type="email"
+                    class="w-full"
+                  />
+                  <el-button
+                    class="w-full"
+                    :disabled="!canUpdateEmail || !emailForm.newEmail || codeCooldown > 0"
+                    :loading="sendingCode"
+                    @click="handleSendEmailCode"
+                  >
+                    {{
+                      codeCooldown > 0
+                        ? i18ns.t('SettingsView.resendAfter', { seconds: codeCooldown })
+                        : i18ns.t('SettingsView.sendCode')
+                    }}
+                  </el-button>
+
+                  <el-input
+                    v-model="emailForm.verificationCode"
+                    :placeholder="i18ns.t('SettingsView.verificationCode')"
+                    :disabled="!canUpdateEmail"
+                    maxlength="6"
+                    class="w-full"
+                  />
+                  <el-button
+                    class="w-full"
+                    type="primary"
+                    :disabled="
+                      !canUpdateEmail || !emailForm.newEmail || !emailForm.verificationCode
+                    "
+                    :loading="emailChanging"
+                    @click="handleChangeEmail"
+                  >
+                    {{ i18ns.t('SettingsView.changeEmail') }}
+                  </el-button>
+                </div>
+              </el-form-item>
+            </el-form>
+          </el-card>
+        </div>
       </div>
-    </div>
+    </AccountProfileLayout>
   </div>
 </template>
 
 <script setup lang="ts">
+import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { i18ns } from '@/locales'
@@ -280,11 +283,6 @@ const { isDesktop } = usePageDevice()
 </script>
 
 <style scoped lang="scss">
-.settings-container {
-  width: 100%;
-  min-width: 0;
-}
-
 .page-header {
   margin-bottom: 24px;
 }
@@ -297,7 +295,7 @@ const { isDesktop } = usePageDevice()
 }
 
 .section-card {
-  margin-top: 16px;
+  margin-top: 0;
 }
 
 .w-full {
@@ -346,7 +344,7 @@ const { isDesktop } = usePageDevice()
 }
 
 @media (max-width: 768px) {
-  .settings-container {
+  .settings-view-root :deep(.account-profile-page) {
     max-width: 100%;
     padding: 0 4px;
   }
@@ -365,7 +363,7 @@ const { isDesktop } = usePageDevice()
 }
 
 .section-card {
-  margin-top: 12px;
+  margin-top: 0;
 }
 
 .email-current {

@@ -7,33 +7,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount } from 'vue'
+import { computed } from 'vue'
 import { useTopLoadingProgressStore } from '@/stores/topLoadingProgressStore'
-import { authEventBus, customCodeBus } from '@/stores/globalInstance'
 
 const topLoadingProgressStore = useTopLoadingProgressStore()
 
 const progress = computed(() => Math.max(0, topLoadingProgressStore.progress))
 const visible = computed(() => topLoadingProgressStore.isVisible)
-
-// 自动清理进度条的事件处理器
-const handleCleanup = () => {
-  topLoadingProgressStore.reset()
-}
-
-onMounted(() => {
-  // 监听需要清理进度条的事件
-  authEventBus.on('USER_LOGGED_OUT', handleCleanup)
-  authEventBus.on('ACCESS_TOKEN_REFRESH_FAILED', handleCleanup)
-  customCodeBus.on('TOKEN_EXPIRED_DUE_TO_UPDATE', handleCleanup)
-})
-
-onBeforeUnmount(() => {
-  // 清理事件监听
-  authEventBus.off('USER_LOGGED_OUT', handleCleanup)
-  authEventBus.off('ACCESS_TOKEN_REFRESH_FAILED', handleCleanup)
-  customCodeBus.off('TOKEN_EXPIRED_DUE_TO_UPDATE', handleCleanup)
-})
 </script>
 
 <style scoped>

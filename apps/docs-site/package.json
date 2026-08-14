@@ -6,22 +6,19 @@
   "scripts": {
     "--- a_dev ---------------------------": "",
     "dev": "vite",
-    "prod": "vite --mode prod",
+    "production": "vite --mode production",
     "preview": "vite preview",
-
     "--- b_build_atomic ----------------": "",
-    "compile": "vite build",
-    "compile:prod": "vite build --mode prod",
-
+    "support:knowledge:generate": "node ./scripts/generate-support-knowledge.mjs",
+    "compile": "pnpm run support:knowledge:generate && vite build",
+    "compile:production": "pnpm run support:knowledge:generate && vite build --mode production",
     "--- c_build_meta ------------------": "",
     "build:only": "pnpm run compile",
-    "build:only:prod": "pnpm run compile:prod",
+    "build:only:production": "pnpm run compile:production",
     "build": "pnpm run type-check && pnpm run build:only",
-    "build:prod": "pnpm run type-check && pnpm run build:only:prod",
-
+    "build:production": "pnpm run type-check && pnpm run build:only:production",
     "--- d_typecheck -------------------": "",
     "type-check": "vue-tsc --build",
-
     "--- e_lint_format -----------------": "",
     "lint": "eslint . --fix --cache",
     "lint:check": "eslint . --cache",
@@ -29,7 +26,6 @@
     "format:check": "prettier --check src/",
     "lint-format-check": "pnpm run lint:check && pnpm run format:check && pnpm run type-check",
     "spell:check": "cspell lint \"src/**/*.{ts,js,vue}\"",
-
     "--- f_check -----------------------": "",
     "check": "pnpm run lint-format-check",
     "precommit": "pnpm run lint && pnpm run format && pnpm run type-check"

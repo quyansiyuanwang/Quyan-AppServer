@@ -202,7 +202,7 @@ export interface RelayChannelOptionDto {
 export interface RelayChannelModelCapabilityDto {
   catalogModelName: string;
   requestModelId: string;
-  supportedRequestFormats: Array<"openai" | "anthropic" | "gemini">;
+  supportedRequestFormats: Array<"openai-chat-completions" | "openai-responses" | "anthropic" | "gemini">;
 }
 
 /** Model-specific multiplier range for a logical channel with variable upstream pricing. */
@@ -426,7 +426,7 @@ export interface BatchDuplicateRelayChannelsRequest {
 /** Fields that can be safely applied to multiple channels. Sensitive upstream settings and pool topology are excluded. */
 export interface BatchUpdateRelayChannelPatch {
   multiplier?: number;
-  allowedFormats?: string;
+  allowedFormats?: string | null;
   allowedModels?: string | null;
   addUserIdentifier?: boolean;
   inputTokensIncludeCacheRead?: boolean;
@@ -505,7 +505,7 @@ export interface CreateRelayChannelRequest {
    */
   multiplier?: number;
   /** 允许的格式 */
-  allowedFormats?: string;
+  allowedFormats?: string | null;
   /** 允许的模型 */
   allowedModels?: string | null;
   addUserIdentifier?: boolean;
@@ -555,7 +555,7 @@ export interface UpdateRelayChannelRequest {
   /** 价格倍率 */
   multiplier?: number;
   /** 允许的格式 */
-  allowedFormats?: string;
+  allowedFormats?: string | null;
   /** 允许的模型 */
   allowedModels?: string | null;
   addUserIdentifier?: boolean;
@@ -580,7 +580,7 @@ export interface SubmitRelayChannelRequest {
   geminiUpstreamUrl?: string;
   geminiUpstreamApiKey?: string;
   multiplier?: number;
-  allowedFormats?: string;
+  allowedFormats?: string | null;
   allowedModels?: string | null;
   inputTokensIncludeCacheRead?: boolean;
   modelMapping?: Record<string, string> | null;
@@ -614,7 +614,7 @@ export interface CreateRelayChannelChangeRequest {
   geminiUpstreamUrl?: string;
   geminiUpstreamApiKey?: string;
   multiplier?: number;
-  allowedFormats?: string;
+  allowedFormats?: string | null;
   allowedModels?: string | null;
   inputTokensIncludeCacheRead?: boolean;
   modelMapping?: Record<string, string> | null;

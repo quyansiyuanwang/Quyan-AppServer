@@ -153,8 +153,6 @@ export class PermissionService {
 
   async loadCurrentUserPermissions() {
     const userInfoStore = useUserInfoStore()
-    await userInfoStore.init()
-
     const myId = userInfoStore.userInfo.id
     if (!myId) throw toServiceError(undefined, '无法获取当前用户ID')
     const result = await getPermissionControllerApi().getUserPermissions({
@@ -164,7 +162,8 @@ export class PermissionService {
   }
 
   async ensureLoaded() {
-    await usePermissionStore().untilReady()
+    const { sessionCoordinator } = await import('@/service/sessionCoordinator')
+    await sessionCoordinator.hydrateUserAndPermissions()
   }
 }
 

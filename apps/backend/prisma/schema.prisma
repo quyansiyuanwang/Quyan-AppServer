@@ -89,6 +89,7 @@ model User {
   developerProjects            DeveloperProject[]
   developerProductEntitlements DeveloperProductEntitlement[]   @relation("DeveloperProductEntitlementOwner")
   developerProductKeys         DeveloperProductApiKey[]        @relation("DeveloperProductKeySubject")
+  supportAiUsageRecords        SupportAiUsageRecord[]
 
   @@unique([accountOwnerId, ramUsername])
   @@index([username])
@@ -97,6 +98,27 @@ model User {
   @@index([parentUserId])
   @@index([accountOwnerId, userType])
   @@map("users")
+}
+
+model SupportAiUsageRecord {
+  id             String   @id @default(cuid())
+  status         Int      @default(1)
+  createTime     DateTime @default(now())
+  updateTime     DateTime @updatedAt
+  userId         String
+  model          String   @db.VarChar(160)
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  totalTokens    Int      @default(0)
+  estimatedCost  Decimal  @default(0) @db.Decimal(14, 6)
+  durationMs     Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createTime])
+  @@index([createTime])
+  @@index([model, createTime])
+  @@map("support_ai_usage_records")
 }
 
 model DeveloperProject {
@@ -884,7 +906,7 @@ model RelayChannel {
   geminiUpstreamUrl           String?  @db.Text
   geminiUpstreamApiKey        String?  @db.Text
   multiplier                  Decimal  @default(1.0) @db.Decimal(10, 6)
-  allowedFormats              String   @default("all") @db.VarChar(50)
+  allowedFormats              String?  @db.VarChar(50)
   allowedModels               String?  @db.Text
   addUserIdentifier           Boolean  @default(true)
   inputTokensIncludeCacheRead Boolean  @default(false)
@@ -2008,7 +2030,7 @@ model ModelPricing {
   provider                String?
   cacheCreationMultiplier Decimal  @default(1.25) @db.Decimal(10, 2)
   cacheReadMultiplier     Decimal  @default(0.10) @db.Decimal(10, 2)
-  supportedFormats        String   @default("all") @db.VarChar(20)
+  supportedFormats        String?  @db.VarChar(100)
 
   @@index([model])
   @@map("model_pricing")

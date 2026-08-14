@@ -9,14 +9,23 @@
               {{ i18ns.t('refresh') }}
             </el-button>
             <el-button
-              v-if="passkeySupported"
+              v-if="allowRegistration && passkeySupported"
               type="primary"
               :loading="registering"
               @click="handleRegister"
             >
               {{ i18ns.t('passkey.register') }}
             </el-button>
-            <el-tag v-else type="info">{{ i18ns.t('passkey.notSupported') }}</el-tag>
+            <el-button
+              v-else-if="!allowRegistration"
+              type="primary"
+              @click="emit('requestRegistration')"
+            >
+              {{ i18ns.t('passkey.register') }}
+            </el-button>
+            <el-tag v-else-if="allowRegistration" type="info">{{
+              i18ns.t('passkey.notSupported')
+            }}</el-tag>
           </div>
         </div>
       </template>
@@ -63,14 +72,23 @@
               {{ i18ns.t('refresh') }}
             </el-button>
             <el-button
-              v-if="passkeySupported"
+              v-if="allowRegistration && passkeySupported"
               type="primary"
               :loading="registering"
               @click="handleRegister"
             >
               {{ i18ns.t('passkey.register') }}
             </el-button>
-            <el-tag v-else type="info">{{ i18ns.t('passkey.notSupported') }}</el-tag>
+            <el-button
+              v-else-if="!allowRegistration"
+              type="primary"
+              @click="emit('requestRegistration')"
+            >
+              {{ i18ns.t('passkey.register') }}
+            </el-button>
+            <el-tag v-else-if="allowRegistration" type="info">{{
+              i18ns.t('passkey.notSupported')
+            }}</el-tag>
           </div>
         </div>
       </template>
@@ -138,8 +156,13 @@ import { startRegistration } from '@simplewebauthn/browser'
 import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/browser'
 import { passkeyService } from '@/service/passkeyService'
 import type { PasskeyCredentialItem, RecordStringAny } from '@/client/types.gen'
+import { useRoute } from 'vue-router'
+import { completeCentralLogin } from '@/service/centralLoginService'
 
 const { isDesktop } = usePageDevice()
+const { allowRegistration = true } = defineProps<{ allowRegistration?: boolean }>()
+const emit = defineEmits<{ requestRegistration: [] }>()
+const route = useRoute()
 
 const loading = ref(false)
 const registering = ref(false)
@@ -197,6 +220,7 @@ async function confirmRegister() {
 
     ElMessage.success(i18ns.t('passkey.registerSuccess'))
     showNameDialog.value = false
+    if (await completeCentralLogin(route.query.flowId)) return
     await loadCredentials()
   } catch (err: any) {
     if (err?.name === 'NotAllowedError') {

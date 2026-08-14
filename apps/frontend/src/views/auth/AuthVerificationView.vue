@@ -196,6 +196,9 @@ import { waitForCookie } from '@/utils/cookie'
 import type { LegalPolicyType, PublicLegalPolicyDto } from '@/client/types.gen'
 import { getLoginRoute, getRegisterRoute } from '@/utils/auth-routes'
 import { getSafeAuthRedirect } from '@/utils/auth-routes'
+import { completeCentralLogin, getDefaultAccountDestination } from '@/service/centralLoginService'
+import { replaceDocument } from '@/service/navigationService'
+import { resolveCurrentSiteProfile } from '@/config/site-registry'
 
 const TwoFactorChallengeCard = defineAsyncComponent(
   () => import('@/components/auth/TwoFactorChallengeCard.vue'),
@@ -307,7 +310,16 @@ const getSafeStepUpRedirect = (): string => {
 }
 
 const completeAndRedirect = async (userData?: Record<string, any>) => {
+  // Consume a central-login flow before optional profile/permission loading;
+  // development access tokens are intentionally short lived.
+  if (await completeCentralLogin(route.query.flowId)) return
+
   await authorizationService.reloadAuthStoresAfterLogin(userData)
+
+  if (resolveCurrentSiteProfile().id === 'identity') {
+    replaceDocument(getDefaultAccountDestination())
+    return
+  }
 
   // 重试所有待 2FA 验证的请求（如果有的话）
   const requestStore = useRequestStore()

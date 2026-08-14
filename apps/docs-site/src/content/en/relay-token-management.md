@@ -68,6 +68,19 @@ The resolved member determines the upstream, model capabilities, and billing mul
 6. Disable a token first if you want to stop traffic without losing the record.
 7. Use import / export when migrating or backing up token configurations in bulk.
 
+## Call AI after creating a token
+
+After creation, copy the **Relay Base URL** shown at the top of the token drawer and store the new token in the caller's server-side environment. Do not commit it to source control, expose it in browser code, or use it as an admin-site login credential.
+
+Call `Relay Base URL + /v1/models` first to confirm which models are available. For OpenAI Chat Completions, use `Relay Base URL + /v1/chat/completions` and send:
+
+```text
+Authorization: Bearer <relay_token>
+Content-Type: application/json
+```
+
+The request format must be enabled for the token's channels. See `api-documentation` for complete curl examples, the Responses format, and image requests; see `relay-settings` to change channels, models, or formats.
+
 ## Notes
 
 - Refreshing a token value immediately invalidates the old string; callers must update their configuration.

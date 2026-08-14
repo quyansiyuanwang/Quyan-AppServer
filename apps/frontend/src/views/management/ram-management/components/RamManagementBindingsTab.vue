@@ -1,5 +1,5 @@
 <template>
-  <el-tab-pane :label="i18ns.t('RamManagement.bindings')" name="bindings">
+  <section class="ram-section">
     <div v-if="canReadBindings" class="section-toolbar">
       <el-select
         v-model="selectedRoleId"
@@ -10,6 +10,7 @@
       >
         <el-option v-for="role in roles" :key="role.id" :label="role.name" :value="role.id" />
       </el-select>
+      <el-button :icon="Refresh" @click="refreshBindings">{{ i18ns.t('refresh') }}</el-button>
     </div>
 
     <el-table v-if="canReadBindings" v-loading="loading.bindings" :data="bindings" border stripe>
@@ -41,10 +42,11 @@
     </el-table>
 
     <el-empty v-else :description="i18ns.t('message.error.forbidden')" />
-  </el-tab-pane>
+  </section>
 </template>
 
 <script setup lang="ts">
+import { Refresh } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
 
@@ -54,9 +56,17 @@ const {
   canReadBindings,
   getBindingTargetName,
   loadBindings,
+  loadGroups,
+  loadRoles,
+  loadUsers,
   loading,
   roles,
   selectedRoleId,
   unbind,
 } = useRamManagementContext()
+
+const refreshBindings = async () => {
+  await Promise.all([loadRoles(), loadUsers(), loadGroups()])
+  await loadBindings()
+}
 </script>

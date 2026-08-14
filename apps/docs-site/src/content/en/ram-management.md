@@ -12,7 +12,9 @@ RAM is the authorization and access control hub. It lets you create sub-users, d
 - **Role Sessions** — Active sessions created when a user assumes a role.
 - **Authorization Overview** — View a user's effective permissions computed from all sources.
 
-## Tabs overview
+## Page structure
+
+The RAM console uses dedicated URLs for overview, identity management, permission management, and sessions instead of a single large tabbed page. Legacy user, role, binding, policy, authorization, and session links with a `tab` parameter move to their corresponding page.
 
 ### Users
 
@@ -90,10 +92,10 @@ Select a user to view their complete effective permissions.
 
 ## Common workflows
 
-1. **Create a RAM user**: Users tab → Create User → fill in username, RAM username, and choose console/API access → Submit.
-2. **Define a role**: Roles tab → Create Role → name the role and set max session duration → attach policies.
+1. **Create a RAM user**: RAM Users → Create User → fill in username, RAM username, and choose console/API access → Submit.
+2. **Define a role**: Roles → Create Role → name the role and set max session duration → attach policies.
 3. **Grant access**: Bind a role to a user, or attach a policy directly to a user.
-4. **Audit permissions**: Authorization tab → select a user → review their effective permissions from all sources.
+4. **Audit permissions**: Permission Diagnostics → select a user → review their effective permissions from all sources.
 
 ## Related pages
 

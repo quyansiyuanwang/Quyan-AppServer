@@ -1,5 +1,5 @@
 <template>
-  <el-tab-pane :label="i18ns.t('RamManagement.roles')" name="roles">
+  <section class="ram-section">
     <div v-if="canReadRoles" class="section-toolbar">
       <div class="toolbar-left">
         <el-button v-if="canCreateRoles" type="primary" :icon="Plus" @click="openRoleDialog()">
@@ -13,6 +13,7 @@
         >
           {{ i18ns.t('RamManagement.batchDelete') }} ({{ selectedRoles.length }})
         </el-button>
+        <el-button :icon="Refresh" @click="refreshRoles">{{ i18ns.t('refresh') }}</el-button>
       </div>
       <el-input
         v-model="roleSearch"
@@ -82,11 +83,11 @@
     </el-table>
 
     <el-empty v-else :description="i18ns.t('message.error.forbidden')" />
-  </el-tab-pane>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { Delete, Plus, Search } from '@element-plus/icons-vue'
+import { Delete, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import type { RamRoleDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
@@ -102,12 +103,17 @@ const {
   deleteRole,
   filteredRoles,
   loading,
+  loadGroups,
+  loadRoles,
+  loadUsers,
   openBindDialog,
   openRoleDialog,
   roleSearch,
   selectRole,
   selectedRoles,
 } = useRamManagementContext()
+
+const refreshRoles = () => void Promise.all([loadRoles(), loadUsers(), loadGroups()])
 
 const handleSelectionChange = (value: RamRoleDto[]) => {
   selectedRoles.value = value

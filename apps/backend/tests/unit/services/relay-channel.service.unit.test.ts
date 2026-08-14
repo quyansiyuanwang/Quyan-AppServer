@@ -376,13 +376,13 @@ describe("RelayChannelService", () => {
       {
         catalogModelName: "gpt-4o-mini",
         requestModelId: "gpt-4o-mini",
-        supportedRequestFormats: ["openai"],
+        supportedRequestFormats: ["openai-chat-completions"],
         leafChannelId: "pool-member-a",
       },
       {
         catalogModelName: "gpt-4o-mini",
         requestModelId: "gpt-4o-mini",
-        supportedRequestFormats: ["openai"],
+        supportedRequestFormats: ["openai-chat-completions"],
         leafChannelId: "pool-member-b",
       },
     ]);
@@ -718,14 +718,19 @@ describe("RelayChannelService", () => {
 
   it("projects automatic pool options with formats inferred from member capabilities", async () => {
     relayChannelRepository.listActive.mockResolvedValue([
-      { ...sampleChannel, id: "automatic-pool", channelType: "automatic-proxy-pool", allowedFormats: "all" },
+      {
+        ...sampleChannel,
+        id: "automatic-pool",
+        channelType: "automatic-proxy-pool",
+        allowedFormats: "openai-chat-completions,anthropic,gemini",
+      },
     ]);
     relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([
       {
         leafChannelId: "leaf-openai",
         catalogModelName: "OpenAI Model",
         requestModelId: "openai-model",
-        supportedRequestFormats: ["openai"],
+        supportedRequestFormats: ["openai-chat-completions"],
         modelMapping: {},
       },
       {
@@ -738,7 +743,9 @@ describe("RelayChannelService", () => {
     ]);
 
     await expect(service.listChannelOptions("actor-user")).resolves.toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: "automatic-pool", allowedFormats: "openai,anthropic" })]),
+      expect.arrayContaining([
+        expect.objectContaining({ id: "automatic-pool", allowedFormats: "openai-chat-completions,anthropic" }),
+      ]),
     );
   });
 
@@ -1124,7 +1131,19 @@ describe("RelayChannelService", () => {
         },
         "actor-user",
       ),
-    ).rejects.toThrow("allowedFormats 'both' is deprecated");
+    ).rejects.toThrow("allowedFormats must list explicit formats");
+
+    await expect(
+      service.createChannel(
+        {
+          name: "Channel",
+          openaiUpstreamUrl: "https://upstream.example.com",
+          openaiUpstreamApiKey: "openai-key",
+          allowedFormats: null,
+        },
+        "actor-user",
+      ),
+    ).rejects.toThrow("allowedFormats must list explicit formats");
 
     await expect(
       service.createChannel(
@@ -1170,7 +1189,7 @@ describe("RelayChannelService", () => {
         name: "Main",
         openaiUpstreamUrl: "https://upstream.example.com",
         openaiUpstreamApiKey: "openai-key",
-        allowedFormats: "openai",
+        allowedFormats: "openai-chat-completions",
       },
       "actor-user",
     );
@@ -1217,7 +1236,7 @@ describe("RelayChannelService", () => {
         name: "Pool",
         channelType: "pooled",
         routingStrategy: "round-robin",
-        allowedFormats: "all",
+        allowedFormats: "openai-chat-completions,anthropic,gemini",
         routingConfig: {
           maxRetries: 2,
           allowedModelsMode: "auto",
@@ -1245,7 +1264,7 @@ describe("RelayChannelService", () => {
           allowedModelsMode: "auto",
           healthScoreThreshold: null,
         }),
-        allowedFormats: "all",
+        allowedFormats: "openai-chat-completions,anthropic,gemini",
       }),
       transactionClient,
     );
@@ -1353,7 +1372,7 @@ describe("RelayChannelService", () => {
       ...sampleChannel,
       id: "automatic-pool",
       channelType: "automatic-proxy-pool",
-      allowedFormats: "all",
+      allowedFormats: "openai-chat-completions,anthropic,gemini",
     });
 
     await service.createChannel(
@@ -1367,7 +1386,7 @@ describe("RelayChannelService", () => {
     );
 
     expect(relayChannelRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ allowedFormats: "all" }),
+      expect.objectContaining({ allowedFormats: "openai-chat-completions,anthropic,gemini" }),
       transactionClient,
     );
   });
@@ -1377,15 +1396,15 @@ describe("RelayChannelService", () => {
       ...sampleChannel,
       id: "automatic-pool",
       channelType: "automatic-proxy-pool",
-      allowedFormats: "all",
+      allowedFormats: "openai-chat-completions,anthropic,gemini",
     });
     relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([
-      { supportedRequestFormats: ["openai"] },
-      { supportedRequestFormats: ["anthropic", "openai"] },
+      { supportedRequestFormats: ["openai-chat-completions"] },
+      { supportedRequestFormats: ["anthropic", "openai-chat-completions"] },
     ]);
 
     await expect(service.getChannel("automatic-pool", "actor-user")).resolves.toMatchObject({
-      allowedFormats: "openai,anthropic",
+      allowedFormats: "openai-chat-completions,anthropic",
     });
   });
 

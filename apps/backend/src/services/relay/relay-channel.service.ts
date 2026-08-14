@@ -397,7 +397,7 @@ export class RelayChannelService {
             ? formatRelayRequestFormats([
                 ...new Set([...modelCapabilities.values()].flatMap((item) => item.supportedRequestFormats)),
               ])
-            : channel.allowedFormats,
+            : (channel.allowedFormats ?? "openai-chat-completions,anthropic,gemini"),
           modelCapabilities: [...modelCapabilities.values()].sort(
             (left, right) =>
               left.catalogModelName.localeCompare(right.catalogModelName) ||
@@ -624,7 +624,7 @@ export class RelayChannelService {
               ? formatRelayRequestFormats([
                   ...new Set(modelCapabilities.flatMap((item) => item.supportedRequestFormats)),
                 ])
-              : channel.allowedFormats,
+              : (channel.allowedFormats ?? "openai-chat-completions,anthropic,gemini"),
           modelCapabilities,
           pricingMode: "fixed" as const,
           multiplier:
@@ -1386,21 +1386,21 @@ export class RelayChannelService {
   }
 
   private normalizeAllowedFormats(value: string): { normalized: string; formats: string[] } {
-    if (value === "both") throw new BadRequestError("allowedFormats 'both' is deprecated, use 'all' instead");
-    if (value === "all") return { normalized: "all", formats: ["openai", "anthropic", "gemini"] };
+    if (value === "both" || value === "all") throw new BadRequestError("allowedFormats must list explicit formats");
 
     const formats = value
       .split(",")
       .map((format) => format.trim())
+      .map((format) => (format === "openai" ? "openai-chat-completions" : format))
       .filter(Boolean);
 
     if (formats.length === 0) throw new BadRequestError("allowedFormats cannot be empty");
 
-    const validFormats = new Set(["openai", "anthropic", "gemini"]);
+    const validFormats = new Set(["openai-chat-completions", "openai-responses", "anthropic", "gemini"]);
     for (const format of formats)
       if (!validFormats.has(format))
         throw new BadRequestError(
-          `Invalid format '${format}' in allowedFormats. Must be 'openai', 'anthropic', 'gemini', or 'all'`,
+          `Invalid format '${format}' in allowedFormats. Must be 'openai-chat-completions', 'openai-responses', 'anthropic', or 'gemini'`,
         );
 
     return { normalized: [...new Set(formats)].join(","), formats: [...new Set(formats)] };
@@ -1811,11 +1811,13 @@ export class RelayChannelService {
       data.geminiUpstreamUrl !== undefined ? data.geminiUpstreamUrl : existing?.geminiUpstreamUrl || undefined;
     const geminiUpstreamApiKey =
       data.geminiUpstreamApiKey !== undefined ? data.geminiUpstreamApiKey : existing?.geminiUpstreamApiKey || undefined;
+    if (data.allowedFormats === null || data.allowedFormats === "all" || data.allowedFormats === "both")
+      throw new BadRequestError("allowedFormats must list explicit formats");
     const allowedFormatsInput = isPoolType(channelType)
-      ? "all"
+      ? "openai-chat-completions,anthropic,gemini"
       : data.allowedFormats !== undefined
         ? data.allowedFormats
-        : existing?.allowedFormats || "all";
+        : existing?.allowedFormats || "openai-chat-completions,anthropic,gemini";
     const { normalized: allowedFormats, formats } = this.normalizeAllowedFormats(allowedFormatsInput);
     const allowedModels = data.allowedModels !== undefined ? data.allowedModels : existing?.allowedModels;
     const addUserIdentifier =
@@ -1856,11 +1858,11 @@ export class RelayChannelService {
       if (!openaiUpstreamUrl && !anthropicUpstreamUrl && !geminiUpstreamUrl)
         throw new BadRequestError("At least one upstream URL (OpenAI, Anthropic, or Gemini) must be configured");
 
-      if (formats.includes("openai")) {
+      if (formats.some((format) => format.startsWith("openai-"))) {
         if (!openaiUpstreamUrl)
-          throw new BadRequestError("OpenAI upstream URL is required when allowedFormats includes 'openai'");
+          throw new BadRequestError("OpenAI upstream URL is required when allowedFormats includes an OpenAI format");
         if (!openaiUpstreamApiKey)
-          throw new BadRequestError("OpenAI API key is required when allowedFormats includes 'openai'");
+          throw new BadRequestError("OpenAI API key is required when allowedFormats includes an OpenAI format");
       }
       if (formats.includes("anthropic")) {
         if (!anthropicUpstreamUrl)
@@ -1873,15 +1875,6 @@ export class RelayChannelService {
           throw new BadRequestError("Gemini upstream URL is required when allowedFormats includes 'gemini'");
         if (!geminiUpstreamApiKey)
           throw new BadRequestError("Gemini API key is required when allowedFormats includes 'gemini'");
-      }
-
-      if (allowedFormats === "all") {
-        if (openaiUpstreamUrl && !openaiUpstreamApiKey)
-          throw new BadRequestError("OpenAI API key is required when OpenAI upstream URL is configured");
-        if (anthropicUpstreamUrl && !anthropicUpstreamApiKey)
-          throw new BadRequestError("Anthropic API key is required when Anthropic upstream URL is configured");
-        if (geminiUpstreamUrl && !geminiUpstreamApiKey)
-          throw new BadRequestError("Gemini API key is required when Gemini upstream URL is configured");
       }
     }
 
@@ -2048,7 +2041,7 @@ export class RelayChannelService {
       geminiUpstreamUrl: channel.geminiUpstreamUrl || undefined,
       geminiUpstreamApiKey: channel.geminiUpstreamApiKey || undefined,
       multiplier: Number(channel.multiplier),
-      allowedFormats: channel.allowedFormats || "all",
+      allowedFormats: channel.allowedFormats || "openai-chat-completions,anthropic,gemini",
       allowedModels: channel.allowedModels,
       addUserIdentifier: channel.addUserIdentifier !== false,
       inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true,
@@ -3212,7 +3205,7 @@ export class RelayChannelService {
       geminiUpstreamUrl: channel.geminiUpstreamUrl || undefined,
       hasGeminiUpstreamApiKey: Boolean(channel.geminiUpstreamApiKey),
       multiplier: Number(channel.multiplier),
-      allowedFormats: channel.allowedFormats || "all",
+      allowedFormats: channel.allowedFormats || "openai-chat-completions,anthropic,gemini",
       allowedModels: [],
       configuredAllowedModels: channel.allowedModels || undefined,
       addUserIdentifier: channel.addUserIdentifier !== false, // Default to true

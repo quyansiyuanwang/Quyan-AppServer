@@ -68,6 +68,19 @@
 6. 想先停止流量时，可优先停用而不是直接删除。
 7. 批量迁移或备份配置时使用导入/导出功能。
 
+## 创建后如何调用 AI
+
+创建成功后，先复制令牌创建抽屉顶部显示的 **Relay Base URL**，再将新令牌保存到调用方的服务端环境变量。不要将令牌提交到代码仓库、放进浏览器前端代码，或当作后台登录凭证使用。
+
+调用前可先请求 `Relay Base URL + /v1/models` 确认可用模型。调用 OpenAI Chat Completions 时，完整地址是 `Relay Base URL + /v1/chat/completions`，并携带：
+
+```text
+Authorization: Bearer <relay_token>
+Content-Type: application/json
+```
+
+请求格式必须与令牌渠道中启用的格式一致。需要完整的 curl 示例、Responses 格式和图片请求说明时，继续查看 `api-documentation`；需要调整渠道、模型或格式时查看 `relay-settings`。
+
 ## 说明
 
 - 刷新 Token 值会立即使旧 Token 字符串失效，调用方需同步更新。

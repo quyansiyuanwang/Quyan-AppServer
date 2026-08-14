@@ -24,7 +24,8 @@ cp .env.sample .env
 2. 编辑 `.env` 文件:
 
 ```bash
-VITE_BACKEND_URL=http://localhost:10001
+VITE_BACKEND_URL=
+VITE_AI_PROXY_URL=/relay/proxy
 ```
 
 3. 安装依赖:

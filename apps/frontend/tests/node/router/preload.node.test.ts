@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { __resetRoutePreloadStateForTests, preloadRouteLocation, queueBusinessRoutePreload } from '@/router/preload'
+import { __resetRoutePreloadStateForTests, preloadRouteLocation } from '@/router/preload'
 
 const createLoader = () => vi.fn(async () => ({ default: {} }))
 
@@ -75,30 +75,5 @@ describe('router preload helpers', () => {
 
     expect(chatLoader).toHaveBeenCalledTimes(1)
     expect(homeLoader).not.toHaveBeenCalled()
-  })
-
-  it('queues all business route components and skips auth and 404 routes', async () => {
-    const { router, homeLoader, chatLoader, loginLoader, notFoundLoader } = createRouterMock()
-
-    queueBusinessRoutePreload(router as never)
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(homeLoader).toHaveBeenCalledTimes(1)
-    expect(chatLoader).toHaveBeenCalledTimes(1)
-    expect(loginLoader).not.toHaveBeenCalled()
-    expect(notFoundLoader).not.toHaveBeenCalled()
-  })
-
-  it('deduplicates queued business route preloads', async () => {
-    const { router, homeLoader, chatLoader } = createRouterMock()
-
-    queueBusinessRoutePreload(router as never)
-    queueBusinessRoutePreload(router as never)
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(homeLoader).toHaveBeenCalledTimes(1)
-    expect(chatLoader).toHaveBeenCalledTimes(1)
   })
 })

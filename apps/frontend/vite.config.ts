@@ -1,5 +1,12 @@
 import { fileURLToPath, URL } from 'node:url'
-import { copyFileSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
 import { resolve } from 'node:path'
 import { brotliCompressSync, constants as zlibConstants } from 'node:zlib'
 
@@ -20,7 +27,92 @@ import { autoRouteTypes } from './scripts/plugins/vite-plugin-auto-route-types'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const isProd = mode === 'production' || mode === 'prod'
+  const isProd = mode === 'production' || mode === 'staging'
+  const normalizeRootDomain = (value: string | undefined, name: string): string | undefined => {
+    const normalized = value?.trim().toLowerCase().replace(/\.$/, '')
+    if (!normalized) return undefined
+    const labels = normalized.split('.')
+    if (
+      normalized.length > 253 ||
+      labels.length < 2 ||
+      labels.some((label) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+    ) {
+      throw new Error(`${name} must be a hostname such as example.com`)
+    }
+    return normalized
+  }
+  const platformRootDomain = normalizeRootDomain(env.PLATFORM_ROOT_DOMAIN, 'PLATFORM_ROOT_DOMAIN')
+  const siteRootDomain = normalizeRootDomain(env.SITE_ROOT_DOMAIN, 'SITE_ROOT_DOMAIN')
+  if (isProd && (!platformRootDomain || !siteRootDomain)) {
+    throw new Error(
+      'PLATFORM_ROOT_DOMAIN and SITE_ROOT_DOMAIN must be defined for a release frontend build',
+    )
+  }
+  const resolvedPlatformRootDomain = platformRootDomain || 'qysyw.cn'
+  const resolvedSiteRootDomain = siteRootDomain || resolvedPlatformRootDomain
+  const publicSiteHostname =
+    normalizeRootDomain(env.VITE_PUBLIC_SITE_HOST, 'VITE_PUBLIC_SITE_HOST') ||
+    `www.${resolvedSiteRootDomain}`
+  const stagingSiteRootDomain = `staging.${resolvedPlatformRootDomain}`
+  const configuredBackendUrl = env.VITE_BACKEND_URL?.trim()
+  const expectedProductionApiOrigin = `https://api.${resolvedPlatformRootDomain}`
+  const configuredAiProxyUrl = env.VITE_AI_PROXY_URL?.trim()
+  const configuredRelayPublicBaseUrl = env.VITE_RELAY_PUBLIC_BASE_URL?.trim()
+  const expectedRelayGatewayOrigin = `https://ai.${resolvedPlatformRootDomain}`
+  if (isProd && configuredBackendUrl !== expectedProductionApiOrigin) {
+    throw new Error(
+      `VITE_BACKEND_URL must be ${expectedProductionApiOrigin} for ${mode} builds; ` +
+        'browser backend requests must not use an SPA or authentication origin',
+    )
+  }
+  if (
+    isProd &&
+    (configuredAiProxyUrl !== expectedRelayGatewayOrigin ||
+      configuredRelayPublicBaseUrl !== expectedRelayGatewayOrigin)
+  ) {
+    throw new Error(
+      `VITE_AI_PROXY_URL and VITE_RELAY_PUBLIC_BASE_URL must be ${expectedRelayGatewayOrigin} ` +
+        `for ${mode} builds`,
+    )
+  }
+  const localRootDomain =
+    normalizeRootDomain(env.LOCAL_ROOT_DOMAIN, 'LOCAL_ROOT_DOMAIN') || 'qysyw.test'
+  const preserveBrowserOrigin = (proxy: {
+    on: (
+      event: 'proxyReq',
+      handler: (
+        proxyReq: { setHeader: (name: string, value: string) => void },
+        request: { headers?: { origin?: string } },
+      ) => void,
+    ) => void
+  }) => {
+    proxy.on('proxyReq', (proxyReq, request) => {
+      const origin = request.headers?.origin
+      if (origin) proxyReq.setHeader('origin', origin)
+    })
+  }
+  const firstPartyHostPrefixes = [
+    'www',
+    'auth',
+    'account',
+    'chat',
+    'terminal',
+    'ai.console',
+    'developer.console',
+    'ram.console',
+    'kv.console',
+    'short-link.console',
+    'secret.console',
+    'status.console',
+    'verification.console',
+    'ip-geolocation.console',
+    'push.console',
+    'oj.console',
+    'management',
+    'ai.management',
+    'developer.management',
+    'terminal.management',
+  ]
   const readBooleanEnv = (value: string | undefined, defaultValue: boolean): boolean => {
     if (value == null || value.trim() === '') return defaultValue
     return value === 'true'
@@ -28,12 +120,26 @@ export default defineConfig(({ mode }) => {
 
   const enableObfuscation = isProd && readBooleanEnv(env.VITE_ENABLE_OBFUSCATION, false)
   const enableVueDevTools = readBooleanEnv(env.VITE_ENABLE_VUE_DEVTOOLS, !isProd)
-
-  const stripOriginHeader = (proxy: { on: (event: 'proxyReq', handler: (proxyReq: { removeHeader: (header: string) => void }) => void) => void }) => {
-    proxy.on('proxyReq', (proxyReq) => {
-      proxyReq.removeHeader('origin')
-    })
-  }
+  const allowedHosts = [
+    'localhost',
+    publicSiteHostname,
+    stagingSiteRootDomain,
+    ...firstPartyHostPrefixes.map((prefix) => `${prefix}.${localRootDomain}`),
+    ...firstPartyHostPrefixes.map((prefix) => `${prefix}.${stagingSiteRootDomain}`),
+  ]
+  const defaultHttpsKeyPath = `.certs/${localRootDomain}-key.pem`
+  const defaultHttpsCertPath = `.certs/${localRootDomain}.pem`
+  const httpsKeyPath = env.VITE_HTTPS_KEY_PATH?.trim() || defaultHttpsKeyPath
+  const httpsCertPath = env.VITE_HTTPS_CERT_PATH?.trim() || defaultHttpsCertPath
+  const resolvedHttpsKeyPath = resolve(__dirname, httpsKeyPath)
+  const resolvedHttpsCertPath = resolve(__dirname, httpsCertPath)
+  const https =
+    existsSync(resolvedHttpsKeyPath) && existsSync(resolvedHttpsCertPath)
+      ? {
+          key: readFileSync(resolvedHttpsKeyPath),
+          cert: readFileSync(resolvedHttpsCertPath),
+        }
+      : undefined
 
   const shouldSkipModulePreload = (dep: string): boolean =>
     dep.includes('lib-echarts-') ||
@@ -94,10 +200,7 @@ export default defineConfig(({ mode }) => {
     }
 
     // Markdown/rendering stack is heavy and should stay route-local/on-demand.
-    if (
-      moduleId.includes('/marked/') ||
-      moduleId.includes('/highlight.js/')
-    ) {
+    if (moduleId.includes('/marked/') || moduleId.includes('/highlight.js/')) {
       return 'lib-markdown'
     }
 
@@ -123,7 +226,15 @@ export default defineConfig(({ mode }) => {
   }
 
   const writeBrotliAssets = (rootDir: string, threshold: number) => {
-    const compressibleExtensions = new Set(['.css', '.html', '.js', '.json', '.svg', '.txt', '.xml'])
+    const compressibleExtensions = new Set([
+      '.css',
+      '.html',
+      '.js',
+      '.json',
+      '.svg',
+      '.txt',
+      '.xml',
+    ])
 
     const walk = (dirPath: string) => {
       for (const entry of readdirSync(dirPath, { withFileTypes: true })) {
@@ -136,7 +247,11 @@ export default defineConfig(({ mode }) => {
 
         const extensionIndex = entry.name.lastIndexOf('.')
         const extension = extensionIndex >= 0 ? entry.name.slice(extensionIndex) : ''
-        if (!compressibleExtensions.has(extension) || entry.name.endsWith('.br') || entry.name.endsWith('.gz')) {
+        if (
+          !compressibleExtensions.has(extension) ||
+          entry.name.endsWith('.br') ||
+          entry.name.endsWith('.gz')
+        ) {
           continue
         }
 
@@ -159,16 +274,70 @@ export default defineConfig(({ mode }) => {
     walk(rootDir)
   }
 
+  /**
+   * Site modules must remain dynamic imports. A static import here would make
+   * every domain application part of the first document's module graph.
+   */
+  const assertDeferredSitePlugins = {
+    name: 'assert-deferred-site-plugins',
+    generateBundle(_options: unknown, bundle: Record<string, unknown>) {
+      const chunks = Object.values(bundle).filter(
+        (entry): entry is {
+          fileName: string
+          isEntry: boolean
+          imports: string[]
+          modules: Record<string, unknown>
+        } =>
+          typeof entry === 'object' &&
+          entry !== null &&
+          'fileName' in entry &&
+          'imports' in entry &&
+          'modules' in entry,
+      )
+      const entry = chunks.find((chunk) => chunk.isEntry)
+      if (!entry) return
+
+      const chunksByFileName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]))
+      const initialChunkNames = new Set<string>()
+      const visit = (fileName: string) => {
+        if (initialChunkNames.has(fileName)) return
+        initialChunkNames.add(fileName)
+        chunksByFileName.get(fileName)?.imports.forEach(visit)
+      }
+      visit(entry.fileName)
+
+      const deferredModulePattern =
+        /\/src\/(?:plugins\/sites\/[^/]+\/site\.ts|app-roots\/domains)\//
+      const eagerPlugin = [...initialChunkNames]
+        .flatMap((fileName) => Object.keys(chunksByFileName.get(fileName)?.modules ?? {}))
+        .map((moduleId) => moduleId.replace(/\\/g, '/'))
+        .find((moduleId) => deferredModulePattern.test(moduleId))
+
+      if (eagerPlugin) {
+        throw new Error(`Site plugin was included in the entry graph: ${eagerPlugin}`)
+      }
+    },
+  }
+
   return {
+    define: {
+      'import.meta.env.VITE_PLATFORM_ROOT_DOMAIN': JSON.stringify(resolvedPlatformRootDomain),
+      'import.meta.env.VITE_SITE_ROOT_DOMAIN': JSON.stringify(resolvedSiteRootDomain),
+      'import.meta.env.VITE_LOCAL_ROOT_DOMAIN': JSON.stringify(localRootDomain),
+      'import.meta.env.VITE_PUBLIC_SITE_HOST': JSON.stringify(publicSiteHostname),
+    },
     plugins: [
       autoRouteTypes({
         routesFile: 'src/router/routes.ts',
-        outFile: 'src/types/route-types.gen.d.ts'
+        outFile: 'src/types/route-types.gen.d.ts',
       }),
       buildInfoPlugin(),
       vue(),
+      assertDeferredSitePlugins,
       enableVueDevTools && vueDevTools(),
-      visualizer(),
+      // The report is generated by production builds only. Writing it while the
+      // dev server is watching the project emits an unnecessary full-reload event.
+      isProd && visualizer(),
       AutoImport({
         resolvers: [ElementPlusResolver({ importStyle: 'css' })],
       }),
@@ -226,28 +395,45 @@ export default defineConfig(({ mode }) => {
     ].filter(Boolean),
     server: {
       host: true,
-      allowedHosts: true,
+      allowedHosts,
+      https,
+      watch: {
+        // This declaration file is generated by the route-types plugin. It is
+        // compile-time metadata and must not cause Vite to reload the browser
+        // while the source route module is being edited.
+        ignored: ['**/dist/**', '**/stats.html', '**/src/types/route-types.gen.d.ts'],
+      },
+      // Let the API proxy forward browser preflight requests to the backend.
+      // Vite's built-in CORS middleware otherwise ends OPTIONS before the
+      // backend can return its first-party-origin credentials policy.
+      cors: false,
       proxy: {
-        '/api': {
-          target: 'http://localhost:10001',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, ''),
-        },
-        ...(isProd
+        // Forward API requests from the frontend site to the backend server.
+        ...(!isProd
           ? {
-              '/prod-api': {
-                target: 'https://api.qysyw.cn',
-                changeOrigin: true,
-                secure: true,
-                configure: stripOriginHeader,
-                rewrite: (path) => path.replace(/^\/prod-api/, ''),
+              '^/v1(?:/|$)': {
+                target: 'http://localhost:10001',
+                changeOrigin: false,
+                configure: preserveBrowserOrigin,
               },
-              '/prod-ai': {
-                target: 'https://ai.qysyw.cn',
-                changeOrigin: true,
-                secure: true,
-                configure: stripOriginHeader,
-                rewrite: (path) => path.replace(/^\/prod-ai/, ''),
+              // `/relay/*` also contains SPA routes such as `/relay/tokens` and
+              // `/relay/settings`. Only the actual relay API belongs to the
+              // backend; proxying the broad prefix makes Vite return the backend
+              // JSON 404 instead of the console application.
+              '^/relay/proxy(?:/|$)': {
+                target: 'http://localhost:10001',
+                changeOrigin: false,
+                configure: preserveBrowserOrigin,
+              },
+              '^/auth-center(?:/|$)': {
+                target: 'http://localhost:10001',
+                changeOrigin: false,
+                configure: preserveBrowserOrigin,
+              },
+              '^/docs(?:/|$)': {
+                target: 'http://localhost:10001',
+                changeOrigin: false,
+                configure: preserveBrowserOrigin,
               },
             }
           : {}),

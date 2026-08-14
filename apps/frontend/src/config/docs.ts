@@ -1,4 +1,6 @@
-const DOCS_BASE_URL = import.meta.env.VITE_APP_DOCS_BASE_URL || 'https://docs.appserver.dev'
+const DOCS_BASE_URL =
+  import.meta.env.VITE_APP_DOCS_BASE_URL ||
+  `https://docs.${import.meta.env.VITE_PLATFORM_ROOT_DOMAIN}`
 
 type DocsLocale = 'en' | 'zh-CN'
 
@@ -16,7 +18,6 @@ const docsRouteToSlug = {
   settingsProfile: 'account-settings',
   settingsPreferences: 'account-settings',
   settingsSecurity: 'account-settings',
-  accesskeyManagement: 'access-key-management',
   oauthClientManagement: 'oauth-app-management',
   authCenterClientManagement: 'auth-center-app-management',
   oauthClientReviewManagement: 'oauth-app-review-management',
@@ -26,10 +27,22 @@ const docsRouteToSlug = {
   userManagement: 'user-management',
   groupManagement: 'group-management',
   permission: 'permission-management',
+  iamOverview: 'permission-management',
+  iamAuthorizations: 'permission-management',
+  iamPermissionPolicies: 'permission-management',
+  iamPermissionDiagnostics: 'permission-management',
   ramManagement: 'ram-management',
+  ramOverview: 'ram-management',
+  ramRoles: 'ram-management',
+  ramBindings: 'ram-management',
+  ramPolicies: 'ram-management',
+  ramAuthorization: 'ram-management',
+  ramSessions: 'ram-management',
   balanceManagement: 'balance-management',
   monthlyPassManagement: 'monthly-pass-management',
-  remoteTerminalProductManagement: 'remote-terminal-management',
+  remoteTerminalProductTemplates: 'remote-terminal-management',
+  remoteTerminalProductEntitlements: 'remote-terminal-management',
+  remoteTerminalProductDevices: 'remote-terminal-management',
   redemptionCodes: 'redemption-code-management',
   jsonEndpointManagement: 'json-endpoint-management',
   articleManagement: 'article-management',

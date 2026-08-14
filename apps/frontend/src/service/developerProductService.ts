@@ -42,8 +42,9 @@ export class DeveloperProductService {
     method: 'GET' | 'POST',
     body?: unknown,
   ): Promise<T> {
-    const baseUrl = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, '') || ''
-    const response = await fetch(`${baseUrl}${path}`, {
+    // Product consoles use the site's same-origin API gateway. This keeps API
+    // topology out of the browser bundle and lets the reverse proxy own it.
+    const response = await fetch(path, {
       method,
       credentials: 'omit',
       headers: {
