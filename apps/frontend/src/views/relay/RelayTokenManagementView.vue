@@ -1,5 +1,20 @@
 <template>
   <div class="relay-token-management">
+    <div class="relay-token-endpoint">
+      <span>{{ i18ns.t('apiDoc.baseUrl') }}</span>
+      <code>{{ relayBaseUrl }}</code>
+      <el-tooltip :content="i18ns.t('copy')" placement="top">
+        <el-button
+          circle
+          text
+          type="primary"
+          size="small"
+          :icon="CopyDocument"
+          :aria-label="i18ns.t('copy')"
+          @click="copyRelayBaseUrl"
+        />
+      </el-tooltip>
+    </div>
     <RelayTokenPageDesktop v-if="isDesktop" />
     <RelayTokenPageMobile v-else />
 
@@ -177,10 +192,13 @@
 </template>
 
 <script setup lang="ts">
-import { provide } from 'vue'
+import { computed, provide } from 'vue'
+import { CopyDocument } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import BalanceScriptDialogV1 from '@/components/relay/BalanceScriptDialogV1.vue'
 import BalanceScriptDialogV2 from '@/components/relay/BalanceScriptDialogV2.vue'
 import { i18ns } from '@/locales'
+import { resolveRelayAiBaseUrl } from '@/constant/strings'
 import RelayTokenEditDrawer from './relay-token-management/components/RelayTokenEditDrawer.vue'
 import RelayTokenPageDesktop from './relay-token-management/components/RelayTokenPageDesktop.vue'
 import RelayTokenPageMobile from './relay-token-management/components/RelayTokenPageMobile.vue'
@@ -189,6 +207,21 @@ import { useRelayTokenManagement } from './relay-token-management/useRelayTokenM
 import './relay-token-management/relay-token-management.scss'
 
 const state = useRelayTokenManagement()
+const relayBaseUrl = computed(
+  () =>
+    resolveRelayAiBaseUrl(
+      import.meta.env.VITE_RELAY_PUBLIC_BASE_URL,
+      import.meta.env.VITE_AI_PROXY_URL,
+    ) || window.location.origin,
+)
+const copyRelayBaseUrl = async () => {
+  try {
+    await navigator.clipboard.writeText(relayBaseUrl.value)
+    ElMessage.success(i18ns.t('copySuccess'))
+  } catch {
+    ElMessage.error(i18ns.t('copyFailed'))
+  }
+}
 
 const {
   isDesktop,
@@ -214,3 +247,21 @@ provide(relayTokenManagementContextKey, state)
 
 defineExpose(state)
 </script>
+
+<style scoped>
+.relay-token-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 12px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+.relay-token-endpoint code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--el-text-color-primary);
+}
+</style>

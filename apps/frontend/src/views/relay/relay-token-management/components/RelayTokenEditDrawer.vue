@@ -7,21 +7,6 @@
     class="relay-token-dialog relay-token-edit-dialog"
     :class="isDesktop ? 'relay-token-edit-dialog--desktop' : 'relay-token-edit-dialog--mobile'"
   >
-    <div v-if="editMode === 'create'" class="relay-token-base-url">
-      <span>{{ i18ns.t('apiDoc.baseUrl') }}</span>
-      <code>{{ relayBaseUrl }}</code>
-      <el-tooltip :content="i18ns.t('copy')" placement="top">
-        <el-button
-          circle
-          text
-          type="primary"
-          size="small"
-          :icon="CopyDocument"
-          :aria-label="i18ns.t('copy')"
-          @click="copyRelayBaseUrl"
-        />
-      </el-tooltip>
-    </div>
     <div :class="isDesktop ? '' : 'relay-token-mobile'">
       <el-form
         :model="editForm"
@@ -960,14 +945,12 @@
 </template>
 
 <script setup lang="ts">
-import { CopyDocument, Delete, Plus, QuestionFilled, Rank } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Delete, Plus, QuestionFilled, Rank } from '@element-plus/icons-vue'
 import { computed, ref, unref, type ComponentPublicInstance } from 'vue'
 import { Permission } from '@/constant/permission'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
 import { i18ns } from '@/locales'
-import { resolveRelayAiBaseUrl } from '@/constant/strings'
 import { useRelayTokenManagementContext } from '../context'
 
 const state = useRelayTokenManagementContext()
@@ -1006,23 +989,6 @@ const setChannelListRef = (element: Element | ComponentPublicInstance | null) =>
 
 const channelLimitReached = computed(() => tokenChannelBatchAddOptions.value.length === 0)
 const showTokenChannelBatchAddDialog = ref(false)
-const relayBaseUrl = computed(
-  () =>
-    resolveRelayAiBaseUrl(
-      import.meta.env.VITE_RELAY_PUBLIC_BASE_URL,
-      import.meta.env.VITE_AI_PROXY_URL,
-    ) || window.location.origin,
-)
-
-const copyRelayBaseUrl = async () => {
-  try {
-    await navigator.clipboard.writeText(relayBaseUrl.value)
-    ElMessage.success(i18ns.t('copySuccess'))
-  } catch {
-    ElMessage.error(i18ns.t('copyFailed'))
-  }
-}
-
 const resetTokenChannelBatchAddSelection = () => {
   tokenChannelBatchAddIds.value = []
 }

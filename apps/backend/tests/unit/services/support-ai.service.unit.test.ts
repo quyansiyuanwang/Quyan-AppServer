@@ -28,6 +28,31 @@ const createService = () => {
 };
 
 describe("SupportAiService conversation retention", () => {
+  it("prefers documentation in the requested locale before cross-language relevance scores", async () => {
+    const { service } = createService();
+    vi.spyOn(service as any, "loadKnowledge").mockResolvedValue([
+      {
+        slug: "relay-token-en",
+        title: "Relay token guide",
+        locale: "en",
+        path: "/relay-token-en",
+        content: "token token token",
+      },
+      {
+        slug: "relay-token-zh",
+        title: "中转令牌指南",
+        locale: "zh-CN",
+        path: "/relay-token-zh",
+        content: "token",
+      },
+    ]);
+
+    await expect((service as any).searchDocumentation("token", "zh-CN")).resolves.toMatchObject([
+      { slug: "relay-token-zh", locale: "zh-CN" },
+      { slug: "relay-token-en", locale: "en" },
+    ]);
+  });
+
   it("loads valid Redis history, ignores malformed content, and clears only the user's key", async () => {
     const { service, redisService } = createService();
     redisService.get.mockResolvedValueOnce(

@@ -65,7 +65,8 @@
     >
       <div class="support-analytics__conversation">
         <article v-for="(message, index) in conversation" :key="index" :class="message.role">
-          {{ message.content }}
+          <MarkdownRenderer v-if="message.role === 'assistant'" :content="message.content" variant="chat" />
+          <template v-else>{{ message.content }}</template>
         </article>
         <el-empty v-if="!conversation.length" />
       </div>
@@ -77,6 +78,7 @@ import { computed, onMounted, ref } from 'vue'
 import { i18ns } from '@/locales'
 import { useRequestStore } from '@/stores/request'
 import { createSupportControllerApi } from '@/client/services/support-controller.gen'
+import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
 const now = new Date()
 const start = new Date(Date.now() - 29 * 86400000)
 const range = ref<[string, string]>([

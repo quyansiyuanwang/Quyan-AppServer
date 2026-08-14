@@ -14,7 +14,8 @@
     <div class="support-panel__messages">
       <p v-if="!messages.length" class="support-panel__empty">{{ i18ns.t('support.intro') }}</p>
       <article v-for="message in messages" :key="message.id" :class="message.role">
-        {{ message.content }}
+        <MarkdownRenderer v-if="message.role === 'assistant'" :content="message.content" variant="chat" />
+        <template v-else>{{ message.content }}</template>
       </article>
       <div v-if="citations.length" class="support-panel__citations">
         <a
@@ -51,6 +52,7 @@ import router, { currentSiteProfile } from '@/router'
 import { useRequestStore } from '@/stores/request'
 import { readSseStream, SseStreamError } from '@/utils/streaming/sseStream'
 import { createSupportControllerApi } from '@/client/services/support-controller.gen'
+import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
 
 type Message = { id: string; role: 'user' | 'assistant'; content: string }
 type Citation = { slug: string; title: string; url: string }
@@ -221,7 +223,7 @@ onMounted(() => void loadConversation())
   max-width: 88%;
   padding: 8px 10px;
   border-radius: 6px;
-  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .support-panel article.user {
   justify-self: end;
