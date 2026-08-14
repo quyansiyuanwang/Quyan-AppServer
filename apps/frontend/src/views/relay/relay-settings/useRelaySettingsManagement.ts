@@ -95,7 +95,8 @@ const resolveModelId = (source: ModelIdentitySource): string => {
   return source.model?.trim() || ''
 }
 
-const normalizeSupportedFormats = (formats?: string): string[] => toConfiguredRelayFormats(formats)
+const normalizeSupportedFormats = (formats?: string | null): string[] =>
+  toConfiguredRelayFormats(formats)
 
 const serializeSupportedFormats = (formats: string[] | string): string =>
   serializeRelayFormats(formats)
@@ -1090,7 +1091,7 @@ export const useRelaySettingsManagement = () => {
     {
       model: string
       modelId: string
-      supportedFormats?: string
+      supportedFormats: string[]
     }[]
   >([])
 
@@ -1103,7 +1104,13 @@ export const useRelaySettingsManagement = () => {
         return {
           model: modelName,
           modelId: modelId || modelName,
-          supportedFormats: m.supportedFormats || 'openai-chat-completions,anthropic,gemini',
+          // Channel form formats are always normalized (for example legacy
+          // `openai` becomes `openai-chat-completions`). Normalize the catalog
+          // too; otherwise an existing pricing record silently disappears from
+          // the editor and the format watcher removes a valid selection.
+          supportedFormats: normalizeSupportedFormats(
+            m.supportedFormats || 'openai-chat-completions,anthropic,gemini',
+          ),
         }
       })
     } catch (error) {
@@ -1112,16 +1119,16 @@ export const useRelaySettingsManagement = () => {
   }
 
   const filteredModels = computed(() => {
-    const selectedFormats = channelForm.value.allowedFormats
+    const selectedFormats = toConfiguredRelayFormats(channelForm.value.allowedFormats)
 
-    if (!Array.isArray(selectedFormats) || selectedFormats.length === 0) {
+    if (selectedFormats.length === 0) {
       return availableModels.value
     }
 
     return availableModels.value.filter((model) => {
-      const formats = model.supportedFormats || 'openai-chat-completions,anthropic,gemini'
-      const modelFormats = formats.split(',').map((format: string) => format.trim())
-      return selectedFormats.some((selectedFormat) => modelFormats.includes(selectedFormat))
+      return selectedFormats.some((selectedFormat) =>
+        model.supportedFormats.includes(selectedFormat),
+      )
     })
   })
 

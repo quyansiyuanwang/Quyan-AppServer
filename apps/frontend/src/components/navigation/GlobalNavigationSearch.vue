@@ -1,7 +1,7 @@
 <template>
   <el-popover
     :visible="isOpen"
-    trigger="click"
+    trigger="focus"
     placement="bottom-start"
     :width="640"
     :show-arrow="false"
@@ -15,7 +15,7 @@
         class="global-navigation-search"
         clearable
         :placeholder="i18ns.t('nav.globalSearchPlaceholder')"
-        @input="open"
+        @focus="open"
         @keydown.down.prevent="moveSelection(1)"
         @keydown.up.prevent="moveSelection(-1)"
         @keydown.enter.prevent="activateSelected"

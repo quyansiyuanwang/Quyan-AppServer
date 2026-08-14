@@ -232,6 +232,18 @@ describe('useRelaySettingsManagement', () => {
     wrapper.unmount()
   })
 
+  it('normalizes legacy catalog formats before filtering models in the channel drawer', async () => {
+    const { api, wrapper } = await mountComposable()
+
+    // Existing pricing rows can still contain the legacy `openai` label,
+    // while channel forms consistently use the explicit wire format.
+    api.channelForm.value.allowedFormats = ['openai-chat-completions']
+
+    expect(api.filteredModels.value.map((model) => model.model)).toEqual(['gpt-4o-mini'])
+
+    wrapper.unmount()
+  })
+
   it('loads pooled edit state with auto allowed-model mode and null thresholds', async () => {
     const { api, wrapper } = await mountComposable()
 
