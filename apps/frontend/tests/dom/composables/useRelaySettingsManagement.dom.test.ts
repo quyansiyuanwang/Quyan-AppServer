@@ -222,6 +222,16 @@ describe('useRelaySettingsManagement', () => {
     copyTextWithFallbackMock.mockResolvedValue(true)
   })
 
+  it('shows the OpenAI upstream editor for every explicit OpenAI format', async () => {
+    const { api, wrapper } = await mountComposable()
+
+    expect(api.computeShowUpstream(['openai-chat-completions'], 'openai')).toBe(true)
+    expect(api.computeShowUpstream(['openai-responses'], 'openai')).toBe(true)
+    expect(api.computeShowUpstream(['anthropic'], 'openai')).toBe(false)
+
+    wrapper.unmount()
+  })
+
   it('loads pooled edit state with auto allowed-model mode and null thresholds', async () => {
     const { api, wrapper } = await mountComposable()
 
