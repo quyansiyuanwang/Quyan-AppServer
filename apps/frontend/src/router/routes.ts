@@ -1,5 +1,9 @@
 import { Permission } from '@/constant/permission'
-import { siteProfiles, type SiteProfile, type SiteRouteGroup } from '@/config/site-registry'
+import {
+  getSiteProfileForEnvironment,
+  type SiteProfile,
+  type SiteRouteGroup,
+} from '@/config/site-registry'
 import { getRouteCatalogEntry, getRouteGroup } from '@/router/route-catalog'
 import type { RouteRecordRaw } from 'vue-router'
 
@@ -1219,11 +1223,7 @@ export const resolveCanonicalRouteUrl = (
 
   const targetProfile = currentProfile.routeGroups.includes(entry.group)
     ? currentProfile
-    : siteProfiles.find(
-        (profile) =>
-          profile.id === entry.group &&
-          profile.hostname.endsWith(currentProfile.hostname.endsWith('.test') ? '.test' : '.cn'),
-      )
+    : getSiteProfileForEnvironment(entry.group, currentProfile)
 
   return targetProfile ? new URL(entry.path, targetProfile.canonicalOrigin).toString() : undefined
 }
