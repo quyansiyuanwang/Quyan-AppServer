@@ -4,11 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mountMock = vi.fn()
 const ensureSessionMock = vi.fn(async () => null)
 const installRoutesMock = vi.fn(async () => undefined)
+const routerReadyMock = vi.fn(async () => undefined)
 
 vi.mock('vue', () => ({ createApp: vi.fn(() => ({ use: vi.fn(), mount: mountMock, config: {} })) }))
 vi.mock('pinia', () => ({ createPinia: vi.fn(() => ({})) }))
 vi.mock('@/router', () => ({
-  default: { resolve: vi.fn(() => ({ matched: [{ meta: { allowGuest: true } }] })) },
+  default: {
+    resolve: vi.fn(() => ({ matched: [{ meta: { allowGuest: true } }] })),
+    isReady: routerReadyMock,
+  },
   currentSiteProfile: { id: 'public' },
   installProfileRoutes: installRoutesMock,
 }))
@@ -43,8 +47,31 @@ describe('AppRuntime', () => {
     await Promise.all([runtime.start(), runtime.start()])
 
     expect(installRoutesMock).toHaveBeenCalledTimes(1)
+    expect(routerReadyMock).toHaveBeenCalledTimes(1)
     expect(mountMock).toHaveBeenCalledTimes(1)
     expect(ensureSessionMock).not.toHaveBeenCalled()
     expect(runtime.getPhase()).toBe('running')
+  })
+
+  it('waits for the initial route to settle before mounting the application shell', async () => {
+    let resolveInitialRoute: (() => void) | undefined
+    routerReadyMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveInitialRoute = resolve
+        }),
+    )
+
+    const { AppRuntime } = await import('@/app-runtime')
+    const runtime = new AppRuntime()
+    const starting = runtime.start()
+
+    await vi.waitFor(() => expect(routerReadyMock).toHaveBeenCalledOnce())
+    expect(mountMock).not.toHaveBeenCalled()
+
+    resolveInitialRoute?.()
+    await starting
+
+    expect(mountMock).toHaveBeenCalledOnce()
   })
 })

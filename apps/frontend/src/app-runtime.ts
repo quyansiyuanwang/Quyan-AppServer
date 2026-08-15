@@ -64,6 +64,13 @@ export class AppRuntime {
     }
     this.phase = 'session-ready'
 
+    // A cross-site navigation starts this site's initial route asynchronously.
+    // Mounting before it settles can render an empty RouterView until a manual
+    // refresh, most visibly after a canonical navigation in Safari. Wait for
+    // the installed profile routes and the initial guard chain before showing
+    // the shell.
+    await router.isReady()
+
     app.mount('#app')
     this.phase = 'mounted'
     this.startOptionalPlugins(app)
