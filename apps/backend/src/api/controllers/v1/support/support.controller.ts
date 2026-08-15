@@ -41,7 +41,15 @@ export class SupportController extends Controller {
   @Security("jwt")
   public async availability(): Promise<SuccessResponse<SupportAvailabilityDto>> {
     const config = await this.supportService.getConfig();
-    return { code: 0, message: "Success", data: { enabled: config.enabled && config.apiKeyConfigured } };
+    return {
+      code: 0,
+      message: "Success",
+      data: {
+        enabled: config.enabled && (config.apiKeyConfigured || (config.allowUserBalance && config.allowUserRelayToken)),
+        allowUserBalance: config.allowUserBalance,
+        allowUserRelayToken: config.allowUserRelayToken,
+      },
+    };
   }
 
   @Get("conversation")
@@ -96,7 +104,7 @@ export class SupportController extends Controller {
     request.once("aborted", abort);
     response.once("close", abort);
     try {
-      for await (const event of this.supportService.stream(request.user!.userId, body, abortController.signal))
+      for await (const event of this.supportService.stream(request.user!.userId, body, request, abortController.signal))
         if (!response.writableEnded && !response.destroyed) this.sseService.sendChunk(response, event);
       if (!response.writableEnded && !response.destroyed) this.sseService.sendDone(response);
     } finally {

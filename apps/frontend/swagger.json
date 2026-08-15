@@ -38006,10 +38006,18 @@
 				"properties": {
 					"enabled": {
 						"type": "boolean"
+					},
+					"allowUserBalance": {
+						"type": "boolean"
+					},
+					"allowUserRelayToken": {
+						"type": "boolean"
 					}
 				},
 				"required": [
-					"enabled"
+					"enabled",
+					"allowUserBalance",
+					"allowUserRelayToken"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -38303,6 +38311,26 @@
 					},
 					"page": {
 						"$ref": "#/components/schemas/SupportPageContextDto"
+					},
+					"fundingMode": {
+						"type": "string",
+						"enum": [
+							"platform",
+							"user-relay"
+						],
+						"description": "Platform billing is the default. User Relay mode is accepted only when both administrator flags are enabled."
+					},
+					"relayToken": {
+						"type": "string",
+						"description": "One-request Relay Token; never persisted in support conversation storage."
+					},
+					"relayBaseUrl": {
+						"type": "string",
+						"description": "First-party Relay Base URL shown by the console, without an API path suffix."
+					},
+					"relayModel": {
+						"type": "string",
+						"description": "Model to request through the user's Relay Token."
 					}
 				},
 				"required": [
@@ -38401,6 +38429,24 @@
 						"type": "number",
 						"format": "double"
 					},
+					"maxAgentRounds": {
+						"type": "number",
+						"format": "double",
+						"description": "Maximum tool-planning turns before the agent must produce a final answer."
+					},
+					"maxOutputTokens": {
+						"type": "number",
+						"format": "double",
+						"description": "Hard upper bound for the final answer returned by the configured upstream."
+					},
+					"allowUserBalance": {
+						"type": "boolean",
+						"description": "Whether an individual user may opt into charging their own platform balance. Disabled by default."
+					},
+					"allowUserRelayToken": {
+						"type": "boolean",
+						"description": "Whether an individual user may supply a personally owned Relay Token. Disabled by default."
+					},
 					"sessionRetentionDays": {
 						"type": "number",
 						"format": "double"
@@ -38423,6 +38469,10 @@
 					"systemPrompt",
 					"maxRequests",
 					"windowSeconds",
+					"maxAgentRounds",
+					"maxOutputTokens",
+					"allowUserBalance",
+					"allowUserRelayToken",
 					"sessionRetentionDays",
 					"inputPricePerMillion",
 					"outputPricePerMillion"
@@ -38480,6 +38530,20 @@
 					"windowSeconds": {
 						"type": "number",
 						"format": "double"
+					},
+					"maxAgentRounds": {
+						"type": "number",
+						"format": "double"
+					},
+					"maxOutputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"allowUserBalance": {
+						"type": "boolean"
+					},
+					"allowUserRelayToken": {
+						"type": "boolean"
 					},
 					"sessionRetentionDays": {
 						"type": "number",

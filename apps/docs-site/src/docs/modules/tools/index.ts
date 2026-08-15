@@ -5,7 +5,11 @@ const modules = import.meta.glob<DocsPageModule>('./*.doc.ts', {
   import: 'default',
 })
 
-const orderedModulePaths = ['./debug-tools.doc.ts', './script-manager.doc.ts'] as const
+const orderedModulePaths = [
+  './support-assistant.doc.ts',
+  './debug-tools.doc.ts',
+  './script-manager.doc.ts',
+] as const
 
 export const registerToolsDocs = (registry: DocsRegistryBuilder) => {
   orderedModulePaths.forEach((modulePath) => {
