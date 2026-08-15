@@ -3,8 +3,12 @@ import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 
 export type SharedPreferenceKey = 'locale' | 'theme'
 
-const COOKIE_PREFIX = 'appserver.preference.'
-const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365
+/** The single browser contract used by every deployment site for shared preferences. */
+export const SHARED_PREFERENCE_COOKIE_PREFIX = 'appserver.preference.'
+export const SHARED_PREFERENCE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365
+
+export const getSharedPreferenceCookieName = (key: SharedPreferenceKey): string =>
+  `${SHARED_PREFERENCE_COOKIE_PREFIX}${key}`
 
 const normalizeHostname = (hostname: string): string =>
   hostname.trim().toLowerCase().replace(/\.$/, '')
@@ -53,7 +57,7 @@ const writeCookie = (name: string, value: string): void => {
   const attributes = [
     `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
     'Path=/',
-    `Max-Age=${ONE_YEAR_SECONDS}`,
+    `Max-Age=${SHARED_PREFERENCE_COOKIE_MAX_AGE_SECONDS}`,
     'SameSite=Lax',
   ]
   if (window.location.protocol === 'https:') attributes.push('Secure')
@@ -69,7 +73,7 @@ export const getSharedPreference = (
   key: SharedPreferenceKey,
   legacyStorageKey?: string,
 ): string | null => {
-  const cookieValue = getCookieValue(`${COOKIE_PREFIX}${key}`)
+  const cookieValue = getCookieValue(getSharedPreferenceCookieName(key))
   if (cookieValue !== null) return cookieValue
 
   const legacyValue = legacyStorageKey ? TypedLocalStorage.getItem(legacyStorageKey) : null
@@ -83,6 +87,6 @@ export const setSharedPreference = (
   value: string,
   legacyStorageKey?: string,
 ): void => {
-  writeCookie(`${COOKIE_PREFIX}${key}`, value)
+  writeCookie(getSharedPreferenceCookieName(key), value)
   if (legacyStorageKey) TypedLocalStorage.setItem(legacyStorageKey, value)
 }
