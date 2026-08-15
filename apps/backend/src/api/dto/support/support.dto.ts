@@ -18,6 +18,14 @@ export interface SendSupportMessageDto {
   history?: SupportMessageDto[];
   locale?: "zh-CN" | "en";
   page?: SupportPageContextDto;
+  /** Platform billing is the default. User Relay mode is accepted only when both administrator flags are enabled. */
+  fundingMode?: "platform" | "user-relay";
+  /** One-request Relay Token; never persisted in support conversation storage. */
+  relayToken?: string;
+  /** First-party Relay Base URL shown by the console, without an API path suffix. */
+  relayBaseUrl?: string;
+  /** Model to request through the user's Relay Token. */
+  relayModel?: string;
 }
 
 export interface SupportCitationDto {
@@ -28,6 +36,8 @@ export interface SupportCitationDto {
 
 export interface SupportAvailabilityDto {
   enabled: boolean;
+  allowUserBalance: boolean;
+  allowUserRelayToken: boolean;
 }
 
 export interface SupportConversationDto {
@@ -53,6 +63,14 @@ export interface SupportAiConfigDto {
   systemPrompt: string;
   maxRequests: number;
   windowSeconds: number;
+  /** Maximum tool-planning turns before the agent must produce a final answer. */
+  maxAgentRounds: number;
+  /** Hard upper bound for the final answer returned by the configured upstream. */
+  maxOutputTokens: number;
+  /** Whether an individual user may opt into charging their own platform balance. Disabled by default. */
+  allowUserBalance: boolean;
+  /** Whether an individual user may supply a personally owned Relay Token. Disabled by default. */
+  allowUserRelayToken: boolean;
   sessionRetentionDays: number;
   inputPricePerMillion: number;
   outputPricePerMillion: number;
@@ -68,6 +86,10 @@ export interface UpdateSupportAiConfigDto {
   systemPrompt?: string;
   maxRequests: number;
   windowSeconds: number;
+  maxAgentRounds?: number;
+  maxOutputTokens?: number;
+  allowUserBalance?: boolean;
+  allowUserRelayToken?: boolean;
   sessionRetentionDays?: number;
   inputPricePerMillion?: number;
   outputPricePerMillion?: number;

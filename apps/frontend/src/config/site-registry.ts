@@ -2,6 +2,7 @@ import { createSiteRegistry } from './site-resolver'
 import { deploymentTopologies } from './deployment-topology'
 import type { SiteProfileId } from './site-catalog'
 import type { ResolvedSiteProfile, SiteProfile } from './site-resolver'
+import { hasSiteNavigationAccess } from './navigation-site-access'
 
 export {
   siteDefinitions,
@@ -61,8 +62,7 @@ export const getAccessibleSiteProfiles = (
     (profile) =>
       profile.id === currentProfile.id ||
       profile.id === 'public' ||
-      profile.accessPermissions.length === 0 ||
-      profile.accessPermissions.some((permission) => permissionSet.has(permission)),
+      hasSiteNavigationAccess(profile.id, [...permissionSet]),
   )
 }
 

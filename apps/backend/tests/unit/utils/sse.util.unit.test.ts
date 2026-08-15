@@ -25,8 +25,9 @@ describe("SSEStreamService", () => {
     service.initStream(res);
 
     expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "text/event-stream");
-    expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-cache");
+    expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-cache, no-transform");
     expect(res.setHeader).toHaveBeenCalledWith("Connection", "keep-alive");
+    expect(res.setHeader).toHaveBeenCalledWith("X-Accel-Buffering", "no");
     expect(res.flushHeaders).toHaveBeenCalledTimes(1);
   });
 

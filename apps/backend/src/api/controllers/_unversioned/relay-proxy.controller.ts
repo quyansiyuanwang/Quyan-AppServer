@@ -4,6 +4,7 @@ import { RelayTokenService } from "@/services/relay/relay-token.service";
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 import { UnauthorizedError } from "@/util/errors";
 import { extractRelayToken } from "@/util/relay-auth";
+import { resolveSupportRelayClientIp } from "@/util/support-relay-authorization";
 import type { Request as ExpressRequest } from "express";
 import { skipResponseWrapper } from "@/util/response-wrapper";
 import type { RelayTokenCurrentQuotaDto, RelayTokenCurrentQuotaQueryDto } from "@/api/dto/relay/relay.dto";
@@ -19,7 +20,11 @@ export class RelayProxyController extends Controller {
     const token = extractRelayToken(request);
     if (!token) throw new UnauthorizedError("Invalid relay token");
 
-    const relayToken = await this.relayTokenService.validateToken(token, request);
+    const relayToken = await this.relayTokenService.validateToken(
+      token,
+      request,
+      resolveSupportRelayClientIp(request.headers, token),
+    );
 
     skipResponseWrapper(request as any);
 

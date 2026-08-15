@@ -30,6 +30,10 @@ coverage
 
 .eslintcache
 
+# Generated from the published Markdown immediately before docs-site starts or builds.
+# These files are copied to dist/ for deployment, but must not create source-control churn.
+public/support-knowledge*.json
+
 # Auto-generated files
 **/*.vue.js
 **/*.vue.d.ts

@@ -88,7 +88,7 @@ describe('useApiDocumentationPricing', () => {
     dispose()
   })
 
-  it('matches catalog capabilities by model name and request id', () => {
+  it('matches catalog capabilities by pricing model name rather than request id', () => {
     const { composable, dispose } = createComposable()
     composable.channels.value = [
       createChannel({
@@ -101,7 +101,20 @@ describe('useApiDocumentationPricing', () => {
         ],
       }),
     ]
-    expect(composable.getChannelsForModel('gpt-4o-mini', 'other-id', 'openai')).toHaveLength(1)
+    expect(composable.getChannelsForModel('gpt-4o-mini', 'openai')).toHaveLength(1)
+
+    composable.channels.value = [
+      createChannel({
+        modelCapabilities: [
+          {
+            catalogModelName: 'gpt-4o-mini-different-price',
+            requestModelId: 'openai/gpt-4o-mini',
+            supportedRequestFormats: ['openai'],
+          },
+        ],
+      }),
+    ]
+    expect(composable.getChannelsForModel('gpt-4o-mini', 'openai')).toHaveLength(0)
     dispose()
   })
 

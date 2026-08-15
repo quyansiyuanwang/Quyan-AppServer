@@ -26,6 +26,13 @@ interface ChatMessage {
   content: string;
 }
 
+export interface ChatCompletionOptions {
+  /** Provider-specific output cap; undefined preserves the upstream default. */
+  maxOutputTokens?: number;
+  /** Server-generated, non-credential headers for a trusted first-party relay hop. */
+  requestHeaders?: Readonly<Record<string, string>>;
+}
+
 export type StreamChunk =
   | { content: string; done: false }
   | {
@@ -207,13 +214,15 @@ export class AIProviderService {
     upstreamUrl: string,
     requestFormat?: RelayRequestFormat,
     signal?: AbortSignal,
+    options?: ChatCompletionOptions,
   ): AsyncGenerator<StreamChunk> {
     const provider = this.resolveProvider(model, requestFormat);
 
     if (provider === "openai" || provider === "openai-chat-completions")
-      yield* this.streamOpenAI(messages, model, apiKey, upstreamUrl, signal);
-    else if (provider === "anthropic") yield* this.streamAnthropic(messages, model, apiKey, upstreamUrl, signal);
-    else if (provider === "gemini") yield* this.streamGemini(messages, model, apiKey, upstreamUrl, signal);
+      yield* this.streamOpenAI(messages, model, apiKey, upstreamUrl, signal, options);
+    else if (provider === "anthropic")
+      yield* this.streamAnthropic(messages, model, apiKey, upstreamUrl, signal, options);
+    else if (provider === "gemini") yield* this.streamGemini(messages, model, apiKey, upstreamUrl, signal, options);
     else throw new Error(`Provider ${provider} not yet implemented`);
   }
 
@@ -223,6 +232,7 @@ export class AIProviderService {
     apiKey: string,
     upstreamUrl: string,
     signal?: AbortSignal,
+    options?: ChatCompletionOptions,
   ): AsyncGenerator<StreamChunk> {
     const url = this.buildOpenAIUrl(upstreamUrl);
     console.log("[AIProvider] Calling OpenAI API:", url, "model:", model);
@@ -235,11 +245,12 @@ export class AIProviderService {
           model,
           messages,
           stream: true,
+          ...(options?.maxOutputTokens ? { max_tokens: options.maxOutputTokens } : {}),
           // Ask upstream to include usage in stream final chunk when supported.
           stream_options: { include_usage: true },
         },
         {
-          headers: { Authorization: `Bearer ${apiKey}` },
+          headers: { Authorization: `Bearer ${apiKey}`, ...options?.requestHeaders },
           responseType: "stream",
           httpAgent,
           httpsAgent,
@@ -253,9 +264,14 @@ export class AIProviderService {
       console.warn("[AIProvider] stream_options not supported by upstream, retrying without it");
       response = await axios.post(
         url,
-        { model, messages, stream: true },
         {
-          headers: { Authorization: `Bearer ${apiKey}` },
+          model,
+          messages,
+          stream: true,
+          ...(options?.maxOutputTokens ? { max_tokens: options.maxOutputTokens } : {}),
+        },
+        {
+          headers: { Authorization: `Bearer ${apiKey}`, ...options?.requestHeaders },
           responseType: "stream",
           httpAgent,
           httpsAgent,
@@ -409,6 +425,7 @@ export class AIProviderService {
     apiKey: string,
     upstreamUrl: string,
     signal?: AbortSignal,
+    options?: ChatCompletionOptions,
   ): AsyncGenerator<StreamChunk> {
     const url = this.buildAnthropicUrl(upstreamUrl);
     const startAt = Date.now();
@@ -431,7 +448,7 @@ export class AIProviderService {
       url,
       {
         model,
-        max_tokens: 4096,
+        max_tokens: options?.maxOutputTokens ?? 4096,
         stream: true,
         messages: this.toAnthropicMessages(messages),
       },
@@ -539,6 +556,7 @@ export class AIProviderService {
     apiKey: string,
     upstreamUrl: string,
     signal?: AbortSignal,
+    options?: ChatCompletionOptions,
   ): AsyncGenerator<StreamChunk> {
     const url = this.buildGeminiUrl(upstreamUrl, model, apiKey);
     const startAt = Date.now();
@@ -557,16 +575,23 @@ export class AIProviderService {
     const updateTokenMetrics = (usagePayload: unknown, metrics: TokenMetrics, fallbackInputTokens: number) =>
       this.updateTokenMetrics(usagePayload, metrics, fallbackInputTokens);
 
-    const response = await axios.post(url, this.toGeminiRequest(messages), {
-      headers: {
-        "content-type": "application/json",
-        "x-goog-api-key": apiKey,
+    const response = await axios.post(
+      url,
+      {
+        ...this.toGeminiRequest(messages),
+        ...(options?.maxOutputTokens ? { generationConfig: { maxOutputTokens: options.maxOutputTokens } } : {}),
       },
-      responseType: "stream",
-      httpAgent,
-      httpsAgent,
-      signal,
-    });
+      {
+        headers: {
+          "content-type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        responseType: "stream",
+        httpAgent,
+        httpsAgent,
+        signal,
+      },
+    );
 
     const finalizeDoneChunk = (): StreamChunk => {
       if (tokenMetrics.inputTokens === 0) tokenMetrics.inputTokens = estimatedRequestTokens;

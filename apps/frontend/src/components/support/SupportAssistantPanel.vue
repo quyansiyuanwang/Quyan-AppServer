@@ -41,6 +41,21 @@
       </div>
     </div>
     <el-alert v-if="error" type="warning" :title="error" :closable="false" />
+    <el-collapse v-if="userFundingAvailable" class="support-panel__funding">
+      <el-collapse-item :title="i18ns.t('support.userRelayFunding')" name="user-relay">
+        <el-switch v-model="useUserRelay" :active-text="i18ns.t('support.useUserRelay')" />
+        <div v-if="useUserRelay" class="support-panel__funding-fields">
+          <el-input v-model="relayBaseUrl" :placeholder="i18ns.t('support.relayBaseUrl')" />
+          <el-input v-model="relayModel" :placeholder="i18ns.t('support.relayModel')" />
+          <el-input
+            v-model="relayToken"
+            type="password"
+            show-password
+            :placeholder="i18ns.t('support.relayToken')"
+          />
+        </div>
+      </el-collapse-item>
+    </el-collapse>
     <div class="support-panel__composer">
       <el-input
         v-model="draft"
@@ -69,19 +84,26 @@ import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
 
 type Message = { id: string; role: 'user' | 'assistant'; content: string }
 type Citation = { slug: string; title: string; url: string }
+type SupportAvailability = { allowUserBalance?: boolean; allowUserRelayToken?: boolean }
 const messages = ref<Message[]>([])
 const citations = ref<Citation[]>([])
 const draft = ref('')
 const sending = ref(false)
 const error = ref('')
-const streamStatus = ref<'searching' | 'generating' | null>(null)
+const streamStatus = ref<'thinking' | 'searching' | 'reading' | 'generating' | null>(null)
+const userFundingAvailable = ref(false)
+const useUserRelay = ref(false)
+const relayBaseUrl = ref('')
+const relayModel = ref('')
+const relayToken = ref('')
 const api = () => createSupportControllerApi(useRequestStore().getAxios())
 
-const streamStatusLabel = computed(() =>
-  streamStatus.value === 'generating'
-    ? i18ns.t('support.generating')
-    : i18ns.t('support.searching'),
-)
+const streamStatusLabel = computed(() => {
+  if (streamStatus.value === 'thinking') return i18ns.t('support.thinking')
+  if (streamStatus.value === 'searching') return i18ns.t('support.searching')
+  if (streamStatus.value === 'reading') return i18ns.t('support.reading')
+  return i18ns.t('support.generating')
+})
 
 const isActiveAssistant = (message: Message) =>
   Boolean(
@@ -113,6 +135,17 @@ const loadConversation = async () => {
   }
 }
 
+const loadAvailability = async () => {
+  try {
+    const availability = responseData(await api().availability()) as SupportAvailability
+    userFundingAvailable.value = Boolean(
+      availability.allowUserBalance && availability.allowUserRelayToken,
+    )
+  } catch {
+    userFundingAvailable.value = false
+  }
+}
+
 const clear = async () => {
   if (sending.value) return
   await api().clearConversation()
@@ -132,13 +165,20 @@ const captureVisiblePageText = () => {
 const send = async () => {
   const content = draft.value.trim()
   if (!content || sending.value) return
+  if (
+    useUserRelay.value &&
+    (!relayBaseUrl.value.trim() || !relayModel.value.trim() || !relayToken.value.trim())
+  ) {
+    error.value = i18ns.t('support.userRelayIncomplete')
+    return
+  }
   sending.value = true
   streamStatus.value = 'searching'
   error.value = ''
   citations.value = []
   messages.value.push({ id: `u-${Date.now()}`, role: 'user', content })
-  const assistant: Message = { id: `a-${Date.now()}`, role: 'assistant', content: '' }
-  messages.value.push(assistant)
+  const assistantId = `a-${Date.now()}`
+  messages.value.push({ id: assistantId, role: 'assistant', content: '' })
   draft.value = ''
   try {
     const requestStore = useRequestStore()
@@ -154,6 +194,14 @@ const send = async () => {
         url: `${window.location.origin}${window.location.pathname}`,
         visibleText: captureVisiblePageText(),
       },
+      ...(useUserRelay.value
+        ? {
+            fundingMode: 'user-relay' as const,
+            relayBaseUrl: relayBaseUrl.value.trim(),
+            relayModel: relayModel.value.trim(),
+            relayToken: relayToken.value.trim(),
+          }
+        : {}),
     }
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
@@ -170,12 +218,20 @@ const send = async () => {
             body: JSON.stringify(body),
           },
           decode: (data) =>
-            JSON.parse(data) as { type: string; content?: string; citations?: Citation[] },
+            JSON.parse(data) as {
+              type: string
+              content?: string
+              citations?: Citation[]
+              stage?: 'thinking' | 'searching' | 'reading' | 'generating'
+            },
         })) {
           if (frame.type !== 'data') continue
+          if (frame.value.type === 'status' && frame.value.stage)
+            streamStatus.value = frame.value.stage
           if (frame.value.type === 'delta') {
             streamStatus.value = 'generating'
-            assistant.content += frame.value.content || ''
+            const assistant = messages.value.find((message) => message.id === assistantId)
+            if (assistant) assistant.content += frame.value.content || ''
           }
           if (frame.value.type === 'citations') {
             citations.value = frame.value.citations || []
@@ -196,7 +252,7 @@ const send = async () => {
         throw cause
       }
     }
-    if (!assistant.content) messages.value.pop()
+    if (!messages.value.find((message) => message.id === assistantId)?.content) messages.value.pop()
   } catch (cause) {
     messages.value.pop()
     error.value = cause instanceof Error ? cause.message : i18ns.t('support.unavailable')
@@ -221,7 +277,10 @@ const handoff = async () => {
   })
 }
 
-onMounted(() => void loadConversation())
+onMounted(() => {
+  void loadConversation()
+  void loadAvailability()
+})
 </script>
 
 <style scoped>
@@ -238,6 +297,14 @@ onMounted(() => void loadConversation())
 .support-panel__composer {
   display: flex;
   align-items: center;
+}
+.support-panel__funding {
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+.support-panel__funding-fields {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
 }
 .support-panel__header {
   justify-content: space-between;

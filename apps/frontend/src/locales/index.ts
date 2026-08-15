@@ -3,7 +3,7 @@ import zhCN from './zh-CN'
 import type { NestedKeys, Assert, Equal, Tail } from '@/types/common'
 import { ref, type Ref } from 'vue'
 import StorageKey from '@/constant/storagekey'
-import { TypedLocalStorage } from '@/utils/typedLocalStorage'
+import { getSharedPreference, setSharedPreference } from '@/utils/sharedPreferences'
 
 const SUPPORTED_LOCALES = ['en', 'zh-CN', 'emoji'] as const
 const I18N_INIT_TIMEOUT_MS = 5000
@@ -19,8 +19,11 @@ const normalizeLocale = (locale: string): Locale => {
   return SUPPORTED_LOCALES.includes(locale as Locale) ? (locale as Locale) : 'zh-CN'
 }
 
-// 从 localStorage 获取保存的语言，默认中文
-const savedLocale = normalizeLocale(TypedLocalStorage.getItem(StorageKey.Util.LOCALE) || 'zh-CN')
+// Language is shared by every site in the same deployment family. The
+// localStorage value is retained only as a migration fallback for old clients.
+const savedLocale = normalizeLocale(
+  getSharedPreference('locale', StorageKey.Util.LOCALE) || 'zh-CN',
+)
 const defaultLocale: Locale = 'zh-CN'
 const fallbackLocale: Locale = 'en'
 
@@ -99,7 +102,7 @@ export default i18n
 export const setLocale = async (locale: Locale): Promise<void> => {
   await ensureLocaleMessages(locale)
   localeRef.value = locale
-  TypedLocalStorage.setItem(StorageKey.Util.LOCALE, locale)
+  setSharedPreference('locale', locale, StorageKey.Util.LOCALE)
 }
 
 export const getLocale = (): Locale => {

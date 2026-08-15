@@ -52,15 +52,16 @@ const stubs = {
   },
   'el-input': {
     props: ['modelValue'],
-    emits: ['update:modelValue', 'focus'],
+    emits: ['update:modelValue', 'focus', 'click', 'compositionstart', 'compositionend'],
     template:
-      '<input :value="modelValue" @focus="$emit(\'focus\', $event)" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+      '<input :value="modelValue" @focus="$emit(\'focus\', $event)" @click="$emit(\'click\', $event)" @compositionstart="$emit(\'compositionstart\', $event)" @compositionend="$emit(\'compositionend\', $event)" @input="$emit(\'update:modelValue\', $event.target.value)" />',
   },
   'el-empty': { template: '<div />' },
 }
 
 describe('GlobalNavigationSearch', () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     push.mockReset()
     open.mockReset()
@@ -92,13 +93,34 @@ describe('GlobalNavigationSearch', () => {
     expect(document.querySelector('input')).toBeNull()
   })
 
-  it('opens from input focus without relying on the popover click trigger', async () => {
+  it('opens from input click without relying on focus-triggered popover state', async () => {
     const wrapper = mount(GlobalNavigationSearch, { global: { stubs } })
     const input = wrapper.find('input')
 
-    await input.trigger('focus')
+    await input.trigger('click')
 
     expect(wrapper.find('[role="listbox"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('does not submit a Chinese IME composition before it has completed', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('open', open)
+    const wrapper = mount(GlobalNavigationSearch, { global: { stubs } })
+    const input = wrapper.find('input')
+
+    await input.trigger('click')
+    await input.trigger('compositionstart')
+    await input.setValue('documentation')
+    await input.trigger('keydown', { key: 'Enter', isComposing: true })
+
+    expect(open).not.toHaveBeenCalled()
+
+    await input.trigger('compositionend')
+    await vi.advanceTimersByTimeAsync(120)
+    await input.trigger('keydown', { key: 'Enter' })
+
+    expect(open).toHaveBeenCalledOnce()
     wrapper.unmount()
   })
 })

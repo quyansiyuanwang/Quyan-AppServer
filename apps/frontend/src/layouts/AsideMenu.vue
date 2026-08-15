@@ -127,7 +127,7 @@
       direction="ltr"
       :size="overviewDrawerSize"
       append-to-body
-      :z-index="3000"
+      :z-index="OVERVIEW_DRAWER_Z_INDEX"
       class="overview-drawer"
       :with-header="false"
     >
@@ -534,6 +534,7 @@ import { assignDocument } from '@/service/navigationService'
 
 const isDesktopStore = useIsDesktopStore()
 const isDesktop = isDesktopStore.useIsDesktop()
+const OVERVIEW_DRAWER_Z_INDEX = 3000
 
 const props = withDefaults(
   defineProps<{
@@ -1499,6 +1500,12 @@ const confirmTogglePinnedRoute = async (routeName: RouteName) => {
       type: 'warning',
       confirmButtonText: i18ns.t('confirm'),
       cancelButtonText: i18ns.t('cancel'),
+      // MessageBox is mounted under body and would otherwise keep Element
+      // Plus' default overlay layer (2000), below the overview drawer.
+      // modalClass is applied to the overlay itself, so the confirmation
+      // remains above the drawer without relying on an unsupported zIndex
+      // option in ElMessageBoxOptions.
+      modalClass: 'pinned-page-confirmation-overlay',
     })
   } catch {
     return
@@ -2450,6 +2457,12 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+// Element Plus mounts MessageBox overlays outside this component's DOM tree.
+// Keep the unpin confirmation above the feature overview drawer (z-index 3000).
+:global(.pinned-page-confirmation-overlay) {
+  z-index: 3100 !important;
 }
 
 .route-context-menu__header {

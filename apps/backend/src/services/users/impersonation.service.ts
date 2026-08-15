@@ -1,4 +1,5 @@
 import { Permission } from "@/constant/permission";
+import { randomUUID } from "crypto";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { CustomCode } from "@/constant/custom-code";
@@ -10,11 +11,22 @@ import type { UserStore } from "@/store/users/user.store";
 import type { TypedRequest } from "@/types/express";
 import type { StartImpersonationResponse } from "@/api/dto/users/impersonation.dto";
 import { extractClientIp } from "@/util/ip-extractor";
+import type { Request } from "express";
+import {
+  clearImpersonationHandoffCookie,
+  extractImpersonationHandoffCookie,
+  setImpersonationHandoffCookie,
+} from "@/util/impersonation-cookie";
+import { validateAccountStatus } from "@/util/auth/account-status";
+import { RedisService } from "@/services/infrastructure/redis.service";
+
+const IMPERSONATION_HANDOFF_KEY_PREFIX = "auth:impersonation_handoff:";
 
 export class ImpersonationService {
   private readonly userRepository: UserStore = UserRepository.getInstance();
   private readonly permissionService = PermissionService.getInstance();
   private readonly businessLogService = BusinessLogService.getInstance();
+  private readonly redisService = RedisService.getInstance();
 
   private getClientIP(req?: TypedRequest): string {
     if (!req) return "unknown";
@@ -92,6 +104,61 @@ export class ImpersonationService {
         name: target.name,
       },
       mode,
+    };
+  }
+
+  async issueCrossSiteHandoff(request: Request, token: string): Promise<void> {
+    // Access tokens stay out of browser persistence. Only an opaque random
+    // handle reaches the HttpOnly cookie; its matching token lives in Redis.
+    if (!this.redisService.isRedisAvailable()) return;
+    const handoffId = randomUUID();
+    await this.redisService.set(
+      `${IMPERSONATION_HANDOFF_KEY_PREFIX}${handoffId}`,
+      token,
+      IMPERSONATION_TOKEN_TTL_SECONDS,
+    );
+    setImpersonationHandoffCookie(request, handoffId);
+  }
+
+  async restoreImpersonation(request: Request): Promise<StartImpersonationResponse | null> {
+    const handoffId = extractImpersonationHandoffCookie(request);
+    if (!handoffId) return null;
+    const token = await this.redisService.get(`${IMPERSONATION_HANDOFF_KEY_PREFIX}${handoffId}`);
+    if (!token) {
+      clearImpersonationHandoffCookie(request);
+      return null;
+    }
+
+    let payload: Awaited<ReturnType<typeof JWTAccessIns.verifyToken>>;
+    try {
+      payload = await JWTAccessIns.verifyToken(token);
+    } catch {
+      clearImpersonationHandoffCookie(request);
+      return null;
+    }
+
+    if (!payload?.userId || !payload.impersonatorId || !payload.impersonationMode) {
+      clearImpersonationHandoffCookie(request);
+      return null;
+    }
+
+    const target = await this.userRepository.findById(payload.userId);
+    if (!target || !payload.updatedAt || payload.updatedAt !== target.updateTime.toISOString()) {
+      clearImpersonationHandoffCookie(request);
+      return null;
+    }
+    try {
+      validateAccountStatus(target.status, target.id, "impersonation restore");
+    } catch {
+      clearImpersonationHandoffCookie(request);
+      return null;
+    }
+
+    return {
+      access_token: token,
+      expires_in: Math.max(1, (payload.exp ?? 0) - Math.floor(Date.now() / 1000)),
+      targetUser: { id: target.id, username: target.username, name: target.name },
+      mode: payload.impersonationMode,
     };
   }
 }

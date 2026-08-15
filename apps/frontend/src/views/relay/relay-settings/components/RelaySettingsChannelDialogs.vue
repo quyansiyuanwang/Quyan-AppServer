@@ -515,6 +515,56 @@
                 :closable="false"
                 :title="i18ns.t('relay.apiKeyReplaceHelp')"
               />
+              <div class="relay-upstream-model-probe">
+                <div class="relay-upstream-model-probe__toolbar">
+                  <el-button
+                    size="small"
+                    :loading="upstreamModelProbeLoading.openai"
+                    @click="probeUpstreamModels('openai')"
+                  >
+                    {{ i18ns.t('relay.discoverModels') }}
+                  </el-button>
+                  <span
+                    v-if="upstreamModelProbeResults.openai.length"
+                    class="text-[#909399] text-xs"
+                  >
+                    {{
+                      i18ns.t('relay.discoveredModelCount', {
+                        count: upstreamModelProbeResults.openai.length,
+                      })
+                    }}
+                  </span>
+                </div>
+                <div
+                  v-if="upstreamModelProbeResults.openai.length"
+                  class="relay-upstream-model-probe__results"
+                >
+                  <el-checkbox-group v-model="selectedUpstreamProbeModels.openai">
+                    <el-checkbox
+                      v-for="model in upstreamModelProbeResults.openai"
+                      :key="model.id"
+                      :value="model.pricingModel || model.id"
+                      :disabled="!model.matched"
+                    >
+                      <span>{{ model.id }}</span>
+                      <el-tag v-if="model.matched" size="small" type="success">{{
+                        model.pricingModel
+                      }}</el-tag>
+                      <el-tag v-else size="small" type="info">{{
+                        i18ns.t('relay.unmatchedModel')
+                      }}</el-tag>
+                    </el-checkbox>
+                  </el-checkbox-group>
+                  <el-button
+                    size="small"
+                    type="success"
+                    :disabled="!selectedUpstreamProbeModels.openai.length"
+                    @click="addUpstreamProbeModels('openai')"
+                  >
+                    {{ i18ns.t('relay.addMatchedModels') }}
+                  </el-button>
+                </div>
+              </div>
             </div>
           </el-form-item>
         </template>
@@ -551,6 +601,56 @@
                 :closable="false"
                 :title="i18ns.t('relay.apiKeyReplaceHelp')"
               />
+              <div class="relay-upstream-model-probe">
+                <div class="relay-upstream-model-probe__toolbar">
+                  <el-button
+                    size="small"
+                    :loading="upstreamModelProbeLoading.anthropic"
+                    @click="probeUpstreamModels('anthropic')"
+                  >
+                    {{ i18ns.t('relay.discoverModels') }}
+                  </el-button>
+                  <span
+                    v-if="upstreamModelProbeResults.anthropic.length"
+                    class="text-[#909399] text-xs"
+                  >
+                    {{
+                      i18ns.t('relay.discoveredModelCount', {
+                        count: upstreamModelProbeResults.anthropic.length,
+                      })
+                    }}
+                  </span>
+                </div>
+                <div
+                  v-if="upstreamModelProbeResults.anthropic.length"
+                  class="relay-upstream-model-probe__results"
+                >
+                  <el-checkbox-group v-model="selectedUpstreamProbeModels.anthropic">
+                    <el-checkbox
+                      v-for="model in upstreamModelProbeResults.anthropic"
+                      :key="model.id"
+                      :value="model.pricingModel || model.id"
+                      :disabled="!model.matched"
+                    >
+                      <span>{{ model.id }}</span>
+                      <el-tag v-if="model.matched" size="small" type="success">{{
+                        model.pricingModel
+                      }}</el-tag>
+                      <el-tag v-else size="small" type="info">{{
+                        i18ns.t('relay.unmatchedModel')
+                      }}</el-tag>
+                    </el-checkbox>
+                  </el-checkbox-group>
+                  <el-button
+                    size="small"
+                    type="success"
+                    :disabled="!selectedUpstreamProbeModels.anthropic.length"
+                    @click="addUpstreamProbeModels('anthropic')"
+                  >
+                    {{ i18ns.t('relay.addMatchedModels') }}
+                  </el-button>
+                </div>
+              </div>
             </div>
           </el-form-item>
         </template>
@@ -587,6 +687,56 @@
                 :closable="false"
                 :title="i18ns.t('relay.apiKeyReplaceHelp')"
               />
+              <div class="relay-upstream-model-probe">
+                <div class="relay-upstream-model-probe__toolbar">
+                  <el-button
+                    size="small"
+                    :loading="upstreamModelProbeLoading.gemini"
+                    @click="probeUpstreamModels('gemini')"
+                  >
+                    {{ i18ns.t('relay.discoverModels') }}
+                  </el-button>
+                  <span
+                    v-if="upstreamModelProbeResults.gemini.length"
+                    class="text-[#909399] text-xs"
+                  >
+                    {{
+                      i18ns.t('relay.discoveredModelCount', {
+                        count: upstreamModelProbeResults.gemini.length,
+                      })
+                    }}
+                  </span>
+                </div>
+                <div
+                  v-if="upstreamModelProbeResults.gemini.length"
+                  class="relay-upstream-model-probe__results"
+                >
+                  <el-checkbox-group v-model="selectedUpstreamProbeModels.gemini">
+                    <el-checkbox
+                      v-for="model in upstreamModelProbeResults.gemini"
+                      :key="model.id"
+                      :value="model.pricingModel || model.id"
+                      :disabled="!model.matched"
+                    >
+                      <span>{{ model.id }}</span>
+                      <el-tag v-if="model.matched" size="small" type="success">{{
+                        model.pricingModel
+                      }}</el-tag>
+                      <el-tag v-else size="small" type="info">{{
+                        i18ns.t('relay.unmatchedModel')
+                      }}</el-tag>
+                    </el-checkbox>
+                  </el-checkbox-group>
+                  <el-button
+                    size="small"
+                    type="success"
+                    :disabled="!selectedUpstreamProbeModels.gemini.length"
+                    @click="addUpstreamProbeModels('gemini')"
+                  >
+                    {{ i18ns.t('relay.addMatchedModels') }}
+                  </el-button>
+                </div>
+              </div>
             </div>
           </el-form-item>
         </template>
@@ -1494,6 +1644,11 @@ const {
   filteredModels,
   formatModelOptionLabel,
   isModelDisabled,
+  upstreamModelProbeLoading,
+  upstreamModelProbeResults,
+  selectedUpstreamProbeModels,
+  probeUpstreamModels,
+  addUpstreamProbeModels,
   computeShowUpstream,
   getChannelNameById,
   showPoolMemberPicker,
@@ -1688,6 +1843,50 @@ const getModelMappingEntries = (value: unknown): Array<[string, string]> => {
   max-height: calc(92vh - 132px);
   overflow-y: auto;
   padding: 16px 20px;
+}
+
+.relay-upstream-model-probe {
+  margin-top: 10px;
+}
+
+.relay-upstream-model-probe__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.relay-upstream-model-probe__results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 240px;
+  margin-top: 10px;
+  padding: 12px;
+  overflow-y: auto;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+}
+
+.relay-upstream-model-probe__results :deep(.el-checkbox-group) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.relay-upstream-model-probe__results :deep(.el-checkbox) {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  margin-right: 0;
+}
+
+.relay-upstream-model-probe__results :deep(.el-checkbox__label) {
+  display: inline-flex;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 767px) {

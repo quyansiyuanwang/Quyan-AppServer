@@ -46,6 +46,12 @@
         ><el-form-item :label="i18ns.t('support.windowSeconds')"
           ><el-input-number v-model="form.windowSeconds" :min="10"
         /></el-form-item>
+        <el-form-item :label="i18ns.t('support.maxAgentRounds')"
+          ><el-input-number v-model="form.maxAgentRounds" :min="1" :max="8"
+        /></el-form-item>
+        <el-form-item :label="i18ns.t('support.maxOutputTokens')"
+          ><el-input-number v-model="form.maxOutputTokens" :min="128" :max="8192" :step="128"
+        /></el-form-item>
         <el-form-item :label="i18ns.t('support.sessionRetentionDays')"
           ><el-input-number v-model="form.sessionRetentionDays" :min="1" :max="7"
         /></el-form-item>
@@ -56,6 +62,16 @@
           ><el-input-number v-model="form.outputPricePerMillion" :min="0" :precision="6"
         /></el-form-item>
       </div>
+      <el-form-item :label="i18ns.t('support.userFunding')">
+        <el-space direction="vertical" alignment="start">
+          <el-checkbox v-model="form.allowUserBalance">{{
+            i18ns.t('support.allowUserBalance')
+          }}</el-checkbox>
+          <el-checkbox v-model="form.allowUserRelayToken">{{
+            i18ns.t('support.allowUserRelayToken')
+          }}</el-checkbox>
+        </el-space>
+      </el-form-item>
       <el-button type="primary" :loading="saving" @click="save">{{ i18ns.t('save') }}</el-button>
     </el-form>
   </main>
@@ -80,6 +96,10 @@ const form = reactive<SupportAiConfigDto>({
   systemPrompt: '',
   maxRequests: 20,
   windowSeconds: 600,
+  maxAgentRounds: 3,
+  maxOutputTokens: 2048,
+  allowUserBalance: false,
+  allowUserRelayToken: false,
   sessionRetentionDays: 3,
   inputPricePerMillion: 0,
   outputPricePerMillion: 0,
@@ -106,6 +126,10 @@ const save = async () => {
         systemPrompt: form.systemPrompt,
         maxRequests: form.maxRequests,
         windowSeconds: form.windowSeconds,
+        maxAgentRounds: form.maxAgentRounds,
+        maxOutputTokens: form.maxOutputTokens,
+        allowUserBalance: form.allowUserBalance,
+        allowUserRelayToken: form.allowUserRelayToken,
         sessionRetentionDays: form.sessionRetentionDays,
         inputPricePerMillion: form.inputPricePerMillion,
         outputPricePerMillion: form.outputPricePerMillion,

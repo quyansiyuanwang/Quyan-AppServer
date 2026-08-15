@@ -9,11 +9,9 @@
 pnpm --filter @appserver/backend build
 
 # 构建步骤：
-# 1. type-check (tsc --noEmit)
-# 2. clean (rimraf dist/)
-# 3. build:info:inject (注入构建信息)
-# 4. compile (esbuild)
-# 5. copy:static (复制 JSON/HTML/CSS 到 dist/)
+# 1. clean (rimraf dist/) 与 build:info:inject（注入构建信息）
+# 2. 并行执行 type-check (tsc --noEmit) 与打包
+# 3. 打包内顺序执行 compile (esbuild) 与 copy:static（复制 JSON/HTML/CSS 到 dist/）
 ```
 
 **构建工具：esbuild**
@@ -38,18 +36,18 @@ pnpm --filter @appserver/frontend build
 
 # 构建步骤：
 # 1. type:generate (生成路由类型)
-# 2. type-check (vue-tsc)
-# 3. compile (vite build)
+# 2. 并行执行 type-check (vue-tsc) 与 compile (vite build)
 ```
 
 **构建工具：Rolldown-Vite**
 
 - 目标：ES2018 (Chrome 63+)
-- 压缩：Terser（生产环境移除 console/debugger）
+- 压缩：Rolldown/esbuild（生产环境快速压缩）
 - 代码分割：按 node_modules 自动分包
 - Gzip 压缩：>10KB 的文件
 - 混淆：javascript-obfuscator（生产环境）
-- 分析报告：`stats.html`
+- 仅在 `VITE_BUILD_ANALYZE=true` 时生成分析报告 `stats.html`
+- 仅在静态主机已配置 `gzip_static` 或 `brotli_static` 时设置 `VITE_PRECOMPRESS_ASSETS=true`；默认由静态主机/CDN 动态压缩，以缩短构建时间
 
 **生产构建**：
 
@@ -62,11 +60,18 @@ pnpm --filter @appserver/frontend build:production
 ```bash
 # 构建所有项目
 pnpm run build
+# 后端与前端优先并行；文档站随后占用空出的构建槽，避免在小型 CI
+# runner 上同时启动过多 CPU 密集型任务。
 
 # 完整构建（含 OpenAPI 生成）
 pnpm run build:full
 # = openapi:gen:all + build
+
+# 完整生产构建：OpenAPI 必须先生成，随后各应用以 production 模式并行构建。
+pnpm run build:full:production
 ```
+
+完整构建会先串行完成 OpenAPI 流水线，因为前端 SDK 依赖后端生成的规范；此后后端、前端和文档站不再互相等待。单独执行前端 `build`、`build:production` 或 `build:staging` 时，路由类型生成后类型检查与 Vite 打包也会并行执行。若构建环境资源很少，可分别执行 `build:backend`、`build:frontend`、`build:docs`，以降低 CPU 与内存竞争。
 
 ## 运行
 
@@ -295,10 +300,17 @@ AUTH_CENTER_ISSUER=
 # 安全 (>= 64 字符，必须与 JWT 密钥不同)
 REPLAY_SIGNING_MASTER_SECRET=<64+字符>
 SUPPORT_AI_CONFIG_MASTER_SECRET=<64+字符，独立于 JWT 与重放保护密钥>
+# docs-site 客服知识 manifest。后端轮询小 manifest；语言目录和文档章节均按 hash 校验并按需读取，
+# 不会下载整份知识库。
 SUPPORT_KNOWLEDGE_URL=https://<docs-domain>/support-knowledge.json
 SUPPORT_KNOWLEDGE_CACHE_TTL_SECONDS=300
 TWO_FACTOR_TRUSTED_DEVICE_SECRET=<64+字符>
 ```
+
+客服知识 JSON 是 docs-site 的构建产物，不提交到 Git。`pnpm --filter @appserver/docs-site run build`、
+`build:production` 以及文档站开发启动都会先从 `src/content/` 生成 manifest、语言目录和文档章节，
+随后由 Vite 原样复制到 `dist/`。部署时必须发布同一次构建生成的整套 `dist/` 文件；不要只覆盖
+`support-knowledge.json`，否则它指向的带 hash 目录或文档分片可能尚未部署。
 
 ### 前端 (`.env`)
 
