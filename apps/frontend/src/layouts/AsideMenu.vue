@@ -387,13 +387,23 @@
           </button>
           <div class="functional-area functional-area--mobile">
             <el-icon size="20"><component :is="currentSiteIcon" /></el-icon>
-            <span>{{ showMobileSiteSwitcher ? i18ns.t('nav.switchSite') : functionalAreaName }}</span>
+            <span>{{
+              showMobileSiteSwitcher ? i18ns.t('nav.switchSite') : functionalAreaName
+            }}</span>
           </div>
           <el-icon class="close-icon" @click="showMobileDrawer = false"><Close /></el-icon>
         </div>
 
-        <nav v-if="showMobileSiteSwitcher" class="mobile-site-switcher" :aria-label="i18ns.t('nav.switchSite')">
-          <section v-for="group in siteSwitchGroups" :key="group.key" class="mobile-site-switcher__group">
+        <nav
+          v-if="showMobileSiteSwitcher"
+          class="mobile-site-switcher"
+          :aria-label="i18ns.t('nav.switchSite')"
+        >
+          <section
+            v-for="group in siteSwitchGroups"
+            :key="group.key"
+            class="mobile-site-switcher__group"
+          >
             <div class="mobile-site-switcher__group-title">{{ i18ns.t(group.labelKey) }}</div>
             <button
               v-for="profile in group.profiles"
@@ -406,7 +416,10 @@
             >
               <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
               <span>{{ i18ns.t(profile.labelKey as I18nENAvailableKeys) }}</span>
-              <el-icon v-if="profile.id === currentSiteProfile.id" class="mobile-site-switcher__current">
+              <el-icon
+                v-if="profile.id === currentSiteProfile.id"
+                class="mobile-site-switcher__current"
+              >
                 <Check />
               </el-icon>
             </button>
