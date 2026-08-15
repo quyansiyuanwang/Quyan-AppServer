@@ -11,10 +11,14 @@ interface SiteNavigationAccess {
 
 const accessBySite = new Map<SiteProfileId, SiteNavigationAccess>()
 
-const collect = (nodes: readonly NavigationNode[], siteId: SiteProfileId, result: {
-  permissions: Permission[]
-  open: boolean
-}) => {
+const collect = (
+  nodes: readonly NavigationNode[],
+  siteId: SiteProfileId,
+  result: {
+    permissions: Permission[]
+    open: boolean
+  },
+) => {
   for (const node of nodes) {
     if (node.route) {
       const entry = getRouteCatalogEntry(node.route)

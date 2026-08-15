@@ -6,7 +6,8 @@ export type SharedPreferenceKey = 'locale' | 'theme'
 const COOKIE_PREFIX = 'appserver.preference.'
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365
 
-const normalizeHostname = (hostname: string): string => hostname.trim().toLowerCase().replace(/\.$/, '')
+const normalizeHostname = (hostname: string): string =>
+  hostname.trim().toLowerCase().replace(/\.$/, '')
 
 /**
  * Preferences are deliberately scoped to a deployment family: production,
@@ -64,7 +65,10 @@ const writeCookie = (name: string, value: string): void => {
  * Reads a deployment-wide preference and migrates its former per-origin
  * localStorage value the first time a site in that deployment is opened.
  */
-export const getSharedPreference = (key: SharedPreferenceKey, legacyStorageKey?: string): string | null => {
+export const getSharedPreference = (
+  key: SharedPreferenceKey,
+  legacyStorageKey?: string,
+): string | null => {
   const cookieValue = getCookieValue(`${COOKIE_PREFIX}${key}`)
   if (cookieValue !== null) return cookieValue
 
@@ -74,7 +78,11 @@ export const getSharedPreference = (key: SharedPreferenceKey, legacyStorageKey?:
 }
 
 /** Keeps the legacy per-origin key in sync while sharing new writes across sites. */
-export const setSharedPreference = (key: SharedPreferenceKey, value: string, legacyStorageKey?: string): void => {
+export const setSharedPreference = (
+  key: SharedPreferenceKey,
+  value: string,
+  legacyStorageKey?: string,
+): void => {
   writeCookie(`${COOKIE_PREFIX}${key}`, value)
   if (legacyStorageKey) TypedLocalStorage.setItem(legacyStorageKey, value)
 }

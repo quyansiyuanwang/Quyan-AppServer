@@ -21,7 +21,9 @@ const normalizeLocale = (locale: string): Locale => {
 
 // Language is shared by every site in the same deployment family. The
 // localStorage value is retained only as a migration fallback for old clients.
-const savedLocale = normalizeLocale(getSharedPreference('locale', StorageKey.Util.LOCALE) || 'zh-CN')
+const savedLocale = normalizeLocale(
+  getSharedPreference('locale', StorageKey.Util.LOCALE) || 'zh-CN',
+)
 const defaultLocale: Locale = 'zh-CN'
 const fallbackLocale: Locale = 'en'
 

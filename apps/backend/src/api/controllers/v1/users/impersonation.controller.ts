@@ -47,9 +47,7 @@ export class ImpersonationController extends Controller {
    * users receive null and continue through the regular refresh-cookie flow.
    */
   @Post("restore")
-  public async restoreImpersonation(
-    @Request() request: TypedRequest,
-  ): Promise<StartImpersonationResponse | null> {
+  public async restoreImpersonation(@Request() request: TypedRequest): Promise<StartImpersonationResponse | null> {
     return this.impersonationService.restoreImpersonation(request);
   }
 }

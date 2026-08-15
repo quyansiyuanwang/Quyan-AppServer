@@ -14,9 +14,7 @@ function cookieOptions(maxAgeSeconds?: number): CookieOptions {
     sameSite,
     path: "/",
     ...(env.auth.refreshCookie.domain ? { domain: env.auth.refreshCookie.domain } : {}),
-    ...(typeof maxAgeSeconds === "number" && maxAgeSeconds > 0
-      ? { maxAge: maxAgeSeconds * 1000 }
-      : {}),
+    ...(typeof maxAgeSeconds === "number" && maxAgeSeconds > 0 ? { maxAge: maxAgeSeconds * 1000 } : {}),
   };
 }
 
@@ -26,11 +24,7 @@ export const extractImpersonationHandoffCookie = (request: Request): string | un
 export const setImpersonationHandoffCookie = (request: Request, handoffId: string): void => {
   const normalized = handoffId.trim();
   if (!normalized) return;
-  request.res?.cookie(
-    IMPERSONATION_HANDOFF_COOKIE_NAME,
-    normalized,
-    cookieOptions(IMPERSONATION_TOKEN_TTL_SECONDS),
-  );
+  request.res?.cookie(IMPERSONATION_HANDOFF_COOKIE_NAME, normalized, cookieOptions(IMPERSONATION_TOKEN_TTL_SECONDS));
 };
 
 export const clearImpersonationHandoffCookie = (request: Request): void => {

@@ -308,8 +308,7 @@ export class RelayPoolResolverService {
     // valid OpenAI Responses capabilities. Explicit non-default pool
     // restrictions remain supported for existing configurations.
     const shouldDerivePoolFormats =
-      isPool &&
-      ["", "none", "openai-chat-completions,anthropic,gemini"].includes(configuredFormats);
+      isPool && ["", "none", "openai-chat-completions,anthropic,gemini"].includes(configuredFormats);
     const channelFormats = shouldDerivePoolFormats
       ? new Set(ALL_FORMATS)
       : new Set(parseRelayRequestFormats(channel.allowedFormats));
