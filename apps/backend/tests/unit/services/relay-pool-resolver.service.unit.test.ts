@@ -91,7 +91,7 @@ describe("RelayPoolResolverService", () => {
     expect(relayChannelRepository.listVisible).toHaveBeenCalledTimes(1);
   });
 
-  it("intersects ancestor formats and manual model restrictions on leaves", async () => {
+  it("derives pool formats from leaves while retaining manual model restrictions", async () => {
     const leaf = createChannel("leaf", {
       allowedFormats: "openai,anthropic",
       allowedModels: JSON.stringify(["gpt-4o", "claude-3-5-sonnet"]),
@@ -108,7 +108,7 @@ describe("RelayPoolResolverService", () => {
 
     const [resolvedLeaf] = await resolver.resolveActiveLeaves([pool]);
 
-    expect(resolvedLeaf.allowedFormats).toBe("openai-chat-completions");
+    expect(resolvedLeaf.allowedFormats).toBe("openai-chat-completions,anthropic");
     expect(resolvedLeaf.allowedModels).toBe(JSON.stringify(["gpt-4o"]));
     expect((resolvedLeaf.routingConfig as any).allowedModelsMode).toBe("manual");
   });
@@ -157,31 +157,31 @@ describe("RelayPoolResolverService", () => {
     expect(resolvedLeaf.allowedModels).toBe(JSON.stringify(["gpt-4o"]));
   });
 
-  it("derives automatic-pool capabilities from strict pooled members despite stale pool formats", async () => {
+  it("derives automatic-pool Responses capability from strict pooled members despite stale pool formats", async () => {
     const physicalMember = createChannel("physical-member", {
       channelType: "pooled-member",
-      allowedFormats: "openai",
+      allowedFormats: "openai-responses",
       allowedModels: JSON.stringify(["GPT 4o"]),
       routingConfig: { allowedModelsMode: "manual" },
       modelMapping: { "gpt-4o": "member-gpt-4o" },
     });
     const logicalPool = createChannel("logical-pool", {
       channelType: "pooled",
-      // Logical pools previously persisted synthetic values such as `none`.
-      // Their capability must always be inferred from their member leaves.
-      allowedFormats: "none",
+      // A stale logical-pool value must not hide a physical Responses-capable
+      // member from a CodeX automatic proxy pool.
+      allowedFormats: "openai",
       routingConfig: { allowedModelsMode: "auto" },
       pooledChildren: [physicalMember],
     });
     const automaticPool = createChannel("automatic-pool", {
       channelType: "automatic-proxy-pool",
-      allowedFormats: "none",
+      allowedFormats: "openai",
       routingConfig: { allowedModelsMode: "auto" },
       poolMembers: [{ memberChannelId: logicalPool.id, priority: 0, weight: 1, enabled: true }],
     });
     const { resolver } = createResolver([automaticPool, logicalPool, physicalMember]);
     const context = await resolver.preloadContext([
-      { model: "GPT 4o", provider: "gpt-4o", supportedFormats: "openai" },
+      { model: "GPT 4o", provider: "gpt-4o", supportedFormats: "openai-responses" },
       { model: "GPT 4o mini", provider: "gpt-4o-mini", supportedFormats: "openai" },
     ]);
 
@@ -190,7 +190,7 @@ describe("RelayPoolResolverService", () => {
         leafChannelId: physicalMember.id,
         catalogModelName: "GPT 4o",
         requestModelId: "gpt-4o",
-        supportedRequestFormats: ["openai-chat-completions"],
+        supportedRequestFormats: ["openai-responses"],
         modelMapping: { "gpt-4o": "member-gpt-4o" },
       },
     ]);
@@ -285,8 +285,16 @@ describe("RelayPoolResolverService", () => {
         mapping: channel.modelMapping,
       })),
     ).toEqual([
-      { formats: "openai-chat-completions", models: ["model-a"], mapping: { "request-a": "upstream-a" } },
-      { formats: "anthropic", models: ["model-b"], mapping: { "request-b": "upstream-b" } },
+      {
+        formats: "openai-chat-completions,openai-responses,anthropic,gemini",
+        models: ["model-a"],
+        mapping: { "request-a": "upstream-a" },
+      },
+      {
+        formats: "openai-chat-completions,openai-responses,anthropic,gemini",
+        models: ["model-b"],
+        mapping: { "request-b": "upstream-b" },
+      },
     ]);
   });
 
@@ -355,7 +363,7 @@ describe("RelayPoolResolverService", () => {
     ]);
   });
 
-  it("does not mix formats from a path that denies the model", async () => {
+  it("does not expose a model through a path that denies it", async () => {
     const leaf = createChannel("leaf");
     const openaiPath = createChannel("openai-path", {
       channelType: "pooled",
@@ -386,10 +394,10 @@ describe("RelayPoolResolverService", () => {
     const capabilities = await resolver.resolveChannelCapabilities(root.id, context);
 
     expect(capabilities).toHaveLength(1);
-    expect(capabilities[0]?.supportedRequestFormats).toEqual(["anthropic"]);
+    expect(capabilities[0]?.supportedRequestFormats).toEqual(["openai-chat-completions", "anthropic"]);
   });
 
-  it("preserves an empty format intersection as deny-all in compatibility leaves", async () => {
+  it("does not let a logical pool format deny its physical leaf", async () => {
     const leaf = createChannel("leaf", { allowedFormats: "anthropic" });
     const pool = createChannel("pool", {
       channelType: "pooled",
@@ -400,7 +408,7 @@ describe("RelayPoolResolverService", () => {
 
     const [resolvedLeaf] = await resolver.resolveActiveLeaves([pool]);
 
-    expect(resolvedLeaf.allowedFormats).toBe("none");
+    expect(resolvedLeaf.allowedFormats).toBe("anthropic");
   });
 
   it("reuses a preloaded graph when resolving multiple channels", async () => {

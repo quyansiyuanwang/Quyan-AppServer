@@ -215,6 +215,11 @@ describe('profile route factory', () => {
       'https://terminal.qysyw.cn/workspace',
     )
 
+    const aiConsoleProfile = getKnownProfile('ai.console.qysyw.cn')
+    expect(resolveCanonicalRouteUrl('balanceHistory', aiConsoleProfile)).toBe(
+      'https://account.qysyw.cn/billing/balance',
+    )
+
     const stagingAccountProfile = getKnownProfile('account.staging.qysyw.cn')
     expect(resolveCanonicalRouteUrl('relayTokenManagement', stagingAccountProfile)).toBe(
       'https://ai.console.staging.qysyw.cn/relay/tokens',
