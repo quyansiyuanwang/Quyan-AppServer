@@ -15,7 +15,6 @@ import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-prote
  */
 @Route("v1/impersonation")
 @Tags("Impersonation")
-@Security("jwt")
 export class ImpersonationController extends Controller {
   private impersonationService = new ImpersonationService();
 
@@ -27,6 +26,7 @@ export class ImpersonationController extends Controller {
    * 将该 token 替换当前 token 即可以目标用户身份操作系统。
    */
   @Post("start")
+  @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "模拟成功")
   @ReplayProtected()
   @RequireAnyPermission([Permission.USER_IMPERSONATE_VIEW, Permission.USER_IMPERSONATE_ACT])
@@ -36,6 +36,20 @@ export class ImpersonationController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<StartImpersonationResponse> {
     const impersonatorId = request.user!.userId;
-    return this.impersonationService.startImpersonation(impersonatorId, body.targetUserId, request);
+    const result = await this.impersonationService.startImpersonation(impersonatorId, body.targetUserId, request);
+    await this.impersonationService.issueCrossSiteHandoff(request, result.access_token);
+    return result;
+  }
+
+  /**
+   * Restores a short-lived impersonation token after a cross-site navigation.
+   * An HttpOnly cookie carries only an opaque first-party handoff ID; normal
+   * users receive null and continue through the regular refresh-cookie flow.
+   */
+  @Post("restore")
+  public async restoreImpersonation(
+    @Request() request: TypedRequest,
+  ): Promise<StartImpersonationResponse | null> {
+    return this.impersonationService.restoreImpersonation(request);
   }
 }

@@ -5429,6 +5429,34 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/impersonation/restore": {
+			"post": {
+				"operationId": "ImpersonationControllerRestoreImpersonation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"allOf": [
+										{
+											"$ref": "#/components/schemas/StartImpersonationResponse"
+										}
+									],
+									"nullable": true
+								}
+							}
+						}
+					}
+				},
+				"description": "Restores a short-lived impersonation token after a cross-site navigation.\nThe token is only available from an HttpOnly first-party cookie; normal\nusers receive null and continue through the regular refresh-cookie flow.",
+				"tags": [
+					"Impersonation"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
 		"/v1/groups": {
 			"get": {
 				"operationId": "GroupControllerGetAllGroups",

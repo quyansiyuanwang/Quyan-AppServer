@@ -1,4 +1,5 @@
 import { Permission } from '@/constant/permission'
+import { getSiteNavigationPermissions } from './navigation-site-access'
 
 export type SiteShell = 'public' | 'identity' | 'application' | 'console'
 export type SiteKind = 'public' | 'identity' | 'account' | 'product' | 'user-console' | 'management'
@@ -15,89 +16,6 @@ export interface SiteDefinition {
   kind?: SiteKind
   navigationGroup?: 'public' | 'account' | 'products' | 'user-console' | 'management'
   accessPermissions?: readonly Permission[]
-}
-
-const profileAccessPermissions: Partial<Record<string, readonly Permission[]>> = {
-  account: [Permission.USER_UPDATE_SELF_PROFILE, Permission.RELAY_TOKEN_READ],
-  chat: [Permission.RELAY_TOKEN_READ],
-  terminal: [Permission.REMOTE_TERMINAL_PRODUCT_READ, Permission.REMOTE_TERMINAL_DEVICE_READ],
-  'console-ai': [
-    Permission.RELAY_TOKEN_READ,
-    Permission.RELAY_CHANNEL_PROVIDER_READ,
-    Permission.RELAY_CHANNEL_SUBMIT,
-  ],
-  'console-developer': [Permission.OAUTH_CLIENT_READ, Permission.AUTH_CENTER_CLIENT_READ],
-  'console-ram': [
-    Permission.RAM_USER_READ,
-    Permission.RAM_ROLE_READ,
-    Permission.RAM_BINDING_READ,
-    Permission.RAM_SESSION_READ,
-    Permission.RAM_POLICY_READ,
-  ],
-  'product-kv': [
-    Permission.PRODUCT_KV_READ,
-    Permission.PRODUCT_KV_WRITE,
-    Permission.PRODUCT_KV_MANAGE,
-  ],
-  'product-short_link': [
-    Permission.PRODUCT_SHORT_LINK_READ,
-    Permission.PRODUCT_SHORT_LINK_WRITE,
-    Permission.PRODUCT_SHORT_LINK_MANAGE,
-  ],
-  'product-secret': [
-    Permission.PRODUCT_SECRET_READ,
-    Permission.PRODUCT_SECRET_WRITE,
-    Permission.PRODUCT_SECRET_USE,
-    Permission.PRODUCT_SECRET_MANAGE,
-  ],
-  'product-status': [
-    Permission.PRODUCT_STATUS_READ,
-    Permission.PRODUCT_STATUS_WRITE,
-    Permission.PRODUCT_STATUS_PUBLISH,
-    Permission.PRODUCT_STATUS_MANAGE,
-  ],
-  'product-verification': [
-    Permission.PRODUCT_VERIFICATION_SEND,
-    Permission.PRODUCT_VERIFICATION_VERIFY,
-    Permission.PRODUCT_VERIFICATION_MANAGE,
-  ],
-  'product-ip_geolocation': [
-    Permission.PRODUCT_IP_GEOLOCATION_LOOKUP,
-    Permission.PRODUCT_IP_GEOLOCATION_MANAGE,
-  ],
-  'product-push': [
-    Permission.PRODUCT_PUSH_SEND,
-    Permission.PRODUCT_PUSH_CHANNEL_MANAGE,
-    Permission.PRODUCT_PUSH_DELIVERY_READ,
-    Permission.PRODUCT_PUSH_MANAGE,
-  ],
-  'product-oj': [Permission.OJ_APIKEY_READ, Permission.OJ_USAGE_READ, Permission.OJ_PRICING_READ],
-  'management-core': [
-    Permission.USER_READ,
-    Permission.GROUP_READ,
-    Permission.PERMISSION_VIEW,
-    Permission.RAM_ROLE_READ,
-    Permission.SYSTEM_CONFIG,
-    Permission.SUPPORT_AI_CONFIG,
-    Permission.ANALYTICS_READ,
-  ],
-  'management-ai': [
-    Permission.MODEL_PRICING_UPDATE,
-    Permission.RELAY_CHANNEL_REVIEW,
-    Permission.RELAY_CHANNEL_HEALTH_READ,
-    Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
-    Permission.RELAY_CHANNEL_PROBE_READ,
-    Permission.UPSTREAM_STATUS_READ,
-  ],
-  'management-developer': [
-    Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
-    Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE,
-    Permission.OAUTH_CLIENT_REVIEW_READ,
-  ],
-  'management-terminal': [
-    Permission.REMOTE_TERMINAL_PRODUCT_READ,
-    Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
-  ],
 }
 
 type ProductCode =
@@ -275,5 +193,10 @@ for (const definition of siteDefinitions) {
   }
 }
 
-export const getSiteAccessPermissions = (siteId: SiteProfileId): readonly Permission[] =>
-  profileAccessPermissions[siteId] ?? []
+export const getSiteAccessPermissions = (siteId: SiteProfileId): readonly Permission[] => {
+  // Keep the profile metadata compatible for callers, while deriving it from
+  // the same navigation manifest used by the sidebar and global search.
+  // The import is type-only at runtime through the resolver to avoid a second
+  // hand-maintained permission map.
+  return getSiteNavigationPermissions(siteId)
+}

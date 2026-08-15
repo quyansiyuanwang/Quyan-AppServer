@@ -78,6 +78,18 @@ describe('site registry', () => {
     expect(accessible.map((item) => item.id)).not.toContain('management-core')
   })
 
+  it('derives site visibility from the same navigation permissions as the sidebar', () => {
+    const account = resolveSiteProfile('account.qysyw.cn')
+    if (!isKnownSiteProfile(account)) throw new Error('Expected account profile')
+
+    const withSupportPermission = getAccessibleSiteProfiles(account, ['support:ai:config'])
+    expect(withSupportPermission.map((item) => item.id)).toContain('management-core')
+
+    const withoutManagementPermission = getAccessibleSiteProfiles(account, ['ticket:submit'])
+    expect(withoutManagementPermission.map((item) => item.id)).not.toContain('management-ai')
+    expect(withoutManagementPermission.map((item) => item.id)).toContain('account')
+  })
+
   it('assigns every deployment host to a distinct domain app', () => {
     for (const deploymentId of ['release', 'staging'] as const) {
       const profiles = siteProfiles.filter((profile) => profile.deploymentId === deploymentId)

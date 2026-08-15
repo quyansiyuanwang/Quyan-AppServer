@@ -300,21 +300,32 @@ export class RelayPoolResolverService {
   }
 
   private mergeConstraints(inherited: EffectiveChannelConstraints, channel: RelayChannel): EffectiveChannelConstraints {
-    const channelFormats = new Set(parseRelayRequestFormats(channel.allowedFormats));
+    const isPool = ["pooled", "automatic-proxy-pool"].includes(channel.channelType || "standalone");
+    const configuredFormats = channel.allowedFormats?.trim().toLowerCase() ?? "";
+    // Logical pools do not have an upstream of their own. Empty, `none`, and
+    // the former synthetic pool default mean "derive from members"; applying
+    // either to every leaf would make the route deny all requests or hide
+    // valid OpenAI Responses capabilities. Explicit non-default pool
+    // restrictions remain supported for existing configurations.
+    const shouldDerivePoolFormats =
+      isPool &&
+      ["", "none", "openai-chat-completions,anthropic,gemini"].includes(configuredFormats);
+    const channelFormats = shouldDerivePoolFormats
+      ? new Set(ALL_FORMATS)
+      : new Set(parseRelayRequestFormats(channel.allowedFormats));
     const formats = new Set([...inherited.formats].filter((format) => channelFormats.has(format)));
-    // A pooled-member is an execution account, not a second user-facing
-    // product. It may constrain the protocol it can actually speak, but its
-    // local whitelist and model mapping must not silently change the logical
-    // pooled channel's advertised model or billing rule.
-    const isPhysicalPooledMember = channel.channelType === "pooled-member";
-    const ownAllowedModelNames = isPhysicalPooledMember ? null : this.getManualAllowedModelNames(channel);
+    // A physical pooled member is still the execution leaf. Its model
+    // whitelist and mapping are therefore part of the effective capability;
+    // otherwise `/v1/models` advertises models that the selected upstream
+    // cannot serve and routing loses the member's model alias.
+    const ownAllowedModelNames = this.getManualAllowedModelNames(channel);
 
     return {
       formats,
       allowedModelNames: this.intersectAllowedModelNames(inherited.allowedModelNames, ownAllowedModelNames),
       modelMapping: {
         ...inherited.modelMapping,
-        ...(isPhysicalPooledMember ? {} : ((channel.modelMapping as Record<string, string> | null) ?? {})),
+        ...((channel.modelMapping as Record<string, string> | null) ?? {}),
       },
     };
   }
