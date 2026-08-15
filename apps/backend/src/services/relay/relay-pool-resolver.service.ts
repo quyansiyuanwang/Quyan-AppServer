@@ -301,17 +301,13 @@ export class RelayPoolResolverService {
 
   private mergeConstraints(inherited: EffectiveChannelConstraints, channel: RelayChannel): EffectiveChannelConstraints {
     const isPool = ["pooled", "automatic-proxy-pool"].includes(channel.channelType || "standalone");
-    const configuredFormats = channel.allowedFormats?.trim().toLowerCase() ?? "";
-    // Logical pools do not have an upstream of their own. Empty, `none`, and
-    // the former synthetic pool default mean "derive from members"; applying
-    // either to every leaf would make the route deny all requests or hide
-    // valid OpenAI Responses capabilities. Explicit non-default pool
-    // restrictions remain supported for existing configurations.
-    const shouldDerivePoolFormats =
-      isPool && ["", "none", "openai-chat-completions,anthropic,gemini"].includes(configuredFormats);
-    const channelFormats = shouldDerivePoolFormats
-      ? new Set(ALL_FORMATS)
-      : new Set(parseRelayRequestFormats(channel.allowedFormats));
+    // Logical pools have no upstream protocol of their own. Their persisted
+    // allowedFormats value is historical management metadata, not a routing
+    // restriction: applying it to every leaf can turn an automatic pool with
+    // Responses-capable children into a deny-all route. Only execution leaves
+    // constrain formats; a pool's visible formats are derived from those
+    // reachable leaves.
+    const channelFormats = isPool ? new Set(ALL_FORMATS) : new Set(parseRelayRequestFormats(channel.allowedFormats));
     const formats = new Set([...inherited.formats].filter((format) => channelFormats.has(format)));
     // A physical pooled member is still the execution leaf. Its model
     // whitelist and mapping are therefore part of the effective capability;

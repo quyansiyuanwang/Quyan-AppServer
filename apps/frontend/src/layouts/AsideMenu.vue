@@ -359,7 +359,7 @@
         <span>{{ i18ns.t('logout') }}</span>
       </div>
 
-      <div class="tab-item" @click="showMobileDrawer = true">
+      <div class="tab-item" @click="openMobileNavigation">
         <el-icon><MoreFilled /></el-icon>
         <span>{{ i18ns.t('nav.more') }}</span>
       </div>
@@ -367,7 +367,7 @@
 
     <!-- Mobile side drawer -->
     <el-drawer
-      v-if="props.showNavigation"
+      v-if="props.showNavigation || !isDesktop"
       v-model="showMobileDrawer"
       direction="rtl"
       size="82%"
@@ -376,77 +376,122 @@
     >
       <div class="mobile-drawer-content">
         <div class="drawer-header">
+          <button
+            v-if="showMobileSiteSwitcher"
+            type="button"
+            class="mobile-drawer-back"
+            :aria-label="i18ns.t('back')"
+            @click="showMobileSiteSwitcher = false"
+          >
+            <el-icon><ArrowLeft /></el-icon>
+          </button>
           <div class="functional-area functional-area--mobile">
             <el-icon size="20"><component :is="currentSiteIcon" /></el-icon>
-            <span>{{ functionalAreaName }}</span>
+            <span>{{
+              showMobileSiteSwitcher ? i18ns.t('nav.switchSite') : functionalAreaName
+            }}</span>
           </div>
           <el-icon class="close-icon" @click="showMobileDrawer = false"><Close /></el-icon>
         </div>
 
-        <div class="mobile-quick-actions">
-          <el-button @click="toggleDark">
-            <el-icon><component :is="iconRef" /></el-icon>
-            <span>{{ i18ns.t('SettingsView.themeLabel') }}</span>
-          </el-button>
-          <LanguageSwitcher />
-        </div>
-
-        <el-menu ref="mobileMenuRef" class="mobile-aside-nav" @select="showMobileDrawer = false">
-          <NavMenuItems
-            :show-spacer="false"
-            :show-logout="props.showLogout"
-            :show-pinned-section="currentSitePinnedItems.length > 0"
-            :on-route-navigate="handleRouteNavigation"
+        <nav
+          v-if="showMobileSiteSwitcher"
+          class="mobile-site-switcher"
+          :aria-label="i18ns.t('nav.switchSite')"
+        >
+          <section
+            v-for="group in siteSwitchGroups"
+            :key="group.key"
+            class="mobile-site-switcher__group"
           >
-            <template #pinned>
-              <li class="pinned-menu-section">
-                <div class="pinned-menu-section__header">
-                  <span class="pinned-menu-section__title">{{ i18ns.t('nav.pinnedPages') }}</span>
-                </div>
-                <div ref="mobilePinnedListRef" class="pinned-menu-list">
-                  <div
-                    v-for="item in currentSitePinnedItems"
-                    :key="item.key"
-                    :data-route-name="item.route"
-                    class="pinned-menu-link"
-                    :class="{
-                      'is-active': item.route
-                        ? router.currentRoute.value.name === item.route
-                        : false,
-                    }"
-                  >
-                    <button
-                      type="button"
-                      class="pinned-menu-link__drag"
-                      :aria-label="i18ns.t('nav.dragPinnedPage')"
-                      @click.stop
-                    >
-                      <el-icon><Rank /></el-icon>
-                    </button>
-                    <button
-                      type="button"
-                      class="pinned-menu-link__main"
-                      @click="handlePinnedMobileItem(item)"
-                    >
-                      <span class="pinned-menu-link__content">
-                        <el-icon><component :is="item.icon" /></el-icon>
-                        <span>{{ item.label }}</span>
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      class="pinned-menu-link__remove"
-                      :aria-label="i18ns.t('nav.unpinPage')"
-                      @click.stop="item.route && confirmTogglePinnedRoute(item.route)"
-                    >
-                      <el-icon><Close /></el-icon>
-                    </button>
+            <div class="mobile-site-switcher__group-title">{{ i18ns.t(group.labelKey) }}</div>
+            <button
+              v-for="profile in group.profiles"
+              :key="profile.id"
+              type="button"
+              class="mobile-site-switcher__item"
+              :class="{ 'is-active': profile.id === currentSiteProfile.id }"
+              :disabled="profile.id === currentSiteProfile.id"
+              @click="navigateToSiteProfile(profile.id)"
+            >
+              <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
+              <span>{{ i18ns.t(profile.labelKey as I18nENAvailableKeys) }}</span>
+              <el-icon
+                v-if="profile.id === currentSiteProfile.id"
+                class="mobile-site-switcher__current"
+              >
+                <Check />
+              </el-icon>
+            </button>
+          </section>
+        </nav>
+
+        <template v-else>
+          <div class="mobile-quick-actions">
+            <el-button @click="toggleDark">
+              <el-icon><component :is="iconRef" /></el-icon>
+              <span>{{ i18ns.t('SettingsView.themeLabel') }}</span>
+            </el-button>
+            <LanguageSwitcher />
+          </div>
+
+          <el-menu ref="mobileMenuRef" class="mobile-aside-nav" @select="showMobileDrawer = false">
+            <NavMenuItems
+              :show-spacer="false"
+              :show-logout="props.showLogout"
+              :show-pinned-section="currentSitePinnedItems.length > 0"
+              :on-route-navigate="handleRouteNavigation"
+            >
+              <template #pinned>
+                <li class="pinned-menu-section">
+                  <div class="pinned-menu-section__header">
+                    <span class="pinned-menu-section__title">{{ i18ns.t('nav.pinnedPages') }}</span>
                   </div>
-                </div>
-              </li>
-            </template>
-          </NavMenuItems>
-        </el-menu>
+                  <div ref="mobilePinnedListRef" class="pinned-menu-list">
+                    <div
+                      v-for="item in currentSitePinnedItems"
+                      :key="item.key"
+                      :data-route-name="item.route"
+                      class="pinned-menu-link"
+                      :class="{
+                        'is-active': item.route
+                          ? router.currentRoute.value.name === item.route
+                          : false,
+                      }"
+                    >
+                      <button
+                        type="button"
+                        class="pinned-menu-link__drag"
+                        :aria-label="i18ns.t('nav.dragPinnedPage')"
+                        @click.stop
+                      >
+                        <el-icon><Rank /></el-icon>
+                      </button>
+                      <button
+                        type="button"
+                        class="pinned-menu-link__main"
+                        @click="handlePinnedMobileItem(item)"
+                      >
+                        <span class="pinned-menu-link__content">
+                          <el-icon><component :is="item.icon" /></el-icon>
+                          <span>{{ item.label }}</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        class="pinned-menu-link__remove"
+                        :aria-label="i18ns.t('nav.unpinPage')"
+                        @click.stop="item.route && confirmTogglePinnedRoute(item.route)"
+                      >
+                        <el-icon><Close /></el-icon>
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              </template>
+            </NavMenuItems>
+          </el-menu>
+        </template>
       </div>
     </el-drawer>
   </div>
@@ -565,6 +610,7 @@ const desktopPinnedListRef = useTemplateRef<HTMLDivElement>('desktopPinnedListRe
 const mobilePinnedListRef = useTemplateRef<HTMLDivElement>('mobilePinnedListRef')
 const overviewPinnedListRef = useTemplateRef<HTMLDivElement>('overviewPinnedListRef')
 const showMobileDrawer = ref(false)
+const showMobileSiteSwitcher = ref(false)
 const categoryKeyword = ref('')
 const featureKeyword = ref('')
 const pinnedRouteNames = ref<RouteName[]>([])
@@ -717,13 +763,25 @@ const navigateToSiteProfile = (siteId: SiteProfileId) => {
   if (!target || target.id === currentSiteProfile.id) return
 
   showOverview.value = false
+  showMobileSiteSwitcher.value = false
   showMobileDrawer.value = false
   assignDocument(new URL(target.defaultPath, target.canonicalOrigin).toString())
 }
 
 const openOverview = () => {
+  if (!isDesktop.value) {
+    showMobileSiteSwitcher.value = true
+    showMobileDrawer.value = true
+    return
+  }
+
   showOverview.value = true
   isCollapse.value = false
+}
+
+const openMobileNavigation = () => {
+  showMobileSiteSwitcher.value = false
+  showMobileDrawer.value = true
 }
 
 defineExpose({ openOverview })
@@ -1702,6 +1760,10 @@ watch(
   { flush: 'post' },
 )
 
+watch(showMobileDrawer, (visible) => {
+  if (!visible) showMobileSiteSwitcher.value = false
+})
+
 watch(
   pinnedRouteNames,
   (value) => {
@@ -2650,6 +2712,28 @@ watch(
   }
 }
 
+.mobile-drawer-back {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin-right: 4px;
+  padding: 0;
+  color: var(--el-text-color-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.mobile-drawer-back:hover,
+.mobile-drawer-back:focus-visible {
+  color: var(--el-color-primary);
+  background: var(--el-fill-color-light);
+  outline: none;
+}
+
 .mobile-drawer-content {
   display: flex;
   flex-direction: column;
@@ -2666,6 +2750,60 @@ watch(
   flex: 1;
   min-height: 0;
   padding-bottom: calc(8px + env(safe-area-inset-bottom));
+}
+
+.mobile-site-switcher {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.mobile-site-switcher__group {
+  display: grid;
+  gap: 6px;
+}
+
+.mobile-site-switcher__group-title {
+  padding: 0 8px 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mobile-site-switcher__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  color: var(--el-text-color-primary);
+  font: inherit;
+  text-align: left;
+  background: var(--el-fill-color-light);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.mobile-site-switcher__item:hover:not(:disabled),
+.mobile-site-switcher__item:focus-visible:not(:disabled) {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary-light-5);
+  outline: none;
+}
+
+.mobile-site-switcher__item.is-active {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  cursor: default;
+}
+
+.mobile-site-switcher__current {
+  margin-left: auto;
 }
 
 .mobile-quick-actions {
