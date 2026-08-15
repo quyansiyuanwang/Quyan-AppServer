@@ -7,6 +7,7 @@ export interface SupportCitation {
 }
 
 export type SupportStreamEvent =
+  | { type: 'status'; stage: 'thinking' | 'searching' | 'reading' | 'generating'; round?: number }
   | { type: 'delta'; content: string }
   | { type: 'citations'; citations: SupportCitation[] }
   | { type: 'complete'; done: true }

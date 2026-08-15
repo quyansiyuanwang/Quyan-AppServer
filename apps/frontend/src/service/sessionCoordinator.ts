@@ -16,6 +16,8 @@ import { useSessionStore, type SessionStatus } from '@/stores/sessionStore'
 import { useTopLoadingProgressStore } from '@/stores/topLoadingProgressStore'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
+import { useImpersonationStore } from '@/stores/impersonationStore'
+import { createImpersonationControllerApi } from '@/client/services/impersonation-controller.gen'
 import {
   getUserIdFromToken,
   getUserUpdatedAtFromToken,
@@ -32,10 +34,14 @@ export class SessionExpiredError extends Error {
 }
 
 const getAuthApi = cache(() => createAuthControllerApi(useRequestStore().getAxios()))
+const getImpersonationApi = cache(() =>
+  createImpersonationControllerApi(useRequestStore().getAxios()),
+)
 
 export class SessionCoordinator {
   private static instance: SessionCoordinator | null = null
   private restorePromise: Promise<string | null> | null = null
+  private impersonationRestorePromise: Promise<string | null> | null = null
   private hydratePromise: Promise<void> | null = null
   private logoutPromise: Promise<void> | null = null
   // This projection version is intentionally kept in memory. The access token
@@ -126,7 +132,45 @@ export class SessionCoordinator {
       useSessionStore().setAuthenticated(token)
       return token
     }
+
+    // Access tokens are memory-only, so a site switch reloads the application.
+    // Restore a still-valid administrator impersonation from its HttpOnly
+    // handoff cookie before falling back to the normal refresh-cookie session.
+    const impersonationToken = await this.restoreImpersonationAcrossSite()
+    if (impersonationToken) return impersonationToken
     return this.refresh()
+  }
+
+  private async restoreImpersonationAcrossSite(): Promise<string | null> {
+    if (this.impersonationRestorePromise) return this.impersonationRestorePromise
+    this.impersonationRestorePromise = (async () => {
+      try {
+        const result = await getImpersonationApi().restoreImpersonation(
+          {},
+          { retry: false, requestWrapper: async (promise: any) => promise },
+        )
+        const restored = result.data
+        if (!restored?.access_token || !restored.targetUser) return null
+
+        useImpersonationStore().setSession({
+          targetUserId: restored.targetUser.id,
+          targetUsername: restored.targetUser.username ?? '',
+          targetName: restored.targetUser.name ?? null,
+          mode: restored.mode,
+          startedAt: Date.now(),
+        })
+        this.completeLogin({ access_token: restored.access_token, user: restored.targetUser })
+        return restored.access_token
+      } catch {
+        // A missing/expired handoff is normal for ordinary sessions. The
+        // regular refresh cookie remains the authoritative fallback.
+        useImpersonationStore().clearSession()
+        return null
+      }
+    })().finally(() => {
+      this.impersonationRestorePromise = null
+    })
+    return this.impersonationRestorePromise
   }
 
   async refresh(): Promise<string | null> {

@@ -300,10 +300,17 @@ AUTH_CENTER_ISSUER=
 # 安全 (>= 64 字符，必须与 JWT 密钥不同)
 REPLAY_SIGNING_MASTER_SECRET=<64+字符>
 SUPPORT_AI_CONFIG_MASTER_SECRET=<64+字符，独立于 JWT 与重放保护密钥>
+# docs-site 客服知识 manifest。后端轮询小 manifest；语言目录和文档章节均按 hash 校验并按需读取，
+# 不会下载整份知识库。
 SUPPORT_KNOWLEDGE_URL=https://<docs-domain>/support-knowledge.json
 SUPPORT_KNOWLEDGE_CACHE_TTL_SECONDS=300
 TWO_FACTOR_TRUSTED_DEVICE_SECRET=<64+字符>
 ```
+
+客服知识 JSON 是 docs-site 的构建产物，不提交到 Git。`pnpm --filter @appserver/docs-site run build`、
+`build:production` 以及文档站开发启动都会先从 `src/content/` 生成 manifest、语言目录和文档章节，
+随后由 Vite 原样复制到 `dist/`。部署时必须发布同一次构建生成的整套 `dist/` 文件；不要只覆盖
+`support-knowledge.json`，否则它指向的带 hash 目录或文档分片可能尚未部署。
 
 ### 前端 (`.env`)
 

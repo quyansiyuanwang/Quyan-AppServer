@@ -463,16 +463,16 @@ export class RelayTokenService {
     return refreshedToken;
   }
 
-  async validateToken(token: string, request?: Request) {
+  async validateToken(token: string, request?: Request, trustedClientIp?: string) {
     const relayToken = await this.relayTokenRepo.findByToken(token);
     if (!relayToken || relayToken.status !== MANAGED_STATUS.ENABLED) throw new NotFoundError("Invalid relay token");
 
     if (relayToken.expiresAt && relayToken.expiresAt < new Date()) throw new BadRequestError("Relay token expired");
 
     if (relayToken.ipWhitelist) {
-      if (!request) throw new ForbiddenError("Relay token IP whitelist requires request context");
+      if (!request && !trustedClientIp) throw new ForbiddenError("Relay token IP whitelist requires request context");
 
-      const clientIp = extractClientIp(request);
+      const clientIp = trustedClientIp || extractClientIp(request!);
       if (!isIpWhitelisted(clientIp, relayToken.ipWhitelist))
         throw new ForbiddenError("Current IP is not allowed for this relay token");
     }

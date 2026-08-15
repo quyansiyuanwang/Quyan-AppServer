@@ -29,6 +29,9 @@ vi.mock('@/router', () => ({
 
 vi.mock('@/client/services/support-controller.gen', () => ({
   createSupportControllerApi: () => ({
+    availability: vi.fn().mockResolvedValue({
+      data: { data: { enabled: true, allowUserBalance: false, allowUserRelayToken: false } },
+    }),
     handoff: vi.fn(),
     conversation: vi.fn().mockResolvedValue({ data: { data: { messages: [] } } }),
     clearConversation: vi.fn(),

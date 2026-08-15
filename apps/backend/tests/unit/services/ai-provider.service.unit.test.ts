@@ -115,6 +115,31 @@ describe("AIProviderService", () => {
     );
   });
 
+  it("passes the configured output-token cap to OpenAI-compatible upstreams", async () => {
+    mockedPost.mockResolvedValue({
+      data: createAsyncChunkStream(["data: [DONE]\\n\\n"]),
+    } as any);
+
+    const service = AIProviderService.getInstance();
+    await collectChunks(
+      service.streamChat(
+        [{ role: "user", content: "Keep this short" }],
+        "gpt-4o-mini",
+        "test-key",
+        "https://upstream.example.com",
+        undefined,
+        undefined,
+        { maxOutputTokens: 256 },
+      ),
+    );
+
+    expect(mockedPost).toHaveBeenCalledWith(
+      "https://upstream.example.com/chat/completions",
+      expect.objectContaining({ max_tokens: 256 }),
+      expect.anything(),
+    );
+  });
+
   it("retries without stream_options on 400/422 and uses usage metrics", async () => {
     mockedPost
       .mockRejectedValueOnce(Object.assign(new Error("Bad Request"), { response: { status: 400 } }))

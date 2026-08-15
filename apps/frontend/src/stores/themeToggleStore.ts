@@ -4,6 +4,11 @@ import { useToggle } from '@vueuse/shared'
 import { useColorMode, usePreferredDark } from '@vueuse/core'
 import localStorageKeys from '@/constant/storagekey'
 import { ensureElementPlusDarkTheme } from '@/utils/elementPlusTheme'
+import { getSharedPreference, setSharedPreference } from '@/utils/sharedPreferences'
+
+const normalizeColorMode = (value: string | null): 'auto' | 'dark' | 'light' => {
+  return value === 'dark' || value === 'light' || value === 'auto' ? value : 'auto'
+}
 
 export const useThemeToggleStore = defineStore('themeToggle', () => {
   const preferredDark = usePreferredDark()
@@ -12,10 +17,13 @@ export const useThemeToggleStore = defineStore('themeToggle', () => {
     selector: 'html',
     attribute: 'data-theme',
     storageKey: localStorageKeys.Theme.THEME_TOGGLE_IS_DARK,
-    initialValue: 'auto',
+    initialValue: normalizeColorMode(
+      getSharedPreference('theme', localStorageKeys.Theme.THEME_TOGGLE_IS_DARK),
+    ),
     emitAuto: true,
     onChanged: (mode, defaultHandler) => {
       defaultHandler(mode)
+      setSharedPreference('theme', mode, localStorageKeys.Theme.THEME_TOGGLE_IS_DARK)
       const resolvedDark = mode === 'auto' ? preferredDark.value : mode === 'dark'
 
       if (resolvedDark) {

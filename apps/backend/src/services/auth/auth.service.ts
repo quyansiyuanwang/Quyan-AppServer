@@ -47,6 +47,7 @@ import {
   setTrustedDeviceTokenCookie,
 } from "@/util/trusted-device-token";
 import { clearRefreshTokenCookie, extractRefreshTokenCookie, setRefreshTokenCookie } from "@/util/auth-refresh-cookie";
+import { clearImpersonationHandoffCookie } from "@/util/impersonation-cookie";
 import {
   buildForceOfflineAuthSessionKey,
   clearAuthSessionIdCookie,
@@ -686,6 +687,10 @@ export class AuthService {
 
   async refresh(requestOrToken?: Request | string, refreshTokenFromBody?: string) {
     const request = typeof requestOrToken === "string" ? undefined : requestOrToken;
+    // An impersonation token is intentionally non-refreshable. If the user
+    // reaches the normal refresh flow, end that temporary session and restore
+    // the administrator's regular refresh-cookie session.
+    if (request) clearImpersonationHandoffCookie(request);
     const refreshTokenFromArg = typeof requestOrToken === "string" ? requestOrToken : undefined;
     const refreshToken =
       (request ? extractRefreshTokenCookie(request) : undefined) || refreshTokenFromArg || refreshTokenFromBody;
@@ -900,6 +905,7 @@ export class AuthService {
     if (refreshToken) await JWTRefreshIns.revokeToken(refreshToken);
     if (request) {
       clearRefreshTokenCookie(request);
+      clearImpersonationHandoffCookie(request);
       clearAuthSessionIdCookie(request);
       clearCaptchaTrustCookie(request);
     }

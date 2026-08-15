@@ -157,6 +157,45 @@ describe("RelayPoolResolverService", () => {
     expect(resolvedLeaf.allowedModels).toBe(JSON.stringify(["gpt-4o"]));
   });
 
+  it("derives automatic-pool capabilities from strict pooled members despite stale pool formats", async () => {
+    const physicalMember = createChannel("physical-member", {
+      channelType: "pooled-member",
+      allowedFormats: "openai",
+      allowedModels: JSON.stringify(["GPT 4o"]),
+      routingConfig: { allowedModelsMode: "manual" },
+      modelMapping: { "gpt-4o": "member-gpt-4o" },
+    });
+    const logicalPool = createChannel("logical-pool", {
+      channelType: "pooled",
+      // Logical pools previously persisted synthetic values such as `none`.
+      // Their capability must always be inferred from their member leaves.
+      allowedFormats: "none",
+      routingConfig: { allowedModelsMode: "auto" },
+      pooledChildren: [physicalMember],
+    });
+    const automaticPool = createChannel("automatic-pool", {
+      channelType: "automatic-proxy-pool",
+      allowedFormats: "none",
+      routingConfig: { allowedModelsMode: "auto" },
+      poolMembers: [{ memberChannelId: logicalPool.id, priority: 0, weight: 1, enabled: true }],
+    });
+    const { resolver } = createResolver([automaticPool, logicalPool, physicalMember]);
+    const context = await resolver.preloadContext([
+      { model: "GPT 4o", provider: "gpt-4o", supportedFormats: "openai" },
+      { model: "GPT 4o mini", provider: "gpt-4o-mini", supportedFormats: "openai" },
+    ]);
+
+    await expect(resolver.resolveChannelCapabilities(automaticPool.id, context)).resolves.toEqual([
+      {
+        leafChannelId: physicalMember.id,
+        catalogModelName: "GPT 4o",
+        requestModelId: "gpt-4o",
+        supportedRequestFormats: ["openai-chat-completions"],
+        modelMapping: { "gpt-4o": "member-gpt-4o" },
+      },
+    ]);
+  });
+
   it("passes every nested pool through the orderer and honors its local selection", async () => {
     const selectedLeaf = createChannel("selected-leaf");
     const skippedLeaf = createChannel("skipped-leaf");
