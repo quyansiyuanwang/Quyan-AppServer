@@ -5449,7 +5449,7 @@
 						}
 					}
 				},
-				"description": "Restores a short-lived impersonation token after a cross-site navigation.\nThe token is only available from an HttpOnly first-party cookie; normal\nusers receive null and continue through the regular refresh-cookie flow.",
+				"description": "Restores a short-lived impersonation token after a cross-site navigation.\nAn HttpOnly cookie carries only an opaque first-party handoff ID; normal\nusers receive null and continue through the regular refresh-cookie flow.",
 				"tags": [
 					"Impersonation"
 				],
