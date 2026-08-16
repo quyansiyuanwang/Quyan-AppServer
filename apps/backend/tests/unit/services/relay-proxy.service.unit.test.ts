@@ -2365,6 +2365,124 @@ describe("RelayProxyService failover", () => {
     });
   });
 
+  describe("RelayProxyService model mapping forwarding", () => {
+    it("forwards a channel-mapped alias under the mapped upstream model", async () => {
+      const relayToken = createRelayToken();
+      relayToken.channel.allowedModels = JSON.stringify(["gpt-4o-mini"]);
+      relayToken.channel.modelMapping = { "gpt-4o": "gpt-4o-mini" };
+      const req = createRequest({
+        body: { model: "gpt-4o", messages: [{ role: "user", content: "hello" }] },
+      });
+      const { service, usageChargeService } = createService();
+
+      axiosMock.mockResolvedValueOnce({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        data: { id: "mapped-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+      });
+
+      const result = await service.forwardRequest(relayToken, req);
+
+      expect(result.status).toBe(200);
+      expect(axiosMock).toHaveBeenCalledTimes(1);
+      expect(axiosMock.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({
+          url: "https://primary.example.com/v1/chat/completions",
+          data: expect.objectContaining({ model: "gpt-4o-mini" }),
+        }),
+      );
+      expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ modelName: "gpt-4o-mini" }),
+      );
+    });
+
+    it("accepts a channel-mapped alias when the token only allows the mapped target model", async () => {
+      const relayToken = createRelayToken();
+      relayToken.allowedModels = "gpt-4o-mini";
+      relayToken.channel.allowedModels = JSON.stringify(["gpt-4o-mini"]);
+      relayToken.channel.modelMapping = { "gpt-4o": "gpt-4o-mini" };
+      const req = createRequest({
+        body: { model: "gpt-4o", messages: [{ role: "user", content: "hello" }] },
+      });
+      const { service } = createService();
+
+      axiosMock.mockResolvedValueOnce({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        data: { id: "mapped-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+      });
+
+      await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(expect.objectContaining({ status: 200 }));
+      expect(axiosMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not throw a not-configured error for an alias resolvable only through a channel mapping", async () => {
+      const relayToken = createRelayToken();
+      relayToken.channel.allowedModels = JSON.stringify(["gpt-4o-mini"]);
+      relayToken.channel.modelMapping = { "gpt-4o": "gpt-4o-mini" };
+      const req = createRequest({
+        body: { model: "gpt-4o", messages: [{ role: "user", content: "hello" }] },
+      });
+      const { service } = createService();
+
+      axiosMock.mockResolvedValueOnce({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        data: { id: "mapped-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+      });
+
+      await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(expect.objectContaining({ status: 200 }));
+      expect(axiosMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a sticky preferred channel first when its channel mapping makes the alias eligible", async () => {
+      const relayToken = createRelayToken();
+      relayToken.failoverConfig = {
+        enabled: true,
+        maxRetries: 1,
+        retryStatusCodes: ["503"],
+        failbackCooldownMinutes: 30,
+      };
+      relayToken.channel.allowedModels = JSON.stringify(["gpt-4o"]);
+      relayToken.channelConfigs[0].channel.allowedModels = JSON.stringify(["gpt-4o"]);
+      relayToken.channelConfigs[1].channel.allowedModels = JSON.stringify(["gpt-4o-mini"]);
+      relayToken.channelConfigs[1].channel.modelMapping = { "gpt-4o": "gpt-4o-mini" };
+      const req = createRequest({
+        body: { model: "gpt-4o", messages: [{ role: "user", content: "hello" }] },
+      });
+      const { service } = createService({
+        redis: {
+          get: vi.fn().mockResolvedValue("channel-secondary"),
+        },
+      });
+
+      axiosMock.mockResolvedValueOnce({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        data: { id: "mapped-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+      });
+
+      const result = await service.forwardRequest(relayToken, req);
+
+      expect(result.status).toBe(200);
+      expect(axiosMock).toHaveBeenCalledTimes(1);
+      expect(axiosMock.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({ url: "https://secondary.example.com/v1/chat/completions" }),
+      );
+    });
+
+    it("includes literal token-level model mapping keys in the available models", async () => {
+      const relayToken = createRelayToken();
+      relayToken.modelMapping = { "customer-model": "gpt-4o-mini" };
+      const { service } = createService();
+
+      await expect(service.getAvailableModelsForToken(relayToken, "openai")).resolves.toEqual([
+        "customer-model",
+        "gpt-4o-mini",
+      ]);
+    });
+  });
+
   describe("calculateCost with pre-processed requestTokens", () => {
     it("calculates cost correctly when requestTokens already has cache read subtracted", () => {
       const { service } = createService();

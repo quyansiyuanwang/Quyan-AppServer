@@ -735,10 +735,16 @@ export const useRelayTokenManagement = () => {
         channel.modelCapabilities.map((capability) => capability.requestModelId),
       )
 
-    // Keep saved choices visible while editing even if their channel is no longer available.
-    return [...new Set([...resolvedModels, ...editForm.value.allowedModelIdsList])].sort(
-      (left, right) => left.localeCompare(right),
+    // Model mapping keys are request aliases that the relay rewrites to the
+    // mapped target upstream, so they must be part of the derivable model set.
+    const mappingKeys = Object.keys(editForm.value.modelMapping || {}).filter(
+      (key) => key && !key.includes('*') && !key.includes('?'),
     )
+
+    // Keep saved choices visible while editing even if their channel is no longer available.
+    return [
+      ...new Set([...resolvedModels, ...mappingKeys, ...editForm.value.allowedModelIdsList]),
+    ].sort((left, right) => left.localeCompare(right))
   })
 
   const filteredModelIds = computed(() => selectedChannelAllowedModels.value)
@@ -1975,6 +1981,18 @@ export const useRelayTokenManagement = () => {
     }
   }
 
+  const getCcswitchLaunchFormats = (row: RelayTokenDto): RelayFormat[] => {
+    const launchFormats: RelayFormat[] = []
+    const seenApps = new Set<CcswitchApp>()
+    for (const format of getTokenSupportedFormats(row)) {
+      const app = RELAY_FORMAT_TO_CCSWITCH_APP[format]
+      if (seenApps.has(app)) continue
+      seenApps.add(app)
+      launchFormats.push(format)
+    }
+    return launchFormats
+  }
+
   const maskToken = (token: string, start = 10, end = 8) => {
     const normalized = String(token || '')
     if (normalized.length <= start + end) return normalized
@@ -2538,6 +2556,7 @@ export const useRelayTokenManagement = () => {
     copyToken,
     maskToken,
     getTokenSupportedFormats,
+    getCcswitchLaunchFormats,
     getCcswitchLaunchLabel,
     getSortedChannelConfigs,
     isAutomaticPoolToken,

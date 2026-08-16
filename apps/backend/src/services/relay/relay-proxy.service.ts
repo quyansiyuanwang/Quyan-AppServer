@@ -2013,15 +2013,34 @@ export class RelayProxyService {
     channel: RelayChannel;
     requestFormat: RelayRequestFormat;
     requestedModel: string;
-    candidateModelConfigs: ModelPricingDto[];
+    modelPricing: ModelPricingDto[];
+    tokenModelMapping?: Record<string, string> | null;
   }): boolean {
     try {
-      const channelModelConfig = this.resolveChannelModelConfig(
-        params.channel,
+      // The requested model may be an alias that the channel-level (or token-level)
+      // model mapping rewrites to a priced upstream model, so eligibility must be
+      // checked against the effective (mapped) model name.
+      const effectiveModelName = resolveMappedModel(
         params.requestedModel,
-        params.candidateModelConfigs,
+        params.channel.modelMapping as Record<string, string> | null | undefined,
+        params.tokenModelMapping,
       );
-      this.validateChannelModelConfig(params.channel, channelModelConfig, params.requestedModel);
+      const effectiveModelConfigs = this.resolveRequestedModelConfigs(params.modelPricing, effectiveModelName);
+      let channelModelConfig = this.resolveChannelModelConfig(
+        params.channel,
+        effectiveModelName,
+        effectiveModelConfigs,
+      );
+      if (!channelModelConfig && effectiveModelName !== params.requestedModel) {
+        // Fallback for channels that list the original request model directly.
+        const originalModelConfigs = this.resolveRequestedModelConfigs(params.modelPricing, params.requestedModel);
+        channelModelConfig = this.resolveChannelModelConfig(
+          params.channel,
+          params.requestedModel,
+          originalModelConfigs,
+        );
+      }
+      this.validateChannelModelConfig(params.channel, channelModelConfig, effectiveModelName);
       this.resolveChannelUpstreamConfig(params.channel, params.requestFormat);
       return true;
     } catch {
@@ -2035,6 +2054,7 @@ export class RelayProxyService {
     requestFormat: RelayRequestFormat;
     requestedModel: string;
     candidateModelConfigs: ModelPricingDto[];
+    modelPricing: ModelPricingDto[];
     failbackCooldownMinutes: number;
   }): Promise<RelayResolvedChannelCandidate[]> {
     if (params.channels.length < 2 || params.failbackCooldownMinutes <= 0) return params.channels;
@@ -2068,7 +2088,8 @@ export class RelayProxyService {
         channel: stickyChannel.resolvedChannel,
         requestFormat: params.requestFormat,
         requestedModel: params.requestedModel,
-        candidateModelConfigs: params.candidateModelConfigs,
+        modelPricing: params.modelPricing,
+        tokenModelMapping: params.relayToken.modelMapping as Record<string, string> | null | undefined,
       })
     ) {
       await this.clearStickyPreferredChannel({
@@ -2728,9 +2749,26 @@ export class RelayProxyService {
       relayToken.modelMapping as Record<string, string> | null | undefined,
     );
 
+    // The requested model may also be an alias that only a channel-level model
+    // mapping rewrites to a priced upstream model. Resolve the effective model
+    // name for every eligible channel so the token-level checks and the
+    // "not configured" guard below account for channel mappings.
+    const perChannelMappedModelNames = eligibleChannels.map((candidate) =>
+      resolveMappedModel(
+        normalizedRequestedModel,
+        candidate.resolvedChannel.modelMapping as Record<string, string> | null | undefined,
+        relayToken.modelMapping as Record<string, string> | null | undefined,
+      ),
+    );
+
     // Find all model configs matching the resolved model ID for pricing purposes
     const candidateModelConfigs = this.resolveRequestedModelConfigs(modelPricing, pricingModelName);
-    if (candidateModelConfigs.length === 0)
+    if (
+      candidateModelConfigs.length === 0 &&
+      !perChannelMappedModelNames.some(
+        (name) => name !== pricingModelName && this.resolveRequestedModelConfigs(modelPricing, name).length > 0,
+      )
+    )
       throw new BadRequestError(`Model ${normalizedRequestedModel} is not configured`);
 
     // Use the first candidate for format check (pricing model)
@@ -2741,18 +2779,25 @@ export class RelayProxyService {
     // (the mapped billing model). Either should pass.
     const tokenAllowedModelIds = parseRelayTokenAllowedModelIds(relayToken.allowedModels);
     if (tokenAllowedModelIds.length > 0) {
-      const originalCandidateConfigs = this.resolveRequestedModelConfigs(modelPricing, normalizedRequestedModel);
-      const tokenAllowsOriginal = originalCandidateConfigs.some((config) =>
-        isModelIdAllowed(tokenAllowedModelIds, config),
+      // Match against every name the request may be routed as: the original
+      // model, the token-level mapped model, and each channel-level mapped model.
+      const effectiveModelNames = new Set<string>([
+        normalizedRequestedModel,
+        pricingModelName,
+        ...perChannelMappedModelNames,
+      ]);
+      const tokenAllowsAny = [...effectiveModelNames].some((name) =>
+        this.resolveRequestedModelConfigs(modelPricing, name).some((config) =>
+          isModelIdAllowed(tokenAllowedModelIds, config),
+        ),
       );
-      const tokenAllowsMapped = candidateModelConfigs.some((config) => isModelIdAllowed(tokenAllowedModelIds, config));
-      if (!tokenAllowsOriginal && !tokenAllowsMapped)
+      if (!tokenAllowsAny)
         throw new BadRequestError(
           `Relay token does not allow model ${normalizedRequestedModel}. Allowed models: ${tokenAllowedModelIds.join(", ")}`,
         );
     }
 
-    if (!supportsRelayRequestFormat(firstModelConfig.supportedFormats, requestFormat))
+    if (firstModelConfig && !supportsRelayRequestFormat(firstModelConfig.supportedFormats, requestFormat))
       throw new BadRequestError(
         `Model ${normalizedRequestedModel} does not support ${requestFormat} format. Supported formats: ${
           firstModelConfig.supportedFormats || "openai-chat-completions,anthropic,gemini"
@@ -2765,6 +2810,7 @@ export class RelayProxyService {
       requestFormat,
       requestedModel: normalizedRequestedModel,
       candidateModelConfigs,
+      modelPricing,
       failbackCooldownMinutes: stickyFailbackCooldownMinutes,
     });
 
@@ -2853,13 +2899,29 @@ export class RelayProxyService {
           let upstreamRequestStartedAt: number | null = null;
 
           try {
-            // Resolve the model config for this specific channel
-            const channelModelConfig = this.resolveChannelModelConfig(
-              channel,
+            // Resolve the model config for this specific channel. The requested
+            // model may be an alias that the channel-level (or token-level) model
+            // mapping rewrites to a priced upstream model, so eligibility is first
+            // checked against the effective (mapped) model name.
+            const effectiveModelName = resolveMappedModel(
               normalizedRequestedModel,
-              candidateModelConfigs,
+              channel.modelMapping as Record<string, string> | null | undefined,
+              relayToken.modelMapping as Record<string, string> | null | undefined,
             );
-            this.validateChannelModelConfig(channel, channelModelConfig, normalizedRequestedModel);
+            const effectiveModelConfigs =
+              effectiveModelName === pricingModelName
+                ? candidateModelConfigs
+                : this.resolveRequestedModelConfigs(modelPricing, effectiveModelName);
+            let channelModelConfig = this.resolveChannelModelConfig(channel, effectiveModelName, effectiveModelConfigs);
+            if (!channelModelConfig && effectiveModelName !== normalizedRequestedModel) {
+              // Fallback for channels that list the original request model directly.
+              channelModelConfig = this.resolveChannelModelConfig(
+                channel,
+                normalizedRequestedModel,
+                candidateModelConfigs,
+              );
+            }
+            this.validateChannelModelConfig(channel, channelModelConfig, effectiveModelName);
 
             // TypeScript doesn't know that validateChannelModelConfig throws if null
             if (!channelModelConfig) {
@@ -2867,7 +2929,7 @@ export class RelayProxyService {
               const allowedModelsStr =
                 allowedModelNames && allowedModelNames.length > 0 ? allowedModelNames.join(", ") : "none";
               throw new RelayChannelSkipError(
-                `Channel does not support model ${normalizedRequestedModel}. Allowed models: ${allowedModelsStr}`,
+                `Channel does not support model ${effectiveModelName}. Allowed models: ${allowedModelsStr}`,
                 "channel-model-not-allowed",
               );
             }
@@ -2899,12 +2961,7 @@ export class RelayProxyService {
 
             selectedModelName = channelModelConfig.model.trim() || normalizedRequestedModel;
 
-            // Apply model mapping: resolve effective billing model
-            const effectiveModelName = resolveMappedModel(
-              normalizedRequestedModel,
-              channel.modelMapping as Record<string, string> | null | undefined,
-              relayToken.modelMapping as Record<string, string> | null | undefined,
-            );
+            // Apply model mapping: resolve effective billing model (computed above)
 
             // If mapping resolved to a different model, re-resolve pricing config for billing
             if (effectiveModelName !== normalizedRequestedModel) {

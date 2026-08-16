@@ -375,10 +375,10 @@
                         i18ns.t('relay.exportToCcswitch')
                       }}</el-dropdown-item>
                       <el-dropdown-item
-                        v-for="format in state.getTokenSupportedFormats(row)"
+                        v-for="(format, index) in state.getCcswitchLaunchFormats(row)"
                         :key="`mobile-ccswitch-${row.id}-${format}`"
                         :command="`launch-ccswitch-${format}`"
-                        divided
+                        :divided="index === 0"
                       >
                         {{ state.getCcswitchLaunchLabel(format) }}
                       </el-dropdown-item>
