@@ -2523,7 +2523,7 @@ watch(
 
 // Element Plus mounts MessageBox overlays outside this component's DOM tree.
 // Keep the unpin confirmation above the feature overview drawer (z-index 3000).
-:global(.pinned-page-confirmation-overlay) {
+.pinned-page-confirmation-overlay {
   z-index: 3100 !important;
 }
 
