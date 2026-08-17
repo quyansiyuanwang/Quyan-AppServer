@@ -1,10 +1,10 @@
-name: Auto Label
+name: Reusable Auto Label
 
 on:
-  pull_request:
-    types: [opened]
-  issues:
-    types: [opened, edited]
+  # This workflow is intentionally callable only. GitHub requires reusable
+  # workflows to live directly under .github/workflows (subdirectories are
+  # not supported for workflow_call), so the reusable role is expressed by
+  # this filename and trigger rather than by nesting it in a folder.
   workflow_call:
     inputs:
       pr_number:
@@ -35,42 +35,74 @@ jobs:
     steps:
       - name: Auto Label with AI
         timeout-minutes: 10
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const isWorkflowCall = '${{ inputs.pr_number }}' !== '';
             const isPR = isWorkflowCall || !!context.payload.pull_request;
             const isIssue = !isWorkflowCall && !!context.payload.issue;
+            const retryableStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
+            const sleep = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
+            const withGitHubRetry = async (operation, description) => {
+              for (let attempt = 1; attempt <= 4; attempt += 1) {
+                try {
+                  return await operation();
+                } catch (error) {
+                  const status = Number(error?.status || error?.response?.status);
+                  if (!retryableStatuses.has(status) || attempt === 4) {
+                    if (retryableStatuses.has(status)) {
+                      core.warning(`GitHub API unavailable for ${description} after ${attempt} attempts; skipping this operation.`);
+                      return null;
+                    }
+                    throw error;
+                  }
+
+                  const retryAfterSeconds = Number(error?.response?.headers?.['retry-after']);
+                  const delayMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+                    ? Math.min(retryAfterSeconds * 1000, 30_000)
+                    : 1_000 * 2 ** (attempt - 1);
+                  console.log(`GitHub API returned ${status} for ${description}; retrying in ${delayMs}ms (attempt ${attempt + 1}/4).`);
+                  await sleep(delayMs);
+                }
+              }
+              return null;
+            };
 
             let number, textContext = '';
             let currentLabels = [];
 
             if (isWorkflowCall) {
               number = parseInt('${{ inputs.pr_number }}', 10);
-              const { data: pr } = await github.rest.pulls.get({
+              const pullResponse = await withGitHubRetry(() => github.rest.pulls.get({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: number,
-              });
-              const { data: commits } = await github.rest.pulls.listCommits({
+              }), 'fetching the pull request');
+              if (!pullResponse) return;
+              const { data: pr } = pullResponse;
+              const commitResponse = await withGitHubRetry(() => github.rest.pulls.listCommits({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: number,
                 per_page: 20,
-              });
+              }), 'fetching pull request commits');
+              if (!commitResponse) return;
+              const { data: commits } = commitResponse;
               const commitMessages = commits.map(c => c.commit.message.split('\n')[0]).join('\n');
               textContext = `PR Title: ${process.env.INPUT_PR_TITLE}\nPR Body: ${process.env.INPUT_PR_BODY}\nCommits:\n${commitMessages}`;
               currentLabels = pr.labels || [];
             } else if (isPR) {
               const pr = context.payload.pull_request;
               number = pr.number;
-              const { data: commits } = await github.rest.pulls.listCommits({
+              const commitResponse = await withGitHubRetry(() => github.rest.pulls.listCommits({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: number,
                 per_page: 20,
-              });
+              }), 'fetching pull request commits');
+              if (!commitResponse) return;
+              const { data: commits } = commitResponse;
               const commitMessages = commits.map(c => c.commit.message.split('\n')[0]).join('\n');
               textContext = `PR Title: ${pr.title}\nPR Body: ${pr.body || ''}\nCommits:\n${commitMessages}`;
               currentLabels = pr.labels || [];
@@ -231,11 +263,12 @@ jobs:
               return;
             }
 
-            const existingLabels = await github.paginate(github.rest.issues.listLabelsForRepo, {
+            const existingLabels = await withGitHubRetry(() => github.paginate(github.rest.issues.listLabelsForRepo, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               per_page: 100,
-            });
+            }), 'listing repository labels');
+            if (!existingLabels) return;
 
             const existingNameMap = new Map(
               existingLabels.map(label => [label.name.toLowerCase(), label.name])
@@ -254,12 +287,13 @@ jobs:
               if (!existingNameMap.has(normalizedLabel)) {
                 const color = labelColors[normalizedLabel] || 'ededed';
                 try {
-                  await github.rest.issues.createLabel({
+                  const created = await withGitHubRetry(() => github.rest.issues.createLabel({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
                     name: normalizedLabel,
                     color,
-                  });
+                  }), `creating label ${normalizedLabel}`);
+                  if (!created) continue;
                   console.log(`Created label: ${normalizedLabel}`);
                   existingNameMap.set(normalizedLabel, normalizedLabel);
                 } catch (error) {
@@ -280,12 +314,13 @@ jobs:
 
               const labelName = existingNameMap.get(normalizedLabel) || normalizedLabel;
               try {
-                await github.rest.issues.removeLabel({
+                const removed = await withGitHubRetry(() => github.rest.issues.removeLabel({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: number,
                   name: labelName,
-                });
+                }), `removing label ${labelName}`);
+                if (!removed) continue;
                 console.log(`Removed stale label: ${labelName}`);
               } catch (error) {
                 if (error.status === 404) {
@@ -300,12 +335,13 @@ jobs:
             for (const normalizedLabel of normalizedLabels) {
               const labelName = existingNameMap.get(normalizedLabel) || normalizedLabel;
               try {
-                await github.rest.issues.addLabels({
+                const added = await withGitHubRetry(() => github.rest.issues.addLabels({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: number,
                   labels: [labelName],
-                });
+                }), `applying label ${labelName}`);
+                if (!added) continue;
                 appliedLabels.push(labelName);
               } catch (error) {
                 if (error.status === 422) {

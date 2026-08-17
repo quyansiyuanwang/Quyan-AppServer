@@ -18,6 +18,15 @@ const validProfile = {
 };
 
 describe("relay channel probe schemas", () => {
+  it("accepts the persisted OpenAI chat completions probe format", () => {
+    const result = upsertRelayChannelProbeProfileBodySchema.safeParse({
+      ...validProfile,
+      probeFormat: "openai-chat-completions",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   it("accepts a bounded workflow with exactly one balance field", () => {
     const result = upsertRelayChannelProbeProfileBodySchema.safeParse({
       ...validProfile,

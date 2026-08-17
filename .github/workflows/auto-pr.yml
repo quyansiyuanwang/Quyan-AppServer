@@ -21,12 +21,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Update PR metadata
         id: create-or-update
         timeout-minutes: 10
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
@@ -180,17 +180,46 @@ jobs:
 
             const body = commitList || '_No new commits._';
 
-            await github.rest.pulls.update({
+            const updatePayload = {
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: pr.number,
               title,
               body,
-            });
-            console.log(`Updated PR #${pr.number} targeting ${baseBranch}: ${pr.html_url}`);
+            };
+            const retryableStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
+            const sleep = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
+            let metadataUpdated = false;
+            for (let attempt = 1; attempt <= 4; attempt += 1) {
+              try {
+                await github.rest.pulls.update(updatePayload);
+                metadataUpdated = true;
+                console.log(`Updated PR #${pr.number} targeting ${baseBranch}: ${pr.html_url}`);
+                break;
+              } catch (error) {
+                const status = Number(error?.status || error?.response?.status);
+                if (!retryableStatuses.has(status) || attempt === 4) {
+                  if (retryableStatuses.has(status)) {
+                    core.warning(`GitHub API remained unavailable after ${attempt} attempts; keeping existing PR metadata.`);
+                    break;
+                  }
+                  throw error;
+                }
+
+                const retryAfterSeconds = Number(error?.response?.headers?.['retry-after']);
+                const delayMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+                  ? Math.min(retryAfterSeconds * 1000, 30_000)
+                  : 1_000 * 2 ** (attempt - 1);
+                console.log(`GitHub API returned ${status}; retrying PR metadata update in ${delayMs}ms (attempt ${attempt + 1}/4).`);
+                await sleep(delayMs);
+              }
+            }
+
+            const effectiveTitle = metadataUpdated ? title : pr.title;
+            const effectiveBody = metadataUpdated ? body : (pr.body || '');
             core.setOutput('pr_number', pr.number);
-            core.setOutput('pr_title', title);
-            core.setOutput('pr_body', body);
+            core.setOutput('pr_title', effectiveTitle);
+            core.setOutput('pr_body', effectiveBody);
             core.setOutput('needs_label', 'true');
 
   call-auto-label:
@@ -200,7 +229,7 @@ jobs:
       pull-requests: write
       issues: write
       contents: read
-    uses: ./.github/workflows/auto-label.yml
+    uses: ./.github/workflows/reusable-auto-label.yml
     with:
       pr_number: ${{ needs.create-pr.outputs.pr_number }}
       pr_title: ${{ needs.create-pr.outputs.pr_title }}
