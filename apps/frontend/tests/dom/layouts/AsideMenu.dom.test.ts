@@ -82,6 +82,10 @@ import AsideMenu from '@/layouts/AsideMenu.vue'
 
 const stubs = {
   'el-drawer': { template: '<section><slot /></section>' },
+  'el-dialog': {
+    props: ['modelValue', 'zIndex'],
+    template: '<section class="unpin-confirmation-dialog" :data-z-index="zIndex"><slot /><slot name="footer" /></section>',
+  },
   'el-icon': { template: '<span><slot /></span>' },
   'el-menu': { methods: { updateActiveIndex: vi.fn() }, template: '<nav><slot /></nav>' },
   'el-button': { template: '<button><slot /></button>' },
@@ -91,6 +95,15 @@ const stubs = {
 }
 
 describe('AsideMenu mobile site switcher', () => {
+  it('renders the unpin confirmation above the feature overview drawer', () => {
+    const wrapper = mount(AsideMenu, {
+      props: { showNavigation: false, showLogout: false },
+      global: { stubs },
+    })
+
+    expect(wrapper.find('.unpin-confirmation-dialog').attributes('data-z-index')).toBe('3001')
+  })
+
   it('opens the site switcher from the header trigger even on the public mobile shell', async () => {
     const wrapper = mount(AsideMenu, {
       props: { showNavigation: false, showLogout: false },

@@ -52563,6 +52563,43 @@
 					"expires_in": {
 						"type": "number",
 						"format": "double"
+					},
+					"impersonation": {
+						"properties": {
+							"mode": {
+								"type": "string",
+								"enum": [
+									"view",
+									"act"
+								]
+							},
+							"targetUser": {
+								"properties": {
+									"name": {
+										"type": "string",
+										"nullable": true
+									},
+									"username": {
+										"type": "string"
+									},
+									"id": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"name",
+									"username",
+									"id"
+								],
+								"type": "object"
+							}
+						},
+						"required": [
+							"mode",
+							"targetUser"
+						],
+						"type": "object",
+						"description": "仅在通过 HttpOnly 模拟 handoff 恢复会话时返回。\n常规 refresh-cookie 会话不包含该字段，以保持旧客户端兼容。"
 					}
 				},
 				"required": [
@@ -52580,6 +52617,10 @@
 					"refresh_token": {
 						"type": "string",
 						"description": "刷新令牌（可选；HTTP 请求优先从 HttpOnly Cookie 读取，其次读取请求体）"
+					},
+					"skipImpersonationHandoff": {
+						"type": "boolean",
+						"description": "退出模拟会话时跳过跨站模拟 handoff，恢复常规 refresh-cookie 会话。"
 					}
 				},
 				"type": "object",

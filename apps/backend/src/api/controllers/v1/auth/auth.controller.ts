@@ -387,7 +387,11 @@ export class AuthController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "令牌刷新成功")
   @Middlewares(replayProtectionMiddleware, validateBody(refreshBodySchema))
   public async refresh(@Request() request: ExpressRequest, @Body() requestBody?: RefreshDto): Promise<RefreshResponse> {
-    const result = await this.authService.refresh(request, requestBody?.refresh_token);
+    const result = await this.authService.refresh(
+      request,
+      requestBody?.refresh_token,
+      requestBody?.skipImpersonationHandoff,
+    );
     logger.info("令牌刷新成功");
     return result;
   }
