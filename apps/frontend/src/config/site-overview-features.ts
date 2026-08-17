@@ -6,7 +6,6 @@ import {
   CreditCard,
   DataAnalysis,
   Document,
-  FolderOpened,
   Histogram,
   Key,
   Link,
@@ -19,7 +18,6 @@ import {
   Tools,
   TrendCharts,
   User,
-  UserFilled,
   Wallet,
 } from '@element-plus/icons-vue'
 import type { Component } from 'vue'

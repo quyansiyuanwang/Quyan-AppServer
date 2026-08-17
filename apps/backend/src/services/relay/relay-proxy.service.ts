@@ -2959,7 +2959,6 @@ export class RelayProxyService {
           let timeMultiplier = 1;
           let upstreamResponseSucceeded = false;
           let upstreamRequestStarted = false;
-          let upstreamRequestStartedAt: number | null = null;
 
           try {
             // Resolve the model config for this specific channel. The requested
@@ -3165,7 +3164,6 @@ export class RelayProxyService {
 
             if (isStreamRequested && res) {
               upstreamRequestStarted = true;
-              upstreamRequestStartedAt = Date.now();
               const streamResult = await this.relayChannelProbeLockService.withRead(channel.id, () =>
                 this.forwardStreamRequest(
                   relayToken,
@@ -3265,7 +3263,6 @@ export class RelayProxyService {
             const isImageRequest = this.isImageRequest(req, requestFormat);
             if (isImageRequest && res) {
               upstreamRequestStarted = true;
-              upstreamRequestStartedAt = Date.now();
               const imageResult = await this.relayChannelProbeLockService.withRead(channel.id, () =>
                 this.forwardImageRequest(
                   relayToken,
@@ -3357,7 +3354,6 @@ export class RelayProxyService {
               ? resourceGuard.multipartBodyLimitMb * 1024 * 1024
               : 5 * 1024 * 1024;
             upstreamRequestStarted = true;
-            upstreamRequestStartedAt = Date.now();
             let firstPayloadTime: number | null = null;
             const maxResponseBytes = resourceGuard.maxUpstreamResponseBodyMb * 1024 * 1024;
             const response = await this.relayChannelProbeLockService.withRead(channel.id, () =>
