@@ -5,6 +5,7 @@ import { createApp } from "../../../src/app";
 import { prisma } from "../../../src/config/database";
 import { hashPassword } from "../../../src/util/crypto";
 import { Permission } from "../../../src/constant/permission";
+import { JWTAccessIns } from "../../../src/util/auth";
 import { withReplayProtection } from "../../util/replay-protection-test-helper";
 
 describe("Relay Channel API Integration", () => {
@@ -72,7 +73,20 @@ describe("Relay Channel API Integration", () => {
     const loginRes = await withReplayProtection(request(app).post("/v1/auth/login"), loginBody, "/v1/auth/login").send(
       loginBody,
     );
-    accessToken = loginRes.body.data.access_token;
+    expect(loginRes.status).toBe(200);
+    // The normal development access-token TTL is five seconds. This file
+    // performs real database work across many cases, so use a long-lived
+    // token for the already-authenticated test principal rather than making
+    // later Relay assertions depend on test-suite execution time.
+    const authenticatedUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    accessToken = JWTAccessIns.generateToken(
+      {
+        userId: authenticatedUser.id,
+        updatedAt: authenticatedUser.updateTime.toISOString(),
+        status: authenticatedUser.status,
+      },
+      60 * 60,
+    );
 
     const readOnlyGroup = await prisma.group.create({
       data: {
@@ -105,7 +119,16 @@ describe("Relay Channel API Integration", () => {
       readOnlyLoginBody,
       "/v1/auth/login",
     ).send(readOnlyLoginBody);
-    readOnlyAccessToken = readOnlyLoginRes.body.data.access_token;
+    expect(readOnlyLoginRes.status).toBe(200);
+    const authenticatedReadOnlyUser = await prisma.user.findUniqueOrThrow({ where: { id: readOnlyUser.id } });
+    readOnlyAccessToken = JWTAccessIns.generateToken(
+      {
+        userId: authenticatedReadOnlyUser.id,
+        updatedAt: authenticatedReadOnlyUser.updateTime.toISOString(),
+        status: authenticatedReadOnlyUser.status,
+      },
+      60 * 60,
+    );
   });
 
   afterAll(async () => {
