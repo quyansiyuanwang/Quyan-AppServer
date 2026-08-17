@@ -226,13 +226,17 @@ export class SessionCoordinator {
       session.setPermissionsStatus('loading')
       try {
         if (user) userInfoStore.setUserInfo(user)
+        // The global permission catalog does not depend on the current-user
+        // profile. Start it together with /users/me so a cold session restore
+        // does not pay an avoidable extra network round trip before mounting.
+        const allPermissionsPromise =
+          permissionStore.allPermissions.length === 0
+            ? permissionStore.loadAllPermissions()
+            : Promise.resolve()
         await userInfoStore.fetchUserInfo()
         session.setUser(userInfoStore.userInfo)
         setCurrentStorageScopeForUserId(userInfoStore.userInfo.id)
-        if (permissionStore.allPermissions.length === 0) {
-          await permissionStore.loadAllPermissions()
-        }
-        await permissionStore.loadCurrentUserPermissions()
+        await Promise.all([allPermissionsPromise, permissionStore.loadCurrentUserPermissions()])
         permissionStore.saveCurrentUserPermissionsCache(
           userInfoStore.userInfo.id,
           getUserUpdatedAtFromToken(getAccessToken()),

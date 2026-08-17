@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { resolve } from 'node:path'
-import { brotliCompressSync, constants as zlibConstants } from 'node:zlib'
+import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib'
 
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
@@ -183,16 +183,14 @@ export default defineConfig(({ mode }) => {
       return 'charts'
     }
 
-    // Markdown rendering is loaded on demand. Keep its renderer, syntax
-    // highlighter, and sanitizer together rather than emitting a request per
-    // highlighting language.
-    if (
-      moduleId.includes('/dompurify/') ||
-      moduleId.includes('/marked/') ||
-      moduleId.includes('/highlight.js/')
-    ) {
-      return 'markdown'
+    // Markdown rendering and syntax highlighting stay on demand. Their
+    // runtime modules statically collect their dependencies, avoiding a
+    // separate network request for every highlighting language.
+    if (moduleId.includes('/dompurify/') || moduleId.includes('/marked/')) {
+      return 'markdown-renderer'
     }
+
+    if (moduleId.includes('/highlight.js/')) return 'markdown-highlighter'
 
     // Keep large single-purpose data libs in their own async chunks.
     if (moduleId.includes('/xlsx/')) {
@@ -207,6 +205,21 @@ export default defineConfig(({ mode }) => {
 
   const resolveApplicationChunk = (moduleId: string): string | undefined => {
     if (moduleId.endsWith('/src/utils/chart-runtime.ts')) return 'charts'
+    if (moduleId.endsWith('/src/utils/markdown-renderer-runtime.ts')) return 'markdown-renderer'
+    if (moduleId.endsWith('/src/utils/markdown-highlighter-runtime.ts'))
+      return 'markdown-highlighter'
+
+    // Shared application code was previously emitted as dozens of tiny
+    // dynamic facades (one per service, store, generated API operation, and
+    // shared component). EdgeOne serves bytes quickly, but each independent
+    // module still consumes a client/CDN request slot. Keep this ordinary
+    // application layer in a cacheable, moderately sized common chunk; the
+    // optional chart and Markdown runtimes above remain independently lazy.
+    if (moduleId.includes('/src/components/')) return 'ui-shared'
+
+    if (/\/src\/(?:client|service|stores|utils)\//.test(moduleId)) {
+      return 'app-shared'
+    }
 
     // Site modules and application roots are selected from the hostname. They
     // must remain independent dynamic imports so one deployment does not load
@@ -216,8 +229,8 @@ export default defineConfig(({ mode }) => {
     }
 
     // Route modules are grouped by their first business directory. This keeps
-    // route-level lazy loading, but turns a feature navigation into one stable
-    // JS/CSS pair instead of a burst of page and shared-component fragments.
+    // route-level lazy loading, but turns a feature navigation into stable
+    // functional bundles instead of a burst of page/component fragments.
     const viewMatch = moduleId.match(/\/src\/views\/([^/?]+)/)
     return viewMatch ? `feature-${viewMatch[1]}` : undefined
   }
@@ -288,6 +301,7 @@ export default defineConfig(({ mode }) => {
    * Site modules must remain dynamic imports. A static import here would make
    * every domain application part of the first document's module graph.
    */
+  let bundleShapeReport: string | null = null
   const assertBundleShape = {
     name: 'assert-bundle-shape',
     generateBundle(_options: unknown, bundle: Record<string, unknown>) {
@@ -298,12 +312,14 @@ export default defineConfig(({ mode }) => {
           fileName: string
           isEntry: boolean
           imports: string[]
+          dynamicImports: string[]
           modules: Record<string, unknown>
         } =>
           typeof entry === 'object' &&
           entry !== null &&
           'fileName' in entry &&
           'imports' in entry &&
+          'dynamicImports' in entry &&
           'modules' in entry,
       )
       const entry = chunks.find((chunk) => chunk.isEntry)
@@ -332,7 +348,7 @@ export default defineConfig(({ mode }) => {
       const initialModules = [...initialChunkNames].flatMap((fileName) =>
         Object.keys(chunksByFileName.get(fileName)?.modules ?? {}),
       )
-      const maxInitialChunks = 4
+      const maxInitialChunks = 8
       if (initialChunkNames.size > maxInitialChunks) {
         throw new Error(
           `Entry graph contains ${initialChunkNames.size} static chunks; expected no more than ${maxInitialChunks}`,
@@ -356,21 +372,21 @@ export default defineConfig(({ mode }) => {
         )
       }
 
-      const emittedClientAssets = Object.values(bundle).filter(
+      const emittedClientJavaScriptAssets = Object.values(bundle).filter(
         (entry) =>
           typeof entry === 'object' &&
           entry !== null &&
           'fileName' in entry &&
           typeof entry.fileName === 'string' &&
-          /^assets\/.*\.(?:js|css)$/.test(entry.fileName),
+          /^assets\/.*\.js$/.test(entry.fileName),
       )
       // Route loaders retain small facades so each dynamic import can preserve
       // its component export. The budget leaves room for those facades while
       // still requiring a substantial reduction from the former 503 assets.
-      const maxClientAssets = 350
-      if (emittedClientAssets.length > maxClientAssets) {
+      const maxClientAssets = 114
+      if (emittedClientJavaScriptAssets.length > maxClientAssets) {
         throw new Error(
-          `Bundle emitted ${emittedClientAssets.length} JS/CSS assets; expected no more than ${maxClientAssets}`,
+          `Bundle emitted ${emittedClientJavaScriptAssets.length} JS assets before CSS output; expected no more than ${maxClientAssets}`,
         )
       }
 
@@ -386,8 +402,68 @@ export default defineConfig(({ mode }) => {
       if (missingFeatureChunk) {
         throw new Error(`Expected a feature-${missingFeatureChunk} chunk in the production output`)
       }
+
+      const collectStaticDependencies = (fileName: string) => {
+        const dependencyNames = new Set<string>()
+        const visitDependency = (dependencyFileName: string) => {
+          if (dependencyNames.has(dependencyFileName)) return
+          dependencyNames.add(dependencyFileName)
+          chunksByFileName.get(dependencyFileName)?.imports.forEach(visitDependency)
+        }
+        visitDependency(fileName)
+        return [...dependencyNames].sort()
+      }
+      const routeDependencies = requiredFeatureChunks.map((feature) => {
+        const featureChunk = featureChunks.find((fileName) =>
+          fileName.startsWith(`assets/feature-${feature}-`),
+        )
+        if (!featureChunk) return `${feature}=missing`
+        const dependencies = collectStaticDependencies(featureChunk)
+        const stableDependencies = dependencies.filter((fileName) =>
+          /\/assets\/(?:feature-|framework-|vendor-|charts-|markdown-|xlsx-|passkey-)/.test(
+            `/${fileName}`,
+          ),
+        )
+        return `${feature}=${dependencies.length}:[${stableDependencies.join(',')}]`
+      })
+      bundleShapeReport =
+        `initial=[${[...initialChunkNames].sort().join(',')}] routes=${routeDependencies.join(' ')}`
+    },
+    writeBundle() {
+      const outputDir = resolve(__dirname, 'dist')
+      const assetsDir = resolve(outputDir, 'assets')
+      const clientAssets = readdirSync(assetsDir, { withFileTypes: true }).filter(
+        (entry) => entry.isFile() && /\.(?:js|css)$/.test(entry.name),
+      )
+      const jsAssetCount = clientAssets.filter((entry) => entry.name.endsWith('.js')).length
+      const cssAssetCount = clientAssets.filter((entry) => entry.name.endsWith('.css')).length
+      if (clientAssets.length > 114) {
+        throw new Error(
+          `Bundle emitted ${clientAssets.length} JS/CSS assets; expected no more than 114`,
+        )
+      }
+      const indexHtml = readFileSync(resolve(outputDir, 'index.html'), 'utf8')
+      const initialAssetNames = [
+        ...new Set(
+          [...indexHtml.matchAll(/\/assets\/([^"']+\.(?:js|css))/g)].map((match) => match[1]),
+        ),
+      ]
+      const initialSource = Buffer.concat(
+        initialAssetNames.map((fileName) => readFileSync(resolve(assetsDir, fileName))),
+      )
+      const initialRawBytes = initialSource.length
+      const initialGzipBytes = gzipSync(initialSource).length
+      const initialBrotliBytes = brotliCompressSync(initialSource).length
+      const maxInitialBrotliBytes = 700 * 1024
+      if (initialBrotliBytes > maxInitialBrotliBytes) {
+        throw new Error(
+          `Entry assets compress to ${initialBrotliBytes} B with Brotli; expected no more than ${maxInitialBrotliBytes} B`,
+        )
+      }
       console.info(
-        `[bundle-shape] assets=${emittedClientAssets.length} initial=${initialChunkNames.size} features=${featureChunks.join(',')}`,
+        `[bundle-shape] assets=${clientAssets.length} js=${jsAssetCount} css=${cssAssetCount} ` +
+          `initialRaw=${initialRawBytes} initialGzip=${initialGzipBytes} initialBrotli=${initialBrotliBytes} ` +
+          `${bundleShapeReport ?? ''}`,
       )
     },
   }
@@ -524,6 +600,11 @@ export default defineConfig(({ mode }) => {
       // fast native path.
       minify: isProd ? 'esbuild' : false,
       target: 'es2022',
+      // One cacheable stylesheet avoids a second request waterfall where each
+      // route/component contributes a sub-kilobyte CSS asset. The JS feature
+      // boundaries remain lazy, so optional application logic is not moved
+      // into the entry module graph.
+      cssCodeSplit: false,
       modulePreload: {
         resolveDependencies: (_url, deps) => deps.filter((dep) => !shouldSkipModulePreload(dep)),
       },

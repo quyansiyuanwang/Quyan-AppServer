@@ -4,10 +4,13 @@ import { createPinia, setActivePinia } from 'pinia'
 import StorageKey from '@/constant/storagekey'
 import { SessionCoordinator } from '@/service/sessionCoordinator'
 
-const { permissionService } = vi.hoisted(() => ({
+const { permissionService, userService } = vi.hoisted(() => ({
   permissionService: {
     getAllPermissions: vi.fn(),
     getUserPermissions: vi.fn(),
+  },
+  userService: {
+    getMe: vi.fn(),
   },
 }))
 
@@ -36,6 +39,7 @@ vi.mock('@/service/replaySigningService', () => ({
   },
 }))
 vi.mock('@/service/permissionService', () => ({ permissionService }))
+vi.mock('@/service/userService', () => ({ userService }))
 
 describe('session coordinator', () => {
   beforeEach(() => {
@@ -44,6 +48,7 @@ describe('session coordinator', () => {
     authApi.refresh.mockReset()
     permissionService.getAllPermissions.mockReset()
     permissionService.getUserPermissions.mockReset()
+    userService.getMe.mockReset()
   })
 
   it('restores an access token from the HttpOnly-cookie refresh endpoint once for concurrent callers', async () => {
@@ -140,5 +145,52 @@ describe('session coordinator', () => {
     expect(restoreSpy).not.toHaveBeenCalled()
     expect(permissionStore.currentUserPermissions).toBe(permissionsReference)
     expect(permissionStore.allPermissions).toBe(allPermissionsReference)
+  })
+
+  it('loads the independent user profile and permission catalog concurrently during hydration', async () => {
+    let resolveUser: ((value: { id: string; username: string }) => void) | undefined
+    let resolveAllPermissions:
+      | ((value: { data: { permissions: { id: string; name: string; category: string }[] } }) => void)
+      | undefined
+    userService.getMe.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUser = resolve
+        }),
+    )
+    permissionService.getAllPermissions.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveAllPermissions = resolve
+        }),
+    )
+    permissionService.getUserPermissions.mockResolvedValue({
+      data: {
+        userId: 'user-1',
+        groupPermissions: [],
+        additionalPermissions: [],
+        removedPermissions: [],
+        effectivePermissions: ['user:read'],
+      },
+    })
+
+    const sessionCoordinator = new SessionCoordinator()
+    const hydration = sessionCoordinator.hydrateUserAndPermissions()
+
+    await vi.waitFor(() => {
+      expect(userService.getMe).toHaveBeenCalledOnce()
+      expect(permissionService.getAllPermissions).toHaveBeenCalledOnce()
+    })
+    expect(permissionService.getUserPermissions).not.toHaveBeenCalled()
+
+    resolveUser?.({ id: 'user-1', username: 'user-1' })
+    await vi.waitFor(() => {
+      expect(permissionService.getUserPermissions).toHaveBeenCalledWith('user-1')
+    })
+
+    resolveAllPermissions?.({
+      data: { permissions: [{ id: 'permission-1', name: 'user:read', category: 'user' }] },
+    })
+    await expect(hydration).resolves.toBeUndefined()
   })
 })

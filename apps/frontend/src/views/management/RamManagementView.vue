@@ -14,12 +14,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, provide } from 'vue'
+import { computed, onMounted, provide } from 'vue'
 import { useRoute } from 'vue-router'
 import router from '@/router'
 import RamManagementDialogs from './ram-management/components/RamManagementDialogs.vue'
 import RamManagementHeader from './ram-management/components/RamManagementHeader.vue'
 import RamManagementOverview from './ram-management/components/RamManagementOverview.vue'
+import RamManagementAuthorizationTab from './ram-management/components/RamManagementAuthorizationTab.vue'
+import RamManagementBindingsTab from './ram-management/components/RamManagementBindingsTab.vue'
+import RamManagementPoliciesTab from './ram-management/components/RamManagementPoliciesTab.vue'
+import RamManagementRolesTab from './ram-management/components/RamManagementRolesTab.vue'
+import RamManagementSessionsTab from './ram-management/components/RamManagementSessionsTab.vue'
+import RamManagementUsersTab from './ram-management/components/RamManagementUsersTab.vue'
 import { ramManagementContextKey } from './ram-management/context'
 import { type RamManagementSection, useRamManagement } from './ram-management/useRamManagement'
 import './ram-management/ram-management.scss'
@@ -32,24 +38,12 @@ const route = useRoute()
 const state = useRamManagement(props.section)
 
 const sectionComponents = {
-  users: defineAsyncComponent(
-    () => import('./ram-management/components/RamManagementUsersTab.vue'),
-  ),
-  roles: defineAsyncComponent(
-    () => import('./ram-management/components/RamManagementRolesTab.vue'),
-  ),
-  bindings: defineAsyncComponent(
-    () => import('./ram-management/components/RamManagementBindingsTab.vue'),
-  ),
-  policies: defineAsyncComponent(
-    () => import('./ram-management/components/RamManagementPoliciesTab.vue'),
-  ),
-  authorization: defineAsyncComponent(
-    () => import('./ram-management/components/RamManagementAuthorizationTab.vue'),
-  ),
-  sessions: defineAsyncComponent(
-    () => import('./ram-management/components/RamManagementSessionsTab.vue'),
-  ),
+  users: RamManagementUsersTab,
+  roles: RamManagementRolesTab,
+  bindings: RamManagementBindingsTab,
+  policies: RamManagementPoliciesTab,
+  authorization: RamManagementAuthorizationTab,
+  sessions: RamManagementSessionsTab,
 } as const
 
 const sectionComponent = computed(() =>
