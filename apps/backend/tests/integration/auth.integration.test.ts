@@ -358,17 +358,12 @@ describe("认证 API 集成测试", () => {
         60 * 60,
       );
       const cookie = vi.fn();
-      await new ImpersonationService().issueCrossSiteHandoff(
-        { res: { cookie } } as never,
-        impersonationToken,
-      );
+      await new ImpersonationService().issueCrossSiteHandoff({ res: { cookie } } as never, impersonationToken);
       const handoffId = cookie.mock.calls[0]?.[1] as string | undefined;
       expect(handoffId).toBeTruthy();
 
       const response = await withReplayProtection(
-        request(app)
-          .post("/v1/auth/refresh")
-          .set("Cookie", `${IMPERSONATION_HANDOFF_COOKIE_NAME}=${handoffId}`),
+        request(app).post("/v1/auth/refresh").set("Cookie", `${IMPERSONATION_HANDOFF_COOKIE_NAME}=${handoffId}`),
         {},
         "/v1/auth/refresh",
       ).send({});

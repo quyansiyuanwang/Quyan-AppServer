@@ -656,7 +656,10 @@ export const routes = [
               {
                 path: 'configuration',
                 name: 'product-config-ip_geolocation',
-                component: lazyFeatureView('products', 'ip-geolocation/IpGeolocationConfigPage.vue'),
+                component: lazyFeatureView(
+                  'products',
+                  'ip-geolocation/IpGeolocationConfigPage.vue',
+                ),
                 props: { product: 'ip_geolocation' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -1007,7 +1010,10 @@ export const routes = [
           {
             path: 'overview',
             name: 'terminalOverview',
-            component: lazyFeatureView('products', 'remote-terminal-cloud/TerminalOverviewView.vue'),
+            component: lazyFeatureView(
+              'products',
+              'remote-terminal-cloud/TerminalOverviewView.vue',
+            ),
             meta: {
               anyPermissions: [
                 Permission.REMOTE_TERMINAL_PRODUCT_READ,

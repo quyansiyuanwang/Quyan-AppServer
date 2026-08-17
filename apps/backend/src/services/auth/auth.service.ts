@@ -687,11 +687,7 @@ export class AuthService {
     }
   }
 
-  async refresh(
-    requestOrToken?: Request | string,
-    refreshTokenFromBody?: string,
-    skipImpersonationHandoff = false,
-  ) {
+  async refresh(requestOrToken?: Request | string, refreshTokenFromBody?: string, skipImpersonationHandoff = false) {
     const request = typeof requestOrToken === "string" ? undefined : requestOrToken;
     // A cross-site navigation cannot read the HttpOnly handoff cookie in the
     // browser. Resolve it here before falling back to the regular refresh
