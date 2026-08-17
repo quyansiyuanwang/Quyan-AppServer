@@ -1,33 +1,9 @@
 import { defineAsyncComponent } from 'vue'
-import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart, PieChart, BarChart } from 'echarts/charts'
-import {
-  TitleComponent,
-  TooltipComponent,
-  LegendComponent,
-  GridComponent,
-} from 'echarts/components'
 
-let registered = false
+let chartRuntimePromise: Promise<typeof import('./chart-runtime')> | null = null
 
-const ensureRegistered = () => {
-  if (registered) return
-  use([
-    CanvasRenderer,
-    LineChart,
-    PieChart,
-    BarChart,
-    TitleComponent,
-    TooltipComponent,
-    LegendComponent,
-    GridComponent,
-  ])
-  registered = true
-}
+const loadChartRuntime = () => (chartRuntimePromise ??= import('./chart-runtime'))
 
-export const AsyncVChart = defineAsyncComponent(async () => {
-  ensureRegistered()
-  return VChart
-})
+// Keep ECharts out of the app shell. `chart-runtime` and its third-party
+// dependencies are intentionally emitted as the single async `charts` chunk.
+export const AsyncVChart = defineAsyncComponent(async () => (await loadChartRuntime()).getVChart())
