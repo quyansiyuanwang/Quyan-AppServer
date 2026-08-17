@@ -1037,7 +1037,7 @@ model RelayChannelProbeProfile {
   id                    String   @id @default(cuid())
   relayChannelId        String   @unique
   enabled               Boolean  @default(true)
-  probeFormat           String   @default("openai") @db.VarChar(20)
+  probeFormat           String   @default("openai") @db.VarChar(32)
   probeEndpoint         String   @default("openai-chat-completions") @db.VarChar(40)
   probeModel            String   @db.VarChar(200)
   probePayload          Json
