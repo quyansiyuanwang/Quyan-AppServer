@@ -106,6 +106,13 @@ export function createApp() {
     }),
   );
   app.use(
+    "/relay/proxy",
+    express.raw({
+      type: ["application/json", "application/*+json"],
+      limit: `${requestSizeLimitConfig.jsonBodyLimitMb}mb`,
+    }),
+  );
+  app.use(
     "/v1/data-maintenance/imports",
     express.raw({
       type: ["application/gzip", "application/x-gzip", "application/octet-stream"],

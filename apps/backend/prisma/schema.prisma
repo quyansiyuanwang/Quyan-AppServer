@@ -1178,6 +1178,7 @@ model RelayToken {
   lastUsedAt                  DateTime?
   quotaLimit                  Decimal?  @db.Decimal(10, 2)
   allowedModels               String?   @db.Text
+  requestFormatTransforms     Json?
   ipWhitelist                 String?   @db.Text
   modelMapping                Json?
   isCustomKey                 Boolean   @default(false)

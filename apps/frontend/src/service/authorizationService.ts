@@ -1,5 +1,4 @@
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
-import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { useRequestStore, getAccessToken } from '@/stores/request'
 import StorageKey from '@/constant/storagekey'
 import router from '@/router'

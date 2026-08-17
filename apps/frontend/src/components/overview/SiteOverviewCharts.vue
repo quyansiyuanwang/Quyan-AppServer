@@ -24,7 +24,7 @@
 import type { SiteOverviewChart } from '@/composables/useSiteOverview'
 import { AsyncVChart } from '@/utils/asyncChart'
 
-const props = defineProps<{
+const _props = defineProps<{
   charts: readonly SiteOverviewChart[]
 }>()
 

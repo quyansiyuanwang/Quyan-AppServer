@@ -5,6 +5,7 @@ const mountMock = vi.fn()
 const ensureSessionMock = vi.fn(async () => null)
 const installRoutesMock = vi.fn(async () => undefined)
 const routerReadyMock = vi.fn(async () => undefined)
+const installSessionExpiryRedirectMock = vi.fn()
 
 vi.mock('vue', () => ({ createApp: vi.fn(() => ({ use: vi.fn(), mount: mountMock, config: {} })) }))
 vi.mock('pinia', () => ({ createPinia: vi.fn(() => ({})) }))
@@ -34,6 +35,9 @@ vi.mock('@/service/sessionCoordinator', () => ({
     hydrateUserAndPermissions: vi.fn(async () => undefined),
   },
 }))
+vi.mock('@/service/sessionExpiryRedirectService', () => ({
+  installSessionExpiryRedirect: installSessionExpiryRedirectMock,
+}))
 
 describe('AppRuntime', () => {
   beforeEach(() => {
@@ -49,6 +53,7 @@ describe('AppRuntime', () => {
     expect(installRoutesMock).toHaveBeenCalledTimes(1)
     expect(routerReadyMock).toHaveBeenCalledTimes(1)
     expect(mountMock).toHaveBeenCalledTimes(1)
+    expect(installSessionExpiryRedirectMock).toHaveBeenCalledTimes(1)
     expect(ensureSessionMock).not.toHaveBeenCalled()
     expect(runtime.getPhase()).toBe('running')
   })

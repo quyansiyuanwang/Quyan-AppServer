@@ -1,5 +1,6 @@
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
 import StorageKey from '@/constant/storagekey'
+import { buildBackendUrl } from '@/utils/backend-url'
 interface HeatPoint {
   pointType: 'click' | 'scroll_stop'
   page: string
@@ -13,7 +14,7 @@ interface HeatPoint {
 }
 
 const FLUSH_INTERVAL = 5000
-const ENDPOINT = '/v1/heatmap/collect'
+const ENDPOINT = buildBackendUrl('/v1/heatmap/collect')
 
 function getSessionId(): string {
   return TypedSessionStorage.getItem(StorageKey.Tracking.SESSION_ID) ?? ''

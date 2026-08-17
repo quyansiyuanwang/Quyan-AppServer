@@ -77,6 +77,7 @@ import { Permission } from "@/constant/permission";
 import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
 import { backendI18n } from "@/locales";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
+import type { RelayRequestFormatTransform } from "@appserver/shared";
 
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 const trimTrailingZeros = (value: number): string => String(value).replace(/\.0+$|(\.\d*?[1-9])0+$/, "$1");
@@ -84,6 +85,25 @@ const RELAY_TOKEN_QUOTA_COMPARE_EPSILON = 1e-8;
 const COPY_SUFFIX = "（副本）";
 const MAX_TOKEN_NAME_LENGTH = 100;
 const DEFAULT_DAILY_RESET_TIMEZONE_OFFSET_MINUTES = 0;
+
+const normalizeRequestFormatTransforms = (value: unknown): RelayRequestFormatTransform[] | null => {
+  if (value == null) return value === null ? null : [];
+  if (!Array.isArray(value)) throw new BadRequestError("requestFormatTransforms must be an array");
+  const seen = new Set<string>();
+  if (value.length > 3) throw new BadRequestError("requestFormatTransforms supports at most 3 rules");
+  return value.map((item) => {
+    const rule = item as Partial<RelayRequestFormatTransform>;
+    if (
+      !["openai-chat-completions", "openai-responses", "anthropic"].includes(String(rule.sourceFormat)) ||
+      !["openai-chat-completions", "openai-responses", "anthropic"].includes(String(rule.targetFormat))
+    )
+      throw new BadRequestError("Unsupported request format transform");
+    if (rule.sourceFormat === rule.targetFormat) throw new BadRequestError("Transform source and target must differ");
+    if (seen.has(String(rule.sourceFormat))) throw new BadRequestError("Transform source formats must be unique");
+    seen.add(String(rule.sourceFormat));
+    return { sourceFormat: rule.sourceFormat!, targetFormat: rule.targetFormat! };
+  });
+};
 
 type UsageRangeMode = "lifetime" | "window" | "custom" | "daily-reset";
 
@@ -307,6 +327,7 @@ export class RelayTokenService {
       quotaLimit: data.quotaLimit ?? undefined,
       quotaWindows: this.normalizeQuotaWindows(data.quotaWindows),
       allowedModels: data.allowedModels?.trim() || undefined,
+      requestFormatTransforms: normalizeRequestFormatTransforms(data.requestFormatTransforms),
       ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
       modelMapping: data.modelMapping ?? undefined,
     });
@@ -632,6 +653,7 @@ export class RelayTokenService {
     const hasQuotaLimit = Object.prototype.hasOwnProperty.call(data, "quotaLimit");
     const hasAllowedModels = Object.prototype.hasOwnProperty.call(data, "allowedModels");
     const hasModelMapping = Object.prototype.hasOwnProperty.call(data, "modelMapping");
+    const hasRequestFormatTransforms = Object.prototype.hasOwnProperty.call(data, "requestFormatTransforms");
     const hasToken = Object.prototype.hasOwnProperty.call(data, "token");
 
     let tokenValue: string | undefined;
@@ -658,6 +680,9 @@ export class RelayTokenService {
         ? this.normalizeOptionalIpWhitelist(data.ipWhitelist)
         : undefined,
       modelMapping: hasModelMapping ? (data.modelMapping ?? null) : undefined,
+      requestFormatTransforms: hasRequestFormatTransforms
+        ? normalizeRequestFormatTransforms(data.requestFormatTransforms)
+        : undefined,
       channelId: normalizedConfig?.defaultChannelId,
       channelConfigs: normalizedConfig?.channelConfigs,
       routingMode: data.routingMode,
@@ -1372,6 +1397,7 @@ export class RelayTokenService {
       allowedModels: token.allowedModels || undefined,
       ipWhitelist: token.ipWhitelist || undefined,
       modelMapping: token.modelMapping as Record<string, string> | undefined,
+      requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
       channelConfigs,
       hasInvalidOrderedChannels,
       failoverConfig: token.failoverConfig
@@ -1433,6 +1459,7 @@ export class RelayTokenService {
       allowedModels: token.allowedModels || undefined,
       ipWhitelist: token.ipWhitelist || undefined,
       modelMapping: token.modelMapping as Record<string, string> | undefined,
+      requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
       enabled: token.status === MANAGED_STATUS.ENABLED,
     };
   }
@@ -1813,6 +1840,7 @@ export class RelayTokenService {
         quotaLimit: data.quotaLimit ?? undefined,
         quotaWindows: this.normalizeQuotaWindows(data.quotaWindows),
         allowedModels: data.allowedModels?.trim() || undefined,
+        requestFormatTransforms: normalizeRequestFormatTransforms(data.requestFormatTransforms),
         ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
         modelMapping: data.modelMapping ?? undefined,
       },

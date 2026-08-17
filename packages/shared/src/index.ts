@@ -62,4 +62,6 @@ export type {
   RelayModelNameConstraint,
   RelayRequestFormat,
   RelayConfiguredRequestFormat,
+  RelayConvertibleRequestFormat,
+  RelayRequestFormatTransform,
 } from './relay-model-availability'

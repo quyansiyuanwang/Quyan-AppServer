@@ -10,6 +10,33 @@ import {
 } from "../../../src/api/schema/relay/relay-channel.schema";
 
 describe("relay token import schema", () => {
+  it("accepts distinct request format transforms and rejects invalid rules", () => {
+    const valid = [
+      { sourceFormat: "anthropic", targetFormat: "openai-chat-completions" },
+      { sourceFormat: "openai-responses", targetFormat: "anthropic" },
+    ];
+
+    expect(
+      createRelayTokenBodySchema.parse({ channelId: "channel-1", requestFormatTransforms: valid })
+        .requestFormatTransforms,
+    ).toEqual(valid);
+    expect(() =>
+      createRelayTokenBodySchema.parse({
+        channelId: "channel-1",
+        requestFormatTransforms: [
+          { sourceFormat: "anthropic", targetFormat: "openai-chat-completions" },
+          { sourceFormat: "anthropic", targetFormat: "openai-responses" },
+        ],
+      }),
+    ).toThrow("sourceFormat must be unique");
+    expect(() =>
+      createRelayTokenBodySchema.parse({
+        channelId: "channel-1",
+        requestFormatTransforms: [{ sourceFormat: "anthropic", targetFormat: "anthropic" }],
+      }),
+    ).toThrow("sourceFormat and targetFormat must differ");
+  });
+
   it("preserves false for the management enabled query filter", () => {
     expect(relayChannelManagementQuerySchema.parse({ enabled: "false" }).enabled).toBe(false);
     expect(relayChannelManagementQuerySchema.parse({ enabled: "true" }).enabled).toBe(true);
