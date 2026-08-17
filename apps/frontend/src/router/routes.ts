@@ -5,6 +5,7 @@ import {
   type SiteRouteGroup,
 } from '@/config/site-registry'
 import { getRouteCatalogEntry, getRouteGroup } from '@/router/route-catalog'
+import { lazyFeatureView } from '@/router/feature-view-loader'
 import type { RouteRecordRaw } from 'vue-router'
 
 export const routes = [
@@ -20,7 +21,7 @@ export const routes = [
       {
         path: '/login',
         name: 'login',
-        component: () => import('@/views/auth/LoginOrRegisterView.vue'),
+        component: lazyFeatureView('auth', 'LoginOrRegisterView.vue'),
         meta: {
           isAuthEntry: true,
           requiresCaptchaPreflight: true,
@@ -29,7 +30,7 @@ export const routes = [
       {
         path: '/register',
         name: 'register',
-        component: () => import('@/views/auth/LoginOrRegisterView.vue'),
+        component: lazyFeatureView('auth', 'LoginOrRegisterView.vue'),
         meta: {
           isAuthEntry: true,
           requiresCaptchaPreflight: true,
@@ -39,7 +40,7 @@ export const routes = [
       {
         path: '/forgot-password',
         name: 'forgotPassword',
-        component: () => import('@/views/auth/ForgotPasswordView.vue'),
+        component: lazyFeatureView('auth', 'ForgotPasswordView.vue'),
         meta: {
           isAuthEntry: true,
           requiresCaptchaPreflight: true,
@@ -52,7 +53,7 @@ export const routes = [
         meta: {
           isAuthEntry: true,
         },
-        component: () => import('@/views/auth/AuthVerificationView.vue'),
+        component: lazyFeatureView('auth', 'AuthVerificationView.vue'),
       },
       {
         path: '/oauth/authorize',
@@ -60,7 +61,7 @@ export const routes = [
         meta: {
           isAuthEntry: true,
         },
-        component: () => import('@/views/auth/OAuthAuthorizeView.vue'),
+        component: lazyFeatureView('auth', 'OAuthAuthorizeView.vue'),
       },
       {
         path: '/auth/external/:provider/callback',
@@ -68,7 +69,7 @@ export const routes = [
         meta: {
           isAuthEntry: true,
         },
-        component: () => import('@/views/auth/ExternalAuthCallbackView.vue'),
+        component: lazyFeatureView('auth', 'ExternalAuthCallbackView.vue'),
       },
       {
         path: '/auth/qr-approve',
@@ -77,12 +78,12 @@ export const routes = [
           isAuthEntry: true,
           requiresCaptchaPreflight: true,
         },
-        component: () => import('@/views/auth/QrApprovalView.vue'),
+        component: lazyFeatureView('auth', 'QrApprovalView.vue'),
       },
       {
         path: '/auth/passkeys',
         name: 'authPasskeyManagement',
-        component: () => import('@/views/settings/PasskeyManagementView.vue'),
+        component: lazyFeatureView('settings', 'PasskeyManagementView.vue'),
       },
       {
         path: '/auth/external/bind',
@@ -90,7 +91,7 @@ export const routes = [
         meta: {
           isAuthEntry: true,
         },
-        component: () => import('@/views/auth/ExternalAuthBindStartView.vue'),
+        component: lazyFeatureView('auth', 'ExternalAuthBindStartView.vue'),
       },
       {
         path: '/auth/captcha',
@@ -98,12 +99,12 @@ export const routes = [
         meta: {
           isAuthEntry: true,
         },
-        component: () => import('@/views/auth/CaptchaVerificationView.vue'),
+        component: lazyFeatureView('auth', 'CaptchaVerificationView.vue'),
       },
       {
         path: '/status/:slug',
         name: 'publicStatus',
-        component: () => import('@/views/public/PublicStatusView.vue'),
+        component: lazyFeatureView('misc', 'public/PublicStatusView.vue'),
         meta: {
           isAuthEntry: true,
           allowGuest: true,
@@ -113,7 +114,7 @@ export const routes = [
       {
         path: '/workspace/suggestions',
         name: 'workspaceSuggestions',
-        component: () => import('@/views/workspace/WorkspaceTicketView.vue'),
+        component: lazyFeatureView('misc', 'workspace/WorkspaceTicketView.vue'),
         meta: {
           allowGuestWhenEmbedded: true,
         },
@@ -220,12 +221,12 @@ export const routes = [
           {
             path: 'home',
             name: 'home',
-            component: () => import('@/views/article/ArticleViewerView.vue'),
+            component: lazyFeatureView('misc', 'article/ArticleViewerView.vue'),
           },
           {
             path: 'chat',
             name: 'chat',
-            component: () => import('@/views/chat/ChatView.vue'),
+            component: lazyFeatureView('misc', 'chat/ChatView.vue'),
           },
           {
             path: 'settings',
@@ -238,35 +239,37 @@ export const routes = [
               {
                 path: 'profile',
                 name: 'settingsProfile',
-                component: () => import('@/views/settings/ProfileSettingsView.vue'),
+                component: lazyFeatureView('settings', 'ProfileSettingsView.vue'),
               },
               {
                 path: 'preferences',
                 name: 'settingsPreferences',
-                component: () => import('@/views/settings/PreferencesSettingsView.vue'),
+                component: lazyFeatureView('settings', 'PreferencesSettingsView.vue'),
               },
               {
                 path: 'security',
                 name: 'settingsSecurity',
-                component: () => import('@/views/settings/AccountSecuritySettingsView.vue'),
+                component: lazyFeatureView('settings', 'AccountSecuritySettingsView.vue'),
               },
               {
                 path: 'notifications',
                 name: 'notificationSettings',
-                component: () => import('@/views/settings/NotificationSettingsView.vue'),
+                component: lazyFeatureView('settings', 'NotificationSettingsView.vue'),
               },
             ],
           },
           {
             path: 'subscriptions',
             name: 'myRemoteTerminalProducts',
-            component: () =>
-              import('@/views/products/remote-terminal-cloud/MyRemoteTerminalProductsView.vue'),
+            component: lazyFeatureView(
+              'products',
+              'remote-terminal-cloud/MyRemoteTerminalProductsView.vue',
+            ),
           },
           {
             path: 'services',
             name: 'developerServiceManagement',
-            component: () => import('@/views/developer/DeveloperServiceManagementView.vue'),
+            component: lazyFeatureView('misc', 'developer/DeveloperServiceManagementView.vue'),
             meta: {
               permission: Permission.DEVELOPER_QUOTA_MANAGE,
             },
@@ -274,7 +277,7 @@ export const routes = [
           {
             path: 'services/configuration',
             name: 'developerServiceConfig',
-            component: () => import('@/views/developer/DeveloperServiceConfigView.vue'),
+            component: lazyFeatureView('misc', 'developer/DeveloperServiceConfigView.vue'),
             meta: {
               permission: Permission.SYSTEM_CONFIG,
             },
@@ -282,7 +285,7 @@ export const routes = [
           {
             path: 'applications/oauth',
             name: 'oauthClientManagement',
-            component: () => import('@/views/settings/OAuthClientManagementView.vue'),
+            component: lazyFeatureView('settings', 'OAuthClientManagementView.vue'),
             meta: {
               permission: Permission.OAUTH_CLIENT_READ,
             },
@@ -290,7 +293,7 @@ export const routes = [
           {
             path: 'applications/auth-center',
             name: 'authCenterClientManagement',
-            component: () => import('@/views/settings/AuthCenterClientManagementView.vue'),
+            component: lazyFeatureView('settings', 'AuthCenterClientManagementView.vue'),
             meta: {
               permission: Permission.AUTH_CENTER_CLIENT_READ,
             },
@@ -298,7 +301,7 @@ export const routes = [
           {
             path: 'reviews/oauth',
             name: 'oauthClientReviewManagement',
-            component: () => import('@/views/settings/OAuthClientReviewManagementView.vue'),
+            component: lazyFeatureView('settings', 'OAuthClientReviewManagementView.vue'),
             meta: {
               permission: Permission.OAUTH_CLIENT_REVIEW_READ,
             },
@@ -306,7 +309,7 @@ export const routes = [
           {
             path: 'reviews/auth-center',
             name: 'authCenterClientReviewManagement',
-            component: () => import('@/views/settings/AuthCenterClientReviewManagementView.vue'),
+            component: lazyFeatureView('settings', 'AuthCenterClientReviewManagementView.vue'),
             meta: {
               permission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
             },
@@ -314,7 +317,7 @@ export const routes = [
           {
             path: 'reviews/tickets',
             name: 'ticketReviewManagement',
-            component: () => import('@/views/settings/TicketReviewManagementView.vue'),
+            component: lazyFeatureView('settings', 'TicketReviewManagementView.vue'),
             meta: {
               permission: Permission.TICKET_REVIEW_READ,
             },
@@ -322,7 +325,7 @@ export const routes = [
           {
             path: 'debug',
             name: 'debug',
-            component: () => import('@/views/debug/DebugView.vue'),
+            component: lazyFeatureView('misc', 'debug/DebugView.vue'),
           },
 
           // --- Management ---
@@ -342,7 +345,7 @@ export const routes = [
           {
             path: 'iam/users',
             name: 'userManagement',
-            component: () => import('@/views/management/UserManagementView.vue'),
+            component: lazyFeatureView('management', 'UserManagementView.vue'),
             meta: {
               permission: Permission.USER_READ,
             },
@@ -350,7 +353,7 @@ export const routes = [
           {
             path: 'iam/groups',
             name: 'groupManagement',
-            component: () => import('@/views/management/GroupManagementView.vue'),
+            component: lazyFeatureView('management', 'GroupManagementView.vue'),
             meta: {
               permission: Permission.GROUP_READ,
             },
@@ -358,7 +361,7 @@ export const routes = [
           {
             path: 'iam/authorizations',
             name: 'iamAuthorizations',
-            component: () => import('@/views/management/PermissionManagementView.vue'),
+            component: lazyFeatureView('management', 'PermissionManagementView.vue'),
             props: { mode: 'authorizations' },
             meta: {
               permission: Permission.PERMISSION_VIEW,
@@ -367,7 +370,7 @@ export const routes = [
           {
             path: 'iam/permission-policies',
             name: 'iamPermissionPolicies',
-            component: () => import('@/views/management/PermissionManagementView.vue'),
+            component: lazyFeatureView('management', 'PermissionManagementView.vue'),
             props: { mode: 'policies' },
             meta: {
               permission: Permission.PERMISSION_VIEW,
@@ -376,7 +379,7 @@ export const routes = [
           {
             path: 'iam/permission-diagnostics',
             name: 'iamPermissionDiagnostics',
-            component: () => import('@/views/management/PermissionManagementView.vue'),
+            component: lazyFeatureView('management', 'PermissionManagementView.vue'),
             props: { mode: 'diagnostics' },
             meta: {
               permission: Permission.PERMISSION_VIEW,
@@ -407,7 +410,7 @@ export const routes = [
           {
             path: 'users',
             name: 'ramManagement',
-            component: () => import('@/views/management/RamManagementView.vue'),
+            component: lazyFeatureView('management', 'RamManagementView.vue'),
             props: { section: 'users' },
             meta: {
               anyPermissions: [
@@ -422,35 +425,35 @@ export const routes = [
           {
             path: 'roles',
             name: 'ramRoles',
-            component: () => import('@/views/management/RamManagementView.vue'),
+            component: lazyFeatureView('management', 'RamManagementView.vue'),
             props: { section: 'roles' },
             meta: { permission: Permission.RAM_ROLE_READ },
           },
           {
             path: 'role-bindings',
             name: 'ramBindings',
-            component: () => import('@/views/management/RamManagementView.vue'),
+            component: lazyFeatureView('management', 'RamManagementView.vue'),
             props: { section: 'bindings' },
             meta: { permission: Permission.RAM_BINDING_READ },
           },
           {
             path: 'policies',
             name: 'ramPolicies',
-            component: () => import('@/views/management/RamManagementView.vue'),
+            component: lazyFeatureView('management', 'RamManagementView.vue'),
             props: { section: 'policies' },
             meta: { permission: Permission.RAM_POLICY_READ },
           },
           {
             path: 'authorizations',
             name: 'ramAuthorization',
-            component: () => import('@/views/management/RamManagementView.vue'),
+            component: lazyFeatureView('management', 'RamManagementView.vue'),
             props: { section: 'authorization' },
             meta: { permission: Permission.RAM_USER_READ },
           },
           {
             path: 'sessions',
             name: 'ramSessions',
-            component: () => import('@/views/management/RamManagementView.vue'),
+            component: lazyFeatureView('management', 'RamManagementView.vue'),
             props: { section: 'sessions' },
             meta: { permission: Permission.RAM_SESSION_READ },
           },
@@ -460,7 +463,7 @@ export const routes = [
               {
                 path: '',
                 name: 'product-kv',
-                component: () => import('@/views/products/kv/KvUserPage.vue'),
+                component: lazyFeatureView('products', 'kv/KvUserPage.vue'),
                 props: { product: 'kv' },
                 meta: {
                   anyPermissions: [
@@ -473,14 +476,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-kv',
-                component: () => import('@/views/products/kv/KvManagementPage.vue'),
+                component: lazyFeatureView('products', 'kv/KvManagementPage.vue'),
                 props: { product: 'kv' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-kv',
-                component: () => import('@/views/products/kv/KvConfigPage.vue'),
+                component: lazyFeatureView('products', 'kv/KvConfigPage.vue'),
                 props: { product: 'kv' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -492,7 +495,7 @@ export const routes = [
               {
                 path: '',
                 name: 'product-short_link',
-                component: () => import('@/views/products/short-link/ShortLinkUserPage.vue'),
+                component: lazyFeatureView('products', 'short-link/ShortLinkUserPage.vue'),
                 props: { product: 'short_link' },
                 meta: {
                   anyPermissions: [
@@ -505,21 +508,21 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-short_link',
-                component: () => import('@/views/products/short-link/ShortLinkManagementPage.vue'),
+                component: lazyFeatureView('products', 'short-link/ShortLinkManagementPage.vue'),
                 props: { product: 'short_link' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-short_link',
-                component: () => import('@/views/products/short-link/ShortLinkConfigPage.vue'),
+                component: lazyFeatureView('products', 'short-link/ShortLinkConfigPage.vue'),
                 props: { product: 'short_link' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
               {
                 path: ':instanceId/:linkId/analytics',
                 name: 'product-short_link-analytics',
-                component: () => import('@/views/products/short-link/ShortLinkAnalyticsPage.vue'),
+                component: lazyFeatureView('products', 'short-link/ShortLinkAnalyticsPage.vue'),
                 meta: { permission: Permission.PRODUCT_SHORT_LINK_READ },
               },
             ],
@@ -530,7 +533,7 @@ export const routes = [
               {
                 path: '',
                 name: 'product-secret',
-                component: () => import('@/views/products/secret/SecretUserPage.vue'),
+                component: lazyFeatureView('products', 'secret/SecretUserPage.vue'),
                 props: { product: 'secret' },
                 meta: {
                   anyPermissions: [
@@ -544,14 +547,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-secret',
-                component: () => import('@/views/products/secret/SecretManagementPage.vue'),
+                component: lazyFeatureView('products', 'secret/SecretManagementPage.vue'),
                 props: { product: 'secret' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-secret',
-                component: () => import('@/views/products/secret/SecretConfigPage.vue'),
+                component: lazyFeatureView('products', 'secret/SecretConfigPage.vue'),
                 props: { product: 'secret' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -563,7 +566,7 @@ export const routes = [
               {
                 path: '',
                 name: 'product-status',
-                component: () => import('@/views/products/status/StatusUserPage.vue'),
+                component: lazyFeatureView('products', 'status/StatusUserPage.vue'),
                 props: { product: 'status' },
                 meta: {
                   anyPermissions: [
@@ -577,14 +580,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-status',
-                component: () => import('@/views/products/status/StatusManagementPage.vue'),
+                component: lazyFeatureView('products', 'status/StatusManagementPage.vue'),
                 props: { product: 'status' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-status',
-                component: () => import('@/views/products/status/StatusConfigPage.vue'),
+                component: lazyFeatureView('products', 'status/StatusConfigPage.vue'),
                 props: { product: 'status' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -596,7 +599,7 @@ export const routes = [
               {
                 path: '',
                 name: 'product-verification',
-                component: () => import('@/views/products/verification/VerificationUserPage.vue'),
+                component: lazyFeatureView('products', 'verification/VerificationUserPage.vue'),
                 props: { product: 'verification' },
                 meta: {
                   anyPermissions: [
@@ -609,15 +612,17 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-verification',
-                component: () =>
-                  import('@/views/products/verification/VerificationManagementPage.vue'),
+                component: lazyFeatureView(
+                  'products',
+                  'verification/VerificationManagementPage.vue',
+                ),
                 props: { product: 'verification' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-verification',
-                component: () => import('@/views/products/verification/VerificationConfigPage.vue'),
+                component: lazyFeatureView('products', 'verification/VerificationConfigPage.vue'),
                 props: { product: 'verification' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -629,8 +634,7 @@ export const routes = [
               {
                 path: '',
                 name: 'product-ip_geolocation',
-                component: () =>
-                  import('@/views/products/ip-geolocation/IpGeolocationUserPage.vue'),
+                component: lazyFeatureView('products', 'ip-geolocation/IpGeolocationUserPage.vue'),
                 props: { product: 'ip_geolocation' },
                 meta: {
                   anyPermissions: [
@@ -642,16 +646,20 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-ip_geolocation',
-                component: () =>
-                  import('@/views/products/ip-geolocation/IpGeolocationManagementPage.vue'),
+                component: lazyFeatureView(
+                  'products',
+                  'ip-geolocation/IpGeolocationManagementPage.vue',
+                ),
                 props: { product: 'ip_geolocation' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-ip_geolocation',
-                component: () =>
-                  import('@/views/products/ip-geolocation/IpGeolocationConfigPage.vue'),
+                component: lazyFeatureView(
+                  'products',
+                  'ip-geolocation/IpGeolocationConfigPage.vue',
+                ),
                 props: { product: 'ip_geolocation' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -663,7 +671,7 @@ export const routes = [
               {
                 path: '',
                 name: 'product-push',
-                component: () => import('@/views/products/push/PushUserPage.vue'),
+                component: lazyFeatureView('products', 'push/PushUserPage.vue'),
                 props: { product: 'push' },
                 meta: {
                   anyPermissions: [
@@ -677,14 +685,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-push',
-                component: () => import('@/views/products/push/PushManagementPage.vue'),
+                component: lazyFeatureView('products', 'push/PushManagementPage.vue'),
                 props: { product: 'push' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-push',
-                component: () => import('@/views/products/push/PushConfigPage.vue'),
+                component: lazyFeatureView('products', 'push/PushConfigPage.vue'),
                 props: { product: 'push' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -777,7 +785,7 @@ export const routes = [
           {
             path: 'billing/balance',
             name: 'balanceManagement',
-            component: () => import('@/views/relay/BalanceManagementView.vue'),
+            component: lazyFeatureView('relay', 'BalanceManagementView.vue'),
             meta: {
               permission: Permission.BALANCE_READ,
             },
@@ -785,7 +793,7 @@ export const routes = [
           {
             path: 'billing/monthly-passes',
             name: 'monthlyPassManagement',
-            component: () => import('@/views/relay/MonthlyPassManagementView.vue'),
+            component: lazyFeatureView('relay', 'MonthlyPassManagementView.vue'),
             meta: {
               anyPermissions: [
                 Permission.MONTHLY_PASS_TEMPLATE_READ,
@@ -801,10 +809,10 @@ export const routes = [
           {
             path: 'products/remote-terminal/templates',
             name: 'remoteTerminalProductTemplates',
-            component: () =>
-              import(
-                '@/views/products/remote-terminal-cloud/RemoteTerminalProductTemplatesView.vue'
-              ),
+            component: lazyFeatureView(
+              'products',
+              'remote-terminal-cloud/RemoteTerminalProductTemplatesView.vue',
+            ),
             meta: {
               permission: Permission.REMOTE_TERMINAL_PRODUCT_READ,
             },
@@ -812,10 +820,10 @@ export const routes = [
           {
             path: 'products/remote-terminal/entitlements',
             name: 'remoteTerminalProductEntitlements',
-            component: () =>
-              import(
-                '@/views/products/remote-terminal-cloud/RemoteTerminalProductEntitlementsView.vue'
-              ),
+            component: lazyFeatureView(
+              'products',
+              'remote-terminal-cloud/RemoteTerminalProductEntitlementsView.vue',
+            ),
             meta: {
               permission: Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
             },
@@ -823,8 +831,10 @@ export const routes = [
           {
             path: 'products/remote-terminal/devices',
             name: 'remoteTerminalProductDevices',
-            component: () =>
-              import('@/views/products/remote-terminal-cloud/RemoteTerminalProductDevicesView.vue'),
+            component: lazyFeatureView(
+              'products',
+              'remote-terminal-cloud/RemoteTerminalProductDevicesView.vue',
+            ),
             meta: {
               permission: Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
             },
@@ -832,7 +842,7 @@ export const routes = [
           {
             path: 'billing/redemption-codes',
             name: 'redemptionCodes',
-            component: () => import('@/views/relay/RedemptionCodeManagementView.vue'),
+            component: lazyFeatureView('relay', 'RedemptionCodeManagementView.vue'),
             meta: {
               permission: Permission.REDEMPTION_CODE_READ,
             },
@@ -840,7 +850,7 @@ export const routes = [
           {
             path: 'content/json-endpoints',
             name: 'jsonEndpointManagement',
-            component: () => import('@/views/json-endpoint/JsonEndpointManagementView.vue'),
+            component: lazyFeatureView('misc', 'json-endpoint/JsonEndpointManagementView.vue'),
             meta: {
               permission: Permission.JSON_ENDPOINT_READ,
             },
@@ -848,7 +858,7 @@ export const routes = [
           {
             path: 'content/articles',
             name: 'articleManagement',
-            component: () => import('@/views/article/ArticleManagementView.vue'),
+            component: lazyFeatureView('misc', 'article/ArticleManagementView.vue'),
             meta: {
               permission: Permission.ARTICLE_READ,
             },
@@ -856,7 +866,7 @@ export const routes = [
           {
             path: 'content/legal-policies',
             name: 'legalPolicyManagement',
-            component: () => import('@/views/management/LegalPolicyManagementView.vue'),
+            component: lazyFeatureView('management', 'LegalPolicyManagementView.vue'),
             meta: {
               permission: Permission.LEGAL_POLICY_READ,
             },
@@ -866,7 +876,7 @@ export const routes = [
           {
             path: 'scripts',
             name: 'scriptManager',
-            component: () => import('@/views/user-script/UserScriptManagerView.vue'),
+            component: lazyFeatureView('misc', 'user-script/UserScriptManagerView.vue'),
             meta: {
               permission: Permission.SCRIPT_READ,
             },
@@ -876,17 +886,17 @@ export const routes = [
           {
             path: 'billing/balance',
             name: 'balanceHistory',
-            component: () => import('@/views/relay/BalanceHistoryView.vue'),
+            component: lazyFeatureView('relay', 'BalanceHistoryView.vue'),
           },
           {
             path: 'billing/consumption',
             name: 'consumptionRecords',
-            component: () => import('@/views/relay/ConsumptionRecordsView.vue'),
+            component: lazyFeatureView('relay', 'ConsumptionRecordsView.vue'),
           },
           {
             path: 'support/tickets',
             name: 'myTickets',
-            component: () => import('@/views/workspace/WorkspaceTicketView.vue'),
+            component: lazyFeatureView('misc', 'workspace/WorkspaceTicketView.vue'),
             meta: {
               anyPermissions: [
                 Permission.TICKET_SUBMIT,
@@ -906,7 +916,7 @@ export const routes = [
               {
                 path: 'monthly-passes',
                 name: 'myMonthlyPasses',
-                component: () => import('@/views/relay/MyMonthlyPassesView.vue'),
+                component: lazyFeatureView('relay', 'MyMonthlyPassesView.vue'),
               },
               {
                 path: 'monthly-pass-purchase',
@@ -929,7 +939,7 @@ export const routes = [
           {
             path: 'relay/tokens',
             name: 'relayTokenManagement',
-            component: () => import('@/views/relay/RelayTokenManagementView.vue'),
+            component: lazyFeatureView('relay', 'RelayTokenManagementView.vue'),
             meta: {
               permission: Permission.RELAY_TOKEN_READ,
             },
@@ -937,7 +947,7 @@ export const routes = [
           {
             path: 'relay/api-docs',
             name: 'apiDocumentation',
-            component: () => import('@/views/relay/ApiDocumentationView.vue'),
+            component: lazyFeatureView('relay', 'ApiDocumentationView.vue'),
             meta: {
               permission: Permission.RELAY_TOKEN_READ,
             },
@@ -945,7 +955,7 @@ export const routes = [
           {
             path: 'relay/channels',
             name: 'relayChannelProvider',
-            component: () => import('@/views/relay/RelayChannelProviderView.vue'),
+            component: lazyFeatureView('relay', 'RelayChannelProviderView.vue'),
             meta: {
               anyPermissions: [
                 Permission.RELAY_CHANNEL_SUBMIT,
@@ -956,13 +966,13 @@ export const routes = [
           {
             path: 'channels/review',
             name: 'relayChannelReview',
-            component: () => import('@/views/relay/RelayChannelReviewView.vue'),
+            component: lazyFeatureView('relay', 'RelayChannelReviewView.vue'),
             meta: { permission: Permission.RELAY_CHANNEL_REVIEW },
           },
           {
             path: 'relay/settings',
             name: 'relaySettings',
-            component: () => import('@/views/relay/RelaySettingsView.vue'),
+            component: lazyFeatureView('relay', 'RelaySettingsView.vue'),
             meta: {
               permission: Permission.MODEL_PRICING_UPDATE,
             },
@@ -970,7 +980,7 @@ export const routes = [
           {
             path: 'channels/health',
             name: 'relayChannelHealth',
-            component: () => import('@/views/relay/RelayChannelHealthView.vue'),
+            component: lazyFeatureView('relay', 'RelayChannelHealthView.vue'),
             meta: {
               permission: Permission.RELAY_CHANNEL_HEALTH_READ,
             },
@@ -978,13 +988,13 @@ export const routes = [
           {
             path: 'diagnostics/requests',
             name: 'relayRequestDiagnostics',
-            component: () => import('@/views/relay/RelayRequestDiagnosticsView.vue'),
+            component: lazyFeatureView('relay', 'RelayRequestDiagnosticsView.vue'),
             meta: { permission: Permission.RELAY_REQUEST_DIAGNOSTICS_READ },
           },
           {
             path: 'channels/probes',
             name: 'relayChannelProbes',
-            component: () => import('@/views/relay/RelayChannelProbeView.vue'),
+            component: lazyFeatureView('relay', 'RelayChannelProbeView.vue'),
             meta: {
               permission: Permission.RELAY_CHANNEL_PROBE_READ,
             },
@@ -992,7 +1002,7 @@ export const routes = [
           {
             path: 'upstreams',
             name: 'upstreamStatus',
-            component: () => import('@/views/relay/UpstreamStatusView.vue'),
+            component: lazyFeatureView('relay', 'UpstreamStatusView.vue'),
             meta: {
               permission: Permission.UPSTREAM_STATUS_READ,
             },
@@ -1000,8 +1010,10 @@ export const routes = [
           {
             path: 'overview',
             name: 'terminalOverview',
-            component: () =>
-              import('@/views/products/remote-terminal-cloud/TerminalOverviewView.vue'),
+            component: lazyFeatureView(
+              'products',
+              'remote-terminal-cloud/TerminalOverviewView.vue',
+            ),
             meta: {
               anyPermissions: [
                 Permission.REMOTE_TERMINAL_PRODUCT_READ,
@@ -1014,8 +1026,7 @@ export const routes = [
           {
             path: 'workspace',
             name: 'remoteTerminal',
-            component: () =>
-              import('@/views/products/remote-terminal-cloud/RemoteTerminalView.vue'),
+            component: lazyFeatureView('products', 'remote-terminal-cloud/RemoteTerminalView.vue'),
             meta: {
               anyPermissions: [
                 Permission.REMOTE_TERMINAL_DEVICE_READ,
@@ -1029,7 +1040,7 @@ export const routes = [
           {
             path: 'system/config',
             name: 'serverConfig',
-            component: () => import('@/views/system/ServerConfigView.vue'),
+            component: lazyFeatureView('system', 'ServerConfigView.vue'),
             meta: {
               permission: Permission.SYSTEM_CONFIG,
             },
@@ -1037,19 +1048,19 @@ export const routes = [
           {
             path: 'system/ai-support',
             name: 'supportAiConfig',
-            component: () => import('@/views/system/SupportAiConfigView.vue'),
+            component: lazyFeatureView('system', 'SupportAiConfigView.vue'),
             meta: { permission: Permission.SUPPORT_AI_CONFIG },
           },
           {
             path: 'system/ai-support-analytics',
             name: 'supportAiAnalytics',
-            component: () => import('@/views/system/SupportAiAnalyticsView.vue'),
+            component: lazyFeatureView('system', 'SupportAiAnalyticsView.vue'),
             meta: { permission: Permission.SUPPORT_AI_ANALYTICS_READ },
           },
           {
             path: 'system/ip-monitoring',
             name: 'ipMonitoring',
-            component: () => import('@/views/system/IPMonitoringDashboardView.vue'),
+            component: lazyFeatureView('system', 'IPMonitoringDashboardView.vue'),
             meta: {
               permission: Permission.IP_BLACKLIST_READ,
             },
@@ -1057,7 +1068,7 @@ export const routes = [
           {
             path: 'system/stats',
             name: 'systemStats',
-            component: () => import('@/views/system/SystemStatsView.vue'),
+            component: lazyFeatureView('system', 'SystemStatsView.vue'),
             meta: {
               permission: Permission.SYSTEM_STATS_READ,
             },
@@ -1065,7 +1076,7 @@ export const routes = [
           {
             path: 'system/consumption-stats',
             name: 'systemConsumptionStats',
-            component: () => import('@/views/system/SystemConsumptionStatsView.vue'),
+            component: lazyFeatureView('system', 'SystemConsumptionStatsView.vue'),
             meta: {
               permission: Permission.SYSTEM_CONSUMPTION_STATS_READ,
             },
@@ -1073,7 +1084,7 @@ export const routes = [
           {
             path: 'system/logs',
             name: 'systemLogs',
-            component: () => import('@/views/system/SystemLogsView.vue'),
+            component: lazyFeatureView('system', 'SystemLogsView.vue'),
             meta: {
               anyPermissions: [
                 Permission.API_LOG_READ,
@@ -1085,7 +1096,7 @@ export const routes = [
           {
             path: 'system/business-logs',
             name: 'businessLogs',
-            component: () => import('@/views/system/BusinessLogsView.vue'),
+            component: lazyFeatureView('system', 'BusinessLogsView.vue'),
             meta: {
               permission: Permission.SYSTEM_BUSINESS_LOG_READ,
             },
@@ -1093,7 +1104,7 @@ export const routes = [
           {
             path: 'system/error-center',
             name: 'errorCenter',
-            component: () => import('@/views/system/ErrorCenterView.vue'),
+            component: lazyFeatureView('system', 'ErrorCenterView.vue'),
             meta: {
               permission: Permission.SYSTEM_ERROR_REPORT_READ,
             },
@@ -1101,7 +1112,7 @@ export const routes = [
           {
             path: 'system/data-lifecycle',
             name: 'dataLifecycle',
-            component: () => import('@/views/system/DataLifecycleView.vue'),
+            component: lazyFeatureView('system', 'DataLifecycleView.vue'),
             meta: {
               permission: Permission.SYSTEM_DATA_LIFECYCLE_MANAGE,
             },
@@ -1109,7 +1120,7 @@ export const routes = [
           {
             path: 'system/data-maintenance',
             name: 'dataMaintenance',
-            component: () => import('@/views/system/DataMaintenanceView.vue'),
+            component: lazyFeatureView('system', 'DataMaintenanceView.vue'),
             meta: {
               permission: Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
             },
@@ -1117,7 +1128,7 @@ export const routes = [
           {
             path: 'system/user-online-monitor',
             name: 'userOnlineMonitor',
-            component: () => import('@/views/system/UserOnlineMonitorView.vue'),
+            component: lazyFeatureView('system', 'UserOnlineMonitorView.vue'),
             meta: {
               permission: Permission.USER_ONLINE_MONITOR_READ,
             },
@@ -1127,7 +1138,7 @@ export const routes = [
           {
             path: 'analytics/overview',
             name: 'analyticsOverview',
-            component: () => import('@/views/analytics/AnalyticsOverviewView.vue'),
+            component: lazyFeatureView('analytics', 'AnalyticsOverviewView.vue'),
             meta: {
               permission: Permission.ANALYTICS_READ,
             },
@@ -1135,7 +1146,7 @@ export const routes = [
           {
             path: 'analytics/funnel',
             name: 'analyticsFunnel',
-            component: () => import('@/views/analytics/AnalyticsFunnelView.vue'),
+            component: lazyFeatureView('analytics', 'AnalyticsFunnelView.vue'),
             meta: {
               permission: Permission.ANALYTICS_READ,
             },
@@ -1143,7 +1154,7 @@ export const routes = [
           {
             path: 'analytics/heatmap',
             name: 'analyticsHeatmap',
-            component: () => import('@/views/analytics/AnalyticsHeatmapView.vue'),
+            component: lazyFeatureView('analytics', 'AnalyticsHeatmapView.vue'),
             meta: {
               permission: Permission.ANALYTICS_READ,
             },
@@ -1165,7 +1176,7 @@ export const routes = [
               {
                 path: '',
                 name: 'ojAPIKeyManagement',
-                component: () => import('@/views/oj-submitter/APIKeyManagementView.vue'),
+                component: lazyFeatureView('misc', 'oj-submitter/APIKeyManagementView.vue'),
                 meta: {
                   permission: Permission.OJ_APIKEY_READ,
                 },
@@ -1175,7 +1186,7 @@ export const routes = [
           {
             path: 'usage',
             name: 'ojUsageStatistics',
-            component: () => import('@/views/oj-submitter/UsageStatisticsView.vue'),
+            component: lazyFeatureView('misc', 'oj-submitter/UsageStatisticsView.vue'),
             meta: {
               permission: Permission.OJ_USAGE_READ,
             },
@@ -1183,7 +1194,7 @@ export const routes = [
           {
             path: 'pricing',
             name: 'ojPricingManagement',
-            component: () => import('@/views/oj-submitter/PricingManagementView.vue'),
+            component: lazyFeatureView('misc', 'oj-submitter/PricingManagementView.vue'),
             meta: {
               permission: Permission.OJ_PRICING_READ,
             },
@@ -1194,7 +1205,7 @@ export const routes = [
   },
   {
     path: '/:catchAll(.*)',
-    component: () => import('@/views/common/404View.vue'),
+    component: lazyFeatureView('misc', 'common/404View.vue'),
     meta: {
       allowGuest: true,
     },

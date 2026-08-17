@@ -32,6 +32,15 @@
 - 为 Token 绑定允许访问的 IP 或 CIDR 范围。
 - 留空表示不限制来源 IP；填写后仅白名单内的 IP 可使用该 Token。
 
+### 请求格式转换
+
+每个 Token 最多可配置 3 条转换规则，且每种来源格式只能配置一次。可在 Anthropic Messages、OpenAI Chat Completions 与 OpenAI Responses 之间转换；空规则列表表示关闭转换。
+
+- 调用方仍使用来源格式的普通响应、错误和流式事件；渠道筛选、上游路径、认证和计费按目标格式执行。
+- 目标渠道和模型必须启用目标格式。转换会带来少量 CPU 与内存开销，且协议间的语义与计费可能不同。
+- 无法安全等价的专有字段会被拒绝而不是静默丢弃，例如异步/会话请求、托管工具、文件或音视频输入、缓存控制等。
+- Chat Completions 或 Responses 转 Anthropic 时必须提供可映射的最大输出 Token；不会自动补默认值。
+
 ### 渠道与故障转移
 
 - 有序渠道列表。
@@ -79,7 +88,7 @@ Authorization: Bearer <relay_token>
 Content-Type: application/json
 ```
 
-请求格式必须与令牌渠道中启用的格式一致。需要完整的 curl 示例、Responses 格式和图片请求说明时，继续查看 `api-documentation`；需要调整渠道、模型或格式时查看 `relay-settings`。
+请求格式必须与令牌渠道中启用的格式一致，或在该 Token 上配置对应的请求格式转换。需要完整的 curl 示例、Responses 格式和图片请求说明时，继续查看 `api-documentation`；需要调整渠道、模型或格式时查看 `relay-settings`。
 
 ## 说明
 

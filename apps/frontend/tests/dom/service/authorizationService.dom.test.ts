@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import StorageKey from '@/constant/storagekey'
 import { SessionCoordinator } from '@/service/sessionCoordinator'
+import { clearAccessToken } from '@/stores/request'
 
-const { permissionService } = vi.hoisted(() => ({
+const { permissionService, userService } = vi.hoisted(() => ({
   permissionService: {
     getAllPermissions: vi.fn(),
     getUserPermissions: vi.fn(),
+  },
+  userService: {
+    getMe: vi.fn(),
   },
 }))
 
@@ -36,14 +40,17 @@ vi.mock('@/service/replaySigningService', () => ({
   },
 }))
 vi.mock('@/service/permissionService', () => ({ permissionService }))
+vi.mock('@/service/userService', () => ({ userService }))
 
 describe('session coordinator', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    clearAccessToken()
     localStorage.clear()
     authApi.refresh.mockReset()
     permissionService.getAllPermissions.mockReset()
     permissionService.getUserPermissions.mockReset()
+    userService.getMe.mockReset()
   })
 
   it('restores an access token from the HttpOnly-cookie refresh endpoint once for concurrent callers', async () => {
@@ -60,6 +67,37 @@ describe('session coordinator', () => {
     expect(authApi.refresh).toHaveBeenCalledTimes(1)
     expect(localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN)).toBeNull()
     expect(localStorage.getItem(StorageKey.Auth.REFRESH_TOKEN)).toBeNull()
+  })
+
+  it('uses the single refresh endpoint instead of probing impersonation restoration first', async () => {
+    authApi.refresh.mockResolvedValue({ code: 0, data: { access_token: 'cookie-access' } })
+    const sessionCoordinator = new SessionCoordinator()
+
+    await expect(sessionCoordinator.ensureSession()).resolves.toBe('cookie-access')
+
+    expect(authApi.refresh).toHaveBeenCalledOnce()
+  })
+
+  it('restores impersonation context returned by the refresh endpoint', async () => {
+    authApi.refresh.mockResolvedValue({
+      code: 0,
+      data: {
+        access_token: 'impersonation-access',
+        impersonation: {
+          targetUser: { id: 'target-user', username: 'target-user', name: 'Target User' },
+          mode: 'view',
+        },
+      },
+    })
+    const sessionCoordinator = new SessionCoordinator()
+
+    await expect(sessionCoordinator.refresh()).resolves.toBe('impersonation-access')
+
+    const impersonationStore = (await import('@/stores/impersonationStore')).useImpersonationStore()
+    expect(impersonationStore.sessionInfo).toMatchObject({
+      targetUserId: 'target-user',
+      mode: 'view',
+    })
   })
 
   it('marks a failed cookie restore as anonymous without persisting credentials', async () => {
@@ -140,5 +178,52 @@ describe('session coordinator', () => {
     expect(restoreSpy).not.toHaveBeenCalled()
     expect(permissionStore.currentUserPermissions).toBe(permissionsReference)
     expect(permissionStore.allPermissions).toBe(allPermissionsReference)
+  })
+
+  it('loads the independent user profile and permission catalog concurrently during hydration', async () => {
+    let resolveUser: ((value: { id: string; username: string }) => void) | undefined
+    let resolveAllPermissions:
+      | ((value: { data: { permissions: { id: string; name: string; category: string }[] } }) => void)
+      | undefined
+    userService.getMe.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveUser = resolve
+        }),
+    )
+    permissionService.getAllPermissions.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveAllPermissions = resolve
+        }),
+    )
+    permissionService.getUserPermissions.mockResolvedValue({
+      data: {
+        userId: 'user-1',
+        groupPermissions: [],
+        additionalPermissions: [],
+        removedPermissions: [],
+        effectivePermissions: ['user:read'],
+      },
+    })
+
+    const sessionCoordinator = new SessionCoordinator()
+    const hydration = sessionCoordinator.hydrateUserAndPermissions()
+
+    await vi.waitFor(() => {
+      expect(userService.getMe).toHaveBeenCalledOnce()
+      expect(permissionService.getAllPermissions).toHaveBeenCalledOnce()
+    })
+    expect(permissionService.getUserPermissions).not.toHaveBeenCalled()
+
+    resolveUser?.({ id: 'user-1', username: 'user-1' })
+    await vi.waitFor(() => {
+      expect(permissionService.getUserPermissions).toHaveBeenCalledWith('user-1')
+    })
+
+    resolveAllPermissions?.({
+      data: { permissions: [{ id: 'permission-1', name: 'user:read', category: 'user' }] },
+    })
+    await expect(hydration).resolves.toBeUndefined()
   })
 })

@@ -5,6 +5,13 @@ import { extractRelayToken } from "@/util/relay-auth";
 
 export async function streamingMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.path.startsWith("/relay/proxy/")) return next();
+  if (Buffer.isBuffer(req.body)) {
+    try {
+      req.body = JSON.parse(req.body.toString("utf8"));
+    } catch {
+      return next();
+    }
+  }
   if (req.body?.stream !== true) return next();
 
   try {

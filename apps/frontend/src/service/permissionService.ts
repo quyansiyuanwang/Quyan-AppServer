@@ -6,7 +6,6 @@ import {
 } from '@/client/api-types-map.gen'
 import type { SetUserPermissionDto } from '@/client/types.gen'
 import { CustomCode } from '@/constant/custom-code'
-import { usePermissionStore } from '@/stores/permissionStore'
 import { useRequestStore } from '@/stores/request'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { cache } from '@/utils/common'

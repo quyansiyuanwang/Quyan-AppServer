@@ -1,3 +1,5 @@
+import type { RelayRequestFormatTransform } from "@appserver/shared";
+
 export type RelayTokenQuotaUnit = "amount" | "request" | "token";
 
 export interface RelayTokenQuotaWindowInputDto {
@@ -123,6 +125,8 @@ export interface CreateRelayTokenDto {
    * 允许的模型列表，逗号分隔
    */
   allowedModels?: string | null;
+  /** Request protocol translation rules. An empty array disables translation. */
+  requestFormatTransforms?: RelayRequestFormatTransform[];
   /**
    * IP 白名单，支持换行、逗号或分号分隔
    */
@@ -154,6 +158,8 @@ export interface UpdateRelayTokenDto {
   quotaWindows?: RelayTokenQuotaWindowInputDto[];
   /** 允许的模型列表 */
   allowedModels?: string | null;
+  /** Request protocol translation rules. Pass null to clear all rules. */
+  requestFormatTransforms?: RelayRequestFormatTransform[] | null;
   /** IP 白名单 */
   ipWhitelist?: string | null;
   /** 模型映射：请求模型 → 扣费模型，传 null 清除 */
@@ -254,6 +260,7 @@ export interface RelayTokenDto {
   quotaLimit?: number; // 额度限制（曲）
   quotaWindows: RelayTokenQuotaWindowDto[];
   allowedModels?: string; // 允许的模型列表
+  requestFormatTransforms?: RelayRequestFormatTransform[];
   ipWhitelist?: string;
   modelMapping?: Record<string, string>;
   channelConfigs: RelayTokenChannelConfigDto[];
@@ -361,6 +368,7 @@ export interface RelayTokenCurrentQuotaDto {
   expiresAt?: Date;
   quotaWindows: RelayTokenQuotaWindowDto[];
   allowedModels?: string;
+  requestFormatTransforms?: RelayRequestFormatTransform[];
   ipWhitelist?: string;
   allTimeSummary: RelayTokenUsageSummaryDto;
 }

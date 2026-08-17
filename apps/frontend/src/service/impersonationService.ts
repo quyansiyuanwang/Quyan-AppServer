@@ -73,7 +73,7 @@ export class ImpersonationService {
 
     // 清除模拟会话状态
     impersonationStore.clearSession()
-    const restoredToken = await sessionCoordinator.refresh()
+    const restoredToken = await sessionCoordinator.refresh({ skipImpersonationHandoff: true })
     if (!restoredToken) throw new Error('Unable to restore the original session')
     await this.reloadStores()
 

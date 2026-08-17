@@ -494,6 +494,24 @@
         </template>
       </div>
     </el-drawer>
+
+    <el-dialog
+      v-model="showUnpinConfirmation"
+      append-to-body
+      destroy-on-close
+      :z-index="OVERVIEW_CONFIRMATION_Z_INDEX"
+      :title="i18ns.t('warning')"
+      width="min(420px, calc(100vw - 32px))"
+      class="pinned-page-confirmation-dialog"
+    >
+      <p class="pinned-page-confirmation-dialog__message">
+        {{ i18ns.t('nav.unpinPageConfirm') }}
+      </p>
+      <template #footer>
+        <el-button @click="showUnpinConfirmation = false">{{ i18ns.t('cancel') }}</el-button>
+        <el-button type="primary" @click="confirmUnpinRoute">{{ i18ns.t('confirm') }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -542,7 +560,6 @@ import {
   Lock,
 } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
-import { ElMessageBox } from 'element-plus'
 import { i18ns, type I18nENAvailableKeys } from '@/locales'
 import {
   computed,
@@ -580,6 +597,7 @@ import { assignDocument } from '@/service/navigationService'
 const isDesktopStore = useIsDesktopStore()
 const isDesktop = isDesktopStore.useIsDesktop()
 const OVERVIEW_DRAWER_Z_INDEX = 3000
+const OVERVIEW_CONFIRMATION_Z_INDEX = OVERVIEW_DRAWER_Z_INDEX + 1
 
 const props = withDefaults(
   defineProps<{
@@ -1547,29 +1565,28 @@ const togglePinnedRoute = (routeName: RouteName) => {
   pinnedRouteNames.value = [...pinnedRouteNames.value, routeName]
 }
 
-const confirmTogglePinnedRoute = async (routeName: RouteName) => {
+const pendingUnpinRouteName = ref<RouteName | null>(null)
+const showUnpinConfirmation = computed({
+  get: () => pendingUnpinRouteName.value !== null,
+  set: (visible: boolean) => {
+    if (!visible) pendingUnpinRouteName.value = null
+  },
+})
+
+const confirmTogglePinnedRoute = (routeName: RouteName) => {
   if (!isPinned(routeName)) {
     togglePinnedRoute(routeName)
     return
   }
 
-  try {
-    await ElMessageBox.confirm(i18ns.t('nav.unpinPageConfirm'), i18ns.t('warning'), {
-      type: 'warning',
-      confirmButtonText: i18ns.t('confirm'),
-      cancelButtonText: i18ns.t('cancel'),
-      // MessageBox is mounted under body and would otherwise keep Element
-      // Plus' default overlay layer (2000), below the overview drawer.
-      // modalClass is applied to the overlay itself, so the confirmation
-      // remains above the drawer without relying on an unsupported zIndex
-      // option in ElMessageBoxOptions.
-      modalClass: 'pinned-page-confirmation-overlay',
-    })
-  } catch {
-    return
-  }
+  pendingUnpinRouteName.value = routeName
+}
 
-  togglePinnedRoute(routeName)
+const confirmUnpinRoute = () => {
+  const routeName = pendingUnpinRouteName.value
+  pendingUnpinRouteName.value = null
+
+  if (routeName && isPinned(routeName)) togglePinnedRoute(routeName)
 }
 
 const reorderPinnedRoutes = (routeNames: RouteName[]) => {
@@ -2521,10 +2538,9 @@ watch(
   gap: 4px;
 }
 
-// Element Plus mounts MessageBox overlays outside this component's DOM tree.
-// Keep the unpin confirmation above the feature overview drawer (z-index 3000).
-:global(.pinned-page-confirmation-overlay) {
-  z-index: 3100 !important;
+.pinned-page-confirmation-dialog__message {
+  margin: 0;
+  color: var(--el-text-color-regular);
 }
 
 .route-context-menu__header {

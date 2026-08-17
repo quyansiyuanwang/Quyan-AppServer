@@ -2,6 +2,14 @@
 export type RelayRequestFormat = 'openai' | 'openai-chat-completions' | 'openai-responses' | 'anthropic' | 'gemini';
 export type RelayConfiguredRequestFormat = Exclude<RelayRequestFormat, 'openai'>;
 
+/** Formats that can be translated at relay-token scope. Gemini is intentionally excluded. */
+export type RelayConvertibleRequestFormat = 'openai-chat-completions' | 'openai-responses' | 'anthropic';
+
+export interface RelayRequestFormatTransform {
+  sourceFormat: RelayConvertibleRequestFormat;
+  targetFormat: RelayConvertibleRequestFormat;
+}
+
 export const ALL_RELAY_REQUEST_FORMATS: RelayConfiguredRequestFormat[] = [
   'openai-chat-completions',
   'anthropic',

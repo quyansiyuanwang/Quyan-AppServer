@@ -19,7 +19,21 @@
       ;(() => {
         try {
           const storageKey = 'ThemeToggle-isDark'
-          const saved = localStorage.getItem(storageKey)
+          const cookieName = 'appserver.preference.theme'
+          const readCookie = (name) => {
+            const prefix = `${encodeURIComponent(name)}=`
+            const item = document.cookie
+              .split(';')
+              .map((entry) => entry.trim())
+              .find((entry) => entry.startsWith(prefix))
+            if (!item) return null
+            try {
+              return decodeURIComponent(item.slice(prefix.length))
+            } catch {
+              return null
+            }
+          }
+          const saved = readCookie(cookieName) || localStorage.getItem(storageKey)
           const prefersDark =
             window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
           let isDark

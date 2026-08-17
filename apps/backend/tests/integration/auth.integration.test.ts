@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "../../src/app";
 import { prisma } from "../../src/config/database";
@@ -12,6 +12,9 @@ import { env } from "../../src/config/env";
 import { ReplayProtectionClient } from "../../src/util/replay-protection-client";
 import { buildReplaySigningSessionKey } from "../../src/util/replay-signing-session";
 import { AUTH_REFRESH_COOKIE_NAME } from "../../src/util/auth-refresh-cookie";
+import { IMPERSONATION_HANDOFF_COOKIE_NAME } from "../../src/util/impersonation-cookie";
+import { ImpersonationService } from "../../src/services/users/impersonation.service";
+import { JWTAccessIns } from "../../src/util/auth";
 
 describe("认证 API 集成测试", () => {
   let app: Express;
@@ -337,6 +340,42 @@ describe("认证 API 集成测试", () => {
 
       expect(response.body.code).toBe(0);
       expect(typeof response.body.data.access_token).toBe("string");
+    });
+
+    it("应该在同一个刷新请求中恢复有效的跨站模拟 handoff", async () => {
+      const redisService = RedisService.getInstance();
+      if (!redisService.isRedisAvailable()) return;
+
+      const activeUser = await prisma.user.findUniqueOrThrow({ where: { id: testUser.id } });
+      const impersonationToken = JWTAccessIns.generateToken(
+        {
+          userId: activeUser.id,
+          updatedAt: activeUser.updateTime.toISOString(),
+          status: activeUser.status,
+          impersonatorId: "test-impersonator",
+          impersonationMode: "view",
+        },
+        60 * 60,
+      );
+      const cookie = vi.fn();
+      await new ImpersonationService().issueCrossSiteHandoff({ res: { cookie } } as never, impersonationToken);
+      const handoffId = cookie.mock.calls[0]?.[1] as string | undefined;
+      expect(handoffId).toBeTruthy();
+
+      const response = await withReplayProtection(
+        request(app).post("/v1/auth/refresh").set("Cookie", `${IMPERSONATION_HANDOFF_COOKIE_NAME}=${handoffId}`),
+        {},
+        "/v1/auth/refresh",
+      ).send({});
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toMatchObject({
+        access_token: impersonationToken,
+        impersonation: {
+          targetUser: { id: activeUser.id, username: activeUser.username, name: activeUser.name },
+          mode: "view",
+        },
+      });
     });
 
     it("应该在存在有效 Cookie 时优先忽略请求体中的无效刷新令牌", async () => {

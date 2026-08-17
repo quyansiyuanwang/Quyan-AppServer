@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { resolve } from 'node:path'
-import { brotliCompressSync, constants as zlibConstants } from 'node:zlib'
+import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib'
 
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
@@ -148,11 +148,10 @@ export default defineConfig(({ mode }) => {
       : undefined
 
   const shouldSkipModulePreload = (dep: string): boolean =>
-    dep.includes('lib-echarts-') ||
-    dep.includes('lib-zrender-') ||
-    dep.includes('lib-vue-echarts-') ||
-    dep.includes('lib-markdown-') ||
-    dep.includes('lib-html-sanitize-')
+    dep.includes('charts-') ||
+    dep.includes('markdown-') ||
+    dep.includes('xlsx-') ||
+    dep.includes('passkey-')
 
   const resolveNodeModuleChunk = (moduleId: string): string | undefined => {
     // Keep truly shared app/runtime dependencies in a stable base chunk.
@@ -173,49 +172,67 @@ export default defineConfig(({ mode }) => {
       return 'passkey'
     }
 
-    // Split the data-viz stack so the largest async vendor chunk stays below
-    // the warning threshold and browsers can cache stable layers independently.
-    if (moduleId.includes('/zrender/')) {
-      return 'lib-zrender'
+    // The chart stack is optional, but its internal packages must arrive as
+    // one request when a chart page is opened. Splitting it further turns one
+    // navigation into an avoidable EdgeOne request waterfall.
+    if (
+      moduleId.includes('/echarts/') ||
+      moduleId.includes('/zrender/') ||
+      moduleId.includes('/vue-echarts/')
+    ) {
+      return 'charts'
     }
 
-    if (moduleId.includes('/echarts/charts/')) {
-      return 'lib-echarts-charts'
+    // Markdown rendering and syntax highlighting stay on demand. Their
+    // runtime modules statically collect their dependencies, avoiding a
+    // separate network request for every highlighting language.
+    if (moduleId.includes('/dompurify/') || moduleId.includes('/marked/')) {
+      return 'markdown-renderer'
     }
 
-    if (moduleId.includes('/echarts/components/')) {
-      return 'lib-echarts-components'
-    }
-
-    if (moduleId.includes('/echarts/renderers/')) {
-      return 'lib-echarts-renderers'
-    }
-
-    if (moduleId.includes('/echarts/')) {
-      return 'lib-echarts-core'
-    }
-
-    if (moduleId.includes('/vue-echarts/')) {
-      return 'lib-vue-echarts'
-    }
-
-    // Keep HTML sanitization separate so global notification code does not pull in
-    // the full markdown/rendering stack.
-    if (moduleId.includes('/dompurify/')) {
-      return 'lib-html-sanitize'
-    }
-
-    // Markdown/rendering stack is heavy and should stay route-local/on-demand.
-    if (moduleId.includes('/marked/') || moduleId.includes('/highlight.js/')) {
-      return 'lib-markdown'
-    }
+    if (moduleId.includes('/highlight.js/')) return 'markdown-highlighter'
 
     // Keep large single-purpose data libs in their own async chunks.
     if (moduleId.includes('/xlsx/')) {
-      return 'lib-xlsx-async'
+      return 'xlsx'
     }
 
-    return undefined
+    // Small Element Plus and utility dependencies otherwise become hundreds
+    // of tiny chunks. A stable vendor bundle keeps the initial dependency
+    // graph shallow without pulling optional heavyweight libraries above.
+    return 'vendor'
+  }
+
+  const resolveApplicationChunk = (moduleId: string): string | undefined => {
+    if (moduleId.endsWith('/src/utils/chart-runtime.ts')) return 'charts'
+    if (moduleId.endsWith('/src/utils/markdown-renderer-runtime.ts')) return 'markdown-renderer'
+    if (moduleId.endsWith('/src/utils/markdown-highlighter-runtime.ts'))
+      return 'markdown-highlighter'
+
+    // Shared application code was previously emitted as dozens of tiny
+    // dynamic facades (one per service, store, generated API operation, and
+    // shared component). EdgeOne serves bytes quickly, but each independent
+    // module still consumes a client/CDN request slot. Keep this ordinary
+    // application layer in a cacheable, moderately sized common chunk; the
+    // optional chart and Markdown runtimes above remain independently lazy.
+    if (moduleId.includes('/src/components/')) return 'ui-shared'
+
+    if (/\/src\/(?:client|service|stores|utils)\//.test(moduleId)) {
+      return 'app-shared'
+    }
+
+    // Site modules and application roots are selected from the hostname. They
+    // must remain independent dynamic imports so one deployment does not load
+    // every domain application's code on the first document.
+    if (moduleId.includes('/src/plugins/sites/') || moduleId.includes('/src/app-roots/domains/')) {
+      return undefined
+    }
+
+    // Route modules are grouped by their first business directory. This keeps
+    // route-level lazy loading, but turns a feature navigation into stable
+    // functional bundles instead of a burst of page/component fragments.
+    const viewMatch = moduleId.match(/\/src\/views\/([^/?]+)/)
+    return viewMatch ? `feature-${viewMatch[1]}` : undefined
   }
 
   const resolveManualChunk = (id: string): string | undefined => {
@@ -227,8 +244,8 @@ export default defineConfig(({ mode }) => {
       return 'framework'
     }
 
-    if (!moduleId.includes('/node_modules/')) return undefined
-    return resolveNodeModuleChunk(moduleId)
+    if (moduleId.includes('/node_modules/')) return resolveNodeModuleChunk(moduleId)
+    return resolveApplicationChunk(moduleId)
   }
 
   const writeBrotliAssets = (rootDir: string, threshold: number) => {
@@ -284,8 +301,9 @@ export default defineConfig(({ mode }) => {
    * Site modules must remain dynamic imports. A static import here would make
    * every domain application part of the first document's module graph.
    */
-  const assertDeferredSitePlugins = {
-    name: 'assert-deferred-site-plugins',
+  let bundleShapeReport: string | null = null
+  const assertBundleShape = {
+    name: 'assert-bundle-shape',
     generateBundle(_options: unknown, bundle: Record<string, unknown>) {
       const chunks = Object.values(bundle).filter(
         (
@@ -294,12 +312,14 @@ export default defineConfig(({ mode }) => {
           fileName: string
           isEntry: boolean
           imports: string[]
+          dynamicImports: string[]
           modules: Record<string, unknown>
         } =>
           typeof entry === 'object' &&
           entry !== null &&
           'fileName' in entry &&
           'imports' in entry &&
+          'dynamicImports' in entry &&
           'modules' in entry,
       )
       const entry = chunks.find((chunk) => chunk.isEntry)
@@ -324,6 +344,127 @@ export default defineConfig(({ mode }) => {
       if (eagerPlugin) {
         throw new Error(`Site plugin was included in the entry graph: ${eagerPlugin}`)
       }
+
+      const initialModules = [...initialChunkNames].flatMap((fileName) =>
+        Object.keys(chunksByFileName.get(fileName)?.modules ?? {}),
+      )
+      const maxInitialChunks = 8
+      if (initialChunkNames.size > maxInitialChunks) {
+        throw new Error(
+          `Entry graph contains ${initialChunkNames.size} static chunks; expected no more than ${maxInitialChunks}`,
+        )
+      }
+      const eagerOptionalDependency = initialModules
+        .map((moduleId) => moduleId.replace(/\\/g, '/'))
+        .find((moduleId) =>
+          /\/node_modules\/(?:echarts|zrender|vue-echarts|marked|highlight\.js|xlsx|@simplewebauthn)\//.test(
+            moduleId,
+          ),
+        )
+      if (eagerOptionalDependency) {
+        const eagerChunkNames = [...initialChunkNames].filter((fileName) =>
+          Object.keys(chunksByFileName.get(fileName)?.modules ?? {}).some(
+            (moduleId) => moduleId.replace(/\\/g, '/') === eagerOptionalDependency,
+          ),
+        )
+        throw new Error(
+          `Optional dependency was included in the entry graph via ${eagerChunkNames.join(', ')}: ${eagerOptionalDependency}`,
+        )
+      }
+
+      const emittedClientJavaScriptAssets = Object.values(bundle).filter(
+        (entry) =>
+          typeof entry === 'object' &&
+          entry !== null &&
+          'fileName' in entry &&
+          typeof entry.fileName === 'string' &&
+          /^assets\/.*\.js$/.test(entry.fileName),
+      )
+      // Route loaders retain small facades so each dynamic import can preserve
+      // its component export. The budget leaves room for those facades while
+      // still requiring a substantial reduction from the former 503 assets.
+      const maxClientAssets = 114
+      if (emittedClientJavaScriptAssets.length > maxClientAssets) {
+        throw new Error(
+          `Bundle emitted ${emittedClientJavaScriptAssets.length} JS assets before CSS output; expected no more than ${maxClientAssets}`,
+        )
+      }
+
+      const featureChunks = chunks
+        .filter((chunk) => /^assets\/feature-[^-]+-/.test(chunk.fileName))
+        .map((chunk) => chunk.fileName)
+        .sort()
+      const requiredFeatureChunks = ['auth', 'overview', 'relay', 'settings']
+      const missingFeatureChunk = requiredFeatureChunks.find(
+        (feature) =>
+          !featureChunks.some((fileName) => fileName.startsWith(`assets/feature-${feature}-`)),
+      )
+      if (missingFeatureChunk) {
+        throw new Error(`Expected a feature-${missingFeatureChunk} chunk in the production output`)
+      }
+
+      const collectStaticDependencies = (fileName: string) => {
+        const dependencyNames = new Set<string>()
+        const visitDependency = (dependencyFileName: string) => {
+          if (dependencyNames.has(dependencyFileName)) return
+          dependencyNames.add(dependencyFileName)
+          chunksByFileName.get(dependencyFileName)?.imports.forEach(visitDependency)
+        }
+        visitDependency(fileName)
+        return [...dependencyNames].sort()
+      }
+      const routeDependencies = requiredFeatureChunks.map((feature) => {
+        const featureChunk = featureChunks.find((fileName) =>
+          fileName.startsWith(`assets/feature-${feature}-`),
+        )
+        if (!featureChunk) return `${feature}=missing`
+        const dependencies = collectStaticDependencies(featureChunk)
+        const stableDependencies = dependencies.filter((fileName) =>
+          /\/assets\/(?:feature-|framework-|vendor-|charts-|markdown-|xlsx-|passkey-)/.test(
+            `/${fileName}`,
+          ),
+        )
+        return `${feature}=${dependencies.length}:[${stableDependencies.join(',')}]`
+      })
+      bundleShapeReport =
+        `initial=[${[...initialChunkNames].sort().join(',')}] routes=${routeDependencies.join(' ')}`
+    },
+    writeBundle() {
+      const outputDir = resolve(__dirname, 'dist')
+      const assetsDir = resolve(outputDir, 'assets')
+      const clientAssets = readdirSync(assetsDir, { withFileTypes: true }).filter(
+        (entry) => entry.isFile() && /\.(?:js|css)$/.test(entry.name),
+      )
+      const jsAssetCount = clientAssets.filter((entry) => entry.name.endsWith('.js')).length
+      const cssAssetCount = clientAssets.filter((entry) => entry.name.endsWith('.css')).length
+      if (clientAssets.length > 114) {
+        throw new Error(
+          `Bundle emitted ${clientAssets.length} JS/CSS assets; expected no more than 114`,
+        )
+      }
+      const indexHtml = readFileSync(resolve(outputDir, 'index.html'), 'utf8')
+      const initialAssetNames = [
+        ...new Set(
+          [...indexHtml.matchAll(/\/assets\/([^"']+\.(?:js|css))/g)].map((match) => match[1]),
+        ),
+      ]
+      const initialSource = Buffer.concat(
+        initialAssetNames.map((fileName) => readFileSync(resolve(assetsDir, fileName))),
+      )
+      const initialRawBytes = initialSource.length
+      const initialGzipBytes = gzipSync(initialSource).length
+      const initialBrotliBytes = brotliCompressSync(initialSource).length
+      const maxInitialBrotliBytes = 700 * 1024
+      if (initialBrotliBytes > maxInitialBrotliBytes) {
+        throw new Error(
+          `Entry assets compress to ${initialBrotliBytes} B with Brotli; expected no more than ${maxInitialBrotliBytes} B`,
+        )
+      }
+      console.info(
+        `[bundle-shape] assets=${clientAssets.length} js=${jsAssetCount} css=${cssAssetCount} ` +
+          `initialRaw=${initialRawBytes} initialGzip=${initialGzipBytes} initialBrotli=${initialBrotliBytes} ` +
+          `${bundleShapeReport ?? ''}`,
+      )
     },
   }
 
@@ -341,7 +482,7 @@ export default defineConfig(({ mode }) => {
       }),
       buildInfoPlugin(),
       vue(),
-      assertDeferredSitePlugins,
+      assertBundleShape,
       enableVueDevTools && vueDevTools(),
       // The report is useful for an explicit bundle-analysis run, but writing
       // it for every release increases the critical build path substantially.
@@ -459,6 +600,11 @@ export default defineConfig(({ mode }) => {
       // fast native path.
       minify: isProd ? 'esbuild' : false,
       target: 'es2022',
+      // One cacheable stylesheet avoids a second request waterfall where each
+      // route/component contributes a sub-kilobyte CSS asset. The JS feature
+      // boundaries remain lazy, so optional application logic is not moved
+      // into the entry module graph.
+      cssCodeSplit: false,
       modulePreload: {
         resolveDependencies: (_url, deps) => deps.filter((dep) => !shouldSkipModulePreload(dep)),
       },
@@ -467,7 +613,15 @@ export default defineConfig(({ mode }) => {
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
           hoistTransitiveImports: false,
-          manualChunks: resolveManualChunk,
+          // Rolldown's manualChunks compatibility layer recursively pulls a
+          // group's dependencies into that chunk. For optional features this
+          // can make every route statically import the group. Use the native
+          // chunking API with recursion disabled so only matching modules are
+          // consolidated and feature dependencies remain lazy.
+          advancedChunks: {
+            includeDependenciesRecursively: false,
+            groups: [{ name: resolveManualChunk }],
+          },
         },
       },
       // The data-viz stack is intentionally isolated into async vendor chunks.

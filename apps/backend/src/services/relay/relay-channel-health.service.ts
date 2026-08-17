@@ -67,6 +67,7 @@ type HealthTotals = Omit<
   RelayChannelHealthSnapshot,
   "channelId" | "windowStartAt" | "windowEndAt" | "lastSeenAt" | "lastSuccessAt"
 > & {
+  latencySampleCount: number;
   lastSeenAt?: number;
   lastSuccessAt?: number;
 };
@@ -105,11 +106,13 @@ export class RelayChannelHealthService {
 
       const statusCode = Number(input.statusCode);
       const latencyMs = Number(input.latencyMs);
+      const hasLatencySample = Number.isFinite(latencyMs) && latencyMs >= 0;
       const fields: Record<string, number> = {
         sampleCount: 1,
         successCount: input.success ? 1 : 0,
         failureCount: input.success ? 0 : 1,
-        latencyMsTotal: Number.isFinite(latencyMs) && latencyMs > 0 ? latencyMs : 0,
+        latencyMsTotal: hasLatencySample ? latencyMs : 0,
+        latencySampleCount: hasLatencySample ? 1 : 0,
         status2xxCount: statusCode >= 200 && statusCode < 300 ? 1 : 0,
         status3xxCount: statusCode >= 300 && statusCode < 400 ? 1 : 0,
         status4xxCount: statusCode >= 400 && statusCode < 500 ? 1 : 0,
@@ -283,6 +286,7 @@ export class RelayChannelHealthService {
   }
 
   private normalizeThreshold(value: number | null | undefined): number | null {
+    if (value == null) return null;
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
   }
@@ -317,6 +321,7 @@ export class RelayChannelHealthService {
       failureCount: 0,
       availability: 1,
       averageLatencyMs: 0,
+      latencySampleCount: 0,
       status2xxCount: 0,
       status3xxCount: 0,
       status4xxCount: 0,
@@ -339,6 +344,7 @@ export class RelayChannelHealthService {
     totals.successCount += value("successCount");
     totals.failureCount += value("failureCount");
     totals.averageLatencyMs += value("latencyMsTotal");
+    totals.latencySampleCount += value("latencySampleCount");
     totals.status2xxCount += value("status2xxCount");
     totals.status3xxCount += value("status3xxCount");
     totals.status4xxCount += value("status4xxCount");
@@ -364,7 +370,7 @@ export class RelayChannelHealthService {
       successCount,
       failureCount,
       availability,
-      averageLatencyMs: sampleCount > 0 ? latencyTotal / sampleCount : 0,
+      averageLatencyMs: totals.latencySampleCount > 0 ? latencyTotal / totals.latencySampleCount : 0,
       status2xxCount: Math.round(totals.status2xxCount),
       status3xxCount: Math.round(totals.status3xxCount),
       status4xxCount: Math.round(totals.status4xxCount),

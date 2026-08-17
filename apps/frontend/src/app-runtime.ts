@@ -8,11 +8,20 @@ import { configureAll } from '@/config'
 import { installErrorReporter, reportClientError } from '@/service/errorReportService'
 import { clearLegacyAuthStorage } from '@/stores/request'
 import { sessionCoordinator } from '@/service/sessionCoordinator'
+import { installSessionExpiryRedirect } from '@/service/sessionExpiryRedirectService'
 
 export type AppRuntimePhase = 'created' | 'routes-ready' | 'session-ready' | 'mounted' | 'running'
 
 const isAuthEntryPath = () =>
   router.resolve(window.location.pathname).matched.some((route) => route.meta.isAuthEntry === true)
+
+const startupMark = (stage: string) => {
+  performance.mark(`app-startup:${stage}`)
+}
+
+const startupMeasure = (stage: string, start: string, end: string) => {
+  performance.measure(`app-startup:${stage}`, `app-startup:${start}`, `app-startup:${end}`)
+}
 
 export class AppRuntime {
   private startPromise: Promise<void> | null = null
@@ -30,12 +39,19 @@ export class AppRuntime {
   }
 
   private async startInternal(): Promise<void> {
+    startupMark('start')
     clearLegacyAuthStorage()
     await initializeI18n()
+    startupMark('i18n-ready')
+    startupMeasure('i18n', 'start', 'i18n-ready')
     await installProfileRoutes(router, currentSiteProfile)
+    startupMark('routes-ready')
+    startupMeasure('site-routes', 'i18n-ready', 'routes-ready')
     this.phase = 'routes-ready'
 
     const app = createApp(await loadProfileApp(currentSiteProfile))
+    startupMark('app-root-ready')
+    startupMeasure('app-root', 'routes-ready', 'app-root-ready')
     app.use(createPinia())
     app.use(router)
     app.use(i18ns.plugin)
@@ -58,8 +74,16 @@ export class AppRuntime {
     if (isKnownSiteProfile(currentSiteProfile) && !isAuthEntryPath()) {
       const initialRoute = router.resolve(window.location.pathname)
       if (initialRoute.matched.some((route) => route.meta.allowGuest !== true)) {
+        startupMark('session-restore-start')
         const token = await sessionCoordinator.ensureSession()
-        if (token) await sessionCoordinator.hydrateUserAndPermissions()
+        startupMark('session-restore-ready')
+        startupMeasure('session-restore', 'session-restore-start', 'session-restore-ready')
+        if (token) {
+          startupMark('session-hydration-start')
+          await sessionCoordinator.hydrateUserAndPermissions()
+          startupMark('session-hydration-ready')
+          startupMeasure('session-hydration', 'session-hydration-start', 'session-hydration-ready')
+        }
       }
     }
     this.phase = 'session-ready'
@@ -70,8 +94,13 @@ export class AppRuntime {
     // the installed profile routes and the initial guard chain before showing
     // the shell.
     await router.isReady()
+    startupMark('router-ready')
+    startupMeasure('router-ready', 'app-root-ready', 'router-ready')
 
     app.mount('#app')
+    startupMark('mounted')
+    startupMeasure('total-to-mount', 'start', 'mounted')
+    installSessionExpiryRedirect()
     this.phase = 'mounted'
     this.startOptionalPlugins(app)
     this.phase = 'running'

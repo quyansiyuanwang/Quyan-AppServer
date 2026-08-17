@@ -15,13 +15,13 @@ jobs:
       AI_REVIEW_TIMEOUT_MS: '900000'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Get PR info
         id: pr
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const pr = context.payload.pull_request ||
@@ -37,7 +37,7 @@ jobs:
 
       - name: Check for new commits
         id: check-commits
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const comments = await github.rest.issues.listComments({
@@ -64,7 +64,7 @@ jobs:
 
       - name: Skip if no new commits
         if: steps.check-commits.outputs.skip == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             github.rest.issues.createComment({
@@ -83,7 +83,7 @@ jobs:
       - name: AI Review
         if: steps.check-commits.outputs.skip == 'false'
         timeout-minutes: 30
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
