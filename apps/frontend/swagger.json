@@ -29304,6 +29304,31 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayConvertibleRequestFormat": {
+				"type": "string",
+				"enum": [
+					"openai-chat-completions",
+					"openai-responses",
+					"anthropic"
+				],
+				"description": "Formats that can be translated at relay-token scope. Gemini is intentionally excluded."
+			},
+			"RelayRequestFormatTransform": {
+				"properties": {
+					"sourceFormat": {
+						"$ref": "#/components/schemas/RelayConvertibleRequestFormat"
+					},
+					"targetFormat": {
+						"$ref": "#/components/schemas/RelayConvertibleRequestFormat"
+					}
+				},
+				"required": [
+					"sourceFormat",
+					"targetFormat"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayTokenCurrentQuotaDto": {
 				"properties": {
 					"scopedSummary": {
@@ -29329,6 +29354,12 @@
 					},
 					"allowedModels": {
 						"type": "string"
+					},
+					"requestFormatTransforms": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestFormatTransform"
+						},
+						"type": "array"
 					},
 					"ipWhitelist": {
 						"type": "string"
@@ -40384,6 +40415,12 @@
 					"allowedModels": {
 						"type": "string"
 					},
+					"requestFormatTransforms": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestFormatTransform"
+						},
+						"type": "array"
+					},
 					"ipWhitelist": {
 						"type": "string"
 					},
@@ -40533,6 +40570,13 @@
 						"nullable": true,
 						"description": "允许的模型列表，逗号分隔"
 					},
+					"requestFormatTransforms": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestFormatTransform"
+						},
+						"type": "array",
+						"description": "Request protocol translation rules. An empty array disables translation."
+					},
 					"ipWhitelist": {
 						"type": "string",
 						"nullable": true,
@@ -40614,6 +40658,13 @@
 						"type": "string",
 						"nullable": true,
 						"description": "允许的模型列表，逗号分隔"
+					},
+					"requestFormatTransforms": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestFormatTransform"
+						},
+						"type": "array",
+						"description": "Request protocol translation rules. An empty array disables translation."
 					},
 					"ipWhitelist": {
 						"type": "string",
@@ -40786,6 +40837,13 @@
 						"nullable": true,
 						"description": "允许的模型列表，逗号分隔"
 					},
+					"requestFormatTransforms": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestFormatTransform"
+						},
+						"type": "array",
+						"description": "Request protocol translation rules. An empty array disables translation."
+					},
 					"ipWhitelist": {
 						"type": "string",
 						"nullable": true,
@@ -40950,6 +41008,14 @@
 						"type": "string",
 						"nullable": true,
 						"description": "允许的模型列表"
+					},
+					"requestFormatTransforms": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestFormatTransform"
+						},
+						"type": "array",
+						"nullable": true,
+						"description": "Request protocol translation rules. Pass null to clear all rules."
 					},
 					"ipWhitelist": {
 						"type": "string",

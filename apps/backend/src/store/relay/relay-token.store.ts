@@ -6,6 +6,7 @@ import type {
   RelayChannelSwitchLog,
   RelayTokenQuotaWindow,
 } from "@prisma/client";
+import type { RelayRequestFormatTransform } from "@appserver/shared";
 
 export type RelayTokenQuotaUnit = "amount" | "request" | "token";
 
@@ -111,6 +112,7 @@ export interface RelayTokenCreateInput {
   quotaLimit?: number | null;
   quotaWindows?: RelayTokenQuotaWindowInput[];
   allowedModels?: string | null;
+  requestFormatTransforms?: RelayRequestFormatTransform[] | null;
   ipWhitelist?: string | null;
   modelMapping?: Record<string, string> | null;
   failoverConfig?: RelayFailoverConfigInput;
@@ -130,6 +132,7 @@ export type RelayTokenUpdateInput = Partial<{
   quotaLimit: number | null;
   quotaWindows: RelayTokenQuotaWindowInput[];
   allowedModels: string | null;
+  requestFormatTransforms: RelayRequestFormatTransform[] | null;
   ipWhitelist: string | null;
   modelMapping: Record<string, string> | null;
 }> & {

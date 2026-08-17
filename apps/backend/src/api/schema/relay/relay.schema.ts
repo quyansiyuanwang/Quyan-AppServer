@@ -112,6 +112,33 @@ const customTokenSchema = z
   .max(200)
   .regex(/^rlt_[a-zA-Z0-9]+$/, "custom token must start with rlt_ and contain only alphanumeric characters");
 
+const relayRequestFormatTransformSchema = z.object({
+  sourceFormat: z.enum(["openai-chat-completions", "openai-responses", "anthropic"]),
+  targetFormat: z.enum(["openai-chat-completions", "openai-responses", "anthropic"]),
+});
+
+const relayRequestFormatTransformsSchema = z
+  .array(relayRequestFormatTransformSchema)
+  .max(3)
+  .superRefine((rules, ctx) => {
+    const sources = new Set<string>();
+    rules.forEach((rule, index) => {
+      if (rule.sourceFormat === rule.targetFormat)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "sourceFormat and targetFormat must differ",
+          path: [index, "targetFormat"],
+        });
+      if (sources.has(rule.sourceFormat))
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "sourceFormat must be unique",
+          path: [index, "sourceFormat"],
+        });
+      sources.add(rule.sourceFormat);
+    });
+  });
+
 export const createRelayTokenBodySchema = z
   .object({
     targetUserId: z.string().trim().min(1).max(50).optional(),
@@ -127,6 +154,7 @@ export const createRelayTokenBodySchema = z
     quotaLimit: z.union([z.null(), z.coerce.number().min(0).max(99999999.99)]).optional(),
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
     allowedModels: z.string().max(2000).nullish(),
+    requestFormatTransforms: relayRequestFormatTransformsSchema.optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).optional(),
   })
@@ -220,6 +248,7 @@ export const updateRelayTokenBodySchema = z
     quotaLimit: z.union([z.null(), z.coerce.number().min(0).max(99999999.99)]).optional(),
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
     allowedModels: z.string().max(2000).nullish(),
+    requestFormatTransforms: relayRequestFormatTransformsSchema.nullable().optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).nullable().optional(),
   })
@@ -317,6 +346,7 @@ const relayTokenImportItemSchema = z
     quotaLimit: z.union([z.null(), z.coerce.number().min(0).max(99999999.99)]).optional(),
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
     allowedModels: z.string().max(2000).nullish(),
+    requestFormatTransforms: relayRequestFormatTransformsSchema.optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).optional(),
     enabled: z.coerce.boolean().optional(),

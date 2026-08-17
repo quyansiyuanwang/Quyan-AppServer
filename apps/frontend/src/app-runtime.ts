@@ -8,6 +8,7 @@ import { configureAll } from '@/config'
 import { installErrorReporter, reportClientError } from '@/service/errorReportService'
 import { clearLegacyAuthStorage } from '@/stores/request'
 import { sessionCoordinator } from '@/service/sessionCoordinator'
+import { installSessionExpiryRedirect } from '@/service/sessionExpiryRedirectService'
 
 export type AppRuntimePhase = 'created' | 'routes-ready' | 'session-ready' | 'mounted' | 'running'
 
@@ -72,6 +73,7 @@ export class AppRuntime {
     await router.isReady()
 
     app.mount('#app')
+    installSessionExpiryRedirect()
     this.phase = 'mounted'
     this.startOptionalPlugins(app)
     this.phase = 'running'

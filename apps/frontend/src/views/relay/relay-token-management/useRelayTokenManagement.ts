@@ -80,6 +80,12 @@ type RelayTokenWithRouting = RelayTokenDto & {
   blockedAutomaticProxyPoolChannelIds?: string[]
 }
 
+type RelayTokenFormat = 'openai-chat-completions' | 'openai-responses' | 'anthropic'
+type RelayFormatTransform = { sourceFormat: RelayTokenFormat; targetFormat: RelayTokenFormat }
+type RelayTokenWithTransforms = RelayTokenDto & {
+  requestFormatTransforms?: RelayFormatTransform[] | null
+}
+
 export type EditableQuotaWindow = RelayTokenQuotaWindowLike & {
   id?: string
   months: number
@@ -100,6 +106,7 @@ const MAX_QUOTA_WINDOW_HOUR_PART = 23
 const MAX_QUOTA_WINDOW_MINUTE_PART = 59
 const MAX_QUOTA_WINDOWS = 20
 const MAX_VISIBLE_CHANNEL_CONFIGS = 2
+const MAX_REQUEST_FORMAT_TRANSFORMS = 3
 
 const EXACT_HTTP_STATUS_RULE_REGEX = /^[1-5]\d{2}$/
 const WILDCARD_HTTP_STATUS_RULE_REGEX = /^[0-9x*]{3}$/i
@@ -311,7 +318,12 @@ export const useRelayTokenManagement = () => {
   const saving = ref(false)
   const editMode = ref<'create' | 'edit'>('create')
   const currentEditId = ref('')
-  const DEFAULT_EDIT_DIALOG_SECTIONS = ['basic', 'channelFailover', 'quota']
+  const DEFAULT_EDIT_DIALOG_SECTIONS = [
+    'basic',
+    'channelFailover',
+    'quota',
+    'requestFormatTransforms',
+  ]
   const editDialogSectionNames = ref<string[]>([...DEFAULT_EDIT_DIALOG_SECTIONS])
   const showSwitchLogDialog = ref(false)
   const loadingSwitchLogs = ref(false)
@@ -438,6 +450,7 @@ export const useRelayTokenManagement = () => {
     channelConfigs: [createEmptyChannelConfig(0)] as EditableChannelConfig[],
     failoverConfig: createDefaultFailoverConfig() as EditableFailoverConfig,
     modelMapping: {} as Record<string, string>,
+    requestFormatTransforms: [] as RelayFormatTransform[],
   })
 
   const editForm = ref({
@@ -1482,6 +1495,9 @@ export const useRelayTokenManagement = () => {
         maxAcceptedChannelMultiplier: row.failoverConfig?.maxAcceptedChannelMultiplier ?? null,
       },
       modelMapping: (row.modelMapping as Record<string, string>) || {},
+      requestFormatTransforms:
+        (row as RelayTokenWithTransforms).requestFormatTransforms?.map((rule) => ({ ...rule })) ||
+        [],
     }
 
     showEditDialog.value = true
@@ -1590,6 +1606,26 @@ export const useRelayTokenManagement = () => {
       delete quotaWindowPreviewModes.value[key]
     }
     editForm.value.quotaWindows.splice(index, 1)
+  }
+
+  const addRequestFormatTransform = () => {
+    if (editForm.value.requestFormatTransforms.length >= MAX_REQUEST_FORMAT_TRANSFORMS) return
+    const usedSources = new Set(
+      editForm.value.requestFormatTransforms.map((rule) => rule.sourceFormat),
+    )
+    const sourceFormat = (
+      ['openai-chat-completions', 'openai-responses', 'anthropic'] as RelayTokenFormat[]
+    ).find((format) => !usedSources.has(format))
+    if (!sourceFormat) return
+    editForm.value.requestFormatTransforms.push({
+      sourceFormat,
+      targetFormat:
+        sourceFormat === 'openai-chat-completions' ? 'anthropic' : 'openai-chat-completions',
+    })
+  }
+
+  const removeRequestFormatTransform = (index: number) => {
+    editForm.value.requestFormatTransforms.splice(index, 1)
   }
 
   const normalizeQuotaWindowsPayload = () => {
@@ -1835,6 +1871,7 @@ export const useRelayTokenManagement = () => {
           allowedModels: allowedModelsStr || undefined,
           ipWhitelist,
           modelMapping,
+          requestFormatTransforms: editForm.value.requestFormatTransforms,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.createRelayToken(data)
@@ -1862,6 +1899,7 @@ export const useRelayTokenManagement = () => {
           allowedModels: allowedModelsStr || null,
           ipWhitelist: ipWhitelist || null,
           modelMapping,
+          requestFormatTransforms: editForm.value.requestFormatTransforms,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.updateToken(currentEditId.value, data)
@@ -2606,11 +2644,14 @@ export const useRelayTokenManagement = () => {
     handleQuotaWindowsToggleChange,
     addQuotaWindow,
     removeQuotaWindow,
+    addRequestFormatTransform,
+    removeRequestFormatTransform,
     getQuotaMin,
     getQuotaMax,
     getQuotaPrecision,
     getQuotaStep,
     MAX_QUOTA_WINDOWS,
+    MAX_REQUEST_FORMAT_TRANSFORMS,
     MAX_QUOTA_WINDOW_MONTHS,
     MAX_QUOTA_WINDOW_DAYS,
     MAX_QUOTA_WINDOW_HOUR_PART,

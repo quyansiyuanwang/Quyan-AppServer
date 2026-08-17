@@ -87,6 +87,14 @@ import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { RelayChannelHealthService } from "./relay-channel-health.service";
 import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
 import { RelayChannelService } from "./relay-channel.service";
+import {
+  convertRelayError,
+  convertRelayRequest,
+  convertRelayResponse,
+  RelaySseFormatTransform,
+  resolveRelayRequestFormatTransform,
+} from "./relay-request-format-transform.service";
+import type { RelayConvertibleRequestFormat } from "@appserver/shared";
 
 const PREFIX = "/relay/proxy";
 
@@ -125,6 +133,7 @@ interface StreamForwardResult {
   retryable: boolean;
   statusCode?: number;
   triggerError?: string;
+  timeToFirstByte?: number;
 }
 
 interface ImageForwardResult extends StreamForwardResult {
@@ -2292,6 +2301,7 @@ export class RelayProxyService {
   private async readStreamBodyLimited(
     stream: Readable,
     maxBytes: number,
+    onFirstChunk?: () => void,
   ): Promise<{ buffer: Buffer; truncated: boolean; bytesRead: number }> {
     const chunks: Buffer[] = [];
     let bytesRead = 0;
@@ -2300,6 +2310,7 @@ export class RelayProxyService {
 
     for await (const chunk of stream as AsyncIterable<Buffer | string>) {
       const bufferChunk = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      if (bytesRead === 0 && bufferChunk.length > 0) onFirstChunk?.();
       bytesRead += bufferChunk.length;
 
       if (bufferedBytes >= maxBytes) {
@@ -2533,8 +2544,9 @@ export class RelayProxyService {
     const responseStream = response.data as Readable;
 
     if (isErrorResponse) {
-      const { buffer, truncated } = await this.readStreamBodyLimited(responseStream, 100 * 1024);
-      firstByteTime = Date.now();
+      const { buffer, truncated } = await this.readStreamBodyLimited(responseStream, 100 * 1024, () => {
+        if (firstByteTime === null) firstByteTime = Date.now();
+      });
       const upstreamData = this.parseBufferedUpstreamBody(buffer, upstreamHeaders);
       const upstreamMessage = this.extractUpstreamErrorMessage(upstreamData, statusCode);
 
@@ -2581,7 +2593,7 @@ export class RelayProxyService {
         statusCode,
         ipAddress: req.ip || req.connection?.remoteAddress || "unknown",
         totalOutputTime: Date.now() - startTime,
-        timeToFirstByte: firstByteTime - startTime,
+        timeToFirstByte: firstByteTime === null ? null : firstByteTime - startTime,
         isStreaming: false,
         modelName: selectedModelName,
         inputRate: isPerRequestPricing ? 0 : Number(selectedRateConfig?.input || 0),
@@ -2616,6 +2628,7 @@ export class RelayProxyService {
         statusCode,
         headers: this.withRequestIdHeader(req, upstreamHeaders),
         data,
+        timeToFirstByte: firstByteTime === null ? undefined : firstByteTime - startTime,
       };
     }
 
@@ -2675,7 +2688,15 @@ export class RelayProxyService {
         originalModel: originalRequestedModel,
       });
 
-    return { handled: true, success: true, retryable: false, statusCode, headers: {}, data: {} };
+    return {
+      handled: true,
+      success: true,
+      retryable: false,
+      statusCode,
+      headers: {},
+      data: {},
+      timeToFirstByte: firstByteTime === null ? undefined : firstByteTime - startTime,
+    };
   }
 
   async forwardRequest(
@@ -2684,10 +2705,26 @@ export class RelayProxyService {
     res?: any,
   ): Promise<{ status: number; headers: any; data: any }> {
     const requestStartTime = Date.now();
-    const requestFormat = this.getRequestFormat(req);
+    const rawJsonBody =
+      Buffer.isBuffer(req.body) && String(req.headers?.["content-type"] || "").includes("json") ? req.body : undefined;
+    if (rawJsonBody) {
+      try {
+        req.body = JSON.parse(rawJsonBody.toString("utf8"));
+      } catch {
+        throw new BadRequestError("Invalid JSON request body");
+      }
+    }
+    const clientRequestFormat = this.getRequestFormat(req);
+    const requestFormatTransform =
+      clientRequestFormat === "openai-chat-completions" ||
+      clientRequestFormat === "openai-responses" ||
+      clientRequestFormat === "anthropic"
+        ? resolveRelayRequestFormatTransform(relayToken.requestFormatTransforms, clientRequestFormat)
+        : undefined;
+    const requestFormat = requestFormatTransform?.targetFormat ?? clientRequestFormat;
     const relayConfig = await this.relayConfigService.getRelayConfig();
     const resourceGuard = env.relay.resourceGuard;
-    const requestedModel = this.extractRequestedModel(req, requestFormat);
+    const requestedModel = this.extractRequestedModel(req, clientRequestFormat);
     if (!requestedModel) throw new BadRequestError("Model is required in request body or URL path");
 
     const normalizedRequestedModel = String(requestedModel).trim();
@@ -2711,14 +2748,15 @@ export class RelayProxyService {
 
     const requestSizeBytes = getRequestSize();
     const requestSizeMB = (requestSizeBytes / 1024 / 1024).toFixed(2);
-    const isImageRequest = this.isImageRequest(req, requestFormat);
+    const isImageRequest = this.isImageRequest(req, clientRequestFormat);
     const attemptPlan = await this.buildAttemptPlan(relayToken);
 
     // Log request details (especially important for image requests)
     logger.info("Relay request received", {
       userId: relayToken.userId,
       model: normalizedRequestedModel,
-      format: requestFormat,
+      format: clientRequestFormat,
+      upstreamFormat: requestFormat,
       isImageRequest,
       requestSizeBytes,
       requestSizeMB: `${requestSizeMB}MB`,
@@ -3021,7 +3059,13 @@ export class RelayProxyService {
             );
             const globalMultiplier = relayGlobalMultiplier * channelMultiplier * timeMultiplier;
 
-            path = this.buildUpstreamPath(req.path, requestFormat, selectedModelId);
+            path = requestFormatTransform
+              ? requestFormat === "anthropic"
+                ? "/v1/messages"
+                : requestFormat === "openai-responses"
+                  ? "/v1/responses"
+                  : "/v1/chat/completions"
+              : this.buildUpstreamPath(req.path, requestFormat, selectedModelId);
             let fullUpstreamUrl = upstreamUrl.replace(/\/+$/, "") + "/" + path.replace(/^\/+/, "");
 
             if (requestFormat === "gemini") {
@@ -3049,10 +3093,17 @@ export class RelayProxyService {
               headers["anthropic-version"] = "2023-06-01";
             }
 
+            const sourceForwardedBody = this.buildForwardBody(req.body, clientRequestFormat, selectedModelId);
             const forwardedBody = this.normalizeOpenAIImageEditsMultipartBody(
-              this.buildForwardBody(req.body, requestFormat, selectedModelId),
+              requestFormatTransform
+                ? convertRelayRequest(
+                    sourceForwardedBody,
+                    clientRequestFormat as RelayConvertibleRequestFormat,
+                    requestFormat as RelayConvertibleRequestFormat,
+                  )
+                : sourceForwardedBody,
               requestFormat,
-              req.path,
+              requestFormatTransform ? path : req.path,
               req.headers["content-type"],
             );
             let { body: convertedBody, autoInjected: autoInjectedStreamUsageOption } = this.addOpenAIStreamUsageOption(
@@ -3060,6 +3111,13 @@ export class RelayProxyService {
               requestFormat,
               req.path,
             );
+            if (
+              rawJsonBody &&
+              !requestFormatTransform &&
+              selectedModelId === normalizedRequestedModel &&
+              !autoInjectedStreamUsageOption
+            )
+              convertedBody = rawJsonBody;
 
             const toolsWithCache = convertedBody?.tools?.filter((t: any) => t.cache_control).length || 0;
             const messagesWithCache = convertedBody?.messages?.filter((m: any) => m.cache_control).length || 0;
@@ -3113,6 +3171,12 @@ export class RelayProxyService {
                   billingDisplayChannel.inputTokensIncludeCacheRead !== false,
                   relayOriginalRequestedModel,
                   autoInjectedStreamUsageOption,
+                  requestFormatTransform
+                    ? {
+                        sourceFormat: requestFormatTransform.targetFormat,
+                        targetFormat: clientRequestFormat as RelayConvertibleRequestFormat,
+                      }
+                    : undefined,
                 ),
               );
 
@@ -3128,7 +3192,6 @@ export class RelayProxyService {
                 await this.recordChannelAttempt(relayToken.id, channel.id, false, {
                   channel,
                   request: req,
-                  latencyMs: Date.now() - requestStartTime,
                   statusCode: streamResult.statusCode ?? (streamResult.success ? 200 : undefined),
                 });
                 this.appendAttemptIssue(
@@ -3164,7 +3227,7 @@ export class RelayProxyService {
               await this.recordChannelAttempt(relayToken.id, channel.id, streamResult.success, {
                 channel,
                 request: req,
-                latencyMs: Date.now() - requestStartTime,
+                latencyMs: streamResult.timeToFirstByte,
                 statusCode: streamResult.statusCode ?? (streamResult.success ? 200 : undefined),
               });
 
@@ -3226,7 +3289,6 @@ export class RelayProxyService {
                 await this.recordChannelAttempt(relayToken.id, channel.id, false, {
                   channel,
                   request: req,
-                  latencyMs: Date.now() - requestStartTime,
                   statusCode: imageResult.statusCode ?? (imageResult.success ? 200 : undefined),
                 });
                 await this.recordChannelSwitch({
@@ -3255,7 +3317,7 @@ export class RelayProxyService {
               await this.recordChannelAttempt(relayToken.id, channel.id, imageResult.success, {
                 channel,
                 request: req,
-                latencyMs: Date.now() - requestStartTime,
+                latencyMs: imageResult.timeToFirstByte,
                 statusCode: imageResult.statusCode ?? (imageResult.success ? 200 : undefined),
               });
 
@@ -3271,24 +3333,37 @@ export class RelayProxyService {
               : 5 * 1024 * 1024;
             upstreamRequestStarted = true;
             upstreamRequestStartedAt = Date.now();
+            let firstPayloadTime: number | null = null;
+            const maxResponseBytes = resourceGuard.maxUpstreamResponseBodyMb * 1024 * 1024;
             const response = await this.relayChannelProbeLockService.withRead(channel.id, () =>
               axios({
                 method: req.method,
                 url: fullUpstreamUrl,
                 headers,
-                data: convertedBody,
+                data: this.buildForwardBodyBuffer(convertedBody),
                 params: req.query,
                 timeout: resourceGuard.nonStreamUpstreamTimeoutMs,
                 maxBodyLength: maxBodyLimitBytes,
-                maxContentLength: isImageRequest
-                  ? resourceGuard.imageResponseBodyLimitMb * 1024 * 1024
-                  : resourceGuard.maxUpstreamResponseBodyMb * 1024 * 1024,
+                maxContentLength: maxResponseBytes,
+                responseType: "stream",
                 validateStatus: () => true,
                 httpAgent,
                 httpsAgent,
               }),
             );
-            const firstByteTime = Date.now();
+            const streamedResponse = await this.readStreamBodyLimited(
+              response.data as Readable,
+              maxResponseBytes,
+              () => {
+                if (firstPayloadTime === null) firstPayloadTime = Date.now();
+              },
+            );
+            if (streamedResponse.truncated)
+              throw new PayloadTooLargeError(
+                `Upstream response body exceeds ${resourceGuard.maxUpstreamResponseBodyMb}MB`,
+              );
+            response.data = this.parseBufferedUpstreamBody(streamedResponse.buffer, response.headers || {});
+            const firstByteTime = firstPayloadTime ?? Date.now();
             const isErrorResponse = response.status >= 400;
 
             if (
@@ -3326,7 +3401,6 @@ export class RelayProxyService {
               await this.recordChannelAttempt(relayToken.id, channel.id, false, {
                 channel,
                 request: req,
-                latencyMs: Date.now() - startTime,
                 statusCode: response.status,
               });
 
@@ -3388,7 +3462,6 @@ export class RelayProxyService {
               await this.recordChannelAttempt(relayToken.id, channel.id, false, {
                 channel,
                 request: req,
-                latencyMs: Date.now() - startTime,
                 statusCode: response.status,
               });
               await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
@@ -3449,7 +3522,9 @@ export class RelayProxyService {
               return {
                 status: response.status,
                 headers: this.withRequestIdHeader(req, response.headers),
-                data: buildNormalizedError(),
+                data: requestFormatTransform
+                  ? convertRelayError(buildNormalizedError(), clientRequestFormat as RelayConvertibleRequestFormat)
+                  : buildNormalizedError(),
               };
             }
 
@@ -3540,7 +3615,7 @@ export class RelayProxyService {
             await this.recordChannelAttempt(relayToken.id, channel.id, true, {
               channel,
               request: req,
-              latencyMs: totalOutputTime,
+              latencyMs: firstPayloadTime === null ? undefined : firstPayloadTime - startTime,
               statusCode: response.status,
             });
 
@@ -3560,7 +3635,13 @@ export class RelayProxyService {
             return {
               status: response.status,
               headers: this.withRequestIdHeader(req, response.headers),
-              data: response.data,
+              data: requestFormatTransform
+                ? convertRelayResponse(
+                    response.data,
+                    requestFormat as RelayConvertibleRequestFormat,
+                    clientRequestFormat as RelayConvertibleRequestFormat,
+                  )
+                : response.data,
             };
           } catch (error) {
             lastError = error;
@@ -3595,7 +3676,6 @@ export class RelayProxyService {
                   channel,
                   request: req,
                   attemptedUpstream: upstreamRequestStarted,
-                  latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,
                 });
               await this.recordChannelSwitch({
                 relayTokenId: relayToken.id,
@@ -3647,7 +3727,6 @@ export class RelayProxyService {
                   channel,
                   request: req,
                   attemptedUpstream: upstreamRequestStarted,
-                  latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,
                 });
               await this.recordChannelSwitch({
                 relayTokenId: relayToken.id,
@@ -3683,7 +3762,6 @@ export class RelayProxyService {
                   channel,
                   request: req,
                   attemptedUpstream: upstreamRequestStarted,
-                  latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,
                 });
               throw this.buildAttemptExhaustedError(
                 normalizedRequestedModel,
@@ -3699,7 +3777,6 @@ export class RelayProxyService {
                   channel,
                   request: req,
                   attemptedUpstream: upstreamRequestStarted,
-                  latencyMs: upstreamRequestStartedAt ? Date.now() - upstreamRequestStartedAt : undefined,
                 });
               this.sendStreamTransportError(res, error);
               return { status: error instanceof GatewayTimeoutError ? 504 : 502, headers: {}, data: {} };
@@ -3936,6 +4013,7 @@ export class RelayProxyService {
     inputTokensIncludeCacheRead: boolean = true,
     originalRequestedModel?: string,
     autoInjectedStreamUsageOption: boolean = false,
+    responseTransform?: { sourceFormat: RelayConvertibleRequestFormat; targetFormat: RelayConvertibleRequestFormat },
   ): Promise<StreamForwardResult> {
     const url = new URL(upstreamUrl);
     const isHttps = url.protocol === "https:";
@@ -4059,6 +4137,7 @@ export class RelayProxyService {
                     inputTokensIncludeCacheRead,
                     originalRequestedModel,
                     false,
+                    responseTransform,
                   ),
                 );
                 return;
@@ -4112,7 +4191,11 @@ export class RelayProxyService {
                 },
               };
 
-              const normalizedBody = JSON.stringify(normalizedError);
+              const normalizedBody = JSON.stringify(
+                responseTransform
+                  ? convertRelayError(normalizedError, responseTransform.targetFormat)
+                  : normalizedError,
+              );
               res.writeHead(
                 streamStatusCode,
                 this.withRequestIdHeader(req, {
@@ -4212,14 +4295,20 @@ export class RelayProxyService {
           // ── Success path (2xx/3xx): pipe chunks directly to the client ──
           res.writeHead(streamStatusCode, this.withRequestIdHeader(req, responseHeaders));
 
+          const sseTransform = responseTransform
+            ? new RelaySseFormatTransform(responseTransform.sourceFormat, responseTransform.targetFormat)
+            : null;
+          sseTransform?.on("data", (data) => res.write(data));
+          sseTransform?.on("error", (error) => proxyRes.destroy(error));
+
           let buffer = "";
           const MAX_BUFFER_SIZE = 256 * 1024; // Reduced to 256KB to prevent memory issues on low-memory servers
 
           proxyRes.on("data", (chunk) => {
             if (firstByteTime === null) firstByteTime = Date.now();
 
-            // Direct forwarding - no format conversion
-            res.write(chunk);
+            if (sseTransform) sseTransform.write(chunk);
+            else res.write(chunk);
 
             // Log first chunk for debugging Gemini responses
             if (requestFormat === "gemini" && !buffer)
@@ -4285,7 +4374,10 @@ export class RelayProxyService {
             streamCompleted = true;
 
             // Only end response if client is still connected
-            if (!res.writableEnded && !clientDisconnected) res.end();
+            if (!res.writableEnded && !clientDisconnected) {
+              sseTransform?.end();
+              res.end();
+            }
 
             const normalizedStreamTokens = normalizeTokenBreakdown(
               requestTokens,
@@ -4383,7 +4475,13 @@ export class RelayProxyService {
               return;
             }
 
-            resolve({ handled: true, success: true, retryable: false, statusCode: proxyRes.statusCode || 200 });
+            resolve({
+              handled: true,
+              success: true,
+              retryable: false,
+              statusCode: proxyRes.statusCode || 200,
+              timeToFirstByte: firstByteTime === null ? undefined : firstByteTime - startTime,
+            });
           });
 
           proxyRes.on("error", (err) => {

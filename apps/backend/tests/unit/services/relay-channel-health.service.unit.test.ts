@@ -66,6 +66,43 @@ describe("RelayChannelHealthService", () => {
     expect(health.averageLatencyMs).toBe(120);
   });
 
+  it("treats a null latency threshold as disabled and averages only first-byte samples", async () => {
+    const redis = createRedis();
+    const service = new HealthServiceCtor(redis);
+    const now = new Date("2026-07-25T12:00:00.000Z");
+    for (let index = 0; index < 3; index += 1) {
+      await service.recordAttempt({
+        channelId: "slow",
+        requestId: `slow-${index}`,
+        success: index !== 2,
+        statusCode: index === 2 ? 503 : 200,
+        latencyMs: index === 2 ? undefined : 250,
+        observedAt: now,
+      });
+    }
+
+    expect((await service.getHealth("slow", now)).averageLatencyMs).toBe(250);
+    const members = [
+      { id: "slow", name: "Slow", enabled: true, priority: 1, weight: 1, effectivePrice: 1 },
+      {
+        id: "manual-fast",
+        name: "Manual fast",
+        enabled: true,
+        priority: 2,
+        weight: 1,
+        effectivePrice: 2,
+        healthTrackingMode: "manual" as const,
+        manualAvailability: 1,
+        manualLatencyMs: 10,
+      },
+    ];
+    expect((await service.rankMembers(members, "price-first", now, { latencyThresholdMs: null }))[0]?.eligible).toBe(
+      true,
+    );
+    const thresholded = await service.rankMembers(members, "price-first", now, { latencyThresholdMs: 100 });
+    expect(thresholded.find((member) => member.id === "slow")?.exclusionReasons).toContain("latency");
+  });
+
   it("uses price or availability as the primary automatic-pool ranking factor", async () => {
     const redis = createRedis();
     const service = new HealthServiceCtor(redis);

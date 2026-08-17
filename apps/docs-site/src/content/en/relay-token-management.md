@@ -32,6 +32,15 @@ Each token can have one or more rolling time-window rate limits (e.g. per-minute
 - Bind a token to a set of allowed IPs or CIDR ranges.
 - Leaving it empty allows any source IP; adding entries restricts access to those addresses only.
 
+### Request format conversion
+
+Each token can have up to three conversion rules, with one rule per source format. Anthropic Messages, OpenAI Chat Completions, and OpenAI Responses can be converted between each other; an empty rule list disables conversion.
+
+- Callers still receive their source format's normal response, errors, and stream events; channel selection, upstream paths, authentication, and billing use the target format.
+- The target channel and model must enable the target format. Conversion has a modest CPU and memory cost, and semantics and billing can differ between protocols.
+- Provider-specific fields that cannot be represented safely are rejected instead of silently removed, including async/session requests, hosted tools, file or audio/video inputs, and cache controls.
+- Chat Completions or Responses requests converted to Anthropic must provide a mappable maximum output token limit; no default is injected.
+
 ### Channel and failover data
 
 - Ordered channel list.
@@ -79,7 +88,7 @@ Authorization: Bearer <relay_token>
 Content-Type: application/json
 ```
 
-The request format must be enabled for the token's channels. See `api-documentation` for complete curl examples, the Responses format, and image requests; see `relay-settings` to change channels, models, or formats.
+The request format must be enabled for the token's channels, or have a matching token conversion rule. See `api-documentation` for complete curl examples, the Responses format, and image requests; see `relay-settings` to change channels, models, or formats.
 
 ## Notes
 

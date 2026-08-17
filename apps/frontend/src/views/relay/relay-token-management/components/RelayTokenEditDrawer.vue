@@ -807,6 +807,89 @@
             </div>
           </el-collapse-item>
 
+          <el-collapse-item name="requestFormatTransforms">
+            <template #title>
+              <span class="relay-token-edit-sections__title">{{
+                i18ns.t('relay.requestFormatTransforms')
+              }}</span>
+            </template>
+            <div
+              :class="
+                isDesktop ? 'relay-token-edit-section-grid' : 'relay-token-edit-section-stack'
+              "
+            >
+              <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
+                <el-alert
+                  type="warning"
+                  :closable="false"
+                  :title="i18ns.t('relay.requestFormatTransformsRiskTitle')"
+                  :description="i18ns.t('relay.requestFormatTransformsRisk')"
+                  show-icon
+                />
+              </el-form-item>
+              <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
+                <template #label>{{ i18ns.t('relay.requestFormatTransforms') }}</template>
+                <div class="flex flex-col gap-2 w-full">
+                  <div
+                    v-for="(rule, index) in editForm.requestFormatTransforms"
+                    :key="`${rule.sourceFormat}-${index}`"
+                    class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_32px] gap-2 items-center"
+                  >
+                    <el-select
+                      v-model="rule.sourceFormat"
+                      :aria-label="i18ns.t('relay.sourceFormat')"
+                    >
+                      <el-option
+                        v-for="format in requestFormatOptions"
+                        :key="format.value"
+                        :label="format.label"
+                        :value="format.value"
+                        :disabled="
+                          editForm.requestFormatTransforms.some(
+                            (item, itemIndex) =>
+                              itemIndex !== index && item.sourceFormat === format.value,
+                          )
+                        "
+                      />
+                    </el-select>
+                    <span class="text-center text-[#909399]">{{
+                      i18ns.t('relay.transformTo')
+                    }}</span>
+                    <el-select
+                      v-model="rule.targetFormat"
+                      :aria-label="i18ns.t('relay.targetFormat')"
+                    >
+                      <el-option
+                        v-for="format in requestFormatOptions"
+                        :key="format.value"
+                        :label="format.label"
+                        :value="format.value"
+                        :disabled="format.value === rule.sourceFormat"
+                      />
+                    </el-select>
+                    <el-tooltip :content="i18ns.t('delete')">
+                      <el-button
+                        text
+                        type="danger"
+                        :icon="Delete"
+                        @click="state.removeRequestFormatTransform(index)"
+                      />
+                    </el-tooltip>
+                  </div>
+                  <el-button
+                    plain
+                    :icon="Plus"
+                    :disabled="
+                      editForm.requestFormatTransforms.length >= MAX_REQUEST_FORMAT_TRANSFORMS
+                    "
+                    @click="state.addRequestFormatTransform"
+                    >{{ i18ns.t('relay.addRequestFormatTransform') }}</el-button
+                  >
+                </div>
+              </el-form-item>
+            </div>
+          </el-collapse-item>
+
           <el-collapse-item name="advanced">
             <template #title>
               <span class="relay-token-edit-sections__title">{{
@@ -975,7 +1058,14 @@ const {
   maxRetriesRiskWarningText,
   automaticProxyPoolChannelOptions,
   selectedAutomaticProxyPoolMemberOptions,
+  MAX_REQUEST_FORMAT_TRANSFORMS,
 } = state
+
+const requestFormatOptions = [
+  { value: 'openai-chat-completions', label: 'OpenAI Chat Completions' },
+  { value: 'openai-responses', label: 'OpenAI Responses' },
+  { value: 'anthropic', label: 'Anthropic Messages' },
+]
 
 const setChannelListRef = (element: Element | ComponentPublicInstance | null) => {
   const target = element instanceof HTMLElement ? element : null
