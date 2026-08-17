@@ -162,7 +162,8 @@ export default defineConfig(({ mode }) => {
       moduleId.includes('/vue-router/') ||
       moduleId.includes('/vue-i18n/') ||
       moduleId.includes('/@intlify/') ||
-      moduleId.includes('/@vueuse/')
+      moduleId.includes('/@vueuse/') ||
+      moduleId.includes('/vue-demi/')
     ) {
       return 'framework'
     }
@@ -197,10 +198,11 @@ export default defineConfig(({ mode }) => {
       return 'xlsx'
     }
 
-    // Small Element Plus and utility dependencies otherwise become hundreds
-    // of tiny chunks. A stable vendor bundle keeps the initial dependency
-    // graph shallow without pulling optional heavyweight libraries above.
-    return 'vendor'
+    // Ordinary third-party dependencies share the same stable runtime chunk
+    // as Vue. Keeping them together avoids a framework↔vendor initialization
+    // cycle when a root component (for example Element Plus config) imports
+    // both Vue and UI-runtime helpers.
+    return 'framework'
   }
 
   const resolveApplicationChunk = (moduleId: string): string | undefined => {
@@ -426,8 +428,7 @@ export default defineConfig(({ mode }) => {
         )
         return `${feature}=${dependencies.length}:[${stableDependencies.join(',')}]`
       })
-      bundleShapeReport =
-        `initial=[${[...initialChunkNames].sort().join(',')}] routes=${routeDependencies.join(' ')}`
+      bundleShapeReport = `initial=[${[...initialChunkNames].sort().join(',')}] routes=${routeDependencies.join(' ')}`
     },
     writeBundle() {
       const outputDir = resolve(__dirname, 'dist')
@@ -526,13 +527,21 @@ export default defineConfig(({ mode }) => {
           threshold: 10240,
           deleteOriginFile: false,
         }),
-      // SPA fallback: copy index.html → 404.html so static servers
-      // (Nginx, Cloudflare Pages, etc.) serve the app for unknown routes.
+      // SPA fallback: copy index.html → 404.html so static servers and
+      // CDNs that do not rewrite unknown paths still boot the Vue router.
       {
         name: 'copy-404',
         writeBundle() {
           const outDir = resolve(__dirname, 'dist')
-          copyFileSync(resolve(outDir, 'index.html'), resolve(outDir, '404.html'))
+          const indexPath = resolve(outDir, 'index.html')
+          const fallbackPath = resolve(outDir, '404.html')
+          copyFileSync(indexPath, fallbackPath)
+          if (
+            !existsSync(fallbackPath) ||
+            readFileSync(fallbackPath, 'utf8') !== readFileSync(indexPath, 'utf8')
+          ) {
+            throw new Error('SPA fallback 404.html was not emitted as a copy of index.html')
+          }
         },
       },
       enableStaticPrecompression && {
