@@ -200,7 +200,7 @@ jobs:
       pull-requests: write
       issues: write
       contents: read
-    uses: ./.github/workflows/auto-label.yml
+    uses: ./.github/workflows/reusable-auto-label.yml
     with:
       pr_number: ${{ needs.create-pr.outputs.pr_number }}
       pr_title: ${{ needs.create-pr.outputs.pr_title }}

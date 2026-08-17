@@ -1,10 +1,10 @@
-name: Auto Label
+name: Reusable Auto Label
 
 on:
-  pull_request:
-    types: [opened]
-  issues:
-    types: [opened, edited]
+  # This workflow is intentionally callable only. GitHub requires reusable
+  # workflows to live directly under .github/workflows (subdirectories are
+  # not supported for workflow_call), so the reusable role is expressed by
+  # this filename and trigger rather than by nesting it in a folder.
   workflow_call:
     inputs:
       pr_number:
