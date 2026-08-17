@@ -2827,7 +2827,7 @@ const emoji: DeepStringify<typeof en> = {
     addRequestFormatTransform: '➕ 📦 🔁',
     requestFormatTransformsRiskTitle: '⚠️ 📦 🔁',
     requestFormatTransformsRisk:
-      '⚠️ 📦 🔁 可能导致🏷️ 丢失或被忽略，复杂内容🧠 语义可能变化；不兼容字段、🔧 工具调用或🌊 流事件可能转换失败或请求被拒绝。💰 按目标渠道处理方式计费，并增加少量 CPU/内存开销。请确认目标渠道和模型支持目标格式。',
+      '⚠️ 📦 🔁 可能导致🏷️ 丢失或被忽略，复杂内容🧠 语义可能变化；不兼容字段、🔧 工具调用或🌊 流事件可能转换失败或请求被拒绝。💰 按目标渠道处理方式计费。请确认目标渠道和模型支持目标格式。',
     sourceFormat: '↗️ 📦',
     targetFormat: '↘️ 📦',
     transformTo: '➡️',
