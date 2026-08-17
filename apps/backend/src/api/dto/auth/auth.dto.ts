@@ -206,6 +206,11 @@ export interface RefreshDto {
    * 刷新令牌（可选；HTTP 请求优先从 HttpOnly Cookie 读取，其次读取请求体）
    */
   refresh_token?: string;
+
+  /**
+   * 退出模拟会话时跳过跨站模拟 handoff，恢复常规 refresh-cookie 会话。
+   */
+  skipImpersonationHandoff?: boolean;
 }
 
 /**
@@ -322,6 +327,19 @@ export interface RefreshData {
   /** 过期时间（可选） */
   refresh_token?: string;
   expires_in?: number;
+
+  /**
+   * 仅在通过 HttpOnly 模拟 handoff 恢复会话时返回。
+   * 常规 refresh-cookie 会话不包含该字段，以保持旧客户端兼容。
+   */
+  impersonation?: {
+    targetUser: {
+      id: string;
+      username: string;
+      name: string | null;
+    };
+    mode: "view" | "act";
+  };
 }
 
 /**

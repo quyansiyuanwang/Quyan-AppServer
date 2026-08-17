@@ -48,6 +48,7 @@ import {
 } from "@/util/trusted-device-token";
 import { clearRefreshTokenCookie, extractRefreshTokenCookie, setRefreshTokenCookie } from "@/util/auth-refresh-cookie";
 import { clearImpersonationHandoffCookie } from "@/util/impersonation-cookie";
+import { ImpersonationService } from "@/services/users/impersonation.service";
 import {
   buildForceOfflineAuthSessionKey,
   clearAuthSessionIdCookie,
@@ -98,6 +99,7 @@ export class AuthService {
     private readonly legalPolicyRepository: LegalPolicyStore = LegalPolicyRepository.getInstance(),
     private readonly businessLogRepository: BusinessLogStore = BusinessLogRepository.getInstance(),
     private readonly rateLimiterService: RateLimiterService = RateLimiterService.getInstance(),
+    private readonly impersonationService: ImpersonationService = new ImpersonationService(),
   ) {}
 
   private async issueAuthData(userId: string, status: number): Promise<AuthData> {
@@ -685,11 +687,34 @@ export class AuthService {
     }
   }
 
-  async refresh(requestOrToken?: Request | string, refreshTokenFromBody?: string) {
+  async refresh(
+    requestOrToken?: Request | string,
+    refreshTokenFromBody?: string,
+    skipImpersonationHandoff = false,
+  ) {
     const request = typeof requestOrToken === "string" ? undefined : requestOrToken;
-    // An impersonation token is intentionally non-refreshable. If the user
-    // reaches the normal refresh flow, end that temporary session and restore
-    // the administrator's regular refresh-cookie session.
+    // A cross-site navigation cannot read the HttpOnly handoff cookie in the
+    // browser. Resolve it here before falling back to the regular refresh
+    // cookie so a cold application start remains one request rather than a
+    // client-side probe followed by /auth/refresh. Explicitly skipping the
+    // handoff is reserved for the "exit impersonation" flow.
+    if (request && !skipImpersonationHandoff) {
+      const impersonation = await this.impersonationService.restoreImpersonation(request);
+      if (impersonation) {
+        return {
+          access_token: impersonation.access_token,
+          impersonation: {
+            targetUser: impersonation.targetUser,
+            mode: impersonation.mode,
+          },
+        };
+      }
+    }
+
+    // An impersonation token is intentionally non-refreshable. Once the
+    // handoff is absent, invalid, expired, or explicitly skipped, end the
+    // temporary session and restore the administrator's regular refresh
+    // cookie session.
     if (request) clearImpersonationHandoffCookie(request);
     const refreshTokenFromArg = typeof requestOrToken === "string" ? requestOrToken : undefined;
     const refreshToken =

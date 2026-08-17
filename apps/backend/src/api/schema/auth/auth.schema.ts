@@ -31,6 +31,7 @@ export const refreshBodySchema = z.preprocess(
   (value) => value ?? {},
   z.object({
     refresh_token: z.string().min(10).optional(),
+    skipImpersonationHandoff: z.boolean().optional(),
   }),
 );
 
