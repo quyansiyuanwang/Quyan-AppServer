@@ -2298,11 +2298,36 @@ export class RelayProxyService {
     return JSON_CONTENT_TYPE_RE.test(raw);
   }
 
+  private isAsyncIterable(value: unknown): value is AsyncIterable<Buffer | string> {
+    if (value === null || (typeof value !== "object" && typeof value !== "function")) return false;
+
+    return typeof (value as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === "function";
+  }
+
   private async readStreamBodyLimited(
-    stream: Readable,
+    stream: Readable | unknown,
     maxBytes: number,
     onFirstChunk?: () => void,
   ): Promise<{ buffer: Buffer; truncated: boolean; bytesRead: number }> {
+    if (!this.isAsyncIterable(stream)) {
+      const serializedBody =
+        stream === null || stream === undefined
+          ? Buffer.alloc(0)
+          : Buffer.isBuffer(stream)
+            ? stream
+            : stream instanceof Uint8Array
+              ? Buffer.from(stream)
+              : typeof stream === "string"
+                ? Buffer.from(stream)
+                : Buffer.from(JSON.stringify(stream) ?? "");
+      const truncated = serializedBody.length > maxBytes;
+      const buffer = truncated ? serializedBody.subarray(0, maxBytes) : serializedBody;
+
+      if (serializedBody.length > 0) onFirstChunk?.();
+
+      return { buffer, truncated, bytesRead: serializedBody.length };
+    }
+
     const chunks: Buffer[] = [];
     let bytesRead = 0;
     let bufferedBytes = 0;

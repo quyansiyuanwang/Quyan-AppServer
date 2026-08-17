@@ -2385,11 +2385,13 @@ describe("RelayProxyService failover", () => {
 
       expect(result.status).toBe(200);
       expect(axiosMock).toHaveBeenCalledTimes(1);
-      expect(axiosMock.mock.calls[0]?.[0]).toEqual(
-        expect.objectContaining({
-          url: "https://primary.example.com/v1/chat/completions",
-          data: expect.objectContaining({ model: "gpt-4o-mini" }),
-        }),
+      const upstreamRequest = axiosMock.mock.calls[0]?.[0] as unknown as { data: Buffer; url: string };
+      expect(upstreamRequest).toEqual(
+        expect.objectContaining({ url: "https://primary.example.com/v1/chat/completions" }),
+      );
+      expect(Buffer.isBuffer(upstreamRequest.data)).toBe(true);
+      expect(JSON.parse(upstreamRequest.data.toString("utf8"))).toEqual(
+        expect.objectContaining({ model: "gpt-4o-mini" }),
       );
       expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
         expect.objectContaining({ modelName: "gpt-4o-mini" }),
