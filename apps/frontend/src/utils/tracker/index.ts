@@ -33,9 +33,12 @@ const KEEPALIVE_BODY_LIMIT = 60000
 const MAX_QUEUE_SIZE = 500
 
 const httpClient = new HttpClient({
-  // Browser API requests are same-origin. Production reverse proxies forward
-  // `/v1` to the backend, so tracking does not require exposing an API host.
-  baseUrl: '',
+  // The frontend and API are separate first-party origins in production
+  // (for example www.qysyw.cn and api.qysyw.cn). Relative `/v1` URLs fall
+  // through to the SPA host and return index.html/404 instead of reaching the
+  // analytics controller. Development keeps the empty base URL so Vite's
+  // `/v1` proxy remains active.
+  baseUrl: String(import.meta.env.VITE_BACKEND_URL || '').trim(),
   timeout: 3000,
   retry: { maxRetries: 2, baseDelay: 1000 },
 })
