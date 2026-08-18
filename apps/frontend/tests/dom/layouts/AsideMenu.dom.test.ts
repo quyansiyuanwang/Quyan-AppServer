@@ -118,4 +118,23 @@ describe('AsideMenu mobile site switcher', () => {
 
     expect(assignDocument).toHaveBeenCalledWith('https://account.qysyw.test:5173/overview')
   })
+
+  it('keeps the current site available as an openable destination', async () => {
+    const wrapper = mount(AsideMenu, {
+      props: { showNavigation: false },
+      global: { stubs },
+    })
+
+    ;(wrapper.vm as { openOverview: () => void }).openOverview()
+    await wrapper.vm.$nextTick()
+
+    const currentSite = wrapper
+      .findAll('.mobile-site-switcher__item')
+      .find((item) => item.text().includes('nav.sitePublic'))
+
+    expect(currentSite?.attributes('disabled')).toBeUndefined()
+    await currentSite?.trigger('click')
+
+    expect(assignDocument).toHaveBeenCalledWith('https://www.qysyw.test:5173/home')
+  })
 })

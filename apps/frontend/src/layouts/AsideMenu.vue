@@ -147,10 +147,10 @@
         </div>
 
         <div class="overview-drawer-columns">
-          <nav class="overview-site-panel" :aria-label="i18ns.t('nav.switchSite')">
+          <nav class="overview-site-panel" :aria-label="i18ns.t('nav.openSite')">
             <div class="overview-site-panel__title">
               <el-icon><Grid /></el-icon>
-              <span>{{ i18ns.t('nav.switchSite') }}</span>
+              <span>{{ i18ns.t('nav.openSite') }}</span>
             </div>
             <div class="overview-site-list">
               <section
@@ -165,7 +165,6 @@
                   type="button"
                   class="overview-site-item"
                   :class="{ 'is-active': profile.id === currentSiteProfile.id }"
-                  :disabled="profile.id === currentSiteProfile.id"
                   @click="navigateToSiteProfile(profile.id)"
                 >
                   <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
@@ -381,9 +380,7 @@
           </button>
           <div class="functional-area functional-area--mobile">
             <el-icon size="20"><component :is="currentSiteIcon" /></el-icon>
-            <span>{{
-              showMobileSiteSwitcher ? i18ns.t('nav.switchSite') : functionalAreaName
-            }}</span>
+            <span>{{ showMobileSiteSwitcher ? i18ns.t('nav.openSite') : functionalAreaName }}</span>
           </div>
           <el-icon class="close-icon" @click="showMobileDrawer = false"><Close /></el-icon>
         </div>
@@ -391,7 +388,7 @@
         <nav
           v-if="showMobileSiteSwitcher"
           class="mobile-site-switcher"
-          :aria-label="i18ns.t('nav.switchSite')"
+          :aria-label="i18ns.t('nav.openSite')"
         >
           <section
             v-for="group in siteSwitchGroups"
@@ -405,7 +402,6 @@
               type="button"
               class="mobile-site-switcher__item"
               :class="{ 'is-active': profile.id === currentSiteProfile.id }"
-              :disabled="profile.id === currentSiteProfile.id"
               @click="navigateToSiteProfile(profile.id)"
             >
               <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
@@ -768,7 +764,7 @@ const siteSwitchGroups = computed(() => {
 
 const navigateToSiteProfile = (siteId: SiteProfileId) => {
   const target = availableSiteProfiles.value.find((profile) => profile.id === siteId)
-  if (!target || target.id === currentSiteProfile.id) return
+  if (!target) return
 
   showOverview.value = false
   showMobileSiteSwitcher.value = false
@@ -2795,8 +2791,8 @@ watch(
   cursor: pointer;
 }
 
-.mobile-site-switcher__item:hover:not(:disabled),
-.mobile-site-switcher__item:focus-visible:not(:disabled) {
+.mobile-site-switcher__item:hover,
+.mobile-site-switcher__item:focus-visible {
   color: var(--el-color-primary);
   border-color: var(--el-color-primary-light-5);
   outline: none;
@@ -2805,7 +2801,6 @@ watch(
 .mobile-site-switcher__item.is-active {
   color: var(--el-color-primary);
   background: var(--el-color-primary-light-9);
-  cursor: default;
 }
 
 .mobile-site-switcher__current {
