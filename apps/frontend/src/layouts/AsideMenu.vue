@@ -364,6 +364,8 @@
       v-model="showMobileDrawer"
       direction="rtl"
       size="82%"
+      append-to-body
+      :z-index="MOBILE_DRAWER_Z_INDEX"
       class="mobile-menu-drawer"
       :with-header="false"
     >
@@ -584,6 +586,7 @@ import { assignDocument } from '@/service/navigationService'
 const isDesktopStore = useIsDesktopStore()
 const isDesktop = isDesktopStore.useIsDesktop()
 const OVERVIEW_DRAWER_Z_INDEX = 3000
+const MOBILE_DRAWER_Z_INDEX = 3200
 const OVERVIEW_CONFIRMATION_Z_INDEX = OVERVIEW_DRAWER_Z_INDEX + 1
 
 const props = withDefaults(
@@ -769,7 +772,11 @@ const navigateToSiteProfile = (siteId: SiteProfileId) => {
   showOverview.value = false
   showMobileSiteSwitcher.value = false
   showMobileDrawer.value = false
-  assignDocument(new URL(target.defaultPath, target.canonicalOrigin).toString())
+  window.open(
+    new URL(target.defaultPath, target.canonicalOrigin).toString(),
+    '_blank',
+    'noopener,noreferrer',
+  )
 }
 
 const openOverview = () => {

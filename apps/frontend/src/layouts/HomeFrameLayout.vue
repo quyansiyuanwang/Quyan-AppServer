@@ -13,9 +13,13 @@
       :class="{ 'with-banner': impersonationStore.isImpersonating }"
     >
       <el-header v-if="showSiteHeader" class="site-header">
-        <button type="button" class="site-header__drawer-trigger" @click="openSiteDrawer">
-          <el-icon><Grid /></el-icon>
-          <span>{{ i18ns.t('nav.openSite') }}</span>
+        <button
+          type="button"
+          class="site-header__drawer-trigger"
+          :aria-label="i18ns.t('nav.appMenu')"
+          @click="openSiteDrawer"
+        >
+          <el-icon><Menu /></el-icon>
         </button>
         <GlobalNavigationSearch />
         <div class="site-header__actions">
@@ -260,9 +264,9 @@ import GlobalNavigationSearch from '@/components/navigation/GlobalNavigationSear
 import {
   ArrowLeft,
   CopyDocument,
-  Grid,
   Key,
   Lock,
+  Menu,
   MoreFilled,
   SwitchButton,
   Tools,
@@ -504,9 +508,11 @@ onMounted(() => {
 .site-header__drawer-trigger {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 0 0 36px;
   gap: 8px;
   height: 36px;
-  padding: 0 10px;
+  padding: 0;
   color: var(--el-text-color-primary);
   font: inherit;
   background: transparent;
@@ -844,10 +850,6 @@ tight coupling between the shell and page class names. */
 @media screen and (max-width: 768px) {
   .site-header {
     padding: 0 10px;
-  }
-
-  .site-header__drawer-trigger span {
-    display: none;
   }
 
   .site-header__actions {

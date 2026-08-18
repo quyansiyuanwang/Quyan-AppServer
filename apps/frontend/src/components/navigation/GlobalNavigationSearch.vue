@@ -316,20 +316,15 @@ kbd {
 
 @media screen and (max-width: 768px) {
   .global-navigation-search {
-    flex: 0 0 34px;
-    min-width: 34px;
-    margin: 0 4px 0 auto;
+    flex: 1 1 auto;
+    max-width: none;
+    min-width: 0;
+    margin: 0 6px;
   }
 
   .global-navigation-search :deep(.el-input__wrapper) {
-    justify-content: center;
-    padding: 0;
+    min-width: 0;
     background: transparent;
-  }
-
-  .global-navigation-search :deep(.el-input__inner),
-  .global-navigation-search :deep(.el-input__suffix) {
-    display: none;
   }
 }
 </style>

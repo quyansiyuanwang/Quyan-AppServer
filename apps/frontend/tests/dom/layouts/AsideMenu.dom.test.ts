@@ -79,6 +79,9 @@ vi.mock('element-plus', () => ({ ElMessageBox: { confirm: vi.fn() } }))
 
 import AsideMenu from '@/layouts/AsideMenu.vue'
 
+const openWindow = vi.fn()
+window.open = openWindow
+
 const stubs = {
   'el-drawer': { template: '<section><slot /></section>' },
   'el-dialog': {
@@ -102,7 +105,7 @@ describe('AsideMenu mobile site switcher', () => {
     expect(wrapper.find('.unpin-confirmation-dialog').attributes('data-z-index')).toBe('3001')
   })
 
-  it('opens the site switcher from the header trigger even on the public mobile shell', async () => {
+  it('opens the site list from the header trigger even on the public mobile shell', async () => {
     const wrapper = mount(AsideMenu, {
       props: { showNavigation: false },
       global: { stubs },
@@ -116,7 +119,11 @@ describe('AsideMenu mobile site switcher', () => {
 
     await wrapper.findAll('.mobile-site-switcher__item').find((item) => item.text().includes('nav.siteAccount'))!.trigger('click')
 
-    expect(assignDocument).toHaveBeenCalledWith('https://account.qysyw.test:5173/overview')
+    expect(openWindow).toHaveBeenCalledWith(
+      'https://account.qysyw.test:5173/overview',
+      '_blank',
+      'noopener,noreferrer',
+    )
   })
 
   it('keeps the current site available as an openable destination', async () => {
@@ -135,6 +142,10 @@ describe('AsideMenu mobile site switcher', () => {
     expect(currentSite?.attributes('disabled')).toBeUndefined()
     await currentSite?.trigger('click')
 
-    expect(assignDocument).toHaveBeenCalledWith('https://www.qysyw.test:5173/home')
+    expect(openWindow).toHaveBeenCalledWith(
+      'https://www.qysyw.test:5173/home',
+      '_blank',
+      'noopener,noreferrer',
+    )
   })
 })
