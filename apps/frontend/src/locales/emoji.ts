@@ -380,8 +380,7 @@ const emoji: DeepStringify<typeof en> = {
     pushCredentialAliasHint: '🔑 🔐 📁 🔑 🪪；🔑。',
     pushCredentialPurposeTitle: '🔐 🪪 🔑？',
     pushCredentialPurpose: '🔑，🔑 🔑: 🔑 <🔑>。',
-    pushCredentialEndpointHint:
-      '🔑、🔑、🔑 🔑 🔑 🔑，🔑。',
+    pushCredentialEndpointHint: '🔑、🔑、🔑 🔑 🔑 🔑，🔑。',
     pushCredentialWriteTitle: '🔐 🔑',
     pushCredentialWriteHint: '🔑 🔐 📁，🔑。',
     pushCredentialWriteAction: '🔐 🔑',
@@ -1840,8 +1839,7 @@ const emoji: DeepStringify<typeof en> = {
     notificationDefaultThresholds: '🔔 🎚️',
     notificationDefaultThresholdsHelp: '🎚️ 📨 ✅，🔔 🆕 👤 1️⃣ 🔔',
     notificationAssignmentRules: '🧩 🎫 🤖 👤',
-    notificationAssignmentRulesHelp:
-      '📏 ⏭️ 🔔；🔔 👥 🔔；🔔 🏷️ 🔔 ⚡',
+    notificationAssignmentRulesHelp: '📏 ⏭️ 🔔；🔔 👥 🔔；🔔 🏷️ 🔔 ⚡',
     notificationAssignmentRuleTitle: '🧩 #{index}',
     notificationAssignmentType: '🏷️ 🎫',
     notificationAssignmentPriority: '⚡',
@@ -2035,8 +2033,7 @@ const emoji: DeepStringify<typeof en> = {
     relayCustomKeyCreateLimitWindowMinutes: '🪟 ⏱️(🔑)',
     relayCustomKeyCreateLimitWindowMinutesHelp: '🖥️ 🔑 🔑 🔑 🔑',
     relayCustomKeyCreateLimitMaxCount: '🪟🔑 🆕 ⬆️',
-    relayCustomKeyCreateLimitMaxCountHelp:
-      '👤 🔑 🔑 🔑；0️⃣ = 🚫 🔑',
+    relayCustomKeyCreateLimitMaxCountHelp: '👤 🔑 🔑 🔑；0️⃣ = 🚫 🔑',
     remoteTerminalUnbindTitle: '🖥️🔓 🚫🧰',
     remoteTerminalUnbindMaxCount: '🔓 #️⃣ 🪟',
     remoteTerminalUnbindMaxCountHelp: '🎟️ 🪟 🕒 🖥️ 🔓 🖥️；0️⃣ = 🚫🔓',
@@ -3132,8 +3129,7 @@ const emoji: DeepStringify<typeof en> = {
     batchPricingMigrationDescription: '🔢 ☑️ {count} 📡 🔢 💲 🤖，🔢 📡 🔢。',
     applyModelPricingMigration: '✅ 💲 🔢',
     modelPricingMigration: '🤖 💲 🔢',
-    modelPricingMigrationHelp:
-      '👤 🔢 🤖 🔢；🔢 📡 🔢 💲 🤖 🔢，🔢 🌊 🤖 🔢 🔢 📡 🔢。',
+    modelPricingMigrationHelp: '👤 🔢 🤖 🔢；🔢 📡 🔢 💲 🤖 🔢，🔢 🌊 🤖 🔢 🔢 📡 🔢。',
     modelPricingMigrationSource: '🔢 🤖 🔢',
     modelPricingMigrationTarget: '🔢 💲 🤖',
     modelPricingMigrationUpstream: '🔢 🌊 🤖 🔢',
@@ -3279,13 +3275,10 @@ const emoji: DeepStringify<typeof en> = {
     'channelProbeEndpointopenai-responses': '🅾️ ↩️',
     'channelProbeEndpointanthropic-messages': '🅰️ 💬',
     'channelProbeEndpointgemini-generate-content': '♊ ✨',
-    'channelProbeEndpointHelpopenai-chat-completions':
-      '💬 /📡1/📡/📡 · 📨 📡 · 🔢 📡_📡',
-    'channelProbeEndpointHelpopenai-responses':
-      '↩️ /📡1/📡 · 📨 📡 · 🔢 📡_📡_📡',
+    'channelProbeEndpointHelpopenai-chat-completions': '💬 /📡1/📡/📡 · 📨 📡 · 🔢 📡_📡',
+    'channelProbeEndpointHelpopenai-responses': '↩️ /📡1/📡 · 📨 📡 · 🔢 📡_📡_📡',
     'channelProbeEndpointHelpanthropic-messages': '💬 /📡1/📡 · 📨 📡 · 🔢 📡_📡',
-    'channelProbeEndpointHelpgemini-generate-content':
-      '✨ 📡 · 📨 📡 · ⚙️ 📡',
+    'channelProbeEndpointHelpgemini-generate-content': '✨ 📡 · 📨 📡 · ⚙️ 📡',
     channelProbeCacheMode: '🗃️ 🧪',
     channelProbeCacheModeBust: '🚫 🗃️',
     channelProbeCacheModeAllow: '✅ 🗃️',
@@ -3584,8 +3577,7 @@ const emoji: DeepStringify<typeof en> = {
     visibilityModePrivate: '🔒 💬',
     visibilityModeWhitelist: '📋 💬',
     visibilityModeHidden: '🫥 💬',
-    visibilityModeHiddenHelp:
-      '💡；💡，💡、💡 💡 💡 💡。',
+    visibilityModeHiddenHelp: '💡；💡，💡、💡 💡 💡 💡。',
     visibilityUsers: '👤 👤',
     visibilityGroups: '👥 💬',
     visibilityRoles: '🪪 🛂',
@@ -3671,8 +3663,7 @@ const emoji: DeepStringify<typeof en> = {
     failoverThreshold: '🔁 ⚡',
     failoverThresholdHelp: '1️⃣ 📡 ❌ 🧮 ➜ 🔀',
     failbackCooldownMinutes: '↩️ ⏱️ (⚠️)',
-    failbackCooldownMinutesHelp:
-      '🔀 ⚠️ 📡 ⚠️，⚠️ 📡 ⚠️；⚠️ 📡。0️⃣ = ⚠️。',
+    failbackCooldownMinutesHelp: '🔀 ⚠️ 📡 ⚠️，⚠️ 📡 ⚠️；⚠️ 📡。0️⃣ = ⚠️。',
     failbackCooldownCompact: '⏱️ {minutes}⚠️',
     retryStatusCodes: '🔁 📏',
     retryStatusCodesPlaceholder: '4📜 / 5📜 ➕ 401 / /^5(02\\|03)$/',
@@ -4455,12 +4446,10 @@ const emoji: DeepStringify<typeof en> = {
     scopeAccess: {
       profile: '`💬 /💬1/💬/💬` `💬 /💬1/💬/💬/💬`',
       email: '`🔔 /🔔1/🔔/🔔/🔔-🔔-🔔-🔔` `🔔 /🔔1/🔔/🔔/🔔`',
-      notification:
-        '`/🔔1/🔔/🔔` `/🔔1/🔔/🔔` `/🔔1/🔔/🔔` `/🔔1/🔔/🔔`',
+      notification: '`/🔔1/🔔/🔔` `/🔔1/🔔/🔔` `/🔔1/🔔/🔔` `/🔔1/🔔/🔔`',
       oauthClient: '`/🔑1/🔑-🔑` `🔑-🔑`',
       accesskey: '`/🔑1/🔑` `🔑-🔑-🔑-🔑-🔑`',
-      passkey:
-        '`/🔑1/🔑/🔑/*` `🔑 /🔑1/🔑/🔑` `🔑 /🔑1/🔑/{credentialId}`',
+      passkey: '`/🔑1/🔑/🔑/*` `🔑 /🔑1/🔑/🔑` `🔑 /🔑1/🔑/{credentialId}`',
       twoFactor: '`/💬1/💬/💬/2💬/*`',
     },
     scopeNotes: {
@@ -4693,8 +4682,7 @@ const emoji: DeepStringify<typeof en> = {
     invalidPublicKey: '⚠️ ⚠️ ⚠️25519 ⚠️ ⚠️ ⚠️',
     keyFingerprint: '🧬 🔑',
     signatureRequest: '✍️ 📨',
-    signatureHeaders:
-      '📩 💬-💬-💬、💬-💬-💬、💬-💬-💬；💬 💬64💬 💬。',
+    signatureHeaders: '📩 💬-💬-💬、💬-💬-💬、💬-💬-💬；💬 💬64💬 💬。',
     jsonContent: '📜 📜',
     access: '📩 🏷️',
     public: '😉',
