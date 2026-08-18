@@ -829,49 +829,83 @@
               </el-form-item>
               <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
                 <template #label>{{ i18ns.t('relay.requestFormatTransforms') }}</template>
-                <div class="flex flex-col gap-2 w-full">
+                <div class="relay-format-transform-list">
                   <div
                     v-for="(rule, index) in editForm.requestFormatTransforms"
                     :key="`${rule.sourceFormat}-${index}`"
-                    class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_32px] gap-2 items-center"
+                    class="relay-format-transform-card"
                   >
-                    <el-select
-                      v-model="rule.sourceFormat"
-                      :aria-label="i18ns.t('relay.sourceFormat')"
-                    >
-                      <el-option
+                    <div class="relay-format-transform-column relay-format-transform-column--source">
+                      <div class="relay-format-transform-column__heading">
+                        <span>{{ i18ns.t('relay.sourceFormat') }}</span>
+                        <span class="relay-format-transform-column__hint">1</span>
+                      </div>
+                      <button
                         v-for="format in requestFormatOptions"
                         :key="format.value"
-                        :label="format.label"
-                        :value="format.value"
+                        type="button"
+                        class="relay-format-transform-node"
+                        :class="{
+                          'relay-format-transform-node--selected': rule.sourceFormat === format.value,
+                        }"
                         :disabled="
                           editForm.requestFormatTransforms.some(
                             (item, itemIndex) =>
                               itemIndex !== index && item.sourceFormat === format.value,
                           )
                         "
-                      />
-                    </el-select>
-                    <span class="text-center text-[#909399]">{{
-                      i18ns.t('relay.transformTo')
-                    }}</span>
-                    <el-select
-                      v-model="rule.targetFormat"
-                      :aria-label="i18ns.t('relay.targetFormat')"
-                    >
-                      <el-option
+                        :aria-pressed="rule.sourceFormat === format.value"
+                        :aria-label="`${i18ns.t('relay.sourceFormat')}: ${format.label}`"
+                        @click="rule.sourceFormat = format.value"
+                      >
+                        <span>{{ format.label }}</span>
+                        <span
+                          v-if="rule.sourceFormat === format.value"
+                          class="relay-format-transform-node__check"
+                          >✓</span
+                        >
+                      </button>
+                    </div>
+                    <div class="relay-format-transform-connector" aria-hidden="true">
+                      <span class="relay-format-transform-connector__line" />
+                      <span class="relay-format-transform-connector__arrow">→</span>
+                      <span class="relay-format-transform-connector__line" />
+                      <span class="relay-format-transform-connector__label">
+                        {{ i18ns.t('relay.transformTo') }}
+                      </span>
+                    </div>
+                    <div class="relay-format-transform-column relay-format-transform-column--target">
+                      <div class="relay-format-transform-column__heading">
+                        <span>{{ i18ns.t('relay.targetFormat') }}</span>
+                        <span class="relay-format-transform-column__hint">2</span>
+                      </div>
+                      <button
                         v-for="format in requestFormatOptions"
                         :key="format.value"
-                        :label="format.label"
-                        :value="format.value"
+                        type="button"
+                        class="relay-format-transform-node"
+                        :class="{
+                          'relay-format-transform-node--selected': rule.targetFormat === format.value,
+                        }"
                         :disabled="format.value === rule.sourceFormat"
-                      />
-                    </el-select>
+                        :aria-pressed="rule.targetFormat === format.value"
+                        :aria-label="`${i18ns.t('relay.targetFormat')}: ${format.label}`"
+                        @click="rule.targetFormat = format.value"
+                      >
+                        <span>{{ format.label }}</span>
+                        <span
+                          v-if="rule.targetFormat === format.value"
+                          class="relay-format-transform-node__check"
+                          >✓</span
+                        >
+                      </button>
+                    </div>
                     <el-tooltip :content="i18ns.t('delete')">
                       <el-button
                         text
                         type="danger"
                         :icon="Delete"
+                        class="relay-format-transform-card__delete"
                         @click="state.removeRequestFormatTransform(index)"
                       />
                     </el-tooltip>
@@ -1065,7 +1099,7 @@ const requestFormatOptions = [
   { value: 'openai-chat-completions', label: 'OpenAI Chat Completions' },
   { value: 'openai-responses', label: 'OpenAI Responses' },
   { value: 'anthropic', label: 'Anthropic Messages' },
-]
+] as const
 
 const setChannelListRef = (element: Element | ComponentPublicInstance | null) => {
   const target = element instanceof HTMLElement ? element : null
@@ -1113,5 +1147,164 @@ const confirmTokenChannelBatchAdd = () => {
   color: var(--el-color-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.relay-format-transform-list {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.relay-format-transform-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px minmax(0, 1fr) 32px;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.relay-format-transform-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.relay-format-transform-column__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.relay-format-transform-column__hint {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-size: 11px;
+}
+
+.relay-format-transform-node {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  background: var(--el-bg-color);
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.relay-format-transform-node:hover:not(:disabled) {
+  border-color: var(--el-color-primary-light-5);
+  color: var(--el-color-primary);
+}
+
+.relay-format-transform-node:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
+}
+
+.relay-format-transform-node--selected {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  box-shadow: 0 0 0 1px var(--el-color-primary-light-7);
+}
+
+.relay-format-transform-node:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.relay-format-transform-node__check {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+
+.relay-format-transform-connector {
+  position: relative;
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--el-color-primary);
+}
+
+.relay-format-transform-connector__line {
+  width: 12px;
+  height: 1px;
+  background: var(--el-color-primary-light-5);
+}
+
+.relay-format-transform-connector__arrow {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.relay-format-transform-connector__label {
+  position: absolute;
+  top: calc(50% + 16px);
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.relay-format-transform-card__delete {
+  align-self: flex-start;
+}
+
+@media (max-width: 640px) {
+  .relay-format-transform-card {
+    grid-template-columns: minmax(0, 1fr) 32px;
+  }
+
+  .relay-format-transform-column--source {
+    grid-column: 1;
+  }
+
+  .relay-format-transform-column--target {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .relay-format-transform-connector {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 28px;
+    transform: rotate(90deg);
+  }
+
+  .relay-format-transform-connector__label {
+    display: none;
+  }
+
+  .relay-format-transform-card__delete {
+    grid-column: 2;
+    grid-row: 1;
+  }
 }
 </style>

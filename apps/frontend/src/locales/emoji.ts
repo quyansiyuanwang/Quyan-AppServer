@@ -2825,8 +2825,8 @@ const emoji: DeepStringify<typeof en> = {
     requestFormatTransformsRiskTitle: '⚠️ 📦 🔁',
     requestFormatTransformsRisk:
       '⚠️ 📦 🔁 ➡️ 🏷️ 🚫/🫥，🧠 🌀；🧩/🔧/🌊 🚫 ➡️ 💥/🚫📨。💰 📡。🎯 📡 🤖 ✅ 📦。',
-    sourceFormat: '↗️ 📦',
-    targetFormat: '↘️ 📦',
+    sourceFormat: '👤 📨',
+    targetFormat: '⬆️ 📨',
     transformTo: '➡️',
     advancedSettings: '🧠 ⚙️',
     upstreamUrl: '🌊 🔌 🩺',

@@ -2744,8 +2744,8 @@ export default {
     requestFormatTransformsRiskTitle: 'Conversion Risks',
     requestFormatTransformsRisk:
       'Conversion may drop fields or cause them to be ignored by the target format, and complex content may change meaning. Incompatible fields, tool calls, or streaming events can make conversion fail or cause the request to be rejected. Converted requests are billed according to how the target channel processes them. Make sure the target channel and model support the target format.',
-    sourceFormat: 'Source format',
-    targetFormat: 'Target format',
+    sourceFormat: 'Client request format',
+    targetFormat: 'Upstream request format',
     transformTo: 'to',
     advancedSettings: 'Advanced Settings',
     upstreamUrl: 'Upstream API URL',

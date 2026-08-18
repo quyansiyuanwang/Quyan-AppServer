@@ -2656,8 +2656,8 @@ const zhCN: DeepStringify<typeof en> = {
     requestFormatTransformsRiskTitle: '转换风险',
     requestFormatTransformsRisk:
       '转换可能导致部分字段丢失或被目标格式忽略，复杂内容的语义也可能发生变化；不兼容的字段、工具调用或流式事件可能导致转换失败或请求被拒绝。转换后的请求按目标渠道实际处理方式计费。请确认目标渠道和模型支持目标格式。',
-    sourceFormat: '来源格式',
-    targetFormat: '目标格式',
+    sourceFormat: '用户侧请求格式',
+    targetFormat: '上游请求格式',
     transformTo: '转换为',
     advancedSettings: '高级设置',
     upstreamUrl: '上游API地址',
