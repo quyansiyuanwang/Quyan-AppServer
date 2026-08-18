@@ -53,7 +53,6 @@ vi.mock('@/stores/themeToggleStore', () => ({
   useThemeToggleStore: () => ({ useIsDark: () => ref(false), toggleTheme: vi.fn() }),
 }))
 
-vi.mock('@/service/authorizationService', () => ({ authorizationService: { logout: vi.fn() } }))
 vi.mock('@/service/navigationService', () => ({ assignDocument }))
 vi.mock('@/router/routes', () => ({ resolveCanonicalRouteUrl: vi.fn() }))
 vi.mock('@/config/site-registry', () => ({
@@ -91,13 +90,12 @@ const stubs = {
   'el-button': { template: '<button><slot /></button>' },
   NavMenuItems: { template: '<div><slot name="pinned" /></div>' },
   LanguageSwitcher: { template: '<div />' },
-  LogoutIcon: { template: '<span />' },
 }
 
 describe('AsideMenu mobile site switcher', () => {
   it('renders the unpin confirmation above the feature overview drawer', () => {
     const wrapper = mount(AsideMenu, {
-      props: { showNavigation: false, showLogout: false },
+      props: { showNavigation: false },
       global: { stubs },
     })
 
@@ -106,7 +104,7 @@ describe('AsideMenu mobile site switcher', () => {
 
   it('opens the site switcher from the header trigger even on the public mobile shell', async () => {
     const wrapper = mount(AsideMenu, {
-      props: { showNavigation: false, showLogout: false },
+      props: { showNavigation: false },
       global: { stubs },
     })
 
@@ -119,5 +117,24 @@ describe('AsideMenu mobile site switcher', () => {
     await wrapper.findAll('.mobile-site-switcher__item').find((item) => item.text().includes('nav.siteAccount'))!.trigger('click')
 
     expect(assignDocument).toHaveBeenCalledWith('https://account.qysyw.test:5173/overview')
+  })
+
+  it('keeps the current site available as an openable destination', async () => {
+    const wrapper = mount(AsideMenu, {
+      props: { showNavigation: false },
+      global: { stubs },
+    })
+
+    ;(wrapper.vm as { openOverview: () => void }).openOverview()
+    await wrapper.vm.$nextTick()
+
+    const currentSite = wrapper
+      .findAll('.mobile-site-switcher__item')
+      .find((item) => item.text().includes('nav.sitePublic'))
+
+    expect(currentSite?.attributes('disabled')).toBeUndefined()
+    await currentSite?.trigger('click')
+
+    expect(assignDocument).toHaveBeenCalledWith('https://www.qysyw.test:5173/home')
   })
 })

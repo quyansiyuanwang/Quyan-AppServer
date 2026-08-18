@@ -85,23 +85,14 @@
     <el-icon><Operation /></el-icon>
     <template #title>{{ i18ns.t('nav.debug') }}</template>
   </el-menu-item>
-
-  <slot name="before-logout" />
-
-  <el-menu-item v-if="showLogout" index="logout" class="item-logout" @click="logout">
-    <el-icon><LogoutIcon :size="16" /></el-icon>
-    <template #title>{{ i18ns.t('logout') }}</template>
-  </el-menu-item>
 </template>
 
 <script lang="ts" setup>
 import { HomeFilled, Operation } from '@element-plus/icons-vue'
 import { computed, useSlots } from 'vue'
 import { i18ns } from '@/locales'
-import LogoutIcon from '@/components/icons/LogoutIcon.vue'
 import router from '@/router'
 import { currentSiteProfile } from '@/router'
-import { authorizationService } from '@/service/authorizationService'
 import { hasFeatureRoute } from '@/plugins/modules'
 import { usePermissionStore } from '@/stores/permissionStore'
 import {
@@ -115,12 +106,11 @@ import type { RouteName } from '@/types/route-types.gen'
 const props = withDefaults(
   defineProps<{
     showSpacer?: boolean
-    showLogout?: boolean
     showPinnedSection?: boolean
     onRouteNavigate?: (name: RouteName, event?: MouseEvent) => void
     onRouteContextMenu?: (name: RouteName, event: MouseEvent) => void
   }>(),
-  { showSpacer: false, showLogout: false, showPinnedSection: false },
+  { showSpacer: false, showPinnedSection: false },
 )
 
 const permissionStore = usePermissionStore()
@@ -145,7 +135,7 @@ const isDebugVisible = computed(
       hasFeatureRoute(currentSiteProfile, route),
     ).length > 0,
 )
-const hasTrailingNavigation = computed(() => props.showLogout || isDebugVisible.value)
+const hasTrailingNavigation = computed(() => isDebugVisible.value)
 
 const nav = (name: RouteName, event?: MouseEvent) => {
   props.onRouteNavigate?.(name, event)
@@ -154,7 +144,6 @@ const nav = (name: RouteName, event?: MouseEvent) => {
 
 const openRouteMenu = (name: RouteName, event: MouseEvent) =>
   props.onRouteContextMenu?.(name, event)
-const logout = () => authorizationService.logout()
 </script>
 
 <style scoped>
@@ -175,14 +164,5 @@ const logout = () => authorizationService.logout()
 }
 .item-muted:hover {
   opacity: 0.8;
-}
-.item-logout {
-  color: var(--el-color-danger) !important;
-}
-.item-logout :deep(.el-icon) {
-  color: var(--el-color-danger) !important;
-}
-.item-logout:hover {
-  background: var(--el-color-danger-light-9) !important;
 }
 </style>
