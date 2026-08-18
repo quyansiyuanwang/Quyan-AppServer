@@ -715,6 +715,7 @@ const zhCN: DeepStringify<typeof en> = {
   },
 
   nav: {
+    appMenu: '应用菜单',
     openSite: '打开站点',
     switchToMultiDomain: '切换至多域名前端',
     sitePublic: '官网',
