@@ -12,6 +12,7 @@ import {
   siteProfileIds,
   siteProfiles,
 } from '@/config/site-registry'
+import { hasDomainViewLoader } from '@/router/domain-view-loader'
 
 describe('site registry', () => {
   it('resolves explicitly registered production and nested console hosts', () => {
@@ -102,6 +103,12 @@ describe('site registry', () => {
     expect(siteProfileIds).toEqual(siteDefinitions.map((definition) => definition.id))
   })
 
+  it('discovers a route-view plugin for every site profile', () => {
+    for (const siteId of siteProfileIds) {
+      expect(hasDomainViewLoader(siteId), siteId).toBe(true)
+    }
+  })
+
   it('accepts only registered canonical origins and normalizes default ports', () => {
     expect(resolveSiteProfileFromOrigin('HTTPS://auth.qysyw.cn:443')).toMatchObject({
       id: 'identity',
@@ -155,10 +162,12 @@ describe('site registry', () => {
 
     expect(staging).toMatchObject({ id: 'public', deploymentId: 'staging' })
     expect(stagingAccount).toMatchObject({ id: 'account', deploymentId: 'staging' })
-    expect(getSiteProfilesForEnvironment(stagingAccount).every((profile) =>
-      profile.hostname === 'staging.qysyw.cn' ||
-      profile.hostname.endsWith('.staging.qysyw.cn'),
-    )).toBe(true)
+    expect(
+      getSiteProfilesForEnvironment(stagingAccount).every(
+        (profile) =>
+          profile.hostname === 'staging.qysyw.cn' || profile.hostname.endsWith('.staging.qysyw.cn'),
+      ),
+    ).toBe(true)
     expect(resolveSiteProfile('noexist.staging.qysyw.cn')).toMatchObject({ id: 'rejected' })
   })
 
