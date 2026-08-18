@@ -53,7 +53,6 @@ vi.mock('@/stores/themeToggleStore', () => ({
   useThemeToggleStore: () => ({ useIsDark: () => ref(false), toggleTheme: vi.fn() }),
 }))
 
-vi.mock('@/service/authorizationService', () => ({ authorizationService: { logout: vi.fn() } }))
 vi.mock('@/service/navigationService', () => ({ assignDocument }))
 vi.mock('@/router/routes', () => ({ resolveCanonicalRouteUrl: vi.fn() }))
 vi.mock('@/config/site-registry', () => ({
@@ -91,13 +90,12 @@ const stubs = {
   'el-button': { template: '<button><slot /></button>' },
   NavMenuItems: { template: '<div><slot name="pinned" /></div>' },
   LanguageSwitcher: { template: '<div />' },
-  LogoutIcon: { template: '<span />' },
 }
 
 describe('AsideMenu mobile site switcher', () => {
   it('renders the unpin confirmation above the feature overview drawer', () => {
     const wrapper = mount(AsideMenu, {
-      props: { showNavigation: false, showLogout: false },
+      props: { showNavigation: false },
       global: { stubs },
     })
 
@@ -106,7 +104,7 @@ describe('AsideMenu mobile site switcher', () => {
 
   it('opens the site switcher from the header trigger even on the public mobile shell', async () => {
     const wrapper = mount(AsideMenu, {
-      props: { showNavigation: false, showLogout: false },
+      props: { showNavigation: false },
       global: { stubs },
     })
 

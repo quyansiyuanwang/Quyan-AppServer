@@ -41,7 +41,6 @@
     >
       <NavMenuItems
         :show-spacer="true"
-        :show-logout="props.showLogout"
         :show-pinned-section="currentSitePinnedItems.length > 0 && !showIsDesktopIcon"
         :on-route-navigate="handleRouteNavigation"
         :on-route-context-menu="openRouteContextMenu"
@@ -354,11 +353,6 @@
         <span>{{ i18ns.t('nav.settings') }}</span>
       </div>
 
-      <div v-if="props.showLogout" class="tab-item" @click="authorizationService.logout()">
-        <el-icon><LogoutIcon :size="22" /></el-icon>
-        <span>{{ i18ns.t('logout') }}</span>
-      </div>
-
       <div class="tab-item" @click="openMobileNavigation">
         <el-icon><MoreFilled /></el-icon>
         <span>{{ i18ns.t('nav.more') }}</span>
@@ -438,7 +432,6 @@
           <el-menu ref="mobileMenuRef" class="mobile-aside-nav" @select="showMobileDrawer = false">
             <NavMenuItems
               :show-spacer="false"
-              :show-logout="props.showLogout"
               :show-pinned-section="currentSitePinnedItems.length > 0"
               :on-route-navigate="handleRouteNavigation"
             >
@@ -573,8 +566,6 @@ import {
 } from 'vue'
 import router from '@/router'
 import { useIsDesktopStore } from '@/stores/isDesktopStore'
-import { authorizationService } from '@/service/authorizationService'
-import LogoutIcon from '@/components/icons/LogoutIcon.vue'
 import NavMenuItems from '@/layouts/NavMenuItems.vue'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import { useThemeToggleStore } from '@/stores/themeToggleStore'
@@ -601,11 +592,10 @@ const OVERVIEW_CONFIRMATION_Z_INDEX = OVERVIEW_DRAWER_Z_INDEX + 1
 
 const props = withDefaults(
   defineProps<{
-    showLogout?: boolean
     showNavigation?: boolean
     collapsed?: boolean
   }>(),
-  { showLogout: true, showNavigation: true, collapsed: false },
+  { showNavigation: true, collapsed: false },
 )
 const emit = defineEmits<{ 'update:collapsed': [collapsed: boolean] }>()
 
