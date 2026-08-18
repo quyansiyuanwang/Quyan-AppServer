@@ -156,14 +156,9 @@ export default defineConfig(({ mode }) => {
   const resolveNodeModuleChunk = (moduleId: string): string | undefined => {
     // Keep truly shared app/runtime dependencies in a stable base chunk.
     if (
-      moduleId.includes('/vue/') ||
-      moduleId.includes('/@vue/') ||
-      moduleId.includes('/pinia/') ||
-      moduleId.includes('/vue-router/') ||
-      moduleId.includes('/vue-i18n/') ||
-      moduleId.includes('/@intlify/') ||
-      moduleId.includes('/@vueuse/') ||
-      moduleId.includes('/vue-demi/')
+      /\/node_modules\/(?:vue|pinia|vue-router|vue-i18n)(?:\/|$)/.test(moduleId) ||
+      /\/node_modules\/@vue(?:\/|$)/.test(moduleId) ||
+      /\/node_modules\/@intlify(?:\/|$)/.test(moduleId)
     ) {
       return 'framework'
     }
@@ -198,11 +193,22 @@ export default defineConfig(({ mode }) => {
       return 'xlsx'
     }
 
-    // Ordinary third-party dependencies share the same stable runtime chunk
-    // as Vue. Keeping them together avoids a framework↔vendor initialization
-    // cycle when a root component (for example Element Plus config) imports
-    // both Vue and UI-runtime helpers.
-    return 'framework'
+    // crypto-js pulls Node/browser external shims in some builds. Forcing it
+    // into the shared vendor chunk can make the entry chunk appear as a
+    // reverse dependency (`index -> vendor -> index`), which is an unsafe ESM
+    // initialization cycle. Let the graph-aware splitter keep it with the
+    // feature that actually uses it.
+    if (moduleId.includes('/crypto-js/')) {
+      return undefined
+    }
+
+    // Keep non-core dependencies in a separate stable vendor layer. The
+    // framework chunk must only contain the Vue runtime and its direct peers:
+    // packages such as VueUse and Element Plus import Vue, but Vue itself must
+    // never import those packages back. This one-way edge prevents the
+    // framework/vendor ESM initialization cycles that previously produced
+    // production-only "Cannot access ... before initialization" failures.
+    return 'vendor'
   }
 
   const resolveApplicationChunk = (moduleId: string): string | undefined => {
@@ -213,13 +219,6 @@ export default defineConfig(({ mode }) => {
 
     const domainViewLoaderMatch = moduleId.match(/\/src\/router\/domain-views\/([a-z0-9_-]+)\.ts$/)
     if (domainViewLoaderMatch) return `domain-${domainViewLoaderMatch[1]}`
-
-    // Keep shared UI code together to avoid a request per component. Service,
-    // store, generated-client and utility modules are intentionally left to
-    // Rolldown's graph-aware splitter: forcing them into one chunk can pull
-    // Vite preload helpers back through the entry and create an ESM cycle
-    // (app-shared -> index -> app-shared) that fails only in production.
-    if (moduleId.includes('/src/components/')) return 'ui-shared'
 
     // Site modules and application roots are selected from the hostname. They
     // must remain independent dynamic imports so one deployment does not load
@@ -325,6 +324,65 @@ export default defineConfig(({ mode }) => {
       if (!entry) return
 
       const chunksByFileName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]))
+      const indexChunk = chunks.find((chunk) => /^assets\/index-/.test(chunk.fileName))
+      const vendorChunk = chunks.find((chunk) => /^assets\/vendor-/.test(chunk.fileName))
+      const indexModules = new Set(Object.keys(indexChunk?.modules ?? {}))
+      const vendorToIndexEdges = Object.keys(vendorChunk?.modules ?? {}).flatMap((moduleId) => {
+        const info = this.getModuleInfo(moduleId)
+        return (info?.importedIds ?? [])
+          .filter((importedId) => indexModules.has(importedId))
+          .map((importedId) => `${moduleId} -> ${importedId}`)
+      })
+      if (vendorToIndexEdges.length > 0) {
+        throw new Error(
+          `Vendor chunk depends on entry modules: ${vendorToIndexEdges.slice(0, 12).join(', ')}`,
+        )
+      }
+      const visitedChunks = new Set<string>()
+      const visitingChunks = new Set<string>()
+      const visitChunkGraph = (fileName: string, stack: string[] = []) => {
+        if (visitingChunks.has(fileName)) {
+          const cycleStart = stack.indexOf(fileName)
+          const cycle = [...stack.slice(cycleStart), fileName].join(' -> ')
+          const cycleModules = cycle
+            .split(' -> ')
+            .map((name) => chunksByFileName.get(name))
+            .flatMap((chunk) => Object.keys(chunk?.modules ?? {}).slice(0, 24))
+          const isRouteBoundaryCycle = [...cycleModules].some((moduleId) =>
+            /\/src\/(?:router\/domain-views|views)\//.test(moduleId.replace(/\\/g, '/')),
+          )
+          // Domain registry cycles are executed through Rolldown's strict
+          // execution-order runtime below. Other cycles (especially the
+          // framework/vendor/entry layers) remain a release blocker.
+          if (!isRouteBoundaryCycle) {
+            throw new Error(
+              `Static framework chunk dependency cycle detected: ${cycle}\nModules: ${cycleModules.join(', ')}\n` +
+                `Vendor-to-index edges: ${vendorToIndexEdges.slice(0, 12).join(', ')}`,
+            )
+          }
+          visitingChunks.delete(fileName)
+          visitedChunks.add(fileName)
+          return
+        }
+        if (visitedChunks.has(fileName)) return
+        visitingChunks.add(fileName)
+        const chunk = chunksByFileName.get(fileName)
+        chunk?.imports.forEach((dependency) => visitChunkGraph(dependency, [...stack, fileName]))
+        visitingChunks.delete(fileName)
+        visitedChunks.add(fileName)
+      }
+      chunks.forEach((chunk) => visitChunkGraph(chunk.fileName))
+
+      const frameworkChunk = chunks.find((chunk) => /^assets\/framework-/.test(chunk.fileName))
+      const unsafeFrameworkModule = Object.keys(frameworkChunk?.modules ?? {}).find((moduleId) =>
+        /\/node_modules\/(?:\.pnpm\/)?(?:@vueuse(?:[+/])|vue-demi(?:[\/]))/.test(
+          moduleId.replace(/\\/g, '/'),
+        ),
+      )
+      if (unsafeFrameworkModule) {
+        throw new Error(`Non-core Vue dependency was assigned to framework: ${unsafeFrameworkModule}`)
+      }
+
       const initialChunkNames = new Set<string>()
       const visit = (fileName: string) => {
         if (initialChunkNames.has(fileName)) return
@@ -639,15 +697,18 @@ export default defineConfig(({ mode }) => {
         resolveDependencies: (_url, deps) => deps.filter((dep) => !shouldSkipModulePreload(dep)),
       },
       rollupOptions: {
+        preserveEntrySignatures: 'allow-extension',
+        experimental: {
+          strictExecutionOrder: true,
+        },
         output: {
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
           hoistTransitiveImports: false,
-          // Domain modules are entered exclusively through dynamic route
-          // loaders. Recursion would pull an optional capability through a
-          // shared service edge into the first document, so dependencies stay
-          // graph-split until they are explicitly requested by the route.
           advancedChunks: {
+            // Only explicitly selected boundaries are captured. Shared
+            // application dependencies remain graph-owned so they cannot
+            // create a reverse edge from a domain chunk into the entry.
             includeDependenciesRecursively: false,
             groups: [{ name: resolveManualChunk }],
           },
