@@ -755,6 +755,7 @@ export default {
   },
 
   nav: {
+    appMenu: 'App menu',
     openSite: 'Open site',
     switchToMultiDomain: 'Switch to multi-domain frontend',
     sitePublic: 'Website',
