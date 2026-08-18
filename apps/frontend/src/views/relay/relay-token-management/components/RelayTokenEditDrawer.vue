@@ -835,7 +835,9 @@
                     :key="`${rule.sourceFormat}-${index}`"
                     class="relay-format-transform-card"
                   >
-                    <div class="relay-format-transform-column relay-format-transform-column--source">
+                    <div
+                      class="relay-format-transform-column relay-format-transform-column--source"
+                    >
                       <div class="relay-format-transform-column__heading">
                         <span>{{ i18ns.t('relay.sourceFormat') }}</span>
                         <span class="relay-format-transform-column__hint">1</span>
@@ -846,7 +848,8 @@
                         type="button"
                         class="relay-format-transform-node"
                         :class="{
-                          'relay-format-transform-node--selected': rule.sourceFormat === format.value,
+                          'relay-format-transform-node--selected':
+                            rule.sourceFormat === format.value,
                         }"
                         :disabled="
                           editForm.requestFormatTransforms.some(
@@ -874,7 +877,9 @@
                         {{ i18ns.t('relay.transformTo') }}
                       </span>
                     </div>
-                    <div class="relay-format-transform-column relay-format-transform-column--target">
+                    <div
+                      class="relay-format-transform-column relay-format-transform-column--target"
+                    >
                       <div class="relay-format-transform-column__heading">
                         <span>{{ i18ns.t('relay.targetFormat') }}</span>
                         <span class="relay-format-transform-column__hint">2</span>
@@ -885,7 +890,8 @@
                         type="button"
                         class="relay-format-transform-node"
                         :class="{
-                          'relay-format-transform-node--selected': rule.targetFormat === format.value,
+                          'relay-format-transform-node--selected':
+                            rule.targetFormat === format.value,
                         }"
                         :disabled="format.value === rule.sourceFormat"
                         :aria-pressed="rule.targetFormat === format.value"
