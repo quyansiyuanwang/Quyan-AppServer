@@ -5,7 +5,7 @@ import {
   type SiteRouteGroup,
 } from '@/config/site-registry'
 import { getRouteCatalogEntry, getRouteGroup } from '@/router/route-catalog'
-import { lazyFeatureView } from '@/router/feature-view-loader'
+import { bindRouteView, lazyFeatureView, lazyOptionalView } from '@/router/feature-view-loader'
 import type { RouteRecordRaw } from 'vue-router'
 
 export const routes = [
@@ -83,7 +83,7 @@ export const routes = [
       {
         path: '/auth/passkeys',
         name: 'authPasskeyManagement',
-        component: lazyFeatureView('settings', 'PasskeyManagementView.vue'),
+        component: lazyOptionalView(() => import('@/views/settings/PasskeyManagementView.vue')),
       },
       {
         path: '/auth/external/bind',
@@ -1205,7 +1205,7 @@ export const routes = [
   },
   {
     path: '/:catchAll(.*)',
-    component: lazyFeatureView('misc', 'common/404View.vue'),
+    component: () => import('@/views/common/404View.vue'),
     meta: {
       allowGuest: true,
     },
@@ -1251,8 +1251,13 @@ const cloneRouteForProfile = (
   if (group && !profile.routeGroups.includes(group)) return undefined
   if (!group && route.children?.length && !children?.length) return undefined
 
+  const boundComponent =
+    typeof route.name === 'string' && route.component
+      ? bindRouteView(route.name, route.component)
+      : route.component
   const clonedRoute = {
     ...route,
+    ...(boundComponent ? { component: boundComponent } : {}),
     ...(children ? { children } : {}),
   } as RouteRecordRaw
 

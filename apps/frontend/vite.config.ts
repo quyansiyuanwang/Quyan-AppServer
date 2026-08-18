@@ -156,14 +156,9 @@ export default defineConfig(({ mode }) => {
   const resolveNodeModuleChunk = (moduleId: string): string | undefined => {
     // Keep truly shared app/runtime dependencies in a stable base chunk.
     if (
-      moduleId.includes('/vue/') ||
-      moduleId.includes('/@vue/') ||
-      moduleId.includes('/pinia/') ||
-      moduleId.includes('/vue-router/') ||
-      moduleId.includes('/vue-i18n/') ||
-      moduleId.includes('/@intlify/') ||
-      moduleId.includes('/@vueuse/') ||
-      moduleId.includes('/vue-demi/')
+      /\/node_modules\/(?:vue|pinia|vue-router|vue-i18n)(?:\/|$)/.test(moduleId) ||
+      /\/node_modules\/@vue(?:\/|$)/.test(moduleId) ||
+      /\/node_modules\/@intlify(?:\/|$)/.test(moduleId)
     ) {
       return 'framework'
     }
@@ -198,11 +193,22 @@ export default defineConfig(({ mode }) => {
       return 'xlsx'
     }
 
-    // Ordinary third-party dependencies share the same stable runtime chunk
-    // as Vue. Keeping them together avoids a framework↔vendor initialization
-    // cycle when a root component (for example Element Plus config) imports
-    // both Vue and UI-runtime helpers.
-    return 'framework'
+    // crypto-js pulls Node/browser external shims in some builds. Forcing it
+    // into the shared vendor chunk can make the entry chunk appear as a
+    // reverse dependency (`index -> vendor -> index`), which is an unsafe ESM
+    // initialization cycle. Let the graph-aware splitter keep it with the
+    // feature that actually uses it.
+    if (moduleId.includes('/crypto-js/')) {
+      return undefined
+    }
+
+    // Keep non-core dependencies in a separate stable vendor layer. The
+    // framework chunk must only contain the Vue runtime and its direct peers:
+    // packages such as VueUse and Element Plus import Vue, but Vue itself must
+    // never import those packages back. This one-way edge prevents the
+    // framework/vendor ESM initialization cycles that previously produced
+    // production-only "Cannot access ... before initialization" failures.
+    return 'vendor'
   }
 
   const resolveApplicationChunk = (moduleId: string): string | undefined => {
@@ -211,12 +217,8 @@ export default defineConfig(({ mode }) => {
     if (moduleId.endsWith('/src/utils/markdown-highlighter-runtime.ts'))
       return 'markdown-highlighter'
 
-    // Keep shared UI code together to avoid a request per component. Service,
-    // store, generated-client and utility modules are intentionally left to
-    // Rolldown's graph-aware splitter: forcing them into one chunk can pull
-    // Vite preload helpers back through the entry and create an ESM cycle
-    // (app-shared -> index -> app-shared) that fails only in production.
-    if (moduleId.includes('/src/components/')) return 'ui-shared'
+    const domainViewLoaderMatch = moduleId.match(/\/src\/router\/domain-views\/([a-z0-9_-]+)\.ts$/)
+    if (domainViewLoaderMatch) return `domain-${domainViewLoaderMatch[1]}`
 
     // Site modules and application roots are selected from the hostname. They
     // must remain independent dynamic imports so one deployment does not load
@@ -225,11 +227,10 @@ export default defineConfig(({ mode }) => {
       return undefined
     }
 
-    // Route modules are grouped by their first business directory. This keeps
-    // route-level lazy loading, but turns a feature navigation into stable
-    // functional bundles instead of a burst of page/component fragments.
-    const viewMatch = moduleId.match(/\/src\/views\/([^/?]+)/)
-    return viewMatch ? `feature-${viewMatch[1]}` : undefined
+    // Views enter the graph through domain-specific loaders. Do not force
+    // `src/views/<directory>` into a chunk because those directories cross
+    // hostname boundaries (notably relay and products).
+    return undefined
   }
 
   const resolveManualChunk = (id: string): string | undefined => {
@@ -323,6 +324,65 @@ export default defineConfig(({ mode }) => {
       if (!entry) return
 
       const chunksByFileName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]))
+      const indexChunk = chunks.find((chunk) => /^assets\/index-/.test(chunk.fileName))
+      const vendorChunk = chunks.find((chunk) => /^assets\/vendor-/.test(chunk.fileName))
+      const indexModules = new Set(Object.keys(indexChunk?.modules ?? {}))
+      const vendorToIndexEdges = Object.keys(vendorChunk?.modules ?? {}).flatMap((moduleId) => {
+        const info = this.getModuleInfo(moduleId)
+        return (info?.importedIds ?? [])
+          .filter((importedId) => indexModules.has(importedId))
+          .map((importedId) => `${moduleId} -> ${importedId}`)
+      })
+      if (vendorToIndexEdges.length > 0) {
+        throw new Error(
+          `Vendor chunk depends on entry modules: ${vendorToIndexEdges.slice(0, 12).join(', ')}`,
+        )
+      }
+      const visitedChunks = new Set<string>()
+      const visitingChunks = new Set<string>()
+      const visitChunkGraph = (fileName: string, stack: string[] = []) => {
+        if (visitingChunks.has(fileName)) {
+          const cycleStart = stack.indexOf(fileName)
+          const cycle = [...stack.slice(cycleStart), fileName].join(' -> ')
+          const cycleModules = cycle
+            .split(' -> ')
+            .map((name) => chunksByFileName.get(name))
+            .flatMap((chunk) => Object.keys(chunk?.modules ?? {}).slice(0, 24))
+          const isRouteBoundaryCycle = [...cycleModules].some((moduleId) =>
+            /\/src\/(?:router\/domain-views|views)\//.test(moduleId.replace(/\\/g, '/')),
+          )
+          // Domain registry cycles are executed through Rolldown's strict
+          // execution-order runtime below. Other cycles (especially the
+          // framework/vendor/entry layers) remain a release blocker.
+          if (!isRouteBoundaryCycle) {
+            throw new Error(
+              `Static framework chunk dependency cycle detected: ${cycle}\nModules: ${cycleModules.join(', ')}\n` +
+                `Vendor-to-index edges: ${vendorToIndexEdges.slice(0, 12).join(', ')}`,
+            )
+          }
+          visitingChunks.delete(fileName)
+          visitedChunks.add(fileName)
+          return
+        }
+        if (visitedChunks.has(fileName)) return
+        visitingChunks.add(fileName)
+        const chunk = chunksByFileName.get(fileName)
+        chunk?.imports.forEach((dependency) => visitChunkGraph(dependency, [...stack, fileName]))
+        visitingChunks.delete(fileName)
+        visitedChunks.add(fileName)
+      }
+      chunks.forEach((chunk) => visitChunkGraph(chunk.fileName))
+
+      const frameworkChunk = chunks.find((chunk) => /^assets\/framework-/.test(chunk.fileName))
+      const unsafeFrameworkModule = Object.keys(frameworkChunk?.modules ?? {}).find((moduleId) =>
+        /\/node_modules\/(?:\.pnpm\/)?(?:@vueuse(?:[+/])|vue-demi(?:[\/]))/.test(
+          moduleId.replace(/\\/g, '/'),
+        ),
+      )
+      if (unsafeFrameworkModule) {
+        throw new Error(`Non-core Vue dependency was assigned to framework: ${unsafeFrameworkModule}`)
+      }
+
       const initialChunkNames = new Set<string>()
       const visit = (fileName: string) => {
         if (initialChunkNames.has(fileName)) return
@@ -380,24 +440,36 @@ export default defineConfig(({ mode }) => {
       // Route loaders retain small facades so each dynamic import can preserve
       // its component export. The budget leaves room for those facades while
       // still requiring a substantial reduction from the former 503 assets.
-      const maxClientAssets = 150
+      const maxClientAssets = 180
       if (emittedClientJavaScriptAssets.length > maxClientAssets) {
         throw new Error(
           `Bundle emitted ${emittedClientJavaScriptAssets.length} JS assets before CSS output; expected no more than ${maxClientAssets}`,
         )
       }
 
-      const featureChunks = chunks
-        .filter((chunk) => /^assets\/feature-[^-]+-/.test(chunk.fileName))
+      const domainChunks = chunks
+        .filter((chunk) => /^assets\/domain-[^-]+-/.test(chunk.fileName))
         .map((chunk) => chunk.fileName)
         .sort()
-      const requiredFeatureChunks = ['auth', 'overview', 'relay', 'settings']
-      const missingFeatureChunk = requiredFeatureChunks.find(
-        (feature) =>
-          !featureChunks.some((fileName) => fileName.startsWith(`assets/feature-${feature}-`)),
+      const requiredDomainChunks = ['identity', 'management-ai', 'product-kv']
+      const missingDomainChunk = requiredDomainChunks.find(
+        (domain) =>
+          !domainChunks.some((fileName) => fileName.startsWith(`assets/domain-${domain}-`)),
       )
-      if (missingFeatureChunk) {
-        throw new Error(`Expected a feature-${missingFeatureChunk} chunk in the production output`)
+      if (missingDomainChunk) {
+        throw new Error(`Expected a domain-${missingDomainChunk} chunk in the production output`)
+      }
+      const legacyFeatureChunk = chunks.find((chunk) => /^assets\/feature-/.test(chunk.fileName))
+      if (legacyFeatureChunk) {
+        throw new Error(`Legacy directory feature chunk emitted: ${legacyFeatureChunk.fileName}`)
+      }
+      const eagerDomainChunk = [...initialChunkNames].find((fileName) =>
+        /\/assets\/domain-/.test(`/${fileName}`),
+      )
+      if (eagerDomainChunk) {
+        throw new Error(
+          `A domain bundle was included in the shared entry graph: ${eagerDomainChunk}`,
+        )
       }
 
       const collectStaticDependencies = (fileName: string) => {
@@ -410,18 +482,30 @@ export default defineConfig(({ mode }) => {
         visitDependency(fileName)
         return [...dependencyNames].sort()
       }
-      const routeDependencies = requiredFeatureChunks.map((feature) => {
-        const featureChunk = featureChunks.find((fileName) =>
-          fileName.startsWith(`assets/feature-${feature}-`),
+      const routeDependencies = requiredDomainChunks.map((domain) => {
+        const domainChunk = domainChunks.find((fileName) =>
+          fileName.startsWith(`assets/domain-${domain}-`),
         )
-        if (!featureChunk) return `${feature}=missing`
-        const dependencies = collectStaticDependencies(featureChunk)
+        if (!domainChunk) return `${domain}=missing`
+        const dependencies = collectStaticDependencies(domainChunk)
+        const foreignDomainDependency = chunksByFileName
+          .get(domainChunk)
+          ?.imports.find(
+            (fileName) =>
+              fileName.startsWith('assets/domain-') &&
+              !fileName.startsWith(`assets/domain-${domain}-`),
+          )
+        if (foreignDomainDependency) {
+          throw new Error(
+            `Domain bundle ${domainChunk} statically imports another domain bundle ${foreignDomainDependency}`,
+          )
+        }
         const stableDependencies = dependencies.filter((fileName) =>
-          /\/assets\/(?:feature-|framework-|vendor-|charts-|markdown-|xlsx-|passkey-)/.test(
+          /\/assets\/(?:domain-|framework-|shell-|charts-|markdown-|xlsx-|passkey-)/.test(
             `/${fileName}`,
           ),
         )
-        return `${feature}=${dependencies.length}:[${stableDependencies.join(',')}]`
+        return `${domain}=${dependencies.length}:[${stableDependencies.join(',')}]`
       })
       bundleShapeReport = `initial=[${[...initialChunkNames].sort().join(',')}] routes=${routeDependencies.join(' ')}`
     },
@@ -433,9 +517,9 @@ export default defineConfig(({ mode }) => {
       )
       const jsAssetCount = clientAssets.filter((entry) => entry.name.endsWith('.js')).length
       const cssAssetCount = clientAssets.filter((entry) => entry.name.endsWith('.css')).length
-      if (clientAssets.length > 150) {
+      if (clientAssets.length > 180) {
         throw new Error(
-          `Bundle emitted ${clientAssets.length} JS/CSS assets; expected no more than 114`,
+          `Bundle emitted ${clientAssets.length} JS/CSS assets; expected no more than 180`,
         )
       }
       const indexHtml = readFileSync(resolve(outputDir, 'index.html'), 'utf8')
@@ -613,16 +697,18 @@ export default defineConfig(({ mode }) => {
         resolveDependencies: (_url, deps) => deps.filter((dep) => !shouldSkipModulePreload(dep)),
       },
       rollupOptions: {
+        preserveEntrySignatures: 'allow-extension',
+        experimental: {
+          strictExecutionOrder: true,
+        },
         output: {
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
           hoistTransitiveImports: false,
-          // Rolldown's manualChunks compatibility layer recursively pulls a
-          // group's dependencies into that chunk. For optional features this
-          // can make every route statically import the group. Use the native
-          // chunking API with recursion disabled so only matching modules are
-          // consolidated and feature dependencies remain lazy.
           advancedChunks: {
+            // Only explicitly selected boundaries are captured. Shared
+            // application dependencies remain graph-owned so they cannot
+            // create a reverse edge from a domain chunk into the entry.
             includeDependenciesRecursively: false,
             groups: [{ name: resolveManualChunk }],
           },

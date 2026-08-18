@@ -82,8 +82,98 @@ type RelayTokenWithRouting = RelayTokenDto & {
 
 type RelayTokenFormat = 'openai-chat-completions' | 'openai-responses' | 'anthropic'
 type RelayFormatTransform = { sourceFormat: RelayTokenFormat; targetFormat: RelayTokenFormat }
+type EditableRelayFormatTransform = {
+  sourceFormat?: RelayTokenFormat
+  targetFormat?: RelayTokenFormat
+}
 type RelayTokenWithTransforms = RelayTokenDto & {
   requestFormatTransforms?: RelayFormatTransform[] | null
+}
+
+export const RELAY_TOKEN_COLUMN_KEYS = [
+  'name',
+  'token',
+  'routing',
+  'stats',
+  'expires',
+  'quota',
+  'status',
+  'id',
+  'owner',
+  'balance',
+  'createdAt',
+  'lastUsedAt',
+  'allowedModels',
+  'ipWhitelist',
+  'modelMapping',
+  'requestFormats',
+] as const
+export type RelayTokenColumnKey = (typeof RELAY_TOKEN_COLUMN_KEYS)[number]
+
+const RELAY_TOKEN_COLUMN_STORAGE_KEY = 'relay-token-management:column-settings:v1'
+const DEFAULT_RELAY_TOKEN_COLUMN_ORDER: RelayTokenColumnKey[] = [...RELAY_TOKEN_COLUMN_KEYS]
+const DEFAULT_RELAY_TOKEN_COLUMN_VISIBILITY: Record<RelayTokenColumnKey, boolean> = {
+  name: true,
+  token: true,
+  routing: true,
+  stats: true,
+  expires: true,
+  quota: true,
+  status: true,
+  id: false,
+  owner: false,
+  balance: false,
+  createdAt: false,
+  lastUsedAt: false,
+  allowedModels: false,
+  ipWhitelist: false,
+  modelMapping: false,
+  requestFormats: false,
+}
+
+type RelayTokenColumnPreferences = {
+  order: RelayTokenColumnKey[]
+  visibility: Record<RelayTokenColumnKey, boolean>
+}
+
+const readRelayTokenColumnPreferences = (): RelayTokenColumnPreferences => {
+  const fallback = {
+    order: [...DEFAULT_RELAY_TOKEN_COLUMN_ORDER],
+    visibility: { ...DEFAULT_RELAY_TOKEN_COLUMN_VISIBILITY },
+  }
+
+  if (typeof window === 'undefined') return fallback
+
+  try {
+    const raw = window.localStorage.getItem(RELAY_TOKEN_COLUMN_STORAGE_KEY)
+    if (!raw) return fallback
+
+    const parsed = JSON.parse(raw) as {
+      order?: unknown
+      visibility?: unknown
+    }
+    const knownKeys = new Set<string>(RELAY_TOKEN_COLUMN_KEYS)
+    const storedOrder = Array.isArray(parsed.order)
+      ? parsed.order.filter(
+          (key): key is RelayTokenColumnKey => typeof key === 'string' && knownKeys.has(key),
+        )
+      : []
+    const order = [
+      ...storedOrder,
+      ...RELAY_TOKEN_COLUMN_KEYS.filter((key) => !storedOrder.includes(key)),
+    ]
+    const visibility = { ...fallback.visibility }
+    if (parsed.visibility && typeof parsed.visibility === 'object') {
+      for (const key of RELAY_TOKEN_COLUMN_KEYS) {
+        const value = (parsed.visibility as Record<string, unknown>)[key]
+        if (typeof value === 'boolean') visibility[key] = value
+      }
+    }
+
+    return { order, visibility }
+  } catch {
+    return fallback
+  }
 }
 
 export type EditableQuotaWindow = RelayTokenQuotaWindowLike & {
@@ -349,6 +439,54 @@ export const useRelayTokenManagement = () => {
   const selectedTokenIds = ref<string[]>([])
   const showTokenImportDialog = ref(false)
   const tokenImportText = ref('')
+  const initialColumnPreferences = readRelayTokenColumnPreferences()
+  const tokenColumnOrder = ref<RelayTokenColumnKey[]>(initialColumnPreferences.order)
+  const tokenColumnVisibility = ref<Record<RelayTokenColumnKey, boolean>>(
+    initialColumnPreferences.visibility,
+  )
+  const visibleTokenColumns = computed(() =>
+    tokenColumnOrder.value.filter((key) => tokenColumnVisibility.value[key]),
+  )
+
+  watch(
+    [tokenColumnOrder, tokenColumnVisibility],
+    ([order, visibility]) => {
+      try {
+        window.localStorage.setItem(
+          RELAY_TOKEN_COLUMN_STORAGE_KEY,
+          JSON.stringify({ order, visibility }),
+        )
+      } catch {
+        // Column preferences are best-effort and must not affect token management.
+      }
+    },
+    { deep: true },
+  )
+
+  const setTokenColumnVisibility = (key: RelayTokenColumnKey, visible: boolean) => {
+    if (!visible && visibleTokenColumns.value.length <= 1) {
+      ElMessage.warning(i18ns.t('relay.columnSettingsKeepOne'))
+      return
+    }
+    tokenColumnVisibility.value[key] = visible
+  }
+
+  const moveTokenColumn = (key: RelayTokenColumnKey, direction: -1 | 1) => {
+    const index = tokenColumnOrder.value.indexOf(key)
+    const targetIndex = index + direction
+    if (index < 0 || targetIndex < 0 || targetIndex >= tokenColumnOrder.value.length) return
+
+    const nextOrder = [...tokenColumnOrder.value]
+    const [moved] = nextOrder.splice(index, 1)
+    if (!moved) return
+    nextOrder.splice(targetIndex, 0, moved)
+    tokenColumnOrder.value = nextOrder
+  }
+
+  const resetTokenColumnSettings = () => {
+    tokenColumnOrder.value = [...DEFAULT_RELAY_TOKEN_COLUMN_ORDER]
+    tokenColumnVisibility.value = { ...DEFAULT_RELAY_TOKEN_COLUMN_VISIBILITY }
+  }
 
   const canManageAllTokens = computed(() =>
     permissionStore.hasPermission(Permission.RELAY_TOKEN_MANAGE_OTHERS_READ),
@@ -450,7 +588,7 @@ export const useRelayTokenManagement = () => {
     channelConfigs: [createEmptyChannelConfig(0)] as EditableChannelConfig[],
     failoverConfig: createDefaultFailoverConfig() as EditableFailoverConfig,
     modelMapping: {} as Record<string, string>,
-    requestFormatTransforms: [] as RelayFormatTransform[],
+    requestFormatTransforms: [] as EditableRelayFormatTransform[],
   })
 
   const editForm = ref({
@@ -1496,8 +1634,11 @@ export const useRelayTokenManagement = () => {
       },
       modelMapping: (row.modelMapping as Record<string, string>) || {},
       requestFormatTransforms:
-        (row as RelayTokenWithTransforms).requestFormatTransforms?.map((rule) => ({ ...rule })) ||
-        [],
+        (row as RelayTokenWithTransforms).requestFormatTransforms?.map((rule) => ({
+          sourceFormat: rule.sourceFormat,
+          // A legacy invalid rule must not remain selectable as a no-op conversion.
+          targetFormat: rule.sourceFormat === rule.targetFormat ? undefined : rule.targetFormat,
+        })) || [],
     }
 
     showEditDialog.value = true
@@ -1610,22 +1751,63 @@ export const useRelayTokenManagement = () => {
 
   const addRequestFormatTransform = () => {
     if (editForm.value.requestFormatTransforms.length >= MAX_REQUEST_FORMAT_TRANSFORMS) return
-    const usedSources = new Set(
-      editForm.value.requestFormatTransforms.map((rule) => rule.sourceFormat),
-    )
-    const sourceFormat = (
-      ['openai-chat-completions', 'openai-responses', 'anthropic'] as RelayTokenFormat[]
-    ).find((format) => !usedSources.has(format))
-    if (!sourceFormat) return
-    editForm.value.requestFormatTransforms.push({
-      sourceFormat,
-      targetFormat:
-        sourceFormat === 'openai-chat-completions' ? 'anthropic' : 'openai-chat-completions',
-    })
+    editForm.value.requestFormatTransforms.push({})
   }
 
   const removeRequestFormatTransform = (index: number) => {
     editForm.value.requestFormatTransforms.splice(index, 1)
+  }
+
+  const selectRequestFormatTransformSource = (
+    rule: EditableRelayFormatTransform,
+    format: RelayTokenFormat,
+  ) => {
+    if (rule.sourceFormat === format) {
+      rule.sourceFormat = undefined
+      return
+    }
+
+    rule.sourceFormat = format
+    if (rule.targetFormat === format) rule.targetFormat = undefined
+  }
+
+  const selectRequestFormatTransformTarget = (
+    rule: EditableRelayFormatTransform,
+    format: RelayTokenFormat,
+  ) => {
+    if (rule.targetFormat === format) {
+      rule.targetFormat = undefined
+      return
+    }
+
+    rule.targetFormat = format
+    if (rule.sourceFormat === format) rule.sourceFormat = undefined
+  }
+
+  const normalizeRequestFormatTransformsPayload = (): RelayFormatTransform[] => {
+    const sources = new Set<RelayTokenFormat>()
+
+    return editForm.value.requestFormatTransforms.map((rule, index) => {
+      if (!rule.sourceFormat || !rule.targetFormat) {
+        throw new Error(i18ns.t('relay.requestFormatTransformIncomplete', { index: index + 1 }))
+      }
+
+      if (rule.sourceFormat === rule.targetFormat) {
+        throw new Error(i18ns.t('relay.requestFormatTransformSameFormat', { index: index + 1 }))
+      }
+
+      if (sources.has(rule.sourceFormat)) {
+        throw new Error(
+          i18ns.t('relay.requestFormatTransformSourceDuplicate', { index: index + 1 }),
+        )
+      }
+      sources.add(rule.sourceFormat)
+
+      return {
+        sourceFormat: rule.sourceFormat,
+        targetFormat: rule.targetFormat,
+      }
+    })
   }
 
   const normalizeQuotaWindowsPayload = () => {
@@ -1827,6 +2009,7 @@ export const useRelayTokenManagement = () => {
       const blockedAutomaticProxyPoolChannelIds =
         routingMode === 'automatic-pool' ? buildBlockedAutomaticProxyPoolChannelIdsPayload() : []
       const quotaWindows = normalizeQuotaWindowsPayload()
+      const requestFormatTransforms = normalizeRequestFormatTransformsPayload()
       const allowedModelsStr = editForm.value.allowedModelIdsList.join(',')
       const normalizedName = editForm.value.name.trim()
       editForm.value.ipWhitelist = normalizeIpWhitelistEntries(editForm.value.ipWhitelist)
@@ -1871,7 +2054,7 @@ export const useRelayTokenManagement = () => {
           allowedModels: allowedModelsStr || undefined,
           ipWhitelist,
           modelMapping,
-          requestFormatTransforms: editForm.value.requestFormatTransforms,
+          requestFormatTransforms,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.createRelayToken(data)
@@ -1899,7 +2082,7 @@ export const useRelayTokenManagement = () => {
           allowedModels: allowedModelsStr || null,
           ipWhitelist: ipWhitelist || null,
           modelMapping,
-          requestFormatTransforms: editForm.value.requestFormatTransforms,
+          requestFormatTransforms,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.updateToken(currentEditId.value, data)
@@ -2268,6 +2451,20 @@ export const useRelayTokenManagement = () => {
     return `${row.requestCount || 0} / ${formatNumber(row.totalTokens || 0)}`
   }
 
+  const formatModelMapping = (row: RelayTokenDto) => {
+    const entries = Object.entries(row.modelMapping || {})
+    return entries.length
+      ? entries.map(([source, target]) => `${source} → ${target}`).join(', ')
+      : '-'
+  }
+
+  const formatRequestFormatTransforms = (row: RelayTokenDto) => {
+    const transforms = row.requestFormatTransforms || []
+    return transforms.length
+      ? transforms.map((rule) => `${rule.sourceFormat} → ${rule.targetFormat}`).join(', ')
+      : '-'
+  }
+
   const formatCompactFailoverSummary = (row: RelayTokenDto) => {
     const maxAcceptedChannelMultiplier = row.failoverConfig?.maxAcceptedChannelMultiplier
     const multiplierText =
@@ -2543,6 +2740,12 @@ export const useRelayTokenManagement = () => {
     searchTokenKeyword,
     showAllMode,
     selectedTokenIds,
+    tokenColumnOrder,
+    tokenColumnVisibility,
+    visibleTokenColumns,
+    setTokenColumnVisibility,
+    moveTokenColumn,
+    resetTokenColumnSettings,
     showTokenImportDialog,
     tokenImportText,
     canManageAllTokens,
@@ -2621,6 +2824,8 @@ export const useRelayTokenManagement = () => {
     formatChannelSummary,
     formatMobileChannelMeta,
     formatTokenStatsSummary,
+    formatModelMapping,
+    formatRequestFormatTransforms,
     formatRemainingQuota,
     openSwitchLogsDialog,
     loadSwitchLogs,
@@ -2646,6 +2851,8 @@ export const useRelayTokenManagement = () => {
     removeQuotaWindow,
     addRequestFormatTransform,
     removeRequestFormatTransform,
+    selectRequestFormatTransformSource,
+    selectRequestFormatTransformTarget,
     getQuotaMin,
     getQuotaMax,
     getQuotaPrecision,

@@ -64,6 +64,67 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
+            <el-popover placement="bottom-end" :width="340" trigger="click">
+              <template #reference>
+                <el-button plain class="token-column-settings-trigger">
+                  {{ i18ns.t('relay.columnSettings') }}
+                </el-button>
+              </template>
+              <div class="token-column-settings">
+                <div class="token-column-settings__header">
+                  <div>
+                    <div class="token-column-settings__title">
+                      {{ i18ns.t('relay.columnSettingsTitle') }}
+                    </div>
+                    <div class="token-column-settings__hint">
+                      {{ i18ns.t('relay.columnSettingsHint') }}
+                    </div>
+                  </div>
+                  <el-button text @click="state.resetTokenColumnSettings">
+                    {{ i18ns.t('relay.columnSettingsReset') }}
+                  </el-button>
+                </div>
+                <div class="token-column-settings__list">
+                  <div
+                    v-for="(columnKey, index) in tokenColumnOrder"
+                    :key="columnKey"
+                    class="token-column-settings__item"
+                  >
+                    <el-checkbox
+                      :model-value="tokenColumnVisibility[columnKey]"
+                      @change="
+                        (value: string | number | boolean) =>
+                          state.setTokenColumnVisibility(columnKey, Boolean(value))
+                      "
+                    >
+                      {{ getTokenColumnLabel(columnKey) }}
+                    </el-checkbox>
+                    <div class="token-column-settings__sort-actions">
+                      <el-button
+                        text
+                        circle
+                        size="small"
+                        :disabled="index === 0"
+                        :title="i18ns.t('relay.columnSettingsMoveUp')"
+                        @click="state.moveTokenColumn(columnKey, -1)"
+                      >
+                        ↑
+                      </el-button>
+                      <el-button
+                        text
+                        circle
+                        size="small"
+                        :disabled="index === tokenColumnOrder.length - 1"
+                        :title="i18ns.t('relay.columnSettingsMoveDown')"
+                        @click="state.moveTokenColumn(columnKey, 1)"
+                      >
+                        ↓
+                      </el-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </el-popover>
             <el-button :icon="Refresh" :loading="loadingTokens" @click="state.refreshTokens">
               {{ i18ns.t('refresh') }}
             </el-button>
@@ -126,6 +187,7 @@
 
       <el-table
         ref="tokenTableRef"
+        :key="visibleTokenColumns.join('|')"
         v-loading="loadingTokens"
         :data="tokens"
         row-key="id"
@@ -137,6 +199,244 @@
       >
         <el-table-column type="selection" width="48" align="center" reserve-selection />
         <el-table-column
+          v-for="columnKey in visibleTokenColumns"
+          :key="'token-column-' + columnKey"
+          :label="getTokenColumnLabel(columnKey)"
+          :min-width="getTokenColumnMinWidth(columnKey)"
+          :align="getTokenColumnAlign(columnKey)"
+          :class-name="columnKey === 'name' ? 'token-name-column' : undefined"
+        >
+          <template #default="{ row }">
+            <template v-if="columnKey === 'name'">
+              <span class="token-name">{{ row.name || i18ns.t('relay.unnamedToken') }}</span>
+            </template>
+            <template v-else-if="columnKey === 'token'">
+              <div class="token-cell">
+                <el-link type="primary" class="token-link" @click="state.copyToken(row.token)">
+                  {{ row.token.substring(0, 12) }}...{{ row.token.slice(-4) }}
+                </el-link>
+              </div>
+            </template>
+            <template v-else-if="columnKey === 'routing'">
+              <el-tooltip placement="top" effect="light" :show-after="180">
+                <template #content>
+                  <div>{{ state.formatChannelSummary(row) }}</div>
+                  <div>{{ state.formatMobileChannelMeta(row) }}</div>
+                </template>
+                <div class="channel-config-list">
+                  <el-tag
+                    v-if="row.hasInvalidOrderedChannels"
+                    size="small"
+                    type="warning"
+                    effect="plain"
+                  >
+                    {{ i18ns.t('relay.invalidOrderedAutomaticPool') }}
+                  </el-tag>
+                  <template v-else-if="state.isAutomaticPoolToken(row)">
+                    <el-tag size="small" type="success" effect="plain">
+                      {{ state.getAutomaticProxyPoolChannelName(row) }}
+                    </el-tag>
+                    <div class="summary-line channel-config-meta">
+                      {{ i18ns.t('relay.routingModeAutomaticPool') }}
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div
+                      v-if="state.getSortedChannelConfigs(row).length"
+                      class="channel-config-list"
+                    >
+                      <div
+                        v-for="config in state.getVisibleChannelConfigs(row)"
+                        :key="row.id + '-' + config.channelId + '-' + config.priority"
+                        class="channel-config-item"
+                      >
+                        <el-tag
+                          size="small"
+                          :type="config.priority === 0 ? 'success' : 'info'"
+                          effect="plain"
+                        >
+                          {{
+                            '#' +
+                            (config.priority + 1) +
+                            ' ' +
+                            (config.channelName || state.getChannelName(config.channelId))
+                          }}
+                        </el-tag>
+                        <span class="channel-success-rate">{{
+                          state.formatSuccessRate(config.successRate)
+                        }}</span>
+                      </div>
+                      <el-tag
+                        v-if="state.getHiddenChannelConfigCount(row) > 0"
+                        size="small"
+                        type="info"
+                        effect="plain"
+                        class="channel-config-more"
+                      >
+                        {{ i18ns.t('nav.more') }} {{ state.getHiddenChannelConfigCount(row) }}
+                      </el-tag>
+                    </div>
+                    <span v-else class="stat-text">{{ i18ns.t('relay.noChannel') }}</span>
+                    <div class="failover-summary failover-summary-compact channel-config-meta">
+                      <el-tag
+                        size="small"
+                        :type="row.failoverConfig?.enabled ? 'success' : 'info'"
+                        effect="plain"
+                      >
+                        {{
+                          row.failoverConfig?.enabled
+                            ? i18ns.t('relay.failoverEnabled')
+                            : i18ns.t('relay.failoverDisabled')
+                        }}
+                      </el-tag>
+                      <div class="summary-line">{{ state.formatCompactFailoverSummary(row) }}</div>
+                    </div>
+                  </template>
+                </div>
+              </el-tooltip>
+            </template>
+            <template v-else-if="columnKey === 'stats'">
+              <div class="stat-summary">
+                <div class="stat-summary__item">
+                  <span class="stat-summary__label">{{ i18ns.t('relay.requestCount') }}</span>
+                  <span class="stat-summary__value">{{ row.requestCount || 0 }}</span>
+                </div>
+                <div class="stat-summary__item">
+                  <span class="stat-summary__label">{{ i18ns.t('relay.totalTokens') }}</span>
+                  <span class="stat-summary__value">{{
+                    state.formatNumber(row.totalTokens || 0)
+                  }}</span>
+                </div>
+              </div>
+            </template>
+            <template v-else-if="columnKey === 'expires'">
+              <div class="expire-cell">
+                <el-icon v-if="row.expiresAt" class="time-icon"><Clock /></el-icon>
+                <span v-if="row.expiresAt" class="datetime-text">{{
+                  state.formatDateTime(row.expiresAt)
+                }}</span>
+                <el-tag v-else size="small" type="success" effect="plain">{{
+                  i18ns.t('relay.neverExpire')
+                }}</el-tag>
+              </div>
+            </template>
+            <template v-else-if="columnKey === 'quota'">
+              <div class="quota-usage-cell">
+                <div class="quota-usage-line">
+                  <span
+                    class="quota-text"
+                    :class="{
+                      'quota-text--danger': state.getTokenQuotaSnapshot(row).isQuotaExceeded,
+                    }"
+                  >
+                    {{ i18ns.t('relay.usedQuota') }}:
+                    {{ state.formatQuotaAmount(state.getTokenQuotaSnapshot(row).usedQuota) }}
+                  </span>
+                  <span class="quota-limit-text">
+                    /
+                    {{
+                      row.quotaLimit != null
+                        ? state.formatQuotaAmount(row.quotaLimit)
+                        : i18ns.t('relay.unlimited')
+                    }}
+                  </span>
+                </div>
+                <div class="quota-meta">
+                  <span v-if="state.getTokenQuotaSnapshot(row).quotaUsagePercent != null">{{
+                    state.formatQuotaPercent(state.getTokenQuotaSnapshot(row).quotaUsagePercent)
+                  }}</span>
+                </div>
+                <el-progress
+                  v-if="state.getTokenQuotaSnapshot(row).quotaUsagePercent != null"
+                  :percentage="
+                    state.getQuotaProgressPercentage(
+                      state.getTokenQuotaSnapshot(row).quotaUsagePercent,
+                    )
+                  "
+                  :status="
+                    state.getQuotaProgressStatus(state.getTokenQuotaSnapshot(row).quotaUsagePercent)
+                  "
+                  :stroke-width="8"
+                  :show-text="false"
+                  class="quota-progress"
+                />
+                <div v-if="state.getRelayTokenQuotaWindows(row).length" class="quota-window-list">
+                  <div
+                    v-for="(
+                      quotaWindow, quotaWindowIndex
+                    ) in state.getPrimaryRelayTokenQuotaWindows(row)"
+                    :key="row.id + '-quota-window-' + quotaWindowIndex"
+                    class="quota-window-inline"
+                    :class="{ 'quota-window-inline--danger': quotaWindow.isQuotaExceeded }"
+                  >
+                    <span class="quota-window-inline__summary">{{
+                      state.formatQuotaWindowCompactSummary(quotaWindow)
+                    }}</span>
+                    <el-button
+                      v-if="state.getRemainingRelayTokenQuotaWindowCount(row) > 0"
+                      text
+                      class="quota-window-inline__more"
+                      @click="state.openQuotaWindowDetailDialog(row)"
+                    >
+                      {{ i18ns.t('nav.more') }}
+                      {{ state.getRemainingRelayTokenQuotaWindowCount(row) }}
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <template v-else-if="columnKey === 'status'">
+              <el-tag
+                v-if="row.status === MANAGED_STATUS.ENABLED"
+                size="small"
+                type="success"
+                effect="dark"
+              >
+                {{ i18ns.t('relay.enabled') }}
+              </el-tag>
+              <el-tag v-else size="small" type="info" effect="dark">{{
+                i18ns.t('relay.disabled')
+              }}</el-tag>
+            </template>
+            <template v-else-if="columnKey === 'id'">
+              <span class="token-column-truncate" :title="row.id">{{ row.id }}</span>
+            </template>
+            <template v-else-if="columnKey === 'owner'">
+              <span class="token-column-truncate">{{ row.ownerName || row.username || '-' }}</span>
+            </template>
+            <template v-else-if="columnKey === 'balance'">
+              {{ state.formatQuotaAmount(row.balance || 0) }}
+            </template>
+            <template v-else-if="columnKey === 'createdAt'">
+              {{ state.formatDateTime(row.createTime) }}
+            </template>
+            <template v-else-if="columnKey === 'lastUsedAt'">
+              {{
+                row.lastUsedAt ? state.formatDateTime(row.lastUsedAt) : i18ns.t('relay.neverUsed')
+              }}
+            </template>
+            <template v-else-if="columnKey === 'allowedModels'">
+              <span class="token-column-truncate" :title="row.allowedModels || undefined">{{
+                row.allowedModels || i18ns.t('relay.allModels')
+              }}</span>
+            </template>
+            <template v-else-if="columnKey === 'ipWhitelist'">
+              <span class="token-column-truncate" :title="row.ipWhitelist || undefined">{{
+                row.ipWhitelist || '-'
+              }}</span>
+            </template>
+            <template v-else-if="columnKey === 'modelMapping'">
+              <span class="token-column-truncate">{{ state.formatModelMapping(row) }}</span>
+            </template>
+            <template v-else-if="columnKey === 'requestFormats'">
+              <span class="token-column-truncate">{{
+                state.formatRequestFormatTransforms(row)
+              }}</span>
+            </template>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="false"
           prop="name"
           :label="i18ns.t('relay.tokenName')"
           min-width="100"
@@ -146,7 +446,7 @@
             <span class="token-name">{{ row.name || i18ns.t('relay.unnamedToken') }}</span>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('relay.token')" min-width="180">
+        <el-table-column v-if="false" :label="i18ns.t('relay.token')" min-width="180">
           <template #default="{ row }">
             <div class="token-cell">
               <el-link type="primary" class="token-link" @click="state.copyToken(row.token)">
@@ -155,7 +455,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('relay.routingMode')" min-width="180">
+        <el-table-column v-if="false" :label="i18ns.t('relay.routingMode')" min-width="180">
           <template #default="{ row }">
             <el-tooltip
               v-if="state.isAutomaticPoolToken(row)"
@@ -290,6 +590,7 @@
           </template>
         </el-table-column>
         <el-table-column
+          v-if="false"
           :label="`${i18ns.t('relay.requestCount')} / ${i18ns.t('relay.totalTokens')}`"
           min-width="150"
           align="center"
@@ -309,7 +610,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('relay.expiresAt')" align="center">
+        <el-table-column v-if="false" :label="i18ns.t('relay.expiresAt')" align="center">
           <template #default="{ row }">
             <div class="expire-cell">
               <el-icon v-if="row.expiresAt" class="time-icon"><Clock /></el-icon>
@@ -322,7 +623,12 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('relay.quotaUsage')" min-width="220" align="center">
+        <el-table-column
+          v-if="false"
+          :label="i18ns.t('relay.quotaUsage')"
+          min-width="220"
+          align="center"
+        >
           <template #default="{ row }">
             <template
               v-for="(quota, quotaIndex) in [state.getTokenQuotaSnapshot(row)]"
@@ -396,7 +702,7 @@
             </template>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('status')" width="90" align="center">
+        <el-table-column v-if="false" :label="i18ns.t('status')" width="90" align="center">
           <template #default="{ row }">
             <el-tag
               v-if="row.status === MANAGED_STATUS.ENABLED"
@@ -517,10 +823,59 @@ import { Clock, Refresh } from '@element-plus/icons-vue'
 import { Permission } from '@/constant/permission'
 import { MANAGED_STATUS } from '@/constant/status'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
-import { i18ns } from '@/locales'
+import { i18ns, type I18nENAvailableKeys } from '@/locales'
 import { useRelayTokenManagementContext } from '../context'
+import type { RelayTokenColumnKey } from '../useRelayTokenManagement'
 
 const state = useRelayTokenManagementContext()
+
+const tokenColumnLabelKeys: Record<RelayTokenColumnKey, I18nENAvailableKeys> = {
+  name: 'relay.tokenName',
+  token: 'relay.token',
+  routing: 'relay.routingMode',
+  stats: 'relay.tokenStatsColumn',
+  expires: 'relay.expiresAt',
+  quota: 'relay.quotaUsage',
+  status: 'status',
+  id: 'relay.tokenIdColumn',
+  owner: 'relay.ownerColumn',
+  balance: 'relay.balanceColumn',
+  createdAt: 'relay.createdAtColumn',
+  lastUsedAt: 'relay.lastUsedAtColumn',
+  allowedModels: 'relay.allowedModelsColumn',
+  ipWhitelist: 'relay.ipWhitelistColumn',
+  modelMapping: 'relay.modelMappingColumn',
+  requestFormats: 'relay.requestFormatsColumn',
+}
+
+const getTokenColumnLabel = (columnKey: RelayTokenColumnKey) =>
+  i18ns.t(tokenColumnLabelKeys[columnKey])
+
+const tokenColumnMinWidths: Record<RelayTokenColumnKey, number> = {
+  name: 120,
+  token: 180,
+  routing: 180,
+  stats: 150,
+  expires: 150,
+  quota: 220,
+  status: 90,
+  id: 180,
+  owner: 140,
+  balance: 110,
+  createdAt: 160,
+  lastUsedAt: 160,
+  allowedModels: 180,
+  ipWhitelist: 160,
+  modelMapping: 180,
+  requestFormats: 210,
+}
+
+const getTokenColumnMinWidth = (columnKey: RelayTokenColumnKey) => tokenColumnMinWidths[columnKey]
+
+const getTokenColumnAlign = (columnKey: RelayTokenColumnKey) =>
+  ['stats', 'expires', 'quota', 'status', 'balance', 'createdAt', 'lastUsedAt'].includes(columnKey)
+    ? 'center'
+    : undefined
 
 const {
   tokenTableRef,
@@ -535,6 +890,9 @@ const {
   searchTokenKeyword,
   showAllMode,
   selectedTokenIds,
+  tokenColumnOrder,
+  tokenColumnVisibility,
+  visibleTokenColumns,
   tokens,
   canManageAllTokens,
   paginationTotal,
