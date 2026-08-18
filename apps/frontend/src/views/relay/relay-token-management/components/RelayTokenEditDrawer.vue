@@ -272,52 +272,57 @@
                     </el-button>
                   </div>
 
-                  <div
-                    v-for="(config, index) in editForm.channelConfigs"
-                    :key="config.tempKey"
-                    class="channel-config-row"
-                    :class="isDesktop ? '' : 'mobile-channel-config-row'"
-                    :data-index="index"
+                  <el-checkbox-group
+                    v-model="selectedChannelConfigKeys"
+                    class="channel-config-checkbox-group"
                   >
-                    <div class="channel-config-drag-handle">
-                      <el-icon><Rank /></el-icon>
-                    </div>
-                    <div class="channel-config-checkbox">
-                      <el-checkbox v-model="selectedChannelConfigKeys" :value="config.tempKey" />
-                    </div>
-                    <div class="channel-config-order">
-                      {{ index === 0 ? i18ns.t('relay.primaryChannel') : `#${index + 1}` }}
-                    </div>
-                    <el-select
-                      v-model="config.channelId"
-                      :placeholder="i18ns.t('relay.channel')"
-                      class="channel-config-select"
-                      filterable
-                    >
-                      <el-option
-                        v-for="ch in state.getAvailableChannelOptions(config.channelId)"
-                        :key="ch.id"
-                        :label="state.getChannelOptionLabel(ch)"
-                        :value="ch.id"
-                      />
-                    </el-select>
                     <div
-                      class="channel-config-actions"
-                      :class="isDesktop ? '' : 'mobile-channel-config-actions'"
+                      v-for="(config, index) in editForm.channelConfigs"
+                      :key="config.tempKey"
+                      class="channel-config-row"
+                      :class="isDesktop ? '' : 'mobile-channel-config-row'"
+                      :data-index="index"
                     >
-                      <el-tooltip :content="i18ns.t('delete')" placement="top">
-                        <el-button
-                          plain
-                          circle
-                          size="small"
-                          type="danger"
-                          :icon="Delete"
-                          :disabled="editForm.channelConfigs.length === 1"
-                          @click="state.removeChannelConfig(index)"
+                      <div class="channel-config-drag-handle">
+                        <el-icon><Rank /></el-icon>
+                      </div>
+                      <div class="channel-config-checkbox">
+                        <el-checkbox :value="config.tempKey" />
+                      </div>
+                      <div class="channel-config-order">
+                        {{ index === 0 ? i18ns.t('relay.primaryChannel') : `#${index + 1}` }}
+                      </div>
+                      <el-select
+                        v-model="config.channelId"
+                        :placeholder="i18ns.t('relay.channel')"
+                        class="channel-config-select"
+                        filterable
+                      >
+                        <el-option
+                          v-for="ch in state.getAvailableChannelOptions(config.channelId)"
+                          :key="ch.id"
+                          :label="state.getChannelOptionLabel(ch)"
+                          :value="ch.id"
                         />
-                      </el-tooltip>
+                      </el-select>
+                      <div
+                        class="channel-config-actions"
+                        :class="isDesktop ? '' : 'mobile-channel-config-actions'"
+                      >
+                        <el-tooltip :content="i18ns.t('delete')" placement="top">
+                          <el-button
+                            plain
+                            circle
+                            size="small"
+                            type="danger"
+                            :icon="Delete"
+                            :disabled="editForm.channelConfigs.length === 1"
+                            @click="state.removeChannelConfig(index)"
+                          />
+                        </el-tooltip>
+                      </div>
                     </div>
-                  </div>
+                  </el-checkbox-group>
                   <el-button
                     plain
                     type="primary"
@@ -852,6 +857,7 @@
                             rule.sourceFormat === format.value,
                         }"
                         :disabled="
+                          format.value === rule.targetFormat ||
                           editForm.requestFormatTransforms.some(
                             (item, itemIndex) =>
                               itemIndex !== index && item.sourceFormat === format.value,
@@ -859,7 +865,12 @@
                         "
                         :aria-pressed="rule.sourceFormat === format.value"
                         :aria-label="`${i18ns.t('relay.sourceFormat')}: ${format.label}`"
-                        @click="rule.sourceFormat = format.value"
+                        :title="
+                          format.value === rule.targetFormat
+                            ? i18ns.t('relay.requestFormatTransformSameFormatDisabled')
+                            : undefined
+                        "
+                        @click="state.selectRequestFormatTransformSource(rule, format.value)"
                       >
                         <span>{{ format.label }}</span>
                         <span
@@ -896,7 +907,12 @@
                         :disabled="format.value === rule.sourceFormat"
                         :aria-pressed="rule.targetFormat === format.value"
                         :aria-label="`${i18ns.t('relay.targetFormat')}: ${format.label}`"
-                        @click="rule.targetFormat = format.value"
+                        :title="
+                          format.value === rule.sourceFormat
+                            ? i18ns.t('relay.requestFormatTransformSameFormatDisabled')
+                            : undefined
+                        "
+                        @click="state.selectRequestFormatTransformTarget(rule, format.value)"
                       >
                         <span>{{ format.label }}</span>
                         <span

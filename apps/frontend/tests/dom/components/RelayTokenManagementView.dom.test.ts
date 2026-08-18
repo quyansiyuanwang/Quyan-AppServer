@@ -131,6 +131,11 @@ const ElDialogStub = defineComponent({
   template: '<div class="el-dialog-stub"><slot /><slot name="footer" /></div>',
 })
 
+const ElPopoverStub = defineComponent({
+  name: 'ElPopover',
+  template: '<div class="el-popover-stub"><slot name="reference" /><slot /></div>',
+})
+
 const ElDrawerStub = defineComponent({
   name: 'ElDrawer',
   props: { modelValue: { type: Boolean, default: false } },
@@ -240,6 +245,7 @@ const mountView = () =>
         'el-table': ElTableStub,
         'el-table-column': ElTableColumnStub,
         'el-dialog': ElDialogStub,
+        'el-popover': ElPopoverStub,
         'el-drawer': ElDrawerStub,
         'el-form': ElFormStub,
         'el-form-item': ElFormItemStub,
@@ -374,6 +380,7 @@ const createRelayTokenFixture = (overrides: Record<string, any> = {}) => ({
 describe('RelayTokenManagementView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
     deviceModeMock.isDesktop = true
     deviceModeMock.isMobile = false
     getRelayTokensMock.mockResolvedValue({
@@ -408,6 +415,51 @@ describe('RelayTokenManagementView', () => {
 
     expect(getRelayTokensMock).toHaveBeenCalledTimes(1)
     expect(listChannelsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists configurable desktop token columns and applies their display order', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(wrapper.find('.token-column-settings-trigger').exists()).toBe(true)
+    expect(vm.visibleTokenColumns).toEqual([
+      'name',
+      'token',
+      'routing',
+      'stats',
+      'expires',
+      'quota',
+      'status',
+    ])
+
+    vm.setTokenColumnVisibility('id', true)
+    vm.moveTokenColumn('id', -1)
+    await flushPromises()
+
+    expect(vm.visibleTokenColumns).toEqual([
+      'name',
+      'token',
+      'routing',
+      'stats',
+      'expires',
+      'quota',
+      'id',
+      'status',
+    ])
+    expect(
+      JSON.parse(window.localStorage.getItem('relay-token-management:column-settings:v1')!),
+    ).toEqual(
+      expect.objectContaining({
+        order: expect.arrayContaining(['id']),
+        visibility: expect.objectContaining({ id: true }),
+      }),
+    )
+
+    wrapper.unmount()
+    const restoredWrapper = mountView()
+    await flushPromises()
+    expect((restoredWrapper.vm as any).visibleTokenColumns).toEqual(vm.visibleTokenColumns)
   })
 
   it('renders quota window consumption details on desktop', async () => {
@@ -829,6 +881,56 @@ describe('RelayTokenManagementView', () => {
           failoverThreshold: 0,
           failbackCooldownMinutes: 0,
         }),
+      }),
+    )
+  })
+
+  it('starts conversion rules unselected and prevents same-format conversions', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreateDialog()
+    vm.editForm.channelConfigs = [{ channelId: 'channel-primary', priority: 0 }]
+    vm.editForm.channelId = 'channel-primary'
+    vm.addRequestFormatTransform()
+    await flushPromises()
+
+    expect(vm.editForm.requestFormatTransforms).toEqual([{}])
+
+    const getSourceNodes = () => wrapper.findAll('.relay-format-transform-column--source button')
+    const getTargetNodes = () => wrapper.findAll('.relay-format-transform-column--target button')
+    const sourceNodes = getSourceNodes()
+    const targetNodes = getTargetNodes()
+    expect(sourceNodes).toHaveLength(3)
+    expect(targetNodes).toHaveLength(3)
+    expect(sourceNodes.every((node) => node.attributes('aria-pressed') === 'false')).toBe(true)
+    expect(targetNodes.every((node) => node.attributes('aria-pressed') === 'false')).toBe(true)
+
+    await vm.handleSave()
+    expect(createRelayTokenMock).not.toHaveBeenCalled()
+    expect(messageErrorMock).toHaveBeenCalledWith(expect.stringContaining('尚未完成'))
+
+    await sourceNodes[0]!.trigger('click')
+    await flushPromises()
+    expect(vm.editForm.requestFormatTransforms).toEqual([
+      { sourceFormat: 'openai-chat-completions' },
+    ])
+    expect(getTargetNodes()[0]!.attributes('disabled')).toBeDefined()
+
+    await getTargetNodes()[1]!.trigger('click')
+    await flushPromises()
+    expect(vm.editForm.requestFormatTransforms).toEqual([
+      { sourceFormat: 'openai-chat-completions', targetFormat: 'openai-responses' },
+    ])
+    expect(getSourceNodes()[1]!.attributes('disabled')).toBeDefined()
+
+    await vm.handleSave()
+    expect(createRelayTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestFormatTransforms: [
+          { sourceFormat: 'openai-chat-completions', targetFormat: 'openai-responses' },
+        ],
       }),
     )
   })

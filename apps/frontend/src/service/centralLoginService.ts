@@ -1,4 +1,5 @@
 import { createAuthControllerApi } from '@/client/services/auth-controller.gen'
+import { CustomCode } from '@/constant/custom-code'
 import {
   isKnownSiteProfile,
   getSiteProfileForEnvironment,
@@ -97,11 +98,62 @@ export const consumeCentralLoginFlow = async (flowId: string): Promise<string> =
   return result.data.returnTo
 }
 
+const CENTRAL_LOGIN_FLOW_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+export const removeCentralLoginFlowId = (location: string): string => {
+  const url = new URL(location, 'http://localhost')
+  url.searchParams.delete('flowId')
+  return `${url.pathname}${url.search}${url.hash}`
+}
+
+const clearCentralLoginFlowIdFromUrl = (): void => {
+  if (typeof window === 'undefined') return
+
+  const currentUrl = new URL(window.location.href)
+  if (!currentUrl.searchParams.has('flowId')) return
+
+  const relativeLocation = removeCentralLoginFlowId(currentUrl.href)
+  window.history.replaceState(window.history.state, '', relativeLocation)
+}
+
+const isUnavailableCentralLoginFlow = (error: unknown): boolean => {
+  const serviceError = error as {
+    code?: unknown
+    response?: { status?: unknown }
+  }
+  const status = serviceError.response?.status
+  if (status === 400 || status === 403 || status === 404 || status === 409) return true
+
+  return (
+    serviceError.code === CustomCode.NOT_FOUND ||
+    serviceError.code === CustomCode.VALIDATION_FAILED ||
+    serviceError.code === CustomCode.PERMISSION_DENIED
+  )
+}
+
 export const completeCentralLogin = async (flowId: unknown): Promise<boolean> => {
-  if (typeof flowId !== 'string' || !flowId) return false
-  const returnTo = await consumeCentralLoginFlow(flowId)
-  replaceDocument(returnTo)
-  return true
+  if (typeof flowId !== 'string' || !flowId) {
+    clearCentralLoginFlowIdFromUrl()
+    return false
+  }
+  if (!CENTRAL_LOGIN_FLOW_ID_PATTERN.test(flowId)) {
+    clearCentralLoginFlowIdFromUrl()
+    return false
+  }
+
+  try {
+    const returnTo = await consumeCentralLoginFlow(flowId)
+    replaceDocument(returnTo)
+    return true
+  } catch (error) {
+    if (!isUnavailableCentralLoginFlow(error)) throw error
+
+    // A flow is single-use and short-lived. Remove stale state so the normal
+    // login flow can continue instead of repeatedly submitting the same ID.
+    clearCentralLoginFlowIdFromUrl()
+    return false
+  }
 }
 
 export const getDefaultAccountDestination = (): string => {

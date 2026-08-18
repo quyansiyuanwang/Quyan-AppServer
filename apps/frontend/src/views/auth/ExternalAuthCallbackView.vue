@@ -74,10 +74,18 @@ onMounted(async () => {
 
     if (socialAuthService.isExternalIdentity(result)) {
       const token = await authorizationService.bootstrapSession()
-      if (!token || !(await completeCentralLogin(route.query.flowId))) {
+      if (!token) {
         ElMessage.error(i18ns.t('SettingsView.externalAccountsBindFailed'))
         await router.replace(getLoginRoute())
+        return
       }
+
+      if (await completeCentralLogin(route.query.flowId)) return
+
+      // The binding may have succeeded even when its central-login handoff
+      // expired. Continue to the account area instead of trapping the user on
+      // a stale flow error page.
+      replaceDocument(getDefaultAccountDestination())
       return
     }
 
