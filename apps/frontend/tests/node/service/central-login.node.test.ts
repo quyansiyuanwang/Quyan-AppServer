@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   getCentralLoginFallbackUrl,
   getCentralLoginUrl,
+  removeCentralLoginFlowId,
 } from '@/service/centralLoginService'
 import { resolveSiteProfile } from '@/config/site-registry'
 
@@ -20,5 +21,17 @@ describe('central login navigation', () => {
     if (profile.id === 'rejected') throw new Error('Expected a registered profile')
 
     expect(getCentralLoginFallbackUrl(profile)).toBe('https://auth.qysyw.test:5173/login')
+  })
+
+  it('removes an expired flow id without dropping the login redirect', () => {
+    expect(
+      removeCentralLoginFlowId('/auth/verify?method=code&flowId=expired&redirect=%2Fhome#resume'),
+    ).toBe('/auth/verify?method=code&redirect=%2Fhome#resume')
+  })
+
+  it('removes a malformed flow query parameter', () => {
+    expect(removeCentralLoginFlowId('/login?flowId&redirect=%2Fhome')).toBe(
+      '/login?redirect=%2Fhome',
+    )
   })
 })

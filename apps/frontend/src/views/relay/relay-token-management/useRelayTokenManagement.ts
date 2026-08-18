@@ -90,6 +90,92 @@ type RelayTokenWithTransforms = RelayTokenDto & {
   requestFormatTransforms?: RelayFormatTransform[] | null
 }
 
+export const RELAY_TOKEN_COLUMN_KEYS = [
+  'name',
+  'token',
+  'routing',
+  'stats',
+  'expires',
+  'quota',
+  'status',
+  'id',
+  'owner',
+  'balance',
+  'createdAt',
+  'lastUsedAt',
+  'allowedModels',
+  'ipWhitelist',
+  'modelMapping',
+  'requestFormats',
+] as const
+export type RelayTokenColumnKey = (typeof RELAY_TOKEN_COLUMN_KEYS)[number]
+
+const RELAY_TOKEN_COLUMN_STORAGE_KEY = 'relay-token-management:column-settings:v1'
+const DEFAULT_RELAY_TOKEN_COLUMN_ORDER: RelayTokenColumnKey[] = [...RELAY_TOKEN_COLUMN_KEYS]
+const DEFAULT_RELAY_TOKEN_COLUMN_VISIBILITY: Record<RelayTokenColumnKey, boolean> = {
+  name: true,
+  token: true,
+  routing: true,
+  stats: true,
+  expires: true,
+  quota: true,
+  status: true,
+  id: false,
+  owner: false,
+  balance: false,
+  createdAt: false,
+  lastUsedAt: false,
+  allowedModels: false,
+  ipWhitelist: false,
+  modelMapping: false,
+  requestFormats: false,
+}
+
+type RelayTokenColumnPreferences = {
+  order: RelayTokenColumnKey[]
+  visibility: Record<RelayTokenColumnKey, boolean>
+}
+
+const readRelayTokenColumnPreferences = (): RelayTokenColumnPreferences => {
+  const fallback = {
+    order: [...DEFAULT_RELAY_TOKEN_COLUMN_ORDER],
+    visibility: { ...DEFAULT_RELAY_TOKEN_COLUMN_VISIBILITY },
+  }
+
+  if (typeof window === 'undefined') return fallback
+
+  try {
+    const raw = window.localStorage.getItem(RELAY_TOKEN_COLUMN_STORAGE_KEY)
+    if (!raw) return fallback
+
+    const parsed = JSON.parse(raw) as {
+      order?: unknown
+      visibility?: unknown
+    }
+    const knownKeys = new Set<string>(RELAY_TOKEN_COLUMN_KEYS)
+    const storedOrder = Array.isArray(parsed.order)
+      ? parsed.order.filter(
+          (key): key is RelayTokenColumnKey => typeof key === 'string' && knownKeys.has(key),
+        )
+      : []
+    const order = [
+      ...storedOrder,
+      ...RELAY_TOKEN_COLUMN_KEYS.filter((key) => !storedOrder.includes(key)),
+    ]
+    const visibility = { ...fallback.visibility }
+    if (parsed.visibility && typeof parsed.visibility === 'object') {
+      for (const key of RELAY_TOKEN_COLUMN_KEYS) {
+        const value = (parsed.visibility as Record<string, unknown>)[key]
+        if (typeof value === 'boolean') visibility[key] = value
+      }
+    }
+
+    return { order, visibility }
+  } catch {
+    return fallback
+  }
+}
+
 export type EditableQuotaWindow = RelayTokenQuotaWindowLike & {
   id?: string
   months: number
@@ -353,6 +439,54 @@ export const useRelayTokenManagement = () => {
   const selectedTokenIds = ref<string[]>([])
   const showTokenImportDialog = ref(false)
   const tokenImportText = ref('')
+  const initialColumnPreferences = readRelayTokenColumnPreferences()
+  const tokenColumnOrder = ref<RelayTokenColumnKey[]>(initialColumnPreferences.order)
+  const tokenColumnVisibility = ref<Record<RelayTokenColumnKey, boolean>>(
+    initialColumnPreferences.visibility,
+  )
+  const visibleTokenColumns = computed(() =>
+    tokenColumnOrder.value.filter((key) => tokenColumnVisibility.value[key]),
+  )
+
+  watch(
+    [tokenColumnOrder, tokenColumnVisibility],
+    ([order, visibility]) => {
+      try {
+        window.localStorage.setItem(
+          RELAY_TOKEN_COLUMN_STORAGE_KEY,
+          JSON.stringify({ order, visibility }),
+        )
+      } catch {
+        // Column preferences are best-effort and must not affect token management.
+      }
+    },
+    { deep: true },
+  )
+
+  const setTokenColumnVisibility = (key: RelayTokenColumnKey, visible: boolean) => {
+    if (!visible && visibleTokenColumns.value.length <= 1) {
+      ElMessage.warning(i18ns.t('relay.columnSettingsKeepOne'))
+      return
+    }
+    tokenColumnVisibility.value[key] = visible
+  }
+
+  const moveTokenColumn = (key: RelayTokenColumnKey, direction: -1 | 1) => {
+    const index = tokenColumnOrder.value.indexOf(key)
+    const targetIndex = index + direction
+    if (index < 0 || targetIndex < 0 || targetIndex >= tokenColumnOrder.value.length) return
+
+    const nextOrder = [...tokenColumnOrder.value]
+    const [moved] = nextOrder.splice(index, 1)
+    if (!moved) return
+    nextOrder.splice(targetIndex, 0, moved)
+    tokenColumnOrder.value = nextOrder
+  }
+
+  const resetTokenColumnSettings = () => {
+    tokenColumnOrder.value = [...DEFAULT_RELAY_TOKEN_COLUMN_ORDER]
+    tokenColumnVisibility.value = { ...DEFAULT_RELAY_TOKEN_COLUMN_VISIBILITY }
+  }
 
   const canManageAllTokens = computed(() =>
     permissionStore.hasPermission(Permission.RELAY_TOKEN_MANAGE_OTHERS_READ),
@@ -2317,6 +2451,20 @@ export const useRelayTokenManagement = () => {
     return `${row.requestCount || 0} / ${formatNumber(row.totalTokens || 0)}`
   }
 
+  const formatModelMapping = (row: RelayTokenDto) => {
+    const entries = Object.entries(row.modelMapping || {})
+    return entries.length
+      ? entries.map(([source, target]) => `${source} → ${target}`).join(', ')
+      : '-'
+  }
+
+  const formatRequestFormatTransforms = (row: RelayTokenDto) => {
+    const transforms = row.requestFormatTransforms || []
+    return transforms.length
+      ? transforms.map((rule) => `${rule.sourceFormat} → ${rule.targetFormat}`).join(', ')
+      : '-'
+  }
+
   const formatCompactFailoverSummary = (row: RelayTokenDto) => {
     const maxAcceptedChannelMultiplier = row.failoverConfig?.maxAcceptedChannelMultiplier
     const multiplierText =
@@ -2592,6 +2740,12 @@ export const useRelayTokenManagement = () => {
     searchTokenKeyword,
     showAllMode,
     selectedTokenIds,
+    tokenColumnOrder,
+    tokenColumnVisibility,
+    visibleTokenColumns,
+    setTokenColumnVisibility,
+    moveTokenColumn,
+    resetTokenColumnSettings,
     showTokenImportDialog,
     tokenImportText,
     canManageAllTokens,
@@ -2670,6 +2824,8 @@ export const useRelayTokenManagement = () => {
     formatChannelSummary,
     formatMobileChannelMeta,
     formatTokenStatsSummary,
+    formatModelMapping,
+    formatRequestFormatTransforms,
     formatRemainingQuota,
     openSwitchLogsDialog,
     loadSwitchLogs,
