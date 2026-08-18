@@ -2747,6 +2747,13 @@ export default {
     sourceFormat: 'Client request format',
     targetFormat: 'Upstream request format',
     transformTo: 'to',
+    requestFormatTransformIncomplete:
+      'Conversion rule #{index} is incomplete. Choose both the client and upstream request formats.',
+    requestFormatTransformSameFormat: 'The two formats in conversion rule #{index} must differ.',
+    requestFormatTransformSourceDuplicate:
+      'The client request format in conversion rule #{index} is already used by another rule.',
+    requestFormatTransformSameFormatDisabled:
+      'The same format needs no conversion and cannot be selected on both sides.',
     advancedSettings: 'Advanced Settings',
     upstreamUrl: 'Upstream API URL',
     upstreamApiKey: 'Upstream API Key',

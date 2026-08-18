@@ -2659,6 +2659,11 @@ const zhCN: DeepStringify<typeof en> = {
     sourceFormat: '用户侧请求格式',
     targetFormat: '上游请求格式',
     transformTo: '转换为',
+    requestFormatTransformIncomplete:
+      '转换规则 #{index} 尚未完成，请分别选择用户侧和上游请求格式。',
+    requestFormatTransformSameFormat: '转换规则 #{index} 的两侧格式不能相同。',
+    requestFormatTransformSourceDuplicate: '转换规则 #{index} 的用户侧请求格式已在其他规则中使用。',
+    requestFormatTransformSameFormatDisabled: '相同格式无需转换，不能在两侧同时选择。',
     advancedSettings: '高级设置',
     upstreamUrl: '上游API地址',
     upstreamApiKey: '上游API密钥',

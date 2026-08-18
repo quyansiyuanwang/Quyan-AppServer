@@ -833,6 +833,58 @@ describe('RelayTokenManagementView', () => {
     )
   })
 
+  it('starts conversion rules unselected and prevents same-format conversions', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreateDialog()
+    vm.editForm.channelConfigs = [{ channelId: 'channel-primary', priority: 0 }]
+    vm.editForm.channelId = 'channel-primary'
+    vm.addRequestFormatTransform()
+    await flushPromises()
+
+    expect(vm.editForm.requestFormatTransforms).toEqual([{}])
+
+    const getSourceNodes = () =>
+      wrapper.findAll('.relay-format-transform-column--source button')
+    const getTargetNodes = () =>
+      wrapper.findAll('.relay-format-transform-column--target button')
+    const sourceNodes = getSourceNodes()
+    const targetNodes = getTargetNodes()
+    expect(sourceNodes).toHaveLength(3)
+    expect(targetNodes).toHaveLength(3)
+    expect(sourceNodes.every((node) => node.attributes('aria-pressed') === 'false')).toBe(true)
+    expect(targetNodes.every((node) => node.attributes('aria-pressed') === 'false')).toBe(true)
+
+    await vm.handleSave()
+    expect(createRelayTokenMock).not.toHaveBeenCalled()
+    expect(messageErrorMock).toHaveBeenCalledWith(expect.stringContaining('尚未完成'))
+
+    await sourceNodes[0]!.trigger('click')
+    await flushPromises()
+    expect(vm.editForm.requestFormatTransforms).toEqual([
+      { sourceFormat: 'openai-chat-completions' },
+    ])
+    expect(getTargetNodes()[0]!.attributes('disabled')).toBeDefined()
+
+    await getTargetNodes()[1]!.trigger('click')
+    await flushPromises()
+    expect(vm.editForm.requestFormatTransforms).toEqual([
+      { sourceFormat: 'openai-chat-completions', targetFormat: 'openai-responses' },
+    ])
+    expect(getSourceNodes()[1]!.attributes('disabled')).toBeDefined()
+
+    await vm.handleSave()
+    expect(createRelayTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestFormatTransforms: [
+          { sourceFormat: 'openai-chat-completions', targetFormat: 'openai-responses' },
+        ],
+      }),
+    )
+  })
+
   it('normalizes and submits custom wildcard and regex rules on update', async () => {
     const wrapper = mountView()
     await flushPromises()

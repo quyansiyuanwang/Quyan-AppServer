@@ -82,6 +82,10 @@ type RelayTokenWithRouting = RelayTokenDto & {
 
 type RelayTokenFormat = 'openai-chat-completions' | 'openai-responses' | 'anthropic'
 type RelayFormatTransform = { sourceFormat: RelayTokenFormat; targetFormat: RelayTokenFormat }
+type EditableRelayFormatTransform = {
+  sourceFormat?: RelayTokenFormat
+  targetFormat?: RelayTokenFormat
+}
 type RelayTokenWithTransforms = RelayTokenDto & {
   requestFormatTransforms?: RelayFormatTransform[] | null
 }
@@ -450,7 +454,7 @@ export const useRelayTokenManagement = () => {
     channelConfigs: [createEmptyChannelConfig(0)] as EditableChannelConfig[],
     failoverConfig: createDefaultFailoverConfig() as EditableFailoverConfig,
     modelMapping: {} as Record<string, string>,
-    requestFormatTransforms: [] as RelayFormatTransform[],
+    requestFormatTransforms: [] as EditableRelayFormatTransform[],
   })
 
   const editForm = ref({
@@ -1496,8 +1500,11 @@ export const useRelayTokenManagement = () => {
       },
       modelMapping: (row.modelMapping as Record<string, string>) || {},
       requestFormatTransforms:
-        (row as RelayTokenWithTransforms).requestFormatTransforms?.map((rule) => ({ ...rule })) ||
-        [],
+        (row as RelayTokenWithTransforms).requestFormatTransforms?.map((rule) => ({
+          sourceFormat: rule.sourceFormat,
+          // A legacy invalid rule must not remain selectable as a no-op conversion.
+          targetFormat: rule.sourceFormat === rule.targetFormat ? undefined : rule.targetFormat,
+        })) || [],
     }
 
     showEditDialog.value = true
@@ -1610,22 +1617,63 @@ export const useRelayTokenManagement = () => {
 
   const addRequestFormatTransform = () => {
     if (editForm.value.requestFormatTransforms.length >= MAX_REQUEST_FORMAT_TRANSFORMS) return
-    const usedSources = new Set(
-      editForm.value.requestFormatTransforms.map((rule) => rule.sourceFormat),
-    )
-    const sourceFormat = (
-      ['openai-chat-completions', 'openai-responses', 'anthropic'] as RelayTokenFormat[]
-    ).find((format) => !usedSources.has(format))
-    if (!sourceFormat) return
-    editForm.value.requestFormatTransforms.push({
-      sourceFormat,
-      targetFormat:
-        sourceFormat === 'openai-chat-completions' ? 'anthropic' : 'openai-chat-completions',
-    })
+    editForm.value.requestFormatTransforms.push({})
   }
 
   const removeRequestFormatTransform = (index: number) => {
     editForm.value.requestFormatTransforms.splice(index, 1)
+  }
+
+  const selectRequestFormatTransformSource = (
+    rule: EditableRelayFormatTransform,
+    format: RelayTokenFormat,
+  ) => {
+    if (rule.sourceFormat === format) {
+      rule.sourceFormat = undefined
+      return
+    }
+
+    rule.sourceFormat = format
+    if (rule.targetFormat === format) rule.targetFormat = undefined
+  }
+
+  const selectRequestFormatTransformTarget = (
+    rule: EditableRelayFormatTransform,
+    format: RelayTokenFormat,
+  ) => {
+    if (rule.targetFormat === format) {
+      rule.targetFormat = undefined
+      return
+    }
+
+    rule.targetFormat = format
+    if (rule.sourceFormat === format) rule.sourceFormat = undefined
+  }
+
+  const normalizeRequestFormatTransformsPayload = (): RelayFormatTransform[] => {
+    const sources = new Set<RelayTokenFormat>()
+
+    return editForm.value.requestFormatTransforms.map((rule, index) => {
+      if (!rule.sourceFormat || !rule.targetFormat) {
+        throw new Error(i18ns.t('relay.requestFormatTransformIncomplete', { index: index + 1 }))
+      }
+
+      if (rule.sourceFormat === rule.targetFormat) {
+        throw new Error(i18ns.t('relay.requestFormatTransformSameFormat', { index: index + 1 }))
+      }
+
+      if (sources.has(rule.sourceFormat)) {
+        throw new Error(
+          i18ns.t('relay.requestFormatTransformSourceDuplicate', { index: index + 1 }),
+        )
+      }
+      sources.add(rule.sourceFormat)
+
+      return {
+        sourceFormat: rule.sourceFormat,
+        targetFormat: rule.targetFormat,
+      }
+    })
   }
 
   const normalizeQuotaWindowsPayload = () => {
@@ -1827,6 +1875,7 @@ export const useRelayTokenManagement = () => {
       const blockedAutomaticProxyPoolChannelIds =
         routingMode === 'automatic-pool' ? buildBlockedAutomaticProxyPoolChannelIdsPayload() : []
       const quotaWindows = normalizeQuotaWindowsPayload()
+      const requestFormatTransforms = normalizeRequestFormatTransformsPayload()
       const allowedModelsStr = editForm.value.allowedModelIdsList.join(',')
       const normalizedName = editForm.value.name.trim()
       editForm.value.ipWhitelist = normalizeIpWhitelistEntries(editForm.value.ipWhitelist)
@@ -1871,7 +1920,7 @@ export const useRelayTokenManagement = () => {
           allowedModels: allowedModelsStr || undefined,
           ipWhitelist,
           modelMapping,
-          requestFormatTransforms: editForm.value.requestFormatTransforms,
+          requestFormatTransforms,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.createRelayToken(data)
@@ -1899,7 +1948,7 @@ export const useRelayTokenManagement = () => {
           allowedModels: allowedModelsStr || null,
           ipWhitelist: ipWhitelist || null,
           modelMapping,
-          requestFormatTransforms: editForm.value.requestFormatTransforms,
+          requestFormatTransforms,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.updateToken(currentEditId.value, data)
@@ -2646,6 +2695,8 @@ export const useRelayTokenManagement = () => {
     removeQuotaWindow,
     addRequestFormatTransform,
     removeRequestFormatTransform,
+    selectRequestFormatTransformSource,
+    selectRequestFormatTransformTarget,
     getQuotaMin,
     getQuotaMax,
     getQuotaPrecision,

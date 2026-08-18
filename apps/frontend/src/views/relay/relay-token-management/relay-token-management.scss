@@ -855,6 +855,13 @@
   justify-content: flex-start;
 }
 
+.channel-config-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
 .channel-config-row {
   display: grid;
   grid-template-columns: 32px 28px 72px minmax(0, 1fr) auto;
