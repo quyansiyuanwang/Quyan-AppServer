@@ -20,6 +20,28 @@ export const hasDomainViewLoader = (domain: SiteProfileId): boolean =>
 
 const loadedDomains = new Map<SiteProfileId, Promise<ViewModule>>()
 
+const normalizeViewKey = (value: string): string =>
+  value
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/^(?:\.\.\/)+/, '')
+    .replace(/^src\//, '')
+
+const resolveView = (views: ViewModule, requestedKey: string): Component | undefined => {
+  const direct = views[requestedKey]
+  if (direct) return direct
+
+  const normalizedRequestedKey = normalizeViewKey(requestedKey)
+  const matched = Object.entries(views).find(([candidateKey]) => {
+    const normalizedCandidateKey = normalizeViewKey(candidateKey)
+    return (
+      normalizedCandidateKey === normalizedRequestedKey ||
+      normalizedCandidateKey.endsWith(`/${normalizedRequestedKey}`)
+    )
+  })
+  return matched?.[1]
+}
+
 const loadDomain = async (domain: SiteProfileId): Promise<ViewModule> => {
   const loader = getDomainViewPlugin(domain)
   if (!loader) throw new Error(`No route-view loader is registered for site "${domain}".`)
@@ -42,8 +64,11 @@ export const lazyRouteView = (routeName: string, feature: string, path: string) 
   const domain = entry.group
   const views = await getDomainViews(domain)
   const key = `../../views/${feature === 'misc' ? path : `${feature}/${path}`}`
-  const view = views[key]
-  if (!view) throw new Error(`Unknown ${domain} route view: ${key}`)
+  const view = resolveView(views, key)
+  if (!view) {
+    const availableKeys = Object.keys(views).join(', ')
+    throw new Error(`Unknown ${domain} route view: ${key}. Available views: ${availableKeys}`)
+  }
   return { default: view }
 }
 
