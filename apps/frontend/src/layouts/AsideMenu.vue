@@ -41,7 +41,6 @@
     >
       <NavMenuItems
         :show-spacer="true"
-        :show-logout="props.showLogout"
         :show-pinned-section="currentSitePinnedItems.length > 0 && !showIsDesktopIcon"
         :on-route-navigate="handleRouteNavigation"
         :on-route-context-menu="openRouteContextMenu"
@@ -148,10 +147,10 @@
         </div>
 
         <div class="overview-drawer-columns">
-          <nav class="overview-site-panel" :aria-label="i18ns.t('nav.switchSite')">
+          <nav class="overview-site-panel" :aria-label="i18ns.t('nav.openSite')">
             <div class="overview-site-panel__title">
               <el-icon><Grid /></el-icon>
-              <span>{{ i18ns.t('nav.switchSite') }}</span>
+              <span>{{ i18ns.t('nav.openSite') }}</span>
             </div>
             <div class="overview-site-list">
               <section
@@ -166,7 +165,6 @@
                   type="button"
                   class="overview-site-item"
                   :class="{ 'is-active': profile.id === currentSiteProfile.id }"
-                  :disabled="profile.id === currentSiteProfile.id"
                   @click="navigateToSiteProfile(profile.id)"
                 >
                   <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
@@ -354,11 +352,6 @@
         <span>{{ i18ns.t('nav.settings') }}</span>
       </div>
 
-      <div v-if="props.showLogout" class="tab-item" @click="authorizationService.logout()">
-        <el-icon><LogoutIcon :size="22" /></el-icon>
-        <span>{{ i18ns.t('logout') }}</span>
-      </div>
-
       <div class="tab-item" @click="openMobileNavigation">
         <el-icon><MoreFilled /></el-icon>
         <span>{{ i18ns.t('nav.more') }}</span>
@@ -387,9 +380,7 @@
           </button>
           <div class="functional-area functional-area--mobile">
             <el-icon size="20"><component :is="currentSiteIcon" /></el-icon>
-            <span>{{
-              showMobileSiteSwitcher ? i18ns.t('nav.switchSite') : functionalAreaName
-            }}</span>
+            <span>{{ showMobileSiteSwitcher ? i18ns.t('nav.openSite') : functionalAreaName }}</span>
           </div>
           <el-icon class="close-icon" @click="showMobileDrawer = false"><Close /></el-icon>
         </div>
@@ -397,7 +388,7 @@
         <nav
           v-if="showMobileSiteSwitcher"
           class="mobile-site-switcher"
-          :aria-label="i18ns.t('nav.switchSite')"
+          :aria-label="i18ns.t('nav.openSite')"
         >
           <section
             v-for="group in siteSwitchGroups"
@@ -411,7 +402,6 @@
               type="button"
               class="mobile-site-switcher__item"
               :class="{ 'is-active': profile.id === currentSiteProfile.id }"
-              :disabled="profile.id === currentSiteProfile.id"
               @click="navigateToSiteProfile(profile.id)"
             >
               <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
@@ -438,7 +428,6 @@
           <el-menu ref="mobileMenuRef" class="mobile-aside-nav" @select="showMobileDrawer = false">
             <NavMenuItems
               :show-spacer="false"
-              :show-logout="props.showLogout"
               :show-pinned-section="currentSitePinnedItems.length > 0"
               :on-route-navigate="handleRouteNavigation"
             >
@@ -573,8 +562,6 @@ import {
 } from 'vue'
 import router from '@/router'
 import { useIsDesktopStore } from '@/stores/isDesktopStore'
-import { authorizationService } from '@/service/authorizationService'
-import LogoutIcon from '@/components/icons/LogoutIcon.vue'
 import NavMenuItems from '@/layouts/NavMenuItems.vue'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
 import { useThemeToggleStore } from '@/stores/themeToggleStore'
@@ -601,11 +588,10 @@ const OVERVIEW_CONFIRMATION_Z_INDEX = OVERVIEW_DRAWER_Z_INDEX + 1
 
 const props = withDefaults(
   defineProps<{
-    showLogout?: boolean
     showNavigation?: boolean
     collapsed?: boolean
   }>(),
-  { showLogout: true, showNavigation: true, collapsed: false },
+  { showNavigation: true, collapsed: false },
 )
 const emit = defineEmits<{ 'update:collapsed': [collapsed: boolean] }>()
 
@@ -778,7 +764,7 @@ const siteSwitchGroups = computed(() => {
 
 const navigateToSiteProfile = (siteId: SiteProfileId) => {
   const target = availableSiteProfiles.value.find((profile) => profile.id === siteId)
-  if (!target || target.id === currentSiteProfile.id) return
+  if (!target) return
 
   showOverview.value = false
   showMobileSiteSwitcher.value = false
@@ -2805,8 +2791,8 @@ watch(
   cursor: pointer;
 }
 
-.mobile-site-switcher__item:hover:not(:disabled),
-.mobile-site-switcher__item:focus-visible:not(:disabled) {
+.mobile-site-switcher__item:hover,
+.mobile-site-switcher__item:focus-visible {
   color: var(--el-color-primary);
   border-color: var(--el-color-primary-light-5);
   outline: none;
@@ -2815,7 +2801,6 @@ watch(
 .mobile-site-switcher__item.is-active {
   color: var(--el-color-primary);
   background: var(--el-color-primary-light-9);
-  cursor: default;
 }
 
 .mobile-site-switcher__current {

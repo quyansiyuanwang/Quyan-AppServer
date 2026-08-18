@@ -755,7 +755,7 @@ export default {
   },
 
   nav: {
-    switchSite: 'Switch site',
+    openSite: 'Open site',
     switchToMultiDomain: 'Switch to multi-domain frontend',
     sitePublic: 'Website',
     siteIdentity: 'Identity Center',

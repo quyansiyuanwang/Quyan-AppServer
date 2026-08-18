@@ -15,7 +15,7 @@
       <el-header v-if="showSiteHeader" class="site-header">
         <button type="button" class="site-header__drawer-trigger" @click="openSiteDrawer">
           <el-icon><Grid /></el-icon>
-          <span>{{ i18ns.t('nav.switchSite') }}</span>
+          <span>{{ i18ns.t('nav.openSite') }}</span>
         </button>
         <GlobalNavigationSearch />
         <div class="site-header__actions">
@@ -201,7 +201,6 @@
           v-if="isPublicProfile && !showAside"
           ref="asideMenuRef"
           class="site-switcher-only"
-          :show-logout="false"
           :show-navigation="false"
         />
         <el-aside
@@ -210,11 +209,7 @@
           :class="{ 'is-collapsed': sidebarCollapsed }"
           :width="sidebarCollapsed ? '64px' : '220px'"
         >
-          <AsideMenu
-            ref="asideMenuRef"
-            v-model:collapsed="sidebarCollapsed"
-            :show-logout="isAuthenticated"
-          />
+          <AsideMenu ref="asideMenuRef" v-model:collapsed="sidebarCollapsed" />
         </el-aside>
         <el-main ref="mainElement" class="main" :class="{ 'is-embedded': isEmbeddedShell }">
           <slot />
