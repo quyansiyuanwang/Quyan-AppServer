@@ -1,7 +1,7 @@
 <template>
   <el-popover
     :visible="isOpen"
-    trigger="click"
+    trigger="manual"
     placement="bottom-start"
     :width="640"
     :show-arrow="false"

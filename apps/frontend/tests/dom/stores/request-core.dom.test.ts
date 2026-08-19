@@ -6,6 +6,9 @@ import StorageKey from '@/constant/storagekey'
 import { clearAccessToken, clearLegacyAuthStorage, MyAxios, setAccessToken } from '@/stores/request'
 
 const refreshMock = vi.fn()
+const routerPush = vi.fn()
+
+vi.mock('@/router', () => ({ default: { push: routerPush } }))
 
 vi.mock('@/service/sessionCoordinator', () => ({
   SessionExpiredError: class SessionExpiredError extends Error {},
@@ -16,6 +19,7 @@ describe('MyAxios session transport', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
+    sessionStorage.clear()
     clearAccessToken()
     refreshMock.mockReset()
     ;(MyAxios as any).refreshTokenPromise = null
@@ -24,6 +28,7 @@ describe('MyAxios session transport', () => {
   afterEach(() => {
     clearAccessToken()
     localStorage.clear()
+    sessionStorage.clear()
     ;(MyAxios as any).refreshTokenPromise = null
   })
 
@@ -79,6 +84,41 @@ describe('MyAxios session transport', () => {
         _retry: true,
         headers: expect.anything(),
       }),
+    )
+  })
+
+  it('redirects two-factor-required responses before business success handlers run', async () => {
+    const client = new MyAxios('https://backend.example.test', 1000)
+    const axiosInstance: any = client.getAxios()
+    const fulfilledHandler = axiosInstance.interceptors.response.handlers[0]?.fulfilled
+    const responseData = {
+      code: 1018,
+      message: '当前操作需要二次验证',
+      data: {
+        challengeToken: 'challenge-token',
+        expiresIn: 300,
+        method: 'code',
+        purpose: 'stepup',
+      },
+    }
+
+    await expect(
+      fulfilledHandler({
+        data: responseData,
+        config: { url: '/v1/redemption-codes', method: 'post', headers: new AxiosHeaders() },
+      }),
+    ).rejects.toMatchObject({ code: 1018, data: responseData.data })
+
+    expect(sessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)).toContain(
+      'challenge-token',
+    )
+    await vi.waitFor(() =>
+      expect(routerPush).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'authVerification',
+          query: { purpose: 'stepup', method: 'code' },
+        }),
+      ),
     )
   })
 })

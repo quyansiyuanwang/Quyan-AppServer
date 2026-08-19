@@ -13,6 +13,7 @@ const zhCN: DeepStringify<typeof en> = {
     conflict: "资源冲突",
     payloadTooLarge: "请求体过大",
     validationFailed: "参数校验失败",
+    invalidBooleanField: "{{field}} 必须为布尔值",
     requestValidationFailed: "请求校验失败",
     internalServerError: "服务器内部错误",
     gatewayTimeout: "网关超时",

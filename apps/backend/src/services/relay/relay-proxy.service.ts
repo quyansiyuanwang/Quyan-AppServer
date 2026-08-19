@@ -95,6 +95,12 @@ import {
   resolveRelayRequestFormatTransform,
 } from "./relay-request-format-transform.service";
 import type { RelayConvertibleRequestFormat } from "@appserver/shared";
+import {
+  normalizeAnthropicRequestBeforeSend,
+  normalizeRelayTokenNormalizerConfig,
+  rectifyAnthropicRequestForError,
+  type RelayTokenNormalizerConfig,
+} from "@/util/anthropic-token-normalizer.util";
 
 const PREFIX = "/relay/proxy";
 
@@ -2915,6 +2921,9 @@ export class RelayProxyService {
     try {
       let lastError: unknown = new BadRequestError("No available relay channel");
       const attemptIssues: RelayAttemptIssue[] = [];
+      const tokenNormalizerConfig = normalizeRelayTokenNormalizerConfig(relayToken.normalizerConfig);
+      let tokenNormalizerRetried = false;
+      let tokenNormalizerBody: unknown;
       const resolvedBillingDisplayParents = new Map<string, RelayChannel | null>();
       for (let attemptIndex = 0; attemptIndex < attemptChannels.length; attemptIndex++) {
         const candidate = attemptChannels[attemptIndex];
@@ -3142,6 +3151,14 @@ export class RelayProxyService {
               !autoInjectedStreamUsageOption
             )
               convertedBody = rawJsonBody;
+            if (tokenNormalizerBody !== undefined) convertedBody = tokenNormalizerBody;
+            else if (requestFormat === "anthropic") {
+              convertedBody = normalizeAnthropicRequestBeforeSend(
+                convertedBody,
+                selectedModelId,
+                tokenNormalizerConfig,
+              );
+            }
 
             const toolsWithCache = convertedBody?.tools?.filter((t: any) => t.cache_control).length || 0;
             const messagesWithCache = convertedBody?.messages?.filter((m: any) => m.cache_control).length || 0;
@@ -3200,6 +3217,8 @@ export class RelayProxyService {
                         targetFormat: clientRequestFormat as RelayConvertibleRequestFormat,
                       }
                     : undefined,
+                  tokenNormalizerConfig,
+                  tokenNormalizerRetried,
                 ),
               );
 
@@ -3387,8 +3406,24 @@ export class RelayProxyService {
             const firstByteTime = firstPayloadTime ?? Date.now();
             const isErrorResponse = response.status >= 400;
 
+            if (isErrorResponse && requestFormat === "anthropic" && !tokenNormalizerRetried) {
+              const rectified = rectifyAnthropicRequestForError(
+                convertedBody,
+                this.extractUpstreamErrorMessage(response.data, response.status),
+                tokenNormalizerConfig,
+              );
+              if (rectified.changed) {
+                tokenNormalizerRetried = true;
+                tokenNormalizerBody = rectified.body;
+                // Re-run the same channel request without consuming a failover attempt.
+                channelAttempt -= 1;
+                continue;
+              }
+            }
+
             if (
               isErrorResponse &&
+              !tokenNormalizerRetried &&
               this.shouldRetryWithNextChannel(response.status, failoverConfig, hasNextChannel, response.data)
             ) {
               // Record failed attempt with correct channel info
@@ -3670,7 +3705,12 @@ export class RelayProxyService {
             const canRetryCurrentAttempt =
               !isStreamRequested || !res || (!res.headersSent && !res.writableEnded && !res.finished);
 
-            if (hasNextChannel && canRetryCurrentAttempt && this.isFallbackEligibleLocalError(error)) {
+            if (
+              !tokenNormalizerRetried &&
+              hasNextChannel &&
+              canRetryCurrentAttempt &&
+              this.isFallbackEligibleLocalError(error)
+            ) {
               // Record failed attempt for local errors (e.g., model not supported by channel)
               await this.recordFailedAttempt({
                 relayToken,
@@ -3720,7 +3760,7 @@ export class RelayProxyService {
               break;
             }
 
-            if (canRetryCurrentAttempt && this.isFallbackEligibleLocalError(error)) {
+            if (!tokenNormalizerRetried && canRetryCurrentAttempt && this.isFallbackEligibleLocalError(error)) {
               this.appendAttemptIssue(attemptIssues, displayChannel, attemptIndex + 1, error.message);
               throw this.buildAttemptExhaustedError(
                 normalizedRequestedModel,
@@ -3730,7 +3770,12 @@ export class RelayProxyService {
               );
             }
 
-            if (hasNextChannel && canRetryCurrentAttempt && this.shouldFailoverOnError(error)) {
+            if (
+              !tokenNormalizerRetried &&
+              hasNextChannel &&
+              canRetryCurrentAttempt &&
+              this.shouldFailoverOnError(error)
+            ) {
               if (!isLastAttemptForThisChannel) {
                 // Threshold not yet exhausted — retry the same channel
                 lastError = error;
@@ -3771,7 +3816,12 @@ export class RelayProxyService {
               break;
             }
 
-            if (!isStreamRequested && canRetryCurrentAttempt && this.shouldFailoverOnError(error)) {
+            if (
+              !tokenNormalizerRetried &&
+              !isStreamRequested &&
+              canRetryCurrentAttempt &&
+              this.shouldFailoverOnError(error)
+            ) {
               this.appendAttemptIssue(
                 attemptIssues,
                 displayChannel,
@@ -3792,7 +3842,7 @@ export class RelayProxyService {
               );
             }
 
-            if (isStreamRequested && res && this.shouldFailoverOnError(error)) {
+            if (!tokenNormalizerRetried && isStreamRequested && res && this.shouldFailoverOnError(error)) {
               if (!upstreamResponseSucceeded)
                 await this.recordChannelAttempt(relayToken.id, channel.id, false, {
                   channel,
@@ -4035,6 +4085,8 @@ export class RelayProxyService {
     originalRequestedModel?: string,
     autoInjectedStreamUsageOption: boolean = false,
     responseTransform?: { sourceFormat: RelayConvertibleRequestFormat; targetFormat: RelayConvertibleRequestFormat },
+    tokenNormalizerConfig: RelayTokenNormalizerConfig = normalizeRelayTokenNormalizerConfig(undefined),
+    tokenNormalizerRetried = false,
   ): Promise<StreamForwardResult> {
     const url = new URL(upstreamUrl);
     const isHttps = url.protocol === "https:";
@@ -4159,6 +4211,8 @@ export class RelayProxyService {
                     originalRequestedModel,
                     false,
                     responseTransform,
+                    tokenNormalizerConfig,
+                    tokenNormalizerRetried,
                   ),
                 );
                 return;
@@ -4186,7 +4240,52 @@ export class RelayProxyService {
                 (typeof upstreamData === "string" ? upstreamData : null) ||
                 (truncated ? `HTTP ${streamStatusCode} (error body truncated)` : null);
 
+              if (!res.headersSent && !tokenNormalizerRetried && requestFormat === "anthropic") {
+                const rectified = rectifyAnthropicRequestForError(
+                  convertedBody,
+                  upstreamMessage || upstreamData,
+                  tokenNormalizerConfig,
+                );
+                if (rectified.changed) {
+                  resolve(
+                    await this.forwardStreamRequest(
+                      relayToken,
+                      req,
+                      res,
+                      upstreamUrl,
+                      headers,
+                      selectedModelRate,
+                      selectedModelName,
+                      selectedModelId,
+                      globalMultiplier,
+                      timeMultiplier,
+                      contextLengthMultipliers,
+                      rectified.body,
+                      requestFormat,
+                      relayGlobalMultiplier,
+                      channelMultiplier,
+                      executionChannelId,
+                      displayChannelId,
+                      displayChannelName,
+                      channelId,
+                      monthlyPassCoverageAt,
+                      upstreamStreamTimeout,
+                      allowRetryBeforeResponse,
+                      retryStatusCodes,
+                      inputTokensIncludeCacheRead,
+                      originalRequestedModel,
+                      false,
+                      responseTransform,
+                      tokenNormalizerConfig,
+                      true,
+                    ),
+                  );
+                  return;
+                }
+              }
+
               if (
+                !tokenNormalizerRetried &&
                 allowRetryBeforeResponse &&
                 shouldRetryRelayUpstreamFailure(streamStatusCode, upstreamData, retryStatusCodes)
               ) {

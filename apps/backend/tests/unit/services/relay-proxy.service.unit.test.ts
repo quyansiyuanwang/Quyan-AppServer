@@ -540,6 +540,79 @@ describe("RelayProxyService failover", () => {
     ).toBe(false);
   });
 
+  it("retries an Anthropic budget rectification once on the same token channel without failover", async () => {
+    const { service, modelPricingService } = createService();
+    const relayToken = createRelayToken();
+    const [primaryConfig, secondaryConfig] = relayToken.channelConfigs;
+    const primaryChannel = primaryConfig!.channel;
+    const secondaryChannel = secondaryConfig!.channel;
+    Object.assign(primaryChannel, {
+      allowedFormats: "anthropic",
+      anthropicUpstreamUrl: "https://primary.example.com",
+      anthropicUpstreamApiKey: "primary-anthropic-key",
+    });
+    Object.assign(secondaryChannel, {
+      allowedFormats: "anthropic",
+      anthropicUpstreamUrl: "https://secondary.example.com",
+      anthropicUpstreamApiKey: "secondary-anthropic-key",
+    });
+    relayToken.normalizerConfig = {
+      enabled: true,
+      thinkingSignature: false,
+      thinkingBudget: true,
+      unsupportedImage: false,
+      textOnlyPreflight: false,
+    };
+    relayToken.failoverConfig.retryStatusCodes = ["503"];
+
+    modelPricingService.getModelPricing.mockResolvedValue([
+      {
+        model: "claude-test",
+        provider: "claude-test",
+        pricingType: "token-based",
+        inputPrice: 1000,
+        outputPrice: 2000,
+        cacheCreationMultiplier: 1.25,
+        cacheReadMultiplier: 0.1,
+        supportedFormats: "anthropic",
+      },
+    ]);
+
+    const request = createRequest({
+      path: "/relay/proxy/v1/messages",
+      originalUrl: "/relay/proxy/v1/messages",
+      body: {
+        model: "claude-test",
+        max_tokens: 512,
+        messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+      },
+    });
+    const budgetError = Buffer.from(JSON.stringify({ error: { message: "budget_tokens must be at least 1024" } }));
+    const retryError = Buffer.from(JSON.stringify({ error: { message: "retry failed" } }));
+    axiosMock
+      .mockResolvedValueOnce({
+        status: 400,
+        headers: { "content-type": "application/json" },
+        data: Readable.from([budgetError]),
+      })
+      .mockResolvedValueOnce({
+        status: 503,
+        headers: { "content-type": "application/json" },
+        data: Readable.from([retryError]),
+      });
+
+    await expect(service.forwardRequest(relayToken, request)).resolves.toMatchObject({ status: 503 });
+    expect(axiosMock).toHaveBeenCalledTimes(2);
+    expect((axiosMock.mock.calls[0]![0] as any).url).toBe("https://primary.example.com/v1/messages");
+    expect((axiosMock.mock.calls[1]![0] as any).url).toBe("https://primary.example.com/v1/messages");
+    const firstBody = JSON.parse((axiosMock.mock.calls[0]![0] as any).data.toString("utf8"));
+    const retryBody = JSON.parse((axiosMock.mock.calls[1]![0] as any).data.toString("utf8"));
+    expect(firstBody.thinking).toBeUndefined();
+    expect(retryBody.thinking).toEqual({ type: "enabled", budget_tokens: 32000 });
+    expect(retryBody.max_tokens).toBe(64000);
+    expect((request.body as any).max_tokens).toBe(512);
+  });
+
   it("detects Gemini image parts as image scope traffic", () => {
     const { service } = createService();
 
