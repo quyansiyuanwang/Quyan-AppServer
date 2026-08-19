@@ -159,6 +159,7 @@ export class RelayTokenRepository implements RelayTokenStore {
         quotaLimit: data.quotaLimit,
         allowedModels: data.allowedModels,
         requestFormatTransforms: data.requestFormatTransforms as Prisma.InputJsonValue | undefined,
+        normalizerConfig: data.normalizerConfig as Prisma.InputJsonValue | undefined,
         ipWhitelist: data.ipWhitelist,
         modelMapping: data.modelMapping ?? undefined,
         failoverConfig: failoverConfigCreateData
@@ -350,6 +351,7 @@ export class RelayTokenRepository implements RelayTokenStore {
       channelId,
       modelMapping,
       requestFormatTransforms,
+      normalizerConfig,
       automaticProxyPoolChannelId,
       blockedAutomaticProxyPoolChannelIds,
       ...tokenData
@@ -370,6 +372,12 @@ export class RelayTokenRepository implements RelayTokenStore {
                   requestFormatTransforms === null
                     ? Prisma.DbNull
                     : (requestFormatTransforms as unknown as Prisma.InputJsonValue),
+              }
+            : {}),
+          ...(normalizerConfig !== undefined
+            ? {
+                normalizerConfig:
+                  normalizerConfig === null ? Prisma.DbNull : (normalizerConfig as unknown as Prisma.InputJsonValue),
               }
             : {}),
         },

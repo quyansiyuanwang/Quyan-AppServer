@@ -89,6 +89,13 @@ type EditableRelayFormatTransform = {
 type RelayTokenWithTransforms = RelayTokenDto & {
   requestFormatTransforms?: RelayFormatTransform[] | null
 }
+type RelayTokenNormalizerConfig = {
+  enabled: boolean
+  thinkingSignature: boolean
+  thinkingBudget: boolean
+  unsupportedImage: boolean
+  textOnlyPreflight: boolean
+}
 
 export const RELAY_TOKEN_COLUMN_KEYS = [
   'name',
@@ -589,6 +596,13 @@ export const useRelayTokenManagement = () => {
     failoverConfig: createDefaultFailoverConfig() as EditableFailoverConfig,
     modelMapping: {} as Record<string, string>,
     requestFormatTransforms: [] as EditableRelayFormatTransform[],
+    normalizerConfig: {
+      enabled: false,
+      thinkingSignature: false,
+      thinkingBudget: false,
+      unsupportedImage: false,
+      textOnlyPreflight: false,
+    } as RelayTokenNormalizerConfig,
   })
 
   const editForm = ref({
@@ -1639,6 +1653,13 @@ export const useRelayTokenManagement = () => {
           // A legacy invalid rule must not remain selectable as a no-op conversion.
           targetFormat: rule.sourceFormat === rule.targetFormat ? undefined : rule.targetFormat,
         })) || [],
+      normalizerConfig: {
+        enabled: row.normalizerConfig?.enabled === true,
+        thinkingSignature: row.normalizerConfig?.thinkingSignature === true,
+        thinkingBudget: row.normalizerConfig?.thinkingBudget === true,
+        unsupportedImage: row.normalizerConfig?.unsupportedImage === true,
+        textOnlyPreflight: row.normalizerConfig?.textOnlyPreflight === true,
+      },
     }
 
     showEditDialog.value = true
@@ -2010,6 +2031,7 @@ export const useRelayTokenManagement = () => {
         routingMode === 'automatic-pool' ? buildBlockedAutomaticProxyPoolChannelIdsPayload() : []
       const quotaWindows = normalizeQuotaWindowsPayload()
       const requestFormatTransforms = normalizeRequestFormatTransformsPayload()
+      const normalizerConfig = { ...editForm.value.normalizerConfig }
       const allowedModelsStr = editForm.value.allowedModelIdsList.join(',')
       const normalizedName = editForm.value.name.trim()
       editForm.value.ipWhitelist = normalizeIpWhitelistEntries(editForm.value.ipWhitelist)
@@ -2055,6 +2077,7 @@ export const useRelayTokenManagement = () => {
           ipWhitelist,
           modelMapping,
           requestFormatTransforms,
+          normalizerConfig,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.createRelayToken(data)
@@ -2083,6 +2106,7 @@ export const useRelayTokenManagement = () => {
           ipWhitelist: ipWhitelist || null,
           modelMapping,
           requestFormatTransforms,
+          normalizerConfig,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.updateToken(currentEditId.value, data)

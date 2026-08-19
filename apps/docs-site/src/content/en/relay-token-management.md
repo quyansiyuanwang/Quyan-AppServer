@@ -41,6 +41,15 @@ Each token can have up to three conversion rules, with one rule per source forma
 - Provider-specific fields that cannot be represented safely are rejected instead of silently removed, including async/session requests, hosted tools, file or audio/video inputs, and cache controls.
 - Chat Completions or Responses requests converted to Anthropic must provide a mappable maximum output token limit; no default is injected.
 
+### Anthropic request normalizer
+
+Each token can independently enable Anthropic request normalization. It applies only to Anthropic Messages requests sent with that token and does not change other tokens, channel settings, or the model catalog.
+
+- When its master switch is off, requests are neither rewritten nor retried.
+- Thinking signature, Thinking Budget, and unsupported-image handling can be enabled independently. Signature handling removes incompatible thinking blocks or signatures. Budget handling enables thinking, uses a budget of 32000, and raises the maximum output token value when required.
+- Image fallback replaces image blocks with `[Unsupported Image]` and retries when the upstream explicitly rejects images. Text-only model preflight can additionally make that replacement before sending to confirmed text-only models.
+- Each request has at most one normalization retry, always with the original token and current channel. A stream is never retried after output has begun, and a failed normalization retry does not enter normal failover.
+
 ### Channel and failover data
 
 - Ordered channel list.
@@ -70,7 +79,7 @@ The resolved member determines the upstream, model capabilities, and billing mul
 ## Common actions
 
 1. Create a token with a recognizable name.
-2. Configure channel order and failover behavior.
+2. Configure channel order and failover behavior. When an Anthropic upstream needs compatibility handling, enable request normalization for that token in the edit drawer.
 3. Enable quota windows and set per-window limits if rate limiting is required.
 4. Fill in the IP whitelist if you want to restrict which sources can use the token.
 5. Review quota usage regularly to avoid unexpected throttling.

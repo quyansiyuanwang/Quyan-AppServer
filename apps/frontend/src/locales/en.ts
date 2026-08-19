@@ -2772,6 +2772,14 @@ export default {
       'The client request format in conversion rule #{index} is already used by another rule.',
     requestFormatTransformSameFormatDisabled:
       'The same format needs no conversion and cannot be selected on both sides.',
+    anthropicNormalizer: 'Anthropic Request Normalizer',
+    anthropicNormalizerEnabled: 'Enable the normalizer for this token',
+    anthropicNormalizerHelp:
+      'Applies only to this Relay Token. Normalizer retries stay on the current token and never switch to another token.',
+    thinkingSignatureNormalizer: 'Thinking signature normalization',
+    thinkingBudgetNormalizer: 'Thinking budget normalization',
+    unsupportedImageNormalizer: 'Fallback when images are unsupported',
+    textOnlyPreflightNormalizer: 'Text-only model preflight',
     advancedSettings: 'Advanced Settings',
     upstreamUrl: 'Upstream API URL',
     upstreamApiKey: 'Upstream API Key',
