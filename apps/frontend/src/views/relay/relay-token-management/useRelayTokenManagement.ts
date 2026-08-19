@@ -1,4 +1,5 @@
 import { usePageDevice } from '@/composables/usePageDevice'
+import StorageKey from '@/constant/storagekey'
 import { MANAGED_STATUS } from '@/constant/status'
 import { i18ns } from '@/locales'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -13,6 +14,7 @@ import Sortable from 'sortablejs'
 import { resolveRelayAiBaseUrl } from '@/constant/strings'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { normalizeRelayFormats, type RelayFormat } from '@/utils/relay-formats'
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { Permission } from '@/constant/permission'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type {
@@ -117,7 +119,7 @@ export const RELAY_TOKEN_COLUMN_KEYS = [
 ] as const
 export type RelayTokenColumnKey = (typeof RELAY_TOKEN_COLUMN_KEYS)[number]
 
-const RELAY_TOKEN_COLUMN_STORAGE_KEY = 'relay-token-management:column-settings:v1'
+const RELAY_TOKEN_COLUMN_STORAGE_KEY = StorageKey.Relay.TOKEN_MANAGEMENT_COLUMN_SETTINGS
 const DEFAULT_RELAY_TOKEN_COLUMN_ORDER: RelayTokenColumnKey[] = [...RELAY_TOKEN_COLUMN_KEYS]
 const DEFAULT_RELAY_TOKEN_COLUMN_VISIBILITY: Record<RelayTokenColumnKey, boolean> = {
   name: true,
@@ -149,16 +151,13 @@ const readRelayTokenColumnPreferences = (): RelayTokenColumnPreferences => {
     visibility: { ...DEFAULT_RELAY_TOKEN_COLUMN_VISIBILITY },
   }
 
-  if (typeof window === 'undefined') return fallback
+  const parsed = TypedLocalStorage.get<{
+    order?: unknown
+    visibility?: unknown
+  }>(RELAY_TOKEN_COLUMN_STORAGE_KEY)
+  if (!parsed) return fallback
 
   try {
-    const raw = window.localStorage.getItem(RELAY_TOKEN_COLUMN_STORAGE_KEY)
-    if (!raw) return fallback
-
-    const parsed = JSON.parse(raw) as {
-      order?: unknown
-      visibility?: unknown
-    }
     const knownKeys = new Set<string>(RELAY_TOKEN_COLUMN_KEYS)
     const storedOrder = Array.isArray(parsed.order)
       ? parsed.order.filter(
@@ -458,14 +457,7 @@ export const useRelayTokenManagement = () => {
   watch(
     [tokenColumnOrder, tokenColumnVisibility],
     ([order, visibility]) => {
-      try {
-        window.localStorage.setItem(
-          RELAY_TOKEN_COLUMN_STORAGE_KEY,
-          JSON.stringify({ order, visibility }),
-        )
-      } catch {
-        // Column preferences are best-effort and must not affect token management.
-      }
+      TypedLocalStorage.set(RELAY_TOKEN_COLUMN_STORAGE_KEY, { order, visibility })
     },
     { deep: true },
   )

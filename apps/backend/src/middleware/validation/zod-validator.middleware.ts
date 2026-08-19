@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { ZodError, ZodSchema } from "zod";
 import { ValidationError } from "@/util/errors";
-import { translateMessage, DEFAULT_BACKEND_LOCALE, type BackendLocale } from "@/locales";
+import { backendI18n, DEFAULT_BACKEND_LOCALE, type BackendLocale } from "@/locales";
 
 type RequestPart = "body" | "query" | "params";
 
@@ -11,10 +11,16 @@ function mapZodError(part: RequestPart, error: ZodError, locale: BackendLocale):
   for (const issue of error.issues) {
     const path = issue.path.length > 0 ? `${part}.${issue.path.join(".")}` : part;
     if (!fields[path]) fields[path] = [];
-    fields[path].push(issue.message);
+    fields[path].push(
+      issue.code === "invalid_type" && issue.expected === "boolean"
+        ? backendI18n.t("errors.invalidBooleanField", locale, { field: path })
+        : issue.message,
+    );
   }
 
-  return new ValidationError(translateMessage("errors.validationFailed", locale), fields);
+  return new ValidationError(backendI18n.t("errors.validationFailed", locale), fields, undefined, {
+    messageKey: "errors.validationFailed",
+  });
 }
 
 function createValidator<T>(part: RequestPart, schema: ZodSchema<T>) {

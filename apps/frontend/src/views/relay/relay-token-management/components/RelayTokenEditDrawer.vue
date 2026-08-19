@@ -1172,9 +1172,9 @@ const {
 } = state
 
 const requestFormatOptions = [
-  { value: 'openai-chat-completions', label: 'OpenAI Chat Completions' },
-  { value: 'openai-responses', label: 'OpenAI Responses' },
-  { value: 'anthropic', label: 'Anthropic Messages' },
+  { value: 'openai-chat-completions', label: i18ns.t('relay.formatOpenAIChatCompletions') },
+  { value: 'openai-responses', label: i18ns.t('relay.formatOpenAIResponses') },
+  { value: 'anthropic', label: i18ns.t('relay.formatAnthropic') },
 ] as const
 
 const setChannelListRef = (element: Element | ComponentPublicInstance | null) => {

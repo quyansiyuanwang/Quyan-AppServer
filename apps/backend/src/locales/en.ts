@@ -10,6 +10,7 @@ const en = {
     conflict: "Conflict",
     payloadTooLarge: "Payload too large",
     validationFailed: "Validation failed",
+    invalidBooleanField: "{{field}} must be a boolean",
     requestValidationFailed: "Request validation failed",
     internalServerError: "Internal server error",
     gatewayTimeout: "Gateway timeout",
