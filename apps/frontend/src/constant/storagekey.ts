@@ -49,6 +49,7 @@ const StorageKey = {
   Relay: {
     BALANCE_SCRIPT_SETTINGS: 'Relay-BalanceScriptSettings',
     CHANNEL_PROBE_APPLY_SETTINGS: 'relay-channel-probe:apply-multiplier-settings:v1',
+    TOKEN_MANAGEMENT_COLUMN_SETTINGS: 'relay-token-management:column-settings:v1',
   },
   Tracking: {
     SESSION_ID: 'track_session_id',

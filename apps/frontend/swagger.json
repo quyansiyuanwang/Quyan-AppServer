@@ -40230,6 +40230,34 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayTokenNormalizerConfig": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"thinkingSignature": {
+						"type": "boolean"
+					},
+					"thinkingBudget": {
+						"type": "boolean"
+					},
+					"unsupportedImage": {
+						"type": "boolean"
+					},
+					"textOnlyPreflight": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"enabled",
+					"thinkingSignature",
+					"thinkingBudget",
+					"unsupportedImage",
+					"textOnlyPreflight"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayTokenChannelConfigDto": {
 				"properties": {
 					"channelId": {
@@ -40421,6 +40449,9 @@
 						},
 						"type": "array"
 					},
+					"normalizerConfig": {
+						"$ref": "#/components/schemas/RelayTokenNormalizerConfig"
+					},
 					"ipWhitelist": {
 						"type": "string"
 					},
@@ -40577,6 +40608,10 @@
 						"type": "array",
 						"description": "Request protocol translation rules. An empty array disables translation."
 					},
+					"normalizerConfig": {
+						"$ref": "#/components/schemas/RelayTokenNormalizerConfig",
+						"description": "Anthropic request normalizer settings scoped to this relay token."
+					},
 					"ipWhitelist": {
 						"type": "string",
 						"nullable": true,
@@ -40665,6 +40700,10 @@
 						},
 						"type": "array",
 						"description": "Request protocol translation rules. An empty array disables translation."
+					},
+					"normalizerConfig": {
+						"$ref": "#/components/schemas/RelayTokenNormalizerConfig",
+						"description": "Anthropic request normalizer settings scoped to this relay token."
 					},
 					"ipWhitelist": {
 						"type": "string",
@@ -40844,6 +40883,10 @@
 						"type": "array",
 						"description": "Request protocol translation rules. An empty array disables translation."
 					},
+					"normalizerConfig": {
+						"$ref": "#/components/schemas/RelayTokenNormalizerConfig",
+						"description": "Anthropic request normalizer settings scoped to this relay token."
+					},
 					"ipWhitelist": {
 						"type": "string",
 						"nullable": true,
@@ -41016,6 +41059,15 @@
 						"type": "array",
 						"nullable": true,
 						"description": "Request protocol translation rules. Pass null to clear all rules."
+					},
+					"normalizerConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayTokenNormalizerConfig"
+							}
+						],
+						"nullable": true,
+						"description": "Anthropic request normalizer settings scoped to this relay token."
 					},
 					"ipWhitelist": {
 						"type": "string",

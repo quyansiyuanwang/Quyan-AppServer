@@ -10,6 +10,24 @@ import {
 } from "../../../src/api/schema/relay/relay-channel.schema";
 
 describe("relay token import schema", () => {
+  it("accepts token-scoped Anthropic normalizer settings for create, update, and import", () => {
+    const normalizerConfig = {
+      enabled: true,
+      thinkingSignature: true,
+      thinkingBudget: false,
+      unsupportedImage: true,
+      textOnlyPreflight: true,
+    };
+
+    expect(createRelayTokenBodySchema.parse({ channelId: "channel-1", normalizerConfig }).normalizerConfig).toEqual(
+      normalizerConfig,
+    );
+    expect(updateRelayTokenBodySchema.parse({ normalizerConfig }).normalizerConfig).toEqual(normalizerConfig);
+    expect(
+      importRelayTokensBodySchema.parse({ tokens: [{ channelId: "channel-1", normalizerConfig }] }).tokens[0],
+    ).toMatchObject({ normalizerConfig });
+  });
+
   it("accepts distinct request format transforms and rejects invalid rules", () => {
     const valid = [
       { sourceFormat: "anthropic", targetFormat: "openai-chat-completions" },

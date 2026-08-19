@@ -946,6 +946,60 @@
             </div>
           </el-collapse-item>
 
+          <el-collapse-item name="anthropicNormalizer">
+            <template #title>
+              <span class="relay-token-edit-sections__title">{{
+                i18ns.t('relay.anthropicNormalizer')
+              }}</span>
+            </template>
+            <div
+              :class="
+                isDesktop ? 'relay-token-edit-section-grid' : 'relay-token-edit-section-stack'
+              "
+            >
+              <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
+                <el-switch
+                  v-model="editForm.normalizerConfig.enabled"
+                  :active-text="i18ns.t('relay.anthropicNormalizerEnabled')"
+                />
+              </el-form-item>
+              <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
+                <el-alert
+                  type="info"
+                  :closable="false"
+                  :title="i18ns.t('relay.anthropicNormalizerHelp')"
+                />
+              </el-form-item>
+              <el-form-item :label="i18ns.t('relay.thinkingSignatureNormalizer')">
+                <el-switch
+                  v-model="editForm.normalizerConfig.thinkingSignature"
+                  :disabled="!editForm.normalizerConfig.enabled"
+                />
+              </el-form-item>
+              <el-form-item :label="i18ns.t('relay.thinkingBudgetNormalizer')">
+                <el-switch
+                  v-model="editForm.normalizerConfig.thinkingBudget"
+                  :disabled="!editForm.normalizerConfig.enabled"
+                />
+              </el-form-item>
+              <el-form-item :label="i18ns.t('relay.unsupportedImageNormalizer')">
+                <el-switch
+                  v-model="editForm.normalizerConfig.unsupportedImage"
+                  :disabled="!editForm.normalizerConfig.enabled"
+                />
+              </el-form-item>
+              <el-form-item :label="i18ns.t('relay.textOnlyPreflightNormalizer')">
+                <el-switch
+                  v-model="editForm.normalizerConfig.textOnlyPreflight"
+                  :disabled="
+                    !editForm.normalizerConfig.enabled ||
+                    !editForm.normalizerConfig.unsupportedImage
+                  "
+                />
+              </el-form-item>
+            </div>
+          </el-collapse-item>
+
           <el-collapse-item name="advanced">
             <template #title>
               <span class="relay-token-edit-sections__title">{{
@@ -1118,9 +1172,9 @@ const {
 } = state
 
 const requestFormatOptions = [
-  { value: 'openai-chat-completions', label: 'OpenAI Chat Completions' },
-  { value: 'openai-responses', label: 'OpenAI Responses' },
-  { value: 'anthropic', label: 'Anthropic Messages' },
+  { value: 'openai-chat-completions', label: i18ns.t('relay.formatOpenAIChatCompletions') },
+  { value: 'openai-responses', label: i18ns.t('relay.formatOpenAIResponses') },
+  { value: 'anthropic', label: i18ns.t('relay.formatAnthropic') },
 ] as const
 
 const setChannelListRef = (element: Element | ComponentPublicInstance | null) => {

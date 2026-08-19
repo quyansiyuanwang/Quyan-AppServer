@@ -139,6 +139,14 @@ const relayRequestFormatTransformsSchema = z
     });
   });
 
+const relayTokenNormalizerConfigSchema = z.object({
+  enabled: z.boolean(),
+  thinkingSignature: z.boolean(),
+  thinkingBudget: z.boolean(),
+  unsupportedImage: z.boolean(),
+  textOnlyPreflight: z.boolean(),
+});
+
 export const createRelayTokenBodySchema = z
   .object({
     targetUserId: z.string().trim().min(1).max(50).optional(),
@@ -155,6 +163,7 @@ export const createRelayTokenBodySchema = z
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
     allowedModels: z.string().max(2000).nullish(),
     requestFormatTransforms: relayRequestFormatTransformsSchema.optional(),
+    normalizerConfig: relayTokenNormalizerConfigSchema.optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).optional(),
   })
@@ -249,6 +258,7 @@ export const updateRelayTokenBodySchema = z
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
     allowedModels: z.string().max(2000).nullish(),
     requestFormatTransforms: relayRequestFormatTransformsSchema.nullable().optional(),
+    normalizerConfig: relayTokenNormalizerConfigSchema.nullable().optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).nullable().optional(),
   })
@@ -347,6 +357,7 @@ const relayTokenImportItemSchema = z
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
     allowedModels: z.string().max(2000).nullish(),
     requestFormatTransforms: relayRequestFormatTransformsSchema.optional(),
+    normalizerConfig: relayTokenNormalizerConfigSchema.optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).optional(),
     enabled: z.coerce.boolean().optional(),

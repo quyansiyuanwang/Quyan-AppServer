@@ -78,6 +78,10 @@ import { RateLimiterService } from "@/services/infrastructure/rate-limiter.servi
 import { backendI18n } from "@/locales";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
 import type { RelayRequestFormatTransform } from "@appserver/shared";
+import {
+  DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
+  normalizeRelayTokenNormalizerConfig,
+} from "@/util/anthropic-token-normalizer.util";
 
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 const trimTrailingZeros = (value: number): string => String(value).replace(/\.0+$|(\.\d*?[1-9])0+$/, "$1");
@@ -328,6 +332,9 @@ export class RelayTokenService {
       quotaWindows: this.normalizeQuotaWindows(data.quotaWindows),
       allowedModels: data.allowedModels?.trim() || undefined,
       requestFormatTransforms: normalizeRequestFormatTransforms(data.requestFormatTransforms),
+      normalizerConfig: data.normalizerConfig
+        ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig)
+        : DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
       ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
       modelMapping: data.modelMapping ?? undefined,
     });
@@ -654,6 +661,7 @@ export class RelayTokenService {
     const hasAllowedModels = Object.prototype.hasOwnProperty.call(data, "allowedModels");
     const hasModelMapping = Object.prototype.hasOwnProperty.call(data, "modelMapping");
     const hasRequestFormatTransforms = Object.prototype.hasOwnProperty.call(data, "requestFormatTransforms");
+    const hasNormalizerConfig = Object.prototype.hasOwnProperty.call(data, "normalizerConfig");
     const hasToken = Object.prototype.hasOwnProperty.call(data, "token");
 
     let tokenValue: string | undefined;
@@ -683,6 +691,7 @@ export class RelayTokenService {
       requestFormatTransforms: hasRequestFormatTransforms
         ? normalizeRequestFormatTransforms(data.requestFormatTransforms)
         : undefined,
+      normalizerConfig: hasNormalizerConfig ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig) : undefined,
       channelId: normalizedConfig?.defaultChannelId,
       channelConfigs: normalizedConfig?.channelConfigs,
       routingMode: data.routingMode,
@@ -1398,6 +1407,7 @@ export class RelayTokenService {
       ipWhitelist: token.ipWhitelist || undefined,
       modelMapping: token.modelMapping as Record<string, string> | undefined,
       requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
+      normalizerConfig: normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
       channelConfigs,
       hasInvalidOrderedChannels,
       failoverConfig: token.failoverConfig
@@ -1460,6 +1470,7 @@ export class RelayTokenService {
       ipWhitelist: token.ipWhitelist || undefined,
       modelMapping: token.modelMapping as Record<string, string> | undefined,
       requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
+      normalizerConfig: normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
       enabled: token.status === MANAGED_STATUS.ENABLED,
     };
   }
@@ -1841,6 +1852,9 @@ export class RelayTokenService {
         quotaWindows: this.normalizeQuotaWindows(data.quotaWindows),
         allowedModels: data.allowedModels?.trim() || undefined,
         requestFormatTransforms: normalizeRequestFormatTransforms(data.requestFormatTransforms),
+        normalizerConfig: data.normalizerConfig
+          ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig)
+          : DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
         ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
         modelMapping: data.modelMapping ?? undefined,
       },

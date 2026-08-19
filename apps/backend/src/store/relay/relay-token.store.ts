@@ -7,6 +7,7 @@ import type {
   RelayTokenQuotaWindow,
 } from "@prisma/client";
 import type { RelayRequestFormatTransform } from "@appserver/shared";
+import type { RelayTokenNormalizerConfig } from "@/util/anthropic-token-normalizer.util";
 
 export type RelayTokenQuotaUnit = "amount" | "request" | "token";
 
@@ -113,6 +114,7 @@ export interface RelayTokenCreateInput {
   quotaWindows?: RelayTokenQuotaWindowInput[];
   allowedModels?: string | null;
   requestFormatTransforms?: RelayRequestFormatTransform[] | null;
+  normalizerConfig?: RelayTokenNormalizerConfig | null;
   ipWhitelist?: string | null;
   modelMapping?: Record<string, string> | null;
   failoverConfig?: RelayFailoverConfigInput;
@@ -133,6 +135,7 @@ export type RelayTokenUpdateInput = Partial<{
   quotaWindows: RelayTokenQuotaWindowInput[];
   allowedModels: string | null;
   requestFormatTransforms: RelayRequestFormatTransform[] | null;
+  normalizerConfig: RelayTokenNormalizerConfig | null;
   ipWhitelist: string | null;
   modelMapping: Record<string, string> | null;
 }> & {

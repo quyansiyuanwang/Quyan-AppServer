@@ -14,6 +14,7 @@ import { getOrCreateClientFingerprint } from '@/utils/client-fingerprint'
 import { useImpersonationStore } from '@/stores/impersonationStore'
 import { ReplaySigningService } from '@/service/replaySigningService'
 import { getBackendLocale } from '@/locales'
+import { toServiceError } from '@/utils/error-utils'
 
 type AnyEndpointDescriptor = ApiEndpointDescriptor<ApiMethod, any, any, any, any, any>
 type EndpointWithMethod<METHOD extends ApiMethod> = ApiEndpointDescriptor<
@@ -44,6 +45,46 @@ const NO_REFRESH_RETRY_CUSTOM_CODES = new Set<number>([
 ])
 
 const REPLAY_SIGNING_RECOVERABLE_MESSAGE_HINT = '签名会话'
+let twoFactorNavigationPromise: Promise<void> | null = null
+
+const getTwoFactorRedirect = (): string | undefined => {
+  if (typeof window === 'undefined') return undefined
+  const path = `${window.location.pathname}${window.location.search}`
+  return path.startsWith('/') && !path.startsWith('/auth/verify') ? path : undefined
+}
+
+const navigateToTwoFactorVerification = (responseData: any): void => {
+  const challengeToken = responseData?.data?.challengeToken
+  if (typeof challengeToken !== 'string' || !challengeToken.trim()) return
+
+  const redirect = getTwoFactorRedirect()
+  TypedSessionStorage.setItem(
+    StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE,
+    JSON.stringify({ challengeToken, redirect, createdAt: Date.now() }),
+  )
+
+  if (twoFactorNavigationPromise) return
+  twoFactorNavigationPromise = import('@/router')
+    .then(({ default: router }) =>
+      router.push({
+        name: 'authVerification',
+        query: {
+          purpose: 'stepup',
+          method: responseData?.data?.method === 'email' ? 'email' : 'code',
+        },
+      }),
+    )
+    .then(() => undefined)
+    .catch((error) => {
+      console.warn('[2FA] Failed to navigate to verification page:', error)
+    })
+    .finally(() => {
+      twoFactorNavigationPromise = null
+    })
+}
+
+const createTwoFactorRequiredError = (responseData: any) =>
+  toServiceError(responseData, '当前操作需要二次验证')
 
 const ifElseDefault = <T, F, D>(value: any, t: T, f: F, defaultValue: D): T | F | D => {
   if (value === undefined) return defaultValue
@@ -551,8 +592,8 @@ class MyAxios {
             MyAxios.savePendingTwoFactorRequest(originalRequest)
           }
 
-          // 返回 2FA 响应数据（让业务层处理跳转到 2FA 页面）
-          return response.data
+          navigateToTwoFactorVerification(response.data)
+          return Promise.reject(createTwoFactorRequiredError(response.data))
         }
 
         // 如果code不为0，抛出错误
@@ -606,8 +647,8 @@ class MyAxios {
             MyAxios.savePendingTwoFactorRequest(originalRequest)
           }
 
-          // 返回 2FA 响应数据（不要抛出错误）
-          return responseData
+          navigateToTwoFactorVerification(responseData)
+          return Promise.reject(createTwoFactorRequiredError(responseData))
         }
 
         // 处理 401 未授权错误，尝试刷新 token
