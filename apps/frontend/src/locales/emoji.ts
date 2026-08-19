@@ -4860,6 +4860,11 @@ const emoji: DeepStringify<typeof en> = {
     editMessage: '✏️💬',
     confirmDelete: '✅🗑️',
     confirmDeleteConversation: '✅🗑️💬❓',
+    agentMode: '🤖🧭',
+    selectWorkspace: '🗂️👆',
+    createWorkspace: '🆕🗂️',
+    workspaceNamePrompt: '⌨️🗂️',
+    defaultWorkspaceName: '🆕🤖🗂️',
   },
   scriptManager: {
     title: '📜',

@@ -14,6 +14,27 @@
           :value="token.id"
         />
       </el-select>
+      <el-switch v-model="agentMode" :active-text="i18ns.t('chat.agentMode')" :disabled="sending" />
+      <el-button
+        v-if="agentMode && !workspaces?.length"
+        size="small"
+        @click="$emit('create-workspace')"
+        >{{ i18ns.t('chat.createWorkspace') }}</el-button
+      >
+      <el-select
+        v-if="agentMode"
+        class="selector"
+        v-model="selectedWorkspace"
+        :placeholder="i18ns.t('chat.selectWorkspace')"
+        :disabled="sending"
+      >
+        <el-option
+          v-for="workspace in workspaces"
+          :key="workspace.id"
+          :label="workspace.name"
+          :value="workspace.id"
+        />
+      </el-select>
       <el-select
         class="selector"
         v-model="selectedModel"
@@ -55,19 +76,45 @@ import { getScopedStorageKey } from '@/utils/storageScope'
 
 const props = defineProps<{
   tokens: ChatToken[]
+  workspaces?: { id: string; name: string }[]
+  agentMode?: boolean
   sending?: boolean
 }>()
 
 const emit = defineEmits<{
-  send: [content: string, model: string, tokenId?: string]
+  send: [
+    content: string,
+    model: string,
+    tokenId?: string,
+    agentMode?: boolean,
+    workspaceId?: string,
+  ]
   stop: []
+  'create-workspace': []
 }>()
 
 const content = ref('')
+const agentMode = ref(props.agentMode ?? false)
+const selectedWorkspace = ref<string | null>(props.workspaces?.[0]?.id || null)
 const selectedTokenStorageKey = getScopedStorageKey(StorageKey.Chat.SELECTED_TOKEN_ID)
 const selectedModelStorageKey = getScopedStorageKey(StorageKey.Chat.SELECTED_MODEL)
 const selectedToken = ref<string | null>(TypedLocalStorage.getItem(selectedTokenStorageKey))
 const selectedModel = ref(TypedLocalStorage.getItem(selectedModelStorageKey) || '')
+
+watch(
+  () => props.agentMode,
+  (value) => {
+    agentMode.value = value ?? false
+  },
+)
+watch(
+  () => props.workspaces,
+  (items) => {
+    if (!items?.some((item) => item.id === selectedWorkspace.value))
+      selectedWorkspace.value = items?.[0]?.id || null
+  },
+  { immediate: true },
+)
 
 watch(
   () => props.tokens,
@@ -131,7 +178,14 @@ watch(
 function handleSend() {
   if (props.sending) return
   if (!content.value.trim() || !selectedModel.value) return
-  emit('send', content.value, selectedModel.value, selectedToken.value || undefined)
+  emit(
+    'send',
+    content.value,
+    selectedModel.value,
+    selectedToken.value || undefined,
+    agentMode.value,
+    selectedWorkspace.value || undefined,
+  )
   content.value = ''
 }
 

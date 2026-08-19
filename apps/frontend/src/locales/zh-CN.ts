@@ -5084,6 +5084,11 @@ const zhCN: DeepStringify<typeof en> = {
     editMessage: '编辑消息',
     confirmDelete: '确认删除此消息？',
     confirmDeleteConversation: '确认删除此对话吗？',
+    agentMode: 'Agent 模式',
+    selectWorkspace: '选择工作区',
+    createWorkspace: '创建工作区',
+    workspaceNamePrompt: '请输入工作区名称',
+    defaultWorkspaceName: '新建 Agent 工作区',
   },
   NotificationSettingsView: {
     title: '事件中心',

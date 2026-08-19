@@ -5,6 +5,7 @@ import { chatService } from '@/service/chatService'
 import StorageKey from '@/constant/storagekey'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { getScopedStorageKey } from '@/utils/storageScope'
+import { agentService } from '@/service/agentService'
 
 type MessageClientState = 'streaming' | 'failed' | 'stopped'
 type ChatMessage = Message & { clientState?: MessageClientState; errorMessage?: string }
@@ -225,6 +226,74 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  async function sendAgentMessage(
+    content: string,
+    model: string,
+    tokenId: string | undefined,
+    workspaceId: string,
+  ) {
+    const conversation = currentConversation.value
+    if (!conversation || activeRequests.has(conversation.id)) return
+    const selection = resolveAvailableSelection(tokenId, model)
+    if (!selection) return
+
+    const requestId = ++requestVersion
+    const draftId = `agent-draft-${requestId}`
+    const controller = new AbortController()
+    activeRequests.set(conversation.id, {
+      id: requestId,
+      conversationId: conversation.id,
+      controller,
+      assistantDraftId: draftId,
+    })
+    messages.value.push(
+      createDraft(conversation.id, 'user', content, `agent-user-draft-${requestId}`),
+    )
+    const assistantDraft = createDraft(conversation.id, 'assistant', '', draftId)
+    assistantDraft.clientState = 'streaming'
+    messages.value.push(assistantDraft)
+    const getDraft = () =>
+      isCurrentRequest(requestId, conversation.id)
+        ? messages.value.find((item) => item.id === draftId)
+        : undefined
+
+    try {
+      const run = await agentService.createRun(conversation.id, {
+        content,
+        model: selection.model,
+        relayTokenId: selection.tokenId,
+        workspaceId,
+      })
+      if (!run?.id) throw new Error('Agent task could not be created')
+      for await (const event of agentService.stream(run.id, { signal: controller.signal })) {
+        const draft = getDraft()
+        if (!draft) return
+        if (event.type === 'assistant_delta') draft.content += event.content
+        else if (event.type === 'tool_call') draft.content += `\n\n[${event.call.name}]\n`
+        else if (event.type === 'tool_result' && event.content)
+          draft.content += `${event.content}\n`
+        else if (event.type === 'complete') {
+          draft.content = event.content
+          delete draft.clientState
+          void loadMessages(conversation.id)
+          return
+        } else if (event.type === 'error') {
+          draft.clientState = 'failed'
+          draft.errorMessage = event.error
+          return
+        }
+      }
+    } catch (error) {
+      const draft = getDraft()
+      if (draft) {
+        draft.clientState = 'failed'
+        draft.errorMessage = error instanceof Error ? error.message : 'Agent task failed'
+      }
+    } finally {
+      if (isCurrentRequest(requestId, conversation.id)) activeRequests.delete(conversation.id)
+    }
+  }
+
   function stopGeneration() {
     cancelActiveRequest(currentConversation.value?.id)
   }
@@ -307,6 +376,7 @@ export const useChatStore = defineStore('chat', () => {
     selectConversation,
     loadMessages,
     sendMessage,
+    sendAgentMessage,
     stopGeneration,
     cancelActiveRequest,
     deleteConversation,

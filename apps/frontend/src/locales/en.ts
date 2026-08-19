@@ -5311,6 +5311,11 @@ export default {
     editMessage: 'Edit Message',
     confirmDelete: 'Confirm delete this message?',
     confirmDeleteConversation: 'Are you sure you want to delete this conversation?',
+    agentMode: 'Agent mode',
+    selectWorkspace: 'Select workspace',
+    createWorkspace: 'Create workspace',
+    workspaceNamePrompt: 'Enter a workspace name',
+    defaultWorkspaceName: 'New Agent Workspace',
   },
   NotificationSettingsView: {
     title: 'Event Center',
