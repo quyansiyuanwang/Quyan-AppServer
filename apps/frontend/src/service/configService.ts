@@ -18,6 +18,8 @@ import type {
   SetSmtpConfigDto,
   SetRemoteTerminalUnbindConfigDto,
   SetSocialAuthConfigDto,
+  RelayProxyConfigDto,
+  SetRelayProxyConfigDto,
   SiteConfigDto,
   SocialAuthConfigDto,
 } from '@/client/types.gen'
@@ -117,6 +119,13 @@ export class ConfigService {
     throw toServiceError(result)
   }
 
+  async getRelayProxyConfig(): Promise<RelayProxyConfigDto> {
+    const result = await configApi.getRelayProxyConfig({})
+    if (result && result.code === CustomCode.OK && result.data)
+      return result.data as RelayProxyConfigDto
+    throw toServiceError(result)
+  }
+
   async getSmtpConfig() {
     const result = await configApi.getSmtpConfig({})
     if (result && result.code === CustomCode.OK && result.data) {
@@ -196,6 +205,12 @@ export class ConfigService {
     if (result && result.code === CustomCode.OK) {
       return true
     }
+    throw toServiceError(result)
+  }
+
+  async setRelayProxyConfig(config: SetRelayProxyConfigDto) {
+    const result = await configApi.setRelayProxyConfig({ body: config })
+    if (result && result.code === CustomCode.OK) return true
     throw toServiceError(result)
   }
 

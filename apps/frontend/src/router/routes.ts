@@ -229,6 +229,12 @@ export const routes = [
             component: lazyFeatureView('misc', 'chat/ChatView.vue'),
           },
           {
+            path: 'chat/agent-machines',
+            name: 'agentMachines',
+            component: lazyFeatureView('misc', 'chat/AgentMachinesView.vue'),
+            meta: { permission: Permission.AGENT_WORKSPACE_READ },
+          },
+          {
             path: 'settings',
             children: [
               {

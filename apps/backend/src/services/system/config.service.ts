@@ -91,6 +91,11 @@ export interface RelayConfig {
   customKeyCreateLimitMaxCount: number;
 }
 
+export interface RelayProxyConfig {
+  enabled: boolean;
+  url: string;
+}
+
 export interface BillingConfig {
   rechargeRatio: number;
   giftCodeEnabled: boolean;
@@ -230,7 +235,7 @@ export class ConfigService {
         actorUserId,
         targetResourceType: "SERVER_CONFIG",
         description: `配置项 '${key}' 已更新`,
-        changes: { key, value: /password|apiKey/i.test(key) ? "***" : value },
+        changes: { key, value: /password|apiKey|proxy/i.test(key) ? "***" : value },
         success: true,
         ipAddress: this.getClientIP(request),
         userAgent: request?.headers["user-agent"],
@@ -646,6 +651,18 @@ export class ConfigService {
       maxTokensPerUser: relayConfig.customKeyMaxTokensPerUser,
       createLimitWindowMinutes: relayConfig.customKeyCreateLimitWindowMinutes,
       createLimitMaxCount: relayConfig.customKeyCreateLimitMaxCount,
+    };
+  }
+
+  async getRelayProxyConfig(): Promise<RelayProxyConfig> {
+    const configs = await this.getMultiple([
+      CONFIG_KEYS.RELAY.UPSTREAM_PROXY_ENABLED,
+      CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL,
+    ]);
+    const url = configs[CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL] || "";
+    return {
+      enabled: configs[CONFIG_KEYS.RELAY.UPSTREAM_PROXY_ENABLED] === "true" && Boolean(url),
+      url,
     };
   }
 

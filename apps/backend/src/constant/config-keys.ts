@@ -144,5 +144,7 @@ export const CONFIG_KEYS = {
     CUSTOM_KEY_MAX_TOKENS_PER_USER: "relay.customKey.maxTokensPerUser",
     CUSTOM_KEY_CREATE_LIMIT_WINDOW_MINUTES: "relay.customKey.createLimitWindowMinutes",
     CUSTOM_KEY_CREATE_LIMIT_MAX_COUNT: "relay.customKey.createLimitMaxCount",
+    UPSTREAM_PROXY_ENABLED: "relay.upstreamProxy.enabled",
+    UPSTREAM_PROXY_URL: "relay.upstreamProxy.url",
   },
 } as const;

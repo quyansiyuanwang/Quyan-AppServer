@@ -378,6 +378,27 @@
       </el-form>
     </el-collapse-item>
 
+    <el-collapse-item name="relayProxy">
+      <template #title>
+        <span class="collapse-title">{{ i18ns.t('ServerConfigView.relayProxyTitle') }}</span>
+      </template>
+      <el-form :label-width="labelWidth" :label-position="labelPosition">
+        <el-form-item :label="i18ns.t('ServerConfigView.relayProxyEnabled')">
+          <el-switch v-model="relayProxyEnabled" />
+          <span class="form-help">{{ i18ns.t('ServerConfigView.relayProxyEnabledHelp') }}</span>
+        </el-form-item>
+        <el-form-item :label="i18ns.t('ServerConfigView.relayProxyUrl')">
+          <el-input v-model="relayProxyUrl" placeholder="http://127.0.0.1:7890" />
+          <span class="form-help">{{ i18ns.t('ServerConfigView.relayProxyUrlHelp') }}</span>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="savingRelayProxy" @click="saveRelayProxy">
+            {{ i18ns.t('save') }}
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </el-collapse-item>
+
     <el-collapse-item name="errorDecay">
       <template #title>
         <span class="collapse-title">{{ i18ns.t('ServerConfigView.errorDecayTitle') }}</span>
@@ -783,6 +804,10 @@ const {
   level3Threshold,
   level3Duration,
   saveIpBan,
+  savingRelayProxy,
+  relayProxyEnabled,
+  relayProxyUrl,
+  saveRelayProxy,
 } = context
 </script>
 

@@ -16,7 +16,16 @@
         @delete="handleDelete"
       />
     </el-scrollbar>
-    <MessageInput :tokens="tokens" :sending="sending" @send="handleSend" @stop="emit('stop')" />
+    <MessageInput
+      :tokens="tokens"
+      :workspaces="workspaces"
+      :agent-mode="agentMode"
+      :sending="sending"
+      @send="handleSend"
+      @stop="emit('stop')"
+      @create-workspace="emit('create-workspace')"
+      @manage-machines="emit('manage-machines')"
+    />
   </div>
 </template>
 
@@ -32,16 +41,26 @@ const props = defineProps<{
   conversation: Conversation
   messages: Message[]
   tokens: ChatToken[]
+  workspaces?: { id: string; name: string }[]
+  agentMode?: boolean
   sending?: boolean
 }>()
 
 const emit = defineEmits<{
-  send: [content: string, model: string, tokenId?: string]
+  send: [
+    content: string,
+    model: string,
+    tokenId?: string,
+    agentMode?: boolean,
+    workspaceId?: string,
+  ]
   edit: [message: Message, newContent: string]
   resend: [message: Message]
   regenerate: [message: Message]
   delete: [id: string]
   stop: []
+  'create-workspace': []
+  'manage-machines': []
 }>()
 
 const SCROLL_BOTTOM_THRESHOLD = 24
@@ -178,8 +197,14 @@ watch(
   },
 )
 
-function handleSend(content: string, model: string, tokenId?: string) {
-  emit('send', content, model, tokenId)
+function handleSend(
+  content: string,
+  model: string,
+  tokenId?: string,
+  agentMode?: boolean,
+  workspaceId?: string,
+) {
+  emit('send', content, model, tokenId, agentMode, workspaceId)
 }
 
 onMounted(() => {

@@ -11201,6 +11201,100 @@
 				}
 			}
 		},
+		"/v1/config/relay/proxy": {
+			"get": {
+				"operationId": "ConfigControllerGetRelayProxyConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayProxyConfigDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "ConfigControllerSetRelayProxyConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetRelayProxyConfigDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/config/smtp": {
 			"get": {
 				"operationId": "ConfigControllerGetSmtpConfig",
@@ -24887,6 +24981,52 @@
 				"parameters": []
 			}
 		},
+		"/v1/chat/conversations/{conversationId}/agent-runs": {
+			"post": {
+				"operationId": "AgentRunControllerCreateRun",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_AgentRunResponse_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "conversationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateAgentRunRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/redemption-codes/create": {
 			"post": {
 				"operationId": "RedemptionCodeControllerCreateCodes",
@@ -29087,6 +29227,427 @@
 					}
 				}
 			}
+		},
+		"/v1/agent/machines": {
+			"get": {
+				"operationId": "AgentControllerListMachines",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiSuccessResponse_AgentMachineResponse-Array_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "AgentControllerCreateMachine",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiSuccessResponse_AgentMachineResponse_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateAgentMachineRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/agent/machines/{machineId}": {
+			"delete": {
+				"operationId": "AgentControllerDeleteMachine",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiSuccessResponse_void_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "machineId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/agent/workspaces": {
+			"get": {
+				"operationId": "AgentControllerListWorkspaces",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiSuccessResponse_AgentWorkspaceResponse-Array_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "AgentControllerCreateWorkspace",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiSuccessResponse_AgentWorkspaceResponse_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateAgentWorkspaceRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/agent/workspaces/{workspaceId}": {
+			"delete": {
+				"operationId": "AgentControllerDestroyWorkspace",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiSuccessResponse_void_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "workspaceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/agent/mcp-servers": {
+			"get": {
+				"operationId": "AgentControllerListMcpServers",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiSuccessResponse_McpServerResponse-Array_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "AgentControllerCreateMcpServer",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiSuccessResponse_McpServerResponse_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateMcpServerRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/agent/runs/{taskId}/cancel": {
+			"post": {
+				"operationId": "AgentControllerCancelRun",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiSuccessResponse_void_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "taskId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/agent/runs/{taskId}/approvals": {
+			"get": {
+				"operationId": "AgentControllerListApprovals",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiSuccessResponse_AgentApprovalResponse-Array_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "taskId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/agent/runs/{taskId}/approvals/{approvalId}": {
+			"post": {
+				"operationId": "AgentControllerDecideApproval",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApiSuccessResponse_void_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "taskId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "approvalId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/DecideAgentApprovalRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/agent/runs/{taskId}/events": {
+			"get": {
+				"operationId": "AgentControllerStreamEvents",
+				"responses": {
+					"200": {
+						"description": "SSE stream"
+					},
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "taskId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "after",
+						"required": false,
+						"schema": {
+							"default": 0,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
 		}
 	},
 	"servers": [
@@ -31030,6 +31591,13 @@
 					"remote_terminal:device:write",
 					"remote_terminal:session:create",
 					"remote_terminal:session:read",
+					"agent:workspace:read",
+					"agent:workspace:write",
+					"agent:task:run",
+					"agent:approval:manage",
+					"mcp:server:read",
+					"mcp:server:write",
+					"mcp:server:use",
 					"oj:apikey:create",
 					"oj:apikey:read",
 					"oj:apikey:update",
@@ -36819,6 +37387,22 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayProxyConfigDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"url": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"enabled",
+					"url"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"SmtpConfig": {
 				"properties": {
 					"host": {
@@ -37266,6 +37850,9 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"SetRelayProxyConfigDto": {
+				"$ref": "#/components/schemas/RelayProxyConfigDto"
 			},
 			"SetSmtpConfigDto": {
 				"properties": {
@@ -42641,6 +43228,9 @@
 					"hasGeminiUpstreamApiKey": {
 						"type": "boolean"
 					},
+					"useProxy": {
+						"type": "boolean"
+					},
 					"multiplier": {
 						"type": "number",
 						"format": "double"
@@ -44458,6 +45048,10 @@
 						"type": "string",
 						"description": "OpenAI 上游 API Key"
 					},
+					"useProxy": {
+						"type": "boolean",
+						"description": "Whether requests through this channel use the configured upstream proxy."
+					},
 					"anthropicUpstreamUrl": {
 						"type": "string",
 						"description": "Anthropic 上游 URL"
@@ -44684,6 +45278,10 @@
 						"type": "string",
 						"description": "OpenAI 上游 API Key"
 					},
+					"useProxy": {
+						"type": "boolean",
+						"description": "Whether requests through this channel use the configured upstream proxy."
+					},
 					"anthropicUpstreamUrl": {
 						"type": "string",
 						"description": "Anthropic 上游 URL"
@@ -44851,6 +45449,10 @@
 						"type": "string",
 						"description": "OpenAI 上游 API Key"
 					},
+					"useProxy": {
+						"type": "boolean",
+						"description": "Whether requests through this channel use the configured upstream proxy."
+					},
 					"anthropicUpstreamUrl": {
 						"type": "string",
 						"description": "Anthropic 上游 URL"
@@ -44994,6 +45596,9 @@
 					"openaiUpstreamApiKey": {
 						"type": "string",
 						"description": "OpenAI 上游 API Key"
+					},
+					"useProxy": {
+						"type": "boolean"
 					},
 					"anthropicUpstreamUrl": {
 						"type": "string",
@@ -49935,6 +50540,103 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"AgentTaskStatus": {
+				"type": "string",
+				"enum": [
+					"queued",
+					"running",
+					"waiting_approval",
+					"completed",
+					"failed",
+					"cancelled",
+					"expired"
+				]
+			},
+			"AgentRunResponse": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"workspaceId": {
+						"type": "string"
+					},
+					"status": {
+						"$ref": "#/components/schemas/AgentTaskStatus"
+					},
+					"model": {
+						"type": "string"
+					},
+					"stepCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"workspaceId",
+					"status",
+					"model",
+					"stepCount",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_AgentRunResponse_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/AgentRunResponse"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateAgentRunRequest": {
+				"properties": {
+					"content": {
+						"type": "string"
+					},
+					"model": {
+						"type": "string"
+					},
+					"relayTokenId": {
+						"type": "string"
+					},
+					"workspaceId": {
+						"type": "string"
+					},
+					"maxSteps": {
+						"type": "number",
+						"format": "double"
+					},
+					"budget": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"content",
+					"model",
+					"workspaceId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RedemptionCodeDto": {
 				"properties": {
 					"id": {
@@ -53641,6 +54343,504 @@
 					"pointType",
 					"startTime",
 					"endTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AgentMachineResponse": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"runtime": {
+						"type": "string"
+					},
+					"runtimeStatus": {
+						"type": "string"
+					},
+					"agentId": {
+						"type": "string"
+					},
+					"capabilities": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"lastHeartbeatAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"registrationToken": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"runtime",
+					"runtimeStatus",
+					"capabilities"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApiSuccessResponse_AgentMachineResponse-Array_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"items": {
+							"$ref": "#/components/schemas/AgentMachineResponse"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApiSuccessResponse_AgentMachineResponse_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/AgentMachineResponse"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateAgentMachineRequest": {
+				"properties": {
+					"name": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApiSuccessResponse_void_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AgentWorkspaceStatus": {
+				"type": "string",
+				"enum": [
+					"provisioning",
+					"ready",
+					"stopping",
+					"stopped",
+					"failed"
+				]
+			},
+			"AgentWorkspacePolicyDto": {
+				"properties": {
+					"allowedCommands": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"allowedPaths": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"allowedHosts": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"autoApproveReadOnly": {
+						"type": "boolean"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AgentWorkspaceLimitsDto": {
+				"properties": {
+					"cpu": {
+						"type": "number",
+						"format": "double"
+					},
+					"memoryMb": {
+						"type": "number",
+						"format": "double"
+					},
+					"diskMb": {
+						"type": "number",
+						"format": "double"
+					},
+					"timeoutSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"maxSteps": {
+						"type": "number",
+						"format": "double"
+					},
+					"budget": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AgentWorkspaceResponse": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"runtime": {
+						"type": "string"
+					},
+					"runtimeStatus": {
+						"$ref": "#/components/schemas/AgentWorkspaceStatus"
+					},
+					"policy": {
+						"$ref": "#/components/schemas/AgentWorkspacePolicyDto"
+					},
+					"limits": {
+						"$ref": "#/components/schemas/AgentWorkspaceLimitsDto"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"machineId": {
+						"type": "string"
+					},
+					"machineName": {
+						"type": "string"
+					},
+					"machineStatus": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"runtime",
+					"runtimeStatus",
+					"policy",
+					"limits",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApiSuccessResponse_AgentWorkspaceResponse-Array_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"items": {
+							"$ref": "#/components/schemas/AgentWorkspaceResponse"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApiSuccessResponse_AgentWorkspaceResponse_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/AgentWorkspaceResponse"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateAgentWorkspaceRequest": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"policy": {
+						"$ref": "#/components/schemas/AgentWorkspacePolicyDto"
+					},
+					"limits": {
+						"$ref": "#/components/schemas/AgentWorkspaceLimitsDto"
+					},
+					"machineId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"McpServerResponse": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"endpoint": {
+						"type": "string"
+					},
+					"transport": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"toolAllowlist": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"hasCredential": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"transport",
+					"enabled",
+					"toolAllowlist",
+					"hasCredential"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApiSuccessResponse_McpServerResponse-Array_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"items": {
+							"$ref": "#/components/schemas/McpServerResponse"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApiSuccessResponse_McpServerResponse_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/McpServerResponse"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateMcpServerRequest": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"endpoint": {
+						"type": "string"
+					},
+					"transport": {
+						"type": "string",
+						"enum": [
+							"streamable-http",
+							"sse"
+						]
+					},
+					"toolAllowlist": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"credential": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AgentToolCall": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"arguments": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"risk": {
+						"type": "string",
+						"enum": [
+							"read",
+							"write",
+							"network",
+							"destructive"
+						]
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"arguments",
+					"risk"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AgentApprovalResponse": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"taskId": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string"
+					},
+					"toolCall": {
+						"$ref": "#/components/schemas/AgentToolCall"
+					},
+					"expiresAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"id",
+					"taskId",
+					"status",
+					"toolCall",
+					"expiresAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApiSuccessResponse_AgentApprovalResponse-Array_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"items": {
+							"$ref": "#/components/schemas/AgentApprovalResponse"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DecideAgentApprovalRequest": {
+				"properties": {
+					"decision": {
+						"type": "string",
+						"enum": [
+							"approved",
+							"rejected"
+						]
+					}
+				},
+				"required": [
+					"decision"
 				],
 				"type": "object",
 				"additionalProperties": false

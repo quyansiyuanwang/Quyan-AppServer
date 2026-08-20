@@ -1151,6 +1151,56 @@ export const PERMISSION_META: PermissionMetaMap = {
     category: 'remote_terminal',
   },
 
+  [Permission.AGENT_WORKSPACE_READ]: {
+    label: '查看 AI 工作区',
+    labelEn: 'View AI Workspaces',
+    tooltip: '允许查看自己的 AI 工作区',
+    tooltipEn: 'Allows viewing owned AI workspaces',
+    category: 'agent',
+  },
+  [Permission.AGENT_WORKSPACE_WRITE]: {
+    label: '管理 AI 工作区',
+    labelEn: 'Manage AI Workspaces',
+    tooltip: '允许创建、停止和销毁 AI 工作区',
+    tooltipEn: 'Allows creating, stopping, and destroying AI workspaces',
+    category: 'agent',
+  },
+  [Permission.AGENT_TASK_RUN]: {
+    label: '运行 AI 任务',
+    labelEn: 'Run AI Tasks',
+    tooltip: '允许在 AI 工作区中运行多轮任务',
+    tooltipEn: 'Allows running multi-step AI tasks',
+    category: 'agent',
+  },
+  [Permission.AGENT_APPROVAL]: {
+    label: '审批 AI 工具调用',
+    labelEn: 'Approve AI Tool Calls',
+    tooltip: '允许批准或拒绝 AI 的高风险工具调用',
+    tooltipEn: 'Allows approving or rejecting risky AI tool calls',
+    category: 'agent',
+  },
+  [Permission.MCP_SERVER_READ]: {
+    label: '查看 MCP 服务',
+    labelEn: 'View MCP Servers',
+    tooltip: '允许查看已配置的 MCP 服务',
+    tooltipEn: 'Allows viewing configured MCP servers',
+    category: 'mcp',
+  },
+  [Permission.MCP_SERVER_WRITE]: {
+    label: '管理 MCP 服务',
+    labelEn: 'Manage MCP Servers',
+    tooltip: '允许配置和管理 MCP 服务',
+    tooltipEn: 'Allows configuring and managing MCP servers',
+    category: 'mcp',
+  },
+  [Permission.MCP_SERVER_USE]: {
+    label: '使用 MCP 服务',
+    labelEn: 'Use MCP Servers',
+    tooltip: '允许 AI 任务调用已授权的 MCP 工具',
+    tooltipEn: 'Allows AI tasks to call authorized MCP tools',
+    category: 'mcp',
+  },
+
   [Permission.OJ_APIKEY_CREATE]: {
     label: '创建 API 密钥',
     labelEn: 'Create API Key',

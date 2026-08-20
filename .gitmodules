@@ -6,3 +6,7 @@
 	path = integrations/server-sdk
 	url = https://github.com/quyansiyuanwang/Quyan-ServerSDK.git
 	branch = main
+[submodule "integrations/remote-agent"]
+	path = integrations/remote-agent
+	url = https://github.com/quyansiyuanwang/Quyan-RemoteAgent.git
+	branch = main

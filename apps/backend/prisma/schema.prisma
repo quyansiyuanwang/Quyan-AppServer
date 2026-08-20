@@ -90,6 +90,12 @@ model User {
   developerProductEntitlements DeveloperProductEntitlement[]   @relation("DeveloperProductEntitlementOwner")
   developerProductKeys         DeveloperProductApiKey[]        @relation("DeveloperProductKeySubject")
   supportAiUsageRecords        SupportAiUsageRecord[]
+  agentWorkspaces               AgentWorkspace[]
+  agentRuntimeMachines          AgentRuntimeMachine[]
+  agentTasks                    AgentTask[]
+  mcpServers                    McpServer[]
+  agentApprovals                AgentApproval[] @relation("AgentApprovalDecider")
+  agentArtifacts                AgentArtifact[]
 
   @@unique([accountOwnerId, ramUsername])
   @@index([username])
@@ -905,6 +911,7 @@ model RelayChannel {
   anthropicUpstreamApiKey     String?  @db.Text
   geminiUpstreamUrl           String?  @db.Text
   geminiUpstreamApiKey        String?  @db.Text
+  useProxy                    Boolean  @default(false)
   multiplier                  Decimal  @default(1.0) @db.Decimal(10, 6)
   allowedFormats              String?  @db.VarChar(50)
   allowedModels               String?  @db.Text
@@ -1194,6 +1201,7 @@ model RelayToken {
   relayUsages               RelayUsage[]
   logicalRequests           RelayLogicalRequest[]
   conversations             Conversation[]
+  agentTasks                 AgentTask[]
 
   @@index([userId])
   @@index([token])
@@ -2338,11 +2346,211 @@ model Conversation {
   user       User        @relation(fields: [userId], references: [id])
   relayToken RelayToken? @relation(fields: [relayTokenId], references: [id])
   messages   Message[]
+  agentTasks AgentTask[]
 
   @@index([userId])
   @@index([relayTokenId])
   @@index([userId, createTime])
   @@map("conversations")
+}
+
+model AgentWorkspace {
+  id              String   @id @default(cuid())
+  status          Int      @default(1)
+  createTime      DateTime @default(now())
+  updateTime      DateTime @updatedAt
+  userId          String
+  name            String   @db.VarChar(120)
+  runtime         String   @default("rootless-docker") @db.VarChar(40)
+  runtimeStatus   String   @default("provisioning") @db.VarChar(30)
+  runtimeAgentId  String?  @db.VarChar(120)
+  runtimeHandle   String?  @db.VarChar(200)
+  policy          Json     @default("{}")
+  limits          Json     @default("{}")
+  lastError       String?  @db.VarChar(1000)
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  machineId String?
+  machine AgentRuntimeMachine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  tasks AgentTask[]
+
+  @@index([userId, status])
+  @@index([userId, runtimeStatus])
+  @@index([machineId])
+  @@map("agent_workspaces")
+}
+
+model AgentRuntimeMachine {
+  id                String   @id @default(cuid())
+  status            Int      @default(1)
+  createTime        DateTime @default(now())
+  updateTime        DateTime @updatedAt
+  userId            String
+  name              String   @db.VarChar(120)
+  runtime           String   @default("rootless-docker") @db.VarChar(40)
+  runtimeStatus     String   @default("pending") @db.VarChar(30)
+  registrationHash  String   @unique @db.Char(64)
+  agentId           String?  @unique @db.VarChar(120)
+  capabilities      Json     @default("{}")
+  lastHeartbeatAt   DateTime?
+  lastError         String?  @db.VarChar(1000)
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaces AgentWorkspace[]
+
+  @@index([userId, status])
+  @@index([userId, runtimeStatus])
+  @@map("agent_runtime_machines")
+}
+
+model McpServer {
+  id            String   @id @default(cuid())
+  status        Int      @default(1)
+  createTime    DateTime @default(now())
+  updateTime    DateTime @updatedAt
+  userId        String
+  name          String   @db.VarChar(120)
+  transport     String   @default("streamable-http") @db.VarChar(30)
+  endpoint      String?  @db.VarChar(2048)
+  agentId       String?  @db.VarChar(120)
+  enabled       Boolean  @default(true)
+  toolAllowlist Json     @default("[]")
+  metadata      Json     @default("{}")
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credential McpCredential?
+
+  @@index([userId, status])
+  @@map("mcp_servers")
+}
+
+model McpCredential {
+  id          String   @id @default(cuid())
+  serverId    String   @unique
+  ciphertext  String   @db.Text
+  iv          String   @db.VarChar(100)
+  authTag     String   @db.VarChar(100)
+  keyVersion  Int      @default(1)
+  createTime  DateTime @default(now())
+  updateTime  DateTime @updatedAt
+
+  server McpServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  @@map("mcp_credentials")
+}
+
+model AgentTask {
+  id              String   @id @default(cuid())
+  status          Int      @default(1)
+  createTime      DateTime @default(now())
+  updateTime      DateTime @updatedAt
+  userId          String
+  workspaceId     String
+  conversationId  String
+  relayTokenId    String
+  model           String   @db.VarChar(120)
+  prompt          String   @db.Text
+  taskStatus      String   @default("queued") @db.VarChar(30)
+  maxSteps        Int      @default(30)
+  stepCount       Int      @default(0)
+  budget          Decimal? @db.Decimal(10, 4)
+  spent           Decimal  @default(0) @db.Decimal(10, 4)
+  leaseOwner      String?  @db.VarChar(120)
+  leaseExpiresAt  DateTime?
+  lastError       String?  @db.VarChar(2000)
+  completedAt     DateTime?
+
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace    AgentWorkspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  relayToken   RelayToken        @relation(fields: [relayTokenId], references: [id])
+  steps        AgentTaskStep[]
+  approvals    AgentApproval[]
+  artifacts    AgentArtifact[]
+  events       AgentRunEvent[]
+
+  @@index([userId, createTime])
+  @@index([workspaceId, taskStatus])
+  @@index([taskStatus, leaseExpiresAt])
+  @@map("agent_tasks")
+}
+
+model AgentTaskStep {
+  id          String   @id @default(cuid())
+  taskId      String
+  sequence    Int
+  kind        String   @db.VarChar(30)
+  status      String   @default("running") @db.VarChar(30)
+  toolName    String?  @db.VarChar(200)
+  call        Json?
+  result      Json?
+  inputTokens Int      @default(0)
+  outputTokens Int     @default(0)
+  error       String?  @db.VarChar(2000)
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+
+  task      AgentTask       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  approval  AgentApproval?
+
+  @@unique([taskId, sequence])
+  @@index([taskId, startedAt])
+  @@map("agent_task_steps")
+}
+
+model AgentApproval {
+  id          String   @id @default(cuid())
+  taskId      String
+  stepId      String   @unique
+  status      String   @default("pending") @db.VarChar(20)
+  toolCall    Json
+  expiresAt   DateTime
+  decidedBy   String?
+  decidedAt   DateTime?
+  createTime  DateTime @default(now())
+
+  task   AgentTask     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  step   AgentTaskStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  decider User?        @relation("AgentApprovalDecider", fields: [decidedBy], references: [id], onDelete: SetNull)
+
+  @@index([taskId, status])
+  @@index([status, expiresAt])
+  @@map("agent_approvals")
+}
+
+model AgentArtifact {
+  id          String   @id @default(cuid())
+  userId      String
+  taskId      String
+  name        String   @db.VarChar(255)
+  storageKey  String   @db.VarChar(1024)
+  contentType String   @db.VarChar(160)
+  size        Int
+  sha256      String   @db.Char(64)
+  expiresAt   DateTime
+  createTime  DateTime @default(now())
+
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createTime])
+  @@index([taskId])
+  @@map("agent_artifacts")
+}
+
+model AgentRunEvent {
+  id         String   @id @default(cuid())
+  taskId     String
+  sequence   Int
+  eventType  String   @db.VarChar(40)
+  payload    Json
+  createTime DateTime @default(now())
+
+  task AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, sequence])
+  @@index([taskId, createTime])
+  @@map("agent_run_events")
 }
 
 // ─── Notification / Event Center ─────────────────────────────────────────────

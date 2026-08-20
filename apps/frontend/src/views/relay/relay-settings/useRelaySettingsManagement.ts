@@ -827,6 +827,7 @@ export const useRelaySettingsManagement = () => {
     anthropicUpstreamApiKeyTouched: false,
     geminiUpstreamUrl: '',
     geminiUpstreamApiKey: '',
+    useProxy: false,
     hasGeminiUpstreamApiKey: false,
     geminiUpstreamApiKeyTouched: false,
     multiplier: 1.0,
@@ -2179,6 +2180,7 @@ export const useRelaySettingsManagement = () => {
       hasAnthropicUpstreamApiKey: row.hasAnthropicUpstreamApiKey,
       anthropicUpstreamApiKeyTouched: false,
       geminiUpstreamUrl: row.geminiUpstreamUrl || '',
+      useProxy: row.useProxy === true,
       geminiUpstreamApiKey: '',
       hasGeminiUpstreamApiKey: row.hasGeminiUpstreamApiKey,
       geminiUpstreamApiKeyTouched: false,
@@ -2400,6 +2402,7 @@ export const useRelaySettingsManagement = () => {
         openaiUpstreamUrl: isUpstreamChannel ? channelForm.value.openaiUpstreamUrl : '',
         anthropicUpstreamUrl: isUpstreamChannel ? channelForm.value.anthropicUpstreamUrl : '',
         geminiUpstreamUrl: isUpstreamChannel ? channelForm.value.geminiUpstreamUrl : '',
+        useProxy: isUpstreamChannel && channelForm.value.useProxy === true,
         multiplier: isAutomaticPool ? undefined : channelForm.value.multiplier,
         allowedFormats:
           Array.isArray(channelForm.value.allowedFormats) &&

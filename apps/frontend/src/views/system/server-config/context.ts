@@ -19,6 +19,7 @@ export type ServerConfigSectionName =
   | 'errorDecay'
   | 'errorWeights'
   | 'ipBan'
+  | 'relayProxy'
 
 export interface ServerConfigWeightRow {
   code: string
@@ -130,6 +131,10 @@ export interface ServerConfigContext {
   level3Threshold: Ref<number>
   level3Duration: Ref<number>
   saveIpBan: () => Promise<void>
+  savingRelayProxy: Ref<boolean>
+  relayProxyEnabled: Ref<boolean>
+  relayProxyUrl: Ref<string>
+  saveRelayProxy: () => Promise<void>
 }
 
 export const serverConfigContextKey: InjectionKey<ServerConfigContext> =
