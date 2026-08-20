@@ -23,11 +23,14 @@ import type {
   McpServerResponse,
   AgentApprovalResponse,
   DecideAgentApprovalRequest,
+  CreateAgentMachineRequest,
+  AgentMachineResponse,
 } from "@/api/dto/agent/agent.dto";
 import {
   createAgentWorkspaceBodySchema,
   createMcpServerBodySchema,
   decideAgentApprovalBodySchema,
+  createAgentMachineBodySchema,
 } from "@/api/schema/agent/agent.schema";
 import { validateBody } from "@/middleware/validation";
 import { RequirePermission } from "@/util/permission/permission-decorator";
@@ -41,6 +44,33 @@ import { skipResponseWrapper } from "@/util/response-wrapper";
 export class AgentController extends Controller {
   private readonly service = AgentService.getInstance();
   private readonly sse = SSEStreamService.getInstance();
+
+  @Get("machines")
+  @Security("jwt")
+  @RequirePermission(Permission.AGENT_WORKSPACE_READ)
+  async listMachines(@Request() request: TypedRequest): Promise<SuccessResponse<AgentMachineResponse[]>> {
+    return { code: 0, message: "Success", data: await this.service.listMachines(request.user!.userId) };
+  }
+
+  @Post("machines")
+  @Security("jwt")
+  @ReplayProtected()
+  @Middlewares(replayProtectionMiddleware, validateBody(createAgentMachineBodySchema))
+  @RequirePermission(Permission.AGENT_WORKSPACE_WRITE)
+  async createMachine(@Body() body: CreateAgentMachineRequest, @Request() request: TypedRequest): Promise<SuccessResponse<AgentMachineResponse>> {
+    this.setStatus(HttpStatusCode.Created);
+    return { code: 0, message: "Success", data: await this.service.createMachine(request.user!.userId, body) };
+  }
+
+  @Delete("machines/{machineId}")
+  @Security("jwt")
+  @ReplayProtected()
+  @Middlewares(replayProtectionMiddleware)
+  @RequirePermission(Permission.AGENT_WORKSPACE_WRITE)
+  async deleteMachine(@Path() machineId: string, @Request() request: TypedRequest): Promise<SuccessResponse<void>> {
+    await this.service.deleteMachine(request.user!.userId, machineId);
+    return { code: 0, message: "Success" };
+  }
 
   @Get("workspaces")
   @Security("jwt")

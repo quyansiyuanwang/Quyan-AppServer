@@ -176,6 +176,7 @@ export const routeCatalog = attachLegacyPaths([
   { name: 'externalAuthBindStart', group: 'identity', path: '/auth/external/bind' },
   { name: 'captchaVerification', group: 'identity', path: '/auth/captcha' },
   { name: 'chat', group: 'chat', path: '/chat' },
+  { name: 'agentMachines', group: 'chat', path: '/chat/agent-machines' },
   { name: 'settings', group: 'account', path: '/settings' },
   {
     name: 'settingsProfile',

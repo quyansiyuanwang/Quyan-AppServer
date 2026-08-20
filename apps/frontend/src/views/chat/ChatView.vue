@@ -14,6 +14,7 @@
       @delete="handleDeleteMessage"
       @stop="chatStore.stopGeneration"
       @create-workspace="handleCreateWorkspace"
+      @manage-machines="goToMachineSettings"
     />
     <div v-else class="empty-state">
       <el-empty :description="i18ns.t('chat.selectOrCreate')" />
@@ -56,6 +57,7 @@
         @delete="handleDeleteMessage"
         @stop="chatStore.stopGeneration"
         @create-workspace="handleCreateWorkspace"
+        @manage-machines="goToMachineSettings"
       />
       <div v-else class="empty-state mobile-empty-state">
         <el-empty :description="i18ns.t('chat.selectOrCreate')">
@@ -90,7 +92,8 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, computed } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useChatStore } from '@/stores/chatStore'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'
@@ -102,6 +105,7 @@ import { agentService } from '@/service/agentService'
 import type { AgentWorkspace } from '@/types/agent'
 
 const chatStore = useChatStore()
+const router = useRouter()
 const { isDesktop } = usePageDevice()
 const mobileDrawerVisible = ref(false)
 const workspaces = ref<AgentWorkspace[]>([])
@@ -203,6 +207,12 @@ async function handleSend(
 }
 
 async function handleCreateWorkspace() {
+  const machines = await agentService.listMachines()
+  if (machines.length !== 1) {
+    ElMessage.info(i18ns.t('chat.configureMachineFirst'))
+    await router.push({ name: 'agentMachines' })
+    return
+  }
   const { value } = await ElMessageBox.prompt(
     i18ns.t('chat.workspaceNamePrompt'),
     i18ns.t('chat.createWorkspace'),
@@ -213,8 +223,12 @@ async function handleCreateWorkspace() {
     },
   ).catch(() => ({ value: '' }))
   if (!value?.trim()) return
-  const created = await agentService.createWorkspace(value.trim())
+  const created = await agentService.createWorkspace(value.trim(), machines[0]?.id)
   if (created) workspaces.value = [created, ...workspaces.value]
+}
+
+function goToMachineSettings() {
+  void router.push({ name: 'agentMachines' })
 }
 
 function handleEdit(message: Message, newContent: string) {

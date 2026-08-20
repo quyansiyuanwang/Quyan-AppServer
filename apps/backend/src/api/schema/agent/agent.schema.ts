@@ -20,6 +20,15 @@ export const createAgentWorkspaceBodySchema = z.object({
       budget: z.number().nonnegative().max(100000).optional(),
     })
     .optional(),
+  machineId: z.string().trim().min(1).optional(),
+});
+
+export const createAgentMachineBodySchema = z.object({
+  name: z.string().trim().min(1).max(120),
+});
+
+export const bindAgentWorkspaceMachineBodySchema = z.object({
+  machineId: z.string().trim().min(1).nullable(),
 });
 
 export const createAgentRunBodySchema = z.object({

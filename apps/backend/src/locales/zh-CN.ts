@@ -58,6 +58,7 @@ const zhCN: DeepStringify<typeof en> = {
     cancelledByUser: "已由用户取消",
     toolCallRejected: "工具调用已拒绝",
     remoteAgentNotConnected: "远程 Agent 运行时未连接",
+    machineNotFound: "Agent 机器不存在",
   },
   user: {
     userInfoNotFound: "用户信息不存在",

@@ -8,13 +8,17 @@ import type {
   AgentWorkspaceResponse,
   AgentRunResponse,
   AgentApprovalResponse,
+  AgentMachineResponse,
+  CreateAgentMachineRequest,
   CreateMcpServerRequest,
   McpServerResponse,
 } from "@/api/dto/agent/agent.dto";
 import { RootlessDockerWorkspaceProvider } from "./workspace-runtime.service";
+import { AgentRuntimeGateway } from "./agent-runtime.gateway";
 import { AgentRepository } from "@/store/agent/agent.repository";
 
 const workspaceRuntime = new RootlessDockerWorkspaceProvider();
+const remoteRuntime = AgentRuntimeGateway.getInstance();
 
 const defaults = {
   policy: { allowedCommands: [], allowedPaths: ["/workspace"], allowedHosts: [], autoApproveReadOnly: true },
@@ -59,7 +63,44 @@ export class AgentService {
       policy: row.policy as any,
       limits: row.limits as any,
       createTime: row.createTime,
+      machineId: row.machineId ?? undefined,
+      machineName: row.machine?.name,
+      machineStatus: row.machine?.runtimeStatus,
     };
+  }
+
+  private toMachineDto(row: any, registrationToken?: string): AgentMachineResponse {
+    return {
+      id: row.id,
+      name: row.name,
+      runtime: row.runtime,
+      runtimeStatus: row.runtimeStatus,
+      agentId: row.agentId ?? undefined,
+      capabilities: row.capabilities as Record<string, unknown>,
+      lastHeartbeatAt: row.lastHeartbeatAt ?? undefined,
+      ...(registrationToken ? { registrationToken } : {}),
+    };
+  }
+
+  private createRegistrationToken() {
+    const token = randomBytes(32).toString("base64url");
+    return { token, hash: createHash("sha256").update(token).digest("hex") };
+  }
+
+  async listMachines(userId: string): Promise<AgentMachineResponse[]> {
+    return (await this.repository.listMachines(userId)).map((row) => this.toMachineDto(row));
+  }
+
+  async createMachine(userId: string, body: CreateAgentMachineRequest): Promise<AgentMachineResponse> {
+    const registration = this.createRegistrationToken();
+    const row = await this.repository.createMachine({ userId, name: body.name.trim(), registrationHash: registration.hash });
+    return this.toMachineDto(row, registration.token);
+  }
+
+  async deleteMachine(userId: string, id: string) {
+    const row = await this.repository.findMachineForUser(id, userId);
+    if (!row) throw new NotFoundError("Agent machine not found", undefined, { messageKey: "agent.machineNotFound" });
+    await this.repository.updateMachine(id, { status: -1, runtimeStatus: "revoked" });
   }
 
   async listWorkspaces(userId: string) {
@@ -70,11 +111,32 @@ export class AgentService {
   async createWorkspace(userId: string, body: CreateAgentWorkspaceRequest) {
     const policy = { ...defaults.policy, ...(body.policy || {}) };
     const limits = { ...defaults.limits, ...(body.limits || {}) };
-    const row = await this.repository.createWorkspace({ userId, name: body.name.trim(), policy, limits });
+    const machine = body.machineId ? await this.repository.findMachineForUser(body.machineId, userId) : null;
+    if (body.machineId && !machine)
+      throw new NotFoundError("Agent machine not found", undefined, { messageKey: "agent.machineNotFound" });
+    const row = await this.repository.createWorkspace({ userId, name: body.name.trim(), policy, limits, machineId: machine?.id });
     try {
-      if (process.env.AGENT_RUNTIME_LOCAL === "true") {
+      if (!machine && process.env.AGENT_RUNTIME_LOCAL === "true") {
         const runtime = await workspaceRuntime.create(row.id, limits);
         await this.repository.updateWorkspace(row.id, { runtimeStatus: "ready", runtimeHandle: runtime.handle });
+      } else if (machine) {
+        if (!machine.agentId || machine.runtimeStatus !== "online")
+          await this.repository.updateWorkspace(row.id, {
+            runtimeStatus: "provisioning",
+            runtimeAgentId: machine.agentId,
+            lastError: "Waiting for the selected remote machine to connect",
+          });
+        else {
+          const response = await remoteRuntime.request(machine.agentId, {
+            type: "workspace.create",
+            requestId: randomUUID(),
+            workspaceId: row.id,
+            limits: { cpu: Number(limits.cpu), memoryMb: Number(limits.memoryMb), diskMb: Number(limits.diskMb), timeoutSeconds: Number(limits.timeoutSeconds) },
+          });
+          const handle = typeof response.data?.handle === "string" ? response.data.handle : undefined;
+          if (!handle) throw new Error("Remote Agent returned no workspace handle");
+          await this.repository.updateWorkspace(row.id, { runtimeStatus: "ready", runtimeAgentId: machine.agentId, runtimeHandle: handle, lastError: null });
+        }
       } else
         await this.repository.updateWorkspace(row.id, {
           runtimeStatus: "failed",

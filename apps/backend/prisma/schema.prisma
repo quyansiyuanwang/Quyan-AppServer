@@ -91,6 +91,7 @@ model User {
   developerProductKeys         DeveloperProductApiKey[]        @relation("DeveloperProductKeySubject")
   supportAiUsageRecords        SupportAiUsageRecord[]
   agentWorkspaces               AgentWorkspace[]
+  agentRuntimeMachines          AgentRuntimeMachine[]
   agentTasks                    AgentTask[]
   mcpServers                    McpServer[]
   agentApprovals                AgentApproval[] @relation("AgentApprovalDecider")
@@ -2368,11 +2369,37 @@ model AgentWorkspace {
   lastError       String?  @db.VarChar(1000)
 
   user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  machineId String?
+  machine AgentRuntimeMachine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
   tasks AgentTask[]
 
   @@index([userId, status])
   @@index([userId, runtimeStatus])
+  @@index([machineId])
   @@map("agent_workspaces")
+}
+
+model AgentRuntimeMachine {
+  id                String   @id @default(cuid())
+  status            Int      @default(1)
+  createTime        DateTime @default(now())
+  updateTime        DateTime @updatedAt
+  userId            String
+  name              String   @db.VarChar(120)
+  runtime           String   @default("rootless-docker") @db.VarChar(40)
+  runtimeStatus     String   @default("pending") @db.VarChar(30)
+  registrationHash  String   @unique @db.Char(64)
+  agentId           String?  @unique @db.VarChar(120)
+  capabilities      Json     @default("{}")
+  lastHeartbeatAt   DateTime?
+  lastError         String?  @db.VarChar(1000)
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaces AgentWorkspace[]
+
+  @@index([userId, status])
+  @@index([userId, runtimeStatus])
+  @@map("agent_runtime_machines")
 }
 
 model McpServer {

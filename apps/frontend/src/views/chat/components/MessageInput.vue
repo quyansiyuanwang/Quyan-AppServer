@@ -15,6 +15,9 @@
         />
       </el-select>
       <el-switch v-model="agentMode" :active-text="i18ns.t('chat.agentMode')" :disabled="sending" />
+      <el-tooltip v-if="agentMode" :content="i18ns.t('chat.manageMachines')">
+        <el-button :icon="Setting" circle :disabled="sending" @click="$emit('manage-machines')" />
+      </el-tooltip>
       <el-button
         v-if="agentMode && !workspaces?.length"
         size="small"
@@ -68,6 +71,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { Setting } from '@element-plus/icons-vue'
 import type { ChatToken } from '@/types/chat'
 import { i18ns } from '@/locales'
 import StorageKey from '@/constant/storagekey'
@@ -91,6 +95,7 @@ const emit = defineEmits<{
   ]
   stop: []
   'create-workspace': []
+  'manage-machines': []
 }>()
 
 const content = ref('')

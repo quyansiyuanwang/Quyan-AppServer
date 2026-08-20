@@ -5316,6 +5316,11 @@ export default {
     createWorkspace: 'Create workspace',
     workspaceNamePrompt: 'Enter a workspace name',
     defaultWorkspaceName: 'New Agent Workspace',
+    manageMachines: 'Configure remote machines',
+    configureMachineFirst: 'Configure one remote Agent machine before creating a workspace.',
+  },
+  agentMachines: {
+    title: 'AI Agent Machines', subtitle: 'Register and monitor machines used by Agent workspaces.', addMachine: 'Add machine', addWorkspace: 'Create workspace', empty: 'No Agent machines configured.', name: 'Machine name', namePlaceholder: 'e.g. Search worker', agentId: 'Agent ID', lastHeartbeat: 'Last heartbeat', capabilities: 'Capabilities', remove: 'Remove', removeConfirm: 'Remove this machine?', tokenTitle: 'Machine registration token', tokenWarning: 'Copy this token now. It will not be shown again.', tokenLabel: 'Registration token', commandLabel: 'Remote Agent environment', copy: 'Copy', copied: 'Copied', loadFailed: 'Failed to load machines.', saveFailed: 'Failed to create machine.', workspaces: 'Workspaces', workspaceEmpty: 'No workspaces configured.', workspaceName: 'Workspace name', boundMachine: 'Bound machine', workspaceStatus: 'Workspace status', workspaceSaveFailed: 'Failed to create workspace.',
   },
   NotificationSettingsView: {
     title: 'Event Center',

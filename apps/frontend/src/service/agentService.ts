@@ -1,8 +1,8 @@
 import { useRequestStore } from '@/stores/request'
 import { createAgentControllerApi } from '@/client/services/agent-controller.gen'
 import { createAgentRunControllerApi } from '@/client/services/agent-run-controller.gen'
-import type { AgentEvent, AgentWorkspace } from '@/types/agent'
-import { createSseClient, SseStreamError } from '@/utils/streaming/sseStream'
+import type { AgentEvent, AgentWorkspace, AgentMachine } from '@/types/agent'
+import { createSseClient } from '@/utils/streaming/sseStream'
 import { getAccessToken, isTokenExpired } from '@/stores/request'
 import { authorizationService } from '@/service/authorizationService'
 
@@ -28,8 +28,20 @@ export class AgentService {
     return unwrap<AgentWorkspace[]>(await api.listWorkspaces()) ?? []
   }
 
-  async createWorkspace(name: string): Promise<AgentWorkspace | undefined> {
-    return unwrap<AgentWorkspace>(await api.createWorkspace({ body: { name } }))
+  async listMachines(): Promise<AgentMachine[]> {
+    return unwrap<AgentMachine[]>(await api.listMachines()) ?? []
+  }
+
+  async createMachine(name: string): Promise<AgentMachine | undefined> {
+    return unwrap<AgentMachine>(await api.createMachine({ body: { name } }))
+  }
+
+  async deleteMachine(id: string) {
+    await api.deleteMachine({ path: { machineId: id } })
+  }
+
+  async createWorkspace(name: string, machineId?: string): Promise<AgentWorkspace | undefined> {
+    return unwrap<AgentWorkspace>(await api.createWorkspace({ body: { name, machineId } }))
   }
 
   async createRun(

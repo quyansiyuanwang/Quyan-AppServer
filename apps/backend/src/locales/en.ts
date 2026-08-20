@@ -55,6 +55,7 @@ const en = {
     cancelledByUser: "Cancelled by user",
     toolCallRejected: "Tool call rejected",
     remoteAgentNotConnected: "Remote Agent runtime is not connected",
+    machineNotFound: "Agent machine not found",
   },
   user: {
     userInfoNotFound: "User information does not exist",

@@ -29134,6 +29134,103 @@
 				}
 			}
 		},
+		"/v1/agent/machines": {
+			"get": {
+				"operationId": "AgentControllerListMachines",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_AgentMachineResponse-Array_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "AgentControllerCreateMachine",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_AgentMachineResponse_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateAgentMachineRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/agent/machines/{machineId}": {
+			"delete": {
+				"operationId": "AgentControllerDeleteMachine",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SuccessResponse_void_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Agent"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "machineId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
 		"/v1/agent/workspaces": {
 			"get": {
 				"operationId": "AgentControllerListWorkspaces",
@@ -54116,6 +54213,99 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"AgentMachineResponse": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"runtime": {
+						"type": "string"
+					},
+					"runtimeStatus": {
+						"type": "string"
+					},
+					"agentId": {
+						"type": "string"
+					},
+					"capabilities": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"lastHeartbeatAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"registrationToken": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"runtime",
+					"runtimeStatus",
+					"capabilities"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_AgentMachineResponse-Array_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"items": {
+							"$ref": "#/components/schemas/AgentMachineResponse"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SuccessResponse_AgentMachineResponse_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {
+						"$ref": "#/components/schemas/AgentMachineResponse"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateAgentMachineRequest": {
+				"properties": {
+					"name": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"AgentWorkspaceStatus": {
 				"type": "string",
 				"enum": [
@@ -54206,6 +54396,15 @@
 					"createTime": {
 						"type": "string",
 						"format": "date-time"
+					},
+					"machineId": {
+						"type": "string"
+					},
+					"machineName": {
+						"type": "string"
+					},
+					"machineStatus": {
+						"type": "string"
 					}
 				},
 				"required": [
@@ -54273,6 +54472,9 @@
 					},
 					"limits": {
 						"$ref": "#/components/schemas/AgentWorkspaceLimitsDto"
+					},
+					"machineId": {
+						"type": "string"
 					}
 				},
 				"required": [

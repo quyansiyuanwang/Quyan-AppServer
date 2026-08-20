@@ -20,6 +20,7 @@ export interface CreateAgentWorkspaceRequest {
   name: string;
   policy?: AgentWorkspacePolicyDto;
   limits?: AgentWorkspaceLimitsDto;
+  machineId?: string;
 }
 
 export interface AgentWorkspaceResponse {
@@ -30,6 +31,28 @@ export interface AgentWorkspaceResponse {
   policy: AgentWorkspacePolicyDto;
   limits: AgentWorkspaceLimitsDto;
   createTime: Date;
+  machineId?: string;
+  machineName?: string;
+  machineStatus?: string;
+}
+
+export interface CreateAgentMachineRequest {
+  name: string;
+}
+
+export interface AgentMachineResponse {
+  id: string;
+  name: string;
+  runtime: string;
+  runtimeStatus: string;
+  agentId?: string;
+  capabilities: Record<string, unknown>;
+  lastHeartbeatAt?: Date;
+  registrationToken?: string;
+}
+
+export interface BindAgentWorkspaceMachineRequest {
+  machineId: string | null;
 }
 
 export interface CreateAgentRunRequest {

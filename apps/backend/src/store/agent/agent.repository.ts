@@ -12,6 +12,7 @@ export class AgentRepository {
     return prisma.agentWorkspace.findMany({
       where: { userId, status: 1 },
       orderBy: { createTime: "desc" },
+      include: { machine: true },
     });
   }
 
@@ -20,7 +21,7 @@ export class AgentRepository {
   }
 
   findWorkspaceById(id: string) {
-    return prisma.agentWorkspace.findUniqueOrThrow({ where: { id } });
+    return prisma.agentWorkspace.findUniqueOrThrow({ where: { id }, include: { machine: true } });
   }
 
   createWorkspace(data: {
@@ -28,10 +29,43 @@ export class AgentRepository {
     name: string;
     policy: Prisma.InputJsonValue;
     limits: Prisma.InputJsonValue;
+    machineId?: string;
   }) {
     return prisma.agentWorkspace.create({
       data: { ...data, runtimeStatus: "provisioning" },
     });
+  }
+
+  findMachineForUser(id: string, userId: string) {
+    return prisma.agentRuntimeMachine.findFirst({ where: { id, userId, status: 1 } });
+  }
+
+  listMachines(userId: string) {
+    return prisma.agentRuntimeMachine.findMany({ where: { userId, status: 1 }, orderBy: { createTime: "desc" } });
+  }
+
+  createMachine(data: { userId: string; name: string; registrationHash: string }) {
+    return prisma.agentRuntimeMachine.create({ data });
+  }
+
+  updateMachine(id: string, data: Prisma.AgentRuntimeMachineUpdateInput) {
+    return prisma.agentRuntimeMachine.update({ where: { id }, data });
+  }
+
+  findMachineByRegistrationHash(registrationHash: string) {
+    return prisma.agentRuntimeMachine.findFirst({ where: { registrationHash, status: 1 } });
+  }
+
+  markMachineConnected(id: string, agentId: string, capabilities: Prisma.InputJsonValue) {
+    return prisma.agentRuntimeMachine.update({ where: { id }, data: { agentId, capabilities, runtimeStatus: "online", lastHeartbeatAt: new Date(), lastError: null } });
+  }
+
+  markMachineHeartbeat(agentId: string, capabilities?: Prisma.InputJsonValue) {
+    return prisma.agentRuntimeMachine.updateMany({ where: { agentId, status: 1 }, data: { runtimeStatus: "online", lastHeartbeatAt: new Date(), ...(capabilities ? { capabilities } : {}) } });
+  }
+
+  markMachineOffline(agentId: string) {
+    return prisma.agentRuntimeMachine.updateMany({ where: { agentId, status: 1 }, data: { runtimeStatus: "offline" } });
   }
 
   updateWorkspace(id: string, data: Prisma.AgentWorkspaceUpdateInput) {

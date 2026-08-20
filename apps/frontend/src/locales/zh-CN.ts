@@ -5089,6 +5089,11 @@ const zhCN: DeepStringify<typeof en> = {
     createWorkspace: '创建工作区',
     workspaceNamePrompt: '请输入工作区名称',
     defaultWorkspaceName: '新建 Agent 工作区',
+    manageMachines: '配置远程机器',
+    configureMachineFirst: '请先配置一台远程 Agent 机器，再创建工作区。',
+  },
+  agentMachines: {
+    title: 'AI Agent 机器', subtitle: '注册和监控 Agent 工作区使用的远程机器。', addMachine: '添加机器', addWorkspace: '创建工作区', empty: '尚未配置 Agent 机器。', name: '机器名称', namePlaceholder: '例如：联网搜索机', agentId: 'Agent ID', lastHeartbeat: '最近心跳', capabilities: '能力', remove: '移除', removeConfirm: '确定移除这台机器吗？', tokenTitle: '机器注册令牌', tokenWarning: '请立即复制令牌，关闭后不会再次显示。', tokenLabel: '注册令牌', commandLabel: '远程 Agent 环境变量', copy: '复制', copied: '已复制', loadFailed: '机器列表加载失败。', saveFailed: '机器创建失败。', workspaces: '工作区', workspaceEmpty: '尚未配置工作区。', workspaceName: '工作区名称', boundMachine: '绑定机器', workspaceStatus: '工作区状态', workspaceSaveFailed: '工作区创建失败。',
   },
   NotificationSettingsView: {
     title: '事件中心',

@@ -18,7 +18,7 @@ const port = env.runtime.port;
 const isDev = env.runtime.isDevelopment;
 const logger = getLogger("Main", LogCategory.UTIL);
 const remoteTerminalGatewayBootstrap = new RemoteTerminalGatewayBootstrap(RemoteTerminalGatewayService.getInstance());
-const agentRuntimeGateway = new AgentRuntimeGateway();
+const agentRuntimeGateway = AgentRuntimeGateway.getInstance();
 
 if (isDev) logger.warn("Running in development mode");
 

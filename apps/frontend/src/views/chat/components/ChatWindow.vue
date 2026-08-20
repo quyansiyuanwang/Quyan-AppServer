@@ -24,6 +24,7 @@
       @send="handleSend"
       @stop="emit('stop')"
       @create-workspace="emit('create-workspace')"
+      @manage-machines="emit('manage-machines')"
     />
   </div>
 </template>
@@ -59,6 +60,7 @@ const emit = defineEmits<{
   delete: [id: string]
   stop: []
   'create-workspace': []
+  'manage-machines': []
 }>()
 
 const SCROLL_BOTTOM_THRESHOLD = 24

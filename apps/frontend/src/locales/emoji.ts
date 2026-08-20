@@ -4865,6 +4865,11 @@ const emoji: DeepStringify<typeof en> = {
     createWorkspace: '🆕🗂️',
     workspaceNamePrompt: '⌨️🗂️',
     defaultWorkspaceName: '🆕🤖🗂️',
+    manageMachines: '🖥️⚙️',
+    configureMachineFirst: '🖥️⚙️➡️🗂️',
+  },
+  agentMachines: {
+    title: '🤖🖥️', subtitle: '🛰️🛠️', addMachine: '➕🖥️', addWorkspace: '➕🗂️', empty: '📭', name: '🏷️', namePlaceholder: '✍️', agentId: '🆔', lastHeartbeat: '💓', capabilities: '🧰', remove: '🗑️', removeConfirm: '⚠️', tokenTitle: '🔑🖥️', tokenWarning: '⚠️', tokenLabel: '🔐', commandLabel: '💻', copy: '📋', copied: '✅', loadFailed: '❌', saveFailed: '❌', workspaces: '🗂️', workspaceEmpty: '📭🗂️', workspaceName: '🏷️🗂️', boundMachine: '🔗🖥️', workspaceStatus: '📊🗂️', workspaceSaveFailed: '❌🗂️',
   },
   scriptManager: {
     title: '📜',
