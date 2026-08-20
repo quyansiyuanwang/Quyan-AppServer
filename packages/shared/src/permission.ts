@@ -208,6 +208,15 @@ export enum Permission {
   REMOTE_TERMINAL_SESSION_CREATE = 'remote_terminal:session:create',
   REMOTE_TERMINAL_SESSION_READ = 'remote_terminal:session:read',
 
+  // Agent workspaces and remote MCP
+  AGENT_WORKSPACE_READ = 'agent:workspace:read',
+  AGENT_WORKSPACE_WRITE = 'agent:workspace:write',
+  AGENT_TASK_RUN = 'agent:task:run',
+  AGENT_APPROVAL = 'agent:approval:manage',
+  MCP_SERVER_READ = 'mcp:server:read',
+  MCP_SERVER_WRITE = 'mcp:server:write',
+  MCP_SERVER_USE = 'mcp:server:use',
+
   // OJSubmitter AI问答权限
   OJ_APIKEY_CREATE = 'oj:apikey:create',
   OJ_APIKEY_READ = 'oj:apikey:read',

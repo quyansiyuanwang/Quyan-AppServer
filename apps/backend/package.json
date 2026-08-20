@@ -146,6 +146,7 @@
     "nodemailer": "^8.0.1",
     "openai": "^4.65.0",
     "picomatch": "^4.0.2",
+    "proxy-agent": "^6.4.0",
     "qrcode": "^1.5.4",
     "sharp": "^0.33.5",
     "swagger-ui-express": "^5.0.1",

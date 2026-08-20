@@ -120,6 +120,12 @@ const level2Duration = ref(86400)
 const level3Threshold = ref(50)
 const level3Duration = ref(-1)
 
+// Relay upstream proxy
+const savingRelayProxy = ref(false)
+const relayProxyEnabled = ref(false)
+const relayProxyUrl = ref('')
+const relayProxyLoaded = ref(false)
+
 // Social Auth
 const savingSocialAuth = ref(false)
 const socAuthFrontendBaseUrl = ref('')
@@ -432,6 +438,33 @@ const loadIpBanConfig = async () => {
   }
 }
 
+const loadRelayProxyConfig = async () => {
+  if (relayProxyLoaded.value) return
+  try {
+    const config = await configService.getRelayProxyConfig()
+    relayProxyEnabled.value = config.enabled
+    relayProxyUrl.value = config.url
+    relayProxyLoaded.value = true
+  } catch (error: any) {
+    ElMessage.error(error.message || i18ns.t('ServerConfigView.loadFailed'))
+  }
+}
+
+const saveRelayProxy = async () => {
+  savingRelayProxy.value = true
+  try {
+    await configService.setRelayProxyConfig({
+      enabled: relayProxyEnabled.value,
+      url: relayProxyUrl.value.trim(),
+    })
+    ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
+  } catch (error: any) {
+    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+  } finally {
+    savingRelayProxy.value = false
+  }
+}
+
 const saveRegistration = async () => {
   savingReg.value = true
   try {
@@ -696,6 +729,7 @@ watch(activeNames, (newNames) => {
   if (newNames.includes('errorDecay')) loadErrorDecayConfig()
   if (newNames.includes('errorWeights')) loadErrorWeightsConfig()
   if (newNames.includes('ipBan')) loadIpBanConfig()
+  if (newNames.includes('relayProxy')) loadRelayProxyConfig()
 })
 
 onMounted(() => {
@@ -797,6 +831,10 @@ const serverConfigContext: ServerConfigContext = {
   level3Threshold,
   level3Duration,
   saveIpBan,
+  savingRelayProxy,
+  relayProxyEnabled,
+  relayProxyUrl,
+  saveRelayProxy,
 }
 
 provide(serverConfigContextKey, serverConfigContext)

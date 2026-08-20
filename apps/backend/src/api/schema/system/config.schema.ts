@@ -236,6 +236,24 @@ export const setRelayConfigBodySchema = z.object({
   customKeyCreateLimitMaxCount: z.coerce.number().int().min(0).max(100000),
 });
 
+export const setRelayProxyConfigBodySchema = z
+  .object({
+    enabled: z.coerce.boolean(),
+    url: z
+      .string()
+      .trim()
+      .max(500)
+      .url()
+      .or(z.literal(""))
+      .refine((value) => !value || /^(https?|socks(?:4|5|5h)?):\/\//i.test(value), {
+        message: "Proxy URL must use HTTP, HTTPS, SOCKS4, SOCKS5, or SOCKS5H",
+      }),
+  })
+  .refine((value) => !value.enabled || value.url.length > 0, {
+    message: "Proxy URL is required when upstream proxy is enabled",
+    path: ["url"],
+  });
+
 export const setSiteConfigBodySchema = z.object({
   backendPublicUrl: z.string().max(500).url().or(z.literal("")),
 });

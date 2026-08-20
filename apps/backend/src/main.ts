@@ -10,6 +10,7 @@ import { RelayChannelProbeService } from "./services/relay/relay-channel-probe.s
 import { RelayChannelProviderSettlementSchedulerService } from "./services/relay/relay-channel-provider-settlement-scheduler.service";
 import { DataLifecycleSchedulerService } from "./services/system/data-lifecycle-scheduler.service";
 import { getLogger, LogCategory } from "./util/logger";
+import { AgentRuntimeGateway } from "./services/agent/agent-runtime.gateway";
 
 const app = createApp();
 setupService();
@@ -17,6 +18,7 @@ const port = env.runtime.port;
 const isDev = env.runtime.isDevelopment;
 const logger = getLogger("Main", LogCategory.UTIL);
 const remoteTerminalGatewayBootstrap = new RemoteTerminalGatewayBootstrap(RemoteTerminalGatewayService.getInstance());
+const agentRuntimeGateway = AgentRuntimeGateway.getInstance();
 
 if (isDev) logger.warn("Running in development mode");
 
@@ -35,7 +37,8 @@ const server = app.listen(port, () => {
 
 server.on("upgrade", (request, socket, head) => {
   const handled = remoteTerminalGatewayBootstrap.handleUpgrade(request, socket, head);
-  if (!handled) socket.destroy();
+  if (handled) return;
+  if (!agentRuntimeGateway.handleUpgrade(request, socket, head)) socket.destroy();
 });
 
 // Configure server-level timeouts to prevent hanging connections
@@ -75,6 +78,7 @@ const gracefulShutdown = async (signal: string) => {
     RelayChannelProviderSettlementSchedulerService.getInstance().stop();
     DataLifecycleSchedulerService.getInstance().stop();
     await remoteTerminalGatewayBootstrap.close();
+    agentRuntimeGateway.close();
     await closeHttpServer();
     await disposeRequestLogService();
     await RedisService.getInstance().close();

@@ -5,6 +5,7 @@
       :conversation="chatStore.currentConversation"
       :messages="chatStore.messages"
       :tokens="chatStore.availableTokens"
+      :workspaces="workspaces"
       :sending="chatStore.isSending"
       @send="handleSend"
       @edit="handleEdit"
@@ -12,6 +13,8 @@
       @regenerate="handleRegenerate"
       @delete="handleDeleteMessage"
       @stop="chatStore.stopGeneration"
+      @create-workspace="handleCreateWorkspace"
+      @manage-machines="goToMachineSettings"
     />
     <div v-else class="empty-state">
       <el-empty :description="i18ns.t('chat.selectOrCreate')" />
@@ -45,6 +48,7 @@
         :conversation="chatStore.currentConversation"
         :messages="chatStore.messages"
         :tokens="chatStore.availableTokens"
+        :workspaces="workspaces"
         :sending="chatStore.isSending"
         @send="handleSend"
         @edit="handleEdit"
@@ -52,6 +56,8 @@
         @regenerate="handleRegenerate"
         @delete="handleDeleteMessage"
         @stop="chatStore.stopGeneration"
+        @create-workspace="handleCreateWorkspace"
+        @manage-machines="goToMachineSettings"
       />
       <div v-else class="empty-state mobile-empty-state">
         <el-empty :description="i18ns.t('chat.selectOrCreate')">
@@ -86,7 +92,8 @@
 
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, computed } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useChatStore } from '@/stores/chatStore'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'
@@ -94,10 +101,14 @@ import { Menu, Plus } from '@element-plus/icons-vue'
 import ConversationList from './components/ConversationList.vue'
 import ChatWindow from './components/ChatWindow.vue'
 import type { Message } from '@/types/chat'
+import { agentService } from '@/service/agentService'
+import type { AgentWorkspace } from '@/types/agent'
 
 const chatStore = useChatStore()
+const router = useRouter()
 const { isDesktop } = usePageDevice()
 const mobileDrawerVisible = ref(false)
+const workspaces = ref<AgentWorkspace[]>([])
 
 const mobileConversationTitle = computed(() => {
   return chatStore.currentConversation?.title || i18ns.t('chat.newConversationTitle')
@@ -106,6 +117,7 @@ const mobileConversationTitle = computed(() => {
 onMounted(async () => {
   await chatStore.loadConversations()
   await chatStore.loadAvailableTokens()
+  workspaces.value = await agentService.listWorkspaces()
 })
 
 onBeforeUnmount(() => {
@@ -179,8 +191,44 @@ async function handleSelectConversation(id: string) {
   mobileDrawerVisible.value = false
 }
 
-async function handleSend(content: string, model: string, tokenId?: string) {
+async function handleSend(
+  content: string,
+  model: string,
+  tokenId?: string,
+  agentMode = false,
+  workspaceId?: string,
+) {
+  if (agentMode) {
+    if (!workspaceId) return
+    await chatStore.sendAgentMessage(content, model, tokenId, workspaceId)
+    return
+  }
   await chatStore.sendMessage(content, model, tokenId)
+}
+
+async function handleCreateWorkspace() {
+  const machines = await agentService.listMachines()
+  if (machines.length !== 1) {
+    ElMessage.info(i18ns.t('chat.configureMachineFirst'))
+    await router.push({ name: 'agentMachines' })
+    return
+  }
+  const { value } = await ElMessageBox.prompt(
+    i18ns.t('chat.workspaceNamePrompt'),
+    i18ns.t('chat.createWorkspace'),
+    {
+      confirmButtonText: i18ns.t('confirm'),
+      cancelButtonText: i18ns.t('cancel'),
+      inputValue: i18ns.t('chat.defaultWorkspaceName'),
+    },
+  ).catch(() => ({ value: '' }))
+  if (!value?.trim()) return
+  const created = await agentService.createWorkspace(value.trim(), machines[0]?.id)
+  if (created) workspaces.value = [created, ...workspaces.value]
+}
+
+function goToMachineSettings() {
+  void router.push({ name: 'agentMachines' })
 }
 
 function handleEdit(message: Message, newContent: string) {

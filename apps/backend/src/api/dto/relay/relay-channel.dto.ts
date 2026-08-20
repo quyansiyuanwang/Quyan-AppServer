@@ -160,6 +160,7 @@ export interface RelayChannelDto {
   hasAnthropicUpstreamApiKey: boolean;
   geminiUpstreamUrl?: string;
   hasGeminiUpstreamApiKey: boolean;
+  useProxy?: boolean;
   multiplier: number;
   allowedFormats: string;
   /** Final models available through this channel after active pool resolution and inherited restrictions. */
@@ -475,6 +476,8 @@ export interface CreateRelayChannelRequest {
   openaiUpstreamUrl?: string;
   /** OpenAI 上游 API Key */
   openaiUpstreamApiKey?: string;
+  /** Whether requests through this channel use the configured upstream proxy. */
+  useProxy?: boolean;
   /** Anthropic 上游 URL */
   anthropicUpstreamUrl?: string;
   /** Anthropic 上游 API Key */
@@ -527,6 +530,7 @@ export interface UpdateRelayChannelRequest {
   openaiUpstreamUrl?: string;
   /** OpenAI 上游 API Key */
   openaiUpstreamApiKey?: string;
+  useProxy?: boolean;
   /** Anthropic 上游 URL */
   anthropicUpstreamUrl?: string;
   /** Anthropic 上游 API Key */

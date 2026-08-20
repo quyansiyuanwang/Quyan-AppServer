@@ -35,6 +35,7 @@ export function buildRuntimeConfig(source: EnvSnapshot) {
     isDevelopment: nodeEnv === "development",
     isTest: nodeEnv === "test",
     nodeEnv,
+    agentRuntimeLocal: source.AGENT_RUNTIME_LOCAL === "true",
     rootDomain,
     trustedRootDomains,
     port: Number.parseInt(port, 10),
