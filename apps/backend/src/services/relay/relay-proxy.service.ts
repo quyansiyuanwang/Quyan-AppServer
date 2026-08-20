@@ -2772,7 +2772,6 @@ export class RelayProxyService {
         : undefined;
     const requestFormat = requestFormatTransform?.targetFormat ?? clientRequestFormat;
     const relayConfig = await this.relayConfigService.getRelayConfig();
-    const relayProxyConfig = await this.configService.getRelayProxyConfig();
     const resourceGuard = env.relay.resourceGuard;
     const requestedModel = this.extractRequestedModel(req, clientRequestFormat);
     if (!requestedModel) throw new BadRequestError("Model is required in request body or URL path");
@@ -2943,6 +2942,11 @@ export class RelayProxyService {
       const tokenNormalizerConfig = normalizeRelayTokenNormalizerConfig(relayToken.normalizerConfig);
       let tokenNormalizerRetried = false;
       let tokenNormalizerBody: unknown;
+      let relayProxyConfig: Awaited<ReturnType<ConfigService["getRelayProxyConfig"]>> = {
+        enabled: false,
+        url: "",
+      };
+      let relayProxyConfigLoaded = false;
       const resolvedBillingDisplayParents = new Map<string, RelayChannel | null>();
       for (let attemptIndex = 0; attemptIndex < attemptChannels.length; attemptIndex++) {
         const candidate = attemptChannels[attemptIndex];
@@ -3079,6 +3083,10 @@ export class RelayProxyService {
               effectiveModelName !== normalizedRequestedModel ? normalizedRequestedModel : undefined;
 
             const upstreamConfig = this.resolveChannelUpstreamConfig(channel, requestFormat);
+            if (channel.useProxy === true && !relayProxyConfigLoaded) {
+              relayProxyConfig = await this.configService.getRelayProxyConfig();
+              relayProxyConfigLoaded = true;
+            }
             const requestAgents = createUpstreamAgents(channel.useProxy === true, relayProxyConfig);
             const upstreamUrl = upstreamConfig.upstreamUrl;
             let upstreamApiKey = upstreamConfig.upstreamApiKey;

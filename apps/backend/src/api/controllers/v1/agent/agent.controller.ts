@@ -10,12 +10,14 @@ import {
   Request,
   Route,
   Security,
+  Response,
+  SuccessResponse,
   Tags,
 } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
 import { AgentService } from "@/services/agent/agent.service";
 import type { TypedRequest } from "@/types/express";
-import type { SuccessResponse } from "@/api/response";
+import type { SuccessResponse as ApiSuccessResponse } from "@/api/response";
 import type {
   CreateAgentWorkspaceRequest,
   AgentWorkspaceResponse,
@@ -48,7 +50,7 @@ export class AgentController extends Controller {
   @Get("machines")
   @Security("jwt")
   @RequirePermission(Permission.AGENT_WORKSPACE_READ)
-  async listMachines(@Request() request: TypedRequest): Promise<SuccessResponse<AgentMachineResponse[]>> {
+  async listMachines(@Request() request: TypedRequest): Promise<ApiSuccessResponse<AgentMachineResponse[]>> {
     return { code: 0, message: "Success", data: await this.service.listMachines(request.user!.userId) };
   }
 
@@ -60,7 +62,7 @@ export class AgentController extends Controller {
   async createMachine(
     @Body() body: CreateAgentMachineRequest,
     @Request() request: TypedRequest,
-  ): Promise<SuccessResponse<AgentMachineResponse>> {
+  ): Promise<ApiSuccessResponse<AgentMachineResponse>> {
     this.setStatus(HttpStatusCode.Created);
     return { code: 0, message: "Success", data: await this.service.createMachine(request.user!.userId, body) };
   }
@@ -70,7 +72,7 @@ export class AgentController extends Controller {
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   @RequirePermission(Permission.AGENT_WORKSPACE_WRITE)
-  async deleteMachine(@Path() machineId: string, @Request() request: TypedRequest): Promise<SuccessResponse<void>> {
+  async deleteMachine(@Path() machineId: string, @Request() request: TypedRequest): Promise<ApiSuccessResponse<void>> {
     await this.service.deleteMachine(request.user!.userId, machineId);
     return { code: 0, message: "Success" };
   }
@@ -78,7 +80,7 @@ export class AgentController extends Controller {
   @Get("workspaces")
   @Security("jwt")
   @RequirePermission(Permission.AGENT_WORKSPACE_READ)
-  async listWorkspaces(@Request() request: TypedRequest): Promise<SuccessResponse<AgentWorkspaceResponse[]>> {
+  async listWorkspaces(@Request() request: TypedRequest): Promise<ApiSuccessResponse<AgentWorkspaceResponse[]>> {
     return { code: 0, message: "Success", data: await this.service.listWorkspaces(request.user!.userId) };
   }
 
@@ -90,7 +92,7 @@ export class AgentController extends Controller {
   async createWorkspace(
     @Body() body: CreateAgentWorkspaceRequest,
     @Request() request: TypedRequest,
-  ): Promise<SuccessResponse<AgentWorkspaceResponse>> {
+  ): Promise<ApiSuccessResponse<AgentWorkspaceResponse>> {
     this.setStatus(HttpStatusCode.Created);
     return { code: 0, message: "Success", data: await this.service.createWorkspace(request.user!.userId, body) };
   }
@@ -103,7 +105,7 @@ export class AgentController extends Controller {
   async destroyWorkspace(
     @Path() workspaceId: string,
     @Request() request: TypedRequest,
-  ): Promise<SuccessResponse<void>> {
+  ): Promise<ApiSuccessResponse<void>> {
     await this.service.stopWorkspace(request.user!.userId, workspaceId, true);
     return { code: 0, message: "Success" };
   }
@@ -111,7 +113,7 @@ export class AgentController extends Controller {
   @Get("mcp-servers")
   @Security("jwt")
   @RequirePermission(Permission.MCP_SERVER_READ)
-  async listMcpServers(@Request() request: TypedRequest): Promise<SuccessResponse<McpServerResponse[]>> {
+  async listMcpServers(@Request() request: TypedRequest): Promise<ApiSuccessResponse<McpServerResponse[]>> {
     return { code: 0, message: "Success", data: await this.service.listMcpServers(request.user!.userId) };
   }
 
@@ -123,7 +125,7 @@ export class AgentController extends Controller {
   async createMcpServer(
     @Body() body: CreateMcpServerRequest,
     @Request() request: TypedRequest,
-  ): Promise<SuccessResponse<McpServerResponse>> {
+  ): Promise<ApiSuccessResponse<McpServerResponse>> {
     this.setStatus(HttpStatusCode.Created);
     return { code: 0, message: "Success", data: await this.service.createMcpServer(request.user!.userId, body) };
   }
@@ -133,7 +135,7 @@ export class AgentController extends Controller {
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   @RequirePermission(Permission.AGENT_TASK_RUN)
-  async cancelRun(@Path() taskId: string, @Request() request: TypedRequest): Promise<SuccessResponse<void>> {
+  async cancelRun(@Path() taskId: string, @Request() request: TypedRequest): Promise<ApiSuccessResponse<void>> {
     await this.service.cancelRun(request.user!.userId, taskId);
     return { code: 0, message: "Success" };
   }
@@ -144,7 +146,7 @@ export class AgentController extends Controller {
   async listApprovals(
     @Path() taskId: string,
     @Request() request: TypedRequest,
-  ): Promise<SuccessResponse<AgentApprovalResponse[]>> {
+  ): Promise<ApiSuccessResponse<AgentApprovalResponse[]>> {
     return { code: 0, message: "Success", data: await this.service.getApprovals(request.user!.userId, taskId) };
   }
 
@@ -158,7 +160,7 @@ export class AgentController extends Controller {
     @Path() approvalId: string,
     @Body() body: DecideAgentApprovalRequest,
     @Request() request: TypedRequest,
-  ): Promise<SuccessResponse<void>> {
+  ): Promise<ApiSuccessResponse<void>> {
     await this.service.decideApproval(request.user!.userId, taskId, approvalId, body.decision);
     return { code: 0, message: "Success" };
   }
@@ -166,6 +168,8 @@ export class AgentController extends Controller {
   @Get("runs/{taskId}/events")
   @Security("jwt")
   @RequirePermission(Permission.AGENT_TASK_RUN)
+  @SuccessResponse(HttpStatusCode.Ok, "SSE stream")
+  @Response(HttpStatusCode.NoContent, "No content")
   async streamEvents(@Path() taskId: string, @Query() after = 0, @Request() request: TypedRequest): Promise<void> {
     if (!request.res) throw new Error("Missing response object");
     skipResponseWrapper(request);

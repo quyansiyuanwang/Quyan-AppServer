@@ -6,9 +6,6 @@ import { createSseClient } from '@/utils/streaming/sseStream'
 import { getAccessToken, isTokenExpired } from '@/stores/request'
 import { authorizationService } from '@/service/authorizationService'
 
-const api = createAgentControllerApi(useRequestStore().getAxios())
-const runs = createAgentRunControllerApi(useRequestStore().getAxios())
-
 function unwrap<T>(response: unknown): T | undefined {
   if (!response || typeof response !== 'object') return undefined
   const data = (response as { data?: unknown }).data
@@ -24,24 +21,34 @@ export class AgentService {
     return (this.instance ??= new AgentService())
   }
 
+  private getApis() {
+    const axiosInstance = useRequestStore().getAxios()
+    return {
+      api: createAgentControllerApi(axiosInstance),
+      runs: createAgentRunControllerApi(axiosInstance),
+    }
+  }
+
   async listWorkspaces(): Promise<AgentWorkspace[]> {
-    return unwrap<AgentWorkspace[]>(await api.listWorkspaces()) ?? []
+    return unwrap<AgentWorkspace[]>(await this.getApis().api.listWorkspaces()) ?? []
   }
 
   async listMachines(): Promise<AgentMachine[]> {
-    return unwrap<AgentMachine[]>(await api.listMachines()) ?? []
+    return unwrap<AgentMachine[]>(await this.getApis().api.listMachines()) ?? []
   }
 
   async createMachine(name: string): Promise<AgentMachine | undefined> {
-    return unwrap<AgentMachine>(await api.createMachine({ body: { name } }))
+    return unwrap<AgentMachine>(await this.getApis().api.createMachine({ body: { name } }))
   }
 
   async deleteMachine(id: string) {
-    await api.deleteMachine({ path: { machineId: id } })
+    await this.getApis().api.deleteMachine({ path: { machineId: id } })
   }
 
   async createWorkspace(name: string, machineId?: string): Promise<AgentWorkspace | undefined> {
-    return unwrap<AgentWorkspace>(await api.createWorkspace({ body: { name, machineId } }))
+    return unwrap<AgentWorkspace>(
+      await this.getApis().api.createWorkspace({ body: { name, machineId } }),
+    )
   }
 
   async createRun(
@@ -55,11 +62,13 @@ export class AgentService {
       budget?: number
     },
   ) {
-    return unwrap<{ id: string }>(await runs.createRun({ path: { conversationId }, body }))
+    return unwrap<{ id: string }>(
+      await this.getApis().runs.createRun({ path: { conversationId }, body }),
+    )
   }
 
   async cancelRun(taskId: string) {
-    await api.cancelRun({ path: { taskId } })
+    await this.getApis().api.cancelRun({ path: { taskId } })
   }
 
   async *stream(

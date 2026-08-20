@@ -29237,7 +29237,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/SuccessResponse_AgentMachineResponse-Array_"
+									"$ref": "#/components/schemas/ApiSuccessResponse_AgentMachineResponse-Array_"
 								}
 							}
 						}
@@ -29261,7 +29261,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/SuccessResponse_AgentMachineResponse_"
+									"$ref": "#/components/schemas/ApiSuccessResponse_AgentMachineResponse_"
 								}
 							}
 						}
@@ -29298,7 +29298,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/SuccessResponse_void_"
+									"$ref": "#/components/schemas/ApiSuccessResponse_void_"
 								}
 							}
 						}
@@ -29334,7 +29334,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/SuccessResponse_AgentWorkspaceResponse-Array_"
+									"$ref": "#/components/schemas/ApiSuccessResponse_AgentWorkspaceResponse-Array_"
 								}
 							}
 						}
@@ -29358,7 +29358,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/SuccessResponse_AgentWorkspaceResponse_"
+									"$ref": "#/components/schemas/ApiSuccessResponse_AgentWorkspaceResponse_"
 								}
 							}
 						}
@@ -29395,7 +29395,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/SuccessResponse_void_"
+									"$ref": "#/components/schemas/ApiSuccessResponse_void_"
 								}
 							}
 						}
@@ -29431,7 +29431,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/SuccessResponse_McpServerResponse-Array_"
+									"$ref": "#/components/schemas/ApiSuccessResponse_McpServerResponse-Array_"
 								}
 							}
 						}
@@ -29455,7 +29455,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/SuccessResponse_McpServerResponse_"
+									"$ref": "#/components/schemas/ApiSuccessResponse_McpServerResponse_"
 								}
 							}
 						}
@@ -29492,7 +29492,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/SuccessResponse_void_"
+									"$ref": "#/components/schemas/ApiSuccessResponse_void_"
 								}
 							}
 						}
@@ -29528,7 +29528,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/SuccessResponse_AgentApprovalResponse-Array_"
+									"$ref": "#/components/schemas/ApiSuccessResponse_AgentApprovalResponse-Array_"
 								}
 							}
 						}
@@ -29563,7 +29563,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"$ref": "#/components/schemas/SuccessResponse_void_"
+									"$ref": "#/components/schemas/ApiSuccessResponse_void_"
 								}
 							}
 						}
@@ -29612,6 +29612,9 @@
 			"get": {
 				"operationId": "AgentControllerStreamEvents",
 				"responses": {
+					"200": {
+						"description": "SSE stream"
+					},
 					"204": {
 						"description": "No content"
 					}
@@ -54382,7 +54385,7 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"SuccessResponse_AgentMachineResponse-Array_": {
+			"ApiSuccessResponse_AgentMachineResponse-Array_": {
 				"description": "成功响应格式\n用于所有成功情况（2xx）",
 				"properties": {
 					"code": {
@@ -54405,7 +54408,7 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"SuccessResponse_AgentMachineResponse_": {
+			"ApiSuccessResponse_AgentMachineResponse_": {
 				"description": "成功响应格式\n用于所有成功情况（2xx）",
 				"properties": {
 					"code": {
@@ -54433,6 +54436,24 @@
 				},
 				"required": [
 					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApiSuccessResponse_void_": {
+				"description": "成功响应格式\n用于所有成功情况（2xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"data": {}
+				},
+				"required": [
+					"code",
+					"message"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -54550,7 +54571,7 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"SuccessResponse_AgentWorkspaceResponse-Array_": {
+			"ApiSuccessResponse_AgentWorkspaceResponse-Array_": {
 				"description": "成功响应格式\n用于所有成功情况（2xx）",
 				"properties": {
 					"code": {
@@ -54573,7 +54594,7 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"SuccessResponse_AgentWorkspaceResponse_": {
+			"ApiSuccessResponse_AgentWorkspaceResponse_": {
 				"description": "成功响应格式\n用于所有成功情况（2xx）",
 				"properties": {
 					"code": {
@@ -54652,7 +54673,7 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"SuccessResponse_McpServerResponse-Array_": {
+			"ApiSuccessResponse_McpServerResponse-Array_": {
 				"description": "成功响应格式\n用于所有成功情况（2xx）",
 				"properties": {
 					"code": {
@@ -54675,7 +54696,7 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"SuccessResponse_McpServerResponse_": {
+			"ApiSuccessResponse_McpServerResponse_": {
 				"description": "成功响应格式\n用于所有成功情况（2xx）",
 				"properties": {
 					"code": {
@@ -54785,7 +54806,7 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"SuccessResponse_AgentApprovalResponse-Array_": {
+			"ApiSuccessResponse_AgentApprovalResponse-Array_": {
 				"description": "成功响应格式\n用于所有成功情况（2xx）",
 				"properties": {
 					"code": {

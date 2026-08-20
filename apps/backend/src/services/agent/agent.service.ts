@@ -126,7 +126,7 @@ export class AgentService {
       machineId: machine?.id,
     });
     try {
-      if (!machine && process.env.AGENT_RUNTIME_LOCAL === "true") {
+      if (!machine && env.runtime.agentRuntimeLocal) {
         const runtime = await workspaceRuntime.create(row.id, limits);
         await this.repository.updateWorkspace(row.id, { runtimeStatus: "ready", runtimeHandle: runtime.handle });
       } else if (machine) {
@@ -175,7 +175,7 @@ export class AgentService {
     const row = await this.repository.findWorkspaceForUser(id, userId);
     if (!row)
       throw new NotFoundError("Agent workspace not found", undefined, { messageKey: "agent.workspaceNotFound" });
-    if (row.runtimeHandle && process.env.AGENT_RUNTIME_LOCAL === "true") {
+    if (row.runtimeHandle && env.runtime.agentRuntimeLocal) {
       if (destroy) await workspaceRuntime.destroy(row.runtimeHandle);
       else await workspaceRuntime.stop(row.runtimeHandle);
     }
