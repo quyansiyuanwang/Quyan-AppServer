@@ -2,6 +2,7 @@ import axios from "axios";
 import { randomUUID } from "crypto";
 import https from "https";
 import http from "http";
+import { ProxyAgent } from "proxy-agent";
 import { Readable, Transform } from "stream";
 import { pipeline } from "stream/promises";
 import { RelayTokenRepository, RelayTokenWithChannel } from "@/store/relay/relay-token.repository";
@@ -26,6 +27,19 @@ const httpAgent = new http.Agent({
   timeout: 60000,
   scheduling: "lifo",
 });
+
+type UpstreamAgents = { httpAgent: http.Agent; httpsAgent: https.Agent };
+const directUpstreamAgents: UpstreamAgents = { httpAgent, httpsAgent };
+
+const createUpstreamAgents = (useProxy: boolean, proxyConfig: { enabled: boolean; url: string }): UpstreamAgents => {
+  if (!useProxy || !proxyConfig.enabled || !proxyConfig.url) return directUpstreamAgents;
+  try {
+    const proxyAgent = new ProxyAgent({ getProxyForUrl: () => proxyConfig.url });
+    return { httpAgent: proxyAgent as unknown as http.Agent, httpsAgent: proxyAgent as unknown as https.Agent };
+  } catch {
+    return directUpstreamAgents;
+  }
+};
 import { RelayUsageRepository } from "@/store/relay/relay-usage.repository";
 import { RelayProxyRepository } from "@/store/relay/relay-proxy.repository";
 import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
@@ -87,6 +101,7 @@ import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { RelayChannelHealthService } from "./relay-channel-health.service";
 import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
 import { RelayChannelService } from "./relay-channel.service";
+import { ConfigService } from "@/services/system/config.service";
 import {
   convertRelayError,
   convertRelayRequest,
@@ -275,6 +290,7 @@ export class RelayProxyService {
       RelayChannelService,
       "resolveUniqueAccessibleDirectPooledParent" | "resolveAutomaticPoolUsageDisplayChannel"
     > = RelayChannelService.getInstance(),
+    private readonly configService: ConfigService = ConfigService.getInstance(),
   ) {}
 
   static getInstance(): RelayProxyService {
@@ -2537,6 +2553,7 @@ export class RelayProxyService {
     retryStatusCodes: string[],
     inputTokensIncludeCacheRead: boolean,
     originalRequestedModel?: string,
+    requestAgents: UpstreamAgents = directUpstreamAgents,
   ): Promise<ImageForwardResult> {
     const bodyData = this.buildForwardBodyBuffer(convertedBody);
     const cleanHeaders = { ...headers };
@@ -2565,8 +2582,9 @@ export class RelayProxyService {
       maxContentLength: Infinity,
       responseType: "stream",
       validateStatus: () => true,
-      httpAgent,
-      httpsAgent,
+      proxy: false,
+      httpAgent: requestAgents.httpAgent,
+      httpsAgent: requestAgents.httpsAgent,
     });
 
     const statusCode = response.status || 200;
@@ -2754,6 +2772,7 @@ export class RelayProxyService {
         : undefined;
     const requestFormat = requestFormatTransform?.targetFormat ?? clientRequestFormat;
     const relayConfig = await this.relayConfigService.getRelayConfig();
+    const relayProxyConfig = await this.configService.getRelayProxyConfig();
     const resourceGuard = env.relay.resourceGuard;
     const requestedModel = this.extractRequestedModel(req, clientRequestFormat);
     if (!requestedModel) throw new BadRequestError("Model is required in request body or URL path");
@@ -3060,6 +3079,7 @@ export class RelayProxyService {
               effectiveModelName !== normalizedRequestedModel ? normalizedRequestedModel : undefined;
 
             const upstreamConfig = this.resolveChannelUpstreamConfig(channel, requestFormat);
+            const requestAgents = createUpstreamAgents(channel.useProxy === true, relayProxyConfig);
             const upstreamUrl = upstreamConfig.upstreamUrl;
             let upstreamApiKey = upstreamConfig.upstreamApiKey;
             channelMultiplier =
@@ -3219,6 +3239,7 @@ export class RelayProxyService {
                     : undefined,
                   tokenNormalizerConfig,
                   tokenNormalizerRetried,
+                  requestAgents,
                 ),
               );
 
@@ -3311,6 +3332,7 @@ export class RelayProxyService {
                   failoverConfig.retryStatusCodes,
                   billingDisplayChannel.inputTokensIncludeCacheRead !== false,
                   relayOriginalRequestedModel,
+                  requestAgents,
                 ),
               );
 
@@ -3387,8 +3409,9 @@ export class RelayProxyService {
                 maxContentLength: maxResponseBytes,
                 responseType: "stream",
                 validateStatus: () => true,
-                httpAgent,
-                httpsAgent,
+                proxy: false,
+                httpAgent: requestAgents.httpAgent,
+                httpsAgent: requestAgents.httpsAgent,
               }),
             );
             const streamedResponse = await this.readStreamBodyLimited(
@@ -4087,6 +4110,7 @@ export class RelayProxyService {
     responseTransform?: { sourceFormat: RelayConvertibleRequestFormat; targetFormat: RelayConvertibleRequestFormat },
     tokenNormalizerConfig: RelayTokenNormalizerConfig = normalizeRelayTokenNormalizerConfig(undefined),
     tokenNormalizerRetried = false,
+    requestAgents: UpstreamAgents = directUpstreamAgents,
   ): Promise<StreamForwardResult> {
     const url = new URL(upstreamUrl);
     const isHttps = url.protocol === "https:";
@@ -4147,6 +4171,7 @@ export class RelayProxyService {
           method: req.method,
           headers: cleanHeaders,
           timeout: upstreamStreamTimeout,
+          agent: isHttps ? requestAgents.httpsAgent : requestAgents.httpAgent,
         },
         (proxyRes) => {
           const streamStatusCode = proxyRes.statusCode || 200;
@@ -4213,6 +4238,7 @@ export class RelayProxyService {
                     responseTransform,
                     tokenNormalizerConfig,
                     tokenNormalizerRetried,
+                    requestAgents,
                   ),
                 );
                 return;
@@ -4278,6 +4304,7 @@ export class RelayProxyService {
                       responseTransform,
                       tokenNormalizerConfig,
                       true,
+                      requestAgents,
                     ),
                   );
                   return;

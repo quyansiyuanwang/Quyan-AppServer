@@ -123,6 +123,7 @@ const relayChannelBaseSchema = z.object({
   name: z.string().trim().min(1).max(100),
   openaiUpstreamUrl: z.string().max(500).optional(),
   openaiUpstreamApiKey: z.string().max(500).optional(),
+  useProxy: z.coerce.boolean().optional(),
   anthropicUpstreamUrl: z.string().max(500).optional(),
   anthropicUpstreamApiKey: z.string().max(500).optional(),
   geminiUpstreamUrl: z.string().max(500).optional(),

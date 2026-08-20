@@ -11201,6 +11201,100 @@
 				}
 			}
 		},
+		"/v1/config/relay/proxy": {
+			"get": {
+				"operationId": "ConfigControllerGetRelayProxyConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayProxyConfigDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "ConfigControllerSetRelayProxyConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetRelayProxyConfigDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/config/smtp": {
 			"get": {
 				"operationId": "ConfigControllerGetSmtpConfig",
@@ -37290,6 +37384,22 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayProxyConfigDto": {
+				"properties": {
+					"enabled": {
+						"type": "boolean"
+					},
+					"url": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"enabled",
+					"url"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"SmtpConfig": {
 				"properties": {
 					"host": {
@@ -37737,6 +37847,9 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"SetRelayProxyConfigDto": {
+				"$ref": "#/components/schemas/RelayProxyConfigDto"
 			},
 			"SetSmtpConfigDto": {
 				"properties": {
@@ -43112,6 +43225,9 @@
 					"hasGeminiUpstreamApiKey": {
 						"type": "boolean"
 					},
+					"useProxy": {
+						"type": "boolean"
+					},
 					"multiplier": {
 						"type": "number",
 						"format": "double"
@@ -44929,6 +45045,10 @@
 						"type": "string",
 						"description": "OpenAI 上游 API Key"
 					},
+					"useProxy": {
+						"type": "boolean",
+						"description": "Whether requests through this channel use the configured upstream proxy."
+					},
 					"anthropicUpstreamUrl": {
 						"type": "string",
 						"description": "Anthropic 上游 URL"
@@ -45155,6 +45275,10 @@
 						"type": "string",
 						"description": "OpenAI 上游 API Key"
 					},
+					"useProxy": {
+						"type": "boolean",
+						"description": "Whether requests through this channel use the configured upstream proxy."
+					},
 					"anthropicUpstreamUrl": {
 						"type": "string",
 						"description": "Anthropic 上游 URL"
@@ -45322,6 +45446,10 @@
 						"type": "string",
 						"description": "OpenAI 上游 API Key"
 					},
+					"useProxy": {
+						"type": "boolean",
+						"description": "Whether requests through this channel use the configured upstream proxy."
+					},
 					"anthropicUpstreamUrl": {
 						"type": "string",
 						"description": "Anthropic 上游 URL"
@@ -45465,6 +45593,9 @@
 					"openaiUpstreamApiKey": {
 						"type": "string",
 						"description": "OpenAI 上游 API Key"
+					},
+					"useProxy": {
+						"type": "boolean"
 					},
 					"anthropicUpstreamUrl": {
 						"type": "string",

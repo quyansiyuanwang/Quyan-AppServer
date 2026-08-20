@@ -911,6 +911,7 @@ model RelayChannel {
   anthropicUpstreamApiKey     String?  @db.Text
   geminiUpstreamUrl           String?  @db.Text
   geminiUpstreamApiKey        String?  @db.Text
+  useProxy                    Boolean  @default(false)
   multiplier                  Decimal  @default(1.0) @db.Decimal(10, 6)
   allowedFormats              String?  @db.VarChar(50)
   allowedModels               String?  @db.Text

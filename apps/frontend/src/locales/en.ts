@@ -1695,6 +1695,11 @@ export default {
   },
   ServerConfigView: {
     title: 'Server Configuration',
+    relayProxyTitle: 'Relay Upstream Proxy',
+    relayProxyEnabled: 'Enable relay upstream proxy',
+    relayProxyEnabledHelp: 'Only upstream requests from channels with proxy enabled use this proxy.',
+    relayProxyUrl: 'Proxy URL',
+    relayProxyUrlHelp: 'Supports HTTP, HTTPS, or SOCKS proxies, for example http://127.0.0.1:7890.',
     registrationTitle: 'Registration Settings',
     billingTitle: 'Billing Settings',
     notificationTitle: 'Event Center Defaults',
@@ -2632,6 +2637,8 @@ export default {
     customLabel: 'Code',
   },
   relay: {
+    useProxy: 'Use proxy',
+    useProxyHelp: 'When enabled, upstream requests for this channel use the system proxy.',
     providerChannelTitle: 'My Channel Supply',
     providerChannelDescription:
       'Submit standalone channels and track their review status. Upstream credentials are used only for this submission and are never shown in lists.',

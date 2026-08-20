@@ -181,6 +181,13 @@ export interface SetRelayConfigDto {
   customKeyCreateLimitMaxCount: number;
 }
 
+export interface RelayProxyConfigDto {
+  enabled: boolean;
+  url: string;
+}
+
+export type SetRelayProxyConfigDto = RelayProxyConfigDto
+
 export interface SetSmtpConfigDto {
   /**
    * SMTP 服务器地址

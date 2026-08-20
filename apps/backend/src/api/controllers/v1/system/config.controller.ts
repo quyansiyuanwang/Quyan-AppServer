@@ -38,6 +38,8 @@ import type {
   SetIpBanConfigDto,
   SiteConfigDto,
   SocialAuthConfigDto,
+  RelayProxyConfigDto,
+  SetRelayProxyConfigDto,
 } from "@/api/dto/system/config.dto";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
@@ -58,6 +60,7 @@ import {
   setSocialAuthConfigBodySchema,
   setSmtpConfigBodySchema,
   setSiteConfigBodySchema,
+  setRelayProxyConfigBodySchema,
 } from "@/api/schema/system/config.schema";
 import { validateBody } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
@@ -136,6 +139,13 @@ export class ConfigController extends Controller {
   @RequirePermission(Permission.SYSTEM_CONFIG)
   public async getRelayConfig(@Request() _request: TypedRequest) {
     return await this.configService.getRelayConfig();
+  }
+
+  @Get("relay/proxy")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_CONFIG)
+  public async getRelayProxyConfig(@Request() _request: TypedRequest): Promise<RelayProxyConfigDto> {
+    return await this.configService.getRelayProxyConfig();
   }
 
   @Get("smtp")
@@ -248,6 +258,32 @@ export class ConfigController extends Controller {
         [CONFIG_KEYS.RELAY.CUSTOM_KEY_MAX_TOKENS_PER_USER]: String(body.customKeyMaxTokensPerUser),
         [CONFIG_KEYS.RELAY.CUSTOM_KEY_CREATE_LIMIT_WINDOW_MINUTES]: String(body.customKeyCreateLimitWindowMinutes),
         [CONFIG_KEYS.RELAY.CUSTOM_KEY_CREATE_LIMIT_MAX_COUNT]: String(body.customKeyCreateLimitMaxCount),
+      },
+      currentUserId,
+      request,
+    );
+    setResponseMessageKey(request, "system.configUpdated");
+    return { message: "配置更新成功" };
+  }
+
+  @Put("relay/proxy")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(setRelayProxyConfigBodySchema),
+  )
+  public async setRelayProxyConfig(
+    @Body() body: SetRelayProxyConfigDto,
+    @Request() request: TypedRequest,
+  ) {
+    const currentUserId = request.user!.userId;
+    await this.configService.setMultiple(
+      {
+        [CONFIG_KEYS.RELAY.UPSTREAM_PROXY_ENABLED]: String(body.enabled),
+        [CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL]: body.url,
       },
       currentUserId,
       request,

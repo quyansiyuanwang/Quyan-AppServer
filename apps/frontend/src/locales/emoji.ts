@@ -1832,6 +1832,11 @@ const emoji: DeepStringify<typeof en> = {
   },
   ServerConfigView: {
     title: '🖧 🥵',
+    relayProxyTitle: '📡 🌐',
+    relayProxyEnabled: '✅ 📡 🌐',
+    relayProxyEnabledHelp: '📡 ✅ 🔌; 🖥️ 🚫',
+    relayProxyUrl: '🔗 🌐',
+    relayProxyUrlHelp: 'HTTP HTTPS SOCKS 🌐',
     registrationTitle: '😝 🧰',
     billingTitle: '💸 🧰',
     notificationTitle: '🔔 🧰 ⚙️',
@@ -2719,6 +2724,8 @@ const emoji: DeepStringify<typeof en> = {
     customLabel: '💻',
   },
   relay: {
+    useProxy: '🌐',
+    useProxyHelp: '📡 🔌 🌐',
     providerChannelTitle: '📡 🤝',
     providerChannelDescription: '📡 ➕ 🔎 🚦',
     submitChannel: '📡 ➕',

@@ -1635,6 +1635,11 @@ const zhCN: DeepStringify<typeof en> = {
   },
   ServerConfigView: {
     title: '服务器配置',
+    relayProxyTitle: '中转上游代理',
+    relayProxyEnabled: '启用中转上游代理',
+    relayProxyEnabledHelp: '仅对渠道中开启“使用代理”的上游请求生效，系统其他请求不受影响。',
+    relayProxyUrl: '代理地址',
+    relayProxyUrlHelp: '支持 HTTP、HTTPS 或 SOCKS 代理，例如 http://127.0.0.1:7890。',
     registrationTitle: '注册设置',
     billingTitle: '计费设置',
     notificationTitle: '事件中心默认订阅',
@@ -2549,6 +2554,8 @@ const zhCN: DeepStringify<typeof en> = {
     customLabel: '业务码',
   },
   relay: {
+    useProxy: '使用代理',
+    useProxyHelp: '开启后该渠道的上游请求使用系统配置的代理。',
     providerChannelTitle: '我的渠道供应',
     providerChannelDescription:
       '提交独立渠道并跟踪审核状态。上游凭据仅用于本次提交，不会在列表中展示。',

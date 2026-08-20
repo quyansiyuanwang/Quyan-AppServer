@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import axios from "axios";
+import { ProxyAgent } from "proxy-agent";
 import type {
   BatchDeleteRelayChannelsRequest,
   BatchRelayChannelsResultDto,
@@ -89,6 +90,7 @@ import { RelayConfigService } from "./relay-config.service";
 import { resolveEffectiveRelayPoolMembers } from "./relay-pool-members.util";
 import { RelayChannelChangeRequestRepository } from "@/store/relay/relay-channel-change-request.repository";
 import { env } from "@/config/env";
+import { ConfigService } from "@/services/system/config.service";
 
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
@@ -114,6 +116,7 @@ interface ValidatedRelayChannelData {
   anthropicUpstreamApiKey?: string;
   geminiUpstreamUrl?: string;
   geminiUpstreamApiKey?: string;
+  useProxy: boolean;
   multiplier: number;
   allowedFormats: string;
   allowedModels?: string | null;
@@ -197,6 +200,7 @@ export class RelayChannelService {
     private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
     private readonly relayConfigService: RelayConfigService = RelayConfigService.getInstance(),
     private readonly changeRequestRepository: RelayChannelChangeRequestRepository = RelayChannelChangeRequestRepository.getInstance(),
+    private readonly configService: ConfigService = ConfigService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -1811,6 +1815,7 @@ export class RelayChannelService {
       data.geminiUpstreamUrl !== undefined ? data.geminiUpstreamUrl : existing?.geminiUpstreamUrl || undefined;
     const geminiUpstreamApiKey =
       data.geminiUpstreamApiKey !== undefined ? data.geminiUpstreamApiKey : existing?.geminiUpstreamApiKey || undefined;
+    const useProxy = data.useProxy !== undefined ? data.useProxy : existing?.useProxy === true;
     if (data.allowedFormats === null || data.allowedFormats === "all" || data.allowedFormats === "both")
       throw new BadRequestError("allowedFormats must list explicit formats");
     const allowedFormatsInput = isPoolType(channelType)
@@ -1933,6 +1938,7 @@ export class RelayChannelService {
       anthropicUpstreamApiKey,
       geminiUpstreamUrl,
       geminiUpstreamApiKey,
+      useProxy,
       multiplier,
       allowedFormats,
       allowedModels,
@@ -1995,6 +2001,7 @@ export class RelayChannelService {
       anthropicUpstreamApiKey: data.anthropicUpstreamApiKey,
       geminiUpstreamUrl: data.geminiUpstreamUrl,
       geminiUpstreamApiKey: data.geminiUpstreamApiKey,
+      useProxy: data.useProxy,
       multiplier: data.multiplier,
       allowedFormats: data.allowedFormats,
       allowedModels: data.allowedModels,
@@ -2040,6 +2047,7 @@ export class RelayChannelService {
       anthropicUpstreamApiKey: channel.anthropicUpstreamApiKey || undefined,
       geminiUpstreamUrl: channel.geminiUpstreamUrl || undefined,
       geminiUpstreamApiKey: channel.geminiUpstreamApiKey || undefined,
+      useProxy: channel.useProxy === true,
       multiplier: Number(channel.multiplier),
       allowedFormats: channel.allowedFormats || "openai-chat-completions,anthropic,gemini",
       allowedModels: channel.allowedModels,
@@ -2318,6 +2326,7 @@ export class RelayChannelService {
   ): Promise<RelayChannelUpstreamModelsResponse> {
     let upstreamUrl = data.upstreamUrl?.trim();
     let apiKey = data.apiKey?.trim();
+    let channelUseProxy = false;
     if (data.channelId) {
       const channel = await this.relayChannelRepository.findVisibleById(data.channelId);
       if (!channel) throw new NotFoundError("Relay channel not found");
@@ -2336,9 +2345,14 @@ export class RelayChannelService {
         upstreamUrl = channel.geminiUpstreamUrl || undefined;
         apiKey = channel.geminiUpstreamApiKey || undefined;
       }
+      channelUseProxy = channel.useProxy === true;
     }
     if (!upstreamUrl || !apiKey) throw new BadRequestError("渠道缺少对应格式的上游配置");
     const safe = await assertSafeOutboundUrl(upstreamUrl);
+    const relayProxyConfig = await this.configService.getRelayProxyConfig();
+    const probeAgent = channelUseProxy && relayProxyConfig.enabled && relayProxyConfig.url
+      ? new ProxyAgent({ getProxyForUrl: () => relayProxyConfig.url })
+      : undefined;
     const endpoint = new URL(safe.url.toString());
     const normalizedPath = endpoint.pathname.replace(/\/+$/, "");
     endpoint.pathname = normalizedPath.endsWith("/v1") ? `${normalizedPath}/models` : `${normalizedPath}/v1/models`;
@@ -2351,8 +2365,8 @@ export class RelayChannelService {
     try {
       const response = await axios.get(endpoint.toString(), {
         headers,
-        httpAgent: safe.httpAgent,
-        httpsAgent: safe.httpsAgent,
+        httpAgent: probeAgent || safe.httpAgent,
+        httpsAgent: probeAgent || safe.httpsAgent,
         proxy: false,
         timeout: UPSTREAM_MODELS_TIMEOUT_MS,
         maxRedirects: 0,
@@ -3204,6 +3218,7 @@ export class RelayChannelService {
       hasAnthropicUpstreamApiKey: Boolean(channel.anthropicUpstreamApiKey),
       geminiUpstreamUrl: channel.geminiUpstreamUrl || undefined,
       hasGeminiUpstreamApiKey: Boolean(channel.geminiUpstreamApiKey),
+      useProxy: channel.useProxy === true,
       multiplier: Number(channel.multiplier),
       allowedFormats: channel.allowedFormats || "openai-chat-completions,anthropic,gemini",
       allowedModels: [],

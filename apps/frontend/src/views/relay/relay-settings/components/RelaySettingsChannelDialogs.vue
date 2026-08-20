@@ -749,6 +749,11 @@
         :title="i18ns.t('relay.pooledNoDirectUpstreamHelp')"
       />
 
+      <el-form-item :label="i18ns.t('relay.useProxy')">
+        <el-switch v-model="channelForm.useProxy" />
+        <span class="form-help">{{ i18ns.t('relay.useProxyHelp') }}</span>
+      </el-form-item>
+
       <el-divider
         content-position="left"
         v-if="channelForm.channelType !== 'automatic-proxy-pool'"
