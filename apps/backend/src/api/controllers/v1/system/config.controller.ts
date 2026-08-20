@@ -275,10 +275,7 @@ export class ConfigController extends Controller {
     replayProtectionMiddleware,
     validateBody(setRelayProxyConfigBodySchema),
   )
-  public async setRelayProxyConfig(
-    @Body() body: SetRelayProxyConfigDto,
-    @Request() request: TypedRequest,
-  ) {
+  public async setRelayProxyConfig(@Body() body: SetRelayProxyConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
     await this.configService.setMultiple(
       {

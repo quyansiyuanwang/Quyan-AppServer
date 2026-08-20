@@ -453,7 +453,10 @@ const loadRelayProxyConfig = async () => {
 const saveRelayProxy = async () => {
   savingRelayProxy.value = true
   try {
-    await configService.setRelayProxyConfig({ enabled: relayProxyEnabled.value, url: relayProxyUrl.value.trim() })
+    await configService.setRelayProxyConfig({
+      enabled: relayProxyEnabled.value,
+      url: relayProxyUrl.value.trim(),
+    })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
     ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))

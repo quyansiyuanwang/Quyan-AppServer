@@ -121,7 +121,8 @@ export class ConfigService {
 
   async getRelayProxyConfig(): Promise<RelayProxyConfigDto> {
     const result = await configApi.getRelayProxyConfig({})
-    if (result && result.code === CustomCode.OK && result.data) return result.data as RelayProxyConfigDto
+    if (result && result.code === CustomCode.OK && result.data)
+      return result.data as RelayProxyConfigDto
     throw toServiceError(result)
   }
 

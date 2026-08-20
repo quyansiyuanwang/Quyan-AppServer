@@ -2350,9 +2350,10 @@ export class RelayChannelService {
     if (!upstreamUrl || !apiKey) throw new BadRequestError("渠道缺少对应格式的上游配置");
     const safe = await assertSafeOutboundUrl(upstreamUrl);
     const relayProxyConfig = await this.configService.getRelayProxyConfig();
-    const probeAgent = channelUseProxy && relayProxyConfig.enabled && relayProxyConfig.url
-      ? new ProxyAgent({ getProxyForUrl: () => relayProxyConfig.url })
-      : undefined;
+    const probeAgent =
+      channelUseProxy && relayProxyConfig.enabled && relayProxyConfig.url
+        ? new ProxyAgent({ getProxyForUrl: () => relayProxyConfig.url })
+        : undefined;
     const endpoint = new URL(safe.url.toString());
     const normalizedPath = endpoint.pathname.replace(/\/+$/, "");
     endpoint.pathname = normalizedPath.endsWith("/v1") ? `${normalizedPath}/models` : `${normalizedPath}/v1/models`;

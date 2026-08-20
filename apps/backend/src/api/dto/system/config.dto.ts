@@ -186,7 +186,7 @@ export interface RelayProxyConfigDto {
   url: string;
 }
 
-export type SetRelayProxyConfigDto = RelayProxyConfigDto
+export type SetRelayProxyConfigDto = RelayProxyConfigDto;
 
 export interface SetSmtpConfigDto {
   /**

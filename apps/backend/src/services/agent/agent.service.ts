@@ -93,7 +93,11 @@ export class AgentService {
 
   async createMachine(userId: string, body: CreateAgentMachineRequest): Promise<AgentMachineResponse> {
     const registration = this.createRegistrationToken();
-    const row = await this.repository.createMachine({ userId, name: body.name.trim(), registrationHash: registration.hash });
+    const row = await this.repository.createMachine({
+      userId,
+      name: body.name.trim(),
+      registrationHash: registration.hash,
+    });
     return this.toMachineDto(row, registration.token);
   }
 
@@ -114,7 +118,13 @@ export class AgentService {
     const machine = body.machineId ? await this.repository.findMachineForUser(body.machineId, userId) : null;
     if (body.machineId && !machine)
       throw new NotFoundError("Agent machine not found", undefined, { messageKey: "agent.machineNotFound" });
-    const row = await this.repository.createWorkspace({ userId, name: body.name.trim(), policy, limits, machineId: machine?.id });
+    const row = await this.repository.createWorkspace({
+      userId,
+      name: body.name.trim(),
+      policy,
+      limits,
+      machineId: machine?.id,
+    });
     try {
       if (!machine && process.env.AGENT_RUNTIME_LOCAL === "true") {
         const runtime = await workspaceRuntime.create(row.id, limits);
@@ -131,11 +141,21 @@ export class AgentService {
             type: "workspace.create",
             requestId: randomUUID(),
             workspaceId: row.id,
-            limits: { cpu: Number(limits.cpu), memoryMb: Number(limits.memoryMb), diskMb: Number(limits.diskMb), timeoutSeconds: Number(limits.timeoutSeconds) },
+            limits: {
+              cpu: Number(limits.cpu),
+              memoryMb: Number(limits.memoryMb),
+              diskMb: Number(limits.diskMb),
+              timeoutSeconds: Number(limits.timeoutSeconds),
+            },
           });
           const handle = typeof response.data?.handle === "string" ? response.data.handle : undefined;
           if (!handle) throw new Error("Remote Agent returned no workspace handle");
-          await this.repository.updateWorkspace(row.id, { runtimeStatus: "ready", runtimeAgentId: machine.agentId, runtimeHandle: handle, lastError: null });
+          await this.repository.updateWorkspace(row.id, {
+            runtimeStatus: "ready",
+            runtimeAgentId: machine.agentId,
+            runtimeHandle: handle,
+            lastError: null,
+          });
         }
       } else
         await this.repository.updateWorkspace(row.id, {
@@ -153,7 +173,8 @@ export class AgentService {
 
   async stopWorkspace(userId: string, id: string, destroy = false) {
     const row = await this.repository.findWorkspaceForUser(id, userId);
-    if (!row) throw new NotFoundError("Agent workspace not found", undefined, { messageKey: "agent.workspaceNotFound" });
+    if (!row)
+      throw new NotFoundError("Agent workspace not found", undefined, { messageKey: "agent.workspaceNotFound" });
     if (row.runtimeHandle && process.env.AGENT_RUNTIME_LOCAL === "true") {
       if (destroy) await workspaceRuntime.destroy(row.runtimeHandle);
       else await workspaceRuntime.stop(row.runtimeHandle);
@@ -168,8 +189,10 @@ export class AgentService {
       this.repository.findWorkspaceForUser(body.workspaceId, userId),
       this.repository.findConversationForUser(conversationId, userId),
     ]);
-    if (!workspace) throw new NotFoundError("Agent workspace not found", undefined, { messageKey: "agent.workspaceNotFound" });
-    if (!conversation) throw new NotFoundError("Conversation not found", undefined, { messageKey: "agent.conversationNotFound" });
+    if (!workspace)
+      throw new NotFoundError("Agent workspace not found", undefined, { messageKey: "agent.workspaceNotFound" });
+    if (!conversation)
+      throw new NotFoundError("Conversation not found", undefined, { messageKey: "agent.conversationNotFound" });
     const token = await this.repository.findRelayTokenForUser(
       body.relayTokenId || conversation.relayTokenId || undefined,
       userId,
@@ -231,7 +254,9 @@ export class AgentService {
   async decideApproval(userId: string, taskId: string, approvalId: string, decision: "approved" | "rejected") {
     const approval = await this.repository.findPendingApproval(approvalId, taskId, userId);
     if (!approval || approval.expiresAt < new Date())
-      throw new BadRequestError("Approval is no longer available", undefined, { messageKey: "agent.approvalUnavailable" });
+      throw new BadRequestError("Approval is no longer available", undefined, {
+        messageKey: "agent.approvalUnavailable",
+      });
     await this.repository.updateApproval(approvalId, { status: decision, decidedBy: userId, decidedAt: new Date() });
     await this.repository.updateTask(taskId, {
       taskStatus: decision === "approved" ? "running" : "failed",

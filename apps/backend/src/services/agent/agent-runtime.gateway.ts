@@ -11,7 +11,10 @@ export class AgentRuntimeGateway {
   private static instance: AgentRuntimeGateway;
   private readonly server = new WebSocketServer({ noServer: true });
   private readonly sockets = new Map<string, WebSocket>();
-  private readonly pendingRequests = new Map<string, { resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }>();
+  private readonly pendingRequests = new Map<
+    string,
+    { resolve: (value: any) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> }
+  >();
   private readonly repository = AgentRepository.getInstance();
 
   static getInstance() {
@@ -21,7 +24,9 @@ export class AgentRuntimeGateway {
   handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): boolean {
     const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
     if (url.pathname !== AGENT_RUNTIME_WS_PATH) return false;
-    const expected = String(request.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+    const expected = String(request.headers.authorization || "")
+      .replace(/^Bearer\s+/i, "")
+      .trim();
     const machineHash = expected ? createHash("sha256").update(expected).digest("hex") : "";
     if (!machineHash) {
       socket.destroy();
@@ -42,13 +47,17 @@ export class AgentRuntimeGateway {
             clearTimeout(pending.timer);
             this.pendingRequests.delete(frame.requestId);
             if (frame.ok) pending.resolve(frame);
-            else pending.reject(new Error(typeof frame.error === "string" ? frame.error : "Remote Agent request failed"));
+            else
+              pending.reject(new Error(typeof frame.error === "string" ? frame.error : "Remote Agent request failed"));
           }
           return;
         }
         if (frame.type === "hello") {
           const machine = await this.repository.findMachineByRegistrationHash(machineHash);
-          if (!machine) { ws.close(1008, "Invalid registration token"); return; }
+          if (!machine) {
+            ws.close(1008, "Invalid registration token");
+            return;
+          }
           agentId = frame.agentId;
           this.sockets.set(agentId, ws);
           await this.repository.markMachineConnected(machine.id, agentId, frame.capabilities || {});
@@ -64,7 +73,10 @@ export class AgentRuntimeGateway {
       }
     });
     ws.on("close", () => {
-      if (agentId) { this.sockets.delete(agentId); void this.repository.markMachineOffline(agentId); }
+      if (agentId) {
+        this.sockets.delete(agentId);
+        void this.repository.markMachineOffline(agentId);
+      }
     });
   }
 

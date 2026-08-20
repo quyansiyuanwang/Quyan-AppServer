@@ -57,11 +57,17 @@ export class AgentRepository {
   }
 
   markMachineConnected(id: string, agentId: string, capabilities: Prisma.InputJsonValue) {
-    return prisma.agentRuntimeMachine.update({ where: { id }, data: { agentId, capabilities, runtimeStatus: "online", lastHeartbeatAt: new Date(), lastError: null } });
+    return prisma.agentRuntimeMachine.update({
+      where: { id },
+      data: { agentId, capabilities, runtimeStatus: "online", lastHeartbeatAt: new Date(), lastError: null },
+    });
   }
 
   markMachineHeartbeat(agentId: string, capabilities?: Prisma.InputJsonValue) {
-    return prisma.agentRuntimeMachine.updateMany({ where: { agentId, status: 1 }, data: { runtimeStatus: "online", lastHeartbeatAt: new Date(), ...(capabilities ? { capabilities } : {}) } });
+    return prisma.agentRuntimeMachine.updateMany({
+      where: { agentId, status: 1 },
+      data: { runtimeStatus: "online", lastHeartbeatAt: new Date(), ...(capabilities ? { capabilities } : {}) },
+    });
   }
 
   markMachineOffline(agentId: string) {

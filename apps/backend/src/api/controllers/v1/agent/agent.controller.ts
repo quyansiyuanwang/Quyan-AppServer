@@ -57,7 +57,10 @@ export class AgentController extends Controller {
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(createAgentMachineBodySchema))
   @RequirePermission(Permission.AGENT_WORKSPACE_WRITE)
-  async createMachine(@Body() body: CreateAgentMachineRequest, @Request() request: TypedRequest): Promise<SuccessResponse<AgentMachineResponse>> {
+  async createMachine(
+    @Body() body: CreateAgentMachineRequest,
+    @Request() request: TypedRequest,
+  ): Promise<SuccessResponse<AgentMachineResponse>> {
     this.setStatus(HttpStatusCode.Created);
     return { code: 0, message: "Success", data: await this.service.createMachine(request.user!.userId, body) };
   }
