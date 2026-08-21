@@ -80,7 +80,7 @@ import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { resolveModelId } from "@/util/model-resolution.util";
 import { assertSafeOutboundUrl } from "@/util/developer-outbound-url";
 import { Prisma, type RelayChannel } from "@prisma/client";
-import { formatRelayRequestFormats } from "@appserver/shared";
+import { formatRelayRequestFormats, RelayConfiguredRequestFormat } from "@appserver/shared";
 import type { Request } from "express";
 import { ModelPricingService } from "./model-pricing.service";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
@@ -92,6 +92,12 @@ import { RelayChannelChangeRequestRepository } from "@/store/relay/relay-channel
 import { env } from "@/config/env";
 import { ConfigService } from "@/services/system/config.service";
 
+const ALL_FORMATS = new Set<RelayConfiguredRequestFormat>([
+  "openai-chat-completions",
+  "openai-responses",
+  "anthropic",
+  "gemini",
+]);
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
 const POOLED_ALLOWED_MODE_VALUES = new Set(["all", "manual", "auto"] as const);
@@ -1400,7 +1406,7 @@ export class RelayChannelService {
 
     if (formats.length === 0) throw new BadRequestError("allowedFormats cannot be empty");
 
-    const validFormats = new Set(["openai-chat-completions", "openai-responses", "anthropic", "gemini"]);
+    const validFormats = ALL_FORMATS;
     for (const format of formats)
       if (!validFormats.has(format))
         throw new BadRequestError(
