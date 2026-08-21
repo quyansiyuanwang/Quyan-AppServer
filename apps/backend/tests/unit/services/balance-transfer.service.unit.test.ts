@@ -75,6 +75,14 @@ describe("BalanceTransferService", () => {
     );
   });
 
+  it("passes a future gift-code expiry to the repository", async () => {
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await service.createGiftCode({ amount: 10, expiresAt }, "sender-1");
+
+    expect(repository.createGiftCode).toHaveBeenCalledWith(expect.objectContaining({ expiresAt }));
+  });
+
   it("rejects gift-code creation when the feature is disabled", async () => {
     config.getBillingConfig.mockResolvedValue({ giftCodeEnabled: false });
 
