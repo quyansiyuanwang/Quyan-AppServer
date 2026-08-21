@@ -714,6 +714,53 @@ describe("ChatService", () => {
     );
   });
 
+  it("accepts a model ID from the chat client and sends that ID upstream", async () => {
+    conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
+    relayTokenRepository.findByIdWithChannel.mockResolvedValue({
+      id: "token-1",
+      userId: "user-1",
+      token: "rlt_x",
+      channelId: "channel-1",
+      upstreamUrl: "https://upstream.example.com",
+      upstreamApiKey: "upstream-key",
+      allowedModels: null,
+      channel: { id: "channel-1", name: "main", allowedModels: null },
+    });
+    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+      {
+        model: "Claude Sonnet",
+        provider: "claude-sonnet-4-20250514",
+        pricingType: "token-based",
+        fixedPrice: null,
+        inputPrice: 1000,
+        outputPrice: 2000,
+        cacheCreationMultiplier: 1.25,
+        cacheReadMultiplier: 0.1,
+        supportedFormats: "anthropic",
+      },
+    ]);
+    usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
+    relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
+    usageChargeService.chargeUsage.mockResolvedValue({ applied: true });
+    messageRepo.create
+      .mockResolvedValueOnce(createPersistedMessage({ id: "user-msg-1", role: "user" }))
+      .mockResolvedValueOnce(createPersistedMessage());
+    messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
+    aiProvider.streamChat.mockReturnValue(createChatStream());
+
+    for await (const _chunk of service.sendMessage("conv-1", "user-1", "hello", "claude-sonnet-4-20250514")) {
+      // Drain the stream.
+    }
+
+    expect(aiProvider.streamChat).toHaveBeenCalledWith(
+      [{ role: "user", content: "hello" }],
+      "claude-sonnet-4-20250514",
+      "upstream-key",
+      "https://upstream.example.com",
+      "anthropic",
+    );
+  });
+
   it("rejects provider-id requests when no exact model name is configured", async () => {
     conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
     relayTokenRepository.findByIdWithChannel.mockResolvedValue({
@@ -760,7 +807,7 @@ describe("ChatService", () => {
     await expect(iterator.next()).rejects.toThrow("is not configured");
   });
 
-  it("rejects provider value even when provider is unique", async () => {
+  it("accepts a unique provider value as the canonical model ID", async () => {
     conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
     relayTokenRepository.findByIdWithChannel.mockResolvedValue({
       id: "token-1",
@@ -789,9 +836,26 @@ describe("ChatService", () => {
       },
     ]);
 
-    const iterator = service.sendMessage("conv-1", "user-1", "hello", "gpt-5.4");
+    usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
+    relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
+    usageChargeService.chargeUsage.mockResolvedValue({ applied: true });
+    messageRepo.create
+      .mockResolvedValueOnce(createPersistedMessage({ id: "user-msg-1", role: "user" }))
+      .mockResolvedValueOnce(createPersistedMessage());
+    messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
+    aiProvider.streamChat.mockReturnValue(createChatStream());
 
-    await expect(iterator.next()).rejects.toThrow("is not configured");
+    for await (const _chunk of service.sendMessage("conv-1", "user-1", "hello", "gpt-5.4")) {
+      // Drain the stream.
+    }
+
+    expect(aiProvider.streamChat).toHaveBeenCalledWith(
+      [{ role: "user", content: "hello" }],
+      "gpt-5.4",
+      "upstream-key",
+      "https://upstream.example.com",
+      "openai",
+    );
   });
 
   it("rejects model when relay token allow-list does not include requested model name", async () => {

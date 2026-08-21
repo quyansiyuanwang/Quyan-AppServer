@@ -690,8 +690,14 @@ export class RelayProxyService {
     // null means unrestricted; an explicit empty list denies every model.
     if (allowedModelNames === null) return candidateConfigs[0] || null;
 
-    // Find the first model config whose name is in the channel's allowedModels
-    for (const config of candidateConfigs) if (isModelNameAllowed(allowedModelNames, config.model || "")) return config;
+    // Channel restrictions historically stored display names. Accept the
+    // canonical model ID as well so request validation remains ID-based.
+    for (const config of candidateConfigs)
+      if (
+        isModelNameAllowed(allowedModelNames, config.model || "") ||
+        isModelNameAllowed(allowedModelNames, resolveModelId(config))
+      )
+        return config;
 
     return null;
   }
@@ -949,7 +955,11 @@ export class RelayProxyService {
       const channelScopedModels =
         channelAllowedModelNames == null
           ? []
-          : formatScopedModels.filter((model) => isModelNameAllowed(channelAllowedModelNames, model.model || ""));
+          : formatScopedModels.filter(
+              (model) =>
+                isModelNameAllowed(channelAllowedModelNames, model.model || "") ||
+                isModelNameAllowed(channelAllowedModelNames, resolveModelId(model)),
+            );
 
       for (const model of channelScopedModels) {
         const modelId = resolveModelId(model);
@@ -957,56 +967,7 @@ export class RelayProxyService {
         if (tokenAllowedModelIds.length > 0 && !isModelIdAllowed(tokenAllowedModelIds, model)) continue;
         modelIds.add(modelId);
       }
-
-      // Include mapped model names from channel and token model mappings
-      // so clients can discover models that will be mapped for billing
-      const chMapping = channel.modelMapping as Record<string, string> | null | undefined;
-      if (chMapping)
-        for (const key of Object.keys(chMapping)) {
-          // Only expose literal model names — skip wildcard patterns like "*" or "gpt-*".
-          if (!key || key.includes("*") || key.includes("?")) continue;
-          const target = String(chMapping[key] || "").trim();
-          const mappedConfigs = formatScopedModels.filter((model) => {
-            const modelName = (model.model || "").trim();
-            const modelId = resolveModelId(model).trim();
-            return modelName === target || modelId === target;
-          });
-          if (
-            tokenAllowedModelIds.length > 0 &&
-            mappedConfigs.length > 0 &&
-            !mappedConfigs.some((model) => isModelIdAllowed(tokenAllowedModelIds, model))
-          )
-            continue;
-          // Keep the request alias visible, together with the configured target
-          // and canonical provider id when they are known.
-          modelIds.add(key);
-          if (target && !target.includes("*") && !target.includes("?")) modelIds.add(target);
-          for (const model of mappedConfigs) modelIds.add(resolveModelId(model));
-        }
     }
-
-    // Also include token-level model mapping keys/values
-    const tokenMapping = relayToken.modelMapping as Record<string, string> | null | undefined;
-    if (tokenMapping)
-      for (const key of Object.keys(tokenMapping)) {
-        // Only expose literal model names — skip wildcard patterns like "*" or "gpt-*"
-        if (!key || key.includes("*") || key.includes("?")) continue;
-        const target = String(tokenMapping[key] || "").trim();
-        const mappedConfigs = formatScopedModels.filter((model) => {
-          const modelName = (model.model || "").trim();
-          const modelId = resolveModelId(model).trim();
-          return modelName === target || modelId === target;
-        });
-        if (
-          tokenAllowedModelIds.length > 0 &&
-          mappedConfigs.length > 0 &&
-          !mappedConfigs.some((model) => isModelIdAllowed(tokenAllowedModelIds, model))
-        )
-          continue;
-        modelIds.add(key);
-        if (target && !target.includes("*") && !target.includes("?")) modelIds.add(target);
-        for (const model of mappedConfigs) modelIds.add(resolveModelId(model));
-      }
 
     return [...modelIds].sort((left, right) => left.localeCompare(right));
   }

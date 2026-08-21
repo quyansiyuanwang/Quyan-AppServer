@@ -74,6 +74,11 @@ export class ChatService {
     const normalizedRequestedModel = requestedModel.trim();
     if (!normalizedRequestedModel) return null;
 
+    // Public relay/chat model selections are model IDs. Keep the model name as
+    // a compatibility fallback for older clients, but always derive the
+    // upstream request from resolveModelId below.
+    const idMatches = pricingList.filter((pricing) => resolveModelId(pricing) === normalizedRequestedModel);
+    if (idMatches.length === 1) return idMatches[0] || null;
     return pricingList.find((pricing) => pricing.model.trim() === normalizedRequestedModel) || null;
   }
 
@@ -139,7 +144,11 @@ export class ChatService {
         if (!supportsRelayRequestFormat(channelAllowedFormats, requestFormat)) continue;
 
         const channelAllowedModels = parseRelayChannelAllowedModelNames(channel);
-        if (!isModelNameAllowed(channelAllowedModels, modelPricing.model.trim())) continue;
+        if (
+          !isModelNameAllowed(channelAllowedModels, modelPricing.model.trim()) &&
+          !isModelNameAllowed(channelAllowedModels, resolveModelId(modelPricing))
+        )
+          continue;
 
         const config = this.getUpstreamConfigForFormat(token, channel, requestFormat);
         const upstreamUrl = config.upstreamUrl?.trim();
