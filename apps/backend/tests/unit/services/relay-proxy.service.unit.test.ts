@@ -1116,11 +1116,7 @@ describe("RelayProxyService failover", () => {
       },
     ]);
 
-    await expect(service.getAvailableModelsForToken(relayToken, "openai")).resolves.toEqual([
-      "customer-model",
-      "fallback-model",
-      "gpt-4o-mini",
-    ]);
+    await expect(service.getAvailableModelsForToken(relayToken, "openai")).resolves.toEqual(["gpt-4o-mini"]);
   });
 
   it("uses round-robin ordering for pooled members", async () => {
@@ -2439,6 +2435,40 @@ describe("RelayProxyService failover", () => {
   });
 
   describe("RelayProxyService model mapping forwarding", () => {
+    it("accepts a model ID and sends the model ID to the upstream body", async () => {
+      const relayToken = createRelayToken();
+      relayToken.channel.allowedModels = JSON.stringify(["Claude Sonnet"]);
+      const req = createRequest({
+        body: { model: "claude-sonnet-4-20250514", messages: [{ role: "user", content: "hello" }] },
+      });
+      const { service, modelPricingService } = createService();
+      modelPricingService.getModelPricing.mockResolvedValue([
+        {
+          model: "Claude Sonnet",
+          provider: "claude-sonnet-4-20250514",
+          pricingType: "token-based",
+          inputPrice: 1000,
+          outputPrice: 2000,
+          cacheCreationMultiplier: 1.25,
+          cacheReadMultiplier: 0.1,
+          supportedFormats: "openai",
+        },
+      ]);
+
+      axiosMock.mockResolvedValueOnce({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        data: { id: "id-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+      });
+
+      await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(expect.objectContaining({ status: 200 }));
+
+      const upstreamRequest = axiosMock.mock.calls[0]?.[0] as unknown as { data: Buffer };
+      expect(JSON.parse(upstreamRequest.data.toString("utf8"))).toEqual(
+        expect.objectContaining({ model: "claude-sonnet-4-20250514" }),
+      );
+    });
+
     it("forwards a channel-mapped alias under the mapped upstream model", async () => {
       const relayToken = createRelayToken();
       relayToken.channel.allowedModels = JSON.stringify(["gpt-4o-mini"]);
@@ -2546,15 +2576,12 @@ describe("RelayProxyService failover", () => {
       );
     });
 
-    it("includes literal token-level model mapping keys in the available models", async () => {
+    it("keeps available models canonical when token mappings use aliases", async () => {
       const relayToken = createRelayToken();
       relayToken.modelMapping = { "customer-model": "gpt-4o-mini" };
       const { service } = createService();
 
-      await expect(service.getAvailableModelsForToken(relayToken, "openai")).resolves.toEqual([
-        "customer-model",
-        "gpt-4o-mini",
-      ]);
+      await expect(service.getAvailableModelsForToken(relayToken, "openai")).resolves.toEqual([]);
     });
   });
 
