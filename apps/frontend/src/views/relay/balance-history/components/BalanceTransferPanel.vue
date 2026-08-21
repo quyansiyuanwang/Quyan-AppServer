@@ -259,11 +259,7 @@ onMounted(load)
             />
           </el-form-item>
           <el-form-item :label="i18ns.t('redemption.expiresAt')">
-            <el-date-picker
-              v-model="giftExpiry"
-              type="datetime"
-              clearable
-            />
+            <el-date-picker v-model="giftExpiry" type="datetime" clearable />
           </el-form-item>
         </div>
         <div class="balance-transfer-dialog__summary">
