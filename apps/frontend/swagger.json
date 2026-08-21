@@ -29871,8 +29871,7 @@
 					"openai-chat-completions",
 					"openai-responses",
 					"anthropic"
-				],
-				"description": "Formats that can be translated at relay-token scope. Gemini is intentionally excluded."
+				]
 			},
 			"RelayRequestFormatTransform": {
 				"properties": {
@@ -39036,16 +39035,27 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"RelayRequestFormat": {
+			"RelayConfiguredRequestFormat": {
 				"type": "string",
 				"enum": [
-					"openai",
 					"openai-chat-completions",
 					"openai-responses",
 					"anthropic",
 					"gemini"
-				],
-				"description": "`openai` is retained only for internal legacy-call compatibility and normalizes to Chat Completions."
+				]
+			},
+			"RelayRequestFormat": {
+				"anyOf": [
+					{
+						"$ref": "#/components/schemas/RelayConfiguredRequestFormat"
+					},
+					{
+						"type": "string",
+						"enum": [
+							"openai"
+						]
+					}
+				]
 			},
 			"SupportAiConfigDto": {
 				"properties": {
@@ -40831,8 +40841,21 @@
 					"unsupportedImage": {
 						"type": "boolean"
 					},
-					"textOnlyPreflight": {
-						"type": "boolean"
+					"textOnlyModelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Explicit upstream model IDs known to accept text only for this token."
+					},
+					"v1PathMode": {
+						"type": "string",
+						"enum": [
+							"off",
+							"auto",
+							"always"
+						],
+						"description": "Controls the /v1 prefix applied to the upstream request path."
 					}
 				},
 				"required": [
@@ -40840,7 +40863,8 @@
 					"thinkingSignature",
 					"thinkingBudget",
 					"unsupportedImage",
-					"textOnlyPreflight"
+					"textOnlyModelIds",
+					"v1PathMode"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -43502,13 +43526,7 @@
 					},
 					"supportedRequestFormats": {
 						"items": {
-							"type": "string",
-							"enum": [
-								"openai-chat-completions",
-								"openai-responses",
-								"anthropic",
-								"gemini"
-							]
+							"$ref": "#/components/schemas/RelayConfiguredRequestFormat"
 						},
 						"type": "array"
 					}
@@ -44858,6 +44876,14 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayUpstreamFormat": {
+				"type": "string",
+				"enum": [
+					"anthropic",
+					"openai",
+					"gemini"
+				]
+			},
 			"RelayChannelUpstreamModelDto": {
 				"properties": {
 					"id": {
@@ -44883,12 +44909,7 @@
 			"RelayChannelUpstreamModelsResponse": {
 				"properties": {
 					"format": {
-						"type": "string",
-						"enum": [
-							"openai",
-							"anthropic",
-							"gemini"
-						]
+						"$ref": "#/components/schemas/RelayUpstreamFormat"
 					},
 					"models": {
 						"items": {
@@ -44907,12 +44928,7 @@
 			"RelayChannelUpstreamModelsRequest": {
 				"properties": {
 					"format": {
-						"type": "string",
-						"enum": [
-							"openai",
-							"anthropic",
-							"gemini"
-						]
+						"$ref": "#/components/schemas/RelayUpstreamFormat"
 					},
 					"channelId": {
 						"type": "string"
@@ -45919,14 +45935,18 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"RelayChannelProbeFormat": {
+			"RelayProbeFormat": {
 				"type": "string",
 				"enum": [
 					"openai-chat-completions",
 					"openai-responses",
 					"anthropic",
+					"openai",
 					"gemini"
 				]
+			},
+			"RelayChannelProbeFormat": {
+				"$ref": "#/components/schemas/RelayProbeFormat"
 			},
 			"RelayChannelProbeEndpoint": {
 				"type": "string",
@@ -46590,7 +46610,7 @@
 					},
 					"allowedProbeFormats": {
 						"items": {
-							"$ref": "#/components/schemas/RelayChannelProbeFormat"
+							"$ref": "#/components/schemas/RelayConfiguredRequestFormat"
 						},
 						"type": "array",
 						"description": "Formats that can be used for the minimal AI request on this channel."

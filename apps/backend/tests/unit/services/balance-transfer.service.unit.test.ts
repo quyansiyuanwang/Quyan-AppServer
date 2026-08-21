@@ -75,6 +75,42 @@ describe("BalanceTransferService", () => {
     );
   });
 
+  it("passes a future gift-code expiry to the repository", async () => {
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await service.createGiftCode({ amount: 10, expiresAt }, "sender-1");
+
+    expect(repository.createGiftCode).toHaveBeenCalledWith(expect.objectContaining({ expiresAt }));
+  });
+
+  it("includes the username of the user who redeemed a gift code", async () => {
+    repository.listGiftCodes.mockResolvedValue({
+      total: 1,
+      records: [
+        {
+          id: "gc-1",
+          code: "ugc_test",
+          amount: 10,
+          feeAmount: 0.25,
+          feePercent: 2.5,
+          cancelFeeRefundPercent: 40,
+          totalDebit: 10.25,
+          refundedAmount: null,
+          state: "redeemed",
+          redeemedByUser: { username: "recipient" },
+          redeemedAt: new Date("2026-08-21T00:00:00.000Z"),
+          cancelledAt: null,
+          expiresAt: null,
+          createTime: new Date("2026-08-20T00:00:00.000Z"),
+        },
+      ],
+    });
+
+    const result = await service.listGiftCodes("sender-1");
+
+    expect(result.records[0]?.redeemedByUsername).toBe("recipient");
+  });
+
   it("rejects gift-code creation when the feature is disabled", async () => {
     config.getBillingConfig.mockResolvedValue({ giftCodeEnabled: false });
 

@@ -15,7 +15,7 @@ const config = ref<BalanceTransferConfigDto | null>(null)
 const giftDialogVisible = ref(false)
 const transferDialogVisible = ref(false)
 const giftAmount = ref<number | undefined>()
-const giftExpiry = ref<string | undefined>()
+const giftExpiry = ref<Date | null>(null)
 const recipientUsername = ref('')
 const transferAmount = ref<number | undefined>()
 const transferDescription = ref('')
@@ -81,13 +81,13 @@ async function createGiftCode() {
   try {
     const result = await balanceTransferService.createGiftCode({
       amount: giftAmount.value,
-      expiresAt: giftExpiry.value,
+      expiresAt: giftExpiry.value?.toISOString(),
     })
     userInfoStore.setUserInfo({
       balance: round4(Number(userInfoStore.userInfo.balance || 0) - result.totalDebit),
     })
     giftAmount.value = undefined
-    giftExpiry.value = undefined
+    giftExpiry.value = null
     giftDialogVisible.value = false
     await load(1)
     ElMessage.success(i18ns.t('balance.giftCodeCreated'))
@@ -211,6 +211,9 @@ onMounted(load)
         </el-table-column>
         <el-table-column prop="amount" :label="i18ns.t('balance.receivedAmount')" width="120" />
         <el-table-column prop="feeAmount" :label="i18ns.t('balance.fee')" width="110" />
+        <el-table-column :label="i18ns.t('balance.redeemedBy')" min-width="140">
+          <template #default="{ row }">{{ row.redeemedByUsername || '-' }}</template>
+        </el-table-column>
         <el-table-column :label="i18ns.t('balance.status')" width="110">
           <template #default="{ row }">{{ getGiftCodeStateLabel(row.state) }}</template>
         </el-table-column>
@@ -259,12 +262,7 @@ onMounted(load)
             />
           </el-form-item>
           <el-form-item :label="i18ns.t('redemption.expiresAt')">
-            <el-date-picker
-              v-model="giftExpiry"
-              type="datetime"
-              value-format="YYYY-MM-DDTHH:mm:ss"
-              clearable
-            />
+            <el-date-picker v-model="giftExpiry" type="datetime" clearable />
           </el-form-item>
         </div>
         <div class="balance-transfer-dialog__summary">

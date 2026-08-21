@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
-  isConfirmedTextOnlyModel,
   isThinkingBudgetError,
   isThinkingSignatureError,
   isUnsupportedImageError,
+  isConfiguredTextOnlyModel,
   normalizeAnthropicRequestBeforeSend,
   normalizeRelayTokenNormalizerConfig,
   rectifyAnthropicRequestForError,
@@ -19,24 +19,29 @@ const enabled = {
   thinkingSignature: true,
   thinkingBudget: true,
   unsupportedImage: true,
-  textOnlyPreflight: true,
+  textOnlyModelIds: ["text-only-model"],
 };
 
 describe("anthropic token normalizer", () => {
-  it("defaults missing and invalid config fields to false", () => {
+  it("defaults missing and invalid config fields conservatively", () => {
     expect(normalizeRelayTokenNormalizerConfig({ enabled: true, thinkingBudget: "yes" })).toEqual({
       enabled: true,
       thinkingSignature: false,
       thinkingBudget: false,
       unsupportedImage: false,
-      textOnlyPreflight: false,
+      textOnlyModelIds: [],
+      v1PathMode: "auto",
     });
   });
 
-  it("matches cc-switch confirmed text-only models without matching visual variants", () => {
-    expect(isConfirmedTextOnlyModel("deepseek/deepseek-v4-pro")).toBe(true);
-    expect(isConfirmedTextOnlyModel("GLM-5.2[1M]")).toBe(true);
-    expect(isConfirmedTextOnlyModel("glm-5.2v")).toBe(false);
+  it("ignores the removed model-name registry field from legacy token configs", () => {
+    const normalized = normalizeRelayTokenNormalizerConfig({
+      enabled: true,
+      unsupportedImage: true,
+      textOnlyPreflight: true,
+      model: "deepseek-v4-pro",
+    });
+    expect(normalized.textOnlyModelIds).toEqual([]);
   });
 
   it("removes thinking blocks and signatures without mutating the input", () => {
@@ -58,6 +63,14 @@ describe("anthropic token normalizer", () => {
     expect(body.messages[0].content).toHaveLength(3);
     expect(result.body).toMatchObject({ messages: [{ content: [{ type: "text" }, { type: "tool_use" }] }] });
     expect((result.body as any).messages[0].content[0].signature).toBeUndefined();
+  });
+
+  it("preflights only the token's explicitly configured model IDs", () => {
+    const body = { messages: [{ role: "user", content: [{ type: "image" }] }] };
+    expect(isConfiguredTextOnlyModel("TEXT-ONLY-MODEL", ["text-only-model"])).toBe(true);
+    expect(isConfiguredTextOnlyModel("new-model", ["text-only-model"])).toBe(false);
+    expect(normalizeAnthropicRequestBeforeSend(body, "text-only-model", enabled)).not.toBe(body);
+    expect(normalizeAnthropicRequestBeforeSend(body, "new-model", enabled)).toBe(body);
   });
 
   it("normalizes budget and raises max_tokens without lowering a larger value", () => {
@@ -99,14 +112,6 @@ describe("anthropic token normalizer", () => {
       ],
     });
     expect((body.messages[0]!.content[1] as any).content[0].type).toBe("image");
-  });
-
-  it("applies registry preflight only when the token enables it", () => {
-    const body = { messages: [{ role: "user", content: [{ type: "image" }] }] };
-    expect(normalizeAnthropicRequestBeforeSend(body, "deepseek-v4-pro", enabled)).not.toBe(body);
-    expect(normalizeAnthropicRequestBeforeSend(body, "deepseek-v4-pro", { ...enabled, textOnlyPreflight: false })).toBe(
-      body,
-    );
   });
 
   it("classifies signature, budget and image errors narrowly", () => {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RELAY_CONVERTIBLE_REQUEST_FORMATS } from "@appserver/shared";
 import {
   MONTHLY_PASS_DECIMAL_SCALE,
   MONTHLY_PASS_MAX_AMOUNT_QUOTA,
@@ -113,8 +114,8 @@ const customTokenSchema = z
   .regex(/^rlt_[a-zA-Z0-9]+$/, "custom token must start with rlt_ and contain only alphanumeric characters");
 
 const relayRequestFormatTransformSchema = z.object({
-  sourceFormat: z.enum(["openai-chat-completions", "openai-responses", "anthropic"]),
-  targetFormat: z.enum(["openai-chat-completions", "openai-responses", "anthropic"]),
+  sourceFormat: z.enum(RELAY_CONVERTIBLE_REQUEST_FORMATS),
+  targetFormat: z.enum(RELAY_CONVERTIBLE_REQUEST_FORMATS),
 });
 
 const relayRequestFormatTransformsSchema = z
@@ -140,11 +141,12 @@ const relayRequestFormatTransformsSchema = z
   });
 
 const relayTokenNormalizerConfigSchema = z.object({
-  enabled: z.boolean(),
-  thinkingSignature: z.boolean(),
-  thinkingBudget: z.boolean(),
-  unsupportedImage: z.boolean(),
-  textOnlyPreflight: z.boolean(),
+  enabled: z.boolean().default(false),
+  thinkingSignature: z.boolean().default(false),
+  thinkingBudget: z.boolean().default(false),
+  unsupportedImage: z.boolean().default(false),
+  textOnlyModelIds: z.array(z.string().trim().min(1).max(200)).max(100).default([]),
+  v1PathMode: z.enum(["off", "auto", "always"]).default("auto"),
 });
 
 export const createRelayTokenBodySchema = z

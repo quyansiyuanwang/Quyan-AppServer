@@ -16,7 +16,8 @@ describe("relay token import schema", () => {
       thinkingSignature: true,
       thinkingBudget: false,
       unsupportedImage: true,
-      textOnlyPreflight: true,
+      textOnlyModelIds: ["text-only-model"],
+      v1PathMode: "always" as const,
     };
 
     expect(createRelayTokenBodySchema.parse({ channelId: "channel-1", normalizerConfig }).normalizerConfig).toEqual(
@@ -26,6 +27,21 @@ describe("relay token import schema", () => {
     expect(
       importRelayTokensBodySchema.parse({ tokens: [{ channelId: "channel-1", normalizerConfig }] }).tokens[0],
     ).toMatchObject({ normalizerConfig });
+  });
+
+  it("defaults a legacy normalizer configuration to automatic v1 path adaptation", () => {
+    expect(
+      createRelayTokenBodySchema.parse({
+        channelId: "channel-1",
+        normalizerConfig: {
+          enabled: false,
+          thinkingSignature: false,
+          thinkingBudget: false,
+          unsupportedImage: false,
+          textOnlyModelIds: [],
+        },
+      }).normalizerConfig?.v1PathMode,
+    ).toBe("auto");
   });
 
   it("accepts distinct request format transforms and rejects invalid rules", () => {

@@ -80,7 +80,7 @@ import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { resolveModelId } from "@/util/model-resolution.util";
 import { assertSafeOutboundUrl } from "@/util/developer-outbound-url";
 import { Prisma, type RelayChannel } from "@prisma/client";
-import { formatRelayRequestFormats } from "@appserver/shared";
+import { formatRelayRequestFormats, RELAY_REQUEST_FORMATS } from "@appserver/shared";
 import type { Request } from "express";
 import { ModelPricingService } from "./model-pricing.service";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
@@ -1400,7 +1400,7 @@ export class RelayChannelService {
 
     if (formats.length === 0) throw new BadRequestError("allowedFormats cannot be empty");
 
-    const validFormats = new Set(["openai-chat-completions", "openai-responses", "anthropic", "gemini"]);
+    const validFormats = new Set<string>(RELAY_REQUEST_FORMATS);
     for (const format of formats)
       if (!validFormats.has(format))
         throw new BadRequestError(

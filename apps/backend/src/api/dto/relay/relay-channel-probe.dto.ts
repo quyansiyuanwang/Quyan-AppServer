@@ -1,6 +1,7 @@
 import type { RelayChannelVisibilityMode } from "@/api/dto/relay/relay-channel.dto";
+import type { RelayConfiguredRequestFormat, RelayProbeFormat } from "@appserver/shared";
 
-export type RelayChannelProbeFormat = "openai-chat-completions" | "openai-responses" | "anthropic" | "gemini";
+export type RelayChannelProbeFormat = RelayProbeFormat;
 export type RelayChannelProbeEndpoint =
   | "openai-chat-completions"
   | "openai-responses"
@@ -247,7 +248,7 @@ export interface RelayChannelProbeOverviewItemDto {
   customerFacingTargets: RelayChannelProbeCustomerFacingTargetDto[];
   multiplier: number;
   /** Formats that can be used for the minimal AI request on this channel. */
-  allowedProbeFormats: RelayChannelProbeFormat[];
+  allowedProbeFormats: RelayConfiguredRequestFormat[];
   /** Explicit model allow-list for the channel. Empty means no channel-level model allow-list. */
   allowedProbeModels: string[];
   profile?: RelayChannelProbeProfileDto;
