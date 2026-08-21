@@ -561,7 +561,7 @@ describe("RelayProxyService failover", () => {
       thinkingSignature: false,
       thinkingBudget: true,
       unsupportedImage: false,
-      textOnlyPreflight: false,
+      textOnlyModelIds: [],
       v1PathMode: "auto",
     };
     relayToken.failoverConfig.retryStatusCodes = ["503"];

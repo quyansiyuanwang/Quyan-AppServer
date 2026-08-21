@@ -140,11 +140,11 @@ const relayRequestFormatTransformsSchema = z
   });
 
 const relayTokenNormalizerConfigSchema = z.object({
-  enabled: z.boolean(),
-  thinkingSignature: z.boolean(),
-  thinkingBudget: z.boolean(),
-  unsupportedImage: z.boolean(),
-  textOnlyPreflight: z.boolean(),
+  enabled: z.boolean().default(false),
+  thinkingSignature: z.boolean().default(false),
+  thinkingBudget: z.boolean().default(false),
+  unsupportedImage: z.boolean().default(false),
+  textOnlyModelIds: z.array(z.string().trim().min(1).max(200)).max(100).default([]),
   v1PathMode: z.enum(["off", "auto", "always"]).default("auto"),
 });
 

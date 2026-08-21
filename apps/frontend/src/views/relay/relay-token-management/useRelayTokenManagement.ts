@@ -96,7 +96,7 @@ type RelayTokenNormalizerConfig = {
   thinkingSignature: boolean
   thinkingBudget: boolean
   unsupportedImage: boolean
-  textOnlyPreflight: boolean
+  textOnlyModelIds: string[]
   v1PathMode: 'off' | 'auto' | 'always'
 }
 
@@ -594,7 +594,7 @@ export const useRelayTokenManagement = () => {
       thinkingSignature: false,
       thinkingBudget: false,
       unsupportedImage: false,
-      textOnlyPreflight: false,
+      textOnlyModelIds: [],
       v1PathMode: 'auto',
     } as RelayTokenNormalizerConfig,
   })
@@ -1652,7 +1652,11 @@ export const useRelayTokenManagement = () => {
         thinkingSignature: row.normalizerConfig?.thinkingSignature === true,
         thinkingBudget: row.normalizerConfig?.thinkingBudget === true,
         unsupportedImage: row.normalizerConfig?.unsupportedImage === true,
-        textOnlyPreflight: row.normalizerConfig?.textOnlyPreflight === true,
+        textOnlyModelIds: Array.isArray(row.normalizerConfig?.textOnlyModelIds)
+          ? row.normalizerConfig.textOnlyModelIds.filter(
+              (item): item is string => typeof item === 'string',
+            )
+          : [],
         v1PathMode:
           row.normalizerConfig?.v1PathMode === 'off' ||
           row.normalizerConfig?.v1PathMode === 'always'

@@ -40831,8 +40831,12 @@
 					"unsupportedImage": {
 						"type": "boolean"
 					},
-					"textOnlyPreflight": {
-						"type": "boolean"
+					"textOnlyModelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Explicit upstream model IDs known to accept text only for this token."
 					},
 					"v1PathMode": {
 						"type": "string",
@@ -40849,7 +40853,7 @@
 					"thinkingSignature",
 					"thinkingBudget",
 					"unsupportedImage",
-					"textOnlyPreflight",
+					"textOnlyModelIds",
 					"v1PathMode"
 				],
 				"type": "object",

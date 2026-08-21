@@ -16,7 +16,7 @@ describe("relay token import schema", () => {
       thinkingSignature: true,
       thinkingBudget: false,
       unsupportedImage: true,
-      textOnlyPreflight: true,
+      textOnlyModelIds: ["text-only-model"],
       v1PathMode: "always" as const,
     };
 
@@ -38,7 +38,7 @@ describe("relay token import schema", () => {
           thinkingSignature: false,
           thinkingBudget: false,
           unsupportedImage: false,
-          textOnlyPreflight: false,
+          textOnlyModelIds: [],
         },
       }).normalizerConfig?.v1PathMode,
     ).toBe("auto");

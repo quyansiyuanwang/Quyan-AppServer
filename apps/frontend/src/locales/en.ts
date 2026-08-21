@@ -2787,7 +2787,9 @@ export default {
     thinkingSignatureNormalizer: 'Thinking signature normalization',
     thinkingBudgetNormalizer: 'Thinking budget normalization',
     unsupportedImageNormalizer: 'Fallback when images are unsupported',
-    textOnlyPreflightNormalizer: 'Text-only model preflight',
+    textOnlyModelIds: 'Explicit text-only upstream model IDs',
+    textOnlyModelIdsPlaceholder:
+      'Enter an upstream model ID and press Enter; multiple values are supported',
     v1PathMode: 'Upstream /v1 path mode',
     v1PathModeOff: 'Off (no change)',
     v1PathModeAuto: 'Auto (exactly one /v1)',

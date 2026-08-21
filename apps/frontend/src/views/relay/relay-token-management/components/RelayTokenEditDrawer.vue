@@ -988,9 +988,16 @@
                   :disabled="!editForm.normalizerConfig.enabled"
                 />
               </el-form-item>
-              <el-form-item :label="i18ns.t('relay.textOnlyPreflightNormalizer')">
-                <el-switch
-                  v-model="editForm.normalizerConfig.textOnlyPreflight"
+              <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
+                <template #label>{{ i18ns.t('relay.textOnlyModelIds') }}</template>
+                <el-select
+                  v-model="editForm.normalizerConfig.textOnlyModelIds"
+                  multiple
+                  filterable
+                  allow-create
+                  default-first-option
+                  tag-type="info"
+                  :placeholder="i18ns.t('relay.textOnlyModelIdsPlaceholder')"
                   :disabled="
                     !editForm.normalizerConfig.enabled ||
                     !editForm.normalizerConfig.unsupportedImage

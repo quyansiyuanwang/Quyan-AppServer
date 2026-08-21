@@ -47,7 +47,7 @@ Each token can independently enable Anthropic request normalization. It applies 
 
 - When its master switch is off, requests are neither rewritten nor retried.
 - Thinking signature, Thinking Budget, and unsupported-image handling can be enabled independently. Signature handling removes incompatible thinking blocks or signatures. Budget handling enables thinking, uses a budget of 32000, and raises the maximum output token value when required.
-- Image fallback replaces image blocks with `[Unsupported Image]` and retries when the upstream explicitly rejects images. Text-only model preflight can additionally make that replacement before sending to confirmed text-only models.
+- Image fallback replaces image blocks with `[Unsupported Image]` and retries with the same token only when the upstream explicitly rejects images. For preflight handling, maintain explicit text-only upstream model IDs on the token. The relay does not guess image support from model names, so unconfigured new models are forwarded unchanged by default.
 - Each request has at most one normalization retry, always with the original token and current channel. A stream is never retried after output has begun, and a failed normalization retry does not enter normal failover.
 
 ### Upstream `/v1` path mode

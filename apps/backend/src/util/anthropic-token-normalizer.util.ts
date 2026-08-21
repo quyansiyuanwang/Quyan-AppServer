@@ -5,7 +5,8 @@ export interface RelayTokenNormalizerConfig {
   thinkingSignature: boolean;
   thinkingBudget: boolean;
   unsupportedImage: boolean;
-  textOnlyPreflight: boolean;
+  /** Explicit upstream model IDs known to accept text only for this token. */
+  textOnlyModelIds: string[];
   /** Controls the /v1 prefix applied to the upstream request path. */
   v1PathMode: "off" | "auto" | "always";
 }
@@ -15,39 +16,9 @@ export const DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG: RelayTokenNormalizerConfig =
   thinkingSignature: false,
   thinkingBudget: false,
   unsupportedImage: false,
-  textOnlyPreflight: false,
+  textOnlyModelIds: [],
   v1PathMode: "auto",
 };
-
-const CONFIRMED_TEXT_ONLY_MODEL_TAILS = new Set([
-  "ark-code-latest",
-  "deepseek-chat",
-  "deepseek-reasoner",
-  "deepseek-v4-flash",
-  "deepseek-v4-pro",
-  "glm-5.1",
-  "glm-5.2",
-  "kat-coder",
-  "kat-coder-pro",
-  "kat-coder-pro v1",
-  "kat-coder-pro v2",
-  "kat-coder-pro-v1",
-  "kat-coder-pro-v2",
-  "ling-2.5-1t",
-  "longcat-2.0",
-  "longcat-flash-chat",
-  "minimax-m2.7",
-  "minimax-m2.7-highspeed",
-  "mimo-v2.5-pro",
-  "qwen3-coder-480b",
-  "qwen3-coder-480b-a35b-instruct",
-  "qwen3-coder-flash",
-  "qwen3-coder-next",
-  "qwen3-coder-plus",
-  "step-3.5-flash",
-  "step-3.5-flash-2603",
-  "us.deepseek.r1-v1",
-]);
 
 export function normalizeRelayTokenNormalizerConfig(value: unknown): RelayTokenNormalizerConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) return { ...DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG };
@@ -58,7 +29,16 @@ export function normalizeRelayTokenNormalizerConfig(value: unknown): RelayTokenN
     thinkingSignature: input.thinkingSignature === true,
     thinkingBudget: input.thinkingBudget === true,
     unsupportedImage: input.unsupportedImage === true,
-    textOnlyPreflight: input.textOnlyPreflight === true,
+    textOnlyModelIds: Array.isArray(input.textOnlyModelIds)
+      ? [
+          ...new Set(
+            input.textOnlyModelIds
+              .filter((item): item is string => typeof item === "string")
+              .map((item) => item.trim())
+              .filter(Boolean),
+          ),
+        ]
+      : [],
     v1PathMode:
       input.v1PathMode === "off" || input.v1PathMode === "always" || input.v1PathMode === "auto"
         ? input.v1PathMode
@@ -66,14 +46,12 @@ export function normalizeRelayTokenNormalizerConfig(value: unknown): RelayTokenN
   };
 }
 
-export function isConfirmedTextOnlyModel(model: string): boolean {
-  const normalized = String(model || "")
+export function isConfiguredTextOnlyModel(model: string, textOnlyModelIds: readonly string[]): boolean {
+  const normalizedModel = String(model || "")
     .trim()
-    .toLowerCase()
-    .replace(/\[[^\]]*\]$/g, "")
-    .replace(/\s+/g, " ");
-  const tail = normalized.split("/").pop() || normalized;
-  return CONFIRMED_TEXT_ONLY_MODEL_TAILS.has(tail);
+    .toLowerCase();
+  if (!normalizedModel) return false;
+  return textOnlyModelIds.some((candidate) => candidate.trim().toLowerCase() === normalizedModel);
 }
 
 function cloneJsonBody(body: unknown): Record<string, unknown> | null {
@@ -274,7 +252,7 @@ export function normalizeAnthropicRequestBeforeSend(
   model: string,
   config: RelayTokenNormalizerConfig,
 ): unknown {
-  if (!config.enabled || !config.unsupportedImage || !config.textOnlyPreflight || !isConfirmedTextOnlyModel(model))
+  if (!config.enabled || !config.unsupportedImage || !isConfiguredTextOnlyModel(model, config.textOnlyModelIds))
     return body;
   return replaceAnthropicImages(body).body;
 }
