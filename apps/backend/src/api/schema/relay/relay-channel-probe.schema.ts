@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RELAY_PROBE_FORMATS } from "@appserver/shared";
 
 const variablePathSchema = z.string().trim().min(1).max(200);
 const credentialMapSchema = z.record(z.string().trim().min(1).max(80), z.string().min(1).max(2000));
@@ -48,7 +49,7 @@ export const clearRelayChannelProbeRunHistoryQuerySchema = z.object({
 export const upsertRelayChannelProbeProfileBodySchema = z
   .object({
     enabled: z.boolean(),
-    probeFormat: z.enum(["openai", "openai-chat-completions", "openai-responses", "anthropic", "gemini"]),
+    probeFormat: z.enum(RELAY_PROBE_FORMATS),
     probeEndpoint: probeEndpointSchema.optional(),
     probeModel: z.string().trim().min(1).max(200),
     probePayload: z.record(z.string(), z.unknown()),

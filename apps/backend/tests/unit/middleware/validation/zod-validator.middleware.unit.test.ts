@@ -17,7 +17,6 @@ describe("zod validator locale handling", () => {
           thinkingSignature: false,
           thinkingBudget: false,
           unsupportedImage: false,
-          textOnlyPreflight: false,
         },
       },
     } as any;

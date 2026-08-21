@@ -1,5 +1,11 @@
 import type { Prisma, RelayChannel } from "@prisma/client";
-import { parseRelayModelNameConstraint, resolveModelId, type RelayConfiguredRequestFormat } from "@appserver/shared";
+import {
+  parseRelayModelNameConstraint,
+  RELAY_REQUEST_FORMATS,
+  RELAY_REQUEST_FORMAT_ORDER,
+  resolveModelId,
+  type RelayConfiguredRequestFormat,
+} from "@appserver/shared";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { BadRequestError } from "@/util/errors";
 import logger from "@/util/logger";
@@ -77,13 +83,6 @@ interface ResolvedLeafPath {
   channel: RelayChannelGraphNode;
   constraints: EffectiveChannelConstraints;
 }
-
-const ALL_FORMATS = new Set<RelayConfiguredRequestFormat>([
-  "openai-chat-completions",
-  "openai-responses",
-  "anthropic",
-  "gemini",
-]);
 
 export class RelayPoolResolverService {
   private static instance: RelayPoolResolverService;
@@ -296,7 +295,7 @@ export class RelayPoolResolverService {
   }
 
   private initialConstraints(): EffectiveChannelConstraints {
-    return { formats: new Set(ALL_FORMATS), allowedModelNames: null, modelMapping: {} };
+    return { formats: new Set(RELAY_REQUEST_FORMATS), allowedModelNames: null, modelMapping: {} };
   }
 
   private mergeConstraints(inherited: EffectiveChannelConstraints, channel: RelayChannel): EffectiveChannelConstraints {
@@ -307,7 +306,9 @@ export class RelayPoolResolverService {
     // Responses-capable children into a deny-all route. Only execution leaves
     // constrain formats; a pool's visible formats are derived from those
     // reachable leaves.
-    const channelFormats = isPool ? new Set(ALL_FORMATS) : new Set(parseRelayRequestFormats(channel.allowedFormats));
+    const channelFormats = isPool
+      ? new Set(RELAY_REQUEST_FORMATS)
+      : new Set(parseRelayRequestFormats(channel.allowedFormats));
     const formats = new Set([...inherited.formats].filter((format) => channelFormats.has(format)));
     // A physical pooled member is still the execution leaf. Its model
     // whitelist and mapping are therefore part of the effective capability;
@@ -376,14 +377,7 @@ export class RelayPoolResolverService {
 
   private sortFormats(formats: RelayConfiguredRequestFormat[]): RelayConfiguredRequestFormat[] {
     return [...formats].sort(
-      (left, right) => ALL_RELAY_FORMAT_ORDER.indexOf(left) - ALL_RELAY_FORMAT_ORDER.indexOf(right),
+      (left, right) => RELAY_REQUEST_FORMAT_ORDER.indexOf(left) - RELAY_REQUEST_FORMAT_ORDER.indexOf(right),
     );
   }
 }
-
-const ALL_RELAY_FORMAT_ORDER: RelayConfiguredRequestFormat[] = [
-  "openai-chat-completions",
-  "openai-responses",
-  "anthropic",
-  "gemini",
-];

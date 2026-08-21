@@ -116,6 +116,7 @@ import {
   rectifyAnthropicRequestForError,
   type RelayTokenNormalizerConfig,
 } from "@/util/anthropic-token-normalizer.util";
+import { applyRelayTokenV1PathMode } from "@/util/relay-token-path.util";
 
 const PREFIX = "/relay/proxy";
 
@@ -3088,6 +3089,7 @@ export class RelayProxyService {
                   ? "/v1/responses"
                   : "/v1/chat/completions"
               : this.buildUpstreamPath(req.path, requestFormat, selectedModelId);
+            path = applyRelayTokenV1PathMode(path, tokenNormalizerConfig.v1PathMode);
             let fullUpstreamUrl = upstreamUrl.replace(/\/+$/, "") + "/" + path.replace(/^\/+/, "");
 
             if (requestFormat === "gemini") {

@@ -26,7 +26,13 @@ import {
   TOKEN_PRICE_DIVISOR,
 } from "@/constant/pricing";
 import { extractTokenUsageMetrics, hasTokenValue, normalizeTokenBreakdown } from "@/util/token-usage.util";
-import { parseRelayRequestFormats, supportsRelayRequestFormat, type RelayRequestFormat } from "@appserver/shared";
+import {
+  parseRelayRequestFormats,
+  supportsRelayRequestFormat,
+  type RelayConfiguredRequestFormat,
+  type RelayProbeFormat,
+  type RelayRequestFormat,
+} from "@appserver/shared";
 import type {
   ApplyRelayChannelProbeRunsRequest,
   ApplyRelayChannelProbeRunsResponse,
@@ -98,8 +104,8 @@ export type RelayChannelProbeTopologyItem = Pick<
   "id" | "name" | "enabled" | "channelType" | "poolMembers"
 >;
 
-type ProbeFormat = "openai" | "openai-chat-completions" | "openai-responses" | "anthropic" | "gemini";
-type ConfiguredProbeFormat = Exclude<ProbeFormat, "openai">;
+type ProbeFormat = RelayProbeFormat;
+type ConfiguredProbeFormat = RelayConfiguredRequestFormat;
 type ProbeBalanceSnapshot = { balance: number; observedAt: string };
 
 /** Keep probe format availability aligned with the channel request-format contract. */

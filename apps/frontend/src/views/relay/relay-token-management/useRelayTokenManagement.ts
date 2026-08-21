@@ -1,4 +1,6 @@
 import { usePageDevice } from '@/composables/usePageDevice'
+import type { RelayConfiguredRequestFormat as SharedRelayFormat } from '@appserver/shared'
+import type { RelayConvertibleRequestFormat } from '@appserver/shared'
 import StorageKey from '@/constant/storagekey'
 import { MANAGED_STATUS } from '@/constant/status'
 import { i18ns } from '@/locales'
@@ -13,7 +15,8 @@ import { useFloatingOverlayVisibility } from '@/composables/useFloatingOverlayVi
 import Sortable from 'sortablejs'
 import { resolveRelayAiBaseUrl } from '@/constant/strings'
 import { copyTextWithFallback } from '@/utils/clipboard'
-import { normalizeRelayFormats, type RelayFormat } from '@/utils/relay-formats'
+import { normalizeRelayFormats } from '@/utils/relay-formats'
+type RelayFormat = SharedRelayFormat
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import { Permission } from '@/constant/permission'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -82,7 +85,7 @@ type RelayTokenWithRouting = RelayTokenDto & {
   blockedAutomaticProxyPoolChannelIds?: string[]
 }
 
-type RelayTokenFormat = 'openai-chat-completions' | 'openai-responses' | 'anthropic'
+type RelayTokenFormat = RelayConvertibleRequestFormat
 type RelayFormatTransform = { sourceFormat: RelayTokenFormat; targetFormat: RelayTokenFormat }
 type EditableRelayFormatTransform = {
   sourceFormat?: RelayTokenFormat
@@ -96,7 +99,8 @@ type RelayTokenNormalizerConfig = {
   thinkingSignature: boolean
   thinkingBudget: boolean
   unsupportedImage: boolean
-  textOnlyPreflight: boolean
+  textOnlyModelIds: string[]
+  v1PathMode: 'off' | 'auto' | 'always'
 }
 
 export const RELAY_TOKEN_COLUMN_KEYS = [
@@ -593,7 +597,8 @@ export const useRelayTokenManagement = () => {
       thinkingSignature: false,
       thinkingBudget: false,
       unsupportedImage: false,
-      textOnlyPreflight: false,
+      textOnlyModelIds: [],
+      v1PathMode: 'auto',
     } as RelayTokenNormalizerConfig,
   })
 
@@ -1650,7 +1655,16 @@ export const useRelayTokenManagement = () => {
         thinkingSignature: row.normalizerConfig?.thinkingSignature === true,
         thinkingBudget: row.normalizerConfig?.thinkingBudget === true,
         unsupportedImage: row.normalizerConfig?.unsupportedImage === true,
-        textOnlyPreflight: row.normalizerConfig?.textOnlyPreflight === true,
+        textOnlyModelIds: Array.isArray(row.normalizerConfig?.textOnlyModelIds)
+          ? row.normalizerConfig.textOnlyModelIds.filter(
+              (item): item is string => typeof item === 'string',
+            )
+          : [],
+        v1PathMode:
+          row.normalizerConfig?.v1PathMode === 'off' ||
+          row.normalizerConfig?.v1PathMode === 'always'
+            ? row.normalizerConfig.v1PathMode
+            : 'auto',
       },
     }
 

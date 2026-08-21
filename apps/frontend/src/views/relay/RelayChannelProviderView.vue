@@ -184,6 +184,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import {
+  RELAY_REQUEST_FORMATS,
+  type RelayConfiguredRequestFormat,
+  type RelayUpstreamFormat,
+} from '@appserver/shared'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Edit, Plus, Wallet } from '@element-plus/icons-vue'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -203,9 +208,9 @@ import type {
   RelayChannelUpstreamModelDto,
 } from '@/client/types.gen'
 
-type Format = 'openai-chat-completions' | 'openai-responses' | 'anthropic' | 'gemini'
-type UpstreamFormat = 'openai' | 'anthropic' | 'gemini'
-const formats: Format[] = ['openai-chat-completions', 'openai-responses', 'anthropic', 'gemini']
+type Format = RelayConfiguredRequestFormat
+type UpstreamFormat = RelayUpstreamFormat
+const formats: Format[] = [...RELAY_REQUEST_FORMATS]
 const toUpstreamFormat = (format: Format): UpstreamFormat =>
   format === 'openai-chat-completions' || format === 'openai-responses' ? 'openai' : format
 const { isDesktop } = usePageDevice()
