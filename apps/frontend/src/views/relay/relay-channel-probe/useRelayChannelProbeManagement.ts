@@ -1,4 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { RelayProbeFormat as SharedRelayChannelProbeFormat } from '@appserver/shared'
+import { RELAY_PROBE_FORMATS } from '@appserver/shared'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
@@ -11,7 +13,6 @@ import { relayChannelService } from '@/service/relayChannelService'
 import { type ProbeKeyValueEntry } from '../components/ProbeKeyValueEditor.vue'
 import type { TableInstance } from 'element-plus'
 import type {
-  RelayChannelProbeFormat,
   RelayChannelProbeEndpoint,
   RelayChannelProbeCacheMode,
   RelayChannelProbeCustomerFacingTargetDto,
@@ -21,6 +22,7 @@ import type {
   RelayChannelProbeWorkflowStepDto,
   RelayChannelDto,
 } from '@/client/types.gen'
+type RelayChannelProbeFormat = SharedRelayChannelProbeFormat
 
 interface WorkflowFormStep {
   id: string
@@ -431,7 +433,11 @@ export const useRelayChannelProbeManagement = () => {
     }
   }
   function isProbeFormatAvailable(format: RelayChannelProbeFormat) {
-    return selectedProbeFormats.value.length === 0 || selectedProbeFormats.value.includes(format)
+    const normalizedFormat = format === 'openai' ? 'openai-chat-completions' : format
+    return (
+      selectedProbeFormats.value.length === 0 ||
+      selectedProbeFormats.value.includes(normalizedFormat)
+    )
   }
   const probeEndpointOptions = computed<RelayChannelProbeEndpoint[]>(() => {
     if (form.value.probeFormat === 'openai-chat-completions') return ['openai-chat-completions']
@@ -623,8 +629,8 @@ export const useRelayChannelProbeManagement = () => {
       > & { preventCache?: boolean }
       if (
         !source ||
-        !['openai-chat-completions', 'openai-responses', 'anthropic', 'gemini'].includes(
-          String(source.probeFormat),
+        !RELAY_PROBE_FORMATS.includes(
+          String(source.probeFormat) as SharedRelayChannelProbeFormat,
         ) ||
         typeof source.probeModel !== 'string' ||
         !source.probePayload ||

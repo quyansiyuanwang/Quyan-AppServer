@@ -252,6 +252,7 @@
 
 <script setup lang="ts">
 import { computed, type PropType } from 'vue'
+import type { RelayConfiguredRequestFormat, RelayUpstreamFormat } from '@appserver/shared'
 import { Delete, Plus, Search } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -265,11 +266,11 @@ import type {
 
 export type StandaloneChannelFormState = {
   name: string
-  formats: Array<'openai-chat-completions' | 'openai-responses' | 'anthropic' | 'gemini'>
-  urls: Record<'openai' | 'anthropic' | 'gemini', string>
-  keys: Record<'openai' | 'anthropic' | 'gemini', string>
-  hasKeys: Record<'openai' | 'anthropic' | 'gemini', boolean>
-  keyTouched?: Record<'openai' | 'anthropic' | 'gemini', boolean>
+  formats: RelayConfiguredRequestFormat[]
+  urls: Record<RelayUpstreamFormat, string>
+  keys: Record<RelayUpstreamFormat, string>
+  hasKeys: Record<RelayUpstreamFormat, boolean>
+  keyTouched?: Record<RelayUpstreamFormat, boolean>
   multiplier: number
   inputTokensIncludeCacheRead: boolean
   allowedModels: string[]
@@ -280,7 +281,7 @@ export type StandaloneChannelFormState = {
   contextLengthMultipliers: ContextLengthMultiplierRule[]
 }
 
-type UpstreamFormat = 'openai' | 'anthropic' | 'gemini'
+type UpstreamFormat = RelayUpstreamFormat
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },

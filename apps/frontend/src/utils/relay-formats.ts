@@ -1,15 +1,12 @@
-export const SUPPORTED_RELAY_FORMATS = [
-  'openai-chat-completions',
-  'openai-responses',
-  'anthropic',
-  'gemini',
-] as const
+import {
+  ALL_RELAY_REQUEST_FORMATS,
+  RELAY_REQUEST_FORMATS,
+  type RelayConfiguredRequestFormat,
+} from '@appserver/shared'
 
-const LEGACY_ALL_RELAY_FORMATS: RelayFormat[] = ['openai-chat-completions', 'anthropic', 'gemini']
+export type RelayFormat = RelayConfiguredRequestFormat
 
-export type RelayFormat = (typeof SUPPORTED_RELAY_FORMATS)[number]
-
-const relayFormatSet = new Set<RelayFormat>(SUPPORTED_RELAY_FORMATS)
+const relayFormatSet = new Set<RelayFormat>(RELAY_REQUEST_FORMATS)
 
 const normalizeRelayFormat = (value: string): RelayFormat | null => {
   const normalized = value.trim().toLowerCase()
@@ -37,7 +34,7 @@ export const parseConfiguredRelayFormats = (formats?: string | null): RelayForma
 export const normalizeRelayFormats = (formats?: string | null): RelayFormat[] => {
   const configured = parseConfiguredRelayFormats(formats)
   if (configured.length > 0) return configured
-  return !formats?.trim() ? [...LEGACY_ALL_RELAY_FORMATS] : []
+  return !formats?.trim() ? [...ALL_RELAY_REQUEST_FORMATS] : []
 }
 
 export const normalizeRelayFormatArray = (formats?: string[] | null): RelayFormat[] => {

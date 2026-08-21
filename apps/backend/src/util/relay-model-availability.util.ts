@@ -4,6 +4,7 @@ import logger from "@/util/logger";
 import type { Prisma } from "@prisma/client";
 import {
   ALL_RELAY_REQUEST_FORMATS,
+  RELAY_REQUEST_FORMATS,
   isModelIdAllowed,
   isModelNameAllowed,
   parseRelayModelNameConstraint,
@@ -80,7 +81,7 @@ export const requireRelayChannelForFormat = (
   if (typeof channel.status === "number" && channel.status !== RELAY_CHANNEL_STATUS.ENABLED)
     throw new ForbiddenError("The assigned relay channel is disabled. Please contact an administrator.");
 
-  const allowedFormats = channel.allowedFormats?.trim() || "openai-chat-completions,openai-responses,anthropic,gemini";
+  const allowedFormats = channel.allowedFormats?.trim() || RELAY_REQUEST_FORMATS.join(",");
   if (!supportsRelayRequestFormat(allowedFormats, requestFormat)) {
     const formatLabel =
       requestFormat === "openai-chat-completions"

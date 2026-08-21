@@ -4,6 +4,7 @@ import type {
   UpdateModelPricingRequest,
 } from "@/api/dto/relay/model-pricing.dto";
 import type { ModelPricing } from "@prisma/client";
+import { RELAY_REQUEST_FORMATS } from "@appserver/shared";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { ModelPricingRepository } from "@/store/relay/model-pricing.repository";
@@ -68,9 +69,9 @@ export class ModelPricingService {
         throw new Error("supportedFormats must list explicit formats");
 
       const formats = data.supportedFormats.split(",").map((f) => f.trim());
-      const validFormats = ["openai-chat-completions", "openai-responses", "anthropic", "gemini"];
+      const validFormats = new Set<string>(RELAY_REQUEST_FORMATS);
       for (const format of formats)
-        if (!validFormats.includes(format)) throw new Error(`Invalid format '${format}' in supportedFormats`);
+        if (!validFormats.has(format)) throw new Error(`Invalid format '${format}' in supportedFormats`);
     }
 
     // Validate pricingType - must be explicitly provided
@@ -161,9 +162,9 @@ export class ModelPricingService {
         throw new Error("supportedFormats must list explicit formats");
 
       const formats = data.supportedFormats.split(",").map((f) => f.trim());
-      const validFormats = ["openai-chat-completions", "openai-responses", "anthropic", "gemini"];
+      const validFormats = new Set<string>(RELAY_REQUEST_FORMATS);
       for (const format of formats)
-        if (!validFormats.includes(format)) throw new Error(`Invalid format '${format}' in supportedFormats`);
+        if (!validFormats.has(format)) throw new Error(`Invalid format '${format}' in supportedFormats`);
     }
 
     // Validate pricingType if provided

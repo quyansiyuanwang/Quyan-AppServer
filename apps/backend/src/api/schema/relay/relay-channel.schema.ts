@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RELAY_UPSTREAM_FORMATS } from "@appserver/shared";
 
 const RELAY_CHANNEL_MULTIPLIER_SCALE = 6;
 // Floating-point tolerance for decimal precision checks.
@@ -368,7 +369,7 @@ export const updateRelayChannelServiceStatusBodySchema = z.object({
 
 export const relayChannelUpstreamModelsBodySchema = z
   .object({
-    format: z.enum(["openai", "anthropic", "gemini"]),
+    format: z.enum(RELAY_UPSTREAM_FORMATS),
     channelId: z.string().trim().min(1).optional(),
     upstreamUrl: z.string().max(500).optional(),
     apiKey: z.string().max(500).optional(),

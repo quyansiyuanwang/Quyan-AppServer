@@ -1,3 +1,5 @@
+import type { RelayConfiguredRequestFormat, RelayUpstreamFormat } from "@appserver/shared";
+
 export interface TimePeriodMultiplierRule {
   name: string;
   enabled: boolean;
@@ -203,7 +205,7 @@ export interface RelayChannelOptionDto {
 export interface RelayChannelModelCapabilityDto {
   catalogModelName: string;
   requestModelId: string;
-  supportedRequestFormats: Array<"openai-chat-completions" | "openai-responses" | "anthropic" | "gemini">;
+  supportedRequestFormats: RelayConfiguredRequestFormat[];
 }
 
 /** Model-specific multiplier range for a logical channel with variable upstream pricing. */
@@ -654,7 +656,7 @@ export interface RelayChannelChangeRequestDto {
 }
 
 export interface RelayChannelUpstreamModelsRequest {
-  format: "openai" | "anthropic" | "gemini";
+  format: RelayUpstreamFormat;
   channelId?: string;
   upstreamUrl?: string;
   apiKey?: string;
@@ -668,7 +670,7 @@ export interface RelayChannelUpstreamModelDto {
 }
 
 export interface RelayChannelUpstreamModelsResponse {
-  format: "openai" | "anthropic" | "gemini";
+  format: RelayUpstreamFormat;
   models: RelayChannelUpstreamModelDto[];
 }
 

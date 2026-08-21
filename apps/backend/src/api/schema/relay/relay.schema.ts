@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RELAY_CONVERTIBLE_REQUEST_FORMATS } from "@appserver/shared";
 import {
   MONTHLY_PASS_DECIMAL_SCALE,
   MONTHLY_PASS_MAX_AMOUNT_QUOTA,
@@ -113,8 +114,8 @@ const customTokenSchema = z
   .regex(/^rlt_[a-zA-Z0-9]+$/, "custom token must start with rlt_ and contain only alphanumeric characters");
 
 const relayRequestFormatTransformSchema = z.object({
-  sourceFormat: z.enum(["openai-chat-completions", "openai-responses", "anthropic"]),
-  targetFormat: z.enum(["openai-chat-completions", "openai-responses", "anthropic"]),
+  sourceFormat: z.enum(RELAY_CONVERTIBLE_REQUEST_FORMATS),
+  targetFormat: z.enum(RELAY_CONVERTIBLE_REQUEST_FORMATS),
 });
 
 const relayRequestFormatTransformsSchema = z
