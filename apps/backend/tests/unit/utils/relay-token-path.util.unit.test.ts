@@ -11,6 +11,10 @@ describe("relay token v1 path mode", () => {
     expect(applyRelayTokenV1PathMode("/responses", "auto")).toBe("/v1/responses");
     expect(applyRelayTokenV1PathMode("/v1/responses", "auto")).toBe("/v1/responses");
     expect(applyRelayTokenV1PathMode("/v1/v1/responses", "auto")).toBe("/v1/responses");
+    expect(applyRelayTokenV1PathMode("/v2/images/generations", "auto")).toBe("/v2/images/generations");
+    expect(applyRelayTokenV1PathMode("/v1beta/models/foo:generateContent", "auto")).toBe(
+      "/v1beta/models/foo:generateContent",
+    );
   });
 
   it("always prepends v1 without removing an existing prefix", () => {

@@ -12,5 +12,8 @@ export function applyRelayTokenV1PathMode(requestPath: string, mode: RelayTokenV
 
   const withoutRepeatedV1 = normalizedPath.replace(/^(?:\/v1)+(?=\/|$)/, "");
   const suffix = withoutRepeatedV1 || "/";
+  // Preserve any explicit upstream API version (v2, v4, v1beta, ...).
+  // Auto mode only supplies v1 when the request has no version prefix.
+  if (/^\/v\d+(?:beta)?(?=\/|$)/i.test(suffix)) return suffix;
   return `/v1${suffix.startsWith("/") ? suffix : `/${suffix}`}`;
 }
