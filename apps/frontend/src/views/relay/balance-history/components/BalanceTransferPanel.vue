@@ -211,6 +211,9 @@ onMounted(load)
         </el-table-column>
         <el-table-column prop="amount" :label="i18ns.t('balance.receivedAmount')" width="120" />
         <el-table-column prop="feeAmount" :label="i18ns.t('balance.fee')" width="110" />
+        <el-table-column :label="i18ns.t('balance.redeemedBy')" min-width="140">
+          <template #default="{ row }">{{ row.redeemedByUsername || '-' }}</template>
+        </el-table-column>
         <el-table-column :label="i18ns.t('balance.status')" width="110">
           <template #default="{ row }">{{ getGiftCodeStateLabel(row.state) }}</template>
         </el-table-column>
