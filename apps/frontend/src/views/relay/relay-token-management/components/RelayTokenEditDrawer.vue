@@ -1004,14 +1004,6 @@
                   "
                 />
               </el-form-item>
-              <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
-                <template #label>{{ i18ns.t('relay.v1PathMode') }}</template>
-                <el-radio-group v-model="editForm.normalizerConfig.v1PathMode">
-                  <el-radio value="off">{{ i18ns.t('relay.v1PathModeOff') }}</el-radio>
-                  <el-radio value="auto">{{ i18ns.t('relay.v1PathModeAuto') }}</el-radio>
-                  <el-radio value="always">{{ i18ns.t('relay.v1PathModeAlways') }}</el-radio>
-                </el-radio-group>
-              </el-form-item>
             </div>
           </el-collapse-item>
 
@@ -1048,6 +1040,14 @@
                   :placeholder="i18ns.t('relay.ipWhitelistPlaceholder')"
                   :aria-label="i18ns.t('relay.ipWhitelist')"
                 />
+              </el-form-item>
+              <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
+                <template #label>{{ i18ns.t('relay.v1PathMode') }}</template>
+                <el-radio-group v-model="editForm.normalizerConfig.v1PathMode">
+                  <el-radio value="off">{{ i18ns.t('relay.v1PathModeOff') }}</el-radio>
+                  <el-radio value="auto">{{ i18ns.t('relay.v1PathModeAuto') }}</el-radio>
+                  <el-radio value="always">{{ i18ns.t('relay.v1PathModeAlways') }}</el-radio>
+                </el-radio-group>
               </el-form-item>
               <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
                 <template #label>
