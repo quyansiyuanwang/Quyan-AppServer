@@ -967,7 +967,6 @@ export class RelayProxyService {
         if (tokenAllowedModelIds.length > 0 && !isModelIdAllowed(tokenAllowedModelIds, model)) continue;
         modelIds.add(modelId);
       }
-
     }
 
     return [...modelIds].sort((left, right) => left.localeCompare(right));
