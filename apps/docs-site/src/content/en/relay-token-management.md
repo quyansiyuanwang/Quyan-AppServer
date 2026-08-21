@@ -50,6 +50,14 @@ Each token can independently enable Anthropic request normalization. It applies 
 - Image fallback replaces image blocks with `[Unsupported Image]` and retries when the upstream explicitly rejects images. Text-only model preflight can additionally make that replacement before sending to confirmed text-only models.
 - Each request has at most one normalization retry, always with the original token and current channel. A stream is never retried after output has begun, and a failed normalization retry does not enter normal failover.
 
+### Upstream `/v1` path mode
+
+Each token can control the `/v1` prefix forwarded upstream. This setting is independent of the Anthropic request-normalizer master switch and defaults to **Auto**.
+
+- `Off`: preserves the caller's path without adding or removing `/v1`.
+- `Auto`: sends exactly one `/v1` prefix upstream. For example, `/responses` becomes `/v1/responses`, while `/v1/v1/responses` is normalized to `/v1/responses`.
+- `Always add`: prepends another `/v1` regardless of the existing path. Use it only for special upstreams that require a repeated version prefix.
+
 ### Channel and failover data
 
 - Ordered channel list.

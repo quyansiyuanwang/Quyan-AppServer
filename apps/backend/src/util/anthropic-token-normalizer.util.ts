@@ -6,6 +6,8 @@ export interface RelayTokenNormalizerConfig {
   thinkingBudget: boolean;
   unsupportedImage: boolean;
   textOnlyPreflight: boolean;
+  /** Controls the /v1 prefix applied to the upstream request path. */
+  v1PathMode: "off" | "auto" | "always";
 }
 
 export const DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG: RelayTokenNormalizerConfig = {
@@ -14,6 +16,7 @@ export const DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG: RelayTokenNormalizerConfig =
   thinkingBudget: false,
   unsupportedImage: false,
   textOnlyPreflight: false,
+  v1PathMode: "auto",
 };
 
 const CONFIRMED_TEXT_ONLY_MODEL_TAILS = new Set([
@@ -56,6 +59,10 @@ export function normalizeRelayTokenNormalizerConfig(value: unknown): RelayTokenN
     thinkingBudget: input.thinkingBudget === true,
     unsupportedImage: input.unsupportedImage === true,
     textOnlyPreflight: input.textOnlyPreflight === true,
+    v1PathMode:
+      input.v1PathMode === "off" || input.v1PathMode === "always" || input.v1PathMode === "auto"
+        ? input.v1PathMode
+        : "auto",
   };
 }
 

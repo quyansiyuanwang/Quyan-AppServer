@@ -145,6 +145,7 @@ const relayTokenNormalizerConfigSchema = z.object({
   thinkingBudget: z.boolean(),
   unsupportedImage: z.boolean(),
   textOnlyPreflight: z.boolean(),
+  v1PathMode: z.enum(["off", "auto", "always"]).default("auto"),
 });
 
 export const createRelayTokenBodySchema = z

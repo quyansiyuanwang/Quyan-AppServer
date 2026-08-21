@@ -97,6 +97,7 @@ type RelayTokenNormalizerConfig = {
   thinkingBudget: boolean
   unsupportedImage: boolean
   textOnlyPreflight: boolean
+  v1PathMode: 'off' | 'auto' | 'always'
 }
 
 export const RELAY_TOKEN_COLUMN_KEYS = [
@@ -594,6 +595,7 @@ export const useRelayTokenManagement = () => {
       thinkingBudget: false,
       unsupportedImage: false,
       textOnlyPreflight: false,
+      v1PathMode: 'auto',
     } as RelayTokenNormalizerConfig,
   })
 
@@ -1651,6 +1653,11 @@ export const useRelayTokenManagement = () => {
         thinkingBudget: row.normalizerConfig?.thinkingBudget === true,
         unsupportedImage: row.normalizerConfig?.unsupportedImage === true,
         textOnlyPreflight: row.normalizerConfig?.textOnlyPreflight === true,
+        v1PathMode:
+          row.normalizerConfig?.v1PathMode === 'off' ||
+          row.normalizerConfig?.v1PathMode === 'always'
+            ? row.normalizerConfig.v1PathMode
+            : 'auto',
       },
     }
 

@@ -40833,6 +40833,15 @@
 					},
 					"textOnlyPreflight": {
 						"type": "boolean"
+					},
+					"v1PathMode": {
+						"type": "string",
+						"enum": [
+							"off",
+							"auto",
+							"always"
+						],
+						"description": "Controls the /v1 prefix applied to the upstream request path."
 					}
 				},
 				"required": [
@@ -40840,7 +40849,8 @@
 					"thinkingSignature",
 					"thinkingBudget",
 					"unsupportedImage",
-					"textOnlyPreflight"
+					"textOnlyPreflight",
+					"v1PathMode"
 				],
 				"type": "object",
 				"additionalProperties": false

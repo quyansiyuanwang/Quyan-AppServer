@@ -30,6 +30,7 @@ describe("anthropic token normalizer", () => {
       thinkingBudget: false,
       unsupportedImage: false,
       textOnlyPreflight: false,
+      v1PathMode: "auto",
     });
   });
 
