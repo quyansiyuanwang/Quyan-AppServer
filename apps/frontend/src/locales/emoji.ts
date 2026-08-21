@@ -4002,6 +4002,7 @@ const emoji: DeepStringify<typeof en> = {
     transfer: '↔️',
     recipientUsername: '📥 👤',
     receivedAmount: '📥 🔢',
+    redeemedBy: '🎟️ 👤',
     feeRate: '💸 %',
     fee: '💸',
     totalDebit: '📤 🔢',

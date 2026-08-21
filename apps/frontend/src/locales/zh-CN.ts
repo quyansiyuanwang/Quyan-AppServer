@@ -3897,6 +3897,7 @@ const zhCN: DeepStringify<typeof en> = {
     transfer: '转账',
     recipientUsername: '收款用户名',
     receivedAmount: '到账金额',
+    redeemedBy: '兑换人',
     feeRate: '手续费率',
     fee: '手续费',
     totalDebit: '实际扣除',

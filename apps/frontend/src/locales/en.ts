@@ -4059,6 +4059,7 @@ export default {
     transfer: 'Transfer',
     recipientUsername: 'Recipient Username',
     receivedAmount: 'Received Amount',
+    redeemedBy: 'Redeemed By',
     feeRate: 'Fee Rate',
     fee: 'Fee',
     totalDebit: 'Total Debit',
