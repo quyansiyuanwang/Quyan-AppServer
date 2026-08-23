@@ -6,6 +6,9 @@ import { toServiceError } from '@/utils/error-utils'
 import { sessionCoordinator } from '@/service/sessionCoordinator'
 import { cacheObject } from '@/utils/common'
 import { createImpersonationControllerApi } from '@/client/services/impersonation-controller.gen'
+import { usePermissionStore } from '@/stores/permissionStore'
+import { useSessionStore } from '@/stores/sessionStore'
+import { useUserInfoStore } from '@/stores/userInfoStore'
 
 const impersonationApi = cacheObject(() =>
   createImpersonationControllerApi(useRequestStore().getAxios()),
@@ -52,6 +55,12 @@ export class ImpersonationService {
     // UI cache before a later hydration request fills in the full profile.
     sessionCoordinator.completeLogin({ access_token, user: targetUser })
 
+    // The previous administrator projection must not short-circuit hydration
+    // while the impersonation token is being installed.
+    useUserInfoStore().clear()
+    usePermissionStore().clearCurrentUserPermissions()
+    useSessionStore().setPermissionsStatus('idle')
+
     // 记录模拟会话信息
     impersonationStore.setSession({
       targetUserId: targetUser.id,
@@ -62,7 +71,7 @@ export class ImpersonationService {
     })
 
     // 重新加载用户信息和权限（切换到目标用户视角）
-    await this.reloadStores()
+    await this.reloadStores(targetUser)
   }
 
   /**
@@ -85,8 +94,8 @@ export class ImpersonationService {
     }
   }
 
-  private async reloadStores() {
-    await sessionCoordinator.hydrateUserAndPermissions()
+  private async reloadStores(user?: Pick<UserDto, 'id' | 'username' | 'name'>) {
+    await sessionCoordinator.hydrateUserAndPermissions(user)
   }
 }
 

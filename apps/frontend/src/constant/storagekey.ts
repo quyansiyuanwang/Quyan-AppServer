@@ -56,6 +56,8 @@ const StorageKey = {
   },
   Navigation: {
     PINNED_ROUTES: 'appserver.sidebar.pinnedRoutes',
+    SITE_OPEN_IN_NEW_TAB: 'appserver.navigation.siteOpenInNewTab',
+    RECENT_SITES: 'appserver.navigation.recentSites',
   },
   Easter: {
     FEATURE_SWITCH: 'AprilFools-feature-switch',

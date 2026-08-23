@@ -304,6 +304,7 @@ export class BalanceController extends Controller {
       unit: "曲",
       total: statistics.total,
       used: statistics.used,
+      cacheHitRate: statistics.cacheHitRate,
     };
   }
 

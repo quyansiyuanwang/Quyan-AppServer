@@ -114,6 +114,7 @@ import { ElMessage } from 'element-plus'
 import { sessionDB, STORE_NAMES } from '@/utils/sessionDB'
 import StorageKey from '@/constant/storagekey'
 import type { ElTree } from 'element-plus'
+import { currentSiteProfile } from '@/router'
 
 interface CacheNode {
   id: string
@@ -296,7 +297,17 @@ const cacheTreeData = computed<CacheNode[]>(() => {
           id: 'group:other',
           label: zh ? '其他 (Other)' : 'Other',
           children: [
-            ls('appserver.sidebar.pinnedRoutes', '侧边栏固定页面', 'Sidebar pinned pages'),
+            ls(
+              `${StorageKey.Navigation.PINNED_ROUTES}:${currentSiteProfile.id}`,
+              '侧边栏固定页面',
+              'Sidebar pinned pages',
+            ),
+            ls(
+              StorageKey.Navigation.SITE_OPEN_IN_NEW_TAB,
+              '站点打开方式偏好',
+              'Site opening preference',
+            ),
+            ls(StorageKey.Navigation.RECENT_SITES, '最近使用站点', 'Recently used sites'),
           ],
         },
       ],
@@ -348,9 +359,15 @@ const refreshSizeMap = () => {
   scanGroup(StorageKey.Overlay)
   scanGroup(StorageKey.Chat)
   scanGroup(StorageKey.Relay)
-  const pinned = TypedLocalStorage.getItem(StorageKey.Navigation.PINNED_ROUTES)
+  scanGroup(StorageKey.Navigation)
+  const pinned = TypedLocalStorage.getItem(
+    `${StorageKey.Navigation.PINNED_ROUTES}:${currentSiteProfile.id}`,
+  )
   if (pinned !== null) {
-    map.set(`ls:${StorageKey.Navigation.PINNED_ROUTES}`, new Blob([pinned]).size)
+    map.set(
+      `ls:${StorageKey.Navigation.PINNED_ROUTES}:${currentSiteProfile.id}`,
+      new Blob([pinned]).size,
+    )
   }
   nodeSizeMap.value = map
 }

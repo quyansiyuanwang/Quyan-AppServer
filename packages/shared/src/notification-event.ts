@@ -19,6 +19,7 @@ export enum NotificationEvent {
   PASSWORD_CHANGED = 'password_changed',
   TWO_FACTOR_STATUS_CHANGE = 'two_factor_status_change',
   ACCOUNT_STATUS_CHANGED = 'account_status_changed',
+  CONTENT_SAFETY_BLOCKED = 'content_safety_blocked',
   // RAM (Resource Access Management)
   RAM_POLICY_ATTACHED = 'ram_policy_attached',
   RAM_POLICY_DETACHED = 'ram_policy_detached',
@@ -59,6 +60,7 @@ export const NOTIFICATION_EVENT_I18N_KEYS = {
   [NotificationEvent.PASSWORD_CHANGED]: "notificationEvent.password_changed",
   [NotificationEvent.TWO_FACTOR_STATUS_CHANGE]: "notificationEvent.two_factor_status_change",
   [NotificationEvent.ACCOUNT_STATUS_CHANGED]: "notificationEvent.account_status_changed",
+  [NotificationEvent.CONTENT_SAFETY_BLOCKED]: "notificationEvent.content_safety_blocked",
   [NotificationEvent.RAM_POLICY_ATTACHED]: "notificationEvent.ram_policy_attached",
   [NotificationEvent.RAM_POLICY_DETACHED]: "notificationEvent.ram_policy_detached",
   [NotificationEvent.RAM_ROLE_BINDING_UPDATED]: "notificationEvent.ram_role_binding_updated",

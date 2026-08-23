@@ -9,6 +9,7 @@ const {
   pushMock,
   userInfoStore,
   permissionStore,
+  sessionStore,
   sessionCoordinator,
   sessionState,
 } = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ const {
     clearCurrentUserPermissions: vi.fn(),
     loadCurrentUserPermissions: vi.fn(async () => undefined),
   },
+  sessionStore: { setPermissionsStatus: vi.fn() },
   sessionCoordinator: {
     completeLogin: vi.fn(),
     hydrateUserAndPermissions: vi.fn(async () => undefined),
@@ -53,6 +55,7 @@ vi.mock('@/stores/impersonationStore', () => ({
 }))
 vi.mock('@/stores/userInfoStore', () => ({ useUserInfoStore: () => userInfoStore }))
 vi.mock('@/stores/permissionStore', () => ({ usePermissionStore: () => permissionStore }))
+vi.mock('@/stores/sessionStore', () => ({ useSessionStore: () => sessionStore }))
 vi.mock('@/router', () => ({ default: { push: pushMock } }))
 vi.mock('@/utils/storageScope', () => ({ setCurrentStorageScopeForUserId: vi.fn() }))
 vi.mock('@/client/services/impersonation-controller.gen', () => ({
@@ -85,7 +88,13 @@ describe('impersonationService', () => {
       access_token: 'impersonation-access',
       user: { id: 'target-user-1', username: 'target', name: 'Target' },
     })
-    expect(sessionCoordinator.hydrateUserAndPermissions).toHaveBeenCalledOnce()
+    expect(userInfoStore.clear).toHaveBeenCalledOnce()
+    expect(permissionStore.clearCurrentUserPermissions).toHaveBeenCalledOnce()
+    expect(sessionCoordinator.hydrateUserAndPermissions).toHaveBeenCalledWith({
+      id: 'target-user-1',
+      username: 'target',
+      name: 'Target',
+    })
   })
 
   it('restores the original session through the shared refresh cookie when exiting', async () => {

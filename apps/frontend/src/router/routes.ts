@@ -1058,6 +1058,12 @@ export const routes = [
             meta: { permission: Permission.SUPPORT_AI_CONFIG },
           },
           {
+            path: 'system/content-safety',
+            name: 'contentSafety',
+            component: lazyFeatureView('system', 'ContentSafetyView.vue'),
+            meta: { permission: Permission.SYSTEM_CONFIG },
+          },
+          {
             path: 'system/ai-support-analytics',
             name: 'supportAiAnalytics',
             component: lazyFeatureView('system', 'SupportAiAnalyticsView.vue'),

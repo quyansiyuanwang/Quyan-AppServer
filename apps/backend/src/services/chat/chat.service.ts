@@ -33,6 +33,8 @@ import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.s
 import { RelayProxyService, type RelayAttemptPlan } from "@/services/relay/relay-proxy.service";
 import { randomUUID } from "crypto";
 import { shouldRetryRelayUpstreamFailure } from "@/util/relay-failover-status-rule.util";
+import { ContentSafetyService } from "@/services/system/content-safety.service";
+import { ContentSafetyBlockedError } from "@/util/errors";
 
 interface ChatRequestMeta {
   path?: string;
@@ -64,6 +66,7 @@ export class ChatService {
     private readonly usageChargeService: UsageChargeService = UsageChargeService.getInstance(),
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
     private readonly relayProxyService: RelayProxyService = RelayProxyService.getInstance(),
+    private readonly contentSafetyService: ContentSafetyService = ContentSafetyService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -262,6 +265,27 @@ export class ChatService {
     const requestedModel = model.trim();
     if (!requestedModel) throw new BadRequestError("Model is required");
 
+    const requestSafety = await this.contentSafetyService.evaluate("request", content);
+    let auditInputTokens = requestSafety.auditInputTokens;
+    let auditOutputTokens = requestSafety.auditOutputTokens;
+    let auditCost = requestSafety.auditCost;
+    let auditDurationMs = requestSafety.auditDurationMs;
+    if (requestSafety.matched) {
+      await this.contentSafetyService.recordIncident({
+        userId,
+        relayTokenId: tokenId,
+        requestId: requestMeta?.requestId,
+        direction: "request",
+        evaluation: requestSafety,
+        model: requestedModel,
+      });
+      if (requestSafety.action === "unreachable") throw new ContentSafetyBlockedError();
+      content = requestSafety.text;
+    }
+    const contentSafetyConfig = await this.contentSafetyService.getPublicConfig();
+    const auditResponse = contentSafetyConfig.responseEnabled && contentSafetyConfig.responseAiEnabled;
+    let bufferedAuditedResponse = "";
+
     const configuredModels = await this.modelPricingRepository.listActiveOrderedByModel();
 
     const resolvedPricing = this.resolveRequestedPricing(configuredModels, requestedModel);
@@ -351,8 +375,23 @@ export class ChatService {
         for await (const chunk of stream) {
           if (!chunk.done && chunk.content) {
             if (!firstChunkAt) firstChunkAt = Date.now();
+            const responseSafety = await this.contentSafetyService.evaluateLocal("response", chunk.content);
+            if (responseSafety.matched) {
+              await this.contentSafetyService.recordIncident({
+                userId,
+                relayTokenId: token.id,
+                requestId: usageRequestId,
+                direction: "response",
+                evaluation: responseSafety,
+                model: selectedModelName,
+                channelId: candidate.channel.id,
+              });
+              if (responseSafety.action === "unreachable") throw new ContentSafetyBlockedError();
+              chunk.content = responseSafety.text;
+            }
             assistantContent += chunk.content;
-            yield { type: "delta", content: chunk.content, done: false };
+            if (auditResponse) bufferedAuditedResponse += chunk.content;
+            else yield { type: "delta", content: chunk.content, done: false };
           }
           if (chunk.done) {
             inputTokens = chunk.inputTokens || 0;
@@ -369,6 +408,30 @@ export class ChatService {
           effectiveCandidate = null;
           if (attemptIndex < attemptCandidates.length - 1) continue;
         }
+        if (auditResponse && bufferedAuditedResponse) {
+          const audited = await this.contentSafetyService.evaluate("response", bufferedAuditedResponse);
+          auditInputTokens += audited.auditInputTokens;
+          auditOutputTokens += audited.auditOutputTokens;
+          auditCost += audited.auditCost;
+          auditDurationMs += audited.auditDurationMs;
+          if (audited.matched) {
+            await this.contentSafetyService.recordIncident({
+              userId,
+              relayTokenId: token.id,
+              requestId: usageRequestId,
+              direction: "response",
+              evaluation: audited,
+              model: selectedModelName,
+              channelId: candidate.channel.id,
+            });
+            if (audited.action === "unreachable") throw new ContentSafetyBlockedError();
+            assistantContent = assistantContent.slice(0, -bufferedAuditedResponse.length) + audited.text;
+            bufferedAuditedResponse = audited.text;
+          }
+          yield { type: "delta", content: bufferedAuditedResponse, done: false };
+        }
+        totalOutputTime = Math.max(0, totalOutputTime - auditDurationMs);
+        timeToFirstByte = Math.max(0, timeToFirstByte - auditDurationMs);
         break;
       } catch (error) {
         if (this.isAborted(error, requestMeta?.signal)) {
@@ -459,6 +522,7 @@ export class ChatService {
         combinedMultiplier;
       cost = Math.max(0, Math.ceil(rawCost * 10000) / 10000);
     }
+    cost += auditCost;
 
     const message = await this.messageRepo.create({
       conversationId,
@@ -509,6 +573,11 @@ export class ChatService {
           ? resolvedPricing.pricingType
           : undefined,
       fixedPrice: resolvedPricing.fixedPrice ? Number(resolvedPricing.fixedPrice) : undefined,
+      auditInputTokens,
+      auditOutputTokens,
+      auditTotalTokens: auditInputTokens + auditOutputTokens,
+      auditCost,
+      auditDurationMs,
     });
 
     if (!finalizeResult.applied) throw new BadRequestError("Insufficient balance");

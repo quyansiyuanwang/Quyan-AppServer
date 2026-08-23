@@ -288,6 +288,35 @@ const createService = (
     resolveUniqueAccessibleDirectPooledParent: vi.fn().mockResolvedValue(null),
     resolveAutomaticPoolUsageDisplayChannel: vi.fn().mockImplementation(async (channel: any) => channel),
   };
+  const contentSafetyService = {
+    getPublicConfig: vi.fn().mockResolvedValue({
+      requestEnabled: true,
+      requestAction: "unreachable",
+      requestAiEnabled: false,
+      responseEnabled: true,
+      responseAction: "unreachable",
+      responseAiEnabled: false,
+    }),
+    evaluate: vi.fn().mockResolvedValue({
+      text: "",
+      action: "allow",
+      matched: false,
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+    }),
+    evaluateLocal: vi.fn().mockResolvedValue({
+      text: "",
+      action: "allow",
+      matched: false,
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+    }),
+    recordIncident: vi.fn().mockResolvedValue(undefined),
+  };
   const redis = {
     isRedisAvailable: vi.fn().mockReturnValue(true),
     acquireSemaphoreSlot: vi.fn().mockResolvedValue("relay:concurrency:default:user-1:slot:1"),
@@ -316,6 +345,8 @@ const createService = (
     undefined,
     undefined,
     relayChannelService as any,
+    undefined,
+    contentSafetyService as any,
   );
 
   return {
@@ -329,6 +360,7 @@ const createService = (
     businessLogService,
     relayPoolResolver,
     relayChannelService,
+    contentSafetyService,
     redis,
   };
 };

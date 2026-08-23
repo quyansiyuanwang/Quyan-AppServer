@@ -123,6 +123,11 @@
     color: var(--el-color-primary);
   }
 
+  .balance-cache-hit-rate {
+    font-size: 13px;
+    color: var(--el-text-color-secondary);
+  }
+
   .redeem-form {
     margin: 0;
     display: flex;
