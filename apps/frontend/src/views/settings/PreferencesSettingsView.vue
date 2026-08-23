@@ -360,9 +360,14 @@ const refreshSizeMap = () => {
   scanGroup(StorageKey.Chat)
   scanGroup(StorageKey.Relay)
   scanGroup(StorageKey.Navigation)
-  const pinned = TypedLocalStorage.getItem(`${StorageKey.Navigation.PINNED_ROUTES}:${currentSiteProfile.id}`)
+  const pinned = TypedLocalStorage.getItem(
+    `${StorageKey.Navigation.PINNED_ROUTES}:${currentSiteProfile.id}`,
+  )
   if (pinned !== null) {
-    map.set(`ls:${StorageKey.Navigation.PINNED_ROUTES}:${currentSiteProfile.id}`, new Blob([pinned]).size)
+    map.set(
+      `ls:${StorageKey.Navigation.PINNED_ROUTES}:${currentSiteProfile.id}`,
+      new Blob([pinned]).size,
+    )
   }
   nodeSizeMap.value = map
 }
