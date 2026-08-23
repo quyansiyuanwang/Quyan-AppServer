@@ -56,6 +56,7 @@ vi.mock('@/stores/themeToggleStore', () => ({
 vi.mock('@/service/navigationService', () => ({ assignDocument }))
 vi.mock('@/router/routes', () => ({ resolveCanonicalRouteUrl: vi.fn() }))
 vi.mock('@/config/site-registry', () => ({
+  siteProfileIds: ['public', 'account'],
   getAccessibleSiteProfiles: () => [
     currentSiteProfile,
     {
@@ -74,6 +75,15 @@ vi.mock('@/config/site-registry', () => ({
   ],
 }))
 
+vi.mock('@/stores/siteNavigationStore', () => ({
+  useSiteNavigationStore: () => ({
+    openInNewTab: true,
+    recentSiteIds: [],
+    setOpenInNewTab: vi.fn(),
+    recordRecentSite: vi.fn(),
+  }),
+}))
+
 vi.mock('sortablejs', () => ({ default: class Sortable {} }))
 vi.mock('element-plus', () => ({ ElMessageBox: { confirm: vi.fn() } }))
 
@@ -86,7 +96,8 @@ const stubs = {
   'el-drawer': { template: '<section><slot /></section>' },
   'el-dialog': {
     props: ['modelValue', 'zIndex'],
-    template: '<section class="unpin-confirmation-dialog" :data-z-index="zIndex"><slot /><slot name="footer" /></section>',
+    template:
+      '<section class="unpin-confirmation-dialog" :data-z-index="zIndex"><slot /><slot name="footer" /></section>',
   },
   'el-icon': { template: '<span><slot /></span>' },
   'el-menu': { methods: { updateActiveIndex: vi.fn() }, template: '<nav><slot /></nav>' },
@@ -117,7 +128,10 @@ describe('AsideMenu mobile site switcher', () => {
     expect(wrapper.find('.mobile-site-switcher').exists()).toBe(true)
     expect(wrapper.text()).toContain('nav.siteAccount')
 
-    await wrapper.findAll('.mobile-site-switcher__item').find((item) => item.text().includes('nav.siteAccount'))!.trigger('click')
+    await wrapper
+      .findAll('.mobile-site-switcher__item')
+      .find((item) => item.text().includes('nav.siteAccount'))!
+      .trigger('click')
 
     expect(openWindow).toHaveBeenCalledWith(
       'https://account.qysyw.test:5173/overview',

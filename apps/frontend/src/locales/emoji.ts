@@ -861,6 +861,8 @@ const emoji: DeepStringify<typeof en> = {
     unpinPageConfirm: '📍 ❌ ❓',
     dragPinnedPage: '↕️ 📌 📄',
     openInNewTab: '🆕 🏷️',
+    openInCurrentPage: '📄 🔗',
+    recentSites: '🕘 🌐',
     noMatchedFeatures: '🙈 🧩',
   },
   support: {
@@ -1804,6 +1806,8 @@ const emoji: DeepStringify<typeof en> = {
     wechatWebBind: '🔗🟩🌐',
     themeLanguageTitle: '🎨🌐',
     themeLabel: '🎨',
+    siteOpenInNewTab: '🖱️ 🌐 ➕ 📑',
+    siteOpenInNewTabDesc: '🌐 📂 ➡️ 📑',
     passwordChangeNotification: '🔑 ⚠️ 🈁 🙏 🪵 📥 🔁',
     registrationTitle: '😝 🧰',
     allowFreeRegistration: '🎀 😁 😝',

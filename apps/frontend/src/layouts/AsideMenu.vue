@@ -120,6 +120,24 @@
       </button>
     </div>
 
+    <div
+      v-if="isDesktop && siteContextMenu.visible && siteContextMenuItem"
+      ref="siteContextMenuRef"
+      class="route-context-menu"
+      :style="siteContextMenuStyle"
+      @click.stop
+      @contextmenu.prevent
+    >
+      <div class="route-context-menu__header">
+        <el-icon><component :is="siteIcons[siteContextMenuItem.id]" /></el-icon>
+        <span>{{ i18ns.t(siteContextMenuItem.labelKey as I18nENAvailableKeys) }}</span>
+      </div>
+      <button type="button" class="route-context-menu__item" @click="openSiteFromContextMenu">
+        <el-icon><Link /></el-icon>
+        <span>{{ siteOpenActionLabel }}</span>
+      </button>
+    </div>
+
     <el-drawer
       v-if="isDesktop"
       v-model="showOverview"
@@ -154,6 +172,30 @@
             </div>
             <div class="overview-site-list">
               <section
+                v-if="recentSiteProfiles.length"
+                class="overview-site-group overview-site-group--recent"
+              >
+                <div class="overview-site-group__title">{{ i18ns.t('nav.recentSites') }}</div>
+                <button
+                  v-for="profile in recentSiteProfiles"
+                  :key="`recent-${profile.id}`"
+                  type="button"
+                  class="overview-site-item overview-site-item--recent"
+                  :class="{ 'is-active': profile.id === currentSiteProfile.id }"
+                  @click="navigateToSiteProfile(profile.id)"
+                  @contextmenu.prevent="openSiteContextMenu(profile.id, $event)"
+                >
+                  <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
+                  <span>{{ i18ns.t(profile.labelKey as I18nENAvailableKeys) }}</span>
+                  <el-icon
+                    v-if="profile.id === currentSiteProfile.id"
+                    class="overview-site-item__current"
+                  >
+                    <Check />
+                  </el-icon>
+                </button>
+              </section>
+              <section
                 v-for="group in siteSwitchGroups"
                 :key="group.key"
                 class="overview-site-group"
@@ -166,6 +208,7 @@
                   class="overview-site-item"
                   :class="{ 'is-active': profile.id === currentSiteProfile.id }"
                   @click="navigateToSiteProfile(profile.id)"
+                  @contextmenu.prevent="openSiteContextMenu(profile.id, $event)"
                 >
                   <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
                   <span>{{ i18ns.t(profile.labelKey as I18nENAvailableKeys) }}</span>
@@ -393,6 +436,29 @@
           :aria-label="i18ns.t('nav.openSite')"
         >
           <section
+            v-if="recentSiteProfiles.length"
+            class="mobile-site-switcher__group mobile-site-switcher__group--recent"
+          >
+            <div class="mobile-site-switcher__group-title">{{ i18ns.t('nav.recentSites') }}</div>
+            <button
+              v-for="profile in recentSiteProfiles"
+              :key="`recent-${profile.id}`"
+              type="button"
+              class="mobile-site-switcher__item"
+              :class="{ 'is-active': profile.id === currentSiteProfile.id }"
+              @click="navigateToSiteProfile(profile.id)"
+            >
+              <el-icon><component :is="siteIcons[profile.id]" /></el-icon>
+              <span>{{ i18ns.t(profile.labelKey as I18nENAvailableKeys) }}</span>
+              <el-icon
+                v-if="profile.id === currentSiteProfile.id"
+                class="mobile-site-switcher__current"
+              >
+                <Check />
+              </el-icon>
+            </button>
+          </section>
+          <section
             v-for="group in siteSwitchGroups"
             :key="group.key"
             class="mobile-site-switcher__group"
@@ -582,6 +648,7 @@ import {
 import type { RouteName } from '@/types/route-types.gen'
 import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
 import { assignDocument } from '@/service/navigationService'
+import { useSiteNavigationStore } from '@/stores/siteNavigationStore'
 
 const isDesktopStore = useIsDesktopStore()
 const isDesktop = isDesktopStore.useIsDesktop()
@@ -603,6 +670,7 @@ const isDark = themeToggleStore.useIsDark()
 const toggleDark = () => themeToggleStore.toggleTheme()
 const iconRef = computed(() => (isDark.value ? Sunny : Moon))
 const permissionStore = usePermissionStore()
+const siteNavigationStore = useSiteNavigationStore()
 
 const isCollapse = computed({
   get: () => props.collapsed,
@@ -613,6 +681,7 @@ const showIsDesktopIcon = computed(() => (!isDesktop.value ? true : isCollapse.v
 const menuRef = useTemplateRef('menuRef')
 const mobileMenuRef = useTemplateRef('mobileMenuRef')
 const routeContextMenuRef = useTemplateRef('routeContextMenuRef')
+const siteContextMenuRef = useTemplateRef('siteContextMenuRef')
 const desktopPinnedListRef = useTemplateRef<HTMLDivElement>('desktopPinnedListRef')
 const mobilePinnedListRef = useTemplateRef<HTMLDivElement>('mobilePinnedListRef')
 const overviewPinnedListRef = useTemplateRef<HTMLDivElement>('overviewPinnedListRef')
@@ -634,6 +703,18 @@ const routeContextMenu = ref<{
   x: 0,
   y: 0,
   routeName: null,
+})
+
+const siteContextMenu = ref<{
+  visible: boolean
+  x: number
+  y: number
+  siteId: SiteProfileId | null
+}>({
+  visible: false,
+  x: 0,
+  y: 0,
+  siteId: null,
 })
 
 const PINNED_ROUTE_STORAGE_KEY = `${StorageKey.Navigation.PINNED_ROUTES}:${currentSiteProfile.id}`
@@ -744,6 +825,14 @@ const availableSiteProfiles = computed(() =>
     : getAccessibleSiteProfiles(currentSiteProfile, permissionStore.effectivePermissions),
 )
 
+const recentSiteProfiles = computed(() => {
+  const accessible = new Set(availableSiteProfiles.value.map((profile) => profile.id))
+  return siteNavigationStore.recentSiteIds
+    .filter((siteId) => accessible.has(siteId))
+    .map((siteId) => availableSiteProfiles.value.find((profile) => profile.id === siteId))
+    .filter((profile): profile is (typeof availableSiteProfiles.value)[number] => Boolean(profile))
+})
+
 const siteSwitchGroups = computed(() => {
   const labels = {
     account: 'nav.siteGroupAccount',
@@ -765,18 +854,26 @@ const siteSwitchGroups = computed(() => {
     .filter((group) => group.profiles.length > 0)
 })
 
-const navigateToSiteProfile = (siteId: SiteProfileId) => {
+const openSiteProfile = (siteId: SiteProfileId, openInNewTab: boolean) => {
   const target = availableSiteProfiles.value.find((profile) => profile.id === siteId)
   if (!target) return
 
   showOverview.value = false
   showMobileSiteSwitcher.value = false
   showMobileDrawer.value = false
-  window.open(
-    new URL(target.defaultPath, target.canonicalOrigin).toString(),
-    '_blank',
-    'noopener,noreferrer',
-  )
+  const targetUrl = new URL(target.defaultPath, target.canonicalOrigin).toString()
+  siteNavigationStore.recordRecentSite(siteId)
+
+  if (openInNewTab) {
+    window.open(targetUrl, '_blank', 'noopener,noreferrer')
+    return
+  }
+
+  assignDocument(targetUrl)
+}
+
+const navigateToSiteProfile = (siteId: SiteProfileId) => {
+  openSiteProfile(siteId, siteNavigationStore.openInNewTab)
 }
 
 const openOverview = () => {
@@ -800,6 +897,11 @@ defineExpose({ openOverview })
 const closeRouteContextMenu = () => {
   routeContextMenu.value.visible = false
   routeContextMenu.value.routeName = null
+}
+
+const closeSiteContextMenu = () => {
+  siteContextMenu.value.visible = false
+  siteContextMenu.value.siteId = null
 }
 
 const openRouteInNewTab = (routeName: RouteName) => {
@@ -844,6 +946,21 @@ const openRouteContextMenu = (routeName: RouteName, event: MouseEvent) => {
   routeContextMenu.value = {
     visible: true,
     routeName,
+    x: Math.min(event.clientX, window.innerWidth - menuWidth - viewportPadding),
+    y: Math.min(event.clientY, window.innerHeight - menuHeight - viewportPadding),
+  }
+}
+
+const openSiteContextMenu = (siteId: SiteProfileId, event: MouseEvent) => {
+  if (!isDesktop.value) return
+
+  const menuWidth = 220
+  const menuHeight = 106
+  const viewportPadding = 12
+  closeRouteContextMenu()
+  siteContextMenu.value = {
+    visible: true,
+    siteId,
     x: Math.min(event.clientX, window.innerWidth - menuWidth - viewportPadding),
     y: Math.min(event.clientY, window.innerHeight - menuHeight - viewportPadding),
   }
@@ -1540,6 +1657,22 @@ const routeContextMenuStyle = computed(() => ({
   top: `${routeContextMenu.value.y}px`,
 }))
 
+const siteContextMenuItem = computed(() => {
+  const siteId = siteContextMenu.value.siteId
+  return siteId
+    ? (availableSiteProfiles.value.find((profile) => profile.id === siteId) ?? null)
+    : null
+})
+
+const siteContextMenuStyle = computed(() => ({
+  left: `${siteContextMenu.value.x}px`,
+  top: `${siteContextMenu.value.y}px`,
+}))
+
+const siteOpenActionLabel = computed(() =>
+  i18ns.t(siteNavigationStore.openInNewTab ? 'nav.openInNewTab' : 'nav.openInCurrentPage'),
+)
+
 const isPinned = (routeName: RouteName) => pinnedRouteNames.value.includes(routeName)
 
 const normalizePinnedRouteNames = (values: unknown[]): RouteName[] => {
@@ -1662,6 +1795,14 @@ const openRouteInNewTabFromMenu = () => {
   closeRouteContextMenu()
 }
 
+const openSiteFromContextMenu = () => {
+  const siteId = siteContextMenu.value.siteId
+  if (!siteId) return
+
+  openSiteProfile(siteId, siteNavigationStore.openInNewTab)
+  closeSiteContextMenu()
+}
+
 const togglePinnedRouteFromMenu = () => {
   const routeName = routeContextMenu.value.routeName
   if (!routeName) {
@@ -1705,7 +1846,12 @@ const handleGlobalClick = (event: MouseEvent) => {
     return
   }
 
+  if (siteContextMenuRef.value?.contains(event.target as Node)) {
+    return
+  }
+
   closeRouteContextMenu()
+  closeSiteContextMenu()
 }
 
 const handleGlobalContextMenu = (event: MouseEvent) => {
@@ -1713,7 +1859,12 @@ const handleGlobalContextMenu = (event: MouseEvent) => {
     return
   }
 
+  if (siteContextMenuRef.value?.contains(event.target as Node)) {
+    return
+  }
+
   closeRouteContextMenu()
+  closeSiteContextMenu()
 }
 
 onMounted(async () => {
@@ -1721,6 +1872,8 @@ onMounted(async () => {
   document.addEventListener('contextmenu', handleGlobalContextMenu, true)
   window.addEventListener('resize', closeRouteContextMenu)
   window.addEventListener('blur', closeRouteContextMenu)
+  window.addEventListener('resize', closeSiteContextMenu)
+  window.addEventListener('blur', closeSiteContextMenu)
 
   loadPinnedRoutes()
 
@@ -1743,6 +1896,8 @@ onBeforeUnmount(() => {
   document.removeEventListener('contextmenu', handleGlobalContextMenu, true)
   window.removeEventListener('resize', closeRouteContextMenu)
   window.removeEventListener('blur', closeRouteContextMenu)
+  window.removeEventListener('resize', closeSiteContextMenu)
+  window.removeEventListener('blur', closeSiteContextMenu)
   destroyPinnedSortable(desktopPinnedSortable)
   destroyPinnedSortable(mobilePinnedSortable)
   destroyPinnedSortable(overviewPinnedSortable)
@@ -1790,6 +1945,7 @@ watch(
   () => router.currentRoute.value.name,
   (name) => {
     closeRouteContextMenu()
+    closeSiteContextMenu()
     menuRef.value?.updateActiveIndex(name)
     mobileMenuRef.value?.updateActiveIndex(name)
   },

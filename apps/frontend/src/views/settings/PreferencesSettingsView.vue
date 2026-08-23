@@ -297,6 +297,12 @@ const cacheTreeData = computed<CacheNode[]>(() => {
           label: zh ? '其他 (Other)' : 'Other',
           children: [
             ls('appserver.sidebar.pinnedRoutes', '侧边栏固定页面', 'Sidebar pinned pages'),
+            ls(
+              StorageKey.Navigation.SITE_OPEN_IN_NEW_TAB,
+              '站点打开方式偏好',
+              'Site opening preference',
+            ),
+            ls(StorageKey.Navigation.RECENT_SITES, '最近使用站点', 'Recently used sites'),
           ],
         },
       ],
@@ -348,6 +354,7 @@ const refreshSizeMap = () => {
   scanGroup(StorageKey.Overlay)
   scanGroup(StorageKey.Chat)
   scanGroup(StorageKey.Relay)
+  scanGroup(StorageKey.Navigation)
   const pinned = TypedLocalStorage.getItem(StorageKey.Navigation.PINNED_ROUTES)
   if (pinned !== null) {
     map.set(`ls:${StorageKey.Navigation.PINNED_ROUTES}`, new Blob([pinned]).size)

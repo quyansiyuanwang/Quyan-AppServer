@@ -881,6 +881,8 @@ const zhCN: DeepStringify<typeof en> = {
     unpinPageConfirm: '确认取消固定该页面吗？',
     dragPinnedPage: '拖拽调整固定页顺序',
     openInNewTab: '在新标签页打开',
+    openInCurrentPage: '在当前页打开',
+    recentSites: '最近使用',
     noMatchedFeatures: '当前筛选条件下没有匹配的分类或功能。',
   },
   support: {
@@ -1605,6 +1607,8 @@ const zhCN: DeepStringify<typeof en> = {
     wechatWebBind: '绑定微信网页',
     themeLanguageTitle: '主题与语言',
     themeLabel: '主题',
+    siteOpenInNewTab: '点击站点时打开新标签页',
+    siteOpenInNewTabDesc: '从站点抽屉打开站点时使用新的浏览器标签页。',
     passwordChangeNotification: '密码修改成功，请重新登录',
     clearCacheTitle: '清理缓存',
     clearCacheDesc: '精确选择要清理的缓存项',

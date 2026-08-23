@@ -2,9 +2,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 
-const { openDocs, toggleTheme } = vi.hoisted(() => ({
+const { openDocs, toggleTheme, setOpenInNewTab } = vi.hoisted(() => ({
   openDocs: vi.fn(),
   toggleTheme: vi.fn(),
+  setOpenInNewTab: vi.fn(),
 }))
 
 vi.mock('@/locales', () => ({
@@ -25,6 +26,13 @@ vi.mock('@/stores/floatingWorkspaceStore', () => ({
   useFloatingWorkspaceStore: () => ({ openDocs }),
 }))
 
+vi.mock('@/stores/siteNavigationStore', () => ({
+  useSiteNavigationStore: () => ({
+    openInNewTab: true,
+    setOpenInNewTab,
+  }),
+}))
+
 vi.mock('@/router', () => ({
   currentSiteProfile: { id: 'account' },
   default: { hasRoute: vi.fn(() => true), push: vi.fn() },
@@ -41,6 +49,12 @@ const stubs = {
   'el-tooltip': { template: '<span><slot /></span>' },
   'el-icon': { template: '<span><slot /></span>' },
   'el-button': { template: '<button><slot /></button>' },
+  'el-switch': {
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
+    template:
+      '<button class="site-open-switch" @click="$emit(\'update:modelValue\', !modelValue)">switch</button>',
+  },
   'el-dialog': {
     props: ['modelValue'],
     template: '<section v-if="modelValue"><slot /><slot name="footer" /></section>',
@@ -85,5 +99,15 @@ describe('RightUtilitySidebar', () => {
     await wrapper.findAll('.utility-sidebar__action')[0].trigger('click')
 
     expect(openDocs).toHaveBeenCalledWith('settingsPreferences')
+  })
+
+  it('shows the site opening preference and persists changes through the store', async () => {
+    const wrapper = mount(RightUtilitySidebar, { global: { stubs } })
+
+    await wrapper.findAll('.utility-sidebar__action')[2].trigger('click')
+
+    expect(wrapper.text()).toContain('SettingsView.siteOpenInNewTab')
+    await wrapper.find('.site-open-switch').trigger('click')
+    expect(setOpenInNewTab).toHaveBeenCalledWith(false)
   })
 })

@@ -921,6 +921,8 @@ export default {
     unpinPageConfirm: 'Are you sure you want to remove this pinned page?',
     dragPinnedPage: 'Drag to reorder pinned page',
     openInNewTab: 'Open in new tab',
+    openInCurrentPage: 'Open in current page',
+    recentSites: 'Recently used',
     noMatchedFeatures: 'No categories or features matched the current filters.',
   },
   support: {
@@ -1664,6 +1666,8 @@ export default {
     wechatWebBind: 'Bind WeChat Web',
     themeLanguageTitle: 'Theme & Language',
     themeLabel: 'Theme',
+    siteOpenInNewTab: 'Open sites in new tabs',
+    siteOpenInNewTabDesc: 'Use a new browser tab when opening a site from the site drawer.',
     passwordChangeNotification: 'Password changed successfully. Please log in again.',
     clearCacheTitle: 'Clear Cache',
     clearCacheDesc: 'Select specific cache items to clear',
