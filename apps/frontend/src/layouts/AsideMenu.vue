@@ -573,7 +573,6 @@
 </template>
 
 <script setup lang="ts">
-import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import StorageKey from '@/constant/storagekey'
 import {
   ArrowDown,
@@ -649,6 +648,7 @@ import type { RouteName } from '@/types/route-types.gen'
 import { normalizeDocsLocale, resolveDocsUrl } from '@/config/docs'
 import { assignDocument } from '@/service/navigationService'
 import { useSiteNavigationStore } from '@/stores/siteNavigationStore'
+import { getSharedPreference, setSharedPreference } from '@/utils/sharedPreferences'
 
 const isDesktopStore = useIsDesktopStore()
 const isDesktop = isDesktopStore.useIsDesktop()
@@ -717,7 +717,7 @@ const siteContextMenu = ref<{
   siteId: null,
 })
 
-const PINNED_ROUTE_STORAGE_KEY = `${StorageKey.Navigation.PINNED_ROUTES}:${currentSiteProfile.id}`
+const PINNED_ROUTE_LEGACY_STORAGE_KEY = `${StorageKey.Navigation.PINNED_ROUTES}:${currentSiteProfile.id}`
 const PINNED_ROUTE_SELECTOR = '[data-route-name]'
 
 let desktopPinnedSortable: Sortable | null = null
@@ -1825,7 +1825,7 @@ const syncPinnedRoutes = () => {
 
 const loadPinnedRoutes = () => {
   try {
-    const rawValue = TypedLocalStorage.getItem(PINNED_ROUTE_STORAGE_KEY)
+    const rawValue = getSharedPreference('pinnedRoutes', PINNED_ROUTE_LEGACY_STORAGE_KEY)
     if (!rawValue) {
       return
     }
@@ -1936,7 +1936,7 @@ watch(
       return
     }
 
-    TypedLocalStorage.setItem(PINNED_ROUTE_STORAGE_KEY, JSON.stringify(value))
+    setSharedPreference('pinnedRoutes', JSON.stringify(value), PINNED_ROUTE_LEGACY_STORAGE_KEY)
   },
   { deep: true },
 )

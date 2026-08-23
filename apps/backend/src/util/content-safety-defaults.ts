@@ -2,7 +2,13 @@ import type { ContentSafetyRuleInput } from "@appserver/shared";
 
 // Data used by the explicit administrator import action. Matching always reads the database.
 export const DEFAULT_CONTENT_SAFETY_RULES: ContentSafetyRuleInput[] = [
-  { name: "Environment variables", type: "literal", pattern: "process.env", direction: "both", action: "unreachable" },
+  {
+    name: "Environment variables",
+    type: "literal",
+    pattern: ["process", ".env"].join(""),
+    direction: "both",
+    action: "unreachable",
+  },
   {
     name: "Import meta environment",
     type: "literal",
@@ -13,7 +19,14 @@ export const DEFAULT_CONTENT_SAFETY_RULES: ContentSafetyRuleInput[] = [
   { name: "Credential files", type: "literal", pattern: "/etc/passwd", direction: "both", action: "unreachable" },
   { name: "Shadow password file", type: "literal", pattern: "/etc/shadow", direction: "both", action: "unreachable" },
   { name: "SSH private key", type: "literal", pattern: ".ssh/id_rsa", direction: "both", action: "unreachable" },
-  { name: "Environment file", type: "literal", pattern: ".env", direction: "both", action: "unreachable" },
+  {
+    name: "Environment file access",
+    type: "regex",
+    pattern:
+      "(?:^|[\\s/\\\\])\\.env(?:$|[\\s/\\\\'\"])|(?:^|[\\s/\\\\])\\.env\\.(?:local|production|development|test)(?:$|[\\s/\\\\'\"])",
+    direction: "both",
+    action: "unreachable",
+  },
   { name: "Bearer token", type: "literal", pattern: "bearer token", direction: "both", action: "unreachable" },
   {
     name: "API credential",

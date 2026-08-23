@@ -4851,14 +4851,53 @@ export class RelayProxyService {
 
           let buffer = "";
           let safetyCarry = "";
+          let usageCarry = "";
           const MAX_BUFFER_SIZE = 256 * 1024; // Reduced to 256KB to prevent memory issues on low-memory servers
+          let streamChunkPromise: Promise<void> = Promise.resolve();
+
+          const applyUsageLine = (line: string) => {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) return;
+
+            if (trimmedLine.startsWith("data:")) {
+              const data = trimmedLine.slice("data:".length).trimStart();
+              if (data === "[DONE]") return;
+
+              try {
+                const json = JSON.parse(data);
+                applyUsage(json.message?.usage);
+                applyUsage(json.usage);
+                applyUsage(json.response?.usage);
+              } catch {
+                // Ignore JSON parse errors
+              }
+              return;
+            }
+
+            if (requestFormat === "gemini" && (trimmedLine.startsWith("{") || trimmedLine.startsWith("[")))
+              try {
+                const json = JSON.parse(trimmedLine);
+                if (json.usageMetadata) {
+                  const u = json.usageMetadata;
+                  if (u.promptTokenCount > 0) requestTokens = u.promptTokenCount;
+                  if (u.candidatesTokenCount > 0) responseTokens = u.candidatesTokenCount;
+                  if (u.totalTokenCount > 0) totalTokens = u.totalTokenCount;
+                }
+              } catch {
+                // Ignore JSON parse errors
+              }
+          };
 
           proxyRes.on("data", (chunk) => {
-            proxyRes.pause();
-            void (async () => {
+            streamChunkPromise = streamChunkPromise.then(async () => {
+              if (typeof proxyRes.pause === "function") proxyRes.pause();
               let outputChunk = chunk as Buffer;
               try {
                 const combinedSafetyText = safetyCarry + outputChunk.toString("utf8");
+                const combinedUsageText = usageCarry + outputChunk.toString("utf8");
+                const usageLines = combinedUsageText.split("\n");
+                usageCarry = usageLines.pop() || "";
+                usageLines.forEach(applyUsageLine);
                 const inspectText =
                   combinedSafetyText.length > 256 ? combinedSafetyText.slice(0, -256) : combinedSafetyText;
                 safetyCarry = combinedSafetyText.length > 256 ? combinedSafetyText.slice(-256) : combinedSafetyText;
@@ -4896,7 +4935,7 @@ export class RelayProxyService {
                 if (!res.writableEnded) res.end();
                 return;
               } finally {
-                if (!proxyRes.destroyed) proxyRes.resume();
+                if (!proxyRes.destroyed && typeof proxyRes.resume === "function") proxyRes.resume();
               }
 
               // Log first chunk for debugging Gemini responses
@@ -4922,46 +4961,22 @@ export class RelayProxyService {
               const lines = buffer.split("\n");
               buffer = lines.pop() || "";
 
-              for (const line of lines) {
-                const trimmedLine = line.trim();
-                if (!trimmedLine) continue;
-
-                // SSE permits optional whitespace after the field separator.
-                if (trimmedLine.startsWith("data:")) {
-                  const data = trimmedLine.slice("data:".length).trimStart();
-                  if (data === "[DONE]") continue;
-
-                  try {
-                    const json = JSON.parse(data);
-                    // Anthropic may expose usage on message_start, message_stop, or other message events.
-                    applyUsage(json.message?.usage);
-                    applyUsage(json.usage);
-                    applyUsage(json.response?.usage);
-                  } catch {
-                    // Ignore JSON parse errors
-                  }
-                }
-                // Handle Gemini format: direct JSON objects separated by newlines
-                else if (requestFormat === "gemini" && (trimmedLine.startsWith("{") || trimmedLine.startsWith("[")))
-                  try {
-                    const json = JSON.parse(trimmedLine);
-                    // Gemini usageMetadata format
-                    if (json.usageMetadata) {
-                      const u = json.usageMetadata;
-                      if (u.promptTokenCount > 0) requestTokens = u.promptTokenCount;
-                      if (u.candidatesTokenCount > 0) responseTokens = u.candidatesTokenCount;
-                      if (u.totalTokenCount > 0) totalTokens = u.totalTokenCount;
-                      // Gemini thinking tokens are already included in totalTokenCount
-                    }
-                  } catch {
-                    // Ignore JSON parse errors
-                  }
-              }
-            })();
+              lines.forEach(applyUsageLine);
+            });
           });
 
           proxyRes.on("end", async () => {
             streamCompleted = true;
+
+            try {
+              await streamChunkPromise;
+            } catch (error) {
+              proxyRes.destroy(error instanceof Error ? error : undefined);
+              if (!res.writableEnded) res.end();
+              reject(error);
+              return;
+            }
+            if (usageCarry) applyUsageLine(usageCarry);
 
             if (safetyCarry && !res.writableEnded && !clientDisconnected) {
               try {
@@ -5046,8 +5061,9 @@ export class RelayProxyService {
               cacheReadMult,
             );
 
-            const totalOutputTime = Date.now() - startTime;
-            const timeToFirstByte = firstByteTime ? firstByteTime - startTime : null;
+            const totalOutputTime = Math.max(0, Date.now() - startTime - stats.durationMs);
+            const timeToFirstByte =
+              firstByteTime === null ? null : Math.max(0, firstByteTime - startTime - stats.durationMs);
 
             try {
               await this.finalizeStreamUsage(relayToken, {
@@ -5106,7 +5122,8 @@ export class RelayProxyService {
               success: true,
               retryable: false,
               statusCode: proxyRes.statusCode || 200,
-              timeToFirstByte: firstByteTime === null ? undefined : firstByteTime - startTime,
+              timeToFirstByte:
+                firstByteTime === null ? undefined : Math.max(0, firstByteTime - startTime - stats.durationMs),
             });
           });
 

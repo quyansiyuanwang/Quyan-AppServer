@@ -1,7 +1,12 @@
 import { deploymentTopologies, type DeploymentTopology } from '@/config/deployment-topology'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 
-export type SharedPreferenceKey = 'locale' | 'theme' | 'siteOpenInNewTab' | 'recentSites'
+export type SharedPreferenceKey =
+  | 'locale'
+  | 'theme'
+  | 'siteOpenInNewTab'
+  | 'recentSites'
+  | 'pinnedRoutes'
 
 /** The single browser contract used by every deployment site for shared preferences. */
 export const SHARED_PREFERENCE_COOKIE_PREFIX = 'appserver.preference.'
