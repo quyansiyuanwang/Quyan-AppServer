@@ -3879,6 +3879,7 @@ const zhCN: DeepStringify<typeof en> = {
     outputTokens: '输出Token',
     cacheCreationTokens: '缓存创建Token',
     cacheReadTokens: '缓存读取Token',
+    cacheHitRate: '缓存命中率',
     inputPrice: '输入价格',
     outputPrice: '输出价格',
     inputRate: '输入费率',

@@ -52747,6 +52747,11 @@
 						"type": "number",
 						"format": "double"
 					},
+					"cacheHitRate": {
+						"type": "number",
+						"format": "double",
+						"description": "Cache read tokens divided by all prompt tokens (input + cache reads)."
+					},
 					"extra": {
 						"type": "string"
 					}

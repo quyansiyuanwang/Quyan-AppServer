@@ -95,9 +95,12 @@ export class BalanceService {
 
   async getBalanceStatistics(userId: string) {
     const account = await this.balanceRepository.findAccountByUserId(userId);
+    const cacheTokens = await this.balanceRepository.sumCacheTokensByUserId(userId);
+    const promptTokens = cacheTokens.inputTokens + cacheTokens.cacheReadTokens;
     return {
       total: Number(account?.totalRecharged || 0),
       used: Number(account?.totalUsed || 0),
+      cacheHitRate: promptTokens > 0 ? cacheTokens.cacheReadTokens / promptTokens : 0,
     };
   }
 }

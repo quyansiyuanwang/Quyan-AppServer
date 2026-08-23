@@ -3984,6 +3984,7 @@ const emoji: DeepStringify<typeof en> = {
     outputTokens: '⬆️ 🪙',
     cacheCreationTokens: '🥴 🔽 🪙',
     cacheReadTokens: '🥴 💤 🪙',
+    cacheHitRate: '🥴 🎯 📈',
     inputPrice: '📥 💰',
     outputPrice: '⬆️ 💰',
     inputRate: '📥 💹',
