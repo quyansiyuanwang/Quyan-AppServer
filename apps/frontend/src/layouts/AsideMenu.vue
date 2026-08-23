@@ -123,13 +123,13 @@
     <div
       v-if="isDesktop && siteContextMenu.visible && siteContextMenuItem"
       ref="siteContextMenuRef"
-      class="route-context-menu"
+      class="route-context-menu site-context-menu"
       :style="siteContextMenuStyle"
       @click.stop
       @contextmenu.prevent
     >
       <div class="route-context-menu__header">
-        <el-icon><component :is="siteIcons[siteContextMenuItem.id]" /></el-icon>
+        <el-icon><component :is="siteIcons[siteContextMenuItem.id] ?? Grid" /></el-icon>
         <span>{{ i18ns.t(siteContextMenuItem.labelKey as I18nENAvailableKeys) }}</span>
       </div>
       <button type="button" class="route-context-menu__item" @click="openSiteFromContextMenu">
@@ -2685,6 +2685,10 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.site-context-menu {
+  z-index: 3300;
 }
 
 .pinned-page-confirmation-dialog__message {
