@@ -32,6 +32,7 @@ export const NOTIFICATION_EVENT_LABELS: Record<NotificationEvent, string> = {
   [NotificationEvent.PASSWORD_CHANGED]: "密码已修改",
   [NotificationEvent.TWO_FACTOR_STATUS_CHANGE]: "2FA 状态变更",
   [NotificationEvent.ACCOUNT_STATUS_CHANGED]: "账户状态变更",
+  [NotificationEvent.CONTENT_SAFETY_BLOCKED]: "内容安全拦截",
   [NotificationEvent.RAM_POLICY_ATTACHED]: "权限策略已绑定",
   [NotificationEvent.RAM_POLICY_DETACHED]: "权限策略已解绑",
   [NotificationEvent.RAM_ROLE_BINDING_UPDATED]: "RAM角色绑定关系变更",

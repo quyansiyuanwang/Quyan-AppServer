@@ -10,5 +10,6 @@ pnpm-lock.yaml
 .eslintcache
 
 .claude/
+tmp/
 
 *.log

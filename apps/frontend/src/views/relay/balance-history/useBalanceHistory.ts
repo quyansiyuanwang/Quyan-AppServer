@@ -131,6 +131,7 @@ export function useBalanceHistory() {
     total: 0,
     used: 0,
     remaining: 0,
+    cacheHitRate: 0,
   })
 
   const getTransactionTimestamp = (record: BalanceTransactionResponse): number => {
@@ -593,6 +594,7 @@ export function useBalanceHistory() {
           total: result.data.total || 0,
           used: result.data.used || 0,
           remaining: result.data.remaining || 0,
+          cacheHitRate: result.data.cacheHitRate || 0,
         }
       }
     } catch (error: any) {

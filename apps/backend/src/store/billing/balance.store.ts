@@ -16,4 +16,8 @@ export interface BalanceStore {
     page: number,
     pageSize: number,
   ): Promise<{ total: number; records: BalanceTransaction[] }>;
+  sumCacheTokensByUserId(userId: string): Promise<{
+    inputTokens: number;
+    cacheReadTokens: number;
+  }>;
 }

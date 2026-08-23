@@ -60,6 +60,17 @@
         </div>
         <LanguageSwitcher />
       </div>
+      <div class="utility-preferences__row">
+        <div>
+          <strong>{{ i18ns.t('SettingsView.siteOpenInNewTab') }}</strong>
+          <small>{{ i18ns.t('SettingsView.siteOpenInNewTabDesc') }}</small>
+        </div>
+        <el-switch
+          :model-value="siteOpenInNewTab"
+          :aria-label="i18ns.t('SettingsView.siteOpenInNewTab')"
+          @update:model-value="siteNavigationStore.setOpenInNewTab"
+        />
+      </div>
     </section>
     <template #footer>
       <el-button @click="showPreferences = false">{{ i18ns.t('close') }}</el-button>
@@ -91,6 +102,7 @@ import { resolveCanonicalRouteUrl } from '@/router/routes'
 import { assignDocument } from '@/service/navigationService'
 import { useThemeToggleStore } from '@/stores/themeToggleStore'
 import { useFloatingWorkspaceStore } from '@/stores/floatingWorkspaceStore'
+import { useSiteNavigationStore } from '@/stores/siteNavigationStore'
 
 type UtilityAction = {
   key: string
@@ -112,8 +124,10 @@ const emit = defineEmits<{ 'update:collapsed': [collapsed: boolean] }>()
 const route = useRoute()
 const themeToggleStore = useThemeToggleStore()
 const floatingWorkspaceStore = useFloatingWorkspaceStore()
+const siteNavigationStore = useSiteNavigationStore()
 const isDark = themeToggleStore.useIsDark()
 const showPreferences = ref(false)
+const siteOpenInNewTab = computed(() => siteNavigationStore.openInNewTab)
 
 const themeIcon = computed(() => (isDark.value ? Sunny : Moon))
 const themeButtonTitle = computed(() =>

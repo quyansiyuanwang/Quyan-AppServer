@@ -9,6 +9,7 @@ describe("BalanceService", () => {
     findAccountsByUserIds: vi.fn(),
     recharge: vi.fn(),
     findTransactions: vi.fn(),
+    sumCacheTokensByUserId: vi.fn(),
   };
 
   const userRepository = {
@@ -124,9 +125,24 @@ describe("BalanceService", () => {
       totalRecharged: new Decimal(123.45),
       totalUsed: new Decimal(67.89),
     });
+    balanceRepository.sumCacheTokensByUserId.mockResolvedValue({
+      inputTokens: 800,
+      cacheReadTokens: 200,
+    });
 
     const stats = await service.getBalanceStatistics("u-1");
 
-    expect(stats).toEqual({ total: 123.45, used: 67.89 });
+    expect(stats).toEqual({ total: 123.45, used: 67.89, cacheHitRate: 0.2 });
+  });
+
+  it("reports zero cache hit rate when no prompt tokens were recorded", async () => {
+    balanceRepository.findAccountByUserId.mockResolvedValue(null);
+    balanceRepository.sumCacheTokensByUserId.mockResolvedValue({ inputTokens: 0, cacheReadTokens: 0 });
+
+    await expect(service.getBalanceStatistics("u-empty")).resolves.toEqual({
+      total: 0,
+      used: 0,
+      cacheHitRate: 0,
+    });
   });
 });

@@ -143,6 +143,35 @@ describe("ChatService", () => {
         }) as any,
     ),
   };
+  const contentSafetyService = {
+    getPublicConfig: vi.fn().mockResolvedValue({
+      requestEnabled: true,
+      requestAction: "unreachable",
+      requestAiEnabled: false,
+      responseEnabled: true,
+      responseAction: "unreachable",
+      responseAiEnabled: false,
+    }),
+    evaluate: vi.fn().mockResolvedValue({
+      text: "",
+      action: "allow",
+      matched: false,
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+    }),
+    evaluateLocal: vi.fn().mockResolvedValue({
+      text: "",
+      action: "allow",
+      matched: false,
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+    }),
+    recordIncident: vi.fn().mockResolvedValue(undefined),
+  };
 
   const ChatServiceCtor = ChatService as unknown as new (...args: any[]) => ChatService;
 
@@ -157,10 +186,38 @@ describe("ChatService", () => {
     usageChargeService,
     relayPoolResolver,
     relayProxyService,
+    contentSafetyService,
   );
 
   beforeEach(() => {
     vi.clearAllMocks();
+    contentSafetyService.getPublicConfig.mockResolvedValue({
+      requestEnabled: true,
+      requestAction: "unreachable",
+      requestAiEnabled: false,
+      responseEnabled: true,
+      responseAction: "unreachable",
+      responseAiEnabled: false,
+    });
+    contentSafetyService.evaluate.mockResolvedValue({
+      text: "",
+      action: "allow",
+      matched: false,
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+    });
+    contentSafetyService.evaluateLocal.mockResolvedValue({
+      text: "",
+      action: "allow",
+      matched: false,
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+    });
+    contentSafetyService.recordIncident.mockResolvedValue(undefined);
     modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([]);
     relayProxyService.getChatAttemptPlan.mockImplementation(
       async (token: any) =>

@@ -108,6 +108,35 @@ const createService = () => {
       roots.filter(Boolean).map((channel: any) => ({ resolvedChannel: channel, displayChannel: channel })),
     ),
   };
+  const contentSafetyService = {
+    getPublicConfig: vi.fn().mockResolvedValue({
+      requestEnabled: true,
+      requestAction: "unreachable",
+      requestAiEnabled: false,
+      responseEnabled: true,
+      responseAction: "unreachable",
+      responseAiEnabled: false,
+    }),
+    evaluate: vi.fn().mockResolvedValue({
+      text: "",
+      action: "allow",
+      matched: false,
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+    }),
+    evaluateLocal: vi.fn().mockResolvedValue({
+      text: "",
+      action: "allow",
+      matched: false,
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+    }),
+    recordIncident: vi.fn().mockResolvedValue(undefined),
+  };
   const redis = {
     isRedisAvailable: vi.fn().mockReturnValue(true),
     acquireSemaphoreSlot: vi.fn().mockResolvedValue("relay:concurrency:image:global:slot:1"),
@@ -128,6 +157,11 @@ const createService = () => {
     redis as any,
     businessLogService as any,
     relayPoolResolver as any,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    contentSafetyService as any,
   );
 
   return {

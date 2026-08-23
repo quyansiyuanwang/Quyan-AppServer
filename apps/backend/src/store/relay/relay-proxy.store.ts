@@ -20,6 +20,11 @@ export interface RelayUsageRecordInput {
   totalOutputTime?: number;
   timeToFirstByte?: number | null;
   isStreaming: boolean;
+  auditInputTokens?: number;
+  auditOutputTokens?: number;
+  auditTotalTokens?: number;
+  auditCost?: number;
+  auditDurationMs?: number;
 }
 
 export interface RelayZeroChargeUsageInput extends RelayUsageRecordInput {

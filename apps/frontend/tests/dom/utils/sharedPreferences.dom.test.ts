@@ -9,10 +9,13 @@ import {
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 
 const themeCookieName = getSharedPreferenceCookieName('theme')
+const pinnedRoutesCookieName = getSharedPreferenceCookieName('pinnedRoutes')
 
 const clearThemePreference = (): void => {
   document.cookie = `${encodeURIComponent(themeCookieName)}=; Path=/; Max-Age=0`
+  document.cookie = `${encodeURIComponent(pinnedRoutesCookieName)}=; Path=/; Max-Age=0`
   TypedLocalStorage.removeItem(StorageKey.Theme.THEME_TOGGLE_IS_DARK)
+  TypedLocalStorage.removeItem(`${StorageKey.Navigation.PINNED_ROUTES}:public`)
 }
 
 afterEach(clearThemePreference)
@@ -37,5 +40,18 @@ describe('shared preferences', () => {
 
     expect(getSharedPreference('theme', StorageKey.Theme.THEME_TOGGLE_IS_DARK)).toBe('auto')
     expect(document.cookie).toContain(`${encodeURIComponent(themeCookieName)}=auto`)
+  })
+
+  it('shares pinned routes while retaining the former site-local key', () => {
+    const legacyKey = `${StorageKey.Navigation.PINNED_ROUTES}:public`
+    const pinnedRoutes = JSON.stringify(['home', 'accountSettings'])
+
+    TypedLocalStorage.setItem(legacyKey, pinnedRoutes)
+
+    expect(getSharedPreference('pinnedRoutes', legacyKey)).toBe(pinnedRoutes)
+    expect(document.cookie).toContain(`${encodeURIComponent(pinnedRoutesCookieName)}=`)
+
+    setSharedPreference('pinnedRoutes', JSON.stringify(['home']), legacyKey)
+    expect(TypedLocalStorage.getItem(legacyKey)).toBe(JSON.stringify(['home']))
   })
 })

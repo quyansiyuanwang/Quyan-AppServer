@@ -191,7 +191,8 @@ export class SessionCoordinator {
       if (
         session.permissionsStatus === 'ready' &&
         permissionStore.isLoaded &&
-        userInfoStore.isUserInfoFetched
+        userInfoStore.isUserInfoFetched &&
+        (!user?.id || user.id === userInfoStore.userInfo.id)
       ) {
         return
       }
