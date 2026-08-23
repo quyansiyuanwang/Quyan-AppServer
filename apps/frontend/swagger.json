@@ -10813,6 +10813,669 @@
 				}
 			}
 		},
+		"/v1/content-safety/config": {
+			"get": {
+				"operationId": "ContentSafetyControllerGetConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContentSafetyConfigDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "ContentSafetyControllerUpdateConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContentSafetyConfigDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyConfigRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/content-safety/rules": {
+			"get": {
+				"operationId": "ContentSafetyControllerListRules",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"total": {
+											"type": "number",
+											"format": "double"
+										},
+										"rules": {
+											"items": {
+												"properties": {
+													"version": {
+														"type": "string"
+													},
+													"priority": {
+														"type": "number",
+														"format": "double"
+													},
+													"action": {
+														"type": "string"
+													},
+													"direction": {
+														"type": "string"
+													},
+													"pattern": {
+														"type": "string"
+													},
+													"type": {
+														"type": "string"
+													},
+													"source": {
+														"type": "string"
+													},
+													"enabled": {
+														"type": "boolean"
+													},
+													"name": {
+														"type": "string"
+													},
+													"updateTime": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"createTime": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"status": {
+														"type": "number",
+														"format": "double"
+													},
+													"id": {
+														"type": "string"
+													}
+												},
+												"required": [
+													"version",
+													"priority",
+													"action",
+													"direction",
+													"pattern",
+													"type",
+													"source",
+													"enabled",
+													"name",
+													"updateTime",
+													"createTime",
+													"status",
+													"id"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										}
+									},
+									"required": [
+										"total",
+										"rules"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 50,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "ContentSafetyControllerCreateRule",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"version": {
+											"type": "string"
+										},
+										"priority": {
+											"type": "number",
+											"format": "double"
+										},
+										"action": {
+											"type": "string"
+										},
+										"direction": {
+											"type": "string"
+										},
+										"pattern": {
+											"type": "string"
+										},
+										"type": {
+											"type": "string"
+										},
+										"source": {
+											"type": "string"
+										},
+										"enabled": {
+											"type": "boolean"
+										},
+										"name": {
+											"type": "string"
+										},
+										"updateTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"createTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"status": {
+											"type": "number",
+											"format": "double"
+										},
+										"id": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"version",
+										"priority",
+										"action",
+										"direction",
+										"pattern",
+										"type",
+										"source",
+										"enabled",
+										"name",
+										"updateTime",
+										"createTime",
+										"status",
+										"id"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyRuleRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/content-safety/rules/import-defaults": {
+			"post": {
+				"operationId": "ContentSafetyControllerImportDefaults",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"created": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"created"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/content-safety/rules/import-csv": {
+			"post": {
+				"operationId": "ContentSafetyControllerImportCsv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContentSafetyCsvImportResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyCsvImportRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/content-safety/rules/{id}": {
+			"put": {
+				"operationId": "ContentSafetyControllerUpdateRule",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"version": {
+											"type": "string"
+										},
+										"priority": {
+											"type": "number",
+											"format": "double"
+										},
+										"action": {
+											"type": "string"
+										},
+										"direction": {
+											"type": "string"
+										},
+										"pattern": {
+											"type": "string"
+										},
+										"type": {
+											"type": "string"
+										},
+										"source": {
+											"type": "string"
+										},
+										"enabled": {
+											"type": "boolean"
+										},
+										"name": {
+											"type": "string"
+										},
+										"updateTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"createTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"status": {
+											"type": "number",
+											"format": "double"
+										},
+										"id": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"version",
+										"priority",
+										"action",
+										"direction",
+										"pattern",
+										"type",
+										"source",
+										"enabled",
+										"name",
+										"updateTime",
+										"createTime",
+										"status",
+										"id"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyRuleRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			},
+			"delete": {
+				"operationId": "ContentSafetyControllerDeleteRule",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/content-safety/incidents": {
+			"get": {
+				"operationId": "ContentSafetyControllerListIncidents",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"total": {
+											"type": "number",
+											"format": "double"
+										},
+										"incidents": {
+											"items": {
+												"properties": {
+													"blocked": {
+														"type": "boolean"
+													},
+													"replaced": {
+														"type": "boolean"
+													},
+													"auditDurationMs": {
+														"type": "number",
+														"format": "double"
+													},
+													"auditCost": {
+														"$ref": "#/components/schemas/Decimal"
+													},
+													"auditTotalTokens": {
+														"type": "number",
+														"format": "double"
+													},
+													"auditOutputTokens": {
+														"type": "number",
+														"format": "double"
+													},
+													"auditInputTokens": {
+														"type": "number",
+														"format": "double"
+													},
+													"auditModel": {
+														"type": "string"
+													},
+													"channelId": {
+														"type": "string"
+													},
+													"model": {
+														"type": "string"
+													},
+													"ruleId": {
+														"type": "string"
+													},
+													"requestId": {
+														"type": "string"
+													},
+													"relayTokenId": {
+														"type": "string"
+													},
+													"action": {
+														"type": "string"
+													},
+													"direction": {
+														"type": "string"
+													},
+													"source": {
+														"type": "string"
+													},
+													"statusCode": {
+														"type": "number",
+														"format": "double"
+													},
+													"userId": {
+														"type": "string"
+													},
+													"updateTime": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"createTime": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"status": {
+														"type": "number",
+														"format": "double"
+													},
+													"id": {
+														"type": "string"
+													}
+												},
+												"required": [
+													"blocked",
+													"replaced",
+													"auditDurationMs",
+													"auditCost",
+													"auditTotalTokens",
+													"auditOutputTokens",
+													"auditInputTokens",
+													"auditModel",
+													"channelId",
+													"model",
+													"ruleId",
+													"requestId",
+													"relayTokenId",
+													"action",
+													"direction",
+													"source",
+													"statusCode",
+													"userId",
+													"updateTime",
+													"createTime",
+													"status",
+													"id"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										}
+									},
+									"required": [
+										"total",
+										"incidents"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 50,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/config": {
 			"get": {
 				"operationId": "ConfigControllerGetAllConfigs",
@@ -37225,6 +37888,286 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"ContentSafetyAction": {
+				"type": "string",
+				"enum": [
+					"unreachable",
+					"blackhole",
+					"allow"
+				]
+			},
+			"RelayConfiguredRequestFormat": {
+				"type": "string",
+				"enum": [
+					"openai-chat-completions",
+					"openai-responses",
+					"anthropic",
+					"gemini"
+				]
+			},
+			"RelayRequestFormat": {
+				"anyOf": [
+					{
+						"$ref": "#/components/schemas/RelayConfiguredRequestFormat"
+					},
+					{
+						"type": "string",
+						"enum": [
+							"openai"
+						]
+					}
+				]
+			},
+			"ContentSafetyConfigDto": {
+				"properties": {
+					"requestEnabled": {
+						"type": "boolean"
+					},
+					"requestAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
+					"requestAiEnabled": {
+						"type": "boolean"
+					},
+					"responseEnabled": {
+						"type": "boolean"
+					},
+					"responseAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
+					"responseAiEnabled": {
+						"type": "boolean"
+					},
+					"aiUpstreamUrl": {
+						"type": "string"
+					},
+					"aiApiKeyConfigured": {
+						"type": "boolean"
+					},
+					"aiModel": {
+						"type": "string"
+					},
+					"aiRequestFormat": {
+						"$ref": "#/components/schemas/RelayRequestFormat"
+					},
+					"aiTimeoutMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"aiInputPricePerMillion": {
+						"type": "number",
+						"format": "double"
+					},
+					"aiOutputPricePerMillion": {
+						"type": "number",
+						"format": "double"
+					},
+					"aiMaxTextLength": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"requestEnabled",
+					"requestAction",
+					"requestAiEnabled",
+					"responseEnabled",
+					"responseAction",
+					"responseAiEnabled",
+					"aiUpstreamUrl",
+					"aiApiKeyConfigured",
+					"aiModel",
+					"aiRequestFormat",
+					"aiTimeoutMs",
+					"aiInputPricePerMillion",
+					"aiOutputPricePerMillion",
+					"aiMaxTextLength"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyConfigRequest": {
+				"properties": {
+					"requestEnabled": {
+						"type": "boolean"
+					},
+					"requestAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
+					"requestAiEnabled": {
+						"type": "boolean"
+					},
+					"responseEnabled": {
+						"type": "boolean"
+					},
+					"responseAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
+					"responseAiEnabled": {
+						"type": "boolean"
+					},
+					"aiUpstreamUrl": {
+						"type": "string"
+					},
+					"aiApiKey": {
+						"type": "string"
+					},
+					"clearAiApiKey": {
+						"type": "boolean"
+					},
+					"aiModel": {
+						"type": "string"
+					},
+					"aiRequestFormat": {
+						"$ref": "#/components/schemas/RelayRequestFormat"
+					},
+					"aiTimeoutMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"aiInputPricePerMillion": {
+						"type": "number",
+						"format": "double"
+					},
+					"aiOutputPricePerMillion": {
+						"type": "number",
+						"format": "double"
+					},
+					"aiMaxTextLength": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"requestEnabled",
+					"requestAction",
+					"requestAiEnabled",
+					"responseEnabled",
+					"responseAction",
+					"responseAiEnabled",
+					"aiUpstreamUrl",
+					"aiModel",
+					"aiRequestFormat",
+					"aiTimeoutMs",
+					"aiInputPricePerMillion",
+					"aiOutputPricePerMillion",
+					"aiMaxTextLength"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyCsvImportResponse": {
+				"properties": {
+					"imported": {
+						"type": "number",
+						"format": "double"
+					},
+					"skipped": {
+						"type": "number",
+						"format": "double"
+					},
+					"errors": {
+						"items": {
+							"properties": {
+								"message": {
+									"type": "string"
+								},
+								"row": {
+									"type": "number",
+									"format": "double"
+								}
+							},
+							"required": [
+								"message",
+								"row"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"imported",
+					"skipped",
+					"errors"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyCsvImportRequest": {
+				"properties": {
+					"csv": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"csv"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyRuleType": {
+				"type": "string",
+				"enum": [
+					"literal",
+					"regex"
+				]
+			},
+			"ContentSafetyDirection": {
+				"type": "string",
+				"enum": [
+					"request",
+					"response"
+				]
+			},
+			"ContentSafetyRuleRequest": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"type": {
+						"$ref": "#/components/schemas/ContentSafetyRuleType"
+					},
+					"pattern": {
+						"type": "string"
+					},
+					"direction": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyDirection"
+							},
+							{
+								"type": "string",
+								"enum": [
+									"both"
+								]
+							}
+						]
+					},
+					"action": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"priority": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"name",
+					"type",
+					"pattern",
+					"direction",
+					"action"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Decimal": {
+				"type": "string"
+			},
 			"Record_string.string_": {
 				"properties": {},
 				"additionalProperties": {
@@ -39034,28 +39977,6 @@
 				],
 				"type": "object",
 				"additionalProperties": false
-			},
-			"RelayConfiguredRequestFormat": {
-				"type": "string",
-				"enum": [
-					"openai-chat-completions",
-					"openai-responses",
-					"anthropic",
-					"gemini"
-				]
-			},
-			"RelayRequestFormat": {
-				"anyOf": [
-					{
-						"$ref": "#/components/schemas/RelayConfiguredRequestFormat"
-					},
-					{
-						"type": "string",
-						"enum": [
-							"openai"
-						]
-					}
-				]
 			},
 			"SupportAiConfigDto": {
 				"properties": {

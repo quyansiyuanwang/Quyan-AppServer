@@ -56,6 +56,7 @@ import {
   BadRequestError,
   ForbiddenError,
   GatewayTimeoutError,
+  ContentSafetyBlockedError,
   LockBackendUnavailableError,
   PayloadTooLargeError,
   TooManyRequestsError,
@@ -117,6 +118,7 @@ import {
   type RelayTokenNormalizerConfig,
 } from "@/util/anthropic-token-normalizer.util";
 import { applyRelayTokenV1PathMode } from "@/util/relay-token-path.util";
+import { ContentSafetyService } from "@/services/system/content-safety.service";
 
 const PREFIX = "/relay/proxy";
 
@@ -292,6 +294,7 @@ export class RelayProxyService {
       "resolveUniqueAccessibleDirectPooledParent" | "resolveAutomaticPoolUsageDisplayChannel"
     > = RelayChannelService.getInstance(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
+    private readonly contentSafetyService: ContentSafetyService = ContentSafetyService.getInstance(),
   ) {}
 
   static getInstance(): RelayProxyService {
@@ -2901,6 +2904,37 @@ export class RelayProxyService {
     try {
       let lastError: unknown = new BadRequestError("No available relay channel");
       const attemptIssues: RelayAttemptIssue[] = [];
+      let auditInputTokens = 0;
+      let auditOutputTokens = 0;
+      let auditCost = 0;
+      let auditDurationMs = 0;
+      const contentSafetyConfig = await this.contentSafetyService.getPublicConfig();
+      const auditStats = {
+        get inputTokens() {
+          return auditInputTokens;
+        },
+        set inputTokens(value: number) {
+          auditInputTokens = value;
+        },
+        get outputTokens() {
+          return auditOutputTokens;
+        },
+        set outputTokens(value: number) {
+          auditOutputTokens = value;
+        },
+        get cost() {
+          return auditCost;
+        },
+        set cost(value: number) {
+          auditCost = value;
+        },
+        get durationMs() {
+          return auditDurationMs;
+        },
+        set durationMs(value: number) {
+          auditDurationMs = value;
+        },
+      };
       const tokenNormalizerConfig = normalizeRelayTokenNormalizerConfig(relayToken.normalizerConfig);
       let tokenNormalizerRetried = false;
       let tokenNormalizerBody: unknown;
@@ -3151,6 +3185,38 @@ export class RelayProxyService {
               );
             }
 
+            // Enforce request-side content safety after all format/model transforms.
+            if (!Buffer.isBuffer(convertedBody)) {
+              const requestSafetyText =
+                typeof convertedBody === "string" ? convertedBody : JSON.stringify(convertedBody);
+              const requestSafety = await this.contentSafetyService.evaluate("request", requestSafetyText);
+              auditInputTokens += requestSafety.auditInputTokens;
+              auditOutputTokens += requestSafety.auditOutputTokens;
+              auditCost += requestSafety.auditCost;
+              auditDurationMs += requestSafety.auditDurationMs;
+              if (requestSafety.matched) {
+                await this.contentSafetyService.recordIncident({
+                  userId: relayToken.userId,
+                  relayTokenId: relayToken.id,
+                  requestId: this.getLogicalRequestId(req),
+                  direction: "request",
+                  evaluation: requestSafety,
+                  model: selectedModelName,
+                  channelId: channel.id,
+                  request: req,
+                });
+                if (requestSafety.action === "unreachable") throw new ContentSafetyBlockedError();
+                if (requestSafety.action === "blackhole") {
+                  try {
+                    convertedBody =
+                      typeof convertedBody === "string" ? requestSafety.text : JSON.parse(requestSafety.text);
+                  } catch {
+                    throw new ContentSafetyBlockedError();
+                  }
+                }
+              }
+            }
+
             const toolsWithCache = convertedBody?.tools?.filter((t: any) => t.cache_control).length || 0;
             const messagesWithCache = convertedBody?.messages?.filter((m: any) => m.cache_control).length || 0;
             const systemHasCache =
@@ -3211,6 +3277,8 @@ export class RelayProxyService {
                   tokenNormalizerConfig,
                   tokenNormalizerRetried,
                   requestAgents,
+                  contentSafetyConfig.responseEnabled && contentSafetyConfig.responseAiEnabled,
+                  auditStats,
                 ),
               );
 
@@ -3397,6 +3465,37 @@ export class RelayProxyService {
                 `Upstream response body exceeds ${resourceGuard.maxUpstreamResponseBodyMb}MB`,
               );
             response.data = this.parseBufferedUpstreamBody(streamedResponse.buffer, response.headers || {});
+            if (typeof response.data === "string" || (response.data && typeof response.data === "object")) {
+              const responseSafetyText =
+                typeof response.data === "string" ? response.data : JSON.stringify(response.data);
+              const responseSafety = await this.contentSafetyService.evaluate("response", responseSafetyText);
+              auditInputTokens += responseSafety.auditInputTokens;
+              auditOutputTokens += responseSafety.auditOutputTokens;
+              auditCost += responseSafety.auditCost;
+              auditDurationMs += responseSafety.auditDurationMs;
+              if (responseSafety.matched) {
+                await this.contentSafetyService.recordIncident({
+                  userId: relayToken.userId,
+                  relayTokenId: relayToken.id,
+                  requestId: this.getLogicalRequestId(req),
+                  direction: "response",
+                  evaluation: responseSafety,
+                  model: selectedModelName,
+                  channelId: channel.id,
+                  statusCode: response.status,
+                  request: req,
+                });
+                if (responseSafety.action === "unreachable") throw new ContentSafetyBlockedError();
+                if (responseSafety.action === "blackhole") {
+                  try {
+                    response.data =
+                      typeof response.data === "string" ? responseSafety.text : JSON.parse(responseSafety.text);
+                  } catch {
+                    throw new ContentSafetyBlockedError();
+                  }
+                }
+              }
+            }
             const firstByteTime = firstPayloadTime ?? Date.now();
             const isErrorResponse = response.status >= 400;
 
@@ -3604,7 +3703,11 @@ export class RelayProxyService {
               cacheReadTokens,
             );
 
-            const { cost, inputRate, outputRate } = this.calculateCost(
+            const {
+              cost: businessCost,
+              inputRate,
+              outputRate,
+            } = this.calculateCost(
               requestTokens,
               responseTokens,
               totalTokens,
@@ -3615,9 +3718,10 @@ export class RelayProxyService {
               cacheCreationMult,
               cacheReadMult,
             );
+            const cost = businessCost + auditCost;
 
-            const totalOutputTime = Date.now() - startTime;
-            const timeToFirstByte = firstByteTime - startTime;
+            const totalOutputTime = Math.max(0, Date.now() - startTime - auditDurationMs);
+            const timeToFirstByte = Math.max(0, firstByteTime - startTime - auditDurationMs);
 
             const finalizeResult = await this.usageChargeService.chargeUsage({
               userId: relayToken.userId,
@@ -3658,6 +3762,11 @@ export class RelayProxyService {
               pricingType: rateConfig?.pricingType as "token-based" | "per-request" | undefined,
               fixedPrice: rateConfig?.fixedPrice,
               originalModel: relayOriginalRequestedModel,
+              auditInputTokens,
+              auditOutputTokens,
+              auditTotalTokens: auditInputTokens + auditOutputTokens,
+              auditCost,
+              auditDurationMs,
             });
 
             if (!finalizeResult.applied) throw new BadRequestError("Insufficient balance for this request");
@@ -3695,6 +3804,61 @@ export class RelayProxyService {
             };
           } catch (error) {
             lastError = error;
+
+            if (
+              error instanceof ContentSafetyBlockedError &&
+              auditCost > 0 &&
+              selectedRateConfig &&
+              selectedModelName
+            ) {
+              try {
+                await this.usageChargeService.chargeUsage({
+                  userId: relayToken.userId,
+                  relayTokenId: relayToken.id,
+                  requestId: this.getLogicalRequestId(req),
+                  requestTokens: 0,
+                  responseTokens: 0,
+                  totalTokens: 0,
+                  cacheCreationTokens: 0,
+                  cacheReadTokens: 0,
+                  path: path || req.path,
+                  method: req.method,
+                  statusCode: 403,
+                  ipAddress: req.ip || req.connection?.remoteAddress || "unknown",
+                  totalOutputTime: Math.max(0, Date.now() - requestStartTime - auditDurationMs),
+                  timeToFirstByte: Math.max(0, Date.now() - requestStartTime - auditDurationMs),
+                  isStreaming: false,
+                  cost: auditCost,
+                  modelName: selectedModelName,
+                  modelId: selectedModelId,
+                  channelId: channel.id,
+                  executionChannelId: channel.id,
+                  displayChannelId: usageDisplayChannelId,
+                  displayChannelName: usageDisplayChannelName,
+                  monthlyPassCoverageAt: new Date(),
+                  inputRate: Number(selectedRateConfig.input || 0),
+                  outputRate: Number(selectedRateConfig.output || 0),
+                  multiplier: Number(selectedRateConfig.multiplier || 1),
+                  cacheCreationMultiplier: Number(
+                    selectedRateConfig.cacheCreationMultiplier || DEFAULT_CACHE_CREATION_MULTIPLIER,
+                  ),
+                  cacheReadMultiplier: Number(selectedRateConfig.cacheReadMultiplier || DEFAULT_CACHE_READ_MULTIPLIER),
+                  channelMultiplier,
+                  globalMultiplier: relayGlobalMultiplier,
+                  timeMultiplier,
+                  balanceChargeMode: "allow-negative",
+                  pricingType: selectedRateConfig.pricingType,
+                  fixedPrice: selectedRateConfig.fixedPrice,
+                  auditInputTokens,
+                  auditOutputTokens,
+                  auditTotalTokens: auditInputTokens + auditOutputTokens,
+                  auditCost,
+                  auditDurationMs,
+                });
+              } catch {
+                /* billing failure does not disclose safety details */
+              }
+            }
 
             const canRetryCurrentAttempt =
               !isStreamRequested || !res || (!res.headersSent && !res.writableEnded && !res.finished);
@@ -4082,6 +4246,8 @@ export class RelayProxyService {
     tokenNormalizerConfig: RelayTokenNormalizerConfig = normalizeRelayTokenNormalizerConfig(undefined),
     tokenNormalizerRetried = false,
     requestAgents: UpstreamAgents = directUpstreamAgents,
+    responseAiEnabled = false,
+    auditStats?: { inputTokens: number; outputTokens: number; cost: number; durationMs: number },
   ): Promise<StreamForwardResult> {
     const url = new URL(upstreamUrl);
     const isHttps = url.protocol === "https:";
@@ -4126,6 +4292,7 @@ export class RelayProxyService {
     cleanHeaders["Content-Length"] = bodyData.length;
 
     const startTime = Date.now();
+    const stats = auditStats || { inputTokens: 0, outputTokens: 0, cost: 0, durationMs: 0 };
     let firstByteTime: number | null = null;
     let streamCompleted = false; // 标记流是否正常完成
     let clientDisconnected = false; // 标记客户端是否已断开
@@ -4210,6 +4377,8 @@ export class RelayProxyService {
                     tokenNormalizerConfig,
                     tokenNormalizerRetried,
                     requestAgents,
+                    responseAiEnabled,
+                    stats,
                   ),
                 );
                 return;
@@ -4276,6 +4445,8 @@ export class RelayProxyService {
                       tokenNormalizerConfig,
                       true,
                       requestAgents,
+                      responseAiEnabled,
+                      stats,
                     ),
                   );
                   return;
@@ -4410,6 +4581,265 @@ export class RelayProxyService {
             return; // <── exit the proxyRes callback; the rest handles success responses
           }
 
+          // With response AI audit enabled, buffer the complete textual stream before
+          // sending headers or body. This prevents unaudited content from escaping.
+          if (responseAiEnabled) {
+            const rawChunks: Buffer[] = [];
+            let rawSize = 0;
+            let blockedBySafety = false;
+            const maxAuditBytes = 512 * 1024;
+            proxyRes.on("data", (chunk: Buffer) => {
+              if (firstByteTime === null) firstByteTime = Date.now();
+              rawSize += chunk.length;
+              if (rawSize <= maxAuditBytes) rawChunks.push(chunk);
+              else proxyRes.destroy(new PayloadTooLargeError("Response exceeds content safety buffer limit"));
+              const text = chunk.toString("utf8");
+              for (const line of text.split("\\n")) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith("data:")) {
+                  const data = trimmed.slice(5).trim();
+                  if (data && data !== "[DONE]")
+                    try {
+                      const json = JSON.parse(data);
+                      applyUsage(json.message?.usage);
+                      applyUsage(json.usage);
+                      applyUsage(json.response?.usage);
+                    } catch {
+                      /* partial SSE */
+                    }
+                } else if (requestFormat === "gemini" && (trimmed.startsWith("{") || trimmed.startsWith("["))) {
+                  try {
+                    const json = JSON.parse(trimmed);
+                    if (json.usageMetadata) {
+                      const u = json.usageMetadata;
+                      if (u.promptTokenCount > 0) requestTokens = u.promptTokenCount;
+                      if (u.candidatesTokenCount > 0) responseTokens = u.candidatesTokenCount;
+                      if (u.totalTokenCount > 0) totalTokens = u.totalTokenCount;
+                    }
+                  } catch {
+                    /* partial JSON */
+                  }
+                }
+              }
+            });
+            proxyRes.on("end", async () => {
+              streamCompleted = true;
+              try {
+                if (rawSize > maxAuditBytes) {
+                  blockedBySafety = true;
+                  throw new ContentSafetyBlockedError();
+                }
+                const safety = await this.contentSafetyService.evaluate(
+                  "response",
+                  Buffer.concat(rawChunks).toString("utf8"),
+                );
+                stats.inputTokens += safety.auditInputTokens;
+                stats.outputTokens += safety.auditOutputTokens;
+                stats.cost += safety.auditCost;
+                stats.durationMs += safety.auditDurationMs;
+                if (safety.matched) {
+                  await this.contentSafetyService.recordIncident({
+                    userId: relayToken.userId,
+                    relayTokenId: relayToken.id,
+                    requestId: this.getLogicalRequestId(req),
+                    direction: "response",
+                    evaluation: safety,
+                    model: selectedModelName,
+                    channelId: executionChannelId,
+                    statusCode: streamStatusCode,
+                    request: req,
+                  });
+                  if (safety.action === "unreachable") {
+                    blockedBySafety = true;
+                    throw new ContentSafetyBlockedError();
+                  }
+                }
+                const output =
+                  safety.matched && safety.action === "blackhole"
+                    ? Buffer.from(safety.text, "utf8")
+                    : Buffer.concat(rawChunks);
+                const outputHeaders = this.withRequestIdHeader(req, responseHeaders);
+                res.writeHead(streamStatusCode, outputHeaders);
+                const sse = responseTransform
+                  ? new RelaySseFormatTransform(responseTransform.sourceFormat, responseTransform.targetFormat)
+                  : null;
+                sse?.on("data", (data) => res.write(data));
+                sse?.on("error", () => {
+                  if (!res.writableEnded) res.end();
+                });
+                if (sse) {
+                  sse.once("end", () => {
+                    if (!res.writableEnded) res.end();
+                  });
+                  sse.end(output);
+                } else {
+                  res.end(output);
+                }
+                const normalized = normalizeTokenBreakdown(
+                  requestTokens,
+                  responseTokens,
+                  totalTokens,
+                  hasExplicitStreamInputTokens ? 0 : estimatedRequestTokens,
+                );
+                const rateConfig = selectedModelRate;
+                if (!rateConfig)
+                  throw new BadRequestError(`Model '${selectedModelName}' not found in pricing configuration`);
+                const modelMult = rateConfig.multiplier != null ? Number(rateConfig.multiplier) : 1;
+                const cacheCreationMult =
+                  rateConfig.cacheCreationMultiplier != null
+                    ? Number(rateConfig.cacheCreationMultiplier)
+                    : DEFAULT_CACHE_CREATION_MULTIPLIER;
+                const cacheReadMult =
+                  rateConfig.cacheReadMultiplier != null
+                    ? Number(rateConfig.cacheReadMultiplier)
+                    : DEFAULT_CACHE_READ_MULTIPLIER;
+                const contextMatch = this.resolveContextMultiplier(
+                  contextLengthMultipliers,
+                  normalized.requestTokens,
+                  cacheCreationTokens,
+                  cacheReadTokens,
+                );
+                const costResult = this.calculateCost(
+                  normalized.requestTokens,
+                  normalized.responseTokens,
+                  normalized.totalTokens,
+                  rateConfig,
+                  globalMultiplier * contextMatch.multiplier,
+                  cacheCreationTokens,
+                  cacheReadTokens,
+                  cacheCreationMult,
+                  cacheReadMult,
+                );
+                await this.finalizeStreamUsage(relayToken, {
+                  requestId: this.getLogicalRequestId(req),
+                  requestTokens: normalized.requestTokens,
+                  responseTokens: normalized.responseTokens,
+                  totalTokens: normalized.totalTokens,
+                  cacheCreationTokens,
+                  cacheReadTokens,
+                  cost: costResult.cost + stats.cost,
+                  inputRate: costResult.inputRate,
+                  outputRate: costResult.outputRate,
+                  multiplier: modelMult,
+                  cacheCreationMult,
+                  cacheReadMult,
+                  executionChannelId,
+                  displayChannelId,
+                  displayChannelName,
+                  channelId,
+                  channelMultiplier,
+                  relayGlobalMultiplier,
+                  contextTokens: contextMatch.contextTokens,
+                  contextMultiplier: contextMatch.multiplier,
+                  contextRuleName: contextMatch.ruleName,
+                  monthlyPassCoverageAt,
+                  path: req.path.replace(/^\/relay\/proxy/, ""),
+                  method: req.method,
+                  statusCode: streamStatusCode,
+                  ipAddress: req.ip || "unknown",
+                  modelName: selectedModelName,
+                  modelId: selectedModelId,
+                  totalOutputTime: Math.max(0, Date.now() - startTime - stats.durationMs),
+                  timeToFirstByte:
+                    firstByteTime === null ? null : Math.max(0, firstByteTime - startTime - stats.durationMs),
+                  pricingType: rateConfig.pricingType,
+                  fixedPrice: rateConfig.fixedPrice,
+                  originalModel: originalRequestedModel,
+                  auditInputTokens: stats.inputTokens,
+                  auditOutputTokens: stats.outputTokens,
+                  auditTotalTokens: stats.inputTokens + stats.outputTokens,
+                  auditCost: stats.cost,
+                  auditDurationMs: stats.durationMs,
+                });
+                resolve({
+                  handled: true,
+                  success: true,
+                  retryable: false,
+                  statusCode: streamStatusCode,
+                  timeToFirstByte:
+                    firstByteTime === null ? undefined : Math.max(0, firstByteTime - startTime - stats.durationMs),
+                });
+              } catch (error) {
+                if (!blockedBySafety) {
+                  reject(error);
+                  return;
+                }
+                if (stats.cost > 0 && selectedModelRate) {
+                  try {
+                    const failedTokens = normalizeTokenBreakdown(
+                      requestTokens,
+                      responseTokens,
+                      totalTokens,
+                      hasExplicitStreamInputTokens ? 0 : estimatedRequestTokens,
+                    );
+                    const failedRate = selectedModelRate;
+                    const failedModelMult = failedRate.multiplier != null ? Number(failedRate.multiplier) : 1;
+                    await this.finalizeStreamUsage(relayToken, {
+                      requestId: this.getLogicalRequestId(req),
+                      requestTokens: failedTokens.requestTokens,
+                      responseTokens: failedTokens.responseTokens,
+                      totalTokens: failedTokens.totalTokens,
+                      cacheCreationTokens,
+                      cacheReadTokens,
+                      cost: stats.cost,
+                      inputRate: Number(failedRate.input || 0),
+                      outputRate: Number(failedRate.output || 0),
+                      multiplier: failedModelMult,
+                      cacheCreationMult: failedRate.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER,
+                      cacheReadMult: failedRate.cacheReadMultiplier ?? DEFAULT_CACHE_READ_MULTIPLIER,
+                      executionChannelId,
+                      displayChannelId,
+                      displayChannelName,
+                      channelId,
+                      channelMultiplier,
+                      relayGlobalMultiplier,
+                      monthlyPassCoverageAt,
+                      path: req.path.replace(/^\/relay\/proxy/, ""),
+                      method: req.method,
+                      statusCode: 403,
+                      ipAddress: req.ip || "unknown",
+                      modelName: selectedModelName,
+                      modelId: selectedModelId,
+                      totalOutputTime: Math.max(0, Date.now() - startTime - stats.durationMs),
+                      timeToFirstByte:
+                        firstByteTime === null ? null : Math.max(0, firstByteTime - startTime - stats.durationMs),
+                      pricingType: failedRate.pricingType,
+                      fixedPrice: failedRate.fixedPrice,
+                      originalModel: originalRequestedModel,
+                      auditInputTokens: stats.inputTokens,
+                      auditOutputTokens: stats.outputTokens,
+                      auditTotalTokens: stats.inputTokens + stats.outputTokens,
+                      auditCost: stats.cost,
+                      auditDurationMs: stats.durationMs,
+                    });
+                  } catch {
+                    /* safety blocking must remain deterministic even if billing is unavailable */
+                  }
+                }
+                if (!res.headersSent && !res.writableEnded) {
+                  res.writeHead(403, { "content-type": "application/json" });
+                  res.end(
+                    JSON.stringify({
+                      error: { message: "Request blocked by content safety policy", type: "content_safety_blocked" },
+                    }),
+                  );
+                }
+                resolve({
+                  handled: true,
+                  success: false,
+                  retryable: false,
+                  statusCode: 403,
+                  triggerError: "Content safety policy blocked response",
+                });
+              }
+            });
+            proxyRes.on("error", (error) => {
+              if (!res.writableEnded) res.end();
+              reject(error);
+            });
+            return;
+          }
+
           // ── Success path (2xx/3xx): pipe chunks directly to the client ──
           res.writeHead(streamStatusCode, this.withRequestIdHeader(req, responseHeaders));
 
@@ -4420,76 +4850,149 @@ export class RelayProxyService {
           sseTransform?.on("error", (error) => proxyRes.destroy(error));
 
           let buffer = "";
+          let safetyCarry = "";
           const MAX_BUFFER_SIZE = 256 * 1024; // Reduced to 256KB to prevent memory issues on low-memory servers
 
           proxyRes.on("data", (chunk) => {
-            if (firstByteTime === null) firstByteTime = Date.now();
-
-            if (sseTransform) sseTransform.write(chunk);
-            else res.write(chunk);
-
-            // Log first chunk for debugging Gemini responses
-            if (requestFormat === "gemini" && !buffer)
-              logger.debug("Gemini first chunk", {
-                chunk: chunk.toString().substring(0, 500),
-                statusCode: proxyRes.statusCode,
-                headers: proxyRes.headers,
-              });
-
-            buffer += chunk.toString();
-
-            // Prevent buffer from growing too large
-            if (buffer.length > MAX_BUFFER_SIZE) {
-              logger.warn("Stream buffer exceeded limit, truncating", {
-                bufferSize: buffer.length,
-                limit: MAX_BUFFER_SIZE,
-              });
-              // Keep only the last portion of the buffer
-              buffer = buffer.slice(-MAX_BUFFER_SIZE / 2);
-            }
-
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-
-            for (const line of lines) {
-              const trimmedLine = line.trim();
-              if (!trimmedLine) continue;
-
-              // SSE permits optional whitespace after the field separator.
-              if (trimmedLine.startsWith("data:")) {
-                const data = trimmedLine.slice("data:".length).trimStart();
-                if (data === "[DONE]") continue;
-
-                try {
-                  const json = JSON.parse(data);
-                  // Anthropic may expose usage on message_start, message_stop, or other message events.
-                  applyUsage(json.message?.usage);
-                  applyUsage(json.usage);
-                  applyUsage(json.response?.usage);
-                } catch {
-                  // Ignore JSON parse errors
-                }
-              }
-              // Handle Gemini format: direct JSON objects separated by newlines
-              else if (requestFormat === "gemini" && (trimmedLine.startsWith("{") || trimmedLine.startsWith("[")))
-                try {
-                  const json = JSON.parse(trimmedLine);
-                  // Gemini usageMetadata format
-                  if (json.usageMetadata) {
-                    const u = json.usageMetadata;
-                    if (u.promptTokenCount > 0) requestTokens = u.promptTokenCount;
-                    if (u.candidatesTokenCount > 0) responseTokens = u.candidatesTokenCount;
-                    if (u.totalTokenCount > 0) totalTokens = u.totalTokenCount;
-                    // Gemini thinking tokens are already included in totalTokenCount
+            proxyRes.pause();
+            void (async () => {
+              let outputChunk = chunk as Buffer;
+              try {
+                const combinedSafetyText = safetyCarry + outputChunk.toString("utf8");
+                const inspectText =
+                  combinedSafetyText.length > 256 ? combinedSafetyText.slice(0, -256) : combinedSafetyText;
+                safetyCarry = combinedSafetyText.length > 256 ? combinedSafetyText.slice(-256) : combinedSafetyText;
+                const safety = await this.contentSafetyService.evaluateLocal("response", inspectText);
+                if (safety.matched) {
+                  await this.contentSafetyService.recordIncident({
+                    userId: relayToken.userId,
+                    relayTokenId: relayToken.id,
+                    requestId: this.getLogicalRequestId(req),
+                    direction: "response",
+                    evaluation: safety,
+                    model: selectedModelName,
+                    channelId: executionChannelId,
+                    statusCode: streamStatusCode,
+                    request: req,
+                  });
+                  if (safety.action === "unreachable") {
+                    proxyRes.destroy();
+                    if (!res.writableEnded) res.end();
+                    return;
                   }
-                } catch {
-                  // Ignore JSON parse errors
+                  if (safety.action === "blackhole") outputChunk = Buffer.from(safety.text + safetyCarry, "utf8");
+                  else outputChunk = Buffer.from(safety.text, "utf8");
+                  safetyCarry = "";
+                } else {
+                  outputChunk = combinedSafetyText.length > 256 ? Buffer.from(inspectText, "utf8") : Buffer.alloc(0);
                 }
-            }
+                if (firstByteTime === null) firstByteTime = Date.now();
+                if (outputChunk.length) {
+                  if (sseTransform) sseTransform.write(outputChunk);
+                  else res.write(outputChunk);
+                }
+              } catch {
+                proxyRes.destroy();
+                if (!res.writableEnded) res.end();
+                return;
+              } finally {
+                if (!proxyRes.destroyed) proxyRes.resume();
+              }
+
+              // Log first chunk for debugging Gemini responses
+              if (requestFormat === "gemini" && !buffer)
+                logger.debug("Gemini first chunk", {
+                  chunk: outputChunk.toString().substring(0, 500),
+                  statusCode: proxyRes.statusCode,
+                  headers: proxyRes.headers,
+                });
+
+              buffer += outputChunk.toString();
+
+              // Prevent buffer from growing too large
+              if (buffer.length > MAX_BUFFER_SIZE) {
+                logger.warn("Stream buffer exceeded limit, truncating", {
+                  bufferSize: buffer.length,
+                  limit: MAX_BUFFER_SIZE,
+                });
+                // Keep only the last portion of the buffer
+                buffer = buffer.slice(-MAX_BUFFER_SIZE / 2);
+              }
+
+              const lines = buffer.split("\n");
+              buffer = lines.pop() || "";
+
+              for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (!trimmedLine) continue;
+
+                // SSE permits optional whitespace after the field separator.
+                if (trimmedLine.startsWith("data:")) {
+                  const data = trimmedLine.slice("data:".length).trimStart();
+                  if (data === "[DONE]") continue;
+
+                  try {
+                    const json = JSON.parse(data);
+                    // Anthropic may expose usage on message_start, message_stop, or other message events.
+                    applyUsage(json.message?.usage);
+                    applyUsage(json.usage);
+                    applyUsage(json.response?.usage);
+                  } catch {
+                    // Ignore JSON parse errors
+                  }
+                }
+                // Handle Gemini format: direct JSON objects separated by newlines
+                else if (requestFormat === "gemini" && (trimmedLine.startsWith("{") || trimmedLine.startsWith("[")))
+                  try {
+                    const json = JSON.parse(trimmedLine);
+                    // Gemini usageMetadata format
+                    if (json.usageMetadata) {
+                      const u = json.usageMetadata;
+                      if (u.promptTokenCount > 0) requestTokens = u.promptTokenCount;
+                      if (u.candidatesTokenCount > 0) responseTokens = u.candidatesTokenCount;
+                      if (u.totalTokenCount > 0) totalTokens = u.totalTokenCount;
+                      // Gemini thinking tokens are already included in totalTokenCount
+                    }
+                  } catch {
+                    // Ignore JSON parse errors
+                  }
+              }
+            })();
           });
 
           proxyRes.on("end", async () => {
             streamCompleted = true;
+
+            if (safetyCarry && !res.writableEnded && !clientDisconnected) {
+              try {
+                const tailSafety = await this.contentSafetyService.evaluateLocal("response", safetyCarry);
+                if (tailSafety.matched) {
+                  await this.contentSafetyService.recordIncident({
+                    userId: relayToken.userId,
+                    relayTokenId: relayToken.id,
+                    requestId: this.getLogicalRequestId(req),
+                    direction: "response",
+                    evaluation: tailSafety,
+                    model: selectedModelName,
+                    channelId: executionChannelId,
+                    statusCode: streamStatusCode,
+                    request: req,
+                  });
+                  if (tailSafety.action === "unreachable") {
+                    proxyRes.destroy();
+                    res.end();
+                    return;
+                  }
+                  safetyCarry = tailSafety.action === "blackhole" ? tailSafety.text : safetyCarry;
+                }
+                if (sseTransform) sseTransform.write(Buffer.from(safetyCarry, "utf8"));
+                else res.write(Buffer.from(safetyCarry, "utf8"));
+              } catch {
+                proxyRes.destroy();
+                if (!res.writableEnded) res.end();
+                return;
+              }
+            }
 
             // Only end response if client is still connected
             if (!res.writableEnded && !clientDisconnected) {
@@ -4581,6 +5084,11 @@ export class RelayProxyService {
                 pricingType: rateConfig?.pricingType as "token-based" | "per-request" | undefined,
                 fixedPrice: rateConfig?.fixedPrice,
                 originalModel: originalRequestedModel,
+                auditInputTokens: stats.inputTokens,
+                auditOutputTokens: stats.outputTokens,
+                auditTotalTokens: stats.inputTokens + stats.outputTokens,
+                auditCost: stats.cost,
+                auditDurationMs: stats.durationMs,
               });
             } catch (error) {
               logger.error("Failed to finalize relay stream usage", {
@@ -4743,6 +5251,11 @@ export class RelayProxyService {
       pricingType: data.pricingType,
       fixedPrice: data.fixedPrice,
       originalModel: data.originalModel,
+      auditInputTokens: data.auditInputTokens,
+      auditOutputTokens: data.auditOutputTokens,
+      auditTotalTokens: data.auditTotalTokens,
+      auditCost: data.auditCost,
+      auditDurationMs: data.auditDurationMs,
     });
 
     if (!finalizeResult.applied) throw new BadRequestError("Unable to finalize relay usage");

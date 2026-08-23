@@ -168,6 +168,7 @@ export const siteOverviewFeatures: readonly SiteOverviewFeature[] = [
   feature('analyticsFunnel', 'nav.analyticsFunnel', Histogram, core),
   feature('analyticsHeatmap', 'nav.analyticsHeatmap', DataAnalysis, core),
   feature('serverConfig', 'nav.serverConfig', Tools, core),
+  feature('contentSafety' as any, 'nav.contentSafety', Tools, core),
   feature('supportAiConfig', 'nav.supportAiConfig', ChatDotRound, core, undefined, [
     Permission.SUPPORT_AI_CONFIG,
   ]),

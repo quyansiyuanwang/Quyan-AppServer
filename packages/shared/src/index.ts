@@ -59,6 +59,13 @@ export {
 } from './relay-model-availability'
 export type { ChatStreamEvent, ChatStreamMessage } from './chat-stream'
 export type {
+  ContentSafetyAction,
+  ContentSafetyDirection,
+  ContentSafetyMatch,
+  ContentSafetyRuleInput,
+  ContentSafetyRuleType,
+} from './content-safety'
+export type {
   AgentTaskStatus,
   AgentWorkspaceStatus,
   AgentToolCall,

@@ -92,6 +92,11 @@ export class RelayProxyRepository implements RelayProxyStore {
           totalOutputTime: data.totalOutputTime,
           timeToFirstByte: data.timeToFirstByte,
           isStreaming: data.isStreaming,
+          auditInputTokens: data.auditInputTokens || 0,
+          auditOutputTokens: data.auditOutputTokens || 0,
+          auditTotalTokens: data.auditTotalTokens || 0,
+          auditCost: new Decimal(data.auditCost || 0),
+          auditDurationMs: data.auditDurationMs || 0,
         },
       });
     });
@@ -119,6 +124,11 @@ export class RelayProxyRepository implements RelayProxyStore {
           totalOutputTime: data.totalOutputTime,
           timeToFirstByte: data.timeToFirstByte,
           isStreaming: data.isStreaming,
+          auditInputTokens: data.auditInputTokens || 0,
+          auditOutputTokens: data.auditOutputTokens || 0,
+          auditTotalTokens: data.auditTotalTokens || 0,
+          auditCost: new Decimal(data.auditCost || 0),
+          auditDurationMs: data.auditDurationMs || 0,
         },
       });
 
@@ -360,6 +370,11 @@ export class RelayProxyRepository implements RelayProxyStore {
               totalOutputTime: data.totalOutputTime,
               timeToFirstByte: data.timeToFirstByte,
               isStreaming: data.isStreaming,
+              auditInputTokens: data.auditInputTokens || 0,
+              auditOutputTokens: data.auditOutputTokens || 0,
+              auditTotalTokens: data.auditTotalTokens || 0,
+              auditCost: new Decimal(data.auditCost || 0),
+              auditDurationMs: data.auditDurationMs || 0,
             },
           });
 
@@ -435,6 +450,11 @@ export class RelayProxyRepository implements RelayProxyStore {
                 contextRuleName: data.contextRuleName || null,
                 pricingType: data.pricingType || null,
                 fixedPrice: data.fixedPrice != null ? new Decimal(data.fixedPrice) : null,
+                auditInputTokens: data.auditInputTokens || 0,
+                auditOutputTokens: data.auditOutputTokens || 0,
+                auditTotalTokens: data.auditTotalTokens || 0,
+                auditCost: new Decimal(data.auditCost || 0),
+                auditDurationMs: data.auditDurationMs || 0,
               },
             });
 
@@ -492,6 +512,11 @@ export class RelayProxyRepository implements RelayProxyStore {
                 contextRuleName: data.contextRuleName || null,
                 pricingType: data.pricingType || null,
                 fixedPrice: data.fixedPrice != null ? new Decimal(data.fixedPrice) : null,
+                auditInputTokens: data.auditInputTokens || 0,
+                auditOutputTokens: data.auditOutputTokens || 0,
+                auditTotalTokens: data.auditTotalTokens || 0,
+                auditCost: new Decimal(data.auditCost || 0),
+                auditDurationMs: data.auditDurationMs || 0,
               },
             });
 

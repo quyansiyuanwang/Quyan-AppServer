@@ -90,6 +90,7 @@ model User {
   developerProductEntitlements DeveloperProductEntitlement[]   @relation("DeveloperProductEntitlementOwner")
   developerProductKeys         DeveloperProductApiKey[]        @relation("DeveloperProductKeySubject")
   supportAiUsageRecords        SupportAiUsageRecord[]
+  contentSafetyIncidents       ContentSafetyIncident[]
   agentWorkspaces               AgentWorkspace[]
   agentRuntimeMachines          AgentRuntimeMachine[]
   agentTasks                    AgentTask[]
@@ -125,6 +126,62 @@ model SupportAiUsageRecord {
   @@index([createTime])
   @@index([model, createTime])
   @@map("support_ai_usage_records")
+}
+
+model ContentSafetyRule {
+  id         String   @id @default(cuid())
+  status     Int      @default(1)
+  createTime DateTime @default(now())
+  updateTime DateTime @updatedAt
+  name       String   @db.VarChar(120)
+  type       String   @db.VarChar(20)
+  pattern    String   @db.Text
+  direction  String   @db.VarChar(20)
+  action     String   @db.VarChar(20)
+  enabled    Boolean  @default(true)
+  priority   Int      @default(100)
+  source     String   @default("custom") @db.VarChar(20)
+  version    String?  @db.VarChar(40)
+
+  incidents ContentSafetyIncident[]
+
+  @@index([status, enabled, direction, priority])
+  @@index([source, version])
+  @@map("content_safety_rules")
+}
+
+model ContentSafetyIncident {
+  id               String   @id @default(cuid())
+  status           Int      @default(1)
+  createTime       DateTime @default(now())
+  updateTime       DateTime @updatedAt
+  userId           String
+  relayTokenId     String?
+  requestId        String?  @db.VarChar(100)
+  direction        String   @db.VarChar(20)
+  action           String   @db.VarChar(20)
+  source           String   @db.VarChar(20)
+  ruleId           String?
+  model            String?  @db.VarChar(160)
+  channelId        String?  @db.VarChar(100)
+  statusCode       Int?
+  auditModel       String?  @db.VarChar(160)
+  auditInputTokens Int      @default(0)
+  auditOutputTokens Int     @default(0)
+  auditTotalTokens Int      @default(0)
+  auditCost        Decimal  @default(0) @db.Decimal(14, 6)
+  auditDurationMs  Int      @default(0)
+  replaced         Boolean  @default(false)
+  blocked          Boolean  @default(false)
+
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rule  ContentSafetyRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createTime])
+  @@index([direction, createTime])
+  @@index([ruleId])
+  @@index([relayTokenId, requestId])
+  @@map("content_safety_incidents")
 }
 
 model DeveloperProject {
@@ -1318,6 +1375,11 @@ model RelayUsage {
   totalOutputTime     Int?
   timeToFirstByte     Int?
   isStreaming         Boolean  @default(false)
+  auditInputTokens    Int      @default(0)
+  auditOutputTokens   Int      @default(0)
+  auditTotalTokens    Int      @default(0)
+  auditCost           Decimal  @default(0) @db.Decimal(14, 6)
+  auditDurationMs     Int      @default(0)
 
   relayToken RelayToken @relation(fields: [relayTokenId], references: [id])
   logicalRequest RelayLogicalRequest? @relation(fields: [logicalRequestId], references: [id], onDelete: SetNull)
@@ -1711,6 +1773,11 @@ model BalanceTransaction {
   contextRuleName         String?  @db.VarChar(100)
   pricingType             String?  @db.VarChar(20)
   fixedPrice              Decimal? @db.Decimal(10, 4)
+  auditInputTokens        Int?
+  auditOutputTokens       Int?
+  auditTotalTokens        Int?
+  auditCost               Decimal? @db.Decimal(14, 6)
+  auditDurationMs         Int?
 
   @@index([userId])
   @@index([type])

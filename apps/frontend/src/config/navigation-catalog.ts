@@ -294,6 +294,7 @@ export const navigationMenuDefinition: readonly NavigationNode[] = [
     Tools,
     [
       item('serverConfig', 'nav.serverConfig', Tools, [Permission.SYSTEM_CONFIG]),
+      item('contentSafety' as any, 'nav.contentSafety', Tools, [Permission.SYSTEM_CONFIG]),
       item('supportAiConfig', 'nav.supportAiConfig', ChatDotRound, [Permission.SUPPORT_AI_CONFIG]),
       item('supportAiAnalytics', 'nav.supportAiAnalytics', DataAnalysis, [
         Permission.SUPPORT_AI_ANALYTICS_READ,

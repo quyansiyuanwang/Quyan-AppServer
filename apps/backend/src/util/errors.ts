@@ -76,6 +76,14 @@ export class ForbiddenError extends ApiError {
   }
 }
 
+/** Generic response for content safety blocks; never includes matched text or rule details. */
+export class ContentSafetyBlockedError extends ForbiddenError {
+  constructor() {
+    super("Request blocked by content safety policy");
+    this.name = "ContentSafetyBlockedError";
+  }
+}
+
 /**
  * 404 Not Found
  */
