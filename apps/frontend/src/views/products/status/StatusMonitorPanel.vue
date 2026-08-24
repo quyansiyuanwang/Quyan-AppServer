@@ -52,9 +52,13 @@
       >
       <el-table-column :label="t('productResources.actions')" width="250" fixed="right"
         ><template #default="{ row }">
-          <el-button v-if="canWrite" link :loading="checkingIds.has(row.id)" @click="check(row.id)">{{
-            t('productResources.runCheck')
-          }}</el-button>
+          <el-button
+            v-if="canWrite"
+            link
+            :loading="checkingIds.has(row.id)"
+            @click="check(row.id)"
+            >{{ t('productResources.runCheck') }}</el-button
+          >
           <el-button v-if="canWrite" link @click="edit(row)">{{
             t('productResources.edit')
           }}</el-button>
@@ -94,7 +98,10 @@
               <el-option label="https://" value="https:" />
               <el-option label="http://" value="http:" />
             </el-select>
-            <el-input v-model="form.targetUrl" :placeholder="t('productResources.targetUrlPlaceholder')" />
+            <el-input
+              v-model="form.targetUrl"
+              :placeholder="t('productResources.targetUrlPlaceholder')"
+            />
           </div>
         </el-form-item>
         <el-form-item :label="t('productResources.method')"

@@ -2732,7 +2732,8 @@ export default {
     submissionSuccess: 'Channel submitted for review.',
     changeRequestSubmitted: 'Change request submitted for review.',
     replacePendingChangeRequest: 'Replace pending change request',
-    replacePendingChangeRequestConfirm: 'A pending request already exists. Replace it with this new configuration?',
+    replacePendingChangeRequestConfirm:
+      'A pending request already exists. Replace it with this new configuration?',
     providerEarningsTitle: 'Channel Earnings',
     providerEarningsDescription:
       'Earnings settle from the commission snapshot of each actual balance debit.',

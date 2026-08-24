@@ -1232,7 +1232,10 @@ export class DeveloperProjectRepository {
         if (typeof location !== "string" || !location.trim()) break;
         if (redirectCount === MAX_STATUS_MONITOR_REDIRECTS) throw new BadRequestError("监控重定向次数超过限制");
         target = await assertSafeOutboundUrl(new URL(location, target.url).toString());
-        if (response.status === 303 || ((response.status === 301 || response.status === 302) && requestMethod === "POST")) {
+        if (
+          response.status === 303 ||
+          ((response.status === 301 || response.status === 302) && requestMethod === "POST")
+        ) {
           requestMethod = "GET";
           requestData = undefined;
         }
@@ -1265,10 +1268,12 @@ export class DeveloperProjectRepository {
     const previousDownSinceAt = monitor.downSinceAt ?? null;
     const previousDownAlertedAt = monitor.downAlertedAt ?? null;
     const alertDelayMs = Math.max(1, monitor.alertDelayMinutes ?? 5) * 60_000;
-    const nextDownSinceAt = lastStatus === "down" ? previousDownSinceAt ?? checkedAt : null;
+    const nextDownSinceAt = lastStatus === "down" ? (previousDownSinceAt ?? checkedAt) : null;
     const downSinceAtForAlert = nextDownSinceAt ?? checkedAt;
     const shouldAlertDown =
-      lastStatus === "down" && !previousDownAlertedAt && checkedAt.getTime() - downSinceAtForAlert.getTime() >= alertDelayMs;
+      lastStatus === "down" &&
+      !previousDownAlertedAt &&
+      checkedAt.getTime() - downSinceAtForAlert.getTime() >= alertDelayMs;
     const nextDownAlertedAt = shouldAlertDown ? checkedAt : lastStatus === "up" ? null : previousDownAlertedAt;
     let claimedDownAlert = false;
     const updated = await prisma.$transaction(async (tx) => {
@@ -1290,7 +1295,10 @@ export class DeveloperProjectRepository {
       });
       return updatedMonitor;
     });
-    if (monitor.project?.userId && ((claimedDownAlert && lastStatus === "down") || (lastStatus === "up" && previousDownAlertedAt))) {
+    if (
+      monitor.project?.userId &&
+      ((claimedDownAlert && lastStatus === "down") || (lastStatus === "up" && previousDownAlertedAt))
+    ) {
       const recovered = lastStatus === "up";
       void NotificationService.getInstance().dispatch(
         monitor.project.userId,

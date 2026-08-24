@@ -436,7 +436,8 @@ const saveForm = async () => {
   try {
     if (formMode.value === 'submit') await relayChannelService.submitChannel(payload())
     else if (editingChannelId.value) {
-      const pending = changeRequestByChannel.value.get(editingChannelId.value)?.reviewStatus === 'pending'
+      const pending =
+        changeRequestByChannel.value.get(editingChannelId.value)?.reviewStatus === 'pending'
       if (pending) {
         await ElMessageBox.confirm(
           i18ns.t('relay.replacePendingChangeRequestConfirm'),
