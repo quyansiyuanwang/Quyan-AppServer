@@ -8,6 +8,7 @@ export const contentSafetyRuleSchema = z.object({
   action: z.enum(["unreachable", "blackhole", "allow"]),
   enabled: z.coerce.boolean().optional(),
   priority: z.coerce.number().int().min(0).max(100000).optional(),
+  targetUserId: z.string().trim().min(1).optional(),
 });
 
 export const contentSafetyConfigSchema = z.object({
@@ -33,4 +34,21 @@ export const contentSafetyCsvImportSchema = z.object({
     .string()
     .min(1)
     .max(1024 * 1024),
+  targetUserId: z.string().trim().min(1).optional(),
+});
+
+export const contentSafetyUserConfigSchema = z.object({
+  requestEnabled: z.boolean().nullable(),
+  requestAction: z.enum(["unreachable", "blackhole", "allow"]).nullable(),
+  requestAiEnabled: z.boolean().nullable(),
+  responseEnabled: z.boolean().nullable(),
+  responseAction: z.enum(["unreachable", "blackhole", "allow"]).nullable(),
+  responseAiEnabled: z.boolean().nullable(),
+  targetUserId: z.string().trim().min(1).optional(),
+});
+
+export const contentSafetyRuleOverrideSchema = z.object({
+  ruleId: z.string().trim().min(1),
+  enabled: z.boolean(),
+  targetUserId: z.string().trim().min(1).optional(),
 });

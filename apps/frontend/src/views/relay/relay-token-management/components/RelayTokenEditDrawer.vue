@@ -1007,6 +1007,99 @@
             </div>
           </el-collapse-item>
 
+          <el-collapse-item name="contentSafety">
+            <template #title>
+              <span class="relay-token-edit-sections__title">{{
+                i18ns.t('contentSafety.policy')
+              }}</span>
+            </template>
+            <div
+              :class="
+                isDesktop
+                  ? 'relay-token-edit-section-grid'
+                  : 'relay-token-edit-section-stack relay-token-edit-section-stack--mobile'
+              "
+            >
+              <el-alert
+                :title="i18ns.t('contentSafety.tokenOverrideHelp')"
+                type="info"
+                :closable="false"
+                :class="isDesktop ? 'form-item-span-2' : undefined"
+              />
+              <el-form-item :label="i18ns.t('contentSafety.requestEnabled')">
+                <el-select
+                  v-model="editForm.contentSafetyConfig.requestEnabled"
+                  clearable
+                  style="width: 100%"
+                >
+                  <el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
+                    :value="true"
+                    :label="i18ns.t('contentSafety.enabled')"
+                  /><el-option :value="false" :label="i18ns.t('contentSafety.disabled')" />
+                </el-select>
+              </el-form-item>
+              <el-form-item :label="i18ns.t('contentSafety.requestAction')"
+                ><el-select
+                  v-model="editForm.contentSafetyConfig.requestAction"
+                  clearable
+                  style="width: 100%"
+                  ><el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
+                    value="unreachable"
+                    :label="i18ns.t('contentSafety.unreachable')" /><el-option
+                    value="blackhole"
+                    :label="i18ns.t('contentSafety.blackhole')" /><el-option
+                    value="allow"
+                    :label="i18ns.t('contentSafety.allow')" /></el-select
+              ></el-form-item>
+              <el-form-item :label="i18ns.t('contentSafety.responseEnabled')"
+                ><el-select
+                  v-model="editForm.contentSafetyConfig.responseEnabled"
+                  clearable
+                  style="width: 100%"
+                  ><el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
+                    :value="true"
+                    :label="i18ns.t('contentSafety.enabled')" /><el-option
+                    :value="false"
+                    :label="i18ns.t('contentSafety.disabled')" /></el-select
+              ></el-form-item>
+              <el-form-item :label="i18ns.t('contentSafety.responseAction')"
+                ><el-select
+                  v-model="editForm.contentSafetyConfig.responseAction"
+                  clearable
+                  style="width: 100%"
+                  ><el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
+                    value="unreachable"
+                    :label="i18ns.t('contentSafety.unreachable')" /><el-option
+                    value="blackhole"
+                    :label="i18ns.t('contentSafety.blackhole')" /><el-option
+                    value="allow"
+                    :label="i18ns.t('contentSafety.allow')" /></el-select
+              ></el-form-item>
+              <el-form-item :label="i18ns.t('contentSafety.requestAiEnabled')"
+                ><el-select
+                  v-model="editForm.contentSafetyConfig.requestAiEnabled"
+                  clearable
+                  style="width: 100%"
+                  ><el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
+                    :value="true"
+                    :label="i18ns.t('contentSafety.enabled')" /><el-option
+                    :value="false"
+                    :label="i18ns.t('contentSafety.disabled')" /></el-select
+              ></el-form-item>
+              <el-form-item :label="i18ns.t('contentSafety.responseAiEnabled')"
+                ><el-select
+                  v-model="editForm.contentSafetyConfig.responseAiEnabled"
+                  clearable
+                  style="width: 100%"
+                  ><el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
+                    :value="true"
+                    :label="i18ns.t('contentSafety.enabled')" /><el-option
+                    :value="false"
+                    :label="i18ns.t('contentSafety.disabled')" /></el-select
+              ></el-form-item>
+            </div>
+          </el-collapse-item>
+
           <el-collapse-item name="advanced">
             <template #title>
               <span class="relay-token-edit-sections__title">{{

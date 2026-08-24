@@ -2,6 +2,24 @@ export type ContentSafetyDirection = 'request' | 'response'
 export type ContentSafetyAction = 'unreachable' | 'blackhole' | 'allow'
 export type ContentSafetyRuleType = 'literal' | 'regex'
 
+export interface ContentSafetyPolicyOverride {
+  requestEnabled?: boolean | null
+  requestAction?: ContentSafetyAction | null
+  requestAiEnabled?: boolean | null
+  responseEnabled?: boolean | null
+  responseAction?: ContentSafetyAction | null
+  responseAiEnabled?: boolean | null
+}
+
+export interface ContentSafetyUserConfig extends ContentSafetyPolicyOverride {
+  requestEnabled: boolean | null
+  requestAction: ContentSafetyAction | null
+  requestAiEnabled: boolean | null
+  responseEnabled: boolean | null
+  responseAction: ContentSafetyAction | null
+  responseAiEnabled: boolean | null
+}
+
 export interface ContentSafetyRuleInput {
   name: string
   type: ContentSafetyRuleType

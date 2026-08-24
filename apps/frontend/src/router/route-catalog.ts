@@ -32,6 +32,7 @@ const legacyRoutePathByName: Record<string, string> = {
   settings: '/settings/profile',
   settingsProfile: '/settings/profile',
   settingsPreferences: '/settings/preferences',
+  settingsContentSafety: '/settings/content-safety',
   settingsSecurity: '/settings/security',
   notificationSettings: '/settings/notifications',
   workspaceSuggestions: '/workspace/suggestions',
@@ -74,7 +75,6 @@ const legacyRoutePathByName: Record<string, string> = {
   legalPolicyManagement: '/management/legal-policies',
   debug: '/debug',
   serverConfig: '/system/config',
-  contentSafety: '/system/content-safety',
   supportAiConfig: '/system/ai-support',
   supportAiAnalytics: '/system/ai-support-analytics',
   ipMonitoring: '/system/ip-monitoring',
@@ -189,6 +189,12 @@ export const routeCatalog = attachLegacyPaths([
     name: 'settingsPreferences',
     group: 'account',
     path: '/settings/preferences',
+    overviewCategory: 'account',
+  },
+  {
+    name: 'settingsContentSafety',
+    group: 'account',
+    path: '/settings/content-safety',
     overviewCategory: 'account',
   },
   {
@@ -498,12 +504,6 @@ export const routeCatalog = attachLegacyPaths([
     name: 'serverConfig',
     group: 'management-core',
     path: '/system/config',
-    overviewCategory: 'console-operations',
-  },
-  {
-    name: 'contentSafety',
-    group: 'management-core',
-    path: '/system/content-safety',
     overviewCategory: 'console-operations',
   },
   {

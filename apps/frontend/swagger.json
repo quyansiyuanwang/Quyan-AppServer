@@ -10874,6 +10874,737 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/content-safety/user-config": {
+			"get": {
+				"operationId": "ContentSafetyControllerGetUserConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"responseAiEnabled": {
+											"type": "boolean"
+										},
+										"responseAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
+										},
+										"responseEnabled": {
+											"type": "boolean"
+										},
+										"requestAiEnabled": {
+											"type": "boolean"
+										},
+										"requestAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
+										},
+										"requestEnabled": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"responseAiEnabled",
+										"responseAction",
+										"responseEnabled",
+										"requestAiEnabled",
+										"requestAction",
+										"requestEnabled"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"put": {
+				"operationId": "ContentSafetyControllerUpdateUserConfig",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"responseAiEnabled": {
+											"type": "boolean"
+										},
+										"responseAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
+										},
+										"responseEnabled": {
+											"type": "boolean"
+										},
+										"requestAiEnabled": {
+											"type": "boolean"
+										},
+										"requestAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
+										},
+										"requestEnabled": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"responseAiEnabled",
+										"responseAction",
+										"responseEnabled",
+										"requestAiEnabled",
+										"requestAction",
+										"requestEnabled"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyUserConfigRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/content-safety/rule-overrides": {
+			"put": {
+				"operationId": "ContentSafetyControllerUpdateRuleOverride",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyRuleOverrideRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/content-safety/rule-overrides/{id}": {
+			"delete": {
+				"operationId": "ContentSafetyControllerDeleteRuleOverride",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/content-safety/user-rules": {
+			"get": {
+				"operationId": "ContentSafetyControllerListUserRules",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"total": {
+											"type": "number",
+											"format": "double"
+										},
+										"rules": {
+											"items": {
+												"properties": {
+													"ownerUserId": {
+														"type": "string"
+													},
+													"version": {
+														"type": "string"
+													},
+													"priority": {
+														"type": "number",
+														"format": "double"
+													},
+													"action": {
+														"type": "string"
+													},
+													"direction": {
+														"type": "string"
+													},
+													"pattern": {
+														"type": "string"
+													},
+													"type": {
+														"type": "string"
+													},
+													"source": {
+														"type": "string"
+													},
+													"name": {
+														"type": "string"
+													},
+													"updateTime": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"createTime": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"status": {
+														"type": "number",
+														"format": "double"
+													},
+													"id": {
+														"type": "string"
+													},
+													"userOverrides": {
+														"items": {
+															"properties": {
+																"ruleId": {
+																	"type": "string"
+																},
+																"enabled": {
+																	"type": "boolean"
+																},
+																"userId": {
+																	"type": "string"
+																},
+																"updateTime": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"createTime": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"status": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"ruleId",
+																"enabled",
+																"userId",
+																"updateTime",
+																"createTime",
+																"status",
+																"id"
+															],
+															"type": "object"
+														},
+														"type": "array"
+													},
+													"canEdit": {
+														"type": "boolean"
+													},
+													"userEnabled": {
+														"type": "boolean"
+													},
+													"enabled": {
+														"type": "boolean"
+													}
+												},
+												"required": [
+													"ownerUserId",
+													"version",
+													"priority",
+													"action",
+													"direction",
+													"pattern",
+													"type",
+													"source",
+													"name",
+													"updateTime",
+													"createTime",
+													"status",
+													"id",
+													"userOverrides",
+													"canEdit",
+													"userEnabled",
+													"enabled"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										}
+									},
+									"required": [
+										"total",
+										"rules"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 50,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "ContentSafetyControllerCreateUserRule",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"ownerUserId": {
+											"type": "string"
+										},
+										"version": {
+											"type": "string"
+										},
+										"priority": {
+											"type": "number",
+											"format": "double"
+										},
+										"action": {
+											"type": "string"
+										},
+										"direction": {
+											"type": "string"
+										},
+										"pattern": {
+											"type": "string"
+										},
+										"type": {
+											"type": "string"
+										},
+										"source": {
+											"type": "string"
+										},
+										"enabled": {
+											"type": "boolean"
+										},
+										"name": {
+											"type": "string"
+										},
+										"updateTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"createTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"status": {
+											"type": "number",
+											"format": "double"
+										},
+										"id": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"ownerUserId",
+										"version",
+										"priority",
+										"action",
+										"direction",
+										"pattern",
+										"type",
+										"source",
+										"enabled",
+										"name",
+										"updateTime",
+										"createTime",
+										"status",
+										"id"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyRuleRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/content-safety/user-rules/{id}": {
+			"put": {
+				"operationId": "ContentSafetyControllerUpdateUserRule",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"ownerUserId": {
+											"type": "string"
+										},
+										"version": {
+											"type": "string"
+										},
+										"priority": {
+											"type": "number",
+											"format": "double"
+										},
+										"action": {
+											"type": "string"
+										},
+										"direction": {
+											"type": "string"
+										},
+										"pattern": {
+											"type": "string"
+										},
+										"type": {
+											"type": "string"
+										},
+										"source": {
+											"type": "string"
+										},
+										"enabled": {
+											"type": "boolean"
+										},
+										"name": {
+											"type": "string"
+										},
+										"updateTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"createTime": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"status": {
+											"type": "number",
+											"format": "double"
+										},
+										"id": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"ownerUserId",
+										"version",
+										"priority",
+										"action",
+										"direction",
+										"pattern",
+										"type",
+										"source",
+										"enabled",
+										"name",
+										"updateTime",
+										"createTime",
+										"status",
+										"id"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyRuleRequest"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "ContentSafetyControllerDeleteUserRule",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean"
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/content-safety/user-rules/import-csv": {
+			"post": {
+				"operationId": "ContentSafetyControllerImportUserCsv",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"errors": {
+											"items": {
+												"properties": {
+													"message": {
+														"type": "string"
+													},
+													"row": {
+														"type": "number",
+														"format": "double"
+													}
+												},
+												"required": [
+													"message",
+													"row"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"skipped": {
+											"type": "number",
+											"format": "double"
+										},
+										"imported": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"errors",
+										"skipped",
+										"imported"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyCsvImportRequest"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/content-safety/rules": {
 			"get": {
 				"operationId": "ContentSafetyControllerListRules",
@@ -10891,6 +11622,9 @@
 										"rules": {
 											"items": {
 												"properties": {
+													"ownerUserId": {
+														"type": "string"
+													},
 													"version": {
 														"type": "string"
 													},
@@ -10936,6 +11670,7 @@
 													}
 												},
 												"required": [
+													"ownerUserId",
 													"version",
 													"priority",
 													"action",
@@ -11005,6 +11740,9 @@
 							"application/json": {
 								"schema": {
 									"properties": {
+										"ownerUserId": {
+											"type": "string"
+										},
 										"version": {
 											"type": "string"
 										},
@@ -11050,6 +11788,7 @@
 										}
 									},
 									"required": [
+										"ownerUserId",
 										"version",
 										"priority",
 										"action",
@@ -11175,6 +11914,9 @@
 							"application/json": {
 								"schema": {
 									"properties": {
+										"ownerUserId": {
+											"type": "string"
+										},
 										"version": {
 											"type": "string"
 										},
@@ -11220,6 +11962,7 @@
 										}
 									},
 									"required": [
+										"ownerUserId",
 										"version",
 										"priority",
 										"action",
@@ -11364,13 +12107,13 @@
 													"model": {
 														"type": "string"
 													},
-													"ruleId": {
-														"type": "string"
-													},
 													"requestId": {
 														"type": "string"
 													},
 													"relayTokenId": {
+														"type": "string"
+													},
+													"ruleId": {
 														"type": "string"
 													},
 													"action": {
@@ -11416,9 +12159,9 @@
 													"auditModel",
 													"channelId",
 													"model",
-													"ruleId",
 													"requestId",
 													"relayTokenId",
+													"ruleId",
 													"action",
 													"direction",
 													"source",
@@ -37965,6 +38708,51 @@
 					"aiMaxTextLength": {
 						"type": "number",
 						"format": "double"
+					},
+					"userConfig": {
+						"properties": {
+							"responseAiEnabled": {
+								"type": "boolean",
+								"nullable": true
+							},
+							"responseAction": {
+								"allOf": [
+									{
+										"$ref": "#/components/schemas/ContentSafetyAction"
+									}
+								],
+								"nullable": true
+							},
+							"responseEnabled": {
+								"type": "boolean",
+								"nullable": true
+							},
+							"requestAiEnabled": {
+								"type": "boolean",
+								"nullable": true
+							},
+							"requestAction": {
+								"allOf": [
+									{
+										"$ref": "#/components/schemas/ContentSafetyAction"
+									}
+								],
+								"nullable": true
+							},
+							"requestEnabled": {
+								"type": "boolean",
+								"nullable": true
+							}
+						},
+						"required": [
+							"responseAiEnabled",
+							"responseAction",
+							"responseEnabled",
+							"requestAiEnabled",
+							"requestAction",
+							"requestEnabled"
+						],
+						"type": "object"
 					}
 				},
 				"required": [
@@ -37982,6 +38770,151 @@
 					"aiInputPricePerMillion",
 					"aiOutputPricePerMillion",
 					"aiMaxTextLength"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyUserConfigRequest": {
+				"properties": {
+					"requestEnabled": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"requestAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
+						"nullable": true
+					},
+					"requestAiEnabled": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"responseEnabled": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"responseAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
+						"nullable": true
+					},
+					"responseAiEnabled": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"targetUserId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"requestEnabled",
+					"requestAction",
+					"requestAiEnabled",
+					"responseEnabled",
+					"responseAction",
+					"responseAiEnabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyRuleOverrideRequest": {
+				"properties": {
+					"ruleId": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"targetUserId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"ruleId",
+					"enabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyRuleType": {
+				"type": "string",
+				"enum": [
+					"literal",
+					"regex"
+				]
+			},
+			"ContentSafetyDirection": {
+				"type": "string",
+				"enum": [
+					"request",
+					"response"
+				]
+			},
+			"ContentSafetyRuleRequest": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"type": {
+						"$ref": "#/components/schemas/ContentSafetyRuleType"
+					},
+					"pattern": {
+						"type": "string"
+					},
+					"direction": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyDirection"
+							},
+							{
+								"type": "string",
+								"enum": [
+									"both"
+								]
+							}
+						]
+					},
+					"action": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"priority": {
+						"type": "number",
+						"format": "double"
+					},
+					"targetUserId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"type",
+					"pattern",
+					"direction",
+					"action"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyCsvImportRequest": {
+				"properties": {
+					"csv": {
+						"type": "string"
+					},
+					"targetUserId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"csv"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -38090,77 +39023,6 @@
 					"imported",
 					"skipped",
 					"errors"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"ContentSafetyCsvImportRequest": {
-				"properties": {
-					"csv": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"csv"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"ContentSafetyRuleType": {
-				"type": "string",
-				"enum": [
-					"literal",
-					"regex"
-				]
-			},
-			"ContentSafetyDirection": {
-				"type": "string",
-				"enum": [
-					"request",
-					"response"
-				]
-			},
-			"ContentSafetyRuleRequest": {
-				"properties": {
-					"name": {
-						"type": "string"
-					},
-					"type": {
-						"$ref": "#/components/schemas/ContentSafetyRuleType"
-					},
-					"pattern": {
-						"type": "string"
-					},
-					"direction": {
-						"anyOf": [
-							{
-								"$ref": "#/components/schemas/ContentSafetyDirection"
-							},
-							{
-								"type": "string",
-								"enum": [
-									"both"
-								]
-							}
-						]
-					},
-					"action": {
-						"$ref": "#/components/schemas/ContentSafetyAction"
-					},
-					"enabled": {
-						"type": "boolean"
-					},
-					"priority": {
-						"type": "number",
-						"format": "double"
-					}
-				},
-				"required": [
-					"name",
-					"type",
-					"pattern",
-					"direction",
-					"action"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -41790,6 +42652,44 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"ContentSafetyPolicyOverride": {
+				"properties": {
+					"requestEnabled": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"requestAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
+						"nullable": true
+					},
+					"requestAiEnabled": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"responseEnabled": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"responseAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
+						"nullable": true
+					},
+					"responseAiEnabled": {
+						"type": "boolean",
+						"nullable": true
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayTokenChannelConfigDto": {
 				"properties": {
 					"channelId": {
@@ -41984,6 +42884,14 @@
 					"normalizerConfig": {
 						"$ref": "#/components/schemas/RelayTokenNormalizerConfig"
 					},
+					"contentSafetyConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyPolicyOverride"
+							}
+						],
+						"nullable": true
+					},
 					"ipWhitelist": {
 						"type": "string"
 					},
@@ -42144,6 +43052,14 @@
 						"$ref": "#/components/schemas/RelayTokenNormalizerConfig",
 						"description": "Anthropic request normalizer settings scoped to this relay token."
 					},
+					"contentSafetyConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyPolicyOverride"
+							}
+						],
+						"nullable": true
+					},
 					"ipWhitelist": {
 						"type": "string",
 						"nullable": true,
@@ -42236,6 +43152,14 @@
 					"normalizerConfig": {
 						"$ref": "#/components/schemas/RelayTokenNormalizerConfig",
 						"description": "Anthropic request normalizer settings scoped to this relay token."
+					},
+					"contentSafetyConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyPolicyOverride"
+							}
+						],
+						"nullable": true
 					},
 					"ipWhitelist": {
 						"type": "string",
@@ -42419,6 +43343,14 @@
 						"$ref": "#/components/schemas/RelayTokenNormalizerConfig",
 						"description": "Anthropic request normalizer settings scoped to this relay token."
 					},
+					"contentSafetyConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyPolicyOverride"
+							}
+						],
+						"nullable": true
+					},
 					"ipWhitelist": {
 						"type": "string",
 						"nullable": true,
@@ -42600,6 +43532,14 @@
 						],
 						"nullable": true,
 						"description": "Anthropic request normalizer settings scoped to this relay token."
+					},
+					"contentSafetyConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyPolicyOverride"
+							}
+						],
+						"nullable": true
 					},
 					"ipWhitelist": {
 						"type": "string",

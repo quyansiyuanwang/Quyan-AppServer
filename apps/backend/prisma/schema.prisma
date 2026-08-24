@@ -91,12 +91,15 @@ model User {
   developerProductKeys         DeveloperProductApiKey[]        @relation("DeveloperProductKeySubject")
   supportAiUsageRecords        SupportAiUsageRecord[]
   contentSafetyIncidents       ContentSafetyIncident[]
-  agentWorkspaces               AgentWorkspace[]
-  agentRuntimeMachines          AgentRuntimeMachine[]
-  agentTasks                    AgentTask[]
-  mcpServers                    McpServer[]
-  agentApprovals                AgentApproval[] @relation("AgentApprovalDecider")
-  agentArtifacts                AgentArtifact[]
+  contentSafetyConfig          ContentSafetyUserConfig?
+  contentSafetyRuleOverrides   ContentSafetyRuleUserOverride[]
+  contentSafetyRules           ContentSafetyRule[]
+  agentWorkspaces              AgentWorkspace[]
+  agentRuntimeMachines         AgentRuntimeMachine[]
+  agentTasks                   AgentTask[]
+  mcpServers                   McpServer[]
+  agentApprovals               AgentApproval[]                 @relation("AgentApprovalDecider")
+  agentArtifacts               AgentArtifact[]
 
   @@unique([accountOwnerId, ramUsername])
   @@index([username])
@@ -108,17 +111,17 @@ model User {
 }
 
 model SupportAiUsageRecord {
-  id             String   @id @default(cuid())
-  status         Int      @default(1)
-  createTime     DateTime @default(now())
-  updateTime     DateTime @updatedAt
-  userId         String
-  model          String   @db.VarChar(160)
-  inputTokens    Int      @default(0)
-  outputTokens   Int      @default(0)
-  totalTokens    Int      @default(0)
-  estimatedCost  Decimal  @default(0) @db.Decimal(14, 6)
-  durationMs     Int?
+  id            String   @id @default(cuid())
+  status        Int      @default(1)
+  createTime    DateTime @default(now())
+  updateTime    DateTime @updatedAt
+  userId        String
+  model         String   @db.VarChar(160)
+  inputTokens   Int      @default(0)
+  outputTokens  Int      @default(0)
+  totalTokens   Int      @default(0)
+  estimatedCost Decimal  @default(0) @db.Decimal(14, 6)
+  durationMs    Int?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -129,53 +132,93 @@ model SupportAiUsageRecord {
 }
 
 model ContentSafetyRule {
+  id          String   @id @default(cuid())
+  status      Int      @default(1)
+  createTime  DateTime @default(now())
+  updateTime  DateTime @updatedAt
+  name        String   @db.VarChar(120)
+  type        String   @db.VarChar(20)
+  pattern     String   @db.Text
+  direction   String   @db.VarChar(20)
+  action      String   @db.VarChar(20)
+  enabled     Boolean  @default(true)
+  priority    Int      @default(100)
+  source      String   @default("custom") @db.VarChar(20)
+  version     String?  @db.VarChar(40)
+  ownerUserId String?
+
+  incidents     ContentSafetyIncident[]
+  owner         User?                           @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  userOverrides ContentSafetyRuleUserOverride[]
+
+  @@index([status, enabled, direction, priority])
+  @@index([source, version])
+  @@index([ownerUserId, status, enabled, direction, priority])
+  @@map("content_safety_rules")
+}
+
+model ContentSafetyUserConfig {
+  id                String   @id @default(cuid())
+  status            Int      @default(1)
+  createTime        DateTime @default(now())
+  updateTime        DateTime @updatedAt
+  userId            String   @unique
+  requestEnabled    Boolean?
+  requestAction     String?  @db.VarChar(20)
+  requestAiEnabled  Boolean?
+  responseEnabled   Boolean?
+  responseAction    String?  @db.VarChar(20)
+  responseAiEnabled Boolean?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("content_safety_user_configs")
+}
+
+model ContentSafetyRuleUserOverride {
   id         String   @id @default(cuid())
   status     Int      @default(1)
   createTime DateTime @default(now())
   updateTime DateTime @updatedAt
-  name       String   @db.VarChar(120)
-  type       String   @db.VarChar(20)
-  pattern    String   @db.Text
-  direction  String   @db.VarChar(20)
-  action     String   @db.VarChar(20)
-  enabled    Boolean  @default(true)
-  priority   Int      @default(100)
-  source     String   @default("custom") @db.VarChar(20)
-  version    String?  @db.VarChar(40)
+  userId     String
+  ruleId     String
+  enabled    Boolean
 
-  incidents ContentSafetyIncident[]
+  user User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rule ContentSafetyRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
-  @@index([status, enabled, direction, priority])
-  @@index([source, version])
-  @@map("content_safety_rules")
+  @@unique([userId, ruleId])
+  @@index([userId, status])
+  @@index([ruleId, status])
+  @@map("content_safety_rule_user_overrides")
 }
 
 model ContentSafetyIncident {
-  id               String   @id @default(cuid())
-  status           Int      @default(1)
-  createTime       DateTime @default(now())
-  updateTime       DateTime @updatedAt
-  userId           String
-  relayTokenId     String?
-  requestId        String?  @db.VarChar(100)
-  direction        String   @db.VarChar(20)
-  action           String   @db.VarChar(20)
-  source           String   @db.VarChar(20)
-  ruleId           String?
-  model            String?  @db.VarChar(160)
-  channelId        String?  @db.VarChar(100)
-  statusCode       Int?
-  auditModel       String?  @db.VarChar(160)
-  auditInputTokens Int      @default(0)
-  auditOutputTokens Int     @default(0)
-  auditTotalTokens Int      @default(0)
-  auditCost        Decimal  @default(0) @db.Decimal(14, 6)
-  auditDurationMs  Int      @default(0)
-  replaced         Boolean  @default(false)
-  blocked          Boolean  @default(false)
+  id                String   @id @default(cuid())
+  status            Int      @default(1)
+  createTime        DateTime @default(now())
+  updateTime        DateTime @updatedAt
+  userId            String
+  relayTokenId      String?
+  requestId         String?  @db.VarChar(100)
+  direction         String   @db.VarChar(20)
+  action            String   @db.VarChar(20)
+  source            String   @db.VarChar(20)
+  ruleId            String?
+  model             String?  @db.VarChar(160)
+  channelId         String?  @db.VarChar(100)
+  statusCode        Int?
+  auditModel        String?  @db.VarChar(160)
+  auditInputTokens  Int      @default(0)
+  auditOutputTokens Int      @default(0)
+  auditTotalTokens  Int      @default(0)
+  auditCost         Decimal  @default(0) @db.Decimal(14, 6)
+  auditDurationMs   Int      @default(0)
+  replaced          Boolean  @default(false)
+  blocked           Boolean  @default(false)
 
-  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  rule  ContentSafetyRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  user User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rule ContentSafetyRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
 
   @@index([userId, createTime])
   @@index([direction, createTime])
@@ -185,29 +228,29 @@ model ContentSafetyIncident {
 }
 
 model DeveloperProject {
-  id             String                   @id @default(cuid())
-  status         Int                      @default(1)
-  createTime     DateTime                 @default(now())
-  updateTime     DateTime                 @updatedAt
-  userId         String
-  name           String                   @db.VarChar(100)
-  slug           String                   @unique @db.VarChar(80)
-  description    String?                  @db.VarChar(500)
-  dailyFreeQuota Int                      @default(1000)
-  overageEnabled Boolean                  @default(false)
-  statusPagePublished Boolean              @default(false)
-  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  apiKeys        DeveloperProjectApiKey[]
-  kvEntries      DeveloperKvEntry[]
-  shortLinks     DeveloperShortLink[]
-  secrets        DeveloperSecret[]
-  verifications  DeveloperVerification[]
-  pushChannels   DeveloperPushChannel[]
-  pushDeliveries DeveloperPushDelivery[]
-  pushRequests   DeveloperPushRequest[]
-  statusMonitors DeveloperStatusMonitor[]
-  quotaUsages    DeveloperQuotaUsage[]
-  productInstance DeveloperProductInstance? @relation("DeveloperProductInstanceBackingProject")
+  id                  String                    @id @default(cuid())
+  status              Int                       @default(1)
+  createTime          DateTime                  @default(now())
+  updateTime          DateTime                  @updatedAt
+  userId              String
+  name                String                    @db.VarChar(100)
+  slug                String                    @unique @db.VarChar(80)
+  description         String?                   @db.VarChar(500)
+  dailyFreeQuota      Int                       @default(1000)
+  overageEnabled      Boolean                   @default(false)
+  statusPagePublished Boolean                   @default(false)
+  user                User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKeys             DeveloperProjectApiKey[]
+  kvEntries           DeveloperKvEntry[]
+  shortLinks          DeveloperShortLink[]
+  secrets             DeveloperSecret[]
+  verifications       DeveloperVerification[]
+  pushChannels        DeveloperPushChannel[]
+  pushDeliveries      DeveloperPushDelivery[]
+  pushRequests        DeveloperPushRequest[]
+  statusMonitors      DeveloperStatusMonitor[]
+  quotaUsages         DeveloperQuotaUsage[]
+  productInstance     DeveloperProductInstance? @relation("DeveloperProductInstanceBackingProject")
 
   @@unique([userId, name])
   @@index([userId, status])
@@ -215,39 +258,39 @@ model DeveloperProject {
 }
 
 model DeveloperProductConfig {
-  id                 String   @id @default(cuid())
-  status             Int      @default(1)
-  createTime         DateTime @default(now())
-  updateTime         DateTime @updatedAt
-  productCode        String   @unique @db.VarChar(40)
-  enabled            Boolean  @default(false)
-  defaultDailyQuota  Int      @default(0)
-  overagePrice       Decimal  @default(0) @db.Decimal(18, 6)
-  defaultInstanceLimit Int    @default(1)
-  resourceLimits     Json?
-  retentionDays      Int      @default(30)
-  settings           Json?
+  id                   String   @id @default(cuid())
+  status               Int      @default(1)
+  createTime           DateTime @default(now())
+  updateTime           DateTime @updatedAt
+  productCode          String   @unique @db.VarChar(40)
+  enabled              Boolean  @default(false)
+  defaultDailyQuota    Int      @default(0)
+  overagePrice         Decimal  @default(0) @db.Decimal(18, 6)
+  defaultInstanceLimit Int      @default(1)
+  resourceLimits       Json?
+  retentionDays        Int      @default(30)
+  settings             Json?
 
   @@map("developer_product_configs")
 }
 
 model DeveloperProductEntitlement {
-  id              String   @id @default(cuid())
-  status          Int      @default(1)
-  createTime      DateTime @default(now())
-  updateTime      DateTime @updatedAt
-  accountOwnerId  String
-  productCode     String   @db.VarChar(40)
-  enabled         Boolean  @default(true)
-  dailyFreeQuota  Int?
-  overageEnabled  Boolean  @default(false)
-  instanceLimit   Int      @default(1)
-  startsAt        DateTime?
-  expiresAt       DateTime?
-  issuedByUserId  String   @db.VarChar(191)
-  ownerPolicyId   String?  @unique
+  id             String    @id @default(cuid())
+  status         Int       @default(1)
+  createTime     DateTime  @default(now())
+  updateTime     DateTime  @updatedAt
+  accountOwnerId String
+  productCode    String    @db.VarChar(40)
+  enabled        Boolean   @default(true)
+  dailyFreeQuota Int?
+  overageEnabled Boolean   @default(false)
+  instanceLimit  Int       @default(1)
+  startsAt       DateTime?
+  expiresAt      DateTime?
+  issuedByUserId String    @db.VarChar(191)
+  ownerPolicyId  String?   @unique
 
-  accountOwner User                       @relation("DeveloperProductEntitlementOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
+  accountOwner User                         @relation("DeveloperProductEntitlementOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
   instances    DeveloperProductInstance[]
   quotaUsages  DeveloperProductQuotaUsage[]
   callLogs     DeveloperProductCallLog[]
@@ -269,7 +312,7 @@ model DeveloperProductInstance {
   backingProjectId String   @unique
 
   entitlement    DeveloperProductEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
-  backingProject DeveloperProject             @relation("DeveloperProductInstanceBackingProject", fields: [backingProjectId], references: [id], onDelete: Cascade)
+  backingProject DeveloperProject            @relation("DeveloperProductInstanceBackingProject", fields: [backingProjectId], references: [id], onDelete: Cascade)
   apiKeys        DeveloperProductApiKey[]
 
   @@unique([entitlementId, slug])
@@ -278,19 +321,19 @@ model DeveloperProductInstance {
 }
 
 model DeveloperProductApiKey {
-  id            String   @id @default(cuid())
-  status        Int      @default(1)
-  createTime    DateTime @default(now())
-  updateTime    DateTime @updatedAt
+  id            String    @id @default(cuid())
+  status        Int       @default(1)
+  createTime    DateTime  @default(now())
+  updateTime    DateTime  @updatedAt
   instanceId    String
   subjectUserId String
-  name          String   @db.VarChar(100)
-  keyHash       String   @unique @db.Char(64)
-  keyPrefix     String   @db.VarChar(20)
+  name          String    @db.VarChar(100)
+  keyHash       String    @unique @db.Char(64)
+  keyPrefix     String    @db.VarChar(20)
   actions       Json
   expiresAt     DateTime?
   lastUsedAt    DateTime?
-  requestCount  Int      @default(0)
+  requestCount  Int       @default(0)
 
   instance    DeveloperProductInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
   subjectUser User                     @relation("DeveloperProductKeySubject", fields: [subjectUserId], references: [id], onDelete: Cascade)
@@ -374,17 +417,17 @@ model DeveloperKvEntry {
 }
 
 model DeveloperShortLink {
-  id         String           @id @default(cuid())
-  status     Int              @default(1)
-  createTime DateTime         @default(now())
-  updateTime DateTime         @updatedAt
+  id         String                    @id @default(cuid())
+  status     Int                       @default(1)
+  createTime DateTime                  @default(now())
+  updateTime DateTime                  @updatedAt
   projectId  String
-  code       String           @unique @db.VarChar(80)
-  targetUrl  String           @db.Text
-  enabled    Boolean          @default(true)
+  code       String                    @unique @db.VarChar(80)
+  targetUrl  String                    @db.Text
+  enabled    Boolean                   @default(true)
   expiresAt  DateTime?
-  clickCount Int              @default(0)
-  project    DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clickCount Int                       @default(0)
+  project    DeveloperProject          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   clicks     DeveloperShortLinkClick[]
 
   @@index([projectId, createTime])
@@ -508,24 +551,24 @@ model DeveloperPushRequest {
 }
 
 model DeveloperStatusMonitor {
-  id            String           @id @default(cuid())
-  status        Int              @default(1)
-  createTime    DateTime         @default(now())
-  updateTime    DateTime         @updatedAt
-  projectId     String
-  name          String           @db.VarChar(100)
-  targetUrl     String           @db.Text
-  method        String           @default("GET") @db.VarChar(10)
-  requestBody   String?          @db.Text
-  responseBodyMatchMode String?          @db.VarChar(20)
-  responseBodyMatch String?              @db.Text
-  successStatusCodes Json?
-  intervalSec   Int              @default(60)
-  enabled       Boolean          @default(true)
-  lastCheckedAt DateTime?
-  lastStatus    String?          @db.VarChar(20)
-  project       DeveloperProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  checks        DeveloperStatusCheck[]
+  id                    String                 @id @default(cuid())
+  status                Int                    @default(1)
+  createTime            DateTime               @default(now())
+  updateTime            DateTime               @updatedAt
+  projectId             String
+  name                  String                 @db.VarChar(100)
+  targetUrl             String                 @db.Text
+  method                String                 @default("GET") @db.VarChar(10)
+  requestBody           String?                @db.Text
+  responseBodyMatchMode String?                @db.VarChar(20)
+  responseBodyMatch     String?                @db.Text
+  successStatusCodes    Json?
+  intervalSec           Int                    @default(60)
+  enabled               Boolean                @default(true)
+  lastCheckedAt         DateTime?
+  lastStatus            String?                @db.VarChar(20)
+  project               DeveloperProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  checks                DeveloperStatusCheck[]
 
   @@index([projectId, enabled])
   @@map("developer_status_monitors")
@@ -564,16 +607,16 @@ model DeveloperQuotaUsage {
 }
 
 model DeveloperQuotaOverride {
-  id             String   @id @default(cuid())
-  status         Int      @default(1)
-  createTime     DateTime @default(now())
-  updateTime     DateTime @updatedAt
-  subjectType    String   @db.VarChar(10)
-  subjectId      String   @db.VarChar(191)
-  service        String   @default("*") @db.VarChar(30)
-  dailyFreeQuota Int
-  expiresAt      DateTime?
-  createdByUserId String  @db.VarChar(191)
+  id              String    @id @default(cuid())
+  status          Int       @default(1)
+  createTime      DateTime  @default(now())
+  updateTime      DateTime  @updatedAt
+  subjectType     String    @db.VarChar(10)
+  subjectId       String    @db.VarChar(191)
+  service         String    @default("*") @db.VarChar(30)
+  dailyFreeQuota  Int
+  expiresAt       DateTime?
+  createdByUserId String    @db.VarChar(191)
 
   @@unique([subjectType, subjectId, service])
   @@index([subjectType, subjectId, status, expiresAt])
@@ -947,56 +990,56 @@ model TwoFactorCredential {
 }
 
 model RelayChannel {
-  id                          String   @id @default(cuid())
-  status                      Int      @default(1)
-  providerServiceEnabled      Boolean  @default(true)
-  createTime                  DateTime @default(now())
-  updateTime                  DateTime @updatedAt
+  id                          String    @id @default(cuid())
+  status                      Int       @default(1)
+  providerServiceEnabled      Boolean   @default(true)
+  createTime                  DateTime  @default(now())
+  updateTime                  DateTime  @updatedAt
   name                        String
-  channelType                 String   @default("standalone") @db.VarChar(30)
+  channelType                 String    @default("standalone") @db.VarChar(30)
   pooledParentId              String?
-  pooledPriority              Int      @default(0)
-  pooledWeight                Decimal  @default(1.0) @db.Decimal(10, 6)
-  pooledMemberEnabled         Boolean  @default(true)
-  routingStrategy             String   @default("priority") @db.VarChar(30)
+  pooledPriority              Int       @default(0)
+  pooledWeight                Decimal   @default(1.0) @db.Decimal(10, 6)
+  pooledMemberEnabled         Boolean   @default(true)
+  routingStrategy             String    @default("priority") @db.VarChar(30)
   routingConfig               Json?
-  visibilityMode              String   @default("public") @db.VarChar(30)
+  visibilityMode              String    @default("public") @db.VarChar(30)
   visibilityConfig            Json?
-  openaiUpstreamUrl           String?  @db.Text
-  openaiUpstreamApiKey        String?  @db.Text
-  anthropicUpstreamUrl        String?  @db.Text
-  anthropicUpstreamApiKey     String?  @db.Text
-  geminiUpstreamUrl           String?  @db.Text
-  geminiUpstreamApiKey        String?  @db.Text
-  useProxy                    Boolean  @default(false)
-  multiplier                  Decimal  @default(1.0) @db.Decimal(10, 6)
-  allowedFormats              String?  @db.VarChar(50)
-  allowedModels               String?  @db.Text
-  addUserIdentifier           Boolean  @default(true)
-  inputTokensIncludeCacheRead Boolean  @default(false)
+  openaiUpstreamUrl           String?   @db.Text
+  openaiUpstreamApiKey        String?   @db.Text
+  anthropicUpstreamUrl        String?   @db.Text
+  anthropicUpstreamApiKey     String?   @db.Text
+  geminiUpstreamUrl           String?   @db.Text
+  geminiUpstreamApiKey        String?   @db.Text
+  useProxy                    Boolean   @default(false)
+  multiplier                  Decimal   @default(1.0) @db.Decimal(10, 6)
+  allowedFormats              String?   @db.VarChar(50)
+  allowedModels               String?   @db.Text
+  addUserIdentifier           Boolean   @default(true)
+  inputTokensIncludeCacheRead Boolean   @default(false)
   modelMapping                Json?
-  timePeriodMultipliers       Json?    @default("[]")
-  contextLengthMultipliers    Json?    @default("[]")
-  submissionStatus            String   @default("approved") @db.VarChar(20)
+  timePeriodMultipliers       Json?     @default("[]")
+  contextLengthMultipliers    Json?     @default("[]")
+  submissionStatus            String    @default("approved") @db.VarChar(20)
   submittedByUserId           String?
   reviewedByUserId            String?
   reviewedAt                  DateTime?
-  reviewReason                String?  @db.Text
+  reviewReason                String?   @db.Text
 
-  relayTokens          RelayToken[]              @relation("RelayTokenPrimaryChannel")
-  automaticRouteTokens RelayToken[]              @relation("RelayTokenAutomaticProxyPool")
+  relayTokens          RelayToken[]                @relation("RelayTokenPrimaryChannel")
+  automaticRouteTokens RelayToken[]                @relation("RelayTokenAutomaticProxyPool")
   tokenConfigs         RelayTokenChannelConfig[]
-  poolMembers          RelayChannelMember[]      @relation("RelayChannelPool")
-  memberOfPools        RelayChannelMember[]      @relation("RelayChannelPoolMember")
-  pooledParent         RelayChannel?             @relation("RelayPooledChildren", fields: [pooledParentId], references: [id], onDelete: SetNull)
-  pooledChildren       RelayChannel[]            @relation("RelayPooledChildren")
-  fromSwitchLogs       RelayChannelSwitchLog[]   @relation("RelaySwitchLogFromChannel")
-  toSwitchLogs         RelayChannelSwitchLog[]   @relation("RelaySwitchLogToChannel")
+  poolMembers          RelayChannelMember[]        @relation("RelayChannelPool")
+  memberOfPools        RelayChannelMember[]        @relation("RelayChannelPoolMember")
+  pooledParent         RelayChannel?               @relation("RelayPooledChildren", fields: [pooledParentId], references: [id], onDelete: SetNull)
+  pooledChildren       RelayChannel[]              @relation("RelayPooledChildren")
+  fromSwitchLogs       RelayChannelSwitchLog[]     @relation("RelaySwitchLogFromChannel")
+  toSwitchLogs         RelayChannelSwitchLog[]     @relation("RelaySwitchLogToChannel")
   ojApiKeys            OJAPIKey[]
   probeProfile         RelayChannelProbeProfile?
   probeRuns            RelayChannelProbeRun[]
-  submittedBy          User?                     @relation("RelayChannelSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
-  reviewedBy           User?                     @relation("RelayChannelReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  submittedBy          User?                       @relation("RelayChannelSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  reviewedBy           User?                       @relation("RelayChannelReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
   providers            RelayChannelProvider[]
   changeRequests       RelayChannelChangeRequest[]
 
@@ -1008,20 +1051,20 @@ model RelayChannel {
 }
 
 model RelayChannelChangeRequest {
-  id                   String   @id @default(cuid())
-  status               Int      @default(1)
-  createTime           DateTime @default(now())
-  updateTime           DateTime @updatedAt
+  id                   String    @id @default(cuid())
+  status               Int       @default(1)
+  createTime           DateTime  @default(now())
+  updateTime           DateTime  @updatedAt
   relayChannelId       String
   submittedByUserId    String
   reviewedByUserId     String?
-  reviewStatus         String   @default("pending") @db.VarChar(20)
+  reviewStatus         String    @default("pending") @db.VarChar(20)
   reviewedAt           DateTime?
-  reviewReason         String?  @db.Text
+  reviewReason         String?   @db.Text
   configSnapshot       Json
-  encryptedCredentials String?  @db.LongText
-  credentialIv         String?  @db.VarChar(64)
-  credentialAuthTag    String?  @db.VarChar(64)
+  encryptedCredentials String?   @db.LongText
+  credentialIv         String?   @db.VarChar(64)
+  credentialAuthTag    String?   @db.VarChar(64)
 
   relayChannel RelayChannel @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
   submittedBy  User         @relation("RelayChannelChangeSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: Cascade)
@@ -1033,21 +1076,21 @@ model RelayChannelChangeRequest {
 }
 
 model RelayChannelProvider {
-  id                     String   @id @default(cuid())
-  status                 Int      @default(1)
-  createTime             DateTime @default(now())
-  updateTime             DateTime @updatedAt
+  id                     String    @id @default(cuid())
+  status                 Int       @default(1)
+  createTime             DateTime  @default(now())
+  updateTime             DateTime  @updatedAt
   relayChannelId         String
   userId                 String
-  commissionPercent      Decimal  @db.Decimal(10, 6)
-  settlementMode         String   @default("realtime") @db.VarChar(20)
+  commissionPercent      Decimal   @db.Decimal(10, 6)
+  settlementMode         String    @default("realtime") @db.VarChar(20)
   settlementIntervalDays Int?
-  settlementTime         String?  @db.VarChar(5)
+  settlementTime         String?   @db.VarChar(5)
   nextSettlementAt       DateTime?
   lastSettledAt          DateTime?
 
-  relayChannel RelayChannel                  @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
-  user         User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relayChannel RelayChannel                     @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
+  user         User                             @relation(fields: [userId], references: [id], onDelete: Cascade)
   earnings     RelayChannelProviderEarning[]
   settlements  RelayChannelProviderSettlement[]
 
@@ -1058,15 +1101,15 @@ model RelayChannelProvider {
 }
 
 model RelayChannelProviderSettlement {
-  id                    String   @id @default(cuid())
-  status                Int      @default(1)
-  createTime            DateTime @default(now())
-  updateTime            DateTime @updatedAt
-  providerId            String
-  amount                Decimal  @db.Decimal(10, 4)
-  settlementMode        String   @db.VarChar(20)
-  balanceTransactionId  String?  @unique
-  settledAt             DateTime @default(now())
+  id                   String   @id @default(cuid())
+  status               Int      @default(1)
+  createTime           DateTime @default(now())
+  updateTime           DateTime @updatedAt
+  providerId           String
+  amount               Decimal  @db.Decimal(10, 4)
+  settlementMode       String   @db.VarChar(20)
+  balanceTransactionId String?  @unique
+  settledAt            DateTime @default(now())
 
   provider RelayChannelProvider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
   earnings RelayChannelProviderEarning[]
@@ -1076,15 +1119,15 @@ model RelayChannelProviderSettlement {
 }
 
 model RelayChannelProviderEarning {
-  id                String   @id @default(cuid())
-  status            Int      @default(1)
-  createTime        DateTime @default(now())
-  updateTime        DateTime @updatedAt
+  id                String    @id @default(cuid())
+  status            Int       @default(1)
+  createTime        DateTime  @default(now())
+  updateTime        DateTime  @updatedAt
   providerId        String
   relayUsageId      String
-  grossAmount       Decimal  @db.Decimal(10, 4)
-  commissionPercent Decimal  @db.Decimal(10, 6)
-  commissionAmount  Decimal  @db.Decimal(10, 4)
+  grossAmount       Decimal   @db.Decimal(10, 4)
+  commissionPercent Decimal   @db.Decimal(10, 6)
+  commissionAmount  Decimal   @db.Decimal(10, 4)
   settlementId      String?
   settledAt         DateTime?
 
@@ -1098,35 +1141,35 @@ model RelayChannelProviderEarning {
 }
 
 model RelayChannelProbeProfile {
-  id                    String   @id @default(cuid())
-  relayChannelId        String   @unique
-  enabled               Boolean  @default(true)
-  probeFormat           String   @default("openai") @db.VarChar(32)
-  probeEndpoint         String   @default("openai-chat-completions") @db.VarChar(40)
-  probeModel            String   @db.VarChar(200)
-  probePayload          Json
-  preventCache          Boolean  @default(true)
-  cacheMode             String   @default("cache-bust") @db.VarChar(20)
-  sampleCount           Int      @default(3)
-  strictCalibrationValidation Boolean @default(false)
-  measurementInputTokens Int     @default(1024)
-  balanceSettlementTolerance Decimal @default(0.000001) @db.Decimal(18, 6)
-  balanceSettlementReads Int     @default(2)
-  upstreamCurrency      String   @default("CNY") @db.VarChar(12)
-  localCurrency         String   @default("CNY") @db.VarChar(12)
-  upstreamBalanceDivisor Decimal @default(1.0) @db.Decimal(18, 6)
-  upstreamRateMultiplier Decimal @default(1.0) @db.Decimal(10, 6)
-  probeGroup            String?  @db.VarChar(80)
-  distributionMultiplier Decimal @default(1.0) @db.Decimal(10, 6)
-  workflow              Json
-  encryptedCredentials  String?  @db.LongText
-  credentialIv          String?  @db.VarChar(128)
-  credentialAuthTag     String?  @db.VarChar(128)
-  credentialKeyVersion  Int      @default(1)
-  createTime            DateTime @default(now())
-  updateTime            DateTime @updatedAt
+  id                          String   @id @default(cuid())
+  relayChannelId              String   @unique
+  enabled                     Boolean  @default(true)
+  probeFormat                 String   @default("openai") @db.VarChar(32)
+  probeEndpoint               String   @default("openai-chat-completions") @db.VarChar(40)
+  probeModel                  String   @db.VarChar(200)
+  probePayload                Json
+  preventCache                Boolean  @default(true)
+  cacheMode                   String   @default("cache-bust") @db.VarChar(20)
+  sampleCount                 Int      @default(3)
+  strictCalibrationValidation Boolean  @default(false)
+  measurementInputTokens      Int      @default(1024)
+  balanceSettlementTolerance  Decimal  @default(0.000001) @db.Decimal(18, 6)
+  balanceSettlementReads      Int      @default(2)
+  upstreamCurrency            String   @default("CNY") @db.VarChar(12)
+  localCurrency               String   @default("CNY") @db.VarChar(12)
+  upstreamBalanceDivisor      Decimal  @default(1.0) @db.Decimal(18, 6)
+  upstreamRateMultiplier      Decimal  @default(1.0) @db.Decimal(10, 6)
+  probeGroup                  String?  @db.VarChar(80)
+  distributionMultiplier      Decimal  @default(1.0) @db.Decimal(10, 6)
+  workflow                    Json
+  encryptedCredentials        String?  @db.LongText
+  credentialIv                String?  @db.VarChar(128)
+  credentialAuthTag           String?  @db.VarChar(128)
+  credentialKeyVersion        Int      @default(1)
+  createTime                  DateTime @default(now())
+  updateTime                  DateTime @updatedAt
 
-  relayChannel RelayChannel          @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
+  relayChannel RelayChannel           @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
   runs         RelayChannelProbeRun[]
 
   @@index([enabled])
@@ -1134,64 +1177,64 @@ model RelayChannelProbeProfile {
 }
 
 model RelayChannelProbeRun {
-  id                       String   @id @default(cuid())
-  relayChannelId           String
-  profileId                String?
-  requestedByUserId        String
-  status                   String   @default("queued") @db.VarChar(20)
-  queuedAt                 DateTime @default(now())
-  startedAt                DateTime?
-  finishedAt               DateTime?
-  leaseOwner               String?  @db.VarChar(100)
-  leaseExpiresAt           DateTime?
-  distributionMultiplier   Decimal  @db.Decimal(10, 6)
-  cacheBustingEnabled      Boolean  @default(true)
-  probeEndpoint            String   @default("openai-chat-completions") @db.VarChar(40)
-  cacheMode                String   @default("cache-bust") @db.VarChar(20)
-  sampleCount              Int      @default(3)
-  strictCalibrationValidation Boolean @default(false)
-  measurementInputTokens   Int      @default(1024)
-  balanceSettlementTolerance Decimal @default(0.000001) @db.Decimal(18, 6)
-  balanceSettlementReads   Int      @default(2)
-  sampleSucceededCount     Int      @default(0)
-  sampleAcceptedCount      Int      @default(0)
-  sampleDiscardedCount     Int      @default(0)
-  warmupRequestCount       Int      @default(0)
-  warmupCacheCreationTokens Int?
-  warmupCacheReadTokens    Int?
-  warmupUsage              Json?
-  samples                  Json?
-  forceWithoutCacheBuster  Boolean  @default(false)
-  calibrationStatus        String   @default("pending") @db.VarChar(32)
-  pricingFingerprint       String?  @db.VarChar(64)
-  pricingSnapshot          Json?
-  balanceSnapshots         Json?
-  cacheBusterId            String?  @db.VarChar(36)
-  upstreamBalanceBefore    Decimal? @db.Decimal(18, 6)
-  upstreamBalanceAfter     Decimal? @db.Decimal(18, 6)
-  upstreamBalanceDelta     Decimal? @db.Decimal(18, 6)
-  upstreamRateMultiplier   Decimal  @default(1.0) @db.Decimal(10, 6)
-  localBalanceBefore       Decimal? @db.Decimal(18, 6)
-  localBalanceAfter        Decimal? @db.Decimal(18, 6)
-  localBalanceDelta        Decimal? @db.Decimal(18, 6)
-  baseLocalCost            Decimal? @db.Decimal(18, 6)
-  requestTokens            Int?
-  responseTokens           Int?
-  totalTokens              Int?
-  cacheCreationTokens      Int?
-  cacheReadTokens          Int?
-  upstreamUsage            Json?
-  costBreakdown            Json?
-  suggestedMultiplier      Decimal? @db.Decimal(10, 6)
-  sourceChannelMultiplier  Decimal? @db.Decimal(10, 6)
-  appliedMultiplier        Decimal? @db.Decimal(10, 6)
-  appliedAt                DateTime?
-  appliedByUserId          String?
-  errorMessage             String?  @db.Text
-  createTime               DateTime @default(now())
-  updateTime               DateTime @updatedAt
+  id                          String    @id @default(cuid())
+  relayChannelId              String
+  profileId                   String?
+  requestedByUserId           String
+  status                      String    @default("queued") @db.VarChar(20)
+  queuedAt                    DateTime  @default(now())
+  startedAt                   DateTime?
+  finishedAt                  DateTime?
+  leaseOwner                  String?   @db.VarChar(100)
+  leaseExpiresAt              DateTime?
+  distributionMultiplier      Decimal   @db.Decimal(10, 6)
+  cacheBustingEnabled         Boolean   @default(true)
+  probeEndpoint               String    @default("openai-chat-completions") @db.VarChar(40)
+  cacheMode                   String    @default("cache-bust") @db.VarChar(20)
+  sampleCount                 Int       @default(3)
+  strictCalibrationValidation Boolean   @default(false)
+  measurementInputTokens      Int       @default(1024)
+  balanceSettlementTolerance  Decimal   @default(0.000001) @db.Decimal(18, 6)
+  balanceSettlementReads      Int       @default(2)
+  sampleSucceededCount        Int       @default(0)
+  sampleAcceptedCount         Int       @default(0)
+  sampleDiscardedCount        Int       @default(0)
+  warmupRequestCount          Int       @default(0)
+  warmupCacheCreationTokens   Int?
+  warmupCacheReadTokens       Int?
+  warmupUsage                 Json?
+  samples                     Json?
+  forceWithoutCacheBuster     Boolean   @default(false)
+  calibrationStatus           String    @default("pending") @db.VarChar(32)
+  pricingFingerprint          String?   @db.VarChar(64)
+  pricingSnapshot             Json?
+  balanceSnapshots            Json?
+  cacheBusterId               String?   @db.VarChar(36)
+  upstreamBalanceBefore       Decimal?  @db.Decimal(18, 6)
+  upstreamBalanceAfter        Decimal?  @db.Decimal(18, 6)
+  upstreamBalanceDelta        Decimal?  @db.Decimal(18, 6)
+  upstreamRateMultiplier      Decimal   @default(1.0) @db.Decimal(10, 6)
+  localBalanceBefore          Decimal?  @db.Decimal(18, 6)
+  localBalanceAfter           Decimal?  @db.Decimal(18, 6)
+  localBalanceDelta           Decimal?  @db.Decimal(18, 6)
+  baseLocalCost               Decimal?  @db.Decimal(18, 6)
+  requestTokens               Int?
+  responseTokens              Int?
+  totalTokens                 Int?
+  cacheCreationTokens         Int?
+  cacheReadTokens             Int?
+  upstreamUsage               Json?
+  costBreakdown               Json?
+  suggestedMultiplier         Decimal?  @db.Decimal(10, 6)
+  sourceChannelMultiplier     Decimal?  @db.Decimal(10, 6)
+  appliedMultiplier           Decimal?  @db.Decimal(10, 6)
+  appliedAt                   DateTime?
+  appliedByUserId             String?
+  errorMessage                String?   @db.Text
+  createTime                  DateTime  @default(now())
+  updateTime                  DateTime  @updatedAt
 
-  relayChannel RelayChannel             @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
+  relayChannel RelayChannel              @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
   profile      RelayChannelProbeProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
 
   @@index([relayChannelId, status])
@@ -1222,31 +1265,32 @@ model RelayChannelMember {
 }
 
 model RelayToken {
-  id                          String    @id @default(cuid())
-  status                      Int       @default(1)
-  createTime                  DateTime  @default(now())
-  updateTime                  DateTime  @updatedAt
-  userId                      String
-  name                        String?
-  token                       String    @unique
-  upstreamUrl                 String?   @db.Text
-  upstreamApiKey              String?   @db.Text
-  channelId                   String?
-  routingMode                 String    @default("ordered") @db.VarChar(30)
-  automaticProxyPoolChannelId String?
+  id                                  String    @id @default(cuid())
+  status                              Int       @default(1)
+  createTime                          DateTime  @default(now())
+  updateTime                          DateTime  @updatedAt
+  userId                              String
+  name                                String?
+  token                               String    @unique
+  upstreamUrl                         String?   @db.Text
+  upstreamApiKey                      String?   @db.Text
+  channelId                           String?
+  routingMode                         String    @default("ordered") @db.VarChar(30)
+  automaticProxyPoolChannelId         String?
   blockedAutomaticProxyPoolChannelIds Json?
-  totalTokens                 Int       @default(0)
-  requestCount                Int       @default(0)
-  usedQuota                   Decimal   @default(0) @db.Decimal(10, 4)
-  expiresAt                   DateTime?
-  lastUsedAt                  DateTime?
-  quotaLimit                  Decimal?  @db.Decimal(10, 2)
-  allowedModels               String?   @db.Text
-  requestFormatTransforms     Json?
-  normalizerConfig             Json?
-  ipWhitelist                 String?   @db.Text
-  modelMapping                Json?
-  isCustomKey                 Boolean   @default(false)
+  totalTokens                         Int       @default(0)
+  requestCount                        Int       @default(0)
+  usedQuota                           Decimal   @default(0) @db.Decimal(10, 4)
+  expiresAt                           DateTime?
+  lastUsedAt                          DateTime?
+  quotaLimit                          Decimal?  @db.Decimal(10, 2)
+  allowedModels                       String?   @db.Text
+  requestFormatTransforms             Json?
+  normalizerConfig                    Json?
+  contentSafetyConfig                 Json?
+  ipWhitelist                         String?   @db.Text
+  modelMapping                        Json?
+  isCustomKey                         Boolean   @default(false)
 
   user                      User                      @relation(fields: [userId], references: [id])
   channel                   RelayChannel?             @relation("RelayTokenPrimaryChannel", fields: [channelId], references: [id])
@@ -1258,7 +1302,7 @@ model RelayToken {
   relayUsages               RelayUsage[]
   logicalRequests           RelayLogicalRequest[]
   conversations             Conversation[]
-  agentTasks                 AgentTask[]
+  agentTasks                AgentTask[]
 
   @@index([userId])
   @@index([token])
@@ -1285,16 +1329,16 @@ model RelayTokenQuotaWindow {
 }
 
 model RelayTokenFailoverConfig {
-  id                      String   @id @default(cuid())
-  relayTokenId            String   @unique
-  enabled                 Boolean  @default(false)
-  maxRetries              Int      @default(0)
-  retryStatusCodes        Json?
-  failoverThreshold       Int      @default(0)
-  failbackCooldownMinutes Int      @default(0)
+  id                           String   @id @default(cuid())
+  relayTokenId                 String   @unique
+  enabled                      Boolean  @default(false)
+  maxRetries                   Int      @default(0)
+  retryStatusCodes             Json?
+  failoverThreshold            Int      @default(0)
+  failbackCooldownMinutes      Int      @default(0)
   maxAcceptedChannelMultiplier Decimal? @db.Decimal(10, 6)
-  createTime              DateTime @default(now())
-  updateTime              DateTime @updatedAt
+  createTime                   DateTime @default(now())
+  updateTime                   DateTime @updatedAt
 
   relayToken RelayToken @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
 
@@ -1381,7 +1425,7 @@ model RelayUsage {
   auditCost           Decimal  @default(0) @db.Decimal(14, 6)
   auditDurationMs     Int      @default(0)
 
-  relayToken RelayToken @relation(fields: [relayTokenId], references: [id])
+  relayToken     RelayToken           @relation(fields: [relayTokenId], references: [id])
   logicalRequest RelayLogicalRequest? @relation(fields: [logicalRequestId], references: [id], onDelete: SetNull)
 
   @@index([relayTokenId])
@@ -1394,14 +1438,14 @@ model RelayUsage {
 }
 
 model RelayLogicalRequest {
-  id           String   @id @default(cuid())
-  createTime   DateTime @default(now())
-  updateTime   DateTime @updatedAt
+  id           String    @id @default(cuid())
+  createTime   DateTime  @default(now())
+  updateTime   DateTime  @updatedAt
   relayTokenId String
-  requestId    String   @db.VarChar(64)
+  requestId    String    @db.VarChar(64)
   countedAt    DateTime?
 
-  relayToken RelayToken   @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
+  relayToken  RelayToken   @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
   relayUsages RelayUsage[]
 
   @@unique([relayTokenId, requestId])
@@ -1723,15 +1767,15 @@ model RedemptionCode {
 }
 
 model BalanceAccount {
-  id             String   @id @default(cuid())
-  status         Int      @default(1)
-  createTime     DateTime @default(now())
-  updateTime     DateTime @updatedAt
-  userId         String   @unique
-  balance        Decimal  @default(0) @db.Decimal(10, 4)
-  totalRecharged Decimal  @default(0) @db.Decimal(10, 4)
-  totalUsed      Decimal  @default(0) @db.Decimal(10, 4)
-  totalCommissionEarned Decimal @default(0) @db.Decimal(10, 4)
+  id                    String   @id @default(cuid())
+  status                Int      @default(1)
+  createTime            DateTime @default(now())
+  updateTime            DateTime @updatedAt
+  userId                String   @unique
+  balance               Decimal  @default(0) @db.Decimal(10, 4)
+  totalRecharged        Decimal  @default(0) @db.Decimal(10, 4)
+  totalUsed             Decimal  @default(0) @db.Decimal(10, 4)
+  totalCommissionEarned Decimal  @default(0) @db.Decimal(10, 4)
 
   user User @relation(fields: [userId], references: [id])
 
@@ -1791,25 +1835,25 @@ model BalanceTransaction {
 }
 
 model BalanceGiftCode {
-  id                      String   @id @default(cuid())
-  status                  Int      @default(1)
-  createTime              DateTime @default(now())
-  updateTime              DateTime @updatedAt
-  state                   String   @default("active") @db.VarChar(20)
-  code                    String   @unique @db.VarChar(80)
-  amount                  Decimal  @db.Decimal(15, 4)
-  feeAmount               Decimal  @db.Decimal(15, 4)
-  feePercent              Decimal  @db.Decimal(10, 4)
-  cancelFeeRefundPercent  Decimal  @db.Decimal(10, 4)
-  totalDebit              Decimal  @db.Decimal(15, 4)
-  refundedAmount          Decimal? @db.Decimal(15, 4)
-  createdBy               String
-  redeemedBy              String?
-  redeemedAt              DateTime?
-  cancelledAt             DateTime?
-  expiresAt               DateTime?
+  id                     String    @id @default(cuid())
+  status                 Int       @default(1)
+  createTime             DateTime  @default(now())
+  updateTime             DateTime  @updatedAt
+  state                  String    @default("active") @db.VarChar(20)
+  code                   String    @unique @db.VarChar(80)
+  amount                 Decimal   @db.Decimal(15, 4)
+  feeAmount              Decimal   @db.Decimal(15, 4)
+  feePercent             Decimal   @db.Decimal(10, 4)
+  cancelFeeRefundPercent Decimal   @db.Decimal(10, 4)
+  totalDebit             Decimal   @db.Decimal(15, 4)
+  refundedAmount         Decimal?  @db.Decimal(15, 4)
+  createdBy              String
+  redeemedBy             String?
+  redeemedAt             DateTime?
+  cancelledAt            DateTime?
+  expiresAt              DateTime?
 
-  createdByUser User  @relation("BalanceGiftCodeCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  createdByUser  User  @relation("BalanceGiftCodeCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
   redeemedByUser User? @relation("BalanceGiftCodeRedeemedBy", fields: [redeemedBy], references: [id], onDelete: SetNull)
 
   @@index([createdBy, createTime])
@@ -1819,17 +1863,17 @@ model BalanceGiftCode {
 }
 
 model BalanceTransfer {
-  id                String   @id @default(cuid())
-  status            Int      @default(1)
-  createTime        DateTime @default(now())
-  updateTime        DateTime @updatedAt
-  senderId          String
-  recipientId       String
-  amount            Decimal  @db.Decimal(15, 4)
-  feeAmount         Decimal  @db.Decimal(15, 4)
-  feePercent        Decimal  @db.Decimal(10, 4)
-  totalDebit        Decimal  @db.Decimal(15, 4)
-  description       String?  @db.VarChar(500)
+  id          String   @id @default(cuid())
+  status      Int      @default(1)
+  createTime  DateTime @default(now())
+  updateTime  DateTime @updatedAt
+  senderId    String
+  recipientId String
+  amount      Decimal  @db.Decimal(15, 4)
+  feeAmount   Decimal  @db.Decimal(15, 4)
+  feePercent  Decimal  @db.Decimal(10, 4)
+  totalDebit  Decimal  @db.Decimal(15, 4)
+  description String?  @db.VarChar(500)
 
   sender    User @relation("BalanceTransferSender", fields: [senderId], references: [id], onDelete: Cascade)
   recipient User @relation("BalanceTransferRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
@@ -2114,22 +2158,22 @@ model ModelPricing {
 }
 
 model RelayConfig {
-  id                    String   @id @default(cuid())
-  status                Int      @default(1)
-  createTime            DateTime @default(now())
-  updateTime            DateTime @updatedAt
-  globalMultiplier      Decimal  @default(1.0) @db.Decimal(10, 6)
-  maxConcurrency        Int      @default(5)
-  queueTimeout          Int      @default(30000)
-  upstreamStreamTimeout Int      @default(120000)
-  enableQueue           Boolean  @default(true)
-  apiCatalogPoolVisibility String @default("anonymous-range") @db.VarChar(20)
-  channelTopologyMode   String   @default("legacy") @db.VarChar(30)
-  uptimeStatusUrl       String?  @db.Text
-  monitorNameMapping    Json? // 简化的监控项名称映射 { "2": "中国主线路", "3": "国际线路" }
-  showOnlyConfigured    Boolean? // 是否仅展示已配置的监控项
-  uptimeTransformRules  Json? // 保留用于向后兼容
-  uptimeStaticData      Json?
+  id                       String   @id @default(cuid())
+  status                   Int      @default(1)
+  createTime               DateTime @default(now())
+  updateTime               DateTime @updatedAt
+  globalMultiplier         Decimal  @default(1.0) @db.Decimal(10, 6)
+  maxConcurrency           Int      @default(5)
+  queueTimeout             Int      @default(30000)
+  upstreamStreamTimeout    Int      @default(120000)
+  enableQueue              Boolean  @default(true)
+  apiCatalogPoolVisibility String   @default("anonymous-range") @db.VarChar(20)
+  channelTopologyMode      String   @default("legacy") @db.VarChar(30)
+  uptimeStatusUrl          String?  @db.Text
+  monitorNameMapping       Json? // 简化的监控项名称映射 { "2": "中国主线路", "3": "国际线路" }
+  showOnlyConfigured       Boolean? // 是否仅展示已配置的监控项
+  uptimeTransformRules     Json? // 保留用于向后兼容
+  uptimeStaticData         Json?
 
   @@map("relay_configs")
 }
@@ -2422,24 +2466,24 @@ model Conversation {
 }
 
 model AgentWorkspace {
-  id              String   @id @default(cuid())
-  status          Int      @default(1)
-  createTime      DateTime @default(now())
-  updateTime      DateTime @updatedAt
-  userId          String
-  name            String   @db.VarChar(120)
-  runtime         String   @default("rootless-docker") @db.VarChar(40)
-  runtimeStatus   String   @default("provisioning") @db.VarChar(30)
-  runtimeAgentId  String?  @db.VarChar(120)
-  runtimeHandle   String?  @db.VarChar(200)
-  policy          Json     @default("{}")
-  limits          Json     @default("{}")
-  lastError       String?  @db.VarChar(1000)
+  id             String   @id @default(cuid())
+  status         Int      @default(1)
+  createTime     DateTime @default(now())
+  updateTime     DateTime @updatedAt
+  userId         String
+  name           String   @db.VarChar(120)
+  runtime        String   @default("rootless-docker") @db.VarChar(40)
+  runtimeStatus  String   @default("provisioning") @db.VarChar(30)
+  runtimeAgentId String?  @db.VarChar(120)
+  runtimeHandle  String?  @db.VarChar(200)
+  policy         Json     @default("{}")
+  limits         Json     @default("{}")
+  lastError      String?  @db.VarChar(1000)
 
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   machineId String?
-  machine AgentRuntimeMachine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
-  tasks AgentTask[]
+  machine   AgentRuntimeMachine? @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  tasks     AgentTask[]
 
   @@index([userId, status])
   @@index([userId, runtimeStatus])
@@ -2448,19 +2492,19 @@ model AgentWorkspace {
 }
 
 model AgentRuntimeMachine {
-  id                String   @id @default(cuid())
-  status            Int      @default(1)
-  createTime        DateTime @default(now())
-  updateTime        DateTime @updatedAt
-  userId            String
-  name              String   @db.VarChar(120)
-  runtime           String   @default("rootless-docker") @db.VarChar(40)
-  runtimeStatus     String   @default("pending") @db.VarChar(30)
-  registrationHash  String   @unique @db.Char(64)
-  agentId           String?  @unique @db.VarChar(120)
-  capabilities      Json     @default("{}")
-  lastHeartbeatAt   DateTime?
-  lastError         String?  @db.VarChar(1000)
+  id               String    @id @default(cuid())
+  status           Int       @default(1)
+  createTime       DateTime  @default(now())
+  updateTime       DateTime  @updatedAt
+  userId           String
+  name             String    @db.VarChar(120)
+  runtime          String    @default("rootless-docker") @db.VarChar(40)
+  runtimeStatus    String    @default("pending") @db.VarChar(30)
+  registrationHash String    @unique @db.Char(64)
+  agentId          String?   @unique @db.VarChar(120)
+  capabilities     Json      @default("{}")
+  lastHeartbeatAt  DateTime?
+  lastError        String?   @db.VarChar(1000)
 
   user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspaces AgentWorkspace[]
@@ -2484,7 +2528,7 @@ model McpServer {
   toolAllowlist Json     @default("[]")
   metadata      Json     @default("{}")
 
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   credential McpCredential?
 
   @@index([userId, status])
@@ -2492,14 +2536,14 @@ model McpServer {
 }
 
 model McpCredential {
-  id          String   @id @default(cuid())
-  serverId    String   @unique
-  ciphertext  String   @db.Text
-  iv          String   @db.VarChar(100)
-  authTag     String   @db.VarChar(100)
-  keyVersion  Int      @default(1)
-  createTime  DateTime @default(now())
-  updateTime  DateTime @updatedAt
+  id         String   @id @default(cuid())
+  serverId   String   @unique
+  ciphertext String   @db.Text
+  iv         String   @db.VarChar(100)
+  authTag    String   @db.VarChar(100)
+  keyVersion Int      @default(1)
+  createTime DateTime @default(now())
+  updateTime DateTime @updatedAt
 
   server McpServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
 
@@ -2507,30 +2551,30 @@ model McpCredential {
 }
 
 model AgentTask {
-  id              String   @id @default(cuid())
-  status          Int      @default(1)
-  createTime      DateTime @default(now())
-  updateTime      DateTime @updatedAt
-  userId          String
-  workspaceId     String
-  conversationId  String
-  relayTokenId    String
-  model           String   @db.VarChar(120)
-  prompt          String   @db.Text
-  taskStatus      String   @default("queued") @db.VarChar(30)
-  maxSteps        Int      @default(30)
-  stepCount       Int      @default(0)
-  budget          Decimal? @db.Decimal(10, 4)
-  spent           Decimal  @default(0) @db.Decimal(10, 4)
-  leaseOwner      String?  @db.VarChar(120)
-  leaseExpiresAt  DateTime?
-  lastError       String?  @db.VarChar(2000)
-  completedAt     DateTime?
+  id             String    @id @default(cuid())
+  status         Int       @default(1)
+  createTime     DateTime  @default(now())
+  updateTime     DateTime  @updatedAt
+  userId         String
+  workspaceId    String
+  conversationId String
+  relayTokenId   String
+  model          String    @db.VarChar(120)
+  prompt         String    @db.Text
+  taskStatus     String    @default("queued") @db.VarChar(30)
+  maxSteps       Int       @default(30)
+  stepCount      Int       @default(0)
+  budget         Decimal?  @db.Decimal(10, 4)
+  spent          Decimal   @default(0) @db.Decimal(10, 4)
+  leaseOwner     String?   @db.VarChar(120)
+  leaseExpiresAt DateTime?
+  lastError      String?   @db.VarChar(2000)
+  completedAt    DateTime?
 
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace    AgentWorkspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  relayToken   RelayToken        @relation(fields: [relayTokenId], references: [id])
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace    AgentWorkspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversation Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  relayToken   RelayToken      @relation(fields: [relayTokenId], references: [id])
   steps        AgentTaskStep[]
   approvals    AgentApproval[]
   artifacts    AgentArtifact[]
@@ -2543,22 +2587,22 @@ model AgentTask {
 }
 
 model AgentTaskStep {
-  id          String   @id @default(cuid())
-  taskId      String
-  sequence    Int
-  kind        String   @db.VarChar(30)
-  status      String   @default("running") @db.VarChar(30)
-  toolName    String?  @db.VarChar(200)
-  call        Json?
-  result      Json?
-  inputTokens Int      @default(0)
-  outputTokens Int     @default(0)
-  error       String?  @db.VarChar(2000)
-  startedAt   DateTime @default(now())
-  finishedAt  DateTime?
+  id           String    @id @default(cuid())
+  taskId       String
+  sequence     Int
+  kind         String    @db.VarChar(30)
+  status       String    @default("running") @db.VarChar(30)
+  toolName     String?   @db.VarChar(200)
+  call         Json?
+  result       Json?
+  inputTokens  Int       @default(0)
+  outputTokens Int       @default(0)
+  error        String?   @db.VarChar(2000)
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
 
-  task      AgentTask       @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  approval  AgentApproval?
+  task     AgentTask      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  approval AgentApproval?
 
   @@unique([taskId, sequence])
   @@index([taskId, startedAt])
@@ -2566,19 +2610,19 @@ model AgentTaskStep {
 }
 
 model AgentApproval {
-  id          String   @id @default(cuid())
-  taskId      String
-  stepId      String   @unique
-  status      String   @default("pending") @db.VarChar(20)
-  toolCall    Json
-  expiresAt   DateTime
-  decidedBy   String?
-  decidedAt   DateTime?
-  createTime  DateTime @default(now())
+  id         String    @id @default(cuid())
+  taskId     String
+  stepId     String    @unique
+  status     String    @default("pending") @db.VarChar(20)
+  toolCall   Json
+  expiresAt  DateTime
+  decidedBy  String?
+  decidedAt  DateTime?
+  createTime DateTime  @default(now())
 
-  task   AgentTask     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  step   AgentTaskStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  decider User?        @relation("AgentApprovalDecider", fields: [decidedBy], references: [id], onDelete: SetNull)
+  task    AgentTask     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  step    AgentTaskStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  decider User?         @relation("AgentApprovalDecider", fields: [decidedBy], references: [id], onDelete: SetNull)
 
   @@index([taskId, status])
   @@index([status, expiresAt])
@@ -2705,19 +2749,19 @@ model NotificationInboxItem {
 }
 
 model Message {
-  id             String   @id @default(cuid())
-  status         Int      @default(1)
-  createTime     DateTime @default(now())
-  updateTime     DateTime @updatedAt
-  conversationId String
-  role           String   @db.VarChar(20)
-  content        String   @db.Text
-  model          String?  @db.VarChar(100)
-  inputTokens    Int?
-  outputTokens   Int?
-  totalTokens    Int?
-  cost           Decimal? @db.Decimal(10, 4)
-  completionStatus String @default("completed") @db.VarChar(20)
+  id               String   @id @default(cuid())
+  status           Int      @default(1)
+  createTime       DateTime @default(now())
+  updateTime       DateTime @updatedAt
+  conversationId   String
+  role             String   @db.VarChar(20)
+  content          String   @db.Text
+  model            String?  @db.VarChar(100)
+  inputTokens      Int?
+  outputTokens     Int?
+  totalTokens      Int?
+  cost             Decimal? @db.Decimal(10, 4)
+  completionStatus String   @default("completed") @db.VarChar(20)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
@@ -2784,22 +2828,22 @@ model HeatmapPoint {
 // ─── Error reporting and data lifecycle ────────────────────────────────────
 
 model ErrorGroup {
-  id                 String            @id @default(cuid())
-  status             Int               @default(1)
-  createTime         DateTime          @default(now())
-  updateTime         DateTime          @updatedAt
-  fingerprint        String            @unique @db.VarChar(128)
-  source             String            @db.VarChar(20)
-  errorType          String            @db.VarChar(120)
-  message            String            @db.Text
-  route              String?           @db.VarChar(1024)
-  severity           String            @default("error") @db.VarChar(20)
-  resolutionStatus   String            @default("open") @db.VarChar(20)
-  firstSeenAt        DateTime
-  lastSeenAt         DateTime
-  occurrenceCount    Int               @default(1)
-  affectedUserCount  Int               @default(0)
-  occurrences        ErrorOccurrence[]
+  id                String            @id @default(cuid())
+  status            Int               @default(1)
+  createTime        DateTime          @default(now())
+  updateTime        DateTime          @updatedAt
+  fingerprint       String            @unique @db.VarChar(128)
+  source            String            @db.VarChar(20)
+  errorType         String            @db.VarChar(120)
+  message           String            @db.Text
+  route             String?           @db.VarChar(1024)
+  severity          String            @default("error") @db.VarChar(20)
+  resolutionStatus  String            @default("open") @db.VarChar(20)
+  firstSeenAt       DateTime
+  lastSeenAt        DateTime
+  occurrenceCount   Int               @default(1)
+  affectedUserCount Int               @default(0)
+  occurrences       ErrorOccurrence[]
 
   @@index([resolutionStatus, lastSeenAt])
   @@index([source, lastSeenAt])
@@ -2807,23 +2851,23 @@ model ErrorGroup {
 }
 
 model ErrorOccurrence {
-  id             String     @id @default(cuid())
-  status         Int        @default(1)
-  createTime     DateTime   @default(now())
-  updateTime     DateTime   @updatedAt
-  errorGroupId   String
-  userId         String?
-  requestId      String?    @db.VarChar(128)
-  source         String     @db.VarChar(20)
-  route          String?    @db.VarChar(1024)
-  httpMethod     String?    @db.VarChar(12)
-  httpStatus     Int?
-  clientVersion  String?    @db.VarChar(128)
-  userAgent      String?    @db.Text
-  ipAddress      String?    @db.VarChar(128)
-  stack          String?    @db.Text
-  context        Json?
-  errorGroup     ErrorGroup @relation(fields: [errorGroupId], references: [id], onDelete: Cascade)
+  id            String     @id @default(cuid())
+  status        Int        @default(1)
+  createTime    DateTime   @default(now())
+  updateTime    DateTime   @updatedAt
+  errorGroupId  String
+  userId        String?
+  requestId     String?    @db.VarChar(128)
+  source        String     @db.VarChar(20)
+  route         String?    @db.VarChar(1024)
+  httpMethod    String?    @db.VarChar(12)
+  httpStatus    Int?
+  clientVersion String?    @db.VarChar(128)
+  userAgent     String?    @db.Text
+  ipAddress     String?    @db.VarChar(128)
+  stack         String?    @db.Text
+  context       Json?
+  errorGroup    ErrorGroup @relation(fields: [errorGroupId], references: [id], onDelete: Cascade)
 
   @@index([errorGroupId, createTime])
   @@index([userId, createTime])
@@ -2833,38 +2877,38 @@ model ErrorOccurrence {
 }
 
 model DataLifecyclePolicy {
-  id                String             @id @default(cuid())
-  status            Int                @default(1)
-  createTime        DateTime           @default(now())
-  updateTime        DateTime           @updatedAt
-  dataset           String             @unique @db.VarChar(80)
-  enabled           Boolean            @default(true)
-  hotRetentionDays  Int
-  archiveRetentionDays Int              @default(365)
-  lastRunAt         DateTime?
-  runs              DataLifecycleRun[]
+  id                   String             @id @default(cuid())
+  status               Int                @default(1)
+  createTime           DateTime           @default(now())
+  updateTime           DateTime           @updatedAt
+  dataset              String             @unique @db.VarChar(80)
+  enabled              Boolean            @default(true)
+  hotRetentionDays     Int
+  archiveRetentionDays Int                @default(365)
+  lastRunAt            DateTime?
+  runs                 DataLifecycleRun[]
 
   @@map("data_lifecycle_policies")
 }
 
 model DataLifecycleRun {
-  id               String              @id @default(cuid())
-  status           Int                 @default(1)
-  createTime       DateTime            @default(now())
-  updateTime       DateTime            @updatedAt
-  policyId         String?
-  dataset          String              @db.VarChar(80)
-  runType          String              @db.VarChar(20)
-  runStatus        String              @default("running") @db.VarChar(20)
-  cutoffAt         DateTime
-  candidateCount   Int                 @default(0)
-  archivedCount    Int                 @default(0)
-  deletedCount     Int                 @default(0)
-  errorMessage     String?             @db.Text
-  startedByUserId  String?
-  completedAt      DateTime?
-  policy           DataLifecyclePolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
-  artifacts        ArchiveArtifact[]
+  id              String               @id @default(cuid())
+  status          Int                  @default(1)
+  createTime      DateTime             @default(now())
+  updateTime      DateTime             @updatedAt
+  policyId        String?
+  dataset         String               @db.VarChar(80)
+  runType         String               @db.VarChar(20)
+  runStatus       String               @default("running") @db.VarChar(20)
+  cutoffAt        DateTime
+  candidateCount  Int                  @default(0)
+  archivedCount   Int                  @default(0)
+  deletedCount    Int                  @default(0)
+  errorMessage    String?              @db.Text
+  startedByUserId String?
+  completedAt     DateTime?
+  policy          DataLifecyclePolicy? @relation(fields: [policyId], references: [id], onDelete: SetNull)
+  artifacts       ArchiveArtifact[]
 
   @@index([dataset, createTime])
   @@index([runStatus, createTime])
@@ -2872,19 +2916,19 @@ model DataLifecycleRun {
 }
 
 model ArchiveArtifact {
-  id               String            @id @default(cuid())
-  status           Int               @default(1)
-  createTime       DateTime          @default(now())
-  updateTime       DateTime          @updatedAt
-  lifecycleRunId   String
-  dataset          String            @db.VarChar(80)
-  objectKey        String            @unique @db.VarChar(512)
-  sha256           String            @db.VarChar(64)
-  recordCount      Int
-  byteSize         BigInt
-  expiresAt        DateTime
-  deletedAt        DateTime?
-  lifecycleRun     DataLifecycleRun  @relation(fields: [lifecycleRunId], references: [id], onDelete: Cascade)
+  id             String           @id @default(cuid())
+  status         Int              @default(1)
+  createTime     DateTime         @default(now())
+  updateTime     DateTime         @updatedAt
+  lifecycleRunId String
+  dataset        String           @db.VarChar(80)
+  objectKey      String           @unique @db.VarChar(512)
+  sha256         String           @db.VarChar(64)
+  recordCount    Int
+  byteSize       BigInt
+  expiresAt      DateTime
+  deletedAt      DateTime?
+  lifecycleRun   DataLifecycleRun @relation(fields: [lifecycleRunId], references: [id], onDelete: Cascade)
 
   @@index([dataset, expiresAt])
   @@index([expiresAt, deletedAt])
@@ -2892,26 +2936,26 @@ model ArchiveArtifact {
 }
 
 model DataMaintenanceRun {
-  id               String   @id @default(cuid())
-  status           Int      @default(1)
-  createTime       DateTime @default(now())
-  updateTime       DateTime @updatedAt
-  operation        String   @db.VarChar(20)
-  dataset          String?  @db.VarChar(80)
-  tableNames       Json?
-  runStatus        String   @default("queued") @db.VarChar(20)
-  startedByUserId  String?
-  requestId        String?  @db.VarChar(128)
-  tempObjectKey    String?  @db.VarChar(512)
-  totalCount       Int      @default(0)
-  insertedCount    Int      @default(0)
-  skippedCount     Int      @default(0)
-  invalidCount     Int      @default(0)
-  failedCount      Int      @default(0)
-  errorMessage     String?  @db.Text
-  result           Json?
-  startedAt        DateTime?
-  completedAt      DateTime?
+  id              String    @id @default(cuid())
+  status          Int       @default(1)
+  createTime      DateTime  @default(now())
+  updateTime      DateTime  @updatedAt
+  operation       String    @db.VarChar(20)
+  dataset         String?   @db.VarChar(80)
+  tableNames      Json?
+  runStatus       String    @default("queued") @db.VarChar(20)
+  startedByUserId String?
+  requestId       String?   @db.VarChar(128)
+  tempObjectKey   String?   @db.VarChar(512)
+  totalCount      Int       @default(0)
+  insertedCount   Int       @default(0)
+  skippedCount    Int       @default(0)
+  invalidCount    Int       @default(0)
+  failedCount     Int       @default(0)
+  errorMessage    String?   @db.Text
+  result          Json?
+  startedAt       DateTime?
+  completedAt     DateTime?
 
   @@index([runStatus, createTime])
   @@index([operation, createTime])

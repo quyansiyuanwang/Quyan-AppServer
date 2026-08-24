@@ -265,7 +265,10 @@ export class ChatService {
     const requestedModel = model.trim();
     if (!requestedModel) throw new BadRequestError("Model is required");
 
-    const requestSafety = await this.contentSafetyService.evaluate("request", content);
+    const requestSafety = await this.contentSafetyService.evaluate("request", content, {
+      userId,
+      tokenConfig: token.contentSafetyConfig as any,
+    });
     let auditInputTokens = requestSafety.auditInputTokens;
     let auditOutputTokens = requestSafety.auditOutputTokens;
     let auditCost = requestSafety.auditCost;
@@ -282,8 +285,11 @@ export class ChatService {
       if (requestSafety.action === "unreachable") throw new ContentSafetyBlockedError();
       content = requestSafety.text;
     }
-    const contentSafetyConfig = await this.contentSafetyService.getPublicConfig();
-    const auditResponse = contentSafetyConfig.responseEnabled && contentSafetyConfig.responseAiEnabled;
+    const effectiveSafety =
+      typeof (this.contentSafetyService as any).getEffectivePolicy === "function"
+        ? await this.contentSafetyService.getEffectivePolicy(userId, token.contentSafetyConfig as any)
+        : await this.contentSafetyService.getPublicConfig();
+    const auditResponse = Boolean(effectiveSafety.responseEnabled && effectiveSafety.responseAiEnabled);
     let bufferedAuditedResponse = "";
 
     const configuredModels = await this.modelPricingRepository.listActiveOrderedByModel();
@@ -375,7 +381,10 @@ export class ChatService {
         for await (const chunk of stream) {
           if (!chunk.done && chunk.content) {
             if (!firstChunkAt) firstChunkAt = Date.now();
-            const responseSafety = await this.contentSafetyService.evaluateLocal("response", chunk.content);
+            const responseSafety = await this.contentSafetyService.evaluateLocal("response", chunk.content, {
+              userId,
+              tokenConfig: token.contentSafetyConfig as any,
+            });
             if (responseSafety.matched) {
               await this.contentSafetyService.recordIncident({
                 userId,
@@ -409,7 +418,10 @@ export class ChatService {
           if (attemptIndex < attemptCandidates.length - 1) continue;
         }
         if (auditResponse && bufferedAuditedResponse) {
-          const audited = await this.contentSafetyService.evaluate("response", bufferedAuditedResponse);
+          const audited = await this.contentSafetyService.evaluate("response", bufferedAuditedResponse, {
+            userId,
+            tokenConfig: token.contentSafetyConfig as any,
+          });
           auditInputTokens += audited.auditInputTokens;
           auditOutputTokens += audited.auditOutputTokens;
           auditCost += audited.auditCost;

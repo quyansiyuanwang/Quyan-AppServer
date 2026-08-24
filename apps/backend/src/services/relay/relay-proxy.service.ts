@@ -2908,7 +2908,10 @@ export class RelayProxyService {
       let auditOutputTokens = 0;
       let auditCost = 0;
       let auditDurationMs = 0;
-      const contentSafetyConfig = await this.contentSafetyService.getPublicConfig();
+      const contentSafetyConfig =
+        typeof (this.contentSafetyService as any).getEffectivePolicy === "function"
+          ? await this.contentSafetyService.getEffectivePolicy(relayToken.userId, relayToken.contentSafetyConfig as any)
+          : await this.contentSafetyService.getPublicConfig();
       const auditStats = {
         get inputTokens() {
           return auditInputTokens;
@@ -3189,7 +3192,10 @@ export class RelayProxyService {
             if (!Buffer.isBuffer(convertedBody)) {
               const requestSafetyText =
                 typeof convertedBody === "string" ? convertedBody : JSON.stringify(convertedBody);
-              const requestSafety = await this.contentSafetyService.evaluate("request", requestSafetyText);
+              const requestSafety = await this.contentSafetyService.evaluate("request", requestSafetyText, {
+                userId: relayToken.userId,
+                tokenConfig: relayToken.contentSafetyConfig as any,
+              });
               auditInputTokens += requestSafety.auditInputTokens;
               auditOutputTokens += requestSafety.auditOutputTokens;
               auditCost += requestSafety.auditCost;
@@ -3277,7 +3283,7 @@ export class RelayProxyService {
                   tokenNormalizerConfig,
                   tokenNormalizerRetried,
                   requestAgents,
-                  contentSafetyConfig.responseEnabled && contentSafetyConfig.responseAiEnabled,
+                  Boolean(contentSafetyConfig.responseEnabled && contentSafetyConfig.responseAiEnabled),
                   auditStats,
                 ),
               );
@@ -3468,7 +3474,10 @@ export class RelayProxyService {
             if (typeof response.data === "string" || (response.data && typeof response.data === "object")) {
               const responseSafetyText =
                 typeof response.data === "string" ? response.data : JSON.stringify(response.data);
-              const responseSafety = await this.contentSafetyService.evaluate("response", responseSafetyText);
+              const responseSafety = await this.contentSafetyService.evaluate("response", responseSafetyText, {
+                userId: relayToken.userId,
+                tokenConfig: relayToken.contentSafetyConfig as any,
+              });
               auditInputTokens += responseSafety.auditInputTokens;
               auditOutputTokens += responseSafety.auditOutputTokens;
               auditCost += responseSafety.auditCost;
@@ -4632,6 +4641,7 @@ export class RelayProxyService {
                 const safety = await this.contentSafetyService.evaluate(
                   "response",
                   Buffer.concat(rawChunks).toString("utf8"),
+                  { userId: relayToken.userId, tokenConfig: relayToken.contentSafetyConfig as any },
                 );
                 stats.inputTokens += safety.auditInputTokens;
                 stats.outputTokens += safety.auditOutputTokens;
@@ -4901,7 +4911,10 @@ export class RelayProxyService {
                 const inspectText =
                   combinedSafetyText.length > 256 ? combinedSafetyText.slice(0, -256) : combinedSafetyText;
                 safetyCarry = combinedSafetyText.length > 256 ? combinedSafetyText.slice(-256) : combinedSafetyText;
-                const safety = await this.contentSafetyService.evaluateLocal("response", inspectText);
+                const safety = await this.contentSafetyService.evaluateLocal("response", inspectText, {
+                  userId: relayToken.userId,
+                  tokenConfig: relayToken.contentSafetyConfig as any,
+                });
                 if (safety.matched) {
                   await this.contentSafetyService.recordIncident({
                     userId: relayToken.userId,
@@ -4980,7 +4993,10 @@ export class RelayProxyService {
 
             if (safetyCarry && !res.writableEnded && !clientDisconnected) {
               try {
-                const tailSafety = await this.contentSafetyService.evaluateLocal("response", safetyCarry);
+                const tailSafety = await this.contentSafetyService.evaluateLocal("response", safetyCarry, {
+                  userId: relayToken.userId,
+                  tokenConfig: relayToken.contentSafetyConfig as any,
+                });
                 if (tailSafety.matched) {
                   await this.contentSafetyService.recordIncident({
                     userId: relayToken.userId,
