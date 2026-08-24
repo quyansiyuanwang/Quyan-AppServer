@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/config/env", () => ({
   env: {
@@ -82,7 +82,15 @@ describe("DataLifecycleService server log archival", () => {
     vi.mocked(fs.unlink).mockResolvedValue(undefined);
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("deletes an old local log only after OSS verification", async () => {
+    // Keep the Aug 9 fixture on the hot-retention side of the cutoff. Without
+    // a fixed clock this test changes behavior as the calendar advances.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-23T12:00:00.000Z"));
     let checksum = "";
     let uploadedLength = 0;
     const ossClient = {
