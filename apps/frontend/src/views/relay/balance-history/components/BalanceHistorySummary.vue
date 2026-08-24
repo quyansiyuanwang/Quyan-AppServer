@@ -59,10 +59,6 @@ const rpmChartOption = state.rpmChartOption
               </el-button>
             </span>
             <span class="balance-amount">{{ userInfoStore.userInfo.balance ?? 0 }}</span>
-            <span class="balance-cache-hit-rate">
-              {{ i18ns.t('balance.cacheHitRate') }}:
-              {{ (usageStats.cacheHitRate * 100).toFixed(2) }}%
-            </span>
           </div>
         </el-col>
         <el-col :xs="24" :sm="12" :md="14">

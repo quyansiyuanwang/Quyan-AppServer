@@ -5,7 +5,6 @@ import type { BalanceStore, RechargeParams } from "./balance.store";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { NotificationEvent } from "@/constant/notification-event";
-import { RECORD_STATUS } from "@/constant/status";
 
 export type { RechargeParams } from "./balance.store";
 
@@ -149,27 +148,5 @@ export class BalanceRepository implements BalanceStore {
     ]);
 
     return { total, records };
-  }
-
-  async sumCacheTokensByUserId(userId: string): Promise<{
-    inputTokens: number;
-    cacheReadTokens: number;
-  }> {
-    const aggregate = await prisma.balanceTransaction.aggregate({
-      where: {
-        userId,
-        status: RECORD_STATUS.ACTIVE,
-        inputTokens: { not: null },
-      },
-      _sum: {
-        inputTokens: true,
-        cacheReadTokens: true,
-      },
-    });
-
-    return {
-      inputTokens: Number(aggregate._sum.inputTokens || 0),
-      cacheReadTokens: Number(aggregate._sum.cacheReadTokens || 0),
-    };
   }
 }

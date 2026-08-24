@@ -198,6 +198,57 @@ describe('TransactionHistory', () => {
     expect(wrapper.text()).toContain('0.25 元/次 × 1 = 0.25 元')
   })
 
+  it('renders cache hit rate for each usage request', () => {
+    const wrapper = mountComponent([
+      {
+        ...baseTransaction,
+        id: 'tx-cache-rate',
+        inputTokens: 75,
+        cacheReadTokens: 25,
+        cacheCreationTokens: 500,
+        cacheHitRate: 0.25,
+        description: 'API调用: /relay/proxy/v1/chat/completions',
+      },
+    ])
+
+    expect(wrapper.text()).toContain('25.00%')
+  })
+
+  it('shows no data instead of zero percent when a request has no cache metrics', () => {
+    const wrapper = mountComponent([
+      {
+        ...baseTransaction,
+        id: 'tx-no-cache-rate',
+        inputTokens: 0,
+        cacheReadTokens: 0,
+        cacheHitRate: null,
+        description: 'API调用: /relay/proxy/v1/chat/completions',
+      },
+    ])
+
+    expect(wrapper.text()).toContain('暂无数据')
+    expect(wrapper.text()).not.toContain('0.00%')
+  })
+
+  it('does not render cache hit rate for transfers', () => {
+    const wrapper = mountComponent(
+      [
+        {
+          ...baseTransaction,
+          id: 'tx-transfer-cache',
+          type: 'peer_transfer_in',
+          inputTokens: 75,
+          cacheReadTokens: 25,
+          cacheHitRate: 0.25,
+          description: '来自用户 sender 的转账',
+        },
+      ],
+      'all',
+    )
+
+    expect(wrapper.text()).not.toContain('缓存命中率')
+  })
+
   it('shows the channel multiplier snapshot as a history table column', () => {
     const wrapper = mountComponent([
       {
