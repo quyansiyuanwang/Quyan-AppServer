@@ -186,6 +186,11 @@
                         >{{ row.cacheReadTokens?.toLocaleString() }}</el-descriptions-item
                       >
                       <el-descriptions-item
+                        v-if="isCacheRateUsageRecord(row)"
+                        :label="i18ns.t('balance.cacheHitRate')"
+                        >{{ formatCacheHitRate(row.cacheHitRate) }}</el-descriptions-item
+                      >
+                      <el-descriptions-item
                         v-if="row.inputRate != null"
                         :label="i18ns.t('balance.inputPrice')"
                         >{{ formatRatePerMillion(row.inputRate) }}
@@ -647,6 +652,10 @@
                       <span>{{ i18ns.t('balance.cacheReadTokens') }}:</span>
                       <span>{{ row.cacheReadTokens?.toLocaleString() }}</span>
                     </div>
+                    <div v-if="isCacheRateUsageRecord(row)" class="detail-row">
+                      <span>{{ i18ns.t('balance.cacheHitRate') }}:</span>
+                      <span>{{ formatCacheHitRate(row.cacheHitRate) }}</span>
+                    </div>
                     <div v-if="shouldShowCacheCreationMultiplier(row)" class="detail-row">
                       <span>{{ i18ns.t('balance.cacheCreationMultiplier') }}:</span>
                       <span>{{ row.cacheCreationMultiplier ?? CACHE_CREATION_MULTIPLIER }}×</span>
@@ -955,6 +964,14 @@ const hasNumericValue = (value: number | null | undefined): value is number =>
 const formatTokenCount = (value: number | null | undefined): string =>
   hasNumericValue(value) ? value.toLocaleString() : '-'
 
+const isCacheRateUsageRecord = (tx: BalanceTransactionResponse): boolean =>
+  ['api_usage', 'chat_usage', 'monthly_pass_coverage'].includes(getTransactionCategory(tx))
+
+const formatCacheHitRate = (value: number | null | undefined): string =>
+  hasNumericValue(value) && value >= 0 && value <= 1
+    ? `${(value * 100).toFixed(2)}%`
+    : i18ns.t('noData')
+
 const formatMultiplier = (value: number | null | undefined): string =>
   hasNumericValue(value) && value > 0 ? `${value}×` : '-'
 
@@ -984,6 +1001,7 @@ const hasBillingDetails = (tx: BalanceTransactionResponse): boolean =>
     tx.fixedPrice,
     tx.cacheCreationTokens,
     tx.cacheReadTokens,
+    tx.cacheHitRate,
     tx.multiplier,
     tx.channelMultiplier,
     tx.globalMultiplier,

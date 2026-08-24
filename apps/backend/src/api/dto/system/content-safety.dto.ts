@@ -105,6 +105,9 @@ export interface ContentSafetyIncidentDto {
   action: string;
   source: string;
   ruleId?: string | null;
+  rule?: { name: string; type: string } | null;
+  channelId?: string | null;
+  statusCode?: number | null;
   model?: string | null;
   auditModel?: string | null;
   auditInputTokens: number;

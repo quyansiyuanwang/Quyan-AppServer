@@ -228,6 +228,7 @@ export class BalanceController extends Controller {
     transferDataMap: TransferDisplayDataMap,
   ): TransactionListResponse["records"][number] {
     const usageData = r.relatedId ? usageDataMap.get(r.relatedId) : undefined;
+    const category = this.resolveTransactionCategory(r);
     const storedDisplayChannelName =
       normalizeRelayDisplaySnapshotName(r.displayChannelName) ||
       normalizeRelayDisplaySnapshotName(usageData?.displayChannelName);
@@ -237,11 +238,26 @@ export class BalanceController extends Controller {
         ? undefined
         : r.channelName?.trim() || usageData?.legacyMonthlyPassChannelName || storedDisplayChannelName || undefined;
 
+    const isUsageLike = category === "api_usage" || category === "chat_usage" || category === "monthly_pass_coverage";
+    const inputTokens = r.inputTokens == null ? null : Number(r.inputTokens);
+    const cacheReadTokens = r.cacheReadTokens == null ? null : Number(r.cacheReadTokens);
+    const cacheHitRate =
+      isUsageLike &&
+      inputTokens != null &&
+      cacheReadTokens != null &&
+      Number.isFinite(inputTokens) &&
+      Number.isFinite(cacheReadTokens) &&
+      inputTokens >= 0 &&
+      cacheReadTokens >= 0 &&
+      inputTokens + cacheReadTokens > 0
+        ? Math.min(1, Math.max(0, cacheReadTokens / (inputTokens + cacheReadTokens)))
+        : null;
+
     return {
       id: r.id,
       userId: r.userId,
       type: r.type,
-      category: this.resolveTransactionCategory(r),
+      category,
       amount: Number(r.amount),
       balanceBefore: Number(r.balanceBefore),
       balanceAfter: Number(r.balanceAfter),
@@ -252,6 +268,7 @@ export class BalanceController extends Controller {
       outputTokens: r.outputTokens ?? undefined,
       cacheCreationTokens: r.cacheCreationTokens ?? undefined,
       cacheReadTokens: r.cacheReadTokens ?? undefined,
+      cacheHitRate,
       inputRate: r.inputRate != null ? Number(r.inputRate) : undefined,
       outputRate: r.outputRate != null ? Number(r.outputRate) : undefined,
       multiplier: r.multiplier != null ? Number(r.multiplier) : undefined,
@@ -304,7 +321,6 @@ export class BalanceController extends Controller {
       unit: "曲",
       total: statistics.total,
       used: statistics.used,
-      cacheHitRate: statistics.cacheHitRate,
     };
   }
 

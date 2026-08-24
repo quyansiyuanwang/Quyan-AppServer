@@ -753,8 +753,8 @@ export class ContentSafetyService {
     this.rulesCache = null;
     return this.repository.softDelete(id);
   }
-  async listIncidents(page = 1, pageSize = 50) {
-    return this.repository.listIncidents(page, pageSize);
+  async listIncidents(page = 1, pageSize = 50, userId?: string) {
+    return this.repository.listIncidents(page, pageSize, userId);
   }
   private async validateRule(input: any, checkLimit = true) {
     if (

@@ -1026,77 +1026,72 @@
                 :closable="false"
                 :class="isDesktop ? 'form-item-span-2' : undefined"
               />
-              <el-form-item :label="i18ns.t('contentSafety.requestEnabled')">
-                <el-select
-                  v-model="editForm.contentSafetyConfig.requestEnabled"
-                  clearable
-                  style="width: 100%"
-                >
-                  <el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
-                    :value="true"
-                    :label="i18ns.t('contentSafety.enabled')"
-                  /><el-option :value="false" :label="i18ns.t('contentSafety.disabled')" />
-                </el-select>
-              </el-form-item>
-              <el-form-item :label="i18ns.t('contentSafety.requestAction')"
-                ><el-select
-                  v-model="editForm.contentSafetyConfig.requestAction"
-                  clearable
-                  style="width: 100%"
-                  ><el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
-                    value="unreachable"
-                    :label="i18ns.t('contentSafety.unreachable')" /><el-option
-                    value="blackhole"
-                    :label="i18ns.t('contentSafety.blackhole')" /><el-option
-                    value="allow"
-                    :label="i18ns.t('contentSafety.allow')" /></el-select
-              ></el-form-item>
-              <el-form-item :label="i18ns.t('contentSafety.responseEnabled')"
-                ><el-select
-                  v-model="editForm.contentSafetyConfig.responseEnabled"
-                  clearable
-                  style="width: 100%"
-                  ><el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
-                    :value="true"
-                    :label="i18ns.t('contentSafety.enabled')" /><el-option
-                    :value="false"
-                    :label="i18ns.t('contentSafety.disabled')" /></el-select
-              ></el-form-item>
-              <el-form-item :label="i18ns.t('contentSafety.responseAction')"
-                ><el-select
-                  v-model="editForm.contentSafetyConfig.responseAction"
-                  clearable
-                  style="width: 100%"
-                  ><el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
-                    value="unreachable"
-                    :label="i18ns.t('contentSafety.unreachable')" /><el-option
-                    value="blackhole"
-                    :label="i18ns.t('contentSafety.blackhole')" /><el-option
-                    value="allow"
-                    :label="i18ns.t('contentSafety.allow')" /></el-select
-              ></el-form-item>
-              <el-form-item :label="i18ns.t('contentSafety.requestAiEnabled')"
-                ><el-select
-                  v-model="editForm.contentSafetyConfig.requestAiEnabled"
-                  clearable
-                  style="width: 100%"
-                  ><el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
-                    :value="true"
-                    :label="i18ns.t('contentSafety.enabled')" /><el-option
-                    :value="false"
-                    :label="i18ns.t('contentSafety.disabled')" /></el-select
-              ></el-form-item>
-              <el-form-item :label="i18ns.t('contentSafety.responseAiEnabled')"
-                ><el-select
-                  v-model="editForm.contentSafetyConfig.responseAiEnabled"
-                  clearable
-                  style="width: 100%"
-                  ><el-option :value="null" :label="i18ns.t('contentSafety.inherit')" /><el-option
-                    :value="true"
-                    :label="i18ns.t('contentSafety.enabled')" /><el-option
-                    :value="false"
-                    :label="i18ns.t('contentSafety.disabled')" /></el-select
-              ></el-form-item>
+              <div class="content-safety-override-table form-item-span-2">
+                <el-table :data="contentSafetyOverrideRows" border size="small">
+                  <el-table-column
+                    prop="direction"
+                    :label="i18ns.t('contentSafety.direction')"
+                    width="120"
+                  />
+                  <el-table-column :label="i18ns.t('contentSafety.enabled')" min-width="230">
+                    <template #default="{ row }">
+                      <el-radio-group
+                        v-model="editForm.contentSafetyConfig[row.enabledKey]"
+                        size="small"
+                      >
+                        <el-radio-button :label="null">{{
+                          i18ns.t('contentSafety.inherit')
+                        }}</el-radio-button>
+                        <el-radio-button :label="true">{{
+                          i18ns.t('contentSafety.enabled')
+                        }}</el-radio-button>
+                        <el-radio-button :label="false">{{
+                          i18ns.t('contentSafety.disabled')
+                        }}</el-radio-button>
+                      </el-radio-group>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="i18ns.t('contentSafety.action')" min-width="330">
+                    <template #default="{ row }">
+                      <el-radio-group
+                        v-model="editForm.contentSafetyConfig[row.actionKey]"
+                        size="small"
+                      >
+                        <el-radio-button :label="null">{{
+                          i18ns.t('contentSafety.inherit')
+                        }}</el-radio-button>
+                        <el-radio-button label="unreachable">{{
+                          i18ns.t('contentSafety.unreachable')
+                        }}</el-radio-button>
+                        <el-radio-button label="blackhole">{{
+                          i18ns.t('contentSafety.blackhole')
+                        }}</el-radio-button>
+                        <el-radio-button label="allow">{{
+                          i18ns.t('contentSafety.allow')
+                        }}</el-radio-button>
+                      </el-radio-group>
+                    </template>
+                  </el-table-column>
+                  <el-table-column :label="i18ns.t('contentSafety.aiEnabled')" min-width="230">
+                    <template #default="{ row }">
+                      <el-radio-group
+                        v-model="editForm.contentSafetyConfig[row.aiKey]"
+                        size="small"
+                      >
+                        <el-radio-button :label="null">{{
+                          i18ns.t('contentSafety.inherit')
+                        }}</el-radio-button>
+                        <el-radio-button :label="true">{{
+                          i18ns.t('contentSafety.enabled')
+                        }}</el-radio-button>
+                        <el-radio-button :label="false">{{
+                          i18ns.t('contentSafety.disabled')
+                        }}</el-radio-button>
+                      </el-radio-group>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
             </div>
           </el-collapse-item>
 
@@ -1285,6 +1280,26 @@ const requestFormatOptions = [
   { value: 'anthropic', label: i18ns.t('relay.formatAnthropic') },
 ] as const
 
+const contentSafetyOverrideRows: Array<{
+  direction: string
+  enabledKey: 'requestEnabled' | 'responseEnabled'
+  actionKey: 'requestAction' | 'responseAction'
+  aiKey: 'requestAiEnabled' | 'responseAiEnabled'
+}> = [
+  {
+    direction: i18ns.t('contentSafety.request'),
+    enabledKey: 'requestEnabled',
+    actionKey: 'requestAction',
+    aiKey: 'requestAiEnabled',
+  },
+  {
+    direction: i18ns.t('contentSafety.response'),
+    enabledKey: 'responseEnabled',
+    actionKey: 'responseAction',
+    aiKey: 'responseAiEnabled',
+  },
+] as const
+
 const setChannelListRef = (element: Element | ComponentPublicInstance | null) => {
   const target = element instanceof HTMLElement ? element : null
   if (unref(isDesktop)) {
@@ -1459,6 +1474,15 @@ const confirmTokenChannelBatchAdd = () => {
 
 .relay-format-transform-card__delete {
   align-self: flex-start;
+}
+
+.content-safety-override-table {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.content-safety-override-table :deep(.el-table) {
+  min-width: 900px;
 }
 
 @media (max-width: 640px) {

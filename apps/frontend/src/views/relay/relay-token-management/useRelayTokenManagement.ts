@@ -611,6 +611,7 @@ export const useRelayTokenManagement = () => {
       responseAction: null,
       responseAiEnabled: null,
     } as {
+      [key: string]: boolean | SharedContentSafetyAction | null
       requestEnabled: boolean | null
       requestAction: SharedContentSafetyAction | null
       requestAiEnabled: boolean | null

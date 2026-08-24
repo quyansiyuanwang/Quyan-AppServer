@@ -113,12 +113,40 @@ export class ContentSafetyRepository {
   createIncident(data: Prisma.ContentSafetyIncidentUncheckedCreateInput): Promise<ContentSafetyIncident> {
     return prisma.contentSafetyIncident.create({ data });
   }
-  listIncidents(page = 1, pageSize = 50) {
+  listIncidents(page = 1, pageSize = 50, userId?: string) {
     const skip = (Math.max(1, page) - 1) * Math.min(100, Math.max(1, pageSize));
     const take = Math.min(100, Math.max(1, pageSize));
+    const where = { status: 1, ...(userId ? { userId } : {}) };
     return Promise.all([
-      prisma.contentSafetyIncident.findMany({ where: { status: 1 }, orderBy: { createTime: "desc" }, skip, take }),
-      prisma.contentSafetyIncident.count({ where: { status: 1 } }),
+      prisma.contentSafetyIncident.findMany({
+        where,
+        orderBy: { createTime: "desc" },
+        skip,
+        take,
+        select: {
+          id: true,
+          createTime: true,
+          userId: true,
+          relayTokenId: true,
+          requestId: true,
+          direction: true,
+          action: true,
+          source: true,
+          ruleId: true,
+          channelId: true,
+          statusCode: true,
+          auditModel: true,
+          auditInputTokens: true,
+          auditOutputTokens: true,
+          auditTotalTokens: true,
+          auditCost: true,
+          auditDurationMs: true,
+          replaced: true,
+          blocked: true,
+          rule: { select: { name: true, type: true } },
+        },
+      }),
+      prisma.contentSafetyIncident.count({ where }),
     ]).then(([incidents, total]) => ({ incidents, total }));
   }
 }
