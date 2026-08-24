@@ -335,6 +335,7 @@ export class RelayTokenService {
       normalizerConfig: data.normalizerConfig
         ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig)
         : DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
+      contentSafetyConfig: data.contentSafetyConfig ?? undefined,
       ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
       modelMapping: data.modelMapping ?? undefined,
     });
@@ -662,6 +663,7 @@ export class RelayTokenService {
     const hasModelMapping = Object.prototype.hasOwnProperty.call(data, "modelMapping");
     const hasRequestFormatTransforms = Object.prototype.hasOwnProperty.call(data, "requestFormatTransforms");
     const hasNormalizerConfig = Object.prototype.hasOwnProperty.call(data, "normalizerConfig");
+    const hasContentSafetyConfig = Object.prototype.hasOwnProperty.call(data, "contentSafetyConfig");
     const hasToken = Object.prototype.hasOwnProperty.call(data, "token");
 
     let tokenValue: string | undefined;
@@ -692,6 +694,7 @@ export class RelayTokenService {
         ? normalizeRequestFormatTransforms(data.requestFormatTransforms)
         : undefined,
       normalizerConfig: hasNormalizerConfig ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig) : undefined,
+      contentSafetyConfig: hasContentSafetyConfig ? (data.contentSafetyConfig ?? null) : undefined,
       channelId: normalizedConfig?.defaultChannelId,
       channelConfigs: normalizedConfig?.channelConfigs,
       routingMode: data.routingMode,
@@ -1408,6 +1411,7 @@ export class RelayTokenService {
       modelMapping: token.modelMapping as Record<string, string> | undefined,
       requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
       normalizerConfig: normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
+      contentSafetyConfig: (token.contentSafetyConfig as any) ?? null,
       channelConfigs,
       hasInvalidOrderedChannels,
       failoverConfig: token.failoverConfig
@@ -1471,6 +1475,7 @@ export class RelayTokenService {
       modelMapping: token.modelMapping as Record<string, string> | undefined,
       requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
       normalizerConfig: normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
+      contentSafetyConfig: (token.contentSafetyConfig as any) ?? null,
       enabled: token.status === MANAGED_STATUS.ENABLED,
     };
   }
@@ -1855,6 +1860,7 @@ export class RelayTokenService {
         normalizerConfig: data.normalizerConfig
           ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig)
           : DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
+        contentSafetyConfig: data.contentSafetyConfig ?? undefined,
         ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
         modelMapping: data.modelMapping ?? undefined,
       },

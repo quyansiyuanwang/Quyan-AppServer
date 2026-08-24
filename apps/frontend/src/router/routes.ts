@@ -253,6 +253,11 @@ export const routes = [
                 component: lazyFeatureView('settings', 'PreferencesSettingsView.vue'),
               },
               {
+                path: 'content-safety',
+                name: 'settingsContentSafety',
+                component: lazyFeatureView('settings', 'ContentSafetySettingsView.vue'),
+              },
+              {
                 path: 'security',
                 name: 'settingsSecurity',
                 component: lazyFeatureView('settings', 'AccountSecuritySettingsView.vue'),
@@ -1056,12 +1061,6 @@ export const routes = [
             name: 'supportAiConfig',
             component: lazyFeatureView('system', 'SupportAiConfigView.vue'),
             meta: { permission: Permission.SUPPORT_AI_CONFIG },
-          },
-          {
-            path: 'system/content-safety',
-            name: 'contentSafety',
-            component: lazyFeatureView('system', 'ContentSafetyView.vue'),
-            meta: { permission: Permission.SYSTEM_CONFIG },
           },
           {
             path: 'system/ai-support-analytics',

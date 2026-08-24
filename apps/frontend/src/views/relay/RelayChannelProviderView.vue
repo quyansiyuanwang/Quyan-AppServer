@@ -58,7 +58,6 @@
               v-if="['pending', 'approved', 'rejected'].includes(row.submissionStatus)"
               size="small"
               :icon="Edit"
-              :disabled="changeRequestByChannel.get(row.id)?.reviewStatus === 'pending'"
               @click="openChangeRequest(row)"
               >{{ i18ns.t('relay.submitChangeRequest') }}</el-button
             ><el-button
@@ -436,8 +435,18 @@ const saveForm = async () => {
   submitting.value = true
   try {
     if (formMode.value === 'submit') await relayChannelService.submitChannel(payload())
-    else if (editingChannelId.value)
+    else if (editingChannelId.value) {
+      const pending =
+        changeRequestByChannel.value.get(editingChannelId.value)?.reviewStatus === 'pending'
+      if (pending) {
+        await ElMessageBox.confirm(
+          i18ns.t('relay.replacePendingChangeRequestConfirm'),
+          i18ns.t('relay.replacePendingChangeRequest'),
+          { type: 'warning' },
+        )
+      }
       await relayChannelService.createChangeRequest(editingChannelId.value, payload())
+    }
     formVisible.value = false
     ElMessage.success(
       i18ns.t(
@@ -446,6 +455,7 @@ const saveForm = async () => {
     )
     await Promise.all([loadSubmissions(1), loadChangeRequests()])
   } catch (error: any) {
+    if (error === 'cancel' || error === 'close') return
     ElMessage.error(error?.message || i18ns.t('operationFailed'))
   } finally {
     submitting.value = false

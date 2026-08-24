@@ -1,0 +1,378 @@
+<template>
+  <section class="content-safety-management" v-loading="loading">
+    <el-collapse v-model="sections">
+      <el-collapse-item name="policy">
+        <template #title
+          ><span class="collapse-title">{{ i18ns.t('contentSafety.policy') }}</span></template
+        >
+        <el-form label-position="right" label-width="190px">
+          <el-form-item :label="i18ns.t('contentSafety.requestEnabled')"
+            ><el-switch v-model="form.requestEnabled"
+          /></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.requestAction')"
+            ><el-select v-model="form.requestAction"
+              ><el-option
+                value="unreachable"
+                :label="i18ns.t('contentSafety.unreachable')" /><el-option
+                value="blackhole"
+                :label="i18ns.t('contentSafety.blackhole')" /><el-option
+                value="allow"
+                :label="i18ns.t('contentSafety.allow')" /></el-select
+          ></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.responseEnabled')"
+            ><el-switch v-model="form.responseEnabled"
+          /></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.responseAction')"
+            ><el-select v-model="form.responseAction"
+              ><el-option
+                value="unreachable"
+                :label="i18ns.t('contentSafety.unreachable')" /><el-option
+                value="blackhole"
+                :label="i18ns.t('contentSafety.blackhole')" /><el-option
+                value="allow"
+                :label="i18ns.t('contentSafety.allow')" /></el-select
+          ></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.url')"
+            ><el-input v-model="form.aiUpstreamUrl"
+          /></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.model')"
+            ><el-input v-model="form.aiModel"
+          /></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.apiKey')"
+            ><el-input
+              v-model="apiKey"
+              type="password"
+              show-password
+              :placeholder="form.aiApiKeyConfigured ? i18ns.t('contentSafety.configured') : ''"
+          /></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.inputPrice')"
+            ><el-input-number v-model="form.aiInputPricePerMillion" :min="0" :precision="6"
+          /></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.outputPrice')"
+            ><el-input-number v-model="form.aiOutputPricePerMillion" :min="0" :precision="6"
+          /></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.requestAiEnabled')"
+            ><el-switch
+              v-model="form.requestAiEnabled"
+              @change="confirmAiToggle('requestAiEnabled')"
+          /></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.responseAiEnabled')"
+            ><el-switch
+              v-model="form.responseAiEnabled"
+              @change="confirmAiToggle('responseAiEnabled')"
+          /></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.format')"
+            ><el-select v-model="form.aiRequestFormat"
+              ><el-option value="openai-chat-completions" label="OpenAI" /><el-option
+                value="anthropic"
+                label="Anthropic" /><el-option value="gemini" label="Gemini" /></el-select
+          ></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.timeoutMs')"
+            ><el-input-number v-model="form.aiTimeoutMs" :min="1000" :max="30000" :step="500"
+          /></el-form-item>
+          <el-form-item :label="i18ns.t('contentSafety.maxTextLength')"
+            ><el-input-number v-model="form.aiMaxTextLength" :min="1000" :max="100000" :step="1000"
+          /></el-form-item>
+        </el-form>
+        <el-button type="primary" :loading="saving" @click="save">{{ i18ns.t('save') }}</el-button>
+      </el-collapse-item>
+      <el-collapse-item name="rules">
+        <template #title
+          ><span class="collapse-title">{{ i18ns.t('contentSafety.rules') }}</span></template
+        >
+        <div class="toolbar">
+          <el-button size="small" type="primary" @click="openRule()">{{
+            i18ns.t('contentSafety.addRule')
+          }}</el-button
+          ><el-button size="small" @click="importDefaults">{{
+            i18ns.t('contentSafety.importDefaults')
+          }}</el-button
+          ><el-button size="small" @click="chooseCsv">{{
+            i18ns.t('contentSafety.importCsv')
+          }}</el-button
+          ><input ref="csvInput" hidden type="file" accept=".csv,text/csv" @change="importCsv" />
+        </div>
+        <el-table :data="rules" border size="small"
+          ><el-table-column prop="name" :label="i18ns.t('contentSafety.name')" /><el-table-column
+            prop="type"
+            :label="i18ns.t('contentSafety.type')"
+          /><el-table-column
+            prop="direction"
+            :label="i18ns.t('contentSafety.direction')"
+          /><el-table-column
+            prop="action"
+            :label="i18ns.t('contentSafety.action')"
+          /><el-table-column
+            prop="priority"
+            :label="i18ns.t('contentSafety.priority')"
+            width="90"
+          /><el-table-column :label="i18ns.t('contentSafety.enabled')" width="100"
+            ><template #default="{ row }"
+              ><el-switch
+                v-model="row.enabled"
+                @change="toggleRule(row)" /></template></el-table-column
+          ><el-table-column width="150"
+            ><template #default="{ row }"
+              ><el-button link @click="openRule(row)">{{ i18ns.t('contentSafety.edit') }}</el-button
+              ><el-button link type="danger" @click="removeRule(row.id)">{{
+                i18ns.t('delete')
+              }}</el-button></template
+            ></el-table-column
+          ></el-table
+        >
+        <el-pagination
+          v-model:current-page="rulePage"
+          v-model:page-size="rulePageSize"
+          :total="ruleTotal"
+          layout="prev, pager, next, sizes"
+          @current-change="loadRules"
+          @size-change="loadRules"
+        />
+      </el-collapse-item>
+      <el-collapse-item name="incidents">
+        <template #title
+          ><span class="collapse-title">{{ i18ns.t('contentSafety.incidents') }}</span></template
+        >
+        <el-table :data="incidents" border size="small"
+          ><el-table-column
+            prop="createTime"
+            :label="i18ns.t('contentSafety.time')" /><el-table-column
+            prop="direction"
+            :label="i18ns.t('contentSafety.direction')" /><el-table-column
+            prop="action"
+            :label="i18ns.t('contentSafety.action')" /><el-table-column
+            prop="source"
+            :label="i18ns.t('contentSafety.source')" /><el-table-column
+            prop="auditTotalTokens"
+            :label="i18ns.t('contentSafety.auditTokens')" /><el-table-column
+            prop="blocked"
+            :label="i18ns.t('contentSafety.blocked')"
+        /></el-table>
+        <el-pagination
+          v-model:current-page="incidentPage"
+          v-model:page-size="incidentPageSize"
+          :total="incidentTotal"
+          layout="prev, pager, next, sizes"
+          @current-change="loadIncidents"
+          @size-change="loadIncidents"
+        />
+      </el-collapse-item>
+    </el-collapse>
+  </section>
+  <el-dialog
+    v-model="ruleDialog"
+    :title="editingId ? i18ns.t('contentSafety.edit') : i18ns.t('contentSafety.addRule')"
+    width="520px"
+  >
+    <el-form label-position="top"
+      ><el-form-item :label="i18ns.t('contentSafety.name')"
+        ><el-input v-model="rule.name" /></el-form-item
+      ><el-form-item :label="i18ns.t('contentSafety.type')"
+        ><el-select v-model="rule.type"
+          ><el-option value="literal" label="literal" /><el-option
+            value="regex"
+            label="regex" /></el-select></el-form-item
+      ><el-form-item :label="i18ns.t('contentSafety.pattern')"
+        ><el-input v-model="rule.pattern" type="textarea" /></el-form-item
+      ><el-form-item :label="i18ns.t('contentSafety.direction')"
+        ><el-select v-model="rule.direction"
+          ><el-option value="request" label="request" /><el-option
+            value="response"
+            label="response" /><el-option value="both" label="both" /></el-select></el-form-item
+      ><el-form-item :label="i18ns.t('contentSafety.action')"
+        ><el-select v-model="rule.action"
+          ><el-option value="unreachable" :label="i18ns.t('contentSafety.unreachable')" /><el-option
+            value="blackhole"
+            :label="i18ns.t('contentSafety.blackhole')" /><el-option
+            value="allow"
+            :label="i18ns.t('contentSafety.allow')" /></el-select></el-form-item
+      ><el-form-item :label="i18ns.t('contentSafety.priority')"
+        ><el-input-number v-model="rule.priority" :min="0" :max="100000" /></el-form-item
+      ><el-form-item :label="i18ns.t('contentSafety.enabled')"
+        ><el-switch v-model="rule.enabled" /></el-form-item
+    ></el-form>
+    <template #footer
+      ><el-button @click="ruleDialog = false">{{ i18ns.t('cancel') }}</el-button
+      ><el-button type="primary" @click="saveRule">{{ i18ns.t('save') }}</el-button></template
+    >
+  </el-dialog>
+</template>
+<script setup lang="ts">
+import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { i18ns } from '@/locales'
+import { useRequestStore } from '@/stores/request'
+import { createContentSafetyControllerApi } from '@/client/services/content-safety-controller.gen'
+const api = () => createContentSafetyControllerApi(useRequestStore().getAxios())
+const unwrap = (v: any) => v?.data?.data ?? v?.data ?? v
+const loading = ref(false),
+  saving = ref(false),
+  apiKey = ref(''),
+  sections = ref(['policy'])
+const csvInput = ref<HTMLInputElement | null>(null),
+  rules = ref<any[]>([]),
+  incidents = ref<any[]>([])
+const ruleDialog = ref(false),
+  editingId = ref<string | null>(null)
+const rule = reactive<any>({
+  name: '',
+  type: 'literal',
+  pattern: '',
+  direction: 'both',
+  action: 'unreachable',
+  enabled: true,
+  priority: 100,
+})
+const rulePage = ref(1),
+  rulePageSize = ref(20),
+  ruleTotal = ref(0),
+  incidentPage = ref(1),
+  incidentPageSize = ref(20),
+  incidentTotal = ref(0)
+const form = reactive<any>({
+  requestEnabled: true,
+  requestAction: 'unreachable',
+  requestAiEnabled: false,
+  responseEnabled: true,
+  responseAction: 'unreachable',
+  responseAiEnabled: false,
+  aiUpstreamUrl: '',
+  aiApiKeyConfigured: false,
+  aiModel: '',
+  aiRequestFormat: 'openai-chat-completions',
+  aiTimeoutMs: 5000,
+  aiInputPricePerMillion: 0,
+  aiOutputPricePerMillion: 0,
+  aiMaxTextLength: 16000,
+})
+const loadRules = async () => {
+  const r = unwrap(
+    await api().listRules({ params: { page: rulePage.value, pageSize: rulePageSize.value } }),
+  )
+  rules.value = r?.rules ?? []
+  ruleTotal.value = r?.total ?? 0
+}
+const loadIncidents = async () => {
+  const r = unwrap(
+    await api().listIncidents({
+      params: { page: incidentPage.value, pageSize: incidentPageSize.value },
+    }),
+  )
+  incidents.value = r?.incidents ?? []
+  incidentTotal.value = r?.total ?? 0
+}
+const load = async () => {
+  loading.value = true
+  try {
+    Object.assign(form, unwrap(await api().getConfig()))
+    await Promise.all([loadRules(), loadIncidents()])
+  } finally {
+    loading.value = false
+  }
+}
+const save = async () => {
+  saving.value = true
+  try {
+    Object.assign(
+      form,
+      unwrap(await api().updateConfig({ body: { ...form, aiApiKey: apiKey.value || undefined } })),
+    )
+    apiKey.value = ''
+    ElMessage.success(i18ns.t('success'))
+  } finally {
+    saving.value = false
+  }
+}
+const confirmAiToggle = async (key: 'requestAiEnabled' | 'responseAiEnabled') => {
+  if (!form[key]) return
+  try {
+    await ElMessageBox.confirm(
+      i18ns.t('contentSafety.aiCostWarning'),
+      i18ns.t('contentSafety.confirmAi'),
+      { type: 'warning' },
+    )
+  } catch {
+    form[key] = false
+  }
+}
+const importDefaults = async () => {
+  await api().importDefaults({})
+  await loadRules()
+}
+const chooseCsv = () => csvInput.value?.click()
+const importCsv = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  await api().importCsv({ body: { csv: await file.text() } })
+  input.value = ''
+  await loadRules()
+}
+const openRule = (row?: any) => {
+  editingId.value = row?.id ?? null
+  Object.assign(
+    rule,
+    row
+      ? { ...row }
+      : {
+          name: '',
+          type: 'literal',
+          pattern: '',
+          direction: 'both',
+          action: 'unreachable',
+          enabled: true,
+          priority: 100,
+        },
+  )
+  ruleDialog.value = true
+}
+const saveRule = async () => {
+  if (editingId.value) await api().updateRule({ path: { id: editingId.value }, body: rule })
+  else await api().createRule({ body: rule })
+  ruleDialog.value = false
+  await loadRules()
+}
+const removeRule = async (id: string) => {
+  await ElMessageBox.confirm(i18ns.t('contentSafety.confirmDelete'))
+  await api().deleteRule({ path: { id } })
+  await loadRules()
+}
+const toggleRule = async (row: any) => {
+  await api().updateRule({ path: { id: row.id }, body: { ...row, enabled: row.enabled } })
+  await loadRules()
+}
+onMounted(() => void load())
+</script>
+<style scoped>
+.content-safety-management {
+  width: 100%;
+}
+.content-safety-management :deep(.el-collapse) {
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.content-safety-management :deep(.el-collapse-item) {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.content-safety-management :deep(.el-collapse-item__header) {
+  padding: 0 16px;
+  border-bottom-color: transparent;
+}
+.content-safety-management :deep(.el-collapse-item__content) {
+  padding: 16px;
+}
+.collapse-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+.toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+</style>

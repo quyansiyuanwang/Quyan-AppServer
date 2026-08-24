@@ -6,7 +6,7 @@ import type {
   RelayChannelSwitchLog,
   RelayTokenQuotaWindow,
 } from "@prisma/client";
-import type { RelayRequestFormatTransform } from "@appserver/shared";
+import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform } from "@appserver/shared";
 import type { RelayTokenNormalizerConfig } from "@/util/anthropic-token-normalizer.util";
 
 export type RelayTokenQuotaUnit = "amount" | "request" | "token";
@@ -115,6 +115,7 @@ export interface RelayTokenCreateInput {
   allowedModels?: string | null;
   requestFormatTransforms?: RelayRequestFormatTransform[] | null;
   normalizerConfig?: RelayTokenNormalizerConfig | null;
+  contentSafetyConfig?: ContentSafetyPolicyOverride | null;
   ipWhitelist?: string | null;
   modelMapping?: Record<string, string> | null;
   failoverConfig?: RelayFailoverConfigInput;
@@ -136,6 +137,7 @@ export type RelayTokenUpdateInput = Partial<{
   allowedModels: string | null;
   requestFormatTransforms: RelayRequestFormatTransform[] | null;
   normalizerConfig: RelayTokenNormalizerConfig | null;
+  contentSafetyConfig: ContentSafetyPolicyOverride | null;
   ipWhitelist: string | null;
   modelMapping: Record<string, string> | null;
 }> & {

@@ -80,6 +80,7 @@ export const siteOverviewFeatures: readonly SiteOverviewFeature[] = [
   feature('settingsSecurity', 'nav.settingsSecurity', Lock, account),
   feature('notificationSettings', 'nav.notificationSettings', ChatDotRound, account),
   feature('settingsPreferences', 'nav.preferences', Tools, account),
+  feature('settingsContentSafety', 'nav.contentSafety', Tools, account),
   feature('balanceHistory', 'relay.accountBalance', Wallet, account, 'balance', [
     Permission.RELAY_TOKEN_READ,
   ]),
@@ -168,7 +169,6 @@ export const siteOverviewFeatures: readonly SiteOverviewFeature[] = [
   feature('analyticsFunnel', 'nav.analyticsFunnel', Histogram, core),
   feature('analyticsHeatmap', 'nav.analyticsHeatmap', DataAnalysis, core),
   feature('serverConfig', 'nav.serverConfig', Tools, core),
-  feature('contentSafety' as any, 'nav.contentSafety', Tools, core),
   feature('supportAiConfig', 'nav.supportAiConfig', ChatDotRound, core, undefined, [
     Permission.SUPPORT_AI_CONFIG,
   ]),

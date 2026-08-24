@@ -15,6 +15,46 @@ export class ContentSafetyRepository {
     });
   }
 
+  listRulesForUser(userId: string, direction?: string) {
+    return prisma.contentSafetyRule.findMany({
+      where: {
+        status: 1,
+        AND: [
+          {
+            OR: [{ ownerUserId: null, enabled: true }, { ownerUserId: userId }],
+          },
+          ...(direction ? [{ OR: [{ direction }, { direction: "both" }] }] : []),
+        ],
+      },
+      include: { userOverrides: { where: { userId, status: 1 } } },
+      orderBy: [{ priority: "asc" }, { createTime: "asc" }, { id: "asc" }],
+    });
+  }
+
+  getUserConfig(userId: string) {
+    return prisma.contentSafetyUserConfig.findUnique({ where: { userId } });
+  }
+
+  upsertUserConfig(userId: string, data: Prisma.ContentSafetyUserConfigUncheckedUpdateInput) {
+    return prisma.contentSafetyUserConfig.upsert({
+      where: { userId },
+      create: data as Prisma.ContentSafetyUserConfigUncheckedCreateInput,
+      update: data,
+    });
+  }
+
+  upsertRuleOverride(userId: string, ruleId: string, enabled: boolean) {
+    return prisma.contentSafetyRuleUserOverride.upsert({
+      where: { userId_ruleId: { userId, ruleId } },
+      create: { userId, ruleId, enabled },
+      update: { enabled, status: 1 },
+    });
+  }
+
+  deleteRuleOverride(userId: string, ruleId: string) {
+    return prisma.contentSafetyRuleUserOverride.deleteMany({ where: { userId, ruleId } });
+  }
+
   listAllRules(page = 1, pageSize = 50) {
     const skip = (Math.max(1, page) - 1) * Math.min(100, Math.max(1, pageSize));
     const take = Math.min(100, Math.max(1, pageSize));
@@ -43,6 +83,12 @@ export class ContentSafetyRepository {
   }
   async findActiveByPattern(pattern: string) {
     return prisma.contentSafetyRule.findFirst({ where: { pattern, status: 1 } });
+  }
+  async findActiveByOwnerPattern(ownerUserId: string, pattern: string) {
+    return prisma.contentSafetyRule.findFirst({ where: { ownerUserId, pattern, status: 1 } });
+  }
+  findRuleById(id: string) {
+    return prisma.contentSafetyRule.findFirst({ where: { id, status: 1 } });
   }
   async findAdministratorIds() {
     const users = await prisma.user.findMany({

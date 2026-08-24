@@ -83,6 +83,13 @@ describe("BalanceTransferService", () => {
     expect(repository.createGiftCode).toHaveBeenCalledWith(expect.objectContaining({ expiresAt }));
   });
 
+  it("rejects an expired gift-code expiry", async () => {
+    await expect(
+      service.createGiftCode({ amount: 10, expiresAt: new Date(Date.now() - 1) }, "sender-1"),
+    ).rejects.toThrow(BadRequestError);
+    expect(repository.createGiftCode).not.toHaveBeenCalled();
+  });
+
   it("includes the username of the user who redeemed a gift code", async () => {
     repository.listGiftCodes.mockResolvedValue({
       total: 1,

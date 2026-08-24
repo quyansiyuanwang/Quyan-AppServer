@@ -37,6 +37,34 @@ describe("relay request format conversion", () => {
     ).toThrow(RelayFormatTransformError);
   });
 
+  it("preserves DeepSeek reasoning content on assistant tool-call turns", () => {
+    const converted = convertRelayRequest(
+      {
+        model: "deepseek-reasoner",
+        max_tokens: 128,
+        messages: [
+          {
+            role: "assistant",
+            content: null,
+            reasoning_content: "I need to call the tool first.",
+            tool_calls: [
+              {
+                id: "call_1",
+                type: "function",
+                function: { name: "lookup", arguments: '{"q":"status"}' },
+              },
+            ],
+          },
+          { role: "tool", tool_call_id: "call_1", content: "ok" },
+        ],
+      },
+      "openai-chat-completions",
+      "openai-responses",
+    );
+
+    expect(converted.input[0]).toMatchObject({ reasoning_content: "I need to call the tool first." });
+  });
+
   it("decodes UTF-8 and SSE events split across chunks", async () => {
     const transform = new RelaySseFormatTransform("anthropic", "openai-chat-completions");
     const output: Buffer[] = [];

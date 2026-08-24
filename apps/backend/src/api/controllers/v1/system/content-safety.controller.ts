@@ -23,25 +23,101 @@ import type {
   ContentSafetyRuleRequest,
   ContentSafetyCsvImportRequest,
   ContentSafetyCsvImportResponse,
+  ContentSafetyUserConfigRequest,
+  ContentSafetyRuleOverrideRequest,
 } from "@/api/dto/system/content-safety.dto";
 import {
   contentSafetyConfigSchema,
   contentSafetyRuleSchema,
   contentSafetyCsvImportSchema,
+  contentSafetyUserConfigSchema,
+  contentSafetyRuleOverrideSchema,
 } from "@/api/schema/system/content-safety.schema";
 import { validateBody } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
+import { PermissionService } from "@/services/users/permission.service";
+import { ForbiddenError } from "@/util/errors";
 
 @Route("v1/content-safety")
 @Tags("Content Safety")
 @Security("jwt")
 export class ContentSafetyController extends Controller {
   private readonly service = ContentSafetyService.getInstance();
+  private readonly permissionService = PermissionService.getInstance();
+
+  private async resolveUserScope(request: TypedRequest, targetUserId?: string) {
+    const actorUserId = request.user!.userId;
+    if (!targetUserId || targetUserId === actorUserId) return actorUserId;
+    if (!(await this.permissionService.hasPermission(actorUserId, Permission.SYSTEM_CONFIG)))
+      throw new ForbiddenError("Access denied");
+    return targetUserId;
+  }
   @Get("config")
   @RequirePermission(Permission.SYSTEM_CONFIG)
   async getConfig(): Promise<ContentSafetyConfigDto> {
     return this.service.getPublicConfig();
+  }
+
+  @Get("user-config")
+  async getUserConfig(@Request() request: TypedRequest, @Query() targetUserId?: string) {
+    return this.service.getUserConfig(await this.resolveUserScope(request, targetUserId));
+  }
+
+  @Put("user-config")
+  @Middlewares(validateBody(contentSafetyUserConfigSchema))
+  async updateUserConfig(@Body() body: ContentSafetyUserConfigRequest, @Request() request: TypedRequest) {
+    const userId = await this.resolveUserScope(request, body.targetUserId);
+    return this.service.updateUserConfig(body, userId);
+  }
+
+  @Put("rule-overrides")
+  @Middlewares(validateBody(contentSafetyRuleOverrideSchema))
+  async updateRuleOverride(@Body() body: ContentSafetyRuleOverrideRequest, @Request() request: TypedRequest) {
+    return this.service.setRuleOverride(
+      await this.resolveUserScope(request, body.targetUserId),
+      body.ruleId,
+      body.enabled,
+    );
+  }
+
+  @Delete("rule-overrides/{id}")
+  async deleteRuleOverride(@Path() id: string, @Request() request: TypedRequest, @Query() targetUserId?: string) {
+    return this.service.clearRuleOverride(await this.resolveUserScope(request, targetUserId), id);
+  }
+
+  @Get("user-rules")
+  async listUserRules(
+    @Request() request: TypedRequest,
+    @Query() page = 1,
+    @Query() pageSize = 50,
+    @Query() targetUserId?: string,
+  ) {
+    return this.service.listEffectiveRules(await this.resolveUserScope(request, targetUserId), page, pageSize);
+  }
+
+  @Post("user-rules")
+  @Middlewares(validateBody(contentSafetyRuleSchema))
+  async createUserRule(@Body() body: ContentSafetyRuleRequest, @Request() request: TypedRequest) {
+    return this.service.createUserRule(await this.resolveUserScope(request, body.targetUserId), body);
+  }
+
+  @Put("user-rules/{id}")
+  @Middlewares(validateBody(contentSafetyRuleSchema))
+  async updateUserRule(@Path() id: string, @Body() body: ContentSafetyRuleRequest, @Request() request: TypedRequest) {
+    return this.service.updateUserRule(await this.resolveUserScope(request, body.targetUserId), id, body);
+  }
+
+  @Delete("user-rules/{id}")
+  async deleteUserRule(@Path() id: string, @Request() request: TypedRequest, @Query() targetUserId?: string) {
+    await this.service.deleteUserRule(await this.resolveUserScope(request, targetUserId), id);
+    return { success: true };
+  }
+
+  @Post("user-rules/import-csv")
+  @Middlewares(validateBody(contentSafetyCsvImportSchema))
+  async importUserCsv(@Body() body: ContentSafetyCsvImportRequest, @Request() request: TypedRequest) {
+    return this.service.importUserCsv(await this.resolveUserScope(request, body.targetUserId), body.csv);
   }
   @Put("config")
   @RequirePermission(Permission.SYSTEM_CONFIG)

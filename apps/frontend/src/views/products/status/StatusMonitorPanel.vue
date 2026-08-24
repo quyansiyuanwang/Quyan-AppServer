@@ -52,9 +52,13 @@
       >
       <el-table-column :label="t('productResources.actions')" width="250" fixed="right"
         ><template #default="{ row }">
-          <el-button v-if="canWrite" link :loading="submitting" @click="check(row.id)">{{
-            t('productResources.runCheck')
-          }}</el-button>
+          <el-button
+            v-if="canWrite"
+            link
+            :loading="checkingIds.has(row.id)"
+            @click="check(row.id)"
+            >{{ t('productResources.runCheck') }}</el-button
+          >
           <el-button v-if="canWrite" link @click="edit(row)">{{
             t('productResources.edit')
           }}</el-button>
@@ -88,9 +92,18 @@
         <el-form-item :label="t('productResources.name')"
           ><el-input v-model="form.name"
         /></el-form-item>
-        <el-form-item :label="t('productResources.targetUrl')"
-          ><el-input v-model="form.targetUrl"
-        /></el-form-item>
+        <el-form-item :label="t('productResources.targetUrl')">
+          <div class="target-url-input">
+            <el-select v-model="form.protocol" class="target-url-protocol">
+              <el-option label="https://" value="https:" />
+              <el-option label="http://" value="http:" />
+            </el-select>
+            <el-input
+              v-model="form.targetUrl"
+              :placeholder="t('productResources.targetUrlPlaceholder')"
+            />
+          </div>
+        </el-form-item>
         <el-form-item :label="t('productResources.method')"
           ><el-select v-model="form.method"
             ><el-option label="GET" value="GET" /><el-option label="HEAD" value="HEAD" />
@@ -109,6 +122,9 @@
         </el-form-item>
         <el-form-item :label="t('productResources.intervalSeconds')"
           ><el-input-number v-model="form.intervalSec" :min="60"
+        /></el-form-item>
+        <el-form-item :label="t('productResources.alertDelayMinutes')"
+          ><el-input-number v-model="form.alertDelayMinutes" :min="1" :max="1440"
         /></el-form-item>
         <el-form-item :label="t('productResources.successStatusCodes')"
           ><el-input v-model="form.successStatusCodesText" placeholder="200, 201, 204"
@@ -177,11 +193,13 @@ type ResponseBodyMatchMode = 'contains' | 'equals'
 const form = ref({
   name: '',
   targetUrl: '',
+  protocol: 'https:' as 'http:' | 'https:',
   method: 'GET' as StatusMonitorMethod,
   requestBody: '',
   responseBodyMatchMode: undefined as ResponseBodyMatchMode | undefined,
   responseBodyMatch: '',
   intervalSec: 60,
+  alertDelayMinutes: 5,
   successStatusCodesText: '200',
 })
 let sequence = 0
@@ -194,6 +212,7 @@ const supportsRequestBody = computed(() =>
   ['POST', 'PUT', 'PATCH', 'DELETE'].includes(form.value.method),
 )
 const supportsResponseBodyMatch = computed(() => form.value.method !== 'HEAD')
+const checkingIds = ref(new Set<string>())
 
 const load = async () => {
   if (!props.instance) {
@@ -233,11 +252,13 @@ const openCreate = () => {
   form.value = {
     name: '',
     targetUrl: '',
+    protocol: 'https:',
     method: 'GET',
     requestBody: '',
     responseBodyMatchMode: undefined,
     responseBodyMatch: '',
     intervalSec: 60,
+    alertDelayMinutes: 5,
     successStatusCodesText: '200',
   }
   formError.value = ''
@@ -247,12 +268,14 @@ const edit = (row: DeveloperStatusMonitorDto) => {
   editing.value = row
   form.value = {
     name: row.name,
-    targetUrl: row.targetUrl,
+    targetUrl: row.targetUrl.replace(/^https?:\/\//i, ''),
+    protocol: row.targetUrl.startsWith('http:') ? 'http:' : 'https:',
     method: row.method as StatusMonitorMethod,
     requestBody: row.requestBody || '',
     responseBodyMatchMode: row.responseBodyMatchMode,
     responseBodyMatch: row.responseBodyMatch || '',
     intervalSec: row.intervalSec,
+    alertDelayMinutes: row.alertDelayMinutes || 5,
     successStatusCodesText: (row.successStatusCodes || [200]).join(', '),
   }
   formError.value = ''
@@ -273,7 +296,19 @@ const responseBodyMatchSummary = (row: DeveloperStatusMonitorDto) => {
 }
 const save = async () => {
   if (!props.instance || submitting.value || !canWrite.value) return
-  if (!form.value.name.trim() || !/^https?:\/\//i.test(form.value.targetUrl.trim())) {
+  const targetUrl = form.value.protocol + '//' + form.value.targetUrl.trim()
+  let parsedTarget: URL | undefined
+  try {
+    parsedTarget = new URL(targetUrl)
+  } catch {
+    parsedTarget = undefined
+  }
+  if (
+    !form.value.name.trim() ||
+    /^file:/i.test(form.value.targetUrl.trim()) ||
+    !parsedTarget?.hostname ||
+    parsedTarget.protocol === 'file:'
+  ) {
     formError.value = !form.value.name.trim() ? t('required') : t('productResources.invalidUrl')
     return
   }
@@ -302,9 +337,10 @@ const save = async () => {
   formError.value = ''
   const body: CreateDeveloperStatusMonitorDto = {
     name: form.value.name.trim(),
-    targetUrl: form.value.targetUrl.trim(),
+    targetUrl,
     method: form.value.method,
     intervalSec: form.value.intervalSec,
+    alertDelayMinutes: form.value.alertDelayMinutes,
     successStatusCodes,
     ...(requestBody ? { requestBody } : {}),
     ...(form.value.responseBodyMatchMode && responseBodyMatch
@@ -354,8 +390,8 @@ const toggle = async (row: DeveloperStatusMonitorDto) => {
   }
 }
 const check = async (id: string) => {
-  if (!props.instance || submitting.value || !canWrite.value) return
-  submitting.value = true
+  if (!props.instance || checkingIds.value.has(id) || !canWrite.value) return
+  checkingIds.value = new Set(checkingIds.value).add(id)
   try {
     await developerProductService.checkMonitorResource(props.instance.id, id)
     await load()
@@ -363,7 +399,9 @@ const check = async (id: string) => {
   } catch (cause) {
     ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
   } finally {
-    submitting.value = false
+    const next = new Set(checkingIds.value)
+    next.delete(id)
+    checkingIds.value = next
   }
 }
 const remove = async (row: DeveloperStatusMonitorDto) => {
@@ -442,5 +480,14 @@ watch(() => [props.instance?.id, canRead.value, canPublish.value], load, { immed
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+.target-url-input {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.target-url-protocol {
+  width: 112px;
+  flex: 0 0 112px;
 }
 </style>

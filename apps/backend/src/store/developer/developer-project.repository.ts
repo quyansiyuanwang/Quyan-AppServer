@@ -53,6 +53,7 @@ const MAX_KV_VALUE_BYTES = 64 * 1024;
 const MAX_OUTBOUND_RESPONSE_BYTES = 1_024 * 1_024;
 const MAX_STATUS_MONITOR_REQUEST_BODY_BYTES = 20_000;
 const MAX_STATUS_MONITOR_RESPONSE_BODY_MATCH_BYTES = 10_000;
+const MAX_STATUS_MONITOR_REDIRECTS = 5;
 const SHORT_LINK_STATS_TIME_ZONE_OFFSET_MS = 8 * 60 * 60 * 1_000;
 const IP_LOCATION_CACHE_TTL_MS = GEO_CACHE_TTL_SECONDS * 1_000;
 const MAX_IP_LOCATION_CACHE_ENTRIES = 50_000;
@@ -1060,6 +1061,7 @@ export class DeveloperProjectRepository {
         responseBodyMatchMode: configuration.responseBodyMatchMode,
         responseBodyMatch: configuration.responseBodyMatch,
         intervalSec: body.intervalSec ?? 60,
+        alertDelayMinutes: body.alertDelayMinutes ?? 5,
         successStatusCodes: body.successStatusCodes,
       },
     });
@@ -1075,10 +1077,13 @@ export class DeveloperProjectRepository {
     responseBodyMatchMode: string | null;
     responseBodyMatch: string | null;
     intervalSec: number;
+    alertDelayMinutes?: number;
     successStatusCodes: unknown;
     enabled: boolean;
     lastCheckedAt: Date | null;
     lastStatus: string | null;
+    downSinceAt?: Date | null;
+    downAlertedAt?: Date | null;
   }): DeveloperStatusMonitorDto {
     return {
       id: monitor.id,
@@ -1091,12 +1096,15 @@ export class DeveloperProjectRepository {
         : undefined,
       responseBodyMatch: monitor.responseBodyMatch ?? undefined,
       intervalSec: monitor.intervalSec,
+      alertDelayMinutes: monitor.alertDelayMinutes ?? 5,
       enabled: monitor.enabled,
       successStatusCodes: Array.isArray(monitor.successStatusCodes)
         ? monitor.successStatusCodes.filter((code): code is number => typeof code === "number")
         : undefined,
       lastCheckedAt: asIso(monitor.lastCheckedAt),
       lastStatus: monitor.lastStatus ?? undefined,
+      downSinceAt: asIso(monitor.downSinceAt),
+      downAlertedAt: asIso(monitor.downAlertedAt),
     };
   }
 
@@ -1146,12 +1154,16 @@ export class DeveloperProjectRepository {
         responseBodyMatchMode: configuration.responseBodyMatchMode,
         responseBodyMatch: configuration.responseBodyMatch,
         intervalSec: body.intervalSec,
+        alertDelayMinutes: body.alertDelayMinutes,
         successStatusCodes: body.successStatusCodes,
         enabled: body.enabled,
       },
     });
     if (!result.count) throw new NotFoundError("监控目标不存在");
-    const monitor = await prisma.developerStatusMonitor.findFirst({ where: { id: monitorId, projectId } });
+    const monitor = await prisma.developerStatusMonitor.findFirst({
+      where: { id: monitorId, projectId },
+      include: { project: { select: { userId: true } } },
+    });
     if (!monitor) throw new NotFoundError("监控目标不存在");
     return this.monitorDto(monitor);
   }
@@ -1164,7 +1176,10 @@ export class DeveloperProjectRepository {
 
   async checkStatusMonitor(projectId: string, monitorId: string, userId: string): Promise<DeveloperStatusMonitorDto> {
     await this.assertProjectOwner(projectId, userId);
-    const monitor = await prisma.developerStatusMonitor.findFirst({ where: { id: monitorId, projectId } });
+    const monitor = await prisma.developerStatusMonitor.findFirst({
+      where: { id: monitorId, projectId },
+      include: { project: { select: { userId: true } } },
+    });
     if (!monitor) throw new NotFoundError("监控目标不存在");
     return this.performStatusCheck(monitor);
   }
@@ -1179,6 +1194,9 @@ export class DeveloperProjectRepository {
     responseBodyMatch?: string | null;
     successStatusCodes?: unknown;
     lastStatus?: string | null;
+    alertDelayMinutes?: number;
+    downSinceAt?: Date | null;
+    downAlertedAt?: Date | null;
     project?: { userId: string };
   }): Promise<DeveloperStatusMonitorDto> {
     let lastStatus = "down";
@@ -1186,21 +1204,43 @@ export class DeveloperProjectRepository {
     let errorMessage: string | null = null;
     const startedAt = Date.now();
     try {
-      const target = await assertSafeOutboundUrl(monitor.targetUrl);
+      let target = await assertSafeOutboundUrl(monitor.targetUrl);
       const hasRequestBody = Boolean(monitor.requestBody) && STATUS_MONITOR_BODY_METHODS.has(monitor.method);
-      const response = await axios.request({
-        url: target.url.toString(),
-        method: monitor.method,
-        data: hasRequestBody ? monitor.requestBody : undefined,
-        headers: hasRequestBody ? { "Content-Type": "application/json" } : undefined,
-        timeout: 10_000,
-        maxRedirects: 0,
-        maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
-        responseType: "text",
-        httpAgent: target.httpAgent,
-        httpsAgent: target.httpsAgent,
-        validateStatus: () => true,
-      });
+      let requestMethod = monitor.method;
+      let requestData = hasRequestBody ? monitor.requestBody : undefined;
+      const visited = new Set<string>();
+      let response;
+      for (let redirectCount = 0; redirectCount <= MAX_STATUS_MONITOR_REDIRECTS; redirectCount++) {
+        const currentUrl = target.url.toString();
+        if (visited.has(currentUrl)) throw new BadRequestError("监控请求发生重定向循环");
+        visited.add(currentUrl);
+        response = await axios.request({
+          url: currentUrl,
+          method: requestMethod,
+          data: requestData,
+          headers: requestData ? { "Content-Type": "application/json" } : undefined,
+          timeout: 10_000,
+          maxRedirects: 0,
+          maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
+          responseType: "text",
+          httpAgent: target.httpAgent,
+          httpsAgent: target.httpsAgent,
+          validateStatus: () => true,
+        });
+        if (![301, 302, 303, 307, 308].includes(response.status)) break;
+        const location = response.headers?.location;
+        if (typeof location !== "string" || !location.trim()) break;
+        if (redirectCount === MAX_STATUS_MONITOR_REDIRECTS) throw new BadRequestError("监控重定向次数超过限制");
+        target = await assertSafeOutboundUrl(new URL(location, target.url).toString());
+        if (
+          response.status === 303 ||
+          ((response.status === 301 || response.status === 302) && requestMethod === "POST")
+        ) {
+          requestMethod = "GET";
+          requestData = undefined;
+        }
+      }
+      if (!response) throw new BadRequestError("监控请求失败");
       statusCode = response.status;
       const configuredCodes = Array.isArray(monitor.successStatusCodes)
         ? monitor.successStatusCodes.filter((code): code is number => typeof code === "number")
@@ -1224,12 +1264,30 @@ export class DeveloperProjectRepository {
     }
     const checkedAt = new Date();
     const latencyMs = Date.now() - startedAt;
+    const previousStatus = monitor.lastStatus ?? null;
+    const previousDownSinceAt = monitor.downSinceAt ?? null;
+    const previousDownAlertedAt = monitor.downAlertedAt ?? null;
+    const alertDelayMs = Math.max(1, monitor.alertDelayMinutes ?? 5) * 60_000;
+    const nextDownSinceAt = lastStatus === "down" ? (previousDownSinceAt ?? checkedAt) : null;
+    const downSinceAtForAlert = nextDownSinceAt ?? checkedAt;
+    const shouldAlertDown =
+      lastStatus === "down" &&
+      !previousDownAlertedAt &&
+      checkedAt.getTime() - downSinceAtForAlert.getTime() >= alertDelayMs;
+    const nextDownAlertedAt = shouldAlertDown ? checkedAt : lastStatus === "up" ? null : previousDownAlertedAt;
+    let claimedDownAlert = false;
     const updated = await prisma.$transaction(async (tx) => {
       const result = await tx.developerStatusMonitor.updateMany({
-        where: { id: monitor.id },
-        data: { lastCheckedAt: checkedAt, lastStatus },
+        where: { id: monitor.id, ...(shouldAlertDown ? { downAlertedAt: null } : {}) },
+        data: {
+          lastCheckedAt: checkedAt,
+          lastStatus,
+          downSinceAt: nextDownSinceAt,
+          downAlertedAt: nextDownAlertedAt,
+        },
       });
-      if (!result.count) throw new NotFoundError("监控目标不存在");
+      if (!result.count && !shouldAlertDown) throw new NotFoundError("监控目标不存在");
+      claimedDownAlert = shouldAlertDown && result.count === 1;
       const updatedMonitor = await tx.developerStatusMonitor.findFirst({ where: { id: monitor.id } });
       if (!updatedMonitor) throw new NotFoundError("监控目标不存在");
       await tx.developerStatusCheck.create({
@@ -1237,7 +1295,10 @@ export class DeveloperProjectRepository {
       });
       return updatedMonitor;
     });
-    if (monitor.lastStatus && monitor.lastStatus !== lastStatus && monitor.project?.userId) {
+    if (
+      monitor.project?.userId &&
+      ((claimedDownAlert && lastStatus === "down") || (lastStatus === "up" && previousDownAlertedAt))
+    ) {
       const recovered = lastStatus === "up";
       void NotificationService.getInstance().dispatch(
         monitor.project.userId,
@@ -1246,7 +1307,7 @@ export class DeveloperProjectRepository {
           monitorName: monitor.name,
           targetUrl: monitor.targetUrl,
           method: monitor.method,
-          previousStatus: monitor.lastStatus,
+          previousStatus: previousStatus ?? "unknown",
           currentStatus: lastStatus,
           statusCode,
           latencyMs,

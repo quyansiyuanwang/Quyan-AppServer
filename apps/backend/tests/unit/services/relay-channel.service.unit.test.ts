@@ -1856,6 +1856,30 @@ describe("RelayChannelService", () => {
     );
   });
 
+  it("replaces a pending change request instead of rejecting a newer submission", async () => {
+    relayChannelRepository.findVisibleById.mockResolvedValue({
+      ...sampleChannel,
+      submittedByUserId: "actor-user",
+      submissionStatus: "approved",
+    });
+    changeRequestRepository.findPendingByChannelId.mockResolvedValue({ id: "pending-change-1" });
+
+    await expect(
+      service.createChangeRequest(
+        "channel-1",
+        { name: "Main v2", allowedFormats: "openai", openaiUpstreamUrl: "https://upstream.example.com" },
+        "actor-user",
+      ),
+    ).resolves.toBeDefined();
+
+    expect(changeRequestRepository.updateById).toHaveBeenCalledWith(
+      "pending-change-1",
+      expect.objectContaining({ status: -1 }),
+      transactionClient,
+    );
+    expect(changeRequestRepository.create).toHaveBeenCalledWith(expect.anything(), transactionClient);
+  });
+
   it("requires a review reason when rejecting an initial submission", async () => {
     relayChannelRepository.findVisibleById.mockResolvedValue({
       ...sampleChannel,

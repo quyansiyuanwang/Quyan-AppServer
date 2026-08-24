@@ -149,6 +149,15 @@ const relayTokenNormalizerConfigSchema = z.object({
   v1PathMode: z.enum(["off", "auto", "always"]).default("auto"),
 });
 
+const contentSafetyPolicyOverrideSchema = z.object({
+  requestEnabled: z.boolean().nullable().optional(),
+  requestAction: z.enum(["unreachable", "blackhole", "allow"]).nullable().optional(),
+  requestAiEnabled: z.boolean().nullable().optional(),
+  responseEnabled: z.boolean().nullable().optional(),
+  responseAction: z.enum(["unreachable", "blackhole", "allow"]).nullable().optional(),
+  responseAiEnabled: z.boolean().nullable().optional(),
+});
+
 export const createRelayTokenBodySchema = z
   .object({
     targetUserId: z.string().trim().min(1).max(50).optional(),
@@ -166,6 +175,7 @@ export const createRelayTokenBodySchema = z
     allowedModels: z.string().max(2000).nullish(),
     requestFormatTransforms: relayRequestFormatTransformsSchema.optional(),
     normalizerConfig: relayTokenNormalizerConfigSchema.optional(),
+    contentSafetyConfig: contentSafetyPolicyOverrideSchema.nullable().optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).optional(),
   })
@@ -261,6 +271,7 @@ export const updateRelayTokenBodySchema = z
     allowedModels: z.string().max(2000).nullish(),
     requestFormatTransforms: relayRequestFormatTransformsSchema.nullable().optional(),
     normalizerConfig: relayTokenNormalizerConfigSchema.nullable().optional(),
+    contentSafetyConfig: contentSafetyPolicyOverrideSchema.nullable().optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).nullable().optional(),
   })

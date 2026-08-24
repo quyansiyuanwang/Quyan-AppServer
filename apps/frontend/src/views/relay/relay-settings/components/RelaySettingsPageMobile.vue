@@ -707,6 +707,9 @@
             i18ns.t('save')
           }}</el-button>
         </div>
+        <PermissionWrapper :require="[Permission.SYSTEM_CONFIG]" class="mt-4 block">
+          <ContentSafetyManagementPanel />
+        </PermissionWrapper>
 
         <el-dialog
           v-model="showImportDialog"
@@ -1098,6 +1101,7 @@ import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
 import RelayChannelManagementPanel from './RelayChannelManagementPanel.vue'
+import ContentSafetyManagementPanel from '@/components/content-safety/ContentSafetyManagementPanel.vue'
 
 const state = useRelaySettingsManagementContext()
 

@@ -2500,8 +2500,7 @@ export class RelayChannelService {
     if (!(["pending", "approved", "rejected"] as RelayChannelSubmissionStatus[]).includes(submissionStatus))
       throw new BadRequestError("Only pending, approved, or rejected channels may accept change requests");
     const pendingChangeRequest = await this.changeRequestRepository.findPendingByChannelId(id);
-    if (pendingChangeRequest && submissionStatus !== "rejected")
-      throw new ConflictError("A pending change request already exists for this channel");
+    // A newer submission replaces the previous pending snapshot atomically.
 
     const validated = await this.buildValidatedChannelData({ ...data, channelType: "standalone" }, existing);
     const credentials: Record<string, string> = {};
