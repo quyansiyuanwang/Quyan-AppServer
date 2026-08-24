@@ -62,8 +62,10 @@ export type {
   ContentSafetyAction,
   ContentSafetyDirection,
   ContentSafetyMatch,
+  ContentSafetyPolicyOverride,
   ContentSafetyRuleInput,
   ContentSafetyRuleType,
+  ContentSafetyUserConfig,
 } from './content-safety'
 export type {
   AgentTaskStatus,

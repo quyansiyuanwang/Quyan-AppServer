@@ -125,6 +125,7 @@ export const navigationMenuDefinition: readonly NavigationNode[] = [
   item('settingsSecurity', 'nav.settingsSecurity', Lock),
   item('notificationSettings', 'nav.notificationSettings', Bell),
   item('settingsPreferences', 'nav.preferences', Tools),
+  item('settingsContentSafety', 'nav.contentSafety', Tools),
   item('balanceHistory', 'relay.accountBalance', Wallet, [Permission.RELAY_TOKEN_READ]),
   item('consumptionRecords', 'nav.consumptionRecords', TrendCharts, [Permission.RELAY_TOKEN_READ]),
   item(
@@ -294,7 +295,6 @@ export const navigationMenuDefinition: readonly NavigationNode[] = [
     Tools,
     [
       item('serverConfig', 'nav.serverConfig', Tools, [Permission.SYSTEM_CONFIG]),
-      item('contentSafety' as any, 'nav.contentSafety', Tools, [Permission.SYSTEM_CONFIG]),
       item('supportAiConfig', 'nav.supportAiConfig', ChatDotRound, [Permission.SUPPORT_AI_CONFIG]),
       item('supportAiAnalytics', 'nav.supportAiAnalytics', DataAnalysis, [
         Permission.SUPPORT_AI_ANALYTICS_READ,

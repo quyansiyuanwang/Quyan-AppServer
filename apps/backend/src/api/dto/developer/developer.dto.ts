@@ -154,6 +154,7 @@ export interface CreateDeveloperStatusMonitorDto {
   /** Expected raw response body text. The monitor is down when it does not match. */
   responseBodyMatch?: string;
   intervalSec?: number;
+  alertDelayMinutes?: number;
   successStatusCodes?: number[];
 }
 
@@ -168,6 +169,7 @@ export interface UpdateDeveloperStatusMonitorDto {
   /** Set to null to clear the expected response body text. */
   responseBodyMatch?: string | null;
   intervalSec?: number;
+  alertDelayMinutes?: number;
   successStatusCodes?: number[];
   enabled?: boolean;
 }
@@ -181,10 +183,13 @@ export interface DeveloperStatusMonitorDto {
   responseBodyMatchMode?: "contains" | "equals";
   responseBodyMatch?: string;
   intervalSec: number;
+  alertDelayMinutes: number;
   successStatusCodes?: number[];
   enabled: boolean;
   lastCheckedAt?: string;
   lastStatus?: string;
+  downSinceAt?: string;
+  downAlertedAt?: string;
 }
 
 export interface SendDeveloperVerificationDto {

@@ -50,7 +50,8 @@ export class BalanceTransferService {
     senderId: string,
     request?: Request,
   ): Promise<BalanceGiftCodeDto> {
-    if (body.expiresAt && body.expiresAt <= new Date()) throw new BadRequestError("过期时间必须晚于当前时间");
+    if (body.expiresAt && (!Number.isFinite(body.expiresAt.getTime()) || body.expiresAt <= new Date()))
+      throw new BadRequestError("过期时间必须晚于当前时间");
     const config = await this.getConfig();
     if (!config.giftCodeEnabled) throw new BadRequestError("兑换码转出功能暂未启用");
 

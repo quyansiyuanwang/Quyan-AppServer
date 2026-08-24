@@ -30,6 +30,8 @@ Use this page to create, copy, and track redemption codes.
 3. Check the status first when a user reports that a code cannot be redeemed.
 4. Remove incorrectly created or obsolete codes.
 
+Expiry values are submitted as ISO datetime values and must be later than the current time.
+
 ## Permission requirements
 
 | Action                | Required permission      |

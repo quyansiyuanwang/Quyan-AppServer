@@ -1,7 +1,13 @@
 import type { Request } from "express";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import { env } from "@/config/env";
-import type { ContentSafetyAction, ContentSafetyDirection, ContentSafetyRuleType } from "@appserver/shared";
+import type {
+  ContentSafetyAction,
+  ContentSafetyDirection,
+  ContentSafetyRuleType,
+  ContentSafetyPolicyOverride,
+  ContentSafetyUserConfig,
+} from "@appserver/shared";
 import { ConfigService } from "./config.service";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { ContentSafetyRepository } from "@/store/system/content-safety.repository";
@@ -20,6 +26,8 @@ type Rule = {
   direction: string;
   action: ContentSafetyAction;
   priority: number;
+  ownerUserId?: string | null;
+  userEnabled?: boolean;
 };
 export type ContentSafetyEvaluation = {
   text: string;
@@ -126,22 +134,181 @@ export class ContentSafetyService {
     return this.getPublicConfig();
   }
 
-  private async config(direction: ContentSafetyDirection) {
+  async getUserConfig(userId: string) {
+    const row = await this.repository.getUserConfig(userId);
+    const toNullable = <T>(value: T | null | undefined) => value ?? null;
+    return {
+      requestEnabled: toNullable(row?.requestEnabled),
+      requestAction: toNullable(row?.requestAction) as ContentSafetyAction | null,
+      requestAiEnabled: toNullable(row?.requestAiEnabled),
+      responseEnabled: toNullable(row?.responseEnabled),
+      responseAction: toNullable(row?.responseAction) as ContentSafetyAction | null,
+      responseAiEnabled: toNullable(row?.responseAiEnabled),
+    } satisfies ContentSafetyUserConfig;
+  }
+
+  async updateUserConfig(body: ContentSafetyUserConfig, userId: string) {
+    await this.repository.upsertUserConfig(userId, {
+      requestEnabled: body.requestEnabled,
+      requestAction: body.requestAction,
+      requestAiEnabled: body.requestAiEnabled,
+      responseEnabled: body.responseEnabled,
+      responseAction: body.responseAction,
+      responseAiEnabled: body.responseAiEnabled,
+    });
+    return this.getUserConfig(userId);
+  }
+
+  async setRuleOverride(userId: string, ruleId: string, enabled: boolean) {
+    const rule = await this.repository.findRuleById(ruleId);
+    if (!rule || rule.ownerUserId) throw new BadRequestError("Only system rules can be overridden");
+    await this.repository.upsertRuleOverride(userId, ruleId, enabled);
+    this.rulesCache = null;
+    return { success: true };
+  }
+
+  async clearRuleOverride(userId: string, ruleId: string) {
+    await this.repository.deleteRuleOverride(userId, ruleId);
+    this.rulesCache = null;
+    return { success: true };
+  }
+
+  async listEffectiveRules(userId: string, page = 1, pageSize = 50) {
+    const rules = await this.repository.listRulesForUser(userId);
+    const offset = (Math.max(1, page) - 1) * Math.min(100, Math.max(1, pageSize));
+    const items = rules.slice(offset, offset + Math.min(100, Math.max(1, pageSize))).map((rule) => ({
+      ...rule,
+      enabled: rule.ownerUserId === userId ? rule.enabled : (rule.userOverrides[0]?.enabled ?? rule.enabled),
+      userEnabled: rule.ownerUserId === userId ? rule.enabled : (rule.userOverrides[0]?.enabled ?? rule.enabled),
+      canEdit: rule.ownerUserId === userId,
+    }));
+    return { rules: items, total: rules.length };
+  }
+
+  async createUserRule(userId: string, input: any) {
+    await this.validateRule(input);
+    return this.repository.create({
+      name: input.name.trim(),
+      type: input.type,
+      pattern: input.pattern.trim(),
+      direction: input.direction,
+      action: input.action,
+      enabled: input.enabled !== false,
+      priority: Number(input.priority || 100),
+      source: "user",
+      ownerUserId: userId,
+    });
+  }
+
+  async updateUserRule(userId: string, id: string, input: any) {
+    const rule = await this.repository.findRuleById(id);
+    if (!rule || rule.ownerUserId !== userId) throw new BadRequestError("Content safety rule is not editable");
+    await this.validateRule(input, false);
+    return this.repository.update(id, {
+      name: input.name.trim(),
+      type: input.type,
+      pattern: input.pattern.trim(),
+      direction: input.direction,
+      action: input.action,
+      enabled: input.enabled !== false,
+      priority: Number(input.priority || 100),
+    });
+  }
+
+  async deleteUserRule(userId: string, id: string) {
+    const rule = await this.repository.findRuleById(id);
+    if (!rule || rule.ownerUserId !== userId) throw new BadRequestError("Content safety rule is not editable");
+    return this.repository.softDelete(id);
+  }
+
+  async importUserCsv(userId: string, csv: string) {
+    if (Buffer.byteLength(csv, "utf8") > 1024 * 1024) throw new BadRequestError("Content safety CSV is too large");
+    const rows = this.parseCsv(csv);
+    if (rows.length < 2) throw new BadRequestError("Content safety CSV must include a header and at least one row");
+    const header = rows[0]!.map((value) =>
+      value
+        .replace(/^\uFEFF/, "")
+        .trim()
+        .toLowerCase(),
+    );
+    const required = ["name", "type", "pattern", "direction", "action"];
+    if (required.some((field) => !header.includes(field)))
+      throw new BadRequestError("Content safety CSV header is invalid");
+    const index = (field: string) => header.indexOf(field);
+    const errors: Array<{ row: number; message: string }> = [];
+    let imported = 0;
+    let skipped = 0;
+    for (let rowNumber = 1; rowNumber < rows.length; rowNumber += 1) {
+      const row = rows[rowNumber]!;
+      if (row.every((value) => !value.trim())) continue;
+      try {
+        const input = {
+          name: row[index("name")] || "",
+          type: row[index("type")] || "",
+          pattern: row[index("pattern")] || "",
+          direction: row[index("direction")] || "",
+          action: row[index("action")] || "",
+          enabled: (row[index("enabled")] || "true").trim().toLowerCase() !== "false",
+          priority: Number(row[index("priority")] || 100),
+        };
+        await this.validateRule(input);
+        const existing = await this.repository.findActiveByOwnerPattern(userId, input.pattern.trim());
+        if (existing) skipped += 1;
+        else {
+          await this.createUserRule(userId, input);
+          imported += 1;
+        }
+      } catch (error) {
+        errors.push({ row: rowNumber + 1, message: error instanceof Error ? error.message : "Invalid rule" });
+      }
+    }
+    return { imported, skipped, errors };
+  }
+
+  async getEffectivePolicy(userId: string, tokenConfig?: ContentSafetyPolicyOverride | null) {
+    const system = await this.getPublicConfig();
+    const user = await this.getUserConfig(userId);
+    const pick = (key: keyof ContentSafetyPolicyOverride, fallback: unknown) =>
+      tokenConfig && tokenConfig[key] !== undefined && tokenConfig[key] !== null
+        ? tokenConfig[key]
+        : user[key] !== null && user[key] !== undefined
+          ? user[key]
+          : fallback;
+    return {
+      requestEnabled: pick("requestEnabled", system.requestEnabled),
+      requestAction: pick("requestAction", system.requestAction),
+      requestAiEnabled: pick("requestAiEnabled", system.requestAiEnabled),
+      responseEnabled: pick("responseEnabled", system.responseEnabled),
+      responseAction: pick("responseAction", system.responseAction),
+      responseAiEnabled: pick("responseAiEnabled", system.responseAiEnabled),
+    };
+  }
+
+  private async config(direction: ContentSafetyDirection, effective?: Record<string, unknown>) {
     const values = await this.configService.getMultiple(Object.values(CONFIG_KEYS.CONTENT_SAFETY));
     const prefix = direction === "request" ? "REQUEST" : "RESPONSE";
     const key = CONFIG_KEYS.CONTENT_SAFETY;
     const aiEnabled = values[key[`${prefix}_AI_ENABLED` as "REQUEST_AI_ENABLED" | "RESPONSE_AI_ENABLED"]] === "true";
     return {
-      enabled: values[key[`${prefix}_ENABLED` as "REQUEST_ENABLED" | "RESPONSE_ENABLED"]] !== "false",
-      action: validActions.has(
-        values[key[`${prefix}_ACTION` as "REQUEST_ACTION" | "RESPONSE_ACTION"]] as ContentSafetyAction,
-      )
-        ? (values[key[`${prefix}_ACTION` as "REQUEST_ACTION" | "RESPONSE_ACTION"]] as ContentSafetyAction)
-        : "unreachable",
-      aiEnabled,
+      enabled:
+        effective?.[`${prefix === "REQUEST" ? "request" : "response"}Enabled`] !== undefined
+          ? Boolean(effective[`${prefix === "REQUEST" ? "request" : "response"}Enabled`])
+          : values[key[`${prefix}_ENABLED` as "REQUEST_ENABLED" | "RESPONSE_ENABLED"]] !== "false",
+      action: (() => {
+        const candidate =
+          (effective?.[`${prefix === "REQUEST" ? "request" : "response"}Action`] as ContentSafetyAction) ||
+          (values[key[`${prefix}_ACTION` as "REQUEST_ACTION" | "RESPONSE_ACTION"]] as ContentSafetyAction);
+        return validActions.has(candidate) ? candidate : "unreachable";
+      })(),
+      aiEnabled:
+        effective?.[`${prefix === "REQUEST" ? "request" : "response"}AiEnabled`] !== undefined
+          ? Boolean(effective[`${prefix === "REQUEST" ? "request" : "response"}AiEnabled`])
+          : aiEnabled,
       aiUrl: values[CONFIG_KEYS.CONTENT_SAFETY.AI_UPSTREAM_URL] || "",
       aiKey:
-        aiEnabled && values[CONFIG_KEYS.CONTENT_SAFETY.AI_API_KEY]
+        (effective?.[`${prefix === "REQUEST" ? "request" : "response"}AiEnabled`] !== undefined
+          ? Boolean(effective[`${prefix === "REQUEST" ? "request" : "response"}AiEnabled`])
+          : aiEnabled) && values[CONFIG_KEYS.CONTENT_SAFETY.AI_API_KEY]
           ? this.decrypt(values[CONFIG_KEYS.CONTENT_SAFETY.AI_API_KEY])
           : "",
       aiModel: values[CONFIG_KEYS.CONTENT_SAFETY.AI_MODEL] || "",
@@ -156,19 +323,30 @@ export class ContentSafetyService {
     };
   }
 
-  private async rules(direction: ContentSafetyDirection): Promise<Rule[]> {
-    if (this.rulesCache && this.rulesCache.expires > Date.now())
+  private async rules(direction: ContentSafetyDirection, userId?: string): Promise<Rule[]> {
+    if (!userId && this.rulesCache && this.rulesCache.expires > Date.now())
       return this.rulesCache.rules.filter((rule) => rule.direction === direction || rule.direction === "both");
-    const rows = await this.repository.listRules();
-    const rules = rows.map((row) => ({
-      id: row.id,
-      type: row.type as ContentSafetyRuleType,
-      pattern: row.pattern,
-      direction: row.direction,
-      action: validActions.has(row.action as ContentSafetyAction) ? (row.action as ContentSafetyAction) : "unreachable",
-      priority: row.priority,
-    }));
-    this.rulesCache = { expires: Date.now() + 5000, rules };
+    const rows = userId ? await this.repository.listRulesForUser(userId) : await this.repository.listRules();
+    const rules = rows
+      .map((row) => ({
+        id: row.id,
+        type: row.type as ContentSafetyRuleType,
+        pattern: row.pattern,
+        direction: row.direction,
+        action: validActions.has(row.action as ContentSafetyAction)
+          ? (row.action as ContentSafetyAction)
+          : "unreachable",
+        priority: row.priority,
+        ownerUserId: row.ownerUserId,
+        userEnabled:
+          "userOverrides" in row && Array.isArray((row as { userOverrides?: unknown }).userOverrides)
+            ? ((row as { userOverrides: Array<{ enabled?: boolean }> }).userOverrides[0]?.enabled ?? undefined)
+            : row.ownerUserId
+              ? row.enabled
+              : undefined,
+      }))
+      .filter((rule) => rule.userEnabled !== false);
+    if (!userId) this.rulesCache = { expires: Date.now() + 5000, rules };
     return rules.filter((rule) => rule.direction === direction || rule.direction === "both");
   }
 
@@ -281,10 +459,17 @@ export class ContentSafetyService {
     };
   }
 
-  async evaluate(direction: ContentSafetyDirection, text: string): Promise<ContentSafetyEvaluation> {
+  async evaluate(
+    direction: ContentSafetyDirection,
+    text: string,
+    context?: { userId?: string; tokenConfig?: ContentSafetyPolicyOverride | null },
+  ): Promise<ContentSafetyEvaluation> {
     let config: Awaited<ReturnType<ContentSafetyService["config"]>>;
     try {
-      config = await this.config(direction);
+      const effective = context?.userId
+        ? await this.getEffectivePolicy(context.userId, context.tokenConfig)
+        : await this.getPublicConfig();
+      config = await this.config(direction, effective);
     } catch {
       return {
         text,
@@ -307,7 +492,7 @@ export class ContentSafetyService {
         auditDurationMs: 0,
         auditCost: 0,
       };
-    const match = this.matchRule(text, await this.rules(direction));
+    const match = this.matchRule(text, await this.rules(direction, context?.userId));
     if (match) {
       const action = match.rule.action;
       const replaced = action === "blackhole" ? text.replace(match.expression, "[REDACTED]") : text;
@@ -326,10 +511,17 @@ export class ContentSafetyService {
     return this.audit(text, direction, config);
   }
 
-  async evaluateLocal(direction: ContentSafetyDirection, text: string): Promise<ContentSafetyEvaluation> {
+  async evaluateLocal(
+    direction: ContentSafetyDirection,
+    text: string,
+    context?: { userId?: string; tokenConfig?: ContentSafetyPolicyOverride | null },
+  ): Promise<ContentSafetyEvaluation> {
     let config: Awaited<ReturnType<ContentSafetyService["config"]>>;
     try {
-      config = await this.config(direction);
+      const effective = context?.userId
+        ? await this.getEffectivePolicy(context.userId, context.tokenConfig)
+        : await this.getPublicConfig();
+      config = await this.config(direction, effective);
     } catch {
       return {
         text,
@@ -352,7 +544,7 @@ export class ContentSafetyService {
         auditDurationMs: 0,
         auditCost: 0,
       };
-    const match = this.matchRule(text, await this.rules(direction));
+    const match = this.matchRule(text, await this.rules(direction, context?.userId));
     if (!match)
       return {
         text,

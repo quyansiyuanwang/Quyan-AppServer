@@ -1,5 +1,8 @@
 import { usePageDevice } from '@/composables/usePageDevice'
-import type { RelayConfiguredRequestFormat as SharedRelayFormat } from '@appserver/shared'
+import type {
+  ContentSafetyAction as SharedContentSafetyAction,
+  RelayConfiguredRequestFormat as SharedRelayFormat,
+} from '@appserver/shared'
 import type { RelayConvertibleRequestFormat } from '@appserver/shared'
 import StorageKey from '@/constant/storagekey'
 import { MANAGED_STATUS } from '@/constant/status'
@@ -600,6 +603,21 @@ export const useRelayTokenManagement = () => {
       textOnlyModelIds: [],
       v1PathMode: 'auto',
     } as RelayTokenNormalizerConfig,
+    contentSafetyConfig: {
+      requestEnabled: null,
+      requestAction: null,
+      requestAiEnabled: null,
+      responseEnabled: null,
+      responseAction: null,
+      responseAiEnabled: null,
+    } as {
+      requestEnabled: boolean | null
+      requestAction: SharedContentSafetyAction | null
+      requestAiEnabled: boolean | null
+      responseEnabled: boolean | null
+      responseAction: SharedContentSafetyAction | null
+      responseAiEnabled: boolean | null
+    },
   })
 
   const editForm = ref({
@@ -1666,6 +1684,14 @@ export const useRelayTokenManagement = () => {
             ? row.normalizerConfig.v1PathMode
             : 'auto',
       },
+      contentSafetyConfig: {
+        requestEnabled: row.contentSafetyConfig?.requestEnabled ?? null,
+        requestAction: row.contentSafetyConfig?.requestAction ?? null,
+        requestAiEnabled: row.contentSafetyConfig?.requestAiEnabled ?? null,
+        responseEnabled: row.contentSafetyConfig?.responseEnabled ?? null,
+        responseAction: row.contentSafetyConfig?.responseAction ?? null,
+        responseAiEnabled: row.contentSafetyConfig?.responseAiEnabled ?? null,
+      },
     }
 
     showEditDialog.value = true
@@ -2038,6 +2064,7 @@ export const useRelayTokenManagement = () => {
       const quotaWindows = normalizeQuotaWindowsPayload()
       const requestFormatTransforms = normalizeRequestFormatTransformsPayload()
       const normalizerConfig = { ...editForm.value.normalizerConfig }
+      const contentSafetyConfig = { ...editForm.value.contentSafetyConfig }
       const allowedModelsStr = editForm.value.allowedModelIdsList.join(',')
       const normalizedName = editForm.value.name.trim()
       editForm.value.ipWhitelist = normalizeIpWhitelistEntries(editForm.value.ipWhitelist)
@@ -2084,6 +2111,7 @@ export const useRelayTokenManagement = () => {
           modelMapping,
           requestFormatTransforms,
           normalizerConfig,
+          contentSafetyConfig,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.createRelayToken(data)
@@ -2113,6 +2141,7 @@ export const useRelayTokenManagement = () => {
           modelMapping,
           requestFormatTransforms,
           normalizerConfig,
+          contentSafetyConfig,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.updateToken(currentEditId.value, data)

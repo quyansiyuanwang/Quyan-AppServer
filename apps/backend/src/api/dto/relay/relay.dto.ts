@@ -1,4 +1,4 @@
-import type { RelayRequestFormatTransform } from "@appserver/shared";
+import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform } from "@appserver/shared";
 import type { RelayTokenNormalizerConfig } from "@/util/anthropic-token-normalizer.util";
 
 export type RelayTokenQuotaUnit = "amount" | "request" | "token";
@@ -130,6 +130,7 @@ export interface CreateRelayTokenDto {
   requestFormatTransforms?: RelayRequestFormatTransform[];
   /** Anthropic request normalizer settings scoped to this relay token. */
   normalizerConfig?: RelayTokenNormalizerConfig;
+  contentSafetyConfig?: ContentSafetyPolicyOverride | null;
   /**
    * IP 白名单，支持换行、逗号或分号分隔
    */
@@ -165,6 +166,7 @@ export interface UpdateRelayTokenDto {
   requestFormatTransforms?: RelayRequestFormatTransform[] | null;
   /** Anthropic request normalizer settings scoped to this relay token. */
   normalizerConfig?: RelayTokenNormalizerConfig | null;
+  contentSafetyConfig?: ContentSafetyPolicyOverride | null;
   /** IP 白名单 */
   ipWhitelist?: string | null;
   /** 模型映射：请求模型 → 扣费模型，传 null 清除 */
@@ -267,6 +269,7 @@ export interface RelayTokenDto {
   allowedModels?: string; // 允许的模型列表
   requestFormatTransforms?: RelayRequestFormatTransform[];
   normalizerConfig?: RelayTokenNormalizerConfig;
+  contentSafetyConfig?: ContentSafetyPolicyOverride | null;
   ipWhitelist?: string;
   modelMapping?: Record<string, string>;
   channelConfigs: RelayTokenChannelConfigDto[];

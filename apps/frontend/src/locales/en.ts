@@ -300,6 +300,8 @@ export default {
     key: 'Key',
     version: 'Version',
     targetUrl: 'Target URL',
+    targetUrlPlaceholder: 'example.com/health',
+    alertDelayMinutes: 'Alert delay (minutes)',
     status: 'Status',
     enabled: 'Enabled',
     disabled: 'Disabled',
@@ -1700,6 +1702,19 @@ export default {
   },
   contentSafety: {
     title: 'Content Safety',
+    policy: 'Policy settings',
+    userDescription:
+      'Configure your default content safety policy. Token-level overrides take precedence.',
+    resetInheritance: 'Restore system defaults',
+    requestEnabled: 'Enable request inspection',
+    requestAction: 'Request default action',
+    responseEnabled: 'Enable response inspection',
+    responseAction: 'Response default action',
+    requestAiEnabled: 'Request AI audit',
+    responseAiEnabled: 'Response AI audit',
+    tokenOverrideHelp: 'Empty values inherit the user policy. Explicit false values are preserved.',
+    inherit: 'Inherit',
+    disabled: 'Disabled',
     description: 'Filter dangerous content in both directions.',
     request: 'User requests',
     response: 'Upstream responses',
@@ -2716,6 +2731,9 @@ export default {
     submissionRequired: 'Enter a channel name plus the URL and API key for every selected format.',
     submissionSuccess: 'Channel submitted for review.',
     changeRequestSubmitted: 'Change request submitted for review.',
+    replacePendingChangeRequest: 'Replace pending change request',
+    replacePendingChangeRequestConfirm:
+      'A pending request already exists. Replace it with this new configuration?',
     providerEarningsTitle: 'Channel Earnings',
     providerEarningsDescription:
       'Earnings settle from the commission snapshot of each actual balance debit.',

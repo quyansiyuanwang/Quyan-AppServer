@@ -84,6 +84,7 @@ const anthropicToChat = (body: JsonObject): JsonObject => {
       messages.push({
         role: "assistant",
         content: converted.length ? converted : null,
+        ...(message.reasoning_content !== undefined ? { reasoning_content: message.reasoning_content } : {}),
         tool_calls: toolUses.map((part: any) => ({
           id: part.id,
           type: "function",
@@ -99,7 +100,14 @@ const anthropicToChat = (body: JsonObject): JsonObject => {
           content: text(part.content),
         })),
       );
-    } else messages.push({ role: message.role === "assistant" ? "assistant" : "user", content: converted });
+    } else
+      messages.push({
+        role: message.role === "assistant" ? "assistant" : "user",
+        content: converted,
+        ...(message.role === "assistant" && message.reasoning_content !== undefined
+          ? { reasoning_content: message.reasoning_content }
+          : {}),
+      });
   }
   const result: JsonObject = { model: body.model, messages, max_tokens: body.max_tokens };
   for (const [from, to] of [
@@ -186,6 +194,9 @@ const chatToResponses = (body: JsonObject): JsonObject => {
     }
     input.push({
       role: message.role === "assistant" ? "assistant" : "user",
+      ...(message.role === "assistant" && message.reasoning_content !== undefined
+        ? { reasoning_content: message.reasoning_content }
+        : {}),
       content: Array.isArray(message.content)
         ? message.content.map((part: any) =>
             part.type === "image_url"
@@ -248,6 +259,7 @@ const responsesToChat = (body: JsonObject): JsonObject => {
       messages.push({
         role: "assistant",
         content: null,
+        ...(item.reasoning_content !== undefined ? { reasoning_content: item.reasoning_content } : {}),
         tool_calls: [
           { id: item.call_id, type: "function", function: { name: item.name, arguments: item.arguments || "{}" } },
         ],
@@ -262,6 +274,9 @@ const responsesToChat = (body: JsonObject): JsonObject => {
         if (["input_text", "output_text", "text"].includes(part.type)) return { type: "text", text: part.text || "" };
         throw new RelayFormatTransformError(`Unsupported Responses input item: ${String(part.type)}`);
       }),
+      ...(item.role === "assistant" && item.reasoning_content !== undefined
+        ? { reasoning_content: item.reasoning_content }
+        : {}),
     });
   }
   const result: JsonObject = { model: body.model, messages };
