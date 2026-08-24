@@ -10,7 +10,9 @@ const amountSchema = z.coerce
 
 export const createBalanceGiftCodeBodySchema = z.object({
   amount: amountSchema,
-  expiresAt: z.coerce.date().optional(),
+  // Keep the wire value as an ISO string for TSOA body validation. Convert to
+  // Date only after the request has passed the generated route validator.
+  expiresAt: z.string().datetime({ offset: true }).optional(),
 });
 
 export const createBalanceTransferBodySchema = z.object({
