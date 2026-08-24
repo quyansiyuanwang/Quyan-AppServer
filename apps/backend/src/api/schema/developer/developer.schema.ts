@@ -91,6 +91,7 @@ export const createStatusMonitorBodySchema = z
     responseBodyMatchMode: statusMonitorResponseBodyMatchModeSchema.optional(),
     responseBodyMatch: statusMonitorResponseBodyMatchSchema.optional(),
     intervalSec: z.number().int().min(60).max(86_400).optional(),
+    alertDelayMinutes: z.number().int().min(1).max(1_440).optional(),
     successStatusCodes: z.array(z.number().int().min(100).max(599)).min(1).max(100).optional(),
   })
   .superRefine((value, context) => validateStatusMonitorBodyConfiguration(value, context, "GET"));
@@ -103,6 +104,7 @@ export const updateStatusMonitorBodySchema = z
     responseBodyMatchMode: statusMonitorResponseBodyMatchModeSchema.nullable().optional(),
     responseBodyMatch: statusMonitorResponseBodyMatchSchema.nullable().optional(),
     intervalSec: z.number().int().min(60).max(86_400).optional(),
+    alertDelayMinutes: z.number().int().min(1).max(1_440).optional(),
     successStatusCodes: z.array(z.number().int().min(100).max(599)).min(1).max(100).optional(),
     enabled: z.boolean().optional(),
   })

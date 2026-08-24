@@ -564,9 +564,12 @@ model DeveloperStatusMonitor {
   responseBodyMatch     String?                @db.Text
   successStatusCodes    Json?
   intervalSec           Int                    @default(60)
+  alertDelayMinutes     Int                    @default(5)
   enabled               Boolean                @default(true)
   lastCheckedAt         DateTime?
   lastStatus            String?                @db.VarChar(20)
+  downSinceAt           DateTime?
+  downAlertedAt         DateTime?
   project               DeveloperProject       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   checks                DeveloperStatusCheck[]
 

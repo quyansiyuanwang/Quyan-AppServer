@@ -27,4 +27,10 @@ describe("gift-code expiry schemas", () => {
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.expiresAt).toBeInstanceOf(Date);
   });
+
+  it("rejects non-ISO redemption-code expiry values", () => {
+    expect(createRedemptionCodeBodySchema.safeParse({ amount: 10, expiresAt: "2099-01-01 00:00:00" }).success).toBe(
+      false,
+    );
+  });
 });

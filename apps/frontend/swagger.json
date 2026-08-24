@@ -51302,6 +51302,10 @@
 						"type": "number",
 						"format": "double"
 					},
+					"alertDelayMinutes": {
+						"type": "number",
+						"format": "double"
+					},
 					"successStatusCodes": {
 						"items": {
 							"type": "number",
@@ -51317,6 +51321,12 @@
 					},
 					"lastStatus": {
 						"type": "string"
+					},
+					"downSinceAt": {
+						"type": "string"
+					},
+					"downAlertedAt": {
+						"type": "string"
 					}
 				},
 				"required": [
@@ -51325,6 +51335,7 @@
 					"targetUrl",
 					"method",
 					"intervalSec",
+					"alertDelayMinutes",
 					"enabled"
 				],
 				"type": "object",
@@ -51366,6 +51377,10 @@
 						"description": "Expected raw response body text. The monitor is down when it does not match."
 					},
 					"intervalSec": {
+						"type": "number",
+						"format": "double"
+					},
+					"alertDelayMinutes": {
 						"type": "number",
 						"format": "double"
 					},
@@ -51424,6 +51439,10 @@
 						"description": "Set to null to clear the expected response body text."
 					},
 					"intervalSec": {
+						"type": "number",
+						"format": "double"
+					},
+					"alertDelayMinutes": {
 						"type": "number",
 						"format": "double"
 					},
