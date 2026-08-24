@@ -80,9 +80,7 @@ describe("BalanceTransferService", () => {
 
     await service.createGiftCode({ amount: 10, expiresAt }, "sender-1");
 
-    expect(repository.createGiftCode).toHaveBeenCalledWith(
-      expect.objectContaining({ expiresAt }),
-    );
+    expect(repository.createGiftCode).toHaveBeenCalledWith(expect.objectContaining({ expiresAt }));
   });
 
   it("rejects an expired gift-code expiry", async () => {

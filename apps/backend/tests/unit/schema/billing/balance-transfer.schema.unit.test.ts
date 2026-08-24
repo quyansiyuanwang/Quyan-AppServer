@@ -14,9 +14,9 @@ describe("gift-code expiry schemas", () => {
   );
 
   it("rejects a timezone-less expiry value", () => {
-    expect(
-      createBalanceGiftCodeBodySchema.safeParse({ amount: 10, expiresAt: "2099-01-01T00:00:00" }).success,
-    ).toBe(false);
+    expect(createBalanceGiftCodeBodySchema.safeParse({ amount: 10, expiresAt: "2099-01-01T00:00:00" }).success).toBe(
+      false,
+    );
   });
 
   it("rejects an invalid expiry instead of passing it to the service", () => {
