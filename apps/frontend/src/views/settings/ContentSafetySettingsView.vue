@@ -15,7 +15,7 @@
           <template #title
             ><span class="collapse-title">{{ i18ns.t('contentSafety.policy') }}</span></template
           >
-          <ContentSafetyPolicyFields v-model:model="policy" />
+          <ContentSafetyPolicyFields v-model:model="policy" @ai-toggle="confirmAiToggle" />
           <div class="content-safety-user__actions">
             <el-button @click="resetConfig">{{
               i18ns.t('contentSafety.resetInheritance')
@@ -66,6 +66,63 @@
             @size-change="loadRules"
           />
         </el-collapse-item>
+        <el-collapse-item name="incidents">
+          <template #title
+            ><span class="collapse-title">{{
+              i18ns.t('contentSafety.myIncidents')
+            }}</span></template
+          >
+          <el-table :data="incidents" border size="small">
+            <el-table-column prop="createTime" :label="i18ns.t('contentSafety.time')" width="170" />
+            <el-table-column
+              prop="direction"
+              :label="i18ns.t('contentSafety.direction')"
+              width="100"
+            />
+            <el-table-column prop="action" :label="i18ns.t('contentSafety.action')" width="130" />
+            <el-table-column prop="source" :label="i18ns.t('contentSafety.source')" width="110" />
+            <el-table-column
+              prop="rule.name"
+              :label="i18ns.t('contentSafety.triggerRule')"
+              min-width="150"
+            />
+            <el-table-column prop="rule.type" :label="i18ns.t('contentSafety.type')" width="90" />
+            <el-table-column
+              prop="requestId"
+              :label="i18ns.t('contentSafety.requestId')"
+              min-width="150"
+            />
+            <el-table-column
+              prop="relayTokenId"
+              :label="i18ns.t('contentSafety.tokenId')"
+              min-width="150"
+            />
+            <el-table-column
+              prop="channelId"
+              :label="i18ns.t('contentSafety.channelId')"
+              min-width="130"
+            />
+            <el-table-column
+              prop="auditTotalTokens"
+              :label="i18ns.t('contentSafety.auditTokens')"
+              width="110"
+            />
+            <el-table-column
+              prop="replaced"
+              :label="i18ns.t('contentSafety.replaced')"
+              width="90"
+            />
+            <el-table-column prop="blocked" :label="i18ns.t('contentSafety.blocked')" width="90" />
+          </el-table>
+          <el-pagination
+            v-model:current-page="incidentPage"
+            v-model:page-size="incidentPageSize"
+            :total="incidentTotal"
+            layout="prev, pager, next, sizes"
+            @current-change="loadIncidents"
+            @size-change="loadIncidents"
+          />
+        </el-collapse-item>
       </el-collapse>
     </div>
     <el-dialog
@@ -77,26 +134,36 @@
         ><el-form-item :label="i18ns.t('contentSafety.name')"
           ><el-input v-model="rule.name" /></el-form-item
         ><el-form-item :label="i18ns.t('contentSafety.type')"
-          ><el-select v-model="rule.type"
-            ><el-option value="literal" label="literal" /><el-option
-              value="regex"
-              label="regex" /></el-select></el-form-item
+          ><el-radio-group v-model="rule.type" size="small"
+            ><el-radio-button label="literal">literal</el-radio-button
+            ><el-radio-button label="regex">regex</el-radio-button></el-radio-group
+          ></el-form-item
         ><el-form-item :label="i18ns.t('contentSafety.pattern')"
           ><el-input v-model="rule.pattern" type="textarea" /></el-form-item
         ><el-form-item :label="i18ns.t('contentSafety.direction')"
-          ><el-select v-model="rule.direction"
-            ><el-option value="request" label="request" /><el-option
-              value="response"
-              label="response" /><el-option value="both" label="both" /></el-select></el-form-item
+          ><el-radio-group v-model="rule.direction" size="small"
+            ><el-radio-button label="request">{{
+              i18ns.t('contentSafety.request')
+            }}</el-radio-button
+            ><el-radio-button label="response">{{
+              i18ns.t('contentSafety.response')
+            }}</el-radio-button
+            ><el-radio-button label="both">{{
+              i18ns.t('contentSafety.both')
+            }}</el-radio-button></el-radio-group
+          ></el-form-item
         ><el-form-item :label="i18ns.t('contentSafety.action')"
-          ><el-select v-model="rule.action"
-            ><el-option
-              value="unreachable"
-              :label="i18ns.t('contentSafety.unreachable')" /><el-option
-              value="blackhole"
-              :label="i18ns.t('contentSafety.blackhole')" /><el-option
-              value="allow"
-              :label="i18ns.t('contentSafety.allow')" /></el-select></el-form-item
+          ><el-radio-group v-model="rule.action" size="small"
+            ><el-radio-button label="unreachable">{{
+              i18ns.t('contentSafety.unreachable')
+            }}</el-radio-button
+            ><el-radio-button label="blackhole">{{
+              i18ns.t('contentSafety.blackhole')
+            }}</el-radio-button
+            ><el-radio-button label="allow">{{
+              i18ns.t('contentSafety.allow')
+            }}</el-radio-button></el-radio-group
+          ></el-form-item
         ><el-form-item :label="i18ns.t('contentSafety.priority')"
           ><el-input-number v-model="rule.priority" :min="0" :max="100000" /></el-form-item
       ></el-form>
@@ -126,6 +193,10 @@ const rules = ref<any[]>([]),
   page = ref(1),
   pageSize = ref(20),
   total = ref(0),
+  incidents = ref<any[]>([]),
+  incidentPage = ref(1),
+  incidentPageSize = ref(20),
+  incidentTotal = ref(0),
   ruleDialog = ref(false),
   editingId = ref<string | null>(null)
 const policy = reactive<any>({
@@ -156,10 +227,19 @@ const load = async () => {
   loading.value = true
   try {
     Object.assign(policy, unwrap(await api().getUserConfig()))
-    await loadRules()
+    await Promise.all([loadRules(), loadIncidents()])
   } finally {
     loading.value = false
   }
+}
+const loadIncidents = async () => {
+  const r = unwrap(
+    await api().listUserIncidents({
+      params: { page: incidentPage.value, pageSize: incidentPageSize.value },
+    }),
+  )
+  incidents.value = r?.incidents ?? []
+  incidentTotal.value = r?.total ?? 0
 }
 const saveConfig = async () => {
   saving.value = true
@@ -168,6 +248,18 @@ const saveConfig = async () => {
     ElMessage.success(i18ns.t('success'))
   } finally {
     saving.value = false
+  }
+}
+const confirmAiToggle = async (key: 'requestAiEnabled' | 'responseAiEnabled') => {
+  if (!policy[key]) return
+  try {
+    await ElMessageBox.confirm(
+      i18ns.t('contentSafety.aiCostWarning'),
+      i18ns.t('contentSafety.confirmAi'),
+      { type: 'warning' },
+    )
+  } catch {
+    policy[key] = false
   }
 }
 const resetConfig = async () => {

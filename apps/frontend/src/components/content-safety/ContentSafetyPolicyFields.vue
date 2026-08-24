@@ -1,49 +1,47 @@
 <template>
   <div class="content-safety-policy-fields">
-    <el-form label-position="top" class="content-safety-policy-fields__form">
-      <el-form-item :label="i18ns.t('contentSafety.request')">
-        <div class="content-safety-policy-fields__row">
-          <el-switch
-            v-model="localModel.requestEnabled"
-            :active-text="i18ns.t('contentSafety.enabled')"
-          />
-          <el-select
-            v-model="localModel.requestAction"
-            :disabled="!localModel.requestEnabled"
-            style="min-width: 170px"
-          >
-            <el-option value="unreachable" :label="i18ns.t('contentSafety.unreachable')" />
-            <el-option value="blackhole" :label="i18ns.t('contentSafety.blackhole')" />
-            <el-option value="allow" :label="i18ns.t('contentSafety.allow')" />
-          </el-select>
-          <el-switch
-            v-model="localModel.requestAiEnabled"
-            :active-text="i18ns.t('contentSafety.aiEnabled')"
-          />
-        </div>
-      </el-form-item>
-      <el-form-item :label="i18ns.t('contentSafety.response')">
-        <div class="content-safety-policy-fields__row">
-          <el-switch
-            v-model="localModel.responseEnabled"
-            :active-text="i18ns.t('contentSafety.enabled')"
-          />
-          <el-select
-            v-model="localModel.responseAction"
-            :disabled="!localModel.responseEnabled"
-            style="min-width: 170px"
-          >
-            <el-option value="unreachable" :label="i18ns.t('contentSafety.unreachable')" />
-            <el-option value="blackhole" :label="i18ns.t('contentSafety.blackhole')" />
-            <el-option value="allow" :label="i18ns.t('contentSafety.allow')" />
-          </el-select>
-          <el-switch
-            v-model="localModel.responseAiEnabled"
-            :active-text="i18ns.t('contentSafety.aiEnabled')"
-          />
-        </div>
-      </el-form-item>
-    </el-form>
+    <div class="content-safety-policy-fields__table-wrap">
+      <el-table :data="policyRows" border size="small" class="content-safety-policy-fields__table">
+        <el-table-column prop="direction" :label="i18ns.t('contentSafety.direction')" width="150">
+          <template #default="{ row }">
+            <span class="direction-label">{{ row.direction }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column :label="i18ns.t('contentSafety.enabled')" width="110" align="center">
+          <template #default="{ row }">
+            <el-checkbox v-model="localModel[row.enabledKey]" />
+          </template>
+        </el-table-column>
+        <el-table-column :label="i18ns.t('contentSafety.action')" min-width="330">
+          <template #default="{ row }">
+            <el-radio-group
+              v-model="localModel[row.actionKey]"
+              :disabled="!localModel[row.enabledKey]"
+              size="small"
+            >
+              <el-radio-button label="unreachable">
+                {{ i18ns.t('contentSafety.unreachable') }}
+              </el-radio-button>
+              <el-radio-button label="blackhole">
+                {{ i18ns.t('contentSafety.blackhole') }}
+              </el-radio-button>
+              <el-radio-button label="allow">
+                {{ i18ns.t('contentSafety.allow') }}
+              </el-radio-button>
+            </el-radio-group>
+          </template>
+        </el-table-column>
+        <el-table-column :label="i18ns.t('contentSafety.aiEnabled')" width="120" align="center">
+          <template #default="{ row }">
+            <el-checkbox
+              v-model="localModel[row.aiKey]"
+              :disabled="!localModel[row.enabledKey]"
+              @change="emit('ai-toggle', row.aiKey)"
+            />
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
     <el-alert
       v-if="localModel.requestAiEnabled || localModel.responseAiEnabled"
       type="warning"
@@ -61,6 +59,7 @@ import { i18ns } from '@/locales'
 import type { ContentSafetyAction } from '@appserver/shared'
 
 interface PolicyModel {
+  [key: string]: boolean | ContentSafetyAction
   requestEnabled: boolean
   requestAction: ContentSafetyAction
   requestAiEnabled: boolean
@@ -70,30 +69,45 @@ interface PolicyModel {
 }
 
 const props = defineProps<{ model: PolicyModel }>()
-const emit = defineEmits<{ 'update:model': [value: PolicyModel] }>()
+const emit = defineEmits<{
+  'update:model': [value: PolicyModel]
+  'ai-toggle': [key: 'requestAiEnabled' | 'responseAiEnabled']
+}>()
 const localModel = computed({
   get: () => props.model,
   set: (value) => emit('update:model', value),
 })
+
+const policyRows: Array<{
+  direction: string
+  enabledKey: 'requestEnabled' | 'responseEnabled'
+  actionKey: 'requestAction' | 'responseAction'
+  aiKey: 'requestAiEnabled' | 'responseAiEnabled'
+}> = [
+  {
+    direction: i18ns.t('contentSafety.request'),
+    enabledKey: 'requestEnabled',
+    actionKey: 'requestAction',
+    aiKey: 'requestAiEnabled',
+  },
+  {
+    direction: i18ns.t('contentSafety.response'),
+    enabledKey: 'responseEnabled',
+    actionKey: 'responseAction',
+    aiKey: 'responseAiEnabled',
+  },
+] as const
 </script>
 
 <style scoped>
-.content-safety-policy-fields__form {
+.content-safety-policy-fields__table-wrap {
   width: 100%;
+  overflow-x: auto;
 }
-.content-safety-policy-fields__row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.content-safety-policy-fields__table {
+  min-width: 720px;
 }
-@media (max-width: 700px) {
-  .content-safety-policy-fields__row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .content-safety-policy-fields__row > * {
-    width: 100%;
-  }
+.direction-label {
+  font-weight: 600;
 }
 </style>

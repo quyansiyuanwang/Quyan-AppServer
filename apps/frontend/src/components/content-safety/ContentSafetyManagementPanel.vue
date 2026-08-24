@@ -5,33 +5,8 @@
         <template #title
           ><span class="collapse-title">{{ i18ns.t('contentSafety.policy') }}</span></template
         >
+        <ContentSafetyPolicyFields v-model:model="form" @ai-toggle="confirmAiToggle" />
         <el-form label-position="right" label-width="190px">
-          <el-form-item :label="i18ns.t('contentSafety.requestEnabled')"
-            ><el-switch v-model="form.requestEnabled"
-          /></el-form-item>
-          <el-form-item :label="i18ns.t('contentSafety.requestAction')"
-            ><el-select v-model="form.requestAction"
-              ><el-option
-                value="unreachable"
-                :label="i18ns.t('contentSafety.unreachable')" /><el-option
-                value="blackhole"
-                :label="i18ns.t('contentSafety.blackhole')" /><el-option
-                value="allow"
-                :label="i18ns.t('contentSafety.allow')" /></el-select
-          ></el-form-item>
-          <el-form-item :label="i18ns.t('contentSafety.responseEnabled')"
-            ><el-switch v-model="form.responseEnabled"
-          /></el-form-item>
-          <el-form-item :label="i18ns.t('contentSafety.responseAction')"
-            ><el-select v-model="form.responseAction"
-              ><el-option
-                value="unreachable"
-                :label="i18ns.t('contentSafety.unreachable')" /><el-option
-                value="blackhole"
-                :label="i18ns.t('contentSafety.blackhole')" /><el-option
-                value="allow"
-                :label="i18ns.t('contentSafety.allow')" /></el-select
-          ></el-form-item>
           <el-form-item :label="i18ns.t('contentSafety.url')"
             ><el-input v-model="form.aiUpstreamUrl"
           /></el-form-item>
@@ -51,22 +26,13 @@
           <el-form-item :label="i18ns.t('contentSafety.outputPrice')"
             ><el-input-number v-model="form.aiOutputPricePerMillion" :min="0" :precision="6"
           /></el-form-item>
-          <el-form-item :label="i18ns.t('contentSafety.requestAiEnabled')"
-            ><el-switch
-              v-model="form.requestAiEnabled"
-              @change="confirmAiToggle('requestAiEnabled')"
-          /></el-form-item>
-          <el-form-item :label="i18ns.t('contentSafety.responseAiEnabled')"
-            ><el-switch
-              v-model="form.responseAiEnabled"
-              @change="confirmAiToggle('responseAiEnabled')"
-          /></el-form-item>
           <el-form-item :label="i18ns.t('contentSafety.format')"
-            ><el-select v-model="form.aiRequestFormat"
-              ><el-option value="openai-chat-completions" label="OpenAI" /><el-option
-                value="anthropic"
-                label="Anthropic" /><el-option value="gemini" label="Gemini" /></el-select
-          ></el-form-item>
+            ><el-radio-group v-model="form.aiRequestFormat" size="small">
+              <el-radio-button label="openai-chat-completions">OpenAI</el-radio-button>
+              <el-radio-button label="anthropic">Anthropic</el-radio-button>
+              <el-radio-button label="gemini">Gemini</el-radio-button>
+            </el-radio-group></el-form-item
+          >
           <el-form-item :label="i18ns.t('contentSafety.timeoutMs')"
             ><el-input-number v-model="form.aiTimeoutMs" :min="1000" :max="30000" :step="500"
           /></el-form-item>
@@ -143,11 +109,35 @@
             :label="i18ns.t('contentSafety.action')" /><el-table-column
             prop="source"
             :label="i18ns.t('contentSafety.source')" /><el-table-column
+            prop="rule.name"
+            :label="i18ns.t('contentSafety.triggerRule')"
+            min-width="150" /><el-table-column
+            prop="rule.type"
+            :label="i18ns.t('contentSafety.type')"
+            width="90" /><el-table-column
+            prop="requestId"
+            :label="i18ns.t('contentSafety.requestId')"
+            min-width="150" /><el-table-column
+            prop="relayTokenId"
+            :label="i18ns.t('contentSafety.tokenId')"
+            min-width="150" /><el-table-column
+            prop="channelId"
+            :label="i18ns.t('contentSafety.channelId')"
+            min-width="130" /><el-table-column
             prop="auditTotalTokens"
             :label="i18ns.t('contentSafety.auditTokens')" /><el-table-column
             prop="blocked"
             :label="i18ns.t('contentSafety.blocked')"
         /></el-table>
+        <div class="incident-filter">
+          <el-input
+            v-model="incidentUserId"
+            clearable
+            :placeholder="i18ns.t('contentSafety.userIdFilter')"
+            @keyup.enter="loadIncidents"
+          />
+          <el-button @click="loadIncidents">{{ i18ns.t('contentSafety.filter') }}</el-button>
+        </div>
         <el-pagination
           v-model:current-page="incidentPage"
           v-model:page-size="incidentPageSize"
@@ -168,24 +158,34 @@
       ><el-form-item :label="i18ns.t('contentSafety.name')"
         ><el-input v-model="rule.name" /></el-form-item
       ><el-form-item :label="i18ns.t('contentSafety.type')"
-        ><el-select v-model="rule.type"
-          ><el-option value="literal" label="literal" /><el-option
-            value="regex"
-            label="regex" /></el-select></el-form-item
+        ><el-radio-group v-model="rule.type" size="small"
+          ><el-radio-button label="literal">literal</el-radio-button
+          ><el-radio-button label="regex">regex</el-radio-button></el-radio-group
+        ></el-form-item
       ><el-form-item :label="i18ns.t('contentSafety.pattern')"
         ><el-input v-model="rule.pattern" type="textarea" /></el-form-item
       ><el-form-item :label="i18ns.t('contentSafety.direction')"
-        ><el-select v-model="rule.direction"
-          ><el-option value="request" label="request" /><el-option
-            value="response"
-            label="response" /><el-option value="both" label="both" /></el-select></el-form-item
+        ><el-radio-group v-model="rule.direction" size="small"
+          ><el-radio-button label="request">{{ i18ns.t('contentSafety.request') }}</el-radio-button
+          ><el-radio-button label="response">{{
+            i18ns.t('contentSafety.response')
+          }}</el-radio-button
+          ><el-radio-button label="both">{{
+            i18ns.t('contentSafety.both')
+          }}</el-radio-button></el-radio-group
+        ></el-form-item
       ><el-form-item :label="i18ns.t('contentSafety.action')"
-        ><el-select v-model="rule.action"
-          ><el-option value="unreachable" :label="i18ns.t('contentSafety.unreachable')" /><el-option
-            value="blackhole"
-            :label="i18ns.t('contentSafety.blackhole')" /><el-option
-            value="allow"
-            :label="i18ns.t('contentSafety.allow')" /></el-select></el-form-item
+        ><el-radio-group v-model="rule.action" size="small"
+          ><el-radio-button label="unreachable">{{
+            i18ns.t('contentSafety.unreachable')
+          }}</el-radio-button
+          ><el-radio-button label="blackhole">{{
+            i18ns.t('contentSafety.blackhole')
+          }}</el-radio-button
+          ><el-radio-button label="allow">{{
+            i18ns.t('contentSafety.allow')
+          }}</el-radio-button></el-radio-group
+        ></el-form-item
       ><el-form-item :label="i18ns.t('contentSafety.priority')"
         ><el-input-number v-model="rule.priority" :min="0" :max="100000" /></el-form-item
       ><el-form-item :label="i18ns.t('contentSafety.enabled')"
@@ -203,6 +203,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { i18ns } from '@/locales'
 import { useRequestStore } from '@/stores/request'
 import { createContentSafetyControllerApi } from '@/client/services/content-safety-controller.gen'
+import ContentSafetyPolicyFields from './ContentSafetyPolicyFields.vue'
 const api = () => createContentSafetyControllerApi(useRequestStore().getAxios())
 const unwrap = (v: any) => v?.data?.data ?? v?.data ?? v
 const loading = ref(false),
@@ -228,7 +229,8 @@ const rulePage = ref(1),
   ruleTotal = ref(0),
   incidentPage = ref(1),
   incidentPageSize = ref(20),
-  incidentTotal = ref(0)
+  incidentTotal = ref(0),
+  incidentUserId = ref('')
 const form = reactive<any>({
   requestEnabled: true,
   requestAction: 'unreachable',
@@ -255,7 +257,11 @@ const loadRules = async () => {
 const loadIncidents = async () => {
   const r = unwrap(
     await api().listIncidents({
-      params: { page: incidentPage.value, pageSize: incidentPageSize.value },
+      params: {
+        page: incidentPage.value,
+        pageSize: incidentPageSize.value,
+        userId: incidentUserId.value || undefined,
+      },
     }),
   )
   incidents.value = r?.incidents ?? []

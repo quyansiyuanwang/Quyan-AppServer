@@ -182,7 +182,12 @@ export class ContentSafetyController extends Controller {
   }
   @Get("incidents")
   @RequirePermission(Permission.SYSTEM_CONFIG)
-  async listIncidents(@Query() page = 1, @Query() pageSize = 50) {
-    return this.service.listIncidents(page, pageSize);
+  async listIncidents(@Query() page = 1, @Query() pageSize = 50, @Query() userId?: string) {
+    return this.service.listIncidents(page, pageSize, userId);
+  }
+
+  @Get("user-incidents")
+  async listUserIncidents(@Request() request: TypedRequest, @Query() page = 1, @Query() pageSize = 50) {
+    return this.service.listIncidents(page, pageSize, request.user!.userId);
   }
 }
