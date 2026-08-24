@@ -20,6 +20,8 @@ import LayoutWrapper from '@/layouts/HomeFrameLayout.vue'
 }
 
 .route-transition-shell {
+  display: block;
+  width: 100%;
   min-width: 0;
   min-height: 100%;
   height: 100%;

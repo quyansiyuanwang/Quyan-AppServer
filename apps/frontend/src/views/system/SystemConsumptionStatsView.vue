@@ -376,6 +376,7 @@ const { isDesktop } = usePageDevice()
 
 <style scoped>
 .consumption-stats-page {
+  display: block;
   width: 100%;
   min-width: 0;
 }
@@ -409,6 +410,8 @@ const { isDesktop } = usePageDevice()
 .consumption-stats-container {
   display: flex;
   flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
   gap: 16px;
   width: 100%;
   min-width: 0;
@@ -416,6 +419,7 @@ const { isDesktop } = usePageDevice()
 }
 
 .consumption-stats-container > * {
+  flex: 0 0 auto;
   min-width: 0;
 }
 
