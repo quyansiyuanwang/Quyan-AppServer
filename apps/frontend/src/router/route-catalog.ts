@@ -32,7 +32,6 @@ const legacyRoutePathByName: Record<string, string> = {
   settings: '/settings/profile',
   settingsProfile: '/settings/profile',
   settingsPreferences: '/settings/preferences',
-  settingsContentSafety: '/settings/content-safety',
   settingsSecurity: '/settings/security',
   notificationSettings: '/settings/notifications',
   workspaceSuggestions: '/workspace/suggestions',
@@ -190,12 +189,6 @@ export const routeCatalog = attachLegacyPaths([
     name: 'settingsPreferences',
     group: 'account',
     path: '/settings/preferences',
-    overviewCategory: 'account',
-  },
-  {
-    name: 'settingsContentSafety',
-    group: 'account',
-    path: '/settings/content-safety',
     overviewCategory: 'account',
   },
   {
