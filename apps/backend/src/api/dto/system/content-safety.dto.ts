@@ -105,7 +105,7 @@ export interface ContentSafetyIncidentDto {
   action: string;
   source: string;
   ruleId?: string | null;
-  rule?: { name: string; type: string } | null;
+  rule?: { name: string; type: string; pattern?: string } | null;
   channelId?: string | null;
   statusCode?: number | null;
   model?: string | null;
@@ -117,4 +117,7 @@ export interface ContentSafetyIncidentDto {
   auditDurationMs: number;
   replaced: boolean;
   blocked: boolean;
+  matchText?: string | null;
+  /** One combined excerpt; the UI highlights the matching portion temporarily. */
+  matchContext?: string | null;
 }

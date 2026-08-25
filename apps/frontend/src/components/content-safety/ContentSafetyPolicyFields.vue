@@ -7,17 +7,12 @@
             <span class="direction-label">{{ row.direction }}</span>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('contentSafety.enabled')" width="110" align="center">
-          <template #default="{ row }">
-            <el-checkbox v-model="localModel[row.enabledKey]" />
-          </template>
-        </el-table-column>
-        <el-table-column :label="i18ns.t('contentSafety.action')" min-width="330">
+        <el-table-column :label="i18ns.t('contentSafety.action')" min-width="420">
           <template #default="{ row }">
             <el-radio-group
-              v-model="localModel[row.actionKey]"
-              :disabled="!localModel[row.enabledKey]"
+              :model-value="getMode(row)"
               size="small"
+              @update:model-value="setMode(row, $event)"
             >
               <el-radio-button label="unreachable">
                 {{ i18ns.t('contentSafety.unreachable') }}
@@ -27,6 +22,12 @@
               </el-radio-button>
               <el-radio-button label="allow">
                 {{ i18ns.t('contentSafety.allow') }}
+              </el-radio-button>
+              <el-radio-button label="disabled">
+                {{ i18ns.t('contentSafety.disabled') }}
+              </el-radio-button>
+              <el-radio-button v-if="allowInherit" label="inherit">
+                {{ i18ns.t('contentSafety.inherit') }}
               </el-radio-button>
             </el-radio-group>
           </template>
@@ -59,16 +60,22 @@ import { i18ns } from '@/locales'
 import type { ContentSafetyAction } from '@appserver/shared'
 
 interface PolicyModel {
-  [key: string]: boolean | ContentSafetyAction
-  requestEnabled: boolean
-  requestAction: ContentSafetyAction
-  requestAiEnabled: boolean
-  responseEnabled: boolean
-  responseAction: ContentSafetyAction
-  responseAiEnabled: boolean
+  [key: string]: boolean | null | ContentSafetyAction
+  requestEnabled: boolean | null
+  requestAction: ContentSafetyAction | null
+  requestAiEnabled: boolean | null
+  responseEnabled: boolean | null
+  responseAction: ContentSafetyAction | null
+  responseAiEnabled: boolean | null
 }
 
-const props = defineProps<{ model: PolicyModel }>()
+const props = withDefaults(
+  defineProps<{
+    model: PolicyModel
+    allowInherit?: boolean
+  }>(),
+  { allowInherit: false },
+)
 const emit = defineEmits<{
   'update:model': [value: PolicyModel]
   'ai-toggle': [key: 'requestAiEnabled' | 'responseAiEnabled']
@@ -77,6 +84,33 @@ const localModel = computed({
   get: () => props.model,
   set: (value) => emit('update:model', value),
 })
+
+type PolicyRow = (typeof policyRows)[number]
+type PolicyMode = ContentSafetyAction | 'disabled' | 'inherit'
+
+const getMode = (row: PolicyRow): PolicyMode => {
+  const enabled = localModel.value[row.enabledKey]
+  const action = localModel.value[row.actionKey]
+  if (enabled === false) return 'disabled'
+  if (enabled === null && action === null && props.allowInherit) return 'inherit'
+  return action ?? 'unreachable'
+}
+
+const setMode = (row: PolicyRow, value: string | number | boolean | undefined) => {
+  const mode = String(value) as PolicyMode
+  if (mode === 'disabled') {
+    localModel.value[row.enabledKey] = false
+    return
+  }
+  if (mode === 'inherit' && props.allowInherit) {
+    localModel.value[row.enabledKey] = null
+    localModel.value[row.actionKey] = null
+    return
+  }
+  if (mode !== 'unreachable' && mode !== 'blackhole' && mode !== 'allow') return
+  localModel.value[row.enabledKey] = true
+  localModel.value[row.actionKey] = mode
+}
 
 const policyRows: Array<{
   direction: string

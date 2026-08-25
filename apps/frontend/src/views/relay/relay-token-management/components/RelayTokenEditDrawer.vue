@@ -1033,31 +1033,14 @@
                     :label="i18ns.t('contentSafety.direction')"
                     width="120"
                   />
-                  <el-table-column :label="i18ns.t('contentSafety.enabled')" min-width="230">
+                  <el-table-column :label="i18ns.t('contentSafety.action')" min-width="500">
                     <template #default="{ row }">
                       <el-radio-group
-                        v-model="editForm.contentSafetyConfig[row.enabledKey]"
+                        :model-value="getContentSafetyMode(row)"
                         size="small"
+                        @update:model-value="setContentSafetyMode(row, $event)"
                       >
-                        <el-radio-button :label="null">{{
-                          i18ns.t('contentSafety.inherit')
-                        }}</el-radio-button>
-                        <el-radio-button :label="true">{{
-                          i18ns.t('contentSafety.enabled')
-                        }}</el-radio-button>
-                        <el-radio-button :label="false">{{
-                          i18ns.t('contentSafety.disabled')
-                        }}</el-radio-button>
-                      </el-radio-group>
-                    </template>
-                  </el-table-column>
-                  <el-table-column :label="i18ns.t('contentSafety.action')" min-width="330">
-                    <template #default="{ row }">
-                      <el-radio-group
-                        v-model="editForm.contentSafetyConfig[row.actionKey]"
-                        size="small"
-                      >
-                        <el-radio-button :label="null">{{
+                        <el-radio-button label="inherit">{{
                           i18ns.t('contentSafety.inherit')
                         }}</el-radio-button>
                         <el-radio-button label="unreachable">{{
@@ -1068,6 +1051,9 @@
                         }}</el-radio-button>
                         <el-radio-button label="allow">{{
                           i18ns.t('contentSafety.allow')
+                        }}</el-radio-button>
+                        <el-radio-button label="disabled">{{
+                          i18ns.t('contentSafety.disabled')
                         }}</el-radio-button>
                       </el-radio-group>
                     </template>
@@ -1299,6 +1285,33 @@ const contentSafetyOverrideRows: Array<{
     aiKey: 'responseAiEnabled',
   },
 ] as const
+
+type ContentSafetyOverrideRow = (typeof contentSafetyOverrideRows)[number]
+type ContentSafetyMode = 'inherit' | 'unreachable' | 'blackhole' | 'allow' | 'disabled'
+
+const getContentSafetyMode = (row: ContentSafetyOverrideRow): ContentSafetyMode => {
+  const config = editForm.value.contentSafetyConfig
+  if (config[row.enabledKey] === false) return 'disabled'
+  if (config[row.enabledKey] == null && config[row.actionKey] == null) return 'inherit'
+  return config[row.actionKey] ?? 'inherit'
+}
+
+const setContentSafetyMode = (
+  row: ContentSafetyOverrideRow,
+  value: string | number | boolean | undefined,
+) => {
+  const mode = String(value) as ContentSafetyMode
+  const config = editForm.value.contentSafetyConfig
+  if (mode === 'inherit') {
+    config[row.enabledKey] = null
+    config[row.actionKey] = null
+  } else if (mode === 'disabled') {
+    config[row.enabledKey] = false
+  } else if (mode === 'unreachable' || mode === 'blackhole' || mode === 'allow') {
+    config[row.enabledKey] = true
+    config[row.actionKey] = mode
+  }
+}
 
 const setChannelListRef = (element: Element | ComponentPublicInstance | null) => {
   const target = element instanceof HTMLElement ? element : null

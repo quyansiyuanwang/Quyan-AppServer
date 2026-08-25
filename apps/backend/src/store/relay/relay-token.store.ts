@@ -225,4 +225,9 @@ export interface RelayTokenStore {
   deleteByIds(userId: string, ids: string[]): Promise<number>;
   deleteByIdsForScope(ids: string[], userId?: string): Promise<number>;
   updateStatusByIdsForScope(ids: string[], status: number, userId?: string): Promise<number>;
+  updateContentSafetyConfigByIdsForScope(
+    ids: string[],
+    config: ContentSafetyPolicyOverride | null,
+    userId?: string,
+  ): Promise<number>;
 }

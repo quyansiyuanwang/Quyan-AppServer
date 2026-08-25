@@ -471,6 +471,12 @@ export const batchDuplicateRelayTokensBodySchema = z.object({
   targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 
+export const batchRelayTokenContentSafetyBodySchema = z.object({
+  ids: relayTokenIdsSchema,
+  mode: z.enum(["snapshot", "clear"]),
+  targetUserId: z.string().trim().min(1).max(50).optional(),
+});
+
 export const relayTokenListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(100000).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),

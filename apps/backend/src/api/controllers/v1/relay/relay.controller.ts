@@ -20,6 +20,7 @@ import type {
   BatchDuplicateRelayTokensRequest,
   BatchRelayTokensResultDto,
   BatchSetRelayTokenStatusRequest,
+  BatchRelayTokenContentSafetyRequest,
   CreateRelayTokenDto,
   DuplicateRelayTokenRequest,
   ExportRelayTokensRequest,
@@ -48,6 +49,7 @@ import {
   batchDeleteRelayTokensBodySchema,
   batchDuplicateRelayTokensBodySchema,
   batchSetRelayTokenStatusBodySchema,
+  batchRelayTokenContentSafetyBodySchema,
   createRelayTokenBodySchema,
   duplicateRelayTokenBodySchema,
   exportRelayTokensBodySchema,
@@ -312,6 +314,22 @@ export class RelayController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<BatchRelayTokensResultDto> {
     return this.relayTokenService.batchSetTokenStatus(body, request.user!.userId, request);
+  }
+
+  @Post("tokens/batch/content-safety")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(batchRelayTokenContentSafetyBodySchema),
+  )
+  async batchContentSafety(
+    @Body() body: BatchRelayTokenContentSafetyRequest,
+    @Request() request: TypedRequest,
+  ): Promise<BatchRelayTokensResultDto> {
+    return this.relayTokenService.batchContentSafety(body, request.user!.userId, request);
   }
 
   @Post("tokens/batch/delete")

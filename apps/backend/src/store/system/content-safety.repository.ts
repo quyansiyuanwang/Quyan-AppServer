@@ -143,10 +143,15 @@ export class ContentSafetyRepository {
           auditDurationMs: true,
           replaced: true,
           blocked: true,
-          rule: { select: { name: true, type: true } },
+          matchContext: true,
+          matchText: true,
+          rule: { select: { name: true, type: true, pattern: true } },
         },
       }),
       prisma.contentSafetyIncident.count({ where }),
-    ]).then(([incidents, total]) => ({ incidents, total }));
+    ]).then(([incidents, total]) => ({
+      incidents,
+      total,
+    }));
   }
 }

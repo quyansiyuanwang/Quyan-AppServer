@@ -40,6 +40,8 @@ export type ContentSafetyEvaluation = {
   auditDurationMs: number;
   auditCost: number;
   auditModel?: string;
+  matchText?: string;
+  matchContext?: string;
 };
 
 const ZERO_WIDTH_AND_CONTROL_CHARS = new RegExp(
@@ -50,6 +52,9 @@ const normalizeText = (value: string) =>
   value.normalize("NFKC").replace(ZERO_WIDTH_AND_CONTROL_CHARS, "").replace(/\s+/g, " ").trim();
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const validActions = new Set<ContentSafetyAction>(["unreachable", "blackhole", "allow"]);
+const INCIDENT_CONTEXT_BEFORE = 240;
+const INCIDENT_CONTEXT_MATCH = 240;
+const INCIDENT_CONTEXT_AFTER = 240;
 
 export class ContentSafetyService {
   private static instance: ContentSafetyService;
@@ -368,6 +373,20 @@ export class ContentSafetyService {
     return null;
   }
 
+  private extractMatchContext(text: string, expression: RegExp) {
+    const match = expression.exec(text);
+    if (!match || match.index < 0 || !match[0]) return undefined;
+    const start = match.index;
+    const end = start + match[0].length;
+    return {
+      context: text.slice(
+        Math.max(0, start - INCIDENT_CONTEXT_BEFORE),
+        Math.min(text.length, end + INCIDENT_CONTEXT_AFTER),
+      ),
+      text: match[0].slice(0, INCIDENT_CONTEXT_MATCH),
+    };
+  }
+
   private async audit(
     text: string,
     direction: ContentSafetyDirection,
@@ -496,6 +515,7 @@ export class ContentSafetyService {
     if (match) {
       const action = match.rule.action;
       const replaced = action === "blackhole" ? text.replace(match.expression, "[REDACTED]") : text;
+      const matchContext = this.extractMatchContext(text, match.expression);
       return {
         text: replaced,
         action,
@@ -506,6 +526,8 @@ export class ContentSafetyService {
         auditOutputTokens: 0,
         auditDurationMs: 0,
         auditCost: 0,
+        matchText: matchContext?.text,
+        matchContext: matchContext?.context,
       };
     }
     return this.audit(text, direction, config);
@@ -555,6 +577,7 @@ export class ContentSafetyService {
         auditDurationMs: 0,
         auditCost: 0,
       };
+    const matchContext = this.extractMatchContext(text, match.expression);
     return {
       text: match.rule.action === "blackhole" ? text.replace(match.expression, "[REDACTED]") : text,
       action: match.rule.action,
@@ -565,6 +588,8 @@ export class ContentSafetyService {
       auditOutputTokens: 0,
       auditDurationMs: 0,
       auditCost: 0,
+      matchText: matchContext?.text,
+      matchContext: matchContext?.context,
     };
   }
 
@@ -599,6 +624,8 @@ export class ContentSafetyService {
       auditDurationMs: input.evaluation.auditDurationMs,
       replaced: input.evaluation.action === "blackhole",
       blocked: input.evaluation.action === "unreachable",
+      matchText: input.evaluation.matchText,
+      matchContext: input.evaluation.matchContext,
     });
     const notification = {
       subject: "Content safety event",

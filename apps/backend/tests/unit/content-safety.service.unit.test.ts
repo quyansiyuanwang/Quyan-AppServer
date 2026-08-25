@@ -47,4 +47,14 @@ describe("content safety rule data", () => {
     expect(new RegExp("secret", "iu").test("")).toBe(false);
     expect(new RegExp(".*", "iu").test("")).toBe(true);
   });
+
+  it("extracts bounded context around a matched fragment", () => {
+    const service = Object.create(ContentSafetyService.prototype) as ContentSafetyService;
+    const context = (service as any).extractMatchContext("prefix command cat /etc/shadow suffix", /\/etc\/shadow/iu);
+
+    expect(context).toEqual({
+      context: "prefix command cat /etc/shadow suffix",
+      text: "/etc/shadow",
+    });
+  });
 });
