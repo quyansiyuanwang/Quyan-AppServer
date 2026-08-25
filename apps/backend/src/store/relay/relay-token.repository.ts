@@ -15,6 +15,7 @@ import type {
 } from "./relay-token.store";
 import type { RelayTokenWithRelations } from "./relay-token.store";
 import { MANAGED_STATUS } from "@/constant/status";
+import type { ContentSafetyPolicyOverride } from "@appserver/shared";
 
 export type { RelayTokenWithRelations } from "./relay-token.store";
 export type RelayTokenWithChannel = RelayTokenWithRelations;
@@ -427,6 +428,24 @@ export class RelayTokenRepository implements RelayTokenStore {
       data: { status },
     });
 
+    return result.count;
+  }
+
+  async updateContentSafetyConfigByIdsForScope(
+    ids: string[],
+    config: ContentSafetyPolicyOverride | null,
+    userId?: string,
+  ): Promise<number> {
+    const result = await prisma.relayToken.updateMany({
+      where: {
+        ...(userId ? { userId } : {}),
+        id: { in: ids },
+        status: { in: [...visibleRelayTokenStatuses] },
+      },
+      data: {
+        contentSafetyConfig: config === null ? Prisma.DbNull : (config as unknown as Prisma.InputJsonValue),
+      },
+    });
     return result.count;
   }
 

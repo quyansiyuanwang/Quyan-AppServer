@@ -124,6 +124,13 @@
             prop="channelId"
             :label="i18ns.t('contentSafety.channelId')"
             min-width="130" /><el-table-column
+            :label="i18ns.t('contentSafety.matchedContext')"
+            min-width="360"
+            ><template #default="{ row }"
+              ><span
+                class="matched-context"
+                v-html="formatMatchedContext(row)" /></template></el-table-column
+          ><el-table-column
             prop="auditTotalTokens"
             :label="i18ns.t('contentSafety.auditTokens')" /><el-table-column
             prop="blocked"
@@ -206,6 +213,33 @@ import { createContentSafetyControllerApi } from '@/client/services/content-safe
 import ContentSafetyPolicyFields from './ContentSafetyPolicyFields.vue'
 const api = () => createContentSafetyControllerApi(useRequestStore().getAxios())
 const unwrap = (v: any) => v?.data?.data ?? v?.data ?? v
+const escapeHtml = (value: unknown) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const formatMatchedContext = (incident: any) => {
+  const context = incident.matchContext || incident.matchText || ''
+  if (!context || !incident.matchText)
+    return `<span class="matched-context__empty">${escapeHtml(i18ns.t('noData'))}</span>`
+  let match: RegExpExecArray | null = null
+  try {
+    const pattern = incident.rule?.pattern || incident.matchText
+    const source = incident.rule?.type === 'regex' ? pattern : escapeRegExp(pattern)
+    const expression = new RegExp(source, 'iu')
+    const candidate = expression.exec(context)
+    if (candidate?.[0]) match = candidate
+  } catch {
+    // Fall back to the exact bounded match below.
+  }
+  const start = match?.index ?? context.indexOf(incident.matchText)
+  const matchedText = match?.[0] || incident.matchText
+  if (start < 0) return escapeHtml(context)
+  return `${escapeHtml(context.slice(0, start))}<mark>${escapeHtml(matchedText)}</mark>${escapeHtml(context.slice(start + matchedText.length))}`
+}
 const loading = ref(false),
   saving = ref(false),
   apiKey = ref(''),
@@ -380,5 +414,22 @@ onMounted(() => void load())
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+.matched-context {
+  display: block;
+  overflow: hidden;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.matched-context :deep(mark) {
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: var(--el-color-warning-light-5);
+  color: var(--el-text-color-primary);
+  font-weight: 700;
+}
+.matched-context__empty {
+  color: var(--el-text-color-secondary);
 }
 </style>

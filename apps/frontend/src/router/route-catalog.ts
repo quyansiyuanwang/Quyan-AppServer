@@ -32,7 +32,6 @@ const legacyRoutePathByName: Record<string, string> = {
   settings: '/settings/profile',
   settingsProfile: '/settings/profile',
   settingsPreferences: '/settings/preferences',
-  settingsContentSafety: '/settings/content-safety',
   settingsSecurity: '/settings/security',
   notificationSettings: '/settings/notifications',
   workspaceSuggestions: '/workspace/suggestions',
@@ -91,6 +90,7 @@ const legacyRoutePathByName: Record<string, string> = {
   analyticsHeatmap: '/analytics/heatmap',
   relayChannelReview: '/relay/channel-review',
   relaySettings: '/relay/settings',
+  relayContentSafety: '/relay/content-safety',
   relayChannelHealth: '/relay/channel-health',
   relayRequestDiagnostics: '/relay/request-diagnostics',
   relayChannelProbes: '/relay/channel-probes',
@@ -189,12 +189,6 @@ export const routeCatalog = attachLegacyPaths([
     name: 'settingsPreferences',
     group: 'account',
     path: '/settings/preferences',
-    overviewCategory: 'account',
-  },
-  {
-    name: 'settingsContentSafety',
-    group: 'account',
-    path: '/settings/content-safety',
     overviewCategory: 'account',
   },
   {
@@ -601,6 +595,12 @@ export const routeCatalog = attachLegacyPaths([
     name: 'relaySettings',
     group: 'management-ai',
     path: '/relay/settings',
+    overviewCategory: 'console-ai',
+  },
+  {
+    name: 'relayContentSafety',
+    group: 'management-ai',
+    path: '/relay/content-safety',
     overviewCategory: 'console-ai',
   },
   {

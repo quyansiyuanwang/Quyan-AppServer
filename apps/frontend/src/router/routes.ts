@@ -253,11 +253,6 @@ export const routes = [
                 component: lazyFeatureView('settings', 'PreferencesSettingsView.vue'),
               },
               {
-                path: 'content-safety',
-                name: 'settingsContentSafety',
-                component: lazyFeatureView('settings', 'ContentSafetySettingsView.vue'),
-              },
-              {
                 path: 'security',
                 name: 'settingsSecurity',
                 component: lazyFeatureView('settings', 'AccountSecuritySettingsView.vue'),
@@ -987,6 +982,12 @@ export const routes = [
             meta: {
               permission: Permission.MODEL_PRICING_UPDATE,
             },
+          },
+          {
+            path: 'relay/content-safety',
+            name: 'relayContentSafety',
+            component: lazyFeatureView('relay', 'RelayContentSafetyView.vue'),
+            meta: { permission: Permission.RELAY_TOKEN_READ },
           },
           {
             path: 'channels/health',

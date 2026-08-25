@@ -8,6 +8,7 @@ import {
   BatchDeleteRelayTokensRequest,
   BatchRelayTokensResultDto,
   BatchSetRelayTokenStatusRequest,
+  BatchRelayTokenContentSafetyRequest,
   CreateRelayTokenDto,
   DuplicateRelayTokenRequest,
   ExportRelayTokensRequest,
@@ -77,7 +78,8 @@ import { Permission } from "@/constant/permission";
 import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
 import { backendI18n } from "@/locales";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
-import type { RelayRequestFormatTransform } from "@appserver/shared";
+import { ContentSafetyService } from "@/services/system/content-safety.service";
+import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform } from "@appserver/shared";
 import {
   DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
   normalizeRelayTokenNormalizerConfig,
@@ -181,6 +183,7 @@ export class RelayTokenService {
     private readonly permissionService: PermissionService = PermissionService.getInstance(),
     private readonly rateLimiterService: RateLimiterService = RateLimiterService.getInstance(),
     private readonly relayChannelService: RelayChannelService = RelayChannelService.getInstance(),
+    private readonly contentSafetyService: ContentSafetyService = ContentSafetyService.getInstance(),
   ) {}
 
   private async resolveManagedUserId(
@@ -984,6 +987,39 @@ export class RelayTokenService {
       total: body.ids.length,
       affected,
     };
+  }
+
+  async batchContentSafety(
+    body: BatchRelayTokenContentSafetyRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchRelayTokensResultDto> {
+    const userId = await this.resolveManagedUserId(
+      actorUserId,
+      body.targetUserId,
+      Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+    );
+    await this.getOrderedTokensByIds(actorUserId, body.ids, true, userId, Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE);
+    const config: ContentSafetyPolicyOverride | null =
+      body.mode === "clear"
+        ? null
+        : ((await this.contentSafetyService.getEffectivePolicy(userId, null)) as ContentSafetyPolicyOverride);
+    const affected = await this.relayTokenRepo.updateContentSafetyConfigByIdsForScope(body.ids, config, userId);
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_TOKEN_UPDATE,
+      operationCategory: OperationCategory.SECURITY,
+      actorUserId,
+      targetUserId: userId,
+      targetResourceType: "RELAY_TOKEN",
+      description:
+        body.mode === "clear"
+          ? `清除了 ${affected} 个中转令牌的内容安全覆盖`
+          : `将用户内容安全策略应用到 ${affected} 个中转令牌`,
+      metadata: { ids: body.ids, mode: body.mode },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return { total: body.ids.length, affected };
   }
 
   async batchDeleteTokens(
