@@ -57,12 +57,35 @@
             i18ns.t('contentSafety.importCsv')
           }}</el-button
           ><input ref="csvInput" hidden type="file" accept=".csv,text/csv" @change="importCsv" />
+          <el-button size="small" @click="exportPolicy('json')">{{
+            i18ns.t('contentSafety.exportJson')
+          }}</el-button>
+          <el-button size="small" @click="exportPolicy('csv')">{{
+            i18ns.t('contentSafety.exportCsv')
+          }}</el-button>
+          <el-button v-if="selectedRules.length" size="small" @click="openBatchDialog">{{
+            i18ns.t('contentSafety.batchEdit')
+          }}</el-button>
+          <el-button
+            v-if="selectedRules.length"
+            size="small"
+            type="success"
+            @click="batchSetEnabled(true)"
+            >{{ i18ns.t('contentSafety.batchEnable') }}</el-button
+          >
+          <el-button
+            v-if="selectedRules.length"
+            size="small"
+            type="warning"
+            @click="batchSetEnabled(false)"
+            >{{ i18ns.t('contentSafety.batchDisable') }}</el-button
+          >
         </div>
-        <el-table :data="rules" border size="small"
-          ><el-table-column prop="name" :label="i18ns.t('contentSafety.name')" /><el-table-column
-            prop="type"
-            :label="i18ns.t('contentSafety.type')"
-          /><el-table-column
+        <el-table :data="rules" border size="small" @selection-change="selectedRules = $event"
+          ><el-table-column type="selection" width="42" /><el-table-column
+            prop="name"
+            :label="i18ns.t('contentSafety.name')"
+          /><el-table-column prop="type" :label="i18ns.t('contentSafety.type')" /><el-table-column
             prop="direction"
             :label="i18ns.t('contentSafety.direction')"
           /><el-table-column
@@ -203,6 +226,97 @@
       ><el-button type="primary" @click="saveRule">{{ i18ns.t('save') }}</el-button></template
     >
   </el-dialog>
+  <el-dialog v-model="batchDialog" :title="i18ns.t('contentSafety.batchEdit')" width="520px">
+    <el-alert
+      :title="i18ns.t('contentSafety.selectedCount', { count: selectedRules.length })"
+      type="info"
+      :closable="false"
+    />
+    <el-form label-position="top" class="batch-form">
+      <el-form-item>
+        <template #label
+          ><el-checkbox v-model="batchFields.action">{{
+            i18ns.t('contentSafety.action')
+          }}</el-checkbox></template
+        >
+        <el-radio-group v-model="batchChanges.action" :disabled="!batchFields.action">
+          <el-radio-button label="unreachable">{{
+            i18ns.t('contentSafety.unreachable')
+          }}</el-radio-button>
+          <el-radio-button label="blackhole">{{
+            i18ns.t('contentSafety.blackhole')
+          }}</el-radio-button>
+          <el-radio-button label="allow">{{ i18ns.t('contentSafety.allow') }}</el-radio-button>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item>
+        <template #label
+          ><el-checkbox v-model="batchFields.direction">{{
+            i18ns.t('contentSafety.direction')
+          }}</el-checkbox></template
+        >
+        <el-radio-group v-model="batchChanges.direction" :disabled="!batchFields.direction">
+          <el-radio-button label="request">{{ i18ns.t('contentSafety.request') }}</el-radio-button>
+          <el-radio-button label="response">{{
+            i18ns.t('contentSafety.response')
+          }}</el-radio-button>
+          <el-radio-button label="both">{{ i18ns.t('contentSafety.both') }}</el-radio-button>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item>
+        <template #label
+          ><el-checkbox v-model="batchFields.priority">{{
+            i18ns.t('contentSafety.priority')
+          }}</el-checkbox></template
+        >
+        <el-input-number
+          v-model="batchChanges.priority"
+          :disabled="!batchFields.priority"
+          :min="0"
+          :max="100000"
+        />
+      </el-form-item>
+    </el-form>
+    <template #footer
+      ><el-button @click="batchDialog = false">{{ i18ns.t('cancel') }}</el-button
+      ><el-button type="primary" @click="saveBatch">{{ i18ns.t('save') }}</el-button></template
+    >
+  </el-dialog>
+  <el-dialog v-model="importDialog" :title="i18ns.t('contentSafety.importPreview')" width="760px">
+    <el-alert v-if="importPreview" type="info" :closable="false">
+      {{ i18ns.t('contentSafety.createCount', { count: importPreview.imported }) }} ·
+      {{ i18ns.t('contentSafety.updateCount', { count: importPreview.updated ?? 0 }) }} ·
+      {{ i18ns.t('contentSafety.skipCount', { count: importPreview.skipped ?? 0 }) }}
+    </el-alert>
+    <el-checkbox v-model="overwriteExisting" class="import-overwrite">{{
+      i18ns.t('contentSafety.overwriteExisting')
+    }}</el-checkbox>
+    <el-table
+      v-if="importPreview"
+      :data="importPreview.operations ?? []"
+      border
+      size="small"
+      max-height="360"
+    >
+      <el-table-column prop="row" label="#" width="60" /><el-table-column
+        prop="operation"
+        :label="i18ns.t('contentSafety.action')"
+        width="100"
+      /><el-table-column prop="name" :label="i18ns.t('contentSafety.name')" /><el-table-column
+        prop="pattern"
+        :label="i18ns.t('contentSafety.pattern')"
+      />
+    </el-table>
+    <template #footer
+      ><el-button @click="importDialog = false">{{ i18ns.t('cancel') }}</el-button
+      ><el-button
+        type="primary"
+        :disabled="Boolean(importPreview?.errors?.length)"
+        @click="applyImport"
+        >{{ i18ns.t('confirm') }}</el-button
+      ></template
+    >
+  </el-dialog>
 </template>
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
@@ -243,7 +357,7 @@ const formatMatchedContext = (incident: any) => {
 const loading = ref(false),
   saving = ref(false),
   apiKey = ref(''),
-  sections = ref(['policy'])
+  sections = ref<string[]>([])
 const csvInput = ref<HTMLInputElement | null>(null),
   rules = ref<any[]>([]),
   incidents = ref<any[]>([])
@@ -265,6 +379,14 @@ const rulePage = ref(1),
   incidentPageSize = ref(20),
   incidentTotal = ref(0),
   incidentUserId = ref('')
+const selectedRules = ref<any[]>([])
+const batchDialog = ref(false)
+const batchFields = reactive({ action: false, direction: false, priority: false })
+const batchChanges = reactive<any>({ action: 'unreachable', direction: 'both', priority: 100 })
+const importDialog = ref(false)
+const overwriteExisting = ref(false)
+const importCsvText = ref('')
+const importPreview = ref<any>(null)
 const form = reactive<any>({
   requestEnabled: true,
   requestAction: 'unreachable',
@@ -344,8 +466,54 @@ const importCsv = async (event: Event) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
-  await api().importCsv({ body: { csv: await file.text() } })
+  importCsvText.value = await file.text()
+  importPreview.value = unwrap(
+    await api().importCsv({ body: { csv: importCsvText.value, mode: 'preview' } }),
+  )
+  importDialog.value = true
   input.value = ''
+}
+const applyImport = async () => {
+  await api().importCsv({
+    body: { csv: importCsvText.value, mode: 'apply', overwrite: overwriteExisting.value },
+  })
+  importDialog.value = false
+  importPreview.value = null
+  await loadRules()
+}
+const exportPolicy = async (format: 'json' | 'csv') => {
+  const result = unwrap(await api().exportRules({ body: { format } }))
+  const blob = new Blob([result.content], {
+    type: format === 'csv' ? 'text/csv;charset=utf-8' : 'application/json;charset=utf-8',
+  })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = result.filename
+  link.click()
+  URL.revokeObjectURL(link.href)
+}
+const openBatchDialog = () => {
+  batchFields.action = false
+  batchFields.direction = false
+  batchFields.priority = false
+  batchDialog.value = true
+}
+const batchSetEnabled = async (enabled: boolean) => {
+  await api().batchUpdateRules({
+    body: { ids: selectedRules.value.map((row) => row.id), changes: { enabled } },
+  })
+  selectedRules.value = []
+  await loadRules()
+}
+const saveBatch = async () => {
+  const changes: any = {}
+  if (batchFields.action) changes.action = batchChanges.action
+  if (batchFields.direction) changes.direction = batchChanges.direction
+  if (batchFields.priority) changes.priority = batchChanges.priority
+  if (!Object.keys(changes).length) return
+  await api().batchUpdateRules({ body: { ids: selectedRules.value.map((row) => row.id), changes } })
+  batchDialog.value = false
+  selectedRules.value = []
   await loadRules()
 }
 const openRule = (row?: any) => {

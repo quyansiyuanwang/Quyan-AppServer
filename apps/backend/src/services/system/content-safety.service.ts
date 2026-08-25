@@ -226,48 +226,40 @@ export class ContentSafetyService {
     return this.repository.softDelete(id);
   }
 
-  async importUserCsv(userId: string, csv: string) {
-    if (Buffer.byteLength(csv, "utf8") > 1024 * 1024) throw new BadRequestError("Content safety CSV is too large");
-    const rows = this.parseCsv(csv);
-    if (rows.length < 2) throw new BadRequestError("Content safety CSV must include a header and at least one row");
-    const header = rows[0]!.map((value) =>
-      value
-        .replace(/^\uFEFF/, "")
-        .trim()
-        .toLowerCase(),
-    );
-    const required = ["name", "type", "pattern", "direction", "action"];
-    if (required.some((field) => !header.includes(field)))
-      throw new BadRequestError("Content safety CSV header is invalid");
-    const index = (field: string) => header.indexOf(field);
-    const errors: Array<{ row: number; message: string }> = [];
-    let imported = 0;
-    let skipped = 0;
-    for (let rowNumber = 1; rowNumber < rows.length; rowNumber += 1) {
-      const row = rows[rowNumber]!;
-      if (row.every((value) => !value.trim())) continue;
-      try {
-        const input = {
-          name: row[index("name")] || "",
-          type: row[index("type")] || "",
-          pattern: row[index("pattern")] || "",
-          direction: row[index("direction")] || "",
-          action: row[index("action")] || "",
-          enabled: (row[index("enabled")] || "true").trim().toLowerCase() !== "false",
-          priority: Number(row[index("priority")] || 100),
-        };
-        await this.validateRule(input);
-        const existing = await this.repository.findActiveByOwnerPattern(userId, input.pattern.trim());
-        if (existing) skipped += 1;
-        else {
-          await this.createUserRule(userId, input);
-          imported += 1;
-        }
-      } catch (error) {
-        errors.push({ row: rowNumber + 1, message: error instanceof Error ? error.message : "Invalid rule" });
-      }
+  async importUserCsv(userId: string, csv: string, mode: "preview" | "apply" = "apply", overwrite = false) {
+    const preview = await this.prepareCsvImport(csv, userId);
+    if (preview.errors.length || mode === "preview") {
+      const { _operations: _ignored, ...result } = preview as any;
+      return result;
     }
-    return { imported, skipped, errors };
+    const operations = (preview as any)._operations
+      .filter((item: any) => item.operation !== "skip")
+      .map((item: any) => ({ operation: item.operation as "create" | "update", id: item.id, data: item.data! }));
+    const selected = overwrite ? operations : operations.filter((operation: any) => operation.operation === "create");
+    if (selected.length) await this.repository.applyUserRuleImport(userId, selected);
+    this.rulesCache = null;
+    const { _operations: _ignored, ...result } = preview as any;
+    return {
+      ...result,
+      imported: selected.filter((item: any) => item.operation === "create").length,
+      updated: selected.filter((item: any) => item.operation === "update").length,
+    };
+  }
+
+  async batchUpdateUserRules(
+    userId: string,
+    ids: string[],
+    changes: {
+      enabled?: boolean;
+      action?: ContentSafetyAction;
+      direction?: ContentSafetyDirection | "both";
+      priority?: number;
+    },
+  ) {
+    const { enabled, ...ruleChanges } = changes;
+    const result = await this.repository.batchUpdateUserRules(userId, ids, ruleChanges, enabled);
+    this.rulesCache = null;
+    return { updated: result.count };
   }
 
   async getEffectivePolicy(userId: string, tokenConfig?: ContentSafetyPolicyOverride | null) {
@@ -693,58 +685,92 @@ export class ContentSafetyService {
     this.rulesCache = null;
     return { created };
   }
-  async importCsv(csv: string) {
-    if (Buffer.byteLength(csv, "utf8") > 1024 * 1024) throw new BadRequestError("Content safety CSV is too large");
-    const rows = this.parseCsv(csv);
-    if (rows.length < 2) throw new BadRequestError("Content safety CSV must include a header and at least one row");
-    const header = rows[0]!.map((value) =>
-      value
-        .replace(/^\uFEFF/, "")
-        .trim()
-        .toLowerCase(),
-    );
-    const required = ["name", "type", "pattern", "direction", "action"];
-    if (required.some((field) => !header.includes(field)))
-      throw new BadRequestError("Content safety CSV header is invalid");
-    const index = (field: string) => header.indexOf(field);
-    const errors: Array<{ row: number; message: string }> = [];
-    let imported = 0;
-    let skipped = 0;
-    for (let rowNumber = 1; rowNumber < rows.length; rowNumber += 1) {
-      const row = rows[rowNumber]!;
-      if (row.every((value) => !value.trim())) continue;
-      const input = {
-        name: row[index("name")] || "",
-        type: row[index("type")] || "",
-        pattern: row[index("pattern")] || "",
-        direction: row[index("direction")] || "",
-        action: row[index("action")] || "",
-        enabled: (row[index("enabled")] || "true").trim().toLowerCase() !== "false",
-        priority: Number(row[index("priority")] || 100),
-      };
-      try {
-        await this.validateRule(input);
-        if (await this.repository.findActiveByPattern(input.pattern.trim())) {
-          skipped += 1;
-          continue;
-        }
-        await this.repository.create({
-          name: input.name.trim(),
-          type: input.type,
-          pattern: input.pattern.trim(),
-          direction: input.direction,
-          action: input.action,
-          enabled: input.enabled,
-          priority: input.priority,
-          source: "csv",
-        });
-        imported += 1;
-      } catch (error) {
-        errors.push({ row: rowNumber + 1, message: error instanceof Error ? error.message : "Invalid rule" });
-      }
+  async importCsv(csv: string, mode: "preview" | "apply" = "apply", overwrite = false) {
+    const preview = await this.prepareCsvImport(csv);
+    if (preview.errors.length || mode === "preview") {
+      const { _operations: _ignored, ...result } = preview as any;
+      return result;
     }
+    const operations = (preview as any)._operations
+      .filter((item: any) => item.operation !== "skip")
+      .map((item: any) => ({ operation: item.operation as "create" | "update", id: item.id, data: item.data! }));
+    const selected = overwrite ? operations : operations.filter((operation: any) => operation.operation === "create");
+    if (selected.length) await this.repository.applySystemRuleImport(selected);
     this.rulesCache = null;
-    return { imported, skipped, errors };
+    const { _operations: _ignored, ...result } = preview as any;
+    return {
+      ...result,
+      imported: selected.filter((item: any) => item.operation === "create").length,
+      updated: selected.filter((item: any) => item.operation === "update").length,
+    };
+  }
+
+  async batchUpdateRules(
+    ids: string[],
+    changes: {
+      enabled?: boolean;
+      action?: ContentSafetyAction;
+      direction?: ContentSafetyDirection | "both";
+      priority?: number;
+    },
+  ) {
+    await this.repository.batchUpdateSystemRules(ids, changes);
+    this.rulesCache = null;
+    return { updated: ids.length };
+  }
+
+  async exportPolicy(userId: string | undefined, format: "json" | "csv", scope: "user" | "system") {
+    const config = scope === "user" && userId ? await this.getEffectivePolicy(userId) : await this.getPublicConfig();
+    const rows = await this.repository.listRulesForExport(scope === "user" ? userId : undefined);
+    const rules = rows.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      pattern: row.pattern,
+      direction: row.direction,
+      action: row.action,
+      enabled:
+        scope === "user" && row.ownerUserId === null ? (row.userOverrides?.[0]?.enabled ?? row.enabled) : row.enabled,
+      priority: row.priority,
+      source: row.source,
+    }));
+    if (format === "csv") {
+      const header = "id,name,type,pattern,direction,action,enabled,priority,source";
+      const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+      const content = [
+        header,
+        ...rules.map((rule) =>
+          [
+            rule.id,
+            rule.name,
+            rule.type,
+            rule.pattern,
+            rule.direction,
+            rule.action,
+            rule.enabled,
+            rule.priority,
+            rule.source,
+          ]
+            .map(escape)
+            .join(","),
+        ),
+      ].join("\n");
+      return { format, filename: `content-safety-${scope}.csv`, content };
+    }
+    return {
+      format,
+      filename: `content-safety-${scope}.json`,
+      content: JSON.stringify(
+        {
+          exportedAt: new Date().toISOString(),
+          scope,
+          config: { ...config, aiApiKeyConfigured: Boolean((config as any).aiApiKeyConfigured) },
+          rules,
+        },
+        null,
+        2,
+      ),
+    };
   }
   async listRules(page = 1, pageSize = 50) {
     return this.repository.listAllRules(page, pageSize);
@@ -780,6 +806,98 @@ export class ContentSafetyService {
     this.rulesCache = null;
     return this.repository.softDelete(id);
   }
+  private stableRuleKey(input: { type: string; direction: string; pattern: string }) {
+    return `${input.type}|${input.direction}|${normalizeText(input.pattern)}`;
+  }
+
+  private async prepareCsvImport(csv: string, ownerUserId?: string) {
+    if (Buffer.byteLength(csv, "utf8") > 1024 * 1024) throw new BadRequestError("Content safety CSV is too large");
+    const rows = this.parseCsv(csv);
+    if (rows.length < 2) throw new BadRequestError("Content safety CSV must include a header and at least one row");
+    const header = rows[0]!.map((value) =>
+      value
+        .replace(/^\uFEFF/, "")
+        .trim()
+        .toLowerCase(),
+    );
+    const required = ["name", "type", "pattern", "direction", "action"];
+    if (required.some((field) => !header.includes(field)))
+      throw new BadRequestError("Content safety CSV header is invalid");
+    const index = (field: string) => header.indexOf(field);
+    const existingRows: any[] = await this.repository.listRulesForExport(ownerUserId);
+    const byId = new Map(existingRows.map((row) => [row.id, row]));
+    const byKey = new Map(existingRows.map((row) => [this.stableRuleKey(row), row]));
+    const seen = new Set<string>();
+    const errors: Array<{ row: number; message: string }> = [];
+    const operations: Array<any> = [];
+    for (let rowNumber = 1; rowNumber < rows.length; rowNumber += 1) {
+      const row = rows[rowNumber]!;
+      if (row.every((value) => !value.trim())) continue;
+      const input = {
+        id: (row[index("id")] || "").trim() || undefined,
+        name: row[index("name")] || "",
+        type: row[index("type")] || "",
+        pattern: row[index("pattern")] || "",
+        direction: row[index("direction")] || "",
+        action: row[index("action")] || "",
+        enabled: (row[index("enabled")] || "true").trim().toLowerCase() !== "false",
+        priority: Number(row[index("priority")] || 100),
+      };
+      try {
+        await this.validateRule(input);
+        const key = this.stableRuleKey(input);
+        if (seen.has(input.id || key)) throw new BadRequestError("Duplicate rule key in CSV");
+        seen.add(input.id || key);
+        const existing = input.id ? byId.get(input.id) : byKey.get(key);
+        if (ownerUserId && existing?.ownerUserId === null)
+          throw new BadRequestError("System rules cannot be overwritten from a user CSV");
+        const data = {
+          name: input.name.trim(),
+          type: input.type,
+          pattern: input.pattern.trim(),
+          direction: input.direction,
+          action: input.action,
+          enabled: input.enabled,
+          priority: input.priority,
+          source: ownerUserId ? "user" : existing?.source === "default" ? existing.source : "csv",
+          ...(ownerUserId ? { ownerUserId } : {}),
+        };
+        operations.push({
+          row: rowNumber + 1,
+          operation: existing ? "update" : "create",
+          id: existing?.id,
+          name: input.name.trim(),
+          pattern: input.pattern.trim(),
+          oldValue: existing
+            ? {
+                name: existing.name,
+                type: existing.type,
+                pattern: existing.pattern,
+                direction: existing.direction,
+                action: existing.action,
+                enabled: existing.enabled,
+                priority: existing.priority,
+              }
+            : undefined,
+          newValue: data,
+          data,
+        });
+      } catch (error) {
+        errors.push({ row: rowNumber + 1, message: error instanceof Error ? error.message : "Invalid rule" });
+      }
+    }
+    const creates = operations.filter((item) => item.operation === "create").length;
+    const updates = operations.filter((item) => item.operation === "update").length;
+    return {
+      imported: creates,
+      updated: updates,
+      skipped: updates,
+      errors,
+      operations: operations.map(({ data: _data, ...operation }) => operation),
+      _operations: operations,
+    } as any;
+  }
+
   async listIncidents(page = 1, pageSize = 50, userId?: string) {
     return this.repository.listIncidents(page, pageSize, userId);
   }

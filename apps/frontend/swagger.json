@@ -11543,43 +11543,7 @@
 						"description": "Ok",
 						"content": {
 							"application/json": {
-								"schema": {
-									"properties": {
-										"errors": {
-											"items": {
-												"properties": {
-													"message": {
-														"type": "string"
-													},
-													"row": {
-														"type": "number",
-														"format": "double"
-													}
-												},
-												"required": [
-													"message",
-													"row"
-												],
-												"type": "object"
-											},
-											"type": "array"
-										},
-										"skipped": {
-											"type": "number",
-											"format": "double"
-										},
-										"imported": {
-											"type": "number",
-											"format": "double"
-										}
-									},
-									"required": [
-										"errors",
-										"skipped",
-										"imported"
-									],
-									"type": "object"
-								}
+								"schema": {}
 							}
 						}
 					}
@@ -11599,6 +11563,78 @@
 						"application/json": {
 							"schema": {
 								"$ref": "#/components/schemas/ContentSafetyCsvImportRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/content-safety/user-rules/batch-update": {
+			"post": {
+				"operationId": "ContentSafetyControllerBatchUpdateUserRules",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContentSafetyBatchUpdateResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyBatchUpdateRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/content-safety/user-rules/export": {
+			"post": {
+				"operationId": "ContentSafetyControllerExportUserRules",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContentSafetyExportDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyExportRequest"
 							}
 						}
 					}
@@ -11902,6 +11938,79 @@
 					}
 				},
 				"X-Replay-Protected": true
+			}
+		},
+		"/v1/content-safety/rules/batch-update": {
+			"post": {
+				"operationId": "ContentSafetyControllerBatchUpdateRules",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContentSafetyBatchUpdateResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyBatchUpdateRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/content-safety/rules/export": {
+			"post": {
+				"operationId": "ContentSafetyControllerExportRules",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ContentSafetyExportDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Content Safety"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSafetyExportRequest"
+							}
+						}
+					}
+				}
 			}
 		},
 		"/v1/content-safety/rules/{id}": {
@@ -39150,6 +39259,16 @@
 					"csv": {
 						"type": "string"
 					},
+					"mode": {
+						"type": "string",
+						"enum": [
+							"preview",
+							"apply"
+						]
+					},
+					"overwrite": {
+						"type": "boolean"
+					},
 					"targetUserId": {
 						"type": "string"
 					}
@@ -39157,6 +39276,106 @@
 				"required": [
 					"csv"
 				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyBatchUpdateResponse": {
+				"properties": {
+					"updated": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"updated"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyBatchUpdateRequest": {
+				"properties": {
+					"ids": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"changes": {
+						"properties": {
+							"priority": {
+								"type": "number",
+								"format": "double"
+							},
+							"direction": {
+								"anyOf": [
+									{
+										"$ref": "#/components/schemas/ContentSafetyDirection"
+									},
+									{
+										"type": "string",
+										"enum": [
+											"both"
+										]
+									}
+								]
+							},
+							"action": {
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							},
+							"enabled": {
+								"type": "boolean"
+							}
+						},
+						"type": "object"
+					},
+					"targetUserId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"ids",
+					"changes"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyExportDto": {
+				"properties": {
+					"format": {
+						"type": "string",
+						"enum": [
+							"json",
+							"csv"
+						]
+					},
+					"filename": {
+						"type": "string"
+					},
+					"content": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"format",
+					"filename",
+					"content"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetyExportRequest": {
+				"properties": {
+					"format": {
+						"type": "string",
+						"enum": [
+							"json",
+							"csv"
+						]
+					},
+					"targetUserId": {
+						"type": "string"
+					}
+				},
 				"type": "object",
 				"additionalProperties": false
 			},
@@ -39230,9 +39449,66 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"Partial_ContentSafetyRuleDto_": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"type": {
+						"$ref": "#/components/schemas/ContentSafetyRuleType"
+					},
+					"pattern": {
+						"type": "string"
+					},
+					"direction": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyDirection"
+							},
+							{
+								"type": "string",
+								"enum": [
+									"both"
+								]
+							}
+						]
+					},
+					"action": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"priority": {
+						"type": "number",
+						"format": "double"
+					},
+					"source": {
+						"type": "string"
+					},
+					"ownerUserId": {
+						"type": "string"
+					},
+					"userEnabled": {
+						"type": "boolean"
+					},
+					"canEdit": {
+						"type": "boolean"
+					}
+				},
+				"type": "object",
+				"description": "Make all properties in T optional"
+			},
 			"ContentSafetyCsvImportResponse": {
 				"properties": {
 					"imported": {
+						"type": "number",
+						"format": "double"
+					},
+					"updated": {
 						"type": "number",
 						"format": "double"
 					},
@@ -39253,6 +39529,47 @@
 							},
 							"required": [
 								"message",
+								"row"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					},
+					"operations": {
+						"items": {
+							"properties": {
+								"newValue": {
+									"$ref": "#/components/schemas/Partial_ContentSafetyRuleDto_"
+								},
+								"oldValue": {
+									"$ref": "#/components/schemas/Partial_ContentSafetyRuleDto_"
+								},
+								"pattern": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								},
+								"id": {
+									"type": "string"
+								},
+								"operation": {
+									"type": "string",
+									"enum": [
+										"create",
+										"update",
+										"skip"
+									]
+								},
+								"row": {
+									"type": "number",
+									"format": "double"
+								}
+							},
+							"required": [
+								"pattern",
+								"name",
+								"operation",
 								"row"
 							],
 							"type": "object"

@@ -54,6 +54,11 @@ export const createAppRouter = (profile: ResolvedSiteProfile) => {
     routes: [],
   })
 
+  router.onError((error, to) => {
+    console.warn('[router] Failed to load route view', { route: String(to.name ?? ''), error })
+    if (to.name !== 'home') void router.replace({ name: 'home' }).catch(() => undefined)
+  })
+
   installNavigationGuards(router, profile)
   return router
 }

@@ -458,12 +458,6 @@
             i18ns.t('save')
           }}</el-button>
         </div>
-        <PermissionWrapper
-          :require="[Permission.SYSTEM_CONFIG]"
-          class="relay-settings-content-safety"
-        >
-          <ContentSafetyManagementPanel />
-        </PermissionWrapper>
       </div>
 
       <el-dialog
@@ -782,7 +776,6 @@ import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
 import RelayChannelManagementPanel from './RelayChannelManagementPanel.vue'
-import ContentSafetyManagementPanel from '@/components/content-safety/ContentSafetyManagementPanel.vue'
 
 const state = useRelaySettingsManagementContext()
 
