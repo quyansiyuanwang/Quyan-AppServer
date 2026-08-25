@@ -34,6 +34,26 @@ export const contentSafetyCsvImportSchema = z.object({
     .string()
     .min(1)
     .max(1024 * 1024),
+  mode: z.enum(["preview", "apply"]).optional(),
+  overwrite: z.coerce.boolean().optional(),
+  targetUserId: z.string().trim().min(1).optional(),
+});
+
+export const contentSafetyBatchUpdateSchema = z.object({
+  ids: z.array(z.string().trim().min(1)).min(1).max(500),
+  changes: z
+    .object({
+      enabled: z.boolean().optional(),
+      action: z.enum(["unreachable", "blackhole", "allow"]).optional(),
+      direction: z.enum(["request", "response", "both"]).optional(),
+      priority: z.number().int().min(0).max(100000).optional(),
+    })
+    .refine((value) => Object.keys(value).length > 0, "At least one change is required"),
+  targetUserId: z.string().trim().min(1).optional(),
+});
+
+export const contentSafetyExportSchema = z.object({
+  format: z.enum(["json", "csv"]).optional(),
   targetUserId: z.string().trim().min(1).optional(),
 });
 

@@ -990,6 +990,12 @@ export const routes = [
             meta: { permission: Permission.RELAY_TOKEN_READ },
           },
           {
+            path: 'relay/content-safety/system',
+            name: 'relayContentSafetySystem',
+            component: lazyFeatureView('relay', 'RelayContentSafetySystemView.vue'),
+            meta: { permission: Permission.SYSTEM_CONFIG },
+          },
+          {
             path: 'channels/health',
             name: 'relayChannelHealth',
             component: lazyFeatureView('relay', 'RelayChannelHealthView.vue'),

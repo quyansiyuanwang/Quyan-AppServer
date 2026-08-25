@@ -25,6 +25,10 @@ import type {
   ContentSafetyCsvImportResponse,
   ContentSafetyUserConfigRequest,
   ContentSafetyRuleOverrideRequest,
+  ContentSafetyBatchUpdateRequest,
+  ContentSafetyBatchUpdateResponse,
+  ContentSafetyExportDto,
+  ContentSafetyExportRequest,
 } from "@/api/dto/system/content-safety.dto";
 import {
   contentSafetyConfigSchema,
@@ -32,6 +36,8 @@ import {
   contentSafetyCsvImportSchema,
   contentSafetyUserConfigSchema,
   contentSafetyRuleOverrideSchema,
+  contentSafetyBatchUpdateSchema,
+  contentSafetyExportSchema,
 } from "@/api/schema/system/content-safety.schema";
 import { validateBody } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
@@ -117,7 +123,36 @@ export class ContentSafetyController extends Controller {
   @Post("user-rules/import-csv")
   @Middlewares(validateBody(contentSafetyCsvImportSchema))
   async importUserCsv(@Body() body: ContentSafetyCsvImportRequest, @Request() request: TypedRequest) {
-    return this.service.importUserCsv(await this.resolveUserScope(request, body.targetUserId), body.csv);
+    return this.service.importUserCsv(
+      await this.resolveUserScope(request, body.targetUserId),
+      body.csv,
+      body.mode ?? "apply",
+      body.overwrite === true,
+    );
+  }
+  @Post("user-rules/batch-update")
+  @Middlewares(validateBody(contentSafetyBatchUpdateSchema))
+  async batchUpdateUserRules(
+    @Body() body: ContentSafetyBatchUpdateRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ContentSafetyBatchUpdateResponse> {
+    return this.service.batchUpdateUserRules(
+      await this.resolveUserScope(request, body.targetUserId),
+      body.ids,
+      body.changes,
+    );
+  }
+  @Post("user-rules/export")
+  @Middlewares(validateBody(contentSafetyExportSchema))
+  async exportUserRules(
+    @Body() body: ContentSafetyExportRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ContentSafetyExportDto> {
+    return this.service.exportPolicy(
+      await this.resolveUserScope(request, body.targetUserId),
+      body.format ?? "json",
+      "user",
+    );
   }
   @Put("config")
   @RequirePermission(Permission.SYSTEM_CONFIG)
@@ -151,7 +186,23 @@ export class ContentSafetyController extends Controller {
     validateBody(contentSafetyCsvImportSchema),
   )
   async importCsv(@Body() body: ContentSafetyCsvImportRequest): Promise<ContentSafetyCsvImportResponse> {
-    return this.service.importCsv(body.csv);
+    return this.service.importCsv(body.csv, body.mode ?? "apply", body.overwrite === true);
+  }
+  @Post("rules/batch-update")
+  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(contentSafetyBatchUpdateSchema),
+  )
+  async batchUpdateRules(@Body() body: ContentSafetyBatchUpdateRequest): Promise<ContentSafetyBatchUpdateResponse> {
+    return this.service.batchUpdateRules(body.ids, body.changes);
+  }
+  @Post("rules/export")
+  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @Middlewares(validateBody(contentSafetyExportSchema))
+  async exportRules(@Body() body: ContentSafetyExportRequest): Promise<ContentSafetyExportDto> {
+    return this.service.exportPolicy(undefined, body.format ?? "json", "system");
   }
   @Post("rules")
   @RequirePermission(Permission.SYSTEM_CONFIG)
