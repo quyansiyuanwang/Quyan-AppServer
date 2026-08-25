@@ -31,12 +31,46 @@ export interface ContentSafetyRuleRequest {
 }
 export interface ContentSafetyCsvImportRequest {
   csv: string;
+  mode?: "preview" | "apply";
+  overwrite?: boolean;
   targetUserId?: string;
 }
 export interface ContentSafetyCsvImportResponse {
   imported: number;
+  updated?: number;
   skipped: number;
   errors: Array<{ row: number; message: string }>;
+  operations?: Array<{
+    row: number;
+    operation: "create" | "update" | "skip";
+    id?: string;
+    name: string;
+    pattern: string;
+    oldValue?: Partial<ContentSafetyRuleDto>;
+    newValue?: Partial<ContentSafetyRuleDto>;
+  }>;
+}
+export interface ContentSafetyBatchUpdateRequest {
+  ids: string[];
+  changes: {
+    enabled?: boolean;
+    action?: ContentSafetyAction;
+    direction?: ContentSafetyDirection | "both";
+    priority?: number;
+  };
+  targetUserId?: string;
+}
+export interface ContentSafetyBatchUpdateResponse {
+  updated: number;
+}
+export interface ContentSafetyExportRequest {
+  format?: "json" | "csv";
+  targetUserId?: string;
+}
+export interface ContentSafetyExportDto {
+  format: "json" | "csv";
+  filename: string;
+  content: string;
 }
 export interface ContentSafetyConfigDto {
   requestEnabled: boolean;

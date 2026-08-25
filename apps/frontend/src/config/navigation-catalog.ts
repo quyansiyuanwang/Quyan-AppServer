@@ -83,6 +83,7 @@ const relayMenu = group(
     ]),
     item('relaySettings', 'nav.relaySettings', Tools, [Permission.MODEL_PRICING_UPDATE]),
     item('relayContentSafety', 'nav.contentSafety', Tools, [Permission.RELAY_TOKEN_READ]),
+    item('relayContentSafetySystem', 'nav.contentSafetySystem', Tools, [Permission.SYSTEM_CONFIG]),
     item('relayChannelHealth', 'nav.relayChannelHealth', Monitor, [
       Permission.RELAY_CHANNEL_HEALTH_READ,
     ]),
