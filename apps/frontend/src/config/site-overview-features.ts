@@ -115,7 +115,7 @@ export const siteOverviewFeatures: readonly SiteOverviewFeature[] = [
   ),
   feature('relayChannelReview', 'nav.relayChannelReview', Document, managementAi),
   feature('relaySettings', 'nav.relaySettings', Tools, managementAi),
-  feature('relayContentSafety', 'nav.contentSafety', Tools, managementAi, undefined, [
+  feature('relayContentSafety', 'nav.contentSafety', Tools, ai, undefined, [
     Permission.RELAY_TOKEN_READ,
   ]),
   feature('relayContentSafetySystem', 'nav.contentSafetySystem', Tools, managementAi, undefined, [
