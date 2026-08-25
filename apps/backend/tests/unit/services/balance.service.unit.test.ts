@@ -9,7 +9,6 @@ describe("BalanceService", () => {
     findAccountsByUserIds: vi.fn(),
     recharge: vi.fn(),
     findTransactions: vi.fn(),
-    sumCacheTokensByUserId: vi.fn(),
   };
 
   const userRepository = {
@@ -119,30 +118,23 @@ describe("BalanceService", () => {
     expect(balanceRepository.findTransactions).toHaveBeenCalledWith(expect.any(Object), 1, 100);
   });
 
-  it("returns balance statistics as numbers", async () => {
+  it("returns balance statistics without an account-wide cache rate", async () => {
     balanceRepository.findAccountByUserId.mockResolvedValue({
       userId: "u-1",
       totalRecharged: new Decimal(123.45),
       totalUsed: new Decimal(67.89),
     });
-    balanceRepository.sumCacheTokensByUserId.mockResolvedValue({
-      inputTokens: 800,
-      cacheReadTokens: 200,
-    });
-
     const stats = await service.getBalanceStatistics("u-1");
 
-    expect(stats).toEqual({ total: 123.45, used: 67.89, cacheHitRate: 0.2 });
+    expect(stats).toEqual({ total: 123.45, used: 67.89 });
   });
 
-  it("reports zero cache hit rate when no prompt tokens were recorded", async () => {
+  it("returns zero account statistics when no account exists", async () => {
     balanceRepository.findAccountByUserId.mockResolvedValue(null);
-    balanceRepository.sumCacheTokensByUserId.mockResolvedValue({ inputTokens: 0, cacheReadTokens: 0 });
 
     await expect(service.getBalanceStatistics("u-empty")).resolves.toEqual({
       total: 0,
       used: 0,
-      cacheHitRate: 0,
     });
   });
 });

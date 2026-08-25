@@ -47,6 +47,8 @@ export interface BalanceTransactionResponse {
   outputTokens?: number;
   cacheCreationTokens?: number;
   cacheReadTokens?: number;
+  /** Cache read tokens divided by this request's input context tokens. */
+  cacheHitRate?: number | null;
   inputRate?: number;
   outputRate?: number;
   multiplier?: number;
