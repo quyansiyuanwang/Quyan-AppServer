@@ -600,7 +600,7 @@ export const routeCatalog = attachLegacyPaths([
   },
   {
     name: 'relayContentSafety',
-    group: 'management-ai',
+    group: 'console-ai',
     path: '/relay/content-safety',
     overviewCategory: 'console-ai',
   },
