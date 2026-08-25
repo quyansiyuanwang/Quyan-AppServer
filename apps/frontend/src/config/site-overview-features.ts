@@ -80,7 +80,6 @@ export const siteOverviewFeatures: readonly SiteOverviewFeature[] = [
   feature('settingsSecurity', 'nav.settingsSecurity', Lock, account),
   feature('notificationSettings', 'nav.notificationSettings', ChatDotRound, account),
   feature('settingsPreferences', 'nav.preferences', Tools, account),
-  feature('settingsContentSafety', 'nav.contentSafety', Tools, account),
   feature('balanceHistory', 'relay.accountBalance', Wallet, account, 'balance', [
     Permission.RELAY_TOKEN_READ,
   ]),
@@ -116,6 +115,9 @@ export const siteOverviewFeatures: readonly SiteOverviewFeature[] = [
   ),
   feature('relayChannelReview', 'nav.relayChannelReview', Document, managementAi),
   feature('relaySettings', 'nav.relaySettings', Tools, managementAi),
+  feature('relayContentSafety', 'nav.contentSafety', Tools, managementAi, undefined, [
+    Permission.RELAY_TOKEN_READ,
+  ]),
   feature(
     'relayChannelHealth',
     'nav.relayChannelHealth',

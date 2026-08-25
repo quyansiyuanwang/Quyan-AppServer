@@ -3111,6 +3111,12 @@ export default {
     importTokens: 'Import Tokens',
     batchEnableTokens: 'Batch Enable',
     batchDisableTokens: 'Batch Disable',
+    batchApplyContentSafety: 'Apply User Content Safety Policy',
+    batchClearContentSafety: 'Clear Content Safety Overrides',
+    confirmClearContentSafetyOverrides:
+      'Selected tokens will inherit the user content safety policy. Continue?',
+    contentSafetyPolicyApplied: 'User content safety policy applied to {count} tokens',
+    contentSafetyOverridesCleared: 'Cleared content safety overrides for {count} tokens',
     batchDeleteTokens: 'Batch Delete',
     batchDuplicateTokens: 'Batch Duplicate',
     batchExportTokens: 'Batch Export',

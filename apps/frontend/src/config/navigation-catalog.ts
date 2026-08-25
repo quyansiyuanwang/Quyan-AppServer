@@ -82,6 +82,7 @@ const relayMenu = group(
       Permission.RELAY_CHANNEL_REVIEW,
     ]),
     item('relaySettings', 'nav.relaySettings', Tools, [Permission.MODEL_PRICING_UPDATE]),
+    item('relayContentSafety', 'nav.contentSafety', Tools, [Permission.RELAY_TOKEN_READ]),
     item('relayChannelHealth', 'nav.relayChannelHealth', Monitor, [
       Permission.RELAY_CHANNEL_HEALTH_READ,
     ]),
@@ -125,7 +126,6 @@ export const navigationMenuDefinition: readonly NavigationNode[] = [
   item('settingsSecurity', 'nav.settingsSecurity', Lock),
   item('notificationSettings', 'nav.notificationSettings', Bell),
   item('settingsPreferences', 'nav.preferences', Tools),
-  item('settingsContentSafety', 'nav.contentSafety', Tools),
   item('balanceHistory', 'relay.accountBalance', Wallet, [Permission.RELAY_TOKEN_READ]),
   item('consumptionRecords', 'nav.consumptionRecords', TrendCharts, [Permission.RELAY_TOKEN_READ]),
   item(

@@ -1444,6 +1444,43 @@ export const useRelayTokenManagement = () => {
     }
   }
 
+  const handleBatchContentSafety = async (mode: 'snapshot' | 'clear') => {
+    const ids = ensureSelectedTokenIds()
+    if (!ids) return
+    const count = ids.length
+    try {
+      if (mode === 'clear') {
+        await ElMessageBox.confirm(
+          i18ns.t('relay.confirmClearContentSafetyOverrides'),
+          i18ns.t('warning'),
+          {
+            type: 'warning',
+          },
+        )
+      }
+      await relayTokenService.batchContentSafety({
+        ids,
+        mode,
+        targetUserId: currentTargetUserIdForRequest.value,
+      })
+      invalidateAllTokensCache()
+      clearTokenSelection()
+      ElMessage.success(
+        i18ns.t(
+          mode === 'clear'
+            ? 'relay.contentSafetyOverridesCleared'
+            : 'relay.contentSafetyPolicyApplied',
+          {
+            count,
+          },
+        ),
+      )
+      await loadTokens({ forceAllReload: true })
+    } catch (error: any) {
+      if (error !== 'cancel') ElMessage.error(error.message || i18ns.t('operationFailed'))
+    }
+  }
+
   const handleBatchDeleteTokens = async () => {
     const ids = ensureSelectedTokenIds()
     if (!ids) return
@@ -1487,6 +1524,12 @@ export const useRelayTokenManagement = () => {
         break
       case 'disable':
         await handleBatchSetTokenStatus(false)
+        break
+      case 'content-safety-apply':
+        await handleBatchContentSafety('snapshot')
+        break
+      case 'content-safety-clear':
+        await handleBatchContentSafety('clear')
         break
       case 'delete':
         await handleBatchDeleteTokens()
@@ -2843,6 +2886,7 @@ export const useRelayTokenManagement = () => {
     handleSelectAllVisibleTokens,
     clearTokenSelection,
     handleBatchTokenCommand,
+    handleBatchContentSafety,
     handleSearch,
     toggleShowAll,
     handleCurrentPageChange,

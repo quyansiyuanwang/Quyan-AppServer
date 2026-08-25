@@ -1,5 +1,5 @@
 <template>
-  <AccountProfileLayout>
+  <component :is="embedded ? 'div' : AccountProfileLayout">
     <div class="content-safety-user" v-loading="loading">
       <div class="page-header">
         <h1 class="page-title">{{ i18ns.t('contentSafety.title') }}</h1>
@@ -181,7 +181,7 @@
         ><el-button type="primary" @click="saveRule">{{ i18ns.t('save') }}</el-button></template
       >
     </el-dialog>
-  </AccountProfileLayout>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -192,6 +192,7 @@ import ContentSafetyPolicyFields from '@/components/content-safety/ContentSafety
 import { i18ns } from '@/locales'
 import { useRequestStore } from '@/stores/request'
 import { createContentSafetyControllerApi } from '@/client/services/content-safety-controller.gen'
+const { embedded = false } = defineProps<{ embedded?: boolean }>()
 const api = () => createContentSafetyControllerApi(useRequestStore().getAxios())
 const unwrap = (v: any) => v?.data?.data ?? v?.data ?? v
 const escapeHtml = (value: unknown) =>

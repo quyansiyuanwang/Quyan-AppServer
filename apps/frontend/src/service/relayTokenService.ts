@@ -5,6 +5,7 @@ import type {
   BatchDuplicateRelayTokensRequest,
   BatchRelayTokensResultDto,
   BatchSetRelayTokenStatusRequest,
+  BatchRelayTokenContentSafetyRequest,
   CreateRelayTokenDto,
   DuplicateRelayTokenRequest,
   ExportRelayTokensRequest,
@@ -171,6 +172,13 @@ class RelayTokenService {
     data: BatchSetRelayTokenStatusRequest,
   ): Promise<BatchRelayTokensResultDto> {
     const result = await relayApi.batchSetTokenStatus({ body: data })
+    return this.unwrapResponse(result)
+  }
+
+  async batchContentSafety(
+    data: BatchRelayTokenContentSafetyRequest,
+  ): Promise<BatchRelayTokensResultDto> {
+    const result = await relayApi.batchContentSafety({ body: data })
     return this.unwrapResponse(result)
   }
 

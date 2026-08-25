@@ -16714,6 +16714,48 @@
 				}
 			}
 		},
+		"/v1/relay/tokens/batch/content-safety": {
+			"post": {
+				"operationId": "RelayControllerBatchContentSafety",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BatchRelayTokensResultDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BatchRelayTokenContentSafetyRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/relay/tokens/batch/delete": {
 			"post": {
 				"operationId": "RelayControllerBatchDeleteTokens",
@@ -43827,6 +43869,32 @@
 				"required": [
 					"ids",
 					"enabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchRelayTokenContentSafetyRequest": {
+				"properties": {
+					"ids": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"mode": {
+						"type": "string",
+						"enum": [
+							"snapshot",
+							"clear"
+						]
+					},
+					"targetUserId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"ids",
+					"mode"
 				],
 				"type": "object",
 				"additionalProperties": false

@@ -86,6 +86,12 @@ export interface BatchRelayTokensResultDto {
   affected: number;
 }
 
+export interface BatchRelayTokenContentSafetyRequest {
+  ids: string[];
+  mode: "snapshot" | "clear";
+  targetUserId?: string;
+}
+
 export interface CreateRelayTokenDto {
   routingMode?: "ordered" | "automatic-pool";
   automaticProxyPoolChannelId?: string;

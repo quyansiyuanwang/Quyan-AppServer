@@ -110,6 +110,14 @@
                     i18ns.t('relay.batchDisableTokens')
                   }}</el-dropdown-item>
                 </PermissionWrapper>
+                <PermissionWrapper :require="[Permission.RELAY_TOKEN_UPDATE]">
+                  <el-dropdown-item command="content-safety-apply">
+                    {{ i18ns.t('relay.batchApplyContentSafety') }}
+                  </el-dropdown-item>
+                  <el-dropdown-item command="content-safety-clear">
+                    {{ i18ns.t('relay.batchClearContentSafety') }}
+                  </el-dropdown-item>
+                </PermissionWrapper>
                 <PermissionWrapper :require="[Permission.RELAY_TOKEN_READ]">
                   <el-dropdown-item command="export" divided>{{
                     i18ns.t('relay.batchExportTokens')

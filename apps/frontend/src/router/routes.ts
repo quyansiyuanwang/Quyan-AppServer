@@ -989,6 +989,12 @@ export const routes = [
             },
           },
           {
+            path: 'relay/content-safety',
+            name: 'relayContentSafety',
+            component: lazyFeatureView('relay', 'RelayContentSafetyView.vue'),
+            meta: { permission: Permission.RELAY_TOKEN_READ },
+          },
+          {
             path: 'channels/health',
             name: 'relayChannelHealth',
             component: lazyFeatureView('relay', 'RelayChannelHealthView.vue'),
