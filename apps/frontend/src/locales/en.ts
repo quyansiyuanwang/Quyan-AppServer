@@ -1760,6 +1760,7 @@ export default {
     requestId: 'Request ID',
     tokenId: 'Token ID',
     channelId: 'Channel ID',
+    matchedContext: 'Matched context',
     statusCode: 'Status code',
     replaced: 'Replaced',
     userIdFilter: 'Filter by user ID',

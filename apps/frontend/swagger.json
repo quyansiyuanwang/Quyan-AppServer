@@ -12073,6 +12073,12 @@
 										"incidents": {
 											"items": {
 												"properties": {
+													"matchText": {
+														"type": "string"
+													},
+													"matchContext": {
+														"type": "string"
+													},
 													"blocked": {
 														"type": "boolean"
 													},
@@ -12112,6 +12118,9 @@
 													},
 													"rule": {
 														"properties": {
+															"pattern": {
+																"type": "string"
+															},
 															"type": {
 																"type": "string"
 															},
@@ -12120,6 +12129,7 @@
 															}
 														},
 														"required": [
+															"pattern",
 															"type",
 															"name"
 														],
@@ -12153,6 +12163,8 @@
 													}
 												},
 												"required": [
+													"matchText",
+													"matchContext",
 													"blocked",
 													"replaced",
 													"auditDurationMs",
@@ -12246,6 +12258,12 @@
 										"incidents": {
 											"items": {
 												"properties": {
+													"matchText": {
+														"type": "string"
+													},
+													"matchContext": {
+														"type": "string"
+													},
 													"blocked": {
 														"type": "boolean"
 													},
@@ -12285,6 +12303,9 @@
 													},
 													"rule": {
 														"properties": {
+															"pattern": {
+																"type": "string"
+															},
 															"type": {
 																"type": "string"
 															},
@@ -12293,6 +12314,7 @@
 															}
 														},
 														"required": [
+															"pattern",
 															"type",
 															"name"
 														],
@@ -12326,6 +12348,8 @@
 													}
 												},
 												"required": [
+													"matchText",
+													"matchContext",
 													"blocked",
 													"replaced",
 													"auditDurationMs",

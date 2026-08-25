@@ -1895,6 +1895,7 @@ const emoji: DeepStringify<typeof en> = {
     requestId: '🆔',
     tokenId: '🎫 🆔',
     channelId: '🔌 🆔',
+    matchedContext: '🎯 📝',
     statusCode: '🔢',
     replaced: '🧹',
     userIdFilter: '👤 🔎',

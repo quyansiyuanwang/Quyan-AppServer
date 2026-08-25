@@ -1698,6 +1698,7 @@ const zhCN: DeepStringify<typeof en> = {
     requestId: '请求标识',
     tokenId: '令牌标识',
     channelId: '渠道标识',
+    matchedContext: '命中位置（前后文）',
     statusCode: '状态码',
     replaced: '已替换',
     userIdFilter: '按用户 ID 筛选',
